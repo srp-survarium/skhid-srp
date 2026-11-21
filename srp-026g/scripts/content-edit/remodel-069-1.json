@@ -612,6 +612,12 @@
    "path": "object/model",
    "from": "weapons/winchester_1894",
    "to": "weapons/remodel_069/winchester_1894/winchester_1894"
+  },
+  {
+   "file": "gameplay/items/weapons/wpn_mp7_silencer_special.options",
+   "path": "object/model",
+   "from": "weapons/hk_mp7/hk_mp7_silencer",
+   "to": "weapons/remodel_069/mp7_silencer/mp7_silencer"
   }
  ]
 }

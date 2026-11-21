@@ -816,6 +816,14 @@
    "table": "data",
    "key": "srp_gun",
    "value": 90
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_mp7_silencer_special.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2222
   }
  ]
 }

@@ -106,8 +106,8 @@ pub struct Config {
     pub once: bool,
     /// The kit to press Play with; `None` for the one the account plays.
     pub kit: Option<u32>,
-    /// In a match, send the inputs of the stage 0 script (`srp::drive`).
-    pub drive: bool,
+    /// In a match, send the inputs of this script (`srp::drive`).
+    pub drive: Option<drive::Script>,
     /// The patch revision its sign-in says: one that speaks the late join
     /// (5 and later; only such a game plays in rooms).
     pub revision: u8,
@@ -679,7 +679,7 @@ impl Bot {
                             faults_told: 0,
                             relays: 0,
                             status_at: now + STATUS_EVERY,
-                            drive: drive.then(|| Drive::new(drive::stage_0())),
+                            drive: drive.map(|script| Drive::new(script.parts())),
                             dropped: 0,
                             moved: 0,
                         }

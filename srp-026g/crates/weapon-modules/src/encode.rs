@@ -9,7 +9,7 @@ use alloc::vec::Vec;
 use crate::math::Affine;
 use crate::slot::SlotId;
 use crate::table::{HAND_LOCATORS, MAGIC, Malformed, Table, VERSION};
-use crate::{Point, Role};
+use crate::{AttachEye, Point, Role};
 
 /// A gun. Modules and other guns are named by their index in [`Source`].
 #[derive(Clone, Debug, Default)]
@@ -23,6 +23,8 @@ pub struct GunSource {
     pub fits_of: Option<usize>,
     /// Its bare body's model.
     pub bare: String,
+    /// Its own eye (0.69d's `body_aim`): its locator's bone and offset.
+    pub body_aim: (u16, Affine),
     /// Its slots: the slot, its locator's bone and offset.
     pub slots: Vec<(SlotId, u16, Affine)>,
     /// Its aimed idle pose: a bone and its matrix in the model's space, for
@@ -52,7 +54,7 @@ pub struct ModuleSource {
 pub struct AttachSource {
     pub slot: SlotId,
     pub adds: Vec<(SlotId, Affine)>,
-    pub eye: Option<Affine>,
+    pub eye: Option<AttachEye>,
     pub fire_point: Option<Affine>,
     pub alters: Vec<SlotId>,
     pub closes: Vec<SlotId>,
@@ -145,6 +147,8 @@ pub fn encode(source: &Source) -> Result<Vec<u8>, EncodeError> {
         span(&mut s.guns, &s.carriers, CARRIER, gun.carriers.len())?;
         span(&mut s.guns, &s.fits, FIT, gun.fits.len())?;
         text(&mut s.guns, &mut s.strings, Some(&gun.bare))?;
+        s.guns.extend(gun.body_aim.0.to_le_bytes());
+        affine(&mut s.guns, &gun.body_aim.1);
         for (slot, bone, offset) in &gun.slots {
             s.gun_slots.push(slot.byte());
             s.gun_slots.extend(bone.to_le_bytes());
@@ -182,10 +186,14 @@ pub fn encode(source: &Source) -> Result<Vec<u8>, EncodeError> {
             affine(&mut s.hands, locator);
         }
         for attach in &module.attaches {
-            let points = [(Point::Eye, attach.eye), (Point::FirePoint, attach.fire_point)];
+            let eye = attach.eye.map(|eye| match eye {
+                AttachEye::Own(locator) => (Point::Eye, locator),
+                AttachEye::InGunPlane(locator) => (Point::EyeInGunPlane, locator),
+            });
+            let points = [eye, attach.fire_point.map(|at| (Point::FirePoint, at))];
             s.attaches.push(attach.slot.byte());
             span(&mut s.attaches, &s.adds, ADD, attach.adds.len())?;
-            span(&mut s.attaches, &s.points, POINT, points.iter().filter(|(_, locator)| locator.is_some()).count())?;
+            span(&mut s.attaches, &s.points, POINT, points.iter().flatten().count())?;
             span(&mut s.attaches, &s.slot_refs, SLOT_REF, attach.alters.len())?;
             s.slot_refs.extend(attach.alters.iter().map(|slot| slot.byte()));
             span(&mut s.attaches, &s.slot_refs, SLOT_REF, attach.closes.len())?;
@@ -195,11 +203,9 @@ pub fn encode(source: &Source) -> Result<Vec<u8>, EncodeError> {
                 s.adds.push(slot.byte());
                 affine(&mut s.adds, locator);
             }
-            for (point, locator) in points {
-                if let Some(locator) = locator {
-                    s.points.push(point.byte());
-                    affine(&mut s.points, &locator);
-                }
+            for (point, locator) in points.into_iter().flatten() {
+                s.points.push(point.byte());
+                affine(&mut s.points, &locator);
             }
         }
     }

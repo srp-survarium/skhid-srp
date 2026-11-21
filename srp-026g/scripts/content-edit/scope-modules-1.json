@@ -1,0 +1,1400 @@
+{
+ "_about": "Scopes on the modules table (pack weapon-modules, docs/notes/attachments-scopes.md): each shop scope item's data/idle_model and data/aimed_model are the optic's own two models of the pack, and its modification adds data/srp_scope = its own dict id to the weapon wearing it (it changed nothing before: the variants did) and sets its parameters/aim_offset to 0; an items_compatibility row for each pair the table has and no release had. Made by scope-fits/modules_edit.py from the pack's record.",
+ "replace_string": [
+  {
+   "files": "gameplay/items/scopes/shop_scope_pso_1.options",
+   "from": "weapons/attach/fit2/fit_ak_74n_pso_1_aim",
+   "to": "weapons/modules_069/scopes/pso_1_scope/pso_1_scope_aim"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_pso_1.options",
+   "from": "weapons/attach/fit2/fit_ak_74n_pso_1",
+   "to": "weapons/modules_069/scopes/pso_1_scope/pso_1_scope"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_pso_1_old.options",
+   "from": "weapons/attach/fit2/fit_svd_pso_1_old_aim",
+   "to": "weapons/modules_069/scopes/pso_1_old_scope/pso_1_old_scope_aim"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_pso_1_old.options",
+   "from": "weapons/attach/fit2/fit_svd_pso_1_old",
+   "to": "weapons/modules_069/scopes/pso_1_old_scope/pso_1_old_scope"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_pu_3_5x.options",
+   "from": "weapons/attach/fit2/fit_mosin_nagant_pu_3_5x_aim",
+   "to": "weapons/modules_069/scopes/pu_35x22_scope/pu_35x22_scope_aim"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_pu_3_5x.options",
+   "from": "weapons/attach/fit2/fit_mosin_nagant_pu_3_5x",
+   "to": "weapons/modules_069/scopes/pu_35x22_scope/pu_35x22_scope"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_1p69_hyperon.options",
+   "from": "weapons/attach/fit2/fit_svd_1p69_hyperon_aim",
+   "to": "weapons/modules_069/scopes/zenit_1p69hyperon_3x10x_scope/zenit_1p69hyperon_3x10x_scope_aim"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_1p69_hyperon.options",
+   "from": "weapons/attach/fit2/fit_svd_1p69_hyperon",
+   "to": "weapons/modules_069/scopes/zenit_1p69hyperon_3x10x_scope/zenit_1p69hyperon_3x10x_scope"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_leupold_mk4.options",
+   "from": "weapons/attach/fit2/fit_svd_leupold_mk4_aim",
+   "to": "weapons/modules_069/scopes/leupold_mk4_x35x10_scope/leupold_mk4_x35x10_scope_aim"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_leupold_mk4.options",
+   "from": "weapons/attach/fit2/fit_svd_leupold_mk4",
+   "to": "weapons/modules_069/scopes/leupold_mk4_x35x10_scope/leupold_mk4_x35x10_scope"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_acog_ta31.options",
+   "from": "weapons/attach/fit2/fit_ak_74n_acog_ta31_aim",
+   "to": "weapons/modules_069/scopes/acog_ta01_4x32_scope/acog_ta01_4x32_scope_aim"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_acog_ta31.options",
+   "from": "weapons/attach/fit2/fit_ak_74n_acog_ta31",
+   "to": "weapons/modules_069/scopes/acog_ta31_4x32_scope/acog_ta31_4x32_scope"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_elcan_specterdr.options",
+   "from": "weapons/attach/fit2/fit_ak_74n_elcan_specterdr_aim",
+   "to": "weapons/modules_069/scopes/elcan_specterdr01_1x4x_scope/elcan_specterdr01_1x4x_scope_aim"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_elcan_specterdr.options",
+   "from": "weapons/attach/fit2/fit_ak_74n_elcan_specterdr",
+   "to": "weapons/modules_069/scopes/elcan_specterdr01_1x4x_scope/elcan_specterdr01_1x4x_scope"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_cobra_ekp_8.options",
+   "from": "weapons/attach/fit2/fit_ak_74n_cobra_ekp_8_aim",
+   "to": "weapons/modules_069/collimators/ekp8cobra_collimator/ekp8cobra_collimator_aim"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_cobra_ekp_8.options",
+   "from": "weapons/attach/fit2/fit_ak_74n_cobra_ekp_8",
+   "to": "weapons/modules_069/collimators/ekp8cobra_collimator/ekp8cobra_collimator"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_eotech_552.options",
+   "from": "weapons/attach/fit2/fit_ak_74n_eotech_552_aim",
+   "to": "weapons/modules_069/collimators/eotech_552_collimator/eotech_552_collimator_aim"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_eotech_552.options",
+   "from": "weapons/attach/fit2/fit_ak_74n_eotech_552",
+   "to": "weapons/modules_069/collimators/eotech_552_collimator/eotech_552_collimator"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_aimpoint_compm4.options",
+   "from": "weapons/attach/fit2/fit_vityaz_aimpoint_compm4_aim",
+   "to": "weapons/modules_069/collimators/aimpoint_compm4_collimator/aimpoint_compm4_collimator_aim"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_aimpoint_compm4.options",
+   "from": "weapons/attach/fit2/fit_vityaz_aimpoint_compm4",
+   "to": "weapons/modules_069/collimators/aimpoint_compm4_collimator/aimpoint_compm4_collimator"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_docter.options",
+   "from": "weapons/attach/fit2/fit_toz_122_docter_aim",
+   "to": "weapons/modules_069/collimators/docter_red_dot_sight_collimator/docter_red_dot_sight_collimator_aim"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_docter.options",
+   "from": "weapons/attach/fit2/fit_toz_122_docter",
+   "to": "weapons/modules_069/collimators/docter_red_dot_sight_collimator/docter_red_dot_sight_collimator"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_leupold_deltapoint.options",
+   "from": "weapons/attach/fit2/fit_pp2000_leupold_deltapoint_aim",
+   "to": "weapons/modules_069/collimators/leupold_dppro_collimator/leupold_dppro_collimator_aim"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_leupold_deltapoint.options",
+   "from": "weapons/attach/fit2/fit_pp2000_leupold_deltapoint",
+   "to": "weapons/modules_069/collimators/leupold_dppro_collimator/leupold_dppro_collimator"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_ncstar_4.options",
+   "from": "weapons/attach/fit4/fitn_ncstar_4_a_545_aim",
+   "to": "weapons/modules_069/collimators/ncstar_4_collimator/ncstar_4_collimator_aim"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_ncstar_4.options",
+   "from": "weapons/attach/fit4/fitn_ncstar_4_a_545",
+   "to": "weapons/modules_069/collimators/ncstar_4_collimator/ncstar_4_collimator"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_eotech_xps2.options",
+   "from": "weapons/attach/fit4/fitn_eotech_xps2_a_545_aim",
+   "to": "weapons/modules_069/collimators/eotech_xps2_collimator/eotech_xps2_collimator_aim"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_eotech_xps2.options",
+   "from": "weapons/attach/fit4/fitn_eotech_xps2_a_545",
+   "to": "weapons/modules_069/collimators/eotech_xps2_collimator/eotech_xps2_collimator"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_belomo_pk01.options",
+   "from": "weapons/attach/fit4/fitn_belomo_pk01_a_545_aim",
+   "to": "weapons/modules_069/collimators/belomo_pk01_collimator/belomo_pk01_collimator_aim"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_belomo_pk01.options",
+   "from": "weapons/attach/fit4/fitn_belomo_pk01_a_545",
+   "to": "weapons/modules_069/collimators/belomo_pk01_collimator/belomo_pk01_collimator"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_hensoldt_rsas.options",
+   "from": "weapons/attach/fit4/fitn_hensoldt_rsas_a_545_aim",
+   "to": "weapons/modules_069/collimators/hensoldt_rsas_collimator/hensoldt_rsas_collimator_aim"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_hensoldt_rsas.options",
+   "from": "weapons/attach/fit4/fitn_hensoldt_rsas_a_545",
+   "to": "weapons/modules_069/collimators/hensoldt_rsas_collimator/hensoldt_rsas_collimator"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_aperture.options",
+   "from": "weapons/attach/fit4/fitn_aperture_a_545_aim",
+   "to": "weapons/modules_069/scopes/aperture_scope/aperture_scope_aim"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_aperture.options",
+   "from": "weapons/attach/fit4/fitn_aperture_a_545",
+   "to": "weapons/modules_069/scopes/aperture_scope/aperture_scope"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_acog_ta01.options",
+   "from": "weapons/attach/fit4/fitn_acog_ta01_a_545_aim",
+   "to": "weapons/modules_069/scopes/acog_ta01_4x32_scope/acog_ta01_4x32_scope_aim"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_acog_ta01.options",
+   "from": "weapons/attach/fit4/fitn_acog_ta01_a_545",
+   "to": "weapons/modules_069/scopes/acog_ta01_4x32_scope/acog_ta01_4x32_scope"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_leupold_3_7.options",
+   "from": "weapons/attach/fit4/fitn_leupold_3_7_ak_74m_aim",
+   "to": "weapons/modules_069/scopes/leupold_3_7x4x8_scope/leupold_3_7x4x8_scope_aim"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_leupold_3_7.options",
+   "from": "weapons/attach/fit4/fitn_leupold_3_7_ak_74m",
+   "to": "weapons/modules_069/scopes/leupold_3_7x4x8_scope/leupold_3_7x4x8_scope"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_walther_comp2.options",
+   "from": "weapons/attach/fit5/fitn_walther_comp2_scar_h_aim",
+   "to": "weapons/modules_069/collimators/walther_competition2_collimator/walther_competition2_collimator_aim"
+  },
+  {
+   "files": "gameplay/items/scopes/shop_scope_walther_comp2.options",
+   "from": "weapons/attach/fit5/fitn_walther_comp2_scar_h",
+   "to": "weapons/modules_069/collimators/walther_competition2_collimator/walther_competition2_collimator"
+  }
+ ],
+ "set": [
+  {
+   "file": "gameplay/items/scopes/shop_scope_pso_1.options",
+   "path": "parameters/modification",
+   "from": 993101,
+   "to": 996101
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_pso_1_old.options",
+   "path": "parameters/modification",
+   "from": 993102,
+   "to": 996102
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_pu_3_5x.options",
+   "path": "parameters/modification",
+   "from": 993103,
+   "to": 996103
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_1p69_hyperon.options",
+   "path": "parameters/modification",
+   "from": 993104,
+   "to": 996104
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_leupold_mk4.options",
+   "path": "parameters/modification",
+   "from": 993105,
+   "to": 996105
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_acog_ta31.options",
+   "path": "parameters/modification",
+   "from": 993106,
+   "to": 996106
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_elcan_specterdr.options",
+   "path": "parameters/modification",
+   "from": 993107,
+   "to": 996107
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_cobra_ekp_8.options",
+   "path": "parameters/modification",
+   "from": 993108,
+   "to": 996108
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_eotech_552.options",
+   "path": "parameters/modification",
+   "from": 993109,
+   "to": 996109
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_aimpoint_compm4.options",
+   "path": "parameters/modification",
+   "from": 993110,
+   "to": 996110
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_docter.options",
+   "path": "parameters/modification",
+   "from": 993111,
+   "to": 996111
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_leupold_deltapoint.options",
+   "path": "parameters/modification",
+   "from": 993112,
+   "to": 996112
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_ncstar_4.options",
+   "path": "parameters/modification",
+   "from": 993113,
+   "to": 996113
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_eotech_xps2.options",
+   "path": "parameters/modification",
+   "from": 993114,
+   "to": 996114
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_belomo_pk01.options",
+   "path": "parameters/modification",
+   "from": 993115,
+   "to": 996115
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_hensoldt_rsas.options",
+   "path": "parameters/modification",
+   "from": 993116,
+   "to": 996116
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_aperture.options",
+   "path": "parameters/modification",
+   "from": 993117,
+   "to": 996117
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_acog_ta01.options",
+   "path": "parameters/modification",
+   "from": 993118,
+   "to": 996118
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_leupold_3_7.options",
+   "path": "parameters/modification",
+   "from": 993119,
+   "to": 996119
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_walther_comp2.options",
+   "path": "parameters/modification",
+   "from": 993120,
+   "to": 996120
+  }
+ ],
+ "set_entry": [
+  {
+   "file": "gameplay/items/scopes/shop_scope_pso_1.options",
+   "list": "modifications",
+   "where": {
+    "id": 993101
+   },
+   "from": {
+    "id": 993101,
+    "modifiers[0]/path[0]": "srp_scope_noop",
+    "modifiers[0]/value": 0,
+    "modifiers[0]/type": 0
+   },
+   "to": {
+    "id": 996101,
+    "modifiers": [
+     {
+      "path": [
+       "srp_scope_noop"
+      ],
+      "value": 0,
+      "type": 0
+     },
+     {
+      "path": [
+       "data"
+      ],
+      "value": [
+       "srp_scope",
+       2101
+      ],
+      "type": 3
+     },
+     {
+      "path": [
+       "parameters",
+       "aim_offset"
+      ],
+      "value": 0.0,
+      "type": 0
+     }
+    ]
+   }
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_pso_1_old.options",
+   "list": "modifications",
+   "where": {
+    "id": 993102
+   },
+   "from": {
+    "id": 993102,
+    "modifiers[0]/path[0]": "srp_scope_noop",
+    "modifiers[0]/value": 0,
+    "modifiers[0]/type": 0
+   },
+   "to": {
+    "id": 996102,
+    "modifiers": [
+     {
+      "path": [
+       "srp_scope_noop"
+      ],
+      "value": 0,
+      "type": 0
+     },
+     {
+      "path": [
+       "data"
+      ],
+      "value": [
+       "srp_scope",
+       2102
+      ],
+      "type": 3
+     },
+     {
+      "path": [
+       "parameters",
+       "aim_offset"
+      ],
+      "value": 0.0,
+      "type": 0
+     }
+    ]
+   }
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_pu_3_5x.options",
+   "list": "modifications",
+   "where": {
+    "id": 993103
+   },
+   "from": {
+    "id": 993103,
+    "modifiers[0]/path[0]": "srp_scope_noop",
+    "modifiers[0]/value": 0,
+    "modifiers[0]/type": 0
+   },
+   "to": {
+    "id": 996103,
+    "modifiers": [
+     {
+      "path": [
+       "srp_scope_noop"
+      ],
+      "value": 0,
+      "type": 0
+     },
+     {
+      "path": [
+       "data"
+      ],
+      "value": [
+       "srp_scope",
+       2103
+      ],
+      "type": 3
+     },
+     {
+      "path": [
+       "parameters",
+       "aim_offset"
+      ],
+      "value": 0.0,
+      "type": 0
+     }
+    ]
+   }
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_1p69_hyperon.options",
+   "list": "modifications",
+   "where": {
+    "id": 993104
+   },
+   "from": {
+    "id": 993104,
+    "modifiers[0]/path[0]": "srp_scope_noop",
+    "modifiers[0]/value": 0,
+    "modifiers[0]/type": 0
+   },
+   "to": {
+    "id": 996104,
+    "modifiers": [
+     {
+      "path": [
+       "srp_scope_noop"
+      ],
+      "value": 0,
+      "type": 0
+     },
+     {
+      "path": [
+       "data"
+      ],
+      "value": [
+       "srp_scope",
+       2104
+      ],
+      "type": 3
+     },
+     {
+      "path": [
+       "parameters",
+       "aim_offset"
+      ],
+      "value": 0.0,
+      "type": 0
+     }
+    ]
+   }
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_leupold_mk4.options",
+   "list": "modifications",
+   "where": {
+    "id": 993105
+   },
+   "from": {
+    "id": 993105,
+    "modifiers[0]/path[0]": "srp_scope_noop",
+    "modifiers[0]/value": 0,
+    "modifiers[0]/type": 0
+   },
+   "to": {
+    "id": 996105,
+    "modifiers": [
+     {
+      "path": [
+       "srp_scope_noop"
+      ],
+      "value": 0,
+      "type": 0
+     },
+     {
+      "path": [
+       "data"
+      ],
+      "value": [
+       "srp_scope",
+       2105
+      ],
+      "type": 3
+     },
+     {
+      "path": [
+       "parameters",
+       "aim_offset"
+      ],
+      "value": 0.0,
+      "type": 0
+     }
+    ]
+   }
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_acog_ta31.options",
+   "list": "modifications",
+   "where": {
+    "id": 993106
+   },
+   "from": {
+    "id": 993106,
+    "modifiers[0]/path[0]": "srp_scope_noop",
+    "modifiers[0]/value": 0,
+    "modifiers[0]/type": 0
+   },
+   "to": {
+    "id": 996106,
+    "modifiers": [
+     {
+      "path": [
+       "srp_scope_noop"
+      ],
+      "value": 0,
+      "type": 0
+     },
+     {
+      "path": [
+       "data"
+      ],
+      "value": [
+       "srp_scope",
+       2106
+      ],
+      "type": 3
+     },
+     {
+      "path": [
+       "parameters",
+       "aim_offset"
+      ],
+      "value": 0.0,
+      "type": 0
+     }
+    ]
+   }
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_elcan_specterdr.options",
+   "list": "modifications",
+   "where": {
+    "id": 993107
+   },
+   "from": {
+    "id": 993107,
+    "modifiers[0]/path[0]": "srp_scope_noop",
+    "modifiers[0]/value": 0,
+    "modifiers[0]/type": 0
+   },
+   "to": {
+    "id": 996107,
+    "modifiers": [
+     {
+      "path": [
+       "srp_scope_noop"
+      ],
+      "value": 0,
+      "type": 0
+     },
+     {
+      "path": [
+       "data"
+      ],
+      "value": [
+       "srp_scope",
+       2107
+      ],
+      "type": 3
+     },
+     {
+      "path": [
+       "parameters",
+       "aim_offset"
+      ],
+      "value": 0.0,
+      "type": 0
+     }
+    ]
+   }
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_cobra_ekp_8.options",
+   "list": "modifications",
+   "where": {
+    "id": 993108
+   },
+   "from": {
+    "id": 993108,
+    "modifiers[0]/path[0]": "srp_scope_noop",
+    "modifiers[0]/value": 0,
+    "modifiers[0]/type": 0
+   },
+   "to": {
+    "id": 996108,
+    "modifiers": [
+     {
+      "path": [
+       "srp_scope_noop"
+      ],
+      "value": 0,
+      "type": 0
+     },
+     {
+      "path": [
+       "data"
+      ],
+      "value": [
+       "srp_scope",
+       2108
+      ],
+      "type": 3
+     },
+     {
+      "path": [
+       "parameters",
+       "aim_offset"
+      ],
+      "value": 0.0,
+      "type": 0
+     }
+    ]
+   }
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_eotech_552.options",
+   "list": "modifications",
+   "where": {
+    "id": 993109
+   },
+   "from": {
+    "id": 993109,
+    "modifiers[0]/path[0]": "srp_scope_noop",
+    "modifiers[0]/value": 0,
+    "modifiers[0]/type": 0
+   },
+   "to": {
+    "id": 996109,
+    "modifiers": [
+     {
+      "path": [
+       "srp_scope_noop"
+      ],
+      "value": 0,
+      "type": 0
+     },
+     {
+      "path": [
+       "data"
+      ],
+      "value": [
+       "srp_scope",
+       2109
+      ],
+      "type": 3
+     },
+     {
+      "path": [
+       "parameters",
+       "aim_offset"
+      ],
+      "value": 0.0,
+      "type": 0
+     }
+    ]
+   }
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_aimpoint_compm4.options",
+   "list": "modifications",
+   "where": {
+    "id": 993110
+   },
+   "from": {
+    "id": 993110,
+    "modifiers[0]/path[0]": "srp_scope_noop",
+    "modifiers[0]/value": 0,
+    "modifiers[0]/type": 0
+   },
+   "to": {
+    "id": 996110,
+    "modifiers": [
+     {
+      "path": [
+       "srp_scope_noop"
+      ],
+      "value": 0,
+      "type": 0
+     },
+     {
+      "path": [
+       "data"
+      ],
+      "value": [
+       "srp_scope",
+       2110
+      ],
+      "type": 3
+     },
+     {
+      "path": [
+       "parameters",
+       "aim_offset"
+      ],
+      "value": 0.0,
+      "type": 0
+     }
+    ]
+   }
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_docter.options",
+   "list": "modifications",
+   "where": {
+    "id": 993111
+   },
+   "from": {
+    "id": 993111,
+    "modifiers[0]/path[0]": "srp_scope_noop",
+    "modifiers[0]/value": 0,
+    "modifiers[0]/type": 0
+   },
+   "to": {
+    "id": 996111,
+    "modifiers": [
+     {
+      "path": [
+       "srp_scope_noop"
+      ],
+      "value": 0,
+      "type": 0
+     },
+     {
+      "path": [
+       "data"
+      ],
+      "value": [
+       "srp_scope",
+       2111
+      ],
+      "type": 3
+     },
+     {
+      "path": [
+       "parameters",
+       "aim_offset"
+      ],
+      "value": 0.0,
+      "type": 0
+     }
+    ]
+   }
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_leupold_deltapoint.options",
+   "list": "modifications",
+   "where": {
+    "id": 993112
+   },
+   "from": {
+    "id": 993112,
+    "modifiers[0]/path[0]": "srp_scope_noop",
+    "modifiers[0]/value": 0,
+    "modifiers[0]/type": 0
+   },
+   "to": {
+    "id": 996112,
+    "modifiers": [
+     {
+      "path": [
+       "srp_scope_noop"
+      ],
+      "value": 0,
+      "type": 0
+     },
+     {
+      "path": [
+       "data"
+      ],
+      "value": [
+       "srp_scope",
+       2112
+      ],
+      "type": 3
+     },
+     {
+      "path": [
+       "parameters",
+       "aim_offset"
+      ],
+      "value": 0.0,
+      "type": 0
+     }
+    ]
+   }
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_ncstar_4.options",
+   "list": "modifications",
+   "where": {
+    "id": 993113
+   },
+   "from": {
+    "id": 993113,
+    "modifiers[0]/path[0]": "srp_scope_noop",
+    "modifiers[0]/value": 0,
+    "modifiers[0]/type": 0
+   },
+   "to": {
+    "id": 996113,
+    "modifiers": [
+     {
+      "path": [
+       "srp_scope_noop"
+      ],
+      "value": 0,
+      "type": 0
+     },
+     {
+      "path": [
+       "data"
+      ],
+      "value": [
+       "srp_scope",
+       2113
+      ],
+      "type": 3
+     },
+     {
+      "path": [
+       "parameters",
+       "aim_offset"
+      ],
+      "value": 0.0,
+      "type": 0
+     }
+    ]
+   }
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_eotech_xps2.options",
+   "list": "modifications",
+   "where": {
+    "id": 993114
+   },
+   "from": {
+    "id": 993114,
+    "modifiers[0]/path[0]": "srp_scope_noop",
+    "modifiers[0]/value": 0,
+    "modifiers[0]/type": 0
+   },
+   "to": {
+    "id": 996114,
+    "modifiers": [
+     {
+      "path": [
+       "srp_scope_noop"
+      ],
+      "value": 0,
+      "type": 0
+     },
+     {
+      "path": [
+       "data"
+      ],
+      "value": [
+       "srp_scope",
+       2114
+      ],
+      "type": 3
+     },
+     {
+      "path": [
+       "parameters",
+       "aim_offset"
+      ],
+      "value": 0.0,
+      "type": 0
+     }
+    ]
+   }
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_belomo_pk01.options",
+   "list": "modifications",
+   "where": {
+    "id": 993115
+   },
+   "from": {
+    "id": 993115,
+    "modifiers[0]/path[0]": "srp_scope_noop",
+    "modifiers[0]/value": 0,
+    "modifiers[0]/type": 0
+   },
+   "to": {
+    "id": 996115,
+    "modifiers": [
+     {
+      "path": [
+       "srp_scope_noop"
+      ],
+      "value": 0,
+      "type": 0
+     },
+     {
+      "path": [
+       "data"
+      ],
+      "value": [
+       "srp_scope",
+       2115
+      ],
+      "type": 3
+     },
+     {
+      "path": [
+       "parameters",
+       "aim_offset"
+      ],
+      "value": 0.0,
+      "type": 0
+     }
+    ]
+   }
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_hensoldt_rsas.options",
+   "list": "modifications",
+   "where": {
+    "id": 993116
+   },
+   "from": {
+    "id": 993116,
+    "modifiers[0]/path[0]": "srp_scope_noop",
+    "modifiers[0]/value": 0,
+    "modifiers[0]/type": 0
+   },
+   "to": {
+    "id": 996116,
+    "modifiers": [
+     {
+      "path": [
+       "srp_scope_noop"
+      ],
+      "value": 0,
+      "type": 0
+     },
+     {
+      "path": [
+       "data"
+      ],
+      "value": [
+       "srp_scope",
+       2116
+      ],
+      "type": 3
+     },
+     {
+      "path": [
+       "parameters",
+       "aim_offset"
+      ],
+      "value": 0.0,
+      "type": 0
+     }
+    ]
+   }
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_aperture.options",
+   "list": "modifications",
+   "where": {
+    "id": 993117
+   },
+   "from": {
+    "id": 993117,
+    "modifiers[0]/path[0]": "srp_scope_noop",
+    "modifiers[0]/value": 0,
+    "modifiers[0]/type": 0
+   },
+   "to": {
+    "id": 996117,
+    "modifiers": [
+     {
+      "path": [
+       "srp_scope_noop"
+      ],
+      "value": 0,
+      "type": 0
+     },
+     {
+      "path": [
+       "data"
+      ],
+      "value": [
+       "srp_scope",
+       2117
+      ],
+      "type": 3
+     },
+     {
+      "path": [
+       "parameters",
+       "aim_offset"
+      ],
+      "value": 0.0,
+      "type": 0
+     }
+    ]
+   }
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_acog_ta01.options",
+   "list": "modifications",
+   "where": {
+    "id": 993118
+   },
+   "from": {
+    "id": 993118,
+    "modifiers[0]/path[0]": "srp_scope_noop",
+    "modifiers[0]/value": 0,
+    "modifiers[0]/type": 0
+   },
+   "to": {
+    "id": 996118,
+    "modifiers": [
+     {
+      "path": [
+       "srp_scope_noop"
+      ],
+      "value": 0,
+      "type": 0
+     },
+     {
+      "path": [
+       "data"
+      ],
+      "value": [
+       "srp_scope",
+       2118
+      ],
+      "type": 3
+     },
+     {
+      "path": [
+       "parameters",
+       "aim_offset"
+      ],
+      "value": 0.0,
+      "type": 0
+     }
+    ]
+   }
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_leupold_3_7.options",
+   "list": "modifications",
+   "where": {
+    "id": 993119
+   },
+   "from": {
+    "id": 993119,
+    "modifiers[0]/path[0]": "srp_scope_noop",
+    "modifiers[0]/value": 0,
+    "modifiers[0]/type": 0
+   },
+   "to": {
+    "id": 996119,
+    "modifiers": [
+     {
+      "path": [
+       "srp_scope_noop"
+      ],
+      "value": 0,
+      "type": 0
+     },
+     {
+      "path": [
+       "data"
+      ],
+      "value": [
+       "srp_scope",
+       2119
+      ],
+      "type": 3
+     },
+     {
+      "path": [
+       "parameters",
+       "aim_offset"
+      ],
+      "value": 0.0,
+      "type": 0
+     }
+    ]
+   }
+  },
+  {
+   "file": "gameplay/items/scopes/shop_scope_walther_comp2.options",
+   "list": "modifications",
+   "where": {
+    "id": 993120
+   },
+   "from": {
+    "id": 993120,
+    "modifiers[0]/path[0]": "srp_scope_noop",
+    "modifiers[0]/value": 0,
+    "modifiers[0]/type": 0
+   },
+   "to": {
+    "id": 996120,
+    "modifiers": [
+     {
+      "path": [
+       "srp_scope_noop"
+      ],
+      "value": 0,
+      "type": 0
+     },
+     {
+      "path": [
+       "data"
+      ],
+      "value": [
+       "srp_scope",
+       2120
+      ],
+      "type": 3
+     },
+     {
+      "path": [
+       "parameters",
+       "aim_offset"
+      ],
+      "value": 0.0,
+      "type": 0
+     }
+    ]
+   }
+  }
+ ],
+ "add_value": [
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_210602221",
+   "value": {
+    "first_item": 2221,
+    "second_item": 2106
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_210702221",
+   "value": {
+    "first_item": 2221,
+    "second_item": 2107
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_210802221",
+   "value": {
+    "first_item": 2221,
+    "second_item": 2108
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_211202221",
+   "value": {
+    "first_item": 2221,
+    "second_item": 2112
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_211302221",
+   "value": {
+    "first_item": 2221,
+    "second_item": 2113
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_211402221",
+   "value": {
+    "first_item": 2221,
+    "second_item": 2114
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_211502221",
+   "value": {
+    "first_item": 2221,
+    "second_item": 2115
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_211602221",
+   "value": {
+    "first_item": 2221,
+    "second_item": 2116
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_211702221",
+   "value": {
+    "first_item": 2221,
+    "second_item": 2117
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_211802221",
+   "value": {
+    "first_item": 2221,
+    "second_item": 2118
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_212002221",
+   "value": {
+    "first_item": 2221,
+    "second_item": 2120
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_211002230",
+   "value": {
+    "first_item": 2230,
+    "second_item": 2110
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_211202230",
+   "value": {
+    "first_item": 2230,
+    "second_item": 2112
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_211302230",
+   "value": {
+    "first_item": 2230,
+    "second_item": 2113
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_211502230",
+   "value": {
+    "first_item": 2230,
+    "second_item": 2115
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_211602230",
+   "value": {
+    "first_item": 2230,
+    "second_item": 2116
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_212002230",
+   "value": {
+    "first_item": 2230,
+    "second_item": 2120
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_211002231",
+   "value": {
+    "first_item": 2231,
+    "second_item": 2110
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_211202231",
+   "value": {
+    "first_item": 2231,
+    "second_item": 2112
+   }
+  }
+ ]
+}

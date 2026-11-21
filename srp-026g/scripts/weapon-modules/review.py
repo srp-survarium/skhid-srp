@@ -69,6 +69,20 @@ def main():
         for r in g['plan']['refused']:
             body += f"<tr><td>{name}</td><td>{r['kind']}</td><td>{r['module']}</td><td>{html.escape(r['why'])}</td></tr>"
     body += '</table>'
+    body += ('<h2>Laid on today\'s mesh</h2><p class="cap">Each suppressor and grip 0.69d0 links to a gun, in a free '
+             'slot of the gun itself: one within 1.5 mm (median) is the gun\'s own part today, in both bodies, and no fit; '
+             'a second in its slot is the same part in another paint.</p>'
+             '<table><tr><th>gun</th><th>module</th><th>slot</th><th>gap mm</th><th></th></tr>')
+    for name, g in sorted(report['guns'].items()):
+        for laid in g['laid']:
+            own = 'the gun\'s own' if laid['built_in'] else 'on the mesh too: no fit' if laid['gap_mm'] <= 1.5 else ''
+            body += (f"<tr><td>{name}</td><td>{laid['module']}</td><td>{laid['slot']}</td><td>{laid['gap_mm']:.2f}</td>"
+                     f"<td>{own}</td></tr>")
+    body += '</table>'
+    if report['suppressor_shapes']:
+        body += ('<h2>Suppressors by their shape (no fit)</h2><p class="cap">A muzzle part every surface of which '
+                 'draws a suppressor\'s material.</p><ul>' + ''.join(
+                     f'<li>{module}: {of}</li>' for module, of in sorted(report['suppressor_shapes'].items())) + '</ul>')
     if report['without_item']:
         body += '<h2>Sold by 0.69d0, no item of ours (ids.tsv)</h2><p>' + ', '.join(report['without_item']) + '</p>'
     body += '<h2>Guns</h2><table><tr><th>item</th><th>0.69d0</th><th>fits</th><th>worst mm</th><th>failed</th></tr>'

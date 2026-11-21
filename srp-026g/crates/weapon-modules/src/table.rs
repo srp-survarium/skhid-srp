@@ -6,9 +6,11 @@
 //! "SRPM"  u16 version  14 x u32 count   then the sections, in this order,
 //! each `count` records of a fixed size (little-endian):
 //!
-//! guns       34  dict u16, bones u16, aim bone u16, fits-of gun u16,
+//! guns       84  dict u16, bones u16, aim bone u16, fits-of gun u16,
 //!                spans: slots, poses, stock, carriers, fits,
-//!                text: the bare body's model
+//!                text: the bare body's model,
+//!                the gun's own eye (0.69d's `body_aim`): bone u16,
+//!                offset 12 x f32
 //! gun slots  51  slot u8, bone u16, offset 12 x f32
 //! poses      50  bone u16, the bone's matrix in the gun's aimed idle pose
 //! stock       3  slot u8, module u16
@@ -19,7 +21,8 @@
 //!                model, spans: attaches, hand (0 or 1)
 //! attaches   23  slot u8, spans: adds, points, alters, closes, text: effect
 //! adds       49  slot u8, locator 12 x f32
-//! points     49  point u8 (0 eye, 1 fire point), locator 12 x f32
+//! points     49  point u8 (0 eye, 1 fire point, 2 eye at the gun's own
+//!                eye plane), locator 12 x f32; one eye an attach at most
 //! slot refs   1  slot u8
 //! hands     768  16 locators: 15 fingers (thumb 1..3, index, middle, ring,
 //!                pinky), then the hand
@@ -37,11 +40,12 @@ use core::slice::ChunksExact;
 use crate::math::Affine;
 use crate::pose::Placement;
 use crate::slot::SlotId;
-use crate::{BoneIndex, DictId, Kind, Point, Role, resolve};
+use crate::{AttachEye, BoneIndex, DictId, Kind, Point, Role, resolve};
 
 pub const MAGIC: [u8; 4] = *b"SRPM";
-/// 2: a gun names its bare body's model.
-pub const VERSION: u16 = 2;
+/// 2: a gun names its bare body's model. 3: a gun has its own eye, and an
+/// attach's eye may keep that eye's plane (0.69d's `plane_slot`).
+pub const VERSION: u16 = 3;
 /// A gun's own parts that are modules, at most.
 pub const MAX_STOCK: usize = 8;
 /// The carriers one fit brings, at most (a suppressor's clamp is one; no
@@ -50,7 +54,7 @@ pub const MAX_CHAIN: usize = 3;
 /// A grip's hand locators: fifteen fingers, then the hand.
 pub const HAND_LOCATORS: usize = 16;
 
-pub(crate) const GUN: usize = 34;
+pub(crate) const GUN: usize = 84;
 pub(crate) const GUN_SLOT: usize = 51;
 pub(crate) const POSE: usize = 50;
 pub(crate) const STOCK: usize = 3;
@@ -120,6 +124,7 @@ pub enum ModuleFault {
     Attach,
     AttachTwice(SlotId),
     AddTwice(SlotId),
+    /// One point twice, or both kinds of eye.
     PointTwice(Point),
     /// A scope's attach without its eye.
     NoEye(SlotId),
@@ -295,8 +300,9 @@ impl<'a> Table<'a> {
             carriers: self.carriers.span(r.span()?)?,
             fits: self.fits.span(r.span()?)?,
             bare: self.text(r.text()?)??,
+            body_aim: Placement { bone: BoneIndex(r.u16()?), offset: r.affine()? },
         };
-        (aim_bone < bones && usize::from(fits_of) < self.guns.len()).then_some(gun)
+        (aim_bone < bones && gun.body_aim.bone.0 < bones && usize::from(fits_of) < self.guns.len()).then_some(gun)
     }
 
     fn module_at(&'a self, index: u16) -> Option<Module<'a>> {
@@ -368,7 +374,8 @@ impl<'a> Table<'a> {
             }
             for (nth, bytes) in attach.points.records().enumerate() {
                 let (point, _) = self::point(bytes).ok_or(F::Attach)?;
-                if attach.points().take(nth).any(|(earlier, _)| earlier == point) {
+                let eye = |point| point != Point::FirePoint;
+                if attach.points().take(nth).any(|(earlier, _)| earlier == point || (eye(earlier) && eye(point))) {
                     return Err(F::PointTwice(point));
                 }
             }
@@ -412,8 +419,10 @@ impl<'a> Table<'a> {
                 return Err(F::PoseTwice(bone.0));
             }
         }
-        if gun.pose(gun.aim_bone).is_none() {
-            return Err(F::PoseMissing(gun.aim_bone.0));
+        for bone in [gun.aim_bone, gun.body_aim.bone] {
+            if gun.pose(bone).is_none() {
+                return Err(F::PoseMissing(bone.0));
+            }
         }
         if self.gun_at(gun.fits_of).is_none_or(|base| base.fits_of != base.index) {
             return Err(F::Base);
@@ -521,6 +530,7 @@ pub struct Gun<'t> {
     carriers: Section<'t, CARRIER>,
     fits: Section<'t, FIT>,
     bare: &'t CStr,
+    body_aim: Placement,
 }
 
 impl<'t> Gun<'t> {
@@ -545,6 +555,13 @@ impl<'t> Gun<'t> {
     /// The bone its model's own `aim` locator hangs on.
     pub fn aim_bone(&self) -> BoneIndex {
         self.aim_bone
+    }
+
+    /// The gun's own eye, where its body has it with nothing on it (0.69d's
+    /// `body_aim` slot): the plane an open sight's eye stays in
+    /// ([`crate::AttachEye::InGunPlane`]).
+    pub fn body_aim(&self) -> Placement {
+        self.body_aim
     }
 
     /// Its own slots, each where its locator is.
@@ -693,8 +710,13 @@ impl<'t> Attach<'t> {
         self.points().find(|(id, _)| *id == point).map(|(_, locator)| locator)
     }
 
-    pub fn eye(&self) -> Option<Affine> {
-        self.point(Point::Eye)
+    /// Where the module puts the eye, if it does.
+    pub fn eye(&self) -> Option<AttachEye> {
+        self.points().find_map(|(point, locator)| match point {
+            Point::Eye => Some(AttachEye::Own(locator)),
+            Point::EyeInGunPlane => Some(AttachEye::InGunPlane(locator)),
+            Point::FirePoint => None,
+        })
     }
 
     pub fn fire_point(&self) -> Option<Affine> {

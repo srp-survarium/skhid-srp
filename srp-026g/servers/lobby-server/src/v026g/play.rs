@@ -1644,12 +1644,12 @@ mod tests {
     }
 
     /// A scope on a weapon reaches the match as its record: the owned scope
-    /// item's id and the variant made for the weapon (whose modification
-    /// the client applies, `survarium::v026g::scopes`), in slot 3, the
-    /// weapon kit's mark in its value; the client's reader of the static
-    /// info takes it as it is.
+    /// item's id and its own dict id (whose modification the client
+    /// applies, `survarium::v026g::scopes`), in slot 3, the weapon kit's
+    /// mark in its value; the client's reader of the static info takes it
+    /// as it is.
     #[test]
-    fn a_scope_on_a_weapon_reaches_the_match_as_its_variant() {
+    fn a_scope_on_a_weapon_reaches_the_match_as_its_record() {
         use session::v026g::account::Upgrade as Record;
         use survarium::v026g::dictionary::Dictionary;
         use survarium::v026g::lobby::FULL_CONDITION;
@@ -1666,14 +1666,13 @@ mod tests {
             .find_map(|slot| account.kits[0].slots[slot])
             .expect("a new account's weapon")
             .item_id;
-        // 0.26g's Leupold stands for a shop scope and its 1P69 (362) for
-        // the variant made for the weapon (the test data has none; the wire
-        // sends no record whose dict id the data lacks, and the record is
-        // otherwise carried as it is).
+        // 0.26g's Leupold (69) stands for a shop scope (the test data's
+        // modules table fits none; the wire sends no record whose dict id
+        // the data lacks, and the record is otherwise carried as it is).
         let scope = account.add_item(69, FULL_CONDITION);
         let record = Record {
             id: scope,
-            a: 362,
+            a: 69,
             value: 0,
             param: 3,
         };
@@ -1691,7 +1690,7 @@ mod tests {
             item.upgrades,
             [Upgrade {
                 id: scope,
-                unknown_4: 362,
+                unknown_4: 69,
                 unknown_8: u64::from(survarium::v026g::weapon_kit::KIT_MAGIC) << 56 | 3 << 48,
                 param: 3,
             }]

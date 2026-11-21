@@ -194,7 +194,7 @@ from the rear sight; a rail optic bringing the dovetail rail and not moving when
 forend with a rail of its own; the Victory Day AK-74M taking the AK-74M's fits with its own brake's
 model; the P90's shared carrier and its refused pair; a choke, a grip as a scope and a gun's own
 brake refused. The eye against the engine's two formulas. The format: the checked-in table
-(`tests/sample-v2.srpm`) is what the cases encode to and parses; every prefix and every single
+(`tests/sample-v3.srpm`) is what the cases encode to and parses; every prefix and every single
 changed byte of it is refused or parsed without a panic; nineteen broken rules each refused by name.
 
 ### The table
@@ -446,7 +446,7 @@ Done, 2026-11-20:
   the original): the table's way in; the cook's requests; the callback's records and fingers; the
   parts in the scene; the left hand; the shells; the release; a weapon without any of it. What it
   compares with is the weapon-modules crate's own `resolve`, pinned in
-  `tests/sample-v2.loadouts.tsv` by the crate's test. Its objects are made up and its table is the
+  `tests/sample-v3.loadouts.tsv` by the crate's test. Its objects are made up and its table is the
   crate's sample: it proves the patch's own code beside the game's, not the content.
 
 - **One gun runs in a game** (2026-11-21; a headless client on a local server, the content side's
@@ -487,9 +487,17 @@ Done since (2026-11-21):
 
 Not done:
 
-1. **Seen by one viewer only.** The third view is the lobby's character (the same `weapon::draw`);
-   no second client has looked at a fitted gun in a match. The flash's place at a device's fire
-   point and the shells' place under a moved scope are unseen. A grip's fingers were seen from
+1. **The third view in a match: SEEN once** (2026-11-21, exe `e17ace688`, the quick pack's
+   AK-74M with the PSO-1, the DTK-3 and the PTK grip set in the gun's config): in a 2v2 with three
+   test bots, the headless client looked at its teammate bot side on: his AK-74M with the PSO-1 on
+   its mount, the railed tactical forend, the ported brake at the muzzle, his left hand under the
+   forend (`private/renders/attachments-core/orbit2/orbit-00.png`). The rig: `RIG_BOTS=3` and
+   `orbit.py`, which finds the teammate's name plate and turns to it. **His shot, SEEN** the same
+   way (the test bot `srp-bot --drive=shots` stands and fires): from behind him, the flash blooms
+   just ahead of the end of his gun, where the DTK-3 is
+   (`private/renders/attachments-core/shots1/shot-third-view-flash.png` beside `-before.png`);
+   from that angle its place along the device is not judged to the centimetre. The shells' place
+   under a moved scope is unseen. A grip's fingers were seen from
    across the lobby, not judged (the grips lane takes that picture).
 2. The order "the table before any weapon" held in every run; it stays LIKELY as a rule.
 3. **A dropped gun and a dead body's gun** draw their parts by code no game has shown yet.
