@@ -13,7 +13,7 @@ package {
    333:"MedicalSkill069322",341:"MedicalSkill069341",342:"MedicalSkill069342",
    501:"ArtefactSkill069501",502:"ArtefactSkill069502",512:"ArtefactSkill069512",513:"ArtefactSkill069513",
    521:"ArtefactSkill069521",522:"ArtefactSkill069522",523:"ArtefactSkill069523",531:"ArtefactSkill069531",532:"ArtefactSkill069532",
-   533:"ArtefactSkill069533",541:"ArtefactSkill069541",542:"ArtefactSkill069542"};
+   533:"ArtefactSkill069533",534:"ArtefactSkill069534",541:"ArtefactSkill069541",542:"ArtefactSkill069542"};
   private var loader:Loader = new Loader();
   private var failures:Array = [];
   private var icons:Object;
@@ -253,12 +253,12 @@ package {
    check(shown[331].data.newValue==0,"Supply Pocket taken back");
    check(take(322,2)==1,"Additional Medicine at 17, one rank");
    check(take(331,1)==0,"Supply Pocket refused beside Additional Medicine");
-   // The artefact tab (artefact-skills.md): 0/5/10/15/20 (the stock rows), 25 ranks in all; one
-   // either/or pair, Resonance or Cascade in row V (Keeper and Forest Protection go together in
-   // row III): a full build is 24; without Forest Protection rows I-IV hold 19, one short of row V.
+   // The artefact tab (artefact-skills.md): 0/5/10/15/20 (the stock rows), 26 ranks in all with
+   // Courier (534, row IV); one either/or pair, Resonance or Cascade in row V (Keeper and Forest
+   // Protection go together in row III).
    stage_="artefact tab";win.skillsTabPage.selectedIndex=4;shown=renderers(win,Renderer);
    var tree5:Object={501:[2,1,3,0],502:[3,1,5,0],512:[3,2,5,5],513:[4,2,1,5],521:[2,3,1,10],
-    522:[3,3,1,10],523:[1,3,4,10],531:[1,4,1,15],532:[2,4,1,15],533:[3,4,1,15],541:[2,5,1,20],542:[3,5,1,20]};
+    522:[3,3,1,10],523:[1,3,4,10],531:[1,4,1,15],532:[2,4,1,15],533:[3,4,1,15],534:[4,4,1,15],541:[2,5,1,20],542:[3,5,1,20]};
    var ranks5:int=0;
    for(id in tree5) {
     want=tree5[id];have=artefacts[id];
@@ -268,7 +268,7 @@ package {
     check(shown[id]!=null && shown[id].x==step.x*(want[0]-1) && shown[id].y==step.y*(want[1]-1),"artefact menu position "+id);
     check(pips(shown[id])==want[2],"artefact rank pips "+id);
    }
-   check(ranks5==25,"25 artefact ranks");
+   check(ranks5==26,"26 artefact ranks");
    check(artefacts[541].preconditions.antiskills[0]==542 && artefacts[542].preconditions.antiskills[0]==541,
     "Resonance and Cascade exclude each other");
    check(artefacts[521].preconditions.antiskills==null && artefacts[523].preconditions.antiskills==null,
@@ -279,6 +279,7 @@ package {
    check(described(artefacts[502].ui,5)[5].indexOf("<green> +25 points</green>")>=0,"Resistance maximum");
    check(described(artefacts[521].ui,1).length==1,"Keeper: the description alone");
    check(described(artefacts[513].ui,1).length==1,"Artifact Sight: the description alone");
+   check(described(artefacts[534].ui,1).length==1,"Courier: the description alone");
    // Every rank of rows I-IV but Forest Protection's is 19: row V (20) needs one of its ranks.
    bar(1,"artefact at 0");
    check(take(512,1)==0,"artefact tier 2 refused at 0");

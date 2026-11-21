@@ -6516,6 +6516,15 @@ va	name	location	role	basis
 0x0007b730	vostok::physics::bullet_character_controller::updateAction	entry ESP+8	dt (float32, s): the step's ms x 0.001	observed
 0x0007c7e0	vostok::physics::bullet_character_controller::can_skeep_player_step	EDX	the controller	observed
 0x002d9060	survarium::base_player::set_physics_controller_walk_vector	entry ESP+8	the step's ms (u32; [ebp+0Ch])	observed
+0x001f3c70	survarium::player::generate_hit_event	ECX	the victim player (base_player::generate_hit_event's ECX; the vtable slot +40h hit_impl calls, 0x2D9ED1)	observed
+0x001f3c70	survarium::player::generate_hit_event	entry ESP+4	the hit's time (hit_info +3Ch): the collector's +4 (0x1F3D50)	observed
+0x001f3c70	survarium::player::generate_hit_event	entry ESP+8	the attacker's place (hit_info +44h, a byte widened): the world's get_player (game +53ACh, vtable +4Ch, 0x1F3CC7) gives the player whose collector it writes	observed
+0x001f3c70	survarium::player::generate_hit_event	entry ESP+12	the victim's place (its +114h, a byte widened): the collector's +0 (0x1F3D62)	observed
+0x001f3c70	survarium::player::generate_hit_event	entry ESP+24	the bullet or 0 (hit_impl's [ebp-4]): 0 (a blast, an anomaly, a fall) writes no collector (0x1F3CAA)	observed
+0x00238230	survarium::game_world_ui::draw_damage_collector	EAX	the drawn player's inflicted_damage_collector (player::st_draw's lea eax,[ebp+0F534h], 0x247461)	observed
+0x00238230	survarium::game_world_ui::draw_damage_collector	EDI	the game_world_ui (the player's +0F480h, 0x24745B)	observed
+0x00246f10	survarium::player::tick	ECX	the player	observed
+0x00246f10	survarium::player::tick	entry ESP+4	the time (ms)	observed
 0x002d93a0	survarium::base_player::assign_physics_transform	entry ESP+4	the step's length in ms (u32; fild [ebp+8] 0x2D9528: m_linear_horizontal_speed +334h := the step's horizontal move x 1000 / it, stored at 0x2D9545)	observed
 0x002d93a0	survarium::base_player::assign_physics_transform	entry ESP+12	the ends-tick byte: 1 when the step ends on a 50 ms boundary (atomic_tick's sete 0x2D1E32, passed on by tick_delegates); only its low byte is set	observed
 0x002d1d20	survarium::game_world_core::tick_delegates	entry ESP+4	the delegate list (one of the world's seven at +18840h..+188B0h, 16 bytes each)	observed
