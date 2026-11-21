@@ -130,6 +130,40 @@ pub fn stage_0() -> Vec<Part> {
     ]
 }
 
+/// The shots script (`srp-bot --drive shots`): a player who stays where he
+/// spawned and fires a second, again and again, reloading after every two,
+/// for another client to watch his gun (the attachments' third view).
+pub fn shots() -> Vec<Part> {
+    use key::*;
+    vec![
+        part(3_000, 0, "stands 3 s"),
+        part(1_000, FIRE, "fires 1 s"),
+        part(3_000, 0, "stands 3 s"),
+        part(1_000, FIRE, "fires 1 s"),
+        part(1_000, 0, "stands 1 s"),
+        pulse(RELOAD, "reload (one tick)"),
+        part(3_000, 0, "stands 3 s"),
+    ]
+}
+
+/// Which script a bot runs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Script {
+    /// [`stage_0`]: walks, turns, sprints, fires.
+    Stage0,
+    /// [`shots`]: stands and fires.
+    Shots,
+}
+
+impl Script {
+    pub fn parts(self) -> Vec<Part> {
+        match self {
+            Script::Stage0 => stage_0(),
+            Script::Shots => shots(),
+        }
+    }
+}
+
 /// An input the script sends, and what it is for the log.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Sent {

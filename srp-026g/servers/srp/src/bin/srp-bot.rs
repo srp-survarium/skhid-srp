@@ -24,7 +24,7 @@ place in the match, stays to the end without playing, takes the results
 and presses Play again.
 
   srp-bot [--server HOST:PORT] [--name NAME] [--password PASSWORD]
-          [--count N] [--once] [--kit ID] [--drive] [--revision N]
+          [--count N] [--once] [--kit ID] [--drive[=shots]] [--revision N]
 
   --server    the login server, as the game's -server= (default
               127.0.0.1:1234; or SRP_BOT_SERVER)
@@ -43,6 +43,9 @@ server logs it at its start.
               the late join's); only 5 or later plays in rooms
   --kit ID    press Play with this kit id (default: the kit the account
               plays)
+  --drive=shots  in a match, stand where it spawned and fire a second every
+              few seconds, reloading (srp::drive::shots): for another client
+              to watch its gun
   --drive     in a match, send inputs: a fixed script (walk, turn a quarter,
               walk, sprint, crouch, fire, reload, weapon 2, turn back),
               again and again; each input is printed (srp::drive)
@@ -86,7 +89,7 @@ fn main() {
     let mut count = 1_usize;
     let mut once = false;
     let mut kit = None;
-    let mut drive = false;
+    let mut drive = None;
     let mut revision = survarium::v026g::match_msgs::late_join::PATCH_REVISION;
 
     let mut args = std::env::args().skip(1);
@@ -126,7 +129,13 @@ fn main() {
                     .unwrap_or_else(|_| fail("--revision must be 0 to 255"));
             }
             "--once" => once = true,
-            "--drive" => drive = true,
+            "--drive" => {
+                drive = Some(match inline.as_deref() {
+                    None => srp::drive::Script::Stage0,
+                    Some("shots") => srp::drive::Script::Shots,
+                    Some(_) => fail("--drive takes no value or `shots`"),
+                })
+            }
             "--help" | "-h" => {
                 print!("{USAGE}");
                 return;
