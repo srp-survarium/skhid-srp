@@ -48,6 +48,8 @@ VERSION = '2'
 CATEGORY = 22
 CONFIGS = 'gameplay/items/muzzle_devices/'
 ICON_ATLAS = 'LobbyMenu_AmmoIcons'
+# an item's own modification: this and its dict id (the attachments' one formula, attachments.md)
+MODIFICATIONS = 994000
 ICON_COLUMNS, ICON_ROWS = (5, 6, 7), 22
 # modifier types (the modification's apply 0x358560): the value set, a share of the config's own
 # added (base x max(0, 1 + sum)), a key added to a table
@@ -239,7 +241,7 @@ def item_config(device, cell):
     if device['shoot']:
         mods.append({'path': ['particles', 'shoot'], 'value': device['shoot'], 'type': SET})
     mods += [{'path': key.split('/'), 'value': float(value), 'type': SHARE} for key, value in dev.modifiers(device['stats'])]
-    modification = device['dict_id'] * 100 + 1
+    modification = MODIFICATIONS + device['dict_id']
     stem = device['item'].removeprefix('srp_')
     return {
         'parameters': {'weight': 0.0, 'modification': modification},
@@ -364,6 +366,9 @@ def main():
     if args.write_sums:
         donor.save()
 
+    contents = dict(files)
+    for icon in icons:
+        contents[icon['source']] = (args.icons / Path(icon['source']).name).read_bytes()
     operations = [{'op': 'add_file', 'path': path} for path in sorted(files)]
     operations.append({'op': 'dictionary_add', 'table': 'items_dict', 'entries': entries})
     if icons:
@@ -379,7 +384,10 @@ def main():
                        '(particles, materials, textures) from 0.46c2',
         'operations': operations,
         'notes': ['made by srp-026g/scripts/muzzle-devices/make_pack.py from devices.tsv and inputs.sha256',
-                  'devices and stats: Survarium 0.69d0; shot effects: Survarium 0.46c2'] + log,
+                  'devices and stats: Survarium 0.69d0; shot effects: Survarium 0.46c2',
+                  # the manifest's row names pack.json's sha256: so it names the files' bytes too
+                  'files: ' + sha256('\n'.join(f'{sha256(data)} {path}' for path, data in sorted(contents.items())).encode())]
+                 + log,
     }
     for path, data in files.items():
         target = args.out / 'files' / path
@@ -388,7 +396,7 @@ def main():
     for icon in icons:
         target = args.out / icon['source']
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes((args.icons / Path(icon['source']).name).read_bytes())
+        target.write_bytes(contents[icon['source']])
     (args.out / 'pack.json').write_text(json.dumps(pack, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     digest = sha256((args.out / 'pack.json').read_bytes())
     print('\n'.join(log))
