@@ -270,7 +270,7 @@ from the 0.26g exe and measured in a game (`client_patch.md` section 3.91 has th
   change.
 - **Checked (`check_step_parts_026g.py`, Unicorn, the game's own updateAction, player_step and
   can_skeep_player_step on open ground, 5 s each):** whole ticks bit for bit the original's; a body
-  from rest under one cut a tick, a burst's cuts and 50 cuts a second is where whole ticks put it to
+  from rest under one cut a tick, a burst's cuts and denser cuts still is where whole ticks put it to
   under 0.4 mm in 5 s, walking, sprinting, slow and strafing, the slow walk under a burst's cuts
   included (it lost 46 mm with patch 166 alone, now +0.02 mm); with every tick in 50 parts of 1 ms
   (5000 steps) within 5 mm of whole ticks either way (float rounding, 0.1 %), where the original does
