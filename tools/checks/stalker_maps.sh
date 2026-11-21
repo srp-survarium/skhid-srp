@@ -11,5 +11,9 @@ pack=$SKHID_PACKS_DIR/stalker-maps-6
     models/level/04/level_border.model/walker_collision/exported_primitives \
     projects/level_05/day_4/client_project
 python3 srp-026g/scripts/stalker-maps/check_sources.py --pack "$pack" --native "$CHECK_WORK/native"
-cargo test --locked --manifest-path srp-026g/scripts/stalker-maps/ffa-points/Cargo.toml
-cargo clippy --locked --manifest-path srp-026g/scripts/stalker-maps/ffa-points/Cargo.toml --all-targets -- -D warnings
+# The dev shell's toolchain (a C linker for build scripts), as every cargo check.
+nix develop ./srp-026g -c bash -euo pipefail -c '
+    manifest=srp-026g/scripts/stalker-maps/ffa-points/Cargo.toml
+    cargo test --locked --manifest-path "$manifest" --target-dir "$CHECK_WORK/ffa-points"
+    cargo clippy --locked --manifest-path "$manifest" --target-dir "$CHECK_WORK/ffa-points" --all-targets -- -D warnings
+'
