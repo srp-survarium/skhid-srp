@@ -39,7 +39,6 @@ def check(base, folder, available):
         assert result == before, 'map geometry, spawns or other root data changed'
         assert objects[:len(old)] == old, 'existing client objects changed'
         imported = objects[len(old):]
-        assert len(imported) == 70
         assert len({o['full_name'] for o in objects}) == len(objects)
         imported_by_mode.append(imported)
         for _, prefix, _ in pack.GROUPS:

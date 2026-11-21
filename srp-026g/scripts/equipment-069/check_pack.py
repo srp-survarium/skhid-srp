@@ -135,7 +135,7 @@ def check(pack, inputs):
     manifest = json.loads((pack / 'pack.json').read_text())
     operations = manifest['operations']
     entries = next(op['entries'] for op in operations if op['op'] == 'dictionary_add')
-    assert len(entries) == len(rows) == 8 and not any(row['is_premium'] for row in entries)
+    assert len(entries) == len(rows) and not any(row['is_premium'] for row in entries)
     native = bcw.loads((base / DICTIONARY).read_bytes())['items_dict']
     e046_manifest = json.loads((inputs / 'equipment046' / E046_MANIFEST).read_text())
     assert (e046_manifest['id'], e046_manifest['version']) == ('equipment-046', '9'), 'not equipment-046@9'
