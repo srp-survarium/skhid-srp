@@ -1069,6 +1069,46 @@ pub extern "C" fn hook_attachments_on_dictionary_configs(frame: &mut Frame) -> u
 
 // ---- attachments (patch 161) ----
 
+/// The named exits of attachments::on_scope_dict (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum AttachmentsOnScopeDictExit { Scoped }
+/// The entry `attachments_on_scope_dict` (0x24aa15, on_weapon_config_loaded (0x24A920) at its scope: mov dword [ebp-14h],0 (no scope yet), before the game looks for addons/rifle_scope_dict_id (the two has-checks 0x24AA1C, 0x24AA33, each a jz to 0x24AA78) and takes that dict id's dictionary entry's config path into [ebp-14h] with one more request ([ebp-0Ch], 0x24AA72); scoped is the block's end 0x24AA78, the path and the count already set) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_attachments_on_scope_dict(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `attachments_on_scope_dict` calls this, from the game's jump at 0x24aa15,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::attachments::on_scope_dict(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- attachments (patch 161) ----
+
+/// The named exits of attachments::on_scope_result (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum AttachmentsOnScopeResultExit { Scoped }
+/// The entry `attachments_on_scope_result` (0x24ad0e, on_weapon_subresources_ready (0x24ACF0) before it asks the config again whether the weapon has a scope (mov esi,offset "addons" / mov [esp+30h],ecx; then mov [esp+24h],ebx and the two has-checks 0x24AD1B, 0x24AD3A, each a jz to 0x24ADC8 = no scope, the results from 0): EAX the config's root, ECX the cook; scoped is 0x24AD47, where the first result is taken as the scope and the others follow from 1) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_attachments_on_scope_result(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `attachments_on_scope_result` calls this, from the game's jump at 0x24ad0e,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::attachments::on_scope_result(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- attachments (patch 161) ----
+
 /// The entry `attachments_on_request_room` (0x24aab4, weapon_cook::on_weapon_config_loaded (0x24A920) before it sizes the requests' alloca (lea esi,[eax*8+0]; 0x424CA0 at 0x24AABD): EAX the requests it will push, EBX the weapon config's root) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_attachments_on_request_room(frame: &mut Frame) -> u32 {

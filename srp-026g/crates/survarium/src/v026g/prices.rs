@@ -110,6 +110,7 @@ use binary_config_parser::tree::ConfigValue;
 use super::dictionary::{Dictionary, Item};
 use super::item_params::ItemParams;
 use super::scopes::{SCOPE_CATEGORY, ScopeFits};
+use super::weapon_modules::Modules;
 
 /// Silver for one gold: the game's exchange rate (0.21d's web page sold gold
 /// at it, and 0.26g's lobby was told it). Gold is gone [the owner,
@@ -350,11 +351,25 @@ pub fn sellers_of(dictionary: &Dictionary, item: &Item, params: &ItemParams) -> 
     sellers_of_in(dictionary, ScopeFits::shared(), item, params)
 }
 
-/// [`sellers_of`] with `scopes`: a scope item of a pair with a price is
-/// sold by seller 0 at level 0; no other category-22 item is.
+/// [`sellers_of`] with `scopes`, and the game data's modules table
+/// ([`sellers_of_with`]).
 pub fn sellers_of_in(
     dictionary: &Dictionary,
     scopes: &ScopeFits,
+    item: &Item,
+    params: &ItemParams,
+) -> Vec<(u8, u8)> {
+    sellers_of_with(dictionary, scopes, Modules::shared(), item, params)
+}
+
+/// [`sellers_of`] with `scopes` and `modules`: a category-22 item with a
+/// price is sold by seller 0 at level 0 when it is a scope item of a pair,
+/// or an item some gun takes as a module (a muzzle device, a grip:
+/// [`Modules::is_module`]); no other category-22 item is.
+pub fn sellers_of_with(
+    dictionary: &Dictionary,
+    scopes: &ScopeFits,
+    modules: &Modules,
     item: &Item,
     params: &ItemParams,
 ) -> Vec<(u8, u8)> {
@@ -365,7 +380,8 @@ pub fn sellers_of_in(
         return camo_shop(&item.cfg_name).map_or_else(Vec::new, |faction| vec![(faction, 0)]);
     }
     if item.category == SCOPE_CATEGORY {
-        return if item.base_cost != 0 && scopes.is_scope(item.dict_id) {
+        let fitted = scopes.is_scope(item.dict_id) || modules.is_module(item.dict_id);
+        return if item.base_cost != 0 && fitted {
             vec![(0, 0)]
         } else {
             Vec::new()
@@ -1258,6 +1274,14 @@ mod tests {
                 u64::from(cost / 4)
             );
         }
+        // An item some gun takes as a module is sold the same way; without
+        // the table it is not.
+        let item = dictionary.item(LONE_SCOPE).unwrap();
+        let config = game_data::config(&data, &item.cfg_name).unwrap().unwrap();
+        let params = ItemParams::from_config(LONE_SCOPE, &config).unwrap();
+        let table = super::super::weapon_modules::fixtures::modules(&[(63, LONE_SCOPE, super::super::weapon_modules::Kind::Muzzle)]);
+        assert_eq!(sellers_of_with(&dictionary, fits, &table, item, &params), [(0, 0)]);
+        assert!(sellers_of_with(&dictionary, fits, &Modules::NONE, item, &params).is_empty());
         // Not a scope item no variant names, not a variant, not 0.26g's
         // own scopes (which have a base_cost: Leupold 25,000, PSO-1
         // 20,000).

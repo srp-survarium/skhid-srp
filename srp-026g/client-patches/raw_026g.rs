@@ -2883,6 +2883,24 @@ impl ItemEntry {
         unsafe { self.0.byte_add(0x0).cast::<u16>().as_ptr() }
     }
 
+    /// +0x118 (ptr<u8>): its config's path, a C string (the weapon cook asks a scope item's config by it, class 4Dh: 0x24AA67)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn cfg_path(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x118).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x118 (ptr<u8>): its config's path, a C string (the weapon cook asks a scope item's config by it, class 4Dh: 0x24AA67)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_cfg_path(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x118).cast::<*mut u8>().write_volatile(value) }
+    }
+
     /// 0x3a0 bytes: an entry of the items dictionary (item_by_id 0x1F00B1: imul eax,eax,3A0h)
     pub const SIZE: usize = 0x3a0;
 
@@ -28311,6 +28329,51 @@ impl WeaponCookFrame {
     pub unsafe fn requests(self) -> ResourceRequests {
         ResourceRequests(unsafe { self.0.byte_sub(0x40) })
     }
+
+    /// -0x14 (ptr<u8>): on_weapon_config_loaded's scope: the config path of the scope item the weapon names, 0 for none (cleared at 0x24AA15; the game's own from addons/rifle_scope_dict_id's dictionary entry +118h, 0x24AA67..0x24AA75; pushed first, class 4Dh, when not 0: 0x24AACC..0x24AAE7)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn scope_path(self) -> *mut u8 {
+        unsafe { self.0.byte_sub(0x14).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// -0x14 (ptr<u8>): on_weapon_config_loaded's scope: the config path of the scope item the weapon names, 0 for none (cleared at 0x24AA15; the game's own from addons/rifle_scope_dict_id's dictionary entry +118h, 0x24AA67..0x24AA75; pushed first, class 4Dh, when not 0: 0x24AACC..0x24AAE7)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_scope_path(self, value: *mut u8) {
+        unsafe { self.0.byte_sub(0x14).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// -0xc (u32): the requests it will push (the shells, the shot effects and one; one more with a scope, 0x24AA72): what the alloca is sized by at 0x24AAB4
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn requests_count(self) -> *mut u32 {
+        unsafe { self.0.byte_sub(0xc).cast::<u32>().as_ptr() }
+    }
+
+    /// -0x1c (ptr<survarium::weapon_cook>): the cook itself (ECX kept at 0x24A926; its game read at 0x24AA4F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn cook(self) -> Option<WeaponCook> {
+        unsafe { self.0.byte_sub(0x1c).cast::<Option<WeaponCook>>().read_volatile() }
+    }
+
+    /// -0x1c (ptr<survarium::weapon_cook>): the cook itself (ECX kept at 0x24A926; its game read at 0x24AA4F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_cook(self, value: Option<WeaponCook>) {
+        unsafe { self.0.byte_sub(0x1c).cast::<Option<WeaponCook>>().write_volatile(value) }
+    }
 }
 
 /// A survarium::resource_requests (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -28473,6 +28536,81 @@ impl WeaponDrawFrame {
     #[inline(always)]
     pub unsafe fn set_bones(self, value: *mut f32) {
         unsafe { self.0.byte_add(0xc).cast::<*mut f32>().write_volatile(value) }
+    }
+}
+
+/// A survarium::weapon_cook (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WeaponCook(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl WeaponCook {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x24 (ptr<survarium::game>): the game (on_weapon_config_loaded 0x24AA4F: [cook+24h]+53A4h the items dictionary the scope's dict id is looked up in)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn game(self) -> Option<Game> {
+        unsafe { self.0.byte_add(0x24).cast::<Option<Game>>().read_volatile() }
+    }
+
+    /// +0x24 (ptr<survarium::game>): the game (on_weapon_config_loaded 0x24AA4F: [cook+24h]+53A4h the items dictionary the scope's dict id is looked up in)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_game(self, value: Option<Game>) {
+        unsafe { self.0.byte_add(0x24).cast::<Option<Game>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::weapon_ready_body_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WeaponReadyBodyFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl WeaponReadyBodyFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x24 (u32): on_weapon_subresources_ready's body by its ESP after its four pushes (0x24AD0E): the scope object the cook's setter 0x245BC0 fills (its out argument, lea esi,[esp+24h] at 0x24AD96), cleared at 0x24AD17
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn scope_taken(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x24).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x30 (ptr<survarium::weapon_cook>): the cook, ECX kept there at 0x24AD13
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn cook(self) -> Option<WeaponCook> {
+        unsafe { self.0.byte_add(0x30).cast::<Option<WeaponCook>>().read_volatile() }
+    }
+
+    /// +0x30 (ptr<survarium::weapon_cook>): the cook, ECX kept there at 0x24AD13
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_cook(self, value: Option<WeaponCook>) {
+        unsafe { self.0.byte_add(0x30).cast::<Option<WeaponCook>>().write_volatile(value) }
     }
 }
 
@@ -34582,6 +34720,63 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn weapon(machine: &impl Machine) -> Option<Weapon> {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(Weapon)
+        }
+    }
+
+    /// attachments.scope_dict (0x24aa15): on_weapon_config_loaded (0x24A920) at its scope: mov dword [ebp-14h],0 (no scope yet), before the game looks for addons/rifle_scope_dict_id (the two has-checks 0x24AA1C, 0x24AA33, each a jz to 0x24AA78) and takes that dict id's dictionary entry's config path into [ebp-14h] with one more request ([ebp-0Ch], 0x24AA72); scoped is the block's end 0x24AA78, the path and the count already set
+    pub mod attachments_scope_dict {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::engine_cfg (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn root(machine: &impl Machine) -> Option<EngineCfg> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EngineCfg)
+        }
+
+        /// EBP: a survarium::weapon_cook_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<WeaponCookFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(WeaponCookFrame)
+        }
+    }
+
+    /// attachments.scope_result (0x24ad0e): on_weapon_subresources_ready (0x24ACF0) before it asks the config again whether the weapon has a scope (mov esi,offset "addons" / mov [esp+30h],ecx; then mov [esp+24h],ebx and the two has-checks 0x24AD1B, 0x24AD3A, each a jz to 0x24ADC8 = no scope, the results from 0): EAX the config's root, ECX the cook; scoped is 0x24AD47, where the first result is taken as the scope and the others follow from 1
+    pub mod attachments_scope_result {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a vostok::engine_cfg (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn root(machine: &impl Machine) -> Option<EngineCfg> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(EngineCfg)
+        }
+
+        /// ECX: a survarium::weapon_cook (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn cook(machine: &impl Machine) -> Option<WeaponCook> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(WeaponCook)
+        }
+
+        /// the site's ESP: a survarium::weapon_ready_body_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<WeaponReadyBodyFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(WeaponReadyBodyFrame)
         }
     }
 }

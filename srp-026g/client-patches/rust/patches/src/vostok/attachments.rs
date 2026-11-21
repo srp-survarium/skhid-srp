@@ -105,6 +105,10 @@ pub struct Kept {
 struct Drawn {
     model: Model,
     at: raw::WeaponLocatorStorage,
+    /// Its frame on the gun's model in the model's bind pose: where it
+    /// stands on a gun that lies alone (a dropped one, a dead body's), which
+    /// is drawn in that pose. Worked out the first time such a gun is placed.
+    lying: Option<Affine>,
 }
 
 /// A weapon's parts: memory of the game's allocator, freed with them.
@@ -440,6 +444,73 @@ pub fn cooking(ctx: &Context<'_>, site: Cook) -> Option<Named> {
     }
 }
 
+/// The dictionary entry of the scope a weapon's config names by
+/// `data/srp_scope`: None for a config that names no gun or no scope, or a
+/// scope that is no item of the dictionary (the game's own lookup asserts
+/// on one).
+///
+/// # Safety
+/// `root` is a live weapon config's root, `cook` the weapon cook.
+unsafe fn named_scope(root: raw::EngineCfg, cook: raw::WeaponCook) -> Option<raw::ItemEntry> {
+    // SAFETY: the caller's; the dictionary is the game's, made before any
+    // weapon is cooked, its entries `entry_count` of 3A0h bytes.
+    unsafe {
+        let scope = named(root)?.wanted.scope?.get();
+        let dictionary = cook.game()?.dictionary()?;
+        let (first, count) = (dictionary.entries()?, read(dictionary.entry_count()) as usize);
+        (0..count).map(|index| first.at(index)).find(|entry| read(entry.dict_id()) == scope)
+    }
+}
+
+/// `attachments.scope_dict`: a weapon whose config names a scope by
+/// `data/srp_scope` asks for that scope item, in place of the one
+/// `addons/rifle_scope_dict_id` names (the gun's own default optic, or
+/// none): its config's path and one more request, as the game's own block
+/// sets them (0x24AA67..0x24AA75). True when it did: the game's block is
+/// skipped (the site's `scoped` exit).
+pub fn scope_request(ctx: &Context<'_>) -> bool {
+    // SAFETY: the site's EBX is on_weapon_config_loaded's root, EBP its
+    // frame: the cook at [ebp-1Ch], the scope's path at [ebp-14h] (which
+    // the site's own instruction clears), the requests' count at [ebp-0Ch].
+    unsafe {
+        let (Some(root), Some(frame)) = (raw::site::attachments_scope_dict::root(ctx), raw::site::attachments_scope_dict::frame(ctx))
+        else {
+            return false;
+        };
+        let Some(entry) = frame.cook().and_then(|cook| named_scope(root, cook)) else { return false };
+        frame.set_scope_path(entry.cfg_path());
+        *frame.requests_count() = read(frame.requests_count()).wrapping_add(1);
+        true
+    }
+}
+
+/// `attachments.scope_result`: the cook's callback of a weapon whose config
+/// names a scope by `data/srp_scope` takes its first result as the scope,
+/// as [`scope_request`] asked for it first, whatever
+/// `addons/rifle_scope_dict_id` says. True when so: the game's two checks
+/// are skipped (the site's `scoped` exit), with what the skipped
+/// instructions store.
+pub fn scope_result(ctx: &Context<'_>) -> bool {
+    // SAFETY: the site's EAX is the config's root, ECX the cook, ESP the
+    // callback's frame after its four pushes: [esp+30h] the cook's slot,
+    // [esp+24h] the scope object the setter fills.
+    unsafe {
+        let (Some(root), Some(cook), Some(frame)) = (
+            raw::site::attachments_scope_result::root(ctx),
+            raw::site::attachments_scope_result::cook(ctx),
+            raw::site::attachments_scope_result::frame(ctx),
+        ) else {
+            return false;
+        };
+        if named_scope(root, cook).is_none() {
+            return false;
+        }
+        frame.set_cook(Some(cook));
+        *frame.scope_taken() = 0;
+        true
+    }
+}
+
 /// `attachments.request_room`: `parts` more places in the requests' alloca
 /// (EAX, the count it sizes them by).
 pub fn more_requests(ctx: &mut Context<'_>, parts: usize) {
@@ -544,7 +615,7 @@ impl Asked<'_> {
                 };
                 let mut record = raw::WeaponLocatorStorage::zeroed();
                 Records::place(record.handle(), &at);
-                held.push(Drawn { model: Model::retain(model), at: record });
+                held.push(Drawn { model: Model::retain(model), at: record, lying: None });
             }
             parts.filter(|_| placed == self.count)
         };
@@ -637,6 +708,39 @@ pub fn leave(ctx: &Context<'_>, at: Leaving) {
         let Some(scene) = weapon.world().and_then(|world| Scene::of_world(world)) else { return };
         out_of_scene(ctx.thread(), weapon, &scene);
     }
+}
+
+/// The parts of a gun that lies alone (srp's dropped gun and a dead body's
+/// gun, [`super::pickup::place_lying`]) with its body at `transform`: each
+/// at the frame its record has in the model's bind pose (`bones`, which the
+/// body is drawn in; the game's calculate_locator, once), drawn as a world
+/// model. With no `bones` a part placed before is moved with the body; one
+/// never placed waits for a call that has them.
+///
+/// # Safety
+/// `weapon` is a live cooked weapon of ours and `scene` its world's;
+/// `bones` are its model's, one a bone.
+pub(super) unsafe fn lie(thread: &Thread, weapon: raw::Weapon, scene: &Scene, transform: &[f32; 16], bones: Option<&[[f32; 16]]>) {
+    let body = Affine::from_matrix(transform);
+    FITTED.with(thread, |fitted| {
+        let Some(Fit::Held { parts, .. }) = fitted.find(WeaponId(weapon.address())) else { return };
+        for part in parts.all() {
+            // SAFETY: the caller's; a part's record names a bone of the
+            // model (checked where the weapon's records were written).
+            unsafe {
+                if let Some(bones) = bones.filter(|bones| usize::from(read(part.at.handle().bone())) < bones.len())
+                    && part.lying.is_none()
+                {
+                    let mut at = [0.0f32; 16];
+                    raw::engine_weapon_locator(at.as_mut_ptr(), Some(part.at.handle()), IDENTITY.as_ptr(), bones.as_ptr().cast(), IDENTITY.as_ptr());
+                    part.lying = at.iter().all(|v| v.is_finite()).then(|| Affine::from_matrix(&at));
+                }
+                let Some(lying) = part.lying else { continue };
+                Scene::as_world(part.model.get());
+                scene.present(part.model.get(), &lying.then(&body).matrix());
+            }
+        }
+    });
 }
 
 /// `weapon`'s parts out of `scene`. Artefact carry's too: it takes a
@@ -792,19 +896,8 @@ impl<'t> Records<'t> {
         }
     }
 
-    /// The left hand's finger matrices of `set`, as the game made them of
-    /// the model's own finger locators.
-    pub fn left_fingers(&self, set: HandSet) -> [Affine; FINGERS] {
-        // SAFETY: the corrector's left hand's four sets at +20F0h, inside
-        // the weapon's own object: fifteen 4x4 each.
-        let all: [f32; 240] = unsafe { floats(self.weapon.left_fingers().at(set.index()).matrices()) };
-        let mut fingers = [Affine::IDENTITY; FINGERS];
-        for (finger, matrix) in fingers.iter_mut().zip(all.as_chunks::<16>().0) {
-            *finger = Affine::from_matrix(matrix);
-        }
-        fingers
-    }
-
+    /// The left hand's finger matrices of `set`: fifteen 4x4 the game copies
+    /// whole into the finger bones (the corrector's tick).
     pub fn set_left_fingers(&mut self, set: HandSet, fingers: &[Affine; FINGERS]) {
         let mut all = [0.0f32; 240];
         for (matrix, finger) in all.as_chunks_mut::<16>().0.iter_mut().zip(fingers) {

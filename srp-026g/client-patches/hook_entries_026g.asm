@@ -1780,6 +1780,90 @@ attachments_on_dictionary_configs_replay:
     db 0x55, 0x8b, 0xec, 0x81, 0xec, 0xe8, 0x00, 0x00, 0x00
     jmp 0x2c8aa9
 
+; 0x24aa15 on_weapon_config_loaded (0x24A920) at its scope: mov dword [ebp-14h],0 (no scope yet), before the game looks for addons/rifle_scope_dict_id (the two has-checks 0x24AA1C, 0x24AA33, each a jz to 0x24AA78) and takes that dict id's dictionary entry's config path into [ebp-14h] with one more request ([ebp-0Ch], 0x24AA72); scoped is the block's end 0x24AA78, the path and the count already set: lohook -> attachments_on_scope_dict
+global attachments_on_scope_dict
+extern hook_attachments_on_scope_dict
+attachments_on_scope_dict:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_attachments_on_scope_dict
+    mov edx, attachments_on_scope_dict_replay
+    cmp eax, 0
+    je attachments_on_scope_dict_go
+    mov edx, 0x24aa1c
+    cmp eax, 1
+    je attachments_on_scope_dict_go
+    mov edx, 0x24aa78
+    cmp eax, 2
+    je attachments_on_scope_dict_go
+    ud2
+attachments_on_scope_dict_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+attachments_on_scope_dict_replay:
+    db 0xc7, 0x45, 0xec, 0x00, 0x00, 0x00, 0x00
+    jmp 0x24aa1c
+
+; 0x24ad0e on_weapon_subresources_ready (0x24ACF0) before it asks the config again whether the weapon has a scope (mov esi,offset "addons" / mov [esp+30h],ecx; then mov [esp+24h],ebx and the two has-checks 0x24AD1B, 0x24AD3A, each a jz to 0x24ADC8 = no scope, the results from 0): EAX the config's root, ECX the cook; scoped is 0x24AD47, where the first result is taken as the scope and the others follow from 1: lohook -> attachments_on_scope_result
+global attachments_on_scope_result
+extern hook_attachments_on_scope_result
+attachments_on_scope_result:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_attachments_on_scope_result
+    mov edx, attachments_on_scope_result_replay
+    cmp eax, 0
+    je attachments_on_scope_result_go
+    mov edx, 0x24ad17
+    cmp eax, 1
+    je attachments_on_scope_result_go
+    mov edx, 0x24ad47
+    cmp eax, 2
+    je attachments_on_scope_result_go
+    ud2
+attachments_on_scope_result_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+attachments_on_scope_result_replay:
+    db 0xbe, 0x78, 0x48, 0xa0, 0x00, 0x89, 0x4c, 0x24, 0x30
+    jmp 0x24ad17
+
 ; 0x24aab4 weapon_cook::on_weapon_config_loaded (0x24A920) before it sizes the requests' alloca (lea esi,[eax*8+0]; 0x424CA0 at 0x24AABD): EAX the requests it will push, EBX the weapon config's root: lohook -> attachments_on_request_room
 global attachments_on_request_room
 extern hook_attachments_on_request_room

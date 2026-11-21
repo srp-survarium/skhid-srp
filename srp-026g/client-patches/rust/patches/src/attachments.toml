@@ -15,6 +15,14 @@ site = "attachments.dictionary_configs"
 handler = "on_dictionary_configs"
 
 [[hook]]
+site = "attachments.scope_dict"
+handler = "on_scope_dict"
+
+[[hook]]
+site = "attachments.scope_result"
+handler = "on_scope_result"
+
+[[hook]]
 site = "attachments.request_room"
 handler = "on_request_room"
 
