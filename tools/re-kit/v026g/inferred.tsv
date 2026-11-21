@@ -3591,3 +3591,6 @@ va	status	ref_021d	name
 0x002e5040	inferred-medium		survarium::damage_model::tick
 0x002f4b40	inferred-high		survarium::shared_statistics::shared_statistics
 0x002f4c20	inferred-high		survarium::shared_statistics::clear
+0x00316630	inferred-high		survarium::blackboard::set<bool> [descriptive]
+0x00317700	inferred-high		survarium::blackboard::get<bool> [descriptive]
+0x001f64c0	inferred-high		survarium::player_input_handler::input_changed [descriptive]
