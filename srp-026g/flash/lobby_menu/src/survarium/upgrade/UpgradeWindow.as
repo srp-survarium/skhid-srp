@@ -648,12 +648,14 @@ package survarium.upgrade
       // A weapon's slots in armour's places, as its appearance window has them: on the appearance page
       // its decal at the top, where armour's second decal is, and its camouflage at the bottom, under
       // the line, where armour's camouflage is; on the attachments page the slots the weapon has (its
-      // scope, muzzle device, grip) one under the other in armour's three decal places from the top.
+      // scope, muzzle device, grip) one under the other from armour's top decal place, as far apart
+      // as armour's first two decals.
       protected function placeWeaponSlots() : void
       {
          var i:uint = 0;
          var slot:UpgradeSlot = null;
-         var places:Array = null;
+         var top:Array = null;
+         var step:Number = 0;
          if(!this._slotPlaces)
          {
             this._slotPlaces = new Dictionary();
@@ -667,11 +669,12 @@ package survarium.upgrade
          this.placeSlot(this.decalSlot,this._slotPlaces[this.decalSlot1]);
          this.placeSlot(this.decalSlot1,this._slotPlaces[this.decalSlot]);
          this.placeSlot(this.decalSlot2,this._slotPlaces[this.camoSlot]);
-         places = [this._slotPlaces[this.decalSlot1],this._slotPlaces[this.decalSlot],this._slotPlaces[this.decalSlot2]];
+         top = this._slotPlaces[this.decalSlot1];
+         step = this._slotPlaces[this.decalSlot][1] - top[1];
          i = 0;
          while(i < this._attachmentSlots.length)
          {
-            this.placeSlot(this._attachmentSlots[i],places[i]);
+            this.placeSlot(this._attachmentSlots[i],[top[0],top[1] + i * step,top[2],top[3]]);
             i++;
          }
       }
@@ -1036,6 +1039,7 @@ package survarium.upgrade
       protected function addAttachmentSlot(index:int) : UpgradeSlot
       {
          var slot:UpgradeSlot = new SrvModifierRendererSk();
+         slot.name = index == CosmeticSlot.MUZZLE ? "muzzleSlot" : "gripSlot";
          slot.index = index;
          slot.x = this.camoSlot.x;
          slot.y = this.camoSlot.y;

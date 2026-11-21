@@ -13,6 +13,10 @@
 # - a double click on an inventory item (InventoryList.onItemDoubleClick, UpgradeWindow.attach): a
 #   camouflage into its slot, a decal into the first free decal slot (over the first when both are
 #   full), a scope into its slot, on the page that shows the slot; armour's too; window closed: nothing;
+# - the Attachments page of a weapon that takes muzzle devices and grips: the scope's, the device's
+#   and the grip's slots one under the other, the kit's device and grip in them, a double click on
+#   each into its own slot, a grip lit up only on the grip's slot, a refused pair's slot emptied at
+#   the account's update; a weapon that takes grips alone: its grip slot at the top;
 # - the window's texts in every language of client-patches/localization fitting their fields.
 # Exits 0 when it says pass; prints its lines. A work dir given is kept (the harness, Ruffle's log).
 # Java and Flex from private/actionscript/tools.json (tools/actionscript/README.md), or SRP_AS_TOOLS.
@@ -34,7 +38,10 @@ KEYS = {'btn_upgrade_label': 'st_btn_upgrade_label', 'scope_window_title': 'st_s
         'decal_slot': 'st_decal_slot', 'camo_slot': 'st_camo_slot',
         'scope_slot': 'st_picatinny_scope_medium_name', 'default_scope': 'st_default_scope_name',
         'scope_screen_hint': 'st_srp_scope_screen_hint', 'modification_screen_hint': 'st_modification_screen_hint',
-        'modification_screen_edit_decal_hint': 'st_modification_screen_edit_decal_hint', 'confirm': 'st_confirm'}
+        'modification_screen_edit_decal_hint': 'st_modification_screen_edit_decal_hint', 'confirm': 'st_confirm',
+        # srp's own keys come to the lobby under their own names (localization_026g.py)
+        'st_srp_scope_slot': 'st_srp_scope_slot', 'st_srp_muzzle_slot': 'st_srp_muzzle_slot',
+        'st_srp_grip_slot': 'st_srp_grip_slot'}
 languages = [name for name, *_ in LANGUAGES]
 data = {}
 for language in languages:
