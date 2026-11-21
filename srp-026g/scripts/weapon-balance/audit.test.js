@@ -16,12 +16,12 @@ test('Zubr +8 adds eight points to each protected part, with a separate helmet',
   assert.equal(A.target().max.body, 1);
   assert.equal(A.target().max.head, .4);
 });
-test('AK-12 anchor includes armour and distance-dependent penetration', () => {
+test('AK-12 anchor includes armour and distance-dependent damage; penetration does not fall', () => {
   assert.equal(pick('wpn_ak_12', 0).shots, 5);
-  assert.equal(pick('wpn_ak_12', 30).shots, 7);
-  assert.equal(pick('wpn_ak_12', 50).shots, 13);
+  assert.equal(pick('wpn_ak_12', 30).shots, 6);
+  assert.equal(pick('wpn_ak_12', 50).shots, 8);
   assert.equal(pick('wpn_ak_12', 0).ttk, 4 * 60 / 650);
-  assert.equal(pick('wpn_ak_12', 50).kills, 2);
+  assert.equal(pick('wpn_ak_12', 50).kills, 3);
   assert.equal(pick('wpn_ak_12', 0, 'brain').shots, 2);
 });
 test('best ammo comes from compatibility, including pistol 7N31 and Groza SP-5', () => {

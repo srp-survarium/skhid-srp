@@ -577,6 +577,11 @@ Patches:
   part of a walking body is skipped, and only the step that ends a tick
   writes m_linear_horizontal_speed (0x2D9541), which a jump reads as it
   begins. A simulation change;
+- a bullet's armour penetration does not fall with distance (patch 173,
+  docs/notes/client_patch.md section 3.94): update_bullet_position's
+  falloff by speed (0x32EE90) no longer writes the bullet's piercing
+  (PIERCE_DISTANCE, 0x32F174); its damage falls as before. Walls and
+  ricochets lower it as before. A simulation change;
 - a thrown grenade stays above the ground (patch 105, with the late join;
   docs/notes/grenade_ccd.md): grenade_core::load's continuous collision
   sweeps a sphere of 0.04 m (GRENADE_CCD, 0x303A13), not 0.01 m, inside the
@@ -1717,6 +1722,20 @@ FALL_GRAVITY = (
 # m_last_pos (0x7B76D..0x7B7A7) is no longer reached. No base relocation
 # under the site; the branch's target is the original's.
 STEP_PARTS = (0x7B76B, bytes.fromhex("7b3c"), bytes.fromhex("eb3c"))
+
+# A bullet's armour penetration does not fall with distance (patch 173,
+# ../docs/notes/client_patch.md section 3.94). update_bullet_position 0x32EE90
+# ends every move with the falloff by speed: u = clamp((speed - +7Ch) /
+# (+78h - +7Ch), 0, 1), damage +70h = min(+70h, Dmin + (Dmax - Dmin) u)
+# (0x32F0E0) and piercing +74h likewise from weapon +520h x ammo +24h and
+# their minimum x weapon +534h x ammo +20h (0x32F174). The bullet's +74h is
+# written only there, by the constructor (0x32BB7B), a record's load
+# (0x32BCDE), try_pierce (0x32DAA1, a wall's or a body's k) and try_reflect
+# (0x32E3C6, a ricochet's minimum). PIERCE_DISTANCE makes the last store of
+# update_bullet_position a five-byte nop: damage falls as before, piercing
+# keeps what the muzzle, walls and ricochets left it. Nothing branches into
+# the site; no base relocation under it.
+PIERCE_DISTANCE = (0x32F174, bytes.fromhex("f30f114f74"), bytes.fromhex("0f1f440000"))
 
 # A thrown grenade stays above the ground (patch 105, ../docs/notes/grenade_ccd.md).
 # grenade_core::load 0x303890 gives the grenade (RGD-5 and RDG-M) a capsule of
@@ -3942,6 +3961,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             sites.append((site[0], site[0] + len(site[1])))
         patch(data, *STEP_PARTS)
         sites.append((STEP_PARTS[0], STEP_PARTS[0] + len(STEP_PARTS[1])))
+        patch(data, *PIERCE_DISTANCE)
+        sites.append((PIERCE_DISTANCE[0], PIERCE_DISTANCE[0] + len(PIERCE_DISTANCE[1])))
         # An address of .rdata for another: its relocation stays.
         patch(data, *GRENADE_CCD)
         for site in MOUSE_BUTTONS:

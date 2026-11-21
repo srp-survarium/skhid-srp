@@ -6552,3 +6552,5 @@ va	name	location	role	basis
 0x002959d0	survarium::portable_interactive_object::process_hands_ik	entry ESP+0x10	pointer to the user's skeleton pointer (bone names)	observed
 0x0030e5c0	survarium::weapon_core_fire_state::clip_time_scale [descriptive]	EDI	pointer to the clip's resource pointer (the first hands clip)	observed
 0x0030e5c0	survarium::weapon_core_fire_state::clip_time_scale [descriptive]	entry ESP+4	float: the shots a second (rounds_per_minute / 60); the caller pops	observed
+0x0032de40	survarium::bullet::try_reflect	entry ESP+4	the bullet (EBX; +88h its reflections, +70h/+74h its damage and piercing, +40h its ammo data, +0Ch its weapon item)	observed
+0x0032ee90	survarium::bullet::update_bullet_position	EAX+74h at 0x32F174	the only store of the piercing that depends on distance (every other: the constructor 0x32BB7B, a record 0x32BCDE, try_pierce 0x32DAA1, try_reflect 0x32E3C6); exe patch 173 makes it a nop (client_patch.md 3.94)	observed

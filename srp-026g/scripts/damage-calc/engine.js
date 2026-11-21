@@ -27,8 +27,8 @@ function bulletAt(w, a, distance, wall = null) {
   const W = w.bullet_damage, Q = w.bullet_pierce, m = w.min_damage_amount;
   const Dmax = W * a.k_damage;
   const Dmin = W * m * a.k_min_damage_amount * a.k_damage;
+  // Penetration does not fall with distance (exe patch 173).
   const Pmax = Q * a.k_arp;
-  const Pmin = Q * m * a.k_min_damage_amount * a.k_arp;
   const v0 = a.muzzle_speed, drag = a.air_resistance;
   const tc = 1 / (1.1 * drag);
   const reach = v0 * (tc - drag * tc * tc / 2);
@@ -37,11 +37,11 @@ function bulletAt(w, a, distance, wall = null) {
   const vFull = speedAt(v0, drag, r0), vLow = speedAt(v0, drag, r1);
   const v = speedAt(v0, drag, distance);
   const u = vFull === vLow ? (distance <= r0 ? 1 : 0) : clamp((v - vLow) / (vFull - vLow), 0, 1);
-  let D = Dmin + (Dmax - Dmin) * u, P = Pmin + (Pmax - Pmin) * u;
+  let D = Dmin + (Dmax - Dmin) * u, P = Pmax;
   // A wall (try_pierce 0x32D960): k = 1 − (1 − t)², t = clamp((P − A) / A, 0, 1),
   // 1 when A = 0; k = 0 stops the bullet. Damage, penetration and speed × k;
-  // at the target the slower bullet falls off again, never back up
-  // (update_bullet_position 0x32EE90: D, P = min(D, P; their value at its speed)).
+  // at the target the slower bullet's damage falls off again, never back up
+  // (update_bullet_position 0x32EE90: D = min(D, its value at that speed)).
   let through = null;
   if (wall != null) {
     const t = wall > 0 ? clamp((P - wall) / wall, 0, 1) : 1;
@@ -49,10 +49,10 @@ function bulletAt(w, a, distance, wall = null) {
     const uk = vFull === vLow ? (k < 1 ? 0 : u) : clamp((vk - vLow) / (vFull - vLow), 0, 1);
     through = { A: wall, k, v: vk, u: uk, D, P };
     D = k > 0 ? Math.min(k * D, Dmin + (Dmax - Dmin) * uk) : 0;
-    P = k > 0 ? Math.min(k * P, Pmin + (Pmax - Pmin) * uk) : 0;
+    P = k > 0 ? k * P : 0;
   }
   return {
-    Dmax, Dmin, Pmax, Pmin, r0, r1, reach, v0, v, u, D, P, wall: through,
+    Dmax, Dmin, Pmax, r0, r1, reach, v0, v, u, D, P, wall: through,
     pellets: Math.max(1, Math.round(a.buck_shot || 1)),
     maxDistance: a.distance || Infinity,
   };
