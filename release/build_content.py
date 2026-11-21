@@ -857,11 +857,17 @@ def item_card_check(base, base_files, game, world, cache):
     """Every config the items dictionary names, as players will have it, has each of CARD_KEYS when
     it has ui_desc (item_card_problems). Cached as walker_check is."""
     ce = own_content_edit()
+    known = set(base_files) | set(world.bytes)
+    if ce.DICTIONARY not in known:
+        return  # the release scripts' small fixtures have no dictionary
     dictionary = bytearray(world.bytes[ce.DICTIONARY] if ce.DICTIONARY in world.bytes
                            else game.get(base, [ce.DICTIONARY])[ce.DICTIONARY])
-    known = set(base_files) | set(world.bytes)
+    try:
+        entries = ce.children(dictionary, ce.find(dictionary, 'items_dict'))
+    except KeyError:
+        return  # nor always items
     configs = sorted({ce.value_of(dictionary, ce.find(dictionary, f'items_dict[{i}]/cfg_name'))
-                      for i, _ in enumerate(ce.children(dictionary, ce.find(dictionary, 'items_dict')))})
+                      for i, _ in enumerate(entries)})
     missing = [f'{p}: named by the items dictionary and in no file' for p in configs if p not in known]
     configs = [p for p in configs if p in known]
     key = Cache.key('the card keys of items', files_digest([Path(__file__)]), sys.version)
@@ -881,7 +887,7 @@ def item_card_check(base, base_files, game, world, cache):
             print(f'CARD: {problem}')
         raise Problem(f'{len(problems)} item config(s) without what every client reads of an item at its '
                       'start (an access violation in every client): no patch made')
-    print(f'item cards: each of {len(configs)} item config(s) with a ui_desc has {", ".join(CARD_KEYS)}')
+    print(f'item cards: of {len(configs)} item config(s), each with a ui_desc has {", ".join(CARD_KEYS)}')
 
 
 GRASS_MAX = 120_000
