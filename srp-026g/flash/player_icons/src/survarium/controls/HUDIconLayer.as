@@ -35,6 +35,11 @@ package survarium.controls
       // The enemies' player icons shown too: a replay (exe patch 135, MainTimeline.srp_show_enemies;
       // docs/notes/replay-map.md). The enemy list is then not consulted.
       public var enemiesShown:Boolean = false;
+
+      // Artifact Hunt (MainTimeline.srp_show_carriers, docs/notes/artefact_hunt.md): an enemy's player
+      // icon shows while he carries the artefact (the game's carrier mark, HUDMarker.carrying), the mark
+      // the artefact's.
+      protected var _carriersShown:Boolean = false;
       
       protected var _playerTeam:uint = 0;
       
@@ -74,14 +79,40 @@ package survarium.controls
       }
 
       // Whether the icon of this id may show: an enemy's player icon never (the game's own rule) but in a
-      // replay, an object's not while the objects are hidden.
+      // replay or while he carries Artifact Hunt's artefact, an object's not while the objects are hidden.
       protected function canShow(id:uint, renderer:HUDMarker) : Boolean
       {
          if(_objectsHidden && id >= FIRST_OBJECT)
          {
             return false;
          }
-         return renderer.kind != 0 || this.enemiesShown || this._enemyIds.indexOf(id) == -1;
+         return renderer.kind != 0 || this.enemiesShown || this._enemyIds.indexOf(id) == -1
+            || this._carriersShown && renderer.carrying;
+      }
+
+      public function get carriersShown() : Boolean
+      {
+         return this._carriersShown;
+      }
+
+      public function set carriersShown(value:Boolean) : void
+      {
+         this._carriersShown = value;
+         for(var id:* in this._markers)
+         {
+            HUDMarker(this._markers[id]).artefactCarry = value;
+            this.keepShowable(uint(id));
+         }
+      }
+
+      // A marker that may not show now (its carrier mark gone, the carriers no longer shown) hidden.
+      protected function keepShowable(id:uint) : void
+      {
+         var renderer:HUDMarker = this._markers[id];
+         if(renderer && renderer.visible && !this.canShow(id,renderer))
+         {
+            renderer.visible = false;
+         }
       }
 
       // Research (mode 5), at a change and every 60 frames (research_arena
@@ -183,6 +214,7 @@ package survarium.controls
             renderer.textField.visible = false;
          }
          renderer.kind = kind;
+         renderer.artefactCarry = this._carriersShown;
          this._markers[id] = renderer;
          renderer.visible = false;
          addChild(renderer);
@@ -217,6 +249,7 @@ package survarium.controls
       public function set_player_icon_container(id:uint, container:Boolean) : void
       {
          this._markers[id].container = container;
+         this.keepShowable(id);
       }
       
       public function set_player_icon_rotation(id:uint, rot:Number) : void
@@ -317,6 +350,8 @@ package survarium.controls
             }
             else
             {
+               // an enemy's icon shown while he carried, his mark gone in this update
+               renderer.visible = false;
                return;
             }
             textField = renderer.textField;

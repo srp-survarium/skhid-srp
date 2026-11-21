@@ -3,6 +3,7 @@ package survarium.controls
    import flash.display.MovieClip;
    import flash.events.Event;
    import flash.events.TimerEvent;
+   import flash.geom.Rectangle;
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
    import flash.utils.Timer;
@@ -32,6 +33,16 @@ package survarium.controls
       protected var _visibleTarget:Boolean = false;
       
       protected var _labelRenderer:Label;
+
+      // The game's carrier mark (modifier_visible, set_player_icon_container): a battery's carrier in
+      // the game's modes, the artefact's in Artifact Hunt (artefactCarry).
+      protected var _carrying:Boolean = false;
+
+      // Artifact Hunt (HUDIconLayer.carriersShown): the mark is the artefact's (ArtefactMark), not
+      // the battery's box.
+      protected var _artefactCarry:Boolean = false;
+
+      protected var _artefactMark:ArtefactMark;
       
       public function HUDMarker()
       {
@@ -91,9 +102,44 @@ package survarium.controls
       
       public function set container(value:Boolean) : void
       {
+         this._carrying = value;
+         this.showCarryMark();
+      }
+
+      public function get carrying() : Boolean
+      {
+         return this._carrying;
+      }
+
+      public function set artefactCarry(value:Boolean) : void
+      {
+         this._artefactCarry = value;
+         this.showCarryMark();
+      }
+
+      public function get artefactMarkShown() : Boolean
+      {
+         return this._artefactMark != null && this._artefactMark.visible;
+      }
+
+      // The battery's box, or in Artifact Hunt the artefact's orb where the box is.
+      protected function showCarryMark() : void
+      {
          if(this.icon_box)
          {
-            this.icon_box.visible = value;
+            this.icon_box.visible = this._carrying && !this._artefactCarry;
+         }
+         if(this._artefactCarry && this._carrying && !this._artefactMark && this.icon_box)
+         {
+            var box:Rectangle = this.icon_box.getBounds(this);
+            _artefactMark = new ArtefactMark(Math.max(box.width,box.height) / 2);
+            this._artefactMark.x = box.x + box.width / 2;
+            this._artefactMark.y = box.y + box.height / 2;
+            addChild(this._artefactMark);
+         }
+         if(this._artefactMark)
+         {
+            this._artefactMark.visible = this._artefactCarry && this._carrying;
          }
       }
       

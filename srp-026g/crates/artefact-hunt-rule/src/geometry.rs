@@ -1,5 +1,9 @@
 //! Positions as integers: every game gets the same distances.
 
+const fn within(value: i32) -> bool {
+    -Position::LIMIT <= value && value <= Position::LIMIT
+}
+
 /// A point of the map in whole millimetres (x, y up, z), each within
 /// [`Position::LIMIT`] of the origin.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -27,14 +31,12 @@ impl Position {
 
     /// The wire's form; `None` past the limit.
     pub const fn from_mm(mm: [i32; 3]) -> Option<Position> {
-        let mut axis = 0;
-        while axis < 3 {
-            if mm[axis] < -Position::LIMIT || mm[axis] > Position::LIMIT {
-                return None;
-            }
-            axis += 1;
+        let [x, y, z] = mm;
+        if within(x) && within(y) && within(z) {
+            Some(Position(mm))
+        } else {
+            None
         }
-        Some(Position(mm))
     }
 
     pub const fn mm(self) -> [i32; 3] {

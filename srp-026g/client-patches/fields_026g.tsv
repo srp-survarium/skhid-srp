@@ -1503,3 +1503,70 @@ survarium::fire_user	player	-0x110	obj<survarium::player>	the player it is the +
 survarium::player_killed_frame	melee	0x3C	u8	15th: the kill is by the gun's own stock ([bullet+40h] == weapon+53Ch, 0x2DA2CD..0x2DA2D7)
 survarium::player_killed_frame	bullet	0x44	ptr<survarium::bullet>	17th: the killing bullet or 0 (push ebp 0x2DA416: generate_killed_event's 5th argument, hit_impl's [ebp-4])
 survarium::bullet	ricochets	0x88	u8	m_ricochet_count: the times it bounced, at most 2 (try_reflect 0x32DE40: cmp byte [ebx+88h],2 at 0x32DE4D, inc at 0x32E33A after its change_trajectory; the constructor's 0, 0x32BB21); +84h counts both changes of course (change_trajectory 0x32EE20, called by try_pierce 0x32DE2C and try_reflect 0x32E335 alone), so +84h less this is its pierces
+survarium::hunt_cook	vtable	0x0	u32	patch 167's rule cook (a static of ours, as the client cooks the game's constructor makes: tdm_rule_cook 0x2F41E0): its vtable, a copy of the client tdm cook's (0x9FD8AC) with create and size ours
+survarium::hunt_cook	class	0x8	u32	the resource class it cooks: 481 (1E1h), its slot in register_cook's table (0x102D10)
+survarium::hunt_cook	unused	0x10	u32	-1, as the game's cooks have it
+survarium::hunt_cook	thread	0x14	u32	the thread that made it (GetCurrentThreadId)
+survarium::hunt_cook	flags	0x18	u32	8, as the game's rule cooks have it
+survarium::hunt_cook	game	0x20	ptr<survarium::game>	the client's game (tdm's create reads it at 0x206419)
+survarium::hunt_cook	size	0x24	size	the cook object
+survarium::rule_query	options	0x0	ptr<survarium::match_options>	a rule cook's query: the match options
+survarium::rule_query	config	0xC	ptr<vostok::engine_cfg>	the mode config's root (tdm_rule_core's constructor 0x316027)
+survarium::hunt_rule	vtable	0x0	u32	patch 167's rule: game_match_rule_base (0x313900, type 6) and these; its vtable a copy of tdm_rule_core's (0xA15DA4) with its slots ours
+survarium::hunt_rule	resolver	0x108	u32	the link resolver's vtable: tdm's (0xA06D10, its slot 0x316540 ret 1Ch), as tdm's create writes it (0x20642F)
+survarium::hunt_rule	blackboard	0x118	ptr<survarium::blackboard>	tdm's set_blackboard (slot 12, 0x267820, kept) writes it here
+survarium::hunt_rule	tick	0x120	obj<survarium::tick_delegate>	its tick in the world's second list, as the time rule's at +110h (0x318050)
+survarium::hunt_rule	core	0x138	ptr<survarium::core_world>	the world core its slot 11 got
+survarium::hunt_rule	game	0x13C	ptr<survarium::game>	the client's game, the cook's +20h
+survarium::hunt_rule	size	0x140	size	the rule object (its state is patch 167's, by the object's address)
+survarium::tick_delegate	object	0x0	u32	the delegate's object (ECX of its function)
+survarium::tick_delegate	function	0x4	u32	its function: thiscall (dt, time, step), ret 0Ch (the time rule's 0x317F10)
+survarium::tick_delegate	previous	0x8	ptr<survarium::tick_delegate>	the list's previous
+survarium::tick_delegate	next	0xC	ptr<survarium::tick_delegate>	the list's next
+survarium::tick_delegate	order	0x10	u32	its key: the core's counter at registration (0x318070; atomic_tick's sort 0x2D1D20)
+survarium::tick_delegate	enabled	0x14	u8	1: called
+survarium::tick_delegate	size	0x18	size	a delegate
+survarium::tick_list	count	0x0	u32	a tick list's delegates
+survarium::tick_list	head	0x4	ptr<survarium::tick_delegate>	its first
+survarium::tick_list	tail	0x8	ptr<survarium::tick_delegate>	its last
+survarium::tick_counter	value	0x0	u32	the next registration's order (timelimit's set_game_world_core 0x318066 reads and increments it)
+survarium::core_world	logic_ticks	0x18850	obj<survarium::tick_list>	atomic_tick's second list (core+18840h + 10h; the time rule's tick, 0x318070)
+survarium::core_world	tick_counter	0x18FB0	ptr<survarium::tick_counter>	the registrations' counter
+survarium::core_world	blackboard	0x188B0	obj<survarium::blackboard>	the rules' blackboard (0x2D58F0 gives it to slot 12)
+survarium::blackboard	team_1_respawn	0x8	u8	entry 0's bool: team 0 may respawn (0xFF from the constructor; the death handler 0x316AFA)
+survarium::blackboard	team_2_respawn	0x38	u8	entry 1's bool: any other team may respawn
+survarium::kill_event	killer	0x0	u8	a kill's data (hit_impl 0x2D9EF1): the killer's place
+survarium::kill_event	victim	0x1	u8	the victim's place (0x2D9EF4)
+survarium::match_hud_state	seconds_left	0x4	u32	the match's whole seconds left (the time rule's fill 0x267B10), shown by update_ui as root.set_match_time
+survarium::match_hud_state	team_zero_points	0x90	u16	team 0's points (tdm 0x316430; root.set_game_progress 0x2364C0)
+survarium::match_hud_state	team_one_points	0x92	u16	team 1's points
+survarium::tdm_rule_methods	rtti	-4	u32	native complete object locator (0xA532C0)
+survarium::tdm_rule_methods	size	0x50	size	twenty slots of game_match_rule_base (client_patch.md 3.50)
+survarium::tdm_cook_methods	rtti	-4	u32	native complete object locator (0xA47134)
+survarium::tdm_cook_methods	size	0x2C	size	eleven slots: 9 create (0x2063F0), 10 size (0x2063E0)
+survarium::image	tdm_rule_methods	0xA15DA4	obj<survarium::tdm_rule_methods>	tdm_rule_core's vtable including RTTI at -4 (its constructor 0x316001)
+survarium::image	tdm_cook_methods	0x9FD8AC	obj<survarium::tdm_cook_methods>	the client tdm rule cook's vtable including RTTI at -4 (the game's constructor 0x1E99C0..)
+survarium::image	tdm_rule_resolver_methods	0xA06D10	u32	tdm_rule's link resolver vtable (create 0x20642F)
+survarium::image	tdm_rule_name	0xACCC60	u32	tdm_rule's type descriptor: its cook's allocation name (create 0x2063FA)
+survarium::image	cooks	0xA86E00	obj<vostok::resources::cook_table>	register_cook's table (0x102D10): grown to 206h places at the first call
+vostok::resources::cook_table	first	0x0	ptr<vostok::resources::cook_entry>	its first place
+vostok::resources::cook_table	end	0x4	ptr<vostok::resources::cook_entry>	past its last
+vostok::resources::cook_entry	cook	0x0	u32	a class's cook, 0 none
+vostok::resources::cook_entry	size	0x4	size	a place
+survarium::player_respawn_rule_base	core	0x134	ptr<survarium::core_world>	respawn tick 31689F reads the owning world
+survarium::player_respawn_rule_base	times	0x138	u32	twenty scheduled respawn times; u32::MAX means unscheduled; tick 3168B4 compares against its time
+survarium::player_respawn_rule_base	respawn_time	0x114	u32	the config's respawn_time x 1000 (constructor 0x316783)
+survarium::freeze_rule_frame	elapsed	0x8	u32	player_respawn_rule_base::tick first argument, delta milliseconds
+survarium::freeze_rule_frame	time	0xC	u32	player_respawn_rule_base::tick second argument, simulation milliseconds (0x3169A2)
+survarium::death_delay_frame	data	0x1C	ptr<survarium::kill_event>	the death handler's data at 0x316B6B (its argument: ESP+1Ch there)
+survarium::death_delay_frame	time	0x20	u32	the death's time at 0x316B6B (ESP+20h; read at 0x316B71)
+survarium::base_game_statistics_handler	team_zero_points	0x31D4	u16	team score, tdm rule writes at 316257; Research uses the same field
+survarium::base_game_statistics_handler	team_one_points	0x31D6	u16	second team score, tdm rule 316257
+survarium::base_game_statistics_handler	winner	0x31E4	u8	winning team 0 or 1, 2 for no winner; tdm rule and Research publish here
+survarium::player	pending_death	0x33D	u8	lethal hit latched by hit_impl; base_player::tick 2DAA88 invokes on_player_death before clearing it
+vostok::engine_cfg	vector	0x0	ptr<f32>	a float3 node's (type 7) three floats, its offset relocated to an address by the loader (a respawn point's position, 0x2F4580's movq)
+scaleform::gfx_value	value_high	0xC	u32	a Number's (type 5) f64: its high word (+8 the low; Research's sender, patch 53)
+vostok::query_result	model	0x0	ptr<survarium::scene_model>	a class-15 request's result: a model (the artefact cooks' first, 0x25E91A; Lifebone's at item+4ACh, 0x2602D2)
+vostok::query_result	particle	0x0	ptr<vostok::render::particle_system>	a class-61 request's result: a particle system (the artefact cooks' second, 0x25E862; Lifebone keeps it at item+4B0h, 0x26037F, and its client passes that word by value to play_particle_system, ebx+18h = item+4B0h, 0x25F34E..0x25F387)
+vostok::render::particle_system	references	0xD0	u32	its reference count (the play's by-value copy adds one, 0x25F369)
+vostok::resources::queries_result	sound	0x12C	ptr<vostok::sound::sound_emitter>	a class-258 request's (sound_collection_cook, its class 102h at 0x5F4A3) result: the collection, a sound emitter

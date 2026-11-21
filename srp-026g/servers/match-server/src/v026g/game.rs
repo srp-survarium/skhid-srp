@@ -4378,6 +4378,13 @@ impl Game {
                 rules::research_finished(research.points, self.formed.played.map().resources_count)
             })
             .and_then(|research| research.end);
+        // Artifact Hunt's end is its rule's Over, at its own time
+        // (`artefact_hunt.md`, "The end is the server's"); its bytes passed
+        // the world check with the same parameters.
+        let hunt_end = self.formed.played.map().artefact_hunt.and_then(|params| {
+            let rule = decoded.rules.as_ref()?.artefact_hunt.as_ref()?.rule(params)?;
+            rule.result().map(|(_, over)| over.at().ms())
+        });
         let over = playing
             && match self.game_mode() {
                 RuleMode::TeamDeathmatch => decoded
@@ -4391,6 +4398,7 @@ impl Game {
                         )
                     }),
                 RuleMode::Research => research_end.is_some(),
+                RuleMode::ArtefactHunt => hunt_end.is_some(),
                 RuleMode::FreeForAll => decoded.rules.as_ref().is_some_and(|read| {
                     rules::ffa_finished(
                         read.kills_deaths.iter().map(|record| record.kills),
@@ -4410,7 +4418,7 @@ impl Game {
             // The rule's own end is at most the delay after the tick that
             // reached the goal, which is this snapshot's or an earlier one.
             let delayed = snapshot.time + self.settings.timing.end_delay_ms;
-            let at = research_end.map_or(delayed, |end| end.min(delayed));
+            let at = research_end.or(hunt_end).map_or(delayed, |end| end.min(delayed));
             log::info!(
                 "Match {:#x}: the mode's rule has its end at {} ms (standing {standing:?}); the \
                  match is over at {at} ms",
@@ -4460,6 +4468,13 @@ impl Game {
                     .any(|team| u32::from(*team) > tickets)
                 {
                     return Err(format!("tickets {:?} of {tickets}", standing.points));
+                }
+            } else if let Some(params) = self.formed.played.map().artefact_hunt {
+                // A delivery each, the goal at most (the rule holds its scores
+                // there, and the world check the statistics to them).
+                let goal = u16::from(params.goal());
+                if standing.points.iter().any(|team| *team > goal) {
+                    return Err(format!("artefacts {:?} of {goal}", standing.points));
                 }
             } else if self.game_mode() == RuleMode::Research {
                 let goal = self.formed.played.map().resources_count;
@@ -5317,14 +5332,15 @@ impl Game {
             let payment = super::reward_caps::Payment::of(
                 played,
                 &self.kill_pairs,
-                self.game_mode(),
+                super::reward_caps::Objectives::of(self.formed.played.map()),
                 self.formed.vs_bots,
             );
             for cut in &payment.objectives {
                 log::info!(
-                    "Match {:#x}: place {}'s Research capture/neutralisation score {}, paid {}",
+                    "Match {:#x}: place {}'s objective score (mode {}) {}, paid {}",
                     self.id,
                     cut.place,
+                    self.game_mode(),
                     cut.scored,
                     cut.paid
                 );
@@ -5423,6 +5439,7 @@ impl Game {
             end,
             winner: standing.map(|standing| standing.winner),
             team_points: standing.map_or([0, 0], |standing| standing.points),
+            round_starts: self.round_starts(),
             duration_ms: clock,
             played_ms: self
                 .rule
@@ -5434,6 +5451,18 @@ impl Game {
             vs_bots: self.formed.vs_bots,
             private: self.formed.private,
         }
+    }
+
+    /// Artifact Hunt's round starts as its rule counts them in the last
+    /// trusted snapshot (0 before one, and in the modes without rounds).
+    fn round_starts(&self) -> u16 {
+        let Some(params) = self.formed.played.map().artefact_hunt else {
+            return 0;
+        };
+        self.state
+            .as_ref()
+            .and_then(|state| state.rules.as_ref()?.artefact_hunt.as_ref()?.rule(params))
+            .map_or(0, |rule| rule.round_starts())
     }
 
     /// End the match: the result is kept for the lobby, and every client
@@ -5942,10 +5971,20 @@ impl Game {
             return;
         }
         // The rule's own arithmetic wraps before its state began.
-        let limit_reached = clock
+        let late = clock
             .checked_sub(END_GRACE_MS)
-            .filter(|time| self.rule.start.is_some_and(|start| *time >= start))
-            .is_some_and(|time| self.rule.completed(time));
+            .filter(|time| self.rule.start.is_some_and(|start| *time >= start));
+        let limit_reached = late.is_some_and(|time| match self.formed.played.map().artefact_hunt {
+            // Artifact Hunt plays past the time rule's end (rounds, sudden
+            // death): its end is the rule's. Only a match whose worlds never
+            // showed it by the latest end the rule can have (its horizon
+            // from the start) is stopped here.
+            Some(params) if self.rule.state == rules::state::IN_PROCESS => self
+                .rule
+                .start
+                .is_some_and(|start| time - start >= params.horizon()),
+            _ => self.rule.completed(time),
+        });
         if self.ending.is_none() && limit_reached {
             log::info!("Match {:#x}: time is up at {clock} ms", self.id);
             self.ending = Some((now, MatchEnd::TimeLimit));

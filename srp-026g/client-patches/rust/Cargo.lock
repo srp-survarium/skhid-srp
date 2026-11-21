@@ -7,6 +7,10 @@ name = "artefact-carry"
 version = "0.1.0"
 
 [[package]]
+name = "artefact-hunt-rule"
+version = "0.1.0"
+
+[[package]]
 name = "ban-reason"
 version = "0.1.0"
 
@@ -15,6 +19,7 @@ name = "patches"
 version = "0.1.0"
 dependencies = [
  "artefact-carry",
+ "artefact-hunt-rule",
  "ban-reason",
  "ragdoll",
  "sign-in-cipher",
@@ -38,6 +43,7 @@ name = "srp-validate"
 version = "0.1.0"
 dependencies = [
  "artefact-carry",
+ "artefact-hunt-rule",
  "weapon-pickup",
  "world-frame",
 ]

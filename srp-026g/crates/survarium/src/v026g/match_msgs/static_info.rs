@@ -162,19 +162,34 @@ pub const RESEARCH_WEIGHTS: [(usize, f32); 3] = [
     (event::KILL_INVADER, 10.0),
 ];
 
+/// What Artifact Hunt (mode 13) weighs otherwise: its rule counts the
+/// deliverer's `put_victory_artefact_in_container` in event 20 (by ones) and
+/// each carrier's `bring_victory_artefact`, his share of the way, in event 6
+/// (hundredths of the delivery's whole); the weights are 0.46c2's
+/// (`artefact_hunt.md`, "Rules": score 10 and 50). A delivery scores its
+/// team 60.
+pub const ARTEFACT_HUNT_WEIGHTS: [(usize, f32); 2] = [
+    (event::PUT_VICTORY_ITEM_IN_CONTAINER, 10.0),
+    (event::BRING_VICTORY_ITEM, 50.0),
+];
+
 /// A kill in Team Deathmatch scores this many times its weight: there a
 /// kill is the only way to earn (the owner, 2026-11-04).
 pub const TDM_KILL_FACTOR: f32 = 3.0;
 
 /// The weights of a match of `game_mode`: `weights`, with Research's own
-/// in mode 5 and a Team Deathmatch kill [`TDM_KILL_FACTOR`] times its
-/// weight in mode 4. The other modes play with `weights` as they are.
+/// in mode 5, Artifact Hunt's in mode 13 and a Team Deathmatch kill
+/// [`TDM_KILL_FACTOR`] times its weight in mode 4. The other modes play
+/// with `weights` as they are.
 pub fn weights_of(game_mode: maps::RuleMode, weights: [f32; SCORE_EVENTS]) -> [f32; SCORE_EVENTS] {
     let mut weights = weights;
-    if game_mode == maps::RuleMode::Research {
-        for (event, weight) in RESEARCH_WEIGHTS {
-            weights[event] = weight;
-        }
+    let own: &[(usize, f32)] = match game_mode {
+        maps::RuleMode::Research => &RESEARCH_WEIGHTS,
+        maps::RuleMode::ArtefactHunt => &ARTEFACT_HUNT_WEIGHTS,
+        _ => &[],
+    };
+    for &(event, weight) in own {
+        weights[event] = weight;
     }
     if game_mode == maps::RuleMode::TeamDeathmatch {
         weights[event::KILL] *= TDM_KILL_FACTOR;
@@ -1307,7 +1322,8 @@ impl SrpBlock {
             maps::GameMode::Batteries
             | maps::GameMode::TimedBatteries
             | maps::GameMode::TeamDeathmatch
-            | maps::GameMode::Research => Self::Plain,
+            | maps::GameMode::Research
+            | maps::GameMode::ArtefactHunt => Self::Plain,
         }
     }
 }
@@ -1662,6 +1678,21 @@ mod tests {
         assert_eq!(zero.iter().filter(|weight| **weight != 0.0).count(), 3);
         zero[10] = 0.0;
         assert_eq!(weights_of(RuleMode::Batteries, zero), zero);
+    }
+
+    #[test]
+    fn artefact_hunt_weighs_the_put_and_the_bring_as_0_46c2() {
+        use super::super::super::maps::RuleMode;
+        let hunt = score_weights(RuleMode::ArtefactHunt);
+        assert_eq!((hunt[20], hunt[6]), (10.0, 50.0));
+        for event in (0..SCORE_EVENTS).filter(|event| ![6, 20].contains(event)) {
+            assert_eq!(hunt[event], SCORE_WEIGHTS[event], "{event}");
+        }
+        // A lone carrier's delivery: put 1, the whole way 100 hundredths.
+        let mut player = super::super::snapshot::PlayerStatistics::default();
+        player.events[20][0] = 1;
+        player.events[6][1] = 100;
+        assert_eq!(super::super::snapshot::score(&player, &hunt), 60);
     }
 
     #[test]

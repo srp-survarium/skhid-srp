@@ -5,7 +5,10 @@
 use artefact_carry::{ArtefactId, Place, Refused};
 use artefact_carry::carry::{self, Carry, CarryKey, Event, KeyPress, QuickSlot, Token};
 use ragdoll::math::Vec3;
-use crate::vostok::{Action, KeyboardAction, Context, Flow, InputHandler, Lock, GameCell, NoExit, ActionMask, Thread};
+use crate::vostok::{Action, ArtefactCarryOnInputExit, KeyboardAction, Context, Flow, InputHandler, Lock, GameCell, NoExit, ActionMask, Thread};
+
+/// The Drop key's bit (action 36h, the input builder 0x242118).
+const DROP: u32 = 1 << 22;
 use crate::vostok::carry_runtime::{self as native, ArtefactClass, ArtefactDraw, HiddenWeapons, Key};
 use crate::vostok::inventory::ContainerSpace;
 use crate::vostok::draw::{self, DrawnBones};
@@ -57,10 +60,17 @@ fn event(player: &Player<'_>, ctx: &Context<'_>, event: Event) {
 
 /// Called on every set_input, including inputs for which native early-out
 /// skips its copy. Command and Use edge detection therefore sees releases.
-pub fn on_input(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_input(ctx: &mut Context<'_>) -> Flow<ArtefactCarryOnInputExit> {
     let Some(player) = native::player(ctx, native::PlayerSite::Input) else { return Flow::Continue };
     let Some((now, actions)) = native::incoming(ctx) else { return Flow::Continue };
     let before = machine(&player, ctx);
+    // Artifact Hunt (patch 167) first: its frozen countdown applies no
+    // input; its take or delivery has the use key's press.
+    let hunt = crate::artefact_hunt::input(&player, now.0, before.use_pressed(actions),
+                                           before.pressed(actions, DROP));
+    if hunt == crate::artefact_hunt::Input::Held {
+        return Flow::Exit(ArtefactCarryOnInputExit::Held);
+    }
     let allowed = player.carry_allowed();
     if !allowed {
         event(&player, ctx, Event::Gone);
@@ -68,6 +78,10 @@ pub fn on_input(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let artefact = QuickSlot::from_actions(actions).filter(|_| allowed)
         .and_then(|slot| player.inventory()?.quick_artefact(slot.get()));
     event(&player, ctx, Event::Input { now, actions, artefact });
+    if hunt == crate::artefact_hunt::Input::Used {
+        consume_use(&player, ctx);
+        return Flow::Continue;
+    }
     // Use is ours only when a take happens; otherwise the game has it
     // (a battery, a trap, a native pickup).
     if before.use_pressed(actions) {

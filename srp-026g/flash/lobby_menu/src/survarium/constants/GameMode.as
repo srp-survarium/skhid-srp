@@ -23,6 +23,9 @@ package survarium.constants
       // another mode
       public static const FREE_FOR_ALL:int = 8;
       
+      // Artifact Hunt: bring the one artefact to your base, first to 5 (docs/notes/artefact_hunt.md)
+      public static const ARTEFACT_HUNT:int = 13;
+      
       public function GameMode()
       {
          super();

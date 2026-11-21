@@ -4,6 +4,7 @@
 //! |---|---|---|
 //! | u32 | `m_random` | any |
 //! | u8 x2 | `m_score[team]` | 0..=goal |
+//! | u32 | `m_round_starts` | the rounds started after the first: see below |
 //! | u32 x2 | `m_sides[team]` | roster places (bits 0..19), no place in both |
 //! | u8 | `m_stage` | 0 idle (the scores 0), 1 play, 2 over |
 //! | | **over** | |
@@ -28,9 +29,17 @@
 //! a minute). Across the fields: a regular clock outside 6 has both scores
 //! below the goal; sudden death has the scores at most 1 apart, and with
 //! equal scores nobody's team stands wiped (its point is given at once).
+//! `m_round_starts` is the points less one in 6 and 7 (the delivery's round
+//! is still to start) and less one more for sudden death's wiped team's
+//! point (unequal scores in sudden death), 0 idle; over, the points less one
+//! after the goal or a late lead (collected), the points to two less at a
+//! time out (a hunt timed out, a late delivery, sudden death's delivery or
+//! its wiped point, both in one step at most).
 //! The last byte, `m_size`, counts the bytes before it: the rules after this
 //! one are read from the section's end, and it says where this one starts
-//! ([`Rule::read_back`]). With it 16 bytes idle, 21 over, 25 to 134 in play.
+//! ([`Rule::read_back`]). With it 20 bytes idle, 25 over, 29 to 138 in play.
+
+use core::ffi::CStr;
 
 use crate::geometry::Position;
 use crate::params::Params;
@@ -40,7 +49,7 @@ use crate::time::Time;
 use crate::way::Way;
 
 /// The most bytes a state takes: an artefact dropped in sudden death.
-pub const MAX_BYTES: usize = 15 + 4 + 1 + 9 + 12 + 4 + 8 + 4 * PLAYERS + 1;
+pub const MAX_BYTES: usize = 15 + 4 + 4 + 1 + 9 + 12 + 4 + 8 + 4 * PLAYERS + 1;
 
 /// A field's value as the game's writers take it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -53,7 +62,7 @@ pub enum Value {
 /// hash-mismatch dump, and its value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Field {
-    pub name: &'static str,
+    pub name: &'static CStr,
     pub value: Value,
 }
 
@@ -62,6 +71,8 @@ pub struct Field {
 pub enum WireError {
     Short,
     Score,
+    /// The round starts are not what the scores and the stage give.
+    RoundStarts,
     Sides,
     Stage,
     Reason,
@@ -81,27 +92,27 @@ pub enum WireError {
     Size,
 }
 
-const CARRIED: [&str; PLAYERS] = [
-    "m_way.carried[0]",
-    "m_way.carried[1]",
-    "m_way.carried[2]",
-    "m_way.carried[3]",
-    "m_way.carried[4]",
-    "m_way.carried[5]",
-    "m_way.carried[6]",
-    "m_way.carried[7]",
-    "m_way.carried[8]",
-    "m_way.carried[9]",
-    "m_way.carried[10]",
-    "m_way.carried[11]",
-    "m_way.carried[12]",
-    "m_way.carried[13]",
-    "m_way.carried[14]",
-    "m_way.carried[15]",
-    "m_way.carried[16]",
-    "m_way.carried[17]",
-    "m_way.carried[18]",
-    "m_way.carried[19]",
+const CARRIED: [&CStr; PLAYERS] = [
+    c"m_way.carried[0]",
+    c"m_way.carried[1]",
+    c"m_way.carried[2]",
+    c"m_way.carried[3]",
+    c"m_way.carried[4]",
+    c"m_way.carried[5]",
+    c"m_way.carried[6]",
+    c"m_way.carried[7]",
+    c"m_way.carried[8]",
+    c"m_way.carried[9]",
+    c"m_way.carried[10]",
+    c"m_way.carried[11]",
+    c"m_way.carried[12]",
+    c"m_way.carried[13]",
+    c"m_way.carried[14]",
+    c"m_way.carried[15]",
+    c"m_way.carried[16]",
+    c"m_way.carried[17]",
+    c"m_way.carried[18]",
+    c"m_way.carried[19]",
 ];
 
 const IDLE: u8 = 0;
@@ -152,14 +163,14 @@ impl Reader<'_> {
     }
 }
 
-fn u8(put: &mut dyn FnMut(Field), name: &'static str, value: u8) {
+fn u8(put: &mut dyn FnMut(Field), name: &'static CStr, value: u8) {
     put(Field {
         name,
         value: Value::U8(value),
     });
 }
 
-fn u32(put: &mut dyn FnMut(Field), name: &'static str, value: u32) {
+fn u32(put: &mut dyn FnMut(Field), name: &'static CStr, value: u32) {
     put(Field {
         name,
         value: Value::U32(value),
@@ -167,8 +178,8 @@ fn u32(put: &mut dyn FnMut(Field), name: &'static str, value: u32) {
 }
 
 fn way_fields(put: &mut dyn FnMut(Field), way: &Way) {
-    u32(put, "m_way.left[0]", way.left[0]);
-    u32(put, "m_way.left[1]", way.left[1]);
+    u32(put, c"m_way.left[0]", way.left[0]);
+    u32(put, c"m_way.left[1]", way.left[1]);
     for (name, &part) in CARRIED.iter().zip(&way.carried) {
         u32(put, name, part);
     }
@@ -177,11 +188,11 @@ fn way_fields(put: &mut dyn FnMut(Field), way: &Way) {
 /// A clock with its fallen (the hunt, the countdown).
 fn clock_fields(put: &mut dyn FnMut(Field), clock: &Clock) {
     match clock {
-        Clock::Regular => u8(put, "m_clock", REGULAR),
+        Clock::Regular => u8(put, c"m_clock", REGULAR),
         Clock::Sudden(sudden) => {
-            u8(put, "m_clock", SUDDEN);
-            u32(put, "m_sudden.from", sudden.from.ms());
-            u32(put, "m_sudden.fallen", sudden.fallen.bits());
+            u8(put, c"m_clock", SUDDEN);
+            u32(put, c"m_sudden.from", sudden.from.ms());
+            u32(put, c"m_sudden.fallen", sudden.fallen.bits());
         }
     }
 }
@@ -198,26 +209,27 @@ impl Rule {
             };
         });
         self.body(put);
-        u8(put, "m_size", size);
+        u8(put, c"m_size", size);
     }
 
     fn body(&self, put: &mut dyn FnMut(Field)) {
-        u32(put, "m_random", self.rng.state());
-        u8(put, "m_score[0]", self.score[0]);
-        u8(put, "m_score[1]", self.score[1]);
-        u32(put, "m_sides[0]", self.sides.of(Team::Zero).bits());
-        u32(put, "m_sides[1]", self.sides.of(Team::One).bits());
+        u32(put, c"m_random", self.rng.state());
+        u8(put, c"m_score[0]", self.score[0]);
+        u8(put, c"m_score[1]", self.score[1]);
+        u32(put, c"m_round_starts", u32::from(self.round_starts));
+        u32(put, c"m_sides[0]", self.sides.of(Team::Zero).bits());
+        u32(put, c"m_sides[1]", self.sides.of(Team::One).bits());
         let Play { start, round } = match self.stage {
-            Stage::Idle => return u8(put, "m_stage", IDLE),
+            Stage::Idle => return u8(put, c"m_stage", IDLE),
             Stage::Over(over) => {
-                u8(put, "m_stage", OVER);
-                u32(put, "m_over.at", over.at.ms());
-                return u8(put, "m_over.reason", over.reason as u8);
+                u8(put, c"m_stage", OVER);
+                u32(put, c"m_over.at", over.at.ms());
+                return u8(put, c"m_over.reason", over.reason as u8);
             }
             Stage::Play(play) => play,
         };
-        u8(put, "m_stage", PLAY);
-        u32(put, "m_start", start.ms());
+        u8(put, c"m_stage", PLAY);
+        u32(put, c"m_start", start.ms());
         match round {
             Round::Hunt { clock, artefact } => {
                 let id = match artefact {
@@ -232,48 +244,48 @@ impl Rule {
                     } => DROPPED,
                     Artefact::Carried { .. } => CARRIED_BY,
                 };
-                u8(put, "m_round", id);
+                u8(put, c"m_round", id);
                 clock_fields(put, &clock);
                 match artefact {
-                    Artefact::Waiting { until } => u32(put, "m_until", until.ms()),
+                    Artefact::Waiting { until } => u32(put, c"m_until", until.ms()),
                     Artefact::Lying { spot, until, way } => {
                         match spot {
-                            Spot::Spawner(index) => u8(put, "m_spawner", index),
+                            Spot::Spawner(index) => u8(put, c"m_spawner", index),
                             Spot::Dropped(at) => {
                                 let [x, y, z] = at.mm();
-                                u32(put, "m_dropped.x", x as u32);
-                                u32(put, "m_dropped.y", y as u32);
-                                u32(put, "m_dropped.z", z as u32);
+                                u32(put, c"m_dropped.x", x as u32);
+                                u32(put, c"m_dropped.y", y as u32);
+                                u32(put, c"m_dropped.z", z as u32);
                             }
                         }
-                        u32(put, "m_until", until.ms());
+                        u32(put, c"m_until", until.ms());
                         way_fields(put, &way);
                     }
                     Artefact::Carried { by, way } => {
-                        u8(put, "m_carrier", by.get());
+                        u8(put, c"m_carrier", by.get());
                         way_fields(put, &way);
                     }
                 }
             }
             Round::Brought { until } => {
-                u8(put, "m_round", BROUGHT);
-                u32(put, "m_until", until.ms());
+                u8(put, c"m_round", BROUGHT);
+                u32(put, c"m_until", until.ms());
             }
             Round::Fade { until, sudden } => {
-                u8(put, "m_round", FADE);
+                u8(put, c"m_round", FADE);
                 match sudden {
-                    None => u8(put, "m_clock", REGULAR),
+                    None => u8(put, c"m_clock", REGULAR),
                     Some(from) => {
-                        u8(put, "m_clock", SUDDEN);
-                        u32(put, "m_sudden.from", from.ms());
+                        u8(put, c"m_clock", SUDDEN);
+                        u32(put, c"m_sudden.from", from.ms());
                     }
                 }
-                u32(put, "m_until", until.ms());
+                u32(put, c"m_until", until.ms());
             }
             Round::Countdown { until, clock } => {
-                u8(put, "m_round", COUNTDOWN);
+                u8(put, c"m_round", COUNTDOWN);
                 clock_fields(put, &clock);
-                u32(put, "m_until", until.ms());
+                u32(put, c"m_until", until.ms());
             }
         }
     }
@@ -307,6 +319,7 @@ impl Rule {
         if score[0] > params.goal || score[1] > params.goal {
             return Err(WireError::Score);
         }
+        let round_starts = input.u32()?;
         let team_0 = input.roster(WireError::Sides)?;
         let team_1 = input.roster(WireError::Sides)?;
         let sides = Sides::new(team_0, team_1).ok_or(WireError::Sides)?;
@@ -325,13 +338,17 @@ impl Rule {
             PLAY => Stage::Play(read_play(params, &mut input, score, sides)?),
             _ => return Err(WireError::Stage),
         };
+        if !round_starts_fit(round_starts, score, &stage) {
+            return Err(WireError::RoundStarts);
+        }
         let rule = Rule {
             rng,
             score,
+            round_starts: round_starts as u16,
             sides,
             stage,
         };
-        let size = bytes.len() - input.0.len();
+        let size = bytes.len().saturating_sub(input.0.len());
         if usize::from(input.u8()?) != size {
             return Err(WireError::Size);
         }
@@ -346,9 +363,50 @@ impl Rule {
             .len()
             .checked_sub(usize::from(size))
             .ok_or(WireError::Short)?;
-        let (rule, _) = Rule::read(params, &bytes[at..])?;
+        let (rule, _) = Rule::read(params, bytes.get(at..).ok_or(WireError::Short)?)?;
         Ok((rule, at))
     }
+}
+
+/// Whether `count` round starts fit the scores and the stage: every
+/// regular delivery but one being followed is a round start (its fade's
+/// end), sudden death's wiped team's point is none.
+fn round_starts_fit(count: u32, score: [u8; 2], stage: &Stage) -> bool {
+    let points = u32::from(score[0]) + u32::from(score[1]);
+    let expected = match stage {
+        Stage::Idle => Some(0),
+        Stage::Over(Over {
+            reason: Reason::Collected,
+            ..
+        }) => points.checked_sub(1),
+        // A delivery or the time ending a hunt, sudden death's wiped point
+        // (and a delivery in its step) before it.
+        Stage::Over(Over {
+            reason: Reason::TimeOut,
+            ..
+        }) => {
+            return count <= points && count.saturating_add(2) >= points;
+        }
+        Stage::Play(Play { round, .. }) => {
+            let restarting = matches!(round, Round::Brought { .. } | Round::Fade { .. });
+            let wiped = match round {
+                Round::Hunt {
+                    clock: Clock::Sudden(_),
+                    ..
+                }
+                | Round::Countdown {
+                    clock: Clock::Sudden(_),
+                    ..
+                }
+                | Round::Fade {
+                    sudden: Some(_), ..
+                } => score[0] != score[1],
+                _ => false,
+            };
+            points.checked_sub(u32::from(restarting) + u32::from(wiped))
+        }
+    };
+    expected == Some(count)
 }
 
 /// The time domain of a match that started at `start`.

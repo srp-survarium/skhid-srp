@@ -22,7 +22,21 @@ const RAW: RawParams = RawParams {
     vi_not_picked_ttl: 120,
     vi_dropped_ttl: 60,
     drop_lift: 0.13,
+    usable_radius: 0.3,
 };
+
+/// A base's container: a box 1 m a side over its position, and one a
+/// metre higher (the shapes are the config's, in world space).
+const fn crate_at(x: f32) -> [RawShape; 1] {
+    [RawShape {
+        kind: 1,
+        position: [x, 0.5, 0.0],
+        axes: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+        half: [0.5, 0.5, 0.5],
+    }]
+}
+const CRATE_0: [RawShape; 1] = crate_at(0.0);
+const CRATE_1: [RawShape; 1] = crate_at(100.0);
 
 fn spawners() -> [Spawner; 4] {
     [10.0, 40.0, 60.0, 90.0].map(|x| Spawner {
@@ -35,10 +49,12 @@ const BASES: [BaseDef; 2] = [
     BaseDef {
         team: 1,
         position: [100.0, 0.0, 0.0],
+        shapes: &CRATE_1,
     },
     BaseDef {
         team: 0,
         position: [0.0, 0.0, 0.0],
+        shapes: &CRATE_0,
     },
 ];
 
@@ -268,6 +284,8 @@ impl Match {
         game.now = START + ms;
         game.rule = Rule {
             score,
+            // every delivery before was followed by its round
+            round_starts: u16::from(score[0]) + u16::from(score[1]),
             stage: Stage::Play(Play {
                 start: t(START),
                 round: Round::Hunt {
@@ -352,10 +370,12 @@ fn a_config_is_parsed_or_names_its_fault() {
         BaseDef {
             team: 0,
             position: [0.0; 3],
+            shapes: &CRATE_0,
         },
         BaseDef {
             team: 1,
             position: [50.0, 0.0, 0.0],
+            shapes: &CRATE_1,
         },
     ];
     let parse = |raw: RawParams| Params::parse(&raw, &spawners, &bases);
@@ -456,6 +476,68 @@ fn a_config_is_parsed_or_names_its_fault() {
         Params::parse(&RAW, &spawners, &same_place),
         Err(ParamError::Bases)
     );
+    let no_shapes = [
+        bases[0],
+        BaseDef {
+            shapes: &[],
+            ..bases[1]
+        },
+    ];
+    assert_eq!(
+        Params::parse(&RAW, &spawners, &no_shapes),
+        Err(ParamError::Bases)
+    );
+    let bad = [RawShape {
+        kind: 3,
+        ..CRATE_0[0]
+    }];
+    let bad_kind = [
+        bases[0],
+        BaseDef {
+            shapes: &bad,
+            ..bases[1]
+        },
+    ];
+    assert_eq!(
+        Params::parse(&RAW, &spawners, &bad_kind),
+        Err(ParamError::Bases)
+    );
+    let nan = [RawShape {
+        half: [f32::NAN; 3],
+        ..CRATE_0[0]
+    }];
+    let bad_half = [
+        bases[0],
+        BaseDef {
+            shapes: &nan,
+            ..bases[1]
+        },
+    ];
+    assert_eq!(
+        Params::parse(&RAW, &spawners, &bad_half),
+        Err(ParamError::Bases)
+    );
+    let many = [CRATE_0[0]; MAX_SHAPES + 1];
+    let too_many = [
+        bases[0],
+        BaseDef {
+            shapes: &many,
+            ..bases[1]
+        },
+    ];
+    assert_eq!(
+        Params::parse(&RAW, &spawners, &too_many),
+        Err(ParamError::Bases)
+    );
+    for radius in [0.0, -1.0, f32::NAN, 11.0] {
+        assert_eq!(
+            parse(RawParams {
+                usable_radius: radius,
+                ..RAW
+            }),
+            Err(ParamError::UsableRadius)
+        );
+    }
     // The bases are by team, whatever their order in the config.
     assert_eq!(params().base(Team::One).mm(), [100_000, 0, 0]);
 }
@@ -1390,14 +1472,14 @@ fn the_wire_is_parsed_and_never_trusted() {
         let len = rule.write(&mut bytes).unwrap();
         bytes[..len].to_vec()
     };
-    assert_eq!(bytes_of(&Rule::new(5)).len(), 15 + 1);
+    assert_eq!(bytes_of(&Rule::new(5)).len(), 19 + 1);
     // Play, waiting: the head, the start, the round, the clock, its time.
     let waiting = bytes_of(&game.rule);
-    assert_eq!(waiting.len(), 15 + 4 + 1 + 1 + 4 + 1);
-    assert_eq!(waiting[25], 25, "the size of what is before it");
+    assert_eq!(waiting.len(), 19 + 4 + 1 + 1 + 4 + 1);
+    assert_eq!(waiting[29], 29, "the size of what is before it");
     assert_eq!(waiting[..4], game.rule.rng().state().to_le_bytes());
-    assert_eq!(waiting[6..14], [0x0F, 0, 0, 0, 0, 0x3C, 0, 0], "the sides");
-    assert_eq!((waiting[14], waiting[19], waiting[20]), (1, 2, 0));
+    assert_eq!(waiting[10..18], [0x0F, 0, 0, 0, 0, 0x3C, 0, 0], "the sides");
+    assert_eq!((waiting[18], waiting[23], waiting[24]), (1, 2, 0));
     assert_eq!(
         Rule::read(&params, &waiting[..waiting.len() - 1]),
         Err(WireError::Short)
@@ -1408,32 +1490,33 @@ fn the_wire_is_parsed_and_never_trusted() {
         Rule::read(&params, &bytes).map(|_| ())
     };
     assert_eq!(broken(4, 6), Err(WireError::Score), "over the goal");
+    assert_eq!(broken(6, 1), Err(WireError::RoundStarts), "no delivery yet");
     assert_eq!(
         broken(4, 5),
         Err(WireError::Score),
         "the goal while the match time runs"
     );
-    assert_eq!(broken(8, 0x10), Err(WireError::Sides), "place 20");
+    assert_eq!(broken(12, 0x10), Err(WireError::Sides), "place 20");
     assert_eq!(
-        broken(10, 1),
+        broken(14, 1),
         Err(WireError::Sides),
         "a place of both teams"
     );
-    assert_eq!(broken(14, 3), Err(WireError::Stage));
-    assert_eq!(broken(19, 9), Err(WireError::Round));
-    assert_eq!(broken(19, 1), Err(WireError::Round));
-    assert_eq!(broken(20, 2), Err(WireError::Clock));
+    assert_eq!(broken(18, 3), Err(WireError::Stage));
+    assert_eq!(broken(23, 9), Err(WireError::Round));
+    assert_eq!(broken(23, 1), Err(WireError::Round));
+    assert_eq!(broken(24, 2), Err(WireError::Clock));
     assert_eq!(
-        broken(24, 0x80),
+        broken(28, 0x80),
         Err(WireError::Time),
         "a time before the start"
     );
     assert_eq!(
-        broken(24, 0x7F),
+        broken(28, 0x7F),
         Err(WireError::Time),
         "a time past the horizon"
     );
-    assert_eq!(broken(25, 24), Err(WireError::Size));
+    assert_eq!(broken(29, 28), Err(WireError::Size));
     // In a longer buffer the rule's bytes are counted; before the kd stats
     // it is found from its end.
     let mut longer = waiting.clone();
@@ -1451,9 +1534,9 @@ fn the_wire_is_parsed_and_never_trusted() {
     // Lying at a spawner: its index is one of the map's.
     game.spawned();
     let mut lying = bytes_of(&game.rule);
-    assert_eq!(lying.len(), 26 + 1 + 88);
-    assert_eq!((lying[19], lying[20]), (3, 0));
-    lying[21] = 4;
+    assert_eq!(lying.len(), 30 + 1 + 88);
+    assert_eq!((lying[23], lying[24]), (3, 0));
+    lying[25] = 4;
     assert_eq!(
         Rule::read(&params, &lying).map(|_| ()),
         Err(WireError::Spawner)
@@ -1462,16 +1545,16 @@ fn the_wire_is_parsed_and_never_trusted() {
     game.take(2);
     let mut carried = bytes_of(&game.rule);
     assert_eq!(
-        (carried.len(), carried[19], carried[21]),
-        (22 + 88 + 1, 4, 2)
+        (carried.len(), carried[23], carried[25]),
+        (26 + 88 + 1, 4, 2)
     );
-    carried[21] = 9;
+    carried[25] = 9;
     assert_eq!(
         Rule::read(&params, &carried).map(|_| ()),
         Err(WireError::Carrier)
     );
-    carried[21] = 2;
-    carried[22..26].copy_from_slice(&(WHOLE + 1).to_le_bytes());
+    carried[25] = 2;
+    carried[26..30].copy_from_slice(&(WHOLE + 1).to_le_bytes());
     assert_eq!(
         Rule::read(&params, &carried).map(|_| ()),
         Err(WireError::Way)
@@ -1479,12 +1562,12 @@ fn the_wire_is_parsed_and_never_trusted() {
     // Dropped: a point of a map.
     game.drop_at(2, 12.5);
     let mut dropped = bytes_of(&game.rule);
-    assert_eq!((dropped.len(), dropped[19]), (21 + 12 + 4 + 88 + 1, 5));
+    assert_eq!((dropped.len(), dropped[23]), (25 + 12 + 4 + 88 + 1, 5));
     assert_eq!(
-        dropped[21..33],
+        dropped[25..37],
         [0xD4, 0x30, 0, 0, 130, 0, 0, 0, 0, 0, 0, 0]
     );
-    dropped[24] = 0x7F;
+    dropped[28] = 0x7F;
     assert_eq!(
         Rule::read(&params, &dropped).map(|_| ()),
         Err(WireError::Position)
@@ -1494,11 +1577,12 @@ fn the_wire_is_parsed_and_never_trusted() {
     game.take(2);
     game.deliver(2);
     let brought = bytes_of(&game.rule);
-    assert_eq!((brought.len(), brought[19]), (15 + 4 + 1 + 4 + 1, 6));
-    assert_eq!(brought[20..24], (game.now + 3000).to_le_bytes());
+    assert_eq!((brought.len(), brought[23]), (19 + 4 + 1 + 4 + 1, 6));
+    assert_eq!(brought[24..28], (game.now + 3000).to_le_bytes());
     // The goal is a state of these 3 s only, of one team.
     let mut goal = brought.clone();
     goal[4] = 5;
+    goal[6] = 4; // the round starts four earlier deliveries give
     assert!(Rule::read(&params, &goal).is_ok());
     goal[5] = 5;
     assert_eq!(
@@ -1510,12 +1594,28 @@ fn the_wire_is_parsed_and_never_trusted() {
         game.step();
     }
     let fade = bytes_of(&game.rule);
-    assert_eq!((fade.len(), fade[19], fade[20]), (26, 7, 0));
+    assert_eq!((fade.len(), fade[23], fade[24]), (30, 7, 0));
+    assert_eq!(
+        (game.rule.round_starts(), fade[6]),
+        (0, 0),
+        "its round still to start"
+    );
     while matches!(game.round(), Round::Fade { .. }) {
         game.step();
     }
     let countdown = bytes_of(&game.rule);
-    assert_eq!((countdown.len(), countdown[19], countdown[20]), (26, 8, 0));
+    assert_eq!((countdown.len(), countdown[23], countdown[24]), (30, 8, 0));
+    assert_eq!(
+        (game.rule.round_starts(), countdown[6]),
+        (1, 1),
+        "the fade's end started it"
+    );
+    let mut early = countdown.clone();
+    early[6] = 0;
+    assert_eq!(
+        Rule::read(&params, &early).map(|_| ()),
+        Err(WireError::RoundStarts)
+    );
 
     // Sudden death: the fallen are of the match, and no team stands wiped
     // with equal scores.
@@ -1523,10 +1623,10 @@ fn the_wire_is_parsed_and_never_trusted() {
     game.step();
     game.die(0, 1.0);
     let sudden = bytes_of(&game.rule);
-    assert_eq!((sudden[20], &sudden[25..29]), (1, &[1u8, 0, 0, 0][..]));
+    assert_eq!((sudden[24], &sudden[29..33]), (1, &[1u8, 0, 0, 0][..]));
     let fallen = |bits: u32| {
         let mut bytes = sudden.clone();
-        bytes[25..29].copy_from_slice(&bits.to_le_bytes());
+        bytes[29..33].copy_from_slice(&bits.to_le_bytes());
         Rule::read(&params, &bytes).map(|_| ())
     };
     assert_eq!(fallen(0b0111), Ok(()));
@@ -1543,8 +1643,8 @@ fn the_wire_is_parsed_and_never_trusted() {
     // The carrier is not one of the fallen.
     game.take(1);
     let mut carried = bytes_of(&game.rule);
-    assert_eq!((carried[19], carried[29]), (4, 1));
-    carried[29] = 0;
+    assert_eq!((carried[23], carried[33]), (4, 1));
+    carried[33] = 0;
     assert_eq!(
         Rule::read(&params, &carried).map(|_| ()),
         Err(WireError::Carrier)
@@ -1557,17 +1657,17 @@ fn the_wire_is_parsed_and_never_trusted() {
     }
     let fade = bytes_of(&game.rule);
     assert_eq!(
-        (fade.len(), fade[19], fade[20]),
-        (15 + 4 + 1 + 5 + 4 + 1, 7, 1)
+        (fade.len(), fade[23], fade[24]),
+        (19 + 4 + 1 + 5 + 4 + 1, 7, 1)
     );
 
     // Over.
     let mut game = Match::at_time(1, 899_950, [1, 0]);
     game.step();
     let over = bytes_of(&game.rule);
-    assert_eq!((over.len(), over[14], over[19]), (21, 2, 1));
+    assert_eq!((over.len(), over[18], over[23]), (25, 2, 1));
     let mut bad = over.clone();
-    bad[19] = 2;
+    bad[23] = 2;
     assert_eq!(
         Rule::read(&params, &bad).map(|_| ()),
         Err(WireError::Reason)
@@ -1586,7 +1686,7 @@ fn the_fields_are_the_bytes_in_order() {
     let mut walked = Vec::new();
     let mut names = Vec::new();
     game.rule.fields(&mut |field| {
-        names.push(field.name);
+        names.push(field.name.to_str().unwrap());
         match field.value {
             Value::U8(value) => walked.push(value),
             Value::U32(value) => walked.extend(value.to_le_bytes()),
@@ -1594,11 +1694,12 @@ fn the_fields_are_the_bytes_in_order() {
     });
     assert_eq!(walked, bytes[..len]);
     assert_eq!(
-        names[..12],
+        names[..13],
         [
             "m_random",
             "m_score[0]",
             "m_score[1]",
+            "m_round_starts",
             "m_sides[0]",
             "m_sides[1]",
             "m_stage",
@@ -1633,6 +1734,8 @@ fn random_matches_keep_the_invariants() {
         let late = 600_000 + roll(280_000) / TICK * TICK;
         let mut game = Match::at_time(seed, late, [roll(5) as u8, roll(5) as u8]);
         let mut joiner: Option<Rule> = None;
+        let first_starts = game.rule.round_starts();
+        let mut started_here = 0;
         let mut replay: Vec<Event> = Vec::new();
         for _ in 0..60_000 {
             if game.rule.result().is_some() {
@@ -1685,7 +1788,14 @@ fn random_matches_keep_the_invariants() {
                 let started = !frozen && game.rule.frozen();
                 assert_eq!(spawning == Spawning::Everyone, started, "seed {seed}");
                 rounds += usize::from(started);
+                started_here += u16::from(started);
             }
+            // The round starts are counted exactly: each everyone's respawn.
+            assert_eq!(
+                game.rule.round_starts(),
+                first_starts + started_here,
+                "seed {seed}"
+            );
             if joiner.is_some() {
                 replay.push(event);
             } else if roll(500) == 0 {
@@ -1725,4 +1835,56 @@ fn random_matches_keep_the_invariants() {
     assert!(rounds > 10, "rounds were played: {rounds}");
     // No match outlives its time, a late delivery's 8 s and sudden death.
     assert!(longest <= 900_000 + 8_000 + 180_000 + TICK, "{longest}");
+}
+
+#[test]
+fn the_use_key_takes_within_its_reach_and_before_the_level() {
+    let params = params();
+    let lying = at(10.0).raised(130);
+    // Standing at 8.5 m, the eye 1.5 m up, looking down at it.
+    let eye = [8.5, 1.5, 0.0];
+    let to = [1.5f32, -1.37, 0.0];
+    let length = (to[0] * to[0] + to[1] * to[1]).sqrt();
+    let view = View {
+        eye,
+        forward: [to[0] / length, to[1] / length, 0.0],
+    };
+    assert!(params.takes(&view, lying, None));
+    // A wall a metre along the view stands between.
+    assert!(!params.takes(&view, lying, Some(1.0)));
+    // The level just past the sphere's near side does not.
+    assert!(params.takes(&view, lying, Some(length)));
+    // Out of the 2 m reach.
+    let far = View {
+        eye: [7.0, 1.5, 0.0],
+        forward: [1.0, 0.0, 0.0],
+    };
+    assert!(!params.takes(&far, at(10.0).raised(1500), None));
+    // Looking away.
+    let away = View {
+        forward: [-1.0, 0.0, 0.0],
+        ..view
+    };
+    assert!(!params.takes(&away, lying, None));
+}
+
+#[test]
+fn a_delivery_is_the_view_on_ones_own_base() {
+    let params = params();
+    // Team 0's crate is at x = 0 (0..1 m up); team 1's at x = 100.
+    let at_0 = View {
+        eye: [1.6, 1.5, 0.0],
+        forward: [-0.8, -0.6, 0.0],
+    };
+    assert!(params.delivers(&at_0, Team::Zero, None));
+    assert!(!params.delivers(&at_0, Team::One, None));
+    // The crate's own collision at its surface is no wall.
+    assert!(params.delivers(&at_0, Team::Zero, Some(1.38)));
+    // A wall half a metre before it is.
+    assert!(!params.delivers(&at_0, Team::Zero, Some(0.5)));
+    let back = View {
+        eye: [3.0, 1.5, 0.0],
+        forward: [-1.0, 0.0, 0.0],
+    };
+    assert!(!params.delivers(&back, Team::Zero, None));
 }

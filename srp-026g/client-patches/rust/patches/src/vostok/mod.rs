@@ -65,6 +65,7 @@ pub mod log;
 pub mod run_log;
 pub mod melee;
 pub mod battery;
+pub mod artefact_hunt;
 pub mod memory;
 pub mod memory_profile;
 mod options;
@@ -124,6 +125,8 @@ mod generated {
     use super::battery::{BatteryState, PredicateBuffer};
     #[allow(unused_imports)]
     use super::shape::{Triangle, TriangleSink};
+    #[allow(unused_imports)]
+    use super::artefact_hunt::{HudState, HuntCook, HuntRule, RuleCore, RuleEvent, RuleQuery, RuleReader, RuleWriter, TickRule};
     #[allow(unused_imports)]
     use core::ffi::c_void;
     include!("../../../../hooks_026g.rs");

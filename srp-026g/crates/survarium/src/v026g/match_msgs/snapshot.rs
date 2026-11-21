@@ -1036,6 +1036,44 @@ impl Research {
     }
 }
 
+/// Artifact Hunt's rule (class 481, mode 13; `artefact_hunt.md`, "Wire"):
+/// its own bytes, found from the kd stats back by their last, `m_size`, the
+/// count of the bytes before it. What they say is read with the map's
+/// parameters ([`Self::rule`]): `artefact_hunt_rule::Rule::read` is the one
+/// definition of them, and every world the server trusts passed it in the
+/// world check.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ArtefactHunt(Vec<u8>);
+
+impl ArtefactHunt {
+    /// The rule that ends `bytes`: where it starts, and its bytes.
+    fn read_back(bytes: &[u8]) -> Option<(usize, Self)> {
+        let (&size, before) = bytes.split_last()?;
+        let at = before.len().checked_sub(usize::from(size))?;
+        Some((at, Self(bytes[at..].to_vec())))
+    }
+
+    /// `rule`'s bytes, as the game writes them.
+    pub fn of(rule: &artefact_hunt_rule::Rule) -> Self {
+        let mut bytes = [0; artefact_hunt_rule::MAX_BYTES];
+        let len = rule.write(&mut bytes).unwrap_or(0);
+        Self(bytes[..len].to_vec())
+    }
+
+    /// The rule its bytes are for a map of `params`; `None` when they are no
+    /// state of it.
+    pub fn rule(&self, params: &artefact_hunt_rule::Params) -> Option<artefact_hunt_rule::Rule> {
+        match artefact_hunt_rule::Rule::read_back(params, &self.0) {
+            Ok((rule, 0)) => Some(rule),
+            _ => None,
+        }
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
 /// `player_respawn_rule_core` (0x316F10, base 0x316C90). PROVEN.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Respawn {
@@ -1369,6 +1407,9 @@ pub struct Rules {
     /// Mode 8: the 40 bytes before the kd stats, exe patch 142's spawn
     /// history.
     pub free_for_all: Option<SpawnHistory>,
+    /// Mode 13: the bytes before the kd stats that the rule's last byte
+    /// counts.
+    pub artefact_hunt: Option<ArtefactHunt>,
     /// One for each roster place.
     pub kills_deaths: Vec<KillsDeaths>,
     /// The blackboard's `team_1_respawn`, `team_2_respawn`: whether each
@@ -1455,6 +1496,13 @@ impl Rules {
             .then(|| middle.len().checked_sub(SpawnHistory::LEN))
             .flatten()
             .and_then(|at| SpawnHistory::read(&middle[at..]));
+        let (artefact_hunt_at, artefact_hunt) = match (game_mode == RuleMode::ArtefactHunt)
+            .then(|| ArtefactHunt::read_back(middle))
+            .flatten()
+        {
+            Some((at, rule)) => (Some(at), Some(rule)),
+            None => (None, None),
+        };
         let mut respawn = None;
         let mut gather = None;
         if let Some((mut head, head_len)) = Respawn::read_head(middle) {
@@ -1466,6 +1514,7 @@ impl Rules {
                 // No mode rule: the respawn rule ends where the spawn
                 // history begins.
                 RuleMode::FreeForAll => Some(middle.len().checked_sub(SpawnHistory::LEN)),
+                RuleMode::ArtefactHunt => Some(artefact_hunt_at),
                 RuleMode::Batteries | RuleMode::TimedBatteries => None,
             };
             if let Some(end) = fixed_at {
@@ -1494,6 +1543,7 @@ impl Rules {
             tdm,
             research,
             free_for_all,
+            artefact_hunt,
             kills_deaths,
             team_respawn,
         })
@@ -1517,6 +1567,9 @@ impl Rules {
         }
         if let Some(spawns) = &self.free_for_all {
             mode_rule.extend(spawns.bytes());
+        }
+        if let Some(hunt) = &self.artefact_hunt {
+            mode_rule.extend(hunt.bytes());
         }
         self.encode(&respawn, &mode_rule)
     }
@@ -1580,6 +1633,21 @@ impl Decoded<'_> {
             return None;
         }
         let tail = self.statistics.as_ref().map(|statistics| statistics.tail);
+        // Artifact Hunt's rule writes its scores and its leader into the
+        // tail after every transition (the world check holds them to the
+        // rule's): the tail's leader once the rule wrote one (3 until play).
+        if game_mode == RuleMode::ArtefactHunt {
+            let tail = tail?;
+            let winner = if tail.winner_team <= rules::DRAW {
+                tail.winner_team
+            } else {
+                rules::winner_by_points(tail.team_points)
+            };
+            return Some(Standing {
+                points: tail.team_points,
+                winner,
+            });
+        }
         if game_mode == RuleMode::Research {
             let research = self.rules.as_ref().and_then(|rules| rules.research.as_ref());
             if let Some(research) = research {
@@ -2635,6 +2703,7 @@ mod tests {
             tdm: None,
             research: None,
             free_for_all: None,
+            artefact_hunt: None,
             kills_deaths: vec![KillsDeaths::default(); 2],
             team_respawn: [true, true],
         };
@@ -2662,6 +2731,7 @@ mod tests {
             tdm: None,
             research: None,
             free_for_all: Some(history),
+            artefact_hunt: None,
             kills_deaths: vec![KillsDeaths::default(); 2],
             team_respawn: [true, true],
         };
@@ -2671,6 +2741,46 @@ mod tests {
             Rules::decode(&bytes, TIME, 2, RuleMode::FreeForAll, 0),
             Some(rules)
         );
+    }
+
+    #[test]
+    fn an_artefact_hunt_rule_is_found_by_its_last_byte_and_read_with_the_maps_parameters() {
+        use super::super::super::maps::fixtures;
+        let added = fixtures::AddedMap::level_12_artefact_hunt();
+        let table = fixtures::table_of(&fixtures::with_map(&added)).unwrap();
+        let params = table.iter().find_map(|map| map.artefact_hunt).unwrap();
+        let start = artefact_hunt_rule::Time::from_ms(21_000);
+        let rule = artefact_hunt_rule::Rule::new(9)
+            .step(params, artefact_hunt_rule::Event::Start { now: start })
+            .0;
+        for points in [0, 1, 22] {
+            let rules = Rules {
+                timelimit: Timelimit::read(&TIMELIMIT).unwrap(),
+                respawn: Some(Respawn {
+                    times: vec![],
+                    seed: 7,
+                    points: vec![[0, 0]; points],
+                }),
+                gather: None,
+                tdm: None,
+                research: None,
+                free_for_all: None,
+                artefact_hunt: Some(ArtefactHunt::of(&rule)),
+                kills_deaths: vec![KillsDeaths::default(); 2],
+                team_respawn: [true, true],
+            };
+            let bytes = rules.to_bytes();
+            let decoded = Rules::decode(&bytes, TIME, 2, RuleMode::ArtefactHunt, 0).unwrap();
+            assert_eq!(decoded, rules, "{points}");
+            assert_eq!(decoded.artefact_hunt.unwrap().rule(params), Some(rule));
+            // Another mode's reading has none.
+            let research = Rules::decode(&bytes, TIME, 2, RuleMode::Research, 0).unwrap();
+            assert_eq!(research.artefact_hunt, None);
+        }
+        // Bytes that are no state of the map's rule read as none.
+        let mut wrong = ArtefactHunt::of(&rule).bytes().to_vec();
+        wrong[18] = 9;
+        assert_eq!(ArtefactHunt(wrong).rule(params), None);
     }
 
     #[test]
@@ -2877,6 +2987,7 @@ mod tests {
             tdm: None,
             research: None,
             free_for_all: None,
+            artefact_hunt: None,
             kills_deaths: vec![KillsDeaths::default(); 2],
             team_respawn: [true, true],
         }

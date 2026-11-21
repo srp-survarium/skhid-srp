@@ -24,18 +24,23 @@ mod geometry;
 mod params;
 mod roster;
 mod rule;
+mod shape;
 mod time;
 mod way;
 mod wire;
 
 pub use cue::{Cue, Line, Message, Viewer};
 pub use geometry::Position;
-pub use params::{BaseDef, FADE, MAX_SPAWNERS, ParamError, Params, RawParams, Spawner};
+pub use params::{
+    BASE_MARGIN, BaseDef, FADE, MAX_SHAPES, MAX_SPAWNERS, ParamError, Params, REACH, RawParams,
+    RawShape, Spawner,
+};
 pub use roster::{PLAYERS, Place, Roster, Sides, Team};
 pub use rule::{
     Action, Actions, After, Artefact, ArtefactView, Clock, Event, Hud, MAX_ACTIONS, Outcome, Over,
     Phase, Play, Reason, Rng, Round, Rule, Shift, Spawning, Spot, Stage, Sudden, SuddenShown,
 };
+pub use shape::{Shape, ShapeKind, View, along};
 pub use time::{Ms, Time};
 pub use way::{MAX_WAY, WHOLE, Way};
 pub use wire::{Field, MAX_BYTES, Value, WireError};

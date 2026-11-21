@@ -518,6 +518,7 @@ dependencies = [
 name = "match-server"
 version = "0.1.0"
 dependencies = [
+ "artefact-hunt-rule",
  "crc32fast",
  "libc",
  "log",
@@ -873,6 +874,7 @@ name = "srp-validate"
 version = "0.1.0"
 dependencies = [
  "artefact-carry",
+ "artefact-hunt-rule",
  "survarium",
  "weapon-pickup",
  "world-frame",
@@ -895,6 +897,7 @@ name = "survarium"
 version = "0.1.0"
 dependencies = [
  "artefact-carry",
+ "artefact-hunt-rule",
  "binary-config-parser",
  "encoding_rs",
  "log",

@@ -2752,3 +2752,7 @@ va	name	source	ret_cleanup	result
 0x00317700	survarium::blackboard::get<bool> [descriptive]	manual	4	AL: the entry holds a bool; the value through the out pointer
 0x00316aa0	survarium::player_respawn_rule_base::on_event	manual	12	none: a death (type 1) of a team whose blackboard entry is true sets the victim's respawn time (+138h + 4 x place)
 0x001f64c0	survarium::player_input_handler::input_changed [descriptive]	manual	0	AL 1 when the actions mask +33Ch differs from the last sent +344h or the turn +338h (two halves) is not zero; 0 otherwise
+0x002063e0	survarium::tdm_rule_cook::resource_size	manual	0	EAX: the rule's size, 138h
+0x003165d0	survarium::tdm_rule_core::on_player_left_match	manual	8	none
+0x00267810	survarium::tdm_rule::set_game_world_core [descriptive]	manual	4	none: the core at +128h
+0x00267820	survarium::tdm_rule::set_blackboard [descriptive]	manual	4	none: the blackboard at +118h

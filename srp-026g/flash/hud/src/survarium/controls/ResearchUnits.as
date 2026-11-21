@@ -1,10 +1,8 @@
 package survarium.controls
 {
    import flash.display.Graphics;
-   import flash.display.DisplayObject;
    import flash.display.Sprite;
    import flash.filters.GlowFilter;
-   import flash.geom.Point;
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
    import flash.text.TextFormat;
@@ -18,7 +16,7 @@ package survarium.controls
    // is swords while contested, or ! while the enemy alone advances capture. The exe
    // (research_arena) sends the state with
    // HUD.research_update.
-   public class ResearchUnits extends Sprite
+   public class ResearchUnits extends TopRow
    {
 
       public static const OWN:uint = 0x3D9AE8;
@@ -40,7 +38,7 @@ package survarium.controls
       // highlight (0.27d CapturePointMarker: 34 / 46 against 24 / 46).
       public static const INSIDE:Number = 34 / 24;
 
-      // From the bottom of the bars to the units' centres (HUD.placeResearchUnits), room for one at INSIDE.
+      // From the bottom of the bars to the units' centres (HUD.placeTopRow), room for one at INSIDE.
       public static const TOP:Number = Math.ceil((RADIUS + RING) * INSIDE) + 4;
 
       protected var _units:Array = [];
@@ -55,26 +53,11 @@ package survarium.controls
       public function ResearchUnits()
       {
          super();
-         mouseEnabled = false;
-         mouseChildren = false;
-      }
-
-      public function followIndicator(indicator:DisplayObject, centre:Number, top:Number) : void
-      {
-         if(stage == null || parent == null || indicator.parent == null)
-         {
-            return;
-         }
-         var middle:Point = indicator.parent.globalToLocal(new Point(stage.stageWidth / 2,0));
-         indicator.x = middle.x - centre * indicator.scaleX;
-         var anchor:Point = parent.globalToLocal(indicator.localToGlobal(new Point(centre,top)));
-         x = Math.round(anchor.x);
-         y = Math.round(anchor.y);
       }
 
       // DisplayObject.getBounds includes hidden capture timers, retaining an
       // empty row after a capture ends. Count only what is currently visible.
-      public function get contentBottom() : Number
+      override public function get contentBottom() : Number
       {
          var bottom:Number = 0;
          for(var i:int = 0; i < this._units.length; i++)

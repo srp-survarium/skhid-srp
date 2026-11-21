@@ -100,12 +100,18 @@ Each one a decision; the owner's are marked, the rest are the port's and open to
   - `mode.sound_notifications {base_path, artefact_spawned, artefact_picked_up,
     artefact_picked_up_by_enemy, artefact_dropped, artefact_dropped_by_enemy, artefact_brought,
     artefact_brought_by_enemy}`: 0.46c2's own block, the announcer's seven sounds as
-    `<base_path>/<language>/<name>` (single sounds, each with its `.raw_options` as a hud sound).
+    `<base_path>/<voice>/<name>`. Each line is `[258, "artifact_hunt/<line>"]`: a sound collection
+    (class 258, `sounds/collections/vo/<voice>/artifact_hunt/<line>.sound_collection`, seven voice
+    folders), not a single sound (found while building patch 167; the pack ships them so).
 - **A project a map:** 0.26g's own project of the map with 0.46c2's mode spawns
   (`server_objects.respawn_points`) and the two bases' box as a prop; nothing of 0.46c2's reworked
   geometry or anomalies. A round start respawns a whole team at once: a team with fewer free
   points than players spawns the rest a step (50 ms) later each, as the native rule does
   ("Respawns"); 8 points a team (16 players) spawn everyone in the same step.
+- **Known difference: no "not for the first spawn" points.** 0.46c2 keeps some of its points out
+  of a match's first spawn (`use_for_first_respawn` false: 18 on level 01, 25 on 07, 68 on London);
+  0.26g's points have no such flag, so they are kept as every other point and a first spawn may
+  take one of them (the owner, 2026-11-21).
 - **Assets 0.26g lacks,** from 0.46c2: the artefact's model (`item/artefacts/
   artefact_shining_forest`), its particles (`fx/artifacts/wood_shain*`), its body effect
   (`artefact_wood_shine`), the base box (`item/storage_device/box_atlant8c`), the seven announcer
@@ -121,8 +127,8 @@ function from a state and an `Event` to the new state and its score events, tota
 the game's own decisions ask the state: `respawn_at`, `spawning`, `frozen`, `respawns`, `carrier`;
 `cargo test -p artefact-hunt-rule`); the patch is a module `artefact_hunt` of
 `client-patches/rust/patches` (rust_patches.md) that turns the world into events, answers the
-game's decisions from the rule and shows the state. Its number is the README's next when it is
-written.
+game's decisions from the rule and shows the state: patch 167 ("The implementation" below
+says what of this design is built, and what turned out otherwise).
 
 ### What is whose
 
@@ -184,7 +190,7 @@ written.
 
   Slot 17's second argument is the game's time (PROVEN: 0x2D36D7 pushes it, the time rule's 0x267B22
   subtracts from it; research_mode.md had it as "?").
-- **The tick:** a delegate `{object, function, previous, next, order, enabled}` at rule+110h, at the
+- **The tick:** a delegate `{object, function, previous, next, order, enabled}` at rule+120h, at the
   end of the world's list 1 (core+18850h), order from `[core+18FB0h]`, as the time rule's 0x318050
   and Research's; called `(dt, time, on_grid)` `ret 0Ch`. It sends `Tick { now: time }`, then, in
   play, sets the blackboard's two flags to `Rule::respawns()` ("Respawns").
@@ -229,7 +235,9 @@ written.
 - **What follows a delivery** (`After`): decided once, at the delivery (the specification's one
   departure: 0.46c2 tests the time again 3 s later, 0x785CF0): a team at `score`, or the scores
   differ with less than `time_needed_to_continue_match` left: the match ends when the 3 s end
-  (`st_artefact_hunt_completed`, or `st_timelimit_completed` when the match time ran out by then);
+  (reason collected, or time out when the match time ran out by then: the hud's end text is
+  `st_artefact_hunt_won_collected` / `_lost_collected`, `_won_time_out` / `_lost_time_out` by the
+  viewer's team, `st_artefact_hunt_draw` for equal scores);
   equal scores with less left: a new round in sudden death, its 180 s counted from the delivery +
   `time_before_new_round` + `round_countdown_time` (0x78519B) and on from the fade (0x7B1004);
   otherwise a new round. It is derived from the state (the delivery is `Brought.until` less 3 s, the
@@ -385,18 +393,19 @@ The native respawn rule (91) keeps its points and its spawn; four things are ask
   native scan from seeing it; patch 85 rides the same handler. Artifact Hunt is asked first there,
   through one `pub fn` (`artefact_hunt::input(player, now, mask) -> Held | Used | Game`):
   - frozen: `Held`, the handler exits at `held@0x2D8A0C` (above);
-  - Use pressed now (bit 21 set, clear in +330h) by a living player in the world (+33Ch, +33Fh)
+  - Use pressed now (bit 21 set in the raw mask, clear in the last one patch 78's machine kept) by a living player in the world (+33Ch, +33Fh)
     whose view takes the artefact or his own base (below): `Take` or `Deliver`, then `Used`
     (`consume_use`: no take of patch 78, no pickup of patch 85, no native use of the same press);
-  - Drop pressed now (bit 22 set, clear in +330h) by the rule's carrier: `Drop` with the ground
+  - Drop pressed now (bit 22, the same) by the rule's carrier: `Drop` with the ground
     under him; the input goes on (`Game`): its only native reader is `process_quick_slots`'s
     battery drop at 0x2D8E73, which needs a carried battery (`[inventory+178h]`), none in this mode;
   - else `Game`.
   So the Drop key needs no new input bit, no binding and no change to `srp-validate`'s input check
   or patch 99 (they refuse bit 30 and a bad rotation only); the item hotkeys patch's new bits are
   not needed. An edge, not the battery's level: a player who held V while taking it drops it only
-  at his next press. Nothing a frozen countdown could hold is lost: the edges are against +330h,
-  which stays the spawn's 0 until the first input after it.
+  at his next press. The edges are against patch 78's last raw mask (its machine, saved with the
+  player), not +330h: +330h is the filtered mask, Use cleared after a consumed press, so a held Use
+  would read as pressed again at every input. A frozen countdown does not update that machine.
 - **A take:** `Take { place }` when the artefact lies, his view ray (the eye matrix player+44Ch:
   position m[12..14], forward m[8..10]) enters the artefact's sphere (`usable_radius` 0.3 m about
   its position) within 2.0 m (`usable_objects_detection_distance`, 0xA710D8, the native use reach),
@@ -573,6 +582,66 @@ does otherwise, each open to the owner's word:
   countdown's camera.
 - Everything here in a game: no part of the design was played.
 
+### The implementation (patch 167)
+
+The code is `client_patch.md` "Artifact Hunt (patch 167)"; checked by `check_artefact_hunt_026g.py`
+(Unicorn, through the game's own callers) and the crate's tests. Not run in a game.
+
+- **Built:** the cook and its registration, the rule and its slots 7, 8, 9, 11, 15, 16, 17, 18, the tick,
+  the respawn rule's two sites, the input (freeze, take, delivery, Drop), the carrier's two modifiers,
+  no sprint, his head marker and minimap dot for both teams, `root.srp_show_carriers` at every match
+  start (true in a hunt, false otherwise), the hud's update call, the messages, the prompt, the
+  welcome, the world check's parameters.
+- **Built after** (the same patch): the artefact in the world, the carrier's glow, the announcer and
+  the icon's carrier mark.
+  - The artefact: the item's model (class 15) and its idle, spawn and destroy particles (class 61)
+    in one query of the patch's own (`query_assets`: the artefacts' cooks' own request shape,
+    0x25E91A, class 3Dh at 0x25E862), asked at a hunt's first frame, each kept for the process.
+    `game_world.after_move` (order 5) reconciles the scene with the rule each frame: lying, the model
+    (drawn as a world model) and the idle at its point; appeared at a spawner, the spawn particle
+    too; removed by its time with nobody carrying it, the destroy particle where it lay; taken, the
+    model and the idle out. The particles play as the artefacts' clients do (`play_particle_system`
+    0x22660, 7 stdcall arguments, the particle by value with a reference added: Lifebone's
+    0x25F335..0x25F387) and stop by `remove_particle_system` 0x229D0 (0x25ECC6). `game_world.
+    deactivate` (order 3) takes all of it out of the scene.
+  - The glow: Forest Protection's pattern (patch 111): `artefact_wood_shine` (the item's `effect`)
+    asked once at a player's tick, held from a living carrier's tick (`battery.carrier_tick` order
+    6), one a place (`medical.effect_capacity` order 3), ended by its clock when he carries no more
+    (`medical.effect_clock` order 3). The client stream only: not uploaded.
+  - The announcer (above): the line for the viewer's team (own or enemy), none without a team or
+    for a removal; a running line freed first.
+  - The mark: `player_icons.carrier_mark` at 0x1F2D8B (the record's `cmp [edx+178h],0`, 7 bytes):
+    for the hunt's carrier of either team EAX = place x 3 and CL = 1, out at the record's compare
+    0x1F2D98; for anyone else the game's own test.
+- **Otherwise than above:**
+  - the rule object's layout: tdm's slot 12 (0x267820, it writes +118h) is kept, so the blackboard is
+    at +118h, the tick delegate at +120h, the core at +138h, the game at +13Ch (0x140 bytes);
+  - the Use and Drop edges are patch 78's (its machine's last raw mask), not +330h (above);
+  - the rule's base type is 6, by which patch 87 names a mode-13 world's rule;
+  - a taken class 481 logs nothing (the log is not up yet in the constructor); the mode's maps then
+    fail to load their rule.
+- **LIKELY items met:**
+  - an exit at a function's entry (`carry.input`'s `held`): PROVEN under Unicorn (apply_new_input
+    returns at once, both arguments popped);
+  - the class-61 particle of a patch's query: PROVEN in the code (the artefacts' cooks ask class 3Dh
+    through the same query and play `results[1]`, their callback 0x260270 storing +40Ch); under
+    Unicorn the query's requests and the scene's calls (the query itself answered by the check);
+    whether the ported particles loop and look right: not met;
+  - the one-shot hud sound: PROVEN as the native path's calls (0x23F676..0x23F6F8: the game world's
+    scene +94h, the sound world's logic user +B0h, `emit_hud_sound`, the proxy's play in mode 0) and
+    run under Unicorn with those calls answered; that freeing stops it: not met;
+  - a Number Invoke: not met (`invoke_numbers` writes GFx type 5 as Research's sender, not run in a
+    game);
+  - the seed: the create's query's options (+577B0h) as tdm's create gets them; run under Unicorn with
+    made-up options, the shape of the query PROVEN only by tdm's constructor's +0Ch;
+  - the modifiers' sum: PROVEN with the game's own apply_modifier (10 x 0.8 and 10 x 1.05);
+  - `[core+18F54h]` vtable+1Ch after our slot 17: not read; the check runs the rules' loop only.
+- **Texts** the patch shows (all eleven dictionaries): `st_on_spawn_victory_artefact`,
+  `st_on_destroyed_victory_artefact` (0.46c2's keys), `st_artefact_hunt_you_picked`,
+  `st_artefact_hunt_team_delivered`, `st_artefact_hunt_enemy_delivered`,
+  `st_artefact_hunt_won_collected`, `st_artefact_hunt_won_time_out`, `st_artefact_hunt_lost_collected`,
+  `st_artefact_hunt_lost_time_out`, `st_artefact_hunt_draw`, `st_start_match_welcome_message_13`.
+
 ### The mode's number
 
 `mode.mode` 13. Taken: 2, 3, 4 (the game's), 5 Research, 8 Free for All, 12 Freeze Tag
@@ -592,6 +661,7 @@ number 8"): 13 goes every "else" way: no `set_tickets_required`, no native minim
   |---|---|---|
   | u32 | `m_random` | any (the rng's state) |
   | u8 x2 | `m_score[team]` | 0..=`score` |
+  | u32 | `m_round_starts`: the rounds started after the first (each a fade's end, everyone respawned) | see below |
   | u32 x2 | `m_sides[team]`: who is in the match | bits 0..19; no place in both |
   | u8 | `m_stage` | 0 idle (the scores 0), 1 play, 2 over |
   | | **over** | |
@@ -613,8 +683,14 @@ number 8"): 13 goes every "else" way: no `set_tickets_required`, no native minim
 
   Across the fields: a regular clock outside 6 has both scores below `score`; 6 has at most one
   team at it; sudden death has the scores at most 1 apart and, with them equal, both teams standing
-  (`sides` less `fallen` not empty: the point is given at once). 16 bytes idle, 21 over, 25 to 134
-  in play (the section holds 0x800). `horizon` is the match time, two round restarts
+  (`sides` less `fallen` not empty: the point is given at once). 20 bytes idle, 25 over, 29 to 138
+  in play (the section holds 0x800). `m_round_starts` (`Rule::round_starts()`, what the server charges
+  lives by) is exact for the state: idle 0; in play the points, less one in 6 and 7 (that delivery's
+  round has not started) and one more for sudden death's wiped team's point (unequal scores in
+  sudden death); over, the points less one when collected (the goal, or a late lead), the points to
+  two less at a time out (a timed-out hunt, a late delivery, a delivery in sudden death or its wiped
+  point, at most both in one step). Added after the review, before any release: the layout is not
+  released. `horizon` is the match time, two round restarts
   (`time_before_new_round` + 1 s + `round_countdown_time`), sudden death, an artefact's longest wait
   or life and a minute. `m_size` is there for the world check: the respawn rule before this one has
   two bytes a respawn point and nothing says how many, so the mode's rule is found from the
@@ -716,21 +792,81 @@ re-simulation undoes: Research has the same exposure.
 - **The welcome:** a handler in the chain `game_world_ui.welcome` 0x23B36A (orders 0 and 1 taken),
   `st_start_match_welcome_message_13`, 6000 ms, as Free for All's.
 - **The announcer.** 0.26g has none (no `sound_notifications`, no `vo/` string in the exe) and no
-  voice language, only the text's. The seven lines are single sounds (class 256) asked at the
-  match's start with `vostok::resources::query_track` (patch 88's path), `<base_path>/<language>/
-  <name>` from `mode.sound_notifications`; the language is the text's where the pack has its
-  folder, else english. `Cue::line` for the viewer (none without a team, none for a removal or the
+  voice language, only the text's. The seven lines are sound collections (class 258, 0.26g's
+  `sound_collection_cook`, its class 102h at 0x5F4A3) asked once with `vostok::resources::
+  query_collection` (patch 88's path, class 258), `<base_path>/<voice>/<name>` from
+  `mode.sound_notifications`; the voice is the text's language where the pack has its folder
+  ("original" russian), else english. `Cue::line` for the viewer (none without a team, none for a removal or the
   end) is played once as a hud sound in the game world's scene (`emit_hud_sound` 0x65630, the
   proxy's `play` 0x5ABA0 in mode 0, the native path at 0x23F676..0x23F6F8), the line before it
   freed first (`free_object` 0x5B390). New in `vostok`: a `play_once` and the scene's field. LIKELY,
-  not run: that freeing a one-shot voice stops it, and that the single-sound cook loads the pack's
-  paths with their `.raw_options`.
+  not run: that freeing a one-shot voice stops it, and that a collection's emitter plays one of its
+  items as a hud sound (the native hud sound at 0x23F676 is emitted the same way).
 - **Nothing native to call for:** the fade, "Round restarts in" and the round's countdown text are
   the movie's own (0.26g's exe has no `show_fade_animation`, `show_round_restart`,
   `set_round_restart_time` or `show_artifact_carry`); 0.46c2's end music.
 - **Texts** (all eleven `client-patches/localization/<language>.tsv`): the five messages, the three
   end texts, "Round restarts in", the welcome, the mode's name and description; `st_pickup_item`,
   `st_put_item`, `st_drop_action` and `st_final_countdown` are the game's own.
+
+## srp
+
+What the servers do for the mode. Nothing of it was played: no world of the mode exists yet.
+
+- **The mode:** `maps::RuleMode::ArtefactHunt` (13, rules `[93, 91, 481, 94]`), `GameMode::ArtefactHunt`,
+  lobby number 13. A config of mode 13 is played when the data has its project, as every mode's.
+- **The parameters:** `maps::artefact_hunt_params` reads the config ("Data") into the crate's
+  `Params` once, at the data's load (`MapMode::artefact_hunt`, set exactly for mode 13): the seconds
+  and `score` as ints, the positions, axes and halves as float3s, `drop_lift` and `usable_radius` as
+  floats. Another type, or what `Params::parse` refuses, stops the data with the key's name.
+- **The lobby:** rooms, private rooms and the match vote offer its maps as every mode's (nothing
+  there is of a mode); the lobby movie's `GameMode.ARTEFACT_HUNT` 13, after Free for All in the
+  create window, named `st_srp_mode_artefact_hunt`; its loading icon the config's `ui.icon`. Player
+  vs Bots does not offer it (its maps' whitelist), and the match server refuses a match of it with
+  the server's bots (as Research).
+- **Late joiners** are taken until 30 s before the end of play by the rule's own clock in the last
+  trusted world (the match time, in sudden death its own; none once over), not the time rule's
+  900 s.
+- **The world check** (`srp-validate`, mode 13, `Context::artefact_hunt` the map's `Params`):
+  - the rule is `Rule::read_back` over the bytes between the timelimit and the kd stats; its
+    refusals are `WireError`'s (`ArtefactHuntRule`); the respawn rule ends where it starts;
+  - its sides within the match's places; its stage idle exactly while the timelimit is not in play,
+    in play from the timelimit's start, over only in play;
+  - the blackboard's two flags, which the patch writes in play only: both true before play (the
+    blackboard's own), both `Rule::respawns()` in play, equal once over (the last of play);
+  - the statistics' `m_team_points` are the scores; `m_winner_team` the leader, written after every
+    rule step (before play the draw, or before the rule's first step the statistics handler's own
+    3 or 0xFF);
+  - a world of mode 13 checked without the parameters is refused (`NoArtefactHuntParams`).
+- **The end:** a trusted world whose rule is `Over` ends the match at its `at`. The time rule's 900 s
+  does not: only a match in play past its start + `Params::horizon()` (no match of the parameters
+  ends later) whose worlds never showed the end is stopped by time. The result is the statistics' tail: the scores and the
+  leader (team 0, team 1, a draw).
+- **Score:** the static info's weights of mode 13 are 0.46c2's: put (event 20) 10, bring (event 6,
+  hundredths) 50. A delivery scores its team 60.
+- **Pay** (the port's rule, the owner's to change), on the payment copy only, after the repeated-kill
+  cap:
+  - per player, puts pay at most `score` and bring at most `score` x 100 hundredths: no team
+    delivers more in a match, and a delivery's shares add up to 100;
+  - then puts and bring together pay at most 120 (two deliveries carried alone) + 40 a paid kill + 20
+    an assist, Research's allowance's steps; above it both are cut in proportion (the puts' rounding
+    given back as bring);
+  - why: passing the artefact pays nothing by itself (the shares of a delivery add up to 100,
+    whoever carried), so farming is feeding deliveries; the goal bounds them a match, the allowance
+    ties what more they pay to fighting. A carrier who delivers three times alone without a kill is
+    paid two.
+- **Lives** (`autobuy::used`): every round start is a life for every player, counted by the rule
+  (`Rule::round_starts` of the last trusted world, the result's `round_starts`).
+- **Not covered until real worlds:** the checks above against a game's worlds (`world-check` has
+  no world of mode 13; `world-drift` needs the patch's world check with the parameters), the
+  tail's leader before play, the flags in a delivery's last step, a late joiner's and a resync's
+  worlds.
+- **Follow-ups:**
+  - a late joiner's lives count the round starts before he came in too (the result has the match's
+    count, not his);
+  - the matches tab's time left is the time rule's, to 900 s: the rule's clock past it;
+  - the balance counts a point of lead as a battery's (0.55 of a player; the goal is 5, not 10);
+  - the history counts a delivery (event 20) in its batteries column.
 
 ## Parts
 

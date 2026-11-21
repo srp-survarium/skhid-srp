@@ -3,6 +3,7 @@
 
 use crate::geometry::Position;
 use crate::roster::Team;
+use crate::shape::{Shape, ShapeKind, View};
 use crate::time::Ms;
 
 /// The most places an artefact can appear at on a map (the wire names one in
@@ -28,6 +29,9 @@ pub struct RawParams {
     /// How far over the ground a dropped artefact lies, m (the item's
     /// `collision_shape.position` y: 0.13).
     pub drop_lift: f32,
+    /// The radius of the sphere the use key takes the artefact in, m (the
+    /// item's `usable_shape`: 0.3).
+    pub usable_radius: f32,
 }
 
 /// 0.46c2's transition to a new round: the screen fades for a constant
@@ -43,11 +47,27 @@ pub struct Spawner {
     pub position: [f32; 3],
 }
 
+/// The most shapes a base's container has.
+pub const MAX_SHAPES: usize = 8;
+
+/// A shape of a base as the config has it (`shapes[]`: the form Research's
+/// `capture_zones` use).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RawShape {
+    /// 0 sphere, 1 box, 2 cylinder.
+    pub kind: u32,
+    pub position: [f32; 3],
+    pub axes: [[f32; 3]; 3],
+    pub half: [f32; 3],
+}
+
 /// A team's base: `mode.artefact_hunt.bases[]`.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct BaseDef {
+pub struct BaseDef<'a> {
     pub team: u32,
     pub position: [f32; 3],
+    /// Where the use key delivers: 1 to [`MAX_SHAPES`].
+    pub shapes: &'a [RawShape],
 }
 
 /// Why a config cannot be played: the key at fault.
@@ -65,14 +85,16 @@ pub enum ParamError {
     ViNotPickedTtl,
     ViDroppedTtl,
     DropLift,
+    UsableRadius,
     /// None, more than [`MAX_SPAWNERS`], or a position that is no point of a map.
     Spawners,
-    /// Not exactly two, one a team, at least a metre apart.
+    /// Not exactly two, one a team, at least a metre apart, each 1 to
+    /// [`MAX_SHAPES`] shapes of a kind with finite numbers.
     Bases,
 }
 
 /// The parameters the rule plays with.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Params {
     pub(crate) match_time: Ms,
     /// A delivery made when more than this of the match time has passed
@@ -98,6 +120,31 @@ pub struct Params {
     pub(crate) spawners: [Position; MAX_SPAWNERS],
     /// By team.
     pub(crate) bases: [Position; 2],
+    /// By team: its shapes, the first `base_shapes` of them.
+    pub(crate) base_shapes: [[Shape; MAX_SHAPES]; 2],
+    pub(crate) base_shape_count: [u8; 2],
+    /// The artefact's usable sphere, m: above 0.
+    pub(crate) usable_radius: f32,
+}
+
+/// How far the use key reaches along the view (0.26g's
+/// `usable_objects_detection_distance`, 0xA710D8).
+pub const REACH: f32 = 2.0;
+/// How far before a base's shape the level may be met (its prop's own
+/// collision lies at the shape's surface).
+pub const BASE_MARGIN: f32 = 0.15;
+
+fn base_shapes(base: &BaseDef) -> Result<([Shape; MAX_SHAPES], u8), ParamError> {
+    if base.shapes.is_empty() || base.shapes.len() > MAX_SHAPES {
+        return Err(ParamError::Bases);
+    }
+    let none = Shape::sphere([0.0; 3], 0.0).ok_or(ParamError::Bases)?;
+    let mut shapes = [none; MAX_SHAPES];
+    for (out, raw) in shapes.iter_mut().zip(base.shapes) {
+        let kind = ShapeKind::from_raw(raw.kind).ok_or(ParamError::Bases)?;
+        *out = Shape::new(kind, raw.position, raw.axes, raw.half).ok_or(ParamError::Bases)?;
+    }
+    Ok((shapes, base.shapes.len() as u8))
 }
 
 fn seconds(value: u32, most: u32, error: ParamError) -> Result<Ms, ParamError> {
@@ -192,6 +239,11 @@ impl Params {
         if bases[0].distance(bases[1]) < 1000 {
             return Err(ParamError::Bases);
         }
+        let (shapes_0, count_0) = base_shapes(first)?;
+        let (shapes_1, count_1) = base_shapes(second)?;
+        if !(raw.usable_radius > 0.0 && raw.usable_radius <= 10.0) {
+            return Err(ParamError::UsableRadius);
+        }
 
         Ok(Params {
             match_time,
@@ -210,6 +262,9 @@ impl Params {
             spawner_count: spawners.len() as u8,
             spawners: places,
             bases,
+            base_shapes: [shapes_0, shapes_1],
+            base_shape_count: [count_0, count_1],
+            usable_radius: raw.usable_radius,
         })
     }
 
@@ -231,18 +286,49 @@ impl Params {
 
     /// Where spawner `index` puts the artefact; `None` for no spawner of the map.
     pub fn spawner(&self, index: u8) -> Option<Position> {
-        (index < self.spawner_count).then(|| self.spawners[usize::from(index)])
+        self.spawners
+            .get(..usize::from(self.spawner_count))?
+            .get(usize::from(index))
+            .copied()
     }
 
     pub fn base(&self, team: Team) -> Position {
         self.bases[team.index()]
     }
 
+    /// Whether the view takes the artefact lying at `at`: its usable sphere
+    /// entered within the use key's reach and before the level, which the
+    /// game's ray along the view met `level` along it (none: not within the
+    /// reach).
+    pub fn takes(&self, view: &View, at: Position, level: Option<f32>) -> bool {
+        let reach = level.map_or(REACH, |hit| if hit < REACH { hit } else { REACH });
+        Shape::sphere(at.metres(), self.usable_radius)
+            .is_some_and(|sphere| sphere.reached(view, reach))
+    }
+
+    /// Whether the view puts the artefact into `team`'s base: one of its
+    /// shapes entered within the reach, the level met no nearer than
+    /// [`BASE_MARGIN`] before it.
+    pub fn delivers(&self, view: &View, team: Team, level: Option<f32>) -> bool {
+        let reach = level.map_or(REACH, |hit| {
+            let past = hit + BASE_MARGIN;
+            if past < REACH { past } else { REACH }
+        });
+        let count = usize::from(self.base_shape_count[team.index()]);
+        self.base_shapes[team.index()][..count]
+            .iter()
+            .any(|shape| shape.reached(view, reach))
+    }
+
     /// The longest any of the rule's deadlines can be after the match's
     /// start: the match, a round's restart (twice: sudden death's time is
     /// counted from past one), sudden death and an artefact's longest wait
     /// or life, and a minute.
-    pub(crate) fn horizon(&self) -> u32 {
+    ///
+    /// No match of these parameters ends later than this after its start
+    /// (an `Over` is at most a delivery's restart and sudden death past the
+    /// match time).
+    pub fn horizon(&self) -> u32 {
         let wait = self.wait_least.get() + self.wait_range;
         let life = wait
             .max(self.not_picked_ttl.get())

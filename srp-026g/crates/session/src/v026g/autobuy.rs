@@ -24,7 +24,8 @@
 //!      (`respawns + 1` times the most a kit's slots hold of the item: a
 //!      life takes at most its slots' counts out of the store, 0x2FCC4A;
 //!      a respawn is a death or a kit change before play began, which the
-//!      games of patch 31 make a respawn in place);
+//!      games of patch 31 make a respawn in place, and in Artifact Hunt a
+//!      round start, which respawns everyone);
 //!    - for ammo, never more than the bullets the statistics counted
 //!      (event 22), except buckshot, whose round flies as ten bullets (its
 //!      config's `buckshot: 10`) while it is not known whether the counter
@@ -141,7 +142,7 @@ fn used_by_counters(account: &Account, shots: &[u32], buckshot: Option<u16>) -> 
 /// id, units)`. `supplies` is the player's block of the last trusted
 /// snapshot, `shots[kit]` the bullets its counters say each kit fired,
 /// `respawns` how often it began a new life: its deaths and its kit
-/// changes before play began, `twist` the twist the match armed its kits
+/// changes before play began (and an Artifact Hunt's round starts), `twist` the twist the match armed its kits
 /// with: then they were not the account's, without a block the counters
 /// prove nothing of its stacks, and the ammo the twist gives
 /// ([`Armed::gives`]) is nobody's, never charged though the account owns

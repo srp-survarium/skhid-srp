@@ -1,5 +1,6 @@
 package
 {
+   import flash.display.DisplayObjectContainer;
    import flash.display.Loader;
    import flash.display.Sprite;
    import flash.display.StageAlign;
@@ -14,7 +15,9 @@ package
    // movie's own RoomsWindow over its bottom bar, on a stage of the game's size (the movie's
    // MainScene.stage is this harness), told one room state through RoomsWindow.take.
    // Parameters: movie, members (1 to 20), owner (1: the asker owns the room), teams (a digit a
-   // member, its team), phase (0 waiting, 2 in match). Traces "SHOT ready" once drawn.
+   // member, its team), phase (0 waiting, 2 in match, 3 the vote), squads, pool (the match pool's
+   // `S1;M` rows, "|" between them: what the cards and the create window name), view ("create": the
+   // create window over the list instead of a room). Traces "SHOT ready" once drawn.
    public class RoomsShots extends Sprite
    {
       private static const STATE:int = 2060000001;
@@ -60,6 +63,25 @@ package
             var win:* = new Win(panel);
             Win.me = win;
             addChild(win);
+            // The match pool the cards and the create window name (`S1;M` rows, "|" between them).
+            if(p.pool)
+               take(Win, String(p.pool).split("|"), STATE - 1);
+            // The create window, out of the room: the list, then its New room pressed.
+            if(p.view == "create")
+            {
+               win.show(true);
+               take(Win, ["S1;N;0;0;0"], STATE - 1);
+               take(Win, ["S1;L;1;0","1001;15;0;10;20;2;754;61;0;Bob"], STATE - 1);
+               var ButtonEvent:Class = domain.getDefinition("scaleform.clik.events.ButtonEvent") as Class;
+               var buttons:Array = [];
+               labelled(win, buttons);
+               for each(var b:* in buttons)
+                  if(b.label == HarnessText.DATA.english.st_srp_rooms_new)
+                     b.dispatchEvent(new ButtonEvent(ButtonEvent["CLICK"]));
+               win.layout();
+               ready(win);
+               return;
+            }
             var head:String = ["S1","R",4242,7,0,10,30,phase,0,owner ? 1 : 0,24,count,99,1,0,1,0].join(";");
             var names:Array = [head,"C;0;61;1;0","C;1;63;0;0","C;2;117;0;0"];
             for(var i:int = 0; i < count; i++)
@@ -93,6 +115,39 @@ package
             trace("SHOT fail: " + err);
             return;
          }
+         ready(win);
+      }
+
+      // The server's rows `names`, as RoomsWindow.take is given them, from place `first` on.
+      private static function take(Win:*, names:Array, first:int) : void
+      {
+         var rows:Array = [];
+         for(var r:int = 0; r < names.length; r++)
+            rows.push({"place":first + r, "nickname":names[r]});
+         Win.take(rows);
+      }
+
+      // Every visible display object of `at` with a label (the window's buttons).
+      private static function labelled(at:*, out:Array) : void
+      {
+         if(!at.visible)
+            return;
+         try
+         {
+            if(at["label"] is String && at["label"] != "")
+               out.push(at);
+         }
+         catch(err:Error)
+         {
+         }
+         if(at is DisplayObjectContainer)
+            for(var i:int = 0; i < at.numChildren; i++)
+               labelled(at.getChildAt(i), out);
+      }
+
+      // "SHOT ready" once `win` was drawn for 20 frames.
+      private function ready(win:*) : void
+      {
          var frames:int = 0;
          addEventListener(Event.ENTER_FRAME,function wait(f:Event):void
          {

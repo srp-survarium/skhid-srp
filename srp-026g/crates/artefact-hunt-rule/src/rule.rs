@@ -246,6 +246,9 @@ pub struct Rule {
     pub(crate) rng: Rng,
     /// Each at most the goal.
     pub(crate) score: [u8; 2],
+    /// The rounds started after the first: each a respawn of everyone (a
+    /// fade's end).
+    pub(crate) round_starts: u16,
     pub(crate) sides: Sides,
     pub(crate) stage: Stage,
 }
@@ -410,6 +413,7 @@ impl Rule {
         Rule {
             rng: Rng::seeded(seed),
             score: [0; 2],
+            round_starts: 0,
             sides: Sides::EMPTY,
             stage: Stage::Idle,
         }
@@ -421,6 +425,12 @@ impl Rule {
 
     pub const fn score(&self) -> [u8; 2] {
         self.score
+    }
+
+    /// How many rounds started after the match's first: each one a life of
+    /// every player in the match then (the fade's end respawns everyone).
+    pub const fn round_starts(&self) -> u16 {
+        self.round_starts
     }
 
     pub const fn sides(&self) -> &Sides {
@@ -983,17 +993,20 @@ impl Rule {
                     }),
                 }
             }
-            Round::Fade { until, sudden } if now.reached(until) => play(Round::Countdown {
-                until: now.after(params.round_countdown),
-                // Everyone respawned: nobody has fallen yet.
-                clock: match sudden {
-                    Some(from) => Clock::Sudden(Sudden {
-                        from,
-                        fallen: Roster::EMPTY,
-                    }),
-                    None => Clock::Regular,
-                },
-            }),
+            Round::Fade { until, sudden } if now.reached(until) => {
+                self.round_starts = self.round_starts.saturating_add(1);
+                play(Round::Countdown {
+                    until: now.after(params.round_countdown),
+                    // Everyone respawned: nobody has fallen yet.
+                    clock: match sudden {
+                        Some(from) => Clock::Sudden(Sudden {
+                            from,
+                            fallen: Roster::EMPTY,
+                        }),
+                        None => Clock::Regular,
+                    },
+                })
+            }
             Round::Countdown { until, clock } if now.reached(until) => {
                 let artefact = self.wait(params, now);
                 play(Round::Hunt { clock, artefact })

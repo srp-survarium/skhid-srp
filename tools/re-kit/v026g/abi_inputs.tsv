@@ -6540,3 +6540,23 @@ va	name	location	role	basis
 0x00316820	survarium::player_respawn_rule_base::tick	at 0x31697F..0x3169D8	per team: select_respawn_points (vtable +54h); each chosen place's player, when in the world (+33Fh), removed (vtable +24h with 1) then spawned (vtable +5Ch: place, point, time); a due place beyond the chosen points waits 50 ms more (add [rule+138h + 4 x place], 32h)	observed
 0x00317fd0	survarium::timelimit_rule_core::deserialize	at 0x31802B..0x31803E	rules_on_event(0, null) only when the loaded state is 3 and another than the one before; the start (+12Ch) is written before it (0x31801F)	observed
 0x00241250	survarium::player_input_handler::process_first_person_mode	at 0x2420F1..0x242118	action 35h (use) sets bit 200000h, action 36h (drop, default V, st_drop_action) bit 400000h of the actions mask +33Ch	observed
+0x002063f0	survarium::tdm_rule_cook::create_resource	ECX	the cook: +20h the client's game (0x206419)	observed
+0x002063f0	survarium::tdm_rule_cook::create_resource	entry ESP+4	the query: [query] the match options, [query+0Ch] the mode config's root (tdm_rule_core's constructor 0x316027)	observed
+0x002063e0	survarium::tdm_rule_cook::resource_size	ECX	the cook (not read)	observed
+0x00316090	survarium::tdm_rule_core::on_event	ECX	the rule	observed
+0x00316590	survarium::tdm_rule_core::on_player_entered_match	ECX	the rule	observed
+0x00316590	survarium::tdm_rule_core::on_player_entered_match	entry ESP+8	the time	observed
+0x003165d0	survarium::tdm_rule_core::on_player_left_match	ECX	the rule	observed
+0x003165d0	survarium::tdm_rule_core::on_player_left_match	entry ESP+4	u8 roster place (0x3165D3)	observed
+0x003165d0	survarium::tdm_rule_core::on_player_left_match	entry ESP+8	the time	observed
+0x00267810	survarium::tdm_rule::set_game_world_core [descriptive]	ECX	the rule	observed
+0x00267810	survarium::tdm_rule::set_game_world_core [descriptive]	entry ESP+4	the world core	observed
+0x00267820	survarium::tdm_rule::set_blackboard [descriptive]	ECX	the rule	observed
+0x00267820	survarium::tdm_rule::set_blackboard [descriptive]	entry ESP+4	the blackboard (core+188B0h, 0x2D58F0)	observed
+0x00316340	survarium::tdm_rule_core::serialize	ECX	the rule	observed
+0x003163d0	survarium::tdm_rule_core::deserialize	ECX	the rule	observed
+0x00316430	survarium::tdm_rule_core::fill_match_hud_state	ECX	the rule	observed
+0x00316430	survarium::tdm_rule_core::fill_match_hud_state	entry ESP+8	the game's time (0x2D36D7 pushes it)	observed
+0x00316520	survarium::tdm_rule_core::rule_completed	ECX	the rule: +12Ch its end	observed
+0x00316520	survarium::tdm_rule_core::rule_completed	entry ESP+4	the time	observed
+0x00317f10	survarium::timelimit_rule_core::tick	entry ESP+12	the step flag (not read: on the grid)	observed

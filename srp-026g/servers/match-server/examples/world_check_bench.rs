@@ -261,6 +261,7 @@ impl Timed {
             objects: None,
             inventory: None,
             dict_ids: None,
+            artefact_hunt: None,
         };
         let game = world::validate(body, &context).map_err(|refusal| refusal.to_string());
         let game_ns = batches(calls, || world::validate(black_box(body), &context).is_ok());

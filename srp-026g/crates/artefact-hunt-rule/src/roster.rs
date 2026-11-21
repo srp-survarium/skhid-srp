@@ -132,7 +132,11 @@ impl Sides {
     }
 
     pub const fn of(&self, team: Team) -> Roster {
-        self.0[team.index()]
+        let [zero, one] = self.0;
+        match team {
+            Team::Zero => zero,
+            Team::One => one,
+        }
     }
 
     pub const fn all(&self) -> Roster {

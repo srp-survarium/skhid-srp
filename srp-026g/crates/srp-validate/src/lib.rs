@@ -53,6 +53,10 @@ pub mod mode {
     /// Free for all (`ffa.md`): no rule of its own, each place its own side
     /// ([`super::own_side`]).
     pub const FREE_FOR_ALL: u8 = 8;
+    /// Artifact Hunt (`artefact_hunt.md`): its rule read through
+    /// `artefact_hunt_rule` with the map's parameters
+    /// (`world::Context::artefact_hunt`).
+    pub const ARTEFACT_HUNT: u8 = 13;
     /// The modes whose statistics and gather rule hold the map's batteries.
     pub const WITH_BATTERIES: [u8; 2] = [BATTERIES, TIMED_BATTERIES];
 }

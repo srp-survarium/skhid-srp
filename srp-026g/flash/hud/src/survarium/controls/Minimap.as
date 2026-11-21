@@ -8,6 +8,7 @@ package survarium.controls
    import flash.geom.Rectangle;
    import flash.utils.Dictionary;
    import scaleform.clik.layout.LayoutData;
+   import survarium.modes.ArtefactHuntState;
    
    // Whether a minimap shows is its owner's (the HUD: the setting's position, and the map): a
    // Minimap never sets its own visible. It says whether it has a map (hasMap) and dispatches
@@ -62,7 +63,8 @@ package survarium.controls
          "player_local":PlayerLocal,
          "battery_spawn":SpawnIcon,
          "resupply":ResupplyIcon,
-         "research_point":ResearchMinimapPoint
+         "research_point":ResearchMinimapPoint,
+         "artefact_hunt_artefact":ArtefactMinimapPoint
       };
       
       protected var _levels:Object = {
@@ -109,13 +111,22 @@ package survarium.controls
       
       protected var _mapVisibleRectangle:Rectangle = null;
       
-      // Research (mode 5): the units, kept among the exe's objects
-      // (setResearchUnits); the exe's last objects to add them to.
-      protected var _researchUnits:Array = [];
+      // A mode's own objects, kept among the exe's (setResearchUnits: Research's units;
+      // setArtefactHunt: Artifact Hunt's bases and artefact); the exe's last objects to add them to.
+      protected var _modeObjects:Array = [];
       
       protected var _exeObjects:Object = [];
       
       public static const RESEARCH_ID:int = 0x7000;
+
+      // Artifact Hunt's: a base HUNT_BASE_ID + its team, the artefact HUNT_ARTEFACT_ID.
+      public static const HUNT_BASE_ID:int = 0x7100;
+
+      public static const HUNT_ARTEFACT_ID:int = 0x7110;
+
+      // Artifact Hunt: the carrier's place (an icon's player_id), -1 none; his icon is marked
+      // (MinimapObjectPlayer.carrying).
+      protected var _carrier:int = -1;
 
       // The players' names by place (setPlayerNames: the Tab list's rows, id the place, which is an
       // icon's player_id) and whether they show over the icons (namesShown: the Tab map while Alt is
@@ -353,10 +364,10 @@ package survarium.controls
       {
          var i:int = 0;
          var point:ResearchMinimapPoint;
-         this._researchUnits = [];
+         this._modeObjects = [];
          while(i < units.length)
          {
-            this._researchUnits.push({
+            this._modeObjects.push({
                "id":RESEARCH_ID + units[i].cp_id,
                "type":"research_point",
                "pos_x":units[i].pos_x,
@@ -377,6 +388,46 @@ package survarium.controls
          }
       }
       
+      // Artifact Hunt (mode 13, HUD.artefact_hunt_update): the bases (the game's own team's
+      // highlighted while its viewed player carries, 0.46c2's base_highlighted), the artefact while it
+      // lies, the carrier's icon marked; null takes them away.
+      public function setArtefactHunt(state:ArtefactHuntState) : void
+      {
+         var carrier:int = state == null ? -1 : state.carrier;
+         this._modeObjects = [];
+         if(state != null)
+         {
+            for each(var base:Object in state.bases)
+            {
+               this._modeObjects.push({
+                  "id":HUNT_BASE_ID + base.team,
+                  "type":!state.isOwn(base.team) ? "base_enemy" : (state.viewerCarries ? "base_highlighted" : "base"),
+                  "pos_x":base.x,
+                  "pos_y":base.y
+               });
+            }
+            if(state.artefact == ArtefactHuntState.LYING)
+            {
+               this._modeObjects.push({
+                  "id":HUNT_ARTEFACT_ID,
+                  "type":"artefact_hunt_artefact",
+                  "pos_x":state.x,
+                  "pos_y":state.y
+               });
+            }
+         }
+         this.setObjectData(this._exeObjects);
+         CarryRing.mark(this.minimap.player,state != null && state.viewerCarries);
+         if(carrier != this._carrier)
+         {
+            this._carrier = carrier;
+            if(this._data && !this._held)
+            {
+               this.setData(this._data);
+            }
+         }
+      }
+
       public function setObjectData(exeObjects:Object) : void
       {
          var _obj:Object = null;
@@ -388,7 +439,7 @@ package survarium.controls
             value.push(exeObjects[i]);
             i++;
          }
-         value = value.concat(this._researchUnits);
+         value = value.concat(this._modeObjects);
          i = 0;
          while(i < value.length)
          {
@@ -416,22 +467,21 @@ package survarium.controls
          }
          this._objects = new Dictionary(true);
          this._objects_static = new Dictionary(true);
-         this._researchUnits = [];
+         this._modeObjects = [];
          this._exeObjects = [];
+         this._carrier = -1;
          var i:int = 0;
          while(i < this._renderers.length)
          {
             _inst = this._renderers[i];
-            if(_inst is MinimapObjectBasix)
+            if(_inst.parent != null)
             {
-               this.minimap.removeChild(_inst);
-            }
-            else
-            {
-               this.minimap._players.removeChild(_inst);
+               _inst.parent.removeChild(_inst);
             }
             i++;
          }
+         // a second clear (the next match's) no longer finds the last match's icons
+         this._renderers = new Vector.<MinimapObject>();
       }
       
       // A player's icon follows the data of every update: the local team
@@ -459,6 +509,7 @@ package survarium.controls
                trace("update::",_obj.player_id);
                this.updateObjectPos(_obj.player_id,_obj.player_pos_x,_obj.player_pos_y,0,this._objects);
             }
+            MinimapObjectPlayer(this._objects[_obj.player_id]).carrying = _obj.player_id == this._carrier;
             i++;
          }
          this.clear_objects(this._objects);

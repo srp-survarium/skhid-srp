@@ -77,6 +77,7 @@ fn result(players: Vec<PlayerResult>) -> MatchResult {
         end: MatchEnd::ModeRule,
         winner: Some(0),
         team_points: [3, 1],
+        round_starts: 0,
         duration_ms: 700_000,
         played_ms: Some(600_000),
         trusted_snapshot_ms: Some(690_000),
@@ -1075,6 +1076,15 @@ fn the_quest_numbers_come_from_the_counters() {
     assert_eq!(alice.team_batteries, 0);
     assert!(!alice.battery_mode);
     assert!(!shared.quest_stats(&research.players[1]).base_robbed);
+    // Nor are Artifact Hunt's artefacts, though its rule counts a delivery
+    // in a battery's put event (20) and its shares in event 6.
+    let mut hunt = result.clone();
+    hunt.mode = GameMode::ArtefactHunt;
+    let shared = Shared::of(&hunt, &terms);
+    let alice = shared.quest_stats(&hunt.players[0]);
+    assert_eq!(alice.team_batteries, 0);
+    assert!(!alice.battery_mode);
+    assert!(!shared.quest_stats(&hunt.players[1]).base_robbed);
 }
 
 /// A Research match (mode 5) team 0 won 100 to 64: Alice captured units
@@ -2212,6 +2222,53 @@ fn a_kit_change_before_play_is_a_life_more_for_the_supplies_used() {
     // A kit change before play began, a respawn in place with the new
     // kit's medkits (patch 31): three lives, and all 5 were used.
     assert_eq!(used(1), [(medkit, 5)]);
+}
+
+#[test]
+fn an_artefact_hunt_round_start_is_a_life_more_for_the_supplies_used() {
+    use survarium::v026g::match_msgs::players::{ItemLeft, Supplies};
+    let medkit = Dictionary::shared().item_named("medkit").unwrap().dict_id;
+    // As above: one death, none of 5 medkits left, a life takes 2.
+    let mut players = alice_and_bob();
+    players[0].supplies = Some(Supplies {
+        alive: false,
+        kit: 0,
+        inventory_read: false,
+        items: vec![ItemLeft {
+            dict_id: medkit,
+            stack: true,
+            stored: 0,
+            in_hand: None,
+            condition: None,
+            magazine: None,
+            slot: None,
+        }],
+    });
+    let used = |team_points: [u16; 2], round_starts: u16| {
+        let store = accounts(&players);
+        {
+            let alice = store.get(10).unwrap();
+            let mut alice = alice.locked();
+            let kits = alice.add_item(medkit, 5);
+            alice.kits[0].slots[13] = Some(crate::v026g::KitSlot {
+                item_id: kits,
+                count: 2,
+            });
+        }
+        let mut result = result(players.clone());
+        result.mode = GameMode::ArtefactHunt;
+        result.team_points = team_points;
+        result.round_starts = round_starts;
+        let report = Results::new()
+            .settle(&result, &store, &terms(), &mut Rng::new(1))
+            .unwrap();
+        report.players[0].reward.supplies_used.clone()
+    };
+    // A round started again: everyone respawned with the kit's load, a third
+    // life. The rule's count, not the points: the last point ended the match
+    // and started none.
+    assert_eq!(used([2, 0], 1), [(medkit, 5)]);
+    assert_eq!(used([1, 0], 0), [(medkit, 4)]);
 }
 
 #[test]
@@ -3621,6 +3678,7 @@ fn ffa_result(players: Vec<PlayerResult>) -> MatchResult {
         mode: GameMode::FreeForAll,
         winner: None,
         team_points: [0, 0],
+        round_starts: 0,
         ..result(players)
     }
 }
