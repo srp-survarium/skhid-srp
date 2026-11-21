@@ -49,8 +49,8 @@ use super::{Inbox, Notice, Settings};
 /// refused or closed): datagrams from more addresses are dropped.
 const MAX_LINKS: usize = 4096;
 const MAX_CLOSING: usize = 256;
-/// The online counts go to each client again this often, changed or not,
-/// and once more on the first pass after its sign-in.
+/// The online counts go to each client in the lobby again this often,
+/// changed or not, and once more on the first pass after its sign-in.
 const ONLINE_STATS_EVERY: Duration = Duration::from_secs(5);
 /// How long a link being signed out waits for its `AA` to be acked.
 const SIGN_OUT_WAIT: Duration = Duration::from_secs(1);
@@ -992,20 +992,25 @@ impl<'a> Core<'a> {
             // 0x9F is the one message sent once and never again
             // (transport.md §4.1), and until the client has one its Play
             // is off (it takes the minutes to maintenance as 0,
-            // `social.md` §4): it is repeated.
-            let stats_due = player
-                .online_at
-                .is_none_or(|at| now.saturating_duration_since(at) >= ONLINE_STATS_EVERY);
+            // `social.md` §4): it is repeated. Not in a match: Play is off
+            // there, and each 0x9F has the client log why (`PlayBtn
+            // disabled reason is: state=2`, social.md §2.2); the counts go
+            // when it is back in the lobby.
+            let stats_due = player.in_match.is_none()
+                && (online != online_sent
+                    || player
+                        .online_at
+                        .is_none_or(|at| now.saturating_duration_since(at) >= ONLINE_STATS_EVERY));
             // The web page, or a match's rewards, changed the balance.
             if balance != money_sent {
                 self.send(addr, lobby::money(balance));
             }
-            if online != online_sent || stats_due {
+            if stats_due {
                 self.send(addr, lobby::online_stats(online.0, online.1, online.2));
             }
             if let Some(player) = self.player_mut(addr) {
                 player.money_sent = balance;
-                if online != online_sent || stats_due {
+                if stats_due {
                     player.online_sent = online;
                     player.online_at = Some(now);
                 }

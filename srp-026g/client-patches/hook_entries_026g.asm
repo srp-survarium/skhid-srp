@@ -8922,6 +8922,48 @@ particle_room_on_start_replay:
     db 0x8b, 0xc1, 0x8d, 0x4c, 0x24, 0x30
     jmp 0x2ac68c
 
+; 0x111ed0 logging::log_message's start (push ebp / mov ebp,esp / sub esp,250h), the one writer of every engine log line, on any thread (cdecl, varargs; its callers ask has_passed_filters first and build the line's function on their stack, which they free after the call): the site's ESP+4 that function, +8 the context word, +0Ch the template, +10h the file, +14h the line, +18h the caller's name, +1Ch the channel, +20h the level, +24h the format, +28h its first argument; quiet is its `ret` (0x111F73), the stack as at the site: the line not written: lohook -> quiet_log_on_message
+global quiet_log_on_message
+extern hook_quiet_log_on_message
+quiet_log_on_message:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_quiet_log_on_message
+    mov edx, quiet_log_on_message_replay
+    cmp eax, 0
+    je quiet_log_on_message_go
+    mov edx, 0x111ed9
+    cmp eax, 1
+    je quiet_log_on_message_go
+    mov edx, 0x111f73
+    cmp eax, 2
+    je quiet_log_on_message_go
+    ud2
+quiet_log_on_message_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+quiet_log_on_message_replay:
+    db 0x55, 0x8b, 0xec, 0x81, 0xec, 0x50, 0x02, 0x00, 0x00
+    jmp 0x111ed9
+
 ; 0x24757c mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player); culled 0x24781E, past the bones and past the culled player's held item's vtable+4Ch (0x247811: weapon::on_culled_player_draw 0x245250 moves the weapon to the player's root), where the game's own cull (jne 0x24758C, [ebx+12Ch] not 0) ends, the stack as at the site: lohook -> ragdoll_on_cull
 global ragdoll_on_cull
 extern hook_ragdoll_on_cull

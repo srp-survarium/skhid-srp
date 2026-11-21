@@ -63,6 +63,7 @@ pub mod lobby_menu;
 pub mod login;
 pub mod openssl;
 pub mod mouse;
+pub mod game_log;
 pub mod log;
 pub mod run_log;
 pub mod melee;
