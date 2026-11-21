@@ -2474,4 +2474,14 @@ va	status	ref_021d	name
 0x001f3c70	reviewed	0x00157ab8	survarium::player::generate_hit_event
 0x00238230	reviewed	0x0018257b	survarium::game_world_ui::draw_damage_collector
 0x00246f10	observed		survarium::player::tick
+0x0031d040	reviewed	0x001f7dbf	survarium::breath_state_normal::tick
+0x0031d0a0	reviewed	0x001f7e12	survarium::breath_state_shortbreathing::tick
+0x0031d0d0	reviewed	0x001f7e41	survarium::breath_state_shortbreathing::is_ready_for_transition
+0x0031d140	reviewed	0x001f7e5c	survarium::breath_state_holding::initialize
+0x0031d190	reviewed	0x001f7e9b	survarium::breath_state_holding::finalize
+0x0031d200	reviewed	0x001f7ed0	survarium::breath_state_holding::tick
+0x0031d3b0	reviewed	0x001f7fdb	survarium::breath_vibration_calculator::can_hold_breath
+0x0031d400	reviewed	0x001f8023	survarium::breath_vibration_calculator::not_holding_breath
+0x0031d430	reviewed	0x001f8046	survarium::breath_vibration_calculator::insufficient_breath
+0x0031d450	reviewed	0x001f8053	survarium::breath_vibration_calculator::initialize_logic
 0x0023ddd0	observed		survarium::base_game_scene::apply_camera

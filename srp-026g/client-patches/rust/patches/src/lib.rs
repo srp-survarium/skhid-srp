@@ -79,6 +79,8 @@ pub mod music;
 pub mod game_volume;
 pub mod sound_voices;
 pub mod drug_interrupt;
+// patch 177: a hit breaks the victim's breath hold
+pub mod breath_hit;
 pub mod footsteps;
 // patch 153: a step on a walker-only floor finds its ground
 pub mod step_ground;
