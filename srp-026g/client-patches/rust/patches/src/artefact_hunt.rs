@@ -620,7 +620,7 @@ fn decide_input(player: &Player<'_>, now: u32, use_pressed: bool, drop_pressed: 
         if drop_pressed && carrier == Some(place) {
             let ground = ground_of(&world, place.get())?;
             step(&world, hunt, Event::Drop { place, now, ground });
-            decision("drops it", place, now);
+            decision(world.thread(), Decision::Drop, place, CARRIED.get(world.thread()), now);
         }
         if !use_pressed {
             return Some(Input::Game);
@@ -632,13 +632,21 @@ fn decide_input(player: &Player<'_>, now: u32, use_pressed: bool, drop_pressed: 
             (ArtefactView::Lying { at, .. }, _) if hunt.params.takes(&view, at, level) => {
                 step(&world, hunt, Event::Take { place, now });
                 let taken = hunt.state.carrier() == Some(place);
-                decision(if taken { "takes it" } else { "may not take it (not in the match, or fallen)" }, place, now);
+                // The lying artefact's point is the take's own: a
+                // re-simulation's take of it is the same one.
+                let [x, y, z] = at.mm();
+                let key = (x as u32).wrapping_mul(31).wrapping_add(y as u32).wrapping_mul(31).wrapping_add(z as u32);
+                if taken {
+                    CARRIED.set(world.thread(), key);
+                }
+                decision(world.thread(), if taken { Decision::Take } else { Decision::Refused }, place, key, now);
                 Some(if taken { Input::Used } else { Input::Game })
             }
             (ArtefactView::Carried { by, team }, _) if by == place && hunt.params.delivers(&view, team, level) => {
                 let ground = position(player.feet())?;
                 step(&world, hunt, Event::Deliver { place, now, ground });
-                decision("delivers it", place, now);
+                let [a, b] = hunt.state.score();
+                decision(world.thread(), Decision::Deliver, place, u32::from(a) << 8 | u32::from(b), now);
                 Some(Input::Used)
             }
             _ => Some(Input::Game),
@@ -648,9 +656,41 @@ fn decide_input(player: &Player<'_>, now: u32, use_pressed: bool, drop_pressed: 
 }
 
 /// One line for a press the hunt decided on (a re-simulation logs it again).
-fn decision(what: &str, place: Place, now: Time) {
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Decision {
+    Take,
+    Refused,
+    Deliver,
+    Drop,
+}
+
+impl Decision {
+    const fn text(self) -> &'static str {
+        match self {
+            Decision::Take => "takes it",
+            Decision::Refused => "may not take it (not in the match, or fallen)",
+            Decision::Deliver => "delivers it",
+            Decision::Drop => "drops it",
+        }
+    }
+}
+
+/// The last decision logged, by its event (the lying artefact's point for a
+/// take, the carried one's for a drop, the scores after a delivery), and the
+/// carried artefact's point: a re-simulation's same decision is not logged
+/// again.
+static LOGGED: GameCell<Option<(Decision, Place, u32)>> = GameCell::new(None);
+static CARRIED: GameCell<u32> = GameCell::new(0);
+
+/// One line for a press the hunt decided on, once an event.
+fn decision(thread: &Thread, what: Decision, place: Place, key: u32, now: Time) {
+    let event = Some((what, place, key));
+    if LOGGED.get(thread) == event {
+        return;
+    }
+    LOGGED.set(thread, event);
     log::line(&[Piece::Text("artefact_hunt: place "), Piece::Dec(u32::from(place.get())), Piece::Text(" "),
-                Piece::Text(what), Piece::Text(" at "), Piece::Dec(now.ms()), Piece::Text(" ms")]);
+                Piece::Text(what.text()), Piece::Text(" at "), Piece::Dec(now.ms()), Piece::Text(" ms")]);
 }
 
 // ---- the carrier -------------------------------------------------------------
