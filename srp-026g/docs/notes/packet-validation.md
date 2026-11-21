@@ -607,6 +607,13 @@ players' names and accounts; never committed):
 - `dumps/<config>/`: the kept world dumps of the local runs
   (`private/local-clients-*/runtime/snapshots`, copied once on 2026-11-07,
   14,748 worlds). They have no recording, so only `world-drift` reads them.
+- `retired/`: recordings no check reads (same layout as `live/` and `local/`, a
+  `README.txt` with each file's reason; first on 2026-11-21, the owner's choice).
+  `world-check` reads every recording with this tree's data, so a content change
+  that alters a map's world objects (its objects, anomalies, damage zones or
+  respawn points) retires that map's older recordings: moved here, not deleted,
+  with a line in the README saying which change. So does a local recording of
+  content that never reaches main.
 
 Two rows of `tools/checks.tsv` read it (`tools/checks/worlds.sh`); the corpus is
 in their key (`{main}/private/world-corpus/**`), not in the diff: a refresh

@@ -570,6 +570,18 @@ Patches:
   (0x7B76B, one branch) runs player_step for every step, and its own test
   (can_skeep_player_step 0x7C7E0) leaves a body with nothing to do where it
   is. A simulation change;
+- a part of a tick walks, and says a player's speed, as a whole tick does
+  (patch 168, the Rust patch tick_parts; docs/notes/fall_damage.md "A part
+  of a tick: its least walk and the speed read from it"): the least walk's
+  test asks a part what its tick would be asked at its pace (0x7C823), so no
+  part of a walking body is skipped, and only the step that ends a tick
+  writes m_linear_horizontal_speed (0x2D9541), which a jump reads as it
+  begins. A simulation change;
+- a bullet's armour penetration does not fall with distance (patch 173,
+  docs/notes/client_patch.md section 3.94): update_bullet_position's
+  falloff by speed (0x32EE90) no longer writes the bullet's piercing
+  (PIERCE_DISTANCE, 0x32F174); its damage falls as before. Walls and
+  ricochets lower it as before. A simulation change;
 - a thrown grenade stays above the ground (patch 105, with the late join;
   docs/notes/grenade_ccd.md): grenade_core::load's continuous collision
   sweeps a sphere of 0.04 m (GRENADE_CCD, 0x303A13), not 0.01 m, inside the
@@ -727,6 +739,8 @@ Each site is checked against the original bytes first, so a different build
 or an already patched file is refused rather than patched twice.
 """
 
+import array
+import bisect
 import collections
 import hashlib
 import os
@@ -1710,6 +1724,20 @@ FALL_GRAVITY = (
 # m_last_pos (0x7B76D..0x7B7A7) is no longer reached. No base relocation
 # under the site; the branch's target is the original's.
 STEP_PARTS = (0x7B76B, bytes.fromhex("7b3c"), bytes.fromhex("eb3c"))
+
+# A bullet's armour penetration does not fall with distance (patch 173,
+# ../docs/notes/client_patch.md section 3.94). update_bullet_position 0x32EE90
+# ends every move with the falloff by speed: u = clamp((speed - +7Ch) /
+# (+78h - +7Ch), 0, 1), damage +70h = min(+70h, Dmin + (Dmax - Dmin) u)
+# (0x32F0E0) and piercing +74h likewise from weapon +520h x ammo +24h and
+# their minimum x weapon +534h x ammo +20h (0x32F174). The bullet's +74h is
+# written only there, by the constructor (0x32BB7B), a record's load
+# (0x32BCDE), try_pierce (0x32DAA1, a wall's or a body's k) and try_reflect
+# (0x32E3C6, a ricochet's minimum). PIERCE_DISTANCE makes the last store of
+# update_bullet_position a five-byte nop: damage falls as before, piercing
+# keeps what the muzzle, walls and ricochets left it. Nothing branches into
+# the site; no base relocation under it.
+PIERCE_DISTANCE = (0x32F174, bytes.fromhex("f30f114f74"), bytes.fromhex("0f1f440000"))
 
 # A thrown grenade stays above the ground (patch 105, ../docs/notes/grenade_ccd.md).
 # grenade_core::load 0x303890 gives the grenade (RGD-5 and RDG-M) a capsule of
@@ -3580,9 +3608,59 @@ def pe_checksum(data, checksum_at):
     return total + len(data)
 
 
+# The relocation table is read once, not once a call (hundreds a build): the
+# HIGHLOW entries of the last tables read, by VA, and the table the last
+# call left (the one read, with the entries this function turned to type 0).
+_RELOC_READ = {}                # {table bytes: (array of VAs, array of offsets in the table)}, the last few
+_RELOC_NOW = [None, None]       # [the table as the last call left it, its entry in _RELOC_READ]
+
+
+def _reloc_entries(table):
+    """(VAs, offsets in the table) of a base relocation table's HIGHLOW
+    entries, sorted by VA; None for a table whose blocks do not end at its
+    end (read entry by entry then)."""
+    entries, o = [], 0
+    while o < len(table):
+        if o + 8 > len(table):
+            return None
+        page, block = struct.unpack_from("<II", table, o)
+        if block < 8:
+            break
+        if o + block > len(table):
+            return None
+        for at in range(o + 8, o + block - 1, 2):
+            e = struct.unpack_from("<H", table, at)[0]
+            if e >> 12 == 3:
+                entries.append((IMAGE_BASE + page + (e & 0xFFF), at))
+        o += block
+    entries.sort()
+    return array.array("I", (va for va, _ in entries)), array.array("I", (at for _, at in entries))
+
+
+def _reloc_candidates(data, start, end, ranges):
+    """[(file offset, VA)] in the table's order of the entries that were
+    HIGHLOW when the table was read and overlap a range; None when the table
+    cannot be indexed."""
+    table = data[start:end]
+    if _RELOC_NOW[0] != table:
+        key = bytes(table)
+        if key not in _RELOC_READ:
+            while len(_RELOC_READ) >= 4:
+                del _RELOC_READ[next(iter(_RELOC_READ))]
+            _RELOC_READ[key] = _reloc_entries(key)
+        _RELOC_NOW[:] = bytearray(key), _RELOC_READ[key]
+    if _RELOC_NOW[1] is None:
+        return None
+    vas, ats = _RELOC_NOW[1]
+    # an entry's dword [va, va + 4) overlaps [lo, hi): lo - 4 < va < hi
+    return sorted({(start + ats[i], vas[i]) for lo, hi in ranges
+                   for i in range(bisect.bisect_right(vas, lo - 4), bisect.bisect_left(vas, hi))})
+
+
 def neutralize_relocs(data, ranges):
     """Turn HIGHLOW base relocations that overlap a [lo, hi) VA range into
-    type 0 (skip). Returns the VAs of the changed entries."""
+    type 0 (skip). Returns the VAs of the changed entries, in the table's
+    order."""
     headers = Headers(data)
     rva, size = struct.unpack_from("<II", data, headers.reloc_at)
     base_off = None
@@ -3591,7 +3669,31 @@ def neutralize_relocs(data, ranges):
             base_off = rva - srva + raw
     if base_off is None:
         sys.exit("no .reloc section")
-    o, end, changed = base_off, base_off + size, []
+    ranges = list(ranges)
+    candidates = _reloc_candidates(data, base_off, base_off + size, ranges)
+    if candidates is None:
+        candidates = _reloc_walk(data, base_off, base_off + size, ranges)
+    changed = []
+    for at, va in candidates:
+        e = struct.unpack_from("<H", data, at)[0]
+        if e >> 12 != 3:                                  # turned to type 0 by an earlier call
+            continue
+        # owned by the write the relocated dword is under
+        if _BUILDING[0]:
+            owner = next((w.owner for w in APPLIED if w.kind == "write" and w.va is not None
+                          and w.va <= va < w.va + len(w.new)), None) or instance_of(va)
+            _claim(owner, "relocation", va, at, struct.pack("<H", e & 0xFFF))
+        struct.pack_into("<H", data, at, e & 0xFFF)
+        if _RELOC_NOW[1] is not None:
+            struct.pack_into("<H", _RELOC_NOW[0], at - base_off, e & 0xFFF)
+        changed.append(va)
+    return changed
+
+
+def _reloc_walk(data, o, end, ranges):
+    """[(file offset, VA)] of the HIGHLOW entries that overlap a range, the
+    table read entry by entry (a table _reloc_entries does not take)."""
+    found = []
     while o < end:
         page, block = struct.unpack_from("<II", data, o)
         if block < 8:
@@ -3601,15 +3703,9 @@ def neutralize_relocs(data, ranges):
             e = struct.unpack_from("<H", data, at)[0]
             va = IMAGE_BASE + page + (e & 0xFFF)
             if e >> 12 == 3 and any(va + 4 > lo and va < hi for lo, hi in ranges):
-                # owned by the write the relocated dword is under
-                if _BUILDING[0]:
-                    owner = next((w.owner for w in APPLIED if w.kind == "write" and w.va is not None
-                                  and w.va <= va < w.va + len(w.new)), None) or instance_of(va)
-                    _claim(owner, "relocation", va, at, struct.pack("<H", e & 0xFFF))
-                struct.pack_into("<H", data, at, e & 0xFFF)
-                changed.append(va)
+                found.append((at, va))
         o += block
-    return changed
+    return found
 
 
 def split_code(code):
@@ -3935,6 +4031,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             sites.append((site[0], site[0] + len(site[1])))
         patch(data, *STEP_PARTS)
         sites.append((STEP_PARTS[0], STEP_PARTS[0] + len(STEP_PARTS[1])))
+        patch(data, *PIERCE_DISTANCE)
+        sites.append((PIERCE_DISTANCE[0], PIERCE_DISTANCE[0] + len(PIERCE_DISTANCE[1])))
         # An address of .rdata for another: its relocation stays.
         patch(data, *GRENADE_CCD)
         for site in MOUSE_BUTTONS:

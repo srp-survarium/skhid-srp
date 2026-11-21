@@ -1597,6 +1597,8 @@ va	status	ref_021d	name
 0x00265980	inferred-medium		survarium::lobby_character::update_decal_preview
 0x00265c20	inferred-medium		survarium::lobby_character::on_decal_click
 0x00265cb0	inferred-medium		survarium::lobby_character::on_decal_wheel
+0x00265de0	inferred-medium		survarium::lobby_character::enter_decal_edit
+0x00265f10	inferred-medium		survarium::lobby_character::leave_decal_edit
 0x00265f80	inferred-medium		survarium::lobby_character::place_decal_markers
 0x00266470	inferred-medium	0x000e4424	vostok::detail::concrete_type_helper<vostok::render::render_texture_cook_parameters>::copy_helper
 0x002678e0	inferred-medium		survarium::client_player_respawn_rule::on_kit_changed
@@ -3595,3 +3597,23 @@ va	status	ref_021d	name
 0x002e5040	inferred-medium		survarium::damage_model::tick
 0x002f4b40	inferred-high		survarium::shared_statistics::shared_statistics
 0x002f4c20	inferred-high		survarium::shared_statistics::clear
+0x001a29b0	inferred-medium		vostok::render::effect_sun_shadows_apply<no_sky,0>::compile
+0x001a2b40	inferred-medium		vostok::render::effect_sun_shadows_apply<no_sky,1>::compile
+0x001a2ce0	inferred-medium		vostok::render::effect_sun_shadows_apply<no_sky,2>::compile
+0x001a2e80	inferred-medium		vostok::render::effect_sun_shadows_apply<no_sky,3>::compile
+0x001a3020	inferred-medium		vostok::render::effect_sun_shadows_apply<sky,0>::compile
+0x001a31b0	inferred-medium		vostok::render::effect_sun_shadows_apply<sky,1>::compile
+0x001a3350	inferred-medium		vostok::render::effect_sun_shadows_apply<sky,2>::compile
+0x001a34f0	inferred-medium		vostok::render::effect_sun_shadows_apply<sky,3>::compile
+0x002a6b20	inferred-medium		vostok::render::environment_properties::lerp
+0x002a9460	inferred-medium		vostok::render::environment_keyframes::properties_at
+0x002959d0	inferred-high	0x001aa6f7	survarium::portable_interactive_object::process_hands_ik
+0x002956e0	inferred-high	0x001aa526	survarium::portable_interactive_object::compute_bones_matrices
+0x00295800	inferred-medium	0x001aa4aa	survarium::portable_interactive_object::subscribe_on_client_animation_events
+0x002959a0	inferred-medium	0x001aa6d6	survarium::portable_interactive_object::on_hand_ik_event
+0x003930b0	inferred-medium	0x0024af3a	vostok::animation::hand_to_weapon_ik_solver::process
+0x000ef780	inferred-medium		vostok::math::interpolate (float4x4, float4x4, t) [descriptive]
+0x000ed420	inferred-medium		vostok::math::float4x4::invert_4x3 [descriptive]
+0x002dec90	inferred-medium		survarium::weapon_core::select_recoil_animation [descriptive]
+0x0030e8a0	inferred-medium		survarium::weapon_core_fire_state::get_user_hands_lexeme [descriptive]
+0x0030e5c0	inferred-medium		survarium::weapon_core_fire_state::clip_time_scale [descriptive]
