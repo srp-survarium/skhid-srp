@@ -2368,7 +2368,10 @@ The owner, 2026-11-21, after a local test whose console scrolled with repeats: "
 - **No replay crash at the start.** `vostok::packet_recovery::Connection` took any network client
   as a live one; in a replay it is a `replay_network_client` (0x5AB18 bytes), and its options
   holder's read (+1F1C48h) was past it at every frame (patches 97 and 125): a crash at a replay's
-  start when the heap held anything there. A client of the replay's vtable now has no connection.
+  start when the heap held anything there. A client of the replay's vtable now has no connection
+  (`vostok::world::playback_of`, the one test of the class), and `NetworkClient::local_profile` and
+  `Lobby::place_name`, which read the same holder, take the options through the client's own
+  virtual (`engine_match_options`, vtable +34h, both kinds of client).
 
 ## 4. Mode 3 batteries: not needed in 0.26g
 

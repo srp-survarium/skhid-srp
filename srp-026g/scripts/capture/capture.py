@@ -89,17 +89,26 @@ def script_of(spec, out, aspect):
     lines = [f'folder {windows(out)}', f"wait {int(base['wait_ms'])}"]
     names = set()
     for raw in spec['poses']:
-        p = dict(base, **{k: v for k, v in raw.items() if v is not None})
+        raw = {k: v for k, v in raw.items() if v is not None}
+        p = dict(base, **raw)
         name = p['name']
         if not NAME.fullmatch(name) or name in names:
             raise SystemExit(f'pose name {name!r}: letters, digits, _ - . (at most 48), each once')
         names.add(name)
-        if 'forward' in p:
-            forward = p['forward']
+        # The pose's own direction and field of view win over the defaults' (either form).
+        look = raw if 'forward' in raw or 'yaw' in raw else p
+        if 'forward' in look:
+            forward = look['forward']
         else:
-            yaw, pitch = math.radians(p['yaw']), math.radians(p['pitch'])
+            yaw, pitch = math.radians(look['yaw']), math.radians(look['pitch'])
             forward = [math.sin(yaw) * math.cos(pitch), math.sin(pitch), math.cos(yaw) * math.cos(pitch)]
-        fov = p['fov'] if 'fov' in raw else math.degrees(2 * math.atan(math.tan(math.radians(p['hfov']) / 2) / aspect))
+        vertical = lambda hfov: math.degrees(2 * math.atan(math.tan(math.radians(hfov) / 2) / aspect))
+        if 'fov' in raw:
+            fov = raw['fov']
+        elif 'hfov' in raw:
+            fov = vertical(raw['hfov'])
+        else:
+            fov = base['fov'] if 'fov' in base else vertical(base['hfov'])
         values = [*p['position'], *forward, fov, p['near'], p['far']]
         lines.append(f'pose {name} ' + ' '.join(f'{v:.6f}' for v in values) + f" {int(p['settle_ms'])}")
     return base, names, '\n'.join(lines) + '\n'
@@ -121,10 +130,9 @@ class Run:
     def replay(self):
         sur = self.work / 'map.sur'
         tool = SRP / 'target/release/srp-map-sur'
-        if not tool.exists():
-            log('building srp-map-sur')
-            subprocess.run(['nix', 'develop', str(SRP), '--command', 'cargo', 'build', '--release', '-p',
-                            'match-server', '--bin', 'srp-map-sur'], cwd=SRP, check=True)
+        # Built at every run (nothing to do when current): a stale binary never writes the replay.
+        subprocess.run(['nix', 'develop', str(SRP), '--command', 'cargo', 'build', '--release', '-p',
+                        'match-server', '--bin', 'srp-map-sur'], cwd=SRP, check=True, capture_output=True)
         env = dict(os.environ, SRP_GAME_DATA=str(self.a.game_data))
         done = subprocess.run([str(tool), str(self.a.map), str(sur), '--minutes', '60'], env=env,
                               capture_output=True, text=True)
@@ -168,7 +176,9 @@ class Run:
             folder = user / 'Documents/Survarium'
             folder.mkdir(parents=True, exist_ok=True)
             path = folder / 'user.cfg'
-            lines = [x for x in (path.read_text().splitlines() if path.exists() else [])
+            # The template's user.cfg each run: nothing an earlier run's poses file set stays.
+            source = TEMPLATE / path.relative_to(prefix)
+            lines = [x for x in (source.read_text().splitlines() if source.exists() else [])
                      if (x.split(maxsplit=1) or [''])[0] not in managed]
             lines += ['r_fullscreen off', f'r_resolution {size}']
             lines += [f'{k} {v}' for k, v in user_cfg.items() if k != 's_general_volume'] + ['s_general_volume 0']
@@ -270,6 +280,8 @@ def main():
         a.game_data = near[-1] if near else (Path(os.environ['SRP_GAME_DATA']) if 'SRP_GAME_DATA' in os.environ else None)
     if a.game_data is None or not a.game_data.exists():
         raise SystemExit('no game data: --game-data, a --content beside its server-game-data.db, or SRP_GAME_DATA')
+    if not Path(WINE).exists():
+        raise SystemExit(f'no Wine at {WINE}: set SKHID_CAPTURE_WINE to a wine-wow64 11 binary')
     spec = json.loads(a.poses.read_text())
     base = dict(DEFAULTS, **(spec.get('capture', {}) if isinstance(spec, dict) else {}))
     w, h = (int(v) for v in str(base['size']).split('x'))

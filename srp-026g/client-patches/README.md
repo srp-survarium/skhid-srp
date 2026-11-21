@@ -6489,4 +6489,7 @@ Patch 97's connection (`vostok::packet_recovery::Connection`) no longer reads a 
 client as a live one: `replay_network_client` is 0x5AB18 bytes and the live client's options
 holder is at +1F1C48h, so patches 97 and 125 read past it at every frame of a replay, and a replay's
 start crashed when the heap held anything there (2026-11-12, exe+0xA489291). A client of the
-replay's class (its vtable, `REPLAY_CLIENT_VTABLE`) has no connection.
+replay's class (its vtable, `REPLAY_CLIENT_VTABLE`, told once by `vostok::world::playback_of`) has
+no connection. The two other readers of that holder, the local player's place (voice, the world
+check's breadcrumb) and a place's name (the lobby), read the options through the client's own
+virtual (`engine_match_options`, a live and a replay client alike) instead.

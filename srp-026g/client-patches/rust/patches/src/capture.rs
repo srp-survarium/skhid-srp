@@ -31,6 +31,7 @@
 #![forbid(unsafe_code)]
 
 use core::f32::math::sqrt;
+use core::sync::atomic::{AtomicU8, Ordering};
 
 use crate::screenshot;
 use crate::vostok::back_buffer::Output;
@@ -121,10 +122,11 @@ pub struct Script {
     count: usize,
 }
 
-/// Why a script is refused: the line (from 1) and what is wrong with it.
+/// Why a script is refused: what is wrong, and the line (from 1) it is
+/// on, or none for the script as a whole (no folder, no pose).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Refused {
-    pub line: u32,
+    pub line: Option<u32>,
     pub why: &'static str,
 }
 
@@ -150,7 +152,7 @@ impl Script {
     pub fn parse(text: &[u8]) -> Result<Script, Refused> {
         let mut script = Script::EMPTY;
         for (index, line) in text.split(|&c| c == b'\n').enumerate() {
-            let at = |why| Refused { line: index as u32 + 1, why };
+            let at = |why| Refused { line: Some(index as u32 + 1), why };
             let line = line.split(|&c| c == b'#').next().unwrap_or(&[]).trim_ascii();
             let mut words = line.split(|c| c.is_ascii_whitespace()).filter(|w| !w.is_empty());
             match words.next() {
@@ -186,10 +188,10 @@ impl Script {
             }
         }
         if script.folder_len == 0 {
-            return Err(Refused { line: 0, why: "no folder" });
+            return Err(Refused { line: None, why: "no folder" });
         }
         if script.count == 0 {
-            return Err(Refused { line: 0, why: "no pose" });
+            return Err(Refused { line: None, why: "no pose" });
         }
         Ok(script)
     }
@@ -327,12 +329,24 @@ struct Run {
 /// The game's thread ticks and places the camera, the drawing thread saves.
 static RUN: Lock<Run> = Lock::new(Run { capture: Capture::Unread, script: Script::EMPTY });
 
+/// Whether there is a run, for the hooks' first look: [`UNREAD`] until the
+/// world's first tick, then [`OFF`] for good, or [`ON`] once [`RUN`] holds
+/// it (written by the game's thread alone). Off, no hook takes the lock.
+static STARTED: AtomicU8 = AtomicU8::new(UNREAD);
+const UNREAD: u8 = 0;
+const OFF: u8 = 1;
+const ON: u8 = 2;
+
 /// The world's first tick: the run, from the environment and its script.
 fn start(thread: &Thread, now: u32) -> (Capture, Script) {
-    let mut room = [0u8; 261];
+    if !renderer::environment_set(thread, c"SKHID_CAPTURE") {
+        return (Capture::Off, Script::EMPTY);
+    }
+    let mut room = [0u8; 1024];
     let len = renderer::get_environment(thread, c"SKHID_CAPTURE", &mut room);
     if len == 0 {
-        return (Capture::Off, Script::EMPTY);
+        log::line(&[Piece::Text("capture: SKHID_CAPTURE is longer than 1023 bytes")]);
+        return (Capture::Over { code: 2 }, Script::EMPTY);
     }
     let mut text = [0u8; SCRIPT];
     let read = Path::new(&room[..=len]).and_then(File::open).and_then(|mut file| file.read(&mut text));
@@ -346,12 +360,15 @@ fn start(thread: &Thread, now: u32) -> (Capture, Script) {
             (Capture::Waiting { since: now }, script)
         }
         Err(refused) => {
-            log::line(&[
-                Piece::Text("capture: the script is refused, line "),
-                Piece::Dec(refused.line),
-                Piece::Text(": "),
-                Piece::Text(refused.why),
-            ]);
+            match refused.line {
+                Some(line) => log::line(&[
+                    Piece::Text("capture: the script is refused, line "),
+                    Piece::Dec(line),
+                    Piece::Text(": "),
+                    Piece::Text(refused.why),
+                ]),
+                None => log::line(&[Piece::Text("capture: the script is refused: "), Piece::Text(refused.why)]),
+            }
             (Capture::Over { code: 2 }, Script::EMPTY)
         }
     }
@@ -361,10 +378,22 @@ fn start(thread: &Thread, now: u32) -> (Capture, Script) {
 pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let now = clock::milliseconds(thread);
-    let exit = RUN.with(thread, |run| {
-        if run.capture == Capture::Unread {
-            (run.capture, run.script) = start(thread, now);
+    match STARTED.load(Ordering::Acquire) {
+        OFF => return Flow::Continue,
+        UNREAD => {
+            let (capture, script) = start(thread, now);
+            let on = capture != Capture::Off;
+            if on {
+                RUN.with(thread, |run| (run.capture, run.script) = (capture, script));
+            }
+            STARTED.store(if on { ON } else { OFF }, Ordering::Release);
+            if !on {
+                return Flow::Continue;
+            }
         }
+        _ => {}
+    }
+    let exit = RUN.with(thread, |run| {
         let (next, exit) = run.capture.step(&run.script, Event::Tick { now });
         run.capture = next;
         exit
@@ -379,6 +408,9 @@ pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// `camera.apply`: the scene is drawn from the pose.
 pub fn on_camera(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let ctx = &*ctx;
+    if STARTED.load(Ordering::Acquire) != ON {
+        return Flow::Continue;
+    }
     let Some(pose) = RUN.with(ctx.thread(), |run| run.capture.pose().map(|p| run.script.poses[p])) else {
         return Flow::Continue;
     };
@@ -393,6 +425,9 @@ pub fn on_camera(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// `render.flash_ui`: the scene of the frame, before its interface.
 pub fn on_scene(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let ctx = &*ctx;
+    if STARTED.load(Ordering::Acquire) != ON {
+        return Flow::Continue;
+    }
     let thread = ctx.thread();
     let asked = RUN.with(thread, |run| match run.capture {
         Capture::Asked { pose } => Some((run.script.poses[pose], run.script.path(&run.script.poses[pose]))),
@@ -459,14 +494,14 @@ mod tests {
         let refused = |text: &[u8]| Script::parse(text).unwrap_err();
         let pose = b"folder x\npose a 0 0 0 1 0 0 60 0.1 100 0\n";
         assert!(Script::parse(pose).is_ok());
-        assert_eq!(refused(b"folder x\npose a 0 0 0 0 1 0 60 0.1 100 0\n").line, 2, "straight up");
-        assert_eq!(refused(b"folder x\npose a 0 0 0 1 0 0 180 0.1 100 0\n").line, 2, "the fov");
-        assert_eq!(refused(b"folder x\npose a 0 0 0 1 0 0 60 1 1 0\n").line, 2, "far not past near");
-        assert_eq!(refused(b"folder x\npose ../a 0 0 0 1 0 0 60 0.1 100 0\n").line, 2, "a name");
-        assert_eq!(refused(b"folder x\npose a 0 0 0 1 0 0 60 0.1 100 0 7\n").line, 2, "a word more");
-        assert_eq!(refused(b"folder x\npose a 0 0 0 1e3 0 0 60 0.1 100 0\n").line, 2, "no exponent");
-        assert_eq!(refused(b"folder x\npose a 0 0 0 1 0 0 60 0.1 100 0\npose a 1 0 0 1 0 0 60 0.1 100 0\n").line, 3);
-        assert_eq!(refused(b"folder x\nzoom 2\n").line, 2);
+        assert_eq!(refused(b"folder x\npose a 0 0 0 0 1 0 60 0.1 100 0\n").line, Some(2), "straight up");
+        assert_eq!(refused(b"folder x\npose a 0 0 0 1 0 0 180 0.1 100 0\n").line, Some(2), "the fov");
+        assert_eq!(refused(b"folder x\npose a 0 0 0 1 0 0 60 1 1 0\n").line, Some(2), "far not past near");
+        assert_eq!(refused(b"folder x\npose ../a 0 0 0 1 0 0 60 0.1 100 0\n").line, Some(2), "a name");
+        assert_eq!(refused(b"folder x\npose a 0 0 0 1 0 0 60 0.1 100 0 7\n").line, Some(2), "a word more");
+        assert_eq!(refused(b"folder x\npose a 0 0 0 1e3 0 0 60 0.1 100 0\n").line, Some(2), "no exponent");
+        assert_eq!(refused(b"folder x\npose a 0 0 0 1 0 0 60 0.1 100 0\npose a 1 0 0 1 0 0 60 0.1 100 0\n").line, Some(3));
+        assert_eq!(refused(b"folder x\nzoom 2\n").line, Some(2));
         assert_eq!(refused(b"pose a 0 0 0 1 0 0 60 0.1 100 0\n").why, "no folder");
         assert_eq!(refused(b"folder x\nwait 1\n").why, "no pose");
     }

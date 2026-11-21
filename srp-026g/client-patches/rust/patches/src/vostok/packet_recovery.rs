@@ -74,9 +74,7 @@ impl<'a> Connection<'a> {
     /// replay's client (its class), which is smaller than a live one: its
     /// +1F1C48h is past its 0x5AB18 bytes (a replay's start crashed here).
     fn any(client: raw::NetworkClient, thread: &'a Thread) -> Option<Self> {
-        // SAFETY: the synchronous dispatch/load boundary owns this client;
-        // its vtable, the first word, is every client's.
-        if unsafe { read(client.vtable()) } == raw::image::REPLAY_CLIENT_VTABLE {
+        if super::world::playback_of(client) == super::world::Playback::Replay {
             return None;
         }
         // SAFETY: as above, and a live match's client has these fields.
