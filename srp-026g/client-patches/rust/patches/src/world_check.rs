@@ -98,7 +98,7 @@ fn check(thread: &Thread, load: Option<WorldLoad<'_>>) -> bool {
         log_refusal(thread, &[Piece::Text("world_check: a world at a load with no readable state; not loaded")]);
         return false;
     };
-    // Patch 169: a hunt's world is read with the rule's own parameters.
+    // Patch 171: a hunt's world is read with the rule's own parameters.
     let hunt = crate::artefact_hunt::params(thread);
     let parsed = parse(load.state(), load.match_context(), hunt.as_ref());
     let state = load.state();

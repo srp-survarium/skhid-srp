@@ -28302,7 +28302,7 @@ impl HuntCook {
         self.0.as_ptr() as usize as u32
     }
 
-    /// +0x0 (u32): patch 169's rule cook (a static of ours, as the client cooks the game's constructor makes: tdm_rule_cook 0x2F41E0): its vtable, a copy of the client tdm cook's (0x9FD8AC) with create and size ours
+    /// +0x0 (u32): patch 171's rule cook (a static of ours, as the client cooks the game's constructor makes: tdm_rule_cook 0x2F41E0): its vtable, a copy of the client tdm cook's (0x9FD8AC) with create and size ours
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
@@ -28474,7 +28474,7 @@ impl HuntRule {
         self.0.as_ptr() as usize as u32
     }
 
-    /// +0x0 (u32): patch 169's rule: game_match_rule_base (0x313900, type 6) and these; its vtable a copy of tdm_rule_core's (0xA15DA4) with its slots ours
+    /// +0x0 (u32): patch 171's rule: game_match_rule_base (0x313900, type 6) and these; its vtable a copy of tdm_rule_core's (0xA15DA4) with its slots ours
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
@@ -28555,7 +28555,7 @@ impl HuntRule {
         unsafe { self.0.byte_add(0x13c).cast::<Option<Game>>().write_volatile(value) }
     }
 
-    /// 0x140 bytes: the rule object (its state is patch 169's, by the object's address)
+    /// 0x140 bytes: the rule object (its state is patch 171's, by the object's address)
     pub const SIZE: usize = 0x140;
 
     /// The `index`th of an array of them that starts at this one.

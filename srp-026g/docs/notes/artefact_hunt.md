@@ -102,7 +102,7 @@ Each one a decision; the owner's are marked, the rest are the port's and open to
     artefact_brought_by_enemy}`: 0.46c2's own block, the announcer's seven sounds as
     `<base_path>/<voice>/<name>`. Each line is `[258, "artifact_hunt/<line>"]`: a sound collection
     (class 258, `sounds/collections/vo/<voice>/artifact_hunt/<line>.sound_collection`, seven voice
-    folders), not a single sound (found while building patch 169; the pack ships them so).
+    folders), not a single sound (found while building patch 171; the pack ships them so).
 - **A project a map:** 0.26g's own project of the map with 0.46c2's mode spawns
   (`server_objects.respawn_points`) and the two bases' box as a prop; nothing of 0.46c2's reworked
   geometry or anomalies. A round start respawns a whole team at once: a team with fewer free
@@ -127,7 +127,7 @@ function from a state and an `Event` to the new state and its score events, tota
 the game's own decisions ask the state: `respawn_at`, `spawning`, `frozen`, `respawns`, `carrier`;
 `cargo test -p artefact-hunt-rule`); the patch is a module `artefact_hunt` of
 `client-patches/rust/patches` (rust_patches.md) that turns the world into events, answers the
-game's decisions from the rule and shows the state: patch 169 ("The implementation" below
+game's decisions from the rule and shows the state: patch 171 ("The implementation" below
 says what of this design is built, and what turned out otherwise).
 
 ### What is whose
@@ -582,9 +582,9 @@ does otherwise, each open to the owner's word:
   countdown's camera.
 - Everything here in a game: no part of the design was played.
 
-### The implementation (patch 169)
+### The implementation (patch 171)
 
-The code is `client_patch.md` "Artifact Hunt (patch 169)"; checked by `check_artefact_hunt_026g.py`
+The code is `client_patch.md` "Artifact Hunt (patch 171)"; checked by `check_artefact_hunt_026g.py`
 (Unicorn, through the game's own callers) and the crate's tests. Not run in a game.
 
 - **Built:** the cook and its registration, the rule and its slots 7, 8, 9, 11, 15, 16, 17, 18, the tick,

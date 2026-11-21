@@ -29,5 +29,5 @@ weapon-kit = { path = "../../../crates/weapon-kit" }
 # patch 66: the voice DLL's C ABI, shared with srp-026g/client-voice
 voice-abi = { path = "../../../crates/voice-abi" }
 srp-validate = { path = "../../../crates/srp-validate" }
-# patch 169: Artifact Hunt's rules, the state the world carries (srp-validate reads the same)
+# patch 171: Artifact Hunt's rules, the state the world carries (srp-validate reads the same)
 artefact-hunt-rule = { path = "../../../crates/artefact-hunt-rule" }

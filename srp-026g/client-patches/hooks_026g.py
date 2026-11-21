@@ -173,7 +173,7 @@ TYPES["BatteryState"] = {
     "orig_type": "&mut BatteryState", "orig_raw": "Some({n}.raw())",
     "pass": "&mut {n}", "null": "{a}",
 }
-# Patch 169's rule and cook (vostok::artefact_hunt): the objects the slots
+# Patch 171's rule and cook (vostok::artefact_hunt): the objects the slots
 # of our vtable copies are called on (made only by us: fallible, the null
 # path never taken), and what the game passes them: a query, a kill's data
 # (none for a match's start), the core, the world's writer and reader, the

@@ -609,7 +609,7 @@ pub extern "C" fn hook_artefact_courier_on_spawned(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- artefact_hunt (patch 169) ----
+// ---- artefact_hunt (patch 171) ----
 
 /// The entry `artefact_hunt_on_register` (0x1ec170, game::query_base_resources' start (push ebp / mov ebp,esp / and esp,-8), its one caller the game's constructor 0x1E9B4E after its own client cooks (EAX the game); Research's registration tail-jumps here (0x1E9B4C)) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -624,7 +624,7 @@ pub extern "C" fn hook_artefact_hunt_on_register(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- artefact_hunt (patch 169) ----
+// ---- artefact_hunt (patch 171) ----
 
 /// engine_tdm_cook_create (0x2063f0), as the vtable hook at 0x9fd8d0 wraps it.
 pub struct OrigTdmCookCreate;
@@ -657,7 +657,7 @@ pub unsafe extern "C" fn hook_artefact_hunt_on_cook_create(a0: Option<raw::HuntC
     crate::artefact_hunt::on_cook_create(&orig, &mut cook, &query)
 }
 
-// ---- artefact_hunt (patch 169) ----
+// ---- artefact_hunt (patch 171) ----
 
 /// engine_tdm_cook_size (0x2063e0), as the vtable hook at 0x9fd8d4 wraps it.
 pub struct OrigTdmCookSize;
@@ -689,7 +689,7 @@ pub unsafe extern "C" fn hook_artefact_hunt_on_cook_size(a0: Option<raw::HuntCoo
     crate::artefact_hunt::on_cook_size(&orig, &mut cook)
 }
 
-// ---- artefact_hunt (patch 169) ----
+// ---- artefact_hunt (patch 171) ----
 
 /// engine_tdm_rule_on_event (0x316090), as the vtable hook at 0xa15dc0 wraps it.
 pub struct OrigTdmRuleOnEvent;
@@ -724,7 +724,7 @@ pub unsafe extern "C" fn hook_artefact_hunt_on_event(a0: Option<raw::HuntRule>, 
     { crate::artefact_hunt::on_event(&orig, &mut rule, kind, &data, time); 0 }
 }
 
-// ---- artefact_hunt (patch 169) ----
+// ---- artefact_hunt (patch 171) ----
 
 /// engine_tdm_rule_entered (0x316590), as the vtable hook at 0xa15dc4 wraps it.
 pub struct OrigTdmRuleEntered;
@@ -758,7 +758,7 @@ pub unsafe extern "C" fn hook_artefact_hunt_on_entered(a0: Option<raw::HuntRule>
     { crate::artefact_hunt::on_entered(&orig, &mut rule, place, time); 0 }
 }
 
-// ---- artefact_hunt (patch 169) ----
+// ---- artefact_hunt (patch 171) ----
 
 /// engine_tdm_rule_left (0x3165d0), as the vtable hook at 0xa15dc8 wraps it.
 pub struct OrigTdmRuleLeft;
@@ -792,7 +792,7 @@ pub unsafe extern "C" fn hook_artefact_hunt_on_left(a0: Option<raw::HuntRule>, a
     { crate::artefact_hunt::on_left(&orig, &mut rule, place, time); 0 }
 }
 
-// ---- artefact_hunt (patch 169) ----
+// ---- artefact_hunt (patch 171) ----
 
 /// engine_tdm_rule_set_core (0x267810), as the vtable hook at 0xa15dd0 wraps it.
 pub struct OrigTdmRuleSetCore;
@@ -825,7 +825,7 @@ pub unsafe extern "C" fn hook_artefact_hunt_on_set_core(a0: Option<raw::HuntRule
     { crate::artefact_hunt::on_set_core(&orig, &mut rule, &core); 0 }
 }
 
-// ---- artefact_hunt (patch 169) ----
+// ---- artefact_hunt (patch 171) ----
 
 /// engine_tdm_rule_serialize (0x316340), as the vtable hook at 0xa15de0 wraps it.
 pub struct OrigTdmRuleSerialize;
@@ -858,7 +858,7 @@ pub unsafe extern "C" fn hook_artefact_hunt_on_serialize(a0: Option<raw::HuntRul
     { crate::artefact_hunt::on_serialize(&orig, &mut rule, &writer); 0 }
 }
 
-// ---- artefact_hunt (patch 169) ----
+// ---- artefact_hunt (patch 171) ----
 
 /// engine_tdm_rule_deserialize (0x3163d0), as the vtable hook at 0xa15de4 wraps it.
 pub struct OrigTdmRuleDeserialize;
@@ -892,7 +892,7 @@ pub unsafe extern "C" fn hook_artefact_hunt_on_deserialize(a0: Option<raw::HuntR
     { crate::artefact_hunt::on_deserialize(&orig, &mut rule, &reader, unused); 0 }
 }
 
-// ---- artefact_hunt (patch 169) ----
+// ---- artefact_hunt (patch 171) ----
 
 /// engine_tdm_rule_fill_hud (0x316430), as the vtable hook at 0xa15de8 wraps it.
 pub struct OrigTdmRuleFillHud;
@@ -926,7 +926,7 @@ pub unsafe extern "C" fn hook_artefact_hunt_on_fill_hud(a0: Option<raw::HuntRule
     { crate::artefact_hunt::on_fill_hud(&orig, &mut rule, &hud, time); 0 }
 }
 
-// ---- artefact_hunt (patch 169) ----
+// ---- artefact_hunt (patch 171) ----
 
 /// engine_tdm_rule_completed (0x316520), as the vtable hook at 0xa15dec wraps it.
 pub struct OrigTdmRuleCompleted;
@@ -959,7 +959,7 @@ pub unsafe extern "C" fn hook_artefact_hunt_on_completed(a0: Option<raw::HuntRul
     u32::from(crate::artefact_hunt::on_completed(&orig, &mut rule, time))
 }
 
-// ---- artefact_hunt (patch 169) ----
+// ---- artefact_hunt (patch 171) ----
 
 /// The convention of engine_timelimit_tick (0x317f10), a callback's: a marker for
 /// the callback entries made in it (no function of the game is called through it).
@@ -982,7 +982,7 @@ pub unsafe extern "C" fn hook_artefact_hunt_on_tick(a0: Option<raw::HuntRule>, a
     { crate::artefact_hunt::on_tick(&rule, dt, time, step); 0 }
 }
 
-// ---- artefact_hunt (patch 169) ----
+// ---- artefact_hunt (patch 171) ----
 
 /// The entry `artefact_hunt_on_death_delay` (0x316b6b, player_respawn_rule_base::on_event after the floor of a death's delay (mov ecx,[edi+134h], the floor call's return): EAX the delay ms, EDI the rule, EBX the victim's player, ESP+20h the time; then time + EAX is put on the grid and stored at +138h + 4 x victim (0x316BA3)) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -997,7 +997,7 @@ pub extern "C" fn hook_artefact_hunt_on_death_delay(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- artefact_hunt (patch 169) ----
+// ---- artefact_hunt (patch 171) ----
 
 /// The entry `artefact_hunt_on_respawn_tick` (0x316826, respawn tick after kit-change trampoline/prologue; before vectors (push ebx; push esi; mov ebx,ecx; push edi)) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -1012,7 +1012,7 @@ pub extern "C" fn hook_artefact_hunt_on_respawn_tick(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- artefact_hunt (patch 169) ----
+// ---- artefact_hunt (patch 171) ----
 
 /// The named exits of artefact_hunt::on_can_sprint (the order the shim's Flow code
 /// follows, 2 upward).
@@ -1052,7 +1052,7 @@ pub extern "C" fn hook_replay_map_on_name(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- artefact_hunt (patch 169) ----
+// ---- artefact_hunt (patch 171) ----
 
 /// The named exits of artefact_hunt::on_name (the order the shim's Flow code
 /// follows, 2 upward).
@@ -1092,7 +1092,7 @@ pub extern "C" fn hook_replay_map_on_enemy(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- artefact_hunt (patch 169) ----
+// ---- artefact_hunt (patch 171) ----
 
 /// The named exits of artefact_hunt::on_enemy (the order the shim's Flow code
 /// follows, 2 upward).
@@ -1127,7 +1127,7 @@ pub extern "C" fn hook_replay_map_on_enemy_ids(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- artefact_hunt (patch 169) ----
+// ---- artefact_hunt (patch 171) ----
 
 /// The entry `artefact_hunt_on_enemy_ids` (0x235709, game_world_ui::initialize_match (0x234880) about to send the player icons movie its enemy list (root.set_enemy_icon_ids, the Invoke at 0x235726; the icons movie [[ui+10h]+108h]+4), before any marker of the match is sent: mov ecx,[esi+10h] / mov edx,[ecx+108h]; ESI the ui (0x235702). the late join's lists_hook is on the bytes after the Invoke (0x23572B)) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -1187,7 +1187,7 @@ pub extern "C" fn hook_free_for_all_on_update_icons(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- artefact_hunt (patch 169) ----
+// ---- artefact_hunt (patch 171) ----
 
 /// The entry `artefact_hunt_on_update_icons` (0x23aa10, game_world_ui::update_player_icons' start, every frame of a match ([esp+4] the ui)) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -1232,7 +1232,7 @@ pub extern "C" fn hook_free_for_all_on_initialize_match(frame: &mut Frame) -> u3
     }
 }
 
-// ---- artefact_hunt (patch 169) ----
+// ---- artefact_hunt (patch 171) ----
 
 /// The entry `artefact_hunt_on_initialize_match` (0x234880, game_world_ui::initialize_match's start (sub esp,5D4h), once a match (from 0x1F855D; the late join's rebuild enters at 0x234E71): the site's ESP+4 the hud, whose kits (+2DFh) and cursor (+2DCh) are the last match's) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -1277,7 +1277,7 @@ pub extern "C" fn hook_free_for_all_on_welcome(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- artefact_hunt (patch 169) ----
+// ---- artefact_hunt (patch 171) ----
 
 /// The entry `artefact_hunt_on_welcome` (0x23b36a, update_ui marks the welcome message shown (mov byte [edi+370h],1; the mode's jne at 0x23B354 lands here too): once a world, at its first update past the pregame, as the countdown ends) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -1292,7 +1292,7 @@ pub extern "C" fn hook_artefact_hunt_on_welcome(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- artefact_hunt (patch 169) ----
+// ---- artefact_hunt (patch 171) ----
 
 /// The convention of engine_store_first_resource (0x14730), a callback's: a marker for
 /// the callback entries made in it (no function of the game is called through it).
@@ -1373,7 +1373,7 @@ pub extern "C" fn hook_voice_on_frame(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- artefact_hunt (patch 169) ----
+// ---- artefact_hunt (patch 171) ----
 
 /// The entry `artefact_hunt_on_after_move` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -1418,7 +1418,7 @@ pub extern "C" fn hook_faces_on_world_left(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- artefact_hunt (patch 169) ----
+// ---- artefact_hunt (patch 171) ----
 
 /// The entry `artefact_hunt_on_deactivate` (0x1f9520, game_world::on_deactivate's start (push ebx / push esi / push edi / mov edi,ecx): the match scene left) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -1508,7 +1508,7 @@ pub extern "C" fn hook_weapon_stats_on_tick(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- artefact_hunt (patch 169) ----
+// ---- artefact_hunt (patch 171) ----
 
 /// The entry `artefact_hunt_on_carrier_tick` (0x2daad3, base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -1553,7 +1553,7 @@ pub extern "C" fn hook_forest_glow_on_capacity(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- artefact_hunt (patch 169) ----
+// ---- artefact_hunt (patch 171) ----
 
 /// The entry `artefact_hunt_on_effect_capacity` (0x2ec81e, game effect resource cook: ESI concurrent instances, EBX named query; after count read, before callback copies it) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -1608,7 +1608,7 @@ pub extern "C" fn hook_forest_glow_on_clock(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- artefact_hunt (patch 169) ----
+// ---- artefact_hunt (patch 171) ----
 
 /// The named exits of artefact_hunt::on_effect_clock (the order the shim's Flow code
 /// follows, 2 upward).
@@ -1628,7 +1628,7 @@ pub extern "C" fn hook_artefact_hunt_on_effect_clock(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- artefact_hunt (patch 169) ----
+// ---- artefact_hunt (patch 171) ----
 
 /// The named exits of artefact_hunt::on_mark (the order the shim's Flow code
 /// follows, 2 upward).

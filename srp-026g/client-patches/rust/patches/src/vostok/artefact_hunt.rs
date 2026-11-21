@@ -1,4 +1,4 @@
-//! Patch 169, Artifact Hunt (docs/notes/artefact_hunt.md, "The exe"): the
+//! Patch 171, Artifact Hunt (docs/notes/artefact_hunt.md, "The exe"): the
 //! game's side of `artefact_hunt_rule`. What the game objects are and what
 //! is safe to do with them: the rule's cook (a static of ours registered as
 //! the game's are), the rule it makes (game_match_rule_base and our vtable

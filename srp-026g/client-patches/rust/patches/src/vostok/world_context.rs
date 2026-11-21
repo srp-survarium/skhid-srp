@@ -32,7 +32,7 @@ pub(super) fn from_client(client: raw::NetworkClient) -> Option<Match> {
                 // Research owns native rule type 5. Reading the base type
                 // avoids a fixed address for its relocated arena vtable.
                 _ if read(rule.rule_type()) == 5 => Rule::Mode { game_mode: mode::RESEARCH, batteries: 0 },
-                // Artifact Hunt (patch 169) makes its rule of native type 6.
+                // Artifact Hunt (patch 171) makes its rule of native type 6.
                 _ if read(rule.rule_type()) == super::artefact_hunt::RULE_TYPE =>
                     Rule::Mode { game_mode: mode::ARTEFACT_HUNT, batteries: 0 },
                 _ => Rule::Other,

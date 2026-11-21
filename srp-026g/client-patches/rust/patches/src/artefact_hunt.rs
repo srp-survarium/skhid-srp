@@ -1,4 +1,4 @@
-//! Patch 169: Artifact Hunt, mode 13 (docs/notes/artefact_hunt.md). The rules
+//! Patch 171: Artifact Hunt, mode 13 (docs/notes/artefact_hunt.md). The rules
 //! are `artefact_hunt_rule`'s; this module turns the world into its events,
 //! answers the game's own decisions from its state and shows it:
 //!

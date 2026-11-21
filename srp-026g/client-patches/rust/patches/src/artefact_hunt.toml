@@ -1,11 +1,11 @@
-# Patch 169: Artifact Hunt, mode 13 (docs/notes/artefact_hunt.md, "The exe";
+# Patch 171: Artifact Hunt, mode 13 (docs/notes/artefact_hunt.md, "The exe";
 # client_patch.md 3.90). The sites are sites_026g.tsv's; the logic is
 # artefact_hunt.rs over crates/artefact-hunt-rule. The input is patch 78's
 # carry.input (artefact_carry's on_input asks artefact_hunt::input first),
 # the carrier's modifiers patch 109's getter sites (artefact_skills'
 # handlers call shared_modifier / shared_modifiers): one detour an address.
 name = "artefact_hunt"
-patch = 169
+patch = 171
 uses = ["artefact_carry"]
 
 # the game's constructor after its own client cooks: the cook registered
