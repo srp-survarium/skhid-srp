@@ -1641,48 +1641,6 @@ artefact_hunt_on_mark_replay:
     db 0x83, 0xba, 0x78, 0x01, 0x00, 0x00, 0x00
     jmp 0x1f2d92
 
-; 0x267ae6 the client time rule node's camera test (0x267AA0, for a tick first played): mov edi,[edi+148h] (its own state) before the compare with the network client's +1F1C60h and the camera switch 0x27B1A0; state: EDI given, on at the compare: lohook -> artefact_hunt_on_camera_state
-global artefact_hunt_on_camera_state
-extern hook_artefact_hunt_on_camera_state
-artefact_hunt_on_camera_state:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_artefact_hunt_on_camera_state
-    mov edx, artefact_hunt_on_camera_state_replay
-    cmp eax, 0
-    je artefact_hunt_on_camera_state_go
-    mov edx, 0x267aec
-    cmp eax, 1
-    je artefact_hunt_on_camera_state_go
-    mov edx, 0x267aec
-    cmp eax, 2
-    je artefact_hunt_on_camera_state_go
-    ud2
-artefact_hunt_on_camera_state_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-artefact_hunt_on_camera_state_replay:
-    db 0x8b, 0xbf, 0x48, 0x01, 0x00, 0x00
-    jmp 0x267aec
-
 ; 0x31b8e0 generic_anomaly_core::register_artefacts at its entry (push ecx / mov eax,[esp+8]): the anomaly's pool is about to be registered from the core world's artefact vector length on, in pool order (each resolve links rebuilds the vector from empty): lohook -> artefact_keeper_on_register
 global artefact_keeper_on_register
 extern hook_artefact_keeper_on_register
@@ -9734,6 +9692,48 @@ voice_on_key_go:
 voice_on_key_replay:
     db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8, 0x83, 0xec, 0x0c
     jmp 0x25cd09
+
+; 0x267ae6 the client time rule node's camera test (0x267AA0, for a tick first played): mov edi,[edi+148h] (its own state) before the compare with the network client's +1F1C60h and the camera switch 0x27B1A0; state: EDI given, on at the compare: lohook -> round_countdown_on_camera_state
+global round_countdown_on_camera_state
+extern hook_round_countdown_on_camera_state
+round_countdown_on_camera_state:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_round_countdown_on_camera_state
+    mov edx, round_countdown_on_camera_state_replay
+    cmp eax, 0
+    je round_countdown_on_camera_state_go
+    mov edx, 0x267aec
+    cmp eax, 1
+    je round_countdown_on_camera_state_go
+    mov edx, 0x267aec
+    cmp eax, 2
+    je round_countdown_on_camera_state_go
+    ud2
+round_countdown_on_camera_state_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+round_countdown_on_camera_state_replay:
+    db 0x8b, 0xbf, 0x48, 0x01, 0x00, 0x00
+    jmp 0x267aec
 
 ; 0xe31f8 logging_initialize (0xE30E0) after generate_log_file_name (0xE29C0, the only call, at 0xE31F3) made the engine log's name in EDI, the frame's buffer_string [esp+0Ch] over its 104h bytes at [esp+18h] (<user data folder><application>_<user>.log), before new_log_file (0x1128D0, the only call, at 0xE31FD) makes the log file of that name anew (create_always: log_file::log_file, as g_log_file_usage 0x1B3A1B8 says); mov eax,[esp+0Ch] / push eax: lohook -> run_logs_on_engine_log
 global run_logs_on_engine_log

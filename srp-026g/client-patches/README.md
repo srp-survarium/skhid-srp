@@ -6442,7 +6442,9 @@ Two teams, best of nine: first to five round wins. A lethal hit freezes the
 player in place, skipping normal death/ragdoll teardown. A living teammate
 within 2 metres and across a clear line of sight thaws them after 3 continuous
 seconds. A team wipe scores a round; after a five-second pause the native team
-spawn path resets the players. No artifact rescue in this first version.
+spawn path resets the players. The pause and the restart play the match start's countdown
+(the warmup camera, patch 31's kits: a kit picked then is spawned at the restart), with Artifact
+Hunt's code (`round_countdown`). No artifact rescue in this first version.
 
 Mode 12, initially on Rudnya day (`freeze-tag-1.json`). The stock team score
 bars, collection progress widget and blocked-hit sound provide the feedback.

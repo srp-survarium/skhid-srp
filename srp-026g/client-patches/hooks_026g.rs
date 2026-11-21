@@ -1548,26 +1548,6 @@ pub extern "C" fn hook_artefact_hunt_on_mark(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- artefact_hunt (patch 171) ----
-
-/// The named exits of artefact_hunt::on_camera_state (the order the shim's Flow code
-/// follows, 2 upward).
-#[repr(u32)]
-#[allow(dead_code)]
-pub enum ArtefactHuntOnCameraStateExit { State }
-/// The entry `artefact_hunt_on_camera_state` (0x267ae6, the client time rule node's camera test (0x267AA0, for a tick first played): mov edi,[edi+148h] (its own state) before the compare with the network client's +1F1C60h and the camera switch 0x27B1A0; state: EDI given, on at the compare) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_artefact_hunt_on_camera_state(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_hunt_on_camera_state` calls this, from the game's jump at 0x267ae6,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::artefact_hunt::on_camera_state(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => 2 + e as u32,
-    }
-}
-
 // ---- artefact_keeper (patch 109) ----
 
 /// The entry `artefact_keeper_on_register` (0x31b8e0, generic_anomaly_core::register_artefacts at its entry (push ecx / mov eax,[esp+8]): the anomaly's pool is about to be registered from the core world's artefact vector length on, in pool order (each resolve links rebuilds the vector from empty)) calls this with the saved machine.
@@ -6415,6 +6395,26 @@ pub extern "C" fn hook_replay_keys_on_key(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::replay_keys::on_key(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- round_countdown (patch 171) ----
+
+/// The named exits of round_countdown::on_camera_state (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum RoundCountdownOnCameraStateExit { State }
+/// The entry `round_countdown_on_camera_state` (0x267ae6, the client time rule node's camera test (0x267AA0, for a tick first played): mov edi,[edi+148h] (its own state) before the compare with the network client's +1F1C60h and the camera switch 0x27B1A0; state: EDI given, on at the compare) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_round_countdown_on_camera_state(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `round_countdown_on_camera_state` calls this, from the game's jump at 0x267ae6,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::round_countdown::on_camera_state(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,

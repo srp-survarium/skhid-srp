@@ -23,6 +23,11 @@ three). No artifact rescue in this version (owner, 2026-11-17).
   each out and spawns it at its team's points with its kit's load, the
   living as the frozen. The rule waits for delayed native spawns before
   opening the next round.
+- The pause and the restart play the match start's countdown, as Artifact
+  Hunt's round does, with its code (the owner, 2026-11-21: "reswapn logic
+  should be the same one as in arthunt"; "With Artifact Hunt" below): the
+  warmup camera (drag to turn, wheel to zoom) and patch 31's kits, so a
+  player can pick another kit; the restart spawns him in it.
 - A disconnect cannot clear a frozen place. A new place starts on its first
   spawn in a round; one that enters in the pause or after the match waits
   for the next round. Absent players are excluded when a new round starts.
@@ -173,7 +178,7 @@ twin.
 ## With Artifact Hunt
 
 The owner: Freeze Tag "will be similar to artihunt with
-respawns". Artifact Hunt (mode 13, patch 167, `artefact_hunt.md`
+respawns". Artifact Hunt (mode 13, patch 171, `artefact_hunt.md`
 "Respawns") also respawns everyone, the living too, at a round's start
 through the same tick, and holds respawns while a round ends. The two share
 two sites, each handler acting only in its own mode (Freeze Tag's from the
@@ -201,6 +206,27 @@ Taken from Artifact Hunt, and why:
   artefact (from the ground or a teammate's kit) on a frozen player's Use.
   At the entry, before patch 78, with Artifact Hunt's `held` exit, nothing
   of a held input is applied; the separate `freeze.input` site is gone.
+
+- **A round's countdown** (`vostok::round_countdown`, the shared patch
+  module `round_countdown` with its hook `time_rule.camera_state` at
+  0x267AE6). While `FreezeTag::round_countdown()` (the pause and the
+  restart: `Between`, `Restarting`) the rule's tick makes the core's time
+  state 4 (`round_countdown::set`, written only over a 3 or a 4), and 3
+  again when the round opens or the match ends. The client time rule's
+  camera test then sees the match start's countdown: the native switch
+  0x27B1A0 gives everyone the warmup camera, patch 31's kit view shows the
+  kits, and the player's camera comes back as the round opens. Patch 31
+  switches no kit in a 4; a kit picked in the pause is the place's next kit,
+  which the restart's spawn makes current (spawn_player 0x316DE3), so it
+  needs no switch of its own and no life more than the restart's. Freeze
+  Tag's own readers of the state take 3 and 4 alike as play (the rule's
+  tick, the hold, the glow); its frozen camera leaves the countdown to the
+  native camera. The tick sets it in list 0, before the places' ticks and
+  the time rule's; a world loaded between rounds (a late join, a rollback)
+  shows 3 until its first tick, which sets it again.
+  Artifact Hunt's countdown comes after its restart, with its own in-place
+  switch (`RespawnTick::switch_kit`, a life each); Freeze Tag's pause comes
+  before it, so the restart's spawn is the switch.
 
 Kept as Freeze Tag's own: cancelling a frozen body's death respawn while a
 round is played (a thawed player must not be respawned by the death's old

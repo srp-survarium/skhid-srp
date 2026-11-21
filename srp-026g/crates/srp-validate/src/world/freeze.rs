@@ -129,6 +129,12 @@ impl FreezeTag {
     pub fn complete(&self) -> bool {
         self.winner().is_some()
     }
+    /// Whether the next round is about to start: the pause and the restart,
+    /// which the game plays as the match start's countdown (the warmup
+    /// camera, the kits), as Artifact Hunt's fade and countdown.
+    pub fn round_countdown(&self) -> bool {
+        matches!(self.phase, Phase::Between { .. } | Phase::Restarting)
+    }
     /// What the respawn rule's schedule is left to do in this phase.
     pub fn schedule(&self) -> Schedule {
         match self.phase {

@@ -41,7 +41,7 @@ use crate::vostok::log::{self, Piece};
 use crate::vostok::statistics::ScoreEvent;
 use crate::vostok::world::{GameWorld, Player, WorldKey};
 use crate::vostok::{
-    ArtefactHuntOnCameraStateExit, ArtefactHuntOnCanSprintExit, ArtefactHuntOnEnemyExit, ArtefactHuntOnMarkExit,
+    ArtefactHuntOnCanSprintExit, ArtefactHuntOnEnemyExit, ArtefactHuntOnMarkExit,
     ArtefactHuntOnNameExit, Context, Flow, GameCell, GameWorldUi,
     Lock, NoExit, OrigTdmCookCreate, OrigTdmCookSize, OrigTdmRuleCompleted, OrigTdmRuleDeserialize, OrigTdmRuleEntered,
     OrigTdmRuleFillHud, OrigTdmRuleLeft, OrigTdmRuleOnEvent, OrigTdmRuleSerialize, OrigTdmRuleSetCore,
@@ -440,7 +440,7 @@ pub fn on_tick(rule: &TickRule<'_>, _dt: u32, time: u32, _step: u32) {
 }
 
 /// A round about to start is the match start's countdown in the game (the
-/// core's time state [`ROUND_COUNTDOWN`] for the next step: patch 31's kit
+/// core's time state the round's countdown for the next step: patch 31's kit
 /// change, the client's warmup camera and kits); each kit switch patch 31
 /// makes at the next step counted (a life for supplies). In the tick, after
 /// the time rule's (list 1) and the places' (list 0: the step's kit choices
@@ -1361,12 +1361,6 @@ fn say(thread: &Thread, world: &GameWorld<'_>, line: Line) {
     });
 }
 
-/// The client time rule's camera test: the countdown's state while the core
-/// says a round is about to start (any mode whose rule makes it so).
-pub fn on_camera_state(ctx: &mut Context<'_>) -> Flow<ArtefactHuntOnCameraStateExit> {
-    native::camera_state(ctx);
-    Flow::Exit(ArtefactHuntOnCameraStateExit::State)
-}
 
 /// The icon record's carry test: the carrier's icon is marked, of either team.
 pub fn on_mark(ctx: &mut Context<'_>) -> Flow<ArtefactHuntOnMarkExit> {

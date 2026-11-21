@@ -1,5 +1,6 @@
 //! Freeze Tag's engine boundary. Scoped native handles; all retained rule
 //! state belongs to the shared snapshot codec, never to native pointers.
+use super::round_countdown::Play;
 use super::world::{floats, read};
 use super::{Context, Thread};
 use crate::raw;
@@ -45,11 +46,15 @@ impl Camera {
                 .game()
                 .and_then(|game| game.network_client())
                 .and_then(|client| client.local_player());
+            let play = local.and_then(|player| player.world_core()).map(|core| Play::of(core));
+            // A round's countdown is the native camera's: the warmup view,
+            // and the player's camera back as the round starts.
+            if play == Some(Play::RoundCountdown) {
+                return Self::Native;
+            }
             let frozen = local.is_some_and(|player| {
                 read(player.alive()) != 0
-                    && player
-                        .world_core()
-                        .is_some_and(|core| read(core.time_state()) == 3)
+                    && play == Some(Play::InProcess)
                     && rule.is_some_and(|rule| {
                         matches!(
                             rule.player(place_of(player)),
@@ -174,9 +179,7 @@ impl<'t> Player<'t> {
     pub fn playing(&self) -> bool {
         // SAFETY: a live player's owning core, absent in a lobby.
         unsafe {
-            self.native
-                .world_core()
-                .is_some_and(|core| read(core.time_state()) == 3)
+            self.native.world_core().is_some_and(|core| Play::of(core).in_play())
         }
     }
     pub fn hold(&mut self, time: u32, phase: Phase) {
@@ -201,14 +204,14 @@ pub struct World<'t> {
     _thread: &'t Thread,
 }
 impl<'t> World<'t> {
-    /// None outside play (the countdown, the end).
+    /// None before play (the match start's countdown).
     pub fn at_tick(ctx: &'t Context<'_>) -> Option<Self> {
         // SAFETY: respawn tick's entry: its live rule and frame arguments.
         unsafe {
             let frame = raw::site::respawn_tick::frame(ctx).expect("the respawn tick's frame");
             let rule = raw::site::respawn_tick::rule(ctx).expect("the respawn tick's rule");
             let core = rule.core().expect("a respawn rule's world");
-            if read(core.time_state()) != 3 {
+            if !Play::of(core).in_play() {
                 return None;
             }
             Some(Self {
@@ -260,6 +263,13 @@ impl<'t> World<'t> {
             // SAFETY: the rule's twenty-entry schedule.
             unsafe { self.rule.times().add(place.index()).write(self.time) };
         }
+    }
+    /// The round's countdown on or off (`round_countdown`): at the rule's tick, in list 0 before
+    /// the places' ticks and the time rule's, so nothing of the step reads another; a load is
+    /// followed by a tick, which sets it again.
+    pub fn set_round_countdown(&mut self, on: bool) {
+        // SAFETY: the respawn rule's live core, on the simulation's thread.
+        unsafe { super::round_countdown::set(self.core, on) }
     }
     /// Every place due at this step is due no more (the tick spawns a place
     /// whose time equals the step's, 3168BA).
@@ -364,10 +374,10 @@ impl<'t> GlowScene<'t> {
             Some(Self { scene, core, _thread: thread })
         }
     }
-    /// Whether the match is in play (the time rule's state 3): the glow shows only then.
+    /// Whether the match is in play (a round's countdown too): the glow shows only then.
     pub fn in_play(&self) -> bool {
         // SAFETY: the live core of the hook's world.
-        unsafe { read(self.core.time_state()) == 3 }
+        unsafe { Play::of(self.core).in_play() }
     }
     /// The body at `place`, inserted and alive: its simulated transform (row-major 4x4).
     pub fn body(&self, place: Place) -> Option<[f32; 16]> {

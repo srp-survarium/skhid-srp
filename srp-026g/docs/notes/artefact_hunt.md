@@ -581,6 +581,8 @@ does otherwise, each open to the owner's word:
   "players still in", what its round start's world list and item visitor remove, and its
   countdown's camera.
 - Everything here in a game: no part of the design was played.
+- Late joiners spawn into the round in play; waiting for the next round (with something to watch
+  meanwhile, e.g. the frozen orbit camera around a living teammate) is a possible later change.
 
 ### The implementation (patch 171)
 
@@ -623,7 +625,9 @@ The code is `client_patch.md` "Artifact Hunt (patch 171)"; checked by `check_art
   - a round's restart is the match start's countdown, its own code (the owner: "the same code
     should run there"): for the Fade and the Countdown the rule makes the core's time state 4
     (`HuntWorld::set_round_countdown`, in its tick and its deserialize, after the time rule's);
-    `time_rule.camera_state` (0x267AE6) gives the client time rule's camera test the countdown's 2
+    the state, its setter and the camera test are `vostok::round_countdown` and the patch module
+    `round_countdown`, shared with Freeze Tag's pause and restart since the merge (`freeze-tag.md`
+    "With Artifact Hunt"); `time_rule.camera_state` (0x267AE6) gives the client time rule's camera test the countdown's 2
     while it is 4, so the native 0x27B1A0 switches to the warmup camera and back, and patch 31's
     kits show by +1F1C60h as before the start. The time rule's own state, start and end are
     untouched (its countdown would restart the match clock). The `held` input exit is gone: the

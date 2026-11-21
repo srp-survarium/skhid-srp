@@ -433,26 +433,12 @@ impl<'t> HuntWorld<'t> {
         Some(HuntWorld { core, thread: player.thread })
     }
 
-    /// The core's copy of the time state as a round of a rule with rounds
-    /// makes it: [`ROUND_COUNTDOWN`] while a round is about to start (the
-    /// game then plays the match start's countdown: patch 31's kit change,
-    /// the client's warmup camera and kits through
-    /// [`camera_state`]), the time rule's in-process 3 otherwise. Written
-    /// only over a 3 or a 4 (never before play or past it), in every game at
-    /// the same tick and after every load (the rule's tick and deserialize,
-    /// after the time rule's own).
+    /// The round's countdown on or off ([`super::round_countdown`]): in
+    /// every game at the same tick and after every load (the rule's tick and
+    /// deserialize, after the time rule's own).
     pub fn set_round_countdown(&self, on: bool) {
-        // SAFETY: the live core's copy of the time rule's state; its readers
-        // in a match of this mode: patch 31's kit change, the keeper's gift
-        // (a 4 is "not started" there: the gift waits), the batteries (none
-        // in this mode).
-        unsafe {
-            let state = self.core.time_state();
-            let now = read(state);
-            if now == IN_PROCESS || now == ROUND_COUNTDOWN {
-                state.write_volatile(if on { ROUND_COUNTDOWN } else { IN_PROCESS });
-            }
-        }
+        // SAFETY: the live core of this world, on the simulation's thread.
+        unsafe { super::round_countdown::set(self.core, on) }
     }
 
     /// Whether patch 31's kit change switches `place` at the next step, by
@@ -909,39 +895,14 @@ pub fn marked<'t>(ctx: &'t Context<'_>) -> Option<Player<'t>> {
     Some(Player { this, thread: ctx.thread() })
 }
 
-/// The carrier's mark: the record's flag set (CL 1, the setnz's) and EAX
-/// the place x 3 (the lea the exit skips).
 /// A player's simulated transform (+40Ch) and camera (+44Ch), row-major.
 pub fn transforms(player: &Player<'_>) -> ([f32; 16], [f32; 16]) {
     // SAFETY: the live player's two 4x4 matrices of f32.
     unsafe { (floats(player.this.transform()), floats(player.this.eye())) }
 }
 
-/// The core's time state while a round of a rule with rounds is about to
-/// start ([`HuntWorld::set_round_countdown`]).
-pub const ROUND_COUNTDOWN: u32 = 4;
-const IN_PROCESS: u32 = 3;
-const COUNTDOWN: u32 = 2;
-
-/// The client time rule's camera test (0x267AE6, its node's state against the
-/// network client's +1F1C60h): EDI its own state, or the countdown's 2 while
-/// the core says a round is about to start, so the native camera switch
-/// (0x27B1A0: the warmup camera; patch 31's kits by +1F1C60h) plays the match
-/// start's countdown for a round.
-pub fn camera_state(ctx: &mut Context<'_>) {
-    // SAFETY: the site's EDI, the live client time rule; its core (+128h,
-    // 0x267ACC) and its own state (+148h, the instruction replaced).
-    let state = unsafe {
-        let Some(rule) = raw::site::time_rule_camera_state::rule(ctx) else { return };
-        let own = read(rule.time_state());
-        match rule.timelimit_core() {
-            Some(core) if read(core.time_state()) == ROUND_COUNTDOWN => COUNTDOWN,
-            _ => own,
-        }
-    };
-    ctx.set_reg(Reg::Edi, state);
-}
-
+/// The carrier's mark: the record's flag set (CL 1, the setnz's) and EAX
+/// the place x 3 (the lea the exit skips).
 pub fn mark_carrier(ctx: &mut Context<'_>) {
     let place = ctx.reg(Reg::Eax);
     ctx.set_reg(Reg::Eax, place.wrapping_mul(3));

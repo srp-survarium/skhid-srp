@@ -94,6 +94,8 @@ pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
         Schedule::HoldDue => world.hold_due(),
         Schedule::Native => {}
     }
+    // The pause and the restart play the match start's countdown, as Artifact Hunt's round.
+    world.set_round_countdown(state.round_countdown());
     world.publish(state.points(), state.winner());
     MATCH.set(ctx.thread(), Match::Freeze(state));
     Flow::Continue

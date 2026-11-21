@@ -43,6 +43,7 @@ pub mod vostok;
 pub mod ragdoll;
 pub mod blackout;
 pub mod artefact_hunt;
+pub mod round_countdown;
 mod artefact_carry;
 pub mod suicide_key;
 pub mod bake_async;

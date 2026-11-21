@@ -149,10 +149,3 @@ order = 3
 [[hook]]
 site = "player_icons.carrier_mark"
 handler = "on_mark"
-
-# a round about to start plays the match start's countdown: the client's
-# camera test sees the countdown's state while the core says a round is about
-# to start (the warmup camera, patch 31's kits)
-[[hook]]
-site = "time_rule.camera_state"
-handler = "on_camera_state"
