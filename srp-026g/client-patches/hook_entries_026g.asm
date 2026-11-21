@@ -1822,7 +1822,7 @@ attachments_on_scope_dict_replay:
     db 0xc7, 0x45, 0xec, 0x00, 0x00, 0x00, 0x00
     jmp 0x24aa1c
 
-; 0x24ad0e on_weapon_subresources_ready (0x24ACF0) before it asks the config again whether the weapon has a scope (mov esi,offset "addons" / mov [esp+30h],ecx; then mov [esp+24h],ebx and the two has-checks 0x24AD1B, 0x24AD3A, each a jz to 0x24ADC8 = no scope, the results from 0): EAX the config's root, ECX the cook; scoped is 0x24AD47, where the first result is taken as the scope and the others follow from 1: lohook -> attachments_on_scope_result
+; 0x24ad13 on_weapon_subresources_ready (0x24ACF0) before it asks the config again whether the weapon has a scope (mov [esp+30h],ecx / mov [esp+24h],ebx, EBX 0: the two stores before the has-checks 0x24AD1B, 0x24AD3A, each a jz to 0x24ADC8 = no scope, the results from 0; the mov esi,offset "addons" before them has a base relocation and stays the game's): EAX the config's root, ECX the cook; scoped is 0x24AD47, where the first result is taken as the scope and the others follow from 1: lohook -> attachments_on_scope_result
 global attachments_on_scope_result
 extern hook_attachments_on_scope_result
 attachments_on_scope_result:
@@ -1846,7 +1846,7 @@ attachments_on_scope_result:
     mov edx, attachments_on_scope_result_replay
     cmp eax, 0
     je attachments_on_scope_result_go
-    mov edx, 0x24ad17
+    mov edx, 0x24ad1b
     cmp eax, 1
     je attachments_on_scope_result_go
     mov edx, 0x24ad47
@@ -1861,8 +1861,8 @@ attachments_on_scope_result_go:
     popfd
     ret
 attachments_on_scope_result_replay:
-    db 0xbe, 0x78, 0x48, 0xa0, 0x00, 0x89, 0x4c, 0x24, 0x30
-    jmp 0x24ad17
+    db 0x89, 0x4c, 0x24, 0x30, 0x89, 0x5c, 0x24, 0x24
+    jmp 0x24ad1b
 
 ; 0x24aab4 weapon_cook::on_weapon_config_loaded (0x24A920) before it sizes the requests' alloca (lea esi,[eax*8+0]; 0x424CA0 at 0x24AABD): EAX the requests it will push, EBX the weapon config's root: lohook -> attachments_on_request_room
 global attachments_on_request_room
