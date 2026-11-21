@@ -8,8 +8,8 @@ usage: python3 -I sidecar.py <0.69d0 game leaves> <players' files> <out folder>
 <players' files>      the players' gameplay/db_static_dictionaries and gameplay/items/weapons/*
                       (rifle-scopes/prepare_live.sh's folder)
 Writes <out folder>/remodel-069d.json (resource-porter's remodel sidecar) and items.tsv. Each live
-gun item takes the 0.69d0 item of its name (0.69d0 has every one but the event MP7, ALIAS the
-renamed ones), the six of pack weapons-069 too (0.69d0's models already: remodelled all the same,
+gun item takes the 0.69d0 item of its name (ALIAS the renamed ones, and the event MP7: 0.69d0 has
+none of its name, and it is the MP7 with a silencer whose model it has), the six of pack weapons-069 too (0.69d0's models already: remodelled all the same,
 for their bare bodies). For each 0.69d0 item:
 - rig: the live model's (its skeleton, bind pose and hand points: the live clips play on it);
   bone_map where a live bone is named otherwise (the VSS's spare magazine); aim_069 where its iron
@@ -28,7 +28,8 @@ import struct
 import sys
 from pathlib import Path
 
-ALIAS = {'a_545': 'a545', 'g3sg1': 'g3a3', 'ks_23m': 'ks_23', 'mauser_m712': 'mauser'}
+ALIAS = {'a_545': 'a545', 'g3sg1': 'g3a3', 'ks_23m': 'ks_23', 'mauser_m712': 'mauser',
+         'wpn_mp7_silencer_special': 'mp7_silencer'}
 KINDS = ('muzzlebrake', 'flashhider', 'silencer', 'suppressor', 'foregrip', 'scope', 'collimator')
 SLOT_KINDS = ('muzzle', 'tactical', 'picatinny_grip', 'scope', 'collim', 'laser')
 BAKED_KINDS = ('muzzlebrake', 'flashhider', 'barrelnut', 'firearrestor', 'suppressor', 'silencer', 'bipod', 'foregrip')
