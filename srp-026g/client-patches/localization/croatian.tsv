@@ -2266,6 +2266,7 @@ st_srp_artefact_541_name	Rezonancija
 st_srp_artefact_542_description	Aktivirani artefakti djeluju i na žive suigrače unutar 6 m. „Oni svijetle, vi blistate”
 st_srp_artefact_542_name	Kaskada
 st_srp_artefact_points	 bodova
+st_srp_attach_unfit	Ne ide uz nastavak cijevi ili rukohvat oružja.
 st_srp_attachments	Dodatci
 st_srp_ban_reason_account_trading	Prodaja ili pokušaj prodaje računa.
 st_srp_ban_reason_administration	Odluka administracije.
@@ -2540,6 +2541,7 @@ st_srp_equipment069_snow_20_torso_7_desc	Opis još nije dostupan.
 st_srp_equipment069_snow_20_torso_7_name	Prsluk Snow-20
 st_srp_face	Lice
 st_srp_face_card	Lice %1$s
+st_srp_grip_slot	Rukohvat
 st_srp_hide_quests_option	Sakrij zadatke
 st_srp_hide_scores_option	Sakrij bodove igrača
 st_srp_hit_markers_all	Svi pokazatelji pogodaka
@@ -2714,6 +2716,7 @@ st_srp_mode_research	Istraživanje
 st_srp_mode_team_deathmatch	Ekipna borba
 st_srp_mouse_lock_option	Zaključaj okomitu osjetljivost
 st_srp_mouse_vertical_option	Okomita osjetljivost
+st_srp_muzzle_slot	Nastavak cijevi
 st_srp_optics	Optika
 st_srp_options_hud	HUD:
 st_srp_pierce_brick	Opeka, čelik
@@ -2877,7 +2880,7 @@ st_srp_rooms_voting	Glasovanje
 st_srp_rooms_waiting	Čekanje igrača
 st_srp_rooms_waiting_owner	Čekanje da tvorac sobe pokrene borbu.
 st_srp_rooms_waiting_short	Čekanje
-st_srp_scope_screen_hint	Povucite ciljnik iz inventara na mjesto za modifikaciju oružja
+st_srp_scope_screen_hint	Povucite ciljnik, nastavak cijevi ili rukohvat iz inventara na njegovo mjesto
 st_srp_scope_slot	Optika
 st_srp_shop_not_owned	Sakrij posjedovane
 st_srp_shop_not_owned_hint	Prikaži samo predmete koje ne posjedujete
