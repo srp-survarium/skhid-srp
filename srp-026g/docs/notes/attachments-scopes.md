@@ -93,18 +93,26 @@ record whose pair the table does not have is taken off and logged with its reaso
 the scope item either way. A kept results screen loses a record that still names a variant (it is a
 picture of a past match).
 
-What that does to the owners of each released pair (computed from the full record of the lane's
-porter, not run on real accounts):
+What that does to the owners of each released pair. Run, 2026-11-21: a database made by release
+68's own server code (its session crate at tag `026g-rev68` on release 68's game data: 102 accounts
+registered through the sign-in, each pair's weapon and scope bought through the lobby's buy or
+added as the admin's give does where the shop refuses the account, the scope attached by release
+68's `attach_upgrade`, each record checked to hold the variant `released-pairs.tsv` names; 9,448
+items, 102 weapons worn in a kit), then loaded by this branch's `srp` on the full content's game
+data, saved, and compared row by row; and the same on the game data of the content with the
+variants retired:
 
-| Released pairs | At the load |
+| Released pairs (the record of pack 3) | At the load, both runs |
 |---|---|
-| 1,159 that 0.69d0 gives, and the Mosin's PU 3.5x (a plain fit since its ids row) | record rewritten to the scope's own id, kept; the optic on 0.69d0's mount |
-| 20 legacy rows as their base gun (18 of `sr3m_premium`, ACOG TA31 and Leupold Mk4 on `vssk_camo`) | rewritten, kept; the base gun's mount |
-| 2 on a slot of the gun's own (PSO-1 on `saiga_12` and `saiga_12_premium`) | rewritten, kept; on the dovetail by 0.69d0's rules for it |
-| 20 where their variant put them (18 Docter pairs, the XPS2 on the Kedr and the AEK-919K) | rewritten, kept; the optic where the variant had it, within 0.5 mm, its rail with it |
-| 3 of `wpn_mp7_silencer_special` (EOTech 552, CompM4, Docter) | rewritten, then taken off as not fitting (the gun is no gun of the table until it has its row in `scripts/remodel-069/items.tsv`, the core's); the player keeps the scope items and the gun shows its plain config |
+| 906 that are 0.69d0's own fits of the gun | record rewritten to the scope's own id, kept on its weapon |
+| 273 on the premium and camouflaged copies that take their base gun's fits (22 guns; the premium SR-3M's 18 and `vssk_camo`'s 2 among them) | rewritten, kept |
+| 2 on the event MP7, as the MP7 with a silencer; the Mosin's PU 3.5x | rewritten, kept |
+| 2 on a slot of the gun's own (PSO-1 on `saiga_12` and `saiga_12_premium`) | rewritten, kept |
+| 21 where their variant put them (19 Docter pairs, the XPS2 on the Kedr and the AEK-919K) | rewritten, kept |
 
-None is lost once `wpn_mp7_silencer_special` has its row; until then those three are.
+1,205 records in 102 accounts rewritten, none taken off, no warning in the server's log; no other
+item, kit slot or column changed. Not in that database: a kept results screen that names a
+variant, clans, whatever only real accounts have (the release's dry run loads the live database).
 
 ## The variants retired
 
@@ -147,6 +155,14 @@ that makes less (`release/content.tsv`'s header); nothing is taken from a player
 - The variants' generators (`scripts/rifle-scopes`, `scripts/scope-coverage`, `scope-fits`'s
   `make_pack.py`) are left as they are: other packs' scripts read from them (`weapon-grips`,
   `weapon-modules/ids.py`). Their three asset checks are gone with the packs they checked.
+- **Built** (`release/build-content 69`, a quick build of this tree with the pack
+  `weapon-modules@3`, 2026-11-21): it passes. Left from the retired versions, live and no longer
+  made: 21,444 files of `scope-coverage@2`, 5,555 of `scope-fits@13`, 4,197 of `rifle-scopes@18`
+  (30,464 model files and 732 variant configs). The dictionary has 919 entries where it had
+  1,955: exactly the 1,036 of `retired-variants.tsv` are gone. The lobby's rows of the scopes'
+  pairs are 1,248 (they were 1,224 with the 24 missing). `srp-check-scope-fits` on its game data:
+  1,205 released pairs preserved, 43 added, none refused. The load of the release-68 database on
+  it: as above.
 
 ## The reticle's centre
 
