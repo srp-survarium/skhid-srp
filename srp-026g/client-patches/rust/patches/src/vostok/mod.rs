@@ -23,6 +23,7 @@
 //!
 //! It grows with what the patches need, and no further.
 
+pub mod attachments;
 pub mod back_buffer;
 pub mod baker;
 pub mod aim;
@@ -126,6 +127,8 @@ mod generated {
     use super::battery::{BatteryState, PredicateBuffer};
     #[allow(unused_imports)]
     use super::shape::{Triangle, TriangleSink};
+    #[allow(unused_imports)]
+    use super::attachments::FingerCorrector;
     #[allow(unused_imports)]
     use core::ffi::c_void;
     include!("../../../../hooks_026g.rs");

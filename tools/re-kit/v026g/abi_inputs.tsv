@@ -2471,9 +2471,6 @@ va	name	location	role	basis
 0x00243a30		ECX		auto
 0x00243a30		entry ESP+4		auto
 0x00243a30		entry ESP+8		auto
-0x00243a30	survarium::weapon::load_weapon	ECX	the weapon	observed
-0x00243a30	survarium::weapon::load_weapon	entry ESP+4	the weapon's skeleton model instance (its +108h: the skeleton_render_model_instance)	observed
-0x00243a30	survarium::weapon::load_weapon	entry ESP+8	the scope (or 0)	observed
 0x00243bc0	survarium::weapon::calculate_locator	stack+4	locator	inferred
 0x00243bc0	survarium::weapon::calculate_locator	EDI	output_matrix	inferred
 0x00243bc0	survarium::weapon::calculate_locator	entry ESP+8	the item's world transform (weapon::draw's [ebp+8], 0x244E51/0x244E82), row-vector 4x4	observed
@@ -6509,6 +6506,67 @@ va	name	location	role	basis
 0x002e5040	survarium::damage_model::tick	stack+4	the damage model ([player+2E0h], from base_player::tick 0x2DAAF3 while [player+33Ch] is set); every pool of its list at +110h, the "pain" pool included, goes to body_part::regenerate 0x32A4B0	observed
 0x002e5040	survarium::damage_model::tick	stack+8	elapsed ms, passed on as 0x32A4B0 stack+4	observed
 0x002e5040	survarium::damage_model::tick	ESI	now ms, passed on as 0x32A4B0 stack+8 and stored at +328h	observed
+0x00243a30	survarium::weapon::load_weapon	ECX	address of the scope pointer (read at 0x243A30, kept at weapon+1808h with a reference; 0 for none)	observed
+0x00243a30	survarium::weapon::load_weapon	entry ESP+4	the weapon (0x243A35); its records +6E0h barrel_point, +744h scope_point (the barrel's copy when missing, 0x243AFC), +7A8h aim (the scope's copy when missing, 0x243B28) are read here by the model instance's vtable+24h	observed
+0x00243a30	survarium::weapon::load_weapon	entry ESP+8	address of the weapon's skeleton model pointer (0x243A77, kept at weapon+1810h with a reference)	observed
+0x00244d40	survarium::weapon::calculate_aim_alignment	EAX	the weapon (+6A0h the aim_offset matrix, +7A8h the aim locator record)	observed
+0x00244d40	survarium::weapon::calculate_aim_alignment	ECX	the weapon's bones' matrices of this frame (calculate_locator's bones)	observed
+0x00244d40	survarium::weapon::calculate_aim_alignment	ESI	out matrix, 16 floats	observed
+0x00244d40	survarium::weapon::calculate_aim_alignment	entry ESP+4	a matrix multiplied after the inverse: the user's Item bone at its one call (0x295AA4)	observed
+0x002959d0	survarium::portable_interactive_object::align_aim_and_solve_hands [descriptive]	ECX	the weapon controller (+1F8h its player, +200h the hand_to_weapon_ik_solver)	observed
+0x002959d0	survarium::portable_interactive_object::align_aim_and_solve_hands [descriptive]	entry ESP+4	the time, [player+324h] (0x2FF763)	observed
+0x002959d0	survarium::portable_interactive_object::align_aim_and_solve_hands [descriptive]	entry ESP+8	the user's bones' matrices; the Weapon bone's is overwritten (0x295AFA)	observed
+0x002959d0	survarium::portable_interactive_object::align_aim_and_solve_hands [descriptive]	entry ESP+0xC	the weapon's bones' matrices (calculate_aim_alignment's ECX)	observed
+0x002959d0	survarium::portable_interactive_object::align_aim_and_solve_hands [descriptive]	entry ESP+0x10	address of the user's skeleton pointer (get_bone_index of Weapon and Item, 0x295A4A, 0x295A72)	observed
+0x00244120	survarium::weapon::play_weapon_shoot_pfx [descriptive]	ECX	the weapon	observed
+0x00244120	survarium::weapon::play_weapon_shoot_pfx [descriptive]	entry ESP+8	a byte: 0 skips the effect (0x244123)	observed
+0x002443d0	survarium::weapon::play_weapon_fire_pfx	ECX	the weapon	observed
+0x002443d0	survarium::weapon::play_weapon_fire_pfx	entry ESP+8	a byte: 0 skips the effect (0x2443D3)	observed
+0x0024a780	survarium::weapon_cook::allocate_weapon	entry ESP+4	the weapon config's root: parameters/aim_offset (int or float) becomes translate(0, 0, aim_offset) at weapon+6A0h, the identity when absent (0x24A88F..0x24A904)	observed
+0x000ed420	vostok::math::float4x4::invert_affine_with_determinant [descriptive]	ECX	the matrix	observed
+0x000ed420	vostok::math::float4x4::invert_affine_with_determinant [descriptive]	EAX	out matrix	observed
+0x000ed420	vostok::math::float4x4::invert_affine_with_determinant [descriptive]	entry ESP+4	its 3x3 determinant, a float (0x244DE0)	observed
+0x00392ae0	vostok::animation::hand_to_weapon_ik_solver::set_weapon_locators	entry ESP+4	the solver's hands (two of 33Ch; pio + 200h from weapon::activate 0x24463D)	observed
+0x00392ae0	vostok::animation::hand_to_weapon_ik_solver::set_weapon_locators	entry ESP+8	the weapon's render model instance ([[weapon+1810h]+108h]); its vtable +24h is get_locator(name, 64h record)	observed
+0x00392ce0	vostok::animation::hand_to_weapon_ik_solver::set_target	EAX	hand index (0 left, 1 right)	observed
+0x00392ce0	vostok::animation::hand_to_weapon_ik_solver::set_target	ECX	the solver	observed
+0x00392ce0	vostok::animation::hand_to_weapon_ik_solver::set_target	EDI	now, ms	observed
+0x00392ce0	vostok::animation::hand_to_weapon_ik_solver::set_target	entry ESP+4	byte: nonzero the short blend	observed
+0x00392ce0	vostok::animation::hand_to_weapon_ik_solver::set_target	entry ESP+8	target 0..5	observed
+0x00392d90	vostok::animation::hand_to_weapon_ik_solver::on_ik_event	EAX	the event's value 0..11 (the callback's params +20h)	observed
+0x00392d90	vostok::animation::hand_to_weapon_ik_solver::on_ik_event	entry ESP+4	the solver	observed
+0x00392d90	vostok::animation::hand_to_weapon_ik_solver::on_ik_event	entry ESP+8	hand index	observed
+0x00392d90	vostok::animation::hand_to_weapon_ik_solver::on_ik_event	entry ESP+0xC	the event's time, ms (params +10h)	observed
+0x003930b0	vostok::animation::hand_to_weapon_ik_solver::solve	ESI	the solver	observed
+0x003930b0	vostok::animation::hand_to_weapon_ik_solver::solve	entry ESP+4	now, ms	observed
+0x003930b0	vostok::animation::hand_to_weapon_ik_solver::solve	entry ESP+8	the weapon's bone matrices (float4x4 each, indexed by a record's +60h)	observed
+0x003930b0	vostok::animation::hand_to_weapon_ik_solver::solve	entry ESP+0xC	byte: first view (records 0..3), else third (4..7)	observed
+0x003930b0	vostok::animation::hand_to_weapon_ik_solver::solve	entry ESP+0x10	the user's bone matrices (local at this point)	observed
+0x00390620	vostok::animation::fingers_to_weapon_corrector::set_weapon_model	entry ESP+4	the corrector (pio + 8D0h)	observed
+0x00390620	vostok::animation::fingers_to_weapon_corrector::set_weapon_model	entry ESP+8	address of the weapon's model instance pointer	observed
+0x00390620	vostok::animation::fingers_to_weapon_corrector::set_weapon_model	entry ESP+0xC	byte: first view (picks the name formats; both lists are the same in this build)	observed
+0x00390900	vostok::animation::fingers_to_weapon_corrector::tick	entry ESP+4	the corrector	observed
+0x00390900	vostok::animation::fingers_to_weapon_corrector::tick	entry ESP+8	now, ms	observed
+0x00390900	vostok::animation::fingers_to_weapon_corrector::tick	entry ESP+0xC	the user's bone matrices (local)	observed
+0x00390ac0	vostok::animation::fingers_to_weapon_corrector::on_event	EAX	the event's value 0..9	observed
+0x00390ac0	vostok::animation::fingers_to_weapon_corrector::on_event	entry ESP+4	the corrector	observed
+0x00390ac0	vostok::animation::fingers_to_weapon_corrector::on_event	entry ESP+8	hand index	observed
+0x00390ac0	vostok::animation::fingers_to_weapon_corrector::on_event	entry ESP+0xC	the event's time, ms	observed
+0x00298630	survarium::portable_interactive_object_with_finger_correction::correct_fingers	ECX	the object (+8D0h the corrector)	observed
+0x00298630	survarium::portable_interactive_object_with_finger_correction::correct_fingers	entry ESP+4	now, ms	observed
+0x00298630	survarium::portable_interactive_object_with_finger_correction::correct_fingers	entry ESP+8	the user's bone matrices (local)	observed
+0x00298680	survarium::portable_interactive_object_with_finger_correction::release_left_hand	ECX	the object	observed
+0x00298680	survarium::portable_interactive_object_with_finger_correction::release_left_hand	entry ESP+4	byte: 1 release, 0 restore	observed
+0x00332440	survarium::ammo_data::load	entry ESP+4	+40h buck_dispersion (float, 0x3325D3), +44h buck_shot (a byte: the pellets of a shot, 0x3325BD); a weapon's melee/data has 1 and 0	observed
+0x002e23a0	survarium::weapon_core::instant_fire	EBX at 0x2E245C	the weapon: one get_dispersed_bullet_direction for the shot, then a bullet per pellet ([+538h]+2ACh of them, 0x2E2467), each through get_dispersed_buckshot_direction 0x2E2120 and times muzzle_speed ([+538h]+2A4h)	observed
+0x002d9b90	survarium::base_player::hit_impl	ESI and EDI at 0x2D9D78	the bullet (ESI: +40h its ammo data, +54h must be 0.0, 0x2D9C84) and the hit_info (EDI: +40h the shooter, whose vtable +4Ch gives the weapon): stopping_power (weapon +524h) x k_power (ammo data +0Ch) queued at player+2E8h (0x2DC0F0), then stamina_damage (weapon +528h) x k_stamina_damage (+10h)	observed
+0x003dd990	vostok::resources::pinned_ptr_const<unsigned char>::pinned_ptr_const [descriptive]	EAX	the pinned pointer to fill (0Ch bytes)	observed
+0x003dd990	vostok::resources::pinned_ptr_const<unsigned char>::pinned_ptr_const [descriptive]	entry ESP+4	a managed_resource_ptr by value: the managed resource, one reference of it (+0DCh) the callee gives back (0x3DD9CC)	observed
+0x003c1020	vostok::resources::pinned_ptr_const<unsigned char>::~pinned_ptr_const [descriptive]	ECX	the pinned pointer	observed
+0x002c88d0	survarium::items_dictionary_cook::translate_query	ECX	the cook (its allocator at +20h, the query's)	observed
+0x002c88d0	survarium::items_dictionary_cook::translate_query	entry ESP+4	the parent query	observed
+0x002c8aa0	survarium::items_dictionary_cook::on_configs_loaded	ECX	the cook	observed
+0x002c8aa0	survarium::items_dictionary_cook::on_configs_loaded	entry ESP+4	the queries_result of translate_query's query	observed
 0x002f4b40	survarium::shared_statistics::shared_statistics	EDI	the statistics: its 20 place records made (0x335700 each: events 0), the batteries' ten (0x3347F0), the listener +31A0h, +31C0h and the options +31C8h 0, the winner +31DCh 0FFh, the count +31E0h 0 (0x2F4BBB..0x2F4BD7); called only by the handler's constructor (0x26D75B)	observed
 0x002f4c20	survarium::shared_statistics::clear	EDI	the statistics: the batteries cleared (0x3348A0), +31C0h 0 (0x2F4C31), the winner 0FFh, the count 0, the team points and items 0, every place's events (0A8h bytes) and damage record (0x335340) zeroed (0x2F4C7E..0x2F4CD6), then the options +31C8h 0 (0x2F4CDA): no event is counted until the next start_match sets them; called only by the handler's clear 0x26D880 (0x26D884), which the network clients run at a match's close when the option 0xAA2FF0 says so (0x27B4C9, 0x218CE8)	observed
 0x0026d8d0	survarium::base_game_statistics_handler::start_match	ECX, entry ESP+4, ESP+8	the handler, the world core, the match options: the core kept at +3238h and the handler at core+18FA8h (0x26D8E1, 0x26D8E7), the options at +323Ch and at the shared statistics' +31C8h (handler+31D0h, 0x26D954), their places' count at +3240h and the shared +31E0h, the winner 3; ret 8	observed

@@ -1501,6 +1501,44 @@ survarium::items_dictionary	entry_count	0x134	u32	the entries' count (item_by_id
 survarium::item_entry	size	0x3A0	size	an entry of the items dictionary (item_by_id 0x1F00B1: imul eax,eax,3A0h)
 survarium::lobby_client	game	0x1E56C0	ptr<survarium::game>	the game (the 0x87 dispatch 0x274B85: [lc+1E56C0h]+5390h is the lobby menu on_client_status_received 0x21D720 is called on; the 0x88 handler 0x274C01)
 survarium::game	lobby_menu	0x5390	ptr<survarium::lobby_menu>	the lobby menu (the 0x87 dispatch 0x274B8C: on_client_status_received 0x21D720 on it; switch_to_level_loading 0x27BE95)
+survarium::weapon_ready_frame	config	0x8	ptr<vostok::binary_config>	weapon_cook::on_weapon_subresources_ready 0x24ACF0's second argument at its entry (attachments.ready, by ESP): the weapon config's resource (its root at +108h, the cook's EBX)
+survarium::weapon_ready_frame	weapon	0xC	ptr<survarium::weapon>	its third: the weapon weapon_cook made (the callback's EDI from 0x24AF4D; [esp+40h] until the shots' loop takes the slot, 0x24AFA4)
+survarium::weapon_delete_frame	resource	0x4	ptr<survarium::weapon_resource>	weapon_cook::delete_resource 0x24B190's argument (by ESP at its entry): the weapon's +10h, or 0
+survarium::weapon_resource	weapon	-0x10	obj<survarium::weapon>	the weapon the resource base is in (delete_resource's `add edi,-10h`, 0x24B19B)
+survarium::weapon_locator	size	0x64	size	a locator record (render_model::get_locator 0x1585B0 copies 19h dwords): the weapon's three, the hand IK's sixteen
+survarium::weapon	aim_locator	0x7A8	obj<survarium::weapon_locator>	the aim's locator (load_weapon 0x243B16 reads the model's `aim`, or copies the scope's, 0x243B28): calculate_aim_alignment's (0x244D5B) and no other code's
+survarium::weapon	left_hand_locators	0x1A20	obj<survarium::weapon_locator>	hand_to_weapon_ik_solver's records of the left hand, eight of 64h (the object at weapon+1820h, built in place by allocate_weapon 0x24A7DF; its solver +200h, hand 0): 0..3 the idle, reload, reload pivot and lobby locators for the first view, 4..7 for the third (set_weapon_locators 0x392AE0; record = target + 4 * (not first view), 0x392E91; no check of a record's bone, 0x392EA3)
+survarium::weapon	left_fingers	0x20F0	obj<vostok::animation::finger_set>	fingers_to_weapon_corrector's sets of the left hand, four of 3C0h (the object's corrector +8D0h, hand 0): idle, reload, reload pivot, lobby (set_weapon_model 0x390620)
+vostok::animation::finger_set	matrices	0x0	f32	fifteen row-vector 4x4: thumb 1..3, index, middle, ring, pinky, each finger locator's offset times the inverse of its parent locator's (parents 0xA6FC08); tick 0x390900 copies them whole into the user's finger bones
+vostok::animation::finger_set	size	0x3C0	size	a set's stride (set_weapon_model 0x390620)
+vostok::animation::fingers_corrector	weapon	-0x20F0	obj<survarium::weapon>	the weapon the corrector is in: weapon_cook::allocate_weapon builds the object in place at weapon+1820h (0x24A7DF), the corrector at its +8D0h (correct_fingers 0x29863F); only a weapon's object has one (vtable 0xA04C34)
+vostok::resources::pinned_resource	resource	0x0	ptr<vostok::resources::managed_resource>	a pinned_ptr_const<u8> (0x3DD990 fills it, 0x3C1020 lets it go): the managed resource it holds a reference of
+vostok::resources::pinned_resource	bytes	0x4	ptr<u8>	the resource's bytes, its node [resource+0D4h] + 34h: they stay where they are while the node's pin count (+2Ch) is not 0 (0x3DDA1E..0x3DDA30)
+vostok::resources::pinned_resource	count	0x8	u32	their count, [resource+5Ch] (0x3DDA4B)
+vostok::resources::pinned_resource	size	0xC	size	the three words
+vostok::resources::managed_resource	references	0xDC	u32	its reference count (lock xadd at 0x1EA2BC, 0x3DD9C3; the pointer's release 0x11450)
+vostok::resources::loaded_resource	managed	0x0	ptr<vostok::resources::managed_resource>	a result's managed resource, what a raw data request (class 3) gives: game::on_configs_loaded takes startup.cfg's and user.cfg's so (queries_result +128h, +408h: 0x1EA296, 0x1EA2D4); 0 for a request that failed
+survarium::dictionary_query_frame	requests	0x3C	obj<survarium::resource_request>	items_dictionary_cook::translate_query's five requests by ESP at 0x2C8963 (the address its lea eax,[esp+3Ch] takes for query_resources): five binary configs, class 1Fh
+survarium::dictionary_configs_frame	results	0x4	ptr<vostok::resources::queries_result>	items_dictionary_cook::on_configs_loaded 0x2C8AA0's argument at its entry (by ESP): the queries_result of translate_query's query
+survarium::weapon	barrel_locator	0x6E0	obj<survarium::weapon_locator>	the fire point's locator, the model's `barrel_point` (load_weapon 0x243A30): weapon::draw evaluates it into +620h each frame (calculate_locator, 0x244E68), where the shot effects play (0x24413E) and update_pfx_transform reads (0x2445BA); nothing a match computes
+survarium::weapon_cook_frame	requests	-0x40	obj<survarium::resource_requests>	weapon_cook::on_weapon_config_loaded 0x24A920's sub-resource requests (by EBP: ebp-40h begin, -3Ch end, -38h capacity end), pushed by 0x5FCB0 into the alloca 0x24AABD sizes from the count at 0x24AAB4, queried at 0x24AC95 ((end - begin) / 8 of them, 0x24AC84..0x24AC92)
+survarium::resource_requests	begin	0x0	ptr<survarium::resource_request>	a buffer_vector of {path, class} requests: the first
+survarium::resource_requests	end	0x4	ptr<survarium::resource_request>	past the last
+survarium::resource_requests	capacity	0x8	ptr<survarium::resource_request>	past the room (the cook's alloca, exactly the count at 0x24AAB4)
+survarium::resource_requests	size	0xC	size	a buffer_vector's three pointers
+survarium::weapon_ready_frame	results	0x4	ptr<vostok::resources::queries_result>	weapon_cook::on_weapon_subresources_ready 0x24ACF0's first argument at its entry (attachments.ready, by ESP): the queries' results, one a request in its order (the callback indexes them so, 0x24ADC8); [esp+38h] of the body until the shots' loop takes the slot, 0x24B063
+vostok::query_result	model	0x0	ptr<survarium::scene_model>	the result's resource for a class 15 request, a static model's holder (the weapon cook reads the scope's so, 0x24ADD4); 0 for a model that did not load
+survarium::weapon_draw_frame	world	0x8	ptr<f32>	weapon::draw 0x244E10's [ebp+8]: the weapon's world matrix (calculate_locator's second argument at 0x244E51)
+survarium::weapon_draw_frame	bones	0xC	ptr<f32>	its [ebp+0Ch]: the model-space bone matrices (calculate_locator's third, 0x244E4D)
+vostok::render::skeleton_instance	vtable	0x0	u32	its vtable: survarium::image::skeleton_instance_vtable for a skeleton_render_model_instance
+survarium::image	skeleton_instance_vtable	0x9F0F24	u32	skeleton_render_model_instance's vtable (written at 0x15A111, 0x15A220): +24h get_locator 0x15A9C0, a tail jump through the original model (+62B4h)'s vtable +28h
+survarium::weapon_cook_frame	scope_path	-0x14	ptr<u8>	on_weapon_config_loaded's scope: the config path of the scope item the weapon names, 0 for none (cleared at 0x24AA15; the game's own from addons/rifle_scope_dict_id's dictionary entry +118h, 0x24AA67..0x24AA75; pushed first, class 4Dh, when not 0: 0x24AACC..0x24AAE7)
+survarium::weapon_cook_frame	requests_count	-0xC	u32	the requests it will push (the shells, the shot effects and one; one more with a scope, 0x24AA72): what the alloca is sized by at 0x24AAB4
+survarium::weapon_cook_frame	cook	-0x1C	ptr<survarium::weapon_cook>	the cook itself (ECX kept at 0x24A926; its game read at 0x24AA4F)
+survarium::weapon_cook	game	0x24	ptr<survarium::game>	the game (on_weapon_config_loaded 0x24AA4F: [cook+24h]+53A4h the items dictionary the scope's dict id is looked up in)
+survarium::item_entry	cfg_path	0x118	ptr<u8>	its config's path, a C string (the weapon cook asks a scope item's config by it, class 4Dh: 0x24AA67)
+survarium::weapon_ready_body_frame	scope_taken	0x24	u32	on_weapon_subresources_ready's body by its ESP after its four pushes (0x24AD13): the scope object the cook's setter 0x245BC0 fills (its out argument, lea esi,[esp+24h] at 0x24AD96), cleared at 0x24AD17
+survarium::weapon_ready_body_frame	cook	0x30	ptr<survarium::weapon_cook>	the cook, ECX kept there at 0x24AD13
 survarium::shared_statistics	options	0x31C8	ptr<survarium::match_options>	the match's options, set by the handler's start_match (0x26D954: handler+31D0h): a place's team at +45ECh + place x 45FCh (on_player_killed 0x2F4EE7, on_player_damaged 0x2F5464)
 survarium::base_game_statistics_handler	core	0x3238	ptr<survarium::core_world>	the world core of its match, set by start_match (0x26D8E1) and 0 after its end (0x26D9F2)
 survarium::player_killed_frame	killer	0x8	u8	on_player_killed's 2nd argument by the site's ESP at 0x26DA00: the killer's place, 0FFh none (generate_killed_event's own, 0x2DA456)
@@ -1525,7 +1563,6 @@ survarium::damage_collector	victim	0x0	u8	the inflicted_damage_collector's place
 survarium::damage_collector	time	0x4	u32	the time of its last hit (generate_hit_event's 1st argument, 0x1F3D5F), which player::tick ages (0x246F1E)
 survarium::collector_hit_frame	attacker	0x18	u32	player::generate_hit_event's 2nd argument (entry ESP+8) by the ESP of a site after its four pushes and the base's call (0x1F3C7E..0x1F3CA3, ESP entry - 10h): the shooter's place, whose player's collector it writes (get_player 0x1F3CC7)
 survarium::hands_ik_frame	weapon	0x1C	ptr<survarium::weapon>	ESP+1Ch at hands_ik.aim_alignment (0x295AA5): the held item as a weapon (its vtable +70h at 0x295A07, kept at 0x295A09; never 0 here, the je at 0x295A0F)
-survarium::weapon	aim_locator	0x7A8	obj<survarium::weapon_locator>	the aim's locator (load_weapon 0x243B16 reads the model's `aim`, or copies the scope's, 0x243B28): calculate_aim_alignment's (0x244D5B) and no other code's
 survarium::weapon	state	0x330	ptr<survarium::weapon_state>	the state it is in (selected_animations 0x2E10CD calls its vtable +20h for the item's and the hands' expression)
 survarium::weapon_state	id	0x124	u32	which state it is, the base constructor's second argument (0x31EB22): 1 show, 2 hide, 3 idle (the three idle classes: 0x30D412, 0x30F0C3, 0x30F923), 4 reload, 5 fire, 6 chamber a round, 7 and 8 a grenade's, 9 the preview's
 survarium::player	animation_tree	0xE850	ptr<vostok::animation::n_ary_tree>	its animation player's (+750h) mixing tree (+E100h: animation_player::compute_bones_matrices 0x391AF0, update_bones_matrices 0x2FF60F); 0 with nothing playing

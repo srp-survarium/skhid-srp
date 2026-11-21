@@ -3,7 +3,8 @@
 
 usage: python3 -I camo_rows.py <bundle>  >camo.tsv
 
-Every diffuse texture the bundle's gun models draw (its donor-069d.json lists the models), with
+Every diffuse texture the bundle's gun models draw (its donor-069d.json lists the models; a
+port-modules bundle's modules-069d.json, each gun's whole body: the bare body draws a part of it), with
 the surfaces whose UVs use it, no donors (0.69d0's guns have no 0.26g premium): weapon_camo.py
 paints the large parts of each (its suggestion; parts.tsv beside the table picks them by hand). The
 cartridges (`ammo/`) and a pump's loose shell are rows too: parts.tsv paints none of them, and
@@ -20,8 +21,12 @@ from weapon_camo import Files, config_value  # noqa: E402
 bundle = sys.argv[1]
 files = Files(os.path.join(bundle, 'overlay'))
 rows = {}
-for item in json.load(open(os.path.join(bundle, 'donor-069d.json'))).values():
-    root = item['model_root']
+if os.path.exists(os.path.join(bundle, 'donor-069d.json')):
+    roots = [item['model_root'] for item in json.load(open(os.path.join(bundle, 'donor-069d.json'))).values()]
+else:
+    guns = json.load(open(os.path.join(bundle, 'modules-069d.json')))['guns']
+    roots = ['models/%s.skinned_model' % gun['model'] for _, gun in sorted(guns.items())]
+for root in roots:
     model = root[len('models/'):-len('.skinned_model')]
     settings = files.read(root + '/settings')
     for surface in files.surfaces(model):
