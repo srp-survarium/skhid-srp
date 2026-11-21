@@ -77,6 +77,7 @@ fn result(players: Vec<PlayerResult>) -> MatchResult {
         end: MatchEnd::ModeRule,
         winner: Some(0),
         team_points: [3, 1],
+        round_starts: 0,
         duration_ms: 700_000,
         played_ms: Some(600_000),
         trusted_snapshot_ms: Some(690_000),
@@ -2042,6 +2043,58 @@ fn a_level_reached_is_told_with_its_reward() {
     ));
 }
 
+/// Freeze Tag's restarts respawn everyone with the kit's load: each is a
+/// life for the supplies used, a double wipe's replayed round too (its rule
+/// counts it, `srp_validate::world::freeze`).
+#[test]
+fn a_freeze_tag_round_restart_is_a_life_more_for_the_supplies_used() {
+    use survarium::v026g::match_msgs::players::{ItemLeft, Supplies};
+    let medkit = Dictionary::shared().item_named("medkit").unwrap().dict_id;
+    // As below: one death, none of 12 medkits left, a life takes 2.
+    let mut players = alice_and_bob();
+    players[0].supplies = Some(Supplies {
+        alive: false,
+        kit: 0,
+        inventory_read: false,
+        items: vec![ItemLeft {
+            dict_id: medkit,
+            stack: true,
+            stored: 0,
+            in_hand: None,
+            condition: None,
+            magazine: None,
+            slot: None,
+        }],
+    });
+    let used = |round_starts: u16| {
+        let store = accounts(&players);
+        {
+            let alice = store.get(10).unwrap();
+            let mut alice = alice.locked();
+            let kits = alice.add_item(medkit, 12);
+            alice.kits[0].slots[13] = Some(crate::v026g::KitSlot {
+                item_id: kits,
+                count: 2,
+            });
+        }
+        let mut result = result(players.clone());
+        result.mode = GameMode::FreezeTag;
+        result.team_points = [3, 1];
+        result.round_starts = round_starts;
+        let report = Results::new()
+            .settle(&result, &store, &terms(), &mut Rng::new(1))
+            .unwrap();
+        report.players[0].reward.supplies_used.clone()
+    };
+    // Without the restarts: two lives, at most 4.
+    assert_eq!(used(0), [(medkit, 4)]);
+    // 3:1 in four rounds is three restarts (the last round none): five
+    // lives, at most 10.
+    assert_eq!(used(3), [(medkit, 10)]);
+    // With a double wipe replayed among them, four: six lives, all 12.
+    assert_eq!(used(4), [(medkit, 12)]);
+}
+
 #[test]
 fn a_kit_change_before_play_is_a_life_more_for_the_supplies_used() {
     use survarium::v026g::match_msgs::players::{ItemLeft, Supplies};
@@ -3495,6 +3548,7 @@ fn ffa_result(players: Vec<PlayerResult>) -> MatchResult {
         mode: GameMode::FreeForAll,
         winner: None,
         team_points: [0, 0],
+        round_starts: 0,
         ..result(players)
     }
 }

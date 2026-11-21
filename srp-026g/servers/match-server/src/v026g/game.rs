@@ -5424,6 +5424,7 @@ impl Game {
             end,
             winner: standing.map(|standing| standing.winner),
             team_points: standing.map_or([0, 0], |standing| standing.points),
+            round_starts: self.round_starts(),
             duration_ms: clock,
             played_ms: self
                 .rule
@@ -5435,6 +5436,16 @@ impl Game {
             vs_bots: self.formed.vs_bots,
             private: self.formed.private,
         }
+    }
+
+    /// Freeze Tag's round starts as its rule counts them in the last
+    /// trusted snapshot (every restart, a double wipe's replay too; 0 before
+    /// one, and in the modes without rounds).
+    fn round_starts(&self) -> u16 {
+        self.state
+            .as_ref()
+            .and_then(|state| state.rules.as_ref()?.freeze_tag.as_ref())
+            .map_or(0, |rule| rule.round_starts())
     }
 
     /// End the match: the result is kept for the lobby, and every client

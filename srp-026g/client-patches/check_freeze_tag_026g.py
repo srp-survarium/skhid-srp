@@ -14,7 +14,7 @@ import check_kit_change_026g as kits
 
 FREEZE = blackout.empty_options(blackout.srpx((6, b"\x01")))
 PLAIN = blackout.empty_options(b"")
-LENGTH = 67
+LENGTH = 69
 STATS = ffa.DATA + 0x60000
 CAMERA_INPUT = ffa.DATA + 0x96000
 CAMERA_STACK = 0x36000000
@@ -192,10 +192,12 @@ def main():
     assert struct.unpack_from("<H", r.state(), 4)[0] == 50
     r.tick(8100)
     assert r.state()[1] == 2
+    assert r.state()[-2:] == b"\x01\x00"  # One round start after the first.
     assert [r.read(ffa.RULE + 0x138 + 4*i) for i in range(3)] == [8100]*3
     # Rollback repeats the same spawn scheduling, exactly once.
     assert r.deserialize(before_restart) == len(before_restart)
     r.tick(8100)
+    assert r.state()[-2:] == b"\x01\x00"  # Counted once, as the spawns.
     assert [r.read(ffa.RULE + 0x138 + 4*i) for i in range(3)] == [8100]*3
     # The native respawn path clears pending death. Its full remove/spawn
     # execution is covered by the existing world-roundtrip harness.
@@ -217,6 +219,7 @@ def main():
                 r.emu.mem_write(ffa.player(i) + 0x33D, b"\0")
             r.tick(13250)
     assert r.state()[1] == 3  # Match finished at three round wins.
+    assert r.state()[-2:] == b"\x02\x00"  # The last round is not restarted.
     assert bytes(r.emu.mem_read(STATS + 0x31E4, 1)) == b"\x01"
     saved = r.serialize()
     r.tick(18000, 5000)
@@ -231,9 +234,11 @@ def main():
         r.lethal(place)
     r.tick(50)
     assert r.state()[1:4] == b"\x01\0\0" and r.state()[6] == 3
+    r.tick(5050, 5000)
+    assert r.state()[1] == 2 and r.state()[-2:] == b"\x01\x00"  # The replay is a round start.
     r.start(PLAIN)
     assert len(r.serialize()) == len(plain)
-    print("ok simultaneous wipes draw; a subsequent ordinary match has no Freeze Tag bytes")
+    print("ok simultaneous wipes draw and the replay counts a round start; a subsequent ordinary match has no Freeze Tag bytes")
 
     r.start()
     r.word(CAMERA_INPUT + 0x358, 0)

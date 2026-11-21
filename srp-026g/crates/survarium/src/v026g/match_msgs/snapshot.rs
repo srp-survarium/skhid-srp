@@ -2724,7 +2724,26 @@ mod tests {
         };
         let bytes = rules.to_bytes();
         assert_eq!(bytes.len(), 13 + 8 + 44 + FreezeTag::LEN + 10 + 2);
-        assert_eq!(Rules::decode(&bytes, TIME, 2, RuleMode::FreezeTag, 0), Some(rules));
+        assert_eq!(Rules::decode(&bytes, TIME, 2, RuleMode::FreezeTag, 0), Some(rules.clone()));
+        // Its restart, then a double wipe replayed and another to replay: two
+        // round starts, which the match server counts the lives by.
+        let both = [Body::Present { team: Team::First, position: [0.0; 3], condition: Condition::Lethal },
+            Body::Present { team: Team::Second, position: [10.0; 3], condition: Condition::Lethal }];
+        let fighting = bodies.map(|body| match body {
+            Body::Present { team, position, .. } => Body::Present { team, position, condition: Condition::Fighting },
+            Body::Absent => Body::Absent,
+        });
+        bodies[..2].copy_from_slice(&both);
+        for _ in 0..2 {
+            freeze.step(&fighting, &[[false; PLAYERS]; PLAYERS], 5000);
+            freeze.step(&fighting, &[[false; PLAYERS]; PLAYERS], 50);
+            assert_eq!(freeze.phase(), Phase::Playing);
+            freeze.step(&bodies, &[[false; PLAYERS]; PLAYERS], 50);
+        }
+        assert_eq!((freeze.points(), freeze.round_starts()), ([1, 0], 2));
+        let rules = Rules { freeze_tag: Some(freeze), ..rules };
+        let decoded = Rules::decode(&rules.to_bytes(), TIME, 2, RuleMode::FreezeTag, 0).unwrap();
+        assert_eq!(decoded.freeze_tag.map(|rule| rule.round_starts()), Some(2));
     }
 
     #[test]

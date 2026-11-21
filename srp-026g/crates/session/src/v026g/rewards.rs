@@ -353,6 +353,10 @@ pub struct MatchResult {
     /// Batteries home (modes 2, 3), tickets left (mode 4) or Research's
     /// points (mode 5).
     pub team_points: [u16; 2],
+    /// How often a round started again, respawning everyone with the kit's
+    /// load (Artifact Hunt, `artefact_hunt.md`, "Respawns"); 0 in the modes
+    /// without rounds.
+    pub round_starts: u16,
     pub duration_ms: u32,
     /// `None` if play never began.
     pub played_ms: Option<u32>,
@@ -2267,8 +2271,9 @@ impl<'a> Shared<'a> {
             let shots: Vec<u32> = (0..KITS)
                 .map(|kit| u32::from(events[event::BULLET_FIRE][kit]))
                 .collect();
-            let respawns =
-                total(&events, event::DEATH).saturating_add(u32::from(player.kit_changes));
+            let respawns = total(&events, event::DEATH)
+                .saturating_add(u32::from(player.kit_changes))
+                .saturating_add(u32::from(self.result.round_starts));
             reward.supplies_used =
                 super::autobuy::used(
                     account,

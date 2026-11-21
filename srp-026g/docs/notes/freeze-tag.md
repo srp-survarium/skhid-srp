@@ -39,11 +39,23 @@ server understand it.
 ## State and native lifecycle
 
 `srp-validate::world::freeze` owns the deterministic transition and codec.
-The rule saves 67 bytes after the native respawn state: version, phase,
-two scores, a 16-bit intermission countdown, round result, then twenty
-three-byte player records (waiting/fighting/frozen with team, thaw time).
-The parser checks the closed domains, roster extent, phase/score agreement
-and round result. Rollback and late join restore progress and round score.
+The rule saves 69 bytes after the native respawn state: version, phase,
+two scores, a 16-bit intermission countdown, round result, twenty
+three-byte player records (waiting/fighting/frozen with team, thaw time),
+then the round starts (u16): the restarts after the match's first, each of
+which spawns everyone with the kit's load, a double wipe's replay too. The
+parser checks the closed domains, roster extent, phase/score agreement,
+round result and the restarts against the rounds ended: every one ended (a
+win in the scores, or a draw) was restarted but the one between rounds or
+the match's last, so the draws they leave are not negative, and are one at
+least between rounds after a draw; in Restarting the round's restart is
+counted. Rollback and late join restore progress, round score and the count.
+
+The match server pays lives by it: `MatchResult::round_starts` (the field
+and its use in `rewards.rs` as Artifact Hunt's branch adds them) is the
+last trusted world's count (`Game::round_starts`), and `autobuy::used`
+counts each round start as a life of every player, so a match of restarts
+charges the kits' reloads.
 
 The three native hooks are declared in `sites_026g.tsv`:
 
@@ -142,11 +154,10 @@ Open:
   until the next round. Whether a rejoin can bring the body back another
   way (the server's late join), and so escape the freeze at the team's
   spawn, is not known until a local match tries it.
-- The server's count of lives (`session::v026g::autobuy::used`: deaths and
-  kit changes) does not count a round start, which reloads every kit from
-  the profile; Artifact Hunt adds `MatchResult::round_starts` for that. Freeze
-  Tag's rule does not count its rounds (a draw replays one without a score),
-  so it cannot fill it yet.
+- A late joiner's lives count the match's round starts, those before he
+  came in too (the result has the match's count, not his), as in Artifact
+  Hunt: his ceiling counts lives he did not have (what he is charged is
+  still what his stacks lost, under it).
 
 ### 2026-11-21, after the merge of main and the alignment
 
@@ -170,6 +181,11 @@ below. The failures are main's, the same on other branches the same day:
   Vostok modes edit; #2339), stalker-maps (cargo outside the dev shell;
   #2336), v021d-weather (breakable-lamps-1 over a 0.21 evening project),
   localization-harness (Calibri has no ∞).
+
+The round starts (69 bytes, the pay of lives) ran the same set again: the
+same passes and the same failures of main's, and the new tests pass
+(srp-validate's count and its domain, session's lives, survarium's decode,
+freeze-native's restart, rollback and replay counts).
 
 ### 2026-11-17
 

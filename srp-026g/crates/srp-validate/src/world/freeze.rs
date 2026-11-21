@@ -97,6 +97,10 @@ pub struct FreezeTag {
     players: [Player; PLAYERS],
     phase: Phase,
     score: [u8; 2],
+    /// The rounds started after the match's first: each restart spawns
+    /// everyone with the kit's load, a life of every player then (a round
+    /// replayed after a double wipe too).
+    restarts: u16,
 }
 
 impl FreezeTag {
@@ -104,9 +108,11 @@ impl FreezeTag {
         players: [Player::Waiting; PLAYERS],
         phase: Phase::Playing,
         score: [0; 2],
+        restarts: 0,
     };
-    /// Version, phase, scores, countdown (u16), round result, then twenty player records.
-    pub const LEN: usize = 7 + PLAYERS * 3;
+    /// Version, phase, scores, countdown (u16), round result, twenty player
+    /// records, then the restarts (u16).
+    pub const LEN: usize = 7 + PLAYERS * 3 + 2;
     pub fn player(&self, place: Place) -> Player {
         // A place is below PLAYERS; the crate reaches no panic.
         self.players.get(place.index()).copied().unwrap_or(Player::Waiting)
@@ -139,6 +145,11 @@ impl FreezeTag {
     /// Round wins, the first team's first.
     pub fn points(&self) -> [u16; 2] {
         self.score.map(u16::from)
+    }
+    /// How many rounds started after the match's first ([`Actions::Restart`]):
+    /// every one a new life of each player in the match then.
+    pub fn round_starts(&self) -> u16 {
+        self.restarts
     }
     pub fn points_of(&self, team: Team) -> u16 {
         let [first, second] = self.score;
@@ -185,6 +196,7 @@ impl FreezeTag {
                     }
                     None => {
                         self.phase = Phase::Restarting;
+                        self.restarts = self.restarts.saturating_add(1);
                         Actions::Restart
                     }
                 };
@@ -304,9 +316,30 @@ impl FreezeTag {
         }
     }
 
+    /// Whether the restarts fit the rounds: every round that ended (a win in
+    /// the scores, or a draw, which scores nothing) was restarted but the one
+    /// between rounds or the match's last; so the draws they leave are none
+    /// fewer than zero, and one at least between rounds after a draw.
+    fn restarts_fit(&self) -> bool {
+        let [first, second] = self.score;
+        let wins = u16::from(first).saturating_add(u16::from(second));
+        let (pending, draw_now) = match self.phase {
+            Phase::Playing => (0, false),
+            Phase::Restarting => return self.restarts > 0 && self.restarts >= wins,
+            Phase::Between { result, .. } => (1, result == RoundEnd::Draw),
+            Phase::Finished(_) => (1, false),
+        };
+        let Some(ended) = self.restarts.checked_add(pending) else { return false };
+        match ended.checked_sub(wins) {
+            Some(draws) => !draw_now || draws > 0,
+            None => false,
+        }
+    }
+
     pub fn bytes(&self) -> [u8; Self::LEN] {
         let mut bytes = [0; Self::LEN];
-        let [version, phase, zero, one, low, high, result, slots @ ..] = &mut bytes;
+        let [version, phase, zero, one, low, high, result, slots @ .., restarts_low, restarts_high] = &mut bytes;
+        [*restarts_low, *restarts_high] = self.restarts.to_le_bytes();
         *version = 1;
         [*zero, *one] = self.score;
         let team = |team| match team {
@@ -346,7 +379,7 @@ impl FreezeTag {
     }
     pub fn read(bytes: &[u8]) -> Option<Self> {
         let bytes: &[u8; Self::LEN] = bytes.try_into().ok()?;
-        let [version, phase, zero, one, low, high, result, slots @ ..] = bytes;
+        let [version, phase, zero, one, low, high, result, slots @ .., restarts_low, restarts_high] = bytes;
         if *version != 1 {
             return None;
         }
@@ -404,7 +437,8 @@ impl FreezeTag {
             } => state.result() == Some(RoundEnd::Draw),
             Phase::Restarting => state.result().is_some(),
         };
-        valid.then_some(state)
+        state.restarts = u16::from_le_bytes([*restarts_low, *restarts_high]);
+        (valid && state.restarts_fit()).then_some(state)
     }
 }
 
@@ -574,6 +608,92 @@ mod tests {
         s.step(&bodies, &VISIBLE, 50);
         assert_eq!(s.phase(), Phase::Playing);
         assert_eq!(s.schedule(), Schedule::CancelFrozen(Places::EMPTY));
+    }
+
+    /// Fighting bodies of both teams, team 0 at x 0 and team 1 at x 10.
+    fn fighting() -> [Body; PLAYERS] {
+        let mut b = [Body::Absent; PLAYERS];
+        b[0] = body(Team::First, 0.0, Condition::Fighting);
+        b[1] = body(Team::Second, 10.0, Condition::Fighting);
+        b
+    }
+    /// One round played to its end (`frozen` the places frozen at it) and,
+    /// unless it ends the match, restarted and reopened.
+    fn round(s: &mut FreezeTag, frozen: &[usize]) {
+        let mut b = fighting();
+        s.step(&b, &VISIBLE, 50);
+        for &i in frozen {
+            if let Body::Present { condition, .. } = &mut b[i] {
+                *condition = Condition::Lethal;
+            }
+        }
+        s.step(&b, &VISIBLE, 50);
+        if s.complete() {
+            return;
+        }
+        assert_eq!(FreezeTag::read(&s.bytes()), Some(*s));
+        assert_eq!(s.step(&b, &VISIBLE, INTERMISSION.get()), Actions::Restart);
+        assert_eq!(FreezeTag::read(&s.bytes()), Some(*s));
+        s.step(&fighting(), &VISIBLE, 50);
+        assert_eq!(s.phase(), Phase::Playing);
+    }
+
+    #[test]
+    fn every_restart_counts_a_round_start_the_double_wipe_replay_too() {
+        let mut s = FreezeTag::EMPTY;
+        assert_eq!(s.round_starts(), 0);
+        round(&mut s, &[1]);
+        assert_eq!((s.points(), s.round_starts()), ([1, 0], 1));
+        // A double wipe scores nothing; its replay is a round start.
+        round(&mut s, &[0, 1]);
+        assert_eq!((s.points(), s.round_starts()), ([1, 0], 2));
+        round(&mut s, &[0]);
+        round(&mut s, &[1]);
+        assert_eq!((s.points(), s.round_starts()), ([2, 1], 4));
+        // The match's last round is never restarted.
+        round(&mut s, &[1]);
+        assert_eq!(s.winner(), Some(Team::First));
+        assert_eq!(s.round_starts(), 4);
+        // A rollback restores the count with the rest.
+        assert_eq!(FreezeTag::read(&s.bytes()), Some(s));
+    }
+
+    #[test]
+    fn the_restarts_are_no_fewer_than_the_rounds_ended_before() {
+        let restarts = |s: &FreezeTag, n: u16| {
+            let mut bytes = s.bytes();
+            bytes[FreezeTag::LEN - 2..].copy_from_slice(&n.to_le_bytes());
+            FreezeTag::read(&bytes)
+        };
+        let mut s = FreezeTag::EMPTY;
+        round(&mut s, &[1]);
+        round(&mut s, &[1]);
+        // Playing at 2:0: two restarts at least; more are replayed draws.
+        assert!(restarts(&s, 1).is_none());
+        assert!(restarts(&s, 2).is_some() && restarts(&s, 9).is_some());
+        // Between rounds after a win: that win is not restarted yet.
+        let mut b = fighting();
+        s.step(&b, &VISIBLE, 50);
+        b[0] = body(Team::First, 0.0, Condition::Lethal);
+        s.step(&b, &VISIBLE, 50);
+        assert_eq!(s.points(), [2, 1]);
+        assert!(restarts(&s, 1).is_none() && restarts(&s, 2).is_some());
+        // Restarting: this round's restart is counted already.
+        s.step(&b, &VISIBLE, INTERMISSION.get());
+        assert_eq!(s.phase(), Phase::Restarting);
+        assert!(restarts(&s, 2).is_none() && restarts(&s, 3).is_some());
+        // Between rounds after a double wipe at 1:0: the win restarted, and
+        // this draw to come.
+        let mut s = FreezeTag::EMPTY;
+        round(&mut s, &[1]);
+        let mut b = fighting();
+        s.step(&b, &VISIBLE, 50);
+        b[0] = body(Team::First, 0.0, Condition::Lethal);
+        b[1] = body(Team::Second, 10.0, Condition::Lethal);
+        s.step(&b, &VISIBLE, 50);
+        assert!(matches!(s.phase(), Phase::Between { result: RoundEnd::Draw, .. }));
+        assert!(restarts(&s, 0).is_none() && restarts(&s, 1).is_some());
+        assert!(restarts(&FreezeTag::EMPTY, u16::MAX).is_some());
     }
 
     #[test]
