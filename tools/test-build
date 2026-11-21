@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# tools/test-build <revision> <folder> [exe] [server] [content]
+#
+# What a local test of this checkout runs, built into <folder> (made when missing):
+#   exe      <folder>/survarium_skhid.exe      patch_026g.py --revision=<revision> on the original exe
+#   server   <folder>/srp                      the debug server (`cargo build -p srp --bin srp`)
+#   content  <folder>/content/                 release/build-content <revision>: the quick build's
+#                                              resources.db.patch_<revision> and server-game-data.db
+# The parts named (all three when none is) are built at the same time, each with its log in
+# <folder>/<part>.log, and each is the build a worker would run by hand: the exe's Rust is taken
+# from the arena's cache when no Rust source changed (link_026g.py), the server builds
+# incrementally in this checkout's own target folder, the content from build-content's cache. So a
+# part nothing changed for costs seconds, and nothing here decides what is stale.
+#
+# The earlier <folder>/content is replaced only when the new one was built (build-content writes a
+# new folder). Settings: release.env as release/lib.sh finds it (SKHID_RELEASE_ENV names another);
+# SKHID_ORIGINAL_EXE, else the main checkout's private/function-map/inputs/026g/survarium.exe.
+# On a busy machine run it through the machine's queue for heavy jobs.
+set -euo pipefail
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+(($# >= 2)) || { sed -n '2,19s/^# \{0,1\}//p' "${BASH_SOURCE[0]}" >&2; exit 2; }
+revision=$1
+[[ $revision =~ ^[1-9][0-9]{0,2}$ ]] && ((revision <= 255)) || { echo "test-build: $revision: a revision is a number from 1 to 255" >&2; exit 2; }
+mkdir -p "$2"
+out=$(cd "$2" && pwd)
+shift 2
+parts=("$@")
+((${#parts[@]})) || parts=(exe server content)
+main=$(dirname "$(git -C "$root" rev-parse --path-format=absolute --git-common-dir)")
+original=${SKHID_ORIGINAL_EXE:-$main/private/function-map/inputs/026g/survarium.exe}
+
+build_exe() {
+    [[ -f $original ]] || { echo "$original: no original exe (SKHID_ORIGINAL_EXE names it)"; return 1; }
+    cd "$root/srp-026g/client-patches"
+    "$root/tools/dev" python3 patch_026g.py "$original" "$out/survarium_skhid.exe.new" --revision="$revision"
+    mv "$out/survarium_skhid.exe.new" "$out/survarium_skhid.exe"
+}
+
+build_server() {
+    cd "$root/srp-026g"
+    "$root/tools/dev" cargo build --locked -p srp --bin srp
+    cp target/debug/srp "$out/srp.new"
+    mv "$out/srp.new" "$out/srp"
+}
+
+build_content() {
+    cd "$root"
+    local old
+    for old in "$out/content" "$out/content.new"; do      # only a quick build of ours is ever removed
+        [[ ! -e $old || -f $old/QUICK-BUILD ]] || { echo "$old: not a quick build's folder; not replaced"; return 1; }
+    done
+    rm -rf "$out/content.new"
+    "$root/tools/dev" release/build-content "$revision" --out "$out/content.new"
+    rm -rf "$out/content"
+    mv "$out/content.new" "$out/content"
+}
+
+declare -A pid
+started=$EPOCHREALTIME
+for part in "${parts[@]}"; do
+    case $part in
+    exe | server | content) ;;
+    *) echo "test-build: $part: a part is exe, server or content" >&2; exit 2 ;;
+    esac
+    (
+        if "build_$part" >"$out/$part.log" 2>&1; then word=built; else word=FAILED; fi
+        awk -v a="$started" -v b="$EPOCHREALTIME" -v p="$part" -v w="$word" -v where="$out/$part.log" \
+            'BEGIN { printf "%s: %s in %.1f s (%s)\n", p, w, b - a, where }'
+        [[ $word == built ]]
+    ) &
+    pid[$part]=$!
+done
+failed=0
+for part in "${parts[@]}"; do
+    wait "${pid[$part]}" || failed=1
+done
+exit "$failed"
