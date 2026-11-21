@@ -84,6 +84,15 @@ TYPE_ALLOWLIST = {
        "0.44a5's London 2.56; load_environment_properties_impl 0x34E1E0 reads float/int "
        'numerically (vignette 0x34F2C2)'
        for weather in ('day', 'rain', 'evening') for mode in (2, 3, 4)},
+    # Its evening's camera track (only the console command demo_play flies it, game_world::demo_play
+    # 0x1F9800): the editor writes a whole key value as an int and a fraction as a float, and 0.26g's own
+    # lobby track mixes them channel by channel (rotateZ's ints, rotateY's floats), which its curve
+    # reader takes alike.
+    **{(f'projects/v044a_level_09/evening_{mode}/client_project',
+        f'/client_objects[track]/path/channels/{channel}/keys[]/value'):
+       "0.44a5's London evening track: whole key values as ints, fractions as floats, as the editor writes "
+       "them and as 0.26g's lobby track (projects/lobby_scene/day) mixes them"
+       for mode in (3, 4) for channel in ('translateX', 'translateY', 'translateZ', 'rotateX', 'rotateY', 'rotateZ')},
     # Its rain and evening: 0.44a5's stratosphere turns at a fraction, as London's evening above.
     **{(f'projects/v044a_level_09/{weather}_{mode}/client_project',
         '/client_objects[environment]/properties/stratosphere_rotation_speed'):
