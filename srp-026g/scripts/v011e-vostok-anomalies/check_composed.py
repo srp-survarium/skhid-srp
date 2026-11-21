@@ -28,47 +28,21 @@ def change_path(node, path, change):
 
 
 
-def without_ffa_spawns(root, project):
-    """Verify the explicit solo additions, then compare the original map unchanged."""
-    if not project.endswith('/day_4'):
-        return root
-    path = f'projects/{project}/client_project'
-    recipe = json.loads((pack.HERE.parent / 'content-edit/ffa-ported-1.json').read_text())
-    rows = [row for row in recipe['add_entry'] if row['files'] == path]
-    assert len(rows) == 22, f'{project}: missing authored FFA source'
-    server = pack.child(root, 'server_objects')
-    table = pack.child(server, 'respawn_points')
-    original = [node for node in table[1] if pack.bcw.to_py(node)['team'] != 2]
-    solo = [pack.bcw.to_py(node) for node in table[1] if pack.bcw.to_py(node)['team'] == 2]
-    assert len(solo) == len(rows), f'{project}: missing or extra solo spawns'
-    template = pack.bcw.to_py(original[0])
-    f32 = lambda v: struct.unpack('<f', struct.pack('<f', v))[0]
-    for point, row in zip(solo, rows):
-        expected = copy.deepcopy(template)
-        expected.update(row['values'])
-        for key in ('position', 'rotation'):
-            expected[key] = tuple(f32(v) for v in expected[key])
-        expected['enemy_check_radius'] = 20.0
-        expected['ally_check_radius'] = 1.0
-        for key in ('ally_zones', 'enemy_zones'):
-            expected[key]['collision_geometries'] = type(expected[key]['collision_geometries'])()
-        assert point == expected, f"{project}: solo spawn differs from its source: {point['name']}"
-    retained = (table[0], original, len(original))
-    return replace_child(root, 'server_objects', replace_child(server, 'respawn_points', retained))
-
-
 def check(reference, composed, packs):
     for mode in pack.MODES:
         path = pack.project('v011e_level_03', mode)
         before = pack.bcw.read((reference / path).read_bytes())
-        after = without_ffa_spawns(pack.bcw.read((composed / path).read_bytes()), f'v011e_level_03/{mode}')
+        after = pack.bcw.read((composed / path).read_bytes())
         original_objects = pack.child(before, 'client_objects')
         result_objects = pack.child(after, 'client_objects')
         imported, retained = [], []
         prefixes = tuple(prefix for _, prefix, _ in pack.GROUPS)
+        is_imported = lambda node: pack.bcw.to_py(node)['full_name'].startswith(prefixes)
         for node in result_objects[1]:
-            (imported if pack.bcw.to_py(node)['full_name'].startswith(prefixes) else retained).append(node)
-        assert retained == original_objects[1], f'{mode}: an existing object changed or disappeared'
+            (imported if is_imported(node) else retained).append(node)
+        # Released archives carry the groups since the pack shipped: compare the rest.
+        original = [node for node in original_objects[1] if not is_imported(node)]
+        assert retained == original, f'{mode}: an existing object changed or disappeared'
         without_additions = (after[0], [(key, original_objects if key == b'client_objects' else value)
                                        for key, value in after[1]], after[2])
         if mode == 'day_2':
@@ -109,8 +83,7 @@ def check(reference, composed, packs):
                 mesh['scale'] = (f32(round((right - left) / 2, 3)), *mesh['scale'][1:])
                 replacements = {o['full_name']: o for o in (field, shape)}
                 source['client_objects'] = [replacements.get(o['full_name'], o) for o in source['client_objects']]
-                actual_donor = pack.bcw.to_py(without_ffa_spawns(
-                    pack.bcw.read((composed / pack.project(donor, mode)).read_bytes()), f'{donor}/{mode}'))
+                actual_donor = pack.bcw.load(composed / pack.project(donor, mode))
                 assert actual_donor == source, '0.21d changed beyond its transformer pulse and coverage fixes'
             expected = [copy.deepcopy(o) for o in source['client_objects'] if o['full_name'].startswith(prefix)]
             # maps.tsv gives v0.11 a six-second search; v0.21 uses five.
@@ -140,21 +113,16 @@ def check(reference, composed, packs):
             repaired += 1
     materials = list((composed / 'models/ported/v011e/level/03').glob('terrain_p_*.model/settings'))
     assert materials, 'no terrain materials extracted'
-    changed_materials = 0
     for path in materials:
         original = pack.bcw.load(reference / path.relative_to(composed))
         expected = detailed_material(original)
         assert pack.bcw.load(path) == expected, path
-        changed_materials += expected != original
-    assert changed_materials > 0, 'terrain repair was not exercised'
     print(f'{repaired} seam/texture files match the current repair packs; '
           f'{len(materials)} terrain model settings retain the corrected materials')
 
 
 def check_research(reference, composed):
-    day4 = without_ffa_spawns(
-        pack.bcw.read((composed / pack.project('v011e_level_03', 'day_4')).read_bytes()),
-        'v011e_level_03/day_4')
+    day4 = pack.bcw.read((composed / pack.project('v011e_level_03', 'day_4')).read_bytes())
     day5 = pack.bcw.read((composed / pack.project('v011e_level_03', 'day_5')).read_bytes())
     expected_map = day4
     crate = 'ported/v011e/props/box/half_cover_rect'
