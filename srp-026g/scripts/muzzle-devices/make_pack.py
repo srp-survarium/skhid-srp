@@ -28,6 +28,7 @@ the same names, in 0.26g's own material vocabulary; 0.69d0's use renamed materia
   of the same base material and effect has (all at their neutral values but weapon_fire's angle
   attenuation, which 0.26g's fire effect lacks); its shader switches must then be a live material's
   of that base and effect (the permutation exists), with two_sided taken on when only that is missing;
+  a whole number where every live material has a float is written as that float;
 - a texture such a material names that players lack: 0.46c2's .dds as it is, its .options in
   0.26g's layout.
 The texts are in client-patches/localization/*.tsv (texts.py).
@@ -183,7 +184,7 @@ class Shape:
     def __init__(self, material):
         stages = material['material']
         self.base = stages['instance']['base_material']
-        self.effects, self.switches, self.keys = {}, set(), set()
+        self.effects, self.switches, self.keys, self.values = {}, set(), set(), {}
         for stage, body in stages.items():
             if not isinstance(body, dict):
                 continue
@@ -195,6 +196,7 @@ class Shape:
                 for key, value in table.items():
                     if isinstance(value, dict) and 'value' in value:
                         self.keys.add(f'{stage}/{prefix}{key}')
+                        self.values[f'{stage}/{prefix}{key}'] = value
                         if is_switch(key) and value['value'] is not False:
                             self.switches.add(f'{stage}/{prefix}{key}')
 
@@ -224,6 +226,18 @@ def convert_material(name, data, shapes, log):
             sys.exit(f'material {name}: its switch {rest[-1]} is on and no live material of its base has it')
         dropped.append(f'{rest[-1]} {value:g}' if isinstance(value, float) else f'{rest[-1]} {value}')
     shape = Shape(material)
+    # a number 0.46c2 writes whole where every live material has a float there is that float
+    floats = []
+    for key, value in sorted(shape.values.items()):
+        mine = type(value['value'])
+        theirs = {type(other.values[key]['value']) for other in kin if key in other.values}
+        if mine is int and theirs == {float}:
+            value['value'] = float(value['value'])
+            floats.append(key.split('/')[-1])
+        elif mine not in theirs:
+            sys.exit(f'material {name}: {key} is a {mine.__name__}, the live materials\' a '
+                     f'{" or ".join(sorted(t.__name__ for t in theirs))}')
+    shape = Shape(material)
     taken = ''
     if not any(shape.switches == other.switches for other in kin):
         stage = material['material'].get('forward', {})
@@ -236,7 +250,8 @@ def convert_material(name, data, shapes, log):
     lacks = set.intersection(*(other.keys for other in kin if other.switches == shape.switches)) - shape.keys
     if lacks:
         sys.exit(f'material {name}: lacks {sorted(lacks)}, which every live material of its shader has')
-    log.append(f'material {name} ({shape.base}): 0.46c2\'s' + (f' without {", ".join(dropped)}' if dropped else '') + taken)
+    log.append(f'material {name} ({shape.base}): 0.46c2\'s' + (f' without {", ".join(dropped)}' if dropped else '')
+               + (f'; as floats {", ".join(floats)}' if floats else '') + taken)
     textures = sorted({value for key, value in strings(material) if key == 'value' and '/' in value})
     return bcw.dump(material), textures
 
