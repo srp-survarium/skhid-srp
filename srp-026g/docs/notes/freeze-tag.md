@@ -268,14 +268,24 @@ next round opens (a body still frozen would otherwise freeze again at once).
 
 ## Validation
 
-An actual local match is still required before merging: body presentation,
-sound, camera, native spawn lifecycle and new-version world recordings must
-be checked in the running game. The owner deferred the proposed three-client
-playtest on 2026-11-17; no game windows were opened.
+Played by the owner in three local tests on 2026-11-21 (three windows,
+Rudnya day; the matches record into the world corpus):
+
+- Test 1: the hud showed raw keys (`#st_freeze_*`: the hud movie gets only
+  `st_srp_hud_*`), the thaw reach was too far (3 m, now 2), the glow blinked
+  out in steps (now one system, shrinking), three wins were too few (now
+  five), and a third win did not end the match (the server took the
+  standing through the batteries' plausibility test; now its own arm).
+- Test 2: the TDM icon on the loading screen (now its own), the thaw bar the
+  sentence's width (now 120 px), the frozen player's text (now "Frozen");
+  the pause was a frozen wait (now the match start's countdown, with the
+  kits); a thaw now counts as a kill.
+- Test 3: "respawn in 8 seconds" counted in the pause and after the final
+  win (the last freeze's death respawn; now every time is cancelled there),
+  and the end came 3 s after the final win (now 2 s).
 
 Open:
 
-- No local test match yet, so no Freeze Tag worlds in the corpus.
 - A frozen player who leaves and comes back. The rule keeps the place frozen
   and cancels the native entry spawn, so it should stay out of the world
   until the next round. Whether a rejoin can bring the body back another
