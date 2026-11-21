@@ -6,10 +6,13 @@ players have: release/build-content's work (run it, not this; --help there).
         --bin <srp-game-data> --tree <checkout> --manifest <content.tsv> --work <new folder>
         --stock-sha256 <its sha256> [--bin-source <the srp-026g it was built from>]
         [--tools <tools.json>] [--vostok-port <program>] [--packs <folder>] [--cache <folder>]
-        [--quick]
+        [--quick] [--delta-over <patch>...]
 
 With --cache, a step whose inputs are those of an earlier build (a movie, the packs, an edit list,
-the checks of a file, a map's lamps or a stats table) takes what it made or found then from there (Cache).
+the checks of a file, a map's lamps or a stats table) takes what it made or found then from there
+(Cache): its key is the bytes it reads (a base or players' file's by its sha256, Layers) and its
+code, as build-content's header lists. With --delta-over (the earlier builds' patches), patch/ holds
+only what the game sees through them otherwise than through this build's own patch (delta).
 
 The manifest's rows, in this order of kinds (each kind's rows in their order):
   base   resources.db.patch_<n>  <its sha256>  a published patch made outside these sources, taken
@@ -29,7 +32,9 @@ Every Flash tree of srp-026g/flash needs a movie row and every edit list of cont
 Writes into --work: world/ (every file a movie, pack or edit made, at its path, for build-content's
 check of players' files with the patch; not with --quick, which skips that check), patch/ (those of
 them players do not have so: what the next patch carries; absent when there is none) and
-files.tsv (`<status> <path> <why> <live in>`, a line a file). Prints each file and why, and the
+files.tsv (`<status> <path> <why> <live in>`, a line a file; with --delta-over also delta.tsv,
+`<path> <why>` of each file in patch/) and game-data-id (srp-game-data as the cache knows it).
+Prints each file and why, and the
 checks; exits 1 on any problem (nothing in patch/ then). A live file of no base row that no row
 makes is a problem, unless an earlier version of a pack row added it (<packs>/<id>-<n>, n below
 the row's version, adds the path with the live bytes): printed as left from it, not packed.
