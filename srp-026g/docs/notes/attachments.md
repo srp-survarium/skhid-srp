@@ -347,6 +347,8 @@ models of their own: asked for by the weapon cook's own query, and put in the sc
 |---|---|---|
 | `attachments.dictionary_requests` 0x2C8963 | the items dictionary cook's query of its five configs | the query asks for a sixth resource, the modules table |
 | `attachments.dictionary_configs` 0x2C8AA0 | that query's callback, its entry | the table's bytes copied, parsed and kept |
+| `attachments.scope_dict` 0x24AA15 | the weapon cook, before it looks for `addons/rifle_scope_dict_id` | a config that names a scope by `data/srp_scope` asks for that scope item's config (class 4Dh, the first request), whatever `addons` says |
+| `attachments.scope_result` 0x24AD13 | the cook's callback, before it asks the config again whether there is a scope | the same config: the first result is the scope's |
 | `attachments.request_room` 0x24AAB4 | the weapon cook sizes its requests | a place more for each part |
 | `attachments.asked` 0x24AC30 | the weapon made, its requests pushed, none read yet | the weapon's model request names the bare body; each part's model is asked for after the game's own; the weapon is remembered with where its parts' results will be |
 | `attachments.ready` 0x24ACF0 | the cook's callback, its entry | each part's model taken from the results (a reference of ours) and kept with its placement |
@@ -402,6 +404,23 @@ models of their own: asked for by the weapon cook's own query, and put in the sc
   - A game data without the file, or with one that does not parse (a line in the log says which
     record), has no table: every weapon stays as the game made it, and the dictionary is made as
     ever.
+- **The scope's dict id.** The game's scope object (zoom, the optic's two models, the gun hidden
+  while aimed) is made of the item `addons/rifle_scope_dict_id` names: the cook looks that id up in
+  the items dictionary and asks for the entry's config (0x24AA1C..0x24AA75), and its callback asks
+  the weapon's config the same two questions again before it takes its first result as the scope
+  (0x24AD1B..0x24AD41). One modification cannot write that key on every gun: a set (type 0) is
+  skipped where the gun has no such node, an add (type 3) meets the duplicate-name assert where it
+  has one (the guns with an optic of their own: SVD, VSS, VSK-94, SV-98, VSSK, Remington 700,
+  HK416, MSBS...), and the cook has no value that means none. So both places take `data/srp_scope`
+  first: when it names an item of the dictionary, that item is the scope and the game's own block is
+  skipped (the cook's site sets the path and the count as 0x24AA67..0x24AA75 do; the callback's goes
+  on at 0x24AD47 with the two slots the skipped instructions set). Else the game's own, untouched:
+  `addons/rifle_scope_dict_id` is the gun's default optic and nothing else. A `srp_scope` the
+  dictionary lacks is no scope (the game's own lookup would assert). `data/srp_scope` is read
+  through `data/srp_gun` as the parts are: a config without `srp_gun` has no fitted scope.
+- **A gun that lies alone** (srp's dropped gun, a dead body's): `vostok::pickup::place_lying` places
+  the body in its bind pose; each part is placed with it at its record's frame through that pose
+  (`attachments::lie`), and taken out with it. Written and compiled; not seen in a game yet.
 - **0x24B0E1 has one owner.** The parked muzzle patch (90) used it; the new runtime takes it alone.
   `load_weapon`'s own finger fill (0x243BB6) is inside it, so this site covers that fill too.
 - **Every weapon passes it.** PROVEN by a scan of every direct call of the image: `weapon::weapon`
@@ -416,7 +435,7 @@ models of their own: asked for by the weapon cook's own query, and put in the sc
   that. On different bones the shells go with the scope.
 - **The lobby.** A grip has one set of hand locators (idle). The lobby's clips ask for the lobby
   set, which gets the same values.
-- **The eye and the fingers are two switches**: "The two switches" below.
+- **The eye is a switch**, and the fingers were one: "The two switches" below.
 
 ### What is done, and what is not
 
@@ -451,26 +470,44 @@ Done, 2026-11-20:
     (the machine was running four heavy jobs). The same build and content stayed in its match the
     next time. Read as the machine's, not proven.
 
+  - **A shot** (the same three parts; `private/renders/attachments-core/ak74m-complete-shot/`):
+    from the hip the shot's smoke rises at the muzzle's end, ahead of the front sight; aimed, the
+    scope's picture lifts with the shot and comes back to the centre within a few frames (the kick
+    is seen under a scope, `EyeAnchor::GunIdle`). No frame of the 60 a second caught the flash
+    itself, so its place against the device's fire point is not judged; the shells were not looked
+    for. The death view of that run looks along the ground and does not show the body's gun.
+
+Done since (2026-11-21):
+
+- **The servers' one fit check** and slots 4 and 5 (`survarium::v026g::weapon_modules`; an attach
+  of a muzzle device or a grip; the shop's rule): "The contract" below.
+- **The scope's dict id from `data/srp_scope`** (two sites), **parts on a lying gun**, **the
+  fingers' one path**: written, compiled, the crates' tests pass; the Unicorn cases of the scope
+  sites are written. Linked and checked: see the PR's state.
+
 Not done:
 
 1. **Seen by one viewer only.** The third view is the lobby's character (the same `weapon::draw`);
-   no second client has looked at a fitted gun in a match. No shot was fired: the flash at a
-   device's fire point, the shells' place under a moved scope and the shot's kick under a scope are
-   unseen. A grip's fingers were seen from across the lobby, not judged.
+   no second client has looked at a fitted gun in a match. The flash's place at a device's fire
+   point and the shells' place under a moved scope are unseen. A grip's fingers were seen from
+   across the lobby, not judged (the grips lane takes that picture).
 2. The order "the table before any weapon" held in every run; it stays LIKELY as a rule.
-3. **A dropped gun and a dead body's gun.** `weapon::draw` is one path for the first view, the
-   third view and the lobby (stage 0), and artefact carry takes a gun's parts out with the gun.
-   srp's own lying guns are drawn by `vostok::pickup::place_lying`, which places the body in its
-   bind pose and the scope at the scope's record, and not the parts: a fitted gun on the ground
-   shows its bare body. The parts' frames there are their records through the same bind pose; the
-   registry needs the game's thread, which `gun_cook`'s one transition of a lying gun does not
-   carry yet.
+3. **A dropped gun and a dead body's gun** draw their parts by code no game has shown yet.
 4. **The lookup by address** scans the registry at each weapon's draw; to be measured in a match
    before it is called done.
 5. The six guns whose left hand does not rest on the idle locator need their clip event before a
    grip moves the hand (stage 0).
-6. The servers on `resolve` (fit checks, the shop) and the Attachments window's muzzle and grip
-   slots.
+6. The Attachments window's muzzle and grip slots. An account's load checks each record's slot,
+   not yet the pair the weapon holds.
+7. **`plane_slot`** (the scopes lane's finding, 2026-11-21): in 0.69d0's `game.options` every
+   collimator, every folding or rear iron sight and the dovetail, pistol and G3 rail mounts
+   override the eye as `slots_to_override { id: aim, locator: aim, plane_slot: body_aim }`; no
+   magnified scope does. Neither the crate nor the porter knows it: the table writes such a
+   module's own `aim` whole. LIKELY meaning, 0.69d's exe not read: the eye takes its line from the
+   module's `aim` and stays in the plane of the gun's own `body_aim` (the gun keeps its eye relief).
+   Decided way once the meaning is PROVEN from the exe: one flag on an attach's eye that `resolve`
+   applies with the gun's own aim (a table version 3), not per-gun rows. Until then nothing
+   changes.
 
 ## The two switches
 
@@ -504,15 +541,16 @@ Not done:
   weapon is cooked; patch 165 on aimed frames at rest, from what it finds there. No Unicorn case
   runs them together yet (#2294 is not in this branch).
 
-**The fingers, `attachments::FINGER_JOINTS`: `FingerJoints::Gun` (set), not settled.**
+**The fingers: the grip's own matrices, whole. Settled 2026-11-21; the switch is gone.**
 
 - The game copies a finger's matrix whole, and its translation is the joint's place in the hand's
-  skeleton. `FingerJoints::Gun` keeps the translations the game made of the gun's own finger
-  locators (0.26g's hand) and takes each finger's turn from the grip; `FingerJoints::Grip` takes
-  0.69d's matrices whole.
-- `Gun` cannot stretch a finger either way, which is why it is set. What settles it: 0.69d's finger
-  locators of the thirteen grips beside 0.26g's hand (the joints' distances), from the content
-  side's models (the grips lane), and one grip seen in a game.
+  skeleton. The question was whose joints a hand on a grip keeps: the gun's own (0.26g's hand) with
+  the grip's turns only, or the grip's.
+- The grips lane measured it: the finger joints of all thirteen grips' locators are one set, and
+  that set is 0.26g's own hand skeleton (the largest gap to its bind pose is 3.4 micrometres); the
+  guns' own finger locators are the same joints rounded to a millimetre. So there is nothing to
+  choose: `Hand::fingers()` gives the grip's matrices and `FingerJoints` is removed. A game picture
+  of a hand on a grip, up close, is the grips lane's.
 
 ## The contract between the core and the lanes
 
@@ -528,6 +566,10 @@ file.
 | Kit slot of a scope, a muzzle device, a grip | 3, 4, 5 (`weapon-kit`; `weapon_modules::slot_of`) |
 | Scope items | dict ids 2101-2120, the shop's own (ownership does not change) |
 | Muzzle devices and grips | dict ids 2601-2671 (`scripts/weapon-modules/ids.tsv`, append-only) |
+| Not items: 2652-2655 | the VSSK's four barrels, its suppressor in other shapes: out by the owner's rule (no silencers). Their ids stay taken (never reused) and no item is made for them, so nothing can hold one; their fits leave the table with the porter's suppressor rule at the next pack version |
+| Not items: 2667, 2669, 2670 | the OTs-14's, the SR-3M premium's and the SR-3M's own foregrips: the guns' own parts, always on (decided 2026-11-21); reserved, unused |
+| A fitted item's modification | id 994000 + the item's dict id, all three kinds |
+| The items' icons | `LobbyMenu_AmmoIcons`: columns 5, 6, 7 (rows 1-22) the muzzle lane's, column 8 the grips lane's |
 | A stock part's or a carrier's row in the table | 0.69d0's own dict id; never an item of ours |
 | A slot's id | `weapon_modules::SlotId`, 0.69d0's 94 names; its number is the table's byte |
 
@@ -537,14 +579,26 @@ sees it, after the item's modifications)
 - A gun's config: `data/srp_gun` = its own dict id (the edit list `weapon-modules-1.json`), and
   `object/model` its whole remodel body (`remodel-069-1.json`).
 - A fitted item's upgrade record holds the item's **own** dict id in its kind's slot (no variant
-  ids any more), and its modification sets, on the weapon:
-  - a scope: `data/srp_scope` = its dict id, and `addons/rifle_scope_dict_id` = its dict id (the
-    game's own scope object: zoom, the two models, hiding the gun);
-  - a muzzle device: `data/srp_muzzle` = its dict id; its shot effect `particles/shoot`; its stats;
-  - a grip: `data/srp_grip` = its dict id; its stats.
+  ids any more), and its modification puts that id on the weapon the same way for all three kinds:
+  one **type 3 add, path `[data]`, value `[srp_<kind>, <dict id>]`** (`srp_scope`, `srp_muzzle`,
+  `srp_grip`). Its stats are type 2 rows. So:
+  - a scope: `data/srp_scope` and nothing else. The weapon cook makes the game's scope object
+    (zoom, the two models, hiding the gun) of that item (patch 161's two scope sites);
+    `addons/rifle_scope_dict_id` is the gun's own default optic only and no modification writes it;
+  - a muzzle device: `data/srp_muzzle`; its shot effect `particles/shoot`; its stats;
+  - a grip: `data/srp_grip`; its stats.
 - A scope item's config keeps `data/idle_model` and `data/aimed_model`: the optic's own two models
   of the pack, their origin the optic's slot.
 - Nothing else is read: the table says the rest.
+- **A gun's config has room for it.** The client rebuilds an upgraded item's config in a stack
+  arena its allocator never bounds (`create_binary_config_buffer` 0x358AA0: 24 bytes an entry, 12
+  more a table or list, one entry more for each type 3 add). It was 16 KB, which the largest gun
+  configs fill with a camouflage and decals (the server's check: 565 entries on the plain config,
+  `tables::MAX_CONFIG_ENTRIES`; the Remington 700 premium and the KS-23M are at 565 with `srp_gun`,
+  the SV-98 564, the Remington 700 563, the Neosteads 562 and 560, the Mosin 560). Patch 161 makes
+  it 64 KB (`ITEM_CONFIG_ARENAS`), so the check stays as it is and a kit's adds have 48 KB on top.
+  A game without that patch must not be given a fitted gun of those six (one supported client
+  version: the release ships both).
 
 **The servers' one fit check** (`survarium::v026g::weapon_modules`, core-only)
 
@@ -553,6 +607,8 @@ Modules::shared()                         the game data's table, read once (none
   .check(weapon, Fitted { scope, muzzle, grip }) -> Result<(), Unfit>
   .kind(weapon, module) -> Option<Kind>   the kind a module is fitted as on that weapon
   .fits(weapon) -> Vec<(module, Kind)>    what the weapon takes, for a list
+  .is_module(item) -> bool                some gun takes it: the shop sells it (prices.rs)
+weapon_modules::fixtures::modules(&[(weapon, module, Kind)])   a made-up table, for tests
 slot_of(Kind) -> u8, kind_of_slot(u8) -> Option<Kind>
 Unfit::NoGun | Unfit::Refused(Refusal)    Refusal is resolve's own: NoFit, NoSlot, Taken, Unseated
 ```
@@ -562,6 +618,48 @@ Unfit::NoGun | Unfit::Refused(Refusal)    Refusal is resolve's own: NoFit, NoSlo
   put on second.
 - Every fit check calls it: an attach, an account's load, a shop's list. No lane keeps a table or a
   rule of its own.
+- A muzzle device or a grip goes in slot 4 or 5 by `kind` (`modifications::upgrade_slots_with`),
+  and an attach checks the whole weapon (`items_rules::attach_upgrade_with`).
+- The shop: a category-22 item with a price is sold by seller 0, at no rank, when it is a scope
+  item of a pair or `is_module` (`prices::sellers_of_with`). A device or grip item needs its
+  dictionary row with a `base_cost` and a fit in the table; nothing else.
+
+**What a lane runs its games on** (built once by the core; a lane builds no server and no exe)
+
+- `private/local-clients-attachments/server-bin/<commit>/`: `srp`, `srp-bot`, `certs/` and a
+  README with the commit, of `feat/attachments`' head; again when the attach path or the cook's
+  sites change.
+- `private/local-clients-attachments/exe/<commit>/`: the game's exe of the branch, the same way.
+- A lane's test packs are `weapon-modules-quick@N`; the full `weapon-modules@N` is the core's.
+
+**What is settled between the lanes and the core**
+
+- The `next` row of `simulation_changes.tsv` is one: each lane hands its words to the lead, who
+  writes the row at the merge (grips: "a fitted grip changes the weapon's recoil kick bounds and
+  aim time").
+- The eight clamp fits stay refused: in 0.69d0 the clamp sits on a slot only a fitted suppressor
+  brings. The 9A-91 takes no grip.
+- The SR-3M's, its premium's and the OTs-14's own foregrips stay the guns' own parts, always on,
+  as today (decided 2026-11-21): no item, no stat. The remodel bakes them into both the whole and
+  the bare body, and both keep the live hand locators (the next pack version).
+- The muzzle lane's item table stands as proposed, the two Zenit DTK-4 in as brakes, the duckbills'
+  spread -15 %; the grips lane's as proposed, 6,000 silver each.
+- 46 released (weapon, scope) pairs are not fits of 0.69d0's (19 Docter pairs, the 18 of
+  `sr3m_premium`, 3 on `wpn_mp7_silencer_special`, 5 singles; the Mosin's PU 3.5x was only a
+  missing id row and is a plain fit now): the scopes lane carries them as legacy per-gun rows in
+  the porter (`modules.rs`, its own functions).
+- `sr3m_premium` has no muzzle fit in the table of pack 1 where `sr3m` has 13 (its `fits_like`):
+  the cause is the porter's: a premium takes its base gun's fits only when its own links give
+  none, and 0.69d0 links this one to its own camouflage foregrip. Fixed with the next pack version.
+- **The next pack version** (`weapon-modules@2`; the pack rebuilt over patch 68 with the same
+  porter is byte for byte pack 1, so the row stays `@1` until then) takes: `sr3m_premium`'s fits;
+  the VSSK barrels out of the fits; the PU 3.5x's row; the three own foregrips baked into both
+  bodies; the remodel bodies' camouflage masks (below); the scopes lane's legacy pairs; `plane_slot`
+  if its meaning is proven.
+- **The remodel bodies' camouflage masks** are made inside the attachments pack, by the mask maker
+  main has today over `scripts/remodel-069/camo.tsv`: every gun gets a remodel body, so without them
+  every owned camouflage would change with this PR. The one-rule masks of #2314 (parked) remake them
+  when that lands, as every other gun's. Open until the next pack version is built.
 
 **Who owns which file**
 
@@ -575,7 +673,8 @@ Unfit::NoGun | Unfit::Refused(Refusal)    Refusal is resolve's own: NoFit, NoSlo
 | `scripts/weapon-modules/ids.tsv`, `make_pack.sh`, `edits.py`, `review.py`; `scripts/remodel-069/**`; the pack's rows of `release/content.tsv` | core (the content pipeline) |
 | this note | core; a lane keeps its own `docs/notes/attachments-<lane>.md` |
 | `crates/survarium/src/v026g/scopes.rs`, `scripts/scope-fits/**`, the migration of variant ids, the scope items' edit lists | scopes |
-| the device items (their configs, stats, texts, icons, prices), the shot effects, the `next` row of `simulation_changes.tsv` | muzzles |
+| `crates/survarium/src/v026g/prices.rs` (who sells a module item: `sellers_of_with`) | core |
+| the device items (their configs, stats, texts, icons, prices), the shot effects, its words for the `next` row | muzzles |
 | the grip items (the same), the clip events of the six guns, the hand's checks | grips |
 | `client-patches/localization/*.tsv`, `release/content.tsv` (a lane's own new rows) | each lane adds its rows; the lead settles them at the merge |
 
@@ -584,8 +683,7 @@ Unfit::NoGun | Unfit::Refused(Refusal)    Refusal is resolve's own: NoFit, NoSlo
 Not made by the content side's first pass, and so each lane's own: the device and grip items
 (dictionary rows, configs whose modification sets `srp_muzzle` / `srp_grip`, stats, texts, icons,
 prices); the shot effects' particles; the scope items on the new origin; the camouflage masks of
-the remodel bodies (by the camouflage work's rule: until then a camouflage on a remodel has no
-mask); `release/build-content --full` with the pack; clippy on the porter.
+the remodel bodies (the core's, with the next pack version: "What is settled" above); `release/build-content --full` with the pack; clippy on the porter.
 
 They start when the core and the content run on one gun (the AK-74M: a brake, a flash hider, a grip
 on a swapped forend, a scope; both views and the lobby), each a sub-branch of `feat/attachments`.
@@ -621,9 +719,10 @@ reason the build checks again.
 
 - 13 tactical forends, 3 brackets, 1 clamp.
 - The hand locators in the table's rule, checked against 0.69d's renders.
-- 0.69d's finger joints against 0.26g's hand, to settle `attachments::FINGER_JOINTS`.
+- 0.69d's finger joints against 0.26g's hand: measured, they are one skeleton ("The two
+  switches"); a picture of a hand on a grip in a game is left.
 - The idle-target clip event for the UMP45.
 - Whether the lobby's poses use a grip's idle set (they do now).
 - The twelve guns with `double_handed` 0 release the hand in sprint and jump: unchanged.
 - A clamp on a suppressor only where the suppressor is the gun's stock part and adds the clamp's
-  slot.
+  slot (no gun of ours: the eight clamp fits are refused).

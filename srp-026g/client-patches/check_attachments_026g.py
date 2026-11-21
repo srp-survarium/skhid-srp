@@ -22,7 +22,7 @@ by the crate's test): nothing here works a loadout out again.
 - the scope's dict id: a config that names a scope by data/srp_scope asks
   for that item's config first, class 4Dh, without any
   addons/rifle_scope_dict_id (the cook's site 0x24AA15), and the callback
-  takes its first result as the scope (0x24AD0E to 0x24AD47, the cook's slot
+  takes its first result as the scope (the site 0x24AD13, on at 0x24AD47, the cook's slot
   and the scope's out slot set as the skipped instructions set them); a
   scope the dictionary lacks, or none: the game's own checks;
 - the cook (on_weapon_config_loaded 0x24A920 from its entry to its call of
@@ -65,7 +65,7 @@ DICT_QUERY, DICT_QUERY_END = 0x2C8963, 0x2C896C     # translate_query: the site,
 DICT_CONFIGS, DICT_CONFIGS_END = 0x2C8AA0, 0x2C8AA9
 COOK, COOK_ROOM, COOK_WEAPON, ASKED, ASKED_END = 0x24A920, 0x24AAB4, 0x24AC2B, 0x24AC30, 0x24AC36
 READY, READY_END = 0x24ACF0, 0x24ACF5
-SCOPE_RESULT, SCOPE_RESULT_END, SCOPE_RESULT_SCOPED = 0x24AD0E, 0x24AD17, 0x24AD47
+SCOPE_RESULT, SCOPE_RESULT_END, SCOPE_RESULT_SCOPED = 0x24AD0E, 0x24AD1B, 0x24AD47
 LOADED, LOADED_END = 0x24B0E1, 0x24B0E9
 DRAW, DRAW_END = 0x245017, 0x24501C
 CULLED, CULLED_END = 0x245353, 0x245359
@@ -609,7 +609,12 @@ def main():
                    f"for the model, then {len(case['parts'])} part(s), class 15, inside the alloca "
                    f"({[path.rsplit('/', 1)[-1] for path, _ in (got[0][len(scope) + len(NATIVE):] if got else [])]})")
 
-    print("the scope's dict id (the callback's question 0x24AD0E; the cook's is in the requests above)")
+    print("the arena an upgraded item's config is rebuilt in (create_binary_config_buffer 0x358AA0)")
+    for build, exe, want in (("the build", built, base.ITEM_CONFIG_ARENA), ("the original", original, 0x4000)):
+        taken, given = (struct.unpack_from("<I", exe, base.file_offset(va + 1))[0] for va in (0x358AA8, 0x358ABC))
+        report(taken == given == want, f"{build}: {taken:#x} bytes taken from the stack, {given:#x} given to the allocator")
+
+    print("the scope's dict id (the callback's question 0x24AD13; the cook's is in the requests above)")
     for name, data, scoped in (
             ("a scope named by data/srp_scope, no addons", named(AK, scope=PSO1), True),
             ("no scope named", named(AK, muzzle=DTK3), False),
