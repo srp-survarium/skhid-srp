@@ -240,7 +240,9 @@ pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;
 /// 000f: [D2] a walk that overshoots a ledge and comes to rest deeper than the harmless fall (`Body::max_drop`) under the
 /// take-off leaves the ways down within it their turn first (the release, a walk line's landing, the crouched walk-off, a jump),
 /// and is re-aimed to that deep landing only where none of them goes.
-pub const DROP_LANDS_ALGO: u32 = 0x5067_000f;
+/// 0010: [deep walk-offs] where one of them goes, the deep landing is kept beside it, never cut: an off-mesh GapDrop walk-off
+/// at its true depth (`grid::drop_check` `keep_deep_landings`), priced by the fall's damage. Players take those falls.
+pub const DROP_LANDS_ALGO: u32 = 0x5067_0010;
 /// The same for the gap links flown by the client's jump ([`Body::gap_flights`], A389), in [`grid_key_with_links`] only for a
 /// body that asks for it. A value of its own. 0007: [S3] the floors on the thin tops the gaps over one cross carry their top's
 /// centre line where a body is held on it (`grid::line_tops`), in the grid file. 0008: [F1] no clip pass press is kept unflown:
@@ -304,9 +306,6 @@ pub const WALK_EVERY_LINK_ALGO: u32 = 0x5402_0c05;
 /// The same for the gap links' flights ending at the game's last air step ([`Body::jump_air_steps`], A364 P6), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const JUMP_AIR_STEPS_ALGO: u32 = 0x5364_0603;
-/// The same for the walk-offs off edges no Drop link leads off ([`Body::edge_walk_offs`]), in [`grid_key_with_links`] only for a
-/// body that asks for it with [`Body::drop_check`] and [`Body::drop_lands`]. A value of its own.
-pub const EDGE_WALK_OFFS_ALGO: u32 = 0x5420_0201;
 /// The same for the exact erosion pass ([`Erosion::Exact`], `grid::exact`), in [`grid_key_with_links`] only for a body
 /// that asks for it: the grids of the cells' erosion key, build and write as before. 2: floors keep a quarter cell of
 /// slack (the nearer-than-the-radius-less-a-quarter rule; 1 was the full radius). 3: the capsule's round top (a wall above the
@@ -668,10 +667,6 @@ pub fn grid_key_with_links(
     // And the jumps' flights ending at the game's last air step.
     if body.jump_air_steps {
         digest.u32(JUMP_AIR_STEPS_ALGO);
-    }
-    // And the walk-offs off edges no Drop link leads off.
-    if body.drop_check && body.drop_lands && body.edge_walk_offs {
-        digest.u32(EDGE_WALK_OFFS_ALGO);
     }
     // The carried landings are a switch too.
     if body.landing_carry {

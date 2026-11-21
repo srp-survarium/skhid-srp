@@ -472,36 +472,9 @@ pub struct ReaimPairs {
 /// is not the line to the new landing: None for a [`Verdict::Reaim`], walked at its landing).
 type Reaims = Vec<(u32, usize, u32, Option<(Takeoff, Share)>, Option<GridWay>)>;
 type Lips = Vec<(u32, u32)>;
-
-/// [edge walk-offs] What [`WalkGrid::edge_walk_offs`] did ([`super::BuildStats`]).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct EdgeWalkOffs {
-    /// The (take-off, way) pairs with no link whose cells on hold a lower floor within the harmless fall before any floor within a
-    /// step of the take-off: walked off by the client's body.
-    pub walked: usize,
-    /// The links added: walked off standing with the forward key held (`Takeoff::WalkOff`), and with another key script (a
-    /// release, the crouched walk-off, a jump off the edge).
-    pub walk_offs: usize,
-    pub pressed: usize,
-    /// Refused: no way down the client's body was walked (the walk, the release, the crouched walk-off, the jumps off the edge)
-    /// comes to stand on a floor ([`WalkGrid::drop_verdict`]'s cut).
-    pub cut: usize,
-    /// Refused: the body rests on a floor, but on the take-off or one lower by under a step or more than the harmless fall.
-    pub out_of_fall: usize,
-    /// Folded: onto a landing the take-off links to already (no link added).
-    pub linked: usize,
-    /// Folded: one more way onto a landing another way of the take-off made (one link, [`WalkGrid::reaim_drops`]'s rule).
-    pub same_pair: usize,
-}
-
-/// [edge walk-offs] One link [`WalkGrid::edge_walk_offs`] made, for the build's log (debug): where it takes off and lands, and
-/// the key script, so a link a bot fails in a match is traced to this pass.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct EdgeWalkOffLink {
-    pub from: Vec3,
-    pub to: Vec3,
-    pub press: Takeoff,
-}
+/// [deep walk-offs] The deep landings kept beside a way down within the harmless fall ([`WalkGrid::keep_deep_landings`]):
+/// (take-off, the deep landing, the grid way a taught one was come down along).
+type DeepAlso = Vec<(u32, u32, Option<GridWay>)>;
 
 /// [A389] What [`WalkGrid::landing_drops`] did ([`super::BuildStats`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -530,8 +503,11 @@ pub struct DropStats {
     /// [D2] Of the Drop links, those a walk line came to rest from deeper than the harmless fall ([`super::Body::max_drop`]):
     /// the other client ways down within it went first …
     pub past_harmless_fall: usize,
-    /// … and of them, those no way within it took down: re-aimed (or taught) to the walk's own deep landing, at its true depth.
+    /// … and of them, those no way within it took down: re-aimed (or taught) to the walk's own deep landing, at its true depth …
     pub past_harmless_fall_kept: usize,
+    /// … and [deep walk-offs] those a way within it took down: the deep landing also kept, as an off-mesh GapDrop beside it
+    /// ([`WalkGrid::keep_deep_landings`]).
+    pub past_harmless_fall_also: usize,
 }
 
 /// [feed 67] What [`super::Body::drop_lands`] does with one Drop link.
@@ -553,6 +529,32 @@ enum Verdict {
     /// No client way down tried stands on a floor of the grid: the walk lines, the crouched walk-off, the short and sprint
     /// jumps at the gap leads.
     Cut,
+}
+
+/// [D2] Where a Drop link's walk line came to rest deeper than the harmless fall ([`super::Body::max_drop`]) under the take-off:
+/// the walk's deep landing, at its true depth.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DeepLanding {
+    /// Walked at that floor, the body arrives there (as [`Verdict::Reaim`]).
+    Reaim(u32),
+    /// Walked at it, the body does not arrive; a standing walk line's own rest is there (as [`Verdict::Taught`]).
+    Taught(u32),
+}
+
+impl DeepLanding {
+    fn floor(self) -> u32 {
+        match self {
+            Self::Reaim(g) | Self::Taught(g) => g,
+        }
+    }
+
+    /// The Drop link's verdict when no way within the harmless fall takes the body down: this landing.
+    fn verdict(self) -> Verdict {
+        match self {
+            Self::Reaim(g) => Verdict::Reaim(g),
+            Self::Taught(g) => Verdict::Taught(g),
+        }
+    }
 }
 
 impl WalkGrid {
@@ -666,17 +668,20 @@ impl WalkGrid {
     ///
     /// [A377] And the links kept or re-aimed whose take-off is a lip by where the body stops ([`Self::stops_below`]), as
     /// (take-off, landing).
+    ///
+    /// [deep walk-offs] And the deep landings to keep beside a way down within the harmless fall ([`Self::keep_deep_landings`]).
+    #[allow(clippy::type_complexity)]
     pub(super) fn landing_drops(
         &self,
         wide: &Wide,
         world: &Collision,
         seeds: &[Vec3],
         spawns: &[Vec3],
-    ) -> (Cuts, Reaims, Lips, DropStats, Vec<(Vec3, Vec3)>) {
+    ) -> (Cuts, Reaims, Lips, DropStats, Vec<(Vec3, Vec3)>, DeepAlso) {
         let links = self.reached_drops(wide, seeds, spawns);
         let mut stats = DropStats { walked: links.len(), ..DropStats::default() };
         if links.is_empty() {
-            return (Vec::new(), Vec::new(), Vec::new(), stats, Vec::new());
+            return (Vec::new(), Vec::new(), Vec::new(), stats, Vec::new(), Vec::new());
         }
         let s = self.body.controller().1;
         let start = self.body.walk_start();
@@ -692,19 +697,23 @@ impl WalkGrid {
             (v, lip, held, deep)
         });
         stats.releases_held_thin = verdicts.iter().filter(|(_, _, held, _)| *held).count();
-        stats.past_harmless_fall = verdicts.iter().filter(|(_, _, _, deep)| *deep).count();
+        stats.past_harmless_fall = verdicts.iter().filter(|(_, _, _, deep)| deep.is_some()).count();
         let mut cut = Vec::new();
         let mut reaim = Vec::new();
         let mut lips = Vec::new();
         // [D2] The Drop links a walk overshot past the harmless fall that no way within it took down, re-aimed to the walk's deep
         // landing (take-off, that landing; for the build's log).
         let mut deep_kept = Vec::new();
+        // [deep walk-offs] The deep landings a way within the harmless fall went before: kept beside it, never cut.
+        let mut deep_also = Vec::new();
         for (&(a, d, from, _), (v, lip, _, deep)) in links.iter().zip(verdicts) {
-            if let Verdict::Reaim(b) | Verdict::Taught(b) = v
-                && deep
-                && from.y - self.position(b).y > self.body.max_drop
-            {
-                deep_kept.push((from, self.position(b)));
+            if let Some(deep) = deep {
+                if v == deep.verdict() {
+                    deep_kept.push((from, self.position(deep.floor())));
+                } else {
+                    // [retarget] As a re-aim: a taught landing was come down to along the drop's own way.
+                    deep_also.push((a, deep.floor(), matches!(deep, DeepLanding::Taught(_)).then(|| GridWay::of_dir(d))));
+                }
             }
             match v {
                 Verdict::Keep if lip => lips.push((a, wide.links[a as usize][d])),
@@ -731,120 +740,32 @@ impl WalkGrid {
         }
         stats.cut = cut.len();
         stats.past_harmless_fall_kept = deep_kept.len();
-        (cut, reaim, lips, stats, deep_kept)
+        stats.past_harmless_fall_also = deep_also.len();
+        (cut, reaim, lips, stats, deep_kept, deep_also)
     }
 
-    /// [edge walk-offs] [`super::Body::edge_walk_offs`]: the walk-offs off the edges no Drop link leads off. A Drop joins a floor
-    /// only to the floor of the next cell (and only those are walked and re-aimed, [`Self::landing_drops`]), so where the next
-    /// cell holds no floor at the lower level (a face steeper than the client stands on, ground left without a floor, a wall's
-    /// eroded foot) the edge had no way down at all.
-    ///
-    /// Out of each floor a body gets to (the seeds and spawns, as the Drops'), along each of the 8 ways with no link: the cells on,
-    /// as far as a body walked off at the walk is carried over the harmless fall ([`WALK_MPS`] x sqrt(2 x `max_drop` / g), the
-    /// client's gravity, and a cell), until one holds a floor within a step of the take-off (the level goes on: no edge that way)
-    /// or a floor lower than a step and within the harmless fall (`max_drop`): the highest such is the landing aimed at. Each is
-    /// walked off as a Drop link to it is ([`Self::drop_verdict`]: the client's body on the three [`STARTS`] lines, judged where
-    /// its flight rests, then the walk at its own landing, the release, the crouched walk-off, the jumps off the edge), and a
-    /// landing on a floor lower than a step and within the harmless fall gets an off-mesh [`LinkKind::GapDrop`] with the key
-    /// script that made it ([`Takeoff::WalkOff`] for the walk, held). None where the take-off links to that landing already;
-    /// two ways onto one landing make one link, a pressed one over the walk-off (its landing is flown with its neighbours, the
-    /// walk-off's is not) and of two pressed the higher share, as [`Self::reaim_drops`] folds them.
-    /// Returns its counts and the links it made ([`EdgeWalkOffLink`]).
-    pub(super) fn edge_walk_offs(&self, wide: &mut Wide, world: &Collision, seeds: &[Vec3], spawns: &[Vec3]) -> (EdgeWalkOffs, Vec<EdgeWalkOffLink>) {
+    /// [deep walk-offs] The deep landings [`Self::landing_drops`] kept beside a way down within the harmless fall: each an
+    /// off-mesh [`LinkKind::GapDrop`] standing walk-off ([`Takeoff::WalkOff`]) from the take-off to the walk's deep landing, at
+    /// its true depth, as before 000f re-aimed the Drop link there (its own slot now holds the way within the fall). The route
+    /// prices it by the client's fall ([`super::Body::held_floors`]: a pool's loss is a long way) and refuses it where the fall
+    /// kills the body ([`super::Reach::lethal_fall`]), so it is the last way down; players take such falls (School batteries
+    /// (-3.30, 26.09, 106.97) -> (-5.55, 17.10, 106.72), 8.99 m). None where the take-off links to that landing already.
+    /// Run after [`Self::reaim_drops`]. Returns each link made (take-off, landing), for the build's log.
+    pub(super) fn keep_deep_landings(&self, wide: &mut Wide, deep: &DeepAlso) -> Vec<(Vec3, Vec3)> {
         use super::gap::{Aim, OffLink};
-        let reached = self.reached_floors(wide, seeds, spawns);
-        let (step, deepest) = (self.body.step, self.body.max_drop);
-        let gravity = Controller::standing_at(Vec3::ZERO).gravity;
-        let reach = WALK_MPS * (2.0 * deepest / gravity).sqrt() + self.cell;
-        let mut todo: Vec<(u32, usize, u32)> = Vec::new();
-        for a in (0..self.height.len()).filter(|&a| reached[a]) {
-            let h = self.height[a];
-            let (i, k) = self.cell_xz(self.cell_of[a] as usize);
-            for (d, &(di, dk)) in DIRS.iter().enumerate() {
-                if wide.links[a][d] != NONE {
-                    continue;
-                }
-                let stride = self.cell * ((di * di + dk * dk) as f32).sqrt();
-                let mut n = 1;
-                let landing = loop {
-                    if n as f32 * stride > reach {
-                        break None;
-                    }
-                    let Some(c) = self.cell_index(i + di * n, k + dk * n) else { break None };
-                    let floors = self.start[c]..self.start[c + 1];
-                    if floors.clone().any(|f| (h - step..=h + step).contains(&self.height[f as usize])) {
-                        break None;
-                    }
-                    let lower = floors
-                        .filter(|&f| (h - deepest..h - step).contains(&self.height[f as usize]))
-                        .max_by(|&x, &y| self.height[x as usize].total_cmp(&self.height[y as usize]));
-                    if lower.is_some() {
-                        break lower;
-                    }
-                    n += 1;
-                };
-                if let Some(b) = landing
-                    && !wide.out(a).any(|x| x == b)
-                {
-                    todo.push((a as u32, d, b));
-                }
-            }
-        }
-        let mut stats = EdgeWalkOffs { walked: todo.len(), ..EdgeWalkOffs::default() };
-        if todo.is_empty() {
-            return (stats, Vec::new());
-        }
-        let s = self.body.controller().1;
-        let start = self.body.walk_start();
-        let verdicts = parallel(&todo, |&(a, _, b)| self.drop_verdict(world, &s, start, a, self.position(a), b).0);
-        let pressed = |p: Takeoff| p != Takeoff::WalkOff;
         let mut added: Vec<OffLink> = Vec::new();
-        let mut index: std::collections::HashMap<(u32, u32), usize> = std::collections::HashMap::new();
-        for (&(a, d, b), v) in todo.iter().zip(verdicts) {
-            // As the re-aims ([`Self::landing_drops`]): a walk steered at its landing is along its own line; a landing come down
-            // to along the way walked, or a press, is along the way.
-            let (to, press, share, way) = match v {
-                Verdict::Keep => (b, Takeoff::WalkOff, Share::UNFLOWN, None),
-                Verdict::Reaim(g) => (g, Takeoff::WalkOff, Share::UNFLOWN, None),
-                Verdict::Taught(g) => (g, Takeoff::WalkOff, Share::UNFLOWN, Some(GridWay::of_dir(d))),
-                Verdict::Pressed(g, press, share) => (g, press, share, Some(GridWay::of_dir(d))),
-                Verdict::Cut => {
-                    stats.cut += 1;
-                    continue;
-                }
-            };
-            let fall = self.height[a as usize] - self.height[to as usize];
-            if to == a || fall < step || fall > deepest {
-                stats.out_of_fall += 1;
+        for &(a, g, way) in deep {
+            if wide.out(a as usize).any(|x| x == g) || added.iter().any(|l| l.from == a && l.to == g) {
                 continue;
             }
-            if wide.out(a as usize).any(|x| x == to) {
-                stats.linked += 1;
-                continue;
-            }
-            let link = OffLink { from: a, to, kind: LinkKind::GapDrop, press, share, walk: None, aim: Aim::STRAIGHT, way };
-            match index.get(&(a, to)) {
-                Some(&i) => {
-                    stats.same_pair += 1;
-                    let kept = added[i];
-                    if pressed(press) && (!pressed(kept.press) || share.rank() > kept.share.rank()) {
-                        added[i] = link;
-                    }
-                }
-                None => {
-                    index.insert((a, to), added.len());
-                    added.push(link);
-                }
-            }
+            added.push(OffLink { from: a, to: g, kind: LinkKind::GapDrop, press: Takeoff::WalkOff, share: Share::UNFLOWN, walk: None, aim: Aim::STRAIGHT, way });
         }
-        stats.walk_offs = added.iter().filter(|l| !pressed(l.press)).count();
-        stats.pressed = added.len() - stats.walk_offs;
-        let made = added.iter().map(|l| EdgeWalkOffLink { from: self.position(l.from), to: self.position(l.to), press: l.press }).collect();
+        let made = added.iter().map(|l| (self.position(l.from), self.position(l.to))).collect();
         if !added.is_empty() {
             wide.off.extend(added);
             wide.off.sort_by_key(|l| (l.from, l.to));
         }
-        (stats, made)
+        made
     }
 
     /// [A377] Whether a Drop link's take-off at `from` is a lip by where the client's body stops, its landing `to` being under
@@ -873,10 +794,10 @@ impl WalkGrid {
     /// where its flight RESTS ([`walk_off_rest`]: the forward key let go on the landing step), on `b`'s own top
     /// ([`WalkGrid::own_top`]): the link is kept where a walk line's rest is there.
     ///
-    /// Returns the verdict, whether a release was not made off a thin top, and [D2] whether a walk line came to rest deeper
-    /// than the harmless fall ([`super::Body::max_drop`]), where no link goes.
-    fn drop_verdict(&self, world: &Collision, s: &Settings, start: WalkStart, a: u32, from: Vec3, b: u32) -> (Verdict, bool, bool) {
-        let (mut held, mut deep) = (false, false);
+    /// Returns the verdict, whether a release was not made off a thin top, and [D2] the deep landing where a walk line came to
+    /// rest deeper than the harmless fall ([`super::Body::max_drop`]).
+    fn drop_verdict(&self, world: &Collision, s: &Settings, start: WalkStart, a: u32, from: Vec3, b: u32) -> (Verdict, bool, Option<DeepLanding>) {
+        let (mut held, mut deep) = (false, None);
         let v = self.drop_verdict_holding(world, s, start, a, from, b, &mut held, &mut deep);
         (v, held, deep)
     }
@@ -905,8 +826,8 @@ impl WalkGrid {
         false
     }
 
-    /// [`Self::drop_verdict`], `held` set when a release was not made off a thin top, `deep` when a walk line came to rest deeper
-    /// than the harmless fall.
+    /// [`Self::drop_verdict`], `held` set when a release was not made off a thin top, `deep` to the deep landing where a walk line
+    /// came to rest deeper than the harmless fall.
     #[allow(clippy::too_many_arguments)]
     fn drop_verdict_holding(
         &self,
@@ -917,7 +838,7 @@ impl WalkGrid {
         from: Vec3,
         b: u32,
         held: &mut bool,
-        deep: &mut bool,
+        deep: &mut Option<DeepLanding>,
     ) -> Verdict {
         let to = self.position(b);
         let len = flat(from, to).max(1e-3);
@@ -935,18 +856,22 @@ impl WalkGrid {
         // 125.22), crossed by players, was re-aimed to the ground 5.94 m down (landing at 10.8 m/s) though the walk-off at release
         // lands on the ledge.
         let within_fall = |g: u32| from.y - self.position(g).y <= self.body.max_drop;
-        let mut deep_reaim = None;
+        // [D2] The walk's deep landing, judged on every line before any way within the fall returns ([deep walk-offs]: it is
+        // kept beside that way): the first line whose rest walked at arrives there, else the first line's own deep rest.
+        let deeper = |w: &DropWalk| match *w {
+            DropWalk::LandsAt(feet, _) => self.rest_floor(feet).filter(|&g| g != a && self.position(g).y < from.y - self.body.step && !within_fall(g)),
+            _ => None,
+        };
+        *deep = walks
+            .iter()
+            .zip(STARTS)
+            .find_map(|(w, off)| deeper(w).filter(|&g| on_top(&rest(Stance::Standing, WALK_MPS, off, self.position(g)), g)))
+            .map(DeepLanding::Reaim)
+            .or_else(|| walks.iter().find_map(deeper).map(DeepLanding::Taught));
         for (w, off) in walks.iter().zip(STARTS) {
             let DropWalk::LandsAt(feet, _) = *w else { continue };
             let Some(g) = self.rest_floor(feet) else { continue };
-            if g == a || self.position(g).y >= from.y - self.body.step {
-                continue;
-            }
-            if !within_fall(g) {
-                *deep = true;
-                if deep_reaim.is_none() && on_top(&rest(Stance::Standing, WALK_MPS, off, self.position(g)), g) {
-                    deep_reaim = Some(g);
-                }
+            if g == a || self.position(g).y >= from.y - self.body.step || !within_fall(g) {
                 continue;
             }
             if on_top(&rest(Stance::Standing, WALK_MPS, off, self.position(g)), g) {
@@ -992,14 +917,7 @@ impl WalkGrid {
         }
         // [D2] No way down within the harmless fall: the walk's own deep landing, at its true depth (re-aimed where walking at it
         // arrives, else taught), as before.
-        let deeper = |feet: Vec3| self.rest_floor(feet).filter(|&g| g != a && self.position(g).y < from.y - self.body.step && !within_fall(g));
-        if let Some(g) = deep_reaim {
-            return Verdict::Reaim(g);
-        }
-        match walks.iter().find_map(|w| if let DropWalk::LandsAt(feet, _) = *w { deeper(feet) } else { None }) {
-            Some(g) => Verdict::Taught(g),
-            None => Verdict::Cut,
-        }
+        deep.map_or(Verdict::Cut, DeepLanding::verdict)
     }
 
     /// [A1b] The walk-off at release from `from` towards `to` ([`release_point`], [`released_rest`]): crouched at [`CROUCH_MPS`],
@@ -1565,50 +1483,13 @@ mod tests {
         assert!(follows(&world, &Settings::LIVE, Vec3::new(-0.25, 2.0, 0.0), Vec3::new(0.25, 0.0, 0.0)));
     }
 
-    /// [edge walk-offs] A deck over the ground across a 0.6 m gap: no Drop link leads off its edge (the next cell holds no floor),
-    /// so without the pass no floor of the ground is reached from the deck and the build lets them go. With it, 2 m up, the deck's
-    /// edge floors get off-mesh GapDrop links the client's body walks off and lands on the ground, and the ground is kept; 6 m up
-    /// (past the harmless fall, `Body::max_drop`) there are none either way.
-    #[test]
-    fn an_edge_over_a_gap_gets_walk_offs_to_the_ground_within_the_harmless_fall() {
-        for (high, lands) in [(2.0f32, true), (6.0, false)] {
-            let mut tris = Vec::new();
-            tris.extend(quad(0.0, 5.0, 0.0, 10.0, high));
-            tris.extend(quad(5.6, 12.0, 0.0, 10.0, 0.0));
-            let seeds = [Vec3::new(2.0, high, 5.0)];
-            for edge in [false, true] {
-                let body = super::super::Body { drop_check: true, drop_lands: true, edge_walk_offs: edge, ..super::super::Body::client() };
-                assert!(high > body.step && (high <= body.max_drop) == lands);
-                let (grid, stats) = WalkGrid::build_kept_with_stats(&tris, [0.0, 0.0, 12.0, 10.0], 0.25, body, &seeds, &[]);
-                let case = format!("{high} m up, edge walk-offs {edge}: {:?}", stats.edge_walk_offs);
-                assert!(grid.locate(seeds[0], 0.3).is_some(), "{case}");
-                let ground = grid.locate(Vec3::new(9.0, 0.0, 5.0), 0.3);
-                let downs: Vec<_> = grid.off_links().iter().filter(|l| l.kind == LinkKind::GapDrop).collect();
-                if edge && lands {
-                    assert!(ground.is_some(), "the ground is reached: {case}");
-                    assert!(!downs.is_empty(), "{case}");
-                    for l in &downs {
-                        let (a, b) = (grid.position(l.from), grid.position(l.to));
-                        assert!((a.y - high).abs() < 0.05 && a.x > 4.5 && b.y.abs() < 0.05 && b.x > 5.6, "{case}: {l:?} {a:?} -> {b:?}");
-                    }
-                    assert!(downs.iter().any(|l| l.press == Takeoff::WalkOff), "{case}");
-                    assert_eq!(stats.edge_walk_offs.walk_offs + stats.edge_walk_offs.pressed, downs.len(), "{case}");
-                    // The build's log names each link made, where it takes off and lands.
-                    assert_eq!(stats.edge_walk_off_links.len(), downs.len(), "{case}");
-                    assert!(stats.edge_walk_off_links.iter().all(|m| downs.iter().any(|l| (grid.position(l.from) - m.from).length() < 1e-3 && (grid.position(l.to) - m.to).length() < 1e-3)), "{case}");
-                } else {
-                    assert!(ground.is_none(), "the ground is not reached: {case}");
-                    assert!(downs.is_empty(), "{case}: {downs:?}");
-                }
-            }
-        }
-    }
-
     /// [D2] A deck with a ledge 1 m under its edge, 0.6 m wide, over the ground 5.6 m under the deck (past the harmless fall,
-    /// `Body::max_drop`): the client's body walking off the deck overshoots the ledge and comes to rest on the ground. That deep
-    /// rest is a Drop link's way down only where no way within the harmless fall (the release, the crouched walk-off, a jump)
-    /// takes the body down along it: along the deck's edge (away from its ends, where a link along the edge has no ledge under
-    /// it) every take-off goes down onto the ledge, none to the ground, and those kept at depth are counted and listed.
+    /// `Body::max_drop`): the client's body walking off the deck overshoots the ledge and comes to rest on the ground. The Drop
+    /// link's own way down is the way within the harmless fall (the release, the crouched walk-off, a jump): along the deck's
+    /// edge (away from its ends, where a link along the edge has no ledge under it) every take-off goes down onto the ledge.
+    /// [deep walk-offs] The deep rest is kept beside it, never cut: an off-mesh GapDrop walk-off to the ground, which the route
+    /// prices by the fall's damage, so the way onto the ledge is the cheaper. Every rest past the fall is counted, kept at depth
+    /// or beside a way within it.
     #[test]
     fn a_walk_off_that_overshoots_a_ledge_past_the_harmless_fall_is_not_re_aimed_there() {
         let high = 5.6f32;
@@ -1617,22 +1498,32 @@ mod tests {
         tris.extend(quad(5.0, 5.6, 0.0, 10.0, high - 1.0));
         tris.extend(quad(5.6, 12.0, 0.0, 10.0, 0.0));
         let seeds = [Vec3::new(2.0, high, 5.0)];
-        let body = super::super::Body { drop_check: true, drop_lands: true, edge_walk_offs: false, ..super::super::Body::client() };
+        let body = super::super::Body { drop_check: true, drop_lands: true, held_floors: true, ..super::super::Body::client() };
         assert!(high > body.max_drop && 1.0 > body.step);
         let (grid, stats) = WalkGrid::build_kept_with_stats(&tris, [0.0, 0.0, 12.0, 10.0], 0.25, body, &seeds, &[]);
         let case = format!("{:?}", stats.drops_walked);
         assert!(stats.drops_walked.past_harmless_fall > 0, "a walk off the deck rests past the harmless fall: {case}");
-        let mut onto_ledge = 0;
+        let (mut onto_ledge, mut to_ground) = (0, 0);
         for a in (0..grid.len() as u32).filter(|&a| {
             let p = grid.position(a);
             (p.y - high).abs() < 0.05 && (1.0..=9.0).contains(&p.z)
         }) {
-            let falls: Vec<f32> = grid.links(a).map(|(b, _)| high - grid.position(b).y).filter(|&f| f > body.step).collect();
-            assert!(falls.iter().all(|&f| f <= body.max_drop), "{case}: {:?} goes down past the harmless fall: {falls:?}", grid.position(a));
-            onto_ledge += usize::from(!falls.is_empty());
+            let downs: Vec<(u32, LinkKind, f32)> =
+                grid.links(a).map(|(b, kind)| (b, kind, high - grid.position(b).y)).filter(|&(_, _, f)| f > body.step).collect();
+            let within = downs.iter().filter(|&&(_, _, f)| f <= body.max_drop).map(|&(b, kind, _)| grid.link_cost(a, b, kind));
+            let within = within.fold(f32::INFINITY, f32::min);
+            for &(b, kind, f) in downs.iter().filter(|&&(_, _, f)| f > body.max_drop) {
+                assert_eq!(kind, LinkKind::GapDrop, "{case}: {:?} -> {:?} {f:.2} m", grid.position(a), grid.position(b));
+                assert!(within < grid.link_cost(a, b, kind), "{case}: {:?}: the deep fall is not the dearer way down", grid.position(a));
+                to_ground += 1;
+            }
+            onto_ledge += usize::from(within.is_finite());
         }
         assert!(onto_ledge > 0, "the deck's edge goes down onto the ledge: {case}");
-        assert!(stats.drops_walked.past_harmless_fall_kept < stats.drops_walked.past_harmless_fall, "{case}");
-        assert_eq!(stats.drops_past_harmless_cut.len(), stats.drops_walked.past_harmless_fall_kept, "{case}");
+        assert!(to_ground > 0, "the deep rest is kept beside the ledge: {case}");
+        let walked = stats.drops_walked;
+        assert_eq!(walked.past_harmless_fall_kept + walked.past_harmless_fall_also, walked.past_harmless_fall, "{case}");
+        assert_eq!(stats.drops_past_harmless_cut.len(), walked.past_harmless_fall_kept, "{case}");
+        assert!(!stats.drops_past_harmless_also.is_empty() && stats.drops_past_harmless_also.len() <= walked.past_harmless_fall_also, "{case}");
     }
 }

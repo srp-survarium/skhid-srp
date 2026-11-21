@@ -63,6 +63,7 @@ mod bench;
 mod bench_spread;
 mod blind_walk;
 mod camper;
+mod deep_landing_spots;
 mod door_walk;
 mod drift_replay;
 mod driving;

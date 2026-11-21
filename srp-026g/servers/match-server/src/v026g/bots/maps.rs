@@ -871,21 +871,6 @@ fn build(
                             stats.drops_reaim_pairs,
                             stats.gaps
                         );
-                        // [edge walk-offs] A log's only: the walk-offs off edges no Drop link leads off (`Body::edge_walk_offs`):
-                        // the ways walked, the links made, the ways refused by reason and folded; and at debug each link made, so a
-                        // link a bot fails in a match (its take-off and landing) is traced to this pass and its key script.
-                        let e = stats.edge_walk_offs;
-                        log::info!(
-                            "Bot map {} edge walk-offs: {} ways walked off; made {} walk-offs and {} pressed; refused {} (no way down stands) and {} (rests out of the harmless fall); folded {} (linked already) and {} (one link a pair)",
-                            path.display(),
-                            e.walked,
-                            e.walk_offs,
-                            e.pressed,
-                            e.cut,
-                            e.out_of_fall,
-                            e.linked,
-                            e.same_pair
-                        );
                         // [D2] At debug, each Drop link a walk overshot past the harmless fall that no way within it took down,
                         // kept at the walk's deep landing (its count is in the drops walked above).
                         if log::log_enabled!(log::Level::Debug) {
@@ -901,19 +886,17 @@ fn build(
                                     to.z
                                 );
                             }
-                        }
-                        if log::log_enabled!(log::Level::Debug) {
-                            for l in &stats.edge_walk_off_links {
+                            // [deep walk-offs] And each deep landing kept beside a way within the harmless fall.
+                            for (from, to) in &stats.drops_past_harmless_also {
                                 log::debug!(
-                                    "Bot map {} edge walk-off ({:.2}, {:.2}, {:.2}) -> ({:.2}, {:.2}, {:.2}) {:?}",
+                                    "Bot map {} drop past the harmless fall, kept beside a way within it: ({:.2}, {:.2}, {:.2}) -> ({:.2}, {:.2}, {:.2})",
                                     path.display(),
-                                    l.from.x,
-                                    l.from.y,
-                                    l.from.z,
-                                    l.to.x,
-                                    l.to.y,
-                                    l.to.z,
-                                    l.press
+                                    from.x,
+                                    from.y,
+                                    from.z,
+                                    to.x,
+                                    to.y,
+                                    to.z
                                 );
                             }
                         }

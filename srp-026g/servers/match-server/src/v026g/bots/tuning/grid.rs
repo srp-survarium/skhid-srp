@@ -287,14 +287,6 @@ pub struct GridTuning {
     /// the take-off's height): links built on a longer flight than the client makes (with the client-true stand-in, missed
     /// jumps 21 -> 32, z 2.6). Exe-proven (A364's traces, 20 of 20 jumps), so ON and kept by `all_off`. A grid is the map's.
     pub jump_air_steps: bool,
-    /// [edge walk-offs] Whether the maps' grids give a floor walk-off links off its edges where no Drop link leads
-    /// (`mapdata::Body::edge_walk_offs`, with `drop_check` and `drop_lands`): a Drop joins a floor only to the next cell's floor,
-    /// so an edge over a face steeper than the client stands on, over ground left without a floor, or over a wall's eroded foot
-    /// had no way down, where players walk off and land (routes' list 1: 216 of the 240 human lines the port walks and the grid
-    /// detoured). Each such edge is walked off by the client's body as a Drop is, and gets the link only where the body rests on
-    /// a floor within the harmless fall. Client-proven (the exe walks off and lands as the port, rig_real_v3, a real ground test),
-    /// so ON and kept by `all_off`. A grid is the map's.
-    pub edge_walk_offs: bool,
     /// [A333] Whether a route's straight legs (the pull, `path.rs`) cross a floor nearer a wall than the client's body holds
     /// ([`PULL_HOLD_M`], the grid's table of wall clearances) only as a floor of the route's own path
     /// (`mapdata::WalkGrid::with_pull_hold`): a leg pulled past a wall's corner or along a wall keeps to the cells the search
@@ -372,7 +364,6 @@ impl Default for GridTuning {
             fall_stops_on_solids: true,
             walk_every_link: true,
             jump_air_steps: true,
-            edge_walk_offs: true,
             wall_clear_pull: false,
             pull_walk: true,
             walker_shapes: true,
@@ -436,7 +427,6 @@ impl GridTuning {
             fall_stops_on_solids: self.fall_stops_on_solids,
             walk_every_link: self.walk_every_link,
             jump_air_steps: self.jump_air_steps,
-            edge_walk_offs: self.edge_walk_offs,
             ..body
         }
     }
