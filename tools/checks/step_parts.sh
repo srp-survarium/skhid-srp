@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Patch 166: a part of a tick moves a body at rest as a whole tick does (updateAction under Unicorn),
+# Patches 166 and 168: a part of a tick moves a body as a whole tick does, and the measured speed is a tick's (Unicorn),
 # with patch 72's free fall beside it (the two share player_step's parts).
 set -euo pipefail
 main=$(git worktree list --porcelain | sed -n '1s/^worktree //p')

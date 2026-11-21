@@ -570,6 +570,13 @@ Patches:
   (0x7B76B, one branch) runs player_step for every step, and its own test
   (can_skeep_player_step 0x7C7E0) leaves a body with nothing to do where it
   is. A simulation change;
+- a part of a tick walks, and says a player's speed, as a whole tick does
+  (patch 168, the Rust patch tick_parts; docs/notes/fall_damage.md "A part
+  of a tick: its least walk and the speed read from it"): the least walk's
+  test asks a part what its tick would be asked at its pace (0x7C823), so no
+  part of a walking body is skipped, and only the step that ends a tick
+  writes m_linear_horizontal_speed (0x2D9541), which a jump reads as it
+  begins. A simulation change;
 - a thrown grenade stays above the ground (patch 105, with the late join;
   docs/notes/grenade_ccd.md): grenade_core::load's continuous collision
   sweeps a sphere of 0.04 m (GRENADE_CCD, 0x303A13), not 0.01 m, inside the
