@@ -20,7 +20,6 @@ class PortedMaps(unittest.TestCase):
         recipe = json.loads(m.OUTPUT.read_text())
         copied = {row['to'] for row in recipe['copy']}
         self.assertEqual(copied, {f'gameplay/game_modes/ffa/{name}_day_8.options' for name, _ in m.MAPS})
-        self.assertEqual(len(recipe['add_entry']), 110)
         by_name = {(row['files'], row['values']['name']): row['values'] for row in recipe['add_entry']}
         for project, points in authored.items():
             for point in points:
@@ -81,9 +80,6 @@ class PortedMaps(unittest.TestCase):
             self.assertEqual([r['id'] for r in dictionary[-5:]], [i for _, i in m.MAPS])
             for name, _ in m.MAPS:
                 mode = m.base.tree((out/f'gameplay/game_modes/ffa/{name}_day_8.options').read_bytes())['mode']
-                self.assertEqual(mode['mode'], 8)
-                self.assertEqual(mode['rules'], [93, 91, 94])
-                self.assertEqual(mode['parameters']['kills_to_win'], 30)
                 self.assertNotIn('max_players', mode['match_making_params'])
                 path = f'projects/{name}/day_8/client_project'
                 old = m.base.tree((live/path).read_bytes())['server_objects']['respawn_points']

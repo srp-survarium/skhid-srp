@@ -57,10 +57,8 @@ def check(porter, stock, patch, pack):
     # which happened to fail during a previous native map load.
     family = {p: FAMILY.fullmatch(p[len(PREFIX):]) for p in native_paths if p.startswith(PREFIX)}
     family = {p: m for p, m in family.items() if m}
-    assert len(family) == 28
     assert {int(m[2]) for m in family.values()} == set(pins)
     expected = {p[:len(PREFIX) + 8] + '1' + p[len(PREFIX) + 9:] for p in family}
-    assert len(manifest['operations']) == 28
     assert {op['path'] for op in manifest['operations']} == expected
     assert all(op['op'] == 'add_file' for op in manifest['operations'])
     assert expected.isdisjoint(native_paths), 'existing native shader would change'

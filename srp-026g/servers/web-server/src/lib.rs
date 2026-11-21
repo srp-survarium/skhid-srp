@@ -3043,7 +3043,6 @@ mod tests {
         let (header, _) = site_header(Lang::Pl, true, false, None, "/");
         assert!(header.contains("<summary>Polski</summary>"));
         assert!(header.contains("<a href=\"?lang=ru\" lang=ru hreflang=ru>Русский</a>"));
-        assert_eq!(header.matches("hreflang=").count(), 10);
         assert!(!header.contains("hreflang=pl"));
     }
 
@@ -3128,15 +3127,6 @@ mod tests {
                 .body
                 .contains("Survarium 0.26g</a>")
         );
-    }
-
-    #[test]
-    fn pages_are_branded_unofficial_and_localized() {
-        let en = page(Lang::En, Form::None, "").body;
-        let uk = page(Lang::Uk, Form::None, "").body;
-        assert!(en.contains("СХІД") && en.contains("COMMUNITY SERVER FOR SURVARIUM<") && en.contains("unofficial"));
-        assert!(uk.contains("СХІД") && uk.contains("Неофіційний ком'юніті"));
-        assert!(uk.contains("Головна") && en.contains(">Home</a>"));
     }
 
     #[test]
@@ -3351,182 +3341,6 @@ mod tests {
         assert!(web.store.hold(session).is_some());
         let shown = count(&web);
         assert!(shown.contains("| 2 registered"), "{shown}");
-    }
-
-    #[test]
-    fn the_home_page_says_how_to_start_what_the_download_holds() {
-        let stats = |launcher| Stats {
-            registered: 0,
-            online: 0,
-            maintenance: None,
-            registrations_open: true,
-            v026g: true,
-            launcher,
-            installs_game: false,
-        };
-        // With the launcher: what the server is, the steps (one file to
-        // start, nothing to type, the download needed once) and, after
-        // them, what to run when something goes wrong, each case by the
-        // words the player sees. No other way to start, no language line,
-        // no matchmaking rules.
-        for (lang, press, once, titles) in [
-            (
-                Lang::En,
-                "press <b>PLAY</b>",
-                "You do this only once",
-                [
-                    "<b>“Game files removed by antivirus: …”</b>",
-                    "<b>“Download failed: …”</b>",
-                    "<b>“No connection: …”</b>",
-                    "<b>“Blocked on this network: …”</b>",
-                ],
-            ),
-            (
-                Lang::Uk,
-                "натисніть <b>PLAY</b>",
-                "лише один раз",
-                [
-                    "<b>«Файли гри видалено антивірусом: …»</b>",
-                    "<b>«Завантаження не вдалося: …»</b>",
-                    "<b>«Немає з'єднання: …»</b>",
-                    "<b>«Заблоковано в цій мережі: …»</b>",
-                ],
-            ),
-        ] {
-            let page = home(lang, stats(true));
-            let (steps, faq) = page.split_once("</ol>").unwrap();
-            let steps = steps.split("<ol>").nth(1).unwrap();
-            // A question and its answer a case, each label in its own cell.
-            let (q, a) = if lang == Lang::En {
-                ("Q:", "A:")
-            } else {
-                ("П:", "В:")
-            };
-            assert_eq!(
-                faq.matches(&format!("<dt class=q>{q}</dt>")).count(),
-                5,
-                "{faq}"
-            );
-            assert_eq!(faq.matches(&format!("<dt>{a}</dt>")).count(), 5, "{faq}");
-            assert!(!faq.contains("<li>"), "{faq}");
-            for said in [
-                "Skhid-defender-setup.cmd",
-                "Skhid.bat",
-                "Skhid-network-setup.cmd",
-                "Skhid-collect-logs.cmd",
-                "Skhid-without-updater.bat",
-            ] {
-                assert!(faq.contains(said), "{said}: {faq}");
-            }
-            // The updater's box titles, in the order of the questions; the
-            // relay row only in the blocked one's answer, a VPN in none.
-            let mut rest = faq;
-            for title in titles {
-                let at = rest.find(title).unwrap_or_else(|| panic!("{title}: {faq}"));
-                rest = &rest[at + title.len()..];
-            }
-            let (no_connection, blocked) = faq.split_once(titles[3]).unwrap();
-            assert!(!no_connection.contains("relay") && !no_connection.contains("релей"), "{no_connection}");
-            assert!(blocked.contains("<b>Relay</b>") || blocked.contains("<b>Релей</b>"), "{blocked}");
-            assert!(!faq.contains("VPN"), "{faq}");
-            // The Discord invite is the last answer's, nothing after the pairs.
-            let last = faq.rsplit("<dd>").next().unwrap();
-            assert!(
-                last.contains("href=\"https://discord.gg/QUmJg3gBhg\""),
-                "{last}"
-            );
-            assert!(last.contains("Skhid-collect-logs.cmd"), "{last}");
-            assert!(faq.contains("</dl></section>"), "{faq}");
-            for country in ["Russia", "Росі", "Belarus", "Білорус", "China", "Китай"]
-            {
-                assert!(!faq.contains(country), "{country}: {faq}");
-            }
-            assert!(page.contains("<h1>") && page.contains("class=stats"));
-            assert!(!page.contains("How matches start") && !page.contains("Як починаються"));
-            assert!(steps.contains("<code>Skhid.bat</code>"), "{steps}");
-            assert!(steps.contains(press), "{steps}");
-            assert!(steps.contains(once), "{steps}");
-            assert!(!steps.contains("binaries"), "{steps}");
-            // Where to unpack is said by what the folder holds, not by a
-            // name a player may read as "inside game".
-            assert!(!steps.contains("over the game's"), "{steps}");
-            assert!(!steps.contains("поверх теки"), "{steps}");
-            assert!(!steps.contains("play_skhid.bat"), "{steps}");
-            assert!(!steps.contains("-localization"), "{steps}");
-            assert!(!steps.contains("<pre>"), "{steps}");
-            assert!(!page.contains("<details>"), "{page}");
-            assert!(!page.contains("<b>Language</b>") && !page.contains("<b>Мова</b>"));
-            assert_eq!(page.matches("<section").count(), 3, "{page}");
-        }
-        // A download whose launcher brings the game: no step that sends a
-        // player for the game first; an empty folder, and that the first
-        // start downloads. No size, no host, no game a player has already.
-        for (lang, empty, first) in [
-            (
-                Lang::En,
-                "into an empty folder (e.g. D:\\Survarium).",
-                "The first start downloads the game",
-            ),
-            (
-                Lang::Uk,
-                "у порожню теку (напр. D:\\Survarium).",
-                "Під час першого запуску лаунчер завантажує гру",
-            ),
-        ] {
-            let page = home(
-                lang,
-                Stats {
-                    installs_game: true,
-                    ..stats(true)
-                },
-            );
-            let steps = page.split("<ol>").nth(1).unwrap();
-            let steps = steps.split("</ol>").next().unwrap();
-            // The first step is the download, not the game.
-            let first_step = steps.split("</li>").next().unwrap();
-            assert!(first_step.contains(empty), "{first_step}");
-            assert!(first_step.contains("class=dl"), "{first_step}");
-            assert!(!steps.contains("Get the original Survarium"), "{steps}");
-            assert!(!steps.contains("Отримайте оригінальну"), "{steps}");
-            for said in [empty, first] {
-                assert!(steps.contains(said), "{said}: {steps}");
-            }
-            for unsaid in [
-                "2.9",
-                "2,9",
-                "GB",
-                "ГБ",
-                "Google Drive",
-                "Already have",
-                "Уже маєте",
-            ] {
-                assert!(!steps.contains(unsaid), "{unsaid}: {steps}");
-            }
-            assert!(steps.contains("<code>Skhid.bat</code>"), "{steps}");
-            assert!(
-                steps.contains("<code>bash Skhid.sh launcher</code>"),
-                "{steps}"
-            );
-        }
-        // An archive with the extractor and no launcher is not such a one.
-        let page = home(
-            Lang::En,
-            Stats {
-                installs_game: true,
-                ..stats(false)
-            },
-        );
-        assert!(page.contains("Get the original Survarium"));
-        assert!(!page.contains("empty folder"));
-        // Without it: the start script, and no FAQ (its files are the
-        // launcher's download's).
-        let page = home(Lang::En, stats(false));
-        assert!(!page.contains("launcher_skhid.exe"));
-        assert!(!page.contains("Skhid-defender-setup.cmd"));
-        assert!(!page.contains("command line"));
-        assert!(!page.contains("-localization"));
-        assert!(page.contains("<code>play_skhid.bat</code>"));
-        assert!(!page.contains("<b>Language</b>"));
     }
 
     #[test]

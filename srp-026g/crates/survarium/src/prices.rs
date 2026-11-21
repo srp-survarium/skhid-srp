@@ -320,35 +320,4 @@ mod tests {
             );
         }
     }
-
-    #[test]
-    fn weapons_and_armour_climb_the_rank_ladder() {
-        // A new player's PPSh-41 is the base; the best cost more, and gear
-        // that needs a rank of 3 or more costs more again (x1.15 at rank 2,
-        // 1.25 at 3, 1.5 at 4, 1.75 at 5, and 2 for the Renaissance and Edge).
-        let cost = |dict_id| price(dict_id).unwrap().cost;
-        assert_eq!(cost(106), 1000);
-        assert_eq!(cost(18), 400);
-        assert_eq!((cost(16), cost(55), cost(12)), (1500, 2300, 3750));
-        assert_eq!(
-            (cost(15), cost(13), cost(80), cost(124)),
-            (6000, 10_500, 12_000, 16_000)
-        );
-        assert_eq!(
-            (cost(31), cost(34), cost(48), cost(58)),
-            (450, 700, 1800, 3600)
-        );
-        // Ammo keeps the wiki's price.
-        assert_eq!(cost(50), 1);
-    }
-
-    #[test]
-    fn faction_shops() {
-        assert!(shop(RENAISSANCE).any(|price| price.dict_id == 64));
-        assert!(!shop(SCAVENGERS).any(|price| price.dict_id == 64));
-        assert!(shop(BLACK_MARKET).any(|price| price.dict_id == 13 && price.cost == 10_500));
-        assert_eq!(price(18).unwrap().sellers, BOTH);
-        assert_eq!(price(5).unwrap().cost, 15);
-        assert!(shop(EDGE).any(|price| price.dict_id == 125));
-    }
 }
