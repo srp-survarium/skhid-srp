@@ -85,9 +85,9 @@ simplified for now):
   one grip fit of the 318 whose frame is turned on its gun (a quarter turn: the PKP's grip rail
   is on its side; the others are turned under a degree), and its hand lies on it (20 mm) when
   placed at the grip's position in the gun's axes, not turned with the grip. So a grip's hand
-  locators read as: at the grip, in the gun's orientation. OPEN: the crate turns the hand with
-  the grip (`Hand::new`), which is the same hand on 317 fits and puts the PKP's beside its grip;
-  0.69d0's own code for these locators is not read.
+  locators read as: at the grip, in the gun's orientation. The core's `Hand::new` places them so
+  (e17ace688 on): SEEN, the PKP's hand at its grip (below); 0.69d0's own code for these locators
+  is not read.
 - **The finger joints are the hand's own.** COMPUTED over the built table: the finger joints of
   all thirteen grips' locators are one set (0.02 micrometres between grips), and that set is
   0.26g's hand skeleton, bone for bone (3.4 micrometres at most against the bind pose of 0.26g's
@@ -129,6 +129,48 @@ simplified for now):
     three grips (`Unseated`). The grip's clamp stands on the built-in suppressor, and a device
     takes the suppressor's place.
 
+## Seen in a game (2026-11-21)
+
+Headless clients on a local server, each gun wearing its grip as a real kit-slot-5 record (the
+grips lane's rig, `private/local-clients-attachments-grips`); pictures in
+`private/renders/attachments-grips/<tag>-*.png`, the first sample with its computed pictures beside
+it in `milestone-1-sample.png`. Quick content of 22 guns (`weapon-modules-quick`, the porter's
+`--only`) with `weapon-grips@1` and the UMP45's events: table version 2 on exe e17ace688, then
+version 3 on c8b28fb43. Every client's log has the table's line and none of a part not asked for,
+not loaded or with fewer bones; a drawn grip means its record survived the account's load.
+
+- **Every grip and every carrier is drawn**, on 22 guns: the ten grips, the thirteen tactical
+  forends (in place of the gun's own: the AK-74M's Midwest, the M4A1's, the AKMSU's Zenit B-11,
+  the AK-74U's Redheat, the L85A2's, the Valmet's long one, the SKS's...), the three rail brackets
+  and the barrel clamp (on the VAL's integral suppressor, the RK-2 hanging from it). A grip is
+  best seen in the reload, when the hand leaves it; the AFG-1 is too low to make out in the first
+  view.
+- **The left hand goes to the grip** in the first view: lower and under the forend against the
+  same gun without a grip (AK-74M, SKS, UMP45, FNC compared with the plain gun), and in the lobby
+  closed round the grip under the forend, where the lobby's random pose holds the gun with both
+  hands. Fingers through a part: none seen; at 1280x720 the hand hides most of the grip, so the
+  fingers' wrap is judged from the lobby crops and the hand's outline, not a close-up.
+- **The FN FNC's** flat forearm from the left is the gun's own hold (the plain FNC has it).
+- **The UMP45** (its events): plain, the hand wraps the forend from the side; with the Troy, it
+  sits under the front rail at the grip. That plain is main's own place is COMPUTED (0.3 mm).
+- **The PKP's own grip**: before `Hand::new` (c81ada3df) the hand is high in the air, off any part;
+  with it (e17ace688, c8b28fb43) a lattice arm runs out to the gun's left from its side rail and
+  the hand is closed round the handle at its end, as the computed "gun's axes" picture has it. In
+  the lobby the arm points away from the camera.
+- **The Mauser M.712's own grip**: the hand goes to a vertical grip at the pistol's front (seen in
+  the reload, the hand away). Aimed, the plain Mauser's two arms already cover much of the view;
+  with the grip the left forearm sits higher and covers more of its right half.
+- **The shop and the Attachments window** (c8b28fb43, content with the grips' compatibility rows
+  for the 22 guns, a local test only): under Upgrades, found by name, "FAB-Defense PTK foregrip",
+  6 000 silver, 0.69d0's picture; its card "Recoil -6%. Can be installed on: AK-74M, AKS-74U, SKS,
+  ..." with the loadout's gun highlighted. Bought ("Purchase completed FAB-Defense MIKI foregrip",
+  30 000 to 24 000 silver), dragged into the window's grip slot and confirmed: the account's gun
+  record became `9100:2660:0:5` (the MIKI in kit slot 5) and the PTK went back to the inventory;
+  the window's gun and the lobby's character show the MIKI under the forend. The window shows the
+  Optics slot and the grip slot; no muzzle device slot was shown on that gun.
+- **Not looked at**: the third view in a match, sprint and crouch with a grip, a second viewer, the
+  belt-fed guns' reload (the PKP's and the Fort-401's did not start in these sessions).
+
 ## State (2026-11-21)
 
 Done, and checked without a game:
@@ -137,23 +179,16 @@ Done, and checked without a game:
   `items.tsv`, their texts in the eleven tables, `weapon-grips-hand-events-1.json` (the UMP45);
   `tools/check weapon-grips` (the pack built anew has the manifest's hash; `grips.tsv`, the
   items' rows and the texts are what the sources make), `content-edit` and `localization` pass;
+- `release/build-content` (quick) with the pack and the UMP45's edit list, on table versions 2 and 3;
 - everything tagged COMPUTED above: the finger joints, the hand on twelve grips' meshes and off
   the PKP's, the UMP45's bone on its idle locator, the three own-part grips' hand places, the
   refused pairs on the built table.
 
 Not done:
 
-1. **Nothing of this lane has been seen in a game.** No grip item has been through
-   `release/build-content`, bought, fitted or drawn; no hand on a grip has been judged in the first
-   view. The one picture of a grip in a game is the core's (the AK-74M with the PTK grip set on its
-   config, `attachments.md`).
-2. The hand on each of the ten grips in the first view, up close, and in the lobby; the carriers
-   seen on a gun of each kind (thirteen forends, three brackets, the clamp); the UMP45 with and
-   without a grip after its clip events.
-3. The PKP's own grip: the hand beside it until the crate places a grip's hand by the grip's
-   position alone (above, OPEN).
-4. The card of a grip in the shop and in the Attachments window (the item has no card lines: its
-   description carries the numbers); the lobby's words for a refused pair.
-5. `release/build-content --full` with the grips' pack (the branch's one full build is the
+1. The lobby's words for a refused pair (the P90's and the VSK-94's 66 pairs): not tried in a game.
+2. The compatibility rows' manifest row (`weapon-modules-fits-1.json`, the lead's) goes in when the
+   lanes merge; the shop above used a local copy cut to the grips.
+3. `release/build-content --full` with the grips' pack (the branch's one full build is the
    integration's).
-6. The stats' later readers (aimed and hip recoil, the first three shots, aimed movement speed).
+4. The stats' later readers (aimed and hip recoil, the first three shots, aimed movement speed).
