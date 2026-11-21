@@ -76,6 +76,18 @@ simplified for now):
 
 ## The hand
 
+- **Where the hand's locators stand on a grip.** COMPUTED from 0.69d0's own module files over the
+  pack's meshes: each grip's sixteen hand locators laid over its mesh in all 24 axis
+  orientations. The one the table's rule gives (the hand's record without the half turn a part's
+  frame has, `attachments.md`) is the best of the 24 for every grip that is not symmetric, and
+  puts the finger joints a finger's thickness from the surface on twelve of the thirteen
+  (median 12 to 24 mm). The thirteenth is **the PKP's own**: 139 mm away by that rule. It is the
+  one grip fit of the 318 whose frame is turned on its gun (a quarter turn: the PKP's grip rail
+  is on its side; the others are turned under a degree), and its hand lies on it (20 mm) when
+  placed at the grip's position in the gun's axes, not turned with the grip. So a grip's hand
+  locators read as: at the grip, in the gun's orientation. OPEN: the crate turns the hand with
+  the grip (`Hand::new`), which is the same hand on 317 fits and puts the PKP's beside its grip;
+  0.69d0's own code for these locators is not read.
 - **The finger joints are the hand's own.** COMPUTED over the built table: the finger joints of
   all thirteen grips' locators are one set (0.02 micrometres between grips), and that set is
   0.26g's hand skeleton, bone for bone (3.4 micrometres at most against the bind pose of 0.26g's
