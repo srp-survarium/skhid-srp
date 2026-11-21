@@ -36,6 +36,17 @@ use crate::{AttachEye, DictId, Kind, Role};
 /// the eye to move to it (metres; 0.69d's own bound).
 const PLANE_BEHIND: f32 = -2.0;
 
+/// The step that takes the frame `line` along its own k (its line of sight)
+/// to the plane through `plane`'s origin normal to `plane`'s k, as a
+/// translation in the frames' space; None when it stays: its line runs along
+/// the plane, or the plane is more than 2 m behind it.
+pub(crate) fn slide_to_plane(line: &Affine, plane: &Affine) -> Option<Affine> {
+    let gap = [plane.t[0] - line.t[0], plane.t[1] - line.t[1], plane.t[2] - line.t[2]];
+    let along = dot(gap, plane.z) / dot(line.z, plane.z);
+    (along.is_finite() && along >= PLANE_BEHIND)
+        .then(|| Affine::translation(along * line.z[0], along * line.z[1], along * line.z[2]))
+}
+
 /// The parts of one gun at most: its own, a chain of carriers a kind, the
 /// fitted modules.
 const MAX_PARTS: usize = MAX_STOCK + Kind::ALL.len() * MAX_CHAIN + Kind::ALL.len();
@@ -308,13 +319,9 @@ impl<'t> Build<'t> {
     fn in_gun_plane(&self, eye: Placement) -> Result<Placement, Refusal> {
         let frame = |at: &Placement, bone: &Affine| Affine::HALF_TURN.then(&at.offset).then(bone);
         let (bone, own) = (self.bone(&eye)?, self.gun.body_aim());
-        let (line, plane) = (frame(&eye, &bone), frame(&own, &self.bone(&own)?));
-        let gap = [plane.t[0] - line.t[0], plane.t[1] - line.t[1], plane.t[2] - line.t[2]];
-        let along = dot(gap, plane.z) / dot(line.z, plane.z);
-        if !(along.is_finite() && along >= PLANE_BEHIND) {
+        let Some(slide) = slide_to_plane(&frame(&eye, &bone), &frame(&own, &self.bone(&own)?)) else {
             return Ok(eye);
-        }
-        let slide = Affine::translation(along * line.z[0], along * line.z[1], along * line.z[2]);
+        };
         let offset = eye.offset.then(&bone).then(&slide).then(&bone.inverse().ok_or(Refusal::Broken)?);
         Ok(Placement { bone: eye.bone, offset })
     }

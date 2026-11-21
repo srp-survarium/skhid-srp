@@ -44,10 +44,10 @@ const FN_P90: u16 = 1220;
 /// The gun's `offset` bone, which every slot hangs on (as on the stock AK-74M).
 const OFFSET_BONE: u16 = 1;
 
-/// A made-up locator: a quarter turn about y and a place of its own.
 /// Every sample gun's own eye, on the offset bone.
 const BODY_AIM: Affine = Affine::translation(0.0, 0.06, -0.12);
 
+/// A made-up locator: a quarter turn about y and a place of its own.
 fn locator(n: u8) -> Affine {
     let n = f32::from(n);
     Affine { x: [0.0, 0.0, -1.0], y: [0.0, 1.0, 0.0], z: [1.0, 0.0, 0.0], t: [0.01 * n, 0.002 * n, 0.1 + 0.03 * n] }
@@ -358,6 +358,23 @@ fn a_scope_folds_the_sights() {
         assert!(along.abs() > 0.1 && (0..3).all(|k| (step[k] - along * line.z[k]).abs() < 1e-5));
         assert!(bare.optic.is_none());
     });
+}
+
+/// 0.69d's two cases of `plane_slot` that leave the eye whole: a line of
+/// sight along the plane, and a plane more than 2 m behind the eye.
+#[test]
+fn an_eye_stays_whole_off_its_plane() {
+    use crate::resolve::slide_to_plane;
+    let plane = Affine::translation(0.0, 0.06, -0.12);
+    let at = |z: f32, k: [f32; 3]| Affine { z: k, t: [0.0, 0.07, z], ..Affine::IDENTITY };
+    let step = |z: f32, k: [f32; 3]| slide_to_plane(&at(z, k), &plane).map(|step| step.t);
+    let ahead = [0.0, 0.0, 1.0];
+    assert!(step(0.1, ahead).is_some_and(|[x, y, z]| x == 0.0 && y == 0.0 && (z + 0.22).abs() < 1e-6));
+    // the plane 1.92 m behind: moved; 2.02 m behind: whole
+    assert!(step(1.8, ahead).is_some());
+    assert_eq!(step(1.9, ahead), None);
+    // a line along the plane
+    assert_eq!(step(0.1, [1.0, 0.0, 0.0]), None);
 }
 
 /// 0.69d0: a rail optic on the AK-74M stands on a dovetail rail, which the
