@@ -118,8 +118,12 @@ impl Role {
 /// `slots_to_override` of `aim` and `fire_point`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Point {
+    /// The eye, the locator whole ([`AttachEye::Own`]).
     Eye,
     FirePoint,
+    /// The eye, the locator's line at the gun's own eye plane
+    /// ([`AttachEye::InGunPlane`]).
+    EyeInGunPlane,
 }
 
 impl Point {
@@ -127,6 +131,7 @@ impl Point {
         match self {
             Point::Eye => 0,
             Point::FirePoint => 1,
+            Point::EyeInGunPlane => 2,
         }
     }
 
@@ -134,7 +139,30 @@ impl Point {
         match byte {
             0 => Some(Point::Eye),
             1 => Some(Point::FirePoint),
+            2 => Some(Point::EyeInGunPlane),
             _ => None,
+        }
+    }
+}
+
+/// Where a module puts the eye: its own `aim` locator, and what of it the
+/// eye takes (0.69d's `slots_to_override { id: aim }`, without and with
+/// `plane_slot: body_aim`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum AttachEye {
+    /// The locator whole: a magnified scope brings its eye relief.
+    Own(Affine),
+    /// The locator's axes and its line of sight, at the plane of the gun's
+    /// own eye ([`Gun::body_aim`]): a collimator, an iron sight and a rail
+    /// mount give the line, and the gun keeps its eye relief.
+    InGunPlane(Affine),
+}
+
+impl AttachEye {
+    /// The module's `aim` locator, in its model.
+    pub fn locator(&self) -> &Affine {
+        match self {
+            AttachEye::Own(locator) | AttachEye::InGunPlane(locator) => locator,
         }
     }
 }
