@@ -523,3 +523,18 @@ and stops when one differs. On the players' files (the stock db and the patches 
 release/patches.tsv up to 49): 40 files edited (39 rounds), 0 unexpected differences; each weapon's
 best round: 82 Concrete, 11 Plywood, 7 Brick, 2 Stone (the VSSKs' VPS), 1 Tinplate. Presentation
 only: no simulation change.
+
+## scope-modules-1.json (2026-11-21)
+
+Made by `../scope-fits/modules_edit.py` from the record of the weapon-modules pack's build
+(resource-porter's `port-modules`, its `modules-069d.json`); make it again, not this file. It names
+the pack's models, so it comes after the pack, and after the scope lists above
+(`../../docs/notes/attachments-scopes.md`).
+
+| change | why |
+|---|---|
+| each shop scope item's `data/idle_model` and `data/aimed_model` (the optics of the record) | one pair of models an optic, 0.69d0's own, their origin the optic's slot: the modules table places them on every gun; the items showed one variant's pair before |
+| each shop scope item's modification, now 994000 + its dict id (it was 991000 + it): its `[srp_scope_noop]` set 0 stays first (no key changes its type) and two modifiers follow: a type 3 add of `[srp_scope, <its dict id>]` to the weapon's `data` and a type 0 set of the weapon's `parameters/aim_offset` to 0 | an upgrade record of a scope now holds the scope item's own dict id; the game fits the scope from `data/srp_scope` (patch 161) and the eye is the table's alone |
+| an `items_compatibility` row (`compatibility_<scope><weapon>`) for each pair the table has and no release had | the lobby movie greys a scope by these rows; the released pairs have theirs |
+
+A view-only change: no simulation row.
