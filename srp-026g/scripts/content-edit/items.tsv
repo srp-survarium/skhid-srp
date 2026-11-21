@@ -913,6 +913,16 @@ items	name	base_cost	premium	like	start
 2656	srp_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake	6000	false		
 2657	srp_muzzle_zenit_dtk4_m24x15_muzzlebrake	6000	false		
 2658	srp_muzzle_zenit_dtk4_m30x1_clamp_firearrestor	4500	false		
+2659	srp_grip_ak_zenit_rk2_foregrip	6000	false		
+2660	srp_grip_fabdefence_miki_foregrip	6000	false		
+2661	srp_grip_fabdefence_ptk_foregrip	6000	false		
+2662	srp_grip_fort401_foregrip	6000	false		
+2663	srp_grip_gandp_ris_foregrip	6000	false		
+2664	srp_grip_imi_fsg2_foregrip	6000	false		
+2665	srp_grip_magpul_afg1_foregrip	6000	false		
+2666	srp_grip_mauser_m712_foregrip	6000	false		
+2668	srp_grip_pkp_pecheneg_foregrip	6000	false		
+2671	srp_grip_troy_modular_foregrip	6000	false		
 2701	fitn_ncstar_4_a_545	0	false		
 2702	fitn_ncstar_4_aek_919k	0	false		
 2703	fitn_ncstar_4_ak_12	0	false		

@@ -155,6 +155,8 @@ st_ak74u_description	Укороченная модификация автома�
 st_ak74u_name	АКC-74У
 st_ak74u_premium_description	Укороченная модификация автомата АК74 под боеприпас 5.45х39. Благодаря своим размерам, широко использовался десантниками, МВД и охранными структурами. Поддерживает одиночный и автоматический режим стрельбы. Премиум-версия в особом камуфляже.
 st_ak74u_premium_name	АКС-74У "Корсар"
+st_ak_zenit_rk2_foregrip_desc	Отдача -4%. Время прицеливания +1.5%.
+st_ak_zenit_rk2_foregrip_name	Тактическая рукоять Зенит РК-2
 st_akmn_description	Автомат Калашникова модернизированный под 7.62×39мм патрон. Благодаря мощному патрону не теряет своей актуальности и в на ше время. Поддерживает одиночный и автоматический режим стрельбы.
 st_akmn_name	АКМ
 st_akmn_premium_2_description	Автомат Калашникова модернизированный под 7.62×39мм патрон. Благодаря мощному патрону не теряет своей актуальности и в на ше время. Поддерживает одиночный и автоматический режим стрельбы. Премиум-версия в особом камуфляже.
@@ -1129,6 +1131,10 @@ st_exp_reward_match	Получено опыта за матч
 st_exp_reward_premium	Бонус за премиум
 st_experience	Опыт
 st_experience_modifier	Получаемый опыт
+st_fabdefence_miki_foregrip_desc	Отдача -4%.
+st_fabdefence_miki_foregrip_name	Рукоять FAB-Defense MIKI
+st_fabdefence_ptk_foregrip_desc	Отдача -6%.
+st_fabdefence_ptk_foregrip_name	Рукоять FAB-Defense PTK
 st_face_069d_balaclava_3_hole_desc	Вязаная балаклава с прорезями для глаз и рта. Тёплая и скрывает лицо.
 st_face_069d_balaclava_3_hole_name	Трёхдырочная балаклава
 st_face_069d_balaclava_desc	Облегающая армейская балаклава с одной прорезью для глаз, сделанная для ношения под шлемом.
@@ -1213,6 +1219,8 @@ st_fn_minimi_description	Бельгийский ручной пулемет по
 st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Бельгийское оружие самообороны под боеприпас 5.7х28. Создано FN Herstal около 1990 года вместе с собственным патроном; «буллпап» с магазином на 50 патронов вдоль верха оружия. Служит в спецназе и полиции многих стран. Огонь: одиночный и автоматический.
 st_fn_p90_name	FN P90
+st_fort401_foregrip_desc	Отдача -6%.
+st_fort401_foregrip_name	Штатная рукоять Форт-401
 st_fort_17_description	Украинский самозарядный пистолет под калибр 9х18. В серийное производство запущен в 2004 году. Использовался внутренними войсками и некоторыми спецподразделениями. Оснащен магазином на 12 патронов.
 st_fort_17_name	Форт 17
 st_fort_401_description	Украинский ручной пулемёт, патрон: 7,62x51. Лицензионный Negev из Винницы, питание из короба на 100 патронов.
@@ -1236,6 +1244,8 @@ st_friendly_user_compliment	Дружелюбный
 st_friends_online	Друзья онлайн
 st_friends_signin_notification_option	Оповещать о появлении друзей в сети
 st_fullscreen_option	Полноэкранный режим
+st_gandp_ris_foregrip_desc	Отдача -4%. Время прицеливания +1.5%.
+st_gandp_ris_foregrip_name	Рукоять G&P RIS
 st_general_volume_option	Общий
 st_generic_money_name	Рубли
 st_geometry_quality_option	Качество геометрии
@@ -1282,6 +1292,8 @@ st_hud_tutorial_frame_6_text_1	В бой!
 st_hud_tutorial_frame_6_text_2	Вы завершили базовый курс\nбоевой подготовки. Удачи!
 st_hud_tutorial_frame_6_text_3	Ваша награда:
 st_ignored	Черный список
+st_imi_fsg2_foregrip_desc	Отдача -2%.
+st_imi_fsg2_foregrip_name	Рукоять FSG2
 st_in_develepoment_hint	В процессе разработки
 st_ingame_volume_option	Игра
 st_injury_penalty_description	Штраф дисперсии при ранении рук:
@@ -1455,6 +1467,8 @@ st_m4a1_description	Американский карабин под боепри�
 st_m4a1_name	М4А1
 st_magnum_description	Шестизарядный револьвер калибра .357 Магнум. Впервые был представлен в 1955 году. Некоторые считают, что это один из лучших представителей своего класса. Отличается мягким спуском и высокой точность.
 st_magnum_name	Кольт Питон
+st_magpul_afg1_foregrip_desc	Отдача -6%.
+st_magpul_afg1_foregrip_name	Рукоять AFG-1
 st_maintenance	Началось техническое обслуживание серверов. Приложение будет закрыто.
 st_map	Карта
 st_match_items_found	Найдено
@@ -1479,6 +1493,8 @@ st_match_settings_checkbox_training_match	Тренировочный бой
 st_match_settings_checkbox_training_match_hint	Режим тренировочной комнаты
 st_match_settings_clan_match	Клановый бой
 st_match_time_is_up	Время матча истекло!
+st_mauser_m712_foregrip_desc	Отдача -6%.
+st_mauser_m712_foregrip_name	Рукоять Mauser M.712
 st_max_carried_weight_description	Переносимый вес:
 st_max_carried_weight_name	Силач
 st_max_carried_weight_ultimate_description	Переносимый вес больше не влияет на скорость передвижения, но вы не можете спринтовать.
@@ -1811,6 +1827,8 @@ st_picatinny_scope_medium_name	Оптика / коллиматоры
 st_pickup_item	Поднять ({USE})
 st_ping_postfix	мс.
 st_pkp_pecheneg_description	Российский единый пулемет под боеприпас 7.62х54R. Создан в ЦНИИТочМаш на основе ПКМ, на вооружении с 2001 года; тяжелый ствол с принудительным охлаждением позволяет вести длинные очереди без замены. Лента на 100 патронов. Огонь: одиночный и автоматический.
+st_pkp_pecheneg_foregrip_desc	Отдача -6%.
+st_pkp_pecheneg_foregrip_name	Рукоять ПКП
 st_pkp_pecheneg_name	ПКП "Печенег"
 st_place	Место
 st_play_button	Играть
@@ -3178,6 +3196,8 @@ st_toz66_description	Обрез охотничей двустволки под �
 st_toz66_name	ТОЗ-66
 st_trap_damage	Урон от ловушки
 st_treasure_map_advert	Используйте карту схрона, чтобы найти больше предметов
+st_troy_modular_foregrip_desc	Отдача -6%. Время прицеливания +1.5%.
+st_troy_modular_foregrip_name	Рукоять Troy Modular
 st_tt_description	Тульский Токарева образца 1933 года под боеприпас 7.62х25мм. Разработан в 30-х годах двадцатого столетия и является первым самозарядным армейский пистолетом СССР. Магазин вмещает 8 патронов. 
 st_tt_name	ТТ-33
 st_turn_down_action	

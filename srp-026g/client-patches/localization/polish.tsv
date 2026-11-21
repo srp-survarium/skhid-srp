@@ -155,6 +155,8 @@ st_ak74u_description	Skrócona wersja karabinku AK-74, amunicja: 5.45х39. Dzię
 st_ak74u_name	AKS-74U
 st_ak74u_premium_description	Skrócona wersja karabinku AK-74, amunicja: 5.45x39. Dzięki jego niewielkim rozmiarom wykorzystywany był przez piechotę morską, MSW i funkcjonariuszy ochrony. Posiada tryb ognia pojedynczego i ciągłego. Wersja premium w specjalnym malowaniu kamuflażowym.
 st_ak74u_premium_name	AKS-74U Korsar
+st_ak_zenit_rk2_foregrip_desc	Odrzut -4%. Czas celowania +1.5%.
+st_ak_zenit_rk2_foregrip_name	Chwyt taktyczny Zenit RK-2
 st_akmn_description	Automat Kałasznikowa, dostosowany do pocisków 7.62×39 mm. Dzięki solidnym pociskom broń znajduje zastosowanie także obecnie. Posiada tryb ognia pojedynczego i ciągłego.
 st_akmn_name	AKM
 st_akmn_premium_2_description	Automat Kałasznikowa, dostosowany do pocisków 7.62×39 mm. Dzięki solidnym pociskom broń znajduje zastosowanie także obecnie. Posiada tryb ognia pojedynczego i ciągłego. Wersja premium w specjalnym malowaniu kamuflażowym.
@@ -1129,6 +1131,10 @@ st_exp_reward_match	Zdobyte doświadczenie
 st_exp_reward_premium	Bonus premium
 st_experience	Doświadczenie
 st_experience_modifier	Otrzymane doświadczenie
+st_fabdefence_miki_foregrip_desc	Odrzut -4%.
+st_fabdefence_miki_foregrip_name	Uchwyt przedni Fab-Defense MIKI
+st_fabdefence_ptk_foregrip_desc	Odrzut -6%.
+st_fabdefence_ptk_foregrip_name	Uchwyt przedni Fab-Defense PTK
 st_face_069d_balaclava_3_hole_desc	Dziana kominiarka z otworami na oczy i usta. Grzeje i zakrywa twarz.
 st_face_069d_balaclava_3_hole_name	Kominiarka z 3 otworami
 st_face_069d_balaclava_desc	Przylegająca wojskowa kominiarka z jednym otworem na oczy, do noszenia pod hełmem.
@@ -1213,6 +1219,8 @@ st_fn_minimi_description	Belgijski ręczny karabin maszynowy, amunicja: 5,56x45.
 st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Belgijska broń osobista typu PDW, amunicja: 5,7x28. Opracowana przez FN Herstal około 1990 r. razem z własnym nabojem; układ bullpup i 50-nabojowy magazynek leżący wzdłuż górnej części broni. Używana przez jednostki specjalne i policję w wielu krajach. Posiada tryb ognia pojedynczego i ciągłego.
 st_fn_p90_name	FN P90
+st_fort401_foregrip_desc	Odrzut -6%.
+st_fort401_foregrip_name	Standardowy uchwyt przedni Fort-401
 st_fort_17_description	Pistolet samopowtarzalny ukraińskiej konstrukcji, amunicja: 9х18. Seryjną produkcję rozpoczęto w 2004 r. Używany był przez siły wewnętrzne i niektóre oddziały sił specjalnych. Wyposażony w 12-nabojowy magazynek.
 st_fort_17_name	Fort 17
 st_fort_401_description	Ukraiński ręczny karabin maszynowy, amunicja: 7,62x51. Licencyjny Negev z Winnicy, zasilany z pudełka na 100 nabojów.
@@ -1236,6 +1244,8 @@ st_friendly_user_compliment	Przyjazny gracz
 st_friends_online	Znajomi online
 st_friends_signin_notification_option	Powiadom mnie, gdy znajomi zmienią status na online
 st_fullscreen_option	Pełny ekran
+st_gandp_ris_foregrip_desc	Odrzut -4%. Czas celowania +1.5%.
+st_gandp_ris_foregrip_name	Uchwyt przedni G&P RIS
 st_general_volume_option	Ogólny
 st_generic_money_name	Monety
 st_geometry_quality_option	Jakość geometrii
@@ -1282,6 +1292,8 @@ st_hud_tutorial_frame_6_text_1	Do boju!
 st_hud_tutorial_frame_6_text_2	Udało ci się ukończyć podstawowe\nszkolenie bojowe. Powodzenia!
 st_hud_tutorial_frame_6_text_3	Twoja nagroda:
 st_ignored	Wyświetl ignorowanych graczy
+st_imi_fsg2_foregrip_desc	Odrzut -2%.
+st_imi_fsg2_foregrip_name	Uchwyt przedni FSG2
 st_in_develepoment_hint	W procesie tworzenia
 st_ingame_volume_option	Gra
 st_injury_penalty_description	Kara do rozrzutu przy zranieniu rąk:
@@ -1455,6 +1467,8 @@ st_m4a1_description	Amerykański karabinek, amunicja: 5,56x45. Skrócone i lżej
 st_m4a1_name	M4A1
 st_magnum_description	Sześciostrzałowy rewolwer kalibru .357 Magnum. Wprowadzony do użytku w 1955 r. Przez niektórych uważany za najlepszy w swojej klasie. Wyróżnia się płynnie działającym mechanizmem spustowym i wysoką precyzją strzału.
 st_magnum_name	Colt Python
+st_magpul_afg1_foregrip_desc	Odrzut -6%.
+st_magpul_afg1_foregrip_name	Uchwyt przedni AFG-1
 st_maintenance	Trwa konserwacja techniczna serwerów. Aplikacja zostanie zamknięta.
 st_map	Mapa
 st_match_items_found	Znaleziono
@@ -1479,6 +1493,8 @@ st_match_settings_checkbox_training_match	Rozgrywka treningowa
 st_match_settings_checkbox_training_match_hint	Tryb sali treningowej
 st_match_settings_clan_match	Bitwa klanowa
 st_match_time_is_up	Czas rozgrywki dobiegł końca!
+st_mauser_m712_foregrip_desc	Odrzut -6%.
+st_mauser_m712_foregrip_name	Chwyt Mauser M.712
 st_max_carried_weight_description	Udźwig:
 st_max_carried_weight_name	Siłacz
 st_max_carried_weight_ultimate_description	Udźwig nie wpływa już na prędkość poruszania się, ale nie możesz biec.
@@ -1811,6 +1827,8 @@ st_picatinny_scope_medium_name	Optyka / kolimatory
 st_pickup_item	Podnieś ({USE})
 st_ping_postfix	ms
 st_pkp_pecheneg_description	Rosyjski uniwersalny karabin maszynowy, amunicja: 7,62x54R. Opracowany w CNIITocznMasz na bazie PKM i przyjęty na uzbrojenie w 2001 r.; ciężka lufa z osłoną wymuszonego chłodzenia powietrzem pozwala na długie serie bez wymiany lufy. Zasilany z taśmy na 100 nabojów. Posiada tryb ognia pojedynczego i ciągłego.
+st_pkp_pecheneg_foregrip_desc	Odrzut -6%.
+st_pkp_pecheneg_foregrip_name	Standardowy uchwyt przedni PKP
 st_pkp_pecheneg_name	PKP Pieczenieg
 st_place	Połóż
 st_play_button	Graj
@@ -3178,6 +3196,8 @@ st_toz66_description	Dubeltówka myśliwska, amunicja: 12x70. Zdolność do odda
 st_toz66_name	TOZ-66
 st_trap_damage	Obrażenia od pułapek
 st_treasure_map_advert	Skorzystaj z mapy skrytek, aby znaleźć ukryte przedmioty.
+st_troy_modular_foregrip_desc	Odrzut -6%. Czas celowania +1.5%.
+st_troy_modular_foregrip_name	Uchwyt przedni Troy Modular
 st_tt_description	Pistolet TT został wprowadzony do użytku w 1933 r., amunicja: 7.62х25mm. Zaprojektowany w latach 30. XX wieku, stał się pierwszym samopowtarzalnym wojskowym pistoletem ZSSR. Wyposażony w 8-nabojowy magazynek. 
 st_tt_name	TT-33
 st_turn_down_action	

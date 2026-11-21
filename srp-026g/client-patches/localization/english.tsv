@@ -155,6 +155,8 @@ st_ak74u_description	A shortened version of AK74 submachine gun, ammo: 5.45х39.
 st_ak74u_name	AKS-74U
 st_ak74u_premium_description	A shortened version of AK74 submachine gun, ammo: 5.45x39. Thanks to its size, it was used by marines, MIA and security organizations. Supports single and burst shooting. Premium version in a special camouflage finish.
 st_ak74u_premium_name	AKS-74U Corsair
+st_ak_zenit_rk2_foregrip_desc	Recoil -4%. Aim time +1.5%.
+st_ak_zenit_rk2_foregrip_name	Zenit RK-2 tactical grip
 st_akmn_description	Kalshnikov assault rifle modified to use 7.62x39mm ammunition. Its power and reliability make it a weapon that is still useful today. Supports single shot and automatic fire modes.
 st_akmn_name	AKM
 st_akmn_premium_2_description	Kalshnikov assault rifle modified to use 7.62x39mm ammunition. Its power and reliability make it a weapon that is still useful today. Supports single shot and automatic fire modes. Premium version in a special camouflage finish.
@@ -1129,6 +1131,10 @@ st_exp_reward_match	Experience gained
 st_exp_reward_premium	Premium bonus
 st_experience	Experience
 st_experience_modifier	Experience received
+st_fabdefence_miki_foregrip_desc	Recoil -4%.
+st_fabdefence_miki_foregrip_name	FAB-Defense MIKI foregrip
+st_fabdefence_ptk_foregrip_desc	Recoil -6%.
+st_fabdefence_ptk_foregrip_name	FAB-Defense PTK foregrip
 st_face_069d_balaclava_3_hole_desc	A knitted balaclava with holes for the eyes and the mouth. Warm, and it hides the face.
 st_face_069d_balaclava_3_hole_name	3-Hole Balaclava
 st_face_069d_balaclava_desc	A close-fitting army balaclava with one opening for the eyes, made to be worn under a helmet.
@@ -1213,6 +1219,8 @@ st_fn_minimi_description	Belgian light machine gun, ammo: 5.56x45. FN Herstal's 
 st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Belgian personal defence weapon, ammo: 5.7x28. Developed by FN Herstal around 1990 together with its own cartridge; a bullpup with a 50-round magazine lying along the top of the weapon. Used by special forces and police in many countries. Supports single and automatic fire.
 st_fn_p90_name	FN P90
+st_fort401_foregrip_desc	Recoil -6%.
+st_fort401_foregrip_name	Fort-401 standard foregrip
 st_fort_17_description	A Ukrainian self-loading pistol, ammo: 9х18. Manufacturing started in 2004. It was used by internal army and some special forces units. Ammo supply: 12 rounds. 
 st_fort_17_name	Fort 17
 st_fort_401_description	Ukrainian light machine gun, ammo: 7.62x51. A Negev made under licence in Vinnytsia, fed from a 100-round box.
@@ -1236,6 +1244,8 @@ st_friendly_user_compliment	Friendly
 st_friends_online	Friends online
 st_friends_signin_notification_option	Notify when friends are online
 st_fullscreen_option	Full screen mode
+st_gandp_ris_foregrip_desc	Recoil -4%. Aim time +1.5%.
+st_gandp_ris_foregrip_name	G&P RIS foregrip
 st_general_volume_option	Master
 st_generic_money_name	Rubles
 st_geometry_quality_option	Geometry quality
@@ -1282,6 +1292,8 @@ st_hud_tutorial_frame_6_text_1	To battle!
 st_hud_tutorial_frame_6_text_2	You've completed the basic course\nof combat training. Good luck!
 st_hud_tutorial_frame_6_text_3	Your reward:
 st_ignored	Black list
+st_imi_fsg2_foregrip_desc	Recoil -2%.
+st_imi_fsg2_foregrip_name	FSG2 foregrip
 st_in_develepoment_hint	In development
 st_ingame_volume_option	Game
 st_injury_penalty_description	Dispersion penalty when hands are wounded:
@@ -1455,6 +1467,8 @@ st_m4a1_description	American carbine, ammo: 5.56x45. A shortened, lighter develo
 st_m4a1_name	M4A1
 st_magnum_description	A six-round revolver of .357 Magnum caliber. It was introduced in 1955. Some believe it is one of the best in its class. Stands out with its smooth release and high precision.
 st_magnum_name	Colt Python
+st_magpul_afg1_foregrip_desc	Recoil -6%.
+st_magpul_afg1_foregrip_name	AFG-1 foregrip
 st_maintenance	Servers technical maintenance is in progress. The application will close.
 st_map	Map
 st_match_items_found	Found
@@ -1479,6 +1493,8 @@ st_match_settings_checkbox_training_match	Training match
 st_match_settings_checkbox_training_match_hint	Training room mode
 st_match_settings_clan_match	Clan match
 st_match_time_is_up	Match time is over!
+st_mauser_m712_foregrip_desc	Recoil -6%.
+st_mauser_m712_foregrip_name	Mauser M.712 grip
 st_max_carried_weight_description	Portable weight:
 st_max_carried_weight_name	Athlete
 st_max_carried_weight_ultimate_description	Portable weight no longer affects movement speed, but you can't sprint.
@@ -1811,6 +1827,8 @@ st_picatinny_scope_medium_name	Optics / collimators
 st_pickup_item	Pick up ({USE})
 st_ping_postfix	ms
 st_pkp_pecheneg_description	Russian general-purpose machine gun, ammo: 7.62x54R. Developed by TsNIITochMash on the basis of the PKM and adopted in 2001; its heavy barrel with a forced-air cooling jacket allows long bursts without a barrel change. Fed from a 100-round belt. Supports single and automatic fire.
+st_pkp_pecheneg_foregrip_desc	Recoil -6%.
+st_pkp_pecheneg_foregrip_name	PKP standard foregrip
 st_pkp_pecheneg_name	PKP "Pecheneg"
 st_place	Place
 st_play_button	Play
@@ -3178,6 +3196,8 @@ st_toz66_description	A hunter's double-barrel rifle shotgun, ammo: 12x70. Its ab
 st_toz66_name	TOZ-66
 st_trap_damage	Trap damage
 st_treasure_map_advert	Use the stash map to find more items.
+st_troy_modular_foregrip_desc	Recoil -6%. Aim time +1.5%.
+st_troy_modular_foregrip_name	Troy Modular foregrip
 st_tt_description	Tulsky Tokarev was introduced in 1933, ammo: 7.62х25mm. Designed in the 1930s to become the first self-loading army pistol in USSR. Clip capacity: 8 rounds.
 st_tt_name	TT-33
 st_turn_down_action	
