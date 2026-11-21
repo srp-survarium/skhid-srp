@@ -6,6 +6,45 @@ bits 32
 section .text
 %include "rust_hook_026g.inc"
 
+; 0x295aa5 process_hands_ik (0x2959D0; mt_draw's bone pass, the held item's controller) in the first person with the aim's progress above 0, before its call of calculate_aim_alignment (0x295AAD): mov eax,[esp+1Ch] / lea esi,[esp+24h]; ECX the item's bones' matrices (its [ebp+10h], loaded at 0x295A9C), the site's ESP+1Ch the weapon (the EAX the replayed mov loads): lohook -> aim_pose_on_aim_alignment
+global aim_pose_on_aim_alignment
+extern hook_aim_pose_on_aim_alignment
+aim_pose_on_aim_alignment:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_aim_pose_on_aim_alignment
+    mov edx, aim_pose_on_aim_alignment_replay
+    cmp eax, 0
+    je aim_pose_on_aim_alignment_go
+    mov edx, 0x295aad
+    cmp eax, 1
+    je aim_pose_on_aim_alignment_go
+    ud2
+aim_pose_on_aim_alignment_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+aim_pose_on_aim_alignment_replay:
+    db 0x8b, 0x44, 0x24, 0x1c, 0x8d, 0x74, 0x24, 0x24
+    jmp 0x295aad
+
 ; 0x2d65ee the animations registry's lookup (0x2D6590, called only by base_player::animation_id_resolver 0x2D7C26) found no entry for the pair and is about to return 0FFFFh (pop edi / pop esi / mov eax,0FFFFh; reached by the three misses at 0x2D65D3, 0x2D65DA, 0x2D65E2): EDI the pair asked for, ESP+10h the registry, EBP the resolver's frame: lohook -> animation_id_log_on_id_missing
 global animation_id_log_on_id_missing
 extern hook_animation_id_log_on_id_missing
