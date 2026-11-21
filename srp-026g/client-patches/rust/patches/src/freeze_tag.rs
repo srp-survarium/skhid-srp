@@ -94,7 +94,7 @@ pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
     // round's restart spawns it.
     match state.schedule() {
         Schedule::CancelFrozen(frozen) => frozen.iter().for_each(|place| world.unschedule(place)),
-        Schedule::HoldDue => world.hold_due(),
+        Schedule::CancelAll => world.cancel_all(),
         Schedule::Native => {}
     }
     // The pause and the restart play the match start's countdown, as Artifact Hunt's round.

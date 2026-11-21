@@ -189,10 +189,9 @@ fn the_maps_played_are_playable_ones_of_the_modes_asked_for() {
         parse_modes("6,8"),
         Some(vec![maps::GameMode::Blackout, maps::GameMode::FreeForAll])
     );
-    // Artifact Hunt is 13; 7 (Scarcity's) and 12 (Freeze Tag's) are no mode yet.
-    assert_eq!(parse_modes("13"), Some(vec![maps::GameMode::ArtefactHunt]));
+    // Freeze Tag is 12 and Artifact Hunt 13; 7 (Scarcity's) is no mode yet.
+    assert_eq!(parse_modes("12, 13"), Some(vec![maps::GameMode::FreezeTag, maps::GameMode::ArtefactHunt]));
     assert_eq!(parse_modes("7"), None);
-    assert_eq!(parse_modes("12"), None);
     // 0.21d's modes 0 and 1 are none of 0.26g's; nothing is not a list.
     assert_eq!(parse_modes("1,2"), None);
     assert_eq!(parse_modes(""), None);

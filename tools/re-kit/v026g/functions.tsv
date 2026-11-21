@@ -2239,7 +2239,6 @@ va	status	ref_021d	name
 0x003422f0	reviewed	0x0020cf4f	survarium::short_jump_landing_state::serialize
 0x002ab6e0	reviewed	0x001afe7d	boost::random::detail::new_uniform_01<float>::operator()<boost::random::linear_congruential_engine<unsigned int,48271,0,2147483647> >
 0x002ddad0	observed		survarium::game_effect_player::serialize
-0x00301470	observed	0x001e7a74	survarium::victory_item_core::serialize
 0x00334310	observed		survarium::composite_game_effect::serialize
 0x0026d660	reviewed	0x0019bf64	survarium::base_local_network_client::get_player
 0x00397040	reviewed	0x0024df70	vostok::animation::mixing::n_ary_tree_serializer::save_floats
@@ -2258,7 +2257,6 @@ va	status	ref_021d	name
 0x00356d50	observed		vostok::physics::bt_dynamic_rigid_body::get_collision_group
 0x00357a90	observed		vostok::physics::bt_ghost_object::get_collision_group
 0x00246ed0	observed		[thunk]:survarium::victory_item_core::get_transform`adjustor{20}'
-0x0021beb0	observed		survarium::network_client::connect_to_match
 0x0027b880	observed		survarium::network_client::process_static_match_info
 0x0027aa20	verified	0x001a25cc	survarium::network_client::on_match_ready
 0x0027aed0	verified	0x001a27c4	survarium::network_client::query_players
@@ -2475,3 +2473,14 @@ va	status	ref_021d	name
 0x00238230	reviewed	0x0018257b	survarium::game_world_ui::draw_damage_collector
 0x00246f10	observed		survarium::player::tick
 0x00316820	observed		survarium::player_respawn_rule_base::tick
+0x0031d040	reviewed	0x001f7dbf	survarium::breath_state_normal::tick
+0x0031d0a0	reviewed	0x001f7e12	survarium::breath_state_shortbreathing::tick
+0x0031d0d0	reviewed	0x001f7e41	survarium::breath_state_shortbreathing::is_ready_for_transition
+0x0031d140	reviewed	0x001f7e5c	survarium::breath_state_holding::initialize
+0x0031d190	reviewed	0x001f7e9b	survarium::breath_state_holding::finalize
+0x0031d200	reviewed	0x001f7ed0	survarium::breath_state_holding::tick
+0x0031d3b0	reviewed	0x001f7fdb	survarium::breath_vibration_calculator::can_hold_breath
+0x0031d400	reviewed	0x001f8023	survarium::breath_vibration_calculator::not_holding_breath
+0x0031d430	reviewed	0x001f8046	survarium::breath_vibration_calculator::insufficient_breath
+0x0031d450	reviewed	0x001f8053	survarium::breath_vibration_calculator::initialize_logic
+0x0023ddd0	observed		survarium::base_game_scene::apply_camera

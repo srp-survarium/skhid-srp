@@ -582,6 +582,11 @@ Patches:
   falloff by speed (0x32EE90) no longer writes the bullet's piercing
   (PIERCE_DISTANCE, 0x32F174); its damage falls as before. Walls and
   ricochets lower it as before. A simulation change;
+- every wall costs a bullet something (patch 175, docs/notes/client_patch.md
+  section 3.96): try_pierce's k is 1 - (A / P)^2 (PIERCE_WALLS, 0x32D99E),
+  not 1 - (1 - clamp((P - A) / A, 0, 1))^2, which was 1 from P = 2A on.
+  A = 0 still lets a bullet through whole, P <= A still stops it. A
+  simulation change;
 - a thrown grenade stays above the ground (patch 105, with the late join;
   docs/notes/grenade_ccd.md): grenade_core::load's continuous collision
   sweeps a sphere of 0.04 m (GRENADE_CCD, 0x303A13), not 0.01 m, inside the
@@ -965,6 +970,28 @@ BAKED_TEXTURE_MISSING = (0x131C1E, bytes.fromhex("7553"), bytes.fromhex("eb53"))
 AI_ARENA_VA = 0x1E8CCB
 AI_ARENA_SIZE = 0x400000
 AI_ARENA = (AI_ARENA_VA, bytes.fromhex("c744241800000400"), bytes.fromhex("c744241800004000"))
+
+# Patch 161: the arena an upgraded item's config is rebuilt in.
+# configs::create_binary_config_buffer (0x358AA0; its one caller the item
+# config cook, 0x2F1E1B) builds the config's items, with the upgrades'
+# modifications applied, in a stack arena "create_binary_config_buffer:
+# items": `mov eax,4000h` / `call _alloca_probe` at 0x358AA8, then
+# base_allocator::initialize (0xE53B0) with `push 4000h` at 0x358ABC. The
+# allocator (vtable 0x9E7E54) is a bump of its pointer and nothing else
+# (0xEFC80: no bound, no header; its free 0x2DED60 returns), so past 16 KiB
+# the items run over the function's own frame (the 587-entry KS-23M with a
+# camouflage and decals, 2026-11-01). An item is 24 bytes, a table or list
+# 12 more (construct 0x3584E0: 0x35873B, 0x358772), and an added value (a
+# type 3 modification) one item more in its table (0x358713): each fitted
+# module adds one, and six guns' configs are within 5 entries of what 16 KiB
+# holds with a camouflage and decals. 64 KiB: the function takes 0x50000 of
+# stack after it anyway (0x358B1B, 0x358B25) and an engine thread's stack is
+# THREAD_STACK_MIB. Numbers, no relocation under them.
+ITEM_CONFIG_ARENA = 0x10000
+ITEM_CONFIG_ARENAS = (
+    (0x358AA8, bytes.fromhex("b800400000"), b"\xb8" + struct.pack("<I", ITEM_CONFIG_ARENA)),
+    (0x358ABC, bytes.fromhex("6800400000"), b"\x68" + struct.pack("<I", ITEM_CONFIG_ARENA)),
+)
 
 # The game world's sound scene (game_world::load 0x1F8CA0, its
 # sound_scene_creation_params on the stack: proxies [ebp-10h], propagators
@@ -1738,6 +1765,24 @@ STEP_PARTS = (0x7B76B, bytes.fromhex("7b3c"), bytes.fromhex("eb3c"))
 # keeps what the muzzle, walls and ricochets left it. Nothing branches into
 # the site; no base relocation under it.
 PIERCE_DISTANCE = (0x32F174, bytes.fromhex("f30f114f74"), bytes.fromhex("0f1f440000"))
+
+# Every wall costs a bullet something (patch 175, ../docs/notes/client_patch.md
+# section 3.96). try_pierce 0x32D960 gives a wall's k = 1 - (1 - t)^2, t =
+# clamp((P - A) / A, 0, 1): 1 once P >= 2A, so with patch 173 a strong round
+# went through brick and concrete for nothing at any range. PIERCE_WALLS makes
+# it k = 1 - (A / P)^2 in place (0x32D99E..0x32D9CE): xmm0 is 1.0, xmm1 P,
+# xmm2 A, xmm3 0 and AH the flags of A against 0. A = 0 still jumps to the
+# store with k = 1 (also for P = 0, which would be 0 / 0); P <= A gives k <= 0
+# and the bullet stops as before. Only the site's own branches land in it; no
+# base relocation under it; xmm1 and xmm2 are dead after it.
+PIERCE_WALLS = (0x32D99E,
+                bytes.fromhex("f6c4447b17f30f5ccaf30f5eca0f2fd972050f28cbeb080f2fc173030f28c8"
+                              "0f28d0f30f5cd10f28caf30f59caf30f5cc1"),
+                bytes.fromhex("f6c4447b2c"              # test ah,44h / jnp 0x32D9CF (A = 0: k = 1)
+                              "f30f5ed1"                # divss xmm2,xmm1: A / P
+                              "f30f59d2"                # mulss xmm2,xmm2
+                              "f30f5cc2"                # subss xmm0,xmm2: k = 1 - (A / P)^2
+                              + "0f1f840000000000" * 4))
 
 # A thrown grenade stays above the ground (patch 105, ../docs/notes/grenade_ccd.md).
 # grenade_core::load 0x303890 gives the grenade (RGD-5 and RDG-M) a capsule of
@@ -3023,6 +3068,9 @@ for _va, _what in ((0xED30F, "sin x"), (0xED31F, "cos x"), (0xED32F, "sin y"), (
 INSTALLS[0x742A5] = (CALLEE, "quaternion::quaternion(axis, angle)'s sin: animation_math (Rust `call` hook)", None, None)
 INSTALLS[0x742B5] = (CALLEE, "quaternion::quaternion(axis, angle)'s cos: animation_math (Rust `call` hook)", None, None)
 INSTALLS[0x743B2] = (CALLEE, "get_axis_and_angle's atan2: animation_math (Rust `call` hook)", None, None)
+INSTALLS[0x298664] = (CALLEE, "correct_fingers' set_weapon_model 0x390620 (stdcall, the corrector, the instance, the "
+                              "view; `ret 0Ch`) at a change of view: attachments (Rust `call` hook), the function, "
+                              "then a grip's finger sets", None, None)
 INSTALLS[0x3B3340] = (ENTRY, "time_channel::domain: animation_math_domain, the same search without a division "
                              "per step", None, None)
 
@@ -3260,7 +3308,12 @@ ARENA_CHARACTERISTICS = 0xE0000060              # code, initialized data, execut
 ARENA_VA = 0xA42D000                            # weapon_camo_va + .srpw's three pages
 # The most the arena may take: a block of a runaway size (a state array, a
 # table) stops the link instead of growing the image. Raise it on purpose.
-ARENA_LIMIT = 0x180000                          # 0x100000 until patch 121 took the arena past it
+# It is our own number: `.srpx` is the image's last section, nothing follows
+# it in the file's layout, and only its sizes and SizeOfImage grow with it.
+# What a larger arena costs is its own bytes of the game's address space, at
+# the image's end, where the engine's arenas and the video driver take theirs
+# from what is free (memory-report.md).
+ARENA_LIMIT = 0x300000                          # 0x100000 until patch 121, 0x180000 until patch 161
 ArenaBlock = linker.ArenaBlock
 
 ARENA = (
@@ -4021,7 +4074,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         for site in MEMORY_DEFAULTS + ARENA_DEFAULTS + THREAD_STACKS + MT_ARENA:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
-        for site in SOUND_POOLS:
+        for site in SOUND_POOLS + ITEM_CONFIG_ARENAS:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
         patch(data, *SPOT_COOLDOWN)
@@ -4033,6 +4086,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         sites.append((STEP_PARTS[0], STEP_PARTS[0] + len(STEP_PARTS[1])))
         patch(data, *PIERCE_DISTANCE)
         sites.append((PIERCE_DISTANCE[0], PIERCE_DISTANCE[0] + len(PIERCE_DISTANCE[1])))
+        patch(data, *PIERCE_WALLS)
+        sites.append((PIERCE_WALLS[0], PIERCE_WALLS[0] + len(PIERCE_WALLS[1])))
         # An address of .rdata for another: its relocation stays.
         patch(data, *GRENADE_CCD)
         for site in MOUSE_BUTTONS:
@@ -4520,6 +4575,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      f"an engine thread's stack is {THREAD_STACK_MIB} MiB, "
                      f"the multithreaded arena at least {MT_ARENA_MIB} MiB, "
                      f"the game world's sound scene has {SOUND_INSTANCES} sound instances and propagators, "
+                     f"an upgraded item's config is rebuilt in {ITEM_CONFIG_ARENA >> 10} KiB, "
                      "a history item's six world sections grow on the heap, "
                      "a weapon's upgrade window shows the weapon, "
                      "the commit_suicide key (K) kills one's own player, "

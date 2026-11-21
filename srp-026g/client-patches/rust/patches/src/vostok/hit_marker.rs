@@ -15,7 +15,6 @@
 
 use super::context::Context;
 use super::drug::HitType;
-use super::step::GroundMaterial;
 use super::types::Place;
 use super::world::read;
 use crate::raw;
@@ -48,9 +47,20 @@ impl BulletKey {
 pub enum Through {
     /// A hit receiver: a player's body (its own shooter's too), a trap, a lamp.
     Receiver,
-    /// The level's collision, a prop's with no receiver: a triangle of this
-    /// game material.
-    Surface(GroundMaterial),
+    /// The level's collision or a prop's with no receiver, of a material with
+    /// armour 0 (glass, foliage, cloth, paper): try_pierce lets every bullet
+    /// through it for nothing (k = 1, 0x32D99E).
+    Open,
+    /// Any other surface: a wall.
+    Wall,
+}
+
+impl Through {
+    /// A surface by its material's armour (try_pierce's A, its test
+    /// `ucomiss A, 0`: -0 is 0, NaN is not).
+    pub fn surface(armor: f32) -> Through {
+        if armor == 0.0 { Through::Open } else { Through::Wall }
+    }
 }
 
 /// A bullet that just went through something (`bullet.pierced`).
@@ -71,7 +81,7 @@ pub fn pierce(ctx: &Context<'_>) -> Option<Pierce> {
     unsafe {
         let bullet = site::bullet(ctx)?;
         let through = match site::receiver(ctx) {
-            0 => Through::Surface(GroundMaterial::of(read(bullet.surface()?.id()))),
+            0 => Through::surface(read(bullet.surface()?.armor())),
             _ => Through::Receiver,
         };
         let kind = bullet.ammo().and_then(|ammo| HitType::parse(read(ammo.damage_type())));

@@ -1,0 +1,4339 @@
+{
+  "_about": "Breakable lamps: one bullet breaks the fixture, removes its linked lights and cones (a lit alarm lamp's red ambient glow and a kerosene lamp's flame too), and displays the broken model. Source authored by scripts/breakable-lamps/make_edits.py from manifest-base projects and Research. Explicit indices refer to the final render_visuals after these additions. Bulb bounds use stock geometry and placed rotation/scale. Legacy cones start at the emitter: their full-opacity material exposes offsets hidden by the 0.26 material. Stock and v0.21 placements stay unchanged.",
+  "set_entry": [],
+  "add_entry": [],
+  "add_value": [
+    {
+      "files": [
+        "projects/v044a_level_09/day_2/client_project"
+      ],
+      "table": "",
+      "key": "srp_lamps",
+      "value": {
+        "version": 3,
+        "break_material": 29,
+        "effect_material": 7,
+        "lamps": {
+          "lamp000": {
+            "min_x": 12.263999827206135,
+            "min_y": 15.003000259399414,
+            "min_z": -11.673000447452068,
+            "max_x": 12.503999821841717,
+            "max_y": 15.621000230312347,
+            "max_z": -11.433000452816486,
+            "glass_from_x": 12.383999824523926,
+            "glass_from_y": 15.117000259459019,
+            "glass_from_z": -11.553000450134277,
+            "glass_to_x": 12.383999824523926,
+            "glass_to_y": 15.388000249862671,
+            "glass_to_z": -11.553000450134277,
+            "visuals": {
+              "intact1": {
+                "index": 561,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 12.383999824523926,
+                "y": 15.131000518798828,
+                "z": -11.553000450134277,
+                "name": "props/gherkin_props/oil_lamp/oil_lamp"
+              }
+            }
+          },
+          "lamp001": {
+            "min_x": 20.458282640028006,
+            "min_y": 14.140999794006348,
+            "min_z": -12.621718237352365,
+            "max_x": 20.699718306016916,
+            "max_y": 14.758999764919281,
+            "max_z": -12.380282571363455,
+            "glass_from_x": 20.57900047302246,
+            "glass_from_y": 14.254999794065952,
+            "glass_from_z": -12.50100040435791,
+            "glass_to_x": 20.57900047302246,
+            "glass_to_y": 14.525999784469604,
+            "glass_to_z": -12.50100040435791,
+            "visuals": {
+              "intact1": {
+                "index": 952,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 20.57900047302246,
+                "y": 14.269000053405762,
+                "z": -12.50100040435791,
+                "name": "environment_and_lights/light/oil_lamp/oil_lamp"
+              }
+            }
+          },
+          "lamp002": {
+            "min_x": 63.98399627953768,
+            "min_y": 9.65999984741211,
+            "min_z": -48.421998135745525,
+            "max_x": 64.22399627417326,
+            "max_y": 10.277999818325043,
+            "max_z": -48.18199814110994,
+            "glass_from_x": 64.10399627685547,
+            "glass_from_y": 9.773999847471714,
+            "glass_from_z": -48.301998138427734,
+            "glass_to_x": 64.10399627685547,
+            "glass_to_y": 10.044999837875366,
+            "glass_to_z": -48.301998138427734,
+            "visuals": {
+              "intact1": {
+                "index": 957,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 64.10399627685547,
+                "y": 9.788000106811523,
+                "z": -48.301998138427734,
+                "name": "environment_and_lights/light/oil_lamp(1)/oil_lamp"
+              }
+            }
+          },
+          "lamp003": {
+            "min_x": 6.014401494307286,
+            "min_y": 17.073292240379338,
+            "min_z": -15.978175105045096,
+            "max_x": 6.954970481180485,
+            "max_y": 17.260074099198015,
+            "max_z": -14.964720334402104,
+            "glass_from_x": 6.510145908447516,
+            "glass_from_y": 17.18614583088272,
+            "glass_from_z": -14.978346582573083,
+            "glass_to_x": 6.50838745374432,
+            "glass_to_y": 17.18478690925104,
+            "glass_to_z": -15.959904780844658,
+            "visuals": {
+              "intact0": {
+                "index": 968,
+                "state": 0
+              },
+              "intact1": {
+                "index": 967,
+                "state": 0
+              },
+              "intact3": {
+                "index": 965,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 6.540356636047363,
+                "y": 16.798229217529297,
+                "z": -15.54977035522461,
+                "name": "environment_and_lights/light/lamp_sparks/point_light(4)"
+              }
+            }
+          },
+          "lamp004": {
+            "min_x": 48.82900131493807,
+            "min_y": 9.562000274658203,
+            "min_z": -47.37699996680021,
+            "max_x": 49.06900130957365,
+            "max_y": 10.180000245571136,
+            "max_z": -47.13699997216463,
+            "glass_from_x": 48.94900131225586,
+            "glass_from_y": 9.676000274717808,
+            "glass_from_z": -47.25699996948242,
+            "glass_to_x": 48.94900131225586,
+            "glass_to_y": 9.94700026512146,
+            "glass_to_z": -47.25699996948242,
+            "visuals": {
+              "intact1": {
+                "index": 972,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 48.94900131225586,
+                "y": 9.690000534057617,
+                "z": -47.25699996948242,
+                "name": "environment_and_lights/light/oil_lamp(2)/oil_lamp"
+              }
+            }
+          },
+          "lamp005": {
+            "min_x": 36.29621056507692,
+            "min_y": 12.526538491452282,
+            "min_z": -56.44967448206336,
+            "max_x": 37.66615988456904,
+            "max_y": 12.689672798649713,
+            "max_z": -55.08578311365409,
+            "glass_from_x": 37.313650339777,
+            "glass_from_y": 12.56942192035632,
+            "glass_from_z": -55.41558053774944,
+            "glass_to_x": 36.73782153001139,
+            "glass_to_y": 12.572068120368053,
+            "glass_to_z": -56.17652491069182,
+            "visuals": {
+              "intact0": {
+                "index": 977,
+                "state": 0
+              },
+              "intact1": {
+                "index": 976,
+                "state": 0
+              },
+              "intact3": {
+                "index": 974,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 36.98356246948242,
+                "y": 12.295809745788574,
+                "z": -55.8636360168457,
+                "name": "environment_and_lights/light/lamp_sparks(1)/point_light(4)"
+              }
+            }
+          },
+          "lamp006": {
+            "min_x": 9.194281747388846,
+            "min_y": 15.032999992370605,
+            "min_z": 16.043281724500662,
+            "max_x": 9.435717413377755,
+            "max_y": 15.650999963283539,
+            "max_z": 16.284717390489572,
+            "glass_from_x": 9.3149995803833,
+            "glass_from_y": 15.14699999243021,
+            "glass_from_z": 16.163999557495117,
+            "glass_to_x": 9.3149995803833,
+            "glass_to_y": 15.417999982833862,
+            "glass_to_z": 16.163999557495117,
+            "visuals": {
+              "intact1": {
+                "index": 978,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 9.3149995803833,
+                "y": 15.16100025177002,
+                "z": 16.163999557495117,
+                "name": "environment_and_lights/light/oil_lamp(3)/oil_lamp"
+              }
+            }
+          },
+          "lamp007": {
+            "min_x": 47.44428454471233,
+            "min_y": 12.524552461816851,
+            "min_z": -40.55920771144429,
+            "max_x": 48.652197158545775,
+            "max_y": 12.688005966142915,
+            "max_z": -39.371681192646754,
+            "glass_from_x": 48.230734942069695,
+            "glass_from_y": 12.56788528659599,
+            "glass_from_z": -39.51683737974444,
+            "glass_to_x": 47.96904479468361,
+            "glass_to_y": 12.569845837712577,
+            "glass_to_z": -40.43451737965923,
+            "visuals": {
+              "intact0": {
+                "index": 983,
+                "state": 0
+              },
+              "intact1": {
+                "index": 982,
+                "state": 0
+              },
+              "intact3": {
+                "index": 980,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 48.084739685058594,
+                "y": 12.293864250183105,
+                "z": -40.053653717041016,
+                "name": "environment_and_lights/light/lamp_sparks(2)/point_light(4)"
+              }
+            }
+          },
+          "lamp008": {
+            "min_x": -39.53732900988998,
+            "min_y": 13.001124405979352,
+            "min_z": 38.342188927383134,
+            "max_x": -38.20710060783258,
+            "max_y": 13.159602577533486,
+            "max_z": 39.68318899847295,
+            "glass_from_x": -39.25833606058242,
+            "glass_from_y": 13.043566115353727,
+            "glass_from_z": 39.305257892718394,
+            "glass_to_x": -38.43965389553787,
+            "glass_to_y": 13.042422673586357,
+            "glass_to_z": 38.81497189004023,
+            "visuals": {
+              "intact0": {
+                "index": 987,
+                "state": 0
+              },
+              "intact1": {
+                "index": 986,
+                "state": 0
+              },
+              "intact3": {
+                "index": 984,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": -38.77825164794922,
+                "y": 12.767743110656738,
+                "z": 39.025943756103516,
+                "name": "environment_and_lights/light/lamp_sparks(3)/point_light(4)"
+              }
+            }
+          },
+          "lamp009": {
+            "min_x": -49.8833296812767,
+            "min_y": 12.31612494003697,
+            "min_z": 12.263187500686353,
+            "max_x": -48.5531012792193,
+            "max_y": 12.474603111591103,
+            "max_z": 13.604187571776176,
+            "glass_from_x": -49.60433673196914,
+            "glass_from_y": 12.358566649411344,
+            "glass_from_z": 13.226256466021615,
+            "glass_to_x": -48.78565456692459,
+            "glass_to_y": 12.357423207643974,
+            "glass_to_z": 12.735970463343456,
+            "visuals": {
+              "intact0": {
+                "index": 1000,
+                "state": 0
+              },
+              "intact1": {
+                "index": 999,
+                "state": 0
+              },
+              "intact3": {
+                "index": 997,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": -49.12425231933594,
+                "y": 12.082743644714355,
+                "z": 12.946943283081055,
+                "name": "environment_and_lights/light/lamp_sparks(4)/point_light(4)"
+              }
+            }
+          },
+          "lamp010": {
+            "min_x": 12.025999911129475,
+            "min_y": 6.892000198364258,
+            "min_z": 44.464999087154865,
+            "max_x": 12.265999905765057,
+            "max_y": 7.510000169277191,
+            "max_z": 44.70499908179045,
+            "glass_from_x": 12.145999908447266,
+            "glass_from_y": 7.0060001984238625,
+            "glass_from_z": 44.584999084472656,
+            "glass_to_x": 12.145999908447266,
+            "glass_to_y": 7.277000188827515,
+            "glass_to_z": 44.584999084472656,
+            "visuals": {
+              "intact1": {
+                "index": 1004,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 12.145999908447266,
+                "y": 7.019999980926514,
+                "z": 44.584999084472656,
+                "name": "environment_and_lights/light/oil_lamp(4)/oil_lamp"
+              }
+            }
+          },
+          "lamp011": {
+            "min_x": 1.1606464331773845,
+            "min_y": 17.04007285766962,
+            "min_z": 0.09106044749453984,
+            "max_x": 1.7965255760208225,
+            "max_y": 17.17677883094031,
+            "max_z": 0.9297216747301764,
+            "glass_from_x": 1.5154070312443162,
+            "glass_from_y": 17.07668349281516,
+            "glass_from_z": 0.9252831147530954,
+            "glass_to_x": 1.508966023650591,
+            "glass_to_y": 17.075697829505486,
+            "glass_to_z": 0.09770199263066713,
+            "visuals": {
+              "intact0": {
+                "index": 1009,
+                "state": 0
+              },
+              "intact1": {
+                "index": 1008,
+                "state": 0
+              },
+              "intact3": {
+                "index": 1006,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 1.5161442756652832,
+                "y": 16.83875274658203,
+                "z": 0.44320225715637207,
+                "name": "environment_and_lights/light/lamp_sparks(5)/point_light(4)"
+              }
+            }
+          },
+          "lamp012": {
+            "min_x": 45.88000000268221,
+            "min_y": 9.562000274658203,
+            "min_z": -18.945000760257244,
+            "max_x": 46.11999999731779,
+            "max_y": 10.180000245571136,
+            "max_z": -18.705000765621662,
+            "glass_from_x": 46.0,
+            "glass_from_y": 9.676000274717808,
+            "glass_from_z": -18.825000762939453,
+            "glass_to_x": 46.0,
+            "glass_to_y": 9.94700026512146,
+            "glass_to_z": -18.825000762939453,
+            "visuals": {
+              "intact1": {
+                "index": 1010,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 46.0,
+                "y": 9.690000534057617,
+                "z": -18.825000762939453,
+                "name": "environment_and_lights/light/oil_lamp(5)/oil_lamp"
+              }
+            }
+          },
+          "lamp013": {
+            "min_x": -21.289718458604806,
+            "min_y": 14.90999984741211,
+            "min_z": -8.02871782536506,
+            "max_x": -21.048282792615897,
+            "max_y": 15.527999818325043,
+            "max_z": -7.787282159376151,
+            "glass_from_x": -21.16900062561035,
+            "glass_from_y": 15.023999847471714,
+            "glass_from_z": -7.9079999923706055,
+            "glass_to_x": -21.16900062561035,
+            "glass_to_y": 15.294999837875366,
+            "glass_to_z": -7.9079999923706055,
+            "visuals": {
+              "intact1": {
+                "index": 1018,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": -21.16900062561035,
+                "y": 15.038000106811523,
+                "z": -7.9079999923706055,
+                "name": "environment_and_lights/light/oil_lamp(6)/oil_lamp"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/v044a_level_09/day_3/client_project"
+      ],
+      "table": "",
+      "key": "srp_lamps",
+      "value": {
+        "version": 3,
+        "break_material": 29,
+        "effect_material": 7,
+        "lamps": {
+          "lamp000": {
+            "min_x": 12.263999827206135,
+            "min_y": 15.003000259399414,
+            "min_z": -11.673000447452068,
+            "max_x": 12.503999821841717,
+            "max_y": 15.621000230312347,
+            "max_z": -11.433000452816486,
+            "glass_from_x": 12.383999824523926,
+            "glass_from_y": 15.117000259459019,
+            "glass_from_z": -11.553000450134277,
+            "glass_to_x": 12.383999824523926,
+            "glass_to_y": 15.388000249862671,
+            "glass_to_z": -11.553000450134277,
+            "visuals": {
+              "intact1": {
+                "index": 561,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 12.383999824523926,
+                "y": 15.131000518798828,
+                "z": -11.553000450134277,
+                "name": "props/gherkin_props/oil_lamp/oil_lamp"
+              }
+            }
+          },
+          "lamp001": {
+            "min_x": 20.458282640028006,
+            "min_y": 14.140999794006348,
+            "min_z": -12.621718237352365,
+            "max_x": 20.699718306016916,
+            "max_y": 14.758999764919281,
+            "max_z": -12.380282571363455,
+            "glass_from_x": 20.57900047302246,
+            "glass_from_y": 14.254999794065952,
+            "glass_from_z": -12.50100040435791,
+            "glass_to_x": 20.57900047302246,
+            "glass_to_y": 14.525999784469604,
+            "glass_to_z": -12.50100040435791,
+            "visuals": {
+              "intact1": {
+                "index": 952,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 20.57900047302246,
+                "y": 14.269000053405762,
+                "z": -12.50100040435791,
+                "name": "environment_and_lights/light/oil_lamp/oil_lamp"
+              }
+            }
+          },
+          "lamp002": {
+            "min_x": 63.98399627953768,
+            "min_y": 9.65999984741211,
+            "min_z": -48.421998135745525,
+            "max_x": 64.22399627417326,
+            "max_y": 10.277999818325043,
+            "max_z": -48.18199814110994,
+            "glass_from_x": 64.10399627685547,
+            "glass_from_y": 9.773999847471714,
+            "glass_from_z": -48.301998138427734,
+            "glass_to_x": 64.10399627685547,
+            "glass_to_y": 10.044999837875366,
+            "glass_to_z": -48.301998138427734,
+            "visuals": {
+              "intact1": {
+                "index": 957,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 64.10399627685547,
+                "y": 9.788000106811523,
+                "z": -48.301998138427734,
+                "name": "environment_and_lights/light/oil_lamp(1)/oil_lamp"
+              }
+            }
+          },
+          "lamp003": {
+            "min_x": 6.014401494307286,
+            "min_y": 17.073292240379338,
+            "min_z": -15.978175105045096,
+            "max_x": 6.954970481180485,
+            "max_y": 17.260074099198015,
+            "max_z": -14.964720334402104,
+            "glass_from_x": 6.510145908447516,
+            "glass_from_y": 17.18614583088272,
+            "glass_from_z": -14.978346582573083,
+            "glass_to_x": 6.50838745374432,
+            "glass_to_y": 17.18478690925104,
+            "glass_to_z": -15.959904780844658,
+            "visuals": {
+              "intact0": {
+                "index": 968,
+                "state": 0
+              },
+              "intact1": {
+                "index": 967,
+                "state": 0
+              },
+              "intact3": {
+                "index": 965,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 6.540356636047363,
+                "y": 16.798229217529297,
+                "z": -15.54977035522461,
+                "name": "environment_and_lights/light/lamp_sparks/point_light(4)"
+              }
+            }
+          },
+          "lamp004": {
+            "min_x": 48.82900131493807,
+            "min_y": 9.562000274658203,
+            "min_z": -47.37699996680021,
+            "max_x": 49.06900130957365,
+            "max_y": 10.180000245571136,
+            "max_z": -47.13699997216463,
+            "glass_from_x": 48.94900131225586,
+            "glass_from_y": 9.676000274717808,
+            "glass_from_z": -47.25699996948242,
+            "glass_to_x": 48.94900131225586,
+            "glass_to_y": 9.94700026512146,
+            "glass_to_z": -47.25699996948242,
+            "visuals": {
+              "intact1": {
+                "index": 972,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 48.94900131225586,
+                "y": 9.690000534057617,
+                "z": -47.25699996948242,
+                "name": "environment_and_lights/light/oil_lamp(2)/oil_lamp"
+              }
+            }
+          },
+          "lamp005": {
+            "min_x": 36.29621056507692,
+            "min_y": 12.526538491452282,
+            "min_z": -56.44967448206336,
+            "max_x": 37.66615988456904,
+            "max_y": 12.689672798649713,
+            "max_z": -55.08578311365409,
+            "glass_from_x": 37.313650339777,
+            "glass_from_y": 12.56942192035632,
+            "glass_from_z": -55.41558053774944,
+            "glass_to_x": 36.73782153001139,
+            "glass_to_y": 12.572068120368053,
+            "glass_to_z": -56.17652491069182,
+            "visuals": {
+              "intact0": {
+                "index": 977,
+                "state": 0
+              },
+              "intact1": {
+                "index": 976,
+                "state": 0
+              },
+              "intact3": {
+                "index": 974,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 36.98356246948242,
+                "y": 12.295809745788574,
+                "z": -55.8636360168457,
+                "name": "environment_and_lights/light/lamp_sparks(1)/point_light(4)"
+              }
+            }
+          },
+          "lamp006": {
+            "min_x": 9.194281747388846,
+            "min_y": 15.032999992370605,
+            "min_z": 16.043281724500662,
+            "max_x": 9.435717413377755,
+            "max_y": 15.650999963283539,
+            "max_z": 16.284717390489572,
+            "glass_from_x": 9.3149995803833,
+            "glass_from_y": 15.14699999243021,
+            "glass_from_z": 16.163999557495117,
+            "glass_to_x": 9.3149995803833,
+            "glass_to_y": 15.417999982833862,
+            "glass_to_z": 16.163999557495117,
+            "visuals": {
+              "intact1": {
+                "index": 978,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 9.3149995803833,
+                "y": 15.16100025177002,
+                "z": 16.163999557495117,
+                "name": "environment_and_lights/light/oil_lamp(3)/oil_lamp"
+              }
+            }
+          },
+          "lamp007": {
+            "min_x": 47.44428454471233,
+            "min_y": 12.524552461816851,
+            "min_z": -40.55920771144429,
+            "max_x": 48.652197158545775,
+            "max_y": 12.688005966142915,
+            "max_z": -39.371681192646754,
+            "glass_from_x": 48.230734942069695,
+            "glass_from_y": 12.56788528659599,
+            "glass_from_z": -39.51683737974444,
+            "glass_to_x": 47.96904479468361,
+            "glass_to_y": 12.569845837712577,
+            "glass_to_z": -40.43451737965923,
+            "visuals": {
+              "intact0": {
+                "index": 983,
+                "state": 0
+              },
+              "intact1": {
+                "index": 982,
+                "state": 0
+              },
+              "intact3": {
+                "index": 980,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 48.084739685058594,
+                "y": 12.293864250183105,
+                "z": -40.053653717041016,
+                "name": "environment_and_lights/light/lamp_sparks(2)/point_light(4)"
+              }
+            }
+          },
+          "lamp008": {
+            "min_x": -39.53732900988998,
+            "min_y": 13.001124405979352,
+            "min_z": 38.342188927383134,
+            "max_x": -38.20710060783258,
+            "max_y": 13.159602577533486,
+            "max_z": 39.68318899847295,
+            "glass_from_x": -39.25833606058242,
+            "glass_from_y": 13.043566115353727,
+            "glass_from_z": 39.305257892718394,
+            "glass_to_x": -38.43965389553787,
+            "glass_to_y": 13.042422673586357,
+            "glass_to_z": 38.81497189004023,
+            "visuals": {
+              "intact0": {
+                "index": 987,
+                "state": 0
+              },
+              "intact1": {
+                "index": 986,
+                "state": 0
+              },
+              "intact3": {
+                "index": 984,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": -38.77825164794922,
+                "y": 12.767743110656738,
+                "z": 39.025943756103516,
+                "name": "environment_and_lights/light/lamp_sparks(3)/point_light(4)"
+              }
+            }
+          },
+          "lamp009": {
+            "min_x": -49.8833296812767,
+            "min_y": 12.31612494003697,
+            "min_z": 12.263187500686353,
+            "max_x": -48.5531012792193,
+            "max_y": 12.474603111591103,
+            "max_z": 13.604187571776176,
+            "glass_from_x": -49.60433673196914,
+            "glass_from_y": 12.358566649411344,
+            "glass_from_z": 13.226256466021615,
+            "glass_to_x": -48.78565456692459,
+            "glass_to_y": 12.357423207643974,
+            "glass_to_z": 12.735970463343456,
+            "visuals": {
+              "intact0": {
+                "index": 1000,
+                "state": 0
+              },
+              "intact1": {
+                "index": 999,
+                "state": 0
+              },
+              "intact3": {
+                "index": 997,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": -49.12425231933594,
+                "y": 12.082743644714355,
+                "z": 12.946943283081055,
+                "name": "environment_and_lights/light/lamp_sparks(4)/point_light(4)"
+              }
+            }
+          },
+          "lamp010": {
+            "min_x": 12.025999911129475,
+            "min_y": 6.892000198364258,
+            "min_z": 44.464999087154865,
+            "max_x": 12.265999905765057,
+            "max_y": 7.510000169277191,
+            "max_z": 44.70499908179045,
+            "glass_from_x": 12.145999908447266,
+            "glass_from_y": 7.0060001984238625,
+            "glass_from_z": 44.584999084472656,
+            "glass_to_x": 12.145999908447266,
+            "glass_to_y": 7.277000188827515,
+            "glass_to_z": 44.584999084472656,
+            "visuals": {
+              "intact1": {
+                "index": 1004,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 12.145999908447266,
+                "y": 7.019999980926514,
+                "z": 44.584999084472656,
+                "name": "environment_and_lights/light/oil_lamp(4)/oil_lamp"
+              }
+            }
+          },
+          "lamp011": {
+            "min_x": 1.1606464331773845,
+            "min_y": 17.04007285766962,
+            "min_z": 0.09106044749453984,
+            "max_x": 1.7965255760208225,
+            "max_y": 17.17677883094031,
+            "max_z": 0.9297216747301764,
+            "glass_from_x": 1.5154070312443162,
+            "glass_from_y": 17.07668349281516,
+            "glass_from_z": 0.9252831147530954,
+            "glass_to_x": 1.508966023650591,
+            "glass_to_y": 17.075697829505486,
+            "glass_to_z": 0.09770199263066713,
+            "visuals": {
+              "intact0": {
+                "index": 1009,
+                "state": 0
+              },
+              "intact1": {
+                "index": 1008,
+                "state": 0
+              },
+              "intact3": {
+                "index": 1006,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 1.5161442756652832,
+                "y": 16.83875274658203,
+                "z": 0.44320225715637207,
+                "name": "environment_and_lights/light/lamp_sparks(5)/point_light(4)"
+              }
+            }
+          },
+          "lamp012": {
+            "min_x": 45.88000000268221,
+            "min_y": 9.562000274658203,
+            "min_z": -18.945000760257244,
+            "max_x": 46.11999999731779,
+            "max_y": 10.180000245571136,
+            "max_z": -18.705000765621662,
+            "glass_from_x": 46.0,
+            "glass_from_y": 9.676000274717808,
+            "glass_from_z": -18.825000762939453,
+            "glass_to_x": 46.0,
+            "glass_to_y": 9.94700026512146,
+            "glass_to_z": -18.825000762939453,
+            "visuals": {
+              "intact1": {
+                "index": 1010,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 46.0,
+                "y": 9.690000534057617,
+                "z": -18.825000762939453,
+                "name": "environment_and_lights/light/oil_lamp(5)/oil_lamp"
+              }
+            }
+          },
+          "lamp013": {
+            "min_x": -21.289718458604806,
+            "min_y": 14.90999984741211,
+            "min_z": -8.02871782536506,
+            "max_x": -21.048282792615897,
+            "max_y": 15.527999818325043,
+            "max_z": -7.787282159376151,
+            "glass_from_x": -21.16900062561035,
+            "glass_from_y": 15.023999847471714,
+            "glass_from_z": -7.9079999923706055,
+            "glass_to_x": -21.16900062561035,
+            "glass_to_y": 15.294999837875366,
+            "glass_to_z": -7.9079999923706055,
+            "visuals": {
+              "intact1": {
+                "index": 1018,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": -21.16900062561035,
+                "y": 15.038000106811523,
+                "z": -7.9079999923706055,
+                "name": "environment_and_lights/light/oil_lamp(6)/oil_lamp"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/v044a_level_09/day_4/client_project"
+      ],
+      "table": "",
+      "key": "srp_lamps",
+      "value": {
+        "version": 3,
+        "break_material": 29,
+        "effect_material": 7,
+        "lamps": {
+          "lamp000": {
+            "min_x": 12.263999827206135,
+            "min_y": 15.003000259399414,
+            "min_z": -11.673000447452068,
+            "max_x": 12.503999821841717,
+            "max_y": 15.621000230312347,
+            "max_z": -11.433000452816486,
+            "glass_from_x": 12.383999824523926,
+            "glass_from_y": 15.117000259459019,
+            "glass_from_z": -11.553000450134277,
+            "glass_to_x": 12.383999824523926,
+            "glass_to_y": 15.388000249862671,
+            "glass_to_z": -11.553000450134277,
+            "visuals": {
+              "intact1": {
+                "index": 507,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 12.383999824523926,
+                "y": 15.131000518798828,
+                "z": -11.553000450134277,
+                "name": "props/gherkin_props/oil_lamp/oil_lamp"
+              }
+            }
+          },
+          "lamp001": {
+            "min_x": 20.458282640028006,
+            "min_y": 14.140999794006348,
+            "min_z": -12.621718237352365,
+            "max_x": 20.699718306016916,
+            "max_y": 14.758999764919281,
+            "max_z": -12.380282571363455,
+            "glass_from_x": 20.57900047302246,
+            "glass_from_y": 14.254999794065952,
+            "glass_from_z": -12.50100040435791,
+            "glass_to_x": 20.57900047302246,
+            "glass_to_y": 14.525999784469604,
+            "glass_to_z": -12.50100040435791,
+            "visuals": {
+              "intact1": {
+                "index": 898,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 20.57900047302246,
+                "y": 14.269000053405762,
+                "z": -12.50100040435791,
+                "name": "environment_and_lights/light/oil_lamp/oil_lamp"
+              }
+            }
+          },
+          "lamp002": {
+            "min_x": 63.98399627953768,
+            "min_y": 9.65999984741211,
+            "min_z": -48.421998135745525,
+            "max_x": 64.22399627417326,
+            "max_y": 10.277999818325043,
+            "max_z": -48.18199814110994,
+            "glass_from_x": 64.10399627685547,
+            "glass_from_y": 9.773999847471714,
+            "glass_from_z": -48.301998138427734,
+            "glass_to_x": 64.10399627685547,
+            "glass_to_y": 10.044999837875366,
+            "glass_to_z": -48.301998138427734,
+            "visuals": {
+              "intact1": {
+                "index": 903,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 64.10399627685547,
+                "y": 9.788000106811523,
+                "z": -48.301998138427734,
+                "name": "environment_and_lights/light/oil_lamp(1)/oil_lamp"
+              }
+            }
+          },
+          "lamp003": {
+            "min_x": 6.014401494307286,
+            "min_y": 17.073292240379338,
+            "min_z": -15.978175105045096,
+            "max_x": 6.954970481180485,
+            "max_y": 17.260074099198015,
+            "max_z": -14.964720334402104,
+            "glass_from_x": 6.510145908447516,
+            "glass_from_y": 17.18614583088272,
+            "glass_from_z": -14.978346582573083,
+            "glass_to_x": 6.50838745374432,
+            "glass_to_y": 17.18478690925104,
+            "glass_to_z": -15.959904780844658,
+            "visuals": {
+              "intact0": {
+                "index": 914,
+                "state": 0
+              },
+              "intact1": {
+                "index": 913,
+                "state": 0
+              },
+              "intact3": {
+                "index": 911,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 6.540356636047363,
+                "y": 16.798229217529297,
+                "z": -15.54977035522461,
+                "name": "environment_and_lights/light/lamp_sparks/point_light(4)"
+              }
+            }
+          },
+          "lamp004": {
+            "min_x": 48.82900131493807,
+            "min_y": 9.562000274658203,
+            "min_z": -47.37699996680021,
+            "max_x": 49.06900130957365,
+            "max_y": 10.180000245571136,
+            "max_z": -47.13699997216463,
+            "glass_from_x": 48.94900131225586,
+            "glass_from_y": 9.676000274717808,
+            "glass_from_z": -47.25699996948242,
+            "glass_to_x": 48.94900131225586,
+            "glass_to_y": 9.94700026512146,
+            "glass_to_z": -47.25699996948242,
+            "visuals": {
+              "intact1": {
+                "index": 918,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 48.94900131225586,
+                "y": 9.690000534057617,
+                "z": -47.25699996948242,
+                "name": "environment_and_lights/light/oil_lamp(2)/oil_lamp"
+              }
+            }
+          },
+          "lamp005": {
+            "min_x": 36.29621056507692,
+            "min_y": 12.526538491452282,
+            "min_z": -56.44967448206336,
+            "max_x": 37.66615988456904,
+            "max_y": 12.689672798649713,
+            "max_z": -55.08578311365409,
+            "glass_from_x": 37.313650339777,
+            "glass_from_y": 12.56942192035632,
+            "glass_from_z": -55.41558053774944,
+            "glass_to_x": 36.73782153001139,
+            "glass_to_y": 12.572068120368053,
+            "glass_to_z": -56.17652491069182,
+            "visuals": {
+              "intact0": {
+                "index": 923,
+                "state": 0
+              },
+              "intact1": {
+                "index": 922,
+                "state": 0
+              },
+              "intact3": {
+                "index": 920,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 36.98356246948242,
+                "y": 12.295809745788574,
+                "z": -55.8636360168457,
+                "name": "environment_and_lights/light/lamp_sparks(1)/point_light(4)"
+              }
+            }
+          },
+          "lamp006": {
+            "min_x": 9.194281747388846,
+            "min_y": 15.032999992370605,
+            "min_z": 16.043281724500662,
+            "max_x": 9.435717413377755,
+            "max_y": 15.650999963283539,
+            "max_z": 16.284717390489572,
+            "glass_from_x": 9.3149995803833,
+            "glass_from_y": 15.14699999243021,
+            "glass_from_z": 16.163999557495117,
+            "glass_to_x": 9.3149995803833,
+            "glass_to_y": 15.417999982833862,
+            "glass_to_z": 16.163999557495117,
+            "visuals": {
+              "intact1": {
+                "index": 924,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 9.3149995803833,
+                "y": 15.16100025177002,
+                "z": 16.163999557495117,
+                "name": "environment_and_lights/light/oil_lamp(3)/oil_lamp"
+              }
+            }
+          },
+          "lamp007": {
+            "min_x": 47.44428454471233,
+            "min_y": 12.524552461816851,
+            "min_z": -40.55920771144429,
+            "max_x": 48.652197158545775,
+            "max_y": 12.688005966142915,
+            "max_z": -39.371681192646754,
+            "glass_from_x": 48.230734942069695,
+            "glass_from_y": 12.56788528659599,
+            "glass_from_z": -39.51683737974444,
+            "glass_to_x": 47.96904479468361,
+            "glass_to_y": 12.569845837712577,
+            "glass_to_z": -40.43451737965923,
+            "visuals": {
+              "intact0": {
+                "index": 929,
+                "state": 0
+              },
+              "intact1": {
+                "index": 928,
+                "state": 0
+              },
+              "intact3": {
+                "index": 926,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 48.084739685058594,
+                "y": 12.293864250183105,
+                "z": -40.053653717041016,
+                "name": "environment_and_lights/light/lamp_sparks(2)/point_light(4)"
+              }
+            }
+          },
+          "lamp008": {
+            "min_x": -39.53732900988998,
+            "min_y": 13.001124405979352,
+            "min_z": 38.342188927383134,
+            "max_x": -38.20710060783258,
+            "max_y": 13.159602577533486,
+            "max_z": 39.68318899847295,
+            "glass_from_x": -39.25833606058242,
+            "glass_from_y": 13.043566115353727,
+            "glass_from_z": 39.305257892718394,
+            "glass_to_x": -38.43965389553787,
+            "glass_to_y": 13.042422673586357,
+            "glass_to_z": 38.81497189004023,
+            "visuals": {
+              "intact0": {
+                "index": 933,
+                "state": 0
+              },
+              "intact1": {
+                "index": 932,
+                "state": 0
+              },
+              "intact3": {
+                "index": 930,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": -38.77825164794922,
+                "y": 12.767743110656738,
+                "z": 39.025943756103516,
+                "name": "environment_and_lights/light/lamp_sparks(3)/point_light(4)"
+              }
+            }
+          },
+          "lamp009": {
+            "min_x": -49.8833296812767,
+            "min_y": 12.31612494003697,
+            "min_z": 12.263187500686353,
+            "max_x": -48.5531012792193,
+            "max_y": 12.474603111591103,
+            "max_z": 13.604187571776176,
+            "glass_from_x": -49.60433673196914,
+            "glass_from_y": 12.358566649411344,
+            "glass_from_z": 13.226256466021615,
+            "glass_to_x": -48.78565456692459,
+            "glass_to_y": 12.357423207643974,
+            "glass_to_z": 12.735970463343456,
+            "visuals": {
+              "intact0": {
+                "index": 946,
+                "state": 0
+              },
+              "intact1": {
+                "index": 945,
+                "state": 0
+              },
+              "intact3": {
+                "index": 943,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": -49.12425231933594,
+                "y": 12.082743644714355,
+                "z": 12.946943283081055,
+                "name": "environment_and_lights/light/lamp_sparks(4)/point_light(4)"
+              }
+            }
+          },
+          "lamp010": {
+            "min_x": 12.025999911129475,
+            "min_y": 6.892000198364258,
+            "min_z": 44.464999087154865,
+            "max_x": 12.265999905765057,
+            "max_y": 7.510000169277191,
+            "max_z": 44.70499908179045,
+            "glass_from_x": 12.145999908447266,
+            "glass_from_y": 7.0060001984238625,
+            "glass_from_z": 44.584999084472656,
+            "glass_to_x": 12.145999908447266,
+            "glass_to_y": 7.277000188827515,
+            "glass_to_z": 44.584999084472656,
+            "visuals": {
+              "intact1": {
+                "index": 950,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 12.145999908447266,
+                "y": 7.019999980926514,
+                "z": 44.584999084472656,
+                "name": "environment_and_lights/light/oil_lamp(4)/oil_lamp"
+              }
+            }
+          },
+          "lamp011": {
+            "min_x": 1.1606464331773845,
+            "min_y": 17.04007285766962,
+            "min_z": 0.09106044749453984,
+            "max_x": 1.7965255760208225,
+            "max_y": 17.17677883094031,
+            "max_z": 0.9297216747301764,
+            "glass_from_x": 1.5154070312443162,
+            "glass_from_y": 17.07668349281516,
+            "glass_from_z": 0.9252831147530954,
+            "glass_to_x": 1.508966023650591,
+            "glass_to_y": 17.075697829505486,
+            "glass_to_z": 0.09770199263066713,
+            "visuals": {
+              "intact0": {
+                "index": 955,
+                "state": 0
+              },
+              "intact1": {
+                "index": 954,
+                "state": 0
+              },
+              "intact3": {
+                "index": 952,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 1.5161442756652832,
+                "y": 16.83875274658203,
+                "z": 0.44320225715637207,
+                "name": "environment_and_lights/light/lamp_sparks(5)/point_light(4)"
+              }
+            }
+          },
+          "lamp012": {
+            "min_x": 45.88000000268221,
+            "min_y": 9.562000274658203,
+            "min_z": -18.945000760257244,
+            "max_x": 46.11999999731779,
+            "max_y": 10.180000245571136,
+            "max_z": -18.705000765621662,
+            "glass_from_x": 46.0,
+            "glass_from_y": 9.676000274717808,
+            "glass_from_z": -18.825000762939453,
+            "glass_to_x": 46.0,
+            "glass_to_y": 9.94700026512146,
+            "glass_to_z": -18.825000762939453,
+            "visuals": {
+              "intact1": {
+                "index": 956,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 46.0,
+                "y": 9.690000534057617,
+                "z": -18.825000762939453,
+                "name": "environment_and_lights/light/oil_lamp(5)/oil_lamp"
+              }
+            }
+          },
+          "lamp013": {
+            "min_x": -21.289718458604806,
+            "min_y": 14.90999984741211,
+            "min_z": -8.02871782536506,
+            "max_x": -21.048282792615897,
+            "max_y": 15.527999818325043,
+            "max_z": -7.787282159376151,
+            "glass_from_x": -21.16900062561035,
+            "glass_from_y": 15.023999847471714,
+            "glass_from_z": -7.9079999923706055,
+            "glass_to_x": -21.16900062561035,
+            "glass_to_y": 15.294999837875366,
+            "glass_to_z": -7.9079999923706055,
+            "visuals": {
+              "intact1": {
+                "index": 964,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": -21.16900062561035,
+                "y": 15.038000106811523,
+                "z": -7.9079999923706055,
+                "name": "environment_and_lights/light/oil_lamp(6)/oil_lamp"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/v044a_level_09/evening_2/client_project"
+      ],
+      "table": "",
+      "key": "srp_lamps",
+      "value": {
+        "version": 3,
+        "break_material": 29,
+        "effect_material": 7,
+        "lamps": {
+          "lamp000": {
+            "min_x": 12.263999827206135,
+            "min_y": 15.003000259399414,
+            "min_z": -11.673000447452068,
+            "max_x": 12.503999821841717,
+            "max_y": 15.621000230312347,
+            "max_z": -11.433000452816486,
+            "glass_from_x": 12.383999824523926,
+            "glass_from_y": 15.117000259459019,
+            "glass_from_z": -11.553000450134277,
+            "glass_to_x": 12.383999824523926,
+            "glass_to_y": 15.388000249862671,
+            "glass_to_z": -11.553000450134277,
+            "visuals": {
+              "intact1": {
+                "index": 561,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 12.383999824523926,
+                "y": 15.131000518798828,
+                "z": -11.553000450134277,
+                "name": "props/gherkin_props/oil_lamp/oil_lamp"
+              }
+            }
+          },
+          "lamp001": {
+            "min_x": 20.458282640028006,
+            "min_y": 14.140999794006348,
+            "min_z": -12.621718237352365,
+            "max_x": 20.699718306016916,
+            "max_y": 14.758999764919281,
+            "max_z": -12.380282571363455,
+            "glass_from_x": 20.57900047302246,
+            "glass_from_y": 14.254999794065952,
+            "glass_from_z": -12.50100040435791,
+            "glass_to_x": 20.57900047302246,
+            "glass_to_y": 14.525999784469604,
+            "glass_to_z": -12.50100040435791,
+            "visuals": {
+              "intact1": {
+                "index": 952,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 20.57900047302246,
+                "y": 14.269000053405762,
+                "z": -12.50100040435791,
+                "name": "environment_and_lights/light/oil_lamp/oil_lamp"
+              }
+            }
+          },
+          "lamp002": {
+            "min_x": 63.98399627953768,
+            "min_y": 9.65999984741211,
+            "min_z": -48.421998135745525,
+            "max_x": 64.22399627417326,
+            "max_y": 10.277999818325043,
+            "max_z": -48.18199814110994,
+            "glass_from_x": 64.10399627685547,
+            "glass_from_y": 9.773999847471714,
+            "glass_from_z": -48.301998138427734,
+            "glass_to_x": 64.10399627685547,
+            "glass_to_y": 10.044999837875366,
+            "glass_to_z": -48.301998138427734,
+            "visuals": {
+              "intact1": {
+                "index": 957,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 64.10399627685547,
+                "y": 9.788000106811523,
+                "z": -48.301998138427734,
+                "name": "environment_and_lights/light/oil_lamp(1)/oil_lamp"
+              }
+            }
+          },
+          "lamp003": {
+            "min_x": 6.014401494307286,
+            "min_y": 17.073292240379338,
+            "min_z": -15.978175105045096,
+            "max_x": 6.954970481180485,
+            "max_y": 17.260074099198015,
+            "max_z": -14.964720334402104,
+            "glass_from_x": 6.510145908447516,
+            "glass_from_y": 17.18614583088272,
+            "glass_from_z": -14.978346582573083,
+            "glass_to_x": 6.50838745374432,
+            "glass_to_y": 17.18478690925104,
+            "glass_to_z": -15.959904780844658,
+            "visuals": {
+              "intact0": {
+                "index": 968,
+                "state": 0
+              },
+              "intact1": {
+                "index": 967,
+                "state": 0
+              },
+              "intact3": {
+                "index": 965,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 6.540356636047363,
+                "y": 16.798229217529297,
+                "z": -15.54977035522461,
+                "name": "environment_and_lights/light/lamp_sparks/point_light(4)"
+              }
+            }
+          },
+          "lamp004": {
+            "min_x": 48.82900131493807,
+            "min_y": 9.562000274658203,
+            "min_z": -47.37699996680021,
+            "max_x": 49.06900130957365,
+            "max_y": 10.180000245571136,
+            "max_z": -47.13699997216463,
+            "glass_from_x": 48.94900131225586,
+            "glass_from_y": 9.676000274717808,
+            "glass_from_z": -47.25699996948242,
+            "glass_to_x": 48.94900131225586,
+            "glass_to_y": 9.94700026512146,
+            "glass_to_z": -47.25699996948242,
+            "visuals": {
+              "intact1": {
+                "index": 972,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 48.94900131225586,
+                "y": 9.690000534057617,
+                "z": -47.25699996948242,
+                "name": "environment_and_lights/light/oil_lamp(2)/oil_lamp"
+              }
+            }
+          },
+          "lamp005": {
+            "min_x": 36.29621056507692,
+            "min_y": 12.526538491452282,
+            "min_z": -56.44967448206336,
+            "max_x": 37.66615988456904,
+            "max_y": 12.689672798649713,
+            "max_z": -55.08578311365409,
+            "glass_from_x": 37.313650339777,
+            "glass_from_y": 12.56942192035632,
+            "glass_from_z": -55.41558053774944,
+            "glass_to_x": 36.73782153001139,
+            "glass_to_y": 12.572068120368053,
+            "glass_to_z": -56.17652491069182,
+            "visuals": {
+              "intact0": {
+                "index": 977,
+                "state": 0
+              },
+              "intact1": {
+                "index": 976,
+                "state": 0
+              },
+              "intact3": {
+                "index": 974,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 36.98356246948242,
+                "y": 12.295809745788574,
+                "z": -55.8636360168457,
+                "name": "environment_and_lights/light/lamp_sparks(1)/point_light(4)"
+              }
+            }
+          },
+          "lamp006": {
+            "min_x": 9.194281747388846,
+            "min_y": 15.032999992370605,
+            "min_z": 16.043281724500662,
+            "max_x": 9.435717413377755,
+            "max_y": 15.650999963283539,
+            "max_z": 16.284717390489572,
+            "glass_from_x": 9.3149995803833,
+            "glass_from_y": 15.14699999243021,
+            "glass_from_z": 16.163999557495117,
+            "glass_to_x": 9.3149995803833,
+            "glass_to_y": 15.417999982833862,
+            "glass_to_z": 16.163999557495117,
+            "visuals": {
+              "intact1": {
+                "index": 978,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 9.3149995803833,
+                "y": 15.16100025177002,
+                "z": 16.163999557495117,
+                "name": "environment_and_lights/light/oil_lamp(3)/oil_lamp"
+              }
+            }
+          },
+          "lamp007": {
+            "min_x": 47.44428454471233,
+            "min_y": 12.524552461816851,
+            "min_z": -40.55920771144429,
+            "max_x": 48.652197158545775,
+            "max_y": 12.688005966142915,
+            "max_z": -39.371681192646754,
+            "glass_from_x": 48.230734942069695,
+            "glass_from_y": 12.56788528659599,
+            "glass_from_z": -39.51683737974444,
+            "glass_to_x": 47.96904479468361,
+            "glass_to_y": 12.569845837712577,
+            "glass_to_z": -40.43451737965923,
+            "visuals": {
+              "intact0": {
+                "index": 983,
+                "state": 0
+              },
+              "intact1": {
+                "index": 982,
+                "state": 0
+              },
+              "intact3": {
+                "index": 980,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 48.084739685058594,
+                "y": 12.293864250183105,
+                "z": -40.053653717041016,
+                "name": "environment_and_lights/light/lamp_sparks(2)/point_light(4)"
+              }
+            }
+          },
+          "lamp008": {
+            "min_x": -39.53732900988998,
+            "min_y": 13.001124405979352,
+            "min_z": 38.342188927383134,
+            "max_x": -38.20710060783258,
+            "max_y": 13.159602577533486,
+            "max_z": 39.68318899847295,
+            "glass_from_x": -39.25833606058242,
+            "glass_from_y": 13.043566115353727,
+            "glass_from_z": 39.305257892718394,
+            "glass_to_x": -38.43965389553787,
+            "glass_to_y": 13.042422673586357,
+            "glass_to_z": 38.81497189004023,
+            "visuals": {
+              "intact0": {
+                "index": 987,
+                "state": 0
+              },
+              "intact1": {
+                "index": 986,
+                "state": 0
+              },
+              "intact3": {
+                "index": 984,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": -38.77825164794922,
+                "y": 12.767743110656738,
+                "z": 39.025943756103516,
+                "name": "environment_and_lights/light/lamp_sparks(3)/point_light(4)"
+              }
+            }
+          },
+          "lamp009": {
+            "min_x": -38.95499908179045,
+            "min_y": 6.671000003814697,
+            "min_z": 29.00299919396639,
+            "max_x": -38.714999087154865,
+            "max_y": 7.288999974727631,
+            "max_z": 29.24299918860197,
+            "glass_from_x": -38.834999084472656,
+            "glass_from_y": 6.785000003874302,
+            "glass_from_z": 29.12299919128418,
+            "glass_to_x": -38.834999084472656,
+            "glass_to_y": 7.055999994277954,
+            "glass_to_z": 29.12299919128418,
+            "visuals": {
+              "intact1": {
+                "index": 994,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": -38.834999084472656,
+                "y": 6.798999786376953,
+                "z": 29.12299919128418,
+                "name": "environment_and_lights/light/oil_lamp(4)/oil_lamp"
+              }
+            }
+          },
+          "lamp010": {
+            "min_x": -49.8833296812767,
+            "min_y": 12.31612494003697,
+            "min_z": 12.263187500686353,
+            "max_x": -48.5531012792193,
+            "max_y": 12.474603111591103,
+            "max_z": 13.604187571776176,
+            "glass_from_x": -49.60433673196914,
+            "glass_from_y": 12.358566649411344,
+            "glass_from_z": 13.226256466021615,
+            "glass_to_x": -48.78565456692459,
+            "glass_to_y": 12.357423207643974,
+            "glass_to_z": 12.735970463343456,
+            "visuals": {
+              "intact0": {
+                "index": 1002,
+                "state": 0
+              },
+              "intact1": {
+                "index": 1001,
+                "state": 0
+              },
+              "intact3": {
+                "index": 999,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": -49.12425231933594,
+                "y": 12.082743644714355,
+                "z": 12.946943283081055,
+                "name": "environment_and_lights/light/lamp_sparks(4)/point_light(4)"
+              }
+            }
+          },
+          "lamp011": {
+            "min_x": 12.025999911129475,
+            "min_y": 6.892000198364258,
+            "min_z": 44.464999087154865,
+            "max_x": 12.265999905765057,
+            "max_y": 7.510000169277191,
+            "max_z": 44.70499908179045,
+            "glass_from_x": 12.145999908447266,
+            "glass_from_y": 7.0060001984238625,
+            "glass_from_z": 44.584999084472656,
+            "glass_to_x": 12.145999908447266,
+            "glass_to_y": 7.277000188827515,
+            "glass_to_z": 44.584999084472656,
+            "visuals": {
+              "intact1": {
+                "index": 1006,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 12.145999908447266,
+                "y": 7.019999980926514,
+                "z": 44.584999084472656,
+                "name": "environment_and_lights/light/oil_lamp(5)/oil_lamp"
+              }
+            }
+          },
+          "lamp012": {
+            "min_x": 1.1606464331773845,
+            "min_y": 17.04007285766962,
+            "min_z": 0.09106044749453984,
+            "max_x": 1.7965255760208225,
+            "max_y": 17.17677883094031,
+            "max_z": 0.9297216747301764,
+            "glass_from_x": 1.5154070312443162,
+            "glass_from_y": 17.07668349281516,
+            "glass_from_z": 0.9252831147530954,
+            "glass_to_x": 1.508966023650591,
+            "glass_to_y": 17.075697829505486,
+            "glass_to_z": 0.09770199263066713,
+            "visuals": {
+              "intact0": {
+                "index": 1011,
+                "state": 0
+              },
+              "intact1": {
+                "index": 1010,
+                "state": 0
+              },
+              "intact3": {
+                "index": 1008,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 1.5161442756652832,
+                "y": 16.83875274658203,
+                "z": 0.44320225715637207,
+                "name": "environment_and_lights/light/lamp_sparks(5)/point_light(4)"
+              }
+            }
+          },
+          "lamp013": {
+            "min_x": 45.88000000268221,
+            "min_y": 9.562000274658203,
+            "min_z": -18.945000760257244,
+            "max_x": 46.11999999731779,
+            "max_y": 10.180000245571136,
+            "max_z": -18.705000765621662,
+            "glass_from_x": 46.0,
+            "glass_from_y": 9.676000274717808,
+            "glass_from_z": -18.825000762939453,
+            "glass_to_x": 46.0,
+            "glass_to_y": 9.94700026512146,
+            "glass_to_z": -18.825000762939453,
+            "visuals": {
+              "intact1": {
+                "index": 1012,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 46.0,
+                "y": 9.690000534057617,
+                "z": -18.825000762939453,
+                "name": "environment_and_lights/light/oil_lamp(6)/oil_lamp"
+              }
+            }
+          },
+          "lamp014": {
+            "min_x": -21.289718458604806,
+            "min_y": 14.90999984741211,
+            "min_z": -8.02871782536506,
+            "max_x": -21.048282792615897,
+            "max_y": 15.527999818325043,
+            "max_z": -7.787282159376151,
+            "glass_from_x": -21.16900062561035,
+            "glass_from_y": 15.023999847471714,
+            "glass_from_z": -7.9079999923706055,
+            "glass_to_x": -21.16900062561035,
+            "glass_to_y": 15.294999837875366,
+            "glass_to_z": -7.9079999923706055,
+            "visuals": {
+              "intact1": {
+                "index": 1020,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": -21.16900062561035,
+                "y": 15.038000106811523,
+                "z": -7.9079999923706055,
+                "name": "environment_and_lights/light/oil_lamp(7)/oil_lamp"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/v044a_level_09/evening_3/client_project"
+      ],
+      "table": "",
+      "key": "srp_lamps",
+      "value": {
+        "version": 3,
+        "break_material": 29,
+        "effect_material": 7,
+        "lamps": {
+          "lamp000": {
+            "min_x": 12.263999827206135,
+            "min_y": 15.003000259399414,
+            "min_z": -11.673000447452068,
+            "max_x": 12.503999821841717,
+            "max_y": 15.621000230312347,
+            "max_z": -11.433000452816486,
+            "glass_from_x": 12.383999824523926,
+            "glass_from_y": 15.117000259459019,
+            "glass_from_z": -11.553000450134277,
+            "glass_to_x": 12.383999824523926,
+            "glass_to_y": 15.388000249862671,
+            "glass_to_z": -11.553000450134277,
+            "visuals": {
+              "intact1": {
+                "index": 561,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 12.383999824523926,
+                "y": 15.131000518798828,
+                "z": -11.553000450134277,
+                "name": "props/gherkin_props/oil_lamp/oil_lamp"
+              }
+            }
+          },
+          "lamp001": {
+            "min_x": 20.458282640028006,
+            "min_y": 14.140999794006348,
+            "min_z": -12.621718237352365,
+            "max_x": 20.699718306016916,
+            "max_y": 14.758999764919281,
+            "max_z": -12.380282571363455,
+            "glass_from_x": 20.57900047302246,
+            "glass_from_y": 14.254999794065952,
+            "glass_from_z": -12.50100040435791,
+            "glass_to_x": 20.57900047302246,
+            "glass_to_y": 14.525999784469604,
+            "glass_to_z": -12.50100040435791,
+            "visuals": {
+              "intact1": {
+                "index": 952,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 20.57900047302246,
+                "y": 14.269000053405762,
+                "z": -12.50100040435791,
+                "name": "environment_and_lights/light/oil_lamp/oil_lamp"
+              }
+            }
+          },
+          "lamp002": {
+            "min_x": 63.98399627953768,
+            "min_y": 9.65999984741211,
+            "min_z": -48.421998135745525,
+            "max_x": 64.22399627417326,
+            "max_y": 10.277999818325043,
+            "max_z": -48.18199814110994,
+            "glass_from_x": 64.10399627685547,
+            "glass_from_y": 9.773999847471714,
+            "glass_from_z": -48.301998138427734,
+            "glass_to_x": 64.10399627685547,
+            "glass_to_y": 10.044999837875366,
+            "glass_to_z": -48.301998138427734,
+            "visuals": {
+              "intact1": {
+                "index": 957,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 64.10399627685547,
+                "y": 9.788000106811523,
+                "z": -48.301998138427734,
+                "name": "environment_and_lights/light/oil_lamp(1)/oil_lamp"
+              }
+            }
+          },
+          "lamp003": {
+            "min_x": 6.014401494307286,
+            "min_y": 17.073292240379338,
+            "min_z": -15.978175105045096,
+            "max_x": 6.954970481180485,
+            "max_y": 17.260074099198015,
+            "max_z": -14.964720334402104,
+            "glass_from_x": 6.510145908447516,
+            "glass_from_y": 17.18614583088272,
+            "glass_from_z": -14.978346582573083,
+            "glass_to_x": 6.50838745374432,
+            "glass_to_y": 17.18478690925104,
+            "glass_to_z": -15.959904780844658,
+            "visuals": {
+              "intact0": {
+                "index": 968,
+                "state": 0
+              },
+              "intact1": {
+                "index": 967,
+                "state": 0
+              },
+              "intact3": {
+                "index": 965,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 6.540356636047363,
+                "y": 16.798229217529297,
+                "z": -15.54977035522461,
+                "name": "environment_and_lights/light/lamp_sparks/point_light(4)"
+              }
+            }
+          },
+          "lamp004": {
+            "min_x": 48.82900131493807,
+            "min_y": 9.562000274658203,
+            "min_z": -47.37699996680021,
+            "max_x": 49.06900130957365,
+            "max_y": 10.180000245571136,
+            "max_z": -47.13699997216463,
+            "glass_from_x": 48.94900131225586,
+            "glass_from_y": 9.676000274717808,
+            "glass_from_z": -47.25699996948242,
+            "glass_to_x": 48.94900131225586,
+            "glass_to_y": 9.94700026512146,
+            "glass_to_z": -47.25699996948242,
+            "visuals": {
+              "intact1": {
+                "index": 972,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 48.94900131225586,
+                "y": 9.690000534057617,
+                "z": -47.25699996948242,
+                "name": "environment_and_lights/light/oil_lamp(2)/oil_lamp"
+              }
+            }
+          },
+          "lamp005": {
+            "min_x": 36.29621056507692,
+            "min_y": 12.526538491452282,
+            "min_z": -56.44967448206336,
+            "max_x": 37.66615988456904,
+            "max_y": 12.689672798649713,
+            "max_z": -55.08578311365409,
+            "glass_from_x": 37.313650339777,
+            "glass_from_y": 12.56942192035632,
+            "glass_from_z": -55.41558053774944,
+            "glass_to_x": 36.73782153001139,
+            "glass_to_y": 12.572068120368053,
+            "glass_to_z": -56.17652491069182,
+            "visuals": {
+              "intact0": {
+                "index": 977,
+                "state": 0
+              },
+              "intact1": {
+                "index": 976,
+                "state": 0
+              },
+              "intact3": {
+                "index": 974,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 36.98356246948242,
+                "y": 12.295809745788574,
+                "z": -55.8636360168457,
+                "name": "environment_and_lights/light/lamp_sparks(1)/point_light(4)"
+              }
+            }
+          },
+          "lamp006": {
+            "min_x": 9.194281747388846,
+            "min_y": 15.032999992370605,
+            "min_z": 16.043281724500662,
+            "max_x": 9.435717413377755,
+            "max_y": 15.650999963283539,
+            "max_z": 16.284717390489572,
+            "glass_from_x": 9.3149995803833,
+            "glass_from_y": 15.14699999243021,
+            "glass_from_z": 16.163999557495117,
+            "glass_to_x": 9.3149995803833,
+            "glass_to_y": 15.417999982833862,
+            "glass_to_z": 16.163999557495117,
+            "visuals": {
+              "intact1": {
+                "index": 978,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 9.3149995803833,
+                "y": 15.16100025177002,
+                "z": 16.163999557495117,
+                "name": "environment_and_lights/light/oil_lamp(3)/oil_lamp"
+              }
+            }
+          },
+          "lamp007": {
+            "min_x": 47.44428454471233,
+            "min_y": 12.524552461816851,
+            "min_z": -40.55920771144429,
+            "max_x": 48.652197158545775,
+            "max_y": 12.688005966142915,
+            "max_z": -39.371681192646754,
+            "glass_from_x": 48.230734942069695,
+            "glass_from_y": 12.56788528659599,
+            "glass_from_z": -39.51683737974444,
+            "glass_to_x": 47.96904479468361,
+            "glass_to_y": 12.569845837712577,
+            "glass_to_z": -40.43451737965923,
+            "visuals": {
+              "intact0": {
+                "index": 983,
+                "state": 0
+              },
+              "intact1": {
+                "index": 982,
+                "state": 0
+              },
+              "intact3": {
+                "index": 980,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 48.084739685058594,
+                "y": 12.293864250183105,
+                "z": -40.053653717041016,
+                "name": "environment_and_lights/light/lamp_sparks(2)/point_light(4)"
+              }
+            }
+          },
+          "lamp008": {
+            "min_x": -39.53732900988998,
+            "min_y": 13.001124405979352,
+            "min_z": 38.342188927383134,
+            "max_x": -38.20710060783258,
+            "max_y": 13.159602577533486,
+            "max_z": 39.68318899847295,
+            "glass_from_x": -39.25833606058242,
+            "glass_from_y": 13.043566115353727,
+            "glass_from_z": 39.305257892718394,
+            "glass_to_x": -38.43965389553787,
+            "glass_to_y": 13.042422673586357,
+            "glass_to_z": 38.81497189004023,
+            "visuals": {
+              "intact0": {
+                "index": 987,
+                "state": 0
+              },
+              "intact1": {
+                "index": 986,
+                "state": 0
+              },
+              "intact3": {
+                "index": 984,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": -38.77825164794922,
+                "y": 12.767743110656738,
+                "z": 39.025943756103516,
+                "name": "environment_and_lights/light/lamp_sparks(3)/point_light(4)"
+              }
+            }
+          },
+          "lamp009": {
+            "min_x": -38.95499908179045,
+            "min_y": 6.671000003814697,
+            "min_z": 29.00299919396639,
+            "max_x": -38.714999087154865,
+            "max_y": 7.288999974727631,
+            "max_z": 29.24299918860197,
+            "glass_from_x": -38.834999084472656,
+            "glass_from_y": 6.785000003874302,
+            "glass_from_z": 29.12299919128418,
+            "glass_to_x": -38.834999084472656,
+            "glass_to_y": 7.055999994277954,
+            "glass_to_z": 29.12299919128418,
+            "visuals": {
+              "intact1": {
+                "index": 994,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": -38.834999084472656,
+                "y": 6.798999786376953,
+                "z": 29.12299919128418,
+                "name": "environment_and_lights/light/oil_lamp(4)/oil_lamp"
+              }
+            }
+          },
+          "lamp010": {
+            "min_x": -49.8833296812767,
+            "min_y": 12.31612494003697,
+            "min_z": 12.263187500686353,
+            "max_x": -48.5531012792193,
+            "max_y": 12.474603111591103,
+            "max_z": 13.604187571776176,
+            "glass_from_x": -49.60433673196914,
+            "glass_from_y": 12.358566649411344,
+            "glass_from_z": 13.226256466021615,
+            "glass_to_x": -48.78565456692459,
+            "glass_to_y": 12.357423207643974,
+            "glass_to_z": 12.735970463343456,
+            "visuals": {
+              "intact0": {
+                "index": 1002,
+                "state": 0
+              },
+              "intact1": {
+                "index": 1001,
+                "state": 0
+              },
+              "intact3": {
+                "index": 999,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": -49.12425231933594,
+                "y": 12.082743644714355,
+                "z": 12.946943283081055,
+                "name": "environment_and_lights/light/lamp_sparks(4)/point_light(4)"
+              }
+            }
+          },
+          "lamp011": {
+            "min_x": 12.025999911129475,
+            "min_y": 6.892000198364258,
+            "min_z": 44.464999087154865,
+            "max_x": 12.265999905765057,
+            "max_y": 7.510000169277191,
+            "max_z": 44.70499908179045,
+            "glass_from_x": 12.145999908447266,
+            "glass_from_y": 7.0060001984238625,
+            "glass_from_z": 44.584999084472656,
+            "glass_to_x": 12.145999908447266,
+            "glass_to_y": 7.277000188827515,
+            "glass_to_z": 44.584999084472656,
+            "visuals": {
+              "intact1": {
+                "index": 1006,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 12.145999908447266,
+                "y": 7.019999980926514,
+                "z": 44.584999084472656,
+                "name": "environment_and_lights/light/oil_lamp(5)/oil_lamp"
+              }
+            }
+          },
+          "lamp012": {
+            "min_x": 1.1606464331773845,
+            "min_y": 17.04007285766962,
+            "min_z": 0.09106044749453984,
+            "max_x": 1.7965255760208225,
+            "max_y": 17.17677883094031,
+            "max_z": 0.9297216747301764,
+            "glass_from_x": 1.5154070312443162,
+            "glass_from_y": 17.07668349281516,
+            "glass_from_z": 0.9252831147530954,
+            "glass_to_x": 1.508966023650591,
+            "glass_to_y": 17.075697829505486,
+            "glass_to_z": 0.09770199263066713,
+            "visuals": {
+              "intact0": {
+                "index": 1011,
+                "state": 0
+              },
+              "intact1": {
+                "index": 1010,
+                "state": 0
+              },
+              "intact3": {
+                "index": 1008,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 1.5161442756652832,
+                "y": 16.83875274658203,
+                "z": 0.44320225715637207,
+                "name": "environment_and_lights/light/lamp_sparks(5)/point_light(4)"
+              }
+            }
+          },
+          "lamp013": {
+            "min_x": 45.88000000268221,
+            "min_y": 9.562000274658203,
+            "min_z": -18.945000760257244,
+            "max_x": 46.11999999731779,
+            "max_y": 10.180000245571136,
+            "max_z": -18.705000765621662,
+            "glass_from_x": 46.0,
+            "glass_from_y": 9.676000274717808,
+            "glass_from_z": -18.825000762939453,
+            "glass_to_x": 46.0,
+            "glass_to_y": 9.94700026512146,
+            "glass_to_z": -18.825000762939453,
+            "visuals": {
+              "intact1": {
+                "index": 1012,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 46.0,
+                "y": 9.690000534057617,
+                "z": -18.825000762939453,
+                "name": "environment_and_lights/light/oil_lamp(6)/oil_lamp"
+              }
+            }
+          },
+          "lamp014": {
+            "min_x": -21.289718458604806,
+            "min_y": 14.90999984741211,
+            "min_z": -8.02871782536506,
+            "max_x": -21.048282792615897,
+            "max_y": 15.527999818325043,
+            "max_z": -7.787282159376151,
+            "glass_from_x": -21.16900062561035,
+            "glass_from_y": 15.023999847471714,
+            "glass_from_z": -7.9079999923706055,
+            "glass_to_x": -21.16900062561035,
+            "glass_to_y": 15.294999837875366,
+            "glass_to_z": -7.9079999923706055,
+            "visuals": {
+              "intact1": {
+                "index": 1020,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": -21.16900062561035,
+                "y": 15.038000106811523,
+                "z": -7.9079999923706055,
+                "name": "environment_and_lights/light/oil_lamp(7)/oil_lamp"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/v044a_level_09/evening_4/client_project"
+      ],
+      "table": "",
+      "key": "srp_lamps",
+      "value": {
+        "version": 3,
+        "break_material": 29,
+        "effect_material": 7,
+        "lamps": {
+          "lamp000": {
+            "min_x": 12.263999827206135,
+            "min_y": 15.003000259399414,
+            "min_z": -11.673000447452068,
+            "max_x": 12.503999821841717,
+            "max_y": 15.621000230312347,
+            "max_z": -11.433000452816486,
+            "glass_from_x": 12.383999824523926,
+            "glass_from_y": 15.117000259459019,
+            "glass_from_z": -11.553000450134277,
+            "glass_to_x": 12.383999824523926,
+            "glass_to_y": 15.388000249862671,
+            "glass_to_z": -11.553000450134277,
+            "visuals": {
+              "intact1": {
+                "index": 507,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 12.383999824523926,
+                "y": 15.131000518798828,
+                "z": -11.553000450134277,
+                "name": "props/gherkin_props/oil_lamp/oil_lamp"
+              }
+            }
+          },
+          "lamp001": {
+            "min_x": 20.458282640028006,
+            "min_y": 14.140999794006348,
+            "min_z": -12.621718237352365,
+            "max_x": 20.699718306016916,
+            "max_y": 14.758999764919281,
+            "max_z": -12.380282571363455,
+            "glass_from_x": 20.57900047302246,
+            "glass_from_y": 14.254999794065952,
+            "glass_from_z": -12.50100040435791,
+            "glass_to_x": 20.57900047302246,
+            "glass_to_y": 14.525999784469604,
+            "glass_to_z": -12.50100040435791,
+            "visuals": {
+              "intact1": {
+                "index": 898,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 20.57900047302246,
+                "y": 14.269000053405762,
+                "z": -12.50100040435791,
+                "name": "environment_and_lights/light/oil_lamp/oil_lamp"
+              }
+            }
+          },
+          "lamp002": {
+            "min_x": 63.98399627953768,
+            "min_y": 9.65999984741211,
+            "min_z": -48.421998135745525,
+            "max_x": 64.22399627417326,
+            "max_y": 10.277999818325043,
+            "max_z": -48.18199814110994,
+            "glass_from_x": 64.10399627685547,
+            "glass_from_y": 9.773999847471714,
+            "glass_from_z": -48.301998138427734,
+            "glass_to_x": 64.10399627685547,
+            "glass_to_y": 10.044999837875366,
+            "glass_to_z": -48.301998138427734,
+            "visuals": {
+              "intact1": {
+                "index": 903,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 64.10399627685547,
+                "y": 9.788000106811523,
+                "z": -48.301998138427734,
+                "name": "environment_and_lights/light/oil_lamp(1)/oil_lamp"
+              }
+            }
+          },
+          "lamp003": {
+            "min_x": 6.014401494307286,
+            "min_y": 17.073292240379338,
+            "min_z": -15.978175105045096,
+            "max_x": 6.954970481180485,
+            "max_y": 17.260074099198015,
+            "max_z": -14.964720334402104,
+            "glass_from_x": 6.510145908447516,
+            "glass_from_y": 17.18614583088272,
+            "glass_from_z": -14.978346582573083,
+            "glass_to_x": 6.50838745374432,
+            "glass_to_y": 17.18478690925104,
+            "glass_to_z": -15.959904780844658,
+            "visuals": {
+              "intact0": {
+                "index": 914,
+                "state": 0
+              },
+              "intact1": {
+                "index": 913,
+                "state": 0
+              },
+              "intact3": {
+                "index": 911,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 6.540356636047363,
+                "y": 16.798229217529297,
+                "z": -15.54977035522461,
+                "name": "environment_and_lights/light/lamp_sparks/point_light(4)"
+              }
+            }
+          },
+          "lamp004": {
+            "min_x": 48.82900131493807,
+            "min_y": 9.562000274658203,
+            "min_z": -47.37699996680021,
+            "max_x": 49.06900130957365,
+            "max_y": 10.180000245571136,
+            "max_z": -47.13699997216463,
+            "glass_from_x": 48.94900131225586,
+            "glass_from_y": 9.676000274717808,
+            "glass_from_z": -47.25699996948242,
+            "glass_to_x": 48.94900131225586,
+            "glass_to_y": 9.94700026512146,
+            "glass_to_z": -47.25699996948242,
+            "visuals": {
+              "intact1": {
+                "index": 918,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 48.94900131225586,
+                "y": 9.690000534057617,
+                "z": -47.25699996948242,
+                "name": "environment_and_lights/light/oil_lamp(2)/oil_lamp"
+              }
+            }
+          },
+          "lamp005": {
+            "min_x": 36.29621056507692,
+            "min_y": 12.526538491452282,
+            "min_z": -56.44967448206336,
+            "max_x": 37.66615988456904,
+            "max_y": 12.689672798649713,
+            "max_z": -55.08578311365409,
+            "glass_from_x": 37.313650339777,
+            "glass_from_y": 12.56942192035632,
+            "glass_from_z": -55.41558053774944,
+            "glass_to_x": 36.73782153001139,
+            "glass_to_y": 12.572068120368053,
+            "glass_to_z": -56.17652491069182,
+            "visuals": {
+              "intact0": {
+                "index": 923,
+                "state": 0
+              },
+              "intact1": {
+                "index": 922,
+                "state": 0
+              },
+              "intact3": {
+                "index": 920,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 36.98356246948242,
+                "y": 12.295809745788574,
+                "z": -55.8636360168457,
+                "name": "environment_and_lights/light/lamp_sparks(1)/point_light(4)"
+              }
+            }
+          },
+          "lamp006": {
+            "min_x": 9.194281747388846,
+            "min_y": 15.032999992370605,
+            "min_z": 16.043281724500662,
+            "max_x": 9.435717413377755,
+            "max_y": 15.650999963283539,
+            "max_z": 16.284717390489572,
+            "glass_from_x": 9.3149995803833,
+            "glass_from_y": 15.14699999243021,
+            "glass_from_z": 16.163999557495117,
+            "glass_to_x": 9.3149995803833,
+            "glass_to_y": 15.417999982833862,
+            "glass_to_z": 16.163999557495117,
+            "visuals": {
+              "intact1": {
+                "index": 924,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 9.3149995803833,
+                "y": 15.16100025177002,
+                "z": 16.163999557495117,
+                "name": "environment_and_lights/light/oil_lamp(3)/oil_lamp"
+              }
+            }
+          },
+          "lamp007": {
+            "min_x": 47.44428454471233,
+            "min_y": 12.524552461816851,
+            "min_z": -40.55920771144429,
+            "max_x": 48.652197158545775,
+            "max_y": 12.688005966142915,
+            "max_z": -39.371681192646754,
+            "glass_from_x": 48.230734942069695,
+            "glass_from_y": 12.56788528659599,
+            "glass_from_z": -39.51683737974444,
+            "glass_to_x": 47.96904479468361,
+            "glass_to_y": 12.569845837712577,
+            "glass_to_z": -40.43451737965923,
+            "visuals": {
+              "intact0": {
+                "index": 929,
+                "state": 0
+              },
+              "intact1": {
+                "index": 928,
+                "state": 0
+              },
+              "intact3": {
+                "index": 926,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 48.084739685058594,
+                "y": 12.293864250183105,
+                "z": -40.053653717041016,
+                "name": "environment_and_lights/light/lamp_sparks(2)/point_light(4)"
+              }
+            }
+          },
+          "lamp008": {
+            "min_x": -39.53732900988998,
+            "min_y": 13.001124405979352,
+            "min_z": 38.342188927383134,
+            "max_x": -38.20710060783258,
+            "max_y": 13.159602577533486,
+            "max_z": 39.68318899847295,
+            "glass_from_x": -39.25833606058242,
+            "glass_from_y": 13.043566115353727,
+            "glass_from_z": 39.305257892718394,
+            "glass_to_x": -38.43965389553787,
+            "glass_to_y": 13.042422673586357,
+            "glass_to_z": 38.81497189004023,
+            "visuals": {
+              "intact0": {
+                "index": 933,
+                "state": 0
+              },
+              "intact1": {
+                "index": 932,
+                "state": 0
+              },
+              "intact3": {
+                "index": 930,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": -38.77825164794922,
+                "y": 12.767743110656738,
+                "z": 39.025943756103516,
+                "name": "environment_and_lights/light/lamp_sparks(3)/point_light(4)"
+              }
+            }
+          },
+          "lamp009": {
+            "min_x": -38.95499908179045,
+            "min_y": 6.671000003814697,
+            "min_z": 29.00299919396639,
+            "max_x": -38.714999087154865,
+            "max_y": 7.288999974727631,
+            "max_z": 29.24299918860197,
+            "glass_from_x": -38.834999084472656,
+            "glass_from_y": 6.785000003874302,
+            "glass_from_z": 29.12299919128418,
+            "glass_to_x": -38.834999084472656,
+            "glass_to_y": 7.055999994277954,
+            "glass_to_z": 29.12299919128418,
+            "visuals": {
+              "intact1": {
+                "index": 940,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": -38.834999084472656,
+                "y": 6.798999786376953,
+                "z": 29.12299919128418,
+                "name": "environment_and_lights/light/oil_lamp(4)/oil_lamp"
+              }
+            }
+          },
+          "lamp010": {
+            "min_x": -49.8833296812767,
+            "min_y": 12.31612494003697,
+            "min_z": 12.263187500686353,
+            "max_x": -48.5531012792193,
+            "max_y": 12.474603111591103,
+            "max_z": 13.604187571776176,
+            "glass_from_x": -49.60433673196914,
+            "glass_from_y": 12.358566649411344,
+            "glass_from_z": 13.226256466021615,
+            "glass_to_x": -48.78565456692459,
+            "glass_to_y": 12.357423207643974,
+            "glass_to_z": 12.735970463343456,
+            "visuals": {
+              "intact0": {
+                "index": 948,
+                "state": 0
+              },
+              "intact1": {
+                "index": 947,
+                "state": 0
+              },
+              "intact3": {
+                "index": 945,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": -49.12425231933594,
+                "y": 12.082743644714355,
+                "z": 12.946943283081055,
+                "name": "environment_and_lights/light/lamp_sparks(4)/point_light(4)"
+              }
+            }
+          },
+          "lamp011": {
+            "min_x": 12.025999911129475,
+            "min_y": 6.892000198364258,
+            "min_z": 44.464999087154865,
+            "max_x": 12.265999905765057,
+            "max_y": 7.510000169277191,
+            "max_z": 44.70499908179045,
+            "glass_from_x": 12.145999908447266,
+            "glass_from_y": 7.0060001984238625,
+            "glass_from_z": 44.584999084472656,
+            "glass_to_x": 12.145999908447266,
+            "glass_to_y": 7.277000188827515,
+            "glass_to_z": 44.584999084472656,
+            "visuals": {
+              "intact1": {
+                "index": 952,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 12.145999908447266,
+                "y": 7.019999980926514,
+                "z": 44.584999084472656,
+                "name": "environment_and_lights/light/oil_lamp(5)/oil_lamp"
+              }
+            }
+          },
+          "lamp012": {
+            "min_x": 1.1606464331773845,
+            "min_y": 17.04007285766962,
+            "min_z": 0.09106044749453984,
+            "max_x": 1.7965255760208225,
+            "max_y": 17.17677883094031,
+            "max_z": 0.9297216747301764,
+            "glass_from_x": 1.5154070312443162,
+            "glass_from_y": 17.07668349281516,
+            "glass_from_z": 0.9252831147530954,
+            "glass_to_x": 1.508966023650591,
+            "glass_to_y": 17.075697829505486,
+            "glass_to_z": 0.09770199263066713,
+            "visuals": {
+              "intact0": {
+                "index": 957,
+                "state": 0
+              },
+              "intact1": {
+                "index": 956,
+                "state": 0
+              },
+              "intact3": {
+                "index": 954,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 1.5161442756652832,
+                "y": 16.83875274658203,
+                "z": 0.44320225715637207,
+                "name": "environment_and_lights/light/lamp_sparks(5)/point_light(4)"
+              }
+            }
+          },
+          "lamp013": {
+            "min_x": 45.88000000268221,
+            "min_y": 9.562000274658203,
+            "min_z": -18.945000760257244,
+            "max_x": 46.11999999731779,
+            "max_y": 10.180000245571136,
+            "max_z": -18.705000765621662,
+            "glass_from_x": 46.0,
+            "glass_from_y": 9.676000274717808,
+            "glass_from_z": -18.825000762939453,
+            "glass_to_x": 46.0,
+            "glass_to_y": 9.94700026512146,
+            "glass_to_z": -18.825000762939453,
+            "visuals": {
+              "intact1": {
+                "index": 958,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 46.0,
+                "y": 9.690000534057617,
+                "z": -18.825000762939453,
+                "name": "environment_and_lights/light/oil_lamp(6)/oil_lamp"
+              }
+            }
+          },
+          "lamp014": {
+            "min_x": -21.289718458604806,
+            "min_y": 14.90999984741211,
+            "min_z": -8.02871782536506,
+            "max_x": -21.048282792615897,
+            "max_y": 15.527999818325043,
+            "max_z": -7.787282159376151,
+            "glass_from_x": -21.16900062561035,
+            "glass_from_y": 15.023999847471714,
+            "glass_from_z": -7.9079999923706055,
+            "glass_to_x": -21.16900062561035,
+            "glass_to_y": 15.294999837875366,
+            "glass_to_z": -7.9079999923706055,
+            "visuals": {
+              "intact1": {
+                "index": 966,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": -21.16900062561035,
+                "y": 15.038000106811523,
+                "z": -7.9079999923706055,
+                "name": "environment_and_lights/light/oil_lamp(7)/oil_lamp"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/v044a_level_09/rain_2/client_project"
+      ],
+      "table": "",
+      "key": "srp_lamps",
+      "value": {
+        "version": 3,
+        "break_material": 29,
+        "effect_material": 7,
+        "lamps": {
+          "lamp000": {
+            "min_x": 12.263999827206135,
+            "min_y": 15.003000259399414,
+            "min_z": -11.673000447452068,
+            "max_x": 12.503999821841717,
+            "max_y": 15.621000230312347,
+            "max_z": -11.433000452816486,
+            "glass_from_x": 12.383999824523926,
+            "glass_from_y": 15.117000259459019,
+            "glass_from_z": -11.553000450134277,
+            "glass_to_x": 12.383999824523926,
+            "glass_to_y": 15.388000249862671,
+            "glass_to_z": -11.553000450134277,
+            "visuals": {
+              "intact1": {
+                "index": 561,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 12.383999824523926,
+                "y": 15.131000518798828,
+                "z": -11.553000450134277,
+                "name": "props/gherkin_props/oil_lamp/oil_lamp"
+              }
+            }
+          },
+          "lamp001": {
+            "min_x": 20.458282640028006,
+            "min_y": 14.140999794006348,
+            "min_z": -12.621718237352365,
+            "max_x": 20.699718306016916,
+            "max_y": 14.758999764919281,
+            "max_z": -12.380282571363455,
+            "glass_from_x": 20.57900047302246,
+            "glass_from_y": 14.254999794065952,
+            "glass_from_z": -12.50100040435791,
+            "glass_to_x": 20.57900047302246,
+            "glass_to_y": 14.525999784469604,
+            "glass_to_z": -12.50100040435791,
+            "visuals": {
+              "intact1": {
+                "index": 952,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 20.57900047302246,
+                "y": 14.269000053405762,
+                "z": -12.50100040435791,
+                "name": "environment_and_lights/light/oil_lamp/oil_lamp"
+              }
+            }
+          },
+          "lamp002": {
+            "min_x": 63.98399627953768,
+            "min_y": 9.65999984741211,
+            "min_z": -48.421998135745525,
+            "max_x": 64.22399627417326,
+            "max_y": 10.277999818325043,
+            "max_z": -48.18199814110994,
+            "glass_from_x": 64.10399627685547,
+            "glass_from_y": 9.773999847471714,
+            "glass_from_z": -48.301998138427734,
+            "glass_to_x": 64.10399627685547,
+            "glass_to_y": 10.044999837875366,
+            "glass_to_z": -48.301998138427734,
+            "visuals": {
+              "intact1": {
+                "index": 957,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 64.10399627685547,
+                "y": 9.788000106811523,
+                "z": -48.301998138427734,
+                "name": "environment_and_lights/light/oil_lamp(1)/oil_lamp"
+              }
+            }
+          },
+          "lamp003": {
+            "min_x": 6.014401494307286,
+            "min_y": 17.073292240379338,
+            "min_z": -15.978175105045096,
+            "max_x": 6.954970481180485,
+            "max_y": 17.260074099198015,
+            "max_z": -14.964720334402104,
+            "glass_from_x": 6.510145908447516,
+            "glass_from_y": 17.18614583088272,
+            "glass_from_z": -14.978346582573083,
+            "glass_to_x": 6.50838745374432,
+            "glass_to_y": 17.18478690925104,
+            "glass_to_z": -15.959904780844658,
+            "visuals": {
+              "intact0": {
+                "index": 968,
+                "state": 0
+              },
+              "intact1": {
+                "index": 967,
+                "state": 0
+              },
+              "intact3": {
+                "index": 965,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 6.540356636047363,
+                "y": 16.798229217529297,
+                "z": -15.54977035522461,
+                "name": "environment_and_lights/light/lamp_sparks/point_light(4)"
+              }
+            }
+          },
+          "lamp004": {
+            "min_x": 48.82900131493807,
+            "min_y": 9.562000274658203,
+            "min_z": -47.37699996680021,
+            "max_x": 49.06900130957365,
+            "max_y": 10.180000245571136,
+            "max_z": -47.13699997216463,
+            "glass_from_x": 48.94900131225586,
+            "glass_from_y": 9.676000274717808,
+            "glass_from_z": -47.25699996948242,
+            "glass_to_x": 48.94900131225586,
+            "glass_to_y": 9.94700026512146,
+            "glass_to_z": -47.25699996948242,
+            "visuals": {
+              "intact1": {
+                "index": 972,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 48.94900131225586,
+                "y": 9.690000534057617,
+                "z": -47.25699996948242,
+                "name": "environment_and_lights/light/oil_lamp(2)/oil_lamp"
+              }
+            }
+          },
+          "lamp005": {
+            "min_x": 36.29621056507692,
+            "min_y": 12.526538491452282,
+            "min_z": -56.44967448206336,
+            "max_x": 37.66615988456904,
+            "max_y": 12.689672798649713,
+            "max_z": -55.08578311365409,
+            "glass_from_x": 37.313650339777,
+            "glass_from_y": 12.56942192035632,
+            "glass_from_z": -55.41558053774944,
+            "glass_to_x": 36.73782153001139,
+            "glass_to_y": 12.572068120368053,
+            "glass_to_z": -56.17652491069182,
+            "visuals": {
+              "intact0": {
+                "index": 977,
+                "state": 0
+              },
+              "intact1": {
+                "index": 976,
+                "state": 0
+              },
+              "intact3": {
+                "index": 974,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 36.98356246948242,
+                "y": 12.295809745788574,
+                "z": -55.8636360168457,
+                "name": "environment_and_lights/light/lamp_sparks(1)/point_light(4)"
+              }
+            }
+          },
+          "lamp006": {
+            "min_x": 9.194281747388846,
+            "min_y": 15.032999992370605,
+            "min_z": 16.043281724500662,
+            "max_x": 9.435717413377755,
+            "max_y": 15.650999963283539,
+            "max_z": 16.284717390489572,
+            "glass_from_x": 9.3149995803833,
+            "glass_from_y": 15.14699999243021,
+            "glass_from_z": 16.163999557495117,
+            "glass_to_x": 9.3149995803833,
+            "glass_to_y": 15.417999982833862,
+            "glass_to_z": 16.163999557495117,
+            "visuals": {
+              "intact1": {
+                "index": 978,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 9.3149995803833,
+                "y": 15.16100025177002,
+                "z": 16.163999557495117,
+                "name": "environment_and_lights/light/oil_lamp(3)/oil_lamp"
+              }
+            }
+          },
+          "lamp007": {
+            "min_x": 47.44428454471233,
+            "min_y": 12.524552461816851,
+            "min_z": -40.55920771144429,
+            "max_x": 48.652197158545775,
+            "max_y": 12.688005966142915,
+            "max_z": -39.371681192646754,
+            "glass_from_x": 48.230734942069695,
+            "glass_from_y": 12.56788528659599,
+            "glass_from_z": -39.51683737974444,
+            "glass_to_x": 47.96904479468361,
+            "glass_to_y": 12.569845837712577,
+            "glass_to_z": -40.43451737965923,
+            "visuals": {
+              "intact0": {
+                "index": 983,
+                "state": 0
+              },
+              "intact1": {
+                "index": 982,
+                "state": 0
+              },
+              "intact3": {
+                "index": 980,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 48.084739685058594,
+                "y": 12.293864250183105,
+                "z": -40.053653717041016,
+                "name": "environment_and_lights/light/lamp_sparks(2)/point_light(4)"
+              }
+            }
+          },
+          "lamp008": {
+            "min_x": -39.53732900988998,
+            "min_y": 13.001124405979352,
+            "min_z": 38.342188927383134,
+            "max_x": -38.20710060783258,
+            "max_y": 13.159602577533486,
+            "max_z": 39.68318899847295,
+            "glass_from_x": -39.25833606058242,
+            "glass_from_y": 13.043566115353727,
+            "glass_from_z": 39.305257892718394,
+            "glass_to_x": -38.43965389553787,
+            "glass_to_y": 13.042422673586357,
+            "glass_to_z": 38.81497189004023,
+            "visuals": {
+              "intact0": {
+                "index": 987,
+                "state": 0
+              },
+              "intact1": {
+                "index": 986,
+                "state": 0
+              },
+              "intact3": {
+                "index": 984,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": -38.77825164794922,
+                "y": 12.767743110656738,
+                "z": 39.025943756103516,
+                "name": "environment_and_lights/light/lamp_sparks(3)/point_light(4)"
+              }
+            }
+          },
+          "lamp009": {
+            "min_x": -38.95499908179045,
+            "min_y": 6.671000003814697,
+            "min_z": 29.00299919396639,
+            "max_x": -38.714999087154865,
+            "max_y": 7.288999974727631,
+            "max_z": 29.24299918860197,
+            "glass_from_x": -38.834999084472656,
+            "glass_from_y": 6.785000003874302,
+            "glass_from_z": 29.12299919128418,
+            "glass_to_x": -38.834999084472656,
+            "glass_to_y": 7.055999994277954,
+            "glass_to_z": 29.12299919128418,
+            "visuals": {
+              "intact1": {
+                "index": 994,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": -38.834999084472656,
+                "y": 6.798999786376953,
+                "z": 29.12299919128418,
+                "name": "environment_and_lights/light/oil_lamp(4)/oil_lamp"
+              }
+            }
+          },
+          "lamp010": {
+            "min_x": -49.8833296812767,
+            "min_y": 12.31612494003697,
+            "min_z": 12.263187500686353,
+            "max_x": -48.5531012792193,
+            "max_y": 12.474603111591103,
+            "max_z": 13.604187571776176,
+            "glass_from_x": -49.60433673196914,
+            "glass_from_y": 12.358566649411344,
+            "glass_from_z": 13.226256466021615,
+            "glass_to_x": -48.78565456692459,
+            "glass_to_y": 12.357423207643974,
+            "glass_to_z": 12.735970463343456,
+            "visuals": {
+              "intact0": {
+                "index": 1002,
+                "state": 0
+              },
+              "intact1": {
+                "index": 1001,
+                "state": 0
+              },
+              "intact3": {
+                "index": 999,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": -49.12425231933594,
+                "y": 12.082743644714355,
+                "z": 12.946943283081055,
+                "name": "environment_and_lights/light/lamp_sparks(4)/point_light(4)"
+              }
+            }
+          },
+          "lamp011": {
+            "min_x": 12.025999911129475,
+            "min_y": 6.892000198364258,
+            "min_z": 44.464999087154865,
+            "max_x": 12.265999905765057,
+            "max_y": 7.510000169277191,
+            "max_z": 44.70499908179045,
+            "glass_from_x": 12.145999908447266,
+            "glass_from_y": 7.0060001984238625,
+            "glass_from_z": 44.584999084472656,
+            "glass_to_x": 12.145999908447266,
+            "glass_to_y": 7.277000188827515,
+            "glass_to_z": 44.584999084472656,
+            "visuals": {
+              "intact1": {
+                "index": 1006,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 12.145999908447266,
+                "y": 7.019999980926514,
+                "z": 44.584999084472656,
+                "name": "environment_and_lights/light/oil_lamp(5)/oil_lamp"
+              }
+            }
+          },
+          "lamp012": {
+            "min_x": 1.1606464331773845,
+            "min_y": 17.04007285766962,
+            "min_z": 0.09106044749453984,
+            "max_x": 1.7965255760208225,
+            "max_y": 17.17677883094031,
+            "max_z": 0.9297216747301764,
+            "glass_from_x": 1.5154070312443162,
+            "glass_from_y": 17.07668349281516,
+            "glass_from_z": 0.9252831147530954,
+            "glass_to_x": 1.508966023650591,
+            "glass_to_y": 17.075697829505486,
+            "glass_to_z": 0.09770199263066713,
+            "visuals": {
+              "intact0": {
+                "index": 1011,
+                "state": 0
+              },
+              "intact1": {
+                "index": 1010,
+                "state": 0
+              },
+              "intact3": {
+                "index": 1008,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 1.5161442756652832,
+                "y": 16.83875274658203,
+                "z": 0.44320225715637207,
+                "name": "environment_and_lights/light/lamp_sparks(5)/point_light(4)"
+              }
+            }
+          },
+          "lamp013": {
+            "min_x": 45.88000000268221,
+            "min_y": 9.562000274658203,
+            "min_z": -18.945000760257244,
+            "max_x": 46.11999999731779,
+            "max_y": 10.180000245571136,
+            "max_z": -18.705000765621662,
+            "glass_from_x": 46.0,
+            "glass_from_y": 9.676000274717808,
+            "glass_from_z": -18.825000762939453,
+            "glass_to_x": 46.0,
+            "glass_to_y": 9.94700026512146,
+            "glass_to_z": -18.825000762939453,
+            "visuals": {
+              "intact1": {
+                "index": 1012,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 46.0,
+                "y": 9.690000534057617,
+                "z": -18.825000762939453,
+                "name": "environment_and_lights/light/oil_lamp(6)/oil_lamp"
+              }
+            }
+          },
+          "lamp014": {
+            "min_x": -21.289718458604806,
+            "min_y": 14.90999984741211,
+            "min_z": -8.02871782536506,
+            "max_x": -21.048282792615897,
+            "max_y": 15.527999818325043,
+            "max_z": -7.787282159376151,
+            "glass_from_x": -21.16900062561035,
+            "glass_from_y": 15.023999847471714,
+            "glass_from_z": -7.9079999923706055,
+            "glass_to_x": -21.16900062561035,
+            "glass_to_y": 15.294999837875366,
+            "glass_to_z": -7.9079999923706055,
+            "visuals": {
+              "intact1": {
+                "index": 1020,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": -21.16900062561035,
+                "y": 15.038000106811523,
+                "z": -7.9079999923706055,
+                "name": "environment_and_lights/light/oil_lamp(7)/oil_lamp"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/v044a_level_09/rain_3/client_project"
+      ],
+      "table": "",
+      "key": "srp_lamps",
+      "value": {
+        "version": 3,
+        "break_material": 29,
+        "effect_material": 7,
+        "lamps": {
+          "lamp000": {
+            "min_x": 12.263999827206135,
+            "min_y": 15.003000259399414,
+            "min_z": -11.673000447452068,
+            "max_x": 12.503999821841717,
+            "max_y": 15.621000230312347,
+            "max_z": -11.433000452816486,
+            "glass_from_x": 12.383999824523926,
+            "glass_from_y": 15.117000259459019,
+            "glass_from_z": -11.553000450134277,
+            "glass_to_x": 12.383999824523926,
+            "glass_to_y": 15.388000249862671,
+            "glass_to_z": -11.553000450134277,
+            "visuals": {
+              "intact1": {
+                "index": 561,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 12.383999824523926,
+                "y": 15.131000518798828,
+                "z": -11.553000450134277,
+                "name": "props/gherkin_props/oil_lamp/oil_lamp"
+              }
+            }
+          },
+          "lamp001": {
+            "min_x": 20.458282640028006,
+            "min_y": 14.140999794006348,
+            "min_z": -12.621718237352365,
+            "max_x": 20.699718306016916,
+            "max_y": 14.758999764919281,
+            "max_z": -12.380282571363455,
+            "glass_from_x": 20.57900047302246,
+            "glass_from_y": 14.254999794065952,
+            "glass_from_z": -12.50100040435791,
+            "glass_to_x": 20.57900047302246,
+            "glass_to_y": 14.525999784469604,
+            "glass_to_z": -12.50100040435791,
+            "visuals": {
+              "intact1": {
+                "index": 952,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 20.57900047302246,
+                "y": 14.269000053405762,
+                "z": -12.50100040435791,
+                "name": "environment_and_lights/light/oil_lamp/oil_lamp"
+              }
+            }
+          },
+          "lamp002": {
+            "min_x": 63.98399627953768,
+            "min_y": 9.65999984741211,
+            "min_z": -48.421998135745525,
+            "max_x": 64.22399627417326,
+            "max_y": 10.277999818325043,
+            "max_z": -48.18199814110994,
+            "glass_from_x": 64.10399627685547,
+            "glass_from_y": 9.773999847471714,
+            "glass_from_z": -48.301998138427734,
+            "glass_to_x": 64.10399627685547,
+            "glass_to_y": 10.044999837875366,
+            "glass_to_z": -48.301998138427734,
+            "visuals": {
+              "intact1": {
+                "index": 957,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 64.10399627685547,
+                "y": 9.788000106811523,
+                "z": -48.301998138427734,
+                "name": "environment_and_lights/light/oil_lamp(1)/oil_lamp"
+              }
+            }
+          },
+          "lamp003": {
+            "min_x": 6.014401494307286,
+            "min_y": 17.073292240379338,
+            "min_z": -15.978175105045096,
+            "max_x": 6.954970481180485,
+            "max_y": 17.260074099198015,
+            "max_z": -14.964720334402104,
+            "glass_from_x": 6.510145908447516,
+            "glass_from_y": 17.18614583088272,
+            "glass_from_z": -14.978346582573083,
+            "glass_to_x": 6.50838745374432,
+            "glass_to_y": 17.18478690925104,
+            "glass_to_z": -15.959904780844658,
+            "visuals": {
+              "intact0": {
+                "index": 968,
+                "state": 0
+              },
+              "intact1": {
+                "index": 967,
+                "state": 0
+              },
+              "intact3": {
+                "index": 965,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 6.540356636047363,
+                "y": 16.798229217529297,
+                "z": -15.54977035522461,
+                "name": "environment_and_lights/light/lamp_sparks/point_light(4)"
+              }
+            }
+          },
+          "lamp004": {
+            "min_x": 48.82900131493807,
+            "min_y": 9.562000274658203,
+            "min_z": -47.37699996680021,
+            "max_x": 49.06900130957365,
+            "max_y": 10.180000245571136,
+            "max_z": -47.13699997216463,
+            "glass_from_x": 48.94900131225586,
+            "glass_from_y": 9.676000274717808,
+            "glass_from_z": -47.25699996948242,
+            "glass_to_x": 48.94900131225586,
+            "glass_to_y": 9.94700026512146,
+            "glass_to_z": -47.25699996948242,
+            "visuals": {
+              "intact1": {
+                "index": 972,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 48.94900131225586,
+                "y": 9.690000534057617,
+                "z": -47.25699996948242,
+                "name": "environment_and_lights/light/oil_lamp(2)/oil_lamp"
+              }
+            }
+          },
+          "lamp005": {
+            "min_x": 36.29621056507692,
+            "min_y": 12.526538491452282,
+            "min_z": -56.44967448206336,
+            "max_x": 37.66615988456904,
+            "max_y": 12.689672798649713,
+            "max_z": -55.08578311365409,
+            "glass_from_x": 37.313650339777,
+            "glass_from_y": 12.56942192035632,
+            "glass_from_z": -55.41558053774944,
+            "glass_to_x": 36.73782153001139,
+            "glass_to_y": 12.572068120368053,
+            "glass_to_z": -56.17652491069182,
+            "visuals": {
+              "intact0": {
+                "index": 977,
+                "state": 0
+              },
+              "intact1": {
+                "index": 976,
+                "state": 0
+              },
+              "intact3": {
+                "index": 974,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 36.98356246948242,
+                "y": 12.295809745788574,
+                "z": -55.8636360168457,
+                "name": "environment_and_lights/light/lamp_sparks(1)/point_light(4)"
+              }
+            }
+          },
+          "lamp006": {
+            "min_x": 9.194281747388846,
+            "min_y": 15.032999992370605,
+            "min_z": 16.043281724500662,
+            "max_x": 9.435717413377755,
+            "max_y": 15.650999963283539,
+            "max_z": 16.284717390489572,
+            "glass_from_x": 9.3149995803833,
+            "glass_from_y": 15.14699999243021,
+            "glass_from_z": 16.163999557495117,
+            "glass_to_x": 9.3149995803833,
+            "glass_to_y": 15.417999982833862,
+            "glass_to_z": 16.163999557495117,
+            "visuals": {
+              "intact1": {
+                "index": 978,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 9.3149995803833,
+                "y": 15.16100025177002,
+                "z": 16.163999557495117,
+                "name": "environment_and_lights/light/oil_lamp(3)/oil_lamp"
+              }
+            }
+          },
+          "lamp007": {
+            "min_x": 47.44428454471233,
+            "min_y": 12.524552461816851,
+            "min_z": -40.55920771144429,
+            "max_x": 48.652197158545775,
+            "max_y": 12.688005966142915,
+            "max_z": -39.371681192646754,
+            "glass_from_x": 48.230734942069695,
+            "glass_from_y": 12.56788528659599,
+            "glass_from_z": -39.51683737974444,
+            "glass_to_x": 47.96904479468361,
+            "glass_to_y": 12.569845837712577,
+            "glass_to_z": -40.43451737965923,
+            "visuals": {
+              "intact0": {
+                "index": 983,
+                "state": 0
+              },
+              "intact1": {
+                "index": 982,
+                "state": 0
+              },
+              "intact3": {
+                "index": 980,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 48.084739685058594,
+                "y": 12.293864250183105,
+                "z": -40.053653717041016,
+                "name": "environment_and_lights/light/lamp_sparks(2)/point_light(4)"
+              }
+            }
+          },
+          "lamp008": {
+            "min_x": -39.53732900988998,
+            "min_y": 13.001124405979352,
+            "min_z": 38.342188927383134,
+            "max_x": -38.20710060783258,
+            "max_y": 13.159602577533486,
+            "max_z": 39.68318899847295,
+            "glass_from_x": -39.25833606058242,
+            "glass_from_y": 13.043566115353727,
+            "glass_from_z": 39.305257892718394,
+            "glass_to_x": -38.43965389553787,
+            "glass_to_y": 13.042422673586357,
+            "glass_to_z": 38.81497189004023,
+            "visuals": {
+              "intact0": {
+                "index": 987,
+                "state": 0
+              },
+              "intact1": {
+                "index": 986,
+                "state": 0
+              },
+              "intact3": {
+                "index": 984,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": -38.77825164794922,
+                "y": 12.767743110656738,
+                "z": 39.025943756103516,
+                "name": "environment_and_lights/light/lamp_sparks(3)/point_light(4)"
+              }
+            }
+          },
+          "lamp009": {
+            "min_x": -38.95499908179045,
+            "min_y": 6.671000003814697,
+            "min_z": 29.00299919396639,
+            "max_x": -38.714999087154865,
+            "max_y": 7.288999974727631,
+            "max_z": 29.24299918860197,
+            "glass_from_x": -38.834999084472656,
+            "glass_from_y": 6.785000003874302,
+            "glass_from_z": 29.12299919128418,
+            "glass_to_x": -38.834999084472656,
+            "glass_to_y": 7.055999994277954,
+            "glass_to_z": 29.12299919128418,
+            "visuals": {
+              "intact1": {
+                "index": 994,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": -38.834999084472656,
+                "y": 6.798999786376953,
+                "z": 29.12299919128418,
+                "name": "environment_and_lights/light/oil_lamp(4)/oil_lamp"
+              }
+            }
+          },
+          "lamp010": {
+            "min_x": -49.8833296812767,
+            "min_y": 12.31612494003697,
+            "min_z": 12.263187500686353,
+            "max_x": -48.5531012792193,
+            "max_y": 12.474603111591103,
+            "max_z": 13.604187571776176,
+            "glass_from_x": -49.60433673196914,
+            "glass_from_y": 12.358566649411344,
+            "glass_from_z": 13.226256466021615,
+            "glass_to_x": -48.78565456692459,
+            "glass_to_y": 12.357423207643974,
+            "glass_to_z": 12.735970463343456,
+            "visuals": {
+              "intact0": {
+                "index": 1002,
+                "state": 0
+              },
+              "intact1": {
+                "index": 1001,
+                "state": 0
+              },
+              "intact3": {
+                "index": 999,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": -49.12425231933594,
+                "y": 12.082743644714355,
+                "z": 12.946943283081055,
+                "name": "environment_and_lights/light/lamp_sparks(4)/point_light(4)"
+              }
+            }
+          },
+          "lamp011": {
+            "min_x": 12.025999911129475,
+            "min_y": 6.892000198364258,
+            "min_z": 44.464999087154865,
+            "max_x": 12.265999905765057,
+            "max_y": 7.510000169277191,
+            "max_z": 44.70499908179045,
+            "glass_from_x": 12.145999908447266,
+            "glass_from_y": 7.0060001984238625,
+            "glass_from_z": 44.584999084472656,
+            "glass_to_x": 12.145999908447266,
+            "glass_to_y": 7.277000188827515,
+            "glass_to_z": 44.584999084472656,
+            "visuals": {
+              "intact1": {
+                "index": 1006,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 12.145999908447266,
+                "y": 7.019999980926514,
+                "z": 44.584999084472656,
+                "name": "environment_and_lights/light/oil_lamp(5)/oil_lamp"
+              }
+            }
+          },
+          "lamp012": {
+            "min_x": 1.1606464331773845,
+            "min_y": 17.04007285766962,
+            "min_z": 0.09106044749453984,
+            "max_x": 1.7965255760208225,
+            "max_y": 17.17677883094031,
+            "max_z": 0.9297216747301764,
+            "glass_from_x": 1.5154070312443162,
+            "glass_from_y": 17.07668349281516,
+            "glass_from_z": 0.9252831147530954,
+            "glass_to_x": 1.508966023650591,
+            "glass_to_y": 17.075697829505486,
+            "glass_to_z": 0.09770199263066713,
+            "visuals": {
+              "intact0": {
+                "index": 1011,
+                "state": 0
+              },
+              "intact1": {
+                "index": 1010,
+                "state": 0
+              },
+              "intact3": {
+                "index": 1008,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 1.5161442756652832,
+                "y": 16.83875274658203,
+                "z": 0.44320225715637207,
+                "name": "environment_and_lights/light/lamp_sparks(5)/point_light(4)"
+              }
+            }
+          },
+          "lamp013": {
+            "min_x": 45.88000000268221,
+            "min_y": 9.562000274658203,
+            "min_z": -18.945000760257244,
+            "max_x": 46.11999999731779,
+            "max_y": 10.180000245571136,
+            "max_z": -18.705000765621662,
+            "glass_from_x": 46.0,
+            "glass_from_y": 9.676000274717808,
+            "glass_from_z": -18.825000762939453,
+            "glass_to_x": 46.0,
+            "glass_to_y": 9.94700026512146,
+            "glass_to_z": -18.825000762939453,
+            "visuals": {
+              "intact1": {
+                "index": 1012,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 46.0,
+                "y": 9.690000534057617,
+                "z": -18.825000762939453,
+                "name": "environment_and_lights/light/oil_lamp(6)/oil_lamp"
+              }
+            }
+          },
+          "lamp014": {
+            "min_x": -21.289718458604806,
+            "min_y": 14.90999984741211,
+            "min_z": -8.02871782536506,
+            "max_x": -21.048282792615897,
+            "max_y": 15.527999818325043,
+            "max_z": -7.787282159376151,
+            "glass_from_x": -21.16900062561035,
+            "glass_from_y": 15.023999847471714,
+            "glass_from_z": -7.9079999923706055,
+            "glass_to_x": -21.16900062561035,
+            "glass_to_y": 15.294999837875366,
+            "glass_to_z": -7.9079999923706055,
+            "visuals": {
+              "intact1": {
+                "index": 1020,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": -21.16900062561035,
+                "y": 15.038000106811523,
+                "z": -7.9079999923706055,
+                "name": "environment_and_lights/light/oil_lamp(7)/oil_lamp"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/v044a_level_09/rain_4/client_project"
+      ],
+      "table": "",
+      "key": "srp_lamps",
+      "value": {
+        "version": 3,
+        "break_material": 29,
+        "effect_material": 7,
+        "lamps": {
+          "lamp000": {
+            "min_x": 12.263999827206135,
+            "min_y": 15.003000259399414,
+            "min_z": -11.673000447452068,
+            "max_x": 12.503999821841717,
+            "max_y": 15.621000230312347,
+            "max_z": -11.433000452816486,
+            "glass_from_x": 12.383999824523926,
+            "glass_from_y": 15.117000259459019,
+            "glass_from_z": -11.553000450134277,
+            "glass_to_x": 12.383999824523926,
+            "glass_to_y": 15.388000249862671,
+            "glass_to_z": -11.553000450134277,
+            "visuals": {
+              "intact1": {
+                "index": 507,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 12.383999824523926,
+                "y": 15.131000518798828,
+                "z": -11.553000450134277,
+                "name": "props/gherkin_props/oil_lamp/oil_lamp"
+              }
+            }
+          },
+          "lamp001": {
+            "min_x": 20.458282640028006,
+            "min_y": 14.140999794006348,
+            "min_z": -12.621718237352365,
+            "max_x": 20.699718306016916,
+            "max_y": 14.758999764919281,
+            "max_z": -12.380282571363455,
+            "glass_from_x": 20.57900047302246,
+            "glass_from_y": 14.254999794065952,
+            "glass_from_z": -12.50100040435791,
+            "glass_to_x": 20.57900047302246,
+            "glass_to_y": 14.525999784469604,
+            "glass_to_z": -12.50100040435791,
+            "visuals": {
+              "intact1": {
+                "index": 898,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 20.57900047302246,
+                "y": 14.269000053405762,
+                "z": -12.50100040435791,
+                "name": "environment_and_lights/light/oil_lamp/oil_lamp"
+              }
+            }
+          },
+          "lamp002": {
+            "min_x": 63.98399627953768,
+            "min_y": 9.65999984741211,
+            "min_z": -48.421998135745525,
+            "max_x": 64.22399627417326,
+            "max_y": 10.277999818325043,
+            "max_z": -48.18199814110994,
+            "glass_from_x": 64.10399627685547,
+            "glass_from_y": 9.773999847471714,
+            "glass_from_z": -48.301998138427734,
+            "glass_to_x": 64.10399627685547,
+            "glass_to_y": 10.044999837875366,
+            "glass_to_z": -48.301998138427734,
+            "visuals": {
+              "intact1": {
+                "index": 903,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 64.10399627685547,
+                "y": 9.788000106811523,
+                "z": -48.301998138427734,
+                "name": "environment_and_lights/light/oil_lamp(1)/oil_lamp"
+              }
+            }
+          },
+          "lamp003": {
+            "min_x": 6.014401494307286,
+            "min_y": 17.073292240379338,
+            "min_z": -15.978175105045096,
+            "max_x": 6.954970481180485,
+            "max_y": 17.260074099198015,
+            "max_z": -14.964720334402104,
+            "glass_from_x": 6.510145908447516,
+            "glass_from_y": 17.18614583088272,
+            "glass_from_z": -14.978346582573083,
+            "glass_to_x": 6.50838745374432,
+            "glass_to_y": 17.18478690925104,
+            "glass_to_z": -15.959904780844658,
+            "visuals": {
+              "intact0": {
+                "index": 914,
+                "state": 0
+              },
+              "intact1": {
+                "index": 913,
+                "state": 0
+              },
+              "intact3": {
+                "index": 911,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 6.540356636047363,
+                "y": 16.798229217529297,
+                "z": -15.54977035522461,
+                "name": "environment_and_lights/light/lamp_sparks/point_light(4)"
+              }
+            }
+          },
+          "lamp004": {
+            "min_x": 48.82900131493807,
+            "min_y": 9.562000274658203,
+            "min_z": -47.37699996680021,
+            "max_x": 49.06900130957365,
+            "max_y": 10.180000245571136,
+            "max_z": -47.13699997216463,
+            "glass_from_x": 48.94900131225586,
+            "glass_from_y": 9.676000274717808,
+            "glass_from_z": -47.25699996948242,
+            "glass_to_x": 48.94900131225586,
+            "glass_to_y": 9.94700026512146,
+            "glass_to_z": -47.25699996948242,
+            "visuals": {
+              "intact1": {
+                "index": 918,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 48.94900131225586,
+                "y": 9.690000534057617,
+                "z": -47.25699996948242,
+                "name": "environment_and_lights/light/oil_lamp(2)/oil_lamp"
+              }
+            }
+          },
+          "lamp005": {
+            "min_x": 36.29621056507692,
+            "min_y": 12.526538491452282,
+            "min_z": -56.44967448206336,
+            "max_x": 37.66615988456904,
+            "max_y": 12.689672798649713,
+            "max_z": -55.08578311365409,
+            "glass_from_x": 37.313650339777,
+            "glass_from_y": 12.56942192035632,
+            "glass_from_z": -55.41558053774944,
+            "glass_to_x": 36.73782153001139,
+            "glass_to_y": 12.572068120368053,
+            "glass_to_z": -56.17652491069182,
+            "visuals": {
+              "intact0": {
+                "index": 923,
+                "state": 0
+              },
+              "intact1": {
+                "index": 922,
+                "state": 0
+              },
+              "intact3": {
+                "index": 920,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 36.98356246948242,
+                "y": 12.295809745788574,
+                "z": -55.8636360168457,
+                "name": "environment_and_lights/light/lamp_sparks(1)/point_light(4)"
+              }
+            }
+          },
+          "lamp006": {
+            "min_x": 9.194281747388846,
+            "min_y": 15.032999992370605,
+            "min_z": 16.043281724500662,
+            "max_x": 9.435717413377755,
+            "max_y": 15.650999963283539,
+            "max_z": 16.284717390489572,
+            "glass_from_x": 9.3149995803833,
+            "glass_from_y": 15.14699999243021,
+            "glass_from_z": 16.163999557495117,
+            "glass_to_x": 9.3149995803833,
+            "glass_to_y": 15.417999982833862,
+            "glass_to_z": 16.163999557495117,
+            "visuals": {
+              "intact1": {
+                "index": 924,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 9.3149995803833,
+                "y": 15.16100025177002,
+                "z": 16.163999557495117,
+                "name": "environment_and_lights/light/oil_lamp(3)/oil_lamp"
+              }
+            }
+          },
+          "lamp007": {
+            "min_x": 47.44428454471233,
+            "min_y": 12.524552461816851,
+            "min_z": -40.55920771144429,
+            "max_x": 48.652197158545775,
+            "max_y": 12.688005966142915,
+            "max_z": -39.371681192646754,
+            "glass_from_x": 48.230734942069695,
+            "glass_from_y": 12.56788528659599,
+            "glass_from_z": -39.51683737974444,
+            "glass_to_x": 47.96904479468361,
+            "glass_to_y": 12.569845837712577,
+            "glass_to_z": -40.43451737965923,
+            "visuals": {
+              "intact0": {
+                "index": 929,
+                "state": 0
+              },
+              "intact1": {
+                "index": 928,
+                "state": 0
+              },
+              "intact3": {
+                "index": 926,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 48.084739685058594,
+                "y": 12.293864250183105,
+                "z": -40.053653717041016,
+                "name": "environment_and_lights/light/lamp_sparks(2)/point_light(4)"
+              }
+            }
+          },
+          "lamp008": {
+            "min_x": -39.53732900988998,
+            "min_y": 13.001124405979352,
+            "min_z": 38.342188927383134,
+            "max_x": -38.20710060783258,
+            "max_y": 13.159602577533486,
+            "max_z": 39.68318899847295,
+            "glass_from_x": -39.25833606058242,
+            "glass_from_y": 13.043566115353727,
+            "glass_from_z": 39.305257892718394,
+            "glass_to_x": -38.43965389553787,
+            "glass_to_y": 13.042422673586357,
+            "glass_to_z": 38.81497189004023,
+            "visuals": {
+              "intact0": {
+                "index": 933,
+                "state": 0
+              },
+              "intact1": {
+                "index": 932,
+                "state": 0
+              },
+              "intact3": {
+                "index": 930,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": -38.77825164794922,
+                "y": 12.767743110656738,
+                "z": 39.025943756103516,
+                "name": "environment_and_lights/light/lamp_sparks(3)/point_light(4)"
+              }
+            }
+          },
+          "lamp009": {
+            "min_x": -38.95499908179045,
+            "min_y": 6.671000003814697,
+            "min_z": 29.00299919396639,
+            "max_x": -38.714999087154865,
+            "max_y": 7.288999974727631,
+            "max_z": 29.24299918860197,
+            "glass_from_x": -38.834999084472656,
+            "glass_from_y": 6.785000003874302,
+            "glass_from_z": 29.12299919128418,
+            "glass_to_x": -38.834999084472656,
+            "glass_to_y": 7.055999994277954,
+            "glass_to_z": 29.12299919128418,
+            "visuals": {
+              "intact1": {
+                "index": 940,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": -38.834999084472656,
+                "y": 6.798999786376953,
+                "z": 29.12299919128418,
+                "name": "environment_and_lights/light/oil_lamp(4)/oil_lamp"
+              }
+            }
+          },
+          "lamp010": {
+            "min_x": -49.8833296812767,
+            "min_y": 12.31612494003697,
+            "min_z": 12.263187500686353,
+            "max_x": -48.5531012792193,
+            "max_y": 12.474603111591103,
+            "max_z": 13.604187571776176,
+            "glass_from_x": -49.60433673196914,
+            "glass_from_y": 12.358566649411344,
+            "glass_from_z": 13.226256466021615,
+            "glass_to_x": -48.78565456692459,
+            "glass_to_y": 12.357423207643974,
+            "glass_to_z": 12.735970463343456,
+            "visuals": {
+              "intact0": {
+                "index": 948,
+                "state": 0
+              },
+              "intact1": {
+                "index": 947,
+                "state": 0
+              },
+              "intact3": {
+                "index": 945,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": -49.12425231933594,
+                "y": 12.082743644714355,
+                "z": 12.946943283081055,
+                "name": "environment_and_lights/light/lamp_sparks(4)/point_light(4)"
+              }
+            }
+          },
+          "lamp011": {
+            "min_x": 12.025999911129475,
+            "min_y": 6.892000198364258,
+            "min_z": 44.464999087154865,
+            "max_x": 12.265999905765057,
+            "max_y": 7.510000169277191,
+            "max_z": 44.70499908179045,
+            "glass_from_x": 12.145999908447266,
+            "glass_from_y": 7.0060001984238625,
+            "glass_from_z": 44.584999084472656,
+            "glass_to_x": 12.145999908447266,
+            "glass_to_y": 7.277000188827515,
+            "glass_to_z": 44.584999084472656,
+            "visuals": {
+              "intact1": {
+                "index": 952,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 12.145999908447266,
+                "y": 7.019999980926514,
+                "z": 44.584999084472656,
+                "name": "environment_and_lights/light/oil_lamp(5)/oil_lamp"
+              }
+            }
+          },
+          "lamp012": {
+            "min_x": 1.1606464331773845,
+            "min_y": 17.04007285766962,
+            "min_z": 0.09106044749453984,
+            "max_x": 1.7965255760208225,
+            "max_y": 17.17677883094031,
+            "max_z": 0.9297216747301764,
+            "glass_from_x": 1.5154070312443162,
+            "glass_from_y": 17.07668349281516,
+            "glass_from_z": 0.9252831147530954,
+            "glass_to_x": 1.508966023650591,
+            "glass_to_y": 17.075697829505486,
+            "glass_to_z": 0.09770199263066713,
+            "visuals": {
+              "intact0": {
+                "index": 957,
+                "state": 0
+              },
+              "intact1": {
+                "index": 956,
+                "state": 0
+              },
+              "intact3": {
+                "index": 954,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 1.5161442756652832,
+                "y": 16.83875274658203,
+                "z": 0.44320225715637207,
+                "name": "environment_and_lights/light/lamp_sparks(5)/point_light(4)"
+              }
+            }
+          },
+          "lamp013": {
+            "min_x": 45.88000000268221,
+            "min_y": 9.562000274658203,
+            "min_z": -18.945000760257244,
+            "max_x": 46.11999999731779,
+            "max_y": 10.180000245571136,
+            "max_z": -18.705000765621662,
+            "glass_from_x": 46.0,
+            "glass_from_y": 9.676000274717808,
+            "glass_from_z": -18.825000762939453,
+            "glass_to_x": 46.0,
+            "glass_to_y": 9.94700026512146,
+            "glass_to_z": -18.825000762939453,
+            "visuals": {
+              "intact1": {
+                "index": 958,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": 46.0,
+                "y": 9.690000534057617,
+                "z": -18.825000762939453,
+                "name": "environment_and_lights/light/oil_lamp(6)/oil_lamp"
+              }
+            }
+          },
+          "lamp014": {
+            "min_x": -21.289718458604806,
+            "min_y": 14.90999984741211,
+            "min_z": -8.02871782536506,
+            "max_x": -21.048282792615897,
+            "max_y": 15.527999818325043,
+            "max_z": -7.787282159376151,
+            "glass_from_x": -21.16900062561035,
+            "glass_from_y": 15.023999847471714,
+            "glass_from_z": -7.9079999923706055,
+            "glass_to_x": -21.16900062561035,
+            "glass_to_y": 15.294999837875366,
+            "glass_to_z": -7.9079999923706055,
+            "visuals": {
+              "intact1": {
+                "index": 966,
+                "state": 0
+              }
+            },
+            "lights": {},
+            "particles": {
+              "particle0": {
+                "x": -21.16900062561035,
+                "y": 15.038000106811523,
+                "z": -7.9079999923706055,
+                "name": "environment_and_lights/light/oil_lamp(7)/oil_lamp"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

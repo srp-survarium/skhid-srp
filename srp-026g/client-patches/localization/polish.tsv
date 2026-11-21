@@ -155,6 +155,8 @@ st_ak74u_description	Skrócona wersja karabinku AK-74, amunicja: 5.45х39. Dzię
 st_ak74u_name	AKS-74U
 st_ak74u_premium_description	Skrócona wersja karabinku AK-74, amunicja: 5.45x39. Dzięki jego niewielkim rozmiarom wykorzystywany był przez piechotę morską, MSW i funkcjonariuszy ochrony. Posiada tryb ognia pojedynczego i ciągłego. Wersja premium w specjalnym malowaniu kamuflażowym.
 st_ak74u_premium_name	AKS-74U Korsar
+st_ak_zenit_rk2_foregrip_desc	Odrzut -4%. Czas celowania +1.5%.
+st_ak_zenit_rk2_foregrip_name	Chwyt taktyczny Zenit RK-2
 st_akmn_description	Automat Kałasznikowa, dostosowany do pocisków 7.62×39 mm. Dzięki solidnym pociskom broń znajduje zastosowanie także obecnie. Posiada tryb ognia pojedynczego i ciągłego.
 st_akmn_name	AKM
 st_akmn_premium_2_description	Automat Kałasznikowa, dostosowany do pocisków 7.62×39 mm. Dzięki solidnym pociskom broń znajduje zastosowanie także obecnie. Posiada tryb ognia pojedynczego i ciągłego. Wersja premium w specjalnym malowaniu kamuflażowym.
@@ -1139,6 +1141,10 @@ st_exp_reward_match	Zdobyte doświadczenie
 st_exp_reward_premium	Bonus premium
 st_experience	Doświadczenie
 st_experience_modifier	Otrzymane doświadczenie
+st_fabdefence_miki_foregrip_desc	Odrzut -4%.
+st_fabdefence_miki_foregrip_name	Uchwyt przedni Fab-Defense MIKI
+st_fabdefence_ptk_foregrip_desc	Odrzut -6%.
+st_fabdefence_ptk_foregrip_name	Uchwyt przedni Fab-Defense PTK
 st_face_069d_balaclava_3_hole_desc	Dziana kominiarka z otworami na oczy i usta. Grzeje i zakrywa twarz.
 st_face_069d_balaclava_3_hole_name	Kominiarka z 3 otworami
 st_face_069d_balaclava_desc	Przylegająca wojskowa kominiarka z jednym otworem na oczy, do noszenia pod hełmem.
@@ -1223,6 +1229,8 @@ st_fn_minimi_description	Belgijski ręczny karabin maszynowy, amunicja: 5,56x45.
 st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Belgijska broń osobista typu PDW, amunicja: 5,7x28. Opracowana przez FN Herstal około 1990 r. razem z własnym nabojem; układ bullpup i 50-nabojowy magazynek leżący wzdłuż górnej części broni. Używana przez jednostki specjalne i policję w wielu krajach. Posiada tryb ognia pojedynczego i ciągłego.
 st_fn_p90_name	FN P90
+st_fort401_foregrip_desc	Odrzut -6%.
+st_fort401_foregrip_name	Standardowy uchwyt przedni Fort-401
 st_fort_17_description	Pistolet samopowtarzalny ukraińskiej konstrukcji, amunicja: 9х18. Seryjną produkcję rozpoczęto w 2004 r. Używany był przez siły wewnętrzne i niektóre oddziały sił specjalnych. Wyposażony w 12-nabojowy magazynek.
 st_fort_17_name	Fort 17
 st_fort_401_description	Ukraiński ręczny karabin maszynowy, amunicja: 7,62x51. Licencyjny Negev z Winnicy, zasilany z pudełka na 100 nabojów.
@@ -1246,6 +1254,8 @@ st_friendly_user_compliment	Przyjazny gracz
 st_friends_online	Znajomi online
 st_friends_signin_notification_option	Powiadom mnie, gdy znajomi zmienią status na online
 st_fullscreen_option	Pełny ekran
+st_gandp_ris_foregrip_desc	Odrzut -4%. Czas celowania +1.5%.
+st_gandp_ris_foregrip_name	Uchwyt przedni G&P RIS
 st_general_volume_option	Ogólny
 st_generic_money_name	Monety
 st_geometry_quality_option	Jakość geometrii
@@ -1292,6 +1302,8 @@ st_hud_tutorial_frame_6_text_1	Do boju!
 st_hud_tutorial_frame_6_text_2	Udało ci się ukończyć podstawowe\nszkolenie bojowe. Powodzenia!
 st_hud_tutorial_frame_6_text_3	Twoja nagroda:
 st_ignored	Wyświetl ignorowanych graczy
+st_imi_fsg2_foregrip_desc	Odrzut -2%.
+st_imi_fsg2_foregrip_name	Uchwyt przedni FSG2
 st_in_develepoment_hint	W procesie tworzenia
 st_ingame_volume_option	Gra
 st_injury_penalty_description	Kara do rozrzutu przy zranieniu rąk:
@@ -1431,7 +1443,7 @@ st_level_05_name	Fort Tarakanów
 st_level_06_name	Kurhan Mamaja
 st_level_07_name	Laboratorium "Wektor"
 st_level_08_name	Most w Kolonii
-st_level_09_name	Londyn
+st_level_09_name	Londyn (v0.32)
 st_level_10_name	Stacja Radarowa "Vostok" (v0.21)
 st_level_11_name	Kurhan Mamaja (v0.21)
 st_level_12_name	Zakłady chemiczne (v0.11)
@@ -1441,6 +1453,7 @@ st_level_25_name	Szkoła (v0.21)
 st_level_26_name	Fort Tarakanów (v0.21)
 st_level_29_name	Rudnia (v0.21)
 st_level_31_name	Zakłady chemiczne (v0.21)
+st_level_32_name	Londyn (v0.42)
 st_lifebone_activation_hint	Żywokost aktywowany! Wszystkie rany krytyczne zostały wyleczone! Zdrowie przywrócone!
 st_lifebone_pickup_hint	Artefakt Żywokost. Przyspiesza regenerację zdrowia.
 st_lightning_quality_option	Jakość oświetlenia
@@ -1465,6 +1478,8 @@ st_m4a1_description	Amerykański karabinek, amunicja: 5,56x45. Skrócone i lżej
 st_m4a1_name	M4A1
 st_magnum_description	Sześciostrzałowy rewolwer kalibru .357 Magnum. Wprowadzony do użytku w 1955 r. Przez niektórych uważany za najlepszy w swojej klasie. Wyróżnia się płynnie działającym mechanizmem spustowym i wysoką precyzją strzału.
 st_magnum_name	Colt Python
+st_magpul_afg1_foregrip_desc	Odrzut -6%.
+st_magpul_afg1_foregrip_name	Uchwyt przedni AFG-1
 st_maintenance	Trwa konserwacja techniczna serwerów. Aplikacja zostanie zamknięta.
 st_map	Mapa
 st_map_hint_13_1	Odnajdź artefakt "Leśny Blask"
@@ -1492,6 +1507,8 @@ st_match_settings_checkbox_training_match	Rozgrywka treningowa
 st_match_settings_checkbox_training_match_hint	Tryb sali treningowej
 st_match_settings_clan_match	Bitwa klanowa
 st_match_time_is_up	Czas rozgrywki dobiegł końca!
+st_mauser_m712_foregrip_desc	Odrzut -6%.
+st_mauser_m712_foregrip_name	Chwyt Mauser M.712
 st_max_carried_weight_description	Udźwig:
 st_max_carried_weight_name	Siłacz
 st_max_carried_weight_ultimate_description	Udźwig nie wpływa już na prędkość poruszania się, ale nie możesz biec.
@@ -1601,6 +1618,114 @@ st_multiplicative_stamina_spending_modifier	Koszty energii
 st_munition	Sprzęt
 st_music_volume_option	Muzyka
 st_must_be_in_clan_team	Musisz należeć do drużyny klanu.
+st_muzzle_aek919k_m12x1l_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_aek919k_m12x1l_muzzlebrake_name	Hamulec wylotowy AEK-919K, M12x1L
+st_muzzle_akmsu_m24x15_muzzlebrake_description	Tylko wygląd.
+st_muzzle_akmsu_m24x15_muzzlebrake_name	Tłumik płomieni AKMSU, M24x1.5
+st_muzzle_aks74u_m24x15_muzzlebrake_description	Tylko wygląd.
+st_muzzle_aks74u_m24x15_muzzlebrake_name	Tłumik płomieni AKS-74U, M24x1.5
+st_muzzle_aws_rapira_m24x15_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_aws_rapira_m24x15_muzzlebrake_name	Hamulec wylotowy Rapira, M24x1.5
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_name	Tłumik płomieni ROFH, M14x1L
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_name	Tłumik płomieni ROFH, M16x1L
+st_muzzle_custom_01_doublevert_m22x075_choke_description	Rozrzut -20 %. Czas celowania +3 %.
+st_muzzle_custom_01_doublevert_m22x075_choke_name	Czok Custom 01, M22x0.75 O/U
+st_muzzle_custom_01_duckbill_description	Rozrzut -15 %.
+st_muzzle_custom_01_duckbill_name	Kaczy dziób Custom 01, M22x0.75
+st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_name	Hamulec wylotowy Custom 01, M14x1L
+st_muzzle_custom_01_m22x075_choke_description	Rozrzut -20 %. Czas celowania +3 %.
+st_muzzle_custom_01_m22x075_choke_name	Czok Custom 01, M22x0.75
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Hamulec wylotowy Custom 01, M30x1
+st_muzzle_custom_02_duckbill_description	Rozrzut -15 %.
+st_muzzle_custom_02_duckbill_name	Kaczy dziób Custom 02, M22x0.75
+st_muzzle_custom_02_m14x1l_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_custom_02_m14x1l_firearrestor_name	Tłumik płomieni Custom 02, M14x1L
+st_muzzle_custom_02_m24x15_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_custom_02_m24x15_firearrestor_name	Tłumik płomieni Custom 02, M24x1.5
+st_muzzle_custom_03_duckbill_description	Rozrzut -15 %.
+st_muzzle_custom_03_duckbill_name	Kaczy dziób Custom 03, M22x0.75
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_name	Tłumik płomieni Custom 03, M14x1L
+st_muzzle_custom_04_i05x28_clamp_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_custom_04_i05x28_clamp_firearrestor_name	Tłumik płomieni Custom 04, 1/2"x28
+st_muzzle_custom_04_i06x24_clamp_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_custom_04_i06x24_clamp_firearrestor_name	Tłumik płomieni Custom 04, 5/8"x24
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_name	Tłumik płomieni Custom 04, M14x1L
+st_muzzle_custom_doublevert_01_duckbill_description	Rozrzut -15 %.
+st_muzzle_custom_doublevert_01_duckbill_name	Kaczy dziób Custom 01, M22x0.75 O/U
+st_muzzle_custom_doublevert_02_duckbill_description	Rozrzut -15 %.
+st_muzzle_custom_doublevert_02_duckbill_name	Kaczy dziób Custom 02, M22x0.75 O/U
+st_muzzle_custom_doublhor_01_duckbill_description	Rozrzut -15 %.
+st_muzzle_custom_doublhor_01_duckbill_name	Kaczy dziób Custom 01, M22x0.75 SxS
+st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_name	Hamulec wylotowy T-Brake, 1/2"x28
+st_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_name	Hamulec wylotowy T-Brake, M14x1L
+st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_name	Hamulec wylotowy Defcon 1, 1/2"x28
+st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_name	Hamulec wylotowy Defcon 1, M16x1L
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_name	Hamulec wylotowy Defcon 1, M30x1
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Rozrzut -16 %.
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_name	Hamulec wylotowy Guns.ru, M22x0.75
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_description	Rozrzut -16 %.
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_name	Hamulec wylotowy Kochevnik, M22x0.75
+st_muzzle_kkm_i05x28_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_kkm_i05x28_muzzlebrake_name	Hamulec wylotowy KKM, 1/2"x28
+st_muzzle_lantac_dragon_i05x28_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_lantac_dragon_i05x28_muzzlebrake_name	Hamulec wylotowy Dragon, 1/2"x28
+st_muzzle_lantac_dragon_i06x24_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_lantac_dragon_i06x24_muzzlebrake_name	Hamulec wylotowy Dragon, 5/8"x24
+st_muzzle_lantac_drakon_m14x1l_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_lantac_drakon_m14x1l_muzzlebrake_name	Hamulec wylotowy Dragon, M14x1L
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_name	Tłumik płomieni NightBrake, 1/2"x28
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_name	Tłumik płomieni NightBrake, 5/8"x24
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_name	Tłumik płomieni NightBrake, M12x1L
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_name	Tłumik płomieni NightBrake, M14x1L
+st_muzzle_polychoke_ventedcollar_m22x075_choke_description	Rozrzut -20 %. Czas celowania +3 %.
+st_muzzle_polychoke_ventedcollar_m22x075_choke_name	Czok Polychoke, M22x0.75
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Rozrzut -16 %.
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_name	Hamulec wylotowy Ilgynag K01, M22x0.75
+st_muzzle_redheat_krymske2_m24x15_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_redheat_krymske2_m24x15_firearrestor_name	Tłumik płomieni Krymsk-2, M24x1.5
+st_muzzle_redheat_shturm_m14x1l_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_redheat_shturm_m14x1l_muzzlebrake_name	Hamulec wylotowy Shturm, M14x1L
+st_muzzle_redheat_shturm_m24x15_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_redheat_shturm_m24x15_muzzlebrake_name	Hamulec wylotowy Shturm, M24x1.5
+st_muzzle_remington_doublehor_m22x075_choke_description	Rozrzut -20 %. Czas celowania +3 %.
+st_muzzle_remington_doublehor_m22x075_choke_name	Czok Remington, M22x0.75 SxS
+st_muzzle_remington_doublevert_m22x075_choke_description	Rozrzut -20 %. Czas celowania +3 %.
+st_muzzle_remington_doublevert_m22x075_choke_name	Czok Remington, M22x0.75 O/U
+st_muzzle_remington_m22x075_choke_description	Rozrzut -20 %. Czas celowania +3 %.
+st_muzzle_remington_m22x075_choke_name	Czok Remington, M22x0.75
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_name	Tłumik płomieni Dynacomp, M24x1.5
+st_muzzle_stone_shurhit_m22x075_choke_description	Rozrzut -20 %. Czas celowania +3 %.
+st_muzzle_stone_shurhit_m22x075_choke_name	Czok Sure-Hit, M22x0.75
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_name	Tłumik płomieni TT-419, M22x0.75
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_name	Tłumik płomieni Antidote, M14x1L
+st_muzzle_zenit_dtk2_m24x15_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_zenit_dtk2_m24x15_muzzlebrake_name	Hamulec wylotowy Zenit DTK-2, M24x1.5
+st_muzzle_zenit_dtk3_m24x15_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_zenit_dtk3_m24x15_muzzlebrake_name	Hamulec wylotowy Zenit DTK-3, M24x1.5
+st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_name	Hamulec wylotowy Zenit DTK-4, M24x1.5 clamp
+st_muzzle_zenit_dtk4_m24x15_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_zenit_dtk4_m24x15_muzzlebrake_name	Hamulec wylotowy Zenit DTK-4, M24x1.5
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_name	Tłumik płomieni Zenit DTK-4, M30x1
 st_my_place	Mój ranking
 st_neostead_description	Południowoafrykańska strzelba powtarzalna typu pump-action kalibru 12. Zaprojektowana w latach 90. przez Tony'ego Neophytou w układzie bullpup; ma dwa magazynki rurowe nad lufą, a do przeładowania czółenko przesuwa się do przodu. Mieści 12 nabojów. Tylko ogień pojedynczy.
 st_neostead_name	NeoStead 2000
@@ -1722,6 +1847,8 @@ st_picatinny_scope_medium_name	Optyka / kolimatory
 st_pickup_item	Podnieś ({USE})
 st_ping_postfix	ms
 st_pkp_pecheneg_description	Rosyjski uniwersalny karabin maszynowy, amunicja: 7,62x54R. Opracowany w CNIITocznMasz na bazie PKM i przyjęty na uzbrojenie w 2001 r.; ciężka lufa z osłoną wymuszonego chłodzenia powietrzem pozwala na długie serie bez wymiany lufy. Zasilany z taśmy na 100 nabojów. Posiada tryb ognia pojedynczego i ciągłego.
+st_pkp_pecheneg_foregrip_desc	Odrzut -6%.
+st_pkp_pecheneg_foregrip_name	Standardowy uchwyt przedni PKP
 st_pkp_pecheneg_name	PKP Pieczenieg
 st_place	Połóż
 st_play_button	Graj
@@ -2288,6 +2415,7 @@ st_srp_artefact_541_name	Rezonans
 st_srp_artefact_542_description	Aktywowane artefakty działają też na żywych sojuszników w promieniu 6 m. "Oni lśnią, ty błyszczysz"
 st_srp_artefact_542_name	Kaskada
 st_srp_artefact_points	 pkt
+st_srp_attach_unfit	Nie pasuje do urządzenia wylotowego lub chwytu broni.
 st_srp_attachments	Dodatki
 st_srp_ban_reason_account_trading	Sprzedaż lub próba sprzedaży konta.
 st_srp_ban_reason_administration	Decyzja administracji.
@@ -2562,6 +2690,7 @@ st_srp_equipment069_snow_20_torso_7_desc	Opis nie jest jeszcze dostępny.
 st_srp_equipment069_snow_20_torso_7_name	Kamizelka kuloodporna "Śnieg-20"
 st_srp_face	Twarz
 st_srp_face_card	Twarz %1$s
+st_srp_grip_slot	Chwyt
 st_srp_hide_quests_option	Ukryj misje
 st_srp_hide_scores_option	Ukryj wyniki graczy
 st_srp_hit_markers_all	Znaczniki trafień
@@ -2654,7 +2783,8 @@ st_srp_map_cs_mp_military_1	Magazyny wojskowe
 st_srp_map_cs_mp_rembasa	Baza remontowa
 st_srp_map_cs_mp_sport_center	Centrum sportowe
 st_srp_map_cs_training_camp	Training Camp
-st_srp_map_london	Londyn
+st_srp_map_london	Londyn (v0.32)
+st_srp_map_london_v042	Londyn (v0.42)
 st_srp_map_mamayev_kurgan	Kurhan Mamaja
 st_srp_map_mamayev_kurgan_v021	Kurhan Mamaja (v0.21)
 st_srp_map_names_option	Nicki na mapie
@@ -2750,6 +2880,7 @@ st_srp_mode_research	Badania
 st_srp_mode_team_deathmatch	Walka drużynowa
 st_srp_mouse_lock_option	Zablokuj czułość pionową
 st_srp_mouse_vertical_option	Czułość pionowa
+st_srp_muzzle_slot	Nasadka lufy
 st_srp_optics	Optyka
 st_srp_options_hud	HUD:
 st_srp_pierce_brick	Cegła, stal
@@ -2913,7 +3044,7 @@ st_srp_rooms_voting	Głosowanie
 st_srp_rooms_waiting	Czekamy na graczy
 st_srp_rooms_waiting_owner	Czekamy, aż twórca rozpocznie.
 st_srp_rooms_waiting_short	Oczekiwanie
-st_srp_scope_screen_hint	Przeciągnij celownik z ekwipunku do okna ulepszenia broni
+st_srp_scope_screen_hint	Przeciągnij celownik, urządzenie wylotowe lub chwyt z ekwipunku do jego okna
 st_srp_scope_slot	Optyka
 st_srp_shop_not_owned	Ukryj posiadane
 st_srp_shop_not_owned_hint	Pokazuj tylko przedmioty, których nie masz
@@ -3104,6 +3235,8 @@ st_toz66_description	Dubeltówka myśliwska, amunicja: 12x70. Zdolność do odda
 st_toz66_name	TOZ-66
 st_trap_damage	Obrażenia od pułapek
 st_treasure_map_advert	Skorzystaj z mapy skrytek, aby znaleźć ukryte przedmioty.
+st_troy_modular_foregrip_desc	Odrzut -6%. Czas celowania +1.5%.
+st_troy_modular_foregrip_name	Uchwyt przedni Troy Modular
 st_tt_description	Pistolet TT został wprowadzony do użytku w 1933 r., amunicja: 7.62х25mm. Zaprojektowany w latach 30. XX wieku, stał się pierwszym samopowtarzalnym wojskowym pistoletem ZSSR. Wyposażony w 8-nabojowy magazynek. 
 st_tt_name	TT-33
 st_turn_down_action	

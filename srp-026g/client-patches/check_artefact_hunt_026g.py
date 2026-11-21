@@ -19,9 +19,9 @@ the site (query_base_resources 0x1EC176, apply_new_input 0x2D86E6,
 can_sprint 0x2DBF4B, and the presentation's sites). The presentation's calls
 into the game are answered here and kept: the query (0xE5B60, its callback
 then called with made-up results), the scene's model and particle calls
-(0x21CD0, 0x21F40, 0x22280, 0x22660, 0x229D0), the hud sound's emit and the
-voice's play and free (0x65630, 0x5ABA0, 0x5B390), an effect's emit
-(0x329050), the translator (0x1FF0F0); the clock and log imports are stubs.
+(0x21CD0, 0x21F40, 0x22280, 0x22660, 0x229D0, 0x22B30), the hud sound's emit
+and the voice's play and free (0x65630, 0x5ABA0, 0x5B390), the translator
+(0x1FF0F0); the clock and log imports are stubs.
 The rule's state is read back as the world has it:
 its serialize's bytes (artefact_hunt_rule::wire's layout). What each case
 checks is printed.
@@ -48,14 +48,16 @@ STOP, STACK, CORE, CONFIG = research.STOP, research.STACK, research.CORE, resear
 COOKS = research.COOKS
 # where a hooked function goes on into the game after our site's replay
 QUERY_ON, INPUT_ON, SPRINT_ON = 0x1EC176, 0x2D86E6, 0x2DBF4B
-AFTER_MOVE_ON, DEACTIVATE_ON, CARRIER_TICK_ON, ICONS_ON, MARK_ON = 0x1F7C41, 0x1F9525, 0x2DAAD8, 0x23AA16, 0x1F2D92
+AFTER_MOVE_ON, DEACTIVATE_ON, ICONS_ON, MARK_ON = 0x1F7C41, 0x1F9525, 0x23AA16, 0x1F2D92
 # the game's functions the presentation calls: answered here, each call kept
 QUERY_ONE, ADD_MODEL, REMOVE_MODEL, UPDATE_MODEL = 0xE5B60, 0x21CD0, 0x21F40, 0x22280
 PLAY_PARTICLE, REMOVE_PARTICLE, EMIT_HUD, PLAY_VOICE, FREE_VOICE = 0x22660, 0x229D0, 0x65630, 0x5ABA0, 0x5B390
-TRANSLATE, EFFECT_EMIT = 0x1FF0F0, 0x329050
+TRANSLATE, MOVE_PARTICLE = 0x1FF0F0, 0x22B30
+# the core's copy of the time state: 3 in play, 4 a round about to start (vostok::round_countdown)
+TIME_STATE = 0x18FE4
 IN_SCENE = 0x10D                                 # a model instance's in-scene byte
 CLEANUPS = {ADD_MODEL: 16, REMOVE_MODEL: 8, UPDATE_MODEL: 16, PLAY_PARTICLE: 28, REMOVE_PARTICLE: 12,
-            PLAY_VOICE: 12, FREE_VOICE: 0}
+            MOVE_PARTICLE: 20, PLAY_VOICE: 12, FREE_VOICE: 0}
 # the rule object (fields_026g.tsv's survarium::hunt_rule)
 R_BLACKBOARD, R_TICK, R_CORE, R_SIZE = 0x118, 0x120, 0x138, 0x140
 BLACKBOARD = 0x188B0
@@ -85,7 +87,8 @@ def config_bytes():
             "bases": [{"team": 0, "position": (0.0, 0.0, 0.0), "shapes": [crate(0.0)]},
                       {"team": 1, "position": (100.0, 0.0, 0.0), "shapes": [crate(100.0)]}],
             "item": {"model": "item/artefacts/artefact_shining_forest", "particle_idle": "a",
-                     "particle_spawn": "b", "particle_destroy": "c", "effect": "artefact_wood_shine",
+                     "particle_spawn": "b", "particle_destroy": "c", "carrier_particle": "g",
+                     "carrier_particle_fp": "gf",
                      "movement_speed_modifier": -0.2, "health_regeneration_speed_modifier": 0.05,
                      "usable_radius": 0.3, "drop_lift": 0.13}},
         "sound_notifications": dict([("base_path", "vo")] + [(key, [258, f"artifact_hunt/{line}"]) for key, line in zip(
@@ -113,13 +116,13 @@ class Run(research.Run):
                                          (0x870108, "b801000000c21400"), (0x870040, "b801000000c20400"))):
             self.word(iat, files + 0x10 * n)
             self.emu.mem_write(files + 0x10 * n, bytes.fromhex(code))
-        for address in (QUERY_ON, INPUT_ON, SPRINT_ON, AFTER_MOVE_ON, DEACTIVATE_ON, CARRIER_TICK_ON, ICONS_ON,
+        for address in (QUERY_ON, INPUT_ON, SPRINT_ON, AFTER_MOVE_ON, DEACTIVATE_ON, ICONS_ON,
                         MARK_ON):
             self.emu.hook_add(UC_HOOK_CODE, self.past, begin=address, end=address)
         self.drawn, self.queries, self.voices = [], [], []
         self.proxy = None
         for address in (QUERY_ONE, ADD_MODEL, REMOVE_MODEL, UPDATE_MODEL, PLAY_PARTICLE, REMOVE_PARTICLE, EMIT_HUD,
-                        PLAY_VOICE, FREE_VOICE, TRANSLATE, EFFECT_EMIT):
+                        PLAY_VOICE, FREE_VOICE, TRANSLATE, MOVE_PARTICLE):
             self.emu.hook_add(UC_HOOK_CODE, self.present, begin=address, end=address)
 
     def present(self, emu, address, size, user):
@@ -166,9 +169,10 @@ class Run(research.Run):
         elif address == TRANSLATE:
             emu.mem_write(arg(2), self.string(arg(1)).encode() + b"\0")
             self.ret(0, 8)
-        elif address == EFFECT_EMIT:
-            self.stopped = ("glow", emu.reg_read(UC_X86_REG_ESI))
-            emu.emu_stop()
+        elif address == MOVE_PARTICLE:
+            at = struct.unpack("<3f", emu.mem_read(arg(4) + 48, 12))
+            self.drawn.append(("particle~", arg(1), arg(2), self.read(arg(3)), at))
+            self.ret(0, CLEANUPS[address])
 
     def intercept(self, emu, address, size, user):
         # the constructor's call goes on into our hook at 0x1EC170, the icons' update into our hud's
@@ -475,11 +479,22 @@ def main():
           and all(t[p] == fade_end for p in TEAM0 + TEAM1) and t[5] == 0xFFFFFFFF,
           f"{got}, fade end {fade_end}")
 
-    # 11. The countdown: the input is not applied (apply_new_input's own
-    # ret 8 with the entry's stack).
-    stopped, sp = press(players[0], 1, now)
-    check("in the countdown an input is not applied: apply_new_input returns at once, its two arguments popped",
-          stopped is None and sp == STACK + 0x8000, f"{stopped}, esp {sp - STACK - 0x8000:#x}")
+    # 11. The countdown is the match start's (vostok::round_countdown): the
+    # core's time state 4, which the client time rule's camera test reads as
+    # the countdown's 2 (the warmup camera, patch 31's kits); the warmup holds
+    # the input, which the hunt no longer drops itself.
+    def camera_state(core):
+        time_rule = run.allocate(0x200)
+        run.word(time_rule + 0x128, core)
+        run.word(time_rule + 0x148, 3)
+        eip, _ = run.span(0x267AE6, 0x267AEC, {UC_X86_REG_EDI: time_rule}, [0] * 8)
+        return eip, run.emu.reg_read(UC_X86_REG_EDI)
+    check("in the countdown the core's time state is 4 and the client's camera test sees the countdown (2)",
+          run.read(CORE + TIME_STATE) == 4 and camera_state(CORE) == (0x267AEC, 2),
+          f"{run.read(CORE + TIME_STATE)}, {camera_state(CORE)}")
+    stopped, _ = press(players[0], 1, now)
+    check("in the countdown an input goes on into the game (the warmup holds it, the hunt does not)",
+          stopped == ("past", INPUT_ON), str(stopped))
     while decoded(state(run, rule)).get("round") == 8:
         now += 50
         run.word(CORE + TIME, now)
@@ -489,7 +504,9 @@ def main():
           got.get("round") == 2 and now - fade_end == 5000 and got.get("round_starts") == 1,
           str(got))
     stopped, _ = press(players[0], 1, now)
-    check("then an input goes on into the game", stopped == ("past", INPUT_ON))
+    check("then an input goes on into the game; the core's time state is 3 again and the camera test the time "
+          "rule's own", stopped == ("past", INPUT_ON) and run.read(CORE + TIME_STATE) == 3
+          and camera_state(CORE) == (0x267AEC, 3))
 
     # 12. A death's delay: the wave after death + 7 s, from the match's start.
     def delay(at_time, native):
@@ -556,19 +573,19 @@ def main():
         run.call(0x2D1D20, args=(CORE + research.TICK_LIST, 50, now, 1))
     run.queries = []
     frame()
-    item = [("item/artefacts/artefact_shining_forest", 15), ("a", 61), ("b", 61), ("c", 61)]
-    check("the first frame of a hunt asks the item's model and its idle, spawn and destroy particles in one query",
-          run.queries == [item], str(run.queries))
+    item = [("item/artefacts/artefact_shining_forest", 15), ("a", 61), ("b", 61), ("c", 61), ("g", 61), ("gf", 61)]
+    check("the first frame of a hunt asks the item's model, its idle, spawn and destroy particles and the carrier's "
+          "glow (on his body, at his own camera) in one query", run.queries == [item], str(run.queries))
     # the query's callback (the game's: cdecl (queries_result, its word)) with
-    # the four results 2E0h apart at +12Ch: a model and three particle systems
-    answer = run.allocate(0x12C + 4 * 0x2E0)
-    run.word(answer + 0x38, 4)
-    model, particles = run.allocate(0x200), [run.allocate(0x100) for _ in range(3)]
+    # the six results 2E0h apart at +12Ch: a model and five particle systems
+    answer = run.allocate(0x12C + 6 * 0x2E0)
+    run.word(answer + 0x38, 6)
+    model, particles = run.allocate(0x200), [run.allocate(0x100) for _ in range(5)]
     instance = run.allocate(0x200)
     run.word(model + 0x108, instance)
     for i, resource in enumerate([model] + particles):
         run.word(answer + 0x12C + 0x2E0 * i, resource)
-    run.call(SYMBOLS["artefact_hunt_on_loaded"], args=(answer, 2))
+    run.call(SYMBOLS["artefact_hunt_on_loaded"], args=(answer, 3))
     check("the assets' callback keeps one reference of each (the model's and every particle's count +1)",
           run.read(model + 0xD0) == 1 and all(run.read(p + 0xD0) == 1 for p in particles))
     drawn = frame()
@@ -585,11 +602,14 @@ def main():
     press(taker, 0, now)
     press(taker, 1 << 21, now)
     drawn = frame()
-    check("taken: the model out of the scene and the idle particle removed, no destroy particle",
+    feet = tuple(struct.unpack("<3f", run.emu.mem_read(taker + 0x43C, 12)))
+    check("taken: the model out of the scene and the idle particle removed, no destroy particle; the carrier's "
+          "glow played on his body (each game draws it itself, never in the simulation)",
           decoded(state(run, rule)).get("carrier") == 10
           and ("model-", scene_renderer, model + 0x108, scene) in drawn
           and ("particle-", scene_renderer, scene, particles[0]) in drawn
-          and not any(d[0] == "particle+" for d in drawn), str(drawn))
+          and [d[3:] for d in drawn if d[0] == "particle+"] == [(particles[3], feet)], str(drawn))
+    check("the next frame moves the glow with him", [d[3] for d in frame() if d[0] == "particle~"] == [particles[3]])
     run.emu.mem_write(taker + 0x43C, struct.pack("<3f", 30.0, 0.0, 0.0))
     press(taker, 0, now)
     press(taker, 1 << 22, now)
@@ -599,7 +619,8 @@ def main():
     check("the Drop key: it lies 0.13 m over his feet (no ground ray without a physics world), the model and the "
           "idle there, no spawn particle", decoded(state(run, rule)).get("round") == 5
           and ("model+", lies) in [(d[0], tuple(round(v, 3) for v in d[-1])) for d in drawn]
-          and sum(d[0] == "particle+" for d in drawn) == 1, str(got))
+          and sum(d[0] == "particle+" for d in drawn) == 1
+          and ("particle-", scene_renderer, scene, particles[3]) in drawn, str(got))
     while decoded(state(run, rule)).get("round") == 5:
         now += 50
         run.word(CORE + TIME, now)
@@ -614,22 +635,7 @@ def main():
     check("the match's scene left: the one-shot particles played are removed, nothing of ours stays",
           removed == sorted([particles[1], particles[2]]), str(run.drawn))
 
-    # 16. The carrier's glow: the effect asked once at a player's tick, then at
-    # a living carrier's tick (who plays none) the effect emitted from it.
-    def player_tick(player):
-        run.stopped = None
-        run.span(0x2DAAD3, STOP, {UC_X86_REG_EBX: player}, [0] * 8)
-        return run.stopped
-    run.queries = []
-    player_tick(players[0])
-    check("the glow's effect asked once (class 109, the item's effect), a query of its own",
-          [q for q in run.queries if ("artefact_wood_shine", 109) in q] == [[("artefact_wood_shine", 109)]],
-          str(run.queries[-1:]))
-    effect_results = run.allocate(0x12C + 0x2E0)
-    effect = run.allocate(0x200)
-    run.word(effect_results + 0x38, 1)
-    run.word(effect_results + 0x12C, effect)
-    run.call(SYMBOLS["artefact_hunt_on_loaded"], args=(effect_results, 1))
+    # 16. A new artefact taken again, for the mark below.
     while decoded(state(run, rule)).get("round") == 2:
         now += 50
         run.word(CORE + TIME, now)
@@ -638,13 +644,7 @@ def main():
     look(taker, (SPAWNERS[got["spawner"]][0] - 1.5, 1.5, 0.0), (0.738, -0.674, 0.0))
     press(taker, 0, now)
     press(taker, 1 << 21, now)
-    run.emu.mem_write(taker + 0x33C, b"\x01")
-    run.emu.mem_write(players[11] + 0x33C, b"\x01")
-    other_glows = player_tick(players[11])
-    glow = player_tick(taker)
-    check("a living carrier who plays it not gets the glow (its emit from the kept effect); another player none",
-          decoded(state(run, rule)).get("carrier") == 10 and glow == ("glow", effect)
-          and other_glows == ("past", CARRIER_TICK_ON), f"{decoded(state(run, rule))}, {other_glows}, {glow}")
+    check("taken again: he carries it", decoded(state(run, rule)).get("carrier") == 10, str(decoded(state(run, rule))))
 
     # 17. The icon's carrier mark: the carrier's record gets the mark (CL 1,
     # EAX place x 3 at the record's compare); another's the game's own test.
@@ -690,7 +690,7 @@ def main():
         result, emitter = run.allocate(0x12C + 0x2E0), run.allocate(0x100)
         run.word(result + 0x38, 1)
         run.word(result + 0x12C, emitter)
-        run.call(SYMBOLS["artefact_hunt_on_loaded"], args=(result, 3 + index))
+        run.call(SYMBOLS["artefact_hunt_on_loaded"], args=(result, 4 + index))
         emitters.append(emitter)
     # place 0 (team 0) views; place 10 (team 1) drops it: the enemy's drop line
     look(taker, (30.0, 1.5, 0.0), (1.0, 0.0, 0.0))

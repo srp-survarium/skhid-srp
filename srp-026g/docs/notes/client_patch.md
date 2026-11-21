@@ -2271,17 +2271,17 @@ Players stood still with their keys held through bursts of fire, in every game a
 
 ### 3.90 No white hit marker for a hit through a wall (written 2026-11-21, README patch 167, the next release's revision; the rules: `hit-marker-walls.md`) — PROVEN in the code, the three sites run with Unicorn in both exes on made-up bullets, players and a hud; not run in a game
 
-The owner, 2026-11-21: "white hit crosses are not seen when shot through walls (except for leaves)", "red ones are still shown when killed", "Through a wall, kill shows exactly what 'Kill marker only' shows".
+The owner, 2026-11-21: "white hit crosses are not seen when shot through walls (except for leaves)", "red ones are still shown when killed", "Through a wall, kill shows exactly what 'Kill marker only' shows"; then: through glass, foliage and cloth they show (a wall is a material of armor above 0).
 
 - **The white marker** (PROVEN). `player::generate_hit_event` (0x1F3C70, player's vtable slot +40h; hit_impl calls it at 0x2D9ED1 after the damage) runs base_player's (0x2D9F40), then, for a bullet hit only (its 6th argument, 0x1F3CAA), writes the shooter's `inflicted_damage_collector` (the shooter by its place, the 2nd argument, through the world's get_player; its player +0F534h): another victim resets it (0x1F3CF6), +8 adds the pain lost over pain's maximum, clamped to 0..1, +4 the time, +0 the victim's place (0x1F3D35..0x1F3D76). It is world state (player::serialize 0x1F3983, deserialize 0x1F3AA7) and ages out 500 ms after its last hit (`player::tick` 0x246F10). `player::st_draw` gives the drawn player's collector to `game_world_ui::draw_damage_collector` (0x238230, call at 0x247467), which, when the victim or the fraction differs from its copy (+34Ch, +354h), takes the copy and for a fraction not 0 invokes `root.crosshair_enemy_hit(fraction, 200, false)` (0x23838C). Its only caller.
 - **The kill marker** (PROVEN). 0x23CF20, from the kill event (0x2337D9), invokes `crosshair_enemy_hit(1.0 [0xA2D818], 200, true)` (0x23D02D); the movie draws a kill call the same with All and Kill marker only (#2022). No hook in it.
-- **What a bullet went through** (PROVEN). check_collision (0x32D4E0) casts the ray, takes the object's hit receiver (0x32D70D; 0 for the level and props), gives a back face of the level to process_back_face_piercing alone (0x32D72F), and otherwise the triangle's material to bullet +4Ch (0x32D87B) and calls try_pierce (0x32D960, EAX the receiver). A pierce is AL 1 (0x32D886, then `mov ebp,2`). The bullet keeps no list of them: +84h counts pierces and ricochets, +88h ricochets (section 3.55). The leaves' materials (24, 44, 49) have armor 0 (the live game.materials), so every bullet goes through them.
+- **What a bullet went through** (PROVEN). check_collision (0x32D4E0) casts the ray, takes the object's hit receiver (0x32D70D; 0 for the level and props), gives a back face of the level to process_back_face_piercing alone (0x32D72F), and otherwise the triangle's material to bullet +4Ch (0x32D87B) and calls try_pierce (0x32D960, EAX the receiver). A pierce is AL 1 (0x32D886, then `mov ebp,2`). The bullet keeps no list of them: +84h counts pierces and ricochets, +88h ricochets (section 3.55). try_pierce reads the material's armor at its +4Ch (0x32D980) and lets every bullet through armor 0 for nothing (k = 1, 0x32D99E; section 3.96): in the live game.materials glass, glass_car, foliage, cloth, plastic and paper; glass_hard has 0.10.
 - **The patch** (Rust `hit_marker_walls`, three lohooks of `sites_026g.tsv`):
-  - `bullet.pierced` 0x32D88A (`BD 02 00 00 00`, mov ebp,2; only the pierce's way reaches it): a bullet of ranged ammo (+40h, its +4Ch) through no receiver (ESI 0) and a material (+4Ch's +64h id) not of the leaves is noted by its id (+4) and fire time (+5Ch), the last 128 kept;
+  - `bullet.pierced` 0x32D88A (`BD 02 00 00 00`, mov ebp,2; only the pierce's way reaches it): a bullet of ranged ammo (+40h, its +4Ch) through no receiver (ESI 0) and a material whose armor (+4Ch's +4Ch, f32; `ucomiss`'s 0: -0 too, not NaN) is not 0 is noted by its id (+4) and fire time (+5Ch), the last 128 kept;
   - `damage_collector.hit` 0x1F3D76 (`F3 0F 11 46 08`, the clamped fraction's store; both clamp ways land on it): the shooter's mark (indexed by the 2nd argument, the site's ESP+18h) is walled (the collector ESI, its victim and time) when the bullet (EBP) was noted and no clear hit of the shooter is pending its draw, else a pending clear hit;
   - `damage_collector.draw` 0x238272 (`F3 0F 10 46 08`, movss xmm0,[esi+8], after draw_damage_collector took its copy, before the 0 test; nothing branches into it): a walled mark of what the collector (ESI) shows exits `quiet` at 0x2383A4, the epilogue a 0 fraction goes to, past the invoke; a pending clear hit of that collector is drawn and no longer pending. The copy is taken as in the original, so the next change is seen alike (a clear hit on a victim after a hidden one on another, the same damage as before, is drawn).
 - **What changes:** the white marker of a hit through a wall. The marks are this game's alone; the collector, the bullets and every world are as they were: nothing a match computes changes (no `simulation_changes.tsv` row, no world format change).
-- **Checked:** `check_hit_marker_walls_026g.py` (Unicorn; `tools/check hit-marker-walls`): the pierce from 0x32D886, the hit from 0x1F3D50 to its `ret 1Ch`, the draw from 0x24745B with the game's own draw_damage_collector and a stand-in invoke, in both exes: the marker for a clear hit, leaves, a body, a gun-stock, one clear pellet of a step in either order, a clear hit not drawn before a walled one, a clear hit on a victim after a hidden one on another; none for a round through a wall (the default material too) or only walled pellets; another shooter's collector its own; the registers kept the original's; 0x23CF20's and the draw's bytes but the hook's the original's. The hud's harness (`scripts/hud-options/check.sh`, HudHarness): with All, a kill after a hit's white bars draws what Kill marker only draws. The marks are not rolled back with the world (`hit-marker-walls.md`, limits).
+- **Checked:** `check_hit_marker_walls_026g.py` (Unicorn; `tools/check hit-marker-walls`): the pierce from 0x32D886, the hit from 0x1F3D50 to its `ret 1Ch`, the draw from 0x24745B with the game's own draw_damage_collector and a stand-in invoke, in both exes: the marker for a clear hit, a surface of armor 0 (and -0), a body, a gun-stock, one clear pellet of a step in either order, a clear hit not drawn before a walled one, a clear hit on a victim after a hidden one on another; none for a round through a wall (concrete 0.23, glass_hard 0.10) or only walled pellets; another shooter's collector its own; the registers kept the original's; 0x23CF20's and the draw's bytes but the hook's the original's. The hud's harness (`scripts/hud-options/check.sh`, HudHarness): with All, a kill after a hit's white bars draws what Kill marker only draws. The marks are not rolled back with the world (`hit-marker-walls.md`, limits).
 
 ### 3.91 The forward effects draw as 0.44a5's (written 2026-11-21, README patch 169, the next release's revision; content pack forward-effects) — PROVEN in the code, both compiles run with Unicorn in both exes on made-up materials; not run in a game
 
@@ -2347,6 +2347,41 @@ The owner, 2026-11-21, after a local test whose console scrolled with repeats: "
 - **The patch** (the Rust patch `quiet_log`, `rust/patches/src/quiet_log.rs`; `vostok/game_log.rs` reads the line): a lohook `logging.message` at 0x111ED0 (span 9: `push ebp` / `mov ebp,esp` / `sub esp,250h`), on any thread. A format the patch quiets exits to `quiet`, the function's `ret` (0x111F73) with the stack as at the site; anything else goes on into the replayed bytes.
 - **Left as they were** (a fault fixed elsewhere, or a line that tells something): "old items dictionary format" and "Wrong map config" (content: `client-dictionary-1.json`), "unknown command [..]" at the start (content: `startup-config-1.json`; a command typed in the console still says it), "PlayBtn disabled reason is" (the lobby server sends no 0x9F in a match, social.md §4), "lag during polling" (the network thread polled 100 ms or more late, 0x110C62) and "eating time" (a frame over 2 s): a hitch's trace, rare in a normal match.
 - **Checked:** read only; no Unicorn check. **Not run** in a game.
+
+### 3.96 Every wall costs a bullet something (written 2026-11-21, README patch 175, the next release's revision) — PROVEN in the code, the site run through try_pierce with Unicorn in both exes; not run in a game
+
+The owner, 2026-11-21, after patch 173 (section 3.94) kept a bullet's piercing at every range: strong rounds went through walls for nothing, and every wall should cost "a bit" more. Of the rules weighed (0.69's k = 1 - A/P among them) the softer one: k = 1 - (A/P)^2.
+
+- **The rule** (PROVEN). try_pierce (0x32D960) takes A = the material's armor ([bullet+4Ch]+4Ch, 0x32D980) and P = the bullet's +74h (0x32D970), and k = 1 - (1 - t)^2, t = clamp((P - A) / A, 0, 1), 1 when A = 0 (0x32D99E..0x32D9CB); k is stored at [esp+78h] (0x32D9CF) and k <= 0 stops the bullet (0x32DA79, check_collision then tries try_reflect); else damage and P x k (0x32DA9C, 0x32DAA1) and the speed x k. So k = 1 from P = 2A on: live brick 0.20 and concrete 0.23 cost nothing to a round of P 0.46 or more.
+- **The registers at 0x32D99E** (PROVEN): xmm0 = 1.0 ([0xA70884], read only), xmm1 = P, xmm2 = A, xmm3 = 0, AH = the flags of `ucomiss A, 0` (lahf, 0x32D988); `test ah,44h` / `jnp` takes A = 0 (ZF without PF). After the store xmm1 and xmm2 are not read before they are written (0x32DA8A, 0x32DAA6) or a call; xmm3 must stay 0 (0x32DA79 on the static-geometry path); try_pierce's one caller (check_collision 0x32D881) reads AL only.
+- **The patch** (`PIERCE_WALLS`, in place, 49 bytes at 0x32D99E): `test ah,44h` / `jnp 0x32D9CF` (A = 0: the store with xmm0 = 1.0, so k = 1, also for P = 0, which would be 0/0) / `divss xmm2,xmm1` / `mulss xmm2,xmm2` / `subss xmm0,xmm2` and four 8-byte nops, the store at 0x32D9CF kept. P <= A gives k <= 0 (P = 0 gives -inf): stopped as before. The only branches into the range were its own (the whole `.text` read); no base relocation under it.
+- **What changes:** every wall of armour above 0 takes a part of a bullet's damage, piercing and speed at any piercing: brick at P 0.3 / 0.46 / 0.84 keeps 56 / 81 / 94 % (before 75 / 100 / 100 %), concrete 41 / 75 / 93 % (before 52 / 100 / 100 %). Which walls a bullet gets through is unchanged (P > A), and a body (k = Dmin / D, 0x32DA5F) is untouched. The world format is unchanged. A simulation change (`simulation_changes.tsv` `next` row). The damage calculator (`scripts/damage-calc/engine.js`, the site's copy) and the weapon card's Pierces percent (`content_edit.py` `pierce_kept`, `pierce_line.md`) follow it.
+- **Checked:** `check_pierce_walls_026g.py` (Unicorn; `tools/check pierce-walls`): try_pierce from its entry against static geometry, nine walls (A 0 to 20) by fourteen piercings (0 to 2): the original's k and the build's as the formulas in single precision, damage and piercing x k, the same bullets stopped. **Not run:** a game.
+
+### 3.97 A capture run: the camera at a script's poses, each pose's picture, then the end (written 2026-11-21, README patch 176, the next release's revision; the rules: `capture.md`) — PROVEN in the code (apply_camera read; the camera's place and matrices resource-porter's camera hook's); RUN in a game (Fire Station from `-match_replay=` of `srp-map-sur`'s replay, headless)
+
+- **The camera.** base_game_scene::apply_camera (0x23DDD0, `ret 4`, the scene its stack argument)
+  has one caller, camera_director::apply (call at 0x2434F6), and copies the director in EDX: its
+  +4h (16 floats, the camera's transform) to the scene's +0Ch (`rep movsd` at 0x23DDE8) and its
+  +44h (the projection) to +4Ch (0x23DDF7), then hands both to the render (0x219D0, 0x21B50). Its
+  first eight bytes (`sub esp,40h / push ebx / mov ebx,[esp+48h]`) are branch-free, nothing aims
+  inside them: the lohook `camera.apply` (EDX `survarium::camera_director`, fields `view` and
+  `projection`) writes both before the copy. The name and offsets are v0.10b's PDB's and source's,
+  which resource-porter's camera hook (`tools/render-compare/camera_hook.c`, the same RVA 0x22DDD0
+  and bytes) relied on for every earlier capture; re-kit rows added.
+- **The run.** `game_world.after_move` (order 4) reads `SKHID_CAPTURE` at the first world tick
+  (unset: the state `Off`, nothing more, ever) and the script once (a bad line: exit 2), and steps
+  the run by the clock: waiting (pose 1's camera), settling (each pose's time), asked. The picture
+  is taken at `render.flash_ui` (order 2; patch 152's handler order 1) with patch 152's back buffer
+  read and PNG writer, then the run moves on; after the last, the game's thread calls ExitProcess
+  at its next tick. The state is a `Lock` (the game's and the drawing threads both step it).
+- **No replay crash at the start.** `vostok::packet_recovery::Connection` took any network client
+  as a live one; in a replay it is a `replay_network_client` (0x5AB18 bytes), and its options
+  holder's read (+1F1C48h) was past it at every frame (patches 97 and 125): a crash at a replay's
+  start when the heap held anything there. A client of the replay's vtable now has no connection
+  (`vostok::world::playback_of`, the one test of the class), and `NetworkClient::local_profile` and
+  `Lobby::place_name`, which read the same holder, take the options through the client's own
+  virtual (`engine_match_options`, vtable +34h, both kinds of client).
 
 ## 4. Mode 3 batteries: not needed in 0.26g
 
@@ -2672,8 +2707,13 @@ NASM or NASM_DIR name others than `cc`, `ld` and `nasm`); NASM other than
 in a code block only); a relocation other than R_386_32 and R_386_PC32 (GOT,
 PLT, 16- or 8-bit addresses: the code is not position-independent and the
 exe is never rebased); a symbol no source defines or one defined twice (ld);
-a block with nothing in it; an arena past `ARENA_LIMIT` (0x180000, a
-deliberate cap against a runaway state array).
+a block with nothing in it; an arena past `ARENA_LIMIT` (0x300000, a
+deliberate cap against a runaway state array; our own number, raised on
+purpose: 0x100000 until patch 121, 0x180000 until patch 161, which left it
+at 96.5 %. `.srpx` is the image's last section, so nothing in the file's
+layout bounds it; a larger arena costs its own bytes of the address space at
+the image's end, which the engine's arenas and the video driver would
+otherwise find free).
 
 **NASM 2.16, not 3.** NASM 3.01 (nixpkgs' now) assembles `jmp near label`
 to a label as a two-byte short jump (`EB`): the five-byte entry tables of

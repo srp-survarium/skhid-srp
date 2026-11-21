@@ -28,6 +28,11 @@ three). No artifact rescue in this version (owner, 2026-11-17).
   rule's and do not count it.
 - Freezing the entire opposing team awards one round. Simultaneous wipes
   award neither team a point and replay the round.
+- The final win ends the match: no pause, no countdown and no respawn after
+  it, and the match server ends it 2 s after the snapshot that has it
+  (`FREEZE_TAG_END_DELAY_MS`, the other modes' end delay is 3 s), so the last
+  freeze is seen before the results (the owner, 2026-11-22: "after a second
+  or two").
 - The existing match time limit still applies. If it expires before either
   team reaches five wins, the unfinished series is a draw.
 - Between rounds all players wait 5 seconds, held in place. Then every
@@ -119,8 +124,11 @@ The three native hooks are declared in `sites_026g.tsv`:
   `FreezeTag::schedule` says with the places' native times. In play
   (`CancelFrozen`) a frozen body's death respawn is cancelled and every other
   place keeps its native time, so a late arrival's first spawn (its entry
-  time) runs. Between rounds and after the match (`HoldDue`) a place whose
-  time is the step's is held. The step that ends the pause makes every place
+  time) runs. Between rounds and after the match (`CancelAll`) no place keeps
+  a time: not the round's last frozen body's death respawn (which the hud
+  showed as "respawn in 8 seconds", its `respawn_time`, counting while the 5 s
+  pause ran: the owner, 2026-11-22), not a late arrival's entry; the restart
+  spawns everyone, the match's end nobody. The step that ends the pause makes every place
   with a current player due at this step (`Actions::Restart`); then
   (`Native`) the tick's own `31697F..3169BE` takes each out and spawns it,
   and a place without a free point retries 50 ms later (`3169D8`). No
@@ -193,7 +201,7 @@ Each game draws it for itself, never in the simulation: an effect added to a
 body's simulated effect list at the first tick after a game loaded it enters
 each game's world at another tick (Artifact Hunt's carrier glow desynced so,
 2026-11-21). After the simulation's move (`game_world.after_move`, the
-frame hook, order 4) the game plays, moves (`update_particle_system_instance`
+frame hook, order 6) the game plays, moves (`update_particle_system_instance`
 0x22B30, on the body's simulated transform, scaled as above) and stops one instance a place in
 the world's scene, from the world's rule state: every frozen body of a match in
 play, at its progress's size, so every game, a rollback and a late join
@@ -227,7 +235,9 @@ Taken from Artifact Hunt, and why:
   spawned into it, was held there, and was taken out and spawned again five
   seconds later; one who entered after the match spawned into a finished
   match. Holding every place that falls due between rounds and after the
-  match (Artifact Hunt's `Held`) spawns each once, with the round. The
+  match (Artifact Hunt's `Held`) spawns each once, with the round; since
+  2026-11-22 Freeze Tag cancels every time there instead (`CancelAll`), so
+  no respawn countdown shows in the pause or after the match. The
   restart itself was already the same as Artifact Hunt's `Everyone`: every
   present place made due at the step, the native tick removing and spawning
   them.
@@ -266,14 +276,24 @@ next round opens (a body still frozen would otherwise freeze again at once).
 
 ## Validation
 
-An actual local match is still required before merging: body presentation,
-sound, camera, native spawn lifecycle and new-version world recordings must
-be checked in the running game. The owner deferred the proposed three-client
-playtest on 2026-11-17; no game windows were opened.
+Played by the owner in three local tests on 2026-11-21 (three windows,
+Rudnya day; the matches record into the world corpus):
+
+- Test 1: the hud showed raw keys (`#st_freeze_*`: the hud movie gets only
+  `st_srp_hud_*`), the thaw reach was too far (3 m, now 2), the glow blinked
+  out in steps (now one system, shrinking), three wins were too few (now
+  five), and a third win did not end the match (the server took the
+  standing through the batteries' plausibility test; now its own arm).
+- Test 2: the TDM icon on the loading screen (now its own), the thaw bar the
+  sentence's width (now 120 px), the frozen player's text (now "Frozen");
+  the pause was a frozen wait (now the match start's countdown, with the
+  kits); a thaw now counts as a kill.
+- Test 3: "respawn in 8 seconds" counted in the pause and after the final
+  win (the last freeze's death respawn; now every time is cancelled there),
+  and the end came 3 s after the final win (now 2 s).
 
 Open:
 
-- No local test match yet, so no Freeze Tag worlds in the corpus.
 - A frozen player who leaves and comes back. The rule keeps the place frozen
   and cancels the native entry spawn, so it should stay out of the world
   until the next round. Whether a rejoin can bring the body back another

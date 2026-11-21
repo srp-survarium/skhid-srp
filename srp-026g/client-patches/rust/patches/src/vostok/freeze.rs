@@ -284,17 +284,12 @@ impl<'t> World<'t> {
         // SAFETY: the respawn rule's live core, on the simulation's thread.
         unsafe { super::round_countdown::set(self.core, on) }
     }
-    /// Every place due at this step is due no more (the tick spawns a place
-    /// whose time equals the step's, 3168BA).
-    pub fn hold_due(&mut self) {
+    /// No place has a native time (u32::MAX: unscheduled, and no respawn countdown on the hud,
+    /// 0x316C35).
+    pub fn cancel_all(&mut self) {
         for place in Place::all() {
-            // SAFETY: the rule's twenty-entry schedule; u32::MAX is its "unscheduled".
-            unsafe {
-                let at = self.rule.times().add(place.index());
-                if read(at) == self.time {
-                    at.write(u32::MAX);
-                }
-            }
+            // SAFETY: the rule's twenty-entry schedule.
+            unsafe { self.rule.times().add(place.index()).write(u32::MAX) };
         }
     }
     /// A frozen body is never respawned by its death's ordinary timer.

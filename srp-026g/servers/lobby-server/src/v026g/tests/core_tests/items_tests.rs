@@ -584,7 +584,7 @@ fn a_client_without_patch_30_takes_an_upgrade_off_its_first_holder() {
 /// records on the wire, and a change is answered with the inventory and the
 /// account alone: no `83 46 02` (or `83 46 01`) whose own copy the client
 /// would write into the item. The four the account holds here (two decals,
-/// a camouflage, the game's 1P69 standing for a scope variant) reach the
+/// a camouflage, the game's Leupold standing for a shop scope) reach the
 /// client as the decals and the kit; taking the camouflage off leaves the
 /// decals and a kit of the scope alone.
 #[test]
@@ -606,6 +606,7 @@ fn a_weapons_upgrade_change_is_answered_with_the_inventory_alone() {
     let second = give(&mut world, alice, &decals[1], &[]);
     let (camo_dict, first_dict, second_dict) =
         (dict("camo_city"), dict(&decals[0]), dict(&decals[1]));
+    let scope_dict = u32::from(dict("scope_leupold"));
     world.change(alice, |account| {
         account.item_mut(rifle).unwrap().upgrades = vec![
             Upgrade {
@@ -622,7 +623,7 @@ fn a_weapons_upgrade_change_is_answered_with_the_inventory_alone() {
             },
             Upgrade {
                 id: scope,
-                a: 362,
+                a: scope_dict,
                 value: 0,
                 param: 3,
             },
@@ -641,7 +642,7 @@ fn a_weapons_upgrade_change_is_answered_with_the_inventory_alone() {
         (sent[2].id, sent[2].a, sent[2].value, sent[2].param),
         (
             scope,
-            362,
+            scope_dict,
             u64::from(KIT_MAGIC) << 56 | 3 << 48 | u64::from(camo_dict),
             3
         )
@@ -674,16 +675,17 @@ fn a_weapons_upgrade_change_is_answered_with_the_inventory_alone() {
     world.assert_clean();
 }
 
-/// The players' game data before the release patch has no scope variant
+/// Game data without the modules table fits no scope to any weapon
 /// (`survarium::v026g::scopes`): no scope goes on a weapon, the stock
 /// scope items are not sold, and a `46 01` for one is refused with the
-/// game's text and the client's window put right. The rules with a pair
-/// table are `session::v026g::items_rules`' tests.
+/// game's text and the client's window put right. The rules with a table
+/// are `session::v026g::items_rules`' tests.
 #[test]
-fn a_scope_is_refused_while_the_game_data_has_no_variant() {
+fn a_scope_is_refused_while_the_game_data_has_no_modules_table() {
     use survarium::v026g::prices;
-    use survarium::v026g::scopes::ScopeFits;
-    assert!(ScopeFits::shared().is_empty());
+    use survarium::v026g::scopes;
+    use survarium::v026g::weapon_modules::Modules;
+    assert!(scopes::pairs(Dictionary::shared(), Modules::shared()).is_empty());
     let mut world = World::new();
     let alice = world.connect("Alice");
     let svd = give(&mut world, alice, "svd", &[]);
