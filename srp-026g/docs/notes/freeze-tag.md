@@ -74,6 +74,14 @@ TDM ticket rule. The options carry `SRPX`, tag 6 (4 is the wide map id, 5 the
 faces), length 1, version 1, among the block's other entries. Both client and
 server understand it.
 
+Every other team map has it too (the owner, 2026-11-21: "make sure freeze tag
+is playable on all non FFA-only maps"): each level and weather maps_dict gives
+a battery, Team Deathmatch or Research config, 47 more, each config made as
+Rudnya's from the map's own Team Deathmatch config (`freeze/<its name>`), maps
+350-396 (`freeze-tag-maps-1.json`, made by `scripts/mode-maps/make.py`; the
+list: `artefact_hunt.md` "Maps"). Free for All's maps alone (the STALKER maps,
+Training Camp) have none.
+
 ## State and native lifecycle
 
 `srp-validate::world::freeze` owns the deterministic transition and codec.

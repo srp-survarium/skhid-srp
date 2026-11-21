@@ -76,6 +76,29 @@ Each one a decision; the owner's are marked, the rest are the port's and open to
 
 - **Maps:** the nine stock levels in their weathers, as 0.46c2 has them (`level_0N/<w>_7` or
   `<w>_ah`; its `_v1`.. variants are other layouts of the same maps and are left out).
+  Every other team map (the owner, 2026-11-21: "let's add artifact hunt to all other non FFA-only
+  maps too"), which 0.46c2 never had, takes its own battery mode's: the artefact's spawn points
+  are its battery spawners' items, lifted by `drop_lift`; a team's base its battery container,
+  its use shapes the container's collision geometries and its props the container's models and
+  collision as the battery project has them, on a copy of the map's Team Deathmatch project
+  (its spawns; each base checked on its own team's side). Pack `artefact-hunt-maps` (the configs)
+  and `artefact-hunt-maps-1.json` (projects, maps_dict 327-347), both made by
+  `scripts/mode-maps/make.py`. Rudnya v0.69 too: 0.46c2's Rudnya points are for 0.26's geometry,
+  its bases where the battery containers stand anyway.
+
+  | level | map | weathers | Freeze Tag | Artifact Hunt |
+  |---|---|---|---|---|
+  | 1-8 | the stock maps (8: day, evening, prerain) | 3 | 114 (Rudnya day), 350-372 | 300-323 (0.46c2) |
+  | 9 | London | 3 | 373-375 | 324-326 (0.46c2) |
+  | 10 | Vostok Radar Station v0.21 | 3 | 376-378 | 327-329 |
+  | 11 | Mamayev Kurgan v0.21 | 3 | 379-381 | 330-332 |
+  | 12 | Chemical Plant v0.11 | day | 382 | 333 |
+  | 13 | Vostok Radar Station v0.11 | day | 383 | 334 |
+  | 14 | Rudnya v0.69 | day | 384 | 335 |
+  | 25 | School v0.21 | 3 | 385-387 | 336-338 |
+  | 26 | Tarakanovsky Fort v0.21 | 3 | 388-390 | 339-341 |
+  | 29 | Rudnya v0.21 | 3 | 391-393 | 342-344 |
+  | 31 | Chemical Plant v0.21 | 3 | 394-396 | 345-347 |
 - **A mode config a map** (`mode.mode` 13, `mode.rules [93, 91, 481, 94]`; "The exe" says why) with
   0.46c2's `mode.parameters` under their own names, and the map's mode data in world space. What
   reads each key:
