@@ -152,7 +152,10 @@ receiving game itself (patch 87), with the same code (`srp-validate`'s typed vie
 
 - `tools/test-build <revision> <folder> [exe] [server] [content]` builds what a local test runs (the
   exe, the debug server, the quick content) at the same time, each as you would by hand; a part
-  nothing changed for costs seconds. Use it instead of a build script of your own.
+  nothing changed for costs seconds. Use it instead of a build script of your own. With `--shared`
+  it builds the checkout's commit in one test tree whose cargo target stays warm from test to test:
+  the server compiles only what differs from the commit tested before, and a worktree needs no
+  target folder of its own to be tested.
 - `tools/dev <command...>` is `nix develop ./srp-026g --command <command...>` from a kept shell: 0.1 s
   instead of 1 to 8 s a call. The release's scripts call `nix develop` themselves.
 - The exe's Rust is kept by what it was built from (`~/.cache/skhid-arena`, every worktree's;
