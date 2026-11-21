@@ -42,6 +42,7 @@ the row's version, adds the path with the live bytes): printed as left from it, 
 import argparse
 import bisect
 import fnmatch
+import functools
 import hashlib
 import inspect
 import json
@@ -875,8 +876,9 @@ def type_check(rows, tree, base, world, cache, whole):
           + ('' if whole else f' ({len(todo)} checked now, the others as an earlier build checked the same bytes)'))
 
 
+@functools.cache
 def own_content_edit():
-    """This checkout's content_edit.py (not --tree's)."""
+    """This checkout's content_edit.py (not --tree's), loaded once."""
     import importlib.util
     path = Path(__file__).resolve().parent.parent / 'srp-026g' / 'scripts' / 'content-edit' / 'content_edit.py'
     spec = importlib.util.spec_from_file_location('content_edit', str(path))
