@@ -178,6 +178,8 @@ and before it on e17ace688 / 6a2623ff2 (version 2, the AK-74M):
 | Gun, device | Effect | What the game showed |
 |---|---|---|
 | AK-74M, Zenit DTK-3 (2635) | `dtk1_2` | the device on the gun in the lobby; at the shot an orange jet out of the device's side and a plume above it, at the device; no crash at the first shot |
+| AK-74M, AWS Rapira (2602) | `dtk3_7` | small orange glows at the device |
+| AK-74M, Red Heat Shturm (2630) | `dtk5` | an orange jet out of the device's side |
 | AK-74M, Dynacomp flash hider (2631) | `gas_small` | the long hider in the lobby and the first view; at the shot almost nothing (the muzzle's warm pixels +12 % over the frame before, the stock flash's +950 %) |
 | AK-74M, Zenit DTK-4 (2657) | `pp_suppr` | the closed can on the barrel; almost no flash |
 | AK-74M, nothing fitted | the gun's `ak_74` | a large bright fireball: much brighter than any device's effect |
@@ -213,7 +215,6 @@ written; the shop and the Attachments window (the lead's) with these items.
 1. A view from the side (above).
 2. `release/build-content --full` with the pack (the lead's one full build), and `tools/check
    build-content`.
-3. The effects not yet shot: `dtk3_7`, `dtk5`, `dtk11`, `dtk12` (rows of the rig's `settings.py`
-   are ready: `ak74m-rapira`, `ak74m-shturm`, `saiga-dtk11`, `saiga-dtk12`).
+3. The effects not yet shot: `dtk11`, `dtk12` (the rig's rows `saiga-dtk11`, `saiga-dtk12`).
 4. The M30x1 devices fit the three guns that were at the old 16 KB config bound: fit them only with
    an exe that has patch 161's 64 KB arena (`attachments.md`).
