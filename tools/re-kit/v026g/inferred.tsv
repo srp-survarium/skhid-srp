@@ -2115,7 +2115,9 @@ va	status	ref_021d	name
 0x003114e0	inferred-medium	0x001f3b8c	survarium::damage_zone_core_cook::create_resource
 0x00311840	inferred-medium		survarium::artefact_spring_core::artefact_spring_core
 0x00311890	inferred-medium	0x001f3e14	survarium::artefact_spring_core::tick_impl
+0x003118c0	inferred-high		survarium::artefact_spring_core::enable_passive_effects
 0x003118d0	inferred-medium		survarium::artefact_spring_core::enable_active_effects
+0x00311960	inferred-high		survarium::artefact_spring_core::disable_passive_effects
 0x00311970	inferred-medium		survarium::artefact_spring_core::disable_active_effects
 0x00311990	inferred-medium	0x001f3e73	survarium::artefact_spring_core::active_effect_ended
 0x00311ad0	inferred-medium		survarium::artefact_spring_core::add_passive_modifiers

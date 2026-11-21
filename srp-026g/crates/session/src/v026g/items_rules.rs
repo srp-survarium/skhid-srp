@@ -320,7 +320,7 @@ fn is_gear(item: &Item) -> bool {
         && modifications::item_mods(item.dict_id).is_some_and(|mods| mods.modifications != 0)
 }
 
-fn item_level(dict_id: u16) -> u8 {
+pub fn item_level(dict_id: u16) -> u8 {
     item_params(dict_id).map_or(0, |params| params.item_level)
 }
 

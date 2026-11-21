@@ -23,6 +23,11 @@ fn decal() -> u16 {
 }
 
 /// An account with money and nothing but what a test adds.
+/// The AK-74M's reroll price, as the server takes it from the game data.
+fn ak_reroll() -> u32 {
+    Modifications::shared().reroll.price(item_level(dict("ak_74m")))
+}
+
 fn rich() -> Account {
     let mut account = Account::new("Alice");
     account.generic_money = 1_000_000;
@@ -635,7 +640,7 @@ fn a_wrong_scope_record_is_taken_off() {
 #[test]
 fn a_modification_is_changed_for_one_of_three() {
     let mut account = rich();
-    // A level 10 rifle: 1200 silver a change (its 12 gold of the game's data).
+    // The rifle's change costs the reroll table's price for its level.
     let rifle = give(&mut account, "ak_74m", &[2000, 2010]);
     let mut client = client_of(&account);
     let mut rng = Rng::new(5);
@@ -646,12 +651,12 @@ fn a_modification_is_changed_for_one_of_three() {
         window,
         RerollWindow {
             item_id: rifle,
-            cost: 1200,
+            cost: ak_reroll(),
             changed: None,
             offer: None
         }
     );
-    let message = lobby::permitted_reroll_window(rifle, 1200, 0, None);
+    let message = lobby::permitted_reroll_window(rifle, ak_reroll(), 0, None);
     let mut expected = vec![0x83, 0x46, 0x06];
     expected.extend(rifle.to_le_bytes());
     expected.extend([0xB0, 0x04, 0, 0, 0, 0, 0, 0, 0]);
@@ -666,22 +671,22 @@ fn a_modification_is_changed_for_one_of_three() {
     );
     // Not without the silver.
     let mut poor = account.clone();
-    poor.generic_money = 1199;
+    poor.generic_money = ak_reroll() - 1;
     assert_eq!(
         reroll(&mut poor, rifle, 2000, &mut rng),
         Err(ItemError::NotEnoughMoney)
     );
     assert_eq!(poor, {
         let mut same = account.clone();
-        same.generic_money = 1199;
+        same.generic_money = ak_reroll() - 1;
         same
     });
 
     // Paid in silver: three are offered, and silver does not wait (the owner's rule of 2026-10-22).
     let rolled = reroll(&mut account, rifle, 2000, &mut rng).unwrap();
-    assert_eq!(rolled.paid, 1200);
+    assert_eq!(rolled.paid, ak_reroll());
     assert_eq!(rolled.reroll_seconds, 0);
-    assert_eq!(account.generic_money, 1_000_000 - 1200);
+    assert_eq!(account.generic_money, 1_000_000 - ak_reroll());
     let table = Modifications::shared();
     for &choice in &rolled.choices {
         assert!(table.fits(dict("ak_74m"), &[2010], choice));
@@ -713,7 +718,7 @@ fn a_modification_is_changed_for_one_of_three() {
     assert_eq!(again.choices, rolled.choices);
     assert_eq!(again.paid, 0);
     assert_eq!(again.reroll_seconds, 0);
-    assert_eq!(account.generic_money, 1_000_000 - 1200);
+    assert_eq!(account.generic_money, 1_000_000 - ak_reroll());
     let window = reroll_window(&account, rifle).unwrap();
     assert_eq!(window.offer, Some(rolled.choices));
     assert_eq!(window.changed, Some((2000, 0)));
@@ -735,7 +740,7 @@ fn a_modification_is_changed_for_one_of_three() {
         chosen.window,
         RerollWindow {
             item_id: rifle,
-            cost: 1200,
+            cost: ak_reroll(),
             changed: Some((rolled.choices[1], 0)),
             offer: None
         }
@@ -745,7 +750,7 @@ fn a_modification_is_changed_for_one_of_three() {
     assert_eq!(own_modifications(item), [rolled.choices[1], 2010]);
     assert_eq!(item.reroll.offer, None);
     let message =
-        lobby::permitted_modifier_chosen(rifle, 2000, chosen.new_modification, [1200, 0, 0]);
+        lobby::permitted_modifier_chosen(rifle, 2000, chosen.new_modification, [ak_reroll(), 0, 0]);
     let mut expected = vec![0x83, 0x46, 0x08];
     expected.extend(rifle.to_le_bytes());
     expected.extend(2000_u32.to_le_bytes());
@@ -763,11 +768,11 @@ fn a_modification_is_changed_for_one_of_three() {
     // (`every_modification_of_an_item_may_be_changed`).
     let new = chosen.new_modification;
     let rolled = reroll(&mut account, rifle, new, &mut rng).unwrap();
-    assert_eq!(rolled.paid, 1200);
-    assert_eq!(account.generic_money, 1_000_000 - 2 * 1200);
+    assert_eq!(rolled.paid, ak_reroll());
+    assert_eq!(account.generic_money, 1_000_000 - 2 * ak_reroll());
     assert_eq!(rolled.reroll_seconds, 0);
     let chosen = choose_modifier(&mut account, rifle, new, 0).unwrap();
-    assert_eq!(chosen.window.cost, 1200);
+    assert_eq!(chosen.window.cost, ak_reroll());
     // Silver pays again at once.
     assert_eq!(reroll_window(&account, rifle).unwrap().changed, {
         Some((chosen.new_modification, 0))
@@ -779,7 +784,7 @@ fn a_modification_is_changed_for_one_of_three() {
         &mut rng,
     )
     .unwrap();
-    assert_eq!(rolled.paid, 1200);
+    assert_eq!(rolled.paid, ak_reroll());
 
     // A stack can not be changed.
     let mut account = rich();
@@ -798,9 +803,9 @@ fn a_change_may_be_given_up_for_the_old_one() {
     // Paid when the three are offered; the item keeps the old one until
     // the choice.
     let rolled = reroll(&mut account, rifle, 2000, &mut rng).unwrap();
-    assert_eq!(rolled.paid, 1200);
+    assert_eq!(rolled.paid, ak_reroll());
     let paid = account.generic_money;
-    assert_eq!(paid, 1_000_000 - 1200);
+    assert_eq!(paid, 1_000_000 - ak_reroll());
     let item = account.item(rifle).unwrap();
     assert_eq!(own_modifications(item), [2000, 2010]);
     takes(
@@ -837,7 +842,7 @@ fn a_change_may_be_given_up_for_the_old_one() {
         kept.window,
         RerollWindow {
             item_id: rifle,
-            cost: 1200,
+            cost: ak_reroll(),
             changed: Some((2000, 0)),
             offer: None
         }
@@ -857,7 +862,7 @@ fn a_change_may_be_given_up_for_the_old_one() {
     expected.item_mut(rifle).unwrap().reroll.offer = None;
     assert_eq!(account, expected);
     // The client's copies stay as they were.
-    let message = lobby::permitted_modifier_chosen(rifle, 2000, 2000, [1200, 0, 0]);
+    let message = lobby::permitted_modifier_chosen(rifle, 2000, 2000, [ak_reroll(), 0, 0]);
     takes(&mut client, &message, &account);
 
     // Answered once: neither a choice nor keeping it again.
@@ -872,14 +877,14 @@ fn a_change_may_be_given_up_for_the_old_one() {
     // The next change is paid again, and its
     // choice takes the new one in the old one's place.
     let rolled = reroll(&mut account, rifle, 2000, &mut rng).unwrap();
-    assert_eq!(rolled.paid, 1200);
+    assert_eq!(rolled.paid, ak_reroll());
     let chosen = choose_modifier(&mut account, rifle, 2000, 2).unwrap();
     assert_eq!(chosen.new_modification, rolled.choices[2]);
     assert_eq!(
         own_modifications(account.item(rifle).unwrap()),
         [rolled.choices[2], 2010]
     );
-    assert_eq!(account.generic_money, paid - 1200);
+    assert_eq!(account.generic_money, paid - ak_reroll());
 }
 
 /// The owner's rule of 2026-10-22: any modification of an item may be
@@ -890,7 +895,7 @@ fn a_change_may_be_given_up_for_the_old_one() {
 #[test]
 fn every_modification_of_an_item_may_be_changed() {
     let mut account = rich();
-    // A level 10 rifle: 1200 silver a change (its 12 gold of the game's data).
+    // The rifle's change costs the reroll table's price for its level.
     let rifle = give(&mut account, "ak_74m", &[2000, 2010, 2020]);
     let mut client = client_of(&account);
     let mut rng = Rng::new(11);
@@ -927,15 +932,15 @@ fn every_modification_of_an_item_may_be_changed() {
 
     // The first: 2000, in silver.
     let (paid, first, window) = change(&mut account, &mut client, 2000, 0);
-    assert_eq!(paid, 1200);
+    assert_eq!(paid, ak_reroll());
     assert_eq!(window.changed, Some((first, 0)));
-    assert_eq!(window.cost, 1200);
+    assert_eq!(window.cost, ak_reroll());
 
     // The second, another one: not locked out, and the same price.
     let (paid, second, window) = change(&mut account, &mut client, 2010, 1);
-    assert_eq!(paid, 1200);
+    assert_eq!(paid, ak_reroll());
     assert_eq!(window.changed, Some((second, 0)));
-    assert_eq!(window.cost, 1200);
+    assert_eq!(window.cost, ak_reroll());
     assert_eq!(
         own_modifications(account.item(rifle).unwrap()),
         [first, second, 2020]
@@ -943,10 +948,10 @@ fn every_modification_of_an_item_may_be_changed() {
 
     // The third, kept: paid all the same.
     let (paid, kept, window) = change(&mut account, &mut client, 2020, KEEP_OLD_MODIFICATION);
-    assert_eq!(paid, 1200);
+    assert_eq!(paid, ak_reroll());
     assert_eq!(kept, 2020);
     assert_eq!(window.changed, Some((2020, 0)));
-    assert_eq!(window.cost, 1200);
+    assert_eq!(window.cost, ak_reroll());
     assert_eq!(
         own_modifications(account.item(rifle).unwrap()),
         [first, second, 2020]
@@ -955,7 +960,7 @@ fn every_modification_of_an_item_may_be_changed() {
     // The first changed again. While it is offered, naming another one
     // shows the same three and takes nothing: one offer at a time.
     let rolled = reroll(&mut account, rifle, first, &mut rng).unwrap();
-    assert_eq!(rolled.paid, 1200);
+    assert_eq!(rolled.paid, ak_reroll());
     let again = reroll(&mut account, rifle, second, &mut rng).unwrap();
     assert_eq!((again.choices, again.paid), (rolled.choices, 0));
     assert_eq!((rolled.replaced, rolled.again), (first, false));
@@ -970,7 +975,7 @@ fn every_modification_of_an_item_may_be_changed() {
         own_modifications(account.item(rifle).unwrap()),
         [rolled.choices[2], second, 2020]
     );
-    assert_eq!(chosen.window.cost, 1200);
+    assert_eq!(chosen.window.cost, ak_reroll());
 
     // Four changes, each paid once.
     let item = account.item(rifle).unwrap();
@@ -981,7 +986,7 @@ fn every_modification_of_an_item_may_be_changed() {
             offer: None
         }
     );
-    assert_eq!(account.generic_money, 1_000_000 - 4 * 1200);
+    assert_eq!(account.generic_money, 1_000_000 - 4 * ak_reroll());
 }
 
 /// The owner's rule of 2026-10-25 (`docs/notes/flat-reroll.md`): the
@@ -994,7 +999,7 @@ fn every_change_costs_the_first_ones_price() {
     let rifle = give(&mut account, "ak_74m", &[2000, 2010]);
     for _ in 0..5 {
         let window = reroll_window(&account, rifle).unwrap();
-        assert_eq!(window.cost, 1200);
+        assert_eq!(window.cost, ak_reroll());
         let before = account.generic_money;
         let rolled = reroll(&mut account, rifle, 2000, &mut rng).unwrap();
         let taken = before - account.generic_money;
@@ -1004,9 +1009,9 @@ fn every_change_costs_the_first_ones_price() {
     // Not a coin short.
     let mut poor = rich();
     let rifle = give(&mut poor, "ak_74m", &[2000, 2010]);
-    poor.generic_money = 1199;
+    poor.generic_money = ak_reroll() - 1;
     assert!(reroll(&mut poor, rifle, 2000, &mut rng).is_err());
-    assert_eq!(poor.generic_money, 1199);
+    assert_eq!(poor.generic_money, ak_reroll() - 1);
 }
 
 #[test]
@@ -1384,7 +1389,7 @@ fn a_reroll_never_offers_reliability_and_changes_it() {
         let mut rng = Rng::new(seed);
         let before = holdings(&account);
         let rolled = reroll(&mut account, rifle, 2093, &mut rng).unwrap();
-        assert_eq!(rolled.paid, 1200);
+        assert_eq!(rolled.paid, ak_reroll());
         for &choice in &rolled.choices {
             assert!(!is_reliability(choice), "{choice}");
             assert!(table.fits(dict("ak_74m"), &[2000], choice));
@@ -1400,7 +1405,7 @@ fn a_reroll_never_offers_reliability_and_changes_it() {
             own_modifications(account.item(rifle).unwrap()),
             [chosen.new_modification, 2000]
         );
-        assert_eq!(holdings(&account), (before.0 - 1200, before.1));
+        assert_eq!(holdings(&account), (before.0 - ak_reroll(), before.1));
         // Another of its modifications: never reliability either.
         let rolled = reroll(&mut account, rifle, 2000, &mut rng).unwrap();
         assert!(rolled.choices.iter().all(|&choice| !is_reliability(choice)));

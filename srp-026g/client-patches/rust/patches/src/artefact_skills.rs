@@ -94,13 +94,15 @@ impl Skills {
     const CASCADE: u16 = 1 << 8;
     const SIGHT: u16 = 1 << 12;
     const LATE: u16 = 1 << 13;
+    const COURIER: u16 = 1 << 14;
 
     /// Bits: 0..2 Resistance, 3 Keeper, 4 Resonance, 5 Spring II, 6 Onyx II, 7 Larkspur II,
     /// 8 Cascade, 9..11 the match's Keeper draw 1..6 (0 none; with the skill or not), 12 Artifact
-    /// Sight, 13 a late joiner's kit (srp's mark, survarium::v026g::keeper::LATE). Anything else (a
-    /// fraction, a negative, a rank past 5, a draw of 7, a bit past 13) is no skill at all.
+    /// Sight, 13 a late joiner's kit (srp's mark, survarium::v026g::keeper::LATE), 14 Courier.
+    /// Anything else (a fraction, a negative, a rank past 5, a draw of 7, a bit past 14) is no skill
+    /// at all.
     pub fn parse(value: f32) -> Option<Self> {
-        if !(0.0..16384.0).contains(&value) || value != (value as u32) as f32 {
+        if !(0.0..32768.0).contains(&value) || value != (value as u32) as f32 {
             return None;
         }
         let bits = value as u16;
@@ -131,6 +133,12 @@ impl Skills {
     /// Keeper of the Artifacts taken.
     pub fn keeper(self) -> bool {
         self.has(Self::KEEPER)
+    }
+
+    /// Courier taken: at a respawn into another kit, the artefacts of the kit that died come
+    /// along into the new kit's empty containers (crate::artefact_courier).
+    pub fn courier(self) -> bool {
+        self.has(Self::COURIER)
     }
 
     /// The match's Keeper draw (srp writes it into every kit of the match), none in the lobby.
@@ -590,7 +598,7 @@ mod tests {
 
     #[test]
     fn parses_the_packed_ranks_only_exactly() {
-        for bad in [-1.0, 0.5, 6.0, 7.0, 510.0, 7.0 * 512.0, 8.0 + 7.0 * 512.0, 16384.0, 16384.0 + 508.0, f32::INFINITY, f32::NAN] {
+        for bad in [-1.0, 0.5, 6.0, 7.0, 510.0, 7.0 * 512.0, 8.0 + 7.0 * 512.0, 32768.0, 32768.0 + 508.0, f32::INFINITY, f32::NAN] {
             assert_eq!(Skills::parse(bad), None, "{bad}");
         }
         assert_eq!(Skills::parse(0.0), Some(Skills::default()));
@@ -615,12 +623,17 @@ mod tests {
         // A late joiner's kit, bit 13.
         assert!(Skills::parse(8192.0 + 8.0 + 512.0).unwrap().late());
         assert!(!all.late());
+        // Courier, bit 14: alone and with every other bit.
+        assert!(Skills::parse(16384.0).unwrap().courier());
+        let every = Skills::parse(16384.0 + 8192.0 + 4096.0 + 508.0 + 6.0 * 512.0).unwrap();
+        assert!(every.courier() && every.late() && every.sight() && every.keeper());
+        assert!(!all.courier());
     }
 
     #[test]
     fn every_valid_payload_keeps_each_bit_and_every_other_is_none() {
         // Kept packed: each skill as its own decode of the payload's bits.
-        for bits in 0..16384u32 {
+        for bits in 0..32768u32 {
             let parsed = Skills::parse(bits as f32);
             let valid = bits & 7 <= 5 && (bits >> 9) & 7 <= 6;
             assert_eq!(parsed.is_some(), valid, "{bits}");
@@ -628,8 +641,8 @@ mod tests {
             let bit = |n: u32| bits & (1 << n) != 0;
             assert_eq!(skills.resistance(), Resistance((bits & 7) as u8));
             assert_eq!(skills.draw().map(Draw::get), Some((bits >> 9) & 7).filter(|&draw| draw != 0).map(|draw| draw as u8));
-            assert_eq!([skills.keeper(), skills.onyx(), skills.larkspur(), skills.sight(), skills.late()],
-                       [bit(3), bit(6), bit(7), bit(12), bit(13)], "{bits}");
+            assert_eq!([skills.keeper(), skills.onyx(), skills.larkspur(), skills.sight(), skills.late(), skills.courier()],
+                       [bit(3), bit(6), bit(7), bit(12), bit(13), bit(14)], "{bits}");
             assert_eq!(skills.spring_reload(), if bit(5) { (0.05, 0.10) } else { (0.0, 0.0) });
             assert_eq!((skills.reach(Phase::Passive).is_some(), skills.reach(Phase::Active).is_some()), (bit(4), bit(8)));
             assert_eq!(Skills::parse(bits as f32 + 0.5), None);

@@ -48,6 +48,7 @@ pub mod crc32;
 mod context;
 pub mod draw;
 pub mod headwear;
+pub mod hit_marker;
 mod hook;
 mod hud_input;
 mod input;
@@ -172,6 +173,7 @@ pub use statistics::{Band, Batteries, Battery, BatteryCarry, Cell, Delivery, Hel
 pub mod medical;
 pub mod artefact_skills;
 pub mod keeper;
+pub mod courier;
 pub mod effect;
 pub mod animation_id;
 pub mod bake_gpu;

@@ -485,20 +485,21 @@ mod tests {
         let (mut account, _, ammo) = rifleman(300);
         account.generic_money = 1_000;
         let rounds = dict("ammo_5.45x39_7n6m");
-        // 45 used: two clips of 30 at 30 silver (its `base_cost`).
+        let clip = survarium::v026g::prices::price(rounds).unwrap().cost;
+        // 45 used: two clips of 30.
         let settled = settle(&mut account, &[(rounds, 45)]);
         assert_eq!(settled.bought, [(rounds, 60)]);
         assert_eq!(settled.spent.autobuy_ammo, [(60, rounds)]);
         assert!(settled.spent.autobuy_consumables.is_empty());
         assert_eq!(account.item(ammo).unwrap().condition_or_stack, 315);
-        assert_eq!(account.generic_money, 940);
+        assert_eq!(account.generic_money, 1_000 - 2 * clip);
         // Silver for one clip only.
-        account.generic_money = 50;
+        account.generic_money = clip + clip / 2;
         let settled = settle(&mut account, &[(rounds, 90)]);
         assert_eq!(settled.bought, [(rounds, 30)]);
         assert_eq!(settled.spent.autobuy_ammo, [(30, rounds)]);
         assert_eq!(account.item(ammo).unwrap().condition_or_stack, 255);
-        assert_eq!(account.generic_money, 20);
+        assert_eq!(account.generic_money, clip / 2);
         // No silver: nothing bought, nothing listed.
         account.generic_money = 0;
         let settled = settle(&mut account, &[(rounds, 30)]);
@@ -522,7 +523,7 @@ mod tests {
         assert_eq!(settled.bought, [(rounds, 30)]);
         assert_eq!(account.item(ammo).unwrap().condition_or_stack, 300);
         assert_eq!(account.item(kits).unwrap().condition_or_stack, 3);
-        assert_eq!(account.generic_money, 970);
+        assert_eq!(account.generic_money, 1_000 - survarium::v026g::prices::price(rounds).unwrap().cost);
     }
 
     #[test]

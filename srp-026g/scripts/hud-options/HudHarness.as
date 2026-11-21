@@ -18,6 +18,8 @@ package
     //   with All; Hidden: none, a shown one (a kill's too) cleared; All again:
     //   shown; Kill marker only: a hit shows nothing, a kill its mark (its last
     //   bar part on its kill frame), a hit's marker shown cleared at the pick;
+    //   with All, a kill after a hit's white bars (exe patch 167 drops the
+    //   hit's call through a wall) drawn as Kill marker only draws it;
     //   Hidden crosshair preserves hit/kill feedback and survives game updates;
     // - the Tab list off: each team by score as the game sorts it, every
     //   column shown; on: each team (the board's two lists, as it groups them)
@@ -158,6 +160,22 @@ package
             return last > 1;
         }
 
+        // The marker as drawn: each bar's frame, its parts' frames and visibility.
+        private function markerState():String
+        {
+            var bars:* = crosshair.bars.barsContainer;
+            var out:Array = [];
+            for each (var bar:* in [bars.damage1, bars.damage2, bars.damage3, bars.damage4])
+            {
+                out.push(bar.currentFrame);
+                for (var k:int = 1; bar["part_" + k] != null; ++k)
+                {
+                    out.push(k + ":" + bar["part_" + k].currentFrame + ":" + bar["part_" + k].visible);
+                }
+            }
+            return out.join(",");
+        }
+
         private function hitMarker():void
         {
             var ALL:uint = 0, KILL_ONLY:uint = 1, HIDDEN:uint = 2;
@@ -186,8 +204,17 @@ package
             require(!markerShown(), "Kill marker only: a hit shows nothing");
             crosshair.setDamage(1, 1000, true, false);
             require(killShown() && hitParts(true), "Kill marker only: a kill shows the whole kill marker (white at the centre, red tips)");
+            var killOnly:String = markerState();
             crosshair.setDamage(0.3, 1000, false, false);
             require(killShown(), "Kill marker only: a hit after it leaves the kill's mark");
+            // Exe patch 167 (hit-marker-walls.md): through a wall the exe drops the hit's own call,
+            // so with All the kill's call comes alone, after earlier hits' white bars.
+            crosshair.hitMarkers = ALL;
+            crosshair.setDamage(0.3, 1000, false, false);
+            crosshair.setDamage(1, 1000, true, false);
+            require(killShown() && markerState() == killOnly,
+                "All, a kill through a wall after a hit's white bars: what Kill marker only shows");
+            crosshair.hitMarkers = KILL_ONLY;
             crosshair.hitMarkers = 7;
             require(crosshair.hitMarkers == ALL && !markerShown(), "another number: All, the mark shown cleared");
             crosshair.hitMarkers = ALL;

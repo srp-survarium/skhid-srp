@@ -6560,3 +6560,12 @@ va	name	location	role	basis
 0x00316520	survarium::tdm_rule_core::rule_completed	ECX	the rule: +12Ch its end	observed
 0x00316520	survarium::tdm_rule_core::rule_completed	entry ESP+4	the time	observed
 0x00317f10	survarium::timelimit_rule_core::tick	entry ESP+12	the step flag (not read: on the grid)	observed
+0x001f3c70	survarium::player::generate_hit_event	ECX	the victim player (base_player::generate_hit_event's ECX; the vtable slot +40h hit_impl calls, 0x2D9ED1)	observed
+0x001f3c70	survarium::player::generate_hit_event	entry ESP+4	the hit's time (hit_info +3Ch): the collector's +4 (0x1F3D50)	observed
+0x001f3c70	survarium::player::generate_hit_event	entry ESP+8	the attacker's place (hit_info +44h, a byte widened): the world's get_player (game +53ACh, vtable +4Ch, 0x1F3CC7) gives the player whose collector it writes	observed
+0x001f3c70	survarium::player::generate_hit_event	entry ESP+12	the victim's place (its +114h, a byte widened): the collector's +0 (0x1F3D62)	observed
+0x001f3c70	survarium::player::generate_hit_event	entry ESP+24	the bullet or 0 (hit_impl's [ebp-4]): 0 (a blast, an anomaly, a fall) writes no collector (0x1F3CAA)	observed
+0x00238230	survarium::game_world_ui::draw_damage_collector	EAX	the drawn player's inflicted_damage_collector (player::st_draw's lea eax,[ebp+0F534h], 0x247461)	observed
+0x00238230	survarium::game_world_ui::draw_damage_collector	EDI	the game_world_ui (the player's +0F480h, 0x24745B)	observed
+0x00246f10	survarium::player::tick	ECX	the player	observed
+0x00246f10	survarium::player::tick	entry ESP+4	the time (ms)	observed

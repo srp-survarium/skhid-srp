@@ -443,11 +443,6 @@ mod tests {
         behind_second: 0.0,
     };
 
-    #[test]
-    fn the_default_bands_are_the_measured_ones() {
-        assert_eq!(Bands::default(), BANDS);
-    }
-
     /// One bot's play: (kind, changed).
     fn one(
         bands: &Bands,

@@ -30,10 +30,6 @@ use crate::vostok::step::GroundMaterial;
 use crate::vostok::world::PlayerId;
 use crate::vostok::{Context, Flow, GameCell, NoExit, clock};
 
-/// The game materials of leaves (game.materials: foliage_coniferous,
-/// foliage_deciduous, foliage_dry), which a walker goes through and the eye
-/// with him.
-const LEAVES: [u16; 3] = [24, 44, 49];
 /// How far short of a surface the eye stays (m): the near plane's corners
 /// (0.05 m ahead, 0.057 x 0.032 across at 65 degrees and 16:9) and a margin.
 const CLEARANCE: f32 = 0.12;
@@ -75,7 +71,7 @@ pub fn on_eye(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let hit = player.physics_world().and_then(|world| {
         let (from, along) = (way.from, way.along);
         world
-            .shot_ray_test_past([from.x, from.y, from.z], [along.x, along.y, along.z], way.length + CLEARANCE, is_leaves)
+            .shot_ray_test_past([from.x, from.y, from.z], [along.x, along.y, along.z], way.length + CLEARANCE, GroundMaterial::is_leaves)
             .map(|hit| (Vec3::new(hit.point[0], hit.point[1], hit.point[2]) - from).dot(along))
     });
     let next = step(PULL.get(thread), player.id(), wanted_pull(way.length, hit), clock::milliseconds(thread));
@@ -89,10 +85,6 @@ pub fn on_eye(ctx: &mut Context<'_>) -> Flow<NoExit> {
         camera::look_from(ctx, view);
     }
     Flow::Continue
-}
-
-fn is_leaves(material: GroundMaterial) -> bool {
-    LEAVES.contains(&material.id())
 }
 
 /// The ray's way: from inside the capsule to the eye.

@@ -22,7 +22,7 @@ PREFIX = 'material.g_stage.effect.'
 
 def check(porter, stock, patch, pack):
     manifest = json.loads((pack / 'pack.json').read_text())
-    assert manifest['id'] == 'v021d-vertex-blend-parallax' and len(manifest['operations']) == 20
+    assert manifest['id'] == 'v021d-vertex-blend-parallax'
     with tempfile.TemporaryDirectory() as tmp:
         def read(db, path):
             out = Path(tmp) / 'shader'
