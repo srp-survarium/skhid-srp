@@ -102,3 +102,4 @@ vssk	gameplay/items/weapons/wpn_vssk.options	weapons/vssk/vssk	vssk	weapons/remo
 vssk_camo	gameplay/items/weapons/wpn_vssk_camo.options	weapons/vssk/vssk_camo_red	vssk_camo	weapons/remodel_069/vssk_camo/vssk_camo
 vz58	gameplay/items/weapons/wpn_vz58.options	weapons/vz58/vz58	vz58	weapons/remodel_069/vz58/vz58
 winchester_1894	gameplay/items/weapons/wpn_winchester_1894.options	weapons/winchester_1894	winchester_1894	weapons/remodel_069/winchester_1894/winchester_1894
+wpn_mp7_silencer_special	gameplay/items/weapons/wpn_mp7_silencer_special.options	weapons/hk_mp7/hk_mp7_silencer	mp7_silencer	weapons/remodel_069/mp7_silencer/mp7_silencer
