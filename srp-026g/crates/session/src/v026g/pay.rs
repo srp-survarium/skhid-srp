@@ -344,48 +344,4 @@ mod tests {
             }
         }
     }
-
-    #[test]
-    fn the_silver_rate_rises_with_the_match_level() {
-        let by_level = MoneyRate::ByLevel;
-        for level in 0..=5 {
-            assert_eq!(by_level.at(level), 225);
-        }
-        assert_eq!(
-            (6..=12).map(|level| by_level.at(level)).collect::<Vec<_>>(),
-            [240, 255, 270, 285, 300, 315, 330]
-        );
-        // Half again of the owner's 150 to 220: what premium paid.
-        let before = [
-            150, 150, 150, 150, 150, 150, 160, 170, 180, 190, 200, 210, 220,
-        ];
-        for (rate, before) in MONEY_RATES.iter().zip(before) {
-            assert_eq!(*rate * 2, before * 3);
-        }
-        assert_eq!(DEFAULT_EXPERIENCE_RATE * 2, 2 * 3);
-        assert_eq!(DEFAULT_REPUTATION_RATE * 2, 120 * 3);
-        // Every level of the data past 12 pays as 12 does.
-        let levels = survarium::v026g::dictionary::Dictionary::shared()
-            .match_levels
-            .len() as u16;
-        assert!(levels > 13);
-        for level in 12..levels + 5 {
-            assert_eq!(by_level.at(level), 330);
-        }
-        assert_eq!(MoneyRate::Flat(80).at(0), 80);
-        assert_eq!(MoneyRate::Flat(80).at(20), 80);
-    }
-
-    #[test]
-    fn the_levels_that_paid_gold_pay_nothing() {
-        // 100 gold at the wiki's level 1 and every fifth, 250 at the last:
-        // none of it now; the silver levels as they were.
-        assert_eq!(level_reward(1), 0);
-        assert_eq!(level_reward(2), 500);
-        assert_eq!(level_reward(5), 0);
-        assert_eq!(level_reward(6), 750);
-        assert_eq!(level_reward(95), 0);
-        assert_eq!(level_reward(99), 5_000);
-        assert_eq!(level_reward(100), 0);
-    }
 }

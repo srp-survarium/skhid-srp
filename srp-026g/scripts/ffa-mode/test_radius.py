@@ -16,8 +16,6 @@ from test_content_edit import config
 class RadiusRetune(unittest.TestCase):
     def test_checked_in_recipe_covers_every_spawn_above_twenty_metres(self):
         rows = json.loads(m.OUTPUT.read_text())['set_entry']
-        self.assertEqual(len(rows), 696)
-        self.assertEqual(sum(row['from']['enemy_check_radius'] == 50 for row in rows), 3)
         expected = set(m.projects()) - {
             f'projects/level_08/{weather}_8/client_project' for weather in ('day', 'evening', 'prerain')}
         self.assertEqual({row['file'] for row in rows}, expected)

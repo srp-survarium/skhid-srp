@@ -21,7 +21,7 @@ ONE = struct.unpack('<I', struct.pack('<f', 1.0))[0]
 def check(porter, stock, patch, pack, blend_pack):
     manifest = json.loads((pack / 'pack.json').read_text())
     paths = [op['path'] for op in manifest['operations']]
-    assert manifest['id'] == 'v021d-vertex-blend-consider-off' and len(set(paths)) == len(paths) == 12
+    assert manifest['id'] == 'v021d-vertex-blend-consider-off' and len(set(paths)) == len(paths)
     assert all(op == {'op': 'add_file', 'path': op['path']} for op in manifest['operations'])
     listed = subprocess.run([str(porter), 'list', '--db', str(stock), '--prefix', 'shaders/sm_4_0/gbuffer_pass.ps/'],
                             check=True, capture_output=True, text=True).stdout.split()

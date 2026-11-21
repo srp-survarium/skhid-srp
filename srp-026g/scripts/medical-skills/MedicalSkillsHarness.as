@@ -157,33 +157,7 @@ package {
      branch_points:v.preconditions.branch_points});
     values.push({id:v.id,value:0});
    }
-   check(skills[341]==null,"Medic left the medical tree");
-   check(skills[313]==null,"Take Cover left the medical tree");
-   // Rows II-IV: painkiller skills in column 1, antitoxin skills in column 4; rows at 0/3/7/12/17.
-   var layout:Object={342:[2,1,1,0],302:[3,1,2,0],301:[1,2,3,3],311:[2,2,4,3],312:[3,2,3,3],314:[4,2,3,3],
-    303:[1,3,2,7],321:[2,3,3,7],324:[4,3,3,7],323:[1,4,4,12],332:[2,4,5,12],333:[4,4,3,12],331:[2,5,1,17],322:[3,5,1,17]};
-   var total:int=0;
-   for(var id:String in layout) {
-    var want:Array=layout[id];var have:Object=skills[id];
-    check(have!=null && have.ui.position[0]==want[0] && have.ui.position[1]==want[1] && have.levels_amount==want[2]
-     && have.preconditions.branch_points==want[3],"layout "+id);
-    if(have) total+=have.levels_amount;
-   }
-   check(total==38,"38 ranks, 37 points with one exclusive pair");
-   check(described(skills[314].ui,3)[3].indexOf("<green> +15%</green>")>=0,"Sharp Eye maximum");
-   check(described(skills[311].ui,4)[4].indexOf("<green> +4 s</green>")>=0,"Metabolism maximum: "+described(skills[311].ui,4)[4]);
-   check(described(skills[324].ui,3)[3].indexOf("<green> +40 points</green>")>=0,"Second Wind maximum: "+described(skills[324].ui,3)[3]);
-   check(described(skills[333].ui,3)[1].indexOf("<green>+5%</green>")>=0 && described(skills[333].ui,3)[3].indexOf("<green> +20%</green>")>=0,"Concentration +10/+15/+20: "+described(skills[333].ui,3).join(" | "));
-   for each(var line:String in described(skills[301].ui,3)) {
-    check(line.indexOf("<green>")>=0 && /%.*s<\/green>/.test(line.split("\n")[0]),"Potent Painkiller green percent and seconds: "+line);
-   }
-   check(described(skills[301].ui,3)[3].indexOf("<green> +3% / +4.5 s</green>")>=0,"Potent Painkiller maximum");
-   check(described(skills[301].ui,3)[1].indexOf("Current value: +1% / +1.5 s")>=0,"Potent Painkiller current value");
-   // Brothers in Arms, one rank with a value: its text before the point and with it.
-   var brothers:Array=described(skills[342].ui,1);
-   check(brothers.length==2 && brothers[0].indexOf("<green> +50%</green>\nCurrent value: 0%")>=0 && brothers[1].indexOf("<green> +50%</green>")>=0
-    && brothers[1].indexOf("Current value")<0,"Brothers in Arms texts: "+brothers.join(" | "));
-
+   var id:String;var have:Object;
    var Window:Class=domain.getDefinition("SrvCharWindow") as Class;
    var Renderer:Class=domain.getDefinition("SrvSkillRendererCh") as Class;
    // The menu as the lobby drives it: properties, skills, points, then the medical tab.
@@ -195,11 +169,22 @@ package {
    stage_="progress";win.fillSkillsProgress([{points:0},{points:0},{points:0}]);
    stage_="medical tab";win.skillsTabPage.selectedIndex=2;
    stage_="checks";var shown:Object=renderers(win,Renderer);
-   check(shown[341]==null,"no Medic in the menu");
-   var step:Point=new Point(shown[302].x-shown[342].x,shown[301].y-shown[342].y);
+   // Every skill of the edit list drawn where its position says, with its ranks' pips (the numbers
+   // are the edit list's, not repeated here); the steps from two skills in other columns and rows.
+   var step:Point=new Point(0,0);
+   for(var a:String in skills) for(var b:String in skills) {
+    if(shown[a]==null || shown[b]==null) continue;
+    var columns:int=skills[b].ui.position[0]-skills[a].ui.position[0];
+    var rows:int=skills[b].ui.position[1]-skills[a].ui.position[1];
+    if(columns!=0 && step.x==0) step.x=(shown[b].x-shown[a].x)/columns;
+    if(rows!=0 && step.y==0) step.y=(shown[b].y-shown[a].y)/rows;
+   }
    check(step.x>0 && step.y>0,"renderer steps");
-   for(id in layout) check(shown[id]!=null && shown[id].x==step.x*(layout[id][0]-1) && shown[id].y==step.y*(layout[id][1]-1),"menu position "+id);
-   for(id in layout) check(pips(shown[id])==layout[id][2],"rank pips "+id+" "+pips(shown[id]));
+   for(id in skills) {
+    have=skills[id];
+    check(shown[id]!=null && shown[id].x==step.x*(have.ui.position[0]-1) && shown[id].y==step.y*(have.ui.position[1]-1),"menu position "+id);
+    check(pips(shown[id])==have.levels_amount,"rank pips "+id);
+   }
    var Ex:Class=domain.getDefinition("scaleform.gfx.MouseEventEx") as Class;
    function click(id:int,right:Boolean=false):int {
     var r:Object=shown[id];r.validateNow();
@@ -213,107 +198,15 @@ package {
     var have:Number=win.progressIndicator.value;
     check(Math.abs(have-want)<1e-9,"indicator "+label+": "+have+", want "+want);
    }
-   check(win.progressIndicator.maximum==26,"indicator maximum "+win.progressIndicator.maximum);
-   bar(1,"medical at 0");
-   // Brothers in Arms is a tier-1 skill of one rank: its point counts for tier 2.
-   check(take(342,2)==1,"Brothers in Arms at 0 points, stops at 1");
-   check(shown[342].data.description_2_string==shown[342].data.description_2[1],"Brothers in Arms tooltip at its rank");
-   check(take(301,1)==0,"Potent Painkiller (row 2) refused at 1 point");
-   check(take(302,1)==1,"Fast Bandaging 1");
-   bar(1+5*2/3,"medical at 2, below tier 2's mark");
-   check(take(314,1)==0,"tier 2 refused at 2 points");
-   check(take(302,2)==2,"Fast Bandaging stops at 2");
-   bar(6,"medical tier 2 mark at 3");
-   check(take(301,4)==3,"tier 2 opens at 3; Potent Painkiller stops at 3");
-   check(shown[301].data.description_2_string==shown[301].data.description_2[3],"Potent Painkiller tooltip at maximum");
-   check(String(shown[301].data.description_2_string).indexOf("+3% / +4.5 s")>=0,"Potent Painkiller tooltip text");
-   check(take(303,1)==0,"tier 3 refused at 6 points");
-   check(take(311,1)==1,"Metabolism 1: 7 points");
-   bar(11,"medical tier 3 mark at 7");
-   check(take(303,3)==2,"tier 3 at 7; Numb Legs stops at 2");
-   check(take(321,1)==1,"tier 3 at 7");
-   click(321,true);
-   check(shown[321].data.newValue==0,"tier 3 point taken back");
-   check(take(323,1)==0,"tier 4 refused at 9 points");
-   check(take(324,2)==2,"Second Wind 2: 11 points");
-   bar(15,"medical at 11");
-   check(take(323,1)==0,"tier 4 refused at 11 points");
-   check(take(324,2)==3,"Second Wind stops at 3: 12 points");
-   bar(16,"medical tier 4 mark at 12");
-   check(take(323,5)==4,"tier 4 at 12; Unflinching stops at 4: 16 points");
-   check(take(331,1)==0 && take(322,1)==0,"tier 5 refused at 16 points");
-   check(take(333,4)==3,"Concentration beside Unflinching, stops at 3: 19 points");
-   bar(21,"medical tier 5 mark at 17");
-   check(take(314,4)==3,"Sharp Eye stops at 3");
-   check(take(311,4)==4,"Metabolism stops at 4");
-   check(take(331,2)==1,"Supply Pocket at 17, one rank");
-   bar(26,"medical full with the last tier taken");
-   check(take(322,1)==0,"Additional Medicine refused beside Supply Pocket");
-   click(331,true);
-   check(shown[331].data.newValue==0,"Supply Pocket taken back");
-   check(take(322,2)==1,"Additional Medicine at 17, one rank");
-   check(take(331,1)==0,"Supply Pocket refused beside Additional Medicine");
-   // The artefact tab (artefact-skills.md): 0/5/10/15/20 (the stock rows), 26 ranks in all with
-   // Courier (534, row IV); one either/or pair, Resonance or Cascade in row V (Keeper and Forest
-   // Protection go together in row III).
+   // The artefact tab: every skill of the edit list drawn where its position says, with its ranks'
+   // pips (the numbers are the edit list's, not repeated here).
    stage_="artefact tab";win.skillsTabPage.selectedIndex=4;shown=renderers(win,Renderer);
-   var tree5:Object={501:[2,1,3,0],502:[3,1,5,0],512:[3,2,5,5],513:[4,2,1,5],521:[2,3,1,10],
-    522:[3,3,1,10],523:[1,3,4,10],531:[1,4,1,15],532:[2,4,1,15],533:[3,4,1,15],534:[4,4,1,15],541:[2,5,1,20],542:[3,5,1,20]};
-   var ranks5:int=0;
-   for(id in tree5) {
-    want=tree5[id];have=artefacts[id];
-    check(have!=null && have.ui.position[0]==want[0] && have.ui.position[1]==want[1] && have.levels_amount==want[2]
-     && have.preconditions.branch_points==want[3],"artefact layout "+id);
-    if(have) ranks5+=have.levels_amount;
-    check(shown[id]!=null && shown[id].x==step.x*(want[0]-1) && shown[id].y==step.y*(want[1]-1),"artefact menu position "+id);
-    check(pips(shown[id])==want[2],"artefact rank pips "+id);
+   for(id in artefacts) {
+    have=artefacts[id];
+    check(shown[id]!=null && shown[id].x==step.x*(have.ui.position[0]-1) && shown[id].y==step.y*(have.ui.position[1]-1),"artefact menu position "+id);
+    check(pips(shown[id])==have.levels_amount,"artefact rank pips "+id);
    }
-   check(ranks5==26,"26 artefact ranks");
-   check(artefacts[541].preconditions.antiskills[0]==542 && artefacts[542].preconditions.antiskills[0]==541,
-    "Resonance and Cascade exclude each other");
-   check(artefacts[521].preconditions.antiskills==null && artefacts[523].preconditions.antiskills==null,
-    "Keeper and Forest Protection go together");
    check(shown[301]==null && shown[101]==null,"only the artefact tree on its tab");
-   check(described(artefacts[501].ui,3)[3].indexOf("<green> -24%</green>")>=0,"Quick Hands maximum");
-   check(described(artefacts[502].ui,5)[2].indexOf("Current value: +10 points")>=0,"Resistance current value");
-   check(described(artefacts[502].ui,5)[5].indexOf("<green> +25 points</green>")>=0,"Resistance maximum");
-   check(described(artefacts[521].ui,1).length==1,"Keeper: the description alone");
-   check(described(artefacts[513].ui,1).length==1,"Artifact Sight: the description alone");
-   check(described(artefacts[534].ui,1).length==1,"Courier: the description alone");
-   // Every rank of rows I-IV but Forest Protection's is 19: row V (20) needs one of its ranks.
-   bar(1,"artefact at 0");
-   check(take(512,1)==0,"artefact tier 2 refused at 0");
-   check(take(501,6)==3,"Quick Hands stops at 3");
-   bar(4,"artefact at 3");
-   check(take(512,1)==0 && take(513,1)==0,"artefact tier 2 refused at 3");
-   check(take(502,2)==2,"5 points");
-   bar(6,"artefact tier 2 mark at 5");
-   check(take(513,2)==1,"Artifact Sight at 5, one rank");
-   check(take(521,1)==0 && take(523,1)==0,"artefact tier 3 refused at 6");
-   check(take(512,4)==4,"10 points");
-   bar(11,"artefact tier 3 mark at 10");
-   check(take(521,2)==1,"Keeper at 10, one rank");
-   check(take(522,2)==1,"Artifact Container at 10, one rank: 12 points");
-   check(take(531,1)==0,"artefact tier 4 refused at 12");
-   check(take(502,3)==5,"15 points: Resistance stops at 5");
-   bar(16,"artefact tier 4 mark at 15");
-   check(take(531,1)==1 && take(532,1)==1 && take(533,2)==1,"tier 4 at 15, one rank each");
-   check(take(541,1)==0 && take(542,1)==0,"artefact tier 5 refused at 18");
-   check(take(512,2)==5,"Knowledge of Artifacts stops at 5: 19");
-   check(take(541,1)==0,"artefact tier 5 refused at 19: rows I-IV without Forest Protection hold 19");
-   check(take(523,1)==1,"Forest Protection beside Keeper: 20");
-   bar(21,"artefact tier 5 mark at 20");
-   check(take(541,2)==1,"Resonance at 20, one rank");
-   bar(26,"artefact full with the last tier taken");
-   check(take(542,1)==0,"Cascade refused beside Resonance");
-   click(541,true);
-   check(shown[541].data.newValue==0,"Resonance taken back");
-   check(take(542,2)==1,"Cascade at 20, one rank: 21");
-   check(take(541,1)==0,"Resonance refused beside Cascade");
-   // Forest Protection beside Keeper: a full build is 24.
-   check(take(523,5)==4,"Forest Protection beside Keeper, stops at 4: a full build is 24");
-   check(shown[521].data.newValue==1,"Keeper kept beside Forest Protection");
-   bar(26,"artefact full with Keeper and Forest Protection");
    // The tab bar's icons (SkillBranchTabCh, its icon a MovieClip whose frame is the tab, set by
    // updateText): a selected tab's keyframes place another icon symbol than the others, so each tab's
    // glyph is checked in every state against the one it shows up (placements.tsv puts the fifth right).

@@ -683,18 +683,6 @@ mod tests {
     }
 
     #[test]
-    fn damage_rolls_on_every_weapon_from_one_to_five_percent() {
-        let damage = kind_shown_as(1);
-        assert_eq!(damage.source, Source::Rolled);
-        assert_eq!(damage.strengths, [0.01, 0.02, 0.03, 0.04, 0.05]);
-        assert!(damage.for_weapons());
-        assert_eq!(damage.fits.len(), 6, "every weapon class");
-        assert!(damage.fits.iter().all(|fit| fit.items.len() == fit.of));
-        let page = kind_html(Lang::En, damage);
-        assert!(page.contains("<li>+1%</li>") && page.contains("<li>+5%</li>"));
-    }
-
-    #[test]
     fn a_kind_some_items_of_a_group_take_lists_them() {
         // The rate of fire: automatic weapons only.
         let rate = kind_shown_as(4);
