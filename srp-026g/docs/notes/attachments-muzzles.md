@@ -213,7 +213,7 @@ written; the shop and the Attachments window (the lead's) with these items.
 1. A view from the side (above).
 2. `release/build-content --full` with the pack (the lead's one full build), and `tools/check
    build-content`.
-3. The other effects not yet shot: `dtk3_7`, `dtk5`, `dtk8`, `dtk11`, `dtk12`, `pp_suppr` (the
-   Zenit DTK-4) on a gun.
+3. The effects not yet shot: `dtk3_7`, `dtk5`, `dtk11`, `dtk12` (rows of the rig's `settings.py`
+   are ready: `ak74m-rapira`, `ak74m-shturm`, `saiga-dtk11`, `saiga-dtk12`).
 4. The M30x1 devices fit the three guns that were at the old 16 KB config bound: fit them only with
    an exe that has patch 161's 64 KB arena (`attachments.md`).
