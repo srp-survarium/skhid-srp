@@ -128,3 +128,32 @@ simplified for now):
   - **the VSK-94 and its premium item**, 54 pairs: any of its nine muzzle devices with any of its
     three grips (`Unseated`). The grip's clamp stands on the built-in suppressor, and a device
     takes the suppressor's place.
+
+## State (2026-11-21)
+
+Done, and checked without a game:
+
+- the pack `weapon-grips@1` (ten items: configs, dictionary rows, icons), the items' rows of
+  `items.tsv`, their texts in the eleven tables, `weapon-grips-hand-events-1.json` (the UMP45);
+  `tools/check weapon-grips` (the pack built anew has the manifest's hash; `grips.tsv`, the
+  items' rows and the texts are what the sources make), `content-edit` and `localization` pass;
+- everything tagged COMPUTED above: the finger joints, the hand on twelve grips' meshes and off
+  the PKP's, the UMP45's bone on its idle locator, the three own-part grips' hand places, the
+  refused pairs on the built table.
+
+Not done:
+
+1. **Nothing of this lane has been seen in a game.** No grip item has been through
+   `release/build-content`, bought, fitted or drawn; no hand on a grip has been judged in the first
+   view. The one picture of a grip in a game is the core's (the AK-74M with the PTK grip set on its
+   config, `attachments.md`).
+2. The hand on each of the ten grips in the first view, up close, and in the lobby; the carriers
+   seen on a gun of each kind (thirteen forends, three brackets, the clamp); the UMP45 with and
+   without a grip after its clip events.
+3. The PKP's own grip: the hand beside it until the crate places a grip's hand by the grip's
+   position alone (above, OPEN).
+4. The card of a grip in the shop and in the Attachments window (the item has no card lines: its
+   description carries the numbers); the lobby's words for a refused pair.
+5. `release/build-content --full` with the grips' pack (the branch's one full build is the
+   integration's).
+6. The stats' later readers (aimed and hip recoil, the first three shots, aimed movement speed).
