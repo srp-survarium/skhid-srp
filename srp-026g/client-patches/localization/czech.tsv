@@ -155,6 +155,8 @@ st_ak74u_description	Zkrácená verze AK74 na náboje 5.45x39. Díky rozměrům 
 st_ak74u_name	AKS-74U
 st_ak74u_premium_description	Zkrácená verze AK74 na náboje 5.45x39. Díky rozměrům ji hojně používali výsadkáři, ministerstvo vnitra a bezpečnostní složky. Střílí jednotlivě i dávkami. Prémiová verze se zvláštní kamufláží.
 st_ak74u_premium_name	AKS-74U Corsair
+st_ak_zenit_rk2_foregrip_desc	Zpětný ráz -4%. Doba míření +1.5%.
+st_ak_zenit_rk2_foregrip_name	Taktická rukojeť Zenit RK-2
 st_akmn_description	Útočná puška Kalašnikov upravená pro náboje 7.62x39 mm. Díky síle a spolehlivosti je užitečná i dnes. Střílí jednotlivě i automaticky.
 st_akmn_name	AKM
 st_akmn_premium_2_description	Útočná puška Kalašnikov upravená pro náboje 7.62x39 mm. Díky síle a spolehlivosti je užitečná i dnes. Střílí jednotlivě i automaticky. Prémiová verze se zvláštní kamufláží.
@@ -1129,6 +1131,10 @@ st_exp_reward_match	Získané zkušenosti
 st_exp_reward_premium	Prémiový bonus
 st_experience	Zkušenosti
 st_experience_modifier	Obdržené zkušenosti
+st_fabdefence_miki_foregrip_desc	Zpětný ráz -4%.
+st_fabdefence_miki_foregrip_name	Přední rukojeť FAB-Defense MIKI
+st_fabdefence_ptk_foregrip_desc	Zpětný ráz -6%.
+st_fabdefence_ptk_foregrip_name	Přední rukojeť FAB-Defense PTK
 st_face_069d_balaclava_3_hole_desc	Pletená kukla s otvory pro oči a ústa. Hřeje a skrývá obličej.
 st_face_069d_balaclava_3_hole_name	Kukla se třemi otvory
 st_face_069d_balaclava_desc	Přiléhavá vojenská kukla s jedním otvorem pro oči, určená pod přilbu.
@@ -1213,6 +1219,8 @@ st_fn_minimi_description	Belgický lehký kulomet na náboje 5.56x45. Družstvov
 st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Belgická zbraň osobní obrany na náboje 5.7x28. FN Herstal ji kolem roku 1990 vyvinulo společně s vlastním nábojem. Bullpup se zásobníkem na 50 nábojů podél horní části. Používá ji policie a speciální síly mnoha zemí. Střílí jednotlivě i automaticky.
 st_fn_p90_name	FN P90
+st_fort401_foregrip_desc	Zpětný ráz -6%.
+st_fort401_foregrip_name	Standardní přední rukojeť Fort-401
 st_fort_17_description	Ukrajinská samonabíjecí pistole na náboje 9x18. Výroba začala v roce 2004. Používala ji vnitřní vojska a některé speciální jednotky. Zásobník na 12 nábojů. 
 st_fort_17_name	Fort 17
 st_fort_401_description	Ukrajinský lehký kulomet, náboj: 7,62x51. Licenční Negev z Vinnycji, plněný ze schránky na 100 nábojů.
@@ -1236,6 +1244,8 @@ st_friendly_user_compliment	Přátelský
 st_friends_online	Přátelé online
 st_friends_signin_notification_option	Upozornit na připojení přátel
 st_fullscreen_option	Celá obrazovka
+st_gandp_ris_foregrip_desc	Zpětný ráz -4%. Doba míření +1.5%.
+st_gandp_ris_foregrip_name	Přední rukojeť G&P RIS
 st_general_volume_option	Celková
 st_generic_money_name	Rubly
 st_geometry_quality_option	Kvalita geometrie
@@ -1282,6 +1292,8 @@ st_hud_tutorial_frame_6_text_1	Do boje!
 st_hud_tutorial_frame_6_text_2	Dokončil jsi základní bojový výcvik.\nHodně štěstí!
 st_hud_tutorial_frame_6_text_3	Tvoje odměna:
 st_ignored	Seznam blokovaných
+st_imi_fsg2_foregrip_desc	Zpětný ráz -2%.
+st_imi_fsg2_foregrip_name	Přední rukojeť FSG2
 st_in_develepoment_hint	Ve vývoji
 st_ingame_volume_option	Hra
 st_injury_penalty_description	Postih k rozptylu při zranění rukou:
@@ -1455,6 +1467,8 @@ st_m4a1_description	Americká karabina na náboje 5.56x45. Kratší a lehčí va
 st_m4a1_name	M4A1
 st_magnum_description	Šestiranný revolver ráže .357 Magnum, uvedený v roce 1955. Podle některých patří k nejlepším ve své třídě. Vyniká hladkým chodem spouště a vysokou přesností.
 st_magnum_name	Colt Python
+st_magpul_afg1_foregrip_desc	Zpětný ráz -6%.
+st_magpul_afg1_foregrip_name	Přední rukojeť AFG-1
 st_maintenance	Probíhá údržba serverů. Aplikace se zavře.
 st_map	Mapa
 st_match_items_found	Nalezeno
@@ -1479,6 +1493,8 @@ st_match_settings_checkbox_training_match	Tréninkový zápas
 st_match_settings_checkbox_training_match_hint	Režim tréninkové místnosti
 st_match_settings_clan_match	Klanový zápas
 st_match_time_is_up	Čas zápasu vypršel!
+st_mauser_m712_foregrip_desc	Zpětný ráz -6%.
+st_mauser_m712_foregrip_name	Rukojeť Mauser M.712
 st_max_carried_weight_description	Nosnost:
 st_max_carried_weight_name	Silák
 st_max_carried_weight_ultimate_description	Nesená hmotnost už nesnižuje rychlost pohybu, ale nemůžeš sprintovat.
@@ -1655,6 +1671,8 @@ st_options_video	Grafika
 st_options_voice	Hlas:
 st_options_volume	Hlasitost:
 st_other	Ostatní
+st_ots144a_foregrip_desc	Zpětný ráz -6%.
+st_ots144a_foregrip_name	Rukojeť OC-14
 st_ots14_description	Ruská útočná puška typu bullpup na náboje 9x39. Postavená v CKIB SOO v 90. letech na základě AKS-74U pro speciální jednotky. Zásobník na 20 nábojů. Jednotlivá i automatická střelba.
 st_ots14_name	OC-14 "Groza"
 st_oust_commander	Změnit velitele
@@ -1703,6 +1721,8 @@ st_picatinny_scope_medium_name	Optika / kolimátory
 st_pickup_item	Zvednout ({USE})
 st_ping_postfix	ms
 st_pkp_pecheneg_description	Ruský univerzální kulomet na náboje 7.62x54R. Vyvinutý v CNIITOČMAŠ na základě PKM, zavedený v roce 2001. Těžká hlaveň s nuceným vzduchovým chlazením dovoluje dlouhé dávky bez výměny hlavně. Pás na 100 nábojů. Jednotlivá i automatická střelba.
+st_pkp_pecheneg_foregrip_desc	Zpětný ráz -6%.
+st_pkp_pecheneg_foregrip_name	Standardní přední rukojeť PKP
 st_pkp_pecheneg_name	PKP "Pecheneg"
 st_place	Místo
 st_play_button	Hrát
@@ -2232,6 +2252,10 @@ st_sr2m_description	Popis zatím není k dispozici.
 st_sr2m_name	SR-2M "Veresk"
 st_sr3m_bundle_descr	<white>Obsahuje:\n- Vylepšený SR-3M "Vikhr".\n- 2000 nábojů 9x39 SP-6.</white>\n
 st_sr3m_bundle_name	Balíček SR-3M "Vikhr"
+st_sr3m_camo_default_foregrip_desc	Zpětný ráz -6%.
+st_sr3m_camo_default_foregrip_name	Rukojeť SR-3M "Vikhr"
+st_sr3m_default_foregrip_desc	Zpětný ráz -6%.
+st_sr3m_default_foregrip_name	Rukojeť SR-3M
 st_sr3m_description	Popis zatím není k dispozici.
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_ammo069_23mm_r_desc	Náboj ráže 23 mm s broky pro KS-23M. Způsobuje vysoké poškození neobrněným cílům.
@@ -3067,6 +3091,8 @@ st_toz66_description	Upilovaná lovecká dvouhlavňovka na náboje 12x70. Dvě t
 st_toz66_name	TOZ-66
 st_trap_damage	Poškození pastí
 st_treasure_map_advert	Použij mapu skrýše a najdi další předměty.
+st_troy_modular_foregrip_desc	Zpětný ráz -6%. Doba míření +1.5%.
+st_troy_modular_foregrip_name	Přední rukojeť Troy Modular
 st_tt_description	Tulský Tokarev, zavedený v roce 1933, používá náboje 7.62x25 mm. Navržený ve 30. letech jako první sovětská samonabíjecí vojenská pistole. Zásobník na 8 nábojů.
 st_tt_name	TT-33
 st_turn_down_action	

@@ -1,0 +1,18 @@
+# made by make_pack.py: each grip of ../weapon-modules/ids.tsv, what 0.69d0 rolls on it at its bought
+# grade (7: an effect and a penalty, each a key of the weapon's parameters), and what it is here:
+# recoil a factor on the six kick bounds, aim_time on parameters/aim_time (grips.py has the rule),
+# price in silver, icon its cell [row, column] of the lobby's LobbyMenu_AmmoIcons.
+# dict id	module	0.69d0 dict id	effect	penalty	recoil	aim_time	price	icon
+2659	ak_zenit_rk2_foregrip	1997	recoil_shot_first_three_modifier -0.16	aim_time_modifier 0.015	-0.04	0.015	6000	1 8
+2660	fabdefence_miki_foregrip	1438	recoil_shot_first_three_modifier -0.16	aimed_movement_speed_factor -0.0075	-0.04	0	6000	2 8
+2661	fabdefence_ptk_foregrip	1439	recoil_aim_modifier -0.08	aimed_movement_speed_factor -0.0075	-0.06	0	6000	3 8
+2662	fort401_foregrip	1707	recoil_aim_modifier -0.08	aimed_movement_speed_factor -0.0075	-0.06	0	6000	4 8
+2663	gandp_ris_foregrip	1445	recoil_shot_first_three_modifier -0.16	aim_time_modifier 0.015	-0.04	0.015	6000	5 8
+2664	imi_fsg2_foregrip	1441	recoil_hip_modifier -0.08	recoil_aim_modifier 0.015	-0.02	0	6000	6 8
+2665	magpul_afg1_foregrip	1442	recoil_aim_modifier -0.08	recoil_hip_modifier 0.03	-0.06	0	6000	7 8
+2666	mauser_m712_foregrip	1798	recoil_aim_modifier -0.08	aimed_movement_speed_factor -0.0075	-0.06	0	6000	8 8
+2667	ots144a_foregrip	1840	recoil_aim_modifier -0.08	recoil_hip_modifier 0.03	-0.06	0	6000	9 8
+2668	pkp_pecheneg_foregrip	1713	recoil_aim_modifier -0.08	recoil_hip_modifier 0.03	-0.06	0	6000	10 8
+2669	sr3m_camo_default_foregrip	1849	recoil_aim_modifier -0.08	recoil_hip_modifier 0.03	-0.06	0	6000	11 8
+2670	sr3m_default_foregrip	1848	recoil_aim_modifier -0.08	recoil_hip_modifier 0.03	-0.06	0	6000	12 8
+2671	troy_modular_foregrip	1446	recoil_aim_modifier -0.08	aim_time_modifier 0.015	-0.06	0.015	6000	13 8

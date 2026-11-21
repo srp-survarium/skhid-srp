@@ -155,6 +155,8 @@ st_ak74u_description	Az AK74 rövidített változata, 5.45x39 lőszerrel. Kis m�
 st_ak74u_name	AKS-74U
 st_ak74u_premium_description	Az AK74 rövidített változata, 5.45x39 lőszerrel. Kis mérete miatt széles körben használták az ejtőernyősök, a belügyminisztérium és biztonsági szolgálatok. Egyes és sorozatlövésre képes. Prémium változat különleges álcafestéssel.
 st_ak74u_premium_name	AKS-74U Corsair
+st_ak_zenit_rk2_foregrip_desc	Visszarúgás -4%. Célzási idő +1.5%.
+st_ak_zenit_rk2_foregrip_name	Zenit RK-2 taktikai markolat
 st_akmn_description	7.62x39 mm-es lőszerhez módosított Kalasnyikov gépkarabély. Ereje és megbízhatósága ma is hasznos fegyverré teszi. Egyes és sorozatlövésre képes.
 st_akmn_name	AKM
 st_akmn_premium_2_description	7.62x39 mm-es lőszerhez módosított Kalasnyikov gépkarabély. Ereje és megbízhatósága ma is hasznos fegyverré teszi. Egyes és sorozatlövésre képes. Prémium változat különleges álcafestéssel.
@@ -1129,6 +1131,10 @@ st_exp_reward_match	Szerzett tapasztalat
 st_exp_reward_premium	Prémium bónusz
 st_experience	Tapasztalat
 st_experience_modifier	Kapott tapasztalat
+st_fabdefence_miki_foregrip_desc	Visszarúgás -4%.
+st_fabdefence_miki_foregrip_name	FAB-Defense MIKI előmarkolat
+st_fabdefence_ptk_foregrip_desc	Visszarúgás -6%.
+st_fabdefence_ptk_foregrip_name	FAB-Defense PTK előmarkolat
 st_face_069d_balaclava_3_hole_desc	Kötött maszk szem- és szájnyílásokkal. Melegen tart és elrejti az arcot.
 st_face_069d_balaclava_3_hole_name	Háromlyukú maszk
 st_face_069d_balaclava_desc	Szorosan illeszkedő katonai maszk egy szemnyílással, sisak alá tervezve.
@@ -1213,6 +1219,8 @@ st_fn_minimi_description	Belga golyószóró, 5.56x45 lőszerrel. Az FN Herstal 
 st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Belga önvédelmi fegyver, 5.7x28 lőszerrel. Az FN Herstal 1990 körül fejlesztette saját lőszerével együtt. Bullpup kialakítás, felül hosszirányban fekvő 50 lőszeres tár. Sok ország rendőrsége és különleges egysége használja. Egyes és sorozatlövés.
 st_fn_p90_name	FN P90
+st_fort401_foregrip_desc	Visszarúgás -6%.
+st_fort401_foregrip_name	Fort-401 gyári előmarkolat
 st_fort_17_description	Ukrán öntöltő pisztoly, 9x18 lőszerrel. Gyártása 2004-ben indult. A belügyi csapatok és egyes különleges egységek használták. 12 lőszeres tár. 
 st_fort_17_name	Fort 17
 st_fort_401_description	Ukrán könnyű géppuska, lőszer: 7,62x51. Vinnicjában licenc alapján gyártott Negev, 100 töltényes dobozzal.
@@ -1236,6 +1244,8 @@ st_friendly_user_compliment	Barátságos
 st_friends_online	Online barátok
 st_friends_signin_notification_option	Értesítés a barátok belépéséről
 st_fullscreen_option	Teljes képernyő
+st_gandp_ris_foregrip_desc	Visszarúgás -4%. Célzási idő +1.5%.
+st_gandp_ris_foregrip_name	G&P RIS előmarkolat
 st_general_volume_option	Fő hangerő
 st_generic_money_name	Rubel
 st_geometry_quality_option	Geometria minősége
@@ -1282,6 +1292,8 @@ st_hud_tutorial_frame_6_text_1	Harcra fel!
 st_hud_tutorial_frame_6_text_2	Elvégezted a harci alapkiképzést.\nSok szerencsét!
 st_hud_tutorial_frame_6_text_3	A jutalmad:
 st_ignored	Tiltólista
+st_imi_fsg2_foregrip_desc	Visszarúgás -2%.
+st_imi_fsg2_foregrip_name	FSG2 előmarkolat
 st_in_develepoment_hint	Fejlesztés alatt
 st_ingame_volume_option	Játék
 st_injury_penalty_description	Szórásbüntetés sérült kéznél:
@@ -1455,6 +1467,8 @@ st_m4a1_description	Amerikai karabély, 5.56x45 lőszerrel. Az M16 rövidebb, k�
 st_m4a1_name	M4A1
 st_magnum_description	Hatlövetű .357 Magnum revolver, 1955-ben mutatták be. Sokan kategóriája egyik legjobbjának tartják. Finom elsütésével és nagy pontosságával tűnik ki.
 st_magnum_name	Colt Python
+st_magpul_afg1_foregrip_desc	Visszarúgás -6%.
+st_magpul_afg1_foregrip_name	AFG-1 előmarkolat
 st_maintenance	Szerverkarbantartás folyik. Az alkalmazás bezárul.
 st_map	Pálya
 st_match_items_found	Megtalálva
@@ -1479,6 +1493,8 @@ st_match_settings_checkbox_training_match	Gyakorlómeccs
 st_match_settings_checkbox_training_match_hint	Gyakorlószoba mód
 st_match_settings_clan_match	Klánmeccs
 st_match_time_is_up	Lejárt a meccsidő!
+st_mauser_m712_foregrip_desc	Visszarúgás -6%.
+st_mauser_m712_foregrip_name	Mauser M.712 markolat
 st_max_carried_weight_description	Teherbírás:
 st_max_carried_weight_name	Erőember
 st_max_carried_weight_ultimate_description	A cipelt súly már nem lassít, de nem sprintelhetsz.
@@ -1655,6 +1671,8 @@ st_options_video	Grafika
 st_options_voice	Beszéd:
 st_options_volume	Hangerő:
 st_other	Egyéb
+st_ots144a_foregrip_desc	Visszarúgás -6%.
+st_ots144a_foregrip_name	OC-14 markolat
 st_ots14_description	Orosz bullpup gépkarabély, 9x39 lőszerrel. A CKIB SOO építette az 1990-es években az AKSZ-74U alapján különleges egységeknek. 20 lőszeres tár, egyes és sorozatlövés.
 st_ots14_name	OC-14 "Groza"
 st_oust_commander	Parancsnok cseréje
@@ -1703,6 +1721,8 @@ st_picatinny_scope_medium_name	Távcsövek / irányzékok
 st_pickup_item	Felvétel ({USE})
 st_ping_postfix	ms
 st_pkp_pecheneg_description	Orosz általános célú géppuska, 7.62x54R lőszerrel. A CNIITOCSMAS fejlesztette a PKM alapján, 2001-ben rendszeresítették. Kényszerléghűtéses nehéz csöve hosszú sorozatokat enged csőcsere nélkül. 100 lőszeres heveder, egyes és sorozatlövés.
+st_pkp_pecheneg_foregrip_desc	Visszarúgás -6%.
+st_pkp_pecheneg_foregrip_name	PKP gyári előmarkolat
 st_pkp_pecheneg_name	PKP "Pecheneg"
 st_place	Hely
 st_play_button	Játék
@@ -2232,6 +2252,10 @@ st_sr2m_description	A leírás még nem érhető el.
 st_sr2m_name	SR-2M "Veresk"
 st_sr3m_bundle_descr	<white>Tartalma:\n- Továbbfejlesztett SR-3M "Vikhr".\n- 2000 darab 9x39 SP-6 lőszer.</white>\n
 st_sr3m_bundle_name	SR-3M "Vikhr" csomag
+st_sr3m_camo_default_foregrip_desc	Visszarúgás -6%.
+st_sr3m_camo_default_foregrip_name	SR-3M "Vikhr" markolat
+st_sr3m_default_foregrip_desc	Visszarúgás -6%.
+st_sr3m_default_foregrip_name	SR-3M markolat
 st_sr3m_description	A leírás még nem érhető el.
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_ammo069_23mm_r_desc	23 mm-es sörétes lőszer a KS-23M-hez. Nagy sebzést okoz a páncélozatlan célpontoknak.
@@ -3067,6 +3091,8 @@ st_toz66_description	Lefűrészelt csövű vadászduplapuska, 12x70 lőszerrel. 
 st_toz66_name	TOZ-66
 st_trap_damage	Csapdasebzés
 st_treasure_map_advert	Használd a rejtekhelytérképet további tárgyakért.
+st_troy_modular_foregrip_desc	Visszarúgás -6%. Célzási idő +1.5%.
+st_troy_modular_foregrip_name	Troy Modular előmarkolat
 st_tt_description	Az 1933-ban bevezetett Tulai Tokarev 7.62x25 mm lőszert használ. Az 1930-as években tervezték az első szovjet öntöltő katonai pisztolynak. 8 lőszeres tárral.
 st_tt_name	TT-33
 st_turn_down_action	

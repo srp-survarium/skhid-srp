@@ -155,6 +155,8 @@ st_ak74u_description	AK74:n lyhennetty versio, kaliiperi 5.45x39. Pienen koon vu
 st_ak74u_name	AKS-74U
 st_ak74u_premium_description	AK74:n lyhennetty versio, kaliiperi 5.45x39. Pienen koon vuoksi merijalkaväen, sisäministeriön ja turvallisuusviranomaisten käytössä. Kerta- ja sarjatuli. Premium-versio erikoismaastokuvioinnilla.
 st_ak74u_premium_name	AKS-74U Corsair
+st_ak_zenit_rk2_foregrip_desc	Rekyyli -4%. Tähtäysaika +1.5%.
+st_ak_zenit_rk2_foregrip_name	Taktinen kahva Zenit RK-2
 st_akmn_description	7.62x39 mm:n patruunalle muokattu Kalašnikov-rynnäkkökivääri. Teho ja luotettavuus tekevät siitä yhä käyttökelpoisen. Kerta- ja sarjatuli.
 st_akmn_name	AKM
 st_akmn_premium_2_description	7.62x39 mm:n patruunalle muokattu Kalašnikov-rynnäkkökivääri. Teho ja luotettavuus tekevät siitä yhä käyttökelpoisen. Kerta- ja sarjatuli. Premium-versio erikoismaastokuvioinnilla.
@@ -1129,6 +1131,10 @@ st_exp_reward_match	Ansaittu kokemus
 st_exp_reward_premium	Premium-bonus
 st_experience	Kokemus
 st_experience_modifier	Saatu kokemus
+st_fabdefence_miki_foregrip_desc	Rekyyli -4%.
+st_fabdefence_miki_foregrip_name	Etukahva FAB-Defense MIKI
+st_fabdefence_ptk_foregrip_desc	Rekyyli -6%.
+st_fabdefence_ptk_foregrip_name	Etukahva FAB-Defense PTK
 st_face_069d_balaclava_3_hole_desc	Neulottu kypärähuppu silmä- ja suuaukoilla. Lämmittää ja peittää kasvot.
 st_face_069d_balaclava_3_hole_name	Kolmiaukkoinen kypärähuppu
 st_face_069d_balaclava_desc	Tiukka armeijan kypärähuppu yhdellä silmäaukolla. Tarkoitettu kypärän alle.
@@ -1213,6 +1219,8 @@ st_fn_minimi_description	Belgialainen kevyt konekivääri, kaliiperi 5.56x45. FN
 st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Belgialainen lähisuojeluase, kaliiperi 5.7x28. FN Herstalin noin vuonna 1990 oman patruunansa kanssa kehittämä bullpup-ase. Päällä pitkittäin sijaitseva 50 patruunan lipas. Monien maiden erikoisjoukkojen ja poliisin käytössä. Kerta- ja sarjatuli.
 st_fn_p90_name	FN P90
+st_fort401_foregrip_desc	Rekyyli -6%.
+st_fort401_foregrip_name	Vakioetukahva Fort-401
 st_fort_17_description	Ukrainalainen itselataava pistooli, kaliiperi 9x18. Tuotanto alkoi vuonna 2004. Sisäisten joukkojen ja eräiden erikoisyksiköiden käytössä. 12 patruunan lipas. 
 st_fort_17_name	Fort 17
 st_fort_401_description	Ukrainalainen kevyt konekivääri, ammus: 7,62x51. Vinnytsjassa lisenssillä valmistettu Negev, 100 patruunan laatikko.
@@ -1236,6 +1244,8 @@ st_friendly_user_compliment	Ystävällinen
 st_friends_online	Kaverit paikalla
 st_friends_signin_notification_option	Ilmoita kavereiden saapumisesta
 st_fullscreen_option	Koko näyttö
+st_gandp_ris_foregrip_desc	Rekyyli -4%. Tähtäysaika +1.5%.
+st_gandp_ris_foregrip_name	Etukahva G&P RIS
 st_general_volume_option	Yleinen
 st_generic_money_name	Ruplat
 st_geometry_quality_option	Geometrian laatu
@@ -1282,6 +1292,8 @@ st_hud_tutorial_frame_6_text_1	Taisteluun!
 st_hud_tutorial_frame_6_text_2	Taistelun peruskoulutus suoritettu.\nOnnea matkaan!
 st_hud_tutorial_frame_6_text_3	Palkintosi:
 st_ignored	Estolista
+st_imi_fsg2_foregrip_desc	Rekyyli -2%.
+st_imi_fsg2_foregrip_name	Etukahva FSG2
 st_in_develepoment_hint	Kehitteillä
 st_ingame_volume_option	Peli
 st_injury_penalty_description	Hajontahaitta käsien haavoittuessa:
@@ -1455,6 +1467,8 @@ st_m4a1_description	Amerikkalainen karbiini, kaliiperi 5.56x45. M16:n lyhyempi j
 st_m4a1_name	M4A1
 st_magnum_description	Kuusilaukauksinen .357 Magnum -revolveri vuodelta 1955. Joidenkin mielestä luokkansa parhaimmistoa. Erottuu pehmeällä laukaisulla ja tarkkuudella.
 st_magnum_name	Colt Python
+st_magpul_afg1_foregrip_desc	Rekyyli -6%.
+st_magpul_afg1_foregrip_name	Etukahva AFG-1
 st_maintenance	Palvelimia huolletaan. Sovellus sulkeutuu.
 st_map	Kartta
 st_match_items_found	Löytynyt
@@ -1479,6 +1493,8 @@ st_match_settings_checkbox_training_match	Harjoitusottelu
 st_match_settings_checkbox_training_match_hint	Harjoitushuone
 st_match_settings_clan_match	Klaaniottelu
 st_match_time_is_up	Otteluaika päättyi!
+st_mauser_m712_foregrip_desc	Rekyyli -6%.
+st_mauser_m712_foregrip_name	Kahva Mauser M.712
 st_max_carried_weight_description	Kantokyky:
 st_max_carried_weight_name	Urheilija
 st_max_carried_weight_ultimate_description	Kannettu paino ei enää hidasta liikkumista, mutta et voi sprintata.
@@ -1655,6 +1671,8 @@ st_options_video	Grafiikka
 st_options_voice	Puhe:
 st_options_volume	Äänenvoimakkuus:
 st_other	Muut
+st_ots144a_foregrip_desc	Rekyyli -6%.
+st_ots144a_foregrip_name	Kahva OTs-14
 st_ots14_description	Venäläinen bullpup-rynnäkkökivääri, kaliiperi 9x39. TsKIB SOO:n 1990-luvulla AKS-74U:n pohjalta erikoisjoukoille rakentama. 20 patruunan lipas. Kerta- ja sarjatuli.
 st_ots14_name	OTs-14 "Groza"
 st_oust_commander	Vaihda komentaja
@@ -1703,6 +1721,8 @@ st_picatinny_scope_medium_name	Kiikarit / punapistetähtäimet
 st_pickup_item	Poimi ({USE})
 st_ping_postfix	ms
 st_pkp_pecheneg_description	Venäläinen yleiskonekivääri, kaliiperi 7.62x54R. TsNIITochMashin PKM-pohjainen kehitys, käyttöön 2001. Raskas piippu pakotetulla ilmajäähdytyksellä sallii pitkät sarjat ilman piipunvaihtoa. 100 patruunan vyö. Kerta- ja sarjatuli.
+st_pkp_pecheneg_foregrip_desc	Rekyyli -6%.
+st_pkp_pecheneg_foregrip_name	Vakioetukahva PKP
 st_pkp_pecheneg_name	PKP "Pecheneg"
 st_place	Sijoitus
 st_play_button	Pelaa
@@ -2232,6 +2252,10 @@ st_sr2m_description	Kuvausta ei vielä ole.
 st_sr2m_name	SR-2M "Veresk"
 st_sr3m_bundle_descr	<white>Sisältö:\n- Parannettu CF-3M Vihr.\n- 2000 patruunaa 9x39 SP-6.</white>\n
 st_sr3m_bundle_name	SR-3M Vihr -paketti
+st_sr3m_camo_default_foregrip_desc	Rekyyli -6%.
+st_sr3m_camo_default_foregrip_name	Kahva SR-3M "Vikhr"
+st_sr3m_default_foregrip_desc	Rekyyli -6%.
+st_sr3m_default_foregrip_name	Kahva SR-3M
 st_sr3m_description	Kuvausta ei vielä ole.
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_ammo069_23mm_r_desc	23 mm:n haulipatruuna KS-23M:ään. Aiheuttaa suurta vahinkoa panssaroimattomiin kohteisiin.
@@ -3067,6 +3091,8 @@ st_toz66_description	Kaksipiippuinen metsästyshaulikko, kaliiperi 12x70. Kaksi 
 st_toz66_name	TOZ-66
 st_trap_damage	Ansavahinko
 st_treasure_map_advert	Käytä kätkökarttaa löytääksesi lisää esineitä.
+st_troy_modular_foregrip_desc	Rekyyli -6%. Tähtäysaika +1.5%.
+st_troy_modular_foregrip_name	Etukahva Troy Modular
 st_tt_description	Tulan Tokarev otettiin käyttöön vuonna 1933, kaliiperi 7.62x25 mm. Suunniteltu 1930-luvulla Neuvostoliiton ensimmäiseksi itselataavaksi sotilaspistooliksi. 8 patruunan lipas.
 st_tt_name	TT-33
 st_turn_down_action	

@@ -155,6 +155,8 @@ st_ak74u_description	Skraćena verzija AK74 kalibra 5,45x39. Zbog malih dimenzij
 st_ak74u_name	AKS-74U
 st_ak74u_premium_description	Skraćena verzija AK74 kalibra 5,45x39. Zbog dimenzija koristile su je pomorske, policijske i bezbednosne jedinice. Podržava pojedinačnu i rafalnu paljbu. Premijum verzija sa posebnom kamuflažom.
 st_ak74u_premium_name	AKS-74U Corsair
+st_ak_zenit_rk2_foregrip_desc	Trzaj -4%. Vreme nišanjenja +1.5%.
+st_ak_zenit_rk2_foregrip_name	Taktička drška Zenit RK-2
 st_akmn_description	Jurišna puška Kalašnjikov prilagođena municiji 7,62x39. Snaga i pouzdanost čine je korisnom i danas. Podržava pojedinačnu i automatsku paljbu.
 st_akmn_name	AKM
 st_akmn_premium_2_description	Jurišna puška Kalašnjikov kalibra 7,62x39. Snaga i pouzdanost čine je korisnom i danas. Podržava pojedinačnu i automatsku paljbu. Premijum verzija sa posebnom kamuflažom.
@@ -1129,6 +1131,10 @@ st_exp_reward_match	Stečeno iskustvo
 st_exp_reward_premium	Premijum bonus
 st_experience	Iskustvo
 st_experience_modifier	Dobijeno iskustvo
+st_fabdefence_miki_foregrip_desc	Trzaj -4%.
+st_fabdefence_miki_foregrip_name	Prednja drška FAB-Defense MIKI
+st_fabdefence_ptk_foregrip_desc	Trzaj -6%.
+st_fabdefence_ptk_foregrip_name	Prednja drška FAB-Defense PTK
 st_face_069d_balaclava_3_hole_desc	Pletena potkapa sa otvorima za oči i usta. Greje i skriva lice.
 st_face_069d_balaclava_3_hole_name	Potkapa sa tri otvora
 st_face_069d_balaclava_desc	Pripijena vojna potkapa sa otvorom za oči, namenjena nošenju ispod šlema.
@@ -1213,6 +1219,8 @@ st_fn_minimi_description	Belgijski laki mitraljez kalibra 5,56x45, puškomitralj
 st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Belgijsko oružje za ličnu odbranu kalibra 5,7x28. FN Herstal ga je razvio oko 1990. zajedno sa namenskom municijom. Bulpap konstrukcija sa okvirom od 50 metaka iznad cevi. Koriste ga specijalne jedinice i policija. Pojedinačna i automatska paljba.
 st_fn_p90_name	FN P90
+st_fort401_foregrip_desc	Trzaj -6%.
+st_fort401_foregrip_name	Standardna prednja drška Fort-401
 st_fort_17_description	Ukrajinski poluautomatski pištolj kalibra 9x18, u proizvodnji od 2004. Koristile su ga unutrašnje i specijalne jedinice. Okvir prima 12 metaka.
 st_fort_17_name	Fort 17
 st_fort_401_description	Ukrajinski puškomitraljez, municija: 7,62x51. Negev izrađen po licenci u Vinici, sa kutijom od 100 metaka.
@@ -1236,6 +1244,8 @@ st_friendly_user_compliment	Druželjubiv
 st_friends_online	Prijatelji na mreži
 st_friends_signin_notification_option	Obavesti kada prijatelji dođu na mrežu
 st_fullscreen_option	Ceo ekran
+st_gandp_ris_foregrip_desc	Trzaj -4%. Vreme nišanjenja +1.5%.
+st_gandp_ris_foregrip_name	Prednja drška G&P RIS
 st_general_volume_option	Glavna jačina zvuka
 st_generic_money_name	Rublje
 st_geometry_quality_option	Kvalitet geometrije
@@ -1282,6 +1292,8 @@ st_hud_tutorial_frame_6_text_1	U boj!
 st_hud_tutorial_frame_6_text_2	Završili ste osnovnu\nborbenu obuku. Srećno!
 st_hud_tutorial_frame_6_text_3	Vaša nagrada:
 st_ignored	Blokirani igrači
+st_imi_fsg2_foregrip_desc	Trzaj -2%.
+st_imi_fsg2_foregrip_name	Prednja drška FSG2
 st_in_develepoment_hint	U razvoju
 st_ingame_volume_option	Igra
 st_injury_penalty_description	Povećano rasipanje zbog povrede ruku:
@@ -1455,6 +1467,8 @@ st_m4a1_description	Američki karabin kalibra 5,56x45, kraća i lakša verzija M
 st_m4a1_name	M4A1
 st_magnum_description	Revolver sa šest metaka kalibra .357 Magnum, uveden 1955. Mnogi ga smatraju jednim od najboljih u klasi. Odlikuju ga gladak okidač i velika preciznost.
 st_magnum_name	Colt Python
+st_magpul_afg1_foregrip_desc	Trzaj -6%.
+st_magpul_afg1_foregrip_name	Prednja drška AFG-1
 st_maintenance	U toku je održavanje servera. Program će se zatvoriti.
 st_map	Mapa
 st_match_items_found	Pronađeno
@@ -1479,6 +1493,8 @@ st_match_settings_checkbox_training_match	Trening meč
 st_match_settings_checkbox_training_match_hint	Soba za trening
 st_match_settings_clan_match	Klanski meč
 st_match_time_is_up	Vreme meča je isteklo!
+st_mauser_m712_foregrip_desc	Trzaj -6%.
+st_mauser_m712_foregrip_name	Drška Mauser M.712
 st_max_carried_weight_description	Nosivost:
 st_max_carried_weight_name	Atleta
 st_max_carried_weight_ultimate_description	Težina više ne utiče na brzinu kretanja, ali ne možete sprintati.
@@ -1655,6 +1671,8 @@ st_options_video	Grafika
 st_options_voice	Glas:
 st_options_volume	Jačina zvuka:
 st_other	Ostalo
+st_ots144a_foregrip_desc	Trzaj -6%.
+st_ots144a_foregrip_name	Drška OC-14
 st_ots14_description	Ruska bulpap jurišna puška kalibra 9x39, koju je CKIB SOO 1990-ih napravio na osnovi AKS-74U za specijalne jedinice. Okvir prima 20 metaka. Pojedinačna i automatska paljba.
 st_ots14_name	OC-14 "Groza"
 st_oust_commander	Promeni komandanta
@@ -1703,6 +1721,8 @@ st_picatinny_scope_medium_name	Optika / kolimatori
 st_pickup_item	Podigni ({USE})
 st_ping_postfix	ms
 st_pkp_pecheneg_description	Ruski univerzalni mitraljez kalibra 7,62x54R, zasnovan na PKM-u i usvojen 2001. Teška cev sa vazdušnim hlađenjem omogućava duge rafale bez zamene cevi. Koristi redenik od 100 metaka. Pojedinačna i automatska paljba.
+st_pkp_pecheneg_foregrip_desc	Trzaj -6%.
+st_pkp_pecheneg_foregrip_name	Standardna prednja drška PKP
 st_pkp_pecheneg_name	PKP "Pecheneg"
 st_place	Mesto
 st_play_button	Igraj
@@ -2232,6 +2252,10 @@ st_sr2m_description	Opis još nije dostupan.
 st_sr2m_name	SR-2M "Veresk"
 st_sr3m_bundle_descr	<white>Paket sadrži:\n- Unapređeni SR-3M Vihr.\n- 2000 metaka 9x39 SP-6.</white>\n
 st_sr3m_bundle_name	Paket SR-3M Vihr
+st_sr3m_camo_default_foregrip_desc	Trzaj -6%.
+st_sr3m_camo_default_foregrip_name	Drška SR-3M "Vikhr"
+st_sr3m_default_foregrip_desc	Trzaj -6%.
+st_sr3m_default_foregrip_name	Drška SR-3M
 st_sr3m_description	Opis još nije dostupan.
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_ammo069_23mm_r_desc	Metak kalibra 23 mm sa sitnom sačmom, za KS-23M. Nanosi veliku štetu neoklopljenim metama.
@@ -3067,6 +3091,8 @@ st_toz66_description	Lovačka dvocevna sačmarica kalibra 12x70. Dva gotovo tren
 st_toz66_name	TOZ-66
 st_trap_damage	Šteta zamke
 st_treasure_map_advert	Upotrebite mapu skrovišta da pronađete više predmeta.
+st_troy_modular_foregrip_desc	Trzaj -6%. Vreme nišanjenja +1.5%.
+st_troy_modular_foregrip_name	Prednja drška Troy Modular
 st_tt_description	Tulski Tokarev, uveden 1933, koristi municiju 7,62x25. Razvijen je kao prvi sovjetski vojni poluautomatski pištolj. Okvir prima 8 metaka.
 st_tt_name	TT-33
 st_turn_down_action	
