@@ -2358,6 +2358,31 @@ The owner, 2026-11-21, after patch 173 (section 3.94) kept a bullet's piercing a
 - **What changes:** every wall of armour above 0 takes a part of a bullet's damage, piercing and speed at any piercing: brick at P 0.3 / 0.46 / 0.84 keeps 56 / 81 / 94 % (before 75 / 100 / 100 %), concrete 41 / 75 / 93 % (before 52 / 100 / 100 %). Which walls a bullet gets through is unchanged (P > A), and a body (k = Dmin / D, 0x32DA5F) is untouched. The world format is unchanged. A simulation change (`simulation_changes.tsv` `next` row). The damage calculator (`scripts/damage-calc/engine.js`, the site's copy) and the weapon card's Pierces percent (`content_edit.py` `pierce_kept`, `pierce_line.md`) follow it.
 - **Checked:** `check_pierce_walls_026g.py` (Unicorn; `tools/check pierce-walls`): try_pierce from its entry against static geometry, nine walls (A 0 to 20) by fourteen piercings (0 to 2): the original's k and the build's as the formulas in single precision, damage and piercing x k, the same bullets stopped. **Not run:** a game.
 
+### 3.97 A capture run: the camera at a script's poses, each pose's picture, then the end (written 2026-11-21, README patch 176, the next release's revision; the rules: `capture.md`) — PROVEN in the code (apply_camera read; the camera's place and matrices resource-porter's camera hook's); RUN in a game (Fire Station from `-match_replay=` of `srp-map-sur`'s replay, headless)
+
+- **The camera.** base_game_scene::apply_camera (0x23DDD0, `ret 4`, the scene its stack argument)
+  has one caller, camera_director::apply (call at 0x2434F6), and copies the director in EDX: its
+  +4h (16 floats, the camera's transform) to the scene's +0Ch (`rep movsd` at 0x23DDE8) and its
+  +44h (the projection) to +4Ch (0x23DDF7), then hands both to the render (0x219D0, 0x21B50). Its
+  first eight bytes (`sub esp,40h / push ebx / mov ebx,[esp+48h]`) are branch-free, nothing aims
+  inside them: the lohook `camera.apply` (EDX `survarium::camera_director`, fields `view` and
+  `projection`) writes both before the copy. The name and offsets are v0.10b's PDB's and source's,
+  which resource-porter's camera hook (`tools/render-compare/camera_hook.c`, the same RVA 0x22DDD0
+  and bytes) relied on for every earlier capture; re-kit rows added.
+- **The run.** `game_world.after_move` (order 4) reads `SKHID_CAPTURE` at the first world tick
+  (unset: the state `Off`, nothing more, ever) and the script once (a bad line: exit 2), and steps
+  the run by the clock: waiting (pose 1's camera), settling (each pose's time), asked. The picture
+  is taken at `render.flash_ui` (order 2; patch 152's handler order 1) with patch 152's back buffer
+  read and PNG writer, then the run moves on; after the last, the game's thread calls ExitProcess
+  at its next tick. The state is a `Lock` (the game's and the drawing threads both step it).
+- **No replay crash at the start.** `vostok::packet_recovery::Connection` took any network client
+  as a live one; in a replay it is a `replay_network_client` (0x5AB18 bytes), and its options
+  holder's read (+1F1C48h) was past it at every frame (patches 97 and 125): a crash at a replay's
+  start when the heap held anything there. A client of the replay's vtable now has no connection
+  (`vostok::world::playback_of`, the one test of the class), and `NetworkClient::local_profile` and
+  `Lobby::place_name`, which read the same holder, take the options through the client's own
+  virtual (`engine_match_options`, vtable +34h, both kinds of client).
+
 ## 4. Mode 3 batteries: not needed in 0.26g
 
 - 0.26g splits the rule: `match_time_vi_spawn_rule` (vtable 0xA06C04) wraps `match_time_vi_spawn_rule_core` (vtable 0xA15CAC). The battery tick is no longer a vtable slot: the core's ctor 0x3147A0 stores a delegate `{this, 0x3148A0}` at +0x1C4 / +0x1C8 (0x3147F1). [V]
