@@ -2824,7 +2824,7 @@ st_srp_mode_research	Исследование
 st_srp_mode_team_deathmatch	Командный бой
 st_srp_mouse_lock_option	Зафиксировать вертикальную чувствительность
 st_srp_mouse_vertical_option	Вертикальная чувствительность
-st_srp_muzzle_slot	Дульное устройство
+st_srp_muzzle_slot	Дульная насадка
 st_srp_optics	Оптика
 st_srp_options_hud	Интерфейс боя:
 st_srp_pierce_brick	Кирпич, сталь
