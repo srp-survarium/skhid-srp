@@ -77,6 +77,19 @@ TYPE_ALLOWLIST = {
        "0.31a2's London evening 0.62; load_environment_properties_impl 0x34E1E0 reads float/int "
        "numerically (stratosphere 0x34E84F)"
        for mode in (2, 3, 4)},
+    # London (v0.42) (pack london-v042): 0.44a5's vignette power is 2.56, a fraction where 0.26g's
+    # corpus has whole numbers; the reader takes either (0x34F2C2, the same read as the stratosphere's).
+    **{(f'projects/v044a_level_09/{weather}_{mode}/client_project',
+        '/client_objects[environment]/properties/vignette_effect_power'):
+       "0.44a5's London 2.56; load_environment_properties_impl 0x34E1E0 reads float/int "
+       'numerically (vignette 0x34F2C2)'
+       for weather in ('day', 'rain', 'evening') for mode in (2, 3, 4)},
+    # Its rain and evening: 0.44a5's stratosphere turns at a fraction, as London's evening above.
+    **{(f'projects/v044a_level_09/{weather}_{mode}/client_project',
+        '/client_objects[environment]/properties/stratosphere_rotation_speed'):
+       "0.44a5's London rain and evening; load_environment_properties_impl 0x34E1E0 reads float/int "
+       'numerically (stratosphere 0x34E84F)'
+       for weather in ('rain', 'evening') for mode in (2, 3, 4)},
     # Original 0.21 weather scalar representations, scoped to the exact
     # projects/keys that differ from the 0.26 corpus. The native reader tests
     # binary-config type 2 then uses movss; otherwise it uses cvtsi2ss. Keep
