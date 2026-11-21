@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """make_pack.py: the content pack of the muzzle devices (docs/notes/attachments-muzzles.md).
 
-usage: python3 -I make_pack.py --inputs <folder> --modules <folder> [--record <file>] [--icons <folder>]
-                               --out <packs folder>/muzzle-devices-<version>
+usage: python3 -I make_pack.py --inputs <folder> --modules <folder> --record <file> [--icons <folder>]
+                               --out <packs folder>/muzzle-devices-<version> [--write-scale]
 
 --inputs   prepare.sh's folder: 0.69d0's game.options, 0.46c2's weapon shot effects, the players' files.
 --modules  the weapon-modules pack's folder (its devices' models and the modules table).
 --record   port-modules' record of that pack (modules-069d.json): every device has a gun that takes
            it, and every muzzle fit of the table has its item; every key a device's modification
-           touches is in the config of every gun that takes it.
+           touches is in the config of every gun that takes it; an effect's family is its fits'.
 --icons    render_icons.py's folder, <item>.png for every device. Without it the pack draws none
            (a local test: its id is muzzle-devices-noicons).
 --out      the pack's folder (a new one).
@@ -32,9 +32,16 @@ the same names, in 0.26g's own material vocabulary; 0.69d0's use renamed materia
   a whole number where every live material has a float is written as that float;
 - a texture such a material names that players lack: 0.46c2's .dds as it is, its .options in
   0.26g's layout.
+The effects are then put on 0.26g's scale (effect_scale.tsv, made here and refused when stale; the
+note's "The scale"): 0.46c2's own stock flashes are dimmer than 0.26g's, so an effect copied as it
+is would be dimmer against a gun's stock flash than 0.46c2 made it. Each effect's family is the
+stock flash most of its fits replace (--record); its lights are multiplied by that family's light
+peak in 0.26g over 0.46c2's, and the fire materials the pack brings by the one factor the
+families' own fire materials share. An effect without a light or fire gets none.
 The texts are in client-patches/localization/*.tsv (texts.py).
 """
 import argparse
+import collections
 import hashlib
 import json
 from pathlib import Path
@@ -47,7 +54,7 @@ import bcw  # noqa: E402
 import devices as dev  # noqa: E402
 
 PACK_ID = 'muzzle-devices'
-VERSION = '2'
+VERSION = '3'
 CATEGORY = 22
 CONFIGS = 'gameplay/items/muzzle_devices/'
 ICON_ATLAS = 'LobbyMenu_AmmoIcons'
@@ -67,6 +74,8 @@ DEAD = {'parameters/movement_speed_damage': ('parameters/stopping_power', 0.5)}
 # A shader switch 0.46c2 has on that no live material of the base has at all: 0.26g's fire effect has
 # no angle attenuation (0.46c2 added it to weapon_fire). Any other such switch that is on stops the build.
 LATER_SWITCHES = {('weapon_fire', 'use_angle_depended_attenuation')}
+# The scale: a particle's light action, the base material of a flash's fire, its brightness
+LIGHT, FIRE, EMISSIVE = 34, 'weapon_fire', 'constant_emissive_multiplier'
 
 
 def sha256(data):
@@ -257,6 +266,125 @@ def convert_material(name, data, shapes, log):
     return bcw.dump(material), textures
 
 
+def enabled_nodes(value):
+    """Every enabled particle node of a tree; nothing under a disabled one."""
+    if isinstance(value, dict):
+        if 'type_index' in value:
+            if value.get('properties', {}).get('Enabled') is False:
+                return
+            yield value
+        for key, child in value.items():
+            if key != 'properties':
+                yield from enabled_nodes(child)
+
+
+def curve_keys(value):
+    """The keys of a property's curve (each has a position and two tangents, x and the value)."""
+    if isinstance(value, dict):
+        if 'position' in value:
+            yield value
+        else:
+            for child in value.values():
+                yield from curve_keys(child)
+
+
+def light_peak(tree):
+    """The largest intensity of a particle's lights, or None when it has no light."""
+    peaks = [key['position'][1] for node in enabled_nodes(tree) if node['type_index'] == LIGHT
+             for key in curve_keys(node['properties']['Intensity'])]
+    return max(peaks) if peaks else None
+
+
+def scale_lights(tree, factor):
+    for node in enabled_nodes(tree):
+        if node['type_index'] == LIGHT:
+            for key in curve_keys(node['properties']['Intensity']):
+                for point in ('position', 'left_tangent', 'right_tangent'):
+                    key[point] = (key[point][0], key[point][1] * factor)
+
+
+def fire_materials(tree):
+    """The materials an effect's enabled emitters name."""
+    return sorted({node['properties']['Material'] for node in enabled_nodes(tree) if node['properties'].get('Material')})
+
+
+def emissive(material):
+    """A fire material's brightness entry ({'value': ...}), or None for another kind of material."""
+    stages = material['material']
+    if stages['instance']['base_material'] != FIRE:
+        return None
+    found = [table[EMISSIVE] for body in stages.values() if isinstance(body, dict)
+             for table in (body, body.get('effect')) if isinstance(table, dict) and EMISSIVE in table]
+    if len(found) != 1:
+        sys.exit(f'a {FIRE} material with {len(found)} {EMISSIVE}')
+    return found[0]
+
+
+def family_of(effect, replaced):
+    """The stock flash most of an effect's fits replace; `replaced` counts them by stock flash."""
+    (family, most), *others = replaced.most_common()
+    if others and others[0][1] == most:
+        sys.exit(f'{effect}: as many of its fits replace {others[0][0]} as {family}: no family (the scale)')
+    return family, most
+
+
+def scale_of(effects, replaced, stock, donor_stock, stock_material, donor_material, own):
+    """The scale of 0.46c2's effects on 0.26g's.
+
+    effects: {effect: its 0.46c2 tree}; replaced: {effect: Counter of the stock flashes its fits
+    replace}; stock, donor_stock: a stock flash's tree here and in 0.46c2; stock_material,
+    donor_material: a material here and in 0.46c2, or None; own: whether players have a material.
+    Returns (families, by_effect, fire): {family: (light here, light there, {fire material:
+    (brightness here, there)})}, {effect: (family, its fits, all fits, light factor or None)}, and
+    the one factor of the fire materials.
+    """
+    by_effect, families, ratios = {}, {}, set()
+    # a fire material the effects take as the players' own is on 0.26g's scale already: no measure of it
+    taken = {name for tree in effects.values() for name in fire_materials(tree) if own(name)}
+    for effect, tree in sorted(effects.items()):
+        family, most = family_of(effect, replaced[effect])
+        if family not in families:
+            here, there = stock(family), donor_stock(family)
+            fire = {}
+            for name in sorted(set(fire_materials(here)) & set(fire_materials(there))):
+                ours, theirs = stock_material(name), donor_material(name)
+                if ours is None or theirs is None or emissive(ours) is None or emissive(theirs) is None:
+                    continue
+                fire[name] = (emissive(ours)['value'], emissive(theirs)['value'])
+            families[family] = (light_peak(here), light_peak(there), fire)
+        here, there, fire = families[family]
+        factor = None
+        if light_peak(tree) is not None:
+            if not here or not there:
+                sys.exit(f'{effect} has a light and its family {family} has none in both builds: no factor')
+            factor = here / there
+        by_effect[effect] = (family, most, sum(replaced[effect].values()), factor)
+        ratios |= {ours / theirs for name, (ours, theirs) in fire.items() if name not in taken}
+    if len(ratios) != 1:
+        sys.exit(f'the families\' fire materials are not brighter here by one factor: {sorted(ratios)} '
+                 '(the pack\'s fire materials are shared between families)')
+    return families, by_effect, ratios.pop()
+
+
+def scale_table(families, by_effect, fire, peaks, scaled):
+    """effect_scale.tsv: the families' numbers, each effect's family and light, the fire materials."""
+    lines = ['# The scale of 0.46c2\'s shot effects on 0.26g\'s (make_pack.py --write-scale; never edited by hand;',
+             '# docs/notes/attachments-muzzles.md, "The scale"). family: a stock flash, its light\'s peak in 0.26g and in',
+             '# 0.46c2, their ratio, its fire materials both builds have (brightness here/there). effect: its family (the',
+             '# stock flash most of its fits replace), those fits of all, its light\'s peak in 0.46c2 and in the pack.',
+             '# material: a fire material the pack brings, its brightness in 0.46c2 and in the pack.']
+    for family, (here, there, materials) in sorted(families.items()):
+        lines.append('\t'.join(['family', family, f'{here:.4f}' if here else '-', f'{there:.4f}' if there else '-',
+                                f'{here / there:.4f}' if here and there else '-',
+                                ', '.join(f'{name} {ours:g}/{theirs:g}' for name, (ours, theirs) in materials.items()) or '-']))
+    for effect, (family, most, total, factor) in sorted(by_effect.items()):
+        lines.append('\t'.join(['effect', effect, family, f'{most} of {total}',
+                                f'{peaks[effect]:.4f}' if factor else '-', f'{peaks[effect] * factor:.4f}' if factor else '-']))
+    for name, (before, after) in sorted(scaled.items()):
+        lines.append('\t'.join(['material', name, f'{before:g}', f'{after:g}']))
+    return '\n'.join(lines) + f'\n# fire materials: x{fire:g}\n'
+
+
 def at(config, key):
     """The value at a key path of a config, or None."""
     for part in key.split('/'):
@@ -287,10 +415,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--inputs', required=True, type=Path)
     parser.add_argument('--modules', required=True, type=Path)
-    parser.add_argument('--record', type=Path)
+    parser.add_argument('--record', required=True, type=Path)
     parser.add_argument('--icons', type=Path)
     parser.add_argument('--out', required=True, type=Path)
     parser.add_argument('--write-sums', action='store_true')
+    parser.add_argument('--write-scale', action='store_true')
     args = parser.parse_args()
     if args.out.exists():
         sys.exit(f'{args.out}: already there')
@@ -303,6 +432,21 @@ def main():
     table = HERE / 'devices.tsv'
     if not table.exists() or table.read_text(encoding='utf-8') != dev.table(found):
         sys.exit('devices.tsv is not what 0.69d0\'s data and the rules give (devices.py --write)')
+
+    # the modules table's muzzle fits and each gun's config
+    dictionary = bcw.loads((live / 'gameplay/db_static_dictionaries').read_bytes())
+    configs = {row['dict_id']: row['cfg_name'] for row in dictionary['items_dict']}
+    record = json.loads(args.record.read_text())
+    if record['table_bytes'] != (args.modules / 'files/gameplay/weapon_modules.srpm').stat().st_size:
+        sys.exit(f'{args.record} is not the record of {args.modules} (the table\'s size)')
+    fits = {}
+    for gun, entry in record['guns'].items():
+        for fit in entry['plan']['fits']:
+            if fit['kind'] == 'muzzle':
+                fits.setdefault(fit['module'], []).append(gun)
+    weapons = {}
+    for item, (dict_id, gun) in record['items'].items():
+        weapons[gun] = (item, bcw.loads((live / configs[dict_id]).read_bytes()))
 
     # the shot effects
     common, shapes = live_properties(live), live_shapes(live)
@@ -335,10 +479,53 @@ def main():
         files[f'textures/{texture}.options'] = bcw.write(bcw.read(donor.read(f'd046/textures/{texture}.options')))
         log.append(f'texture {texture} (of {", ".join(users)}): 0.46c2\'s')
 
+    # the scale: the effects' lights and fire on 0.26g's stock flashes' scale
+    brought = {path[len('particles/'):-len('.particle')]: bcw.loads(data)
+               for path, data in files.items() if path.endswith('.particle')}
+    replaced = {effect: collections.Counter(at(weapons[gun][1], 'particles/shoot') for device in found
+                                            if device['shoot'] == effect for gun in fits.get(device['module'], []))
+                for effect in brought}
+
+    def loaded(root, name, read):
+        return bcw.loads(read(name)) if (root / name).is_file() else None
+    families, by_effect, fire = scale_of(
+        brought, replaced,
+        lambda family: bcw.loads((live / f'particles/{family}.particle').read_bytes()),
+        lambda family: bcw.loads(donor.read(f'd046/particles/{family}.particle')),
+        lambda name: loaded(live, f'material_instances/{name}.material', lambda path: (live / path).read_bytes()),
+        lambda name: loaded(args.inputs, f'd046/material_instances/{name}.material', donor.read),
+        lambda name: f'material_instances/{name}.material' in have)
+    peaks = {effect: light_peak(tree) for effect, tree in brought.items()}
+    for effect, (family, _, _, factor) in by_effect.items():
+        if factor is None:
+            continue
+        scale_lights(brought[effect], factor)
+        files[f'particles/{effect}.particle'] = bcw.dump(brought[effect])
+        written = light_peak(bcw.loads(files[f'particles/{effect}.particle']))
+        if abs(written - peaks[effect] * factor) > 1e-6 * written:
+            sys.exit(f'{effect}: its light is {written:g} as written, {peaks[effect] * factor:g} by the scale')
+    scaled = {}
+    for path in sorted(path for path in files if path.endswith('.material')):
+        material = bcw.loads(files[path])
+        entry = emissive(material)
+        if entry is None:
+            continue
+        before, after = entry['value'], entry['value'] * fire
+        entry['value'] = int(after) if isinstance(before, int) and float(after).is_integer() else after
+        files[path] = bcw.dump(material)
+        scaled[path[len('material_instances/'):-len('.material')]] = (before, entry['value'])
+    text = scale_table(families, by_effect, fire, peaks, scaled)
+    table = HERE / 'effect_scale.tsv'
+    if args.write_scale:
+        table.write_text(text, encoding='utf-8')
+    elif not table.exists() or table.read_text(encoding='utf-8') != text:
+        sys.exit('effect_scale.tsv is not what the inputs give (make_pack.py --write-scale)')
+    log.append('the scale (effect_scale.tsv): lights ' + ', '.join(
+        f'{effect.rsplit("/", 1)[-1]} x{factor:.2f} ({family.rsplit("/", 1)[-1]})' if factor else f'{effect.rsplit("/", 1)[-1]} none'
+        for effect, (family, _, _, factor) in sorted(by_effect.items())) + f'; {len(scaled)} fire materials x{fire:g}')
+
     # the items
-    dictionary = bcw.loads((live / 'gameplay/db_static_dictionaries').read_bytes())
     taken = {key: {row[key] for row in dictionary['items_dict']} for key in ('dict_id', 'name', 'cfg_name')}
-    configs = {row['dict_id']: row['cfg_name'] for row in dictionary['items_dict']}
     stock = bcw.loads((live / 'gameplay/items/modifications/modifications.options').read_bytes())
     modification_ids = {entry['id'] for entry in stock['modifications'] + stock.get('defects', [])}
     if len(found) > len(ICON_COLUMNS) * ICON_ROWS:
@@ -377,38 +564,26 @@ def main():
             for key, value in strings(bcw.loads(data)):
                 if key == 'Material' and f'material_instances/{value}.material' not in have | set(files):
                     sys.exit(f'{path}: its material {value} is neither the players\' nor the pack\'s')
-    if args.record:
-        record = json.loads(args.record.read_text())
-        if record['table_bytes'] != (args.modules / 'files/gameplay/weapon_modules.srpm').stat().st_size:
-            sys.exit(f'{args.record} is not the record of {args.modules} (the table\'s size)')
-        fits = {}
-        for gun, entry in record['guns'].items():
-            for fit in entry['plan']['fits']:
-                if fit['kind'] == 'muzzle':
-                    fits.setdefault(fit['module'], []).append(gun)
-        left_out = {module for module, _ in dev.rows('left_out.tsv')}
-        weapons = {}
-        for item, (dict_id, gun) in record['items'].items():
-            weapons[gun] = (item, bcw.loads((live / configs[dict_id]).read_bytes()))
-        for device in found:
-            if device['module'] not in fits:
-                sys.exit(f'{device["item"]}: no gun of the modules table takes it')
-            touched = [key for key, _ in dev.modifiers(device['stats'])] + (['particles/shoot'] if device['shoot'] else [])
-            for item, config in (weapons[gun] for gun in fits[device['module']]):
-                for key in touched + ['data']:
-                    if at(config, key) is None:
-                        sys.exit(f'{device["item"]} on {item}: the weapon has no {key}')
-                for key in device['instead']:
-                    ours, cap = DEAD[key]
-                    if at(config, ours) < cap:
-                        sys.exit(f'{device["item"]} on {item}: {ours} {at(config, ours):g} is under {cap:g}: '
-                                 f'{key} is not dead there (rules.tsv)')
-        stray = sorted(set(fits) - {d['module'] for d in found} - left_out)
-        if stray:
-            sys.exit(f'the modules table fits muzzle devices without an item: {stray}')
-        log.append(f'{sum(len(fits[d["module"]]) for d in found)} fits on '
-                   f'{len({gun for d in found for gun in fits[d["module"]]})} guns in the modules table; '
-                   f'left out, in the table without an item: {", ".join(sorted(left_out & set(fits))) or "none"}')
+    left_out = {module for module, _ in dev.rows('left_out.tsv')}
+    for device in found:
+        if device['module'] not in fits:
+            sys.exit(f'{device["item"]}: no gun of the modules table takes it')
+        touched = [key for key, _ in dev.modifiers(device['stats'])] + (['particles/shoot'] if device['shoot'] else [])
+        for item, config in (weapons[gun] for gun in fits[device['module']]):
+            for key in touched + ['data']:
+                if at(config, key) is None:
+                    sys.exit(f'{device["item"]} on {item}: the weapon has no {key}')
+            for key in device['instead']:
+                ours, cap = DEAD[key]
+                if at(config, ours) < cap:
+                    sys.exit(f'{device["item"]} on {item}: {ours} {at(config, ours):g} is under {cap:g}: '
+                             f'{key} is not dead there (rules.tsv)')
+    stray = sorted(set(fits) - {d['module'] for d in found} - left_out)
+    if stray:
+        sys.exit(f'the modules table fits muzzle devices without an item: {stray}')
+    log.append(f'{sum(len(fits[d["module"]]) for d in found)} fits on '
+               f'{len({gun for d in found for gun in fits[d["module"]]})} guns in the modules table; '
+               f'left out, in the table without an item: {", ".join(sorted(left_out & set(fits))) or "none"}')
     if args.write_sums:
         donor.save()
 
@@ -427,7 +602,7 @@ def main():
         'description': f'the muzzle devices, {len(found)} items (dict ids {found[0]["dict_id"]} to {found[-1]["dict_id"]}): '
                        'configs whose modification fits the device (data/srp_muzzle), sets its shot effect and '
                        'scales the weapon by its stats; dictionary rows; lobby icons; the shot effects '
-                       '(particles, materials, textures) from 0.46c2',
+                       '(particles, materials, textures) from 0.46c2, on 0.26g\'s scale',
         'operations': operations,
         'notes': ['made by srp-026g/scripts/muzzle-devices/make_pack.py from devices.tsv and inputs.sha256',
                   'devices and stats: Survarium 0.69d0; shot effects: Survarium 0.46c2',

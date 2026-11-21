@@ -1,4 +1,6 @@
-"""The devices' rules (devices.py, rules.tsv) on a made-up game.options, and the checked-in table."""
+"""The devices' rules (devices.py, rules.tsv) on a made-up game.options, the checked-in table, and the
+scale of the shot effects (make_pack.py) on made-up effects."""
+import collections
 import sys
 import unittest
 from pathlib import Path
@@ -8,6 +10,8 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent / 'research-mode'))
 import bcw  # noqa: E402
 import devices as dev  # noqa: E402
+sys.path.insert(0, str(HERE))      # this folder's make_pack, not research-mode's
+import make_pack as mp  # noqa: E402
 
 KEYS = {300: [('recoil_modifier', -0.04, 1)], 403: [('aim_time_modifier', 0.03, 1)],
         315: [('unmasking_radius', -0.4, 2)], 402: [('recoil_hip_modifier', 0.03, 1)],
@@ -110,6 +114,75 @@ class Table(unittest.TestCase):
             self.assertEqual(d['price'], prices[d['family']])
             # only a flash hider is without a number
             self.assertEqual(d['stats'] == [], d['family'] == 'flash_hider', d['module'])
+
+
+def effect(light=None, materials=(), enabled=True):
+    """A made-up shot effect: an emitter a material, and a light of that peak."""
+    emitters = {f'e{i}': {'type_index': 2, 'properties': {'Material': name, 'Enabled': True}} for i, name in enumerate(materials)}
+    if light is not None:
+        key = {'position': (0.1, light), 'left_tangent': (0.0, light), 'right_tangent': (0.2, light), 'delta': 0, 'key_type': 1}
+        zero = {'position': (1.0, 0.0), 'left_tangent': (0.9, 0.0), 'right_tangent': (1.1, 0.0), 'delta': 0, 'key_type': 1}
+        emitters['light'] = {'type_index': 2, 'properties': {'Material': 'null', 'Enabled': enabled}, 'children': {
+            'l': {'type_index': mp.LIGHT, 'properties': {'Enabled': True, 'Intensity': {'source': {'data': {'curve0': {'key0': key, 'key1': zero}}}}}}}}
+    return {'LOD 0': {'children': emitters}}
+
+
+def material(brightness, base=mp.FIRE):
+    return {'material': {'instance': {'base_material': base}, 'forward': {mp.EMISSIVE: {'value': brightness}}}}
+
+
+class Scale(unittest.TestCase):
+    """0.46c2's effects on 0.26g's scale: an effect's lights by its family's stock light here over there,
+    the fire materials by the one factor the families' own share."""
+    STOCK = {'rifle': effect(0.8, ['front', 'idle']), 'pistol': effect(0.5, ['small'])}
+    DONOR = {'rifle': effect(0.4, ['front', 'idle']), 'pistol': effect(0.1, ['small'])}
+    HERE_ = {'front': material(4), 'small': material(4), 'idle': material(1), 'null': material(1, 'default_particle')}
+    THERE = {'front': material(1), 'small': material(1), 'idle': material(1), 'null': material(1, 'default_particle')}
+
+    def scale(self, effects, replaced, stock=None, here=None):
+        return mp.scale_of(effects, replaced, (stock or self.STOCK).get, self.DONOR.get, (here or self.HERE_).get, self.THERE.get,
+                           lambda name: name in ('idle', 'null'))
+
+    def test_an_effect_takes_the_family_most_of_its_fits_replace(self):
+        effects = {'brake': effect(0.2, ['jet', 'idle']), 'pocket': effect(0.1, ['jet']), 'smoke': effect(None, ['puff'])}
+        replaced = {'brake': collections.Counter(rifle=5, pistol=2), 'pocket': collections.Counter(pistol=3),
+                    'smoke': collections.Counter(rifle=1)}
+        families, by_effect, fire = self.scale(effects, replaced)
+        self.assertEqual(by_effect['brake'], ('rifle', 5, 7, 2.0))
+        self.assertEqual(by_effect['pocket'], ('pistol', 3, 3, 5.0))
+        self.assertEqual(by_effect['smoke'], ('rifle', 1, 1, None))      # no light: none is given
+        self.assertEqual(fire, 4.0)                                      # idle is the players' own in the effects: no measure
+        self.assertEqual(families['rifle'], (0.8, 0.4, {'front': (4, 1), 'idle': (1, 1)}))
+
+    def test_no_family_or_no_one_factor_stops_the_build(self):
+        with self.assertRaises(SystemExit):      # as many fits on one stock flash as on the other
+            self.scale({'brake': effect(0.2)}, {'brake': collections.Counter(rifle=2, pistol=2)})
+        with self.assertRaises(SystemExit):      # a family whose fire is brighter by another factor
+            self.scale({'a': effect(0.2), 'b': effect(0.2)}, {'a': collections.Counter(rifle=1), 'b': collections.Counter(pistol=1)},
+                       here=dict(self.HERE_, small=material(5)))
+        with self.assertRaises(SystemExit):      # a light, and the family has none here
+            self.scale({'a': effect(0.2)}, {'a': collections.Counter(rifle=1)}, stock=dict(self.STOCK, rifle=effect(None, ['front'])))
+
+    def test_a_light_is_scaled_whole_and_a_disabled_one_is_none(self):
+        tree = effect(0.2)
+        mp.scale_lights(tree, 2.5)
+        self.assertEqual(mp.light_peak(tree), 0.5)
+        key = tree['LOD 0']['children']['light']['children']['l']['properties']['Intensity']['source']['data']['curve0']['key0']
+        self.assertEqual((key['position'], key['left_tangent'], key['right_tangent']), ((0.1, 0.5), (0.0, 0.5), (0.2, 0.5)))
+        self.assertIsNone(mp.light_peak(effect(0.2, enabled=False)))
+        self.assertIsNone(mp.emissive(material(1, 'default_particle')))
+
+    def test_the_table_is_the_packs(self):
+        """effect_scale.tsv as checked in: every light the family's ratio times the donor's, the fire one factor."""
+        rows = [line.split('\t') for line in (HERE / 'effect_scale.tsv').read_text(encoding='utf-8').splitlines() if not line.startswith('#')]
+        ratio = {row[1]: float(row[4]) for row in rows if row[0] == 'family'}
+        effects = [row for row in rows if row[0] == 'effect']
+        self.assertEqual({row[1] for row in effects}, {d['shoot'] for d in dev.read_table() if (d['shoot'] or '').startswith(mp.DONOR_EFFECTS)})
+        for _, name, family, _, before, after in effects:
+            if before != '-':
+                self.assertAlmostEqual(float(after), float(before) * ratio[family], delta=2e-3, msg=name)
+        factors = {float(after) / float(before) for kind, _, before, after in (row for row in rows if row[0] == 'material')}
+        self.assertEqual(len(factors), 1)
 
 
 if __name__ == '__main__':
