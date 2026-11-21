@@ -339,6 +339,12 @@ unsafe extern "C" {
     pub fn engine_draw_triangles(renderer: Option<SystemRenderer>, vertex_begin: *const c_void, vertex_end: *const c_void, index_begin: *const u16, index_end: *const u16, override_flag: u32);
     /// 0x3486a0 vostok::ui::ui_text_edit's delete of the selection: edit ESI; pops 0
     pub fn engine_text_edit_delete_selection(edit: Option<UiTextEdit>);
+    /// 0x11170 vostok::intrusive_ptr<shared_string>::assign: holder EDI, string EAX; pops 0
+    pub fn engine_shared_string_assign(holder: *mut Option<SharedString>, string: Option<SharedString>);
+    /// 0x3c8bc0 vostok::render::backend::register_constant_host: backend EAX, name ESP+4, auxiliary ESP+8; pops 8; EAX
+    pub fn engine_register_constant_host(backend: Option<Backend>, name: *mut Option<SharedString>, auxiliary: u32) -> Option<ConstantHost>;
+    /// 0x132a90 vostok::render::backend::set_ps_constant: host EAX, backend EDI, value ESP+4; pops 4
+    pub fn engine_set_ps_constant(host: Option<ConstantHost>, backend: Option<Backend>, value: *const f32);
 }
 
 #[allow(dead_code)]
@@ -361,6 +367,10 @@ unsafe extern "stdcall" {
     pub fn engine_fsm_append_transition(source: Option<BatteryState>, destination: Option<BatteryState>, predicate: Option<FsmPredicate>);
     /// 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly
     pub fn engine_set_texture(compiler: Option<EffectCompiler>, slot: *const u8, texture: *const u8, option: u32, request: u32, lower: u32, lower_float: f32, flag: u32);
+    /// 0xe0b50 vostok::shared_string::create: text ESP+4; pops 4; EAX; stdcall, called directly
+    pub fn engine_shared_string_create(text: *const u8) -> Option<SharedString>;
+    /// 0xe0ae0 vostok::shared_string::destroy: string ESP+4; pops 4; stdcall, called directly
+    pub fn engine_shared_string_destroy(string: Option<SharedString>);
 }
 
 #[allow(dead_code)]
@@ -469,6 +479,8 @@ unsafe extern "thiscall" {
     pub fn engine_text_edit_set_text(part: Option<UiTextEditText>, text: *const u8);
     /// 0x3488a0 vostok::ui::ui_text_edit::set_caret_position: edit ECX, position ESP+4, select ESP+8; pops 8; thiscall, called directly
     pub fn engine_text_edit_set_caret(edit: Option<UiTextEdit>, position: u32, select: u32);
+    /// 0x1a8900 vostok::render::effect_compiler::set_constant_float4: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
+    pub fn engine_set_constant_float4(value: *const f32, compiler: Option<EffectCompiler>, name: *const u8);
 }
 
 /// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_create_instance(const void *info, const void *allocator, void **instance)
@@ -27239,6 +27251,153 @@ impl SceneView {
     pub unsafe fn rain_v_scale(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x2ec).cast::<f32>().as_ptr() }
     }
+
+    /// +0x290 (f32): the environment's environment_probes_diffuse_intensity_multiplier (environment +178h, load_environment_properties_impl 0x34EE25): stage_ambient_lighting's deferred probe pass (0x181527..0x18156F) and stage_lights' particle pass (0x19770D) multiply a probe's diffuse multiplier by it; 0.44a5's particle pass sends that product as probe_diffuse_mult (0x47BF20..0x47BF36)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn probes_diffuse_intensity(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x290).cast::<f32>().as_ptr() }
+    }
+}
+
+/// A vostok::render::environment_probe (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EnvironmentProbe(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl EnvironmentProbe {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x328 (f32): a render environment probe's diffuse multiplier (+32Ch the specular's): color_parameters.x of the deferred probe pass (0x181527), probe_parameters1.x of the particle pass (0x19770D); 0.44a5's at +2C8h
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn diffuse_multiplier(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x328).cast::<f32>().as_ptr() }
+    }
+}
+
+/// A vostok::render::stage_lights (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StageLights(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl StageLights {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<vostok::render::renderer_context>): stage_lights' renderer context (its constructor 0x18EE40 stores EAX there before any call)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn context(self) -> Option<RendererContext> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<RendererContext>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::render::renderer_context>): stage_lights' renderer context (its constructor 0x18EE40 stores EAX there before any call)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_context(self, value: Option<RendererContext>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<RendererContext>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::particle_lighting_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ParticleLightingFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ParticleLightingFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// -0x24 (ptr<vostok::render::environment_probe>): stage_lights::accumulate_particle_lighting's (0x1961B0) EBP frame: the probe whose volume holds the batch, else the last of the world's list, or 0 (tested 0x197578 and 0x197E4B, whose no-probe ways zero probe_parameters0..3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn probe(self) -> Option<EnvironmentProbe> {
+        unsafe { self.0.byte_sub(0x24).cast::<Option<EnvironmentProbe>>().read_volatile() }
+    }
+
+    /// -0x24 (ptr<vostok::render::environment_probe>): stage_lights::accumulate_particle_lighting's (0x1961B0) EBP frame: the probe whose volume holds the batch, else the last of the world's list, or 0 (tested 0x197578 and 0x197E4B, whose no-probe ways zero probe_parameters0..3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_probe(self, value: Option<EnvironmentProbe>) {
+        unsafe { self.0.byte_sub(0x24).cast::<Option<EnvironmentProbe>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::shared_string (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SharedString(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SharedString {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): a shared string's reference count: the game drops a holder's with lock xadd [string],-1 and destroys it (0xE0AE0) at 0 (stage_lights' constructor 0x190140..0x190158)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn references(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::render::constant_host (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ConstantHost(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ConstantHost {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x28 (u32): a constant host's program stamp: set_ps_constant (0x132A90) writes only while it equals the backend's +2A3Ch (the host is in the bound program)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn bound_program(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x28).cast::<u32>().as_ptr() }
+    }
 }
 
 /// A vostok::render::stage_pre_rain (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -27488,6 +27647,15 @@ impl ShaderConfiguration {
     pub unsafe fn vertex_input(self) -> *mut u8 {
         unsafe { self.0.byte_add(0x6).cast::<u8>().as_ptr() }
     }
+
+    /// +0xd (u8): the configuration's byte 0Dh as fill_shader_configuration_macros (0x3C9B80) reads it: bit 0 CONFIG_USE_FUZZINESS (0x3C9F8D), 1..2 CONFIG_TERRAIN_BLEND_MODE, 3 CONFIG_USE_SOFT_EDGES (0x3C9FC0), 4 CONFIG_USE_THICKNESS_MAP, 5 CONFIG_USE_SUBSURFACE_SCATTERING_MASK_MAP, 6 CONFIG_USE_OLTA (0x3CA025), 7 CONFIG_USE_DISPLACEMENT (0x3CA00B); 0.44a5's forward_default sets 0, 6 and 7 from apply_distortion_to_emissive_only, use_ttransparency_dxt1 and use_uv_tiling (0x4BCBA8, 0x4BCA68, 0x4BCC80)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn switches_0d(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0xd).cast::<u8>().as_ptr() }
+    }
 }
 
 /// A vostok::render::water_compile_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -27520,6 +27688,99 @@ impl WaterCompileFrame {
     #[inline(always)]
     pub unsafe fn set_config(self, value: Option<EngineCfg>) {
         unsafe { self.0.byte_add(0xc).cast::<Option<EngineCfg>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::forward_begin_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ForwardBeginFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ForwardBeginFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::render::shader_configuration>): effect_fstage_default_materials::compile's pushes for compile_begin (0x1CD0B0) at 0x1D910D: +0 the 16-byte shader configuration (compile_begin's fourth argument, the compile's [esp+50h]; pushed at 0x1D9104)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn configuration(self) -> Option<ShaderConfiguration> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ShaderConfiguration>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::render::shader_configuration>): effect_fstage_default_materials::compile's pushes for compile_begin (0x1CD0B0) at 0x1D910D: +0 the 16-byte shader configuration (compile_begin's fourth argument, the compile's [esp+50h]; pushed at 0x1D9104)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_configuration(self, value: Option<ShaderConfiguration>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ShaderConfiguration>>().write_volatile(value) }
+    }
+
+    /// +0x4 (ptr<vostok::engine_cfg>): its +4: the material's merged config tree (compile_begin's fifth argument, EBX, pushed at 0x1D90FF)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn tree(self) -> Option<EngineCfg> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<EngineCfg>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::engine_cfg>): its +4: the material's merged config tree (compile_begin's fifth argument, EBX, pushed at 0x1D90FF)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_tree(self, value: Option<EngineCfg>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<EngineCfg>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::particle_lighting_begin_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ParticleLightingBeginFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ParticleLightingBeginFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::engine_cfg>): effect_offscreen_particle_lighting_materials::compile's pushes for compile_begin (0x1CD0B0) at 0x1DB34B: +0 the material's merged config tree (compile_begin's fifth argument, ESI, pushed at 0x1DB346)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn tree(self) -> Option<EngineCfg> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<EngineCfg>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::engine_cfg>): effect_offscreen_particle_lighting_materials::compile's pushes for compile_begin (0x1CD0B0) at 0x1DB34B: +0 the material's merged config tree (compile_begin's fifth argument, ESI, pushed at 0x1DB346)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_tree(self, value: Option<EngineCfg>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<EngineCfg>>().write_volatile(value) }
+    }
+
+    /// +0x48 (obj<vostok::render::shader_configuration>): its +48h: the 16-byte shader configuration, the compile's local [esp+40h] (zeroed 0x1DB184..0x1DB197), whose address it pushes next (lea eax,[esp+48h] / push eax)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn configuration(self) -> ShaderConfiguration {
+        ShaderConfiguration(unsafe { self.0.byte_add(0x48) })
     }
 }
 
@@ -33894,6 +34155,108 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn water(machine: &impl Machine) -> Option<WaterCompileFrame> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(WaterCompileFrame)
+        }
+    }
+
+    /// forward.compile_begin (0x1d910d): effect_fstage_default_materials::compile (0x1D8F40, forward_default) among the pushes for its compile_begin (0x1CD0B0, called at 0x1D9126): setne cl / push edi / shl cl,6 (no address under them; the pushes of the two family names have base relocations); the options, the config tree and the configuration pushed (ESP+0 the configuration, the compile's [esp+50h]; +4 the material's config tree, EBX), the configuration's bytes but 7 final (byte 7 read at 0x1D9109, written at 0x1D9122); compile_begin writes the configuration's bytes 3 and 6 only (0x1CD0CD, 0x1CD12E), then copies it for begin_pass (0x1CD19A)
+    pub mod forward_compile_begin {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::render::forward_begin_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<ForwardBeginFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(ForwardBeginFrame)
+        }
+    }
+
+    /// particle_lighting.compile_begin (0x1db34b): effect_offscreen_particle_lighting_materials::compile (0x1DB170, particle_lighting) among the pushes for its compile_begin (0x1CD0B0, called at 0x1DB35B): lea eax,[esp+48h] / push eax / push ebx (the pushes of the family names after them have base relocations); the options and the config tree pushed (ESP+0 the tree, ESI), the configuration (the compile's [esp+40h], ESP+48h here) final, its last write 0x1DB347
+    pub mod particle_lighting_compile_begin {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::render::particle_lighting_begin_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<ParticleLightingBeginFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(ParticleLightingBeginFrame)
+        }
+    }
+
+    /// forward.tile_uv (0x1d964d): effect_fstage_default_materials::compile at solid_color_specular's set_constant<float4> (push edi / lea ecx,[esp+68h], the call 0x1A8900 at 0x1D9652), before the block that sends constant_tile_uv (0x1D9657: set_constant<float2> 0x1D9740 at 0x1D96EE or 0x1D9716): EBX the material's config tree, EDI the compiler. A set_constant keeps a name's first value (0x1D97C0..0x1D97CB, 0x1A8988..0x1A8993: the binding vector is searched by the interned name, 0x3C3DD0 comparing +8, and a binding added only when none has it), so a constant set here stands and the block's later set of the name adds nothing
+    pub mod forward_tile_uv {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::engine_cfg (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn tree(machine: &impl Machine) -> Option<EngineCfg> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EngineCfg)
+        }
+
+        /// EDI: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// stage_lights.constructed (0x19015d): stage_lights::stage_lights (0x18EE40) after its last constant host's registration (m_shadow3's, whose name holder it lets go by 0x190158): mov eax,10h, the one byte both of the release's branches (0x19014A, 0x190155) land on; EBX the stage. Its registrations: probe_parameters0..3 +0DCh..+0E8h, world_to_outer_probe +0ECh, probe_geometry_type +0F0h, ambient_light_particle_multiplier +0F4h, particle_screen_divider +0F8h, m_shadow0..3 +100h..+10Ch (shared_string::create 0xE0B50, the holder's assign 0x11170, register_constant_host 0x3C8BC0 with the backend [2260490h], which returns the host already made for a name)
+    pub mod stage_lights_constructed {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::stage_lights (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn stage(machine: &impl Machine) -> Option<StageLights> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(StageLights)
+        }
+    }
+
+    /// stage_lights.particle_probe (0x19834b): stage_lights::accumulate_particle_lighting (0x1961B0) where its two ways meet after the probe's constants (probe_geometry_type +0F0h, ambient_light_particle_multiplier +0F4h, particle_screen_divider +0F8h): mov ecx,[esi+4] / mov eax,[ecx+4170h] (the way that sets them with the vertex setter 0x14AE60 jumps here from 0x197C8C, the pixel one, set_ps_constant 0x132A90, falls through from 0x198346); ESI the stage, EBX the backend, [EBP-24h] the batch's probe or 0, the pass's program bound (0x19838E sets constants after it)
+    pub mod stage_lights_particle_probe {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::render::stage_lights (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn stage(machine: &impl Machine) -> Option<StageLights> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(StageLights)
+        }
+
+        /// EBX: a vostok::render::backend (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn backend(machine: &impl Machine) -> Option<Backend> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Backend)
+        }
+
+        /// EBP: a vostok::render::particle_lighting_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<ParticleLightingFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(ParticleLightingFrame)
         }
     }
 
