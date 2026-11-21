@@ -50,8 +50,9 @@ def expected(native, extra):
         key = (pass_name, event[2] if event[0] == "set_texture" else None) if event[0] in ("set_texture", "begin_pass") else None
         if key in extra and key not in done:
             done.add(key)
-            arguments = event[4] if event[0] == "set_texture" else TONE_ARGUMENTS
-            out.extend(("set_texture", event[1], slot, texture, arguments) for slot, texture in extra[key])
+            # a set_texture event's compiler is its [1], a begin_pass event's its [2]
+            compiler, arguments = (event[1], event[4]) if event[0] == "set_texture" else (event[2], TONE_ARGUMENTS)
+            out.extend(("set_texture", compiler, slot, texture, arguments) for slot, texture in extra[key])
     assert done == set(extra), ("passes or textures not found", set(extra) - done)
     return out
 
@@ -63,7 +64,10 @@ def check(stock, patched, start, extra, what):
         want = expected(native, extra)
         for _ in range(2):
             ours = flat(rig.run_compile(patched, start, caching))
-            assert ours == want, (what, mode, [e for e in ours if e not in native][:6])
+            if ours != want:
+                at = next((i for i, (a, b) in enumerate(zip(ours, want)) if a != b), min(len(ours), len(want)))
+                sys.exit(f"{what} ({mode}): differs at event {at} of {len(want)}: ours {ours[max(at - 2, 0):at + 3]}"
+                         f" want {want[max(at - 2, 0):at + 3]}")
         passes = [e[4] for e in native if e[0] == "begin_pass"]
         added = sum(len(v) for v in extra.values())
         print(f"  ok {what} ({mode}): the original's {len(native)} calls and writes over passes {', '.join(passes)},"

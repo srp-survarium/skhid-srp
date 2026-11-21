@@ -33897,6 +33897,51 @@ pub mod site {
         }
     }
 
+    /// atmosphere.sky_textures (0x1d233d): effect_atmospheric_scattering::compile, the atmosphere pass (the sky dome) once its set_texture of t_rayleigh_scattering (0x1D2338) returns (cmp byte [ebx+61F4Ch],0, the compiler's caching byte; ESI the block's 0); EBX the compiler
+    pub mod atmosphere_sky_textures {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// atmosphere.geometry_textures (0x1d29b1): effect_atmospheric_scattering::compile, the atmospheric_scattering_on_geometry_temporary pass (the geometry fog) once its set_texture of t_rayleigh_scattering (0x1D29AC) returns (cmp byte [ebx+61F4Ch],0; ESI the block's 0); EBX the compiler
+    pub mod atmosphere_geometry_textures {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// luminance.log_pass (0x1d4d08): effect_gather_luminance::compile once the begin_pass of gather_log_luminance (0x1D4D03) returns (cmp [esi+61F4Ch],bl; EBX 0); ESI the compiler
+    pub mod luminance_log_pass {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
     /// atmosphere.god_rays (0x1a5520): stage_atmosphere's god-rays pass (0x1A5520, stdcall, ESP+4 the stage, ret 4), its entry (sub esp,14h / push ebx / mov ebx,[esp+1Ch]); its one caller is stage_atmosphere::execute's end (push ebp / call at 0x1A5133), for both the sky stage (stage+ACh 0) and the geometry stage (1), so 0.26 draws the rays twice a frame where 0.21 draws them once; skipped is its ret 4 (0x1A575C), the stack as at the entry
     pub mod atmosphere_god_rays {
         #[allow(unused_imports)]
