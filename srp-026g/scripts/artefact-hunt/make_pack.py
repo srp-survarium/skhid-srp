@@ -66,6 +66,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent / 'research-mode'))
 import bcw  # noqa: E402
+import dxt  # noqa: E402
 import floors  # noqa: E402
 from prepare_inputs import STAGES, maps, sha256  # noqa: E402
 
@@ -74,7 +75,7 @@ research = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(research)
 
 PACK_ID = 'artefact-hunt'
-VERSION = '3'
+VERSION = '4'
 EDITS = 'artefact-hunt-1.json'
 # `mode.mode`, the lobby's number of the mode too (maps::GameMode::lobby_number is the rules'
 # number): 2 to 5 and 8 are modes, 6 Blackout, 7 Scarcity's (#1083), 9 to 11 the lobby's numbers of
@@ -209,7 +210,7 @@ def mesh(raw, path):
     return bytes(out)
 
 
-def material(value, path, stock, have, log, blind):
+def material(value, path, stock, have, log, blind, colour_alpha):
     """A 0.46c2 material as 0.26g draws it: each stage's keys and its effect's keys those 0.26g's own
     materials of the stage have; a map whose texture nobody has off; then, of the combinations of
     switches 0.26g's own materials draw, the largest within the material's (equipment-029's rule:
@@ -226,6 +227,12 @@ def material(value, path, stock, have, log, blind):
             sys.exit(f'{path}: stage {stage} with effect {effect.get("effect_id")}: no form of 0.26g to give it')
         for key in sorted(set(body) - stock['stage_key', stage]):
             del body[key]
+        if (effect.get('use_ttransparency_dxt1', {}).get('value') is True
+                and effect.get('use_ttransparency', {}).get('value') is True):
+            # 0.46c2's transparency from a DXT1 texture's colour: 0.26g reads a DXT5's alpha (dxt.py)
+            colour_alpha.add(effect['texture_transparency']['value'])
+            off.append(f'{stage}.use_ttransparency_dxt1 (its texture made DXT5, its alpha its colour)')
+            del effect['use_ttransparency_dxt1']
         for key in sorted(set(effect) - stock['effect_key', stage]):
             if key.startswith('use_') and effect[key].get('value') is True:
                 off.append(f'{stage}.{key} (0.26g has no such switch)')
@@ -343,16 +350,19 @@ def item_values(item):
         sys.exit(f'{ITEM}: its collision shape is not a sphere straight over its point')
     return {'model': item['object']['model'], 'particle_idle': item['object']['idle_particle'],
             'particle_spawn': item['object']['spawn_particle'],
-            'particle_destroy': item['object']['destroy_particle'], 'effect': item['data']['effect'],
+            'particle_destroy': item['object']['destroy_particle'],
             'movement_speed_modifier': float(item['parameters']['movement_speed_modifier']),
             'health_regeneration_speed_modifier': float(item['parameters']['health_regeneration_speed_modifier']),
             'usable_radius': float(usable['scale'][0]), 'drop_lift': float(lying['position'][1])}
 
 
-def asset(path, raw, stock, have, log, blind):
+def asset(path, raw, stock, have, log, blind, colour_alpha):
     """A donor file as the pack ships it: 0.26g's formats and forms."""
     if path.endswith('/converted_model'):
         return mesh(raw, path)
+    if path.startswith('textures/') and path[len('textures/'):-len('.dds')] in colour_alpha and path.endswith('.dds'):
+        log.append(f'{path}: DXT1 -> DXT5, its alpha its colour (a transparency 0.46c2 reads from the colour)')
+        return dxt.dxt1_to_dxt5(raw)
     if not path.endswith(CONFIGS):
         if bcw.is_compact(raw):
             sys.exit(f'{path}: a config of 16-byte records nobody converts')
@@ -365,11 +375,15 @@ def asset(path, raw, stock, have, log, blind):
             if f"material_instances/{settings['material_name']}.material" not in have:
                 sys.exit(f"{path}: {surface}'s material {settings['material_name']} is in neither build")
     elif path.endswith('.material'):
-        value = material(value, path, stock, have, log, blind)
+        value = material(value, path, stock, have, log, blind, colour_alpha)
     elif path.endswith('.particle'):
         value = particle(value, path, stock, have, log, blind)
     elif path.startswith('textures/'):
         value['options'] = {key: v for key, v in value['options'].items() if key in TEXTURE_OPTIONS}
+        if path[len('textures/'):-len('.options')] in colour_alpha:
+            if value['options'].get('format') != 'DXT1':
+                sys.exit(f'{path}: a colour transparency not in DXT1')
+            value['options']['format'] = 'DXT5'
     elif path.endswith('.sound_collection'):
         items = [item for item in value['collection']['sound_items'] if item.get('enabled', True)]
         for item in items:
@@ -892,13 +906,17 @@ def main():
     inputs, stock, moves = Inputs(args.inputs), forms(), read_moves()
     files, log, said = {}, [], set()
 
-    names, blind = inputs.assets(), set()
+    names, blind, colour_alpha = inputs.assets(), set(), set()
     have = inputs.listing | {name for name in names if name != ITEM}
     for name in names:
         if name != ITEM:
-            files[name] = asset(name, inputs.read('donor/' + name), stock, have, log, blind)
-    item = item_values(bcw.loads(inputs.read('donor/' + ITEM)))
-    effect_path = f"gameplay/effects/effect_{item['effect']}.options"
+            files[name] = asset(name, inputs.read('donor/' + name), stock, have, log, blind, colour_alpha)
+    for texture in sorted(colour_alpha):
+        if f'textures/{texture}.dds' in have and f'textures/{texture}.dds' not in files:
+            sys.exit(f'{texture}: a colour transparency the pack does not carry (0.26g\'s own would stay DXT1)')
+    donor_item = bcw.loads(inputs.read('donor/' + ITEM))
+    item = item_values(donor_item)
+    effect_path = f"gameplay/effects/effect_{donor_item['data']['effect']}.options"
     for kind, name in (('model', f"models/{item['model']}.model/settings"), ('effect', effect_path),
                        *((key, f"particles/{item[key]}.particle")
                          for key in ('particle_idle', 'particle_spawn', 'particle_destroy')),
@@ -908,6 +926,8 @@ def main():
     system = bcw.loads(files[effect_path])['effect']['effects'][0]['particle_system']
     twin, changed = first_person(bcw.loads(files[f'particles/{system}.particle']))
     files[f'particles/{system}{FIRST_PERSON_SUFFIX}.particle'] = bcw.dump(twin)
+    # the exe draws the carrier's glow itself, as these two particles (its effect is not read)
+    item['carrier_particle'], item['carrier_particle_fp'] = system, system + FIRST_PERSON_SUFFIX
     log.append(f'particles/{system}{FIRST_PERSON_SUFFIX}.particle: the first-person twin of {system}, '
                f'Head, Face and Neck off in its {changed} animated domains that had them')
 
