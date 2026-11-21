@@ -185,7 +185,7 @@ Each game draws it for itself, never in the simulation: an effect added to a
 body's simulated effect list at the first tick after a game loaded it enters
 each game's world at another tick (Artifact Hunt's carrier glow desynced so,
 2026-11-21). After the simulation's move (`game_world.after_move`, the
-frame hook, order 4) the game plays, moves (`update_particle_system_instance`
+frame hook, order 6) the game plays, moves (`update_particle_system_instance`
 0x22B30, on the body's simulated transform, scaled as above) and stops one instance a place in
 the world's scene, from the world's rule state: every frozen body of a match in
 play, at its progress's size, so every game, a rollback and a late join

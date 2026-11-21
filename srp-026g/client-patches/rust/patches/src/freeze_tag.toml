@@ -8,7 +8,7 @@ patch = 160
 [[hook]]
 site = "game_world.after_move"
 handler = "on_frame"
-order = 4
+order = 6
 
 # the match's scene left: the glow out of it (after Artifact Hunt's 3)
 [[hook]]
