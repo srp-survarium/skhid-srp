@@ -162,3 +162,10 @@ receiving game itself (patch 87), with the same code (`srp-validate`'s typed vie
   `client-patches/README.md`, "A Rust crate as a source"): a build that changes no Rust source takes
   5 s, a new worktree's first build too. `SRP_ARENA_CACHE=off` builds from source, as the release does.
 - Each worktree has its own cargo target folder; never share one.
+- Content builds are cached per step by the exact bytes each step reads (the header of
+  `release/build-content` lists every key): a quick build of an unchanged tree takes about a minute.
+- For a test of a small content change, build a micro-patch over the test's earlier content:
+  `release/build-content <a revision above it> --delta-from <earlier build folder> --out <folder>`
+  holds only the files that differ; link it as `resources.db.patch_<that revision>` beside the earlier
+  one. Deltas chain; a change a patch cannot make (removing a file the earlier one added) is refused:
+  build it whole. Local tests only: a release builds the whole patch with `--full`.

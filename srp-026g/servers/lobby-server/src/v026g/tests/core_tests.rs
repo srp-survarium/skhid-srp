@@ -969,9 +969,14 @@ fn two_players_meet_in_a_room_and_go_to_one_match() {
     assert_eq!((profile.items[usize::from(pistol)].dict_id, count), (18, 1));
     drop(made);
 
-    // The online counts show the match.
-    world.advance(Duration::from_secs(2));
-    assert_eq!(world.client(alice).online.last(), Some(&(2, 1, 1440)));
+    // The online counts show the match to a player in the lobby; none go
+    // to the match's players (their Play is off, and each would have the
+    // client log why).
+    let carol = world.connect("Carol");
+    let before = world.client(alice).online.len();
+    world.advance(Duration::from_secs(6));
+    assert_eq!(world.client(carol).online.last(), Some(&(3, 1, 1440)));
+    assert_eq!(world.client(alice).online.len(), before);
     world.assert_clean();
 }
 

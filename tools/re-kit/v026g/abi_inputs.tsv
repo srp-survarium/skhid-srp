@@ -6600,3 +6600,9 @@ va	name	location	role	basis
 0x002364c0	survarium::game_world_ui::set_game_progress	stack+12	team 1 points (u16), loaded to DX at 2364C0	observed
 0x002364c0	survarium::game_world_ui::set_game_progress	stack+16	viewed team, loaded to EBX at 2364C9; 236523..23656D swaps points so the own team is first in root.set_game_progress	observed
 0x001f2870	survarium::player::remove	ECX	the player (the world player's vtable 0x9FB35C +24h; the respawn tick and patch 31 call it with 1 before a spawn)	observed
+0x00111700	vostok::logging::filter_tree::push_filter	EAX	the filter tree ([0x1F1D60C])	observed
+0x00111700	vostok::logging::filter_tree::push_filter	entry ESP+4	the channel ("" (0x9DB708) or 0: every channel)	observed
+0x00111700	vostok::logging::filter_tree::push_filter	entry ESP+8	the verbosity: 1 silent, 2 error, 3 warning, 4 info, 5 debug, 6 trace (string_to_verbosity 0x111910, names 0xA7A924); logging_initialize pushes ("", 4) or -log_verbosity's (0xE2FBE)	observed
+0x000fde20	vostok::console_commands::logging_rule::execute [descriptive]	entry ESP+4	the arguments: "<channel> <verbosity>", or the verbosity alone for every channel -> filter_tree::push_filter ([this+40h]); the command (logging_rule, kind 2, vtable 0x9E8F98, registered by 0xFDDC0) saves the tree to user.cfg (save_to 0xFDF50)	observed
+0x0032de40	survarium::bullet::try_reflect	entry ESP+4	the bullet (EBX; +88h its reflections, +70h/+74h its damage and piercing, +40h its ammo data, +0Ch its weapon item)	observed
+0x0032ee90	survarium::bullet::update_bullet_position	EAX+74h at 0x32F174	the only store of the piercing that depends on distance (every other: the constructor 0x32BB7B, a record 0x32BCDE, try_pierce 0x32DAA1, try_reflect 0x32E3C6); exe patch 173 makes it a nop (client_patch.md 3.94)	observed

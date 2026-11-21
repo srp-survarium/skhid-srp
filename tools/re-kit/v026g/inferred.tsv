@@ -3622,3 +3622,5 @@ va	status	ref_021d	name
 0x001f64c0	inferred-high		survarium::player_input_handler::input_changed [descriptive]
 0x00267810	inferred-high		survarium::tdm_rule::set_game_world_core [descriptive]
 0x00267820	inferred-high		survarium::tdm_rule::set_blackboard [descriptive]
+0x000fddc0	inferred-high		vostok::console_commands::logging_rule registration [descriptive]
+0x000fde20	inferred-high		vostok::console_commands::logging_rule::execute [descriptive]

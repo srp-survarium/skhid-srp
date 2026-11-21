@@ -228,7 +228,7 @@ The suffix _2/_3/_4 is the mode.
 **Do not use these ids:**
 - 107/108 (level_08 night): the configs exist but `projects/level_08/night_*` does not.
 - 11, 45, 115, 141: test projects that are absent.
-- 114 and 143..151: their configs are missing ("Wrong map config. Map id = %u", 0x2C9D18).
+- 114, 143, 144, 150, 151: their configs are missing ("Wrong map config. Map id = %u", 0x2C9D18, at every start): `scripts/content-edit/client-dictionary-1.json` takes their rows out of the shipped maps_dict (2026-11-21). 145..149 have configs (`level_0X_day_5`, mode 5) but no server table row.
 
 PROVEN (data dump + loader).
 

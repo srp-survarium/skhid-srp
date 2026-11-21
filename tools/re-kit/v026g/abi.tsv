@@ -248,7 +248,7 @@ va	name	source	ret_cleanup	result
 0x00110e10	vostok::network::network_world::dispatch_callbacks	manual	0	
 0x001113a0	vostok::animation::skeleton::get_bone_index	manual	0	EAX = the bone's index (bones 1Ch each from skeleton+110h: +0 name, +4 parent bone*, +8/+0Ch children begin/end, +10h mask, +18h byte layer flags; the count [skeleton+108h] when no bone has the name); ECX, EDX clobbered, ESI kept
 0x001113f0	vostok::animation::find_bone_by_name	manual	0	EAX = the first bone (1Ch) in [begin, end) whose name (+0) equals the name, else end; caller pops 8
-0x00111860	vostok::logging::has_passed_filters	manual	0	AL = the line is written; the game asks it only while [0x1F1D60C] is set
+0x00111860	vostok::logging::has_passed_filters	manual	0	AL = the line is written (the channel's verbosity, its deepest filter node, at least the level; 0x1118F4); the game asks it only while [0x1F1D60C] is set
 0x00111ed0	vostok::logging::log_message	manual	0	one line of Survarium_<user>.log: "<channel> <level>\t[time]\t<text>" (level 4: info)
 0x00113580	vostok::debug::terminate	manual		never returns (0x1134E0, then int3)
 0x001166f0	vostok::render::renderer_cook::allocate_resource	manual	20	EAX: output pointer/size buffer address
@@ -2769,3 +2769,4 @@ va	name	source	ret_cleanup	result
 0x002959d0	survarium::portable_interactive_object::process_hands_ik	manual	16	none; in the first person with the held weapon's aim progress (+5FCh) above 0 the user's Weapon bone := calculate_aim_alignment's matrix (blended by the progress through 0xEF780 below 1), then hand_to_weapon_ik_solver::process 0x3930B0 on this+200h; vtables 0xA04C34/0xA0B3C4 slot +20h, called by update_bones_matrices 0x2FF76C under ik_on_hands (0xA70EC4)
 0x0030e5c0	survarium::weapon_core_fire_state::clip_time_scale [descriptive]	manual	0	XMM0 = (the clip's last knot time - its first) x 1/30 (0xA2DC64) x the stack float: a fire state's time scale (+138h), its hands clip passing once a shot interval; callers 0x30E677, 0x30F67B, 0x30FF5B (the three fire states' constructors)
 0x001f2870	survarium::player::remove	manual	4	none; base_player::remove 0x2DA790 with its flag, then the client player's own (0x1F3670 when +F4E0h)
+0x0032de40	survarium::bullet::try_reflect	manual	12	AL: 1 reflected (at most 2: [bullet+88h] below 2, 0x32DE4D, then inc at 0x32E33A), its trajectory changed (0x32EE20); then damage +70h = min(+70h, weapon::min_damage 0x2E1C80) (0x32E36F) and piercing +74h = min(+74h, bullet_pierce +520h x min_damage_amount +534h x ammo +24h k_arp x +20h k_min_damage_amount) (0x32E3C6): a ricochet takes the far floor whatever the distance; 0 at the limit
