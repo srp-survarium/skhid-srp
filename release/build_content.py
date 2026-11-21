@@ -41,6 +41,7 @@ the row's version, adds the path with the live bytes): printed as left from it, 
 """
 import argparse
 import bisect
+import concurrent.futures
 import fnmatch
 import functools
 import hashlib
@@ -514,45 +515,56 @@ def movies_packs_edit(specs, movies):
     return edited & set(movies)
 
 
-PACK_CHUNKS = 12
+PACK_JOBS = 3                                         # vostok-port runs at once
 NO_PATCH = 'the base already has every file as the packs make it: no patch'
 
 
-def pack_chunks(specs):
-    """The packs (their indices, in order) in chunks composed apart, each of whole groups: packs
-    whose operations touch a path in common (a localization_add every dictionary, a dictionary_add
-    the dictionaries' file, an atlas its movie), or one requiring another, are one group, since
-    vostok-port makes each path of the operations on it alone (its conflicts are of one path, a
-    table or a string of one file); a group goes to chunk hash(its first pack's id) % PACK_CHUNKS,
-    so a pack's change recomposes its chunk only, and another pack's leaves it as it was. With an
-    operation not in PACK_OPERATIONS, one chunk of every pack."""
-    parent = list(range(len(specs)))
-
-    def root(i):
-        while parent[i] != i:
-            parent[i] = parent[parent[i]]
-            i = parent[i]
-        return i
-
-    owner, ids = {}, {spec.get('id'): i for i, spec in enumerate(specs)}
+def pack_runs(specs):
+    """The packs' operations in runs of vostok-port composed apart: [[(pack index, [operation
+    index])]], each pack in its order. vostok-port makes each path of the operations on it alone
+    (its conflicts are of one path, a table or a string of one file), so operations on a path in
+    common (a localization_add on every dictionary, a dictionary_add on the dictionaries' file, an
+    atlas on its movie, a layered replace) are one group. The groups of one pack are its run, those
+    of the same several packs theirs, so a pack's change recomposes the runs of its operations only.
+    A pack without operations is a group of its own. None: an operation not in PACK_OPERATIONS
+    (then the packs run whole, at once)."""
+    nodes, touched = [], []
     for i, spec in enumerate(specs):
-        for operation in spec.get('operations', []):
+        operations = spec.get('operations', [])
+        for k, operation in enumerate(operations):
             kind = operation.get('op') if isinstance(operation, dict) else None
             if kind not in PACK_OPERATIONS:
-                return [list(range(len(specs)))]
-            touched = {'dictionary_add': 'gameplay/db_static_dictionaries', 'localization_add': 'localization/',
-                       'atlas_icons_add': operation.get('swf', ATLAS_SWF)}.get(kind, operation.get('path'))
-            if not isinstance(touched, str):
-                return [list(range(len(specs)))]
-            parent[root(i)] = root(owner.setdefault(touched, i))
-        for required in spec.get('requires', []):
-            if required in ids:
-                parent[root(i)] = root(ids[required])
-    chunks = {}
-    for i in range(len(specs)):
-        first = min(j for j in range(len(specs)) if root(j) == root(i))
-        chunks.setdefault(int(sha256(str(specs[first].get('id')).encode()), 16) % PACK_CHUNKS, []).append(i)
-    return sorted(chunks.values())
+                return None
+            path = {'dictionary_add': 'gameplay/db_static_dictionaries', 'localization_add': 'localization/',
+                    'atlas_icons_add': operation.get('swf', ATLAS_SWF)}.get(kind, operation.get('path'))
+            if not isinstance(path, str):
+                return None
+            nodes.append((i, k))
+            touched.append(path)
+        if not operations:
+            nodes.append((i, None))
+            touched.append(('pack', i))
+    first = {}                                        # what a path's group is known by: its first node
+    parent = list(range(len(nodes)))
+
+    def root(n):
+        while parent[n] != n:
+            parent[n] = parent[parent[n]]
+            n = parent[n]
+        return n
+
+    for n, path in enumerate(touched):
+        a, b = root(n), root(first.setdefault(path, n))
+        parent[max(a, b)] = min(a, b)
+    packs_of = {}
+    for n, (i, _) in enumerate(nodes):
+        packs_of.setdefault(root(n), set()).add(i)
+    runs = {}
+    for n, (i, k) in enumerate(nodes):
+        operations = runs.setdefault(tuple(sorted(packs_of[root(n)])), {}).setdefault(i, [])
+        if k is not None:
+            operations.append(k)
+    return [sorted(packs.items()) for _, packs in sorted(runs.items())]
 
 
 def compose_packs(rows, base, base_shas, vostok, packs_dir, work, world, cache):
@@ -580,22 +592,25 @@ def compose_packs(rows, base, base_shas, vostok, packs_dir, work, world, cache):
         specs.append(spec)
     # What vostok-port reads: the base archives (their sha256: it reads them itself, not through
     # srp-game-data), each pack's folder (its files by size and time: a folder is one version, made
-    # once), the bytes of the movies the packs edit (given as --replace; the others are left to the
-    # movie rows) and itself (the program and the files beside it named after it: a wrapper and its
-    # binary). Each chunk (pack_chunks) is composed and cached apart.
+    # once) and operations, the bytes of the movies they edit (given as --replace; the others are
+    # the movie rows') and itself (the program and the files beside it named after it: a wrapper and
+    # its binary). Each run (pack_runs) is composed and cached apart.
     program = Path(vostok).resolve()
-    program_id = files_digest(sorted(program.parent.glob(program.name + '*')))
+    composer = Composer(vostok, base, base_shas, files_digest(sorted(program.parent.glob(program.name + '*'))),
+                        applied, folders, specs, work, world, cache)
+    runs = pack_runs(specs)
     try:
-        composed, fresh = compose_chunks(pack_chunks(specs), applied, folders, specs, base, base_shas, vostok,
-                                         program_id, work, world, cache)
+        if runs is None:
+            raise Problem('an operation build_content.py does not know (PACK_OPERATIONS)')
+        composed = composer.compose(runs)
     except Problem as problem:
         # A check of vostok-port's across the files of every pack (a probe a project names that
-        # another chunk's pack adds): the packs composed at once, as one chunk.
-        print(f'    the packs in chunks: {str(problem).splitlines()[-1].strip()}; composed at once')
-        composed, fresh = compose_chunks([list(range(len(specs)))], applied, folders, specs, base, base_shas,
-                                         vostok, program_id, work, world, cache)
-    print(f'    {len(composed)} file(s), {fresh} of the packs\' chunk(s) composed now'
-          + ('' if fresh else ': as an earlier build of the same packs over the same movies composed them: the cache'))
+        # another run's pack adds): the packs composed whole, at once.
+        print(f'    the packs in runs: {str(problem).splitlines()[-1].strip()}; composed at once')
+        composed = composer.compose(None)
+    print(f'    {len(composed)} file(s), {composer.fresh} run(s) of vostok-port now'
+          + ('' if composer.fresh else ': as an earlier build of the same packs over the same movies composed them: '
+             'the cache'))
     for path, (data, digest) in sorted(composed.items()):
         if data is None:
             world.put_cached(path, digest, reason)
@@ -603,52 +618,135 @@ def compose_packs(rows, base, base_shas, vostok, packs_dir, work, world, cache):
             world.put(path, data, reason, digest)
 
 
-def compose_chunks(chunks, applied, folders, specs, base, base_shas, vostok, program_id, work, world, cache):
-    """({path: (bytes or None (in the cache), sha256)}, how many chunks were composed now)."""
-    composed, fresh = {}, 0
-    for chunk in chunks:
-        edited = movies_packs_edit([specs[i] for i in chunk], world)
-        key = Cache.key('packs', base_shas, program_id,
-                        [(folders[i].name, [(p.relative_to(folders[i]).as_posix(), p.stat().st_size,
-                                             p.stat().st_mtime_ns)
-                                            for p in sorted(folders[i].rglob('*')) if p.is_file()]) for i in chunk],
-                        sorted((path, world.sha256(path)) for path in edited))
-        made = cache.get(key)
-        if made:
-            composed.update({path: (None, digest) for path, digest in made[0].items()})
-            continue
-        fresh += 1
-        command = [vostok, 'pack', 'patch', '--base-db', base[0]]
-        for patch in base[1:]:
+class Composer:
+    """vostok-port pack patch over the base, run by run (each a pack folder of the operations of
+    the run: its files, a pack.json of those operations and of the packs it requires that the run
+    has, so that vostok-port's checks of the order and of layered files hold within it), or (None)
+    every pack whole at once."""
+
+    def __init__(self, vostok, base, base_shas, program_id, applied, folders, specs, work, world, cache):
+        self.vostok, self.base, self.base_shas, self.program_id = vostok, base, base_shas, program_id
+        self.applied, self.folders, self.specs = applied, folders, specs
+        self.work, self.world, self.cache = work, world, cache
+        self.fresh, self.stats = 0, {}
+
+    def folder_stats(self, i, operations):
+        """The files of pack i (by size and time) its operations read (None: every file): an
+        add_file's or replace_file's source, an atlas's icons; the others read none."""
+        folder = self.folders[i]
+        if operations is None or not self.specs[i].get('operations'):
+            if i not in self.stats:
+                self.stats[i] = [(p.relative_to(folder).as_posix(), p.stat().st_size, p.stat().st_mtime_ns)
+                                 for p in sorted(folder.rglob('*')) if p.is_file()]
+            return self.stats[i]
+        read = []
+        for k in operations:
+            operation = self.specs[i]['operations'][k]
+            if operation['op'] in ('add_file', 'replace_file'):
+                read.append(operation.get('source') or f'files/{operation["path"]}')
+            elif operation['op'] == 'atlas_icons_add':
+                read += [icon.get('source') for icon in operation.get('icons', [])]
+        out = []
+        for name in read:
+            file = folder / str(name)
+            out.append((name, *((file.stat().st_size, file.stat().st_mtime_ns) if file.is_file() else (None,))))
+        return out
+
+    def requires(self, i):
+        """The ids pack i requires, directly or through another."""
+        ids, out, todo = {spec.get('id'): j for j, spec in enumerate(self.specs)}, set(), [i]
+        while todo:
+            for required in self.specs[todo.pop()].get('requires', []):
+                if required not in out:
+                    out.add(required)
+                    if required in ids:
+                        todo.append(ids[required])
+        return out
+
+    def compose(self, runs):
+        """{path: (bytes, or None when in the cache, sha256)} of the runs (None: the packs whole)."""
+        whole = runs is None
+        composed, todo = {}, []
+        for number, run in enumerate([[(i, None) for i in range(len(self.specs))]] if whole else runs):
+            ids = {self.specs[i].get('id') for i, _ in run}
+            manifests = {}
+            for i, operations in run:
+                if operations is None:
+                    manifests[i] = None
+                    continue
+                spec = dict(self.specs[i], operations=[self.specs[i]['operations'][k] for k in operations])
+                if 'requires' in spec:
+                    spec['requires'] = [r for r in spec['requires'] if r in ids] + \
+                        sorted(r for r in self.requires(i) - set(spec['requires']) if r in ids)
+                manifests[i] = json.dumps(spec, indent=1, ensure_ascii=False)
+            edited = movies_packs_edit([self.specs[i] if manifests[i] is None else json.loads(manifests[i])
+                                        for i, _ in run], self.world)
+            key = Cache.key('packs', self.base_shas, self.program_id,
+                            [(self.folders[i].name, manifests[i], self.folder_stats(i, operations))
+                             for i, operations in run],
+                            sorted((path, self.world.sha256(path)) for path in edited))
+            made = self.cache.get(key)
+            if made:
+                composed.update({path: (None, digest) for path, digest in made[0].items()})
+            else:
+                todo.append(self.prepare(number, whole, run, manifests, edited) + (key, edited))
+        self.fresh += len(todo)
+        with concurrent.futures.ThreadPoolExecutor(PACK_JOBS) as jobs:
+            for (runs_dir, label, command, key, edited), result in zip(todo, jobs.map(self.run, todo)):
+                composed.update(self.collect(runs_dir, result, key, edited))
+        return composed
+
+    def prepare(self, number, whole, run, manifests, edited):
+        """(its folder, its label, the command) of a run to compose: the folders of its derived packs."""
+        command = [self.vostok, 'pack', 'patch', '--base-db', self.base[0]]
+        for patch in self.base[1:]:
             command += ['--base-patch', patch]
-        for i in chunk:
-            command += ['--pack', folders[i]]
+        runs_dir = self.work / 'pack-runs' / f'{number}{"-whole" if whole else ""}'
+        shutil.rmtree(runs_dir, ignore_errors=True)
+        for i, _ in run:
+            folder = self.folders[i]
+            if manifests[i] is not None:
+                derived = runs_dir / folder.name
+                derived.mkdir(parents=True)
+                for entry in folder.iterdir():
+                    if entry.name != 'pack.json':
+                        (derived / entry.name).symlink_to(entry.resolve())
+                (derived / 'pack.json').write_text(manifests[i], encoding='utf-8')
+                folder = derived
+            command += ['--pack', folder]
         for path in sorted(edited):
-            target = work / 'movies-for-packs' / path
+            target = self.work / 'movies-for-packs' / path
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(world.data(path))
+            target.write_bytes(self.world.data(path))
             command += ['--replace', f'{path}={target}']
-        out = work / f'packs-{fresh}'
-        shutil.rmtree(out, ignore_errors=True)
-        out.with_name(out.name + '.json').unlink(missing_ok=True)
-        with timed(f'packs {", ".join(applied[i][0] for i in chunk)}'):
-            result = subprocess.run([str(c) for c in command + ['--out-dir', out]], stdout=subprocess.PIPE,
-                                    stderr=subprocess.STDOUT, text=True)
+        label = f'packs {"whole" if whole else f"run {number}"} ({", ".join(self.applied[i][0] for i, _ in run)})'
+        return runs_dir, label, command + ['--out-dir', runs_dir / 'out']
+
+    @staticmethod
+    def run(job):
+        runs_dir, label, command, *_ = job
+        start = time.monotonic()
+        result = subprocess.run([str(c) for c in command], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        return result, f'time: {label} {time.monotonic() - start:.1f} s'
+
+    def collect(self, runs_dir, ran, key, edited):
+        result, took = ran
+        print(took)
+        out = runs_dir / 'out'
         if result.returncode and NO_PATCH not in result.stdout:
+            shutil.rmtree(runs_dir, ignore_errors=True)
             raise Problem('vostok-port pack patch failed:\n'
                           + '\n'.join('    ' + line for line in result.stdout.splitlines()[-25:]))
         files = {file.relative_to(out).as_posix(): file.read_bytes()
                  for file in sorted(p for p in out.rglob('*') if p.is_file())} if out.is_dir() else {}
-        if out.is_dir():
-            shutil.rmtree(out)
-        # A movie no operation of the chunk edits is not given (the key leaves its bytes out).
-        for path in sorted(set(files) & set(world) - edited):
+        shutil.rmtree(runs_dir, ignore_errors=True)
+        # A movie no operation edits is not given (the key leaves its bytes out).
+        for path in sorted(set(files) & (set(self.world) - edited)):
             raise Problem(f'vostok-port changed {path}, which no operation of the packs names: '
                           'build_content.py (movies_packs_edit) does not know what reads it')
         digests = {path: sha256(data) for path, data in files.items()}
-        cache.put(key, files, result.stdout, digests)
-        composed.update({path: (data, digests[path]) for path, data in files.items()})
-    return composed, fresh
+        self.cache.put(key, files, result.stdout, digests)
+        return {path: (data, digests[path]) for path, data in files.items()}
 
 
 def left_by_earlier_packs(rows, packs_dir, paths, base_files, live, game):
