@@ -117,11 +117,12 @@ impl<'t> Lobby<'t> {
 
     /// The name of the player at `place`, when the match has that place.
     pub fn place_name(&self, place: Place) -> Option<&CStr> {
-        // SAFETY: the network client's options and their places live as long
-        // as the client, on the hook's thread; a place below the count is one
-        // of the array, its name a C string in its 64 bytes.
+        // SAFETY: the network client's options (its own virtual, a live and a
+        // replay client alike) and their places live as long as the client,
+        // on the hook's thread; a place below the count is one of the array,
+        // its name a C string in its 64 bytes.
         unsafe {
-            let options = self.client.options_holder()?.options();
+            let options = raw::engine_match_options(Some(self.client))?;
             if place.get() >= *options.places() {
                 return None;
             }

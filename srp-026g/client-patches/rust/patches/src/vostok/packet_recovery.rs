@@ -70,9 +70,14 @@ impl<'a> Connection<'a> {
     pub(super) fn of(client: raw::NetworkClient, thread: &'a Thread) -> Option<Self> {
         Self::any(client, thread).filter(Self::live)
     }
-    /// The client's connection, whatever its transport's state.
+    /// The client's connection, whatever its transport's state; none for a
+    /// replay's client (its class), which is smaller than a live one: its
+    /// +1F1C48h is past its 0x5AB18 bytes (a replay's start crashed here).
     fn any(client: raw::NetworkClient, thread: &'a Thread) -> Option<Self> {
-        // SAFETY: the synchronous dispatch/load boundary owns this client.
+        if super::world::playback_of(client) == super::world::Playback::Replay {
+            return None;
+        }
+        // SAFETY: as above, and a live match's client has these fields.
         unsafe {
             let holder = client.options_holder()?;
             let (client_key, seed) = (client.address() as usize, read(holder.match_seed()));
