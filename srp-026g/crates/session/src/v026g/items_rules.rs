@@ -131,6 +131,10 @@ use super::account::{Account, Item, Upgrade};
 pub enum ItemError {
     /// A cosmetic can not go on, come off or be placed; why, for the log.
     Upgrade(&'static str),
+    /// A muzzle device or a grip the weapon takes, but not with what it
+    /// holds (the P90's own-thread devices and its grips): its own text, so
+    /// the lobby says why.
+    Unfit,
     /// A modification can not be changed or chosen; why, for the log.
     Reroll(&'static str),
     NotEnoughMoney,
@@ -141,6 +145,7 @@ impl ItemError {
     pub fn text_key(&self) -> &'static str {
         match self {
             Self::Upgrade(_) => "st_cannot_upgrade_item",
+            Self::Unfit => "st_srp_attach_unfit",
             Self::Reroll(_) => "st_cannot_select_rerolled_modification",
             Self::NotEnoughMoney => "st_not_enougth_money",
         }
@@ -426,9 +431,7 @@ pub fn attach_upgrade_with(
     if let Some(kind @ (Kind::Muzzle | Kind::Grip)) = weapon_modules::kind_of_slot(slot) {
         let fitted = fitted_modules(&host.upgrades).with(kind, Some(upgrade_dict));
         if modules.check(host.dict_id, fitted).is_err() {
-            return Err(ItemError::Upgrade(
-                "it does not go with what the weapon holds",
-            ));
+            return Err(ItemError::Unfit);
         }
     }
     let record_dict = modifications::record_dict_in(scopes, host.dict_id, upgrade_dict);

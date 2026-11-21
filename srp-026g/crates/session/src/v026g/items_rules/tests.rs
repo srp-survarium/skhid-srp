@@ -463,7 +463,7 @@ fn a_muzzle_device_and_a_grip_go_on_by_the_modules_table() {
     assert_eq!(attach(&mut account, p90, hider, 4), Ok(4));
     assert_eq!(
         attach(&mut account, p90, grip, 5),
-        Err(ItemError::Upgrade("it does not go with what the weapon holds"))
+        Err(ItemError::Unfit)
     );
     assert_eq!(records(&account, p90).len(), 1);
     // and a game data without the table takes neither
