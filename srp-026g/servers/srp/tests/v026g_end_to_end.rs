@@ -1295,6 +1295,7 @@ impl BotRun {
             kit: None,
             drive,
             revision: survarium::v026g::match_msgs::late_join::PATCH_REVISION,
+            suicide_after: None,
         };
         let print: srp::bot::Print = {
             let lines = lines.clone();

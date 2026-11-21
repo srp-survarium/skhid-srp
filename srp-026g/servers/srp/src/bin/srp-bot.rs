@@ -24,7 +24,8 @@ place in the match, stays to the end without playing, takes the results
 and presses Play again.
 
   srp-bot [--server HOST:PORT] [--name NAME] [--password PASSWORD]
-          [--count N] [--once] [--kit ID] [--drive[=shots]] [--revision N]
+          [--count N] [--once] [--kit ID] [--drive[=shots]] [--suicide-after S]
+          [--revision N]
 
   --server    the login server, as the game's -server= (default
               127.0.0.1:1234; or SRP_BOT_SERVER)
@@ -46,6 +47,9 @@ server logs it at its start.
   --drive=shots  in a match, stand where it spawned and fire a second every
               few seconds, reloading (srp::drive::shots): for another client
               to watch its gun
+  --suicide-after S  (test only, with --drive) S seconds after it has the
+              world, its next input carries the suicide bit, once: its body
+              and gun lie where it stood
   --drive     in a match, send inputs: a fixed script (walk, turn a quarter,
               walk, sprint, crouch, fire, reload, weapon 2, turn back),
               again and again; each input is printed (srp::drive)
@@ -90,6 +94,7 @@ fn main() {
     let mut once = false;
     let mut kit = None;
     let mut drive = None;
+    let mut suicide_after = None;
     let mut revision = survarium::v026g::match_msgs::late_join::PATCH_REVISION;
 
     let mut args = std::env::args().skip(1);
@@ -129,6 +134,12 @@ fn main() {
                     .unwrap_or_else(|_| fail("--revision must be 0 to 255"));
             }
             "--once" => once = true,
+            "--suicide-after" => {
+                let seconds: u64 = value("--suicide-after")
+                    .parse()
+                    .unwrap_or_else(|_| fail("--suicide-after takes whole seconds"));
+                suicide_after = Some(std::time::Duration::from_secs(seconds));
+            }
             "--drive" => {
                 drive = Some(match inline.as_deref() {
                     None => srp::drive::Script::Stage0,
@@ -175,6 +186,7 @@ fn main() {
             kit,
             drive,
             revision,
+            suicide_after,
         })
         .collect();
     let print: bot::Print = Arc::new(|line| println!("{} {line}", clock()));
