@@ -203,9 +203,10 @@ A flash hider, and a device on a weapon in the lobby, change nothing a match com
 
 ## State (2026-11-21)
 
-**Made and checked without a game:** the pack `muzzle-devices@2` (113 files: 54 item configs, 12
+**Made and checked without a game:** the pack `muzzle-devices@3` (113 files: 54 item configs, 12
 particles, 17 materials, 15 textures with their options; 54 dictionary rows; 54 icons), the texts,
-the items table's rows, the `next` row.
+the items table's rows, the `next` row. @2 was the same with the effects on 0.46c2's scale (11
+particles and 11 fire materials differ, nothing else).
 
 - `vostok-port pack check` passes it against the players' files (the stock db and the listed
   patches): no dict id, name, path or icon cell is taken.
@@ -217,10 +218,12 @@ the items table's rows, the `next` row.
 - The content side's record has every device's model and fire point on every gun that takes it
   within 0.5 mm of 0.69d0's (544 fits, 1,394 comparisons, the worst 0 mm). Computed there, not here.
 
-**Seen in a game, 2026-11-21** (a headless client on a local server, the lane's rig: the game at 30
-frames a second under a 60 a second recording, so each game frame is in two; first view only).
-On the core's c8b28fb43 (exe and server, table version 3, `weapon-modules-quick@32` of six guns)
-and before it on e17ace688 / 6a2623ff2 (version 2, the AK-74M):
+**Seen in a game, 2026-11-21, with the effects on 0.46c2's scale (`muzzle-devices@2`)** (a headless
+client on a local server, the lane's rig: the game at 30 frames a second under a 60 a second
+recording, so each game frame is in two; first view). On the core's c8b28fb43 (exe and server,
+table version 3, `weapon-modules-quick@32` of six guns) and before it on e17ace688 / 6a2623ff2
+(version 2, the AK-74M); the last two rows on 98843a3ef with the full content
+(`release/build-content 69 --full` of the integrated tree):
 
 | Gun, device | Effect | What the game showed |
 |---|---|---|
@@ -238,30 +241,67 @@ and before it on e17ace688 / 6a2623ff2 (version 2, the AK-74M):
 | PM, Manticore Nightbrake (2625) | `gas_small` | the device on the pistol; no flash |
 | SVD, custom 01 clamp brake (2605) | `dtk9` | orange jets to the side at the device |
 | HK416, Diamondhead T-brake (2613) | `dtk4_6` | orange jets to both sides at the device |
+| Saiga-12, Hartman Kochevnik (2619) | `dtk11` | two orange jets out of the device in a V, up and to both sides |
+| Saiga-12, Guns.ru custom (2618) | `dtk12` | no fire: a flat band of grey smoke sideways at the device and one small spark ahead of it |
 
 - The item's modification reaches the weapon's config as the cook sees it (`data/srp_muzzle`, the
   device drawn); the kit's slot 4 record survives the account's load. The stats were not measured
   in a game.
 - Every effect named here loads with its rebuilt materials, and no game crashed at a shot.
-- **The devices' flashes are far dimmer than the stock flash.** That they are dimmer is 0.46c2's
-  own effect (its light intensities 0.18 and 0.16 against the stock AK's 0.86); whether it is the
-  look wanted is the owner's to judge.
-- From behind, a flash a few centimetres short of the device's end looks the same as one at it.
-  The side view was tried with a teammate bot (`RIG_SIDE=1`, three driving bots, two against two):
-  on Mamayev Kurgan's woods the teammate was found by its marker and approached, but no frame showed
-  it firing in view. Not done.
+- **On that scale the devices' flashes were far dimmer than the stock flash**, more than 0.46c2
+  made them: its own stock flashes are dimmer than 0.26g's ("The scale"). `muzzle-devices@3` has
+  them on 0.26g's scale.
+- **From the side** (a teammate bot that stands and fires, `srp-bot --drive=shots`; Cologne's
+  covered platform, plain walls; about 3 m beside him, square to the barrel; the AK-74M with the
+  Zenit DTK-3 as the item in the kit's slot 4, on every account): the device on the end of his
+  barrel, behind the front sight, its ports visible; at each shot a cone of fire forward from the
+  device's front face and a flat jet across its ports, a glow on the wall round it. Nothing starts
+  short of the device or ahead of it. This is also the third view of a fitted device on another
+  player.
 - The world check: a recording of a four-player match with the device fitted on every gun (118
   worlds, map 132, revision 69), `srp-world-check` of the tree with the content's game data: all
   passed. Not added to the world corpus (main's game data has no device items).
 
-**Still LIKELY, until a game shows it:** that the lobby's card shows the name and description as
-written; the shop and the Attachments window (the lead's) with these items.
+**The shop and the Attachments window, seen 2026-11-21** (exe and server c8df2f38d, a quick content
+build of the integrated tree with `muzzle-devices@3`; the AK-74M with nothing fitted, 30,000 silver):
+
+- The shop's Upgrades lists the devices; the search "DTK-3" leaves the Zenit DTK-3 muzzle brake
+  (6,000) and the Zenit DTK-4 flash hider, M30x1 (4,500). The DTK-3's card: its name, "Weapon recoil
+  -4 %. Aim time +3 %." and "Can be installed on:" with the guns that take it, the AK-74M first and
+  highlighted (the gun in the kit).
+- Buy: the dialog names it at 6,000; the account then has 24,000 and the item (dict 2635).
+- The equipment's AK-74M, right click, Attachments: three slots, Optics, Muzzle device, Grip. The
+  DTK-3 dragged from the inventory onto the muzzle slot stays there, and the window's gun wears it
+  at the muzzle. Confirm: the gun's record of the account is `<the device's item id>:2635:0:4`.
+- Not seen: a device dropped onto the slot of a gun that does not take it (the lead saw such a
+  device greyed in the inventory).
+
+**Seen in a game on 0.26g's scale (`muzzle-devices@3`), 2026-11-21:** the 22 files that differ
+from @2, as a local test patch mounted over the full content (the game mounts every
+`resources.db.patch_<n>` it finds; a test only). First view, from the rig's reference spawn point
+and view on Mamayev Kurgan (the same place and view for every gun, within 0.2 px), aimed (the
+owner, 2026-11-21: no shots from the hip in what is shown):
+
+| Gun, device | Effect | What the game showed, aimed |
+|---|---|---|
+| AK-74M, Zenit DTK-3 (2635) | `dtk1_2`, light x2.27, fire x4 | orange jets to both sides of the front sight and a small flame over it, one game frame, plain in daylight; before the scale the same jets, faint |
+| Saiga-12, Hartman Kochevnik (2619) | `dtk11`, light x8.50, fire x4 | a large bright orange V of fire that covers the middle of the aimed view for one game frame; before the scale a dim wide V |
+| Saiga-12, custom 01 choke (2640) | none: the gun's own | a bright compact flash at the choke's end, over the front sight (the scale changes nothing of it) |
+| AK-74M, Dynacomp flash hider (2631) | `gas_small` | no fire, as made (the scale changes nothing of it) |
+
+**A capture at 30 frames a second shows only some shots' flashes** (counted 2026-11-21: the
+Saiga-12 with nothing fitted, aimed single shots 1.6 s apart in a dark hall, a shot told by its
+kick and a flash by the red the picture gains). With a flash: release 68's main (590cffcdf) 17 of
+46 shots; current main (d6998ef7d) 9 of 23; the attachments build with the Saiga on its live model
+23 of 45 and on its remodel body 20 of 41; first, second and third lives alike. So a single shot
+without a flash proves nothing, on any build; a capture compares flashes only over a series of
+shots. The lane's rig caps the game at 30 frames a second so that a one-frame flash is in two
+recorded frames, and the stock flash's fire lives 0.05 s: LIKELY the cause, not yet counted at a
+higher rate.
 
 **Not done:**
 
-1. A view from the side (above).
-2. `release/build-content --full` with the pack (the lead's one full build), and `tools/check
-   build-content`.
-3. The effects not yet shot: `dtk11`, `dtk12` (the rig's rows `saiga-dtk11`, `saiga-dtk12`).
-4. The M30x1 devices fit the three guns that were at the old 16 KB config bound: fit them only with
+1. `release/build-content --full` with `muzzle-devices@3` (the lead's one full build), and
+   `tools/check build-content`.
+2. The M30x1 devices fit the three guns that were at the old 16 KB config bound: fit them only with
    an exe that has patch 161's 64 KB arena (`attachments.md`).
