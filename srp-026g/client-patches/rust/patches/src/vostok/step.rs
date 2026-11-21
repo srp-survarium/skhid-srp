@@ -66,6 +66,13 @@ impl GroundMaterial {
     pub fn named(self) -> bool {
         !matches!(self.0, 0x3FFF | 0xFFFF)
     }
+
+    /// Leaves (game.materials: foliage_coniferous 24, foliage_deciduous 44,
+    /// foliage_dry 49): a walker goes through them, the eye with him (patch
+    /// 158), and a bullet with no loss (their armor is 0).
+    pub fn is_leaves(self) -> bool {
+        matches!(self.0, 24 | 44 | 49)
+    }
 }
 
 /// The foot's game material (on_step's ESP+8): the boots' for the logic

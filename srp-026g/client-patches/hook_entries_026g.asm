@@ -966,6 +966,84 @@ artefact_carry_on_key_replay:
     db 0x8b, 0x75, 0x10, 0x83, 0xfe, 0x01
     jmp 0x23fe48
 
+; 0x316dda the respawn rule's spawn 0x316DA0 before it makes the chosen kit current (mov dl,[eax+0Dh] / mov cl,[ecx+115h], then mov [eax+0Ch],dl at 0x316DE3): BL the place, EAX its entry of the core's places, +0Ch still the kit it was in, +0Dh the kit it spawns in: lohook -> artefact_courier_on_spawn_kits
+global artefact_courier_on_spawn_kits
+extern hook_artefact_courier_on_spawn_kits
+artefact_courier_on_spawn_kits:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_courier_on_spawn_kits
+    mov edx, artefact_courier_on_spawn_kits_replay
+    cmp eax, 0
+    je artefact_courier_on_spawn_kits_go
+    mov edx, 0x316de3
+    cmp eax, 1
+    je artefact_courier_on_spawn_kits_go
+    ud2
+artefact_courier_on_spawn_kits_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_courier_on_spawn_kits_replay:
+    db 0x8a, 0x50, 0x0d, 0x8a, 0x89, 0x15, 0x01, 0x00, 0x00
+    jmp 0x316de3
+
+; 0x316eab the respawn rule's spawn 0x316DA0 at its end (the five pops before ret 0Ch), after the new kit's player was initialised (vtable+1Ch: its inventory set up from the profile, its containers' range set) and put into the world (vtable+20h): BL the place, ESI its new current kit's player: lohook -> artefact_courier_on_spawned
+global artefact_courier_on_spawned
+extern hook_artefact_courier_on_spawned
+artefact_courier_on_spawned:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_courier_on_spawned
+    mov edx, artefact_courier_on_spawned_replay
+    cmp eax, 0
+    je artefact_courier_on_spawned_go
+    mov edx, 0x316eb0
+    cmp eax, 1
+    je artefact_courier_on_spawned_go
+    ud2
+artefact_courier_on_spawned_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_courier_on_spawned_replay:
+    db 0x5f, 0x5e, 0x5d, 0x5b, 0x59
+    jmp 0x316eb0
+
 ; 0x31b8e0 generic_anomaly_core::register_artefacts at its entry (push ecx / mov eax,[esp+8]): the anomaly's pool is about to be registered from the core world's artefact vector length on, in pool order (each resolve links rebuilds the vector from empty): lohook -> artefact_keeper_on_register
 global artefact_keeper_on_register
 extern hook_artefact_keeper_on_register
@@ -5411,6 +5489,201 @@ medical_skills_on_effect_clock_replay:
     db 0x8b, 0x54, 0x24, 0x10, 0x2b, 0x54, 0x24, 0x0c
     jmp 0x2e5d88
 
+; 0x1d910d effect_fstage_default_materials::compile (0x1D8F40, forward_default) among the pushes for its compile_begin (0x1CD0B0, called at 0x1D9126): setne cl / push edi / shl cl,6 (no address under them; the pushes of the two family names have base relocations); the options, the config tree and the configuration pushed (ESP+0 the configuration, the compile's [esp+50h]; +4 the material's config tree, EBX), the configuration's bytes but 7 final (byte 7 read at 0x1D9109, written at 0x1D9122); compile_begin writes the configuration's bytes 3 and 6 only (0x1CD0CD, 0x1CD12E), then copies it for begin_pass (0x1CD19A): lohook -> forward_effects_on_forward_begin
+global forward_effects_on_forward_begin
+extern hook_forward_effects_on_forward_begin
+forward_effects_on_forward_begin:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_forward_effects_on_forward_begin
+    mov edx, forward_effects_on_forward_begin_replay
+    cmp eax, 0
+    je forward_effects_on_forward_begin_go
+    mov edx, 0x1d9114
+    cmp eax, 1
+    je forward_effects_on_forward_begin_go
+    ud2
+forward_effects_on_forward_begin_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+forward_effects_on_forward_begin_replay:
+    db 0x0f, 0x95, 0xc1, 0x57, 0xc0, 0xe1, 0x06
+    jmp 0x1d9114
+
+; 0x1db34b effect_offscreen_particle_lighting_materials::compile (0x1DB170, particle_lighting) among the pushes for its compile_begin (0x1CD0B0, called at 0x1DB35B): lea eax,[esp+48h] / push eax / push ebx (the pushes of the family names after them have base relocations); the options and the config tree pushed (ESP+0 the tree, ESI), the configuration (the compile's [esp+40h], ESP+48h here) final, its last write 0x1DB347: lohook -> forward_effects_on_particle_lighting_begin
+global forward_effects_on_particle_lighting_begin
+extern hook_forward_effects_on_particle_lighting_begin
+forward_effects_on_particle_lighting_begin:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_forward_effects_on_particle_lighting_begin
+    mov edx, forward_effects_on_particle_lighting_begin_replay
+    cmp eax, 0
+    je forward_effects_on_particle_lighting_begin_go
+    mov edx, 0x1db351
+    cmp eax, 1
+    je forward_effects_on_particle_lighting_begin_go
+    ud2
+forward_effects_on_particle_lighting_begin_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+forward_effects_on_particle_lighting_begin_replay:
+    db 0x8d, 0x44, 0x24, 0x48, 0x50, 0x53
+    jmp 0x1db351
+
+; 0x1d964d effect_fstage_default_materials::compile at solid_color_specular's set_constant<float4> (push edi / lea ecx,[esp+68h], the call 0x1A8900 at 0x1D9652), before the block that sends constant_tile_uv (0x1D9657: set_constant<float2> 0x1D9740 at 0x1D96EE or 0x1D9716): EBX the material's config tree, EDI the compiler. A set_constant keeps a name's first value (0x1D97C0..0x1D97CB, 0x1A8988..0x1A8993: the binding vector is searched by the interned name, 0x3C3DD0 comparing +8, and a binding added only when none has it), so a constant set here stands and the block's later set of the name adds nothing: lohook -> forward_effects_on_tile_uv
+global forward_effects_on_tile_uv
+extern hook_forward_effects_on_tile_uv
+forward_effects_on_tile_uv:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_forward_effects_on_tile_uv
+    mov edx, forward_effects_on_tile_uv_replay
+    cmp eax, 0
+    je forward_effects_on_tile_uv_go
+    mov edx, 0x1d9652
+    cmp eax, 1
+    je forward_effects_on_tile_uv_go
+    ud2
+forward_effects_on_tile_uv_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+forward_effects_on_tile_uv_replay:
+    db 0x57, 0x8d, 0x4c, 0x24, 0x68
+    jmp 0x1d9652
+
+; 0x19015d stage_lights::stage_lights (0x18EE40) after its last constant host's registration (m_shadow3's, whose name holder it lets go by 0x190158): mov eax,10h, the one byte both of the release's branches (0x19014A, 0x190155) land on; EBX the stage. Its registrations: probe_parameters0..3 +0DCh..+0E8h, world_to_outer_probe +0ECh, probe_geometry_type +0F0h, ambient_light_particle_multiplier +0F4h, particle_screen_divider +0F8h, m_shadow0..3 +100h..+10Ch (shared_string::create 0xE0B50, the holder's assign 0x11170, register_constant_host 0x3C8BC0 with the backend [2260490h], which returns the host already made for a name): lohook -> forward_effects_on_stage_lights_constructed
+global forward_effects_on_stage_lights_constructed
+extern hook_forward_effects_on_stage_lights_constructed
+forward_effects_on_stage_lights_constructed:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_forward_effects_on_stage_lights_constructed
+    mov edx, forward_effects_on_stage_lights_constructed_replay
+    cmp eax, 0
+    je forward_effects_on_stage_lights_constructed_go
+    mov edx, 0x190162
+    cmp eax, 1
+    je forward_effects_on_stage_lights_constructed_go
+    ud2
+forward_effects_on_stage_lights_constructed_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+forward_effects_on_stage_lights_constructed_replay:
+    db 0xb8, 0x10, 0x00, 0x00, 0x00
+    jmp 0x190162
+
+; 0x19834b stage_lights::accumulate_particle_lighting (0x1961B0) where its two ways meet after the probe's constants (probe_geometry_type +0F0h, ambient_light_particle_multiplier +0F4h, particle_screen_divider +0F8h): mov ecx,[esi+4] / mov eax,[ecx+4170h] (the way that sets them with the vertex setter 0x14AE60 jumps here from 0x197C8C, the pixel one, set_ps_constant 0x132A90, falls through from 0x198346); ESI the stage, EBX the backend, [EBP-24h] the batch's probe or 0, the pass's program bound (0x19838E sets constants after it): lohook -> forward_effects_on_particle_probe
+global forward_effects_on_particle_probe
+extern hook_forward_effects_on_particle_probe
+forward_effects_on_particle_probe:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_forward_effects_on_particle_probe
+    mov edx, forward_effects_on_particle_probe_replay
+    cmp eax, 0
+    je forward_effects_on_particle_probe_go
+    mov edx, 0x198354
+    cmp eax, 1
+    je forward_effects_on_particle_probe_go
+    ud2
+forward_effects_on_particle_probe_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+forward_effects_on_particle_probe_replay:
+    db 0x8b, 0x4e, 0x04, 0x8b, 0x81, 0x70, 0x41, 0x00, 0x00
+    jmp 0x198354
+
 ; 0x3237e0 kd_stats_rule::on_event entry; cmp dword [esp+4],1; done is the original ret 0Ch, before any pushes: lohook -> free_for_all_on_kill_event
 global free_for_all_on_kill_event
 extern hook_free_for_all_on_kill_event
@@ -6013,6 +6286,126 @@ ragdoll_on_eye_go:
 ragdoll_on_eye_replay:
     db 0x8b, 0x8b, 0x70, 0xf4, 0x00, 0x00
     jmp 0x1f3649
+
+; 0x32d88a check_collision once try_pierce (0x32D881) let the bullet through (mov ebp,2; AL 0 jumps past it to 0x32D891): EDI the bullet, its +4Ch the struck triangle's material (0x32D87B), ESI the hit receiver the ray met (a player's body, a trap, a lamp) or 0: the level's collision (a static surface, a prop with no receiver), whose back faces never come here (0x32D72F): lohook -> hit_marker_walls_on_pierced
+global hit_marker_walls_on_pierced
+extern hook_hit_marker_walls_on_pierced
+hit_marker_walls_on_pierced:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hit_marker_walls_on_pierced
+    mov edx, hit_marker_walls_on_pierced_replay
+    cmp eax, 0
+    je hit_marker_walls_on_pierced_go
+    mov edx, 0x32d88f
+    cmp eax, 1
+    je hit_marker_walls_on_pierced_go
+    ud2
+hit_marker_walls_on_pierced_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hit_marker_walls_on_pierced_replay:
+    db 0xbd, 0x02, 0x00, 0x00, 0x00
+    jmp 0x32d88f
+
+; 0x1f3d76 player::generate_hit_event (0x1F3C70, the slot hit_impl calls at 0x2D9ED1) at a bullet hit's last store into the shooter's inflicted_damage_collector (movss [esi+8],xmm0, the fraction clamped to 0..1; both of the clamp's ways come here, 0x1F3D71): ESI the collector, its victim (+0, 0x1F3D62) and time (+4, 0x1F3D5F) this hit's; EBP the bullet, never 0 here (0x1F3CAA leaves without one); the site's ESP the frame (the shooter's place): lohook -> hit_marker_walls_on_hit
+global hit_marker_walls_on_hit
+extern hook_hit_marker_walls_on_hit
+hit_marker_walls_on_hit:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hit_marker_walls_on_hit
+    mov edx, hit_marker_walls_on_hit_replay
+    cmp eax, 0
+    je hit_marker_walls_on_hit_go
+    mov edx, 0x1f3d7b
+    cmp eax, 1
+    je hit_marker_walls_on_hit_go
+    ud2
+hit_marker_walls_on_hit_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hit_marker_walls_on_hit_replay:
+    db 0xf3, 0x0f, 0x11, 0x46, 0x08
+    jmp 0x1f3d7b
+
+; 0x238272 game_world_ui::draw_damage_collector (0x238230; its one caller player::st_draw, 0x247467, gives it the drawn player's collector) once it found the collector's victim or fraction changed and took them into its copy (+34Ch, +354h; 0x23825D..0x23826C), before the fraction's 0 test (movss xmm0,[esi+8]): ESI the collector, EDI the ui; quiet is its epilogue (0x2383A4), where a 0 fraction goes, past root.crosshair_enemy_hit(fraction, 200, false) (0x23838C): lohook -> hit_marker_walls_on_draw
+global hit_marker_walls_on_draw
+extern hook_hit_marker_walls_on_draw
+hit_marker_walls_on_draw:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hit_marker_walls_on_draw
+    mov edx, hit_marker_walls_on_draw_replay
+    cmp eax, 0
+    je hit_marker_walls_on_draw_go
+    mov edx, 0x238277
+    cmp eax, 1
+    je hit_marker_walls_on_draw_go
+    mov edx, 0x2383a4
+    cmp eax, 2
+    je hit_marker_walls_on_draw_go
+    ud2
+hit_marker_walls_on_draw_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hit_marker_walls_on_draw_replay:
+    db 0xf3, 0x0f, 0x10, 0x46, 0x08
+    jmp 0x238277
 
 ; 0x23a992 show_cursor's show (mov eax,[edi+18h] / lea esi,[edi+0Ch], then the call of base_game_scene::show_movie 0x23DC00 at 0x23A998): kept skips the movie, the flag (+2DCh) still written at 0x23A9A1: lohook -> hud_cursor_on_cursor_shown
 global hud_cursor_on_cursor_shown
@@ -12024,6 +12417,279 @@ weapon_pickup_on_load_record_go:
 weapon_pickup_on_load_record_replay:
     db 0x8b, 0xb7, 0x80, 0x00, 0x00, 0x00
     jmp 0x321ca6
+
+; 0x26da00 base_game_statistics_handler::on_player_killed's start (push esi / mov esi,ecx / mov eax,[esi+3238h]; vtable 0xA0755C slot +0, called only by generate_killed_event 0x2DA46C): ECX the handler, the site's ESP its 17 arguments, before shared_statistics::on_player_killed 0x2F4EB0 counts the kill: lohook -> weapon_stats_on_killed
+global weapon_stats_on_killed
+extern hook_weapon_stats_on_killed
+weapon_stats_on_killed:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_stats_on_killed
+    mov edx, weapon_stats_on_killed_replay
+    cmp eax, 0
+    je weapon_stats_on_killed_go
+    mov edx, 0x26da09
+    cmp eax, 1
+    je weapon_stats_on_killed_go
+    ud2
+weapon_stats_on_killed_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_stats_on_killed_replay:
+    db 0x56, 0x8b, 0xf1, 0x8b, 0x86, 0x38, 0x32, 0x00, 0x00
+    jmp 0x26da09
+
+; 0x2da10c generate_hit_event 0x2D9F40 after the damage record's add (0x2DA10A), before the handler's on_player_damaged (slot +4, the only call, 0x2DA164; mov ecx,[esi+120h]): ESI the victim, EDI the attacker's player or 0, EBP the bullet or 0, EBX the victim's place, the site's ESP the frame; every path of the function comes here (0x2DA043, 0x2DA0C4, 0x2DA0ED): lohook -> weapon_stats_on_hit
+global weapon_stats_on_hit
+extern hook_weapon_stats_on_hit
+weapon_stats_on_hit:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_stats_on_hit
+    mov edx, weapon_stats_on_hit_replay
+    cmp eax, 0
+    je weapon_stats_on_hit_go
+    mov edx, 0x2da112
+    cmp eax, 1
+    je weapon_stats_on_hit_go
+    ud2
+weapon_stats_on_hit_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_stats_on_hit_replay:
+    db 0x8b, 0x8e, 0x20, 0x01, 0x00, 0x00
+    jmp 0x2da112
+
+; 0x2d7843 base_player::on_fire 0x2D7800 after its fire listeners, before the handler's on_player_weapon_firing (slot +8, the only call, 0x2D78A5; mov ecx,[esi+10h] / mov ebx,[ecx+18FA8h]): ESI the player + 110h, the site's ESP+14h the bullets fired: lohook -> weapon_stats_on_fired
+global weapon_stats_on_fired
+extern hook_weapon_stats_on_fired
+weapon_stats_on_fired:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_stats_on_fired
+    mov edx, weapon_stats_on_fired_replay
+    cmp eax, 0
+    je weapon_stats_on_fired_go
+    mov edx, 0x2d784c
+    cmp eax, 1
+    je weapon_stats_on_fired_go
+    ud2
+weapon_stats_on_fired_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_stats_on_fired_replay:
+    db 0x8b, 0x4e, 0x10, 0x8b, 0x99, 0xa8, 0x8f, 0x01, 0x00
+    jmp 0x2d784c
+
+; 0x2f5bd0 shared_statistics::serialize 0x2F5AC0 after its tail's last write (m_active_in_match_players_mask, 0x2F5BCB), at its epilogue (pop edi / pop ebx / mov esp,ebp / pop ebp): ESI the statistics, EDI the writer: lohook -> weapon_stats_on_save
+global weapon_stats_on_save
+extern hook_weapon_stats_on_save
+weapon_stats_on_save:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_stats_on_save
+    mov edx, weapon_stats_on_save_replay
+    cmp eax, 0
+    je weapon_stats_on_save_go
+    mov edx, 0x2f5bd5
+    cmp eax, 1
+    je weapon_stats_on_save_go
+    ud2
+weapon_stats_on_save_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_stats_on_save_replay:
+    db 0x5f, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x2f5bd5
+
+; 0x2f5c83 shared_statistics::deserialize 0x2F5BE0 with its tail read, the reader's cursor past it (pop edi / mov [esi+31C4h],ecx; ECX the mask read): ESI the statistics, EDI the reader, whose bytes are the world's statistics section alone (world apply 0x2D2AEE..0x2D2B09): lohook -> weapon_stats_on_load
+global weapon_stats_on_load
+extern hook_weapon_stats_on_load
+weapon_stats_on_load:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_stats_on_load
+    mov edx, weapon_stats_on_load_replay
+    cmp eax, 0
+    je weapon_stats_on_load_go
+    mov edx, 0x2f5c8a
+    cmp eax, 1
+    je weapon_stats_on_load_go
+    ud2
+weapon_stats_on_load_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_stats_on_load_replay:
+    db 0x5f, 0x89, 0x8e, 0xc4, 0x31, 0x00, 0x00
+    jmp 0x2f5c8a
+
+; 0x2f4c31 the shared statistics' reset between matches (0x2F4C20, called by the handler's clear 0x26D880 alone), which zeroes every place's events (0x2F4C7E..0x2F4CD6): mov [edi+31C0h],ebx; EDI the statistics: lohook -> weapon_stats_on_reset
+global weapon_stats_on_reset
+extern hook_weapon_stats_on_reset
+weapon_stats_on_reset:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_stats_on_reset
+    mov edx, weapon_stats_on_reset_replay
+    cmp eax, 0
+    je weapon_stats_on_reset_go
+    mov edx, 0x2f4c37
+    cmp eax, 1
+    je weapon_stats_on_reset_go
+    ud2
+weapon_stats_on_reset_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_stats_on_reset_replay:
+    db 0x89, 0x9f, 0xc0, 0x31, 0x00, 0x00
+    jmp 0x2f4c37
+
+; 0x2f4bc1 the shared statistics' constructor (0x2F4B40, called by the handler's 0x26D75B alone) with its 20 records made, their events 0: mov [edi+31C0h],ebx; EDI the statistics: lohook -> weapon_stats_on_made
+global weapon_stats_on_made
+extern hook_weapon_stats_on_made
+weapon_stats_on_made:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_stats_on_made
+    mov edx, weapon_stats_on_made_replay
+    cmp eax, 0
+    je weapon_stats_on_made_go
+    mov edx, 0x2f4bc7
+    cmp eax, 1
+    je weapon_stats_on_made_go
+    ud2
+weapon_stats_on_made_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_stats_on_made_replay:
+    db 0x89, 0x9f, 0xc0, 0x31, 0x00, 0x00
+    jmp 0x2f4bc7
 
 ; 0x27c0d0 process_dynamic_match_info before it loads an unpacked world (mov [ebp-14h],esi / mov [ebp-10h],esi / mov [ebp-0Ch],edx, then the load call 0x2D0B70 at 0x27C0D9): EDI the network client, the world (its time, then the body) the mutable buffer at [ebp-24h], the packet read to its end already (0x27C0B7); refused is the handler's epilogue (lea esp,[ebp-30h]): lohook -> world_check_on_unpacked
 global world_check_on_unpacked

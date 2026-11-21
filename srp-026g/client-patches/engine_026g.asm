@@ -278,6 +278,12 @@ global engine_set_texture
 global engine_fingers_set_weapon_model
 global engine_pin_resource
 global engine_unpin_resource
+global engine_set_constant_float4
+global engine_shared_string_create
+global engine_shared_string_destroy
+global engine_shared_string_assign
+global engine_register_constant_host
+global engine_set_ps_constant
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -389,6 +395,9 @@ engine_global_lock equ 0x870078   ; the IAT slot 0x870078 (an import, stdcall)
 engine_global_unlock equ 0x87007c   ; the IAT slot 0x87007c (an import, stdcall)
 engine_set_texture equ 0x3d98b0   ; 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly
 engine_fingers_set_weapon_model equ 0x390620   ; 0x390620 vostok::animation::fingers_to_weapon_corrector::set_weapon_model: corrector ESP+4, instance ESP+8, first_view ESP+12; pops 12; stdcall, called directly
+engine_set_constant_float4 equ 0x1a8900   ; 0x1a8900 vostok::render::effect_compiler::set_constant_float4: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
+engine_shared_string_create equ 0xe0b50   ; 0xe0b50 vostok::shared_string::create: text ESP+4; pops 4; EAX; stdcall, called directly
+engine_shared_string_destroy equ 0xe0ae0   ; 0xe0ae0 vostok::shared_string::destroy: string ESP+4; pops 4; stdcall, called directly
 
 engine_options_int:
     ; 0x261100 survarium::options_item_int::options_item_int: parent ECX, id EAX, receiver ESP+4, command ESP+8, values ESP+12, count ESP+16; pops 16; EAX
@@ -3230,6 +3239,56 @@ engine_unpin_resource:
     push edi
     mov ecx, [esp + 20]   ; pinned
     call 0x3c1020
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_shared_string_assign:
+    ; 0x11170 vostok::intrusive_ptr<shared_string>::assign: holder EDI, string EAX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov edi, [esp + 20]   ; holder
+    mov eax, [esp + 24]   ; string
+    call 0x11170
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_register_constant_host:
+    ; 0x3c8bc0 vostok::render::backend::register_constant_host: backend EAX, name ESP+4, auxiliary ESP+8; pops 8; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; auxiliary -> 8
+    push dword [esp + 28]   ; name -> 4
+    mov eax, [esp + 28]   ; backend
+    call 0x3c8bc0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_set_ps_constant:
+    ; 0x132a90 vostok::render::backend::set_ps_constant: host EAX, backend EDI, value ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; value -> 4
+    mov eax, [esp + 24]   ; host
+    mov edi, [esp + 28]   ; backend
+    call 0x132a90
     pop edi
     pop esi
     pop ebx

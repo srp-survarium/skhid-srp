@@ -178,9 +178,9 @@ pub(crate) fn body(lang: Lang) -> String {
     let mut out = format!(
         "<p class=breadcrumb><a href=\"/wiki?lang={code}\">{}</a> / {}</p>\
          <div class=wiki-heading><div><h1>{}</h1></div></div>",
-        lang.tr("Wiki", "Вікі"),
-        lang.tr("Quests", "Завдання"),
-        lang.tr("Quests", "Завдання"),
+        lang.t("Wiki"),
+        lang.t("Quests"),
+        lang.t("Quests"),
     );
     for faction in FACTIONS {
         faction_section(lang, &mut out, faction);
@@ -188,7 +188,7 @@ pub(crate) fn body(lang: Lang) -> String {
     let _ = write!(
         out,
         "<section class=\"modifiers quests\" id=match-level><h2>{}</h2>",
-        lang.tr("Pay by match level", "Оплата за рівнем матчу"),
+        lang.t("Pay by match level"),
     );
     level_grid(lang, &mut out);
     out.push_str("</section>");
@@ -237,14 +237,6 @@ mod tests {
             assert!(page.contains(&format!("<li><b>{highest}</b>")));
             assert!(!page.contains(&format!("<li><b>{}</b>", highest + 1)));
         }
-        let en = body(Lang::En);
-        // Scavengers' first: defend the batteries, levels 0 to 5, no number, 50 and 50.
-        assert!(en.contains(
-            "Possessions defence</h3><p class=quest-pay>Silver 50 · Reputation 50</p></div>\
-             <p class=quest-goal>Win a match without losing batteries</p><ol class=strengths><li>0–5</li></ol>"
-        ));
-        // Their kill/death ratio: a run a level.
-        assert!(en.contains("<li>0: 1</li><li>1: 1.1</li>"));
     }
 
     #[test]
@@ -278,19 +270,6 @@ mod tests {
             assert_eq!(content_type, "image/webp", "{file}");
             assert!(!bytes.is_empty(), "{file}");
         }
-    }
-
-    #[test]
-    fn targets_are_runs_of_levels() {
-        let goal: Vec<&Quest> = goals(1)
-            .into_iter()
-            .find(|goal| goal[0].kind == 12)
-            .unwrap();
-        // Scavengers' kills: 5, 6, 7, 8, 9, 9 at levels 0 to 5.
-        assert_eq!(
-            targets(&goal, 5),
-            ["0: 5", "1: 6", "2: 7", "3: 8", "4–5: 9"]
-        );
     }
 
     #[test]

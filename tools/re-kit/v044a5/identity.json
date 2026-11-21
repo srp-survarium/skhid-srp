@@ -1,0 +1,17 @@
+{
+ "build": "0.44a5",
+ "file": "game/binaries/x86/survarium.exe",
+ "unpacked_sha256": "07eb1ba2bde1f751c374c3f86ca7a36b7f7cc717c87f0cbe6ee6ee1541c6988e",
+ "decoded_sha256": "b7b47a7b9ae8f3023fdf1c958147a87defa178e9f421110593762eaece5611e7",
+ "decoding": "x86 BCJ (lzma FILTER_X86, start offset 0)",
+ "image_base": "0x10000",
+ "sections": [
+  {"name": ".text", "va": "0x11000", "vsize": "0x93a98b", "raw": "0x400", "rsize": "0x93aa00"},
+  {"name": ".rdata", "va": "0x94c000", "vsize": "0x21481e", "raw": "0x93ae00", "rsize": "0x214a00"},
+  {"name": ".data", "va": "0xb61000", "vsize": "0xf059d60", "raw": "0xb4f800", "rsize": "0xb0400"},
+  {"name": ".tls", "va": "0xfbbb000", "vsize": "0xda5b5", "raw": "0xbffc00", "rsize": "0xda600"},
+  {"name": "_RDATA", "va": "0xfc96000", "vsize": "0x5e0", "raw": "0xcda200", "rsize": "0x600"},
+  {"name": ".rsrc", "va": "0xfc97000", "vsize": "0x29800", "raw": "0xcda800", "rsize": "0x29800"},
+  {"name": ".reloc", "va": "0xfcc1000", "vsize": "0x73c4c", "raw": "0xd04000", "rsize": "0x73e00"}
+ ]
+}

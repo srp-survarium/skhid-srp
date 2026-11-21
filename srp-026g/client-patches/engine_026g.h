@@ -34,6 +34,7 @@ struct cc_float;
 struct cc_string;
 struct closest_ray_result_callback;
 struct collision_geometry;
+struct constant_host;
 struct core_world;
 struct critical_section;
 struct d3d_device;
@@ -127,6 +128,7 @@ struct scene_model_ref;
 struct scene_reference;
 struct scene_renderer;
 struct scroll_source;
+struct shared_string;
 struct simple_game_project;
 struct sound_emitter;
 struct sound_instance_proxy;
@@ -976,5 +978,23 @@ void engine_pin_resource(struct pinned_resource *pinned, struct managed_resource
 
 /* 0x3c1020 vostok::resources::pinned_ptr_const<unsigned char>::~pinned_ptr_const [descriptive]: pinned ECX; pops 0 */
 void engine_unpin_resource(struct pinned_resource *pinned);
+
+/* 0x1a8900 vostok::render::effect_compiler::set_constant_float4: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly */
+void __attribute__((thiscall)) engine_set_constant_float4(const float *value, struct effect_compiler *compiler, const char *name);
+
+/* 0xe0b50 vostok::shared_string::create: text ESP+4; pops 4; EAX; stdcall, called directly */
+struct shared_string *__attribute__((stdcall)) engine_shared_string_create(const char *text);
+
+/* 0xe0ae0 vostok::shared_string::destroy: string ESP+4; pops 4; stdcall, called directly */
+void __attribute__((stdcall)) engine_shared_string_destroy(struct shared_string *string);
+
+/* 0x11170 vostok::intrusive_ptr<shared_string>::assign: holder EDI, string EAX; pops 0 */
+void engine_shared_string_assign(struct shared_string **holder, struct shared_string *string);
+
+/* 0x3c8bc0 vostok::render::backend::register_constant_host: backend EAX, name ESP+4, auxiliary ESP+8; pops 8; EAX */
+struct constant_host *engine_register_constant_host(struct backend *backend, struct shared_string **name, unsigned int auxiliary);
+
+/* 0x132a90 vostok::render::backend::set_ps_constant: host EAX, backend EDI, value ESP+4; pops 4 */
+void engine_set_ps_constant(struct constant_host *host, struct backend *backend, const float *value);
 
 #endif

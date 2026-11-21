@@ -15,8 +15,10 @@
 //! scene view (+4170h); both stay alive for the frame.
 
 use core::num::NonZeroU32;
+use core::sync::atomic::{AtomicU32, Ordering};
 
 use super::context::{Context, Reg};
+use super::sync::Lock;
 use crate::raw;
 
 /// A render scene (vostok::render::scene) as an id: compared, never read
@@ -150,6 +152,71 @@ pub fn set_drop_parameters(ctx: &Context<'_>, z: f32, w: f32) {
         let frame = raw::site::rain_drop_scales::frame(ctx).expect("the site's ESP");
         frame.parameters1_z().write(z);
         frame.parameters1_w().write(w);
+    }
+}
+
+/// probe_diffuse_mult's constant host (patch 169): 0.44a5's particle
+/// lighting multiplies a probe's diffuse light by it, which 0.26g's stage
+/// registers no host for.
+struct ProbeMultiplier(raw::ConstantHost);
+
+// SAFETY: a constant host lives as long as the backend that made it, the
+// process; only its address crosses from the constructor's thread to the
+// render thread, which alone writes through it (set_ps_constant).
+unsafe impl Send for ProbeMultiplier {}
+
+static PROBE_MULTIPLIER: Lock<Option<ProbeMultiplier>> = Lock::new(None);
+
+const PROBE_MULTIPLIER_NAME: &core::ffi::CStr = c"probe_diffuse_mult";
+
+/// Registers probe_diffuse_mult's host at `stage_lights.constructed`, with
+/// the game's own sequence for its other hosts (0x18FF3C..0x18FF6B): the
+/// name's shared string in a holder, register_constant_host, the holder let
+/// go. The backend returns the host already made for a name, so a second
+/// stage_lights gets the same.
+pub fn register_probe_multiplier(ctx: &Context<'_>) {
+    // SAFETY: stage_lights' constructor runs where the game registers its
+    // own hosts, the backend made ([2260490h]); the string's count is the
+    // game's own reference counting (lock xadd, destroy at 0, 0x190140).
+    let host = unsafe {
+        let Some(backend) = raw::image::backend_global().backend() else { return };
+        let string = raw::engine_shared_string_create(PROBE_MULTIPLIER_NAME.as_ptr().cast());
+        let mut holder = None;
+        raw::engine_shared_string_assign(&mut holder, string);
+        let host = raw::engine_register_constant_host(Some(backend), &mut holder, 0);
+        if let Some(held) = holder
+            && AtomicU32::from_ptr(held.references()).fetch_sub(1, Ordering::AcqRel) == 1
+        {
+            raw::engine_shared_string_destroy(Some(held));
+        }
+        host
+    };
+    if let Some(host) = host {
+        PROBE_MULTIPLIER.with(ctx.thread(), |slot| *slot = Some(ProbeMultiplier(host)));
+    }
+}
+
+/// Sets probe_diffuse_mult at `stage_lights.particle_probe` as 0.44a5's
+/// particle pass does (0x47BF20..0x47BF36): the batch's probe's diffuse
+/// multiplier times the environment's probes diffuse intensity, 0 without
+/// a probe. Nothing until the constructor registered its host.
+pub fn set_probe_multiplier(ctx: &Context<'_>) {
+    let Some(host) = PROBE_MULTIPLIER.with(ctx.thread(), |slot| slot.as_ref().map(|m| m.0)) else { return };
+    use raw::site::stage_lights_particle_probe as site;
+    // SAFETY: the site's registers: ESI the stage, its context's scene
+    // view the frame's (alive for the frame), EBX the backend, [EBP-24h]
+    // the batch's probe or 0 (alive for the pass); set_ps_constant on the
+    // render thread with the pass's program bound, as the game's own sets
+    // before and after this site.
+    unsafe {
+        let (Some(stage), Some(backend), Some(frame)) = (site::stage(ctx), site::backend(ctx), site::frame(ctx)) else { return };
+        let Some(view) = stage.context().and_then(|context| context.scene_view()) else { return };
+        let value = match frame.probe() {
+            Some(probe) => probe.diffuse_multiplier().read() * view.probes_diffuse_intensity().read(),
+            None => 0.0,
+        };
+        let buffer = [value, 0.0, 0.0, 0.0];
+        raw::engine_set_ps_constant(Some(host), Some(backend), buffer.as_ptr());
     }
 }
 

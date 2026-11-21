@@ -2258,6 +2258,50 @@ The owner, 2026-11-16: maps_dict ids wider than one byte (14 of 0..254 were free
 
 
 
+### 3.89 A part of a tick moves a body at rest (written 2026-11-20, README patch 166, the next release's revision; the rules: `fall_damage.md` "A part of a tick moves a body at rest") — PROVEN in the code and in a match's recording, updateAction and player_step run with Unicorn on open ground; not run in a game
+
+Players stood still with their keys held through bursts of fire, in every game alike, with no frame stalled and no input late (the owner, 2026-11-20, a 16-player match of revision 68).
+
+- **The cause** (PROVEN, stock). `game_world_core::tick_events` (0x2D21E0) ends each step of the world at the next 50 ms boundary or at the next input's time (section 3.56), and each step ticks the physics, whose `updateActions` (0x9B810) calls `bullet_character_controller::updateAction` (0x7B730; ECX the controller, [esp+8] the step's dt, `ret 8`) once with the step's dt. updateAction: `ucomiss xmm0,[esi+2C704h]` (0x7B760: dt against the tick, 0.05) and `jnp 0x7B7A9` (0x7B76B) to `player_step` (0x7BDA0) when they are the same; for any other dt it compares the position (+0B0h) with `m_last_pos` (+50h) on the three axes (0x7B76D..0x7B7A7) and goes to `player_step` only when they differ, else straight to 0x7B7BA, which zeroes +20h..+3Ch (the desired walk vector, `bt_character_controller::set_desired_walk_vector` 0x356B00, and the air control vector, 0x356B90) as after every step. `player_step` writes `m_last_pos` := the position at its start (0x7BE7C), so the compare asks whether the body moved in its step before. In a tick stepped in parts a body at rest was therefore not stepped: its walk, strafe, jump, crouch and air control were dropped part after part, until a tick that was whole.
+- **`player_step` for a part** (PROVEN). It splits off the up part of the walk asked for, takes |walk| / dt as the speed (under 3 m/s, 0xA7AB34, it probes with a walk of 3 m/s and scales the result back, 0x7C31F..0x7C360, 0x7C603..0x7C732), makes the tick's move (speed x +2C704h) through `step_up` (0x7C900), `step_forward` (0x7D590) and `step_down` (0x7E1B0) from the body's position, and sets the position to start + (end - start) x dt / 0.05 (0x7C13B the jump's, 0x7C603 the slow walk's, 0x7C734). Before any of it, at 0x7C1AE, `can_skeep_player_step` (0x7C7E0, EDX the controller) returns it at once when the walk vector's square is under 1e-5 (0x9CBA48), the velocity (+2C770h) is zero, no slide is needed (0x7BC20, 0x7BD10), +205h is clear, +203h equals +200h and the push (+2C730h..+2C73Ch) is zero. The walk asked for is a displacement of the step's own time: `base_player::set_physics_controller_walk_vector` (0x2D9060) takes the player's target less its place and cuts it to speed x the step's ms x 0.001 (0x2D9121..0x2D91D4).
+- **The patch** (`STEP_PARTS`, in place, one site): 0x7B76B `7B 3C` (`jnp 0x7B7A9`) becomes `EB 3C` (`jmp 0x7B7A9`): every step runs `player_step`. 0x7B76D..0x7B7A7 is no longer reached. No base relocation under the site; no branch lands inside it.
+- **What changes:** a body at rest that is asked to move in a part of a tick moves by that part's share; its crouch and its jump start there too. Whole ticks, bodies already moving and bodies asked nothing are as before. A simulation change (`simulation_changes.tsv` `next` row).
+- **Checked:** `check_step_parts_026g.py` (Unicorn; `tools/check step-parts`): updateAction from its entry to its `ret 8` with the game's `player_step`, `can_skeep_player_step`, `get_corrected_walk_vector`, `get_slide_acceleration` and `need_slide_on_supporting_surface` on a made-up controller on level ground (the three sweeps stubs for open ground: `step_forward` adds the move). Whole ticks bit for bit the original's (walking 3.74 m/s, sprinting 5.28, slow 1.4, strafing; 5 s each); from rest under one cut a tick, a burst's cuts, 50 cuts a second and 1 ms parts the original does not move at all and the build is at the sum of its parts' displacements to a float's rounding (under 0.5 mm in 5 s; 5 mm with 5000 parts of 1 ms), never ahead of whole ticks (a part under 3.2 mm is not made); a moving body bit for bit the original's; a body asked nothing not stepped, its memory unchanged; a body that stops stays, and starts again inside the cuts. **Not run:** the sweeps (stairs, walls, slopes, the jump, the landing), which are `player_step`'s as before; a game.
+
+
+### 3.90 No white hit marker for a hit through a wall (written 2026-11-21, README patch 167, the next release's revision; the rules: `hit-marker-walls.md`) — PROVEN in the code, the three sites run with Unicorn in both exes on made-up bullets, players and a hud; not run in a game
+
+The owner, 2026-11-21: "white hit crosses are not seen when shot through walls (except for leaves)", "red ones are still shown when killed", "Through a wall, kill shows exactly what 'Kill marker only' shows".
+
+- **The white marker** (PROVEN). `player::generate_hit_event` (0x1F3C70, player's vtable slot +40h; hit_impl calls it at 0x2D9ED1 after the damage) runs base_player's (0x2D9F40), then, for a bullet hit only (its 6th argument, 0x1F3CAA), writes the shooter's `inflicted_damage_collector` (the shooter by its place, the 2nd argument, through the world's get_player; its player +0F534h): another victim resets it (0x1F3CF6), +8 adds the pain lost over pain's maximum, clamped to 0..1, +4 the time, +0 the victim's place (0x1F3D35..0x1F3D76). It is world state (player::serialize 0x1F3983, deserialize 0x1F3AA7) and ages out 500 ms after its last hit (`player::tick` 0x246F10). `player::st_draw` gives the drawn player's collector to `game_world_ui::draw_damage_collector` (0x238230, call at 0x247467), which, when the victim or the fraction differs from its copy (+34Ch, +354h), takes the copy and for a fraction not 0 invokes `root.crosshair_enemy_hit(fraction, 200, false)` (0x23838C). Its only caller.
+- **The kill marker** (PROVEN). 0x23CF20, from the kill event (0x2337D9), invokes `crosshair_enemy_hit(1.0 [0xA2D818], 200, true)` (0x23D02D); the movie draws a kill call the same with All and Kill marker only (#2022). No hook in it.
+- **What a bullet went through** (PROVEN). check_collision (0x32D4E0) casts the ray, takes the object's hit receiver (0x32D70D; 0 for the level and props), gives a back face of the level to process_back_face_piercing alone (0x32D72F), and otherwise the triangle's material to bullet +4Ch (0x32D87B) and calls try_pierce (0x32D960, EAX the receiver). A pierce is AL 1 (0x32D886, then `mov ebp,2`). The bullet keeps no list of them: +84h counts pierces and ricochets, +88h ricochets (section 3.55). The leaves' materials (24, 44, 49) have armor 0 (the live game.materials), so every bullet goes through them.
+- **The patch** (Rust `hit_marker_walls`, three lohooks of `sites_026g.tsv`):
+  - `bullet.pierced` 0x32D88A (`BD 02 00 00 00`, mov ebp,2; only the pierce's way reaches it): a bullet of ranged ammo (+40h, its +4Ch) through no receiver (ESI 0) and a material (+4Ch's +64h id) not of the leaves is noted by its id (+4) and fire time (+5Ch), the last 128 kept;
+  - `damage_collector.hit` 0x1F3D76 (`F3 0F 11 46 08`, the clamped fraction's store; both clamp ways land on it): the shooter's mark (indexed by the 2nd argument, the site's ESP+18h) is walled (the collector ESI, its victim and time) when the bullet (EBP) was noted and no clear hit of the shooter is pending its draw, else a pending clear hit;
+  - `damage_collector.draw` 0x238272 (`F3 0F 10 46 08`, movss xmm0,[esi+8], after draw_damage_collector took its copy, before the 0 test; nothing branches into it): a walled mark of what the collector (ESI) shows exits `quiet` at 0x2383A4, the epilogue a 0 fraction goes to, past the invoke; a pending clear hit of that collector is drawn and no longer pending. The copy is taken as in the original, so the next change is seen alike (a clear hit on a victim after a hidden one on another, the same damage as before, is drawn).
+- **What changes:** the white marker of a hit through a wall. The marks are this game's alone; the collector, the bullets and every world are as they were: nothing a match computes changes (no `simulation_changes.tsv` row, no world format change).
+- **Checked:** `check_hit_marker_walls_026g.py` (Unicorn; `tools/check hit-marker-walls`): the pierce from 0x32D886, the hit from 0x1F3D50 to its `ret 1Ch`, the draw from 0x24745B with the game's own draw_damage_collector and a stand-in invoke, in both exes: the marker for a clear hit, leaves, a body, a gun-stock, one clear pellet of a step in either order, a clear hit not drawn before a walled one, a clear hit on a victim after a hidden one on another; none for a round through a wall (the default material too) or only walled pellets; another shooter's collector its own; the registers kept the original's; 0x23CF20's and the draw's bytes but the hook's the original's. The hud's harness (`scripts/hud-options/check.sh`, HudHarness): with All, a kill after a hit's white bars draws what Kill marker only draws. The marks are not rolled back with the world (`hit-marker-walls.md`, limits).
+
+### 3.91 The forward effects draw as 0.44a5's (written 2026-11-21, README patch 169, the next release's revision; content pack forward-effects) — PROVEN in the code, both compiles run with Unicorn in both exes on made-up materials; not run in a game
+
+The owner, 2026-11-21, of the Londons' blowing sand drawn as a pale rectangle: "we do proper conversion completely". The written proposal before it was `london-forward-effects.md`; what follows replaces it.
+
+- **What 0.44a5 does** (PROVEN; re-kit `v044a5`). Its forward_default compile (0x4BC960) reads three switches 0.26g's (0x1D8F40) has no string for, each into the shader configuration that compile_begin turns into the program's key: `use_ttransparency_dxt1`, only when `use_ttransparency` is on, into byte 0Dh bit 6 (0x4BCA2E..0x4BCA68); `apply_distortion_to_emissive_only` into 0Dh bit 0 (0x4BCBAC..0x4BCBE9); `use_uv_tiling`, unless `use_sequence`, into 0Dh bit 7 (0x4BCC42..0x4BCC80), and with that bit `constant_tile_uv = (emissive_map_tiling_u_factor, emissive_map_tiling_v_factor, transparency_map_tiling_u_factor, transparency_map_tiling_v_factor)`, 1.0 for each one missing (0x4BD577..0x4BD6BE; 0.26g sends a float2 of constant_tile_u/v at every compile). Its particle_lighting compile (0x4BEFA0) reads `use_ttransparency_dxt1` the same way (0x4BF05A..0x4BF09A). Its fill_shader_configuration_macros (0x7CC580) and 0.26g's (0x3C9B80) lay bytes 0Ch and 0Dh out alike: 0Dh bit 0 CONFIG_USE_FUZZINESS, bit 6 CONFIG_USE_OLTA, bit 7 CONFIG_USE_DISPLACEMENT (0x3C9F8D, 0x3CA025, 0x3CA00B). The forward family reuses those macros for its own meanings: 0.32a4's and 0.44a5's `forward_base.ps` mask lists them, and their programs differ by them. `use_uv_scrolling` (0Ch bit 6) is patch 28's (section 3.26), the same in 0.44a5. `use_angle_attenuation_falloff` (byte 2 bit 5, CONFIG_ANGLE_DEPENDANT_ALPHA_TEST) has no macro in 0.26g's key order at all: no material of either London turns it on; the converter lists any that does.
+- **What 0.26g lacks** (PROVEN in data). Its `shaders/masks` has CONFIG_USE_DISPLACEMENT in `forward_base.ps`'s list already (every key of players' has it 0) but not CONFIG_USE_OLTA or CONFIG_USE_FUZZINESS, and `offscreen_particle_lighting.ps`'s lacks CONFIG_USE_OLTA: a bit the mask does not list does not reach the key. `vertex_base_z_shifted.vs` lists CONFIG_USE_DISPLACEMENT; the donors' programs with it 1 differ from 0 for the particles' vertex inputs (they pass the tiled coordinates).
+- **The patch** (Rust `forward_effects`, three lohooks of `sites_026g.tsv`; the material read once a site, through vostok's `MaterialFields` over the compile's config tree, into typed values: `Transparency` constant, map or DXT1 map, `Uv` sequence, plain or tiled with its factors):
+  - `forward.compile_begin` 0x1D910D (`0F 95 C1 57 C0 E1 06`, setne cl / push edi / shl cl,6, among the pushes for compile_begin at 0x1D9126; the pushes of the two family names carry base relocations, so no hook goes over them): the configuration (ESP+0, the compile's [esp+50h]) and the config tree (ESP+4) pushed, the configuration's bytes but 7 final; byte 0Dh's bits 6, 7 and 0 as 0.44a5's compile leaves them, the others the compile's;
+  - `particle_lighting.compile_begin` 0x1DB34B (`8D 44 24 48 50 53`, lea eax,[esp+48h] / push eax / push ebx, before compile_begin at 0x1DB35B): the tree at ESP+0, the configuration the compile's local at ESP+48h; byte 0Dh bit 6;
+  - `forward.tile_uv` 0x1D964D (`57 8D 4C 24 68`, push edi / lea ecx,[esp+68h], solid_color_specular's set_constant<float4> at 0x1D9652, before the block that sends constant_tile_uv at 0x1D9657): a tiled material's float4 by set_constant<float4> (0x1A8900, a new engine_026g.tsv row). A set_constant keeps a name's first value: it searches the compiler's binding vector (+61C1Ch) by the interned name (0x3C3DD0 compares +8) and adds a binding only when none has the name (0x1D97C0..0x1D97CB, 0x1A8988..0x1A8993). So the block's set_constant<float2> of constant_tile_uv after it adds nothing, and the float4 is the constant, as 0.44a5 sets it once; with the material's own constant_tile_u/v the same.
+  compile_begin (0x1CD0B0) writes the configuration's bytes 3 and 6 only (0x1CD0CD, 0x1CD12E) and then copies it for begin_pass (0x1CD19A), so the bits reach the key; both compiles run twice (caching, then building) with the same inputs, and the patch sets the same bits both times (a constant only binds while building, 0x1A895D, in the game's setters as in ours).
+- **probe_diffuse_mult** (PROVEN in the code). 0.44a5's particle lighting programs read it, a constant 0.26g's stage registers no host for: 0.44a5's stage_lights constructor (0x471010) registers it (0x471EC4, its handle at +0F4h), and accumulate_particle_lighting (0x47A6A0) sets it each pass to the batch's probe's diffuse multiplier (+2C8h) times the render environment's `environment_probes_diffuse_intensity_multiplier` (+3A8h), 0 without a probe (0x47BF20..0x47BF36, 0x47BF8C), right before ambient_light_particle_multiplier. 0.26g holds both factors (the probe's at +328h, the scene view's at +290h: its deferred probe pass 0x181527 and its own particle pass 0x19770D multiply them for probe_parameters1.x) and binds the rest of the probe already (t_probe_cubemap_diffuse, probe_parameters0..3); its particle family has GLOBAL_PARTICLE_QUALITY in its keys, 0.44a5's has not, so 0.44a5's one program serves every quality there. Two more lohooks:
+  - `stage_lights.constructed` 0x19015D (`B8 10 00 00 00`, after the constructor's last registration, m_shadow3's; EBX the stage): the host is registered as the constructor registers its own (shared_string::create 0xE0B50, the holder's assign 0x11170, register_constant_host 0x3C8BC0 with the backend [2260490h], the holder let go and destroyed at a count of 0); the backend returns the host already made for a name, so a second stage_lights gets the same;
+  - `stage_lights.particle_probe` 0x19834B (`8B 4E 04 8B 81 70 41 00 00`, where the pass's two ways meet after the probe's constants; ESI the stage, EBX the backend, [EBP-24h] the batch's probe or 0): set_ps_constant (0x132A90) of {value, 0, 0, 0}; it writes only while the host is in the bound program.
+- **The programs** (content pack `forward-effects`, resource-porter `build-shader-macro-pack`, its manifest `ports/forward-effects-026g.json`): `config_append` of CONFIG_USE_OLTA and CONFIG_USE_FUZZINESS to `shaders/masks`' `forward_base.ps`, and of CONFIG_USE_OLTA to `offscreen_particle_lighting.ps`; every program of players' two families under its wider key (the new macros 0); and every program of 0.44a5's three families (`forward_base.ps`, `offscreen_particle_lighting.ps`, `vertex_base_z_shifted.vs`) players then lack, at its 0.26g key, where 0.26g feeds it (the g-buffer programs' gate: each constant it reads one players' programs read, no longer than they are filled, `constant_tile_uv` 16 bytes now). 0.32a4's programs of a key 0.44a5 has too must be the same bytes, or the build stops.
+- **The materials** (resource-porter `near_build`, `ports/near-build/client-fields-026g.tsv`): a ported material keeps the fields this patch and patch 28 read (before, only the fields 0.26g's stock materials have: the converter dropped `use_uv_scrolling` and the transparency's scroll directions too), and its other switches are judged without them.
+- **What changes:** the forward and particle lighting compiles of a material with one of the three fields. No material players have sets any of them (the live db's 5707 materials, stock and patches to 68), so their effects compile as before. Rendering only: nothing a match computes or a world holds changes (no `simulation_changes.tsv` row, no world format change).
+- **Checked:** `check_forward_effects_026g.py` (Unicorn; `tools/check forward-effects`): both compiles from their first instruction to their `ret 0Ch` in the original and the build, on materials as the loader makes them, with patch 28's check's stubs: the original's calls but for byte 0Dh at compile_begin and, for a tiled material, the float4 right before solid_color_specular's (the game's float2 still called after it); dxt1 without a transparency map, tiling with a sequence and particle_lighting's tiling change nothing; the callee-saved registers kept. The game's own set_constant<float4> and <float2> run on a made-up compiler with its binding search as it is: a bound name adds no binding, a new one does. stage_lights' constructor from 0x19015D and the particle pass from 0x19834B, the registration's and set_ps_constant stubbed: one host named probe_diffuse_mult, the holder let go, the value 1.5 x 0.8 with a probe, 0 without, nothing before the constructor; the registers after both spans the original's.
+
 ## 4. Mode 3 batteries: not needed in 0.26g
 
 - 0.26g splits the rule: `match_time_vi_spawn_rule` (vtable 0xA06C04) wraps `match_time_vi_spawn_rule_core` (vtable 0xA15CAC). The battery tick is no longer a vtable slot: the core's ctor 0x3147A0 stores a delegate `{this, 0x3148A0}` at +0x1C4 / +0x1C8 (0x3147F1). [V]
@@ -3181,6 +3225,61 @@ hooks in the patched exe on made-up objects (a relay paid at its own team's
 delivery, steps dropped at the other team's), and the game's own serialize and
 deserialize of two records with the hooks inside.
 
+### Per-weapon counts (patch 165)
+
+`weapon_stats` (Rust, `vostok::weapon_stats`; the table's type and wire form are
+`srp_validate::world::PlaceWeapons`, `crates/srp-validate/src/world/weapons.rs`) counts per place
+and weapon what the statistics count per place and kit, and four things they do not; the research
+and every site's proof are in `kill_weapon.md` (sections 2 to 4). Its state is one table of the
+shared statistics counted (keyed by their address): 20 places of at most 16 entries, in rising dict
+id, "no weapon known" (dict id 0) first; a weapon past a place's fifteenth is counted as that.
+
+- `weapon_stats.killed` 0x26DA00 (the handler's on_player_killed, vtable 0xA0755C slot +0, 9 bytes;
+  ECX the handler, the site's ESP its 17 arguments): a death for the victim's place and the item in
+  its hands, always, as event 2 (0x2F4F4E, 0x2F4FA4); a kill for the killer's place and the damage
+  source's dict id (+10h) when the killer is a place, not the victim, of the other team, as event 0
+  (0x2F5028..0x2F5084), a headshot with it (+38h, event 15), the distance between the two positions
+  the call carries (+18h, +28h; none for the zeros of a killer with no player), and what the killing
+  bullet (+44h) keeps: through cover when its `m_change_trajectory_count` (+84h) is over its
+  `m_ricochet_count` (+88h), by a ricochet when that is not 0 (patch 67's reading; not for the
+  stock, +3Ch).
+- `weapon_stats.hit` 0x2DA10C (generate_hit_event before the handler's on_player_damaged, 6
+  bytes; ESI the victim, EDI the attacker's player or 0, EBP the bullet or 0, EBX the victim's
+  place): for an attacker that is a place of another team than the victim's, the pain (the frame's
+  +30h, what the damage record adds) for the bullet's weapon (`[[bullet+0Ch]+25Ch]`, none without a
+  bullet), and a hit when the statistics count one (the flag +38h, no stock hit +34h: 0x2F5493).
+- `weapon_stats.fired` 0x2D7843 (on_fire before on_player_weapon_firing, 9 bytes; ESI the player
+  + 110h): the bullets (the site's ESP+14h, a word as the statistics add it) for the item in the
+  shooter's hands.
+- `battery.carrier_tick` 0x2DAAD3 (base_player::tick, the site of patches 92, 109 and 111; order
+  5): a live player's (+33Ch) tick, 50 ms, for the item in its hands.
+- The item in a player's hands: its held object (+128h) when one of its inventory's 23 slots holds
+  it (a slot holds the object + 10h), by that item's dictionary entry (+25Ch, its +0 the dict id).
+  The held object is only compared: a battery, which no slot has, is no weapon known.
+- `weapon_stats.made` 0x2F4BC1 and `weapon_stats.reset` 0x2F4C31 (the shared statistics'
+  constructor and their reset between matches, `mov [edi+31C0h],ebx` in both, 6 bytes; EDI the
+  statistics): the table begins, empty, where the records are zero.
+- `weapon_stats.save` 0x2F5BD0 (serialize's epilogue, 5 bytes; ESI the statistics, EDI the writer)
+  appends the block with `buffer_writer::w` (0x7AC10, `engine_append_packet_bytes`) while the
+  statistics are counted; `weapon_stats.load` 0x2F5C83 (deserialize with its tail read, 7 bytes; EDI
+  the reader, whose bytes are the statistics section alone, 0x2D2AEE) takes what follows the tail:
+  a block that reads is the table; none, or one that does not read, leaves the statistics uncounted
+  and the game writing none until their next reset.
+
+The block (after the 11-byte tail; `snapshot_rules.md` 3.5): `u8 version 1`, `u16` the bytes after
+it, then for each of the 20 places `u8 n` and n entries of 30 bytes. 23 bytes with no entry, 9623
+at the most (20 places of 16 weapons), some 2.5 KB with five weapons a place: a world of 11 to 14
+KB of its 0xF000 (61440) byte buffer becomes 14 to 17 KB, and the largest world seen (0x818A, the
+10v10 of section 3.66) 43 KB with every table full.
+
+Simulation: nothing a match plays out changes (no `simulation_changes.tsv` row); the world's
+bytes and hash do, so every game of a match must run it. `check_weapon_stats_026g.py` runs the
+game's own on_fire and generate_hit_event whole, generate_killed_event's handler call from its own
+frame, base_player::tick's site, the statistics' constructor, reset, serialize and deserialize in
+both exes (every register and byte of the game's the original's; the table after the tail; each
+place's weapons adding up to its record; a rollback, a second game and a world without the table).
+**Not run:** a game.
+
 ### Free for all (patch 142)
 
 `free_for_all` (Rust, `vostok::respawn`, `vostok::ui`) lets a player have a team of his own (srp's
@@ -3343,7 +3442,9 @@ For a ranged hit, each of the victim's 23 slots ([player+10Ch]+10Ch) holding
 a drug (vtable 0xA1C79C, the game's medkit class, whatever folder its options
 file is in) in use (+2B0h, set
 from the press through the use time and the active time) whose
-data/influences count (+288h) is not 0 gets `medkit::set_active(0, drug,
+data/influences count (+288h) is not 0, the antitoxin apart (of its records,
++280h, those with an amount above 0 name `infection` alone: left in use, the
+owner, 2026-11-20), gets `medkit::set_active(0, drug,
 [hit+3Ch])` (0x33D390: AL, then medkit and time on the stack, `ret 8`; the
 library's `engine_medkit_set_active`). That is the game's own end of a drug
 (medkit::tick 0x33D7C1 for a dead holder, 0x33DA3C when the activity is
@@ -3356,7 +3457,7 @@ no tick heals again; and unlinks its damage protectors (+294h, count +298h).
 +2A8h and +2ACh stay as they were; nothing reads them while +2B0h is 0
 (action 0x33D700 sets them again; patch 77 reads the flag first). The unit
 was taken at the press (0x33D765). The painkiller (no influences, only a
-ranged pain protection) is left running.
+ranged pain protection) is left running, and so is the antitoxin.
 
 Simulation: hit_impl runs in every game for every hit, and the drug's state
 is the game's own (serialized: `m_active`, `m_activity_time_ms`, `m_delay_ms`,

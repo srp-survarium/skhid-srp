@@ -601,6 +601,7 @@ impl Server {
                             longest_killstreak: 0,
                             kit_changes: 0,
                             supplies: None,
+                            weapons: Vec::new(),
                         })
                         .collect(),
                 });

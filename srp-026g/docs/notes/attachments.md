@@ -568,7 +568,7 @@ Not done:
 - `EyeAnchor::GunIdle`: the record hangs on the bone of the gun's own `aim`, at the offset that
   puts the optic's eye there in the gun's aimed idle pose (the table's pose). The optic is centred
   while the gun is at rest, and a clip that moves the optic's bone against the aim's shows.
-- Patch 165 (#2294, `aim-pose.md`) makes the kick seen in sights and scopes by its own rule: on an
+- Patch 172 (#2294, `aim-pose.md`) makes the kick seen in sights and scopes by its own rule: on an
   aimed frame at rest the aim record leaves its bone for the gun's model at that pose. It reads
   whatever record is there, so it runs after either setting.
 - The evidence (`cargo test -p weapon-modules`,
@@ -580,14 +580,14 @@ Not done:
 |---|---|---|
 | `Optic` alone | centred, no kick | centred, no kick |
 | `GunIdle` alone | centred at rest, the kick seen | centred, no kick (as over its iron sights today) |
-| either, under patch 165 | centred at rest, the kick seen: one eye for both settings, and the picture `GunIdle` gives alone | centred at rest, the kick seen: one eye for both settings |
+| either, under patch 172 | centred at rest, the kick seen: one eye for both settings, and the picture `GunIdle` gives alone | centred at rest, the kick seen: one eye for both settings |
 
 - So `GunIdle` shows the kick with or without #2294, and the two agree: no order of merging hides
   it. What it costs: at rest the optic is centred as far as the table's pose is the game's idle
   pose (the optic's bone against the aim's bone); the porter reads that pose from the gun's idle
   clip and the scopes lane checks the centre with the camera oracle for every fit.
 - The two patches write one record, the weapon's aim locator (+7A8h): this one once, when the
-  weapon is cooked; patch 165 on aimed frames at rest, from what it finds there. No Unicorn case
+  weapon is cooked; patch 172 on aimed frames at rest, from what it finds there. No Unicorn case
   runs them together yet (#2294 is not in this branch).
 
 **The fingers: the grip's own matrices, whole. Settled 2026-11-21; the switch is gone.**
@@ -762,7 +762,7 @@ reason the build checks again.
 - `parameters/aim_offset` stays the eye-relief knob.
 - Servers: `resolve` in place of the `srp_scope_fit` pairs; an account's load rewrites a variant
   dict id to the scope's own.
-- `attachments::EYE` with #2294 (patch 165): see "The two switches".
+- `attachments::EYE` with #2294 (patch 172): see "The two switches".
 - Centring checked with the camera oracle on the written records.
 
 **Muzzle devices and effects**

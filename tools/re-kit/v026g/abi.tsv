@@ -1,4 +1,5 @@
 va	name	source	ret_cleanup	result
+0x00011170	vostok::intrusive_ptr<shared_string>::assign	manual	0	
 0x00011540	vostok::intrusive_ptr<render_model_instance>::release	manual	0	
 0x000127c0	vostok::buffer_string::assign	manual	0	
 0x00014650	vostok::render::one_way_render_channel::owner_initialize	manual	0	
@@ -185,6 +186,8 @@ va	name	source	ret_cleanup	result
 0x0007a390	vostok::physics::create_primitive_shape	manual	0	EAX: the bt_collision_shape (118h bytes, vtable 0x9E31EC; +108h the btCollisionShape, +110h the u16 material, +0D0h reference count), from the physics allocator [0x1F1D384]
 0x0007ab30	vostok::network_core::mutable_buffer::resize	manual	4	
 0x0007ab70	vostok::network_core::mutable_buffer::reallocate	manual	0	
+0x000e0ae0	vostok::shared_string::destroy	manual	4	
+0x000e0b50	vostok::shared_string::create	manual	4	EAX: the shared string of the text (its count at +0)
 0x000eb590	vostok::memory::mt_allocator::call_realloc	manual	24	EAX: the block, or 0
 0x000eb5b0	vostok::memory::mt_allocator::call_free	manual	16	
 0x0007ac10	vostok::network_core::buffer_writer::w	manual	8	
@@ -375,6 +378,7 @@ va	name	source	ret_cleanup	result
 0x0012e510	vostok::render::camouflage_decal_texture_type_baker_cook::on_textures_loaded	manual	24	
 0x0012ec40	vostok::render::camouflage_decal_texture_type_baker_cook::process_compression	manual	40	
 0x00131590	vostok::render::camouflage_decal_texture_type_baker_cook::render_bake	manual	24	
+0x00132a90	vostok::render::backend::set_ps_constant	manual	4	
 0x00134020	vostok::render::camouflage_decal_baker_cook::translate_query	manual	4	class 6Ch; asks 4 class-6Bh (107) camouflage_decal_texture_type_baker_cook queries per P, one per type d, n, f, s (names 0x9EE7A4..0x9EE7B0, the class at 0x1342E8): a log's "cook of '' [quid n][class 107] failed" is one of them (once per baked surface, before its d, n, s lines: LIKELY f, fresnel)
 0x00135900	vostok::render::material_effects_instance_cook::on_material_ready	manual	8	
 0x00135af0	vostok::render::material_effects_instance_cook::translate_query	manual	4	
@@ -1653,7 +1657,7 @@ va	name	source	ret_cleanup	result
 0x003c8800	vostok::render::backend::clear_render_targets	manual	12	
 0x003c8880	vostok::render::backend::clear_render_targets	manual	8	
 0x003c8950	vostok::render::backend::clear_render_targets	manual	16	
-0x003c8bc0	vostok::render::backend::register_constant_host	manual	8	
+0x003c8bc0	vostok::render::backend::register_constant_host	manual	8	EAX: the constant host of the name, made or found (0x3C9630 looks the name up first)
 0x003c8cb0	vostok::render::backend::flush	manual	0	
 0x003c9230	vostok::render::backend::set_declaration	manual	0	
 0x003c9260	vostok::render::backend::render_indexed_instanced	manual	4	
@@ -2766,3 +2770,11 @@ va	name	source	ret_cleanup	result
 0x002c88d0	survarium::items_dictionary_cook::translate_query	manual	4	none; one query of five binary configs (class 1Fh; resources/gameplay/db_static_dictionaries, quests/quests.options, items/modifications/modifications.options, skills/skills_tree.options, item_categories), its callback on_configs_loaded 0x2C8AA0 bound to the cook: mov ecx,5 / lea eax,[esp+3Ch] at 0x2C8963, query_resources at 0x2C896C
 0x002c8aa0	survarium::items_dictionary_cook::on_configs_loaded	manual	4	none; reads its five results by place (queries_result +12Ch, +40Ch, +6ECh, +9CCh, +0CACh: 0x2C8AF5..0x2C8BEC), never their count: a sixth result is not read
 0x001ec170	survarium::game::query_base_resources	manual	0	none; resources/startup.cfg and user_data/user.cfg as raw data, class 3 (mov eax,3 at 0x1EC182 into both requests), their callback game::on_configs_loaded 0x1EA210, which takes each result's managed resource (queries_result +128h, +408h) and reads its bytes through a pinned pointer (0x1EC380: 0x3DD990, 0x3C1020)
+0x002f4b40	survarium::shared_statistics::shared_statistics	manual	0	EAX the statistics
+0x002f4c20	survarium::shared_statistics::clear	manual	0	
+0x0007b730	vostok::physics::bullet_character_controller::updateAction	manual	8	none; player_step (0x7BDA0) with the step's dt when dt is the tick (+2C704h, 0x7B760), for any other dt only when the position (+0B0h) is not m_last_pos (+50h) on some axis (0x7B76D..0x7B7A7: the body moved in its step before; client patch 166 makes 0x7B76B a jmp: every step); then +20h..+3Ch := 0 (0x7B7BA: the desired walk and air control vectors, asked again each step)
+0x0007c7e0	vostok::physics::bullet_character_controller::can_skeep_player_step	manual	0	EAX 1: nothing to do (the walk vector +20h's square under 1e-5 [0x9CBA48], the velocity +2C770h zero, no slide (0x7BC20 and 0x7BD10 both 0), +205h clear, +203h == +200h, the push +2C730h..+2C73Ch zero), else 0; player_step returns at once on 1 (0x7C1AE)
+0x002d9060	survarium::base_player::set_physics_controller_walk_vector	manual		none; the walk asked of the controller for this step: the player's target less its place (+43Ch), cut to the speed (0x2DC010) x the step's ms x 0.001 (0x2D9121..0x2D91D4) unless it jumps (+2C70Ch), given to set_desired_walk_vector (0x356B00)
+0x001f3c70	survarium::player::generate_hit_event	manual	28	none; base_player::generate_hit_event (0x2D9F40) with the same seven arguments, then for a bullet hit (the 6th not 0) the shooter's inflicted_damage_collector (its player +0F534h): a hit on another victim resets it (0FFh, 0, 0.0; 0x1F3CF6), then +8 += the pain lost / pain's maximum (the victim's damage model part `pain`, +9Ch), clamped to 0..1, +4 the time, +0 the victim's place (0x1F3D35..0x1F3D76)
+0x00238230	survarium::game_world_ui::draw_damage_collector	manual	0	none; when the collector's victim (+0) or fraction (+8) differs from the ui's copy (+34Ch, +354h) it takes the copy (8 bytes at +34Ch, the f32 at +354h) and, for a fraction not 0, invokes root.crosshair_enemy_hit(fraction as a number, 200 [0xA74818], false) on the hud movie ([[ui+8]+108h]+4, 0x23838C)
+0x00246f10	survarium::player::tick	manual	4	none; base_player::tick (0x2DAA60) with the time, then the inflicted_damage_collector reset (0FFh, 0, 0.0) once the time is more than 500 ms ([0xA7461C]) after its last hit (+0F538h)

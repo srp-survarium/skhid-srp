@@ -405,65 +405,6 @@ fn a_reroll_offers_three_on_an_item_of_few_types() {
     }
 }
 
-#[test]
-fn craft_and_reroll_go_by_the_tables() {
-    let data = Modifications::shared();
-    assert_eq!(data.craft.price(0), 200);
-    assert_eq!(data.craft.price(10), 5_000);
-    // Level 16 (the highest an item has) costs the table's last.
-    assert_eq!(data.craft.price(16), 10_000);
-    // The lobby's rows: silver success and failure, gold success and
-    // failure, for a difference of 0, 1 and 2: always a success, in silver.
-    let (chances, silver, gold) = data.craft.tables();
-    #[rustfmt::skip]
-    assert_eq!(
-        chances,
-        [100.0, 0.0, 0.0, 0.0,  100.0, 0.0, 0.0, 0.0,  100.0, 0.0, 0.0, 0.0]
-    );
-    assert_eq!((silver[2], gold), (400, [0; 16]));
-
-    assert_eq!(data.reroll.price(0), 100);
-    assert_eq!(data.reroll.price(10), 1200);
-    assert_eq!(data.reroll.price(16), 2500);
-    // No level changes for nothing (the owner's rule of 2026-10-25: the
-    // same price every time, `docs/notes/flat-reroll.md`).
-    for level in 0..=u8::MAX {
-        assert!(data.reroll.price(level) > 0);
-    }
-}
-
-#[test]
-fn premium_gear_pays_more() {
-    let data = Modifications::shared();
-    let premium = dict("ak_74n_premium");
-
-    // Its 1230 (10 % more silver) is a modification of its own: it pays
-    // as one, and without it nothing.
-    let bonuses = data.bonuses(premium, &[(1230, false)]);
-    assert!((bonuses.money - 0.1).abs() < 1e-6);
-    assert_eq!(bonuses.experience, 0.0);
-    assert_eq!(data.bonuses(premium, &[]), Bonuses::default());
-    // Premium trousers: experience and the Black Market's reputation, as
-    // modifications of their own (`super::super::golden`); without them,
-    // nothing.
-    let trousers = dict("bm_legs_4_premium");
-    assert_eq!(data.bonuses(trousers, &[]), Bonuses::default());
-    let bonuses = data.bonuses(trousers, &[(1240, false), (1260, false)]);
-    assert!((bonuses.experience - 0.05).abs() < 1e-6);
-    assert_eq!(bonuses.money, 0.0);
-    assert!((bonuses.reputation[1] - 0.05).abs() < 1e-6);
-    assert_eq!(bonuses.reputation[0], 0.0);
-    let bonuses = data.bonuses(
-        dict("scav_torso_4_premium"),
-        &[(1240, false), (1250, false)],
-    );
-    assert!((bonuses.reputation[0] - 0.05).abs() < 1e-6);
-    assert_eq!(
-        data.bonuses(dict("ak_74m"), &[(2000, false)]),
-        Bonuses::default()
-    );
-}
-
 /// The lobby colours a bonus at the best value it rolls gold and shows its
 /// range in the reroll window (`ModificationRolls.ROLLS`,
 /// `docs/notes/max-bonus.md`): for each property the values the

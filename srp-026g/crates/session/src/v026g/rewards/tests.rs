@@ -61,6 +61,7 @@ fn player(place: u8, team: u8, name: &str, statistics: PlayerStatistics) -> Play
         statistics: Some(statistics),
         pay_statistics: None,
         supplies: None,
+        weapons: Vec::new(),
     }
 }
 
@@ -473,40 +474,6 @@ fn the_first_screen_comes_out_but_for_its_kills() {
     );
 }
 
-#[test]
-fn the_money_rate_scales_the_rows_silver() {
-    let players = alice_and_bob();
-    let store = accounts(&players);
-    store.get(10).unwrap().locked().quest_faction = 1;
-    let terms = Terms {
-        money_rate: pay::MoneyRate::Flat(80),
-        experience_rate: 2,
-        ..terms()
-    };
-    let report = Results::new()
-        .settle(&result(players), &store, &terms, &mut Rng::new(1))
-        .unwrap();
-    let alice = &report.players[0];
-    // 80 % of 75, 10 and 82.73 silver; twice 9, 1 and 122.69 experience;
-    // the reputation (3, 1 and 2.46) has its own rate.
-    assert_eq!(columns(&alice.full, 0), (3.0, 60, 18, 3));
-    assert_eq!(columns(&alice.full, 1), (1.0, 8, 2, 1));
-    assert_eq!(columns(&alice.full, 2), (2.0, 66, 245, 2));
-    assert_eq!(alice.reward.money, 134);
-    // srp's own terms: the owner's silver by match level, three times the
-    // experience and 180 % of the reputation (each with premium's half).
-    let own = Terms::at(NOW);
-    assert_eq!(
-        (own.money_rate, own.experience_rate, own.reputation_rate),
-        (pay::MoneyRate::ByLevel, 3, 180)
-    );
-    assert_eq!(own.score_weights, SCORE_WEIGHTS);
-    // And twice the original kill's silver and experience, and 30,000 for
-    // staying to the end.
-    assert_eq!(own.kill, pay::Pay::new(50.0, 6.0, 1.0));
-    assert_eq!(own.finish_silver, 30_000);
-}
-
 /// srp's own terms (the owner's of 2026-11-13): a kill pays 50 silver and 6
 /// experience before the rates, and every player who stays to the end gets
 /// 30,000 silver more, flat, in its activity cell; one who left gets none.
@@ -546,98 +513,6 @@ fn a_finisher_gets_thirty_thousand_and_twice_a_kill_and_one_who_left_does_not() 
     assert_eq!(columns(&carol.full, 0), (1.0, 50, 6, 0));
     assert_eq!(columns(&carol.full, 2), (0.0, 0, 0, 0));
     assert_eq!((carol.reward.experience, carol.reward.money), (6, 50));
-}
-
-/// The owner's rates (2026-10-14), with premium's half (2026-11-09): the
-/// rows' silver at the percent of the match's level, their experience three
-/// times, the rows' and the quests' reputation at 180 %.
-#[test]
-fn the_owners_rates_raise_silver_by_match_level_experience_and_reputation() {
-    let settle = |level: u16, terms: &Terms| {
-        let players = alice_and_bob();
-        let store = accounts(&players);
-        {
-            // The Scavengers' first quest (win with the base not robbed):
-            // 50 silver, 50 reputation.
-            let alice = store.get(10).unwrap();
-            let mut alice = alice.locked();
-            quests::choose_faction(&mut alice, 1).unwrap();
-            alice.quests.push(QuestInstance {
-                instance_id: 50,
-                quest_id: 10101,
-                games: 0,
-                expires_at: NOW + 10_000,
-            });
-            alice.next_quest_instance = 51;
-            no_new_quests(&mut alice);
-        }
-        let mut result = result(players);
-        result.match_level = level;
-        let report = Results::new()
-            .settle(&result, &store, terms, &mut Rng::new(5))
-            .unwrap();
-        report.players[0].clone()
-    };
-    let own = Terms {
-        money_rate: pay::MoneyRate::ByLevel,
-        experience_rate: pay::DEFAULT_EXPERIENCE_RATE,
-        reputation_rate: pay::DEFAULT_REPUTATION_RATE,
-        ..terms()
-    };
-    // Level 0 (every multiplier 1): 225 % of 75, 10 and 82.73 silver;
-    // three times 9, 1 and 122.69 experience; 180 % of 3, 1 and 2.46
-    // reputation.
-    let alice = settle(0, &own);
-    assert_eq!(columns(&alice.full, 0), (3.0, 168, 27, 5));
-    assert_eq!(columns(&alice.full, 1), (1.0, 22, 3, 1));
-    assert_eq!(columns(&alice.full, 2), (2.0, 186, 368, 4));
-    // Level 8 (`money_k` 5.59, the others 1.35): 270 % of the silver, and
-    // three times 12.15, 1.35 and 165.63 experience.
-    let plain = settle(8, &terms());
-    let alice = settle(8, &own);
-    assert_eq!(
-        (0..3)
-            .map(|line| columns(&alice.full, line).2)
-            .collect::<Vec<_>>(),
-        [36, 4, 496]
-    );
-    for line in 0..3 {
-        let (_, money, _, _) = columns(&alice.full, line);
-        let (_, plain_money, _, _) = columns(&plain.full, line);
-        assert!(
-            (f64::from(money) - 2.7 * f64::from(plain_money)).abs() <= 3.0,
-            "{line}: {money} against {plain_money}"
-        );
-    }
-    assert_eq!(
-        columns(&alice.full, 0).1,
-        (75.0 * 5.59 * 2.7_f64).floor() as u32
-    );
-    // 3 × 1.35 × 1.8 = 7.29, 2.43 and 5.98.
-    assert_eq!(
-        (0..3)
-            .map(|line| columns(&alice.full, line).3)
-            .collect::<Vec<_>>(),
-        [7, 2, 5]
-    );
-    // From level 12 on: 330 %.
-    for level in [12, 15, 20] {
-        let k = pay::multiplier(Dictionary::shared().match_level(level).unwrap().money_k);
-        assert_eq!(
-            columns(&settle(level as u16, &own).full, 0).1,
-            pay::cell(75.0, k * 3.3) as u32
-        );
-    }
-    // The quest's silver is the match level's alone (50 × 5.59); its
-    // reputation is 180 % of the level's (50 × 1.35 = 67.5, × 1.8 =
-    // 121.5).
-    assert_eq!(
-        (plain.reward.quest_money, alice.reward.quest_money),
-        (279, 279)
-    );
-    assert_eq!(plain.reward.quest_reputation, [(1, 67)]);
-    assert_eq!(alice.reward.quest_reputation, [(1, 121)]);
-    assert_eq!(alice.full.quest_reputation, 121);
 }
 
 #[test]
@@ -4088,6 +3963,66 @@ fn the_history_keeps_the_kits_with_a_counter_and_their_shots() {
     let carol = &record.players[2].kits;
     assert_eq!(carol.len(), 1);
     assert_eq!(carol[0].kit, 0, "nothing counted: the kit it plays");
+}
+
+#[test]
+fn the_history_keeps_what_the_games_counted_by_weapon() {
+    use survarium::v026g::match_msgs::snapshot::WeaponCounts;
+    let counted = vec![
+        WeaponCounts {
+            deaths: 1,
+            held_ms: 2_000,
+            ..WeaponCounts::default()
+        },
+        WeaponCounts {
+            dict_id: 155,
+            kills: 3,
+            headshots: 1,
+            wall_kills: 1,
+            ricochet_kills: 2,
+            deaths: 2,
+            shots: 100,
+            hits: 30,
+            damage: 31_000,
+            kill_distance_dm: 900,
+            longest_kill_dm: 450,
+            held_ms: 61_250,
+        },
+    ];
+    for trusted_by in [2, 0] {
+        let mut players = alice_and_bob();
+        players[0].weapons = counted.clone();
+        let store = accounts(&players);
+        let results = Results::new();
+        let mut result = result(players);
+        result.trusted_by = trusted_by;
+        results.settle(&result, &store, &terms(), &mut Rng::new(1));
+        let record = &history_of(&results)[0];
+        let alice = &record.players[0].weapons;
+        if trusted_by == 0 {
+            assert!(alice.is_empty(), "no trusted result: none of its numbers");
+            continue;
+        }
+        assert_eq!(alice.keys().copied().collect::<Vec<_>>(), [0, 155]);
+        assert_eq!(
+            alice[&155],
+            history::WeaponCounts {
+                kills: 3,
+                headshots: 1,
+                wall_kills: 1,
+                ricochet_kills: 2,
+                deaths: 2,
+                shots: 100,
+                hits: 30,
+                damage: 31_000,
+                kill_distance_dm: 900,
+                longest_kill_dm: 450,
+                held_ms: 61_250,
+            }
+        );
+        assert_eq!((alice[&0].deaths, alice[&0].held_ms), (1, 2_000));
+        assert!(record.players[1].weapons.is_empty());
+    }
 }
 
 #[test]

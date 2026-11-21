@@ -190,6 +190,146 @@ impl<'c> MaterialPass<'c> {
     }
 }
 
+/// The shader configuration's byte 0Dh, as fill_shader_configuration_macros
+/// (0x3C9B80) makes macros of it. Its other bits (soft edges, terrain blend,
+/// thickness, scattering) are the compile's own and stay as they are.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Switches0d(u8);
+
+impl Switches0d {
+    /// Bit 0, CONFIG_USE_FUZZINESS: in the forward programs, the uv
+    /// distortion moves the emissive map only.
+    pub const FUZZINESS: u8 = 0x01;
+    /// Bit 6, CONFIG_USE_OLTA: in the forward and particle lighting
+    /// programs, the transparency map is a DXT1 image.
+    pub const OLTA: u8 = 0x40;
+    /// Bit 7, CONFIG_USE_DISPLACEMENT: in the forward programs (and their
+    /// vertex shader), the two maps tile by constant_tile_uv.
+    pub const DISPLACEMENT: u8 = 0x80;
+
+    pub fn bits(self) -> u8 {
+        self.0
+    }
+
+    /// The byte with `bit` (one of the constants) on or off.
+    pub fn with(self, bit: u8, on: bool) -> Switches0d {
+        Switches0d(if on { self.0 | bit } else { self.0 & !bit })
+    }
+}
+
+/// The compiles a patch sees at their call of compile_begin.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BeginSite {
+    /// `forward.compile_begin`: forward_default's compile.
+    Forward,
+    /// `particle_lighting.compile_begin`: particle_lighting's compile.
+    ParticleLighting,
+}
+
+/// A material effect's call of compile_begin: its shader configuration,
+/// final there (compile_begin copies it for begin_pass), and its config tree.
+pub struct CompileBegin<'c> {
+    configuration: raw::ShaderConfiguration,
+    tree: Option<ConfigTable<'c>>,
+}
+
+impl<'c> CompileBegin<'c> {
+    pub fn at(ctx: &'c Context<'_>, site: BeginSite) -> Option<CompileBegin<'c>> {
+        // SAFETY: the site's ESP holds the arguments the compile pushed for
+        // compile_begin: the configuration is the compile's own local, the
+        // tree the compile data's, immutable while the effect compiles.
+        unsafe {
+            let (configuration, tree) = match site {
+                BeginSite::Forward => {
+                    let frame = raw::site::forward_compile_begin::frame(ctx)?;
+                    (frame.configuration()?, frame.tree())
+                }
+                BeginSite::ParticleLighting => {
+                    let frame = raw::site::particle_lighting_compile_begin::frame(ctx)?;
+                    (frame.configuration(), frame.tree())
+                }
+            };
+            let tree = tree.and_then(|tree| ConfigValue::read(tree).ok()?.table().ok());
+            Some(CompileBegin { configuration, tree })
+        }
+    }
+
+    /// The material's merged config (its <stage>.effect table), if a table.
+    pub fn tree(&self) -> Option<&ConfigTable<'c>> {
+        self.tree.as_ref()
+    }
+
+    pub fn switches_0d(&self) -> Switches0d {
+        // SAFETY: the compile's configuration (see `at`).
+        Switches0d(unsafe { self.configuration.switches_0d().read() })
+    }
+
+    pub fn set_switches_0d(&mut self, switches: Switches0d) {
+        // SAFETY: the compile's configuration (see `at`), read next by
+        // compile_begin's copy for begin_pass.
+        unsafe { self.configuration.switches_0d().write(switches.0) }
+    }
+}
+
+/// A material's values as a compile reads them: a key's `value` child,
+/// whatever its type.
+pub trait MaterialFields {
+    /// A switch: on when its value is not 0, as the compiles test it
+    /// (`cmp dword [eax],0`); off when the key is missing.
+    fn switch(&self, name: &CStr) -> bool;
+    /// A number: a float, or an integer made a float (the compiles' test of
+    /// the type word +14h); None when the key is missing.
+    fn number(&self, name: &CStr) -> Option<f32>;
+}
+
+impl MaterialFields for ConfigTable<'_> {
+    fn switch(&self, name: &CStr) -> bool {
+        match value_of(self, name) {
+            Some(ConfigValue::Boolean(on)) => on,
+            Some(ConfigValue::Integer(n)) => n != 0,
+            Some(ConfigValue::Number(x)) => x.to_bits() != 0,
+            _ => false,
+        }
+    }
+
+    fn number(&self, name: &CStr) -> Option<f32> {
+        value_of(self, name)?.number().ok()
+    }
+}
+
+fn value_of<'t>(table: &ConfigTable<'t>, name: &CStr) -> Option<ConfigValue<'t>> {
+    table.get(name).ok()??.table().ok()?.get(c"value").ok()?
+}
+
+/// The material config of the forward compile at `forward.tile_uv`.
+pub fn tile_uv_tree<'c>(ctx: &'c Context<'_>) -> Option<ConfigTable<'c>> {
+    // SAFETY: the site's EBX, the compile's config tree (its second
+    // argument, 0x1D8F78), immutable while the effect compiles.
+    unsafe { ConfigValue::read(raw::site::forward_tile_uv::tree(ctx)?).ok()?.table().ok() }
+}
+
+/// Sends constant_tile_uv as a float4 at `forward.tile_uv`, before the
+/// forward compile's own block sends its float2: a set_constant keeps a
+/// name's first value (the block's set of the name then adds nothing), so
+/// the float4 is the constant.
+pub fn send_tile_uv(ctx: &Context<'_>, value: [f32; 4]) {
+    // SAFETY: the site's EDI, the compile's compiler, which both of the
+    // block's calls are given.
+    let compiler = unsafe { raw::site::forward_tile_uv::compiler(ctx) }.expect("the compile's compiler");
+    // SAFETY: set_constant<float4> (thiscall: ECX the value, then the
+    // compiler and the name), on the compile's own thread and compiler, in
+    // the place of the game's set_constant<float2>; it copies the value and
+    // interns the name.
+    unsafe { raw::engine_set_constant_float4(value.as_ptr(), Some(compiler), c"constant_tile_uv".as_ptr().cast()) }
+}
+
+#[cfg(test)]
+impl Switches0d {
+    pub fn default_for_test(byte: u8) -> Switches0d {
+        Switches0d(byte)
+    }
+}
+
 #[cfg(test)]
 impl CompilerId {
     pub fn for_test(address: u32) -> CompilerId {

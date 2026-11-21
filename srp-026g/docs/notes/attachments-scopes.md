@@ -193,7 +193,7 @@ Seen on table version 3 (server and exe of feat/attachments c8b28fb43; pictures 
   in its place, nothing of the default left. With only a muzzle device or only a grip (the HK416, 2613 or
   2660) the default EOTech stays; the part itself was not in these pictures.
 - **`wpn_mp7_silencer_special`** with the EOTech 552: a fit now, drawn, centred.
-- **The scoped shot with #2294** (its patch 165 and its 0.45a6 fire clips, against patch 161 alone; 60
+- **The scoped shot with #2294** (its patch 172, then numbered 165, and its 0.45a6 fire clips, against patch 161 alone; 60
   frames a second, `rig/out/kick165-c23`, `no165-c23`): the SVU-A (aim on the kicked bone) shows the kick
   in the scope only with 165 (the eyepiece moves 18-20 px, 3-5 without); the SVD (aim on the root) shows
   it either way (30-34 px), as the crate's table says. The L85A2 is not judged (the ring was not found).

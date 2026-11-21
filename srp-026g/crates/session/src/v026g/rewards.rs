@@ -140,7 +140,7 @@
 //! The daily block is the day's double pay ([`super::bonus`]); the
 //! equipment block what the kit's items add (`items_rules::kit_bonuses`).
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::num::NonZeroU32;
 use std::sync::{Arc, Mutex};
 
@@ -326,6 +326,9 @@ pub struct PlayerResult {
     /// not, the kit in use, and what is left of every item of its profile
     /// (`Supplies::left` adds a stack item up). `None`: not known.
     pub supplies: Option<survarium::v026g::match_msgs::players::Supplies>,
+    /// What it did with each weapon, in the last trusted snapshot (the
+    /// match server's `PlayerResult::weapons`); empty: not known.
+    pub weapons: Vec<survarium::v026g::match_msgs::snapshot::WeaponCounts>,
 }
 
 /// How a match ended (the match server's `MatchResult`).
@@ -1841,6 +1844,7 @@ impl<'a> Shared<'a> {
                     played_ms: player.time_in_match_ms,
                 },
                 kits,
+                weapons: self.weapons(player),
             });
         }
         if players.is_empty() {
@@ -1901,6 +1905,34 @@ impl<'a> Shared<'a> {
             },
             players,
         })
+    }
+
+    /// What a player did with each weapon, as its games counted it, if the
+    /// result's numbers can be used.
+    fn weapons(&self, player: &PlayerResult) -> BTreeMap<u16, history::WeaponCounts> {
+        if !self.trusted {
+            return BTreeMap::new();
+        }
+        player
+            .weapons
+            .iter()
+            .map(|weapon| {
+                let counts = history::WeaponCounts {
+                    kills: u64::from(weapon.kills),
+                    headshots: u64::from(weapon.headshots),
+                    wall_kills: u64::from(weapon.wall_kills),
+                    ricochet_kills: u64::from(weapon.ricochet_kills),
+                    deaths: u64::from(weapon.deaths),
+                    shots: u64::from(weapon.shots),
+                    hits: u64::from(weapon.hits),
+                    damage: u64::from(weapon.damage),
+                    kill_distance_dm: u64::from(weapon.kill_distance_dm),
+                    longest_kill_dm: u64::from(weapon.longest_kill_dm),
+                    held_ms: u64::from(weapon.held_ms),
+                };
+                (weapon.dict_id, counts)
+            })
+            .collect()
     }
 
     /// A player's counters, if the result's numbers can be used.
