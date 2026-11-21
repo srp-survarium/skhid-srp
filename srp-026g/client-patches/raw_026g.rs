@@ -15053,6 +15053,15 @@ impl BulletCharacterController {
     pub unsafe fn sweeper(self) -> StepDownSweeper {
         StepDownSweeper(unsafe { self.0.byte_add(0x210) })
     }
+
+    /// +0x2c704 (f32): the physics tick in seconds, 0.05: updateAction 0x7B760 compares a step's dt with it, player_step gives a part its share dt over it (0x7C140)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn tick(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x2c704).cast::<f32>().as_ptr() }
+    }
 }
 
 /// A survarium::medical_stopping_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -16207,6 +16216,111 @@ impl PlayerController {
     #[inline(always)]
     pub unsafe fn set_controller(self, value: Option<BulletCharacterController>) {
         unsafe { self.0.byte_add(0x0).cast::<Option<BulletCharacterController>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::physics::can_skeep_locals (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CanSkeepLocals(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl CanSkeepLocals {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xc (f32): can_skeep_player_step's local [esp+0Ch] (stored 0x7C81D): the walk asked for the step, squared; under 1e-5 [0x9CBA48] the body has nothing to walk (0x7C830)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn walk_squared(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xc).cast::<f32>().as_ptr() }
+    }
+}
+
+/// A vostok::physics::can_skeep_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CanSkeepFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl CanSkeepFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::physics::player_step_frame>): can_skeep_player_step's saved EBP: the frame of player_step, its only caller (0x7C1AE)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn caller(self) -> Option<PlayerStepFrame> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<PlayerStepFrame>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::physics::player_step_frame>): can_skeep_player_step's saved EBP: the frame of player_step, its only caller (0x7C1AE)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_caller(self, value: Option<PlayerStepFrame>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<PlayerStepFrame>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::physics::player_step_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PlayerStepFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PlayerStepFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (f32): player_step's argument: the step's length in seconds (0x7BF3E, 0x7C13B)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn dt(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x8).cast::<f32>().as_ptr() }
+    }
+}
+
+/// A survarium::assign_physics_transform_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AssignPhysicsTransformFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl AssignPhysicsTransformFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x10 (u8): base_player::assign_physics_transform's third argument (a tick delegate's: ms, time, this byte; tick_delegates 0x2D1DF8): 1 when the step ends on a 50 ms boundary (atomic_tick's sete, 0x2D1E32); only the low byte is set
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn ends_tick(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x10).cast::<u8>().as_ptr() }
     }
 }
 
@@ -33226,6 +33340,54 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn controller(machine: &impl Machine) -> Option<BulletCharacterController> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(BulletCharacterController)
+        }
+    }
+
+    /// controller.idle_walk (0x7c823): bullet_character_controller::can_skeep_player_step (0x7C7E0) after it stored the walk asked, squared, at [esp+0Ch] (mov eax,[esp+0Ch] / and eax,7FFFFFFFh, then the compare with 1e-5 at 0x7C830): EDX the controller, EBP its frame
+    pub mod controller_idle_walk {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDX: a vostok::physics::bullet_character_controller (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn controller(machine: &impl Machine) -> Option<BulletCharacterController> {
+            NonNull::new(machine.register(Register::Edx) as usize as *mut c_void).map(BulletCharacterController)
+        }
+
+        /// the site's ESP: a vostok::physics::can_skeep_locals (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn locals(machine: &impl Machine) -> Option<CanSkeepLocals> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(CanSkeepLocals)
+        }
+
+        /// EBP: a vostok::physics::can_skeep_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<CanSkeepFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(CanSkeepFrame)
+        }
+    }
+
+    /// player.speed_measured (0x2d9541): base_player::assign_physics_transform (0x2D93A0) storing m_linear_horizontal_speed, the step's horizontal move over its ms (fld dword [esp+0Ch] / fstp dword [ebx+334h]): skipped, the value stays as it was
+    pub mod player_speed_measured {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a survarium::assign_physics_transform_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<AssignPhysicsTransformFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(AssignPhysicsTransformFrame)
         }
     }
 
