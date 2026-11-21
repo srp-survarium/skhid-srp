@@ -310,6 +310,19 @@ fn a_grip_brings_its_bracket() {
     });
 }
 
+/// The PKP's own grip, whose frame is a quarter turn on its gun (its rail is on the gun's
+/// side): the hand stands at the grip's place in the gun's axes, as on a grip that is not
+/// turned; the fingers are the grip's own either way.
+#[test]
+fn a_turned_grip_keeps_the_hand_in_the_guns_axes() {
+    let turned = on_offset(locator(8));
+    let [x, y, z] = turned.offset.t;
+    let straight = on_offset(Affine::translation(x, y, z));
+    let hand_on = |grip: &Placement| Hand::new(grip, &hand()).unwrap();
+    assert_eq!(hand_on(&turned), hand_on(&straight));
+    assert_eq!(hand_on(&turned).wrist, straight.child(&hand()[15]));
+}
+
 /// fits69.tsv: `ak_74m grip fabdefence_miki_foregrip forend ak_midwest_extended_tactical_forend`.
 #[test]
 fn a_grip_swaps_the_forend() {

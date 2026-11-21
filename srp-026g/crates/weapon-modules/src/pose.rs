@@ -104,9 +104,15 @@ pub struct Hand {
 }
 
 impl Hand {
+    /// The hand stands at the grip's position in the gun's axes, not turned
+    /// with the grip: laid over the thirteen grips' meshes, the locators fit
+    /// that way, and the one grip whose frame is turned on its gun (the PKP's,
+    /// a quarter turn) holds the hand 139 mm off it otherwise.
     pub(crate) fn new(grip: &Placement, locators: &[Affine; HAND_LOCATORS]) -> Option<Hand> {
         let [.., wrist] = locators;
-        Some(Hand { wrist: grip.child(wrist), fingers: fingers(locators)? })
+        let [x, y, z] = grip.offset.t;
+        let at = Placement { bone: grip.bone, offset: Affine::translation(x, y, z) };
+        Some(Hand { wrist: at.child(wrist), fingers: fingers(locators)? })
     }
 
     /// The finger corrector's fifteen matrices: the grip's own, whole. The
