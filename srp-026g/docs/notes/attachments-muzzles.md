@@ -31,10 +31,17 @@ scopes, configs `gameplay/items/muzzle_devices/<item>.options`. In the modules t
 
 - **A config has a shop scope item's shape**, as the grips' items: `data` (the device's model as
   `idle_model` and `aimed_model`, type 5, the factors 1 / 0.5 / 1, `hide_weapon_on_aim` false) and
-  an empty `ui_desc/props_list` beside the modification. SEEN, 2026-11-21: without the two, the
-  game crashed at its start, on the sign-in screen, with nothing fitted (an access violation, the
-  last frame of ours in `binary_config_value::operator[]` 0xF6B10), twice; the grips' items,
-  which had them, did not. Which key it reads is not proven.
+  an empty `ui_desc/props_list` beside the modification.
+- **`ui_desc/props_list` is required of every item with a `ui_desc`** (PROVEN, 2026-11-21). Without
+  it the game crashed at its start, on the sign-in screen, fitted or not: an access violation at
+  0xF6BC2, inside `binary_config_value::operator[]` (0xF6B10). That function finds a key by its CRC
+  and compares the name of the record it lands on without checking that it landed inside the table,
+  so a missing key reads past it. `fill_items_dictionary_impl` (0x286410) runs over every dictionary
+  item at the start; for one whose config has `ui_desc` (checked) it reads
+  `ui_desc/text_descriptions/name` and `/description`, `ui_desc/icon` and `ui_desc/props_list`
+  with that function, and no `data` key. The devices had the first three. `release/build_content.py`
+  checks these four keys of every item (#2341, from main). The proof in a game: the same items with
+  `props_list` and no `data` signed in and played (exe and server c8b28fb43, 2026-11-21).
 
 | Family | Devices | 0.69d0 at its bought grade (7) | Here |
 |---|---|---|---|

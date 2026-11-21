@@ -276,8 +276,8 @@ def item_config(device, cell):
         'modifications': [{'id': modification, 'modifiers': mods}],
         'ui_desc': {'text_descriptions': {'name': f'st_{stem}_name', 'description': f'st_{stem}_description'},
                     'icon': list(cell), 'props_list': {}},
-        # a shop scope item's shape, as the grips' items (without `data` and `props_list` the game crashed
-        # at its start in binary_config_value::operator[]: docs/notes/attachments-muzzles.md)
+        # a shop scope item's shape, as the grips' items; props_list is read of every item with a ui_desc at
+        # the client's start, and a missing one crashes it (docs/notes/attachments-muzzles.md)
         'data': {'idle_model': device['model'], 'aimed_model': device['model'], 'type': 5, 'fov_factor': 1.0,
                  'near_plane_factor': 0.5, 'change_scope_factor': 1.0, 'hide_weapon_on_aim': False},
     }
