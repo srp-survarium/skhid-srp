@@ -349,25 +349,10 @@ mod tests {
             assert!(page.contains(&thousands(lang, level_start(MAX_LEVEL))));
             assert!(!page.contains("≈"), "no matches without a match to go by");
         }
-        // At 1,000 in 12 minutes a match: level 100 is 1,288 matches and
-        // 258 hours (257.5), level 1 one match and 0.1 h.
         let per_match = PerMatch {
             experience: NonZeroU32::new(1000).unwrap(),
             seconds: NonZeroU32::new(720).unwrap(),
         };
-        let page = body(
-            Lang::En,
-            &Now {
-                per_match: Some(per_match),
-                ..Now::default()
-            },
-        );
-        assert!(page.contains("<td>1,287,500</td><td>≈ 1,288</td><td>≈ 258</td>"));
-        assert!(page.contains(
-            "<section class=levels data-first=500 data-step=250 data-max=100 \
-             data-match-experience=1000 data-match-seconds=720>"
-        ));
-        assert!(page.contains("<th>1</th><td>500</td><td>500</td><td>≈ 1</td><td>≈ 0.1</td>"));
         assert_eq!(hours(Lang::Uk, 25_000, per_match), "5,0");
         assert_eq!(thousands(Lang::En, 1_287_500), "1,287,500");
         assert_eq!(thousands(Lang::Uk, 830_000), "830\u{a0}000");

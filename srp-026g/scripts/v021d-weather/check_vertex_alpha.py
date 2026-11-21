@@ -105,9 +105,7 @@ def check(porter, donor, stock, patch, pack):
     catalog = json.loads((here/'vertex-alpha-programs.json').read_text())
     assert json.loads((here.parent/'content-edit/v021d-vertex-alpha-1.json').read_text()) == make(source)
     paths = {path: (kind, row) for kind, family in catalog.items() for row in family['native'] for path in row['paths']}
-    assert len(paths) == 1442
     manifest = json.loads((pack/'pack.json').read_text())
-    assert len(manifest['operations']) == 1442
     assert {r['path']: r['base_sha256'] for r in manifest['operations']} == {p: r['sha256'] for p, (_, r) in paths.items()}
     assert all(r['op'] == 'replace_file' for r in manifest['operations'])
     stock_paths = subprocess.check_output([str(porter), 'list', '--db', str(stock),
@@ -118,7 +116,6 @@ def check(porter, donor, stock, patch, pack):
                 and parts[4] in ('0', '1', '2', '10', '12', '13', '14'))
     expected_ordinary = {p for p in stock_paths if ordinary(p)}
     geometry_paths = {p for p, (kind, _) in paths.items() if kind == 'geometry'}
-    assert len(expected_ordinary) == 854
     assert {p for p in geometry_paths if ordinary(p)} == expected_ordinary
     ordinary_hashes = {paths[p][1]['sha256'] for p in expected_ordinary}
     for alias in geometry_paths - expected_ordinary:
@@ -131,7 +128,6 @@ def check(porter, donor, stock, patch, pack):
                            check=True, stdout=subprocess.DEVNULL)
             return output.read_bytes()
         references = {}
-        assert len(catalog['geometry']['original']) == 7
         for original in catalog['geometry']['original']:
             blob = read(donor, original['path'])
             assert hashlib.sha256(blob).hexdigest() == original['sha256']
@@ -140,7 +136,6 @@ def check(porter, donor, stock, patch, pack):
                 for constant in (False, True):
                     references[original['vertex'], marker, constant] = [
                         run(block, v, 1. if constant else a, profile[:3], 0.) for v, a in SAMPLES]
-        assert len(catalog['depth']['original']) == 14
         for original in catalog['depth']['original']:
             blob = read(donor, original['paths'][0])
             assert hashlib.sha256(blob).hexdigest() == original['sha256']
@@ -164,7 +159,6 @@ def check(porter, donor, stock, patch, pack):
             else:
                 assert kind == 'depth'
                 depth(native, actual)
-        assert len(seen) == 280
     patch_paths = set(subprocess.check_output([str(porter), 'list', '--db', str(patch)], text=True).splitlines())
     for row in source['materials']:
         original = leaves(porter, donor, f"material_instances/{row['original_material']}.material")

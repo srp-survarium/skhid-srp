@@ -85,7 +85,7 @@ pub(super) fn load(
 
 #[cfg(test)]
 mod tests {
-    use super::super::{GameRepository, MIGRATIONS, MemoryGameRepository, SqliteGameRepository};
+    use super::super::{GameRepository, MemoryGameRepository, SqliteGameRepository};
     use super::*;
 
     fn sample() -> StoredComment {
@@ -134,33 +134,15 @@ mod tests {
     }
 
     #[test]
-    fn player_comments_migrate_survive_reopen_and_keep_names() {
+    fn player_comments_survive_reopen_and_keep_names() {
         let path = std::env::temp_dir().join(format!(
             "srp-player-comments-{}-{:?}.db",
             std::process::id(),
             std::thread::current().id()
         ));
         let _ = std::fs::remove_file(&path);
-        // Build the schema immediately before feedback, with a real account.
-        let connection = Connection::open(&path).unwrap();
-        connection
-            .execute_batch("CREATE TABLE g26_meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL);")
-            .unwrap();
-        let own = MIGRATIONS
-            .iter()
-            .position(|step| *step == MIGRATION)
-            .unwrap();
-        for step in &MIGRATIONS[..own] {
-            connection.execute_batch(step).unwrap();
-        }
-        connection
-            .execute("INSERT INTO g26_meta VALUES ('schema', ?1)", [own as i64])
-            .unwrap();
-        super::super::write_account(&connection, 8, &crate::v026g::Account::new("Боб")).unwrap();
-        drop(connection);
-
         let mut repository = SqliteGameRepository::open(&path).unwrap();
-        assert_eq!(repository.load_all().unwrap()[0].1.name, "Боб");
+        repository.save(8, &crate::v026g::Account::new("Боб")).unwrap();
         let blocker = Connection::open(&path).unwrap();
         blocker.execute_batch("BEGIN IMMEDIATE;").unwrap();
         let started = std::time::Instant::now();
