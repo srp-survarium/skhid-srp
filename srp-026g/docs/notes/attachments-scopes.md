@@ -263,9 +263,30 @@ Seen on table version 3 (server and exe of feat/attachments c8b28fb43; pictures 
   in its place, nothing of the default left. With only a muzzle device or only a grip (the HK416, 2613 or
   2660) the default EOTech stays; the part itself was not in these pictures.
 - **`wpn_mp7_silencer_special`** with the EOTech 552: a fit now, drawn, centred.
-- **The scoped shot with #2294** (its patch 172, then numbered 165, and its 0.45a6 fire clips, against patch 161 alone; 60
-  frames a second, `rig/out/kick165-c23`, `no165-c23`): the SVU-A (aim on the kicked bone) shows the kick
-  in the scope only with 165 (the eyepiece moves 18-20 px, 3-5 without); the SVD (aim on the root) shows
-  it either way (30-34 px), as the crate's table says. The L85A2 is not judged (the ring was not found).
+- **The scoped shot with #2294** (its patch, 172 since it was merged, and its 0.45a6 fire clips, against
+  patch 161 alone; 60 frames a second, `rig/out/kick165-c23`, `no165-c23`): the SVU-A (aim on the
+  kicked bone) shows the kick in the scope only with the patch (the eyepiece moves 18-20 px, 3-5
+  without); the L85A2 likewise (the ACOG's eyepiece is larger than the screen, so its reticle's dot
+  was tracked: it lifts 22-25 px for 4-8 frames and is back within 0.3 px; without the patch it
+  stays within 0.5 px); the SVD (aim on the root) shows it either way (30-34 px), as the crate's
+  table says.
+
+Seen on the mount kinds beyond the AK-74M (2026-11-21; exe and server 98843a3ef, the lead's full
+content `content-full-69-v3`; a session a pair, the scope's record seeded as the lobby's attach
+writes it; in the lobby and aimed, never from the hip; a sheet a gun,
+`private/renders/attachments-scopes/mounts-v3-<gun>.png`, its numbers beside it in `.tsv`). The
+reticle's place is measured on the aimed picture: a dot's or a ring's centre, a chevron's or a
+post's tip.
+
+| Gun | Mount | Scopes seen | The reticle against the screen's centre |
+|---|---|---|---|
+| Mosin | the PU's own mount | the PU 3.5x | the post's tip 1 px low |
+| Saiga-12 | the dovetail (the PSO-1, a legacy row on it), collimators on the dovetail-to-rail bracket | all 10 | the PSO-1's chevron tip on it; dots within 0.2 px; the two EOTech rings centred (their box 0.0 px, the centre dot within 0.15 px) |
+| Kiparis | its own short rail carrier (the Docter a legacy row) | all 7 | within 0.05 px |
+| APS | the pistols' rail | all 4 | within 0.05 px |
+| Remington 870 | the medium rail carrier of the thirteen shotguns and PPShs (the Docter a legacy row) | all 10 aimed (two of its lobby pictures were taken before the character was drawn and are taken again) | dots within 0.1 px, rings within 0.3 px |
+| HK416 (picatinny on a rail gun; its default EOTech replaced), SVD (the dovetail and the bracket; its default PSO-1 replaced), UMP45 (an SMG's own rail) | | 15, 18 and 13 | not captured yet when this was written (the run was waiting for the machine); `mounts-v3-summary.txt` beside the sheets has their numbers once it ends |
+
+No session's load took a record off; no patch log has a complaint.
 
 
