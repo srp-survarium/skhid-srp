@@ -118,6 +118,15 @@ PATCHED = {
                       origin='Clear Sky port, pack stalker-maps-2@2', name='Fire Station',
                       name_key='st_cs_mp_firestation_name', project_name='cs_mp_firestation', project='day_8', modes=(8,),
                       map_ids={39: 8}),
+    # Station and Depository (pack stalker-maps@7), in Free for All since 2026-11-21 (ffa-stalker-3).
+    'v010b_soc_ug_station': dict(size=139.055, posX=170.25, posY=-53.8, bitmap='1037_minimap_soc_ug_station.png',
+                                 origin='SoC community map port, pack stalker-maps@7', name='Station',
+                                 name_key='st_soc_ug_station_name', project_name='soc_ug_station', project='day_8',
+                                 modes=(8,), map_ids={31: 8}),
+    'v010b_soc_ug_depository': dict(size=73.143, posX=30.285, posY=6.97, bitmap='1036_minimap_soc_ug_depository.png',
+                                    origin='SoC community map port, pack stalker-maps@7', name='Depository',
+                                    name_key='st_soc_ug_depository_name', project_name='soc_ug_depository',
+                                    project='day_8', modes=(8,), map_ids={32: 8}),
 }
 
 

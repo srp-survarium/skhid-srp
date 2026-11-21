@@ -30,6 +30,8 @@ elevation grid for every map.
 | v010b_cs_training_camp | Training Camp | 0.1038 | 44 (STALKER port, patch 57; Free for All) |
 | v010b_cs_mp_rembasa | Repair Depot | 0.1163 | 41 (STALKER port, patch 57; Free for All since 2026-11-14) |
 | v010b_cs_mp_firestation | Fire Station | 0.0952 | 39 (STALKER port, pack stalker-maps-2@2; Free for All) |
+| v010b_soc_ug_station | Station | 0.1811 | 31 (STALKER port, pack stalker-maps@7; Free for All since 2026-11-21) |
+| v010b_soc_ug_depository | Depository | 0.0952 | 32 (STALKER port, pack stalker-maps@7; Free for All since 2026-11-21) |
 
 All weathers and modes of a level share one image. The mode projects differ only
 in mode props such as battery racks, containers and charging stations; the
@@ -119,6 +121,8 @@ Results are stored in `maps.json -> maps.<key>.verification` and in `check_<key>
        0 fail; controls 8 mirrored, 0 shifted (its points stand on open
        ground that runs on 5 m away). Not compared with its HUD bitmap
        (`align_check`): the bitmap is the porter's render of the same level.
+       Station (120) and Depository (72): 0 fail; controls 11/4 mirrored,
+       3/0 shifted.
 2. **Native minimap alignment (`align_<key>`).** The developers' own minimap
    bitmaps were compared with the render's building mask while searching scale
    0.95-1.05 and shift ±8 m.
@@ -183,6 +187,8 @@ Always use `python3 -I`.
     ALL=$(grep -v '^#' <skhid-srp>/release/patches.tsv | cut -f1 | while read n; do printf ' --patch %s' <patches>/$n; done)
     for k in v010b_cs_mp_bath v010b_cs_mp_military_1 v010b_cs_training_camp v010b_cs_mp_rembasa; do python3 -I extract_level.py $DBGRAB $DB $k/day_8 $W/lv/$k $ALL; done
     # Fire Station (pack stalker-maps-2) the same way, their patch (not yet listed) after $ALL; their bitmaps are FFDec's names in that hud.swf
+    # Station and Depository the same way (a quick build of their branch as the patch after $ALL); make_json.py --only
+    # and play_area.py on the two alone, merged into maps.json (its other maps' bitmaps have other FFDec ids in that hud.swf)
     # (extract_level.py before 2026-10-19 lost every surface whose name ends in "_", e.g. level_08's moss
     # and ground cover, level_03's terrain_all; all 13 maps were re-rendered with the fix)
     # 4. render + shade + check + webp (~1 min per map)
@@ -206,4 +212,4 @@ The rasterizer was copied from the playable-map-pack's `render_minimap.py`.
   buildings are not in it. The STALKER ports have no terrain model: their grid
   is the top solid surface (no foliage), so a roof counts as ground there.
 - The ported maps that are not live (194-201) are not included, nor the STALKER
-  ports that are not played (Station, Depository).
+  ports that are held (Dark Valley, Vehicle Station, Sports Center).
