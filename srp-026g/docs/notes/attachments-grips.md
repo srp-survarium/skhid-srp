@@ -105,5 +105,14 @@ simplified for now):
   brings (`vsk_94_suppressor`, `ots144a_groza_lock_suppressor`, `sr3m_suppressor`); without it
   0.69d0 has no place for them either, and suppressors are out by the owner's rule.
 - A pair of kinds that does not go together is refused by the servers' one check
-  (`weapon_modules::Modules::check`), which runs `resolve` over all the weapon would hold: on the
-  P90 a device of the barrel's own thread and a grip, whose forend sits on that thread.
+  (`weapon_modules::Modules::check`), which runs `resolve` over all the weapon would hold.
+  COMPUTED on the built table (pack `weapon-modules@1`), every grip fit with every muzzle device
+  and every scope the same gun takes: each of the 318 grip fits resolves alone; 4,496 grip and
+  scope pairs go together, none is refused; of the grip and muzzle device pairs 2,224 go together
+  and 66 are refused, all of two kinds:
+  - **the P90**, 12 pairs: its two devices of the barrel's own thread (2601, 2625) with any of
+    its six grips, whose ACM forend sits on that thread (`Taken`). The devices of the forend's
+    thread go with a grip;
+  - **the VSK-94 and its premium item**, 54 pairs: any of its nine muzzle devices with any of its
+    three grips (`Unseated`). The grip's clamp stands on the built-in suppressor, and a device
+    takes the suppressor's place.
