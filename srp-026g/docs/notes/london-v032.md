@@ -40,3 +40,21 @@ carried by the manifest as for London (v0.42). The campfires are 0.32a4's own fi
 zones (one mechanism), not `port-campfires-1`.
 
 ## Checked
+
+- The pack is built against what players have with London (v0.42) (the manifest `requires`
+  `london-v042`): the 1 230 files both donors add are London (v0.42)'s, the 1 022 of the same bytes
+  shared, the 208 that differ under `ported/v032a`. Two packs may not give one path.
+- Breakable lamps: `breakable-lamps-v032-1.json` (the lamp rule, `ported/v032a` fixtures among its
+  prefixes): 6-8 tube lamps and 10-12 kerosene lamps a project.
+- Loaded headless on patch 169's exe with `forward-effects@1`, `london-v042@1` and this pack, no sound
+  device: day, rain and evening of mode 4 at 18 views, modes 2 and 3 of each weather, Research and
+  Blackout at one; every load exits 0 with no "cannot find shader" assert. Free for All (163) is not
+  loaded: the rig's replay fixture builder has no Free for All team. Its data is checked by the
+  content build and the spawn report.
+- Beside 0.32a4 itself (its first run headless; its camera hook needed its second scene class,
+  0x4997a0) at the same 18 views (`private/renders/london-v032/`, `rain/`, `evening/`): day 0.8 to
+  6.3/255 but for the darker grass (as London (v0.42): 0.26g has no direct translucency); rain darker,
+  as London (v0.42)'s rain.
+- The owner's spawns and picks on 0.32a4's collision (`check-points report`): all 220 team spawns and
+  50 Free for All picks stand on their ground, body clear, on a reachable floor; one pick (point 51) is
+  1.36 m from 0.32a4's fire zone 7.
