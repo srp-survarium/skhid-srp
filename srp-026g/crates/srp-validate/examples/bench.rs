@@ -492,6 +492,7 @@ fn context(state: &[u8], m: Match) -> Context<'static> {
         artefacts: None,
         objects: None,
         inventory: None,
+        dict_ids: None,
     }
 }
 

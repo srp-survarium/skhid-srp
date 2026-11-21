@@ -1,0 +1,3784 @@
+{
+  "schema": 2,
+  "purpose": "Original vertex-alpha and ordinary-shadow source audit; visible shader family coverage pending",
+  "original_shader_sha256": "34fd69c289b490e2db71ff8d31a4f3a037ca85ef67f4aca70f21cd9f1f7f4b45",
+  "native_observed_shader_sha256": "afca0c61fa9e91c15231da2816ae5023d7fcaef0a111d49917fa7b6e965e39fe",
+  "profiles": [
+    {
+      "dark_border": 0.1,
+      "light_border": 0.5,
+      "multiply": false,
+      "shadow_threshold": 0.5,
+      "alpha_ref": -21210.0
+    },
+    {
+      "dark_border": 0.5,
+      "light_border": 1,
+      "multiply": false,
+      "shadow_threshold": 0.25,
+      "alpha_ref": -21211.0
+    },
+    {
+      "dark_border": 1,
+      "light_border": 1,
+      "multiply": false,
+      "shadow_threshold": 0.5,
+      "alpha_ref": -21212.0
+    },
+    {
+      "dark_border": 1,
+      "light_border": 1,
+      "multiply": true,
+      "shadow_threshold": 0.25,
+      "alpha_ref": -21213.0
+    },
+    {
+      "dark_border": 1,
+      "light_border": 1,
+      "multiply": false,
+      "shadow_threshold": 0.25,
+      "alpha_ref": -21215.0
+    }
+  ],
+  "materials": [
+    {
+      "original_material": "flora/bark_end_aref_vc",
+      "target_material": "ported/v021d/flora/bark_end_aref_vc",
+      "original_cast_shadow": false,
+      "bindings": [
+        {
+          "model": "ported/v021d/flora/old_suh/l06_stamp_10_",
+          "settings": "models/ported/v021d/flora/old_suh/l06_stamp_10_.model/settings",
+          "key": "material_settings.top_0_tile_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/flora/old_suh/l06_stamp_13_",
+          "settings": "models/ported/v021d/flora/old_suh/l06_stamp_13_.model/settings",
+          "key": "material_settings.top_0_tile_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/flora/old_suh/l06_stamp_07_",
+          "settings": "models/ported/v021d/flora/old_suh/l06_stamp_07_.model/settings",
+          "key": "material_settings.top_0_tile_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/flora/old_suh/l06_stamp_03_",
+          "settings": "models/ported/v021d/flora/old_suh/l06_stamp_03_.model/settings",
+          "key": "material_settings.top_0_tile_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/flora/old_suh/l06_stamp_04_",
+          "settings": "models/ported/v021d/flora/old_suh/l06_stamp_04_.model/settings",
+          "key": "material_settings.top_0_tile_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/flora/old_suh/l06_stamp_09_",
+          "settings": "models/ported/v021d/flora/old_suh/l06_stamp_09_.model/settings",
+          "key": "material_settings.top_0_tile_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/flora/old_suh/l06_stamp_01_",
+          "settings": "models/ported/v021d/flora/old_suh/l06_stamp_01_.model/settings",
+          "key": "material_settings.top_0_tile_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/flora/old_suh/l06_stamp_14_",
+          "settings": "models/ported/v021d/flora/old_suh/l06_stamp_14_.model/settings",
+          "key": "material_settings.top_0_tile_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "f20c36111b5a91d502afaaf07a9db8e50b942b3b12812315e6704de2453d3aa2",
+      "state": "active",
+      "original_profile": {
+        "dark_border": 1,
+        "light_border": 1,
+        "multiply": false,
+        "shadow_threshold": 0.5
+      },
+      "original_blend": {
+        "master": false,
+        "channels": {
+          "use_vertex_blended_diffuse": false,
+          "use_vertex_blended_normal": false,
+          "use_vertex_blended_specular": false,
+          "use_vertex_blended_mask": false
+        }
+      },
+      "native_selectors": {
+        "vertex_blend_technique": 0,
+        "use_nmap": true,
+        "use_alpha_test": true,
+        "use_vertex_alpha_test": true,
+        "use_tiled_vertex_blended_mask": false,
+        "use_vertex_blended_textures": false,
+        "use_vertex_blended_diffuse": false,
+        "use_vertex_blended_normal": false,
+        "use_vertex_blended_specular": false,
+        "use_vertex_blended_mask": false,
+        "alpha_test_consider_vertex_blend": true
+      },
+      "changes": {
+        "material.g_stage.effect.alpha_ref.value": {
+          "original": 0.5,
+          "from": 0.5,
+          "to": -21212.0,
+          "as_float": true
+        },
+        "material.g_stage.effect.alpha_test_consider_vertex_blend.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        }
+      },
+      "unchanged_leaves_sha256": "ecc1fe97b8512f959e5fee0c317dce8904a99b3b5ec70f2231b0e7ec25737856"
+    },
+    {
+      "original_material": "flora/bark_rot_aref_vc",
+      "target_material": "ported/v021d/flora/bark_rot_aref_vc",
+      "original_cast_shadow": true,
+      "bindings": [
+        {
+          "model": "ported/v021d/flora/old_suh/suhoe_01_",
+          "settings": "models/ported/v021d/flora/old_suh/suhoe_01_.model/settings",
+          "key": "material_settings.bark_rot_aref_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/flora/old_suh/suhoe_03_",
+          "settings": "models/ported/v021d/flora/old_suh/suhoe_03_.model/settings",
+          "key": "material_settings.bark_rot_aref_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/flora/old_suh/suhoe_05_",
+          "settings": "models/ported/v021d/flora/old_suh/suhoe_05_.model/settings",
+          "key": "material_settings.bark_rot_aref_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/flora/old_suh/suhoe_02_",
+          "settings": "models/ported/v021d/flora/old_suh/suhoe_02_.model/settings",
+          "key": "material_settings.bark_rot_aref_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/flora/old_suh/suhoe_04_",
+          "settings": "models/ported/v021d/flora/old_suh/suhoe_04_.model/settings",
+          "key": "material_settings.bark_rot_aref_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "e8a42629cd884862277ffc5ded1ca89744b88b6f3b635465e563ef798e0e584f",
+      "state": "active",
+      "original_profile": {
+        "dark_border": 1,
+        "light_border": 1,
+        "multiply": false,
+        "shadow_threshold": 0.5
+      },
+      "original_blend": {
+        "master": false,
+        "channels": {
+          "use_vertex_blended_diffuse": false,
+          "use_vertex_blended_normal": false,
+          "use_vertex_blended_specular": false,
+          "use_vertex_blended_mask": false
+        }
+      },
+      "native_selectors": {
+        "vertex_blend_technique": 2,
+        "use_nmap": false,
+        "use_alpha_test": true,
+        "use_vertex_alpha_test": true,
+        "use_tiled_vertex_blended_mask": true,
+        "use_vertex_blended_textures": false,
+        "use_vertex_blended_diffuse": false,
+        "use_vertex_blended_normal": false,
+        "use_vertex_blended_specular": false,
+        "use_vertex_blended_mask": false,
+        "alpha_test_consider_vertex_blend": true
+      },
+      "changes": {
+        "material.g_stage.effect.alpha_ref.value": {
+          "original": 0.5,
+          "from": 0.5,
+          "to": -21212.0,
+          "as_float": true
+        },
+        "material.g_stage.effect.vertex_blend_technique.value": {
+          "from": 2,
+          "to": 0,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.use_tiled_vertex_blended_mask.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.alpha_test_consider_vertex_blend.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        }
+      },
+      "unchanged_leaves_sha256": "9521be3349377f5d6fcb4635866a1204a850e791e16ab6c77c2e46eb2cb57fc7"
+    },
+    {
+      "original_material": "flora/flora_korni_vc",
+      "target_material": "ported/v021d/flora/flora_korni_vc",
+      "original_cast_shadow": false,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/06/ground_3",
+          "settings": "models/ported/v021d/level/06/ground_3.model/settings",
+          "key": "material_settings.flora_korni_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_3",
+          "settings": "models/ported/v021d/level/06/ground_3.model/settings",
+          "key": "material_settings.trash_dirt_moss_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_5",
+          "settings": "models/ported/v021d/level/06/ground_5.model/settings",
+          "key": "material_settings.flora_korni_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/terain1",
+          "settings": "models/ported/v021d/level/06/terain1.model/settings",
+          "key": "material_settings.flora_korni_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_4",
+          "settings": "models/ported/v021d/level/06/ground_1_4.model/settings",
+          "key": "material_settings.flora_korni_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_4",
+          "settings": "models/ported/v021d/level/06/ground_1_4.model/settings",
+          "key": "material_settings.lod1_flora_korni_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_1",
+          "settings": "models/ported/v021d/level/06/object_1.model/settings",
+          "key": "material_settings.flora_korni_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_1",
+          "settings": "models/ported/v021d/level/06/object_1.model/settings",
+          "key": "material_settings.lod1_flora_korni_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_4",
+          "settings": "models/ported/v021d/level/06/object_4.model/settings",
+          "key": "material_settings.flora_korni_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_4",
+          "settings": "models/ported/v021d/level/06/object_4.model/settings",
+          "key": "material_settings.lod1_flora_korni_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/base_b",
+          "settings": "models/ported/v021d/level/06/base_b.model/settings",
+          "key": "material_settings.flora_korni_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_5",
+          "settings": "models/ported/v021d/level/06/object_5.model/settings",
+          "key": "material_settings.flora_korni_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_5",
+          "settings": "models/ported/v021d/level/06/object_5.model/settings",
+          "key": "material_settings.lod1_flora_korni_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2b",
+          "settings": "models/ported/v021d/level/06/object_2b.model/settings",
+          "key": "material_settings.flora_korni_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2b",
+          "settings": "models/ported/v021d/level/06/object_2b.model/settings",
+          "key": "material_settings.lod1_flora_korni_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "51a4cf4d04df38f14e54f913f98d18072b00bb1229d2fa86774bfea3f125e19b",
+      "state": "active",
+      "original_profile": {
+        "dark_border": 1,
+        "light_border": 1,
+        "multiply": true,
+        "shadow_threshold": 0.25
+      },
+      "original_blend": {
+        "master": false,
+        "channels": {
+          "use_vertex_blended_diffuse": false,
+          "use_vertex_blended_normal": false,
+          "use_vertex_blended_specular": false,
+          "use_vertex_blended_mask": false
+        }
+      },
+      "native_selectors": {
+        "vertex_blend_technique": 2,
+        "use_nmap": true,
+        "use_alpha_test": true,
+        "use_vertex_alpha_test": true,
+        "use_tiled_vertex_blended_mask": true,
+        "use_vertex_blended_textures": false,
+        "use_vertex_blended_diffuse": false,
+        "use_vertex_blended_normal": false,
+        "use_vertex_blended_specular": false,
+        "use_vertex_blended_mask": false,
+        "alpha_test_consider_vertex_blend": true
+      },
+      "changes": {
+        "material.g_stage.effect.alpha_ref.value": {
+          "original": 0.25,
+          "from": 0.25,
+          "to": -21213.0,
+          "as_float": true
+        },
+        "material.g_stage.effect.vertex_blend_technique.value": {
+          "from": 2,
+          "to": 0,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.use_tiled_vertex_blended_mask.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.alpha_test_consider_vertex_blend.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        }
+      },
+      "unchanged_leaves_sha256": "0f2ca0e6e20776ab85624600f8b46488fa94d0921f1b5f9a158eef755aa691ca"
+    },
+    {
+      "original_material": "flora/flora_moss_vc",
+      "target_material": "ported/v021d/flora/flora_moss_vc",
+      "original_cast_shadow": false,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/06/object_1",
+          "settings": "models/ported/v021d/level/06/object_1.model/settings",
+          "key": "material_settings.lod1_flora_moss_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_1",
+          "settings": "models/ported/v021d/level/06/object_1.model/settings",
+          "key": "material_settings.flora_moss_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/base_a",
+          "settings": "models/ported/v021d/level/06/base_a.model/settings",
+          "key": "material_settings.lod1_moss_tile_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/base_a",
+          "settings": "models/ported/v021d/level/06/base_a.model/settings",
+          "key": "material_settings.moss_tile_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "27eb828c10403583c4a0316e39055ee4f44b8ccada16f675a6fe55db647eb473",
+      "state": "active",
+      "original_profile": {
+        "dark_border": 1,
+        "light_border": 1,
+        "multiply": false,
+        "shadow_threshold": 0.25
+      },
+      "original_blend": {
+        "master": false,
+        "channels": {
+          "use_vertex_blended_diffuse": false,
+          "use_vertex_blended_normal": false,
+          "use_vertex_blended_specular": false,
+          "use_vertex_blended_mask": false
+        }
+      },
+      "native_selectors": {
+        "vertex_blend_technique": 2,
+        "use_nmap": true,
+        "use_alpha_test": true,
+        "use_vertex_alpha_test": true,
+        "use_tiled_vertex_blended_mask": true,
+        "use_vertex_blended_textures": false,
+        "use_vertex_blended_diffuse": false,
+        "use_vertex_blended_normal": false,
+        "use_vertex_blended_specular": false,
+        "use_vertex_blended_mask": false,
+        "alpha_test_consider_vertex_blend": true
+      },
+      "changes": {
+        "material.g_stage.effect.alpha_ref.value": {
+          "original": 0.25,
+          "from": 0.25,
+          "to": -21215.0,
+          "as_float": true
+        },
+        "material.g_stage.effect.vertex_blend_technique.value": {
+          "from": 2,
+          "to": 0,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.use_tiled_vertex_blended_mask.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.alpha_test_consider_vertex_blend.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        }
+      },
+      "unchanged_leaves_sha256": "298a07edaf8850db17ba782271bbb0565bfc40ada11c2def8d85440619b448ac"
+    },
+    {
+      "original_material": "flora/flora_oldliana_vc",
+      "target_material": "ported/v021d/flora/flora_oldliana_vc",
+      "original_cast_shadow": true,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/06/ground_3",
+          "settings": "models/ported/v021d/level/06/ground_3.model/settings",
+          "key": "material_settings.flora_oldliana_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_5",
+          "settings": "models/ported/v021d/level/06/ground_5.model/settings",
+          "key": "material_settings.flora_oldliana_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/terain1",
+          "settings": "models/ported/v021d/level/06/terain1.model/settings",
+          "key": "material_settings.flora_oldliana_s_lives_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_4",
+          "settings": "models/ported/v021d/level/06/ground_1_4.model/settings",
+          "key": "material_settings.flora_oldliana_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_4",
+          "settings": "models/ported/v021d/level/06/ground_1_4.model/settings",
+          "key": "material_settings.lod1_flora_oldliana_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_0",
+          "settings": "models/ported/v021d/level/06/ground_1_0.model/settings",
+          "key": "material_settings.flora_oldliana_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_3",
+          "settings": "models/ported/v021d/level/06/ground_1_3.model/settings",
+          "key": "material_settings.flora_oldliana_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_1",
+          "settings": "models/ported/v021d/level/06/object_1.model/settings",
+          "key": "material_settings.flora_oldliana_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_1",
+          "settings": "models/ported/v021d/level/06/object_1.model/settings",
+          "key": "material_settings.lod1_flora_oldliana_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_4",
+          "settings": "models/ported/v021d/level/06/object_4.model/settings",
+          "key": "material_settings.flora_oldliana_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_4",
+          "settings": "models/ported/v021d/level/06/object_4.model/settings",
+          "key": "material_settings.lod1_flora_oldliana_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/base_b",
+          "settings": "models/ported/v021d/level/06/base_b.model/settings",
+          "key": "material_settings.oldliana_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/base_b",
+          "settings": "models/ported/v021d/level/06/base_b.model/settings",
+          "key": "material_settings.lod1_oldliana_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/base_a",
+          "settings": "models/ported/v021d/level/06/base_a.model/settings",
+          "key": "material_settings.flora_oldliana_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/base_a",
+          "settings": "models/ported/v021d/level/06/base_a.model/settings",
+          "key": "material_settings.lod1_flora_oldliana_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_5",
+          "settings": "models/ported/v021d/level/06/object_5.model/settings",
+          "key": "material_settings.flora_oldliana_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_5",
+          "settings": "models/ported/v021d/level/06/object_5.model/settings",
+          "key": "material_settings.lod1_flora_oldliana_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2",
+          "settings": "models/ported/v021d/level/06/object_2.model/settings",
+          "key": "material_settings.flora_oldliana_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2",
+          "settings": "models/ported/v021d/level/06/object_2.model/settings",
+          "key": "material_settings.lod1_flora_oldliana_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2b",
+          "settings": "models/ported/v021d/level/06/object_2b.model/settings",
+          "key": "material_settings.flora_oldliana_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2b",
+          "settings": "models/ported/v021d/level/06/object_2b.model/settings",
+          "key": "material_settings.lod1_flora_oldliana_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "5b6fc1ba4fb397d003442ea09a3a0bf1eddf47a7a0a445ced1a804df87bc089a",
+      "state": "active",
+      "original_profile": {
+        "dark_border": 1,
+        "light_border": 1,
+        "multiply": true,
+        "shadow_threshold": 0.25
+      },
+      "original_blend": {
+        "master": false,
+        "channels": {
+          "use_vertex_blended_diffuse": false,
+          "use_vertex_blended_normal": false,
+          "use_vertex_blended_specular": false,
+          "use_vertex_blended_mask": false
+        }
+      },
+      "native_selectors": {
+        "vertex_blend_technique": 2,
+        "use_nmap": true,
+        "use_alpha_test": true,
+        "use_vertex_alpha_test": true,
+        "use_tiled_vertex_blended_mask": true,
+        "use_vertex_blended_textures": false,
+        "use_vertex_blended_diffuse": false,
+        "use_vertex_blended_normal": false,
+        "use_vertex_blended_specular": false,
+        "use_vertex_blended_mask": false,
+        "alpha_test_consider_vertex_blend": true
+      },
+      "changes": {
+        "material.g_stage.effect.alpha_ref.value": {
+          "original": 0.25,
+          "from": 0.25,
+          "to": -21213.0,
+          "as_float": true
+        },
+        "material.g_stage.effect.vertex_blend_technique.value": {
+          "from": 2,
+          "to": 0,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.use_tiled_vertex_blended_mask.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.alpha_test_consider_vertex_blend.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        }
+      },
+      "unchanged_leaves_sha256": "811101d267437c7c8c8b92d0db02bb5d79d7a376fd51ecf206ae327490bd4b6a"
+    },
+    {
+      "original_material": "flora/moss_tile",
+      "target_material": "ported/v021d/flora/moss_tile",
+      "original_cast_shadow": true,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/06/object_3",
+          "settings": "models/ported/v021d/level/06/object_3.model/settings",
+          "key": "material_settings.moss_tile_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "b25f87d5e6d0de41193cc7976a79c39a47119f22859eaab067947cdb06e6717c",
+      "state": "inactive_alpha_test_disabled",
+      "effective_leaf_sha256": "643371a978898dd459414d060db56e3a69f95cd4373ba0f546344782b7b83c9f"
+    },
+    {
+      "original_material": "flora/moss_tile_vc",
+      "target_material": "ported/v021d/flora/moss_tile_vc",
+      "original_cast_shadow": false,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/05/terrain/lvl_05_terrain_10",
+          "settings": "models/ported/v021d/level/05/terrain/lvl_05_terrain_10.model/settings",
+          "key": "material_settings.moss_tile_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/terrain/lvl_05_terrain_7",
+          "settings": "models/ported/v021d/level/05/terrain/lvl_05_terrain_7.model/settings",
+          "key": "material_settings.moss_tile_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/terrain/lvl_05_terrain_1",
+          "settings": "models/ported/v021d/level/05/terrain/lvl_05_terrain_1.model/settings",
+          "key": "material_settings.moss_tile_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/terrain/lvl_05_terrain_8",
+          "settings": "models/ported/v021d/level/05/terrain/lvl_05_terrain_8.model/settings",
+          "key": "material_settings.moss_tile_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/terrain/lvl_05_terrain_14",
+          "settings": "models/ported/v021d/level/05/terrain/lvl_05_terrain_14.model/settings",
+          "key": "material_settings.moss_tile_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/terrain/lvl_05_terrain_12",
+          "settings": "models/ported/v021d/level/05/terrain/lvl_05_terrain_12.model/settings",
+          "key": "material_settings.moss_tile_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/terrain/lvl_05_terrain_21",
+          "settings": "models/ported/v021d/level/05/terrain/lvl_05_terrain_21.model/settings",
+          "key": "material_settings.moss_tile_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/terrain/lvl_05_terrain_13",
+          "settings": "models/ported/v021d/level/05/terrain/lvl_05_terrain_13.model/settings",
+          "key": "material_settings.moss_tile_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/terrain/lvl_05_terrain_11",
+          "settings": "models/ported/v021d/level/05/terrain/lvl_05_terrain_11.model/settings",
+          "key": "material_settings.moss_tile_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/terrain/lvl_05_terrain_5",
+          "settings": "models/ported/v021d/level/05/terrain/lvl_05_terrain_5.model/settings",
+          "key": "material_settings.moss_tile_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/base_b",
+          "settings": "models/ported/v021d/level/06/base_b.model/settings",
+          "key": "material_settings.moss_tile_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "acaba1a27582a75c89fce9b7e7e0e4482f424fa2fb7f28ff9aa91d28584b1b46",
+      "state": "active",
+      "original_profile": {
+        "dark_border": 0.1,
+        "light_border": 0.5,
+        "multiply": false,
+        "shadow_threshold": 0.5
+      },
+      "original_blend": {
+        "master": false,
+        "channels": {
+          "use_vertex_blended_diffuse": false,
+          "use_vertex_blended_normal": false,
+          "use_vertex_blended_specular": false,
+          "use_vertex_blended_mask": false
+        }
+      },
+      "native_selectors": {
+        "vertex_blend_technique": 2,
+        "use_nmap": true,
+        "use_alpha_test": true,
+        "use_vertex_alpha_test": true,
+        "use_tiled_vertex_blended_mask": true,
+        "use_vertex_blended_textures": false,
+        "use_vertex_blended_diffuse": false,
+        "use_vertex_blended_normal": false,
+        "use_vertex_blended_specular": false,
+        "use_vertex_blended_mask": false,
+        "alpha_test_consider_vertex_blend": true
+      },
+      "changes": {
+        "material.g_stage.effect.alpha_ref.value": {
+          "original": 0.5,
+          "from": 0.5,
+          "to": -21210.0,
+          "as_float": true
+        },
+        "material.g_stage.effect.vertex_blend_technique.value": {
+          "from": 2,
+          "to": 0,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.use_tiled_vertex_blended_mask.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.alpha_test_consider_vertex_blend.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        }
+      },
+      "unchanged_leaves_sha256": "a52a59ec2253e0c363daca59da9f3f1a5d3de069c48d65ff12d8beba57c21129"
+    },
+    {
+      "original_material": "flora/roots_tile_vc",
+      "target_material": "ported/v021d/flora/roots_tile_vc",
+      "original_cast_shadow": true,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/06/object_1",
+          "settings": "models/ported/v021d/level/06/object_1.model/settings",
+          "key": "material_settings.lod1_roots_tile_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_1",
+          "settings": "models/ported/v021d/level/06/object_1.model/settings",
+          "key": "material_settings.roots_tile_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/statue_object_2",
+          "settings": "models/ported/v021d/level/06/statue_object_2.model/settings",
+          "key": "material_settings.lod1_roots_tile_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/statue_object_2",
+          "settings": "models/ported/v021d/level/06/statue_object_2.model/settings",
+          "key": "material_settings.roots_tile_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "bb33e364b81c0d84c3a6f2db1026c80ccc0a8c61689792151cde61509e5d5b14",
+      "state": "active",
+      "original_profile": {
+        "dark_border": 1,
+        "light_border": 1,
+        "multiply": true,
+        "shadow_threshold": 0.25
+      },
+      "original_blend": {
+        "master": false,
+        "channels": {
+          "use_vertex_blended_diffuse": false,
+          "use_vertex_blended_normal": false,
+          "use_vertex_blended_specular": false,
+          "use_vertex_blended_mask": false
+        }
+      },
+      "native_selectors": {
+        "vertex_blend_technique": 2,
+        "use_nmap": true,
+        "use_alpha_test": true,
+        "use_vertex_alpha_test": true,
+        "use_tiled_vertex_blended_mask": true,
+        "use_vertex_blended_textures": false,
+        "use_vertex_blended_diffuse": false,
+        "use_vertex_blended_normal": false,
+        "use_vertex_blended_specular": false,
+        "use_vertex_blended_mask": false,
+        "alpha_test_consider_vertex_blend": true
+      },
+      "changes": {
+        "material.g_stage.effect.alpha_ref.value": {
+          "original": 0.25,
+          "from": 0.25,
+          "to": -21213.0,
+          "as_float": true
+        },
+        "material.g_stage.effect.vertex_blend_technique.value": {
+          "from": 2,
+          "to": 0,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.use_tiled_vertex_blended_mask.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.alpha_test_consider_vertex_blend.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        }
+      },
+      "unchanged_leaves_sha256": "34e684f2801b0b8bb2b442e4164cc9b3ca23de1ff31f1fddc6bce7cb46a89e79"
+    },
+    {
+      "original_material": "terrain/ground_02_tile_vc",
+      "target_material": "ported/v021d/terrain/ground_02_tile_vc",
+      "original_cast_shadow": false,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/06/ground_1_2",
+          "settings": "models/ported/v021d/level/06/ground_1_2.model/settings",
+          "key": "material_settings.ground_02_tile_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/terain1",
+          "settings": "models/ported/v021d/level/06/terain1.model/settings",
+          "key": "material_settings.ground_02_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/statue_ground",
+          "settings": "models/ported/v021d/level/06/statue_ground.model/settings",
+          "key": "material_settings.ground_02_tile_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/statue_ground",
+          "settings": "models/ported/v021d/level/06/statue_ground.model/settings",
+          "key": "material_settings.lod1_ground_02_tile_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_1",
+          "settings": "models/ported/v021d/level/06/ground_1_1.model/settings",
+          "key": "material_settings.ground_02_tile_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_0",
+          "settings": "models/ported/v021d/level/06/ground_1_0.model/settings",
+          "key": "material_settings.ground_02_tile_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_3",
+          "settings": "models/ported/v021d/level/06/ground_1_3.model/settings",
+          "key": "material_settings.ground_02_tile_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_6",
+          "settings": "models/ported/v021d/level/06/object_6.model/settings",
+          "key": "material_settings.ground_02_s_alphs_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_6",
+          "settings": "models/ported/v021d/level/06/object_6.model/settings",
+          "key": "material_settings.lod1_ground_02_s_alphs_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "b400ec165683ab415354ddc055379369a1f2593e2aedc023015bedd2825597e0",
+      "state": "active",
+      "original_profile": {
+        "dark_border": 1,
+        "light_border": 1,
+        "multiply": false,
+        "shadow_threshold": 0.25
+      },
+      "original_blend": {
+        "master": false,
+        "channels": {
+          "use_vertex_blended_diffuse": false,
+          "use_vertex_blended_normal": false,
+          "use_vertex_blended_specular": false,
+          "use_vertex_blended_mask": false
+        }
+      },
+      "native_selectors": {
+        "vertex_blend_technique": 2,
+        "use_nmap": true,
+        "use_alpha_test": true,
+        "use_vertex_alpha_test": true,
+        "use_tiled_vertex_blended_mask": true,
+        "use_vertex_blended_textures": false,
+        "use_vertex_blended_diffuse": false,
+        "use_vertex_blended_normal": false,
+        "use_vertex_blended_specular": false,
+        "use_vertex_blended_mask": false,
+        "alpha_test_consider_vertex_blend": true
+      },
+      "changes": {
+        "material.g_stage.effect.alpha_ref.value": {
+          "original": 0.25,
+          "from": 0.25,
+          "to": -21215.0,
+          "as_float": true
+        },
+        "material.g_stage.effect.vertex_blend_technique.value": {
+          "from": 2,
+          "to": 0,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.use_tiled_vertex_blended_mask.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.alpha_test_consider_vertex_blend.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        }
+      },
+      "unchanged_leaves_sha256": "6e00575c2ecdd8af932b227a488d554891fe8e054a242231e17d87af5b90ddc8"
+    },
+    {
+      "original_material": "terrain/ground_moss_op_vc",
+      "target_material": "ported/v021d/terrain/ground_moss_op_vc",
+      "original_cast_shadow": false,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/06/ground_3",
+          "settings": "models/ported/v021d/level/06/ground_3.model/settings",
+          "key": "material_settings.ground_moss_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_5",
+          "settings": "models/ported/v021d/level/06/ground_5.model/settings",
+          "key": "material_settings.ground_moss_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "636aa38218b12fa45e780c6534a0b7b992b31d87cbd6a26ff23b2d0640c36b2f",
+      "state": "active",
+      "original_profile": {
+        "dark_border": 1,
+        "light_border": 1,
+        "multiply": false,
+        "shadow_threshold": 0.5
+      },
+      "original_blend": {
+        "master": false,
+        "channels": {
+          "use_vertex_blended_diffuse": false,
+          "use_vertex_blended_normal": false,
+          "use_vertex_blended_specular": false,
+          "use_vertex_blended_mask": false
+        }
+      },
+      "native_selectors": {
+        "vertex_blend_technique": 2,
+        "use_nmap": false,
+        "use_alpha_test": true,
+        "use_vertex_alpha_test": true,
+        "use_tiled_vertex_blended_mask": true,
+        "use_vertex_blended_textures": false,
+        "use_vertex_blended_diffuse": false,
+        "use_vertex_blended_normal": false,
+        "use_vertex_blended_specular": false,
+        "use_vertex_blended_mask": false,
+        "alpha_test_consider_vertex_blend": true
+      },
+      "changes": {
+        "material.g_stage.effect.alpha_ref.value": {
+          "original": 0.5,
+          "from": 0.5,
+          "to": -21212.0,
+          "as_float": true
+        },
+        "material.g_stage.effect.vertex_blend_technique.value": {
+          "from": 2,
+          "to": 0,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.use_tiled_vertex_blended_mask.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.alpha_test_consider_vertex_blend.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        }
+      },
+      "unchanged_leaves_sha256": "2ea87383b768c7078b089a793c6e8968ae816b53d277b35f2a316b144b6771f8"
+    },
+    {
+      "original_material": "terrain/ground_moss_s_alpha_vc",
+      "target_material": "ported/v021d/terrain/ground_moss_s_alpha_vc",
+      "original_cast_shadow": false,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/06/ground_1_2",
+          "settings": "models/ported/v021d/level/06/ground_1_2.model/settings",
+          "key": "material_settings.lod1_ground_moss_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_2",
+          "settings": "models/ported/v021d/level/06/ground_1_2.model/settings",
+          "key": "material_settings.ground_moss_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/statue_ground",
+          "settings": "models/ported/v021d/level/06/statue_ground.model/settings",
+          "key": "material_settings.lod1_ground_moss_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/statue_ground",
+          "settings": "models/ported/v021d/level/06/statue_ground.model/settings",
+          "key": "material_settings.ground_moss_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_0",
+          "settings": "models/ported/v021d/level/06/ground_1_0.model/settings",
+          "key": "material_settings.ground_moss_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_0",
+          "settings": "models/ported/v021d/level/06/ground_1_0.model/settings",
+          "key": "material_settings.lod1_ground_moss_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_3",
+          "settings": "models/ported/v021d/level/06/ground_1_3.model/settings",
+          "key": "material_settings.ground_moss_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_3",
+          "settings": "models/ported/v021d/level/06/ground_1_3.model/settings",
+          "key": "material_settings.lod1_ground_moss_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "cc51b1e9cb5c4602c82ca2277164a44a223c8e3af83e8433505b6dded7e70aa8",
+      "state": "active",
+      "original_profile": {
+        "dark_border": 1,
+        "light_border": 1,
+        "multiply": true,
+        "shadow_threshold": 0.25
+      },
+      "original_blend": {
+        "master": false,
+        "channels": {
+          "use_vertex_blended_diffuse": false,
+          "use_vertex_blended_normal": false,
+          "use_vertex_blended_specular": false,
+          "use_vertex_blended_mask": false
+        }
+      },
+      "native_selectors": {
+        "vertex_blend_technique": 2,
+        "use_nmap": true,
+        "use_alpha_test": true,
+        "use_vertex_alpha_test": true,
+        "use_tiled_vertex_blended_mask": true,
+        "use_vertex_blended_textures": false,
+        "use_vertex_blended_diffuse": false,
+        "use_vertex_blended_normal": false,
+        "use_vertex_blended_specular": false,
+        "use_vertex_blended_mask": false,
+        "alpha_test_consider_vertex_blend": true
+      },
+      "changes": {
+        "material.g_stage.effect.alpha_ref.value": {
+          "original": 0.25,
+          "from": 0.25,
+          "to": -21213.0,
+          "as_float": true
+        },
+        "material.g_stage.effect.vertex_blend_technique.value": {
+          "from": 2,
+          "to": 0,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.use_tiled_vertex_blended_mask.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.alpha_test_consider_vertex_blend.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        }
+      },
+      "unchanged_leaves_sha256": "7cb6f2fd62cc1168826993fb07f8fc4f21b3892b9003bba13ad8470a2bf38067"
+    },
+    {
+      "original_material": "terrain_tiled/dirt_vc",
+      "target_material": "ported/v021d/terrain_tiled/dirt_vc",
+      "original_cast_shadow": false,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/01/terrain",
+          "settings": "models/ported/v021d/level/01/terrain.model/settings",
+          "key": "material_settings.dirt_01_s.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/01/terrain",
+          "settings": "models/ported/v021d/level/01/terrain.model/settings",
+          "key": "material_settings.dirt_01_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "046e70d5c6fd0046cd80a8210211b76e08bfa451c3be588740307ae9ca8e59c4",
+      "state": "active",
+      "original_profile": {
+        "dark_border": 1,
+        "light_border": 1,
+        "multiply": false,
+        "shadow_threshold": 0.5
+      },
+      "original_blend": {
+        "master": true,
+        "channels": {
+          "use_vertex_blended_diffuse": false,
+          "use_vertex_blended_normal": false,
+          "use_vertex_blended_specular": false,
+          "use_vertex_blended_mask": false
+        }
+      },
+      "native_selectors": {
+        "vertex_blend_technique": 2,
+        "use_nmap": false,
+        "use_alpha_test": true,
+        "use_vertex_alpha_test": true,
+        "use_tiled_vertex_blended_mask": true,
+        "use_vertex_blended_textures": true,
+        "use_vertex_blended_diffuse": false,
+        "use_vertex_blended_normal": false,
+        "use_vertex_blended_specular": false,
+        "use_vertex_blended_mask": false,
+        "alpha_test_consider_vertex_blend": true
+      },
+      "changes": {
+        "material.g_stage.effect.alpha_ref.value": {
+          "original": 0.5,
+          "from": 0.5,
+          "to": -21212.0,
+          "as_float": true
+        },
+        "material.g_stage.effect.vertex_blend_technique.value": {
+          "from": 2,
+          "to": 0,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.use_tiled_vertex_blended_mask.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.alpha_test_consider_vertex_blend.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        }
+      },
+      "unchanged_leaves_sha256": "76de1c6567578e201d265bd729e3582d6b889df97ce65102a128802d1edd0ab3"
+    },
+    {
+      "original_material": "terrain_tiled/earth_vc",
+      "target_material": "ported/v021d/terrain_tiled/earth_vc",
+      "original_cast_shadow": false,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/01/terrain",
+          "settings": "models/ported/v021d/level/01/terrain.model/settings",
+          "key": "material_settings.earth_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "a7eb92bc85f24cd88ec50521417f2201f70c27f18f4510b19abc02e6235e646a",
+      "state": "active",
+      "original_profile": {
+        "dark_border": 1,
+        "light_border": 1,
+        "multiply": false,
+        "shadow_threshold": 0.5
+      },
+      "original_blend": {
+        "master": true,
+        "channels": {
+          "use_vertex_blended_diffuse": false,
+          "use_vertex_blended_normal": false,
+          "use_vertex_blended_specular": false,
+          "use_vertex_blended_mask": false
+        }
+      },
+      "native_selectors": {
+        "vertex_blend_technique": 2,
+        "use_nmap": true,
+        "use_alpha_test": true,
+        "use_vertex_alpha_test": true,
+        "use_tiled_vertex_blended_mask": true,
+        "use_vertex_blended_textures": true,
+        "use_vertex_blended_diffuse": false,
+        "use_vertex_blended_normal": false,
+        "use_vertex_blended_specular": false,
+        "use_vertex_blended_mask": false,
+        "alpha_test_consider_vertex_blend": true
+      },
+      "changes": {
+        "material.g_stage.effect.alpha_ref.value": {
+          "original": 0.5,
+          "from": 0.5,
+          "to": -21212.0,
+          "as_float": true
+        },
+        "material.g_stage.effect.vertex_blend_technique.value": {
+          "from": 2,
+          "to": 0,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.use_tiled_vertex_blended_mask.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.alpha_test_consider_vertex_blend.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        }
+      },
+      "unchanged_leaves_sha256": "0118c2afb6896f5dcd85cf818aa34b1ac83fb7c5ea5f7c5533f8e3600f7e6d85"
+    },
+    {
+      "original_material": "terrain_tiled/grass_vc",
+      "target_material": "ported/v021d/terrain_tiled/grass_vc",
+      "original_cast_shadow": false,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/01/terrain",
+          "settings": "models/ported/v021d/level/01/terrain.model/settings",
+          "key": "material_settings.grass_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "d4c4ff59937962245d85fe2fa95b8c83310d270468797bdee57269c4608fbc4f",
+      "state": "active",
+      "original_profile": {
+        "dark_border": 1,
+        "light_border": 1,
+        "multiply": false,
+        "shadow_threshold": 0.5
+      },
+      "original_blend": {
+        "master": false,
+        "channels": {
+          "use_vertex_blended_diffuse": false,
+          "use_vertex_blended_normal": false,
+          "use_vertex_blended_specular": false,
+          "use_vertex_blended_mask": false
+        }
+      },
+      "native_selectors": {
+        "vertex_blend_technique": 2,
+        "use_nmap": true,
+        "use_alpha_test": true,
+        "use_vertex_alpha_test": true,
+        "use_tiled_vertex_blended_mask": true,
+        "use_vertex_blended_textures": false,
+        "use_vertex_blended_diffuse": false,
+        "use_vertex_blended_normal": false,
+        "use_vertex_blended_specular": false,
+        "use_vertex_blended_mask": false,
+        "alpha_test_consider_vertex_blend": true
+      },
+      "changes": {
+        "material.g_stage.effect.alpha_ref.value": {
+          "original": 0.5,
+          "from": 0.5,
+          "to": -21212.0,
+          "as_float": true
+        },
+        "material.g_stage.effect.vertex_blend_technique.value": {
+          "from": 2,
+          "to": 0,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.use_tiled_vertex_blended_mask.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.alpha_test_consider_vertex_blend.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        }
+      },
+      "unchanged_leaves_sha256": "816e81fb22bedca2c2b9990e1d169ed10104b20b7e059705739bf3bfa5f6378f"
+    },
+    {
+      "original_material": "terrain_tiled/l_03_alfa_buter/ground_vc",
+      "target_material": "ported/v021d/terrain_tiled/l_03_alfa_buter/ground_vc",
+      "original_cast_shadow": false,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/03/terrain_all",
+          "settings": "models/ported/v021d/level/03/terrain_all.model/settings",
+          "key": "material_settings.ground__vc.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "feccf93b039c0fdc3a83f1c2e6bb52c2dda71f21ca0822a7fc6b79149122b352",
+      "state": "active",
+      "original_profile": {
+        "dark_border": 1,
+        "light_border": 1,
+        "multiply": false,
+        "shadow_threshold": 0.5
+      },
+      "original_blend": {
+        "master": false,
+        "channels": {
+          "use_vertex_blended_diffuse": false,
+          "use_vertex_blended_normal": false,
+          "use_vertex_blended_specular": false,
+          "use_vertex_blended_mask": false
+        }
+      },
+      "native_selectors": {
+        "vertex_blend_technique": 0,
+        "use_nmap": true,
+        "use_alpha_test": true,
+        "use_vertex_alpha_test": true,
+        "use_tiled_vertex_blended_mask": false,
+        "use_vertex_blended_textures": false,
+        "use_vertex_blended_diffuse": false,
+        "use_vertex_blended_normal": false,
+        "use_vertex_blended_specular": false,
+        "use_vertex_blended_mask": false,
+        "alpha_test_consider_vertex_blend": true
+      },
+      "changes": {
+        "material.g_stage.effect.alpha_ref.value": {
+          "original": 0.5,
+          "from": 0.5,
+          "to": -21212.0,
+          "as_float": true
+        },
+        "material.g_stage.effect.alpha_test_consider_vertex_blend.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        }
+      },
+      "unchanged_leaves_sha256": "b50881da4f1f7fcd0b7f60290e065735e7816118e12fc524ae6971d0a1e50160"
+    },
+    {
+      "original_material": "terrain_tiled/l_03_alfa_buter/trash_dirt_vc",
+      "target_material": "ported/v021d/terrain_tiled/l_03_alfa_buter/trash_dirt_vc",
+      "original_cast_shadow": false,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/03/terrain_all",
+          "settings": "models/ported/v021d/level/03/terrain_all.model/settings",
+          "key": "material_settings.trash_dirt__vc.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "f5150012f4ea4094d08fa6f338c7d10d727263704e45ea1379795b5e936eab04",
+      "state": "active",
+      "original_profile": {
+        "dark_border": 1,
+        "light_border": 1,
+        "multiply": false,
+        "shadow_threshold": 0.5
+      },
+      "original_blend": {
+        "master": false,
+        "channels": {
+          "use_vertex_blended_diffuse": false,
+          "use_vertex_blended_normal": false,
+          "use_vertex_blended_specular": false,
+          "use_vertex_blended_mask": false
+        }
+      },
+      "native_selectors": {
+        "vertex_blend_technique": 0,
+        "use_nmap": false,
+        "use_alpha_test": true,
+        "use_vertex_alpha_test": true,
+        "use_tiled_vertex_blended_mask": false,
+        "use_vertex_blended_textures": false,
+        "use_vertex_blended_diffuse": false,
+        "use_vertex_blended_normal": false,
+        "use_vertex_blended_specular": false,
+        "use_vertex_blended_mask": false,
+        "alpha_test_consider_vertex_blend": true
+      },
+      "changes": {
+        "material.g_stage.effect.alpha_ref.value": {
+          "original": 0.5,
+          "from": 0.5,
+          "to": -21212.0,
+          "as_float": true
+        },
+        "material.g_stage.effect.alpha_test_consider_vertex_blend.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        }
+      },
+      "unchanged_leaves_sha256": "e3adb03f05ab82c11aca1861f8ce65536381229e8c9d92336065513c682e3a6e"
+    },
+    {
+      "original_material": "terrain_tiled/sand_grass_vc",
+      "target_material": "ported/v021d/terrain_tiled/sand_grass_vc",
+      "original_cast_shadow": false,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/01/terrain",
+          "settings": "models/ported/v021d/level/01/terrain.model/settings",
+          "key": "material_settings.sand_grass_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "ea80b7a3b913ea1274367bec6189488bfc8d30f757abf8f711c92d9fca7efb10",
+      "state": "active",
+      "original_profile": {
+        "dark_border": 1,
+        "light_border": 1,
+        "multiply": false,
+        "shadow_threshold": 0.5
+      },
+      "original_blend": {
+        "master": false,
+        "channels": {
+          "use_vertex_blended_diffuse": false,
+          "use_vertex_blended_normal": false,
+          "use_vertex_blended_specular": false,
+          "use_vertex_blended_mask": false
+        }
+      },
+      "native_selectors": {
+        "vertex_blend_technique": 2,
+        "use_nmap": true,
+        "use_alpha_test": true,
+        "use_vertex_alpha_test": true,
+        "use_tiled_vertex_blended_mask": true,
+        "use_vertex_blended_textures": false,
+        "use_vertex_blended_diffuse": false,
+        "use_vertex_blended_normal": false,
+        "use_vertex_blended_specular": false,
+        "use_vertex_blended_mask": false,
+        "alpha_test_consider_vertex_blend": true
+      },
+      "changes": {
+        "material.g_stage.effect.alpha_ref.value": {
+          "original": 0.5,
+          "from": 0.5,
+          "to": -21212.0,
+          "as_float": true
+        },
+        "material.g_stage.effect.vertex_blend_technique.value": {
+          "from": 2,
+          "to": 0,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.use_tiled_vertex_blended_mask.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.alpha_test_consider_vertex_blend.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        }
+      },
+      "unchanged_leaves_sha256": "33dca0527a31f4b38dd8fdf33d9200dd6fefaf49633535a364bbaa6caeeae989"
+    },
+    {
+      "original_material": "terrain_tiled/soil_02_floor_brick_05_vc",
+      "target_material": "ported/v021d/terrain_tiled/soil_02_floor_brick_05_vc",
+      "original_cast_shadow": false,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/05/center_part_03_floor",
+          "settings": "models/ported/v021d/level/05/center_part_03_floor.model/settings",
+          "key": "material_settings.soil_02_floor_brick_05_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/center_part_01_floor",
+          "settings": "models/ported/v021d/level/05/center_part_01_floor.model/settings",
+          "key": "material_settings.soil_02_floor_brick_05_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/center_part_02_floor",
+          "settings": "models/ported/v021d/level/05/center_part_02_floor.model/settings",
+          "key": "material_settings.soil_02_floor_brick_05_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "c0b23021ab88088e1302c76ed802e3b4c6dca6fa48207562b50205bfaa57c228",
+      "state": "inactive_alpha_test_disabled",
+      "effective_leaf_sha256": "d3fb403e6dd58c85163991df61cf44317e10fc88e04d8a5f983f65b2b01a4e76"
+    },
+    {
+      "original_material": "tiled/floor/floor_brick_05_alpha_vc",
+      "target_material": "ported/v021d/tiled/floor/floor_brick_05_alpha_vc",
+      "original_cast_shadow": false,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/05/terrain/lvl_05_terrain_9",
+          "settings": "models/ported/v021d/level/05/terrain/lvl_05_terrain_9.model/settings",
+          "key": "material_settings.floor_brick05_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/terrain/lvl_05_terrain_10",
+          "settings": "models/ported/v021d/level/05/terrain/lvl_05_terrain_10.model/settings",
+          "key": "material_settings.floor_brick05_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/terrain/lvl_05_terrain_7",
+          "settings": "models/ported/v021d/level/05/terrain/lvl_05_terrain_7.model/settings",
+          "key": "material_settings.floor_brick05_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/terrain/lvl_05_terrain_6",
+          "settings": "models/ported/v021d/level/05/terrain/lvl_05_terrain_6.model/settings",
+          "key": "material_settings.floor_brick05_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/terrain/lvl_05_terrain_1",
+          "settings": "models/ported/v021d/level/05/terrain/lvl_05_terrain_1.model/settings",
+          "key": "material_settings.floor_brick05_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/terrain/lvl_05_terrain_8",
+          "settings": "models/ported/v021d/level/05/terrain/lvl_05_terrain_8.model/settings",
+          "key": "material_settings.floor_brick05_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/terrain/lvl_05_terrain_14",
+          "settings": "models/ported/v021d/level/05/terrain/lvl_05_terrain_14.model/settings",
+          "key": "material_settings.floor_brick05_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/terrain/lvl_05_terrain_12",
+          "settings": "models/ported/v021d/level/05/terrain/lvl_05_terrain_12.model/settings",
+          "key": "material_settings.floor_brick05_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/terrain/lvl_05_terrain_4",
+          "settings": "models/ported/v021d/level/05/terrain/lvl_05_terrain_4.model/settings",
+          "key": "material_settings.floor_brick05_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/terrain/lvl_05_terrain_21",
+          "settings": "models/ported/v021d/level/05/terrain/lvl_05_terrain_21.model/settings",
+          "key": "material_settings.floor_brick05_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/terrain/lvl_05_terrain_13",
+          "settings": "models/ported/v021d/level/05/terrain/lvl_05_terrain_13.model/settings",
+          "key": "material_settings.floor_brick05_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/terrain/lvl_05_terrain_11",
+          "settings": "models/ported/v021d/level/05/terrain/lvl_05_terrain_11.model/settings",
+          "key": "material_settings.floor_brick05_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/terrain/lvl_05_terrain_5",
+          "settings": "models/ported/v021d/level/05/terrain/lvl_05_terrain_5.model/settings",
+          "key": "material_settings.floor_brick05_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "4637532d0d9903ddfec1494a92280f00294ad625c2fe76c13da0f6b72aa91dd2",
+      "state": "active",
+      "original_profile": {
+        "dark_border": 1,
+        "light_border": 1,
+        "multiply": false,
+        "shadow_threshold": 0.25
+      },
+      "original_blend": {
+        "master": false,
+        "channels": {
+          "use_vertex_blended_diffuse": false,
+          "use_vertex_blended_normal": false,
+          "use_vertex_blended_specular": false,
+          "use_vertex_blended_mask": false
+        }
+      },
+      "native_selectors": {
+        "vertex_blend_technique": 2,
+        "use_nmap": true,
+        "use_alpha_test": true,
+        "use_vertex_alpha_test": true,
+        "use_tiled_vertex_blended_mask": true,
+        "use_vertex_blended_textures": false,
+        "use_vertex_blended_diffuse": false,
+        "use_vertex_blended_normal": false,
+        "use_vertex_blended_specular": false,
+        "use_vertex_blended_mask": false,
+        "alpha_test_consider_vertex_blend": true
+      },
+      "changes": {
+        "material.g_stage.effect.alpha_ref.value": {
+          "original": 0.25,
+          "from": 0.25,
+          "to": -21215.0,
+          "as_float": true
+        },
+        "material.g_stage.effect.vertex_blend_technique.value": {
+          "from": 2,
+          "to": 0,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.use_tiled_vertex_blended_mask.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.alpha_test_consider_vertex_blend.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        }
+      },
+      "unchanged_leaves_sha256": "aa489e9f6f180e382e678867cfcf8191996a5967f1533846d1ab00c22e6a53cc"
+    },
+    {
+      "original_material": "tiled/floor/floor_trash_vc_1",
+      "target_material": "ported/v021d/tiled/floor/floor_trash_vc_1",
+      "original_cast_shadow": true,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/01/house_7",
+          "settings": "models/ported/v021d/level/01/house_7.model/settings",
+          "key": "material_settings.lod1_trash_s_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/01/house_7",
+          "settings": "models/ported/v021d/level/01/house_7.model/settings",
+          "key": "material_settings.lod2_trash_s_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/01/house_7",
+          "settings": "models/ported/v021d/level/01/house_7.model/settings",
+          "key": "material_settings.trash_s_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/01/background/back_house_7",
+          "settings": "models/ported/v021d/level/01/background/back_house_7.model/settings",
+          "key": "material_settings.trash_s_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "366910eb8205802af36b37aac92404cf1c3b33623ac9824ab1922360f0f011aa",
+      "state": "active",
+      "original_profile": {
+        "dark_border": 1,
+        "light_border": 1,
+        "multiply": false,
+        "shadow_threshold": 0.5
+      },
+      "original_blend": {
+        "master": false,
+        "channels": {
+          "use_vertex_blended_diffuse": false,
+          "use_vertex_blended_normal": false,
+          "use_vertex_blended_specular": false,
+          "use_vertex_blended_mask": false
+        }
+      },
+      "native_selectors": {
+        "vertex_blend_technique": 1,
+        "use_nmap": true,
+        "use_alpha_test": true,
+        "use_vertex_alpha_test": true,
+        "use_tiled_vertex_blended_mask": true,
+        "use_vertex_blended_textures": false,
+        "use_vertex_blended_diffuse": false,
+        "use_vertex_blended_normal": true,
+        "use_vertex_blended_specular": false,
+        "use_vertex_blended_mask": false,
+        "alpha_test_consider_vertex_blend": true
+      },
+      "changes": {
+        "material.g_stage.effect.alpha_ref.value": {
+          "original": 0.5,
+          "from": 0.5,
+          "to": -21212.0,
+          "as_float": true
+        },
+        "material.g_stage.effect.vertex_blend_technique.value": {
+          "from": 1,
+          "to": 0,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.use_tiled_vertex_blended_mask.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.alpha_test_consider_vertex_blend.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.use_vertex_blended_normal.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        }
+      },
+      "unchanged_leaves_sha256": "7665bf540fcb180e3c27f2fc1cb6b76b0f2afda4753445e9222c6fad7c8e6d4b"
+    },
+    {
+      "original_material": "tiled/roof/roof_camouflafe_01_alpha_vc",
+      "target_material": "ported/v021d/tiled/roof/roof_camouflafe_01_alpha_vc",
+      "original_cast_shadow": true,
+      "bindings": [
+        {
+          "model": "ported/v021d/generic/tent/tent_1",
+          "settings": "models/ported/v021d/generic/tent/tent_1.model/settings",
+          "key": "material_settings.roof_camouflage_01_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "86fab74e0da77d42f26608e51a03c248a7be0736be50238ec73ccca06f21dd02",
+      "state": "active",
+      "original_profile": {
+        "dark_border": 1,
+        "light_border": 1,
+        "multiply": true,
+        "shadow_threshold": 0.25
+      },
+      "original_blend": {
+        "master": false,
+        "channels": {
+          "use_vertex_blended_diffuse": false,
+          "use_vertex_blended_normal": false,
+          "use_vertex_blended_specular": false,
+          "use_vertex_blended_mask": false
+        }
+      },
+      "native_selectors": {
+        "vertex_blend_technique": 0,
+        "use_nmap": true,
+        "use_alpha_test": true,
+        "use_vertex_alpha_test": true,
+        "use_tiled_vertex_blended_mask": false,
+        "use_vertex_blended_textures": false,
+        "use_vertex_blended_diffuse": false,
+        "use_vertex_blended_normal": false,
+        "use_vertex_blended_specular": false,
+        "use_vertex_blended_mask": false,
+        "alpha_test_consider_vertex_blend": true
+      },
+      "changes": {
+        "material.g_stage.effect.alpha_ref.value": {
+          "original": 0.25,
+          "from": 0.25,
+          "to": -21213.0,
+          "as_float": true
+        },
+        "material.g_stage.effect.alpha_test_consider_vertex_blend.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        }
+      },
+      "unchanged_leaves_sha256": "d34682ff9b5af58a865c1a65689c98b481a7974b580f8bbc62dd4a78fa5d41c4"
+    },
+    {
+      "original_material": "tiled/stucco/stucco_03_alpha_vc",
+      "target_material": "ported/v021d/tiled/stucco/stucco_03_alpha_vc",
+      "original_cast_shadow": false,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/05/center_part_08",
+          "settings": "models/ported/v021d/level/05/center_part_08.model/settings",
+          "key": "material_settings.stucco_03_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/center_part_06",
+          "settings": "models/ported/v021d/level/05/center_part_06.model/settings",
+          "key": "material_settings.stucco_03_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/center_part_11",
+          "settings": "models/ported/v021d/level/05/center_part_11.model/settings",
+          "key": "material_settings.stucco_03_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/05/center_part_09",
+          "settings": "models/ported/v021d/level/05/center_part_09.model/settings",
+          "key": "material_settings.stucco_03_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "a7aec45c49caf5907d9895c4b51235a1b7cad780bf17025dc25c3334daccf6e4",
+      "state": "active",
+      "original_profile": {
+        "dark_border": 0.5,
+        "light_border": 1,
+        "multiply": false,
+        "shadow_threshold": 0.25
+      },
+      "original_blend": {
+        "master": false,
+        "channels": {
+          "use_vertex_blended_diffuse": false,
+          "use_vertex_blended_normal": false,
+          "use_vertex_blended_specular": false,
+          "use_vertex_blended_mask": false
+        }
+      },
+      "native_selectors": {
+        "vertex_blend_technique": 2,
+        "use_nmap": true,
+        "use_alpha_test": true,
+        "use_vertex_alpha_test": true,
+        "use_tiled_vertex_blended_mask": true,
+        "use_vertex_blended_textures": false,
+        "use_vertex_blended_diffuse": false,
+        "use_vertex_blended_normal": false,
+        "use_vertex_blended_specular": false,
+        "use_vertex_blended_mask": false,
+        "alpha_test_consider_vertex_blend": true
+      },
+      "changes": {
+        "material.g_stage.effect.alpha_ref.value": {
+          "original": 0.25,
+          "from": 0.25,
+          "to": -21211.0,
+          "as_float": true
+        },
+        "material.g_stage.effect.vertex_blend_technique.value": {
+          "from": 2,
+          "to": 0,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.use_tiled_vertex_blended_mask.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.alpha_test_consider_vertex_blend.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        }
+      },
+      "unchanged_leaves_sha256": "43eb58bf3854f039ff9f74700402b5b9a65ab90a90c728c8865e4388cc0961bf"
+    },
+    {
+      "original_material": "tiled/trash/debris_trash_alpha_vc",
+      "target_material": "ported/v021d/tiled/trash/debris_trash_alpha_vc",
+      "original_cast_shadow": false,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/06/ground_3",
+          "settings": "models/ported/v021d/level/06/ground_3.model/settings",
+          "key": "material_settings.debris_trash_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_5",
+          "settings": "models/ported/v021d/level/06/ground_5.model/settings",
+          "key": "material_settings.debris_trash_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_4",
+          "settings": "models/ported/v021d/level/06/object_4.model/settings",
+          "key": "material_settings.lod1_debris_trash_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_4",
+          "settings": "models/ported/v021d/level/06/object_4.model/settings",
+          "key": "material_settings.debris_trash_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2",
+          "settings": "models/ported/v021d/level/06/object_2.model/settings",
+          "key": "material_settings.lod1_debris_trash_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2",
+          "settings": "models/ported/v021d/level/06/object_2.model/settings",
+          "key": "material_settings.debris_trash_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2b",
+          "settings": "models/ported/v021d/level/06/object_2b.model/settings",
+          "key": "material_settings.lod1_debris_trash_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2b",
+          "settings": "models/ported/v021d/level/06/object_2b.model/settings",
+          "key": "material_settings.debris_trash_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "9707f916ada703abea0ba3392d6038de4f654e54a4a34cfb18213f06a2b7f538",
+      "state": "active",
+      "original_profile": {
+        "dark_border": 1,
+        "light_border": 1,
+        "multiply": false,
+        "shadow_threshold": 0.5
+      },
+      "original_blend": {
+        "master": false,
+        "channels": {
+          "use_vertex_blended_diffuse": true,
+          "use_vertex_blended_normal": true,
+          "use_vertex_blended_specular": false,
+          "use_vertex_blended_mask": false
+        }
+      },
+      "native_selectors": {
+        "vertex_blend_technique": 2,
+        "use_nmap": true,
+        "use_alpha_test": true,
+        "use_vertex_alpha_test": true,
+        "use_tiled_vertex_blended_mask": true,
+        "use_vertex_blended_textures": false,
+        "use_vertex_blended_diffuse": true,
+        "use_vertex_blended_normal": false,
+        "use_vertex_blended_specular": false,
+        "use_vertex_blended_mask": false,
+        "alpha_test_consider_vertex_blend": true
+      },
+      "changes": {
+        "material.g_stage.effect.alpha_ref.value": {
+          "original": 0.5,
+          "from": 0.5,
+          "to": -21212.0,
+          "as_float": true
+        },
+        "material.g_stage.effect.vertex_blend_technique.value": {
+          "from": 2,
+          "to": 0,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.use_tiled_vertex_blended_mask.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.alpha_test_consider_vertex_blend.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.use_vertex_blended_diffuse.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        }
+      },
+      "unchanged_leaves_sha256": "ecbd415029bc4a4483ee2d0281b3ab5060679f88b4e3b063751daf0324e9d0ce"
+    },
+    {
+      "original_material": "tiled/trash/debrisstone_alpha_vc",
+      "target_material": "ported/v021d/tiled/trash/debrisstone_alpha_vc",
+      "original_cast_shadow": false,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/06/ground_1_2",
+          "settings": "models/ported/v021d/level/06/ground_1_2.model/settings",
+          "key": "material_settings.trash_debrisstone_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_1",
+          "settings": "models/ported/v021d/level/06/ground_1_1.model/settings",
+          "key": "material_settings.lod1_trash_debrisstone_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_1",
+          "settings": "models/ported/v021d/level/06/ground_1_1.model/settings",
+          "key": "material_settings.trash_debrisstone_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_0",
+          "settings": "models/ported/v021d/level/06/ground_1_0.model/settings",
+          "key": "material_settings.trash_debrisstone_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_0",
+          "settings": "models/ported/v021d/level/06/ground_1_0.model/settings",
+          "key": "material_settings.lod1_trash_debrisstone_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "b917cab8f4008c8ac50bd332b722fb33acfbc840c69b5f085d3f98a30724d03f",
+      "state": "active",
+      "original_profile": {
+        "dark_border": 1,
+        "light_border": 1,
+        "multiply": false,
+        "shadow_threshold": 0.5
+      },
+      "original_blend": {
+        "master": false,
+        "channels": {
+          "use_vertex_blended_diffuse": false,
+          "use_vertex_blended_normal": false,
+          "use_vertex_blended_specular": false,
+          "use_vertex_blended_mask": false
+        }
+      },
+      "native_selectors": {
+        "vertex_blend_technique": 2,
+        "use_nmap": true,
+        "use_alpha_test": true,
+        "use_vertex_alpha_test": true,
+        "use_tiled_vertex_blended_mask": true,
+        "use_vertex_blended_textures": false,
+        "use_vertex_blended_diffuse": false,
+        "use_vertex_blended_normal": false,
+        "use_vertex_blended_specular": false,
+        "use_vertex_blended_mask": false,
+        "alpha_test_consider_vertex_blend": true
+      },
+      "changes": {
+        "material.g_stage.effect.alpha_ref.value": {
+          "original": 0.5,
+          "from": 0.5,
+          "to": -21212.0,
+          "as_float": true
+        },
+        "material.g_stage.effect.vertex_blend_technique.value": {
+          "from": 2,
+          "to": 0,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.use_tiled_vertex_blended_mask.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.alpha_test_consider_vertex_blend.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        }
+      },
+      "unchanged_leaves_sha256": "0ac0ee80734f197441dab645c3d65363286bfc3aabc31854d98087b4fd65012f"
+    },
+    {
+      "original_material": "tiled/trash/debrisstone_s",
+      "target_material": "ported/v021d/tiled/trash/debrisstone_s",
+      "original_cast_shadow": false,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/06/ground_3",
+          "settings": "models/ported/v021d/level/06/ground_3.model/settings",
+          "key": "material_settings.debrisstone_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_5",
+          "settings": "models/ported/v021d/level/06/ground_5.model/settings",
+          "key": "material_settings.debrisstone_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/terain1",
+          "settings": "models/ported/v021d/level/06/terain1.model/settings",
+          "key": "material_settings.debrisstone_sv.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2",
+          "settings": "models/ported/v021d/level/06/object_2.model/settings",
+          "key": "material_settings.lod1_debrisstone_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2b",
+          "settings": "models/ported/v021d/level/06/object_2b.model/settings",
+          "key": "material_settings.debrisstone_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2b",
+          "settings": "models/ported/v021d/level/06/object_2b.model/settings",
+          "key": "material_settings.lod1_debrisstone_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "39cc1ccb5d22d9325ae6633b3f280a253a98ea0434a7f1c9d9558aea16d683b2",
+      "state": "inactive_alpha_test_disabled",
+      "effective_leaf_sha256": "ec5dc31275e40ddfefa0057f2c9dd4a626736e2fc579b4a580c8a92e7f7480e5"
+    },
+    {
+      "original_material": "tiled/trash/trash_01_vc",
+      "target_material": "ported/v021d/tiled/trash/trash_01_vc",
+      "original_cast_shadow": true,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/02/school_p_02_fasades_outside",
+          "settings": "models/ported/v021d/level/02/school_p_02_fasades_outside.model/settings",
+          "key": "material_settings.trash_brick_s.material_name",
+          "maps": [
+            "02/day",
+            "02/evening",
+            "02/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "2798e4b1b55cf33b3f570219542c247dab56d4582728e4e6f53ca9efe903f141",
+      "state": "active",
+      "original_profile": {
+        "dark_border": 1,
+        "light_border": 1,
+        "multiply": false,
+        "shadow_threshold": 0.25
+      },
+      "original_blend": {
+        "master": false,
+        "channels": {
+          "use_vertex_blended_diffuse": false,
+          "use_vertex_blended_normal": false,
+          "use_vertex_blended_specular": false,
+          "use_vertex_blended_mask": false
+        }
+      },
+      "native_selectors": {
+        "vertex_blend_technique": 0,
+        "use_nmap": true,
+        "use_alpha_test": true,
+        "use_vertex_alpha_test": true,
+        "use_tiled_vertex_blended_mask": false,
+        "use_vertex_blended_textures": false,
+        "use_vertex_blended_diffuse": false,
+        "use_vertex_blended_normal": false,
+        "use_vertex_blended_specular": false,
+        "use_vertex_blended_mask": false,
+        "alpha_test_consider_vertex_blend": true
+      },
+      "changes": {
+        "material.g_stage.effect.alpha_ref.value": {
+          "original": 0.25,
+          "from": 0.25,
+          "to": -21215.0,
+          "as_float": true
+        },
+        "material.g_stage.effect.alpha_test_consider_vertex_blend.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        }
+      },
+      "unchanged_leaves_sha256": "5cc002e52aeda5fd761ea4c4af01681f4b093d3306f7132e0734c72217613ed8"
+    },
+    {
+      "original_material": "tiled/trash/trash_brick_vc",
+      "target_material": "ported/v021d/tiled/trash/trash_brick_vc",
+      "original_cast_shadow": true,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/03/arsenal",
+          "settings": "models/ported/v021d/level/03/arsenal.model/settings",
+          "key": "material_settings.trash_brick_s_vc.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/03/barracks_x3",
+          "settings": "models/ported/v021d/level/03/barracks_x3.model/settings",
+          "key": "material_settings.trash_brick_alpha_s_vc.material_name",
+          "maps": [
+            "03/day",
+            "03/evening",
+            "03/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "ccb211b7295fcad2840cad8655095ad76c0e089afff42eebcf843848dff1b5c5",
+      "state": "active",
+      "original_profile": {
+        "dark_border": 1,
+        "light_border": 1,
+        "multiply": false,
+        "shadow_threshold": 0.25
+      },
+      "original_blend": {
+        "master": false,
+        "channels": {
+          "use_vertex_blended_diffuse": false,
+          "use_vertex_blended_normal": false,
+          "use_vertex_blended_specular": false,
+          "use_vertex_blended_mask": false
+        }
+      },
+      "native_selectors": {
+        "vertex_blend_technique": 2,
+        "use_nmap": true,
+        "use_alpha_test": true,
+        "use_vertex_alpha_test": true,
+        "use_tiled_vertex_blended_mask": true,
+        "use_vertex_blended_textures": false,
+        "use_vertex_blended_diffuse": false,
+        "use_vertex_blended_normal": false,
+        "use_vertex_blended_specular": false,
+        "use_vertex_blended_mask": false,
+        "alpha_test_consider_vertex_blend": true
+      },
+      "changes": {
+        "material.g_stage.effect.alpha_ref.value": {
+          "original": 0.25,
+          "from": 0.25,
+          "to": -21215.0,
+          "as_float": true
+        },
+        "material.g_stage.effect.vertex_blend_technique.value": {
+          "from": 2,
+          "to": 0,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.use_tiled_vertex_blended_mask.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.alpha_test_consider_vertex_blend.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        }
+      },
+      "unchanged_leaves_sha256": "b81a798193400022f4df5a6ad2740300f396cd75fdfc718f3ff722b9ad84cbd9"
+    },
+    {
+      "original_material": "tiled/trash/trash_debristone_moss_vc",
+      "target_material": "ported/v021d/tiled/trash/trash_debristone_moss_vc",
+      "original_cast_shadow": true,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/06/ground_3",
+          "settings": "models/ported/v021d/level/06/ground_3.model/settings",
+          "key": "material_settings.trash_debrisstone_moss_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2",
+          "settings": "models/ported/v021d/level/06/object_2.model/settings",
+          "key": "material_settings.trash_debrisstone_moss_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2",
+          "settings": "models/ported/v021d/level/06/object_2.model/settings",
+          "key": "material_settings.lod1_trash_debrisstone_moss_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2b",
+          "settings": "models/ported/v021d/level/06/object_2b.model/settings",
+          "key": "material_settings.trash_debrisstone_moss_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2b",
+          "settings": "models/ported/v021d/level/06/object_2b.model/settings",
+          "key": "material_settings.lod1_trash_debrisstone_moss_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "1a7ef96ce218c3d60086f71726e1ffca366f2bfc0c47998464a6c104522f01f8",
+      "state": "inactive_alpha_test_disabled",
+      "effective_leaf_sha256": "d1f687c24e3a8e2bf21ed96d73831d5c3fb1a6ef4e57461ede97930f5722508b"
+    },
+    {
+      "original_material": "tiled/trash/trash_dirt_moss_alpha_vc",
+      "target_material": "ported/v021d/tiled/trash/trash_dirt_moss_alpha_vc",
+      "original_cast_shadow": false,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/06/ground_3",
+          "settings": "models/ported/v021d/level/06/ground_3.model/settings",
+          "key": "material_settings.tr_dirt_moss_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_2",
+          "settings": "models/ported/v021d/level/06/ground_1_2.model/settings",
+          "key": "material_settings.trash_dirt_moss_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_2",
+          "settings": "models/ported/v021d/level/06/ground_1_2.model/settings",
+          "key": "material_settings.lod1_trash_dirt_moss_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_5",
+          "settings": "models/ported/v021d/level/06/ground_5.model/settings",
+          "key": "material_settings.tr_dirt_moss_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/terain1",
+          "settings": "models/ported/v021d/level/06/terain1.model/settings",
+          "key": "material_settings.trash_dirt_moss_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_1",
+          "settings": "models/ported/v021d/level/06/ground_1_1.model/settings",
+          "key": "material_settings.trash_dirt_moss_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_1",
+          "settings": "models/ported/v021d/level/06/ground_1_1.model/settings",
+          "key": "material_settings.lod1_trash_dirt_moss_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_4",
+          "settings": "models/ported/v021d/level/06/ground_1_4.model/settings",
+          "key": "material_settings.trash_dirt_moss_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_4",
+          "settings": "models/ported/v021d/level/06/ground_1_4.model/settings",
+          "key": "material_settings.lod1_trash_dirt_moss_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_0",
+          "settings": "models/ported/v021d/level/06/ground_1_0.model/settings",
+          "key": "material_settings.lod1_trash_dirt_moss_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_4_obj2",
+          "settings": "models/ported/v021d/level/06/ground_4_obj2.model/settings",
+          "key": "material_settings.tr_dirt_moss_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_3",
+          "settings": "models/ported/v021d/level/06/ground_1_3.model/settings",
+          "key": "material_settings.trash_dirt_moss_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_3",
+          "settings": "models/ported/v021d/level/06/ground_1_3.model/settings",
+          "key": "material_settings.lod1_trash_dirt_moss_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_1",
+          "settings": "models/ported/v021d/level/06/object_1.model/settings",
+          "key": "material_settings.trash_dirt_moss_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_4",
+          "settings": "models/ported/v021d/level/06/object_4.model/settings",
+          "key": "material_settings.tr_dirt_moss_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_4",
+          "settings": "models/ported/v021d/level/06/object_4.model/settings",
+          "key": "material_settings.lod1_trash_dirt_moss_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_4",
+          "settings": "models/ported/v021d/level/06/object_4.model/settings",
+          "key": "material_settings.trash_dirt_moss_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_4",
+          "settings": "models/ported/v021d/level/06/object_4.model/settings",
+          "key": "material_settings.lod1_tr_dirt_moss_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/base_b",
+          "settings": "models/ported/v021d/level/06/base_b.model/settings",
+          "key": "material_settings.trash_dirt_moss_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/base_b",
+          "settings": "models/ported/v021d/level/06/base_b.model/settings",
+          "key": "material_settings.lod1_trash_dirt_moss_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/base_a",
+          "settings": "models/ported/v021d/level/06/base_a.model/settings",
+          "key": "material_settings.trash_dirt_moss_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/base_a",
+          "settings": "models/ported/v021d/level/06/base_a.model/settings",
+          "key": "material_settings.lod1_trash_dirt_moss_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_5",
+          "settings": "models/ported/v021d/level/06/object_5.model/settings",
+          "key": "material_settings.tr_dirt_moss_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_5",
+          "settings": "models/ported/v021d/level/06/object_5.model/settings",
+          "key": "material_settings.lod1_tr_dirt_moss_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2",
+          "settings": "models/ported/v021d/level/06/object_2.model/settings",
+          "key": "material_settings.tr_dirt_moss_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_6",
+          "settings": "models/ported/v021d/level/06/object_6.model/settings",
+          "key": "material_settings.trash_dirt_moss_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_6",
+          "settings": "models/ported/v021d/level/06/object_6.model/settings",
+          "key": "material_settings.lod1_trash_dirt_moss_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2b",
+          "settings": "models/ported/v021d/level/06/object_2b.model/settings",
+          "key": "material_settings.tr_dirt_moss_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2b",
+          "settings": "models/ported/v021d/level/06/object_2b.model/settings",
+          "key": "material_settings.lod1_tr_dirt_moss_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "26ddaef5f6d7f00eb4c2ca83535fe52fe7aac5f332d49f7b5867a4bd7d149535",
+      "state": "active",
+      "original_profile": {
+        "dark_border": 1,
+        "light_border": 1,
+        "multiply": false,
+        "shadow_threshold": 0.5
+      },
+      "original_blend": {
+        "master": false,
+        "channels": {
+          "use_vertex_blended_diffuse": false,
+          "use_vertex_blended_normal": false,
+          "use_vertex_blended_specular": false,
+          "use_vertex_blended_mask": false
+        }
+      },
+      "native_selectors": {
+        "vertex_blend_technique": 2,
+        "use_nmap": true,
+        "use_alpha_test": true,
+        "use_vertex_alpha_test": true,
+        "use_tiled_vertex_blended_mask": true,
+        "use_vertex_blended_textures": false,
+        "use_vertex_blended_diffuse": false,
+        "use_vertex_blended_normal": false,
+        "use_vertex_blended_specular": false,
+        "use_vertex_blended_mask": false,
+        "alpha_test_consider_vertex_blend": true
+      },
+      "changes": {
+        "material.g_stage.effect.alpha_ref.value": {
+          "original": 0.5,
+          "from": 0.5,
+          "to": -21212.0,
+          "as_float": true
+        },
+        "material.g_stage.effect.vertex_blend_technique.value": {
+          "from": 2,
+          "to": 0,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.use_tiled_vertex_blended_mask.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.alpha_test_consider_vertex_blend.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        }
+      },
+      "unchanged_leaves_sha256": "e0e2292ff13662270a0651fd54fc490d0d1bc749c5ec19003272c83cec7941e9"
+    },
+    {
+      "original_material": "tiled/trash/trash_foliage_vc",
+      "target_material": "ported/v021d/tiled/trash/trash_foliage_vc",
+      "original_cast_shadow": false,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/06/ground_3",
+          "settings": "models/ported/v021d/level/06/ground_3.model/settings",
+          "key": "material_settings.trash_foliage_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_2",
+          "settings": "models/ported/v021d/level/06/ground_1_2.model/settings",
+          "key": "material_settings.trash_foliage_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_2",
+          "settings": "models/ported/v021d/level/06/ground_1_2.model/settings",
+          "key": "material_settings.lod1_trash_foliage_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_5",
+          "settings": "models/ported/v021d/level/06/ground_5.model/settings",
+          "key": "material_settings.trash_foliage_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/terain1",
+          "settings": "models/ported/v021d/level/06/terain1.model/settings",
+          "key": "material_settings.trash_foliage_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_1",
+          "settings": "models/ported/v021d/level/06/ground_1_1.model/settings",
+          "key": "material_settings.trash_foliage_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_1",
+          "settings": "models/ported/v021d/level/06/ground_1_1.model/settings",
+          "key": "material_settings.lod1_trash_foliage_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_4",
+          "settings": "models/ported/v021d/level/06/ground_1_4.model/settings",
+          "key": "material_settings.trash_foliage_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_0",
+          "settings": "models/ported/v021d/level/06/ground_1_0.model/settings",
+          "key": "material_settings.trash_foliage_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_0",
+          "settings": "models/ported/v021d/level/06/ground_1_0.model/settings",
+          "key": "material_settings.lod1_trash_foliage_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_4_obj2",
+          "settings": "models/ported/v021d/level/06/ground_4_obj2.model/settings",
+          "key": "material_settings.trash_foliage_op_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_3",
+          "settings": "models/ported/v021d/level/06/ground_1_3.model/settings",
+          "key": "material_settings.trash_foliage_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/ground_1_3",
+          "settings": "models/ported/v021d/level/06/ground_1_3.model/settings",
+          "key": "material_settings.lod1_trash_foliage_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_1",
+          "settings": "models/ported/v021d/level/06/object_1.model/settings",
+          "key": "material_settings.trash_foliage_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_1",
+          "settings": "models/ported/v021d/level/06/object_1.model/settings",
+          "key": "material_settings.lod1_trash_foliage_s_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_6",
+          "settings": "models/ported/v021d/level/06/object_6.model/settings",
+          "key": "material_settings.trash_dirt_folique_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_6",
+          "settings": "models/ported/v021d/level/06/object_6.model/settings",
+          "key": "material_settings.lod1_trash_dirt_folique_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_6",
+          "settings": "models/ported/v021d/level/06/object_6.model/settings",
+          "key": "material_settings.trash_foliage_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_6",
+          "settings": "models/ported/v021d/level/06/object_6.model/settings",
+          "key": "material_settings.lod1_trash_foliage_s_alpha_vc.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "0c5b7a9a0ddb1bd739b0a10c76210b5564be8fa6158156d4cba8e1f35da6fe04",
+      "state": "active",
+      "original_profile": {
+        "dark_border": 1,
+        "light_border": 1,
+        "multiply": true,
+        "shadow_threshold": 0.25
+      },
+      "original_blend": {
+        "master": false,
+        "channels": {
+          "use_vertex_blended_diffuse": false,
+          "use_vertex_blended_normal": false,
+          "use_vertex_blended_specular": false,
+          "use_vertex_blended_mask": false
+        }
+      },
+      "native_selectors": {
+        "vertex_blend_technique": 2,
+        "use_nmap": true,
+        "use_alpha_test": true,
+        "use_vertex_alpha_test": true,
+        "use_tiled_vertex_blended_mask": true,
+        "use_vertex_blended_textures": false,
+        "use_vertex_blended_diffuse": false,
+        "use_vertex_blended_normal": false,
+        "use_vertex_blended_specular": false,
+        "use_vertex_blended_mask": false,
+        "alpha_test_consider_vertex_blend": true
+      },
+      "changes": {
+        "material.g_stage.effect.alpha_ref.value": {
+          "original": 0.25,
+          "from": 0.25,
+          "to": -21213.0,
+          "as_float": true
+        },
+        "material.g_stage.effect.vertex_blend_technique.value": {
+          "from": 2,
+          "to": 0,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.use_tiled_vertex_blended_mask.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.alpha_test_consider_vertex_blend.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        }
+      },
+      "unchanged_leaves_sha256": "e8f266de336ca9dde3fa3965b1afd89198c82922b4c1552a57687d9e86222226"
+    },
+    {
+      "original_material": "tiled/trash/trash_s",
+      "target_material": "ported/v021d/tiled/trash/trash_s",
+      "original_cast_shadow": true,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/06/object_5",
+          "settings": "models/ported/v021d/level/06/object_5.model/settings",
+          "key": "material_settings.trash_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_5",
+          "settings": "models/ported/v021d/level/06/object_5.model/settings",
+          "key": "material_settings.lod1_trash_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2b",
+          "settings": "models/ported/v021d/level/06/object_2b.model/settings",
+          "key": "material_settings.trash_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/06/object_2b",
+          "settings": "models/ported/v021d/level/06/object_2b.model/settings",
+          "key": "material_settings.lod1_trash_s.material_name",
+          "maps": [
+            "06/day",
+            "06/evening",
+            "06/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "5fe0993277d7b132f5c2e71420559e6132822f266cf1e80a425ce7ce6dd8d8d7",
+      "state": "inactive_alpha_test_disabled",
+      "effective_leaf_sha256": "ac2dc28ec876d9eb937f010b46203ea4c80a40354d6ab285f927bd372451718f"
+    },
+    {
+      "original_material": "tiled/trash/trash_vc",
+      "target_material": "ported/v021d/tiled/trash/trash_vc",
+      "original_cast_shadow": true,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/01/house_3",
+          "settings": "models/ported/v021d/level/01/house_3.model/settings",
+          "key": "material_settings.trash_s_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/01/culture_center_top",
+          "settings": "models/ported/v021d/level/01/culture_center_top.model/settings",
+          "key": "material_settings.lod1_trash_s_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        },
+        {
+          "model": "ported/v021d/level/01/culture_center_top",
+          "settings": "models/ported/v021d/level/01/culture_center_top.model/settings",
+          "key": "material_settings.trash_s_vc.material_name",
+          "maps": [
+            "01/day",
+            "01/evening",
+            "01/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "501b0eadfb959df3da7e15f2acf112ba15a49591bb57be9e20605221369f3867",
+      "state": "active",
+      "original_profile": {
+        "dark_border": 1,
+        "light_border": 1,
+        "multiply": false,
+        "shadow_threshold": 0.25
+      },
+      "original_blend": {
+        "master": false,
+        "channels": {
+          "use_vertex_blended_diffuse": false,
+          "use_vertex_blended_normal": false,
+          "use_vertex_blended_specular": false,
+          "use_vertex_blended_mask": false
+        }
+      },
+      "native_selectors": {
+        "vertex_blend_technique": 2,
+        "use_nmap": true,
+        "use_alpha_test": true,
+        "use_vertex_alpha_test": true,
+        "use_tiled_vertex_blended_mask": true,
+        "use_vertex_blended_textures": false,
+        "use_vertex_blended_diffuse": false,
+        "use_vertex_blended_normal": false,
+        "use_vertex_blended_specular": false,
+        "use_vertex_blended_mask": false,
+        "alpha_test_consider_vertex_blend": true
+      },
+      "changes": {
+        "material.g_stage.effect.alpha_ref.value": {
+          "original": 0.25,
+          "from": 0.25,
+          "to": -21215.0,
+          "as_float": true
+        },
+        "material.g_stage.effect.vertex_blend_technique.value": {
+          "from": 2,
+          "to": 0,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.use_tiled_vertex_blended_mask.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        },
+        "material.g_stage.effect.alpha_test_consider_vertex_blend.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        }
+      },
+      "unchanged_leaves_sha256": "e981013bea6a7e017666f6b4b49b9b124534a35a88a4a15e541fefe375d3c1a5"
+    },
+    {
+      "original_material": "tiled/floor/floor_brick_gr_alpha_vc",
+      "target_material": "ported/v021d/original_alpha_mips/tiled/floor/floor_brick_gr_alpha_vc",
+      "original_cast_shadow": false,
+      "bindings": [
+        {
+          "model": "ported/v021d/level/05/terrain/lvl_05_terrain_1",
+          "settings": "models/ported/v021d/level/05/terrain/lvl_05_terrain_1.model/settings",
+          "key": "material_settings.floor_brick_gr_s_vc.material_name",
+          "maps": [
+            "05/day",
+            "05/evening",
+            "05/rain"
+          ]
+        }
+      ],
+      "original_leaf_sha256": "ed63fde0a3ff6c87193fb0e8c24e7d15c8e8ab44ae9b1cacf9c747b7142f8302",
+      "state": "active",
+      "original_profile": {
+        "dark_border": 1,
+        "light_border": 1,
+        "multiply": false,
+        "shadow_threshold": 0.25
+      },
+      "original_blend": {
+        "master": false,
+        "channels": {
+          "use_vertex_blended_diffuse": false,
+          "use_vertex_blended_normal": false,
+          "use_vertex_blended_specular": false,
+          "use_vertex_blended_mask": false
+        }
+      },
+      "native_selectors": {
+        "vertex_blend_technique": 0,
+        "use_nmap": true,
+        "use_alpha_test": true,
+        "use_vertex_alpha_test": true,
+        "use_tiled_vertex_blended_mask": false,
+        "use_vertex_blended_textures": false,
+        "use_vertex_blended_diffuse": false,
+        "use_vertex_blended_normal": false,
+        "use_vertex_blended_specular": false,
+        "use_vertex_blended_mask": false,
+        "alpha_test_consider_vertex_blend": true
+      },
+      "changes": {
+        "material.g_stage.effect.alpha_ref.value": {
+          "original": 0.25,
+          "from": 0.25,
+          "to": -21215.0,
+          "as_float": true
+        },
+        "material.g_stage.effect.alpha_test_consider_vertex_blend.value": {
+          "from": true,
+          "to": false,
+          "reason": "Original vertex blend is inactive; use ordinary native material with original painted cutoff"
+        }
+      },
+      "unchanged_leaves_sha256": "ecd6034e43c1e2f134eae9dd5c566b072319e3de60b86797afbb650d71cc6bb0"
+    }
+  ],
+  "baseline_patch_sha256": "4a9c23ab3d8c3b3d4433e8d06c6a615d46316a413b3e282a70aaf8fab5c9fb77"
+}

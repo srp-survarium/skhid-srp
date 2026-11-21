@@ -442,7 +442,7 @@ def bat(server, embedded=False):
         ":not_ready",
         "echo Skhid has not finished updating the game's files (game\\resources.db.patch_*),",
         "echo so the game is not started. Start Skhid.bat (the launcher): it finishes",
-        "echo the update. Details: the newest game\\binaries\\x86\\updater_skhid.^<date^>.log",
+        "echo the update. Details: the newest game\\logs\\updater_skhid.^<date^>.log",
         "pause",
         "exit /b 1",
         "",
@@ -536,8 +536,16 @@ def sh(server, embedded=False, name="play_skhid.sh"):
         b"server=\n", f"server={'' if embedded else server}\n".encode("ascii"), 1)
 
 
-def readme(server, description, files, embedded=False, site=None):
-    """`site`: the bundle has the launcher and its updater, which ask it."""
+def readme(server, description, files, embedded=False, site=None, relay=False):
+    """`site`: the bundle has the launcher and its updater, which ask it.
+    `relay`: a download with a relay, whose launcher has the "Relay" row."""
+    # A provider that blocks the server: the launcher's own row where there
+    # is a relay, else a VPN.
+    blocked = (["Russian) and answer Yes when Windows asks for administrator rights. If",
+                "your provider blocks the server, set Relay, at the launcher's bottom left,",
+                "to auto."] if relay else
+               ["Russian) and answer Yes when Windows asks for administrator rights. In",
+                f"Russia, use a VPN and add the game's .exe files to it: see {VPN_HELP}."])
     lines = [
         "SURVARIUM 0.26g - SKHID COMMUNITY SERVER FILES (UNOFFICIAL)",
         "",
@@ -590,8 +598,7 @@ def readme(server, description, files, embedded=False, site=None):
             "",
             "CANNOT REACH THE SERVER?",
             f"Allow the game in your firewall: run {NETWORK_SETUP} (Windows, in",
-            "Russian) and answer Yes when Windows asks for administrator rights. In",
-            f"Russia, use a VPN and add the game's .exe files to it: see {VPN_HELP}.",
+            *blocked,
             "",
             "STILL NOT WORKING?",
             f"Run {COLLECT_LOGS}: it puts the game's logs and the state of its",
@@ -627,7 +634,7 @@ def readme(server, description, files, embedded=False, site=None):
             "replaces the files, the launcher and itself included; nothing else of the",
             "existing game is touched. A missing game is installed from the verified",
             "original archive first. It needs no administrator rights. What it did is in",
-            "game\\binaries\\x86\\updater_skhid.<date>.log, a file each run. If it cannot",
+            "game\\logs\\updater_skhid.<date>.log, a file each run. If it cannot",
             "reach the server but the files are complete, PLAY still works.",
             "The game's language is chosen in its Settings (Language), the launcher's",
             "at its top. A changed play_skhid.bat or play_skhid.sh is kept until the",
@@ -698,6 +705,7 @@ def main():
     dxvk_path = None
     late_join, revision, required = True, None, None
     downloads = []
+    relay = None
     for option in options:
         if option == "--check":
             check = True
@@ -717,6 +725,10 @@ def main():
             mode = option[7:]
         elif option.startswith("--server="):
             server = parse_server(option[9:])
+        elif option.startswith("--relay="):
+            relay = parse_server(option[len("--relay="):])
+            import ipaddress
+            ipaddress.IPv4Address(relay.split(":")[0])
         elif option.startswith("--bugtrap="):
             bugtrap_path = option[len("--bugtrap="):]
         elif option.startswith("--voice="):
@@ -781,6 +793,16 @@ def main():
         ("LINUX.txt", Path(HERE, "LINUX.txt").read_bytes()),
         ("MACOS.txt", Path(HERE, "MACOS.txt").read_bytes()),
     ]
+    if relay:
+        if not launcher or not embedded:
+            sys.exit("--relay requires the full client with its launcher and embedded server")
+        if int(server.rsplit(":", 1)[1]) > 65532 or relay.rsplit(":", 1)[1] != server.rsplit(":", 1)[1]:
+            sys.exit("--relay must use the same login port, with room for lobby, match and voice")
+        files.append((os.path.join("game", EXE_DIR, "updater_skhid.relay"),
+                      (server + "\n" + relay + "\n").encode("ascii")))
+        files = [(name, data.replace(b'start "" survarium_skhid.exe ',
+                                    b'start "" updater_skhid.exe play ')
+                  if name.endswith("play_skhid.bat") else data) for name, data in files]
     launcher_description = None
     if launcher:
         # The launcher: patch_launcher_026g.py refuses anything but the
@@ -791,7 +813,8 @@ def main():
             sys.exit(f"{launcher_path}: the game folder has no launcher (--no-launcher leaves it out)")
         launcher_exe, launcher_description = L.build(
             launcher_path.read_bytes(), Path(L.default_bin()).read_bytes(), site=site,
-            game_exe="survarium_skhid.exe", arguments=game_arguments(server, embedded))
+            game_exe="updater_skhid.exe" if relay else "survarium_skhid.exe",
+            arguments=("play " if relay else "") + game_arguments(server, embedded))
         torrent_dll_path = torrent_dll_path or os.path.join(os.path.dirname(updater_path), TORRENT_DLL_NAME)
         files += [
             (os.path.join("game", EXE_DIR, L.LAUNCHER_NAME), bytes(launcher_exe)),
@@ -811,10 +834,10 @@ def main():
             (COLLECT_LOGS, russian_script(COLLECT_LOGS)),
         ]
         files += [(os.path.join("game", EXE_DIR, L.PAGES_DIR, name), data)
-                  for name, data in sorted(launcher_pages.pages(site).items())]
+                  for name, data in sorted(launcher_pages.pages(site, bool(relay)).items())]
     listed = [(name.replace(os.sep, "/"), sha256(data)) for name, data in files]
     files.append(("README.txt", readme(server, description, listed, embedded,
-                                       site if launcher else None)))
+                                       site if launcher else None, bool(relay))))
 
     if not check and archive:
         os.makedirs(os.path.dirname(output), exist_ok=True)

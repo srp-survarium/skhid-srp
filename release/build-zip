@@ -78,9 +78,11 @@ load_env SKHID_GAME SKHID_SITE
 if ((test_server)); then
     load_env SKHID_TEST_GAME_SERVER SKHID_TEST_SITE
     server=$SKHID_TEST_GAME_SERVER site=${SKHID_TEST_SITE%/}
+    relay=${SKHID_TEST_RELAY_SERVER:-}
 else
     load_env SKHID_GAME_SERVER
     server=$SKHID_GAME_SERVER site=${SKHID_SITE%/}
+    relay=${SKHID_RELAY_SERVER:-}
 fi
 # The patches the exe requires: those of the offered-patch list.
 if ((test_server)); then use_patches test; else use_patches live; fi
@@ -169,10 +171,12 @@ original=$SKHID_GAME/binaries/x86/survarium.exe
 if [[ ! -f $original ]]; then original=$SKHID_GAME/game/binaries/x86/survarium.exe; fi
 # In the checkout's dev shell (client_patches_python): the exe's arena
 # (`.srpx`) is linked from its sources there, with the lock's tools.
+relay_args=()
+[[ -z $relay ]] || relay_args+=(--relay="$relay")
 { client_patches_python "$work/src" make_client_026g.py "$SKHID_GAME" "$zip" --pack-zip \
     --voice="$work/src/srp-026g/target-voice/i686-pc-windows-msvc/release/skhid_voice.dll" \
     --revision="$revision" --required-patches="$required" --downloads="$GAME_LIST" --downloads="$PATCH_LIST" \
-    --server="$server" --site="$site" &&
+    --server="$server" --site="$site" "${relay_args[@]}" &&
     client_patches_python "$work/src" patch_026g.py "$original" "$work/without-server.exe" \
         --revision="$revision" --required-patches="$required"; } >"$work/make_client.log" 2>&1 || {
     tail -n 30 "$work/make_client.log" >&2

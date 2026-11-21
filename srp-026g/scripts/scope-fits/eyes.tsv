@@ -8,7 +8,7 @@ fitn_aimpoint_compm4_svu_a	-0.00	+0.00	+0.00	+0.00
 fitn_aimpoint_compm4_l85a2	-0.00	+0.00	+0.00	+0.00
 fitn_aimpoint_compm4_fort_401	-0.00	+0.00	+0.00	+0.00
 fitn_aimpoint_compm4_jackhammer	-0.00	-0.00	+0.00	+0.00
-fitn_aimpoint_compm4_akmsu	+0.00	+0.00	+0.00	+0.00
+fitn_aimpoint_compm4_akmsu	-0.00	-0.00	+0.00	+0.00
 fitn_aimpoint_compm4_famas	-0.00	-0.00	+0.00	+0.00
 fitn_aimpoint_compm4_g3sg1	-0.00	+0.00	+0.00	+0.00
 fitn_aimpoint_compm4_ks_23m	+0.00	-0.00	+0.00	+0.00
@@ -21,7 +21,7 @@ fitn_eotech_552_svu_a	-0.00	+0.00	+0.00	+0.00
 fitn_eotech_552_l85a2	-0.00	+0.00	+0.00	+0.00
 fitn_eotech_552_fort_401	-0.00	-0.00	+0.00	+0.00
 fitn_eotech_552_jackhammer	-0.00	+0.00	+0.00	+0.00
-fitn_eotech_552_akmsu	+0.00	+0.00	+0.00	+0.00
+fitn_eotech_552_akmsu	-0.00	+0.00	+0.00	+0.00
 fitn_eotech_552_famas	-0.00	+0.00	+0.00	+0.00
 fitn_eotech_552_g3sg1	+0.00	-0.00	+0.00	+0.00
 fitn_eotech_552_ks_23m	+0.00	+0.00	+0.00	+0.00
@@ -50,7 +50,7 @@ fitn_leupold_deltapoint_mp443	-0.00	+0.00	+0.00	+0.00
 fitn_leupold_deltapoint_beretta93r	-0.00	+0.00	+0.00	+0.00
 fitn_leupold_deltapoint_glock_17	-0.00	+0.00	+0.00	+0.00
 fitn_leupold_deltapoint_colt_m1911	-0.00	-0.00	+0.00	+0.00
-fitn_leupold_deltapoint_akmsu	+0.00	-0.00	+0.00	+0.00
+fitn_leupold_deltapoint_akmsu	-0.00	+0.00	+0.00	+0.00
 fitn_leupold_deltapoint_famas	+0.00	+0.00	+0.00	+0.00
 fitn_leupold_deltapoint_g3sg1	-0.00	+0.00	+0.00	+0.00
 fitn_leupold_deltapoint_ks_23m	-0.00	-0.00	+0.00	+0.00
@@ -68,7 +68,7 @@ fitn_ncstar_4_mp443	-0.00	-0.00	+0.00	+0.00
 fitn_ncstar_4_beretta93r	-0.00	-0.00	+0.00	+0.00
 fitn_ncstar_4_glock_17	-0.00	-0.00	+0.00	+0.00
 fitn_ncstar_4_colt_m1911	-0.00	+0.00	+0.00	+0.00
-fitn_ncstar_4_akmsu	+0.00	+0.00	+0.00	+0.00
+fitn_ncstar_4_akmsu	-0.00	-0.00	+0.00	+0.00
 fitn_ncstar_4_famas	+0.00	-0.00	+0.00	+0.00
 fitn_ncstar_4_g3sg1	+0.00	+0.00	+0.00	+0.00
 fitn_ncstar_4_ks_23m	+0.00	-0.00	+0.00	+0.00
@@ -81,7 +81,7 @@ fitn_eotech_xps2_svu_a	-0.00	+0.00	+0.00	+0.00
 fitn_eotech_xps2_l85a2	-0.00	+0.00	+0.00	+0.00
 fitn_eotech_xps2_fort_401	-0.00	+0.00	+0.00	+0.00
 fitn_eotech_xps2_jackhammer	-0.00	+0.00	+0.00	+0.00
-fitn_eotech_xps2_akmsu	+0.00	-0.00	+0.00	+0.00
+fitn_eotech_xps2_akmsu	+0.00	+0.00	+0.00	+0.00
 fitn_eotech_xps2_famas	+0.00	+0.00	+0.00	+0.00
 fitn_eotech_xps2_g3sg1	+0.00	-0.00	+0.00	+0.00
 fitn_eotech_xps2_ks_23m	+0.00	+0.00	+0.00	+0.00
@@ -94,7 +94,7 @@ fitn_belomo_pk01_svu_a	-0.00	+0.00	+0.00	+0.00
 fitn_belomo_pk01_l85a2	-0.00	+0.00	+0.00	+0.00
 fitn_belomo_pk01_fort_401	-0.00	-0.00	+0.00	+0.00
 fitn_belomo_pk01_jackhammer	-0.00	-0.00	+0.00	+0.00
-fitn_belomo_pk01_akmsu	+0.00	+0.00	+0.00	+0.00
+fitn_belomo_pk01_akmsu	+0.00	-0.00	+0.00	+0.00
 fitn_belomo_pk01_famas	-0.00	-0.00	+0.00	+0.00
 fitn_belomo_pk01_g3sg1	+0.00	-0.00	+0.00	+0.00
 fitn_belomo_pk01_ks_23m	+0.00	+0.00	+0.00	+0.00
@@ -125,7 +125,7 @@ fitn_walther_comp2_svu_a	-0.00	-0.00	+0.00	+0.00
 fitn_walther_comp2_l85a2	-0.00	-0.00	+0.00	+0.00
 fitn_walther_comp2_fort_401	-0.00	-0.00	+0.00	+0.00
 fitn_walther_comp2_jackhammer	-0.00	-0.00	+0.00	+0.00
-fitn_walther_comp2_akmsu	+0.00	+0.00	+0.00	+0.00
+fitn_walther_comp2_akmsu	-0.00	-0.00	+0.00	+0.00
 fitn_walther_comp2_famas	+0.00	-0.00	+0.00	+0.00
 fitn_walther_comp2_g3sg1	-0.00	-0.00	+0.00	+0.00
 fitn_walther_comp2_ks_23m	+0.00	-0.00	+0.00	+0.00

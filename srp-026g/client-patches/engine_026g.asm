@@ -61,6 +61,7 @@ global engine_play_sound
 global engine_user_data_directory
 global engine_match_options
 global engine_active_player
+global engine_bullet_player
 global engine_query_performance_counter
 global engine_query_performance_frequency
 global engine_get_current_thread_id
@@ -89,6 +90,10 @@ global engine_visual_insert
 global engine_visual_remove
 global engine_light_insert
 global engine_light_remove
+global engine_ambient_light_insert
+global engine_ambient_light_remove
+global engine_particle_insert
+global engine_particle_remove
 global engine_inventory_remove
 global engine_inventory_take_artefact
 global engine_quick_inventory_slot
@@ -192,6 +197,7 @@ global engine_ray_callback
 global engine_ray_needs_collision
 global engine_ray_test_single
 global engine_key_name
+global engine_key_text
 global engine_activate_keyboard_layout
 global engine_get_window_long_a
 global engine_set_window_long_a
@@ -254,6 +260,27 @@ global engine_on_step
 global engine_step_manager
 global engine_triangle_material
 global engine_is_first_view
+global engine_draw_lines
+global engine_process_all_triangles
+global engine_triangle_process
+global engine_scroll_view_set_follow
+global engine_scroll_set_position
+global engine_draw_triangles
+global engine_text_edit_set_text
+global engine_text_edit_set_caret
+global engine_text_edit_delete_selection
+global engine_open_clipboard
+global engine_get_clipboard_data
+global engine_close_clipboard
+global engine_global_lock
+global engine_global_unlock
+global engine_set_texture
+global engine_set_constant_float4
+global engine_shared_string_create
+global engine_shared_string_destroy
+global engine_shared_string_assign
+global engine_register_constant_host
+global engine_set_ps_constant
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -280,6 +307,10 @@ engine_visual_insert equ 0x285fa0   ; 0x285fa0 survarium::render_visual::insert:
 engine_visual_remove equ 0x285fe0   ; 0x285fe0 survarium::render_visual::remove: visual ECX, scene ESP+4; pops 4; thiscall, called directly
 engine_light_insert equ 0x291790   ; 0x291790 survarium::object_light::insert: light ECX; pops 0; thiscall, called directly
 engine_light_remove equ 0x2917d0   ; 0x2917d0 survarium::object_light::remove: light ECX; pops 0; thiscall, called directly
+engine_ambient_light_insert equ 0x290930   ; 0x290930 survarium::object_ambient_light::insert: light ECX; pops 0; thiscall, called directly
+engine_ambient_light_remove equ 0x290ae0   ; 0x290ae0 survarium::object_ambient_light::remove: light ECX; pops 0; thiscall, called directly
+engine_particle_insert equ 0x292cc0   ; 0x292cc0 survarium::object_particle_visual::insert: particle ECX; pops 0; thiscall, called directly
+engine_particle_remove equ 0x292dc0   ; 0x292dc0 survarium::object_particle_visual::remove: particle ECX; pops 0; thiscall, called directly
 engine_read_file equ 0x870064   ; the IAT slot 0x870064 (an import, stdcall)
 engine_play_voice equ 0x5aba0   ; 0x5aba0 vostok::sound::sound_instance_proxy_internal::play: proxy ECX, mode ESP+4, producer ESP+8, receiver ESP+12; pops 12; thiscall, called directly
 engine_free_voice equ 0x5b390   ; 0x5b390 vostok::sound::sound_instance_proxy_internal::free_object: proxy ECX; pops 0; thiscall, called directly
@@ -323,6 +354,7 @@ engine_mt_free_memory equ 0x1c410   ; 0x1c410 vostok::memory::mt_free: memory ES
 engine_allocate_save_descriptor equ 0x109f30   ; 0x109f30 vostok::resources::allocate_save_descriptor: physical ESP+4, virtual_path ESP+8; pops 0; EAX; cdecl, called directly
 engine_ray_test_single equ 0xa02d0   ; 0xa02d0 btCollisionWorld::rayTestSingle: from ESP+4, to ESP+8, object ESP+12, shape ESP+16, transform ESP+20, callback ESP+24; pops 0; cdecl, called directly
 engine_key_name equ 0x3b9c00   ; 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly
+engine_key_text equ 0x3b92d0   ; 0x3b92d0 vostok::input::platform::keyboard::translate_text: keyboard ECX, key ESP+4, text ESP+8; pops 8; AL; thiscall, called directly
 engine_activate_keyboard_layout equ 0xaeff20   ; the IAT slot 0xaeff20 (an import, stdcall)
 engine_get_window_long_a equ 0xaefe8c   ; the IAT slot 0xaefe8c (an import, stdcall)
 engine_set_window_long_a equ 0xaeff44   ; the IAT slot 0xaeff44 (an import, stdcall)
@@ -348,6 +380,20 @@ engine_battery_state_finalize equ 0x3447f0   ; 0x3447f0 survarium::victory_item_
 engine_fsm_always equ 0x372420   ; 0x372420 survarium::weapon_core_throw_grenade_base_substate::is_ready_for_transition: buffer ESP+4; pops 0; AL; cdecl, called directly
 engine_take_deactivatable equ 0x397c20   ; 0x397c20 survarium::victory_item_core_take_state::is_ready_to_be_deactivated [descriptive]: state ECX; pops 0; AL; thiscall, called directly
 engine_get_last_error equ 0x87005c   ; the IAT slot 0x87005c (an import, stdcall)
+engine_triangle_process equ 0xc5600   ; 0xc5600 btConvexTriangleCallback::processTriangle: callback ECX, triangle ESP+4, part ESP+8, index ESP+12; pops 12; thiscall, called directly
+engine_scroll_view_set_follow equ 0x349c60   ; 0x349c60 vostok::ui::ui_scroll_view::set_follow_last_line: view ECX, follow ESP+4; pops 4; thiscall, called directly
+engine_scroll_set_position equ 0x349ca0   ; 0x349ca0 vostok::ui::ui_scroll_v_source::set_position: source ECX, position ESP+4; pops 4; thiscall, called directly
+engine_text_edit_set_text equ 0x3479d0   ; 0x3479d0 vostok::ui::ui_text_edit::set_text: part ECX, text ESP+4; pops 4; thiscall, called directly
+engine_text_edit_set_caret equ 0x3488a0   ; 0x3488a0 vostok::ui::ui_text_edit::set_caret_position: edit ECX, position ESP+4, select ESP+8; pops 8; thiscall, called directly
+engine_open_clipboard equ 0xaefedc   ; the IAT slot 0xaefedc (an import, stdcall)
+engine_get_clipboard_data equ 0xaefed8   ; the IAT slot 0xaefed8 (an import, stdcall)
+engine_close_clipboard equ 0xaefed4   ; the IAT slot 0xaefed4 (an import, stdcall)
+engine_global_lock equ 0x870078   ; the IAT slot 0x870078 (an import, stdcall)
+engine_global_unlock equ 0x87007c   ; the IAT slot 0x87007c (an import, stdcall)
+engine_set_texture equ 0x3d98b0   ; 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly
+engine_set_constant_float4 equ 0x1a8900   ; 0x1a8900 vostok::render::effect_compiler::set_constant_float4: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
+engine_shared_string_create equ 0xe0b50   ; 0xe0b50 vostok::shared_string::create: text ESP+4; pops 4; EAX; stdcall, called directly
+engine_shared_string_destroy equ 0xe0ae0   ; 0xe0ae0 vostok::shared_string::destroy: string ESP+4; pops 4; stdcall, called directly
 
 engine_options_int:
     ; 0x261100 survarium::options_item_int::options_item_int: parent ECX, id EAX, receiver ESP+4, command ESP+8, values ESP+12, count ESP+16; pops 16; EAX
@@ -1128,6 +1174,23 @@ engine_active_player:
     ret
 
     align 16, db 0xCC
+engine_bullet_player:
+    ; virtual survarium::bullet_manager_engine+0x24 (1 vtables of vtables.tsv: 0x1f7660): engine ECX, place ESP+4; pops 4; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; place -> 4
+    mov ecx, [esp + 24]   ; engine
+    mov eax, [ecx]                   ; this's vtable
+    call [eax + 0x24]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
 engine_update_skeleton:
     ; 0x22490 vostok::render::scene_renderer::update_skeleton: scene_renderer EDI, instance ESP+4, bones ESP+8, second ESP+12, count ESP+16; pops 16
     push ebp
@@ -1262,7 +1325,7 @@ engine_effects_stop:
 
     align 16, db 0xCC
 engine_effect_play:
-    ; 0x2de090 survarium::game_effect_player::play: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20
+    ; 0x2de090 survarium::game_effect_player::add: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20
     push ebp
     push ebx
     push esi
@@ -3068,6 +3131,129 @@ engine_is_first_view:
     mov ecx, [esp + 20]   ; player
     call 0x1f3bd0
     movzx eax, al
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_draw_lines:
+    ; 0x11cd10 vostok::render::system_renderer::draw_lines: vertex_end EAX, renderer ESP+4, vertex_begin ESP+8, index_begin ESP+12, index_end ESP+16, technique ESP+20; pops 20
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 40]   ; technique -> 20
+    push dword [esp + 40]   ; index_end -> 16
+    push dword [esp + 40]   ; index_begin -> 12
+    push dword [esp + 40]   ; vertex_begin -> 8
+    push dword [esp + 40]   ; renderer -> 4
+    mov eax, [esp + 40]   ; vertex_end
+    call 0x11cd10
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_process_all_triangles:
+    ; 0xa8660 btBvhTriangleMeshShape::processAllTriangles: shape ECX, callback ESP+4, aabb_min ESP+8, aabb_max ESP+12; pops 12
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; aabb_max -> 12
+    push dword [esp + 32]   ; aabb_min -> 8
+    push dword [esp + 32]   ; callback -> 4
+    mov ecx, [esp + 32]   ; shape
+    call 0xa8660
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_draw_triangles:
+    ; 0x11e370 vostok::render::system_renderer::draw_triangles: renderer ESP+4, vertex_begin ESP+8, vertex_end ESP+12, index_begin ESP+16, index_end ESP+20, override_flag ESP+24; pops 24
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 40]   ; override_flag -> 24
+    push dword [esp + 40]   ; index_end -> 20
+    push dword [esp + 40]   ; index_begin -> 16
+    push dword [esp + 40]   ; vertex_end -> 12
+    push dword [esp + 40]   ; vertex_begin -> 8
+    push dword [esp + 40]   ; renderer -> 4
+    call 0x11e370
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_text_edit_delete_selection:
+    ; 0x3486a0 vostok::ui::ui_text_edit's delete of the selection: edit ESI; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov esi, [esp + 20]   ; edit
+    call 0x3486a0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_shared_string_assign:
+    ; 0x11170 vostok::intrusive_ptr<shared_string>::assign: holder EDI, string EAX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov edi, [esp + 20]   ; holder
+    mov eax, [esp + 24]   ; string
+    call 0x11170
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_register_constant_host:
+    ; 0x3c8bc0 vostok::render::backend::register_constant_host: backend EAX, name ESP+4, auxiliary ESP+8; pops 8; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; auxiliary -> 8
+    push dword [esp + 28]   ; name -> 4
+    mov eax, [esp + 28]   ; backend
+    call 0x3c8bc0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_set_ps_constant:
+    ; 0x132a90 vostok::render::backend::set_ps_constant: host EAX, backend EDI, value ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; value -> 4
+    mov eax, [esp + 24]   ; host
+    mov edi, [esp + 28]   ; backend
+    call 0x132a90
     pop edi
     pop esi
     pop ebx

@@ -45,11 +45,25 @@ REPLACEMENTS = {
 # Lit tubes that are models of their own (Vector, level_09: fx/lamp2 and its
 # two flicker variants, three tubes in a tubeless lamp_midle_04 housing).
 # A broken fixture hides them; nothing replaces them.
-GLASS = {'fx/lamp2', 'fx/lamp2_bad', 'fx/lamp2_good'}
+TUBE_GLASS = {'fx/lamp2', 'fx/lamp2_bad', 'fx/lamp2_good'}
+# Kerosene lamps (London, Tarakanovsky Fort, level_04, and the 0.21 ports'
+# copies of the models: Fort and Chemical Plant v0.21): a frame that stays,
+# standing, hung on a rope or nailed to a wall; its lit glass, a model of its
+# own; and its flame, a particle object in the glass (FLAME), which lights
+# the place too: there is no light object. A break hides the glass and puts
+# the flame out. A frame without the lit glass is an unlit lamp: scenery.
+# The chain lamp (ceiling_group_chain_lamp) has its glass in its own mesh,
+# the oil lamp (stand_group_oil_lamp) is never lit, a torch has no glass:
+# scenery all three.
+LANTERN_PREFIXES = ('', 'ported/v011e/', 'ported/v021d/')
+LANTERN_GLASS = {prefix + 'props/light/' + model + '_glass_emit' for prefix in LANTERN_PREFIXES
+                 for model in ('stand_group_batlamp', 'wall_group_nailed_batlamp')}
+FLAME, FLAME_REACH = 'fx/lights/oil_lamp', 0.4
+GLASS = TUBE_GLASS | LANTERN_GLASS
 # Housings that stay when their glass breaks. A housing belongs to a fixture
-# (its bounds, so a shot into the housing breaks the tubes) only together
+# (its bounds, so a shot into the housing breaks the glass) only together
 # with glass; on its own it is scenery.
-HOUSINGS = {'props/light/lamp_midle_04'}
+HOUSINGS = {'props/light/lamp_midle_04'} | {glass.removesuffix('_glass_emit') for glass in LANTERN_GLASS}
 PARTS = REPLACEMENTS.keys() | GLASS | HOUSINGS
 # Fluorescent glass: a model's tubes are its glass, not its housing or frame.
 # The local height of the tubes' axis in the models that hold them (the
@@ -64,6 +78,12 @@ TUBES = TUBE_Y.keys() | {'lamp2', 'lamp2_bad', 'lamp2_good'}
 # aligning that tip left a visible gap in 2026-10-28-21-47-05.png. Align the
 # first ring instead (mesh-local y below), lifting these scaled cones by
 # 0.143247 m from the apex alignment. Stock/v0.21 remain untouched.
+# A lit alarm lamp has no light object: its red glow is an ambient light
+# beside it (Vector's 0.6 m from the lamp, level_05's up to 2.4 m, two at one
+# lamp), among the rooms' grey and coloured fills. A red one that near is the
+# lamp's, and goes out with it.
+LIT_ALARMS = {prefix + 'props/light/alarm_red_light' for prefix in ('', 'ported/v011e/', 'ported/v021d/')}
+ALARM_GLOW_REACH = 2.5
 LEGACY_CONE = 'ported/v011e/editor/cone'
 CONE_APEX = (0.0, -0.009467163123190403, 0.0)
 CONE_LIGHT_START = (0.0, -0.1327432245016098, 0.0)
@@ -123,8 +143,53 @@ def selector(v):
     return {key: v[key] for key in ('visual_name', 'position', 'rotation', 'scale')}
 
 
+def is_red(colour):
+    """An ambient light's colour (an i32: red in its low byte, then green, blue)."""
+    red, green, blue = (colour >> shift & 0xff for shift in (0, 8, 16))
+    return red >= 2 * max(green, blue)
+
+
+def nearest_fixture(path, position, centers, limit, among=None):
+    among = range(len(centers)) if among is None else among
+    distances = sorted((math.dist(position, centers[i]), i) for i in among)
+    if not distances or distances[0][0] > limit:
+        return None
+    if len(distances) > 1 and distances[1][0] - distances[0][0] < 0.15:
+        raise ValueError(f'{path}: ambiguous light/cone at {position}')
+    return distances[0][1]
+
+
+def rebound_lights(path, lamps, objects):
+    """Bind a replacement lighting set to existing fixtures without moving them."""
+    names = sorted(lamps)
+    centers = [[(lamps[name]['min_' + axis] + lamps[name]['max_' + axis]) / 2
+                for axis in 'xyz'] for name in names]
+    bindings = {name: {} for name in names}
+    for light in objects:
+        if light.get('game_object_type') != 'light':
+            continue
+        near = nearest_fixture(path, light['position'], centers, 0.85)
+        if near is not None:
+            row = bindings[names[near]]
+            row[f'light{len(row)}'] = dict(zip(('x', 'y', 'z'), light['position']), name=light['full_name'])
+    return bindings
+
+
+def close(a, b):
+    """Two lamp tables alike: the same keys and values, numbers within the f32 rounding of a file."""
+    if isinstance(a, dict) and isinstance(b, dict):
+        return a.keys() == b.keys() and all(close(a[k], b[k]) for k in a)
+    if isinstance(a, (int, float)) and isinstance(b, (int, float)) and not isinstance(a, bool):
+        return abs(a - b) <= 1e-4 * max(1, abs(a))
+    return a == b
+
+
 def author(path, data, bounds, break_material, effect_material):
+    """A project's lamp edits. A project a pack made from a lamp-carrying day (London's and the
+    0.21 maps' rain and evening) has the day's broken models and table already: its fixtures are
+    authored over them, and the table is replaced only where this rule now binds otherwise."""
     root = tree(data)
+    carried = root.get('srp_lamps')
     visuals = root.get('render_visuals', [])
     components = [(i, v) for i, v in enumerate(visuals) if v.get('visual_name') in PARTS]
     # Overlapping bulb/cover meshes form one fixture (level_06). A shot
@@ -149,20 +214,25 @@ def author(path, data, bounds, break_material, effect_material):
     centers = [[(a + b) / 2 for a, b in zip(lo, hi)] for lo, hi in boxes]
     lights, cones = [[] for _ in lamps], [[] for _ in lamps]
 
-    def nearest(position, limit):
-        distances = sorted((math.dist(position, p), i) for i, p in enumerate(centers))
-        if distances[0][0] > limit:
-            return None
-        # Ambiguous fixtures need an explicit map edit, never two owners.
-        if len(distances) > 1 and distances[1][0] - distances[0][0] < 0.15:
-            raise ValueError(f'{path}: ambiguous light/cone at {position}')
-        return distances[0][1]
+    def nearest(position, limit, among=None):
+        return nearest_fixture(path, position, centers, limit, among)
 
+    alarms = [i for i, group in enumerate(lamps) if any(v['visual_name'] in LIT_ALARMS for _, v in group)]
+    lanterns = [i for i, group in enumerate(lamps) if any(v['visual_name'] in LANTERN_GLASS for _, v in group)]
+    glows, flames = [[] for _ in lamps], [[] for _ in lamps]
     for light in root.get('client_objects', []):
         if light.get('game_object_type') == 'light':
             near = nearest(light['position'], 0.85)
             if near is not None:
                 lights[near].append(light)
+        elif light.get('game_object_type') == 'ambient_light' and is_red(light['color']):
+            near = nearest(light['position'], ALARM_GLOW_REACH, alarms)
+            if near is not None:
+                glows[near].append(light)
+        elif light.get('game_object_type') == 'particle' and light.get('lib_name') == FLAME:
+            near = nearest(light['position'], FLAME_REACH, lanterns)
+            if near is not None:
+                flames[near].append(light)
     placements, result = [], bytearray(data)
     for i, v in enumerate(visuals):
         legacy = v.get('visual_name') == LEGACY_CONE
@@ -200,6 +270,8 @@ def author(path, data, bounds, break_material, effect_material):
                 tip = emitters[0]['position']
             start = world_bounds(v, CONE_LIGHT_START, CONE_LIGHT_START)[0]
             position = [p + t - a for p, t, a in zip(v['position'], tip, start)]
+            if carried is not None and close(dict(enumerate(position)), dict(enumerate(v['position']))):
+                continue
             edit = {'file': path, 'list': 'render_visuals', 'where': selector(v),
                     'from': {'position': v['position']}, 'to': {'position': position}}
             c.set_entry(result, edit['list'], edit['where'], edit['from'], edit['to'])
@@ -216,6 +288,9 @@ def author(path, data, bounds, break_material, effect_material):
         if broken_key in added:
             continue
         added.add(broken_key)
+        if carried is not None and any(all(k in f and c.same(f[k], val) for k, val in
+                                           dict(match, visual_name=replacement).items()) for f in visuals):
+            continue
         edit = {'files': path, 'list': 'render_visuals', 'after': match, 'like': match,
                 'values': {'visual_name': replacement, 'lib_name': replacement}}
         assert c.add_entry(result, edit['list'], match, match, edit['values']) is not None
@@ -252,22 +327,33 @@ def author(path, data, bounds, break_material, effect_material):
         row |= dict(zip(('glass_from_x', 'glass_from_y', 'glass_from_z', 'glass_to_x', 'glass_to_y', 'glass_to_z'),
                         start + end))
         rows[f'lamp{i:03d}'] = dict(row, visuals=vs, lights=ls)
-    return placements, additions, {'files': [path], 'table': '', 'key': 'srp_lamps',
-                       'value': {'version': 3, 'break_material': break_material,
-                                 'effect_material': effect_material, 'lamps': rows}}
+        # The few fixtures with one; the others' rows have no table.
+        for table, key, objects in (('ambient_lights', 'light', glows[i]), ('particles', 'particle', flames[i])):
+            if objects:
+                rows[f'lamp{i:03d}'][table] = {
+                    f'{key}{j}': dict(zip(('x', 'y', 'z'), o['position']), name=o['full_name'])
+                    for j, o in enumerate(objects)}
+    value = {'version': 3, 'break_material': break_material, 'effect_material': effect_material, 'lamps': rows}
+    if carried is not None and close(carried, value):
+        return [], [], None
+    return placements, additions, {'files': [path], 'table': '', 'key': 'srp_lamps', 'value': value,
+                                   'replaces': carried is not None}
 
 
 def check_built(path, data):
     """Problems of a built client_project's srp_lamps against the file itself:
     each visual index names its role's model (intact: a breakable lamp inside
     its row's bounds; broken: that lamp's broken model, placed as it; cone: a
-    light shaft), each light position is exactly one light of the map (what
-    the client binds; a later edit list or a map-editor save can move them)."""
+    light shaft), each light position is exactly one light of the map, each
+    ambient light position exactly one ambient light and each particle
+    position exactly one particle object (what the client binds; a later edit
+    list or a map-editor save can move them)."""
     root = tree(data)
     if 'srp_lamps' not in root:
         return []
     visuals = root.get('render_visuals', [])
-    lights = [o['position'] for o in root.get('client_objects', []) if o.get('game_object_type') == 'light']
+    placed = {kind: [o['position'] for o in root.get('client_objects', []) if o.get('game_object_type') == kind]
+              for kind in ('light', 'ambient_light', 'particle')}
     problems = []
     for name, row in root['srp_lamps']['lamps'].items():
         def visual(key):
@@ -293,10 +379,12 @@ def check_built(path, data):
         for end in ('from', 'to'):
             if not all(row['min_' + a] - 1e-3 <= row[f'glass_{end}_{a}'] <= row['max_' + a] + 1e-3 for a in 'xyz'):
                 problems.append(f'{path}: {name}: its glass line leaves its bounds')
-        for key, light in row['lights'].items():
-            found = sum(p == [light['x'], light['y'], light['z']] for p in lights)
-            if found != 1:
-                problems.append(f'{path}: {name} {key}: {found} lights of the map at its position')
+        for table, kind, what in (('lights', 'light', 'lights'), ('ambient_lights', 'ambient_light', 'ambient lights'),
+                                  ('particles', 'particle', 'particles')):
+            for key, light in row.get(table, {}).items():
+                found = sum(p == [light['x'], light['y'], light['z']] for p in placed[kind])
+                if found != 1:
+                    problems.append(f'{path}: {name} {key}: {found} {what} of the map at its position')
     return problems
 
 
@@ -324,7 +412,8 @@ def main():
             for name in ('glass', 'bullet')}
     if any(len(ids) != 1 for ids in live.values()):
         raise ValueError('expected one live glass and one live bullet material in the authoring game data')
-    edits = {'_about': 'Breakable lamps: one bullet breaks the fixture, removes its linked lights and cones, '
+    edits = {'_about': 'Breakable lamps: one bullet breaks the fixture, removes its linked lights and cones '
+             "(a lit alarm lamp's red ambient glow and a kerosene lamp's flame too), "
              'and displays the broken model. Source authored by scripts/breakable-lamps/make_edits.py '
              'from manifest-base projects and Research. Explicit indices refer to the final render_visuals '
              'after these additions. Bulb bounds use stock geometry and placed rotation/scale. '
@@ -335,11 +424,15 @@ def main():
         placements, adds, spec = author(str(p.relative_to(args.projects)), p.read_bytes(), bounds,
                                         live['glass'][0], live['bullet'][0])
         if spec:
+            if spec.pop('replaces'):
+                edits.setdefault('remove_key', []).append({'files': spec['files'][0], 'keys': ['srp_lamps']})
             edits['set_entry'].extend(placements)
             edits['add_entry'].extend(adds); edits['add_value'].append(spec)
             rows = spec['value']['lamps']
             print(f'{p.parts[-3]}/{p.parts[-2]}: {len(rows)} lamps, '
-                  f'{sum(len(r["lights"]) for r in rows.values())} lights')
+                  f'{sum(len(r["lights"]) for r in rows.values())} lights, '
+                  f'{sum(len(r.get("ambient_lights", {})) for r in rows.values())} ambient lights, '
+                  f'{sum(len(r.get("particles", {})) for r in rows.values())} flames')
     args.out.write_text(json.dumps(edits, indent=2, ensure_ascii=False) + '\n')
 
 

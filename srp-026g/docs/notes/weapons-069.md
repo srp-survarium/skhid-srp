@@ -103,6 +103,10 @@ older file under the same name, the port moves 0.69d0's to a name of its own (th
   at 0 its aim sat at the receiver's top and the receiver filled the lower screen; the Drum the
   PPSh's 0.01, its aim at the live PPSh's height). The Mauser sets 0 (its aim was within 2 px;
   the APS's -0.1 is the APS model's).
+- A gun with no scope rail of its own (the AKMSU: 0.69d0 mounts its optic on a B-18 module; the
+  Mauser) has its `scope_point` at the eye on the gun's body bone, `offset` (@19). Up to @18 it
+  was a copy of the aim locator on the root bone, which the 0.69d0 clips leave behind: an optic on
+  the AKMSU floated off the gun whenever a clip moved it (bug report 2026-11-16).
 
 ## Stats (live peers beside each)
 

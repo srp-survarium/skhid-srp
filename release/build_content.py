@@ -56,8 +56,56 @@ LOBBY = 'lobby_menu'
 # type is not one 0.26g uses at that structural path, with the reason it is
 # right: {(game path, structural path): reason}. It never lets a key that
 # exists change its type (a number between int and float only where the base
-# configs have both there: content_type_check.number_either). Empty: today's content needs none.
-TYPE_ALLOWLIST = {}
+# configs have both there: content_type_check.number_either).
+# Rudnya v0.21 (pack maps-021d-rudnya): numbers 0.21d authored as floats where 0.26g's own projects
+# happen to have whole numbers.
+TYPE_ALLOWLIST = {
+    **{(f'projects/v021d_level_01/day_{mode}/client_project',
+        '/client_objects[environment]/properties/sky_clouds_color_multiplier'):
+       "0.21d's 1.28 in its day environment (a 0.21d key 0.26g does not read; its environment loader "
+       'load_environment_properties_impl 0x34E1E0 reads a float as it is and an int through cvtsi2ss)'
+       for mode in (2, 4)},
+    **{(f'projects/v021d_level_01/day_{mode}/client_project', '/client_objects[damage_zone]/max_armor_piercing'):
+       "0.21d's 0.02 on the swamp anomaly's fourth sensor: a fraction the hit takes with max_hit "
+       '(damage_zone_core::hit_objects 0x319AF0, +1C4h beside the float +1C0h), as srp reads it '
+       "(mapdata's f32_or); 0.26g's own zones have a whole 0 there"
+       for mode in (2, 4)},
+    # London's evening (pack london-weathers): 0.31a2's stratosphere turns at 0.62, a fraction where
+    # 0.26g's corpus has whole numbers; the reader takes either (stratosphere 0x34E84F).
+    **{(f'projects/level_09/evening_{mode}/client_project',
+        '/client_objects[environment]/properties/stratosphere_rotation_speed'):
+       "0.31a2's London evening 0.62; load_environment_properties_impl 0x34E1E0 reads float/int "
+       "numerically (stratosphere 0x34E84F)"
+       for mode in (2, 3, 4)},
+    # Original 0.21 weather scalar representations, scoped to the exact
+    # projects/keys that differ from the 0.26 corpus. The native reader tests
+    # binary-config type 2 then uses movss; otherwise it uses cvtsi2ss. Keep
+    # fractional donor values instead of rounding them to the corpus's ints.
+    **{(f'projects/v021d_level_{level}/{weather}_{mode}/client_project',
+        f'/client_objects[environment]/properties/{key}'):
+       "Original 0.21d weather scalar; load_environment_properties_impl 0x34E1E0 "
+       "reads float/int numerically (stratosphere 0x34E84F, cloud fog 0x34EA16, "
+       "Mie height 0x34ED27, rain scale 0x34F0BB, wind 0x34F1F0, vignette 0x34F2DA); "
+       "legacy sky_clouds_color_multiplier and mie_fog_falloff are not read by 0.26g"
+       for level, weather, keys in (
+           ('01', 'evening', ('mie_fog_base_height', 'sky_clouds_color_multiplier', 'stratosphere_rotation', 'vignette_effect_power')),
+           ('01', 'rain', ('mie_fog_base_height', 'rain_u_scale', 'sky_clouds_color_multiplier', 'stratosphere_rotation')),
+           ('02', 'evening', ('mie_fog_base_height', 'sky_clouds_color_multiplier', 'stratosphere_rotation')),
+           ('02', 'rain', ('mie_fog_base_height', 'rain_u_scale', 'sky_clouds_color_multiplier', 'stratosphere_rotation', 'wind_strength')),
+           ('03', 'evening', ('mie_fog_base_height', 'mie_fog_falloff', 'stratosphere_rotation')),
+           ('03', 'rain', ('mie_fog_base_height', 'rain_u_scale', 'sky_clouds_color_multiplier', 'stratosphere_rotation')),
+           ('04', 'evening', ('mie_fog_base_height', 'stratosphere_rotation')),
+           ('04', 'rain', ('mie_fog_base_height', 'rain_u_scale', 'sky_clouds_color_multiplier', 'stratosphere_rotation')),
+           ('05', 'evening', ('mie_fog_base_height', 'sky_clouds_color_multiplier', 'sky_clouds_fog_power', 'stratosphere_rotation', 'vignette_effect_power')),
+           ('05', 'rain', ('mie_fog_base_height', 'rain_u_scale', 'sky_clouds_color_multiplier', 'stratosphere_rotation')),
+           ('06', 'evening', ('mie_fog_base_height', 'stratosphere_rotation')),
+           ('06', 'rain', ('mie_fog_base_height', 'sky_clouds_color_multiplier', 'stratosphere_rotation')),
+       ) for mode in (2, 4) for key in keys},
+    **{(f'projects/v021d_level_01/{weather}_{mode}/client_project', '/client_objects[damage_zone]/max_armor_piercing'):
+       "Same authored Rudnya day swamp sensor's 0.02; damage_zone_core::hit_objects 0x319AF0 "
+       "reads float +1C4h beside max_hit +1C0h (mapdata f32_or), retained in both original weathers"
+       for weather in ('rain', 'evening') for mode in (2, 4)},
+}
 
 SIMULATION_CHANGES = 'srp-026g/crates/session/src/v026g/simulation_changes.tsv'
 
@@ -278,9 +326,12 @@ class Game:
         """{path: (status, archive or '')}: same, differs, new."""
         text = run([self.binary, 'compare'] + self.layers(archives) + ['--dir', folder], 'srp-game-data compare')
         out = {}
+        # `new <path>` or `<same|differs> <path> <archive>`: a path may hold spaces (0.21d's
+        # `render/material #825364/` folders), an archive name none.
         for line in text.splitlines():
-            status, path, *name = line.split(' ')
-            out[path] = (status, name[0] if name else '')
+            status, rest = line.split(' ', 1)
+            path, name = (rest, '') if status == 'new' else rest.rsplit(' ', 1)
+            out[path] = (status, name)
         return out
 
 
@@ -777,6 +828,65 @@ def keeper_check(rows, base_files, world):
     print(f'keeper: every one of {len(projects)} map project(s) has its pool')
 
 
+def walker_twin_problems(path, buf):
+    """A project's temporary collision objects with same_walker_collision whose `walker_<name>` the
+    project does not have: 0.26g's battery rule (0x3153B0) looks the twin up for each one a battery
+    place attaches (0x3156EC, 0x31595C) and uses it unchecked, so a missing one crashes the client
+    when the mode starts (London (v0.42)'s mode 3, 2026-11-21). The same rule reads each battery
+    place's attached_objects/collision_geometries unchecked (0x3155FB-0x315610): a place without the
+    list crashed London (v0.42)'s mode 3 too."""
+    ce = own_content_edit()
+
+    def value(item, key):
+        try:
+            data, _, _, kind, count = ce.rec(buf, ce.find(buf, key, item))
+        except KeyError:
+            return None
+        return bytes(buf[data:data + count - 1]).decode('utf-8', 'replace') if kind == ce.T_STR else data != 0
+
+    def items(path):
+        try:
+            return ce.children(buf, ce.find(buf, path))
+        except KeyError:
+            return []
+
+    problems = [f'{path}: battery place {value(place, "name")} has no attached_objects/collision_geometries'
+                for place in items('server_objects/victory_item_spawn_points')
+                if value(place, 'attached_objects/collision_geometries') is None]
+    entries = [(value(item, 'name'), value(item, 'same_walker_collision')) for item in items('temporary_collision_objects')]
+    names = {name for name, _ in entries}
+    return problems + [f'{path}: {name} has same_walker_collision and the project no walker_{name}'
+                       for name, twin in entries if twin is True and f'walker_{name}' not in names]
+
+
+def walker_check(base, base_files, game, world, cache):
+    """Every map project, as players will have it (made by a row or as the base has it), gives each
+    temporary collision object with same_walker_collision its `walker_<name>` twin, and each battery
+    place its attached_objects/collision_geometries (walker_twin_problems). A project's problems are cached by its bytes (a made one) or its archive
+    (a base one) and the check's source."""
+    projects = sorted(p for p in set(base_files) | set(world.bytes)
+                      if p.startswith('projects/') and p.endswith('/client_project'))
+    key = Cache.key('the walker twins of projects', files_digest([Path(__file__)]), sys.version)
+    earlier = (cache.get(key) or ({}, {}))[1]
+    key_of = {p: f'{world.sha256(p)} {p}' if p in world.bytes else f'{base_files[p]} {p}' for p in projects}
+    todo = [p for p in projects if key_of[p] not in earlier]
+    files = game.get(base, [p for p in todo if p not in world.bytes])
+    files.update({p: world.bytes[p] for p in todo if p in world.bytes})
+    found = {key_of[p]: walker_twin_problems(p, bytearray(files[p])) for p in todo}
+    each = {key_of[p]: found.get(key_of[p], earlier.get(key_of[p])) for p in projects}
+    if found:
+        cache.put(key, {}, each)
+    problems = [problem for p in projects for problem in each[key_of[p]]]
+    if problems:
+        print()
+        for problem in problems:
+            print(f'WALKER: {problem}')
+        raise Problem(f'{len(problems)} battery place(s) or walker twin(s) missing '
+                      '(the battery rule would crash the client): no patch made')
+    print(f'walker twins: every same_walker_collision object and battery place of {len(projects)} project(s) '
+          'has what the battery rule reads')
+
+
 GRASS_MAX = 120_000
 
 
@@ -957,6 +1067,8 @@ def main():
             keeper_check(rows, base_files, world)
         with timed('the grass'):
             grass_check(base, base_files, game, world)
+        with timed('the walker twins'):
+            walker_check(base, base_files, game, world, cache)
         with timed('the clothing fit'):
             clothing_check(base, base_files, game, world)
 

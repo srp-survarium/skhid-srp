@@ -11,6 +11,7 @@
 
 use survarium::v021d;
 use survarium::v026g::dictionary::Dictionary;
+use survarium::v026g::faces::Face;
 use survarium::v026g::golden;
 use survarium::v026g::item_params;
 use survarium::v026g::loadouts::{self, AMMO_SLOTS, KitLayout, Loadout, POCKET_SLOTS};
@@ -188,6 +189,9 @@ pub struct Account {
     pub presets: [Option<super::presets::Preset>; super::presets::PRESETS],
     /// The preset the kits are, 1 to 5.
     pub active_preset: u8,
+    /// The face it is drawn with, one an account (`face-choice.md`): 0 until
+    /// it chooses one in the lobby.
+    pub face: Face,
 }
 
 /// The pockets of a kit's `slots` ([`POCKET_SLOTS`]) holding an item type
@@ -313,6 +317,7 @@ impl Account {
             drop_cards: Vec::new(),
             presets: [None; super::presets::PRESETS],
             active_preset: super::presets::FIRST_PRESET,
+            face: Face::DEFAULT,
         };
         for worn in &loadout.items {
             let Some(entry) = dictionary.item(worn.dict_id) else {
@@ -511,6 +516,20 @@ impl Account {
         }
         off.sort_unstable();
         off
+    }
+
+    /// The account drawn with `face` from now on (`face-choice.md`): every
+    /// kit's revision bumped, so the lobby draws its characters again.
+    /// Whether it was another face.
+    pub fn choose_face(&mut self, face: Face) -> bool {
+        if self.face == face {
+            return false;
+        }
+        self.face = face;
+        for kit in &mut self.kits {
+            kit.revision = kit.revision.wrapping_add(1);
+        }
+        true
     }
 
     /// Takes off, to the inventory, every item [`Self::covered_items`]
@@ -1087,6 +1106,20 @@ mod tests {
     }
 
     #[test]
+    fn a_face_chosen_redraws_every_kit() {
+        let mut account = Account::new("Alice");
+        let face = survarium::v026g::faces::Faces::shared().face(1).unwrap();
+        let revisions: Vec<u32> = account.kits.iter().map(|kit| kit.revision).collect();
+        assert!(account.choose_face(face));
+        assert_eq!(account.face, face);
+        let bumped: Vec<u32> = revisions.iter().map(|revision| revision + 1).collect();
+        assert_eq!(account.kits.iter().map(|kit| kit.revision).collect::<Vec<_>>(), bumped);
+        // The same face again: nothing to draw.
+        assert!(!account.choose_face(face));
+        assert_eq!(account.kits.iter().map(|kit| kit.revision).collect::<Vec<_>>(), bumped);
+    }
+
+    #[test]
     fn kits_follow_the_inventory() {
         let mut account = Account::new("Alice");
         let ammo = account.kits[0].slots[8].unwrap().item_id;
@@ -1334,12 +1367,12 @@ mod tests {
         use survarium::v026g::skills::Skill;
         type Row = (u16, u8, u32, u8, u8, &'static [u16]);
         #[rustfmt::skip]
-        let rows: [Row; 13] = [
-            (301, 3, 0, 2, 1, &[]), (302, 2, 0, 3, 1, &[]), (303, 2, 10, 2, 3, &[]),
-            (311, 5, 3, 1, 2, &[]), (312, 3, 3, 4, 2, &[]), (313, 2, 3, 3, 2, &[]),
-            (321, 3, 10, 4, 3, &[]), (322, 1, 20, 3, 5, &[331]), (323, 4, 15, 3, 4, &[333]),
-            (331, 1, 20, 2, 5, &[322]), (332, 5, 15, 2, 4, &[]), (333, 4, 15, 4, 4, &[323]),
-            (342, 1, 0, 1, 1, &[]),
+        let rows: [Row; 14] = [
+            (301, 3, 3, 1, 2, &[]), (302, 2, 0, 3, 1, &[]), (303, 2, 7, 1, 3, &[]),
+            (311, 4, 3, 2, 2, &[]), (312, 3, 3, 3, 2, &[]), (314, 3, 3, 4, 2, &[]),
+            (321, 3, 7, 2, 3, &[]), (322, 1, 17, 3, 5, &[331]), (323, 4, 12, 1, 4, &[]),
+            (324, 3, 7, 4, 3, &[]), (331, 1, 17, 2, 5, &[322]), (332, 5, 12, 2, 4, &[]),
+            (333, 3, 12, 4, 4, &[]), (342, 1, 0, 2, 1, &[]),
         ];
         let skills = rows
             .iter()
@@ -1359,8 +1392,9 @@ mod tests {
         SkillsTree { skills }
     }
 
-    /// Saved medical skills of the old tree (five-rank Fast Bandaging and
-    /// Brothers in Arms, Medic, both tier-5 unlocks): the points taken back
+    /// Saved medical skills of the old trees (five-rank Fast Bandaging,
+    /// Metabolism and Brothers in Arms, Medic, Take Cover, both tier-5
+    /// unlocks): the points taken back
     /// are the account's to spend again, and its kits are sent again.
     #[test]
     fn a_changed_tree_refunds_saved_skills() {
@@ -1381,6 +1415,7 @@ mod tests {
             (302, 5),
             (311, 5),
             (312, 5),
+            (313, 2),
             (321, 5),
             (322, 1),
             (331, 1),
@@ -1389,14 +1424,14 @@ mod tests {
             (342, 5),
         ];
         let revisions: Vec<u32> = account.kits.iter().map(|kit| kit.revision).collect();
-        assert_eq!(spent(&account), 38);
+        assert_eq!(spent(&account), 40);
         assert!(account.settle_skills(&tree));
         assert_eq!(
             account.skills,
             [
                 (301, 3),
                 (302, 2),
-                (311, 5),
+                (311, 4),
                 (312, 3),
                 (321, 3),
                 (331, 1),
@@ -1404,7 +1439,7 @@ mod tests {
                 (342, 1)
             ]
         );
-        assert_eq!(spent(&account), 23);
+        assert_eq!(spent(&account), 22);
         assert_eq!(tree.validate(account.level(), &account.skills), Ok(()));
         assert!(
             account
@@ -1415,133 +1450,5 @@ mod tests {
         );
         // Settled once, the set stays as it is.
         assert!(!account.settle_skills(&tree));
-    }
-
-    /// Unflinching and Concentration exclude each other: a set holding both
-    /// (none was ever saved; the pair is new) gives Unflinching's four
-    /// points back, keeps Concentration, and sends the kits again.
-    #[test]
-    fn unflinching_beside_concentration_is_refunded() {
-        let tree = medical_tree();
-        let mut account = Account::new("Alice");
-        account.add_experience(50_000_000);
-        account.skills = vec![
-            (301, 3),
-            (302, 2),
-            (311, 5),
-            (312, 3),
-            (313, 2),
-            (303, 2),
-            (321, 3),
-            (342, 1),
-            (323, 4),
-            (333, 4),
-        ];
-        let revisions: Vec<u32> = account.kits.iter().map(|kit| kit.revision).collect();
-        assert!(account.settle_skills(&tree));
-        assert!(!account.skills.iter().any(|&(id, _)| id == 323));
-        assert!(account.skills.contains(&(333, 4)));
-        assert_eq!(account.skills.iter().map(|&(_, n)| u32::from(n)).sum::<u32>(), 25);
-        assert_eq!(tree.validate(account.level(), &account.skills), Ok(()));
-        assert!(
-            account
-                .kits
-                .iter()
-                .zip(&revisions)
-                .all(|(kit, &before)| kit.revision != before)
-        );
-        assert!(!account.settle_skills(&tree));
-    }
-
-    /// A full build saved before Numb Legs moved from row 1 to row 3 (and
-    /// Unflinching went from two ranks to four): the ids are the same and
-    /// rows 1 and 2 hold Numb Legs' ten points, so nothing is taken back and
-    /// the kits are not sent again (Brothers in Arms at the one rank it has
-    /// since 2026-11-14).
-    #[test]
-    fn numb_legs_saved_in_row_one_stays_after_the_move() {
-        let tree = medical_tree();
-        let mut account = Account::new("Alice");
-        account.add_experience(50_000_000);
-        account.skills = vec![
-            (303, 2),
-            (301, 3),
-            (302, 2),
-            (311, 5),
-            (313, 2),
-            (312, 3),
-            (321, 3),
-            (342, 1),
-            (323, 2),
-            (332, 5),
-            (331, 1),
-        ];
-        let saved = account.skills.clone();
-        let revisions: Vec<u32> = account.kits.iter().map(|kit| kit.revision).collect();
-        assert!(!account.settle_skills(&tree));
-        assert_eq!(account.skills, saved);
-        assert!(
-            account
-                .kits
-                .iter()
-                .zip(&revisions)
-                .all(|(kit, &before)| kit.revision == before)
-        );
-    }
-
-    /// Brothers in Arms saved at two ranks in row 3 (before 2026-11-14) is
-    /// one rank in row 1 now: the second rank's point is the account's to
-    /// spend again and its kits are sent again. A row reached with exactly
-    /// that point is given back as well; one saved rank changes nothing.
-    #[test]
-    fn brothers_in_arms_saved_at_two_ranks_gives_a_point_back() {
-        let tree = medical_tree();
-        let settled = |saved: &[(u16, u8)]| {
-            let mut account = Account::new("Alice");
-            account.add_experience(50_000_000);
-            account.skills = saved.to_vec();
-            let revisions: Vec<u32> = account.kits.iter().map(|kit| kit.revision).collect();
-            let changed = account.settle_skills(&tree);
-            // Sent again when anything was taken back, else left alone.
-            assert!(
-                account
-                    .kits
-                    .iter()
-                    .zip(&revisions)
-                    .all(|(kit, &before)| (kit.revision != before) == changed)
-            );
-            assert_eq!(tree.validate(account.level(), &account.skills), Ok(()));
-            assert!(!account.settle_skills(&tree));
-            (changed, account.skills)
-        };
-        // The full build of before: 32 points held, 31 now, nothing else.
-        #[rustfmt::skip]
-        let full = [
-            (301, 3), (302, 2), (311, 5), (312, 3), (313, 2), (342, 2), (303, 2), (321, 3),
-            (332, 5), (323, 4), (331, 1),
-        ];
-        let mut full_now = full.to_vec();
-        full_now[5] = (342, 1);
-        assert_eq!(settled(&full), (true, full_now));
-        // Rows 1-3 held exactly row 4's 15 with both ranks: row 4 and the
-        // tier-5 unlock come back too (21 points held, 14 now).
-        #[rustfmt::skip]
-        let fifteen = [(301, 3), (302, 2), (311, 5), (312, 3), (342, 2), (332, 5), (331, 1)];
-        assert_eq!(
-            settled(&fifteen),
-            (true, vec![(301, 3), (302, 2), (311, 5), (312, 3), (342, 1)])
-        );
-        // Rows 1-4 held exactly row 5's 20 with both ranks: the tier-5
-        // unlock comes back, row 4 stays (21 points held, 19 now).
-        #[rustfmt::skip]
-        let twenty = [(301, 3), (302, 2), (311, 5), (312, 3), (313, 1), (342, 2), (323, 4), (322, 1)];
-        let mut twenty_now = twenty.to_vec();
-        twenty_now[5] = (342, 1);
-        twenty_now.pop();
-        assert_eq!(settled(&twenty), (true, twenty_now));
-        // One rank, with no point to spare in rows 1-3 or 1-4: unchanged.
-        #[rustfmt::skip]
-        let one = [(301, 3), (302, 2), (311, 5), (342, 1), (303, 2), (321, 2), (332, 5), (331, 1)];
-        assert_eq!(settled(&one), (false, one.to_vec()));
     }
 }

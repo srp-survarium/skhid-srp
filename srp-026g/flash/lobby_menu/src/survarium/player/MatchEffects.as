@@ -161,11 +161,17 @@ package survarium.player
          {
             // While a painkiller is active (set_active's flag on a pain protector): Numb Legs, the
             // sprint's stamina x (1 - 0.2 x rank) (player_stamina::sprint 0x329AAD); Unflinching,
-            // the hits' stopping power x (1 - 0.1 x rank); Concentration, the sight's sway x (1 - 0.05
-            // x rank) (breath_vibration_calculator::tick 0x31D727, added to modifier 61's own).
+            // the hits' stopping power x (1 - 0.1 x rank).
             skillLine(lines,"st_srp_medicine_sprint_stamina",1 - _kit.numbLegsRank * 0.2,false);
             skillLine(lines,"st_srp_medicine_hit_slow",1 - _kit.unflinchingRank * 0.1,false);
-            skillLine(lines,"st_srp_medicine_sight_sway",1 - _kit.concentrationRank * 0.05,false);
+         }
+         // While an antitoxin is active: Concentration, the reload's speed +10/+15/+20 % added to
+         // modifier 13's own (the four reload states' get_weapon_lexeme, medical::reload); Sharp
+         // Eye, the sight's aim time -5/-10/-15 % added to modifier 49's (medical::aim_start / _end).
+         if(antitoxin(item))
+         {
+            skillLine(lines,"st_srp_medicine_reload_speed",1 + RELOAD_BONUS[_kit.concentrationRank],true);
+            skillLine(lines,"st_srp_medicine_aim_time",1 - AIM_BONUS[_kit.sharpEyeRank],false);
          }
          // Take Cover: each heal tick's amount x (1 + 0.1 x rank) while crouched (medkit::tick
          // 0x33D948, after Medical Training's S57), on a medicine that heals.
@@ -223,6 +229,22 @@ package survarium.player
 
       // A medicine card's healing lines: infection, arms and legs, body and head, pain.
       private static const HEALING:Array = [13,135,136,137];
+
+      private static const RELOAD_BONUS:Array = [0,0.1,0.15,0.2];
+
+      private static const AIM_BONUS:Array = [0,0.05,0.1,0.15];
+
+      // An antitoxin's card: its infection cure (13) and no other healing above 0, as the exe's
+      // medical::antitoxin (a drug that heals the infection pool and nothing else).
+      private static function antitoxin(item:Object) : Boolean
+      {
+         if(!has(item,13)) return false;
+         for each(var prop:Object in item.properties)
+         {
+            if((prop.prop_id == 135 || prop.prop_id == 136 || prop.prop_id == 137) && Number(prop.prop_value) > 0) return false;
+         }
+         return true;
+      }
 
       private static function heals(item:Object) : Boolean
       {

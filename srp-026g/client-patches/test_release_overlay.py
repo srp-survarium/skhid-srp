@@ -132,6 +132,34 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(self.exe.read_bytes(), b'original fixture')
         return patcher.call_args, messages.getvalue()
 
+    def test_relay_packages_route_config_and_uses_updater_for_play(self):
+        output = self.root / 'relay'
+        self.build(output, '--relay=203.0.113.8:2234')
+        config = output / 'game/binaries/x86/updater_skhid.relay'
+        self.assertEqual(config.read_text(), 'release.example:2234\n203.0.113.8:2234\n')
+        self.assertEqual(self.launcher.call_args.kwargs, dict(
+            site='https://release.example', game_exe='updater_skhid.exe',
+            arguments='play -minimum_resources_memory_size=768'))
+        self.assertIn(b'start "" updater_skhid.exe play ',
+                      (output / 'game/binaries/x86/play_skhid.bat').read_bytes())
+        for name in (overlay.LINUX_LAUNCHER, overlay.MAC_LAUNCHER):
+            self.assertIn(b'updater_skhid.exe play', (output / name).read_bytes())
+        # A provider that blocks the server: the launcher's "Relay" row, in
+        # the README and on the launcher's own page; no VPN advice.
+        readme = (output / 'README.txt').read_text(encoding='utf-8')
+        self.assertIn("set Relay, at the launcher's bottom left,", readme)
+        self.assertNotIn('VPN', readme)
+        page = (output / 'game/binaries/x86/launcher_skhid/index-en.html').read_text(encoding='utf-8')
+        self.assertIn('set Relay, at the bottom left, to auto.', page)
+        self.assertNotIn('VPN', page)
+
+    def test_relay_refuses_incompatible_ports_and_no_updater(self):
+        for index, options in enumerate((['--relay=203.0.113.8:1234'],
+                                        ['--relay=203.0.113.8:2234', '--no-launcher'],
+                                        ['--relay=203.0.113.8:2234', '--cert-only'])):
+            with self.assertRaises(SystemExit):
+                self.build(self.root / str(index), *options)
+
     def test_scripts_pass_no_language(self):
         output = self.root / 'default'
         self.build(output)
@@ -1111,13 +1139,19 @@ class ReleaseTests(unittest.TestCase):
         (x86 / 'updater_skhid.log').write_bytes(b'2026-11-02 10:00:00 patches: GET https://user:pa55@files.example/x\n'
                                                 b'2026-11-02 10:00:01 ok\n')
         (x86 / 'srp_patches.log').write_bytes(b'pid 7 pickup: refused, no drop to take\r\n')
-        # Each run's logs, named by its start (a second part of the patches' log too).
+        # Each run's logs, named by its start (a second part of the patches' log too), in game\logs
+        # with Skhid.sh's; one an older updater did not move, beside the exe.
         runs = {'documents/Survarium.2026-11-15_14-03-07.log': b'core <info>\t[14:03:07.000]\tstarted\r\n',
-                'game-x86/updater_skhid.2026-11-15_14-03-05.log': b'2026-11-15 14:03:05 ok\r\n',
-                'game-x86/srp_patches.2026-11-15_14-03-07.log': b'srp: a run\r\n',
-                'game-x86/srp_patches.2026-11-15_14-03-07_2.log': b'srp: its next part\r\n'}
+                'game-logs/updater_skhid.2026-11-15_14-03-05.log': b'2026-11-15 14:03:05 ok\r\n',
+                'game-logs/srp_patches.2026-11-15_14-03-07.log': b'srp: a run\r\n',
+                'game-logs/srp_patches.2026-11-15_14-03-07_2.log': b'srp: its next part\r\n',
+                'game-logs/skhid-wine.log': b'Wine runtime: wine-11.8\n',
+                'game-x86/srp_patches.2026-11-14_10-00-00.log': b'srp: an older run\r\n'}
+        places = {'documents': own, 'game-logs': top / 'game' / 'logs', 'game-x86': x86}
+        places['game-logs'].mkdir()
         for entry, data in runs.items():
-            ((own if entry.startswith('documents/') else x86) / entry.split('/', 1)[1]).write_bytes(data)
+            place, name = entry.split('/', 1)
+            (places[place] / name).write_bytes(data)
         (x86 / 'srp_patches.old.log').write_bytes(b'not a run')
         (x86 / 'SRP-crash-20261102-1.txt').write_bytes(b'Exception: 0xC0000005\r\n')
         (x86 / 'SRP-crash-20261102-1.dmp').write_bytes(b'MDMP dump-secret')

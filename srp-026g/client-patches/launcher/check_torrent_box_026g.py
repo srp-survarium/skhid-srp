@@ -15,10 +15,11 @@ Checks:
 - the bottom panel (0x1AD64..0x1AD7D): "Allow torrent" (string 0D3h) drawn
   into the panel's picture in Calibri bold 18, white, 25 pixels right of the
   box and 1 below its top, the font deleted; each of the box's four pictures
-  replaced by itself over the panel's picture where the box is (28, 32, 20
+  replaced by itself over the panel's picture where the box is (28, 20, 20
   by 20), the PNG's deleted; Twitter's three pictures replaced by the panel's
-  picture (text included) where the text is (53, 32 to 187, 52), the PNGs
-  deleted; then image_window made as before;
+  picture (text included) where the text is (53, 20 to 187, 40), the PNGs
+  deleted; the relay button's three (patch 16, check_relay_box_026g.py) where
+  it is (28, 46); then image_window made as before;
 - the box (0x1ADE2..0x1AE24): YouTube's control with the unticked pictures,
   or the ticked one as its picture and the one under the pointer, as
   settings+0 says; its click is 0x1BD03 with the form;
@@ -69,7 +70,8 @@ PANEL, PNGS, FONT, CONTROL_WINDOW = 0xB0, (0xA1, 0xA2, 0xA3, 0xA4), 0x6F0, 0x888
 SLOTS = (0x140, 0x14C, 0x158, 0x164)    # the box's pictures: unticked, under the pointer, pressed, ticked
 BOX = 0x648
 LABEL, LABEL_SLOTS, LABEL_PNGS, LABEL_WINDOW = 0x698, (0x188, 0x194, 0x1A0), (0xB1, 0xB2, 0xB3), 0x889
-LABEL_RECT = (53, 32, 187, 52)          # the text's: x 53..186 in the widest language (Russian)
+LABEL_RECT = (53, 20, 187, 40)          # the text's: x 53..186 in the widest language (Russian)
+RELAY_SLOTS, RELAY_PNGS = (0x1AC, 0x1B8, 0x1C4), (0xC1, 0xC2, 0xC3)   # patch 16's button
 BODY = b'account_name x\r\nlocalization polish\r\nr_fullscreen on\r\n'
 
 
@@ -244,18 +246,19 @@ class Box(C.Launcher):
 
 def check(data, delta):
     count = 0
-    text_at = ('text', 'Allow torrent', PANEL, FONT, 0xFFFFFF, 0, 28 + 25, 0, 32 + 1)
+    text_at = ('text', 'Allow torrent', PANEL, FONT, 0xFFFFFF, 0, 28 + 25, 0, 20 + 1)
 
     def form(one, settings):
         one.u.mem_write(FORM, bytes(0x2000))
         one.word(FORM + 4, 0x444)
         one.word(FORM + 0xEC, PANEL)
-        for slot, png in zip(SLOTS + LABEL_SLOTS, PNGS + LABEL_PNGS):
+        for slot, png in zip(SLOTS + LABEL_SLOTS + RELAY_SLOTS, PNGS + LABEL_PNGS + RELAY_PNGS):
             one.word(FORM + slot, png)
         one.word(FORM + 0x4E0, 0x445)                   # the bottom panel's window
         one.word(FORM + 0xB40, settings)                # settings_window (+6E8h) + 458h
         one.run(0x3A710)                                # YouTube's rect: its right and bottom
         one.run(0x3A746)                                # Twitter's: returns, the rect is static
+        one.run(0x3A761)                                # VK's, the relay button's
         assert struct.unpack('<4i', one.u.mem_read(0x458C4 + delta, 16)) == LABEL_RECT
 
     # The start: user.cfg's line, never the registry's download_type.
@@ -280,13 +283,15 @@ def check(data, delta):
     assert one.go(0x1AD64, 0x1AD7D, ebx=FORM)
     made = [entry for entry in one.log if entry[0] == 'crop']
     assert one.log[:2] == [('font', 18, 700, 'Calibri'), text_at], one.log
-    assert made == ([('crop', PANEL, (28, 32, 48, 52), 0x7001 + i) for i in range(4)]
-                    + [('crop', PANEL, LABEL_RECT, 0x7005 + i) for i in range(3)]), made
+    assert made == ([('crop', PANEL, (28, 20, 48, 40), 0x7001 + i) for i in range(4)]
+                    + [('crop', PANEL, LABEL_RECT, 0x7005 + i) for i in range(3)]
+                    + [('crop', PANEL, (28, 46, 48, 66), 0x7008 + i) for i in range(3)]), made
     copies = [entry for entry in one.log if entry[0] == 'copy']
-    assert copies == [('copy', 0x7001 + i, png, (0, 0), (0, 0, 20, 20)) for i, png in enumerate(PNGS)], copies
+    assert copies == ([('copy', 0x7001 + i, png, (0, 0), (0, 0, 20, 20)) for i, png in enumerate(PNGS)]
+                      + [('copy', 0x7008 + i, png, (0, 0), (0, 0, 20, 20)) for i, png in enumerate(RELAY_PNGS)]), copies
     assert [entry for entry in one.log if entry[0] == 'delete'] == [('delete', FONT)] + [('delete', p) for p in
-                                                                                          PNGS + LABEL_PNGS]
-    assert [one.word(FORM + slot) for slot in SLOTS + LABEL_SLOTS] == list(range(0x7001, 0x7008))
+                                                                                          PNGS + LABEL_PNGS + RELAY_PNGS]
+    assert [one.word(FORM + slot) for slot in SLOTS + LABEL_SLOTS + RELAY_SLOTS] == list(range(0x7001, 0x700B))
     assert one.log[-1] == ('image_window', FORM + 0x4DC, 0x45884, 0x444, PANEL), one.log[-1]
     count += 1
 

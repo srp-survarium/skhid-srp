@@ -76,7 +76,7 @@ occlusion = _load('scope_fits_occlusion', HERE / 'occlusion.py')
 sights = rs.sights  # ../rifle-scopes/sights.py
 
 PACK_ID = 'scope-fits'
-VERSION = '12'
+VERSION = '13'
 # Item modifications share one native dictionary, including shop no-ops.
 # 990000 + variant overlapped the existing shops' 991000 + shop dict id.
 VARIANT_MODIFICATION_BASE = 1_000_000

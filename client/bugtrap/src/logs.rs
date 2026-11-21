@@ -21,22 +21,24 @@ use windows_sys::Win32::{
 
 pub const COUNT: usize = 32;
 pub const MAX_MEMBERS: usize = COUNT + 5; // whole sources, patch log, dump, crash.txt, breadcrumbs, summary
-/// The client patches' log of before the runs were named (vostok/log.rs):
-/// the crashed run's when no `srp_patches.<stamp>.log` is beside the exe.
-pub const PATCH_LOG: &str = "srp_patches.log";
 /// The crashed run's patch log can be long (8 MiB a part), so the ZIP takes
 /// its last [`PATCH_LOG_BYTES`].
 pub const PATCH_LOG_BYTES: u64 = 2 * 1024 * 1024;
 pub const PACKED_BYTES: u64 = 16 * 1024 * 1024; // log local headers + data + central records
 pub const INPUT_BYTES: u64 = 256 * 1024 * 1024; // source bytes read, including failed attempts
 const AGE: u64 = 48 * 60 * 60 * 10_000_000;
-pub const SCOPES: [&str; 5] = [
+pub const SCOPES: [&str; 6] = [
     "documents",
     "game-exe",
     "game-root",
     "install-root",
     "install-temp",
+    "game-logs",
 ];
+/// The scope of the exe's folder, `game\binaries\x86\`.
+const EXE_SCOPE: usize = 1;
+/// The scope of the run logs' folder, `game\logs\` (beside `game\torrent`).
+pub const LOGS_SCOPE: usize = 5;
 
 pub struct Manifest {
     pub buf: [u8; 32768],
@@ -86,17 +88,19 @@ impl Candidate {
         run: None,
         modified: 0,
     };
-    /// The crashed run's patch log in the exe's folder `exe` (`folders()[1]`,
+    /// The crashed run's patch log of the exe's folder `exe` (`folders()[1]`,
     /// or dump::folder's), its tail: the newest (last written)
-    /// `srp_patches.<stamp>[_<n>].log`, else the old `srp_patches.log`.
+    /// `srp_patches.<stamp>[_<n>].log` in `game\logs` ([`game_logs`]); `len`
+    /// 0 when there is none.
     pub unsafe fn patch_log(exe: &[u16]) -> Self {
         let mut log = Self::EMPTY;
-        log.scope = 1;
+        log.scope = LOGS_SCOPE;
         log.take = Take::Last(PATCH_LOG_BYTES);
+        let logs = game_logs(exe);
         let mut pattern = Wide::<1100>::new();
-        // Never a scan of the working folder: no exe folder, no scan.
-        if !exe.is_empty()
-            && pattern.wide(exe).is_ok()
+        // Never a scan of the working folder: no game folder, no scan.
+        if logs.len != 0
+            && pattern.wide(&logs.buf[..logs.len]).is_ok()
             && write!(pattern, "srp_patches.*.log").is_ok()
         {
             let mut data: WIN32_FIND_DATAW = core::mem::zeroed();
@@ -124,21 +128,14 @@ impl Candidate {
                 FindClose(find);
             }
         }
-        if log.run.is_none() {
-            log.name = [0; 260];
-            for (slot, b) in log.name.iter_mut().zip(PATCH_LOG.bytes()) {
-                *slot = b as u16;
-            }
-            log.len = PATCH_LOG.len();
-        }
         log
     }
     /// The file name (no folder) as text, for a name of ours alone: the
-    /// patch log's (parsed, or the fixed old one).
+    /// patch log's, parsed (nothing when none was found: `len` 0).
     pub fn patch_log_name(&self, out: &mut dyn Write) -> fmt::Result {
         match self.run {
             Some(run) => write!(out, "srp_patches.{}.log", run.stamp()),
-            None => out.write_str(PATCH_LOG),
+            None => Ok(()),
         }
     }
     fn same_file(&self, scope: usize, name: &[u16]) -> bool {
@@ -153,7 +150,7 @@ impl Candidate {
         let mut name = Ascii { buf, len: 0 };
         let _ = if let Take::Last(_) = self.take {
             // Our own file's name, not one of the player's.
-            name.write_str("logs/game-exe/")
+            write!(name, "logs/{}/", SCOPES[self.scope])
                 .and_then(|()| self.patch_log_name(&mut name))
         } else {
             write!(name, "logs/{}/source-{:02}", SCOPES[self.scope], index + 1)
@@ -228,8 +225,23 @@ fn unnamed_log(name: &[u16]) -> bool {
                 .any(|n| same(stem, n)))
 }
 
-pub unsafe fn folders() -> [Wide<1024>; 5] {
-    let mut folders = [const { Wide::new() }; 5];
+/// `game\logs\` (the run logs, beside `game\torrent`) of the exe's folder
+/// `exe`, `...\game\binaries\x86\`; empty for any other folder.
+pub fn game_logs(exe: &[u16]) -> Wide<1024> {
+    let mut logs = Wide::new();
+    let n = exe.len();
+    // Only for the known installation layout, never from CWD.
+    if n >= 13
+        && same(&exe[n - 13..], b"binaries\\x86\\")
+        && (logs.wide(&exe[..n - 13]).is_err() || write!(logs, "logs\\").is_err())
+    {
+        logs.truncate(0);
+    }
+    logs
+}
+
+pub unsafe fn folders() -> [Wide<1024>; 6] {
+    let mut folders = [const { Wide::new() }; 6];
     let docs = &mut folders[0];
     if SHGetFolderPathW(
         null_mut(),
@@ -272,11 +284,12 @@ pub unsafe fn folders() -> [Wide<1024>; 5] {
             let _ = write!(install[1], "temp\\");
         }
     }
+    folders[LOGS_SCOPE] = game_logs(&folders[EXE_SCOPE].buf[..n]);
     folders
 }
 
 pub unsafe fn recent(
-    folders: &mut [Wide<1024>; 5],
+    folders: &mut [Wide<1024>; 6],
     deadline: u64,
     manifest: &mut Manifest,
     patch_log: &Candidate,

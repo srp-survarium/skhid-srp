@@ -15,6 +15,7 @@ package survarium.controls
    import scaleform.clik.events.ButtonEvent;
    import scaleform.gfx.MouseEventEx;
    import survarium.data.LocalizationData;
+   import survarium.face.FaceChoice;
    import survarium.gsearch.MatchMakingSettings;
    import survarium.player.LocalPlayerProfile;
    import survarium.rooms.RoomsWindow;
@@ -140,6 +141,11 @@ package survarium.controls
          }
          // The shop's "Hide owned" box as the account last set it (shop-owned-mark.md).
          if(InventoryList.ownedTake(players))
+         {
+            return;
+         }
+         // The account's face (face-choice.md): srp's answer to the Face button's asks.
+         if(FaceChoice.take(players))
          {
             return;
          }

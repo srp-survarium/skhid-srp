@@ -335,6 +335,9 @@ make_pack.py, review.py).
   replaced handguard) is not taken. The variant's translation is the scope frame's: the weapon
   draws a scope at scope_point turned half about Y, as 0.69d0 draws a module at its locator
   (PROVEN: patch 19's AK-12 and M4A1 variants sit exactly where 0.69d0's locators put the module).
+  scope_point must hang on the bone the gun's body moves with (`offset` on the ported guns): one on
+  the root bone stays where the clip leaves the root, and the optic floats off the gun (the AKMSU up
+  to scope-fits@12, weapons-069@16).
 - **How a variant is made** (`make_pack.py`): from a variant of ours of that scope (its reference: the
   same models, materials, red dot and eyepiece players know), the module's mesh found in it (exactly,
   or by its bounding box: our Kobra, DeltaPoint and old PSO-1 are the same shapes written in another
