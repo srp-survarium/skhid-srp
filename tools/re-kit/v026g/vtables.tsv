@@ -205,3 +205,11 @@ vtable	slot	va	class	base	basis
 0x00a0755c	0x18	0x0026daf0	survarium::base_game_statistics_handler	survarium::base_game_statistics_handler	observed: the damage record's add (0x2F58E0); called by generate_hit_event alone (0x2DA10A)
 0x00a0755c	0x30	0x0026db40	survarium::base_game_statistics_handler	survarium::base_game_statistics_handler	observed: serialize (shared_statistics::serialize 0x2F5AC0 of +8); called by game_world_core::serialize alone (0x2D265F)
 0x00a0755c	0x34	0x0026db60	survarium::base_game_statistics_handler	survarium::base_game_statistics_handler	observed: deserialize (0x2F5BE0 of +8, then the scores 0x26DC30); called by the world's apply alone (0x2D2B18), its reader the statistics section's bytes (0x2D2AEE..0x2D2B09)
+0x00a16f64	0x18	0x00372420	survarium::breath_state_normal	vostok::ai::fsm_state	observed: initialize_logic 0x31D48B; is_ready_for_transition, always 1
+0x00a16f64	0x1c	0x0031d040	survarium::breath_state_normal	vostok::ai::fsm_state	observed: its tick, from breath_vibration_calculator::tick 0x31D75D (dispersion, dt)
+0x00a16fac	0x4	0x0031d140	survarium::breath_state_holding	vostok::ai::fsm_state	observed: initialize_logic 0x31D4CF; initialize, fsm::tick 0x38CAD1 on entering it
+0x00a16fac	0xc	0x0031d190	survarium::breath_state_holding	vostok::ai::fsm_state	observed: finalize, fsm::tick 0x38CAA5 on leaving it
+0x00a16fac	0x18	0x00372420	survarium::breath_state_holding	vostok::ai::fsm_state	observed: is_ready_for_transition, always 1
+0x00a16fac	0x1c	0x0031d200	survarium::breath_state_holding	vostok::ai::fsm_state	observed: its tick (dispersion, dt)
+0x00a16f88	0x18	0x0031d0d0	survarium::breath_state_shortbreathing	vostok::ai::fsm_state	observed: initialize_logic 0x31D51C; is_ready_for_transition, the penalty at 1.0
+0x00a16f88	0x1c	0x0031d0a0	survarium::breath_state_shortbreathing	vostok::ai::fsm_state	observed: its tick (dispersion, dt)

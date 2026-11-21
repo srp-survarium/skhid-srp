@@ -87,6 +87,10 @@ impl<'t> AppliedHit<'t> {
         }
     }
 
+    pub(super) fn victim(&self) -> raw::Player {
+        self.victim
+    }
+
     pub fn kind(&self) -> HitType {
         self.kind
     }
