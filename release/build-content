@@ -73,7 +73,9 @@
 #                         and the corpus (the bytes of every base config);
 #                         --full checks every file again;
 #                       the stats checks: each category by its configs' and
-#                         table's bytes and players' bytes of those changed;
+#                         table's bytes and players' bytes of those changed,
+#                         within it each row by its cells and its configs'
+#                         bytes, each config's card lines by its bytes;
 #                       the lamps, walker twins and grass: each file by its
 #                         bytes; the comparison with players' files: each
 #                         file by its bytes, for the same players' archives;

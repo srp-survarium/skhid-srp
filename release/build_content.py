@@ -1044,7 +1044,9 @@ def own_content_edit():
 def stats_checks(rows, base, players, world, tree, compared, cache):
     """Per content_edit.STATS category: each config (or list entry) is its table row, its cards follow
     it, and a changed match column needs the `next` row of SIMULATION_CHANGES. A category's findings
-    are cached by the bytes of its configs, its table and what players have of them."""
+    are cached by the bytes of its configs, its table and what players have of them; within it, a
+    row's (its cells against its configs) by the row and the bytes of its configs, a config's card
+    lines by its bytes, so that a changed config checks its row and its cards again, not every one."""
     ce = own_content_edit()
     sources = [files_digest([Path(ce.__file__)]), code_digest(stats_checks), sys.version]
     tables = {name: edits_dir(tree) / name for kind, name, source, _, _ in rows
@@ -1069,11 +1071,33 @@ def stats_checks(rows, base, players, world, tree, compared, cache):
             configs.update({p: bytearray(world.data(p)) for p in paths if p in world})
             targets = ce.stats_targets(category, configs)
             _, columns, table_rows = ce.read_stats(str(table)) if table else (None, category.get('columns', {}), None)
+            digest_of = {p: world.sha256(p) if p in world else digests[p] for p in paths}
+            parts_key = Cache.key('stats rows and cards', category_name, sources)
+            stored, fresh = (cache.get(parts_key) or ({}, {}))[1], {}
+
+            def part(key, check):
+                if key not in stored and key not in fresh:
+                    fresh[key] = check()
+                return fresh[key] if key in fresh else stored[key]
+
             if table:
-                found['problems'] += ce.stats_problems(category, columns, table_rows, targets, configs, table.name)
+                head = next(line for line in table.read_text(encoding='utf-8').splitlines()
+                            if line.strip() and not line.startswith('#'))
+                found['problems'] += ce.stats_unmatched(category, table_rows, targets, table.name)
+                for row, places in targets.items():
+                    if row in table_rows:
+                        found['problems'] += part(
+                            Cache.key('row', table.name, head, row, table_rows[row],
+                                      [(p, off, digest_of[p]) for p, off in places]),
+                            lambda: ce.stats_problems(category, columns, {row: table_rows[row]}, {row: places},
+                                                      configs, table.name))
             if category.get('cards'):
-                found['problems'] += [f'{p}: card line {prop_id} says {text!r}, its config {want!r}' for p in paths
-                                      for prop_id, text, want in ce.card_differences(configs[p], category['cards'])]
+                found['problems'] += [problem for p in paths for problem in part(
+                    Cache.key('cards', p, digest_of[p]),
+                    lambda: [f'{p}: card line {prop_id} says {text!r}, its config {want!r}'
+                             for prop_id, text, want in ce.card_differences(configs[p], category['cards'])])]
+            if fresh:
+                cache.put(parts_key, {}, stored | fresh)
             # A config players lack (a new key/value table's) has no values: each of its match values moved.
             had = players.game.get(players.archives, [p for p in changed if compared[p][0] == 'differs'])
             try:
