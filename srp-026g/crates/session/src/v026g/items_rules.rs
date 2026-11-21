@@ -258,6 +258,13 @@ pub fn make_safe(item: &mut Item) {
 /// [`make_safe`] with `scopes`: a scope's record must hold a variant made
 /// for the item ([`modifications::record_slots_in`]).
 pub fn make_safe_in(item: &mut Item, scopes: &ScopeFits) {
+    make_safe_with(item, scopes, Modules::shared());
+}
+
+/// [`make_safe_in`] with `modules`: a muzzle device's and a grip's records
+/// must be fits of the weapon ([`modifications::record_slots_with`]), and
+/// go together ([`Modules::check`]).
+pub fn make_safe_with(item: &mut Item, scopes: &ScopeFits, modules: &Modules) {
     let table = Modifications::shared();
     item.modifications
         .retain(|&(id, state)| table.is_known(id, state));
@@ -287,11 +294,21 @@ pub fn make_safe_in(item: &mut Item, scopes: &ScopeFits) {
     let mut slots: Vec<u8> = Vec::new();
     item.upgrades.retain(|upgrade| {
         let dict_id = u16::try_from(upgrade.a).unwrap_or(0);
-        let fits = modifications::record_slots_in(scopes, host, dict_id).contains(&upgrade.param)
+        let fits = modifications::record_slots_with(scopes, modules, host, dict_id).contains(&upgrade.param)
             && !slots.contains(&upgrade.param);
         slots.push(upgrade.param);
         fits
     });
+    // A muzzle device and a grip that each go on but not together (a table
+    // of another pack version): the grip comes off, then the device if the
+    // weapon still refuses it.
+    for kind in [Kind::Grip, Kind::Muzzle] {
+        if modules.check(host, fitted_modules(&item.upgrades)).is_ok() {
+            break;
+        }
+        let slot = weapon_modules::slot_of(kind);
+        item.upgrades.retain(|upgrade| upgrade.param != slot);
+    }
 }
 
 /// An item of `dict_id` is a weapon (`wpn_*`): its upgrades are the
