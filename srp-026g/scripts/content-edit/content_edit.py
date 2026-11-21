@@ -130,6 +130,8 @@ Edits (edits.json):
                                                        (items_dictionary_cook::on_configs_loaded 0x2C8FC2)
                                                        logs "old items dictionary format" for each id lower
                                                        than the one before it, then sorts the table itself
+  "remove_lines":   [{"file", "lines"}]                a text file (startup.cfg) without those lines, each
+                                                       one of its lines exactly once; the rest byte for byte
   "add_event_channel": [{"file", "from", "add"}]       an animation clip (`.b-spline`, not a config): `from`
                                                        is its live event channels, `add` one more after them,
                                                        each {"name", "type", "knots", "domains"}; the bone
@@ -1924,6 +1926,18 @@ def sort_entries(buf, path, key):
     return moved
 
 
+def remove_lines(source, lines):
+    """A text file (startup.cfg: a console command a line, CRLF) without `lines`, each a whole line
+    of it exactly once (its end not included); every other byte stays."""
+    kept = source.splitlines(keepends=True)
+    for line in lines:
+        at = [i for i, have in enumerate(kept) if have.rstrip(b'\r\n') == line.encode()]
+        if len(at) != 1:
+            raise ValueError('%d lines are %r, not 1: the base is not the live data' % (len(at), line))
+        del kept[at[0]]
+    return bytearray(b''.join(kept))
+
+
 def resorted(path, lst, moved):
     """A path of the file before the table `lst` was sorted (`moved`: sort_entries'), after it."""
     head = lst + '['
@@ -2794,6 +2808,18 @@ def main():
                 sys.exit('%s: %s' % (p, why))
             print('runtime vegetation %s: %d -> %d bytes; positions/normals unchanged' %
                   (p, len(source), len(vegetation[p])))
+    for e in edits.get('remove_lines', []):
+        p = e['file']
+        if p in bufs or p in clips or p in vegetation:
+            sys.exit('remove_lines: %s is edited otherwise too' % p)
+        if p not in files:
+            sys.exit('%s: not in the live folder' % p)
+        source = open(files[p], 'rb').read()
+        try:
+            clips[p] = remove_lines(source, e['lines'])
+        except ValueError as why:
+            sys.exit('%s: %s' % (p, why))
+        print('lines out of %s: %s' % (p, ', '.join(e['lines'])))
 
     for e in edits.get('require_headwear_bind', []):
         source = open(files[e['file']], 'rb').read()
