@@ -901,6 +901,7 @@ dependencies = [
  "srp-validate",
  "udp-transport",
  "weapon-kit",
+ "weapon-modules",
  "weapon-pickup",
 ]
 
@@ -1006,6 +1007,10 @@ name = "weapon-kit"
 version = "0.1.0"
 
 [[package]]
+name = "weapon-modules"
+version = "0.1.0"
+
+[[package]]
 name = "weapon-pickup"
 version = "0.1.0"
 
@@ -1016,6 +1021,7 @@ dependencies = [
  "log",
  "openssl",
  "resources-db 0.1.0",
+ "serde_json",
  "session",
  "survarium",
  "vostok",

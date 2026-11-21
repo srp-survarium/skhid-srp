@@ -64,6 +64,24 @@ def value(data, path):
 
 
 class MapEditorEdits(unittest.TestCase):
+    def test_set_string_changes_one_key_not_its_twin(self):
+        # a gun whose skeleton names the same path as its model (the HK416's, 52 guns)
+        data = config({'object': {'model': 'weapons/hk416/hk416', 'skeleton': 'weapons/hk416/hk416'}})
+        ce.set_string(data, 'object/model', 'weapons/hk416/hk416', 'weapons/remodel_069/hk416/hk416')
+        self.assertEqual(value(data, 'object/model'), 'weapons/remodel_069/hk416/hk416')
+        self.assertEqual(value(data, 'object/skeleton'), 'weapons/hk416/hk416')
+        before = bytes(data)
+        with self.assertRaises(ValueError):
+            ce.set_string(data, 'object/skeleton', 'weapons/other', 'x')
+        self.assertEqual(data, before)
+
+    def test_the_remodel_list_sets_each_guns_model_alone(self):
+        # replace_string would also rename the skeleton of every gun that names it with its model's
+        # path, to an animation skeleton no pack makes (the game fails the cook and crashes)
+        edits = json.loads((Path(__file__).parent / 'remodel-069-1.json').read_text())
+        self.assertEqual(set(edits) - {'_about'}, {'set_string'})
+        self.assertEqual({row['path'] for row in edits['set_string']}, {'object/model'})
+
     def test_hud_string_rows_append_without_changing_neighbors(self):
         data = config({'hud_strings': [['existing', 'st_existing']], 'other': ['unchanged']})
         self.assertEqual(ce.append_rows(data, 'hud_strings', [['carry', 'st_carry']]), 1)
@@ -343,6 +361,26 @@ class MapEditorEdits(unittest.TestCase):
             self.assertEqual(ce.items_of(data, 'objects[0]/containers'), ['b', 'c'])
             self.assertEqual(value(data, 'objects[1]/full_name'), 'second')
 
+    def test_cli_sorts_a_list_by_its_key(self):
+        """The items dictionary in ascending ids, ties in their order; the read-back follows each entry."""
+        rows = [{'dict_id': 7, 'name': 'c', 'ids': [1]}, {'dict_id': 2, 'name': 'a'},
+                {'dict_id': 7, 'name': 'd'}, {'dict_id': 5, 'name': 'b'}]
+        edits = {'sort_entries': [{'file': 'dictionary', 'list': 'items_dict', 'key': 'dict_id'}]}
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'live').mkdir()
+            (root / 'live/dictionary').write_bytes(config({'items_dict': rows}))
+            (root / 'edits.json').write_text(json.dumps(edits))
+            result = subprocess.run([sys.executable, str(Path(ce.__file__).resolve()),
+                                     str(root / 'edits.json'), str(root / 'live'), str(root / 'out')],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            data = bytearray((root / 'out/dictionary').read_bytes())
+            self.assertEqual([value(data, 'items_dict[%d]/name' % i) for i in range(4)], ['a', 'b', 'c', 'd'])
+            self.assertEqual(ce.items_of(data, 'items_dict[2]/ids'), [1])
+        with self.assertRaises(ValueError):    # an entry without the key
+            ce.sort_entries(config({'items_dict': [{'dict_id': 1}, {'name': 'x'}]}), 'items_dict', 'dict_id')
+
     def test_cli_add_entry_refuses_another_number_of_files_than_expected(self):
         """An entry a file must take (a project's object): a missing anchor is refused, not passed over."""
         def run(after, expected):
@@ -400,7 +438,7 @@ class MapEditorEdits(unittest.TestCase):
     def test_cli_puts_each_rounds_pierce_line_for_each_of_its_weapons(self):
         """Material penetration (pierce-line-1): on each round the dictionary pairs with a weapon, for
         each such weapon by dictionary id, the hardest tier its bullet gets through (P > A, as
-        try_pierce) and the damage kept there (k = 1 - (1 - clamp((P - A) / A, 0, 1))^2); P = A does
+        try_pierce) and the damage kept there (k = 1 - (A / P)^2, exe patch 175); P = A does
         not get through; the weapons themselves get no line."""
         def card(params, data=None):
             out = {'parameters': params, 'ui_desc': {'props_list': [{'prop_id': 15, 'prop_value': '1'}]}}
@@ -424,15 +462,15 @@ class MapEditorEdits(unittest.TestCase):
                                         'd': {'first_item': 7, 'second_item': 8},
                                         'e': {'first_item': 9, 'second_item': 10},
                                         'f': {'first_item': 11, 'second_item': 9}}}),
-            # P = 0.25 x 1.2 = 0.3 through concrete (0.23), keeping 52 %; x 1.1 = 0.275, 35 %.
+            # P = 0.25 x 1.2 = 0.3 through concrete (0.23), keeping 41 %; x 1.1 = 0.275, 30 %.
             W + 'wpn_rifle.options': card({'bullet_pierce': 0.25}),
             # P = 0.1 x 1.1: through glass only, all of its damage.
             W + 'wpn_pistol.options': card({'bullet_pierce': 0.1}),
             W + 'wpn_lonely.options': card({'bullet_pierce': 0.5}),
             # P = 0.2 x 1.0 = brick's 0.2: stopped there (try_pierce stops at P <= A).
             W + 'wpn_even.options': card({'bullet_pierce': 0.2}),
-            # The VSSK (0.7): VPS (x 1.2 = 0.84) gets through stone keeping 36 %; PT (x 1.0) meets
-            # stone's 0.7 and stops there: concrete, all of it.
+            # The VSSK (0.7): VPS (x 1.2 = 0.84) gets through stone keeping 31 %; PT (x 1.0) meets
+            # stone's 0.7 and stops there: concrete, keeping 89 %.
             W + 'wpn_vssk.options': card({'bullet_pierce': 0.7}),
             W + 'ammo/vps.options': card({}, {'k_arp': 1.2}),
             W + 'ammo/pt.options': card({}, {'k_arp': 1.0}),
@@ -460,10 +498,10 @@ class MapEditorEdits(unittest.TestCase):
                    for p in ('ammo/ap.options', 'ammo/fmj.options', 'ammo/even.options', 'ammo/vps.options',
                              'ammo/pt.options')}
             # <weapon dict id>:<tier rank>:<text>:<percent>
-            self.assertEqual(got, {'ammo/ap.options': '1:2:st_concrete:52',
-                                   'ammo/fmj.options': '1:2:st_concrete:35 2:0:st_glass:100',
+            self.assertEqual(got, {'ammo/ap.options': '1:2:st_concrete:41',
+                                   'ammo/fmj.options': '1:2:st_concrete:30 2:0:st_glass:100',
                                    'ammo/even.options': '7:0:st_glass:100',
-                                   'ammo/vps.options': '9:3:st_stone:36', 'ammo/pt.options': '9:2:st_concrete:100'})
+                                   'ammo/vps.options': '9:3:st_stone:31', 'ammo/pt.options': '9:2:st_concrete:89'})
             # No weapon grows; a round no weapon fires gets no line.
             for p in ('wpn_rifle.options', 'wpn_pistol.options', 'wpn_lonely.options', 'wpn_even.options',
                       'ammo/spare.options'):

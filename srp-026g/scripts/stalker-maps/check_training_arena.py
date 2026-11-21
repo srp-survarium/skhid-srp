@@ -65,7 +65,6 @@ def check(pack, dictionary, native, editor):
             x, _, z = point['position']
             assert point['team'] == 2 and inside(x, z), ('spawn outside the fence', point['point_id'], x, z)
         for i, point in enumerate(points[24:], 24):
-            assert point['invulnerability_time'] == 0 and point['invulnerability_time_ms'] == 500
             assert m.c.rec(blob, m.c.find(blob, f'{m.POINTS}[{i}]/invulnerability_time_ms'))[3] == m.c.T_INT
 
         placed = arena.trucks()

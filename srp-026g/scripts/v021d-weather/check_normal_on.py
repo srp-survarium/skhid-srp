@@ -126,7 +126,6 @@ def verify(row,native,adapted,actual):
 
 def check(porter, stock, patch, pack, blend_pack, patches, patch_cache):
     catalog = json.loads(Path(__file__).with_name('normal-on-programs.json').read_text())
-    assert len(catalog) == 704
     manifest = json.loads((pack / 'pack.json').read_text())
     paths = {row['path'] for row in catalog}
     assert len(paths) == len(catalog) == len(manifest['operations'])

@@ -385,7 +385,7 @@ function update() {
   $("wstats").innerHTML = [
     [T("damage", "пошкодження"), hp(b.Dmax) + (b.pellets > 1 ? ` ×${b.pellets}` : "")], [T("penetration", "бронебійність"), hp(b.Pmax)],
     [T("full damage to", "повне до"), fx(b.r0, 0) + " " + M], [T("minimum from", "мінімум від"), fx(b.r1, 0) + " " + M],
-    [T("minimum", "мінімум"), hp(b.Dmin) + " / " + hp(b.Pmin)], [T("muzzle", "швидкість кулі"), a.muzzle_speed + T(" m/s", " м/с")],
+    [T("minimum", "мінімум"), hp(b.Dmin)], [T("muzzle", "швидкість кулі"), a.muzzle_speed + T(" m/s", " м/с")],
     [T("rate", "темп"), (w.rounds_per_minute || "—") + T(" rpm", " постр./хв")], [T("magazine", "магазин"), w.magazine_capacity],
   ].map(([k, v]) => `<span>${k} <b>${v}</b></span>`).join("");
   drawScale(b);
@@ -473,11 +473,11 @@ function drawTrace(b, sim) {
     T(`Weapon damage × ammo <code>k_damage</code>, weapon pierce × ammo <code>k_arp</code>.`, `Пошкодження зброї × <code>k_damage</code> набою, бронебійність зброї × <code>k_arp</code> набою.`)
     + (b.pellets > 1 ? T(` Each of the ${b.pellets} pellets carries this.`, ` Так у кожної з ${b.pellets} дробин.`) : ""));
   li(T(`Flies ${state.dist} m`, `Летить ${state.dist} м`), `D ${hp(b.D)} · P ${hp(b.P)}`,
-    T(`Speed ${fx(b.v0, 0)} → ${fx(b.v, 0)} m/s. Damage and penetration slide from full (${hp(b.Dmax)}/${hp(b.Pmax)}) to minimum (${hp(b.Dmin)}/${hp(b.Pmin)}) by speed between ${fx(b.r0, 0)} and ${fx(b.r1, 0)} m: here ${pct(b.u)}.`,
-      `Швидкість ${fx(b.v0, 0)} → ${fx(b.v, 0)} м/с. Пошкодження й бронебійність спадають від повних (${hp(b.Dmax)}/${hp(b.Pmax)}) до мінімальних (${hp(b.Dmin)}/${hp(b.Pmin)}) за швидкістю між ${fx(b.r0, 0)} і ${fx(b.r1, 0)} м: тут ${pct(b.u)}.`), b.u < 1);
+    T(`Speed ${fx(b.v0, 0)} → ${fx(b.v, 0)} m/s. Damage slides from full (${hp(b.Dmax)}) to minimum (${hp(b.Dmin)}) by speed between ${fx(b.r0, 0)} and ${fx(b.r1, 0)} m: here ${pct(b.u)}. Penetration stays.`,
+      `Швидкість ${fx(b.v0, 0)} → ${fx(b.v, 0)} м/с. Пошкодження спадає від повного (${hp(b.Dmax)}) до мінімального (${hp(b.Dmin)}) за швидкістю між ${fx(b.r0, 0)} і ${fx(b.r1, 0)} м: тут ${pct(b.u)}. Бронебійність не спадає.`), b.u < 1);
   if (b.wall) li(T(`Through ${nm(wallOf()).toLowerCase()}`, `Крізь: ${nm(wallOf()).toLowerCase()}`), b.wall.k > 0 ? `×${fx(b.wall.k, 3)} → D ${hp(b.D)} · P ${hp(b.P)}` : T("stopped", "зупинено"),
-    b.wall.k > 0 ? T(`Penetration ${hp(b.wall.P)}, armour ${hp(b.wall.A)}. Damage, penetration and speed × k; then no higher than at ${fx(b.wall.v, 0)} m/s.`,
-      `Бронебійність ${hp(b.wall.P)}, броня ${hp(b.wall.A)}. Пошкодження, бронебійність і швидкість × k; далі не вищі, ніж на ${fx(b.wall.v, 0)} м/с.`)
+    b.wall.k > 0 ? T(`Penetration ${hp(b.wall.P)}, armour ${hp(b.wall.A)}. Damage, penetration and speed × k; then damage no higher than at ${fx(b.wall.v, 0)} m/s.`,
+      `Бронебійність ${hp(b.wall.P)}, броня ${hp(b.wall.A)}. Пошкодження, бронебійність і швидкість × k; далі пошкодження не вище, ніж на ${fx(b.wall.v, 0)} м/с.`)
       : T(`Penetration ${hp(b.wall.P)} is not above armour ${hp(b.wall.A)}: the bullet stops.`, `Бронебійність ${hp(b.wall.P)} не вища за броню ${hp(b.wall.A)}: куля зупиняється.`), true);
   // The first pellet of the first shot.
   const firstId = sim.firstLog.length ? 0 : null;
@@ -670,10 +670,10 @@ function drawExplain(target, b, sim) {
   const after = (cond, shot) => stopped ? { in: null } : cond ? shot() : { in: null };
   // [label, rule, this shot: { in, d, p } or { in, dp }; in null: "—"]
   const steps = [
-    [T("Bullet", "Куля"), T("D, P = weapon × ammo, falling with distance", "D, P = зброя × набій, спадають з дистанцією"),
+    [T("Bullet", "Куля"), T("D, P = weapon × ammo, D falling with distance", "D, P = зброя × набій, D спадає з дистанцією"),
       { in: `${state.dist} ${M}` + (b.pellets > 1 ? T(` · ${b.pellets} pellets`, ` · ${b.pellets} дробин`) : ""), ...DP(fired.D, fired.P) }],
-    [T("Wall", "Стіна"), T("P ≤ A: the bullet stays in the wall · else D, P × (1 − (1 − (P − A) / A)²)",
-      "P ≤ A: куля застрягає в стіні · інакше D, P × (1 − (1 − (P − A) / A)²)"),
+    [T("Wall", "Стіна"), T("P ≤ A: the bullet stays in the wall · else D, P × (1 − (A / P)²)",
+      "P ≤ A: куля застрягає в стіні · інакше D, P × (1 − (A / P)²)"),
       !b.wall ? { in: none, none: true, ...DP(b.D, b.P) } : stopped ? { in: T("stays in the wall", "застрягає в стіні") }
         : { in: `${nm(wallOf()).toLowerCase()}, A ${hp(b.wall.A)}: × ${fx(b.wall.k, 2)}`, ...DP(b.D, b.P) }],
     onyx && [nm(onyx),

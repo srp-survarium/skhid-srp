@@ -44,7 +44,7 @@ pub fn item_descr(item: &Item) -> ItemDescr {
 }
 
 /// An item's upgrades as the client is sent them. A record whose dict id
-/// the data lacks (a withdrawn scope variant) would have the client build
+/// the data lacks (a withdrawn item's) would have the client build
 /// the item with a modification it does not have; the load takes such
 /// records off, this is the last guard. A weapon's (up to six, in logical
 /// slots) go packed into at most three: the decals, then the weapon kit
@@ -150,6 +150,8 @@ pub fn own_account(account: &Account) -> Result<ServerMessage, WireError> {
         exp_total: account.exp_total.max(start),
         exp_level_start: start,
         exp_next_level: next,
+        face: account.face,
+        faces: survarium::v026g::faces::Faces::shared(),
     })
 }
 
@@ -157,7 +159,7 @@ pub fn own_account(account: &Account) -> Result<ServerMessage, WireError> {
 /// it plays.
 pub fn squad_member_account(account: &Account) -> Result<ServerMessage, WireError> {
     let revision = account.active().map_or(0, |kit| kit.revision);
-    lobby::squad_member_account(&account_body(account), revision)
+    lobby::squad_member_account(&account_body(account), revision, account.face)
 }
 
 /// `93`: the account's kits as a results screen's row shows them (the
@@ -405,6 +407,8 @@ mod tests {
             1,                                      // autobuy: always on
             0,                                      // level
             0, 0, 0, 0,  0, 0, 0, 0,  0xF4, 0x01, 0, 0,
+            0,                                      // srp: the face, 0 for a new account
+            survarium::v026g::faces::Faces::shared().count(), // srp: the faces' count
         ]);
         assert_eq!(bytes(&own_account(&account).unwrap()), expected);
         // The stock account has no money.

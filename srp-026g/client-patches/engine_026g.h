@@ -34,6 +34,7 @@ struct cc_float;
 struct cc_string;
 struct closest_ray_result_callback;
 struct collision_geometry;
+struct constant_host;
 struct core_world;
 struct critical_section;
 struct d3d_device;
@@ -43,6 +44,7 @@ struct drawable_image_context;
 struct effect_compiler;
 struct effect_presenter_holder;
 struct engine_cfg;
+struct fingers_corrector;
 struct fsm_predicate;
 struct game_allocator;
 struct game_effect;
@@ -77,6 +79,7 @@ struct lobby_client;
 struct lobby_menu;
 struct log_function;
 struct log_helper;
+struct managed_resource;
 struct match_options;
 struct match_options_holder;
 struct match_packet;
@@ -94,6 +97,7 @@ struct object_light;
 struct object_particle_visual;
 struct panning_lut;
 struct particle_slot;
+struct pinned_resource;
 struct player;
 struct player_input_handler;
 struct player_params_modifiers_container;
@@ -124,6 +128,7 @@ struct scene_model_ref;
 struct scene_reference;
 struct scene_renderer;
 struct scroll_source;
+struct shared_string;
 struct simple_game_project;
 struct sound_emitter;
 struct sound_instance_proxy;
@@ -380,7 +385,7 @@ void __attribute__((thiscall)) engine_collision_remove(struct static_collision *
 /* 0x2de7f0 survarium::game_effect_player::stop: effects EDI; pops 0 */
 void engine_effects_stop(struct game_effect_list *effects);
 
-/* 0x2de090 survarium::game_effect_player::play: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20 */
+/* 0x2de090 survarium::game_effect_player::add: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20 */
 void engine_effect_play(struct game_effect_player *player, struct game_effect_slot *effect, unsigned int second, unsigned int third, unsigned int fourth, struct game_effect_listener *listener);
 
 /* 0x1f3740 survarium::player::set_effect_presenter: player ESI, holder EDI; pops 0 */
@@ -964,5 +969,32 @@ extern unsigned int (__attribute__((stdcall)) *const engine_global_unlock)(void 
 
 /* 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly */
 void __attribute__((stdcall)) engine_set_texture(struct effect_compiler *compiler, const char *slot, const char *texture, unsigned int option, unsigned int request, unsigned int lower, float lower_float, unsigned int flag);
+
+/* 0x390620 vostok::animation::fingers_to_weapon_corrector::set_weapon_model: corrector ESP+4, instance ESP+8, first_view ESP+12; pops 12; stdcall, called directly */
+void __attribute__((stdcall)) engine_fingers_set_weapon_model(struct fingers_corrector *corrector, unsigned int instance, unsigned int first_view);
+
+/* 0x3dd990 vostok::resources::pinned_ptr_const<unsigned char>::pinned_ptr_const [descriptive]: pinned EAX, resource ESP+4; pops 4 */
+void engine_pin_resource(struct pinned_resource *pinned, struct managed_resource *resource);
+
+/* 0x3c1020 vostok::resources::pinned_ptr_const<unsigned char>::~pinned_ptr_const [descriptive]: pinned ECX; pops 0 */
+void engine_unpin_resource(struct pinned_resource *pinned);
+
+/* 0x1a8900 vostok::render::effect_compiler::set_constant_float4: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly */
+void __attribute__((thiscall)) engine_set_constant_float4(const float *value, struct effect_compiler *compiler, const char *name);
+
+/* 0xe0b50 vostok::shared_string::create: text ESP+4; pops 4; EAX; stdcall, called directly */
+struct shared_string *__attribute__((stdcall)) engine_shared_string_create(const char *text);
+
+/* 0xe0ae0 vostok::shared_string::destroy: string ESP+4; pops 4; stdcall, called directly */
+void __attribute__((stdcall)) engine_shared_string_destroy(struct shared_string *string);
+
+/* 0x11170 vostok::intrusive_ptr<shared_string>::assign: holder EDI, string EAX; pops 0 */
+void engine_shared_string_assign(struct shared_string **holder, struct shared_string *string);
+
+/* 0x3c8bc0 vostok::render::backend::register_constant_host: backend EAX, name ESP+4, auxiliary ESP+8; pops 8; EAX */
+struct constant_host *engine_register_constant_host(struct backend *backend, struct shared_string **name, unsigned int auxiliary);
+
+/* 0x132a90 vostok::render::backend::set_ps_constant: host EAX, backend EDI, value ESP+4; pops 4 */
+void engine_set_ps_constant(struct constant_host *host, struct backend *backend, const float *value);
 
 #endif

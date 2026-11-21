@@ -23,8 +23,10 @@
 //!
 //! It grows with what the patches need, and no further.
 
+pub mod attachments;
 pub mod back_buffer;
 pub mod baker;
+pub mod aim;
 pub mod breadcrumbs;
 pub mod bullet;
 pub mod explosion;
@@ -48,6 +50,7 @@ pub mod crc32;
 mod context;
 pub mod draw;
 pub mod headwear;
+pub mod hit_marker;
 mod hook;
 mod hud_input;
 mod input;
@@ -61,6 +64,7 @@ pub mod lobby_menu;
 pub mod login;
 pub mod openssl;
 pub mod mouse;
+pub mod game_log;
 pub mod log;
 pub mod run_log;
 pub mod melee;
@@ -70,6 +74,7 @@ pub mod memory_profile;
 mod options;
 pub mod parse;
 pub mod resources;
+pub mod skin_cook;
 pub mod renderer;
 pub mod render_stage;
 pub mod effect_compile;
@@ -124,6 +129,8 @@ mod generated {
     #[allow(unused_imports)]
     use super::shape::{Triangle, TriangleSink};
     #[allow(unused_imports)]
+    use super::attachments::FingerCorrector;
+    #[allow(unused_imports)]
     use core::ffi::c_void;
     include!("../../../../hooks_026g.rs");
 }
@@ -137,7 +144,7 @@ pub use input::{Action, ActionMask, ActionState, InputChange, InputHandler, Keyb
 pub use keyboard::{Dik, GameWorldButton, GameWorldKey, GameWorldKeys, KeyEvents, KeyKind, KeyMoves, KeyName, TabTest};
 pub use hud_input::{CursorMovie, Hud, HudCall, HudView, MenuChange, MenuClose};
 pub use lobby::{Lobby, MuteChoice, Muted, NotConnected};
-pub use options::{MapId, OptionsRead};
+pub use options::{MapId, OptionsRead, PLACES, Places};
 pub use world_load::WorldLoad;
 pub use upgrades::{AttachedPairs, CookQuery, FlashUpgrade, PreviewApply, PreviewChange, Records};
 pub use rt::c_u32;
@@ -162,11 +169,13 @@ pub mod drug;
 mod artefact;
 pub use artefact::{ArtefactPickup, Slots};
 pub mod statistics;
+pub mod weapon_stats;
 pub use statistics::{Band, Batteries, Battery, BatteryCarry, Cell, Delivery, Held, Life, Progress, Saving, ScoreEvent, Team, BATTERIES};
 
 pub mod medical;
 pub mod artefact_skills;
 pub mod keeper;
+pub mod courier;
 pub mod effect;
 pub mod animation_id;
 pub mod bake_gpu;

@@ -155,6 +155,8 @@ st_ak74u_description	Укороченная модификация автома�
 st_ak74u_name	АКC-74У
 st_ak74u_premium_description	Укороченная модификация автомата АК74 под боеприпас 5.45х39. Благодаря своим размерам, широко использовался десантниками, МВД и охранными структурами. Поддерживает одиночный и автоматический режим стрельбы. Премиум-версия в особом камуфляже.
 st_ak74u_premium_name	АКС-74У "Корсар"
+st_ak_zenit_rk2_foregrip_desc	Отдача -4%. Время прицеливания +1.5%.
+st_ak_zenit_rk2_foregrip_name	Тактическая рукоять Зенит РК-2
 st_akmn_description	Автомат Калашникова модернизированный под 7.62×39мм патрон. Благодаря мощному патрону не теряет своей актуальности и в на ше время. Поддерживает одиночный и автоматический режим стрельбы.
 st_akmn_name	АКМ
 st_akmn_premium_2_description	Автомат Калашникова модернизированный под 7.62×39мм патрон. Благодаря мощному патрону не теряет своей актуальности и в на ше время. Поддерживает одиночный и автоматический режим стрельбы. Премиум-версия в особом камуфляже.
@@ -1129,6 +1131,10 @@ st_exp_reward_match	Получено опыта за матч
 st_exp_reward_premium	Бонус за премиум
 st_experience	Опыт
 st_experience_modifier	Получаемый опыт
+st_fabdefence_miki_foregrip_desc	Отдача -4%.
+st_fabdefence_miki_foregrip_name	Рукоять FAB-Defense MIKI
+st_fabdefence_ptk_foregrip_desc	Отдача -6%.
+st_fabdefence_ptk_foregrip_name	Рукоять FAB-Defense PTK
 st_face_069d_balaclava_3_hole_desc	Вязаная балаклава с прорезями для глаз и рта. Тёплая и скрывает лицо.
 st_face_069d_balaclava_3_hole_name	Трёхдырочная балаклава
 st_face_069d_balaclava_desc	Облегающая армейская балаклава с одной прорезью для глаз, сделанная для ношения под шлемом.
@@ -1213,6 +1219,8 @@ st_fn_minimi_description	Бельгийский ручной пулемет по
 st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Бельгийское оружие самообороны под боеприпас 5.7х28. Создано FN Herstal около 1990 года вместе с собственным патроном; «буллпап» с магазином на 50 патронов вдоль верха оружия. Служит в спецназе и полиции многих стран. Огонь: одиночный и автоматический.
 st_fn_p90_name	FN P90
+st_fort401_foregrip_desc	Отдача -6%.
+st_fort401_foregrip_name	Штатная рукоять Форт-401
 st_fort_17_description	Украинский самозарядный пистолет под калибр 9х18. В серийное производство запущен в 2004 году. Использовался внутренними войсками и некоторыми спецподразделениями. Оснащен магазином на 12 патронов.
 st_fort_17_name	Форт 17
 st_fort_401_description	Украинский ручной пулемёт, патрон: 7,62x51. Лицензионный Negev из Винницы, питание из короба на 100 патронов.
@@ -1236,6 +1244,8 @@ st_friendly_user_compliment	Дружелюбный
 st_friends_online	Друзья онлайн
 st_friends_signin_notification_option	Оповещать о появлении друзей в сети
 st_fullscreen_option	Полноэкранный режим
+st_gandp_ris_foregrip_desc	Отдача -4%. Время прицеливания +1.5%.
+st_gandp_ris_foregrip_name	Рукоять G&P RIS
 st_general_volume_option	Общий
 st_generic_money_name	Рубли
 st_geometry_quality_option	Качество геометрии
@@ -1282,6 +1292,8 @@ st_hud_tutorial_frame_6_text_1	В бой!
 st_hud_tutorial_frame_6_text_2	Вы завершили базовый курс\nбоевой подготовки. Удачи!
 st_hud_tutorial_frame_6_text_3	Ваша награда:
 st_ignored	Черный список
+st_imi_fsg2_foregrip_desc	Отдача -2%.
+st_imi_fsg2_foregrip_name	Рукоять FSG2
 st_in_develepoment_hint	В процессе разработки
 st_ingame_volume_option	Игра
 st_injury_penalty_description	Штраф дисперсии при ранении рук:
@@ -1441,7 +1453,7 @@ st_login_menu_accept	Принять
 st_login_menu_cancel	Отмена
 st_login_menu_status_access_level_restriction	Уровень доступа недостаточен для входа.
 st_login_menu_status_connecting	Авторизация...
-st_login_menu_status_error_connection	Нет связи с сервером Skhid. Разрешите игру в брандмауэре (Skhid-network-setup.cmd). В России включите VPN и добавьте в него .exe-файлы игры (VPN.txt).
+st_login_menu_status_error_connection	Нет связи с сервером Skhid. Запустите игру через лаунчер: он покажет причину.
 st_login_menu_status_invalid_user_or_password	Неправильный никнейм или пароль
 st_login_menu_status_invalid_version	Вы используете устаревшую версию игры.
 st_login_menu_status_sign_in_already_online	Пользователь уже в игре
@@ -1455,6 +1467,8 @@ st_m4a1_description	Американский карабин под боепри�
 st_m4a1_name	М4А1
 st_magnum_description	Шестизарядный револьвер калибра .357 Магнум. Впервые был представлен в 1955 году. Некоторые считают, что это один из лучших представителей своего класса. Отличается мягким спуском и высокой точность.
 st_magnum_name	Кольт Питон
+st_magpul_afg1_foregrip_desc	Отдача -6%.
+st_magpul_afg1_foregrip_name	Рукоять AFG-1
 st_maintenance	Началось техническое обслуживание серверов. Приложение будет закрыто.
 st_map	Карта
 st_match_items_found	Найдено
@@ -1479,6 +1493,8 @@ st_match_settings_checkbox_training_match	Тренировочный бой
 st_match_settings_checkbox_training_match_hint	Режим тренировочной комнаты
 st_match_settings_clan_match	Клановый бой
 st_match_time_is_up	Время матча истекло!
+st_mauser_m712_foregrip_desc	Отдача -6%.
+st_mauser_m712_foregrip_name	Рукоять Mauser M.712
 st_max_carried_weight_description	Переносимый вес:
 st_max_carried_weight_name	Силач
 st_max_carried_weight_ultimate_description	Переносимый вес больше не влияет на скорость передвижения, но вы не можете спринтовать.
@@ -1584,6 +1600,114 @@ st_multiplicative_stamina_spending_modifier	Затраты энергии
 st_munition	Снаряжение
 st_music_volume_option	Музыка
 st_must_be_in_clan_team	Вы должны быть активным членом клановой команды.
+st_muzzle_aek919k_m12x1l_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_aek919k_m12x1l_muzzlebrake_name	Дульный тормоз AEK-919K, M12x1L
+st_muzzle_akmsu_m24x15_muzzlebrake_description	Только внешний вид.
+st_muzzle_akmsu_m24x15_muzzlebrake_name	Пламегаситель AKMSU, M24x1.5
+st_muzzle_aks74u_m24x15_muzzlebrake_description	Только внешний вид.
+st_muzzle_aks74u_m24x15_muzzlebrake_name	Пламегаситель AKS-74U, M24x1.5
+st_muzzle_aws_rapira_m24x15_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_aws_rapira_m24x15_muzzlebrake_name	Дульный тормоз Rapira, M24x1.5
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_name	Пламегаситель ROFH, M14x1L
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_name	Пламегаситель ROFH, M16x1L
+st_muzzle_custom_01_doublevert_m22x075_choke_description	Дисперсия -20 %. Время прицеливания +3 %.
+st_muzzle_custom_01_doublevert_m22x075_choke_name	Чок Custom 01, M22x0.75 O/U
+st_muzzle_custom_01_duckbill_description	Дисперсия -15 %.
+st_muzzle_custom_01_duckbill_name	Утиный клюв Custom 01, M22x0.75
+st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_name	Дульный тормоз Custom 01, M14x1L
+st_muzzle_custom_01_m22x075_choke_description	Дисперсия -20 %. Время прицеливания +3 %.
+st_muzzle_custom_01_m22x075_choke_name	Чок Custom 01, M22x0.75
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Дульный тормоз Custom 01, M30x1
+st_muzzle_custom_02_duckbill_description	Дисперсия -15 %.
+st_muzzle_custom_02_duckbill_name	Утиный клюв Custom 02, M22x0.75
+st_muzzle_custom_02_m14x1l_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_custom_02_m14x1l_firearrestor_name	Пламегаситель Custom 02, M14x1L
+st_muzzle_custom_02_m24x15_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_custom_02_m24x15_firearrestor_name	Пламегаситель Custom 02, M24x1.5
+st_muzzle_custom_03_duckbill_description	Дисперсия -15 %.
+st_muzzle_custom_03_duckbill_name	Утиный клюв Custom 03, M22x0.75
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_name	Пламегаситель Custom 03, M14x1L
+st_muzzle_custom_04_i05x28_clamp_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_custom_04_i05x28_clamp_firearrestor_name	Пламегаситель Custom 04, 1/2"x28
+st_muzzle_custom_04_i06x24_clamp_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_custom_04_i06x24_clamp_firearrestor_name	Пламегаситель Custom 04, 5/8"x24
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_name	Пламегаситель Custom 04, M14x1L
+st_muzzle_custom_doublevert_01_duckbill_description	Дисперсия -15 %.
+st_muzzle_custom_doublevert_01_duckbill_name	Утиный клюв Custom 01, M22x0.75 O/U
+st_muzzle_custom_doublevert_02_duckbill_description	Дисперсия -15 %.
+st_muzzle_custom_doublevert_02_duckbill_name	Утиный клюв Custom 02, M22x0.75 O/U
+st_muzzle_custom_doublhor_01_duckbill_description	Дисперсия -15 %.
+st_muzzle_custom_doublhor_01_duckbill_name	Утиный клюв Custom 01, M22x0.75 SxS
+st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_name	Дульный тормоз T-Brake, 1/2"x28
+st_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_name	Дульный тормоз T-Brake, M14x1L
+st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_name	Дульный тормоз Defcon 1, 1/2"x28
+st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_name	Дульный тормоз Defcon 1, M16x1L
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_name	Дульный тормоз Defcon 1, M30x1
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Дисперсия -16 %.
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_name	Дульный тормоз Guns.ru, M22x0.75
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_description	Дисперсия -16 %.
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_name	Дульный тормоз Kochevnik, M22x0.75
+st_muzzle_kkm_i05x28_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_kkm_i05x28_muzzlebrake_name	Дульный тормоз KKM, 1/2"x28
+st_muzzle_lantac_dragon_i05x28_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_lantac_dragon_i05x28_muzzlebrake_name	Дульный тормоз Dragon, 1/2"x28
+st_muzzle_lantac_dragon_i06x24_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_lantac_dragon_i06x24_muzzlebrake_name	Дульный тормоз Dragon, 5/8"x24
+st_muzzle_lantac_drakon_m14x1l_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_lantac_drakon_m14x1l_muzzlebrake_name	Дульный тормоз Dragon, M14x1L
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_name	Пламегаситель NightBrake, 1/2"x28
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_name	Пламегаситель NightBrake, 5/8"x24
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_name	Пламегаситель NightBrake, M12x1L
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_name	Пламегаситель NightBrake, M14x1L
+st_muzzle_polychoke_ventedcollar_m22x075_choke_description	Дисперсия -20 %. Время прицеливания +3 %.
+st_muzzle_polychoke_ventedcollar_m22x075_choke_name	Чок Polychoke, M22x0.75
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Дисперсия -16 %.
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_name	Дульный тормоз Ilgynag K01, M22x0.75
+st_muzzle_redheat_krymske2_m24x15_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_redheat_krymske2_m24x15_firearrestor_name	Пламегаситель Krymsk-2, M24x1.5
+st_muzzle_redheat_shturm_m14x1l_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_redheat_shturm_m14x1l_muzzlebrake_name	Дульный тормоз Shturm, M14x1L
+st_muzzle_redheat_shturm_m24x15_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_redheat_shturm_m24x15_muzzlebrake_name	Дульный тормоз Shturm, M24x1.5
+st_muzzle_remington_doublehor_m22x075_choke_description	Дисперсия -20 %. Время прицеливания +3 %.
+st_muzzle_remington_doublehor_m22x075_choke_name	Чок Remington, M22x0.75 SxS
+st_muzzle_remington_doublevert_m22x075_choke_description	Дисперсия -20 %. Время прицеливания +3 %.
+st_muzzle_remington_doublevert_m22x075_choke_name	Чок Remington, M22x0.75 O/U
+st_muzzle_remington_m22x075_choke_description	Дисперсия -20 %. Время прицеливания +3 %.
+st_muzzle_remington_m22x075_choke_name	Чок Remington, M22x0.75
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_name	Пламегаситель Dynacomp, M24x1.5
+st_muzzle_stone_shurhit_m22x075_choke_description	Дисперсия -20 %. Время прицеливания +3 %.
+st_muzzle_stone_shurhit_m22x075_choke_name	Чок Sure-Hit, M22x0.75
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_name	Пламегаситель TT-419, M22x0.75
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_name	Пламегаситель Antidote, M14x1L
+st_muzzle_zenit_dtk2_m24x15_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_zenit_dtk2_m24x15_muzzlebrake_name	Дульный тормоз Zenit DTK-2, M24x1.5
+st_muzzle_zenit_dtk3_m24x15_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_zenit_dtk3_m24x15_muzzlebrake_name	Дульный тормоз Zenit DTK-3, M24x1.5
+st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_name	Дульный тормоз Zenit DTK-4, M24x1.5 clamp
+st_muzzle_zenit_dtk4_m24x15_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_zenit_dtk4_m24x15_muzzlebrake_name	Дульный тормоз Zenit DTK-4, M24x1.5
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_name	Пламегаситель Zenit DTK-4, M30x1
 st_my_place	Мой рейтинг
 st_neostead_description	Южноафриканское помповое ружье 12 калибра. Создано в 90-х Тони Неофиту по схеме «буллпап»; два трубчатых магазина над стволом, для перезарядки цевье подается вперед. 12 патронов. Только одиночный огонь.
 st_neostead_name	NeoStead 2000
@@ -1703,6 +1827,8 @@ st_picatinny_scope_medium_name	Оптика / коллиматоры
 st_pickup_item	Поднять ({USE})
 st_ping_postfix	мс.
 st_pkp_pecheneg_description	Российский единый пулемет под боеприпас 7.62х54R. Создан в ЦНИИТочМаш на основе ПКМ, на вооружении с 2001 года; тяжелый ствол с принудительным охлаждением позволяет вести длинные очереди без замены. Лента на 100 патронов. Огонь: одиночный и автоматический.
+st_pkp_pecheneg_foregrip_desc	Отдача -6%.
+st_pkp_pecheneg_foregrip_name	Рукоять ПКП
 st_pkp_pecheneg_name	ПКП "Печенег"
 st_place	Место
 st_play_button	Играть
@@ -2261,11 +2387,14 @@ st_srp_artefact_532_description	Нет урона от падения, пока 
 st_srp_artefact_532_name	Оникс II
 st_srp_artefact_533_description	Активация Живокоста полностью восстанавливает выносливость.
 st_srp_artefact_533_name	Живокост II
+st_srp_artefact_534_description	После смерти артефакты комплекта переходят в комплект, в котором вы возрождаетесь, сколько поместится в его контейнеры.
+st_srp_artefact_534_name	Курьер
 st_srp_artefact_541_description	Пассивные эффекты ваших артефактов действуют и на живых союзников в радиусе 9 м.
 st_srp_artefact_541_name	Резонанс
 st_srp_artefact_542_description	Активированные артефакты действуют и на живых союзников в радиусе 6 м. "Они сияют, а ты блистаешь"
 st_srp_artefact_542_name	Каскад
 st_srp_artefact_points	 ед.
+st_srp_attach_unfit	Не сочетается с дульным устройством или рукояткой оружия.
 st_srp_attachments	Обвес
 st_srp_ban_reason_account_trading	Продажа или попытка продажи учётной записи.
 st_srp_ban_reason_administration	Решение администрации.
@@ -2538,6 +2667,9 @@ st_srp_equipment069_snow_20_legs_7_desc	Описание пока недосту
 st_srp_equipment069_snow_20_legs_7_name	Штаны "Снег-20"
 st_srp_equipment069_snow_20_torso_7_desc	Описание пока недоступно.
 st_srp_equipment069_snow_20_torso_7_name	Бронежилет "Снег-20"
+st_srp_face	Лицо
+st_srp_face_card	Лицо %1$s
+st_srp_grip_slot	Рукоятка
 st_srp_hide_quests_option	Скрыть задания
 st_srp_hide_scores_option	Скрыть очки игроков
 st_srp_hit_markers_all	Все хитмаркеры
@@ -2712,6 +2844,7 @@ st_srp_mode_research	Исследование
 st_srp_mode_team_deathmatch	Командный бой
 st_srp_mouse_lock_option	Зафиксировать вертикальную чувствительность
 st_srp_mouse_vertical_option	Вертикальная чувствительность
+st_srp_muzzle_slot	Дульная насадка
 st_srp_optics	Оптика
 st_srp_options_hud	Интерфейс боя:
 st_srp_pierce_brick	Кирпич, сталь
@@ -2875,7 +3008,7 @@ st_srp_rooms_voting	Голосование
 st_srp_rooms_waiting	Ждём игроков
 st_srp_rooms_waiting_owner	Ждём, пока создатель начнёт.
 st_srp_rooms_waiting_short	Ожидание
-st_srp_scope_screen_hint	Перетяните прицел из вашего инвентаря в слот модификации оружия
+st_srp_scope_screen_hint	Перетяните прицел, дульное устройство или рукоятку из вашего инвентаря в его слот
 st_srp_scope_slot	Прицел
 st_srp_shop_not_owned	Скрыть имеющиеся
 st_srp_shop_not_owned_hint	Показывать только то, чего у вас нет
@@ -3065,6 +3198,8 @@ st_toz66_description	Обрез охотничей двустволки под �
 st_toz66_name	ТОЗ-66
 st_trap_damage	Урон от ловушки
 st_treasure_map_advert	Используйте карту схрона, чтобы найти больше предметов
+st_troy_modular_foregrip_desc	Отдача -6%. Время прицеливания +1.5%.
+st_troy_modular_foregrip_name	Рукоять Troy Modular
 st_tt_description	Тульский Токарева образца 1933 года под боеприпас 7.62х25мм. Разработан в 30-х годах двадцатого столетия и является первым самозарядным армейский пистолетом СССР. Магазин вмещает 8 патронов. 
 st_tt_name	ТТ-33
 st_turn_down_action	

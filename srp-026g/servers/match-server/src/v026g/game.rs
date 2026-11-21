@@ -1145,7 +1145,12 @@ impl Game {
             "late_inputs": format!("{:?}", self.settings.late_inputs),
             "places": self.places_note(0),
         });
-        self.recording = Some(recorder.open(self.id, self.formed.vs_bots, header, now));
+        self.recording = Some(recorder.open(
+            &self.formed.replay_id,
+            self.formed.vs_bots,
+            header,
+            now,
+        ));
     }
 
     /// The places from `from` on, for a recording.
@@ -5401,11 +5406,16 @@ impl Game {
                     longest_killstreak: self.best_streaks[index],
                     kit_changes: self.kit_changes[index],
                     supplies: state.and_then(|state| state.supplies.get(index).cloned().flatten()),
+                    weapons: statistics
+                        .and_then(|statistics| statistics.weapons.as_ref()?.get(index))
+                        .cloned()
+                        .unwrap_or_default(),
                 }
             })
             .collect();
         MatchResult {
             match_id: self.id,
+            replay_id: self.formed.replay_id.clone(),
             map_id: self.formed.played.map().id,
             mode: self.formed.played.mode(),
             twist: self.formed.played.armed(),

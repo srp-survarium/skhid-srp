@@ -260,6 +260,41 @@ pub fn config(name: &str) -> Option<&'static [u8]> {
     survarium::v026g::game_data::shared().file(&format!("{}{name}", maps::GAME_MODES_DIR))
 }
 
+/// A replay of `map` with nobody in it, `length_ms` long: the world the
+/// game builds fresh from the options and the mode's config, no key frame,
+/// no event (`srp-map-sur`, for captures that start straight in a map:
+/// `scripts/capture`). One roster place, which never enters.
+pub fn of_map(map: maps::MatchMap, length_ms: u32) -> Result<Vec<u8>, String> {
+    let config = config(map.map().config)
+        .ok_or_else(|| format!("the game data has no mode config {}", map.map().config))?;
+    let nobody = static_info::MatchProfile {
+        team: if map.mode() == maps::GameMode::FreeForAll { maps::free_for_all_team(0) } else { 0 },
+        name: "capture".into(),
+        clan_tag: String::new(),
+        protection: static_info::NO_PROTECTION,
+        kits: vec![static_info::MatchKit::empty(1, "kit")],
+        items: vec![static_info::MatchItem::default()],
+        squad: 0,
+        face: survarium::v026g::faces::Face::DEFAULT,
+    };
+    let options = static_info::MatchOptions {
+        players: vec![nobody],
+        map,
+        match_id: 1,
+        match_level: 1,
+        score_weights: static_info::score_weights(map.map().mode.rules()),
+    };
+    let info = static_info::StaticInfo::new(&options, Dictionary::shared())
+        .map_err(|error| format!("the options: {error}"))?;
+    let payload = info.payload(0).ok_or("no place 0")?;
+    let start = sur::TICK_MS;
+    let body = Writer::new(start).finish(start + length_ms);
+    let parts = Parts { options_lzma2: &payload[1..], body: &body, key_frames: &[], config };
+    let file = sur::write(&parts, info.options().len(), Coding::Packed).map_err(|e| e.to_string())?;
+    sur::verify(&file)?;
+    Ok(file)
+}
+
 fn header(records: &[Record]) -> Option<serde_json::Value> {
     records
         .iter()
@@ -1429,6 +1464,7 @@ mod tests {
             kits: vec![MatchKit::empty(1, "kit")],
             items: vec![MatchItem::default()],
             squad: 0,
+            face: survarium::v026g::faces::Face::DEFAULT,
         }
     }
 
@@ -1567,6 +1603,20 @@ mod tests {
             .iter()
             .map(|chunk| datagram(IN, place, at_ms, 0xE0, None, chunk))
             .collect()
+    }
+
+    #[test]
+    fn a_maps_replay_is_its_options_and_config_with_nobody_in_it() {
+        let map = survarium::v026g::maps::MatchMap::of(battery_map().id).unwrap();
+        let file = of_map(map, 60_000).unwrap();
+        let verified = sur::verify(&file).unwrap();
+        assert_eq!((verified.start_ms, verified.end_ms, verified.records), (50, 60_050, 2));
+        assert!(verified.key_frames.is_empty());
+        let chunks = sur::chunks(&file).unwrap();
+        let options = lzma2::unpack(chunks[1].1, 0x578A0).unwrap();
+        let parsed = static_info::parse_options(&options, Dictionary::shared()).unwrap();
+        assert_eq!(parsed.map, map);
+        assert_eq!(parsed.players.len(), 1);
     }
 
     #[test]

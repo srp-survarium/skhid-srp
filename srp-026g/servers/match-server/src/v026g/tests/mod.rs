@@ -70,6 +70,7 @@ fn profile(name: &str, team: u8) -> MatchProfile {
             ..MatchItem::default()
         }],
         squad: 0,
+        face: survarium::v026g::faces::Face::DEFAULT,
     }
 }
 

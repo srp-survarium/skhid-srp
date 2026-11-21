@@ -4,6 +4,7 @@ package survarium.rooms
     import flash.display.BitmapData;
     import flash.display.DisplayObject;
     import flash.display.DisplayObjectContainer;
+    import flash.display.PixelSnapping;
     import flash.display.Shape;
     import flash.display.Sprite;
     import flash.events.Event;
@@ -45,11 +46,6 @@ package survarium.rooms
         public static const FOOT_H:Number = 46;
         // The game's bold Calibri (the font of these lists) has U+2026.
         public static const DOTS:String = "…";
-        // The render a level is drawn with: the v0.21 ports with the map they
-        // are an older look of, the v0.11 and v0.69 ones with their one loading image.
-        private static const RENDER_LEVEL:Object = {"10": 3, "11": 6, "25": 2, "26": 5, "29": 1, "31": 4};
-        private static const RENDER_ONE:Object = {"12": "Level_v011e_chemical", "13": "Level_v011e", "14": "Level_v069d_rudnya", "15": "Level_cs_mp_bath", "16": "Level_cs_mp_military_1", "17": "Level_cs_training_camp", "18": "Level_cs_mp_rembasa", "19": "Level_soc_ug_station", "20": "Level_soc_ug_depository", "23": "Level_cs_mp_firestation"};
-        private static const RENDER:Object = {"1": "day", "2": "rain", "3": "evn", "4": "night", "5": "prerain"};
         private static var _renders:Object = {};
         // A vote card's mode tag: the protective devices blue, team
         // deathmatch red, Research green, Blackout white, free for all amber.
@@ -525,8 +521,20 @@ package survarium.rooms
             return new Bitmap(small);
         }
 
+        // A card window's picture (a lobby's, a face's), made at the card's
+        // shape with more pixels than the card has (twice: a 4K screen draws
+        // the lobby twice its size), shown over w x h at its own pixels,
+        // smoothed: as sharp as the screen draws it.
+        public static function card(picture:BitmapData, w:int, h:int):Bitmap
+        {
+            var shown:Bitmap = new Bitmap(picture, PixelSnapping.NEVER, true);
+            shown.width = w;
+            shown.height = h;
+            return shown;
+        }
+
         // A picture scaled to cover w x h, centred, the rest cut (a vote
-        // card's map, a lobby window's card); `big` is disposed.
+        // card's map); `big` is disposed.
         public static function cover(big:BitmapData, w:int, h:int):BitmapData
         {
             var small:BitmapData = new BitmapData(w, h, false, 0x05080B);
@@ -539,22 +547,36 @@ package survarium.rooms
             return small;
         }
 
-        // The library bitmap of a level in a weather; its day one when that
-        // weather has none.
+        // A row's name by its id in a list of MapRenders.
+        private static function renderName(list:Array, id:int):String
+        {
+            for each (var row:Object in list)
+            {
+                if (row.id == id)
+                    return row.name;
+            }
+            return null;
+        }
+
+        // The library bitmap of a level in a weather, as MapRenders says
+        // (tables/survarium/rooms/MapRenders.tsv, which the site's match
+        // lists are cut by too): its day one when that weather has none.
         private function renderClass(level:int, weather:int):Class
         {
-            var one:String = RENDER_ONE[String(level)] as String;
+            var one:String = renderName(MapRenders.ONE, level);
             if (one != null)
                 return getDefinitionByName(one) as Class;
-            var base:int = RENDER_LEVEL[String(level)] != null ? int(RENDER_LEVEL[String(level)]) : level;
+            var base:String = renderName(MapRenders.LIKE, level);
+            if (base == null)
+                base = "Level" + level;
             try
             {
-                return getDefinitionByName("Level" + base + "_" + RENDER[String(weather)]) as Class;
+                return getDefinitionByName(base + "_" + renderName(MapRenders.WEATHERS, weather)) as Class;
             }
             catch (e:Error)
             {
             }
-            return getDefinitionByName("Level" + base + "_day") as Class;
+            return getDefinitionByName(base + "_day") as Class;
         }
 
         // A name cut to its field by its width in the field's own font and

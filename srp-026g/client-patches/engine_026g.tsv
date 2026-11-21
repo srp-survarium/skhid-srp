@@ -306,3 +306,12 @@ engine_global_lock	0x870078	-	void *engine_global_lock(void *memory)	import
 engine_global_unlock	0x87007c	-	unsigned int engine_global_unlock(void *memory)	import
 engine_global_size	-	-	unsigned int engine_global_size(void *memory)	dynamic
 engine_set_texture	0x3d98b0	ESP+4:receiver ESP+8:binding ESP+12:path ESP+16:option ESP+20:selector ESP+24:unsigned ESP+28:float ESP+32:flag	void engine_set_texture(struct effect_compiler *compiler, const char *slot, const char *texture, unsigned int option, unsigned int request, unsigned int lower, float lower_float, unsigned int flag)	stdcall	
+engine_fingers_set_weapon_model	0x390620	ESP+4:corrector ESP+8:instance ESP+12:view	void engine_fingers_set_weapon_model(struct fingers_corrector *corrector, unsigned int instance, unsigned int first_view)	stdcall	corrector: FingerCorrector, instance: u32, first_view: u32 ->
+engine_pin_resource	0x3dd990	EAX:pinned ESP+4:resource	void engine_pin_resource(struct pinned_resource *pinned, struct managed_resource *resource)	thunk	
+engine_unpin_resource	0x3c1020	ECX:pinned	void engine_unpin_resource(struct pinned_resource *pinned)	thunk	
+engine_set_constant_float4	0x1a8900	ECX:value ESP+4:receiver ESP+8:name	void engine_set_constant_float4(const float *value, struct effect_compiler *compiler, const char *name)	thiscall	
+engine_shared_string_create	0x0e0b50	ESP+4:text	struct shared_string *engine_shared_string_create(const char *text)	stdcall	
+engine_shared_string_destroy	0x0e0ae0	ESP+4:string	void engine_shared_string_destroy(struct shared_string *string)	stdcall	
+engine_shared_string_assign	0x011170	EDI:holder EAX:string	void engine_shared_string_assign(struct shared_string **holder, struct shared_string *string)	thunk	
+engine_register_constant_host	0x3c8bc0	EAX:backend ESP+4:name ESP+8:auxiliary	struct constant_host *engine_register_constant_host(struct backend *backend, struct shared_string **name, unsigned int auxiliary)	thunk	
+engine_set_ps_constant	0x132a90	EAX:host EDI:backend ESP+4:value	void engine_set_ps_constant(struct constant_host *host, struct backend *backend, const float *value)	thunk	

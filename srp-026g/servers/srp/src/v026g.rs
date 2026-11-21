@@ -230,6 +230,7 @@ impl MatchHost for RegistryHost {
 pub fn match_result(result: matches::MatchResult) -> rewards::MatchResult {
     rewards::MatchResult {
         match_id: result.match_id,
+        replay_id: result.replay_id,
         map_id: result.map_id,
         mode: result.mode,
         twist: result.twist,
@@ -271,6 +272,7 @@ pub fn match_result(result: matches::MatchResult) -> rewards::MatchResult {
                 longest_killstreak: player.longest_killstreak,
                 kit_changes: player.kit_changes,
                 supplies: player.supplies,
+                weapons: player.weapons,
             })
             .collect(),
     }

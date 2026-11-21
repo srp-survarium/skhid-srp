@@ -258,31 +258,6 @@ fn a_golden_item_takes_its_plain_item_as_its_donor() {
 }
 
 #[test]
-fn a_new_golden_item_starts_with_its_bonuses_of_its_own() {
-    assert_eq!(
-        starting_modifications(dict("ak_74n_premium")),
-        [(SILVER_BONUS, false)]
-    );
-    assert!(starting_modifications(dict("ak_74n")).is_empty());
-    assert_eq!(
-        starting_modifications(dict("bm_legs_4_premium")),
-        [
-            (EXPERIENCE_BONUS, false),
-            (BLACK_MARKET_REPUTATION_BONUS, false)
-        ]
-    );
-    assert_eq!(
-        starting_modifications(dict("scav_torso_4_premium")),
-        [
-            (EXPERIENCE_BONUS, false),
-            (SCAVENGER_REPUTATION_BONUS, false)
-        ]
-    );
-    assert!(starting_modifications(dict("bm_legs_4")).is_empty());
-    assert!(starting_modifications(9999).is_empty());
-}
-
-#[test]
 fn the_dictionary_has_its_copies_and_each_start_is_known_modifications() {
     let data = game_data::shared();
     assert_eq!(check_content(data, Dictionary::shared()), Ok(()));

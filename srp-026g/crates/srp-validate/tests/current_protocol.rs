@@ -29,6 +29,7 @@ fn options(blackout: bool) -> info::MatchOptions {
                 ..info::MatchItem::default()
             }],
             squad: 0,
+            face: survarium::v026g::faces::Face::DEFAULT,
         }],
         // Blackout is its maps' mode (#1243): the options carry its SRPX entry.
         map: if blackout {
@@ -158,6 +159,49 @@ fn current_server_options_and_blackout_are_accepted() {
     }
 }
 
+/// The roster's faces (`face-choice.md`): srp's entry `{5, roster, a face a
+/// place}`, last, as the server writes it when a face is not 0. The clients'
+/// check refuses another length than the roster's, every face 0, and the
+/// entry twice; a face the data does not list (the test data has three) is
+/// taken, and read as face 0.
+#[test]
+fn the_faces_entry_is_a_face_a_place_of_the_roster() {
+    use survarium::v026g::faces::Faces;
+    let data = Data(Dictionary::shared());
+    for blackout in [false, true] {
+        let mut options = options(blackout);
+        let mut bob = options.players[0].clone();
+        bob.name = "bob".into();
+        bob.team = 1;
+        bob.face = Faces::shared().face(2).unwrap();
+        options.players.push(bob);
+        let bytes = info::options_bytes(&options, data.0).unwrap();
+        let entry = b"\x05\x02\x00\x02";
+        assert!(bytes.ends_with(entry));
+        assert_eq!(messages::options(&bytes, &data), Ok(2));
+        assert_eq!(info::parse_options(&bytes, data.0).unwrap(), options);
+        // The options to the entry: the block's magic, and Blackout's entry.
+        let before = &bytes[..bytes.len() - entry.len()];
+        let block: &[u8] = if blackout { b"SRPX\x02\x01\x01" } else { b"SRPX" };
+        assert!(before.ends_with(block));
+        let unlisted = [before, &b"\x05\x02\x00\x03"[..]].concat();
+        assert_eq!(messages::options(&unlisted, &data), Ok(2));
+        let read = info::parse_options(&unlisted, data.0).unwrap();
+        assert_eq!(read.players[1].face, survarium::v026g::faces::Face::DEFAULT);
+        for suffix in [
+            &b"\x05\x01\x02"[..],
+            b"\x05\x03\x00\x02\x01",
+            b"\x05\x02\x00",
+            b"\x05\x02\x00\x00",
+            b"\x05\x02\x00\x02\x05\x02\x00\x02",
+        ] {
+            let bad = [before, suffix].concat();
+            assert!(messages::options(&bad, &data).is_err(), "{suffix:?}");
+            assert!(info::parse_options(&bad, data.0).is_err(), "{suffix:?}");
+        }
+    }
+}
+
 #[test]
 fn shipped_command_marker_is_allowed_but_unused_bit_and_nan_are_not() {
     for id in [messages::id::INPUT_RELAY, messages::id::INPUT_RELAY_PRECISE] {
@@ -219,8 +263,17 @@ fn current_emitted_messages_and_late_join_headers_are_accepted() {
     for len in 0..14 {
         assert!(messages::check(messages::id::STATIC_INFO, &prepare[..len]).is_err());
     }
-    let mut bad = prepare; bad[8..12].fill(0);
+    let mut bad = prepare.clone(); bad[8..12].fill(0);
     assert!(messages::check(messages::id::STATIC_INFO, &bad).is_err());
+    // A face but 0: srp's block after the profile, the header as before.
+    let mut faced = options(false).players.remove(0);
+    faced.face = survarium::v026g::faces::Faces::shared().face(1).unwrap();
+    let faced = late_join::Prepare {
+        proposal: late_join::Proposal { match_id: 42, serial: 1, place: 19 },
+        profile: faced,
+    }.encode(Dictionary::shared()).unwrap();
+    assert_eq!(faced, [&prepare[..], b"SRPX\x05\x01\x01"].concat());
+    assert_eq!(messages::check(messages::id::STATIC_INFO, &faced), Ok(()));
 }
 
 /// The test archive with a map 300 more: the map an id over a byte names.
