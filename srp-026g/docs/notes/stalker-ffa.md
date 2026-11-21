@@ -11,12 +11,20 @@ Military Warehouses' perimeter FFA spawns (7 each) are moved to their centre
 afterwards, ids kept, by `ffa-center-1` with the other maps (`ffa.md`), so
 their day_8 positions are not all ffa-spawns.tsv's.
 
+Station and Depository (maps_dict 31 and 32, `ffa-stalker-3.json`, `make_ffa_edits.py --third`) are
+made as Fire Station's (`stalker-maps.md`, "Free for All"): the planner's points in the minimaps' play
+areas (48 on Station, whose walkable floor is 3.4 times Fire Station's; 24 on Depository), doubled by the
+spawn rule (`to_cover --times 2`): 96 and 48 points (`ffa-spawns-3.tsv`), all on the floors the Team
+Deathmatch spawns walk to, none on what only a ladder reaches. The list removes their four ammo stashes
+from the `day_8` copies itself (as no-ammo-crates-1 does).
+
 Fire Station (pack `stalker-maps-2`, maps_dict 39, `ffa-stalker-2.json`; its 48 points by the spawn rule are the owner's 42 picks since `ffa-fire-station-picks-1`, `ffa.md`) is in `stalker-maps.md`, "Four more maps"; Dark Valley, Vehicle Station (47 points) and Sports Center are held there.
 
 This integrates the previously unmerged `stalker-maps@6` pack, which supplies
 six TDM ports. The other three are Repair Depot, Station and Depository. The
 three requested maps received FFA configurations, and Repair Depot since
-2026-11-14; Station and Depository have none. Team Deathmatch on all
+2026-11-14, Station and Depository since 2026-11-21 (`ffa-stalker-3.json`,
+below). Team Deathmatch on all
 six is not offered yet (`stalker-tdm-hold-1.json`; `stalker-maps.md`, "Free
 for All only, for now"). The pack is immutable:
 `pack.json` SHA-256 is

@@ -16,7 +16,8 @@ takes the six TDM rows (210-215) out of `maps_dict`, so neither srp nor the game
 has them as maps: no room pool or create window, vote card, Play, clan match,
 Player vs Bots, room with bots or Maps tab can list them (each lists the
 dictionary's playable rows; a room saved with them is fitted without them).
-Station and Depository have no FFA and are not played. Dark Valley, Vehicle
+Station and Depository have Free for All since 2026-11-21 (31 and 32,
+`stalker-ffa.md`). Dark Valley, Vehicle
 Station, Fire Station and Sports Center (pack `stalker-maps-2`, below) are
 played in Free for All only too.
 

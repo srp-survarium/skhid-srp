@@ -23,6 +23,11 @@ use std::{
 };
 
 const COUNT: usize = 24;
+/// Station's planned points: its walkable floor is 3.4 times Fire Station's (595,564
+/// floors to 174,154), so twice the count, 96 after the spawn rule doubles them (exe
+/// patch 142 chooses among the first 128).
+const STATION: &str = "v010b_soc_ug_station/day_4";
+const STATION_COUNT: usize = 48;
 const HAZARD_MARGIN: f32 = 2.0;
 const FACING_REACH: f32 = 6.0;
 /// Training Camp as the table and the edit generator name it: its Team
@@ -68,6 +73,8 @@ fn area(project: &str) -> Result<([f32; 4], Option<f32>), String> {
         "v010b_cs_mp_atp/day_4" => Ok(([90.45, -83.35, 180.2, 29.4], None)),
         "v010b_cs_mp_firestation/day_4" => Ok(([-67.48, -31.41, 50.52, 61.09], None)),
         "v010b_cs_mp_sport_center/day_4" => Ok(([-100.41, -60.72, -16.91, -12.22], None)),
+        STATION => Ok(([50.75, -162.55, 289.75, 54.95], None)),
+        "v010b_soc_ug_depository/day_4" => Ok(([-30.59, -33.03, 91.16, 46.97], None)),
         _ => Err(format!("no reviewed play area for {project}")),
     }
 }
@@ -385,7 +392,8 @@ fn generate(map: &Map, plot: &mut File) -> Result<Spawns, String> {
         candidates.len(),
         map.grid.len()
     );
-    Ok(choose(&candidates, COUNT)?
+    let count = if map.data.project == STATION { STATION_COUNT } else { COUNT };
+    Ok(choose(&candidates, count)?
         .into_iter()
         .map(|i| (candidates[i], REASON.to_owned()))
         .collect())
