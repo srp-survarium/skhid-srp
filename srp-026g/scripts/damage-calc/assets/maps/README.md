@@ -30,6 +30,7 @@ elevation grid for every map.
 | v010b_cs_training_camp | Training Camp | 0.1038 | 44 (STALKER port, patch 57; Free for All) |
 | v010b_cs_mp_firestation | Fire Station | 0.0952 | 39 (STALKER port, pack stalker-maps-2@2; Free for All) |
 | v032a_level_09 | London (v0.32) | 0.1823 | 181-183, 276-281 (0.32a4 port, pack london-v032@1, in place of level_09) |
+| v044a_level_09 | London (v0.42) | 0.1823 | 290-298 (0.44a5 port, pack london-v042@1) |
 
 All weathers and modes of a level share one image. The mode projects differ only
 in mode props such as battery racks, containers and charging stations; the
@@ -182,6 +183,9 @@ Always use `python3 -I`.
     # Fire Station (pack stalker-maps-2) the same way, their patch (not yet listed) after $ALL; their bitmaps are FFDec's names in that hud.swf
     # London (v0.32) (pack london-v032@1): its pack's files over every listed patch; London's bitmap and frame
     python3 -I extract_level.py $DBGRAB $DB v032a_level_09/day_2 $W/lv/v032a_level_09 <packs>/london-v032-1/files $ALL
+    # London (v0.42) (pack london-v042@1): its pack's files over every listed patch; its bitmap is the hud
+    # movie's source bitmaps/minimap_v044a_level_09.png (0.44a5's own) in London's frame
+    python3 -I extract_level.py $DBGRAB $DB v044a_level_09/day_2 $W/lv/v044a_level_09 <packs>/london-v042-1/files $ALL
     # (extract_level.py before 2026-10-19 lost every surface whose name ends in "_", e.g. level_08's moss
     # and ground cover, level_03's terrain_all; all 13 maps were re-rendered with the fix)
     # 4. render + shade + check + webp (~1 min per map)

@@ -42,6 +42,7 @@ PACK_RUDNYA = Path('/home/sheep/Projects/survarium/work-rudnya-v021/probe-modes-
 PACK_SCHOOL_FORT = Path('/home/sheep/Projects/survarium/v021d-rig-data/school-fort-work/probe-modes-build/maps-021d-school-fort-4/files')
 PACK_CHEMICAL = Path('/home/sheep/Projects/survarium/skhid-srp/private/content-packs/maps-021d-chemical-1/files')
 PACK_LONDON_V032 = Path('/home/sheep/Projects/survarium/work-london-032-042/packs/london-v032-1/files')
+PACK_LONDON_V042 = Path('/home/sheep/Projects/survarium/work-london-032-042/packs/london-v042-1/files')
 PORTED = {
     'v021d_level_03': dict(size=100, posX=14, posY=-42.196, bitmap=None, name='Vostok Radar Station (v0.21)',
                            name_key='st_level_10_name', project_name='level_03', map_ids={166: 2, 152: 4}),
@@ -74,6 +75,12 @@ PORTED = {
                            name='London (v0.32)', name_key='st_level_09_name', project_name='v032a_level_09',
                            map_ids={181: 2, 182: 3, 183: 4, 276: 2, 277: 3, 278: 4, 279: 2, 280: 3, 281: 4},
                            pack=PACK_LONDON_V032, pack_name='london-v032@1'),
+    # London (v0.42) (pack london-v042@1, 0.44a5's reworked London): project_name v044a_level_09, its own HUD
+    # row: 0.44a5's minimap (bitmap minimap_v044a_level_09 of the hud movie's source) in London's frame.
+    'v044a_level_09': dict(size=140, posX=0, posY=-5, bitmap='minimap_v044a_level_09.png', area='alpha:0.4',
+                           name='London (v0.42)', name_key='st_level_32_name', project_name='v044a_level_09',
+                           map_ids={290: 2, 291: 3, 292: 4, 293: 2, 294: 3, 295: 4, 296: 2, 297: 3, 298: 4},
+                           pack=PACK_LONDON_V042, pack_name='london-v042@1'),
 }
 
 

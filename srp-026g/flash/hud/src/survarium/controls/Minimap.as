@@ -79,6 +79,7 @@ package survarium.controls
          "level_08":new Map_08(),
          "level_09":new Map_09(),
          "v032a_level_09":new Map_09(),
+         "v044a_level_09":new minimap_v044a_level_09(),
          "v011e_level_04":new minimap_zv11e(),
          "v011e_level_03":new minimap_bv11(),
          "cs_mp_bath":new minimap_cs_mp_bath(),
@@ -238,6 +239,9 @@ package survarium.controls
          };
          // London (v0.32), pack london-v032: London's minimap and frame (0.32a4's map_09.png is the same picture).
          this._minimapProps.v032a_level_09 = this._minimapProps.level_09;
+         // London (v0.42), pack london-v042: 0.44a5's own minimap of the reworked map in London's frame (0.44a5's
+         // hud has the same frame for level_09).
+         this._minimapProps.v044a_level_09 = this._minimapProps.level_09;
          this._minimapProps.level_03_rain = this._minimapProps.level_03;
          this._minimapProps.level_03_evn = this._minimapProps.level_03;
       }
