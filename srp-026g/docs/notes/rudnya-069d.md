@@ -34,14 +34,29 @@ the whole map (pack @4, below).
   the scene's `mie_fog_base_height`) and the scene's own colour grading texture; its clouds
   and the pond's mist. Nothing is tuned by place: pack @3's per-area gains, raised interior
   probes, exposure bias and sun desaturation are gone.
+- Metering as 0.69d's: 0.26g meters the arithmetic mean of a frame, so a dark room with a sunlit
+  opening was exposed for the opening (the church drew at 4/255 against 0.69d's 52). Behind the
+  marker the lighting pack's three luminance programs meter 0.69d's weighted log-average (its
+  floor 0.01 of the frame, a disc of two frame half-heights round the centre, which leaves out
+  nothing at 16:10, 0.1 % at 16:9 and 18 % at 21:9); other maps take the native instructions.
 - Materials by the two builds' shading: gloss from 0.69d's smoothness by the GGX alpha each
   build draws, Fresnel 0.04, the 43 materials with a metalness map on diffuse and Fresnel maps
   made from their albedo and metalness (pack @3 bound the metalness map as the Fresnel map and
   metal mirrored the sky).
-- 0.69d's own sound emitters (22; one sound 0.26g lacks is imported) and its fly swarms; the
-  sky and the distance fog are still 0.26g's with native Rudnya's settings (0.69d's height fog
-  over the map and its sky are not converted yet: resource-porter's
-  `docs/survarium-069d-to-026.md` has what was read of them).
+- 0.69d's own sound emitters (22; one sound 0.26g lacks is imported) and its fly swarms.
+
+Known differences from 0.69d (the owner, 2026-11-21, of the eight views and the outdoor
+comparison: "the way rudnya is is fine"; not in work):
+
+- The sky and the distance fog are 0.26g's with native Rudnya's settings: 0.69d's sky colour
+  and its height fog over the map (the haze, the pale power plant) are not converted, so the
+  overviews have 0.26g's bluish mie fog colour (0.131, 0.133, 0.308) over the map.
+  resource-porter's `docs/survarium-069d-to-026.md` has what was read of both.
+- 0.69d's sky probe on Rudnya (and on its other maps with cloud shadows) is 0.60-0.69 of what
+  its own atmosphere model gives at the map's density; the cause is not found.
+- Outdoor shade is darker than 0.69d's (the sun to ambient balance is about twice 0.69d's).
+- No cloud shadows: 0.69d dims its sun by its clouds' shadows (0.27 to 0.93 as they turn, 0.64
+  on average on Rudnya); 0.26g's own sky shadows exist but were not carried over.
 - Spawns (team deathmatch): 0.69d's team-deathmatch points as they are, 405 (team 0: 313,
   team 1: 92); each point's own check radii; their invulnerability time 6 s as the rest of the
   map (maps.tsv; 0.69d's 3 s until then). The owner may revisit it: these are free spawns, up to

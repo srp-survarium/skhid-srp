@@ -3597,3 +3597,13 @@ va	status	ref_021d	name
 0x002e5040	inferred-medium		survarium::damage_model::tick
 0x002f4b40	inferred-high		survarium::shared_statistics::shared_statistics
 0x002f4c20	inferred-high		survarium::shared_statistics::clear
+0x001a29b0	inferred-medium		vostok::render::effect_sun_shadows_apply<no_sky,0>::compile
+0x001a2b40	inferred-medium		vostok::render::effect_sun_shadows_apply<no_sky,1>::compile
+0x001a2ce0	inferred-medium		vostok::render::effect_sun_shadows_apply<no_sky,2>::compile
+0x001a2e80	inferred-medium		vostok::render::effect_sun_shadows_apply<no_sky,3>::compile
+0x001a3020	inferred-medium		vostok::render::effect_sun_shadows_apply<sky,0>::compile
+0x001a31b0	inferred-medium		vostok::render::effect_sun_shadows_apply<sky,1>::compile
+0x001a3350	inferred-medium		vostok::render::effect_sun_shadows_apply<sky,2>::compile
+0x001a34f0	inferred-medium		vostok::render::effect_sun_shadows_apply<sky,3>::compile
+0x002a6b20	inferred-medium		vostok::render::environment_properties::lerp
+0x002a9460	inferred-medium		vostok::render::environment_keyframes::properties_at
