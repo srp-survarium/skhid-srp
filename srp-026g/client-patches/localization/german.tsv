@@ -2952,6 +2952,10 @@ st_srp_weapon_sway_horizontal	Horizontales Verwackeln
 st_srp_weapon_sway_vertical	Vertikales Verwackeln
 st_srp_weapon_with_kit	Mit Loadout
 st_srp_weapon_with_kit_skills	Mit Loadout und Fähigkeiten
+st_srp_weaponstk2_ak74_tactical_carbine_desc	Modernisierte AK-74 mit kurzem Lauf, Schienen und seitlich klappbarem Skelettschaft, Munition: 5,45x39. Einzel- und Dauerfeuer.
+st_srp_weaponstk2_ak74_tactical_carbine_name	AK-74 Taktischer Karabiner
+st_srp_weaponstk2_ak74_tactical_desc	Modernisierte AK-74 mit Schienen, Teleskopschaft und langem Lauf, Munition: 5,45x39. Einzel- und Dauerfeuer.
+st_srp_weaponstk2_ak74_tactical_name	AK-74 Taktisch
 st_srp_weather_before_rain	vor dem Regen
 st_srp_weather_day	Tag
 st_srp_weather_evening	Abend

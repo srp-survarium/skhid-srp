@@ -2952,6 +2952,10 @@ st_srp_weapon_sway_horizontal	Vodoravno ljuljanje
 st_srp_weapon_sway_vertical	Uspravno ljuljanje
 st_srp_weapon_with_kit	Sa kompletom
 st_srp_weapon_with_kit_skills	Sa kompletom i veštinama
+st_srp_weaponstk2_ak74_tactical_carbine_desc	Modernizovani AK-74 sa kratkom cevi, šinama i bočno preklopnim skeletnim kundakom, municija 5,45x39. Podržava pojedinačnu i automatsku paljbu.
+st_srp_weaponstk2_ak74_tactical_carbine_name	AK-74 Taktički karabin
+st_srp_weaponstk2_ak74_tactical_desc	Modernizovani AK-74 sa šinama, teleskopskim kundakom i dugom cevi, municija 5,45x39. Podržava pojedinačnu i automatsku paljbu.
+st_srp_weaponstk2_ak74_tactical_name	AK-74 Taktički
 st_srp_weather_before_rain	pred kišu
 st_srp_weather_day	dan
 st_srp_weather_evening	veče

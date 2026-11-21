@@ -2952,6 +2952,10 @@ st_srp_weapon_sway_horizontal	Vaakasuora heilunta
 st_srp_weapon_sway_vertical	Pystysuora heilunta
 st_srp_weapon_with_kit	Varustesetillä
 st_srp_weapon_with_kit_skills	Varustesetillä ja taidoilla
+st_srp_weaponstk2_ak74_tactical_carbine_desc	Lyhytpiippuinen modernisoitu AK-74 kiskoilla ja sivulle taittuvalla runkoperällä, kaliiperi 5.45x39. Kerta- ja sarjatuli.
+st_srp_weaponstk2_ak74_tactical_carbine_name	AK-74 Taktinen karbiini
+st_srp_weaponstk2_ak74_tactical_desc	Modernisoitu AK-74 kiskoilla, teleskooppiperällä ja pitkällä piipulla, kaliiperi 5.45x39. Kerta- ja sarjatuli.
+st_srp_weaponstk2_ak74_tactical_name	AK-74 Taktinen
 st_srp_weather_before_rain	ennen sadetta
 st_srp_weather_day	päivä
 st_srp_weather_evening	ilta

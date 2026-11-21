@@ -1,0 +1,6 @@
+# The STK2 AK-74s' textures that get an _aoac (../weapon-camo/weapon_camo.py): each texture, no premium donor, the surfaces drawing it
+weapons/ak74_tactical/ak74_tactical_01		weapons/ak74_tactical/ak74_tactical:ak74_01_s,weapons/ak74_tactical/ak74_tactical_carbine:ak74_01_s
+weapons/ak74_tactical/ak74_tactical_02		weapons/ak74_tactical/ak74_tactical:ak74_02_s,weapons/ak74_tactical/ak74_tactical_carbine:ak74_02_s
+weapons/ak74_tactical/ak74_tactical_03		weapons/ak74_tactical/ak74_tactical:ak74_03_s,weapons/ak74_tactical/ak74_tactical_carbine:ak74_03_s
+weapons/ak74_tactical/ak74_tactical_04		weapons/ak74_tactical/ak74_tactical:ak74_04_s,weapons/ak74_tactical/ak74_tactical_carbine:ak74_04_s
+weapons/ak74_tactical/ak74_tactical_06		weapons/ak74_tactical/ak74_tactical:ak74_06_s,weapons/ak74_tactical/ak74_tactical_carbine:ak74_06_s

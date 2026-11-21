@@ -2952,6 +2952,10 @@ st_srp_weapon_sway_horizontal	Kołysanie poziome
 st_srp_weapon_sway_vertical	Kołysanie pionowe
 st_srp_weapon_with_kit	Z zestawem
 st_srp_weapon_with_kit_skills	Z zestawem i umiejętnościami
+st_srp_weaponstk2_ak74_tactical_carbine_desc	Zmodernizowany AK-74 z krótką lufą, szynami i składaną na bok kolbą szkieletową, amunicja: 5,45x39. Ogień pojedynczy i ciągły.
+st_srp_weaponstk2_ak74_tactical_carbine_name	AK-74 Taktyczny karabinek
+st_srp_weaponstk2_ak74_tactical_desc	Zmodernizowany AK-74 z szynami, kolbą teleskopową i długą lufą, amunicja: 5,45x39. Ogień pojedynczy i ciągły.
+st_srp_weaponstk2_ak74_tactical_name	AK-74 Taktyczny
 st_srp_weather_before_rain	przed deszczem
 st_srp_weather_day	dzień
 st_srp_weather_evening	wieczór

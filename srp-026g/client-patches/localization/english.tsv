@@ -2952,6 +2952,10 @@ st_srp_weapon_sway_horizontal	Horizontal sway
 st_srp_weapon_sway_vertical	Vertical sway
 st_srp_weapon_with_kit	With kit
 st_srp_weapon_with_kit_skills	With kit and skills
+st_srp_weaponstk2_ak74_tactical_carbine_desc	Short-barrelled modernised AK-74 with rails and a side-folding skeleton stock, ammo: 5.45x39. Supports single shot and automatic fire modes.
+st_srp_weaponstk2_ak74_tactical_carbine_name	AK-74 Tactical Carbine
+st_srp_weaponstk2_ak74_tactical_desc	Modernised AK-74 with rails, a collapsible stock and a long barrel, ammo: 5.45x39. Supports single shot and automatic fire modes.
+st_srp_weaponstk2_ak74_tactical_name	AK-74 Tactical
 st_srp_weather_before_rain	before rain
 st_srp_weather_day	day
 st_srp_weather_evening	evening
