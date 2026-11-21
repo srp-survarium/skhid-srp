@@ -39,13 +39,19 @@ fn parsed<T>(
 
 /// The most entries (named values and list elements, at any depth) an item
 /// config may have. The client rebuilds an item's config with its upgrades
-/// (camouflage, decals, scope) in a 16 KB stack arena of 24-byte items that
-/// it never bounds (`create_binary_config_buffer`, exe 0x358AA0); past it the
-/// items overwrite the arena's allocator and `vostok::configs::free_memory`
-/// (0x358A10) calls through it. The KS-23M of weapons-069@9 had 587 and,
-/// camouflaged and with decals, crashed every match at load (2026-11-01).
-/// 565 is the largest stock weapon config's (the premium Remington 700's),
-/// which players run with camouflage and decals.
+/// (camouflage, decals, the fitted modules) in a stack arena of 24-byte
+/// items that it never bounds (`create_binary_config_buffer`, exe 0x358AA0);
+/// past it the items overwrite the arena's allocator and
+/// `vostok::configs::free_memory` (0x358A10) calls through it. The arena was
+/// 16 KB: the KS-23M of weapons-069@9 had 587 and, camouflaged and with
+/// decals, crashed every match at load (2026-11-01). 565 is the largest
+/// stock weapon config's (the premium Remington 700's), which players ran
+/// with camouflage and decals in those 16 KB.
+///
+/// Client patch 161 makes the arena 64 KB (`ITEM_CONFIG_ARENAS`): the bound
+/// on the plain config stays, and what a weapon's kit adds on top (one
+/// entry a fitted scope, muzzle device and grip, each a type 3 add to
+/// `data`) has the 48 KB beyond it, 2,000 entries.
 pub const MAX_CONFIG_ENTRIES: usize = 565;
 
 /// The entries of a config: each named value and each list element.

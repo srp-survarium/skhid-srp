@@ -96,7 +96,7 @@ pub fn on_scope_dict(ctx: &mut Context<'_>) -> Flow<AttachmentsOnScopeDictExit> 
 }
 
 /// on_weapon_subresources_ready before it asks whether the weapon has a
-/// scope (0x24AD0E).
+/// scope (0x24AD13).
 pub fn on_scope_result(ctx: &mut Context<'_>) -> Flow<AttachmentsOnScopeResultExit> {
     if attachments::scope_result(ctx) { Flow::Exit(AttachmentsOnScopeResultExit::Scoped) } else { Flow::Continue }
 }
