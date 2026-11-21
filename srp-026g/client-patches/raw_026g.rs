@@ -28282,7 +28282,7 @@ impl ResEffect {
         self.0.as_ptr() as usize as u32
     }
 
-    /// +0x5620 (u32): the technique res_effect::apply_pass (0x3D7230) applies: stage_composition::execute writes 0 into its composition effect's (0x1A85B4) and 2 into its +30h effect's (0x1A838E) before each call; a technique is an effect compile's begin_technique, in order (0x3CC920, its count [compiler+61EB0h])
+    /// +0x5620 (u32): the technique res_effect::apply_pass (0x3D7230) applies: stage_composition::execute writes 0 into its composition effect's (0x1A85B4) and 2 into its +30h effect's (0x1A838E) before each call; the techniques are in the order the effect's compile ends them (end_technique 0x3DA6B0; patch 130's twins 3 and 2, patch 178's 1)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).

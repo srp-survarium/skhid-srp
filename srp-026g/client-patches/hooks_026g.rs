@@ -2665,7 +2665,7 @@ pub extern "C" fn hook_v021d_render_on_project_insert(frame: &mut Frame) -> u32 
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The entry `composition_v044a_on_project_insert` (0x285750, before insert_static, ECX project and ESP+4 physics) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -2710,7 +2710,7 @@ pub extern "C" fn hook_v021d_render_on_project_removed(frame: &mut Frame) -> u32
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The entry `composition_v044a_on_project_removed` (0x285614, remove_static epilogue, after native object removals) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -2755,7 +2755,7 @@ pub extern "C" fn hook_v021d_render_on_project_destroy(frame: &mut Frame) -> u32
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The entry `composition_v044a_on_project_destroy` (0x285330, destructor before any member is released) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -2770,7 +2770,7 @@ pub extern "C" fn hook_composition_v044a_on_project_destroy(frame: &mut Frame) -
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The entry `composition_v044a_on_begin_pass_000` (0x1a93a2, effect_composition<0,0,0>::compile (0x1A9330), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1A93AE): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1A939D), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -2785,7 +2785,7 @@ pub extern "C" fn hook_composition_v044a_on_begin_pass_000(frame: &mut Frame) ->
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The named exits of composition_v044a::on_sun_shadow_000 (the order the shim's Flow code
 /// follows, 2 upward).
@@ -2805,7 +2805,7 @@ pub extern "C" fn hook_composition_v044a_on_sun_shadow_000(frame: &mut Frame) ->
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The named exits of composition_v044a::on_compiled_000 (the order the shim's Flow code
 /// follows, 2 upward).
@@ -2825,7 +2825,7 @@ pub extern "C" fn hook_composition_v044a_on_compiled_000(frame: &mut Frame) -> u
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The entry `composition_v044a_on_begin_pass_100` (0x1a9642, effect_composition<1,0,0>::compile (0x1A95D0), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1A964E): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1A963D), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -2840,7 +2840,7 @@ pub extern "C" fn hook_composition_v044a_on_begin_pass_100(frame: &mut Frame) ->
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The named exits of composition_v044a::on_sun_shadow_100 (the order the shim's Flow code
 /// follows, 2 upward).
@@ -2860,7 +2860,7 @@ pub extern "C" fn hook_composition_v044a_on_sun_shadow_100(frame: &mut Frame) ->
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The named exits of composition_v044a::on_compiled_100 (the order the shim's Flow code
 /// follows, 2 upward).
@@ -2880,7 +2880,7 @@ pub extern "C" fn hook_composition_v044a_on_compiled_100(frame: &mut Frame) -> u
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The entry `composition_v044a_on_begin_pass_010` (0x1a98e2, effect_composition<0,1,0>::compile (0x1A9870), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1A98EE): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1A98DD), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -2895,7 +2895,7 @@ pub extern "C" fn hook_composition_v044a_on_begin_pass_010(frame: &mut Frame) ->
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The named exits of composition_v044a::on_sun_shadow_010 (the order the shim's Flow code
 /// follows, 2 upward).
@@ -2915,7 +2915,7 @@ pub extern "C" fn hook_composition_v044a_on_sun_shadow_010(frame: &mut Frame) ->
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The named exits of composition_v044a::on_compiled_010 (the order the shim's Flow code
 /// follows, 2 upward).
@@ -2935,7 +2935,7 @@ pub extern "C" fn hook_composition_v044a_on_compiled_010(frame: &mut Frame) -> u
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The entry `composition_v044a_on_begin_pass_110` (0x1a9b82, effect_composition<1,1,0>::compile (0x1A9B10), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1A9B8E): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1A9B7D), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -2950,7 +2950,7 @@ pub extern "C" fn hook_composition_v044a_on_begin_pass_110(frame: &mut Frame) ->
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The named exits of composition_v044a::on_sun_shadow_110 (the order the shim's Flow code
 /// follows, 2 upward).
@@ -2970,7 +2970,7 @@ pub extern "C" fn hook_composition_v044a_on_sun_shadow_110(frame: &mut Frame) ->
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The named exits of composition_v044a::on_compiled_110 (the order the shim's Flow code
 /// follows, 2 upward).
@@ -2990,7 +2990,7 @@ pub extern "C" fn hook_composition_v044a_on_compiled_110(frame: &mut Frame) -> u
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The entry `composition_v044a_on_begin_pass_001` (0x1a9e22, effect_composition<0,0,1>::compile (0x1A9DB0), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1A9E2E): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1A9E1D), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -3005,7 +3005,7 @@ pub extern "C" fn hook_composition_v044a_on_begin_pass_001(frame: &mut Frame) ->
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The named exits of composition_v044a::on_sun_shadow_001 (the order the shim's Flow code
 /// follows, 2 upward).
@@ -3025,7 +3025,7 @@ pub extern "C" fn hook_composition_v044a_on_sun_shadow_001(frame: &mut Frame) ->
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The named exits of composition_v044a::on_compiled_001 (the order the shim's Flow code
 /// follows, 2 upward).
@@ -3045,7 +3045,7 @@ pub extern "C" fn hook_composition_v044a_on_compiled_001(frame: &mut Frame) -> u
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The entry `composition_v044a_on_begin_pass_101` (0x1aa0c2, effect_composition<1,0,1>::compile (0x1AA050), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1AA0CE): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1AA0BD), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -3060,7 +3060,7 @@ pub extern "C" fn hook_composition_v044a_on_begin_pass_101(frame: &mut Frame) ->
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The named exits of composition_v044a::on_sun_shadow_101 (the order the shim's Flow code
 /// follows, 2 upward).
@@ -3080,7 +3080,7 @@ pub extern "C" fn hook_composition_v044a_on_sun_shadow_101(frame: &mut Frame) ->
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The named exits of composition_v044a::on_compiled_101 (the order the shim's Flow code
 /// follows, 2 upward).
@@ -3100,7 +3100,7 @@ pub extern "C" fn hook_composition_v044a_on_compiled_101(frame: &mut Frame) -> u
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The entry `composition_v044a_on_begin_pass_011` (0x1aa362, effect_composition<0,1,1>::compile (0x1AA2F0), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1AA36E): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1AA35D), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -3115,7 +3115,7 @@ pub extern "C" fn hook_composition_v044a_on_begin_pass_011(frame: &mut Frame) ->
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The named exits of composition_v044a::on_sun_shadow_011 (the order the shim's Flow code
 /// follows, 2 upward).
@@ -3135,7 +3135,7 @@ pub extern "C" fn hook_composition_v044a_on_sun_shadow_011(frame: &mut Frame) ->
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The named exits of composition_v044a::on_compiled_011 (the order the shim's Flow code
 /// follows, 2 upward).
@@ -3155,7 +3155,7 @@ pub extern "C" fn hook_composition_v044a_on_compiled_011(frame: &mut Frame) -> u
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The entry `composition_v044a_on_begin_pass_111` (0x1aa602, effect_composition<1,1,1>::compile (0x1AA590), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1AA60E): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1AA5FD), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -3170,7 +3170,7 @@ pub extern "C" fn hook_composition_v044a_on_begin_pass_111(frame: &mut Frame) ->
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The named exits of composition_v044a::on_sun_shadow_111 (the order the shim's Flow code
 /// follows, 2 upward).
@@ -3190,7 +3190,7 @@ pub extern "C" fn hook_composition_v044a_on_sun_shadow_111(frame: &mut Frame) ->
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The named exits of composition_v044a::on_compiled_111 (the order the shim's Flow code
 /// follows, 2 upward).
@@ -3210,7 +3210,7 @@ pub extern "C" fn hook_composition_v044a_on_compiled_111(frame: &mut Frame) -> u
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The entry `composition_v044a_on_constructed` (0x1a77b7, stage_composition::stage_composition (0x1A7280) after its last constant host's registration (rain_density's, +70h, whose name holder it lets go by 0x1A77B2): pop edi / pop ebp / mov byte [esi+0Ch],1, the one place both of the release's branches (0x1A77A4, 0x1A77AF) land on; ESI the stage. Its hosts: wind_info_parameters +38h, sun_light_parameters +3Ch, s_eye_ray_corner +40h, ... rain_density +70h (shared_string::create 0xE0B50, register_constant_host 0x3C8BC0 with the backend [2260490h])) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -3225,7 +3225,7 @@ pub extern "C" fn hook_composition_v044a_on_constructed(frame: &mut Frame) -> u3
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The named exits of composition_v044a::on_technique (the order the shim's Flow code
 /// follows, 2 upward).
@@ -3245,7 +3245,7 @@ pub extern "C" fn hook_composition_v044a_on_technique(frame: &mut Frame) -> u32 
     }
 }
 
-// ---- composition_v044a (patch 177) ----
+// ---- composition_v044a (patch 178) ----
 
 /// The entry `composition_v044a_on_constants` (0x1a85d6, stage_composition::execute after apply_pass (0x1A85BE) and its first set_ps_constant (0x132A90 at 0x1A85D1, s_eye_ray_corner +40h), before the next (movss xmm0,[esp+28h]): the pass's program bound, EDI the backend ([2260490h], 0x1A85C7), EBP the stage; the game's own sets follow (sun_light_parameters +48h at 0x1A860B, ...)) calls this with the saved machine.
 #[unsafe(no_mangle)]

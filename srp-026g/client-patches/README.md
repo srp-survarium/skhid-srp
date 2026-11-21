@@ -6544,3 +6544,18 @@ Rust `breath_hit` hook shares patch 84's site in `base_player::hit_impl` (`playe
 reserve. The gun's next tick then goes to short breathing through the game's own transition, as running
 out of breath does, except that the stamina is kept. A simulation change. Checked with
 `check_breath_hit_026g.py` (Unicorn; `tools/check breath-hit`). Not run in a game.
+## The ported Londons' composition (patch 178, unreleased)
+
+On the two ported Londons the sun lights foliage through as in their donors (0.44a5, 0.32a4), and
+the grass is no longer darker than theirs. Their deferred composition pass has a translucency term
+0.26g's has not, made of four settings of the environment: direct_translucency_color (times its
+intensity), sun_dir_vs_normal_factor, translucency_power and rain_shadow_diffuse_multiplier.
+
+The Rust `composition_v044a` hooks each of stage_composition's eight effects. Each compiles a twin
+of its technique with 0.44a5's program (`composition_v044a.ps`, content pack `composition-v044a`)
+and its sun shadow named as 0.44a5's programs read it. The twin is drawn only on a frame of a
+project whose config has `srp_composition_v044a` (edit list `composition-v044a-1.json`), and the
+four values are then sent from that table: one set per project, its donor environment's. The lobby
+and every native map draw as before. The game's post-process effects do not touch the four
+(`../docs/notes/client_patch.md` section 3.98). Rendering only: nothing a match computes or a world
+holds changes. Not run in a game.

@@ -2383,6 +2383,57 @@ The owner, 2026-11-21, after patch 173 (section 3.94) kept a bullet's piercing a
   `Lobby::place_name`, which read the same holder, take the options through the client's own
   virtual (`engine_match_options`, vtable +34h, both kinds of client).
 
+### 3.98 The ported Londons' deferred composition is 0.44a5's (written 2026-11-22, README patch 178, the next release's revision) — PROVEN in the code of both exes; not run in a game
+
+The grass of both ported Londons was darker than their donors'. 0.44a5 and 0.32a4 light foliage
+through in the deferred composition pass, which 0.26g's programs do not.
+
+- **The term.** It is in the composition pass, not a foliage material. 0.44a5's
+  stage_composition registers four constant hosts that 0.26g's (ctor 0x1A7280) does not:
+  sun_dir_vs_normal_factor, translucency_power, direct_translucency_color and
+  rain_shadow_diffuse_multiplier (0x48DF10: +54h, +58h, +5Ch, +78h). Its execute (0x48F2E0) sets
+  them from the render environment: the colour times direct_translucency_intensity, w 1
+  (0x48F883..0x48F8CB). Its programs' translucency branch (`t_parameters.z > 0.001`) is
+  `min(pow(sat(N . normalize(lerp(L, N, sat(factor)))), power), 1)` x colour x light x shadow.
+  0.26g's is max(N . L, 0) x light x shadow plus a view term. Every 0.26g program hard-codes the
+  rain-sheltered diffuse factor 0.85 (`mad r0.x, r0.w, r0.x, l(0.85)`). 0.44a5's programs read
+  rain_shadow_diffuse_multiplier instead, whose default is 0.85 (the loader's defaults 0x65EE60,
+  +30Ch at 0x65F163). 0.32a4's 64 composition programs are 0.44a5's, code and resources byte for
+  byte; the key masks of the three builds read the same five macros.
+- **The programs.** Pack `composition-v044a` holds 0.44a5's 64 programs as the family
+  `composition_v044a.ps` at 0.26g's keys (`scripts/london-composition/make_pack.py`; the donor's
+  keys, so moved, are exactly players' 64), with that family's mask in `shaders/masks`. 0.44a5 binds
+  the sun's shadow as `t_sun_shadow` from `$user$sun_shadow` (0x490788). 0.26g has only
+  `$user$sun_shadow_and_scattering`, whose .x is the same shadow.
+- **The twins.** The eight composition effects, effect_composition<a,b,c>::compile at
+  0x1A9330..0x1AA590, are one code at the same offsets but for their configuration bytes. At each
+  one's epilogue after `pop edi` (+298h, `composition_<abc>.compiled`) the first end goes back to
+  the technique's start (+0Eh, which sets ESI 0 and its configuration). The twin compiled there is
+  technique 1. Its begin_pass (+72h, `composition_<abc>.begin_pass`) names `composition_v044a` as
+  the PS. Its t_sun_shadow_and_scattering block (+191h, `composition_<abc>.sun_shadow`) binds the
+  same target as `t_sun_shadow` and skips the game's (exit `bound`, +1ACh). This is patch 130's
+  machinery: a round per compiler, both compile passes, every map.
+- **The map.** `project.insert` (order 3) takes a project whose root has `srp_composition_v044a`
+  (edit list `composition-v044a-1.json`: the 20 London projects, each with its donor
+  environment's first key frame) as the map, its scene and its four values. `project.removed` and
+  `project.destroy` end it.
+- **The draw.** stage_composition::execute picks one of its eight effects (0x1A85B0) and writes
+  its technique 0 (0x1A85B4). On a frame drawing the map's scene (renderer context +416Ch), the
+  site `composition.technique` writes 1 and exits to apply_pass (0x1A85BE). After the first
+  set_ps_constant (`composition.constants`, 0x1A85D6, EDI the backend), the four are set into the
+  hosts `composition.constructed` registered (0x1A77B7).
+- **The lobby and the post-process effects.** The lobby's scene is not the map's, so it keeps
+  0.26g's programs, during a match too: the lobby's projects stay loaded. The four values are
+  the map's, held while it is loaded, not blended per key frame (the owner, 2026-11-21: the
+  simpler route). In the donors nothing else sets them: London's only environment is the map's
+  own, and 0.26g's post-process effects (players' data) have no such keys. So an effect that
+  changes the lighting (a flash, a death screen) blends the rest of the environment as before and
+  leaves the translucency as the map has it. In 0.44a5 such an effect, having no value for these
+  four, would leave them as the map's environment set them too (each key frame's setting is a
+  present flag and a value, 0x65FF52 and the rest; the presenter's blend of them was not read).
+- **Not done.** Not run in a game: no headless load of a ported London with the patch yet. Not
+  checked with Unicorn.
+
 ## 4. Mode 3 batteries: not needed in 0.26g
 
 - 0.26g splits the rule: `match_time_vi_spawn_rule` (vtable 0xA06C04) wraps `match_time_vi_spawn_rule_core` (vtable 0xA15CAC). The battery tick is no longer a vtable slot: the core's ctor 0x3147A0 stores a delegate `{this, 0x3148A0}` at +0x1C4 / +0x1C8 (0x3147F1). [V]
