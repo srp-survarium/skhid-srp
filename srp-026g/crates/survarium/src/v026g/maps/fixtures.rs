@@ -27,6 +27,8 @@ pub struct AddedMap {
     pub respawn_points: usize,
     /// Its project's battery containers, as `(id, team)`.
     pub containers: Vec<(i32, i32)>,
+    /// `mode.srp_build`, as `modes.tsv`'s `build` writes it.
+    pub srp_build: Option<&'static str>,
 }
 
 impl AddedMap {
@@ -42,6 +44,7 @@ impl AddedMap {
             mode: RuleMode::TeamDeathmatch.number(),
             respawn_points: 17,
             containers: Vec::new(),
+            srp_build: None,
         }
     }
 
@@ -133,6 +136,9 @@ pub fn with_map(map: &AddedMap) -> GameData {
     *entry(making, "map_name") = ConfigValue::String(map.project.into());
     let ui = entry(root, "ui");
     *entry(ui, "map_name") = ConfigValue::String(format!("st_level_{}_name", map.level));
+    if let Some(tag) = map.srp_build {
+        *entry_or_new(root, "srp_build") = ConfigValue::String(tag.into());
+    }
 
     let point = |team: i32| {
         ConfigValue::Named(vec![
