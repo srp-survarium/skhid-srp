@@ -228,7 +228,8 @@ stood still with their keys held, through bursts of fire. Read from the
   distance, the same speed from the first tick. It is never ahead: a part asked for under 3.2 mm
   (`player_step`'s least walk, 1e-5 m2: 1 or 2 ms at 1.4 m/s) is not made, as in the original, so
   cuts can only lose distance (46 mm in 5 s, 0.7 %, at 1.4 m/s under a burst's cuts; the original
-  stopped there until a whole tick). A body asked nothing is not stepped and not changed.
+  stopped there until a whole tick). A body asked nothing is not stepped and not changed. Patch 168
+  (below) makes those short parts too.
 - **What else a cut tick skipped, and now runs:** all of it was `player_step`'s for a body at rest:
   the walk and the strafe, the jump's start, the crouch and the standing up (its capsule,
   `setup_crouch_state` at `player_step`'s start), the air control, and a slide that begins. Nothing
@@ -239,3 +240,72 @@ stood still with their keys held, through bursts of fire. Read from the
   `player_step` itself, so what a moving body did in a part before it does now: its steps up and
   down are the tick's, shared by dt, the slide's acceleration is a tick's at each part (steep slopes
   only), the landing is taken where a part lands.
+
+## A part of a tick: its least walk and the speed read from it (patch 168)
+
+Patch 166 runs every part of a tick. Two things a part still did otherwise than a whole tick, read
+from the 0.26g exe and measured in a game (`client_patch.md` section 3.93 has the addresses):
+
+- **The least walk (PROVEN):** `can_skeep_player_step` (0x7C7E0) skips a step whose walk asked is under
+  3.16 mm (its square under 1e-5, 0x9CBA48). A part is asked its share of the tick's walk, so a part
+  of 1 ms of a walk, or 1-2 ms of a slow walk, was skipped: the original then stood still until a whole
+  tick (this is how moving players froze too), and with patch 166 the body lost that part's ground
+  and its speed read 0 for the step.
+- **The measured speed (PROVEN):** `base_player::assign_physics_transform` (0x2D93A0) stores
+  m_linear_horizontal_speed (+334h) after every step: the step's horizontal move over its own ms
+  (0x2D9545). A jump reads it as it begins (`player_logic_stand_jump_state::initialize` 0x337040 and
+  `initialize_weight_for_on_site_animation` 0x337280: the moving jump's forward speed and its
+  animation), and so does the anomalies' notice of a moving player (`notify_actions_subscribers`
+  0x2D95B0). A walker's speed ramps by a step every tick and a step moves at the ramp's value at its
+  end, so a part inside a tick reads more than the tick it is in: a jump begun in a cut tick flew
+  faster than one begun in a whole tick (the original's own, through any cut; measured: 3.455 m/s in
+  the air against 3.139-3.157 uncut, a jump begun at the end of a run-up's ramp).
+- **The rule (patch 168, the Rust patch `tick_parts`, two hooks):** a part is asked, at the least walk's
+  test, what its tick would be asked at its pace (the walk squared over (dt / 0.05) squared): every
+  part of a walking body is made, and a body creeping under 63 mm/s is at rest in a part as in a tick.
+  And only the step that ends a tick writes the measured speed (the world tells every tick delegate
+  whether the step ends on a 50 ms boundary: `atomic_tick` 0x2D1E32; tick boundaries are multiples of
+  50 ms, the world's base time being 50): a jump begun in a cut tick reads the speed of the tick
+  before, as one begun in a whole tick does. Whole ticks are the original's bit for bit. A simulation
+  change.
+- **Checked (`check_step_parts_026g.py`, Unicorn, the game's own updateAction, player_step and
+  can_skeep_player_step on open ground, 5 s each):** whole ticks bit for bit the original's; a body
+  from rest under one cut a tick, a burst's cuts and denser cuts still is where whole ticks put it to
+  under 0.4 mm in 5 s, walking, sprinting, slow and strafing, the slow walk under a burst's cuts
+  included (it lost 46 mm with patch 166 alone, now +0.02 mm); with every tick in 50 parts of 1 ms
+  (5000 steps) within 5 mm of whole ticks either way (float rounding, 0.1 %), where the original does
+  not move at all; a body creeping at 50 mm/s stays at rest, whole or cut, and one at 80 mm/s walks
+  its 0.4 m in 5 s through a burst's cuts. The speed store in 60 cases (five speeds, three values
+  before, the byte 0 or 1 with garbage above it): written when the step ends a tick, kept in a part,
+  the registers, the stack and the x87 stack as the original's.
+- **In a game (revision 68 with patch 166, with and without 168, and the original; one headless game,
+  a scripted walker, every step of the game's simulation traced, a world every tick; 32 s cycles,
+  every tick of the walker's cycle cut in two of them, by one precise input in each tick or by a burst
+  of them, the others uncut):**
+  - No body faster: of 1308-1695 whole-tick and 5519-7434 part steps on the ground asked to walk in
+    each run, none moved further than it was asked, in any build; the fastest part 4.402 m/s against
+    4.401 for a whole tick (a sprint). The speed in the uploaded worlds tops each gait at its uncut
+    value under every cut (walk 3.106, sprint 4.401, crouched 2.219, strafe 2.213 m/s).
+  - The jump after a short run-up (a walker still speeding up): with 166 alone it flew at 3.476 m/s
+    under cuts against 3.157 uncut (the original 3.457, patch 166 under a burst 3.520); with 168 at
+    3.157 cut and uncut (its fastest air step 3.158 in a part, 3.157 in a whole tick), and the jump
+    state read 2.588-2.589 m/s, cut or not, where with 166 alone it read a part's 2.59-3.02 under cuts
+    (the original 2.948).
+  - Full-speed jumps (1.5 s run-ups: walk, sprint, both strafes, standing, forward with jump from
+    rest): the jump state read 3.106 (forward) and 2.213 (strafe) cut and uncut; heights 0.96-1.00 m
+    against 0.99 uncut where the ground was the same; the fastest air step of a sprint jump 5.866 m/s
+    in a whole tick and 5.89 in a part in every build, the original's too (the air sweep below).
+  - Parts asked under the least walk and not made though their tick would walk: 98 (one input a
+    tick) and 262 (bursts) with 166 alone, 131 on the walker's course; 4, 4 and 0-2 with 168, each
+    a body against a wall, where its whole ticks move nothing either.
+  - A standing jump stays where it stood (0 m) and a body asked nothing is not moved, cut or not.
+  - The original under cuts through a whole cycle never starts to move (0 m).
+  - Distances over a script part vary from cycle to cycle with where the walker begins it (walls,
+    slopes), uncut as cut, so the per-step figures above are the measure.
+- **Not changed (stated limits):** a jump pressed together with forward from rest rose 0.89 m in some
+  cut cycles against 0.99 uncut, with 166 alone as with 168 (never higher). Timings inside a cut tick still differ from a whole tick's by under
+  one tick: a key acts in the last part of its tick (inputs govern the step that ends at their time,
+  0x2D22BC) and state changes go one per step (`vostok::ai::fsm::tick` 0x38CA20). Ramps are sampled at
+  part ends, as in the original: a start covers up to about 8 cm less, a stop as much more. A jump's
+  air step sweeps a whole tick's move and takes the part's share (`step_jump_forward` 0x7CB90), so
+  near an obstacle a jump in parts can land elsewhere than one in whole ticks, as in the original.

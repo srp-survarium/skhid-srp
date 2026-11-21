@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Run the original's and patch 166's bullet_character_controller::updateAction
-(0x7B730) on open ground, with Unicorn (2.1.4).
+"""Run the original's and the build's bullet_character_controller::updateAction
+(0x7B730) on open ground, and the store of a player's measured speed, with
+Unicorn (2.1.4): patches 166 and 168.
 
     python check_step_parts_026g.py <original survarium.exe>
 
@@ -32,26 +33,34 @@ updateAction zeroes it, as in the game. The rule: ../docs/notes/fall_damage.md
   a whole tick; the build moves it by each part's own displacement, and
   after every tick it is where whole ticks put it, to a float's rounding
   (under 1 mm in 5 s; 50 parts of 1 ms a tick, 5000 steps, a few mm): the
-  same distance, the same speed from the first tick. Never further: a part
-  asked for under 3.2 mm (player_step's own least walk: 1 or 2 ms at a slow
-  1.4 m/s) is not made, in the build as in the original, so cutting ticks
-  can only lose distance;
+  same distance, the same speed from the first tick;
+- the least walk (patch 168): the original skips a step asked under 3.16 mm
+  (can_skeep_player_step: 1 or 2 ms of a slow 1.4 m/s, 1 ms of a walk), and
+  is then at rest until a whole tick; the build asks a part what its tick
+  would be asked, so every part of a walking body is made and none of its
+  ground is lost, while a body creeping under 63 mm/s is at rest in a part
+  as it is in a tick;
 - a body already moving: the build's positions are the original's bit for
-  bit, however the ticks are cut, unless a part is too short to walk (the
-  original then stops until a whole tick, the build goes on);
+  bit, however the ticks are cut, where no part is too short for the
+  original to walk;
 - a body at rest that is asked nothing stays where it is in both, its
   memory but m_last_pos and the step's working position untouched; a body
   that stops is not moved again; a body at rest asked to crouch or to
   stand up changes its capsule in the part it is asked in (the original:
   at the next whole tick), and stays where it is;
-- the stack and the callee-saved registers as updateAction leaves them.
+- the stack and the callee-saved registers as updateAction leaves them;
+- the measured speed (patch 168, base_player::assign_physics_transform's
+  store at 0x2D9541): the original stores every step's; the build stores the
+  step's that ends a tick (the delegate's third argument, its low byte) and
+  leaves the value as it was in a part, the registers, the stack and the
+  x87 stack as the original leaves them.
 """
 import struct
 import sys
 
 from unicorn import Uc, UC_ARCH_X86, UC_HOOK_CODE, UC_MODE_32, UC_PROT_ALL
 from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_EBP, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDI,
-                               UC_X86_REG_EIP, UC_X86_REG_ESI, UC_X86_REG_ESP)
+                               UC_X86_REG_EIP, UC_X86_REG_ESI, UC_X86_REG_ESP, UC_X86_REG_FPSW, UC_X86_REG_FPTAG)
 
 import patch_026g as base
 
@@ -63,6 +72,9 @@ WALK, AIR, STEP_POSITION, LAST_POSITION, POSITION = 0x20, 0x30, 0x40, 0x50, 0xB0
 AXIS, DIMS, FLAGS, TICK, GRAVITY, JUMPING, NORMAL, PUSH, VELOCITY = (0x1F0, 0x1D0, 0x200, 0x2C704, 0x2C708, 0x2C70C,
                                                                      0x2C710, 0x2C730, 0x2C770)
 CONTROLLER_SIZE = 0x2C790                     # its allocation (0x356A66)
+THREAD_SLOT, THREAD = 0x870118, RET + 0x800   # GetCurrentThreadId's import slot (a Rust hook asks its thread)
+SPEED_STORE, SPEED_STORED, SPEED = 0x2D9541, 0x2D954B, 0x334     # fld [esp+0Ch] / fstp [ebx+334h], and what follows
+PLAYER = CONTROLLER                           # the speed check's made-up player
 START = (12.5, 1.375, -40.25)
 
 
@@ -87,6 +99,8 @@ class Body:
         for at in (STACK - 0x8000, RET):
             emu.mem_map(at, 0x10000, UC_PROT_ALL)
         emu.mem_write(SHAPE_DIM, b"\xC3")
+        emu.mem_write(THREAD, bytes.fromhex("b801000000c3"))     # mov eax,1 / ret
+        emu.mem_write(THREAD_SLOT, struct.pack("<I", THREAD))
         self.floats(SLIDE_COS, 0.6427876)              # cos 50 deg
         self.floats(WALK_SLIDE_COS, 0.7660444)         # cos 40 deg
         self.floats(CONTROLLER + TICK, 0.05)
@@ -167,18 +181,42 @@ def run(data, speed, direction, cuts, ticks, asked=lambda tick: True):
     return out, body
 
 
+def too_short(speed, direction, part):
+    """The original's least walk (can_skeep_player_step 0x7C7F8): a step asked a walk whose square is
+    under 1e-5 (3.16 mm; 0x9CBA48) is not made."""
+    return f32(sum(f32(f32(speed * ms(part) * d) ** 2) for d in direction)) < f32(1e-5)
+
+
 def made(speed, direction, cuts, ticks):
-    """Where the steps asked for put the body after each tick: each part's displacement, but a part
-    asked for less than player_step takes for a walk at all (can_skeep_player_step 0x7C7F8: a walk
-    vector whose square is under 1e-5, 3.2 mm; 0x9CBA48)."""
+    """Where the steps asked for put the body after each tick: every part's displacement."""
     at, out = list(START), []
     for tick in range(ticks):
         for part in cuts(tick):
-            walk = [f32(speed * ms(part) * d) for d in direction]
-            if f32(sum(f32(w * w) for w in walk)) >= f32(1e-5):
-                at = [a + w for a, w in zip(at, walk)]
+            at = [a + f32(speed * ms(part) * d) for a, d in zip(at, direction)]
         out.append(tuple(at))
     return out
+
+
+def speed_store(data, value, ends_tick, before):
+    """assign_physics_transform's store of the step's speed (0x2D9541..0x2D954B) with `value` in its
+    local and `ends_tick` as its third argument: the player's speed after it, and the machine's state."""
+    body = Body(data)
+    emu = body.emu
+    esp, ebp = STACK - 0x200, STACK - 0x40
+    emu.mem_write(esp + 0xC, struct.pack("<f", value))
+    emu.mem_write(ebp + 0x10, struct.pack("<I", ends_tick))
+    emu.mem_write(PLAYER + SPEED, struct.pack("<f", before))
+    regs = {UC_X86_REG_EAX: 0x0A0A0A0A, UC_X86_REG_ECX: 0x0C0C0C0C, UC_X86_REG_EBX: PLAYER, UC_X86_REG_ESI: 0x05050505,
+            UC_X86_REG_EDI: 0x0D1D1D1D, UC_X86_REG_EBP: ebp, UC_X86_REG_ESP: esp}
+    for reg, v in regs.items():
+        emu.reg_write(reg, v)
+    emu.reg_write(UC_X86_REG_FPSW, 0)
+    emu.reg_write(UC_X86_REG_FPTAG, 0xFFFF)
+    emu.emu_start(SPEED_STORE, SPEED_STORED, count=200000)
+    assert emu.reg_read(UC_X86_REG_EIP) == SPEED_STORED, f"stopped at {emu.reg_read(UC_X86_REG_EIP):#x}"
+    state = tuple(emu.reg_read(reg) for reg in regs) + ((emu.reg_read(UC_X86_REG_FPSW) >> 11) & 7,
+                                                        bytes(emu.mem_read(esp, 0x40)), bytes(emu.mem_read(ebp, 0x20)))
+    return struct.unpack("<f", emu.mem_read(PLAYER + SPEED, 4))[0], state
 
 
 def whole(tick):
@@ -256,25 +294,35 @@ def main():
             worst = max(worst, off)
             assert off < near, f"{name}, {label}: {off} m from where its steps put it"
             gain = (sum((a - b) ** 2 for a, b in zip(moved[-1], START)) ** 0.5) - went
-            # Never ahead of whole ticks: the parts too short to count as a walk are lost, not gained.
-            lost = sum(speed * part / 1000 for t in range(ticks) for part in cuts(t)
-                       if f32(sum(f32(f32(speed * ms(part) * d) ** 2) for d in direction)) < f32(1e-5))
-            assert -lost - near < gain < near, f"{name}, {label}: {gain} m gained in 5 s ({lost} m of short parts)"
+            # The same ground as whole ticks: no part is lost, however short (patch 168).
+            short = sum(speed * part / 1000 for t in range(ticks) for part in cuts(t) if too_short(speed, direction, part))
+            assert abs(gain) < near, f"{name}, {label}: {gain} m against whole ticks in 5 s"
+            assert body.steps == sum(len(cuts(t)) for t in range(ticks)), f"{name}, {label}: a part was not made"
             print(f"{name}, {label}: {len(cut_ticks)} of {ticks} ticks cut; the original at rest "
                   f"{first_whole} ticks, the build at most {off * 1000:.3f} mm from its steps' sum, "
-                  f"{gain * 1000:+.3f} mm against whole ticks in 5 s ({lost * 1000:.1f} mm in parts too short to walk)")
+                  f"{gain * 1000:+.3f} mm against whole ticks in 5 s ({short * 1000:.1f} mm of it in parts the "
+                  f"original finds too short to walk)")
             # Already moving (a whole tick first): the build is the original, bit for bit.
             moving = lambda t, cuts=cuts: whole(t) if t == 0 else cuts(t)
             a, _ = run(original, speed, direction, moving, ticks)
             b, _ = run(built, speed, direction, moving, ticks)
             # (The original stops for good at the first part too short to count as a walk: it "did not
-            # move" then; the build goes on at the next part.)
-            if lost == 0:
+            # move" then; the build makes that part too.)
+            if short == 0:
                 assert bits(a) == bits(b), f"{name}, {label}: a moving body differs from the original"
                 assert furthest(a, stock) < near
             else:
                 assert furthest(b, made(speed, direction, moving, ticks)) < near
-                assert sum((x - y) ** 2 for x, y in zip(a[-1], START)) <= sum((x - y) ** 2 for x, y in zip(b[-1], START))
+                assert sum((x - y) ** 2 for x, y in zip(a[-1], START)) < sum((x - y) ** 2 for x, y in zip(b[-1], START))
+
+    # A body creeping under the least walk of a tick (3.16 mm a tick, 63 mm/s) is at rest in both, whole or cut.
+    for data in (original, built):
+        for cuts in (whole, one_cut, a_burst, one_ms):
+            crept, body = run(data, 0.05, (1.0, 0.0, 0.0), cuts, 20)
+            assert all(p == START for p in crept) and body.steps == 0, "a creeping body was stepped"
+    # ... and just over it, it walks in the build's parts as in whole ticks (the original: in whole ticks only).
+    slow, body = run(built, 0.08, (1.0, 0.0, 0.0), a_burst, 100)
+    assert abs(slow[-1][0] - START[0] - 0.08 * 5.0) < 1e-3 and body.steps == sum(len(a_burst(t)) for t in range(100))
 
     # Nothing asked: the body stays, in whole ticks and in parts, and no step is made for it.
     for data in (original, built):
@@ -315,8 +363,22 @@ def main():
     stuck, _ = run(original, 3.74, (1.0, 0.0, 0.0), a_burst, 60, again)
     assert furthest(moved, stock) < 1e-3 and stuck[40] == stuck[29] and moved[40] != moved[29]
     print(f"ok: whole ticks bit for bit the original's; a body at rest moves in a cut tick and is at most "
-          f"{worst * 1000:.3f} mm from its steps' sum (never ahead of whole ticks); a moving body bit for bit the original's; "
+          f"{worst * 1000:.3f} mm from its steps' sum, no part lost; a moving body bit for bit the original's; "
           f"a body asked nothing untouched")
+
+    # The measured speed: the original stores every step's, the build only the step's that ends a tick.
+    cases = 0
+    for value in (3.106, 0.0, 2.5887, 1.0e-4, 5.28):
+        for before in (0.0, 3.106, 2.071):
+            for ends_tick in (0x00000001, 0xABCDEF01, 0x00000000, 0xABCDEF00):
+                stored, state = speed_store(original, value, ends_tick, before)
+                ours, our_state = speed_store(built, value, ends_tick, before)
+                assert stored == f32(value), "the original stores the step's speed"
+                assert ours == (f32(value) if ends_tick & 0xFF else f32(before)), (value, before, hex(ends_tick), ours)
+                assert state == our_state, "registers, x87 top or stack differ from the original's"
+                cases += 1
+    print(f"ok: the measured speed in {cases} cases: stored by the step that ends a tick, kept in a part; "
+          f"the registers, the stack and the x87 stack as the original's")
 
 
 if __name__ == "__main__":
