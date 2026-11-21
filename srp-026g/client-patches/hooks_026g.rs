@@ -3413,6 +3413,56 @@ pub extern "C" fn hook_head_clearance_on_eye(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- hit_marker_walls (patch 167) ----
+
+/// The entry `hit_marker_walls_on_pierced` (0x32d88a, check_collision once try_pierce (0x32D881) let the bullet through (mov ebp,2; AL 0 jumps past it to 0x32D891): EDI the bullet, its +4Ch the struck triangle's material (0x32D87B), ESI the hit receiver the ray met (a player's body, a trap, a lamp) or 0: the level's collision (a static surface, a prop with no receiver), whose back faces never come here (0x32D72F)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hit_marker_walls_on_pierced(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hit_marker_walls_on_pierced` calls this, from the game's jump at 0x32d88a,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hit_marker_walls::on_pierced(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- hit_marker_walls (patch 167) ----
+
+/// The entry `hit_marker_walls_on_hit` (0x1f3d76, player::generate_hit_event (0x1F3C70, the slot hit_impl calls at 0x2D9ED1) at a bullet hit's last store into the shooter's inflicted_damage_collector (movss [esi+8],xmm0, the fraction clamped to 0..1; both of the clamp's ways come here, 0x1F3D71): ESI the collector, its victim (+0, 0x1F3D62) and time (+4, 0x1F3D5F) this hit's; EBP the bullet, never 0 here (0x1F3CAA leaves without one); the site's ESP the frame (the shooter's place)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hit_marker_walls_on_hit(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hit_marker_walls_on_hit` calls this, from the game's jump at 0x1f3d76,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hit_marker_walls::on_hit(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- hit_marker_walls (patch 167) ----
+
+/// The named exits of hit_marker_walls::on_draw (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum HitMarkerWallsOnDrawExit { Quiet }
+/// The entry `hit_marker_walls_on_draw` (0x238272, game_world_ui::draw_damage_collector (0x238230; its one caller player::st_draw, 0x247467, gives it the drawn player's collector) once it found the collector's victim or fraction changed and took them into its copy (+34Ch, +354h; 0x23825D..0x23826C), before the fraction's 0 test (movss xmm0,[esi+8]): ESI the collector, EDI the ui; quiet is its epilogue (0x2383A4), where a 0 fraction goes, past root.crosshair_enemy_hit(fraction, 200, false) (0x23838C)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hit_marker_walls_on_draw(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hit_marker_walls_on_draw` calls this, from the game's jump at 0x238272,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hit_marker_walls::on_draw(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- hud_cursor (patch 113) ----
 
 /// The named exits of hud_cursor::on_cursor_shown (the order the shim's Flow code

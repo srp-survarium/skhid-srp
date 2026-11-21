@@ -48,6 +48,7 @@ pub mod crc32;
 mod context;
 pub mod draw;
 pub mod headwear;
+pub mod hit_marker;
 mod hook;
 mod hud_input;
 mod input;
