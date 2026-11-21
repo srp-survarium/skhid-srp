@@ -3272,6 +3272,7 @@ def _run_part(index):
 def main():
     source = sys.argv[1] if len(sys.argv) > 1 else ORIGINAL
     os.environ["SRP_026G_EXE"] = os.path.abspath(source)     # the Rust span hooks' bytes (hooks_026g.py)
+    os.environ["SRP_ARENA_CACHE"] = "off"                    # every arena here is built from its sources (link_026g.py)
     original = open(source, "rb").read()
     os.makedirs(SCRATCH, exist_ok=True)
     game = os.path.abspath(os.path.dirname(source))
