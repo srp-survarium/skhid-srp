@@ -2605,6 +2605,631 @@ pub unsafe extern "C" fn hook_collision_view_on_triangle(a0: Option<raw::Triangl
     { crate::collision_view::on_triangle(&orig, &mut callback, &triangle, part, index); 0 }
 }
 
+// ---- lamps (patch 81) ----
+
+/// The entry `lamps_on_bind` (0x285750, before insert_static, ECX project and ESP+4 physics) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lamps_on_bind(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lamps_on_bind` calls this, from the game's jump at 0x285750,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lamps::on_bind(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- v021d_render (patch 130) ----
+
+/// The entry `v021d_render_on_project_insert` (0x285750, before insert_static, ECX project and ESP+4 physics) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v021d_render_on_project_insert(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v021d_render_on_project_insert` calls this, from the game's jump at 0x285750,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v021d_render::on_project_insert(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The entry `composition_v044a_on_project_insert` (0x285750, before insert_static, ECX project and ESP+4 physics) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_project_insert(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_project_insert` calls this, from the game's jump at 0x285750,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_project_insert(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- lamps (patch 81) ----
+
+/// The entry `lamps_on_remove` (0x285614, remove_static epilogue, after native object removals) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lamps_on_remove(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lamps_on_remove` calls this, from the game's jump at 0x285614,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lamps::on_remove(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- v021d_render (patch 130) ----
+
+/// The entry `v021d_render_on_project_removed` (0x285614, remove_static epilogue, after native object removals) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v021d_render_on_project_removed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v021d_render_on_project_removed` calls this, from the game's jump at 0x285614,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v021d_render::on_project_removed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The entry `composition_v044a_on_project_removed` (0x285614, remove_static epilogue, after native object removals) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_project_removed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_project_removed` calls this, from the game's jump at 0x285614,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_project_removed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- lamps (patch 81) ----
+
+/// The entry `lamps_on_destroy` (0x285330, destructor before any member is released) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lamps_on_destroy(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lamps_on_destroy` calls this, from the game's jump at 0x285330,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lamps::on_destroy(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- v021d_render (patch 130) ----
+
+/// The entry `v021d_render_on_project_destroy` (0x285330, destructor before any member is released) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v021d_render_on_project_destroy(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v021d_render_on_project_destroy` calls this, from the game's jump at 0x285330,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v021d_render::on_project_destroy(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The entry `composition_v044a_on_project_destroy` (0x285330, destructor before any member is released) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_project_destroy(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_project_destroy` calls this, from the game's jump at 0x285330,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_project_destroy(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The entry `composition_v044a_on_begin_pass_000` (0x1a93a2, effect_composition<0,0,0>::compile (0x1A9330), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1A93AE): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1A939D), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_begin_pass_000(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_begin_pass_000` calls this, from the game's jump at 0x1a93a2,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_begin_pass_000(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The named exits of composition_v044a::on_sun_shadow_000 (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum CompositionV044AOnSunShadow000Exit { Bound }
+/// The entry `composition_v044a_on_sun_shadow_000` (0x1a94c1, effect_composition<0,0,0>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1A94D7) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1A94DC), the stack and the x87 as here) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_sun_shadow_000(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_sun_shadow_000` calls this, from the game's jump at 0x1a94c1,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_sun_shadow_000(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The named exits of composition_v044a::on_compiled_000 (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum CompositionV044AOnCompiled000Exit { Technique }
+/// The entry `composition_v044a_on_compiled_000` (0x1a95c8, effect_composition<0,0,0>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1A95CD), its technique ended (end_technique 0x3DA6B0 at 0x1A95C2); technique is the technique's start (0x1A933E: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1A9354)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_compiled_000(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_compiled_000` calls this, from the game's jump at 0x1a95c8,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_compiled_000(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The entry `composition_v044a_on_begin_pass_100` (0x1a9642, effect_composition<1,0,0>::compile (0x1A95D0), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1A964E): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1A963D), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_begin_pass_100(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_begin_pass_100` calls this, from the game's jump at 0x1a9642,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_begin_pass_100(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The named exits of composition_v044a::on_sun_shadow_100 (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum CompositionV044AOnSunShadow100Exit { Bound }
+/// The entry `composition_v044a_on_sun_shadow_100` (0x1a9761, effect_composition<1,0,0>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1A9777) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1A977C), the stack and the x87 as here) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_sun_shadow_100(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_sun_shadow_100` calls this, from the game's jump at 0x1a9761,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_sun_shadow_100(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The named exits of composition_v044a::on_compiled_100 (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum CompositionV044AOnCompiled100Exit { Technique }
+/// The entry `composition_v044a_on_compiled_100` (0x1a9868, effect_composition<1,0,0>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1A986D), its technique ended (end_technique 0x3DA6B0 at 0x1A9862); technique is the technique's start (0x1A95DE: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1A95F4)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_compiled_100(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_compiled_100` calls this, from the game's jump at 0x1a9868,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_compiled_100(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The entry `composition_v044a_on_begin_pass_010` (0x1a98e2, effect_composition<0,1,0>::compile (0x1A9870), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1A98EE): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1A98DD), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_begin_pass_010(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_begin_pass_010` calls this, from the game's jump at 0x1a98e2,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_begin_pass_010(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The named exits of composition_v044a::on_sun_shadow_010 (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum CompositionV044AOnSunShadow010Exit { Bound }
+/// The entry `composition_v044a_on_sun_shadow_010` (0x1a9a01, effect_composition<0,1,0>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1A9A17) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1A9A1C), the stack and the x87 as here) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_sun_shadow_010(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_sun_shadow_010` calls this, from the game's jump at 0x1a9a01,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_sun_shadow_010(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The named exits of composition_v044a::on_compiled_010 (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum CompositionV044AOnCompiled010Exit { Technique }
+/// The entry `composition_v044a_on_compiled_010` (0x1a9b08, effect_composition<0,1,0>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1A9B0D), its technique ended (end_technique 0x3DA6B0 at 0x1A9B02); technique is the technique's start (0x1A987E: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1A9894)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_compiled_010(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_compiled_010` calls this, from the game's jump at 0x1a9b08,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_compiled_010(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The entry `composition_v044a_on_begin_pass_110` (0x1a9b82, effect_composition<1,1,0>::compile (0x1A9B10), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1A9B8E): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1A9B7D), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_begin_pass_110(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_begin_pass_110` calls this, from the game's jump at 0x1a9b82,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_begin_pass_110(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The named exits of composition_v044a::on_sun_shadow_110 (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum CompositionV044AOnSunShadow110Exit { Bound }
+/// The entry `composition_v044a_on_sun_shadow_110` (0x1a9ca1, effect_composition<1,1,0>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1A9CB7) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1A9CBC), the stack and the x87 as here) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_sun_shadow_110(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_sun_shadow_110` calls this, from the game's jump at 0x1a9ca1,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_sun_shadow_110(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The named exits of composition_v044a::on_compiled_110 (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum CompositionV044AOnCompiled110Exit { Technique }
+/// The entry `composition_v044a_on_compiled_110` (0x1a9da8, effect_composition<1,1,0>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1A9DAD), its technique ended (end_technique 0x3DA6B0 at 0x1A9DA2); technique is the technique's start (0x1A9B1E: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1A9B34)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_compiled_110(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_compiled_110` calls this, from the game's jump at 0x1a9da8,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_compiled_110(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The entry `composition_v044a_on_begin_pass_001` (0x1a9e22, effect_composition<0,0,1>::compile (0x1A9DB0), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1A9E2E): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1A9E1D), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_begin_pass_001(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_begin_pass_001` calls this, from the game's jump at 0x1a9e22,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_begin_pass_001(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The named exits of composition_v044a::on_sun_shadow_001 (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum CompositionV044AOnSunShadow001Exit { Bound }
+/// The entry `composition_v044a_on_sun_shadow_001` (0x1a9f41, effect_composition<0,0,1>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1A9F57) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1A9F5C), the stack and the x87 as here) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_sun_shadow_001(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_sun_shadow_001` calls this, from the game's jump at 0x1a9f41,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_sun_shadow_001(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The named exits of composition_v044a::on_compiled_001 (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum CompositionV044AOnCompiled001Exit { Technique }
+/// The entry `composition_v044a_on_compiled_001` (0x1aa048, effect_composition<0,0,1>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1AA04D), its technique ended (end_technique 0x3DA6B0 at 0x1AA042); technique is the technique's start (0x1A9DBE: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1A9DD4)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_compiled_001(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_compiled_001` calls this, from the game's jump at 0x1aa048,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_compiled_001(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The entry `composition_v044a_on_begin_pass_101` (0x1aa0c2, effect_composition<1,0,1>::compile (0x1AA050), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1AA0CE): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1AA0BD), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_begin_pass_101(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_begin_pass_101` calls this, from the game's jump at 0x1aa0c2,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_begin_pass_101(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The named exits of composition_v044a::on_sun_shadow_101 (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum CompositionV044AOnSunShadow101Exit { Bound }
+/// The entry `composition_v044a_on_sun_shadow_101` (0x1aa1e1, effect_composition<1,0,1>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1AA1F7) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1AA1FC), the stack and the x87 as here) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_sun_shadow_101(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_sun_shadow_101` calls this, from the game's jump at 0x1aa1e1,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_sun_shadow_101(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The named exits of composition_v044a::on_compiled_101 (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum CompositionV044AOnCompiled101Exit { Technique }
+/// The entry `composition_v044a_on_compiled_101` (0x1aa2e8, effect_composition<1,0,1>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1AA2ED), its technique ended (end_technique 0x3DA6B0 at 0x1AA2E2); technique is the technique's start (0x1AA05E: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1AA074)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_compiled_101(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_compiled_101` calls this, from the game's jump at 0x1aa2e8,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_compiled_101(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The entry `composition_v044a_on_begin_pass_011` (0x1aa362, effect_composition<0,1,1>::compile (0x1AA2F0), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1AA36E): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1AA35D), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_begin_pass_011(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_begin_pass_011` calls this, from the game's jump at 0x1aa362,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_begin_pass_011(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The named exits of composition_v044a::on_sun_shadow_011 (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum CompositionV044AOnSunShadow011Exit { Bound }
+/// The entry `composition_v044a_on_sun_shadow_011` (0x1aa481, effect_composition<0,1,1>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1AA497) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1AA49C), the stack and the x87 as here) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_sun_shadow_011(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_sun_shadow_011` calls this, from the game's jump at 0x1aa481,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_sun_shadow_011(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The named exits of composition_v044a::on_compiled_011 (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum CompositionV044AOnCompiled011Exit { Technique }
+/// The entry `composition_v044a_on_compiled_011` (0x1aa588, effect_composition<0,1,1>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1AA58D), its technique ended (end_technique 0x3DA6B0 at 0x1AA582); technique is the technique's start (0x1AA2FE: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1AA314)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_compiled_011(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_compiled_011` calls this, from the game's jump at 0x1aa588,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_compiled_011(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The entry `composition_v044a_on_begin_pass_111` (0x1aa602, effect_composition<1,1,1>::compile (0x1AA590), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1AA60E): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1AA5FD), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_begin_pass_111(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_begin_pass_111` calls this, from the game's jump at 0x1aa602,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_begin_pass_111(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The named exits of composition_v044a::on_sun_shadow_111 (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum CompositionV044AOnSunShadow111Exit { Bound }
+/// The entry `composition_v044a_on_sun_shadow_111` (0x1aa721, effect_composition<1,1,1>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1AA737) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1AA73C), the stack and the x87 as here) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_sun_shadow_111(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_sun_shadow_111` calls this, from the game's jump at 0x1aa721,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_sun_shadow_111(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The named exits of composition_v044a::on_compiled_111 (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum CompositionV044AOnCompiled111Exit { Technique }
+/// The entry `composition_v044a_on_compiled_111` (0x1aa828, effect_composition<1,1,1>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1AA82D), its technique ended (end_technique 0x3DA6B0 at 0x1AA822); technique is the technique's start (0x1AA59E: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1AA5B4)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_compiled_111(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_compiled_111` calls this, from the game's jump at 0x1aa828,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_compiled_111(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The entry `composition_v044a_on_constructed` (0x1a77b7, stage_composition::stage_composition (0x1A7280) after its last constant host's registration (rain_density's, +70h, whose name holder it lets go by 0x1A77B2): pop edi / pop ebp / mov byte [esi+0Ch],1, the one place both of the release's branches (0x1A77A4, 0x1A77AF) land on; ESI the stage. Its hosts: wind_info_parameters +38h, sun_light_parameters +3Ch, s_eye_ray_corner +40h, ... rain_density +70h (shared_string::create 0xE0B50, register_constant_host 0x3C8BC0 with the backend [2260490h])) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_constructed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_constructed` calls this, from the game's jump at 0x1a77b7,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_constructed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The named exits of composition_v044a::on_technique (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum CompositionV044AOnTechniqueExit { Apply }
+/// The entry `composition_v044a_on_technique` (0x1a85b4, stage_composition::execute (0x1A8170) with its composition effect chosen (0x1A85B0: [ebp+edx*4], one of the eight effect_composition<a,b,c> of +10h..+2Ch by the environment's use_sun ([ebx+3Ch]) and two render options), at mov dword [eax+5620h],0, its technique, before res_effect::apply_pass (0x3D7230) at 0x1A85BE; apply is that call; EAX the effect, EBP the stage) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_technique(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_technique` calls this, from the game's jump at 0x1a85b4,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_technique(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- composition_v044a (patch 177) ----
+
+/// The entry `composition_v044a_on_constants` (0x1a85d6, stage_composition::execute after apply_pass (0x1A85BE) and its first set_ps_constant (0x132A90 at 0x1A85D1, s_eye_ray_corner +40h), before the next (movss xmm0,[esp+28h]): the pass's program bound, EDI the backend ([2260490h], 0x1A85C7), EBP the stage; the game's own sets follow (sun_light_parameters +48h at 0x1A860B, ...)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_composition_v044a_on_constants(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `composition_v044a_on_constants` calls this, from the game's jump at 0x1a85d6,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::composition_v044a::on_constants(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- console_paste (patch 157) ----
 
 /// The named exits of console_paste::on_paste (the order the shim's Flow code
@@ -4404,96 +5029,6 @@ pub extern "C" fn hook_keyboard_layout_on_console_char(frame: &mut Frame) -> u32
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
-    }
-}
-
-// ---- lamps (patch 81) ----
-
-/// The entry `lamps_on_bind` (0x285750, before insert_static, ECX project and ESP+4 physics) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_lamps_on_bind(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `lamps_on_bind` calls this, from the game's jump at 0x285750,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::lamps::on_bind(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- v021d_render (patch 130) ----
-
-/// The entry `v021d_render_on_project_insert` (0x285750, before insert_static, ECX project and ESP+4 physics) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_v021d_render_on_project_insert(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `v021d_render_on_project_insert` calls this, from the game's jump at 0x285750,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::v021d_render::on_project_insert(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- lamps (patch 81) ----
-
-/// The entry `lamps_on_remove` (0x285614, remove_static epilogue, after native object removals) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_lamps_on_remove(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `lamps_on_remove` calls this, from the game's jump at 0x285614,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::lamps::on_remove(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- v021d_render (patch 130) ----
-
-/// The entry `v021d_render_on_project_removed` (0x285614, remove_static epilogue, after native object removals) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_v021d_render_on_project_removed(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `v021d_render_on_project_removed` calls this, from the game's jump at 0x285614,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::v021d_render::on_project_removed(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- lamps (patch 81) ----
-
-/// The entry `lamps_on_destroy` (0x285330, destructor before any member is released) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_lamps_on_destroy(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `lamps_on_destroy` calls this, from the game's jump at 0x285330,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::lamps::on_destroy(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- v021d_render (patch 130) ----
-
-/// The entry `v021d_render_on_project_destroy` (0x285330, destructor before any member is released) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_v021d_render_on_project_destroy(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `v021d_render_on_project_destroy` calls this, from the game's jump at 0x285330,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::v021d_render::on_project_destroy(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
     }
 }
 
@@ -7435,6 +7970,39 @@ pub extern "C" fn hook_console_where_on_viewed_chain(frame: &mut Frame) -> u32 {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn hook_lamps_on_bind_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_lamps_on_bind(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_v021d_render_on_project_insert(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_composition_v044a_on_project_insert(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lamps_on_remove_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_lamps_on_remove(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_v021d_render_on_project_removed(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_composition_v044a_on_project_removed(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lamps_on_destroy_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_lamps_on_destroy(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_v021d_render_on_project_destroy(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_composition_v044a_on_project_destroy(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn hook_music_on_frame_chain(frame: &mut Frame) -> u32 {
     let flow = hook_music_on_frame(frame);
     if flow != 0 { return flow; }
@@ -7594,33 +8162,6 @@ pub extern "C" fn hook_key_remap_on_events_chain(frame: &mut Frame) -> u32 {
     let flow = hook_key_remap_on_events(frame);
     if flow != 0 { return flow; }
     let flow = hook_screenshot_on_keys(frame);
-    if flow != 0 { return flow; }
-    0
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_lamps_on_bind_chain(frame: &mut Frame) -> u32 {
-    let flow = hook_lamps_on_bind(frame);
-    if flow != 0 { return flow; }
-    let flow = hook_v021d_render_on_project_insert(frame);
-    if flow != 0 { return flow; }
-    0
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_lamps_on_remove_chain(frame: &mut Frame) -> u32 {
-    let flow = hook_lamps_on_remove(frame);
-    if flow != 0 { return flow; }
-    let flow = hook_v021d_render_on_project_removed(frame);
-    if flow != 0 { return flow; }
-    0
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_lamps_on_destroy_chain(frame: &mut Frame) -> u32 {
-    let flow = hook_lamps_on_destroy(frame);
-    if flow != 0 { return flow; }
-    let flow = hook_v021d_render_on_project_destroy(frame);
     if flow != 0 { return flow; }
     0
 }

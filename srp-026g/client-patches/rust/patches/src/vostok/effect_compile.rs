@@ -37,6 +37,27 @@ pub enum CompileSite {
     RainDropTexture,
     /// `water.normal_texture`: the forward water's t_normal_map.
     WaterTexture,
+    /// `composition_<abc>.compiled`: the composition effect's epilogue.
+    CompositionEnd(Composition),
+    /// `composition_<abc>.begin_pass`: its technique's begin_pass.
+    CompositionPass(Composition),
+    /// `composition_<abc>.sun_shadow`: its t_sun_shadow_and_scattering.
+    CompositionSunShadow(Composition),
+}
+
+/// One of stage_composition's eight effects, effect_composition<a,b,c>
+/// (0x1A9330..0x1AA590, one compile each, the same code at the same offsets
+/// but for the configuration's bytes).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Composition {
+    C000,
+    C100,
+    C010,
+    C110,
+    C001,
+    C101,
+    C011,
+    C111,
 }
 
 fn compiler(ctx: &Context<'_>, site: CompileSite) -> raw::EffectCompiler {
@@ -50,9 +71,66 @@ fn compiler(ctx: &Context<'_>, site: CompileSite) -> raw::EffectCompiler {
             CompileSite::RainEnd => raw::site::rain_compiled::compiler(ctx),
             CompileSite::RainDropTexture => raw::site::rain_drop_texture::compiler(ctx),
             CompileSite::WaterTexture => raw::site::water_normal_texture::compiler(ctx),
+            CompileSite::CompositionEnd(composition) => composition_end_compiler(ctx, composition),
+            CompileSite::CompositionPass(composition) => composition_pass_compiler(ctx, composition),
+            CompileSite::CompositionSunShadow(composition) => composition_sun_shadow_compiler(ctx, composition),
         }
     }
     .expect("the compile's compiler")
+}
+
+/// # Safety
+/// The context is the site's (`composition_<abc>.compiled`).
+unsafe fn composition_end_compiler(ctx: &Context<'_>, composition: Composition) -> Option<raw::EffectCompiler> {
+    use raw::site::*;
+    unsafe {
+        match composition {
+            Composition::C000 => composition_000_compiled::compiler(ctx),
+            Composition::C100 => composition_100_compiled::compiler(ctx),
+            Composition::C010 => composition_010_compiled::compiler(ctx),
+            Composition::C110 => composition_110_compiled::compiler(ctx),
+            Composition::C001 => composition_001_compiled::compiler(ctx),
+            Composition::C101 => composition_101_compiled::compiler(ctx),
+            Composition::C011 => composition_011_compiled::compiler(ctx),
+            Composition::C111 => composition_111_compiled::compiler(ctx),
+        }
+    }
+}
+
+/// # Safety
+/// The context is the site's (`composition_<abc>.begin_pass`).
+unsafe fn composition_pass_compiler(ctx: &Context<'_>, composition: Composition) -> Option<raw::EffectCompiler> {
+    use raw::site::*;
+    unsafe {
+        match composition {
+            Composition::C000 => composition_000_begin_pass::compiler(ctx),
+            Composition::C100 => composition_100_begin_pass::compiler(ctx),
+            Composition::C010 => composition_010_begin_pass::compiler(ctx),
+            Composition::C110 => composition_110_begin_pass::compiler(ctx),
+            Composition::C001 => composition_001_begin_pass::compiler(ctx),
+            Composition::C101 => composition_101_begin_pass::compiler(ctx),
+            Composition::C011 => composition_011_begin_pass::compiler(ctx),
+            Composition::C111 => composition_111_begin_pass::compiler(ctx),
+        }
+    }
+}
+
+/// # Safety
+/// The context is the site's (`composition_<abc>.sun_shadow`).
+unsafe fn composition_sun_shadow_compiler(ctx: &Context<'_>, composition: Composition) -> Option<raw::EffectCompiler> {
+    use raw::site::*;
+    unsafe {
+        match composition {
+            Composition::C000 => composition_000_sun_shadow::compiler(ctx),
+            Composition::C100 => composition_100_sun_shadow::compiler(ctx),
+            Composition::C010 => composition_010_sun_shadow::compiler(ctx),
+            Composition::C110 => composition_110_sun_shadow::compiler(ctx),
+            Composition::C001 => composition_001_sun_shadow::compiler(ctx),
+            Composition::C101 => composition_101_sun_shadow::compiler(ctx),
+            Composition::C011 => composition_011_sun_shadow::compiler(ctx),
+            Composition::C111 => composition_111_sun_shadow::compiler(ctx),
+        }
+    }
 }
 
 /// The compiler of the compile at `site`.
@@ -92,6 +170,47 @@ pub fn set_wet_surface_pixel_shader(ctx: &Context<'_>, name: &'static CStr) {
     // third argument once the gs name and the compiler follow), which only
     // begin_pass reads.
     unsafe { raw::site::wet_surface_begin_pass::frame(ctx).expect("the site's ESP").set_pixel_shader(name.as_ptr().cast_mut().cast()) }
+}
+
+/// Makes `name` the pixel shader of the composition technique's begin_pass
+/// at `composition_<abc>.begin_pass` (its pushed argument; the VS, also
+/// `composition`, and the configuration stay).
+pub fn set_composition_pixel_shader(ctx: &Context<'_>, composition: Composition, name: &'static CStr) {
+    use raw::site::*;
+    // SAFETY: the site's ESP: the PS name begin_pass's caller pushed (0x1A939D
+    // in effect_composition<0,0,0>, the same offset in each), which only
+    // begin_pass reads.
+    unsafe {
+        let frame = match composition {
+            Composition::C000 => composition_000_begin_pass::frame(ctx),
+            Composition::C100 => composition_100_begin_pass::frame(ctx),
+            Composition::C010 => composition_010_begin_pass::frame(ctx),
+            Composition::C110 => composition_110_begin_pass::frame(ctx),
+            Composition::C001 => composition_001_begin_pass::frame(ctx),
+            Composition::C101 => composition_101_begin_pass::frame(ctx),
+            Composition::C011 => composition_011_begin_pass::frame(ctx),
+            Composition::C111 => composition_111_begin_pass::frame(ctx),
+        };
+        frame.expect("the site's ESP").set_pixel_shader(name.as_ptr().cast_mut().cast())
+    }
+}
+
+/// Binds the composition's sun shadow under `slot` where its block at
+/// `composition_<abc>.sun_shadow` binds it as t_sun_shadow_and_scattering:
+/// the game's set_texture (0x3D98B0) with the block's arguments (its pushes:
+/// ESI, 1.0, ESI, -1, ESI, $user$sun_shadow_and_scattering, the slot, the
+/// compiler; ESI 0 there), the slot ours. The caller takes the site's `bound`
+/// exit, which skips the block.
+pub fn bind_composition_sun_shadow(ctx: &Context<'_>, composition: Composition, slot: &'static CStr) {
+    let compiler = compiler(ctx, CompileSite::CompositionSunShadow(composition));
+    let esi = ctx.reg(Reg::Esi);
+    // SAFETY: set_texture (stdcall, its eight arguments on the stack), on the
+    // compile's own thread and compiler, in the place of the game's call; it
+    // reads the two names (ours and the game's own render target's, static)
+    // and keeps them by name.
+    unsafe {
+        raw::engine_set_texture(Some(compiler), slot.as_ptr().cast(), c"$user$sun_shadow_and_scattering".as_ptr().cast(), esi, u32::MAX, esi, 1.0, esi)
+    }
 }
 
 /// The set_texture blocks a patch binds its own texture at instead: each
