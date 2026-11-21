@@ -11,7 +11,8 @@ usage: python3 -I make_pack.py --donor <folder> --modules <pack folder> --out <p
 --out      the pack's folder (a new one): pack.json, files/ and icons/, for the manifest's `pack`
            row (release/content.tsv), which this prints.
 
-What the pack holds, a grip of ../weapon-modules/ids.tsv each (grips.py reads them):
+What the pack holds, a grip of ../weapon-modules/ids.tsv each (grips.py reads them; not the three
+that stay a gun's own part, grips.OWN_PARTS):
 - its item config, gameplay/items/attachments/grip/<item>.options: a shop scope item's shape (the
   client's own kind of a weapon's fitted item, category 22). Its modification puts the item's dict
   id on the weapon as data/srp_grip (a type 3 add to the weapon's `data`, which every gun has with
@@ -130,8 +131,9 @@ def main():
                        'icons': icons})
     pack = {
         'format_version': 1, 'id': PACK_ID, 'version': VERSION, 'target_build': '0.26g',
-        'description': f"0.69d0's {len(grips)} foregrips as items of a weapon's kit slot 5 "
-                       f'({grips[0].dict_id}-{grips[-1].dict_id}): their configs, dictionary rows and icons '
+        'description': f"{len(grips)} of 0.69d0's {len(lib.modules())} foregrips as items of a weapon's kit slot 5 "
+                       f'({", ".join(str(g.dict_id) for g in grips)}; the other {len(lib.OWN_PARTS)} stay their '
+                       'guns\' own parts): their configs, dictionary rows and icons '
                        '(srp-026g/docs/notes/attachments-grips.md)',
         'operations': operations,
         'server': {'items': [{'dict_id': grip.dict_id} for grip in grips]},
@@ -157,7 +159,11 @@ def main():
             (f'release/content.tsv ({row.strip()})', any(
                 line.startswith(row) for line in (repo / 'release/content.tsv').read_text(encoding='utf-8').splitlines())),
             ('content-edit/items.tsv', set(items) <= set(
-                (HERE.parent / 'content-edit/items.tsv').read_text(encoding='utf-8').splitlines()))) if not ok]
+                (HERE.parent / 'content-edit/items.tsv').read_text(encoding='utf-8').splitlines())),
+            ('content-edit/items.tsv has a row of a gun\'s own part', not any(
+                line.split('\t')[1:2] == [item] for line in
+                (HERE.parent / 'content-edit/items.tsv').read_text(encoding='utf-8').splitlines()
+                for module, _, item in lib.modules() if module in lib.OWN_PARTS))) if not ok]
         if stale:
             sys.exit('not what make_pack.py makes: ' + '; '.join(stale))
         return

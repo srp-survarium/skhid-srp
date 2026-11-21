@@ -11,8 +11,5 @@
 2664	imi_fsg2_foregrip	1441	recoil_hip_modifier -0.08	recoil_aim_modifier 0.015	-0.02	0	6000	6 8
 2665	magpul_afg1_foregrip	1442	recoil_aim_modifier -0.08	recoil_hip_modifier 0.03	-0.06	0	6000	7 8
 2666	mauser_m712_foregrip	1798	recoil_aim_modifier -0.08	aimed_movement_speed_factor -0.0075	-0.06	0	6000	8 8
-2667	ots144a_foregrip	1840	recoil_aim_modifier -0.08	recoil_hip_modifier 0.03	-0.06	0	6000	9 8
-2668	pkp_pecheneg_foregrip	1713	recoil_aim_modifier -0.08	recoil_hip_modifier 0.03	-0.06	0	6000	10 8
-2669	sr3m_camo_default_foregrip	1849	recoil_aim_modifier -0.08	recoil_hip_modifier 0.03	-0.06	0	6000	11 8
-2670	sr3m_default_foregrip	1848	recoil_aim_modifier -0.08	recoil_hip_modifier 0.03	-0.06	0	6000	12 8
-2671	troy_modular_foregrip	1446	recoil_aim_modifier -0.08	aim_time_modifier 0.015	-0.06	0.015	6000	13 8
+2668	pkp_pecheneg_foregrip	1713	recoil_aim_modifier -0.08	recoil_hip_modifier 0.03	-0.06	0	6000	9 8
+2671	troy_modular_foregrip	1446	recoil_aim_modifier -0.08	aim_time_modifier 0.015	-0.06	0.015	6000	10 8

@@ -1671,8 +1671,6 @@ st_options_video	Grafika
 st_options_voice	Głos:
 st_options_volume	Głośność:
 st_other	Inne
-st_ots144a_foregrip_desc	Odrzut -6%.
-st_ots144a_foregrip_name	Chwyt OTs-14
 st_ots14_description	Rosyjski karabinek automatyczny w układzie bullpup, amunicja: 9x39. Zbudowany w CKIB SOO w latach 90. na bazie AKS-74U dla jednostek specjalnych. Magazynek na 20 nabojów. Ogień pojedynczy i ciągły.
 st_ots14_name	OC-14 "Groza"
 st_oust_commander	Zmień dowódcę
@@ -2252,10 +2250,6 @@ st_sr2m_description	OPIS NIE JEST GOTOWY
 st_sr2m_name	SR-2M "Wrzos"
 st_sr3m_bundle_descr	<white>Zawiera następujące przedmioty:\n- Ulepszony WSS "Wintoriez".\n- 2000 nabojów 9x39 SP-6.</white>
 st_sr3m_bundle_name	Zestaw SR-3M "Wichr"
-st_sr3m_camo_default_foregrip_desc	Odrzut -6%.
-st_sr3m_camo_default_foregrip_name	Chwyt SR-3M "Wichr"
-st_sr3m_default_foregrip_desc	Odrzut -6%.
-st_sr3m_default_foregrip_name	Chwyt SR-3M
 st_sr3m_description	OPIS NIE JEST GOTOWY
 st_sr3m_name	SR-3M "Wichr"
 st_srp_ammo069_23mm_r_desc	Nabój kalibru 23 mm nabity śrutem, do KS-23M. Zadaje poważne obrażenia nieopancerzonym celom.

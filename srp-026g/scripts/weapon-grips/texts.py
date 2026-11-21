@@ -42,8 +42,11 @@ def donor_text(text):
 
 
 def texts(donor):
-    """{language: {key: text}} of every grip's two keys."""
+    """({language: {key: text}} of every grip item's two keys, the keys of the guns' own parts:
+    0.69d0's keys of the grips that are no items here)."""
     grips = lib.grips(donor)
+    game = lib.leaves(Path(donor) / 'game.leaves')
+    gone = {game[f'weapon_modules.{module}.ui_desc.{key}'] for module in lib.OWN_PARTS for key in ('name', 'description')}
     lines = (HERE / 'names.tsv').read_text(encoding='utf-8').splitlines()
     languages = next(line for line in lines if line.startswith('# module\t')).split('\t')[1:]
     typed = {row[0]: dict(zip(languages, row[1:], strict=True))
@@ -59,13 +62,14 @@ def texts(donor):
             if grip.aim_time:
                 line += ' ' + aim_time.format(lib.percent(grip.aim_time))
             table[grip.description_key] = line
-    return out
+    return out, gone
 
 
 def main():
     donor, write = Path(sys.argv[1]), '--write' in sys.argv[2:]
     changed = 0
-    for language, ours in texts(donor).items():
+    ours_by_language, gone = texts(donor)
+    for language, ours in ours_by_language.items():
         path = TABLES / f'{language}.tsv'
         head, *lines = path.read_text(encoding='utf-8').split('\n')
         if lines[-1] != '':
@@ -75,9 +79,12 @@ def main():
             sys.exit(f'{path}: a key twice')
         before = dict(rows)
         rows.update(ours)
+        for key in gone:
+            rows.pop(key, None)
         if rows != before:
             changed += 1
-            print(f'{language}: {sum(1 for k in ours if before.get(k) != ours[k])} texts')
+            print(f'{language}: {sum(1 for k in ours if before.get(k) != ours[k])} texts, '
+                  f'{len(before) + len(set(ours) - set(before)) - len(rows)} taken out')
             if write:
                 path.write_text('\n'.join([head] + [f'{k}\t{rows[k]}' for k in sorted(rows)]) + '\n', encoding='utf-8')
     print(f'{changed} tables {"written" if write else "would change"}' if changed else 'nothing to change')

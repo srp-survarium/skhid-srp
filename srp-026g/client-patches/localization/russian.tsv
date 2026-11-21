@@ -1671,8 +1671,6 @@ st_options_video	Графика
 st_options_voice	Голос:
 st_options_volume	Громкость:
 st_other	Другое
-st_ots144a_foregrip_desc	Отдача -6%.
-st_ots144a_foregrip_name	Рукоять ОЦ-14
 st_ots14_description	Российский автомат схемы буллпап под боеприпас 9х39. Создан в ЦКИБ СОО в 1990-х на основе АКС-74У для спецподразделений. Магазин на 20 патронов. Огонь: одиночный и автоматический.
 st_ots14_name	ОЦ-14 "Гроза"
 st_oust_commander	Сменить командира
@@ -2252,10 +2250,6 @@ st_sr2m_description	ОПИСАНИЕ НЕ ГОТОВО
 st_sr2m_name	СР-2М "Вереск"
 st_sr3m_bundle_descr	<white>Содержит следующие предметы:\n— Улучшенный СР-3М "Вихрь".\n— 2000 патронов 9x39 СП-6.</white>
 st_sr3m_bundle_name	Набор СР-3М "Вихрь"
-st_sr3m_camo_default_foregrip_desc	Отдача -6%.
-st_sr3m_camo_default_foregrip_name	Рукоять СР-3М "Вихрь"
-st_sr3m_default_foregrip_desc	Отдача -6%.
-st_sr3m_default_foregrip_name	Рукоять СР-3М
 st_sr3m_description	ОПИСАНИЕ НЕ ГОТОВО
 st_sr3m_name	СР-3М "Вихрь"
 st_srp_ammo069_23mm_r_desc	Патрон калибра 23 мм, снаряженный дробью, для КС-23М. Наносит высокий урон по небронированным целям.

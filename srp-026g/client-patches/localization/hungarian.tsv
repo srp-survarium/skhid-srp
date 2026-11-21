@@ -1671,8 +1671,6 @@ st_options_video	Grafika
 st_options_voice	Beszéd:
 st_options_volume	Hangerő:
 st_other	Egyéb
-st_ots144a_foregrip_desc	Visszarúgás -6%.
-st_ots144a_foregrip_name	OC-14 markolat
 st_ots14_description	Orosz bullpup gépkarabély, 9x39 lőszerrel. A CKIB SOO építette az 1990-es években az AKSZ-74U alapján különleges egységeknek. 20 lőszeres tár, egyes és sorozatlövés.
 st_ots14_name	OC-14 "Groza"
 st_oust_commander	Parancsnok cseréje
@@ -2252,10 +2250,6 @@ st_sr2m_description	A leírás még nem érhető el.
 st_sr2m_name	SR-2M "Veresk"
 st_sr3m_bundle_descr	<white>Tartalma:\n- Továbbfejlesztett SR-3M "Vikhr".\n- 2000 darab 9x39 SP-6 lőszer.</white>\n
 st_sr3m_bundle_name	SR-3M "Vikhr" csomag
-st_sr3m_camo_default_foregrip_desc	Visszarúgás -6%.
-st_sr3m_camo_default_foregrip_name	SR-3M "Vikhr" markolat
-st_sr3m_default_foregrip_desc	Visszarúgás -6%.
-st_sr3m_default_foregrip_name	SR-3M markolat
 st_sr3m_description	A leírás még nem érhető el.
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_ammo069_23mm_r_desc	23 mm-es sörétes lőszer a KS-23M-hez. Nagy sebzést okoz a páncélozatlan célpontoknak.

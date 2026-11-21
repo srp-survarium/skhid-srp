@@ -1671,8 +1671,6 @@ st_options_video	Graphics
 st_options_voice	Voice:
 st_options_volume	Volume:
 st_other	Other
-st_ots144a_foregrip_desc	Recoil -6%.
-st_ots144a_foregrip_name	OTs-14 grip
 st_ots14_description	Russian bullpup assault rifle, ammo: 9x39. Built by TsKIB SOO in the 1990s on the AKS-74U for special units. Magazine of 20 rounds. Single and automatic fire.
 st_ots14_name	OTs-14 "Groza"
 st_oust_commander	Change commander
@@ -2252,10 +2250,6 @@ st_sr2m_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_sr2m_name	SR-2M "Veresk"
 st_sr3m_bundle_descr	<white>Contains the following items:\n- Improved CF-3M "Vikhr".\n- 2000 rounds of 9x39 SP-6 ammo.</white>\n
 st_sr3m_bundle_name	SR-3M "Vikhr" bundle
-st_sr3m_camo_default_foregrip_desc	Recoil -6%.
-st_sr3m_camo_default_foregrip_name	SR-3M "Vikhr" grip
-st_sr3m_default_foregrip_desc	Recoil -6%.
-st_sr3m_default_foregrip_name	SR-3M grip
 st_sr3m_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_ammo069_23mm_r_desc	A 23 mm round stuffed with smallshot, for the KS-23M. Provides high damage against non-armoured targets.

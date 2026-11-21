@@ -1671,8 +1671,6 @@ st_options_video	Grafika
 st_options_voice	Glas:
 st_options_volume	Glasnoća:
 st_other	Ostalo
-st_ots144a_foregrip_desc	Trzaj -6%.
-st_ots144a_foregrip_name	Rukohvat OTs-14
 st_ots14_description	Ruska jurišna puška bullpup rasporeda, streljivo: 9x39. TsKIB SOO razvio ju je 1990-ih na temelju AKS-74U za specijalne jedinice. Spremnik za 20 metaka. Pojedinačna i automatska paljba.
 st_ots14_name	OTs-14 „Groza”
 st_oust_commander	Promijeni zapovjednika
@@ -2252,10 +2250,6 @@ st_sr2m_description	Opis još nije dostupan.
 st_sr2m_name	SR-2M "Veresk"
 st_sr3m_bundle_descr	<white>Sadrži sljedeće predmete:\n- Poboljšani CF-3M „Vikhr”.\n- 2000 metaka 9x39 SP-6.</white>\n
 st_sr3m_bundle_name	Paket SR-3M „Vikhr”
-st_sr3m_camo_default_foregrip_desc	Trzaj -6%.
-st_sr3m_camo_default_foregrip_name	Rukohvat SR-3M "Vikhr"
-st_sr3m_default_foregrip_desc	Trzaj -6%.
-st_sr3m_default_foregrip_name	Rukohvat SR-3M
 st_sr3m_description	Opis još nije dostupan.
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_ammo069_23mm_r_desc	Metak 23 mm punjen sitnom sačmom za KS-23M. Nanosi veliku štetu neoklopljenim ciljevima.

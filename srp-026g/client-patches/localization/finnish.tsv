@@ -1671,8 +1671,6 @@ st_options_video	Grafiikka
 st_options_voice	Puhe:
 st_options_volume	Äänenvoimakkuus:
 st_other	Muut
-st_ots144a_foregrip_desc	Rekyyli -6%.
-st_ots144a_foregrip_name	Kahva OTs-14
 st_ots14_description	Venäläinen bullpup-rynnäkkökivääri, kaliiperi 9x39. TsKIB SOO:n 1990-luvulla AKS-74U:n pohjalta erikoisjoukoille rakentama. 20 patruunan lipas. Kerta- ja sarjatuli.
 st_ots14_name	OTs-14 "Groza"
 st_oust_commander	Vaihda komentaja
@@ -2252,10 +2250,6 @@ st_sr2m_description	Kuvausta ei vielä ole.
 st_sr2m_name	SR-2M "Veresk"
 st_sr3m_bundle_descr	<white>Sisältö:\n- Parannettu CF-3M Vihr.\n- 2000 patruunaa 9x39 SP-6.</white>\n
 st_sr3m_bundle_name	SR-3M Vihr -paketti
-st_sr3m_camo_default_foregrip_desc	Rekyyli -6%.
-st_sr3m_camo_default_foregrip_name	Kahva SR-3M "Vikhr"
-st_sr3m_default_foregrip_desc	Rekyyli -6%.
-st_sr3m_default_foregrip_name	Kahva SR-3M
 st_sr3m_description	Kuvausta ei vielä ole.
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_ammo069_23mm_r_desc	23 mm:n haulipatruuna KS-23M:ään. Aiheuttaa suurta vahinkoa panssaroimattomiin kohteisiin.

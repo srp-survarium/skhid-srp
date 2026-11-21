@@ -1671,8 +1671,6 @@ st_options_video	Graphik:
 st_options_voice	Stimme:
 st_options_volume	Lautstärke:
 st_other	Andere
-st_ots144a_foregrip_desc	Rückstoß -6%.
-st_ots144a_foregrip_name	OTs-14 Griff
 st_ots14_description	Russisches Bullpup-Sturmgewehr, Munition: 9x39. In den 1990er Jahren vom ZKIB SOO auf Basis der AKS-74U für Spezialeinheiten gebaut. 20-Schuss-Magazin. Einzel- und Dauerfeuer.
 st_ots14_name	OZ-14 "Grosa"
 st_oust_commander	Kommandanten wechseln
@@ -2252,10 +2250,6 @@ st_sr2m_description	Description is not ready!!!
 st_sr2m_name	SR-2M "Veresk"
 st_sr3m_bundle_descr	<white>Enthält folgende Sachen: \n- Verbessert CF-3M "Vikhr"\n- 2000 9x39 SP-6 Patronen.</white>
 st_sr3m_bundle_name	Set SR-3M "Vikhr"
-st_sr3m_camo_default_foregrip_desc	Rückstoß -6%.
-st_sr3m_camo_default_foregrip_name	SR-3M Vikhr Griff
-st_sr3m_default_foregrip_desc	Rückstoß -6%.
-st_sr3m_default_foregrip_name	SR-3M Griff
 st_sr3m_description	Description is not ready!!!
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_ammo069_23mm_r_desc	Eine 23-mm-Schrotpatrone für die KS-23M. Bringt hohen Schaden gegen nicht gepanzerte Ziele.

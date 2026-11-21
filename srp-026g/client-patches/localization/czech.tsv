@@ -1671,8 +1671,6 @@ st_options_video	Grafika
 st_options_voice	Hlas:
 st_options_volume	Hlasitost:
 st_other	Ostatní
-st_ots144a_foregrip_desc	Zpětný ráz -6%.
-st_ots144a_foregrip_name	Rukojeť OC-14
 st_ots14_description	Ruská útočná puška typu bullpup na náboje 9x39. Postavená v CKIB SOO v 90. letech na základě AKS-74U pro speciální jednotky. Zásobník na 20 nábojů. Jednotlivá i automatická střelba.
 st_ots14_name	OC-14 "Groza"
 st_oust_commander	Změnit velitele
@@ -2252,10 +2250,6 @@ st_sr2m_description	Popis zatím není k dispozici.
 st_sr2m_name	SR-2M "Veresk"
 st_sr3m_bundle_descr	<white>Obsahuje:\n- Vylepšený SR-3M "Vikhr".\n- 2000 nábojů 9x39 SP-6.</white>\n
 st_sr3m_bundle_name	Balíček SR-3M "Vikhr"
-st_sr3m_camo_default_foregrip_desc	Zpětný ráz -6%.
-st_sr3m_camo_default_foregrip_name	Rukojeť SR-3M "Vikhr"
-st_sr3m_default_foregrip_desc	Zpětný ráz -6%.
-st_sr3m_default_foregrip_name	Rukojeť SR-3M
 st_sr3m_description	Popis zatím není k dispozici.
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_ammo069_23mm_r_desc	Náboj ráže 23 mm s broky pro KS-23M. Způsobuje vysoké poškození neobrněným cílům.

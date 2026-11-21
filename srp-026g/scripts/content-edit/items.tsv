@@ -867,10 +867,7 @@ items	name	base_cost	premium	like	start
 2664	srp_grip_imi_fsg2_foregrip	6000	false		
 2665	srp_grip_magpul_afg1_foregrip	6000	false		
 2666	srp_grip_mauser_m712_foregrip	6000	false		
-2667	srp_grip_ots144a_foregrip	6000	false		
 2668	srp_grip_pkp_pecheneg_foregrip	6000	false		
-2669	srp_grip_sr3m_camo_default_foregrip	6000	false		
-2670	srp_grip_sr3m_default_foregrip	6000	false		
 2671	srp_grip_troy_modular_foregrip	6000	false		
 2701	fitn_ncstar_4_a_545	0	false		
 2702	fitn_ncstar_4_aek_919k	0	false		

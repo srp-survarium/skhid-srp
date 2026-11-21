@@ -2,17 +2,29 @@
 
 **Version scope:** client 0.26g, 0.69d0 as the reference for content. The system, the modules
 table and the client's runtime are `attachments.md`'s; this note is what the grips lane adds: the
-thirteen grip items, the hand's rules and checks, the carriers' state. Tags: PROVEN (read in the
+ten grip items, the three grips that stay a gun's own part, the hand's rules and checks, the
+carriers' state. Tags: PROVEN (read in the
 data or the code named), SEEN (in a game, the picture named), COMPUTED (worked out from data, not
 seen), OPEN.
 
 ## The items
 
-0.69d0 has thirteen foregrips; all thirteen are items here (`scripts/weapon-modules/ids.tsv`,
-2659-2671), each fitted to the guns 0.69d0 fits it to: 318 gun and grip pairs over 58 gun items,
-232 of them through a carrier that comes with the grip (a tactical forend in place of the gun's
-own, a rail bracket, the barrel clamp). What stands where is the modules table's
-(`attachments.md`); an item is only what a player buys and what changes the gun's numbers.
+0.69d0 has thirteen foregrips (`scripts/weapon-modules/ids.tsv`, 2659-2671). Ten are items
+here, each fitted to the guns 0.69d0 fits it to: 315 gun and grip pairs over 55 gun items, 232 of
+them through a carrier that comes with the grip (a tactical forend in place of the gun's own, a
+rail bracket, the barrel clamp). What stands where is the modules table's (`attachments.md`); an
+item is only what a player buys and what changes the gun's numbers.
+
+- **Three stay their guns' own part**, always on, with no item and no stat (the owner's call,
+  2026-11-21; `grips.OWN_PARTS`): the OTs-14's (2667), the SR-3M's (2670) and the premium
+  SR-3M's (2669). Today's gun has that grip in its mesh and its left hand holds it. PROVEN in the
+  data: the live gun's `LeftHand_idle` locator is the place on that grip, equal to 0.69d0's
+  foregrip module's hand locator through the gun's grip point (0.0 mm on the OTs-14, 0.7 mm on the
+  SR-3M), while 0.69d0's bare gun holds elsewhere (12.5 cm further back on the SR-3M). The remodel
+  keeps them in both bodies; their ids stay theirs, unused.
+- The other three own grips are not on today's guns (the Fort-401's, the Mauser M.712's, the
+  PKP's: the live gun's hand is 30, 14 and 36 cm from the grip's hand place and the live mesh has
+  no such part), so they are items as 0.69d0 has them.
 
 - **Made by** `scripts/weapon-grips/make_pack.py` into the pack `weapon-grips` from 0.69d0's own
   rows (`donor.sh`: its `game.options`, its names, its pictures; pinned by `donor.sha256`) and
@@ -27,7 +39,7 @@ own, a rail bracket, the barrel clamp). What stands where is the modules table's
 - **The price** is one for the family, 6,000 silver (0.69d0 prices every module the same). The
   shop sells an item some gun takes as a module (`prices.rs`, the core's rule).
 - **The icon** is 0.69d0's own picture of the grip in the stock icons' frame, in
-  `LobbyMenu_AmmoIcons` column 8, rows 1 to 13.
+  `LobbyMenu_AmmoIcons` column 8, rows 1 to 10.
 - **The texts** are under 0.69d0's own keys (`st_<module>_name`, `_desc`) in the eleven tables:
   the name 0.69d0's own where it ships the language (English, Russian, Ukrainian, German,
   Polish), `names.tsv`'s in the other six; the description the grip's stats in two words, written
@@ -54,7 +66,7 @@ simplified for now):
 | Zenit RK-2 (2659) | 49 | first three shots -16 %, aim time +1.5 % | recoil -4 %, aim time +1.5 % |
 | G&P RIS (2663) | 53 | first three shots -16 %, aim time +1.5 % | recoil -4 %, aim time +1.5 % |
 | Fort-401's own (2662), Mauser M.712's own (2666) | 1 each | aimed recoil -8 %, aimed movement -0.75 % | recoil -6 % |
-| PKP's own (2668), OTs-14's own (2667), SR-3M's own (2670) and its premium's (2669) | 1 each | aimed recoil -8 %, hip recoil +3 % | recoil -6 % |
+| PKP's own (2668) | 1 | aimed recoil -8 %, hip recoil +3 % | recoil -6 % |
 
 - With the penalties dropped, PTK and AFG-1 are one grip in numbers, Troy is PTK with a penalty,
   RK-2 and RIS are MIKI with one. What a player picks is mostly what the gun takes.

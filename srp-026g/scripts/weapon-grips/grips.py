@@ -1,7 +1,8 @@
 """The grips: 0.69d0's foregrips as its data has them, and the stats they get here.
 
-Read from donor.sh's folder and ../weapon-modules/ids.tsv; nothing is typed per grip. make_pack.py
-makes the items of it, texts.py their texts (docs/notes/attachments-grips.md).
+Read from donor.sh's folder and ../weapon-modules/ids.tsv; nothing is typed per grip but which
+of them are a gun's own part here (OWN_PARTS). make_pack.py makes the items of the others,
+texts.py their texts (docs/notes/attachments-grips.md).
 
 **The stats' rule** (docs/notes/attachments.md, "Stats for now"; the owner, 2026-11-20: what needs
 an exe reader is simplified). 0.69d0 rolls two modifier groups on a module, an effect and a
@@ -35,6 +36,11 @@ ICON_ATLAS, ICON_COLUMN, ICON_FIRST_ROW = 'LobbyMenu_AmmoIcons', 8, 1
 MODIFICATION_BASE = 994000
 # The pack weapon-modules keeps 0.69d0's module models under this name.
 MODELS = ('weapons/modules/', 'weapons/modules_069/')
+# Foregrips today's gun has in its mesh and its left hand holds (the live gun's LeftHand_idle is
+# the place on that grip: 0.0 mm on the OTs-14, 0.7 mm on the SR-3M and its premium). They stay
+# the gun's own part, always on (the owner's call, 2026-11-21): no item, no stat. Their ids stay
+# theirs in ids.tsv, unused.
+OWN_PARTS = {'ots144a_foregrip', 'sr3m_default_foregrip', 'sr3m_camo_default_foregrip'}
 
 
 @dataclass(frozen=True)
@@ -143,14 +149,23 @@ def simple(module, effect, penalty):
     return recoil, 0.0
 
 
+def modules():
+    """Every grip module of ids.tsv, the guns' own parts too: (module, dict id, item) by dict id."""
+    rows = [line.split('\t') for line in IDS.read_text().splitlines() if line and not line.startswith('#')]
+    found = sorted(((r[0], int(r[1]), r[3]) for r in rows if r[2] == 'grip'), key=lambda r: r[1])
+    if not OWN_PARTS <= {module for module, _, _ in found}:
+        raise SystemExit(f'ids.tsv lacks a grip of OWN_PARTS: {sorted(OWN_PARTS)}')
+    return found
+
+
 def grips(donor):
-    """The grips of ids.tsv, by dict id, from the donor folder."""
+    """The grips that are items: ids.tsv's without the guns' own parts, by dict id, from the
+    donor folder."""
     check_donor(donor)
     game = leaves(Path(donor) / 'game.leaves')
     rolls = bought(game)
-    rows = [line.split('\t') for line in IDS.read_text().splitlines() if line and not line.startswith('#')]
     out = []
-    for nth, (module, dict_id, _, item) in enumerate(sorted((r for r in rows if r[2] == 'grip'), key=lambda r: int(r[1]))):
+    for nth, (module, dict_id, item) in enumerate(m for m in modules() if m[0] not in OWN_PARTS):
         at = f'weapon_modules.{module}.'
         if at + 'model' not in game:
             raise SystemExit(f'{module}: no such module in 0.69d0')
@@ -164,7 +179,7 @@ def grips(donor):
         if not pair or None in pair:
             raise SystemExit(f'{module} ({donor_id}): 0.69d0 rolls no two single-parameter groups on it')
         recoil, aim_time = simple(module, *pair)
-        out.append(Grip(module=module, dict_id=int(dict_id), item=item, donor_dict_id=donor_id,
+        out.append(Grip(module=module, dict_id=dict_id, item=item, donor_dict_id=donor_id,
                         model=MODELS[1] + model[len(MODELS[0]):],
                         name_key=game[at + 'ui_desc.name'], description_key=game[at + 'ui_desc.description'],
                         effect=pair[0], penalty=pair[1], recoil=recoil, aim_time=aim_time,
