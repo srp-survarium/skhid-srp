@@ -734,6 +734,8 @@ Each site is checked against the original bytes first, so a different build
 or an already patched file is refused rather than patched twice.
 """
 
+import array
+import bisect
 import collections
 import hashlib
 import os
@@ -3617,9 +3619,59 @@ def pe_checksum(data, checksum_at):
     return total + len(data)
 
 
+# The relocation table is read once, not once a call (hundreds a build): the
+# HIGHLOW entries of the last tables read, by VA, and the table the last
+# call left (the one read, with the entries this function turned to type 0).
+_RELOC_READ = {}                # {table bytes: (array of VAs, array of offsets in the table)}, the last few
+_RELOC_NOW = [None, None]       # [the table as the last call left it, its entry in _RELOC_READ]
+
+
+def _reloc_entries(table):
+    """(VAs, offsets in the table) of a base relocation table's HIGHLOW
+    entries, sorted by VA; None for a table whose blocks do not end at its
+    end (read entry by entry then)."""
+    entries, o = [], 0
+    while o < len(table):
+        if o + 8 > len(table):
+            return None
+        page, block = struct.unpack_from("<II", table, o)
+        if block < 8:
+            break
+        if o + block > len(table):
+            return None
+        for at in range(o + 8, o + block - 1, 2):
+            e = struct.unpack_from("<H", table, at)[0]
+            if e >> 12 == 3:
+                entries.append((IMAGE_BASE + page + (e & 0xFFF), at))
+        o += block
+    entries.sort()
+    return array.array("I", (va for va, _ in entries)), array.array("I", (at for _, at in entries))
+
+
+def _reloc_candidates(data, start, end, ranges):
+    """[(file offset, VA)] in the table's order of the entries that were
+    HIGHLOW when the table was read and overlap a range; None when the table
+    cannot be indexed."""
+    table = data[start:end]
+    if _RELOC_NOW[0] != table:
+        key = bytes(table)
+        if key not in _RELOC_READ:
+            while len(_RELOC_READ) >= 4:
+                del _RELOC_READ[next(iter(_RELOC_READ))]
+            _RELOC_READ[key] = _reloc_entries(key)
+        _RELOC_NOW[:] = bytearray(key), _RELOC_READ[key]
+    if _RELOC_NOW[1] is None:
+        return None
+    vas, ats = _RELOC_NOW[1]
+    # an entry's dword [va, va + 4) overlaps [lo, hi): lo - 4 < va < hi
+    return sorted({(start + ats[i], vas[i]) for lo, hi in ranges
+                   for i in range(bisect.bisect_right(vas, lo - 4), bisect.bisect_left(vas, hi))})
+
+
 def neutralize_relocs(data, ranges):
     """Turn HIGHLOW base relocations that overlap a [lo, hi) VA range into
-    type 0 (skip). Returns the VAs of the changed entries."""
+    type 0 (skip). Returns the VAs of the changed entries, in the table's
+    order."""
     headers = Headers(data)
     rva, size = struct.unpack_from("<II", data, headers.reloc_at)
     base_off = None
@@ -3628,7 +3680,31 @@ def neutralize_relocs(data, ranges):
             base_off = rva - srva + raw
     if base_off is None:
         sys.exit("no .reloc section")
-    o, end, changed = base_off, base_off + size, []
+    ranges = list(ranges)
+    candidates = _reloc_candidates(data, base_off, base_off + size, ranges)
+    if candidates is None:
+        candidates = _reloc_walk(data, base_off, base_off + size, ranges)
+    changed = []
+    for at, va in candidates:
+        e = struct.unpack_from("<H", data, at)[0]
+        if e >> 12 != 3:                                  # turned to type 0 by an earlier call
+            continue
+        # owned by the write the relocated dword is under
+        if _BUILDING[0]:
+            owner = next((w.owner for w in APPLIED if w.kind == "write" and w.va is not None
+                          and w.va <= va < w.va + len(w.new)), None) or instance_of(va)
+            _claim(owner, "relocation", va, at, struct.pack("<H", e & 0xFFF))
+        struct.pack_into("<H", data, at, e & 0xFFF)
+        if _RELOC_NOW[1] is not None:
+            struct.pack_into("<H", _RELOC_NOW[0], at - base_off, e & 0xFFF)
+        changed.append(va)
+    return changed
+
+
+def _reloc_walk(data, o, end, ranges):
+    """[(file offset, VA)] of the HIGHLOW entries that overlap a range, the
+    table read entry by entry (a table _reloc_entries does not take)."""
+    found = []
     while o < end:
         page, block = struct.unpack_from("<II", data, o)
         if block < 8:
@@ -3638,15 +3714,9 @@ def neutralize_relocs(data, ranges):
             e = struct.unpack_from("<H", data, at)[0]
             va = IMAGE_BASE + page + (e & 0xFFF)
             if e >> 12 == 3 and any(va + 4 > lo and va < hi for lo, hi in ranges):
-                # owned by the write the relocated dword is under
-                if _BUILDING[0]:
-                    owner = next((w.owner for w in APPLIED if w.kind == "write" and w.va is not None
-                                  and w.va <= va < w.va + len(w.new)), None) or instance_of(va)
-                    _claim(owner, "relocation", va, at, struct.pack("<H", e & 0xFFF))
-                struct.pack_into("<H", data, at, e & 0xFFF)
-                changed.append(va)
+                found.append((at, va))
         o += block
-    return changed
+    return found
 
 
 def split_code(code):

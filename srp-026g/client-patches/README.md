@@ -281,15 +281,23 @@ crates it names by `path`; nothing else of it is read). The link builds it
 with the dev shell's nightly **rustc alone, offline** (no cargo:
 `-Zbuild-std` resolves the standard library's whole workspace and needs
 crates.io): `core` from the toolchain's rust-src and an empty
-`compiler_builtins`, once a toolchain, into `srp-026g/target-arena/
-sysroot-<key>`; then the path crates as rlibs and the crate as a staticlib,
+`compiler_builtins`, once a toolchain, into `~/.cache/skhid-arena/
+sysroot-<key>` (every worktree's; `SRP_ARENA_CACHE` names another folder, and
+`SRP_ARENA_CACHE=off` builds into `srp-026g/target-arena/` and keeps
+nothing); then the path crates as rlibs and the crate as a staticlib,
 all for `i686-unknown-linux-gnu` with `-C relocation-model=static -C
 target-cpu=pentium4 -C opt-level=s -C panic=abort -C codegen-units=1`, fat
 LTO, no debug information, paths remapped. It takes the crate's one object
 out of the archive (a symbol it would need from `compiler_builtins` is an
 undefined symbol, which the link refuses) and checks it as any other
 object. Its build's files (the crate, the crates it names by path, what it
-`include!`s) are the source's digest. The rustc version is in the lock's
+`include!`s) are the source's digest. What rustc made of each crate is kept in
+that folder by what it was made from (the compiler, its flags, the bytes of
+the crates it links, and every file and environment variable its dep-info
+names), so a build that changes no Rust source compiles none (4 s instead of
+28 s) and a new worktree starts from the last build of any other; an output
+no build took for 30 days is deleted. The release and the self-test build
+with `SRP_ARENA_CACHE=off`: from source, as before. The rustc version is in the lock's
 `built_with`.
 
 **Adding a block:** one `ARENA` row and its source file; `global` the labels
