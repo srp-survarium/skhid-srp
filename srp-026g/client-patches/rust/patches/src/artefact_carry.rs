@@ -230,8 +230,17 @@ pub fn on_input_end(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 pub fn on_hud(ctx: &Context<'_>) {
     // Patch 78's: shown only when Use would take (otherwise the native hint stays).
-    // Patch 78's own targets first, then patch 85's dropped gun.
+    // Artifact Hunt's artefact first (the owner: "picking up arti should take
+    // a priority over weapon"): while Use would take it or put it in, nothing
+    // here is aimed or shown, so no gun pickup goes into the input (Use stays
+    // Use, which the hunt takes at carry.input in every game) and the hunt's
+    // prompt is the one shown. Then patch 78's own targets, then patch 85's gun.
     let local = native::local_player(ctx);
+    if local.as_ref().is_some_and(crate::artefact_hunt::offers) {
+        crate::weapon_pickup::aim(ctx, None);
+        HINT.set(ctx.thread(), None);
+        return;
+    }
     let carry = local.as_ref().is_some_and(|p| target(p, ctx).is_some() || ground_target(p).is_some());
     let gun = crate::weapon_pickup::aim(ctx, local.as_ref().filter(|_| !carry));
     let visible = carry || gun.is_some();

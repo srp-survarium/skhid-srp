@@ -427,6 +427,7 @@ pub fn on_set_core(_: &OrigTdmRuleSetCore, rule: &mut HuntRule<'_>, core: &RuleC
 pub fn on_tick(rule: &TickRule<'_>, _dt: u32, time: u32, _step: u32) {
     let Some(rule) = rule.rule() else { return };
     let Some(world) = rule.world() else { return };
+    let started = timer_start(world.thread());
     with_rule(&rule, |hunt| {
         take_in(&world, hunt, Time::from_ms(time));
         step(&world, hunt, Event::Tick { now: Time::from_ms(time) });
@@ -435,6 +436,7 @@ pub fn on_tick(rule: &TickRule<'_>, _dt: u32, time: u32, _step: u32) {
         }
         round_countdown(&world, hunt);
     });
+    timer_end(world.thread(), started, "the rule's tick");
 }
 
 /// A round about to start is the match start's countdown in the game (the
@@ -540,6 +542,13 @@ pub fn on_death_delay(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// The respawn rule's tick: a round's restart holds the places due, its end
 /// spawns everyone.
 pub fn on_respawn_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let started = timer_start(ctx.thread());
+    let flow = respawn_tick(ctx);
+    timer_end(ctx.thread(), started, "the respawn tick");
+    flow
+}
+
+fn respawn_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(tick) = RespawnTick::at(ctx) else { return Flow::Continue };
     let Some(world) = tick.world().map(|world| world.key()) else { return Flow::Continue };
     let Some(hunt) = hunt_in(ctx.thread(), world) else { return Flow::Continue };
@@ -590,6 +599,13 @@ fn level_along(player: &Player<'_>, view: &View) -> Option<f32> {
 /// A player's input at its time `now`: `use_pressed` and `drop_pressed` its
 /// edges (the raw mask against the last).
 pub fn input(player: &Player<'_>, now: u32, use_pressed: bool, drop_pressed: bool) -> Input {
+    let started = timer_start(player.thread());
+    let input = decide_input(player, now, use_pressed, drop_pressed);
+    timer_end(player.thread(), started, "an input");
+    input
+}
+
+fn decide_input(player: &Player<'_>, now: u32, use_pressed: bool, drop_pressed: bool) -> Input {
     let thread = player.thread();
     let Some(world) = HuntWorld::of_player(player) else { return Input::Game };
     let key = world.key();
@@ -857,6 +873,14 @@ fn checksum(values: &[f64; 28]) -> u32 {
 }
 
 /// The prompt for the viewed player: the take or the put his view reaches.
+/// Whether Use by `player` would take the artefact or put it in now (the
+/// hunt's prompt): patch 78's and 85's prompts and patch 85's pickup command
+/// give way to it.
+pub fn offers(player: &Player<'_>) -> bool {
+    let Some(world) = HuntWorld::of_player(player) else { return false };
+    hunt_in(player.thread(), world.key()).is_some_and(|hunt| prompt_of(&hunt, player) != Prompt::None)
+}
+
 fn prompt_of(hunt: &Hunt, player: &Player<'_>) -> Prompt {
     let Some(place) = Place::new(player.hunt_place()) else { return Prompt::None };
     if !player.alive() || !player.inserted() || hunt.state.frozen() {
@@ -864,17 +888,53 @@ fn prompt_of(hunt: &Hunt, player: &Player<'_>) -> Prompt {
     }
     let (eye, forward) = player.carry_eye();
     let view = View { eye, forward };
-    let level = level_along(player, &view);
+    // The level's ray only near what Use could reach: a frame far from it
+    // asks the physics world nothing.
+    let near = |at: [f32; 3], within: f32| {
+        let d = [at[0] - eye[0], at[1] - eye[1], at[2] - eye[2]];
+        d[0] * d[0] + d[1] * d[1] + d[2] * d[2] <= within * within
+    };
     match hunt.state.artefact(&hunt.params) {
-        ArtefactView::Lying { at, .. } if hunt.params.takes(&view, at, level) => Prompt::Take,
-        ArtefactView::Carried { by, team } if by == place && hunt.params.delivers(&view, team, level) => Prompt::Put,
+        ArtefactView::Lying { at, .. } if near(at.metres(), REACH + 1.0)
+            && hunt.params.takes(&view, at, level_along(player, &view)) => Prompt::Take,
+        ArtefactView::Carried { by, team } if by == place && near(hunt.params.base(team).metres(), BASE_NEAR)
+            && hunt.params.delivers(&view, team, level_along(player, &view)) => Prompt::Put,
         _ => Prompt::None,
+    }
+}
+
+/// How near its base's point a carrier's eye must be for the prompt to ask
+/// whether Use puts it in (its shapes lie within a few metres of the point).
+const BASE_NEAR: f32 = 12.0;
+
+/// A handler's start, timed under `SKHID_HUNT_LOG=on` (the third test's
+/// games stalled 0.5 to 2.5 s: which code of ours ran then).
+fn timer_start(thread: &Thread) -> Option<u64> {
+    hunt_log(thread).then(|| crate::vostok::clock::counter(thread))
+}
+
+/// Its end: a line when it took 20 ms or more.
+fn timer_end(thread: &Thread, started: Option<u64>, what: &str) {
+    let Some(start) = started else { return };
+    // In f32, as patch 85's elapsed_ms: the arena has no 64-bit division.
+    let frequency = crate::vostok::clock::frequency(thread).max(1);
+    let ms = (crate::vostok::clock::counter(thread).wrapping_sub(start) as f32 * 1000.0 / frequency as f32) as u32;
+    if ms >= 20 {
+        log::line(&[Piece::Text("artefact_hunt: "), Piece::Text(what), Piece::Text(" took "), Piece::Dec(ms),
+                    Piece::Text(" ms, game "), Piece::Dec(crate::vostok::gun_cook::process_id())]);
     }
 }
 
 /// update_player_icons' start (every frame of a match, after the frame's
 /// steps): the update call, the cues' messages, the prompt.
 pub fn on_update_icons(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let started = timer_start(ctx.thread());
+    let flow = update_icons(ctx);
+    timer_end(ctx.thread(), started, "the hud's update");
+    flow
+}
+
+fn update_icons(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let Some(world) = HuntWorld::of_match(thread) else { return Flow::Continue };
     let Some(hunt) = hunt_in(thread, world.key()) else { return Flow::Continue };
@@ -1050,6 +1110,13 @@ pub fn on_loaded(results: QueryResults<'_>, tag: QueryTag) {
 /// game_world::tick after the simulation's move: the artefact's model and
 /// particles reconciled with the rule's state, each frame.
 pub fn on_after_move(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let started = timer_start(ctx.thread());
+    let flow = after_move(ctx);
+    timer_end(ctx.thread(), started, "the frame's artefact and glow");
+    flow
+}
+
+fn after_move(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let Some(game_world) = GameWorld::at_after_move(ctx) else { return Flow::Continue };
     let Some(world) = HuntWorld::of_match(thread) else { return Flow::Continue };
