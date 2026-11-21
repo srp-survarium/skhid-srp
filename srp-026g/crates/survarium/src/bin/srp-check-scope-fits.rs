@@ -1,8 +1,8 @@
-//! `srp-check-scope-fits <released game data> <candidate game data>`: no
+//! `srp-check-scope-fits <released-pairs.tsv> <candidate game data>`: no
 //! scope pair players could put on is lost by the candidate.
 //!
-//! The released data (up to revision 68) is read as its servers read it:
-//! the scope variants' `srp_scope_fit` blocks
+//! The released pairs (up to revision 68) are the record
+//! `scripts/scope-fits/released-pairs.tsv`
 //! (`survarium::v026g::scopes::released`). The candidate is asked what its
 //! servers will ask: its modules table (`weapon_modules::Modules`), with
 //! the same `check` an attach and an account's load run. Every released
@@ -67,15 +67,8 @@ fn open(path: &Path) -> Result<(GameData, Dictionary), Box<dyn Error>> {
 }
 
 fn run(before: &Path, after: &Path) -> Result<(), Box<dyn Error>> {
-    let (old_data, old_dictionary) = open(before)?;
-    let (old, rejected) = released::pairs(&old_data, &old_dictionary)?;
-    if !rejected.is_empty() {
-        return Err(format!(
-            "{}: rejected scope variants: {rejected:?}",
-            before.display()
-        )
-        .into());
-    }
+    let old = released::parse(&std::fs::read_to_string(before)?)
+        .map_err(|why| format!("{}: {why}", before.display()))?;
     let (data, dictionary) = open(after)?;
     check_modification_ids(&data, &dictionary)?;
     scopes::check(&data, &dictionary)?;
@@ -84,19 +77,17 @@ fn run(before: &Path, after: &Path) -> Result<(), Box<dyn Error>> {
         dictionary: &dictionary,
         modules: &modules,
     };
-    let name = |dictionary: &Dictionary, id: u16| {
+    let name = |id: u16| {
         dictionary
             .item(id)
             .map_or_else(|| "?".to_owned(), |item| item.name.clone())
     };
     let mut losses = Vec::new();
     for pair in &old {
-        let weapon = (pair.weapon, name(&old_dictionary, pair.weapon));
-        let scope = (pair.scope, name(&old_dictionary, pair.scope));
-        if let Some(why) = candidate.lost((weapon.0, &weapon.1), (scope.0, &scope.1)) {
+        if let Some(why) = candidate.lost(pair) {
             losses.push(format!(
                 "lost weapon {} / scope {} (variant {}): {why}",
-                pair.weapon, pair.scope, pair.variant
+                pair.weapon.0, pair.scope.0, pair.variant
             ));
         }
     }
@@ -117,7 +108,7 @@ fn run(before: &Path, after: &Path) -> Result<(), Box<dyn Error>> {
         }
         return Err(format!("{} pair(s) refused", losses.len()).into());
     }
-    let released: BTreeSet<(u16, u16)> = old.iter().map(|pair| (pair.weapon, pair.scope)).collect();
+    let released: BTreeSet<(u16, u16)> = old.iter().map(|pair| (pair.weapon.0, pair.scope.0)).collect();
     println!("status\tweapon\tscope\tweapon_name\tscope_name");
     for &(weapon, scope) in &new {
         let status = if released.contains(&(weapon, scope)) {
@@ -127,8 +118,8 @@ fn run(before: &Path, after: &Path) -> Result<(), Box<dyn Error>> {
         };
         println!(
             "{status}\t{weapon}\t{scope}\t{}\t{}",
-            name(&dictionary, weapon),
-            name(&dictionary, scope)
+            name(weapon),
+            name(scope)
         );
     }
     let weapons: BTreeSet<u16> = new.iter().map(|&(weapon, _)| weapon).collect();
@@ -147,7 +138,7 @@ fn main() {
     let args: Vec<_> = std::env::args_os().skip(1).collect();
     let [before, after] = args.as_slice() else {
         eprintln!(
-            "usage: srp-check-scope-fits <released-server-game-data.db> <candidate-server-game-data.db>"
+            "usage: srp-check-scope-fits <released-pairs.tsv> <candidate-server-game-data.db>"
         );
         std::process::exit(2);
     };

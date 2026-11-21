@@ -89,7 +89,7 @@
 //!   is named after) or else by seller 0 at no rank (the rank badges), for
 //!   `base_cost` [the owner's choice, 2026-11-07: vanity, so dear];
 //! - not listed: anything else with `base_cost` 0 (their ammo is listed at
-//!   no cost, see [`sellers_of_in`]; artefacts, money, the New Year 2015 camouflage), premium
+//!   no cost, see [`sellers_of_with`]; artefacts, money, the New Year 2015 camouflage), premium
 //!   items (they belong to the premium shop, 0x95, or are sold one by one
 //!   by seller 0, `shop_offers`), artefacts (as 0.21d), vouchers,
 //!   the other decals and the drop camouflages;
