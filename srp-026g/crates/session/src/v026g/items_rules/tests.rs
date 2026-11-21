@@ -422,7 +422,7 @@ fn records(account: &Account, host: u32) -> Vec<Upgrade> {
 /// forend that takes that thread.
 fn modules_table() -> Modules {
     Modules::parse(
-        include_bytes!("../../../../weapon-modules/tests/sample-v2.srpm").to_vec(),
+        include_bytes!("../../../../weapon-modules/tests/sample-v3.srpm").to_vec(),
     )
     .unwrap()
 }

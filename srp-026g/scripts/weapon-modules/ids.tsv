@@ -1,4 +1,6 @@
 # The fitted modules' dict ids (ids.py; append-only): 0.69d0 module, our dict id, its kind, our item.
+# No item is made for an id no gun takes in the built table; the id stays taken: 2652-2655 (the VSSK's
+# barrels, its suppressor in other shapes), 2667, 2669, 2670 (the OTs-14's and the SR-3M's own foregrips).
 # module	dict id	kind	item
 aek919k_m12x1l_muzzlebrake	2601	muzzle	srp_muzzle_aek919k_m12x1l_muzzlebrake
 aws_rapira_m24x15_muzzlebrake	2602	muzzle	srp_muzzle_aws_rapira_m24x15_muzzlebrake

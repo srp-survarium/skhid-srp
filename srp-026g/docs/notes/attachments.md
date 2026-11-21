@@ -194,7 +194,7 @@ from the rear sight; a rail optic bringing the dovetail rail and not moving when
 forend with a rail of its own; the Victory Day AK-74M taking the AK-74M's fits with its own brake's
 model; the P90's shared carrier and its refused pair; a choke, a grip as a scope and a gun's own
 brake refused. The eye against the engine's two formulas. The format: the checked-in table
-(`tests/sample-v2.srpm`) is what the cases encode to and parses; every prefix and every single
+(`tests/sample-v3.srpm`) is what the cases encode to and parses; every prefix and every single
 changed byte of it is refused or parsed without a panic; nineteen broken rules each refused by name.
 
 ### The table
@@ -446,7 +446,7 @@ Done, 2026-11-20:
   the original): the table's way in; the cook's requests; the callback's records and fingers; the
   parts in the scene; the left hand; the shells; the release; a weapon without any of it. What it
   compares with is the weapon-modules crate's own `resolve`, pinned in
-  `tests/sample-v2.loadouts.tsv` by the crate's test. Its objects are made up and its table is the
+  `tests/sample-v3.loadouts.tsv` by the crate's test. Its objects are made up and its table is the
   crate's sample: it proves the patch's own code beside the game's, not the content.
 
 - **One gun runs in a game** (2026-11-21; a headless client on a local server, the content side's

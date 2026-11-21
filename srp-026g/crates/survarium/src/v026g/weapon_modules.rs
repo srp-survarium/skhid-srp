@@ -212,7 +212,7 @@ impl Modules {
 #[cfg(any(test, feature = "fixtures"))]
 pub mod fixtures {
     use weapon_modules::encode::{AttachSource, GunSource, ModuleSource, Source, encode};
-    use weapon_modules::{Affine, HAND_LOCATORS, Role, SlotId};
+    use weapon_modules::{Affine, AttachEye, HAND_LOCATORS, Role, SlotId};
 
     use super::{Kind, Modules};
 
@@ -237,7 +237,7 @@ pub mod fixtures {
                         alt: None,
                         aimed: None,
                         attaches: vec![AttachSource {
-                            eye: (kind == Kind::Scope).then_some(Affine::IDENTITY),
+                            eye: (kind == Kind::Scope).then_some(AttachEye::Own(Affine::IDENTITY)),
                             ..AttachSource::new(slot(kind))
                         }],
                         hand: (kind == Kind::Grip).then_some([Affine::IDENTITY; HAND_LOCATORS]),
@@ -275,7 +275,7 @@ mod tests {
     /// 763, the P90 1220; the DTK-3 1415, the MIKI grip 1438, the PSO-1
     /// 1755, the EOTech 1771, a P90 brake 1421 and flash hider 1395.
     fn sample() -> Modules {
-        Modules::parse(include_bytes!("../../../weapon-modules/tests/sample-v2.srpm").to_vec()).unwrap()
+        Modules::parse(include_bytes!("../../../weapon-modules/tests/sample-v3.srpm").to_vec()).unwrap()
     }
 
     const AK: u16 = 3;
