@@ -27,6 +27,8 @@ import renderer as R  # noqa: E402
 ATLAS = b'LobbyMenu_AmmoIcons'
 STOCK_SCOPES = [(1, 4), (2, 4), (3, 4)]
 YAW, PITCH = 32.0, 14.0
+LIGHT = np.array([-0.45, 0.75, 0.8]) / np.linalg.norm([-0.45, 0.75, 0.8])   # the renderer's key light, in view space
+AMBIENT, KEY = 0.45, 0.7                                                     # its diffuse terms
 
 
 def view(yaw, pitch):
@@ -77,6 +79,49 @@ def parts(pack, model):
     return out
 
 
+def in_shadow(surfaces, camera):
+    """For each surface, each triangle's key light that the model itself keeps off it (0 where none).
+
+    The renderer has no shadows, so the inside of a cone (the AKS-74U's bell) took the highlight of
+    a face turned to the light. A triangle is in shadow when the ray from its centre to the light
+    meets another triangle of the model; what it misses is the key light its normal would take."""
+    camera = np.asarray(camera, float)
+    every = np.concatenate([s.position[s.triangles] @ camera.T for s in surfaces])
+    a, e1, e2 = every[:, 0], every[:, 1] - every[:, 0], every[:, 2] - every[:, 0]
+    h = np.cross(LIGHT, e2)
+    det = (e1 * h).sum(1)
+    inv = np.where(np.abs(det) > 1e-12, 1 / np.where(det == 0, 1, det), 0)
+    out = []
+    for s in surfaces:
+        tri = s.position[s.triangles] @ camera.T
+        to = tri.mean(1)[:, None, :] - a[None]          # Moller-Trumbore against every triangle at once
+        u = (to * h[None]).sum(2) * inv
+        q = np.cross(to, e1[None])
+        v = (q * LIGHT).sum(2) * inv
+        t = (q * e2[None]).sum(2) * inv
+        blocked = ((inv != 0) & (u >= 0) & (v >= 0) & (u + v <= 1) & (t > 1e-6)).any(1)
+        normal = (s.normal[s.triangles] @ camera.T).mean(1)
+        normal *= np.where(normal[:, 2:3] < 0, -1, 1)   # turned to the camera, as the renderer does
+        out.append(np.where(blocked, np.maximum(normal @ LIGHT, 0), 0.0))
+    return out
+
+
+def shadowed(surfaces, camera):
+    """The surfaces with their shadowed triangles split off: no highlight, and the key light they miss
+    taken out of the diffuse texture (in tenths)."""
+    out = []
+    for s, missed in zip(surfaces, in_shadow(surfaces, camera)):
+        out.append(R.Surface(**{**s.__dict__, 'triangles': s.triangles[missed == 0]}))
+        for tenth in range(10):
+            pick = (missed > tenth / 10) & (missed <= (tenth + 1) / 10)
+            if pick.any():
+                dim = (AMBIENT / (AMBIENT + KEY * (tenth + 0.5) / 10)) ** (1 / 2.2)   # the texture is gamma 2.2
+                diffuse = s.diffuse.astype(float) * [dim, dim, dim, 1]
+                out.append(R.Surface(**{**s.__dict__, 'triangles': s.triangles[pick], 'diffuse': diffuse.astype(np.uint8),
+                                        'fresnel': np.zeros_like(s.fresnel)}))
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--modules', type=Path, required=True)
@@ -94,10 +139,10 @@ def main():
     camera = view(YAW, PITCH)
     icons = []
     for device in found:
-        surfaces = parts(args.modules, device['model'])
+        surfaces = shadowed(parts(args.modules, device['model']), camera)
         exposure = 1.0
         for _ in range(4):      # the finished icon's brightness is not linear in the exposure
-            icon = R.render(surfaces, camera, size, exposure=exposure)
+            icon = R.render(surfaces, camera, size, light=LIGHT, exposure=exposure)
             exposure *= target / max(R.mean_luma(np.asarray(icon)), 1e-6)
         canvas = Image.new('RGBA', (W, H))
         canvas.paste(icon, ((W - icon.size[0]) // 2, (H - 4 - icon.size[1]) // 2))

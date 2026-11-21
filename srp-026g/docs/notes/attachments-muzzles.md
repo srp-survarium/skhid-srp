@@ -127,7 +127,10 @@ python3 -I scripts/muzzle-devices/make_pack.py --inputs <inputs> --modules <weap
   is in the config of every gun that takes it (544 fits).
 - The icons are drawn from the devices' own models by the weapons' icon renderer
   (`scripts/weapon-icons/renderer.py`), into `LobbyMenu_AmmoIcons` columns 5 to 7, 22 a column, in
-  the table's order. Column 8 is the grips'.
+  the table's order. Column 8 is the grips'. That renderer has no shadows, so `render_icons.py` adds
+  the one the icons need: a triangle whose ray to the key light meets the model loses its highlight
+  and the key light its normal would take. Without it the inside of a cone or a crown (2629, 2630,
+  2636, 2637) took the highlight of a face turned to the light, a pale wedge.
 - The texts (`texts.py`, `names.tsv`): a name is the model's name, the kind's word and the thread
   ("Zenit DTK-3 muzzle brake, M24x1.5"); 0.69d0's own strings mislabel kinds and threads and name
   seven devices alike. Keys `st_muzzle_<module>_name` and `_description`.
@@ -176,7 +179,5 @@ until a game shows it:
 3. `release/build-content --full` with the pack, and `tools/check build-content`.
 4. A match's recording with a device fitted through the world check (the kit's record with a dict id
    in slot 4 is patch 68's format; nothing new is written).
-5. Four icons show a pale wedge inside the device's cone (2629, 2630, 2636, 2637): the renderer's
-   highlight on a surface that faces the camera from inside. Not looked into.
-6. The M30x1 devices fit the three guns that were at the old 16 KB config bound: fit them only with
+5. The M30x1 devices fit the three guns that were at the old 16 KB config bound: fit them only with
    an exe that has patch 161's 64 KB arena (`attachments.md`).
