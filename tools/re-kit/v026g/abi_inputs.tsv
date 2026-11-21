@@ -6552,5 +6552,9 @@ va	name	location	role	basis
 0x002959d0	survarium::portable_interactive_object::process_hands_ik	entry ESP+0x10	pointer to the user's skeleton pointer (bone names)	observed
 0x0030e5c0	survarium::weapon_core_fire_state::clip_time_scale [descriptive]	EDI	pointer to the clip's resource pointer (the first hands clip)	observed
 0x0030e5c0	survarium::weapon_core_fire_state::clip_time_scale [descriptive]	entry ESP+4	float: the shots a second (rounds_per_minute / 60); the caller pops	observed
+0x00111700	vostok::logging::filter_tree::push_filter	EAX	the filter tree ([0x1F1D60C])	observed
+0x00111700	vostok::logging::filter_tree::push_filter	entry ESP+4	the channel ("" (0x9DB708) or 0: every channel)	observed
+0x00111700	vostok::logging::filter_tree::push_filter	entry ESP+8	the verbosity: 1 silent, 2 error, 3 warning, 4 info, 5 debug, 6 trace (string_to_verbosity 0x111910, names 0xA7A924); logging_initialize pushes ("", 4) or -log_verbosity's (0xE2FBE)	observed
+0x000fde20	vostok::console_commands::logging_rule::execute [descriptive]	entry ESP+4	the arguments: "<channel> <verbosity>", or the verbosity alone for every channel -> filter_tree::push_filter ([this+40h]); the command (logging_rule, kind 2, vtable 0x9E8F98, registered by 0xFDDC0) saves the tree to user.cfg (save_to 0xFDF50)	observed
 0x0032de40	survarium::bullet::try_reflect	entry ESP+4	the bullet (EBX; +88h its reflections, +70h/+74h its damage and piercing, +40h its ammo data, +0Ch its weapon item)	observed
 0x0032ee90	survarium::bullet::update_bullet_position	EAX+74h at 0x32F174	the only store of the piercing that depends on distance (every other: the constructor 0x32BB7B, a record 0x32BCDE, try_pierce 0x32DAA1, try_reflect 0x32E3C6); exe patch 173 makes it a nop (client_patch.md 3.94)	observed

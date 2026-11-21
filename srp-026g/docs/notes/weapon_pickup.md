@@ -979,7 +979,9 @@ policy, the cache, the log) over `vostok/gun_cook.rs` (the cook).
   `death hook: place P life L at T ms` and `its body left the world: ...` are
   said once for each death and removal: a rollback runs both hooks again at
   each tick it simulates again (the owner's log of 2026-11-09: 13 064 and
-  7 977 such lines in its last 3 MB).
+  7 977 such lines in its last 3 MB). Once a life (2026-11-21): keyed by the
+  time as well, a rollback that replays the removal at other ticks said it
+  again at each (a local match of 2026-11-21: 106 lines for one respawn).
 - **Checked:** `check_weapon_pickup_026g.py` (Unicorn) runs the death, the
   frame's step and the destruction of the built exe with the game's own
   profile code, match_options, boost binder and invoker: the query and its
