@@ -21,6 +21,9 @@ package survarium.controls
       // 0x23AA83: the batteries and the like).
       public static const FIRST_OBJECT:uint = 37;
 
+      // An enemy's colour, the game's own for an enemy's name over his head (render_name 0x1F300F).
+      public static const ENEMY_RGB:uint = 0xFF0000;
+
       // The match's objects' icons hidden (the interface forced hidden: MainTimeline.force_interface_hidden).
       protected var _objectsHidden:Boolean = false;
       
@@ -88,6 +91,26 @@ package survarium.controls
          }
          return renderer.kind != 0 || this.enemiesShown || this._enemyIds.indexOf(id) == -1
             || this._carriersShown && renderer.carrying;
+      }
+
+      // The marker's arrow in a colour: every part of it named renderer (each frame of the icon has two,
+      // the arrow and its inner part; icon.renderer names one of them only).
+      protected static function paintIcon(renderer:HUDMarker, colour:ColorTransform) : void
+      {
+         var icon:MovieClip = renderer.icon;
+         for(var i:int = 0; icon != null && i < icon.numChildren; i++)
+         {
+            if(icon.getChildAt(i).name == "renderer")
+            {
+               icon.getChildAt(i).transform.colorTransform = colour;
+            }
+         }
+      }
+
+      // A player of the other team (the game's enemy list, set_enemy_icon_ids).
+      protected function isEnemy(id:uint) : Boolean
+      {
+         return this._enemyIds.indexOf(id) != -1;
       }
 
       public function get carriersShown() : Boolean
@@ -378,15 +401,14 @@ package survarium.controls
                   }
                }
             }
-            if(props.rgb != undefined)
+            // an enemy shown (a replay, Artifact Hunt's carrier) red whatever colour the game sends,
+            // so that white is the teammates' only
+            if(props.rgb != undefined || this.isEnemy(id))
             {
                colorTransfor = new ColorTransform();
-               color = (props.rgb);
+               color = this.isEnemy(id) ? ENEMY_RGB : uint(props.rgb);
                colorTransfor.color = color;
-               if(renderer.icon.renderer)
-               {
-                  renderer.icon.renderer.transform.colorTransform = colorTransfor;
-               }
+               paintIcon(renderer,colorTransfor);
                if(textField)
                {
                   textField.textColor = color;
@@ -436,16 +458,13 @@ package survarium.controls
       
       public function set_player_color(id:uint, red:uint, green:uint, blue:uint, alpha:uint = 255) : void
       {
-         var color:uint = (red << 16 | green << 8 | blue);
+         var color:uint = this.isEnemy(id) ? ENEMY_RGB : (red << 16 | green << 8 | blue);
          var colorTransfor:ColorTransform = new ColorTransform();
          colorTransfor.color = color;
          colorTransfor.alphaOffset = alpha - 255;
          var renderer:HUDMarker = this._markers[id];
          var filter:DropShadowFilter;
-         if(renderer.icon.renderer)
-         {
-            renderer.icon.renderer.transform.colorTransform = colorTransfor;
-         }
+         paintIcon(renderer,colorTransfor);
          if(renderer.textField)
          {
             renderer.textField.textColor = color;
@@ -453,7 +472,7 @@ package survarium.controls
          if(renderer.textField && ((renderer.textField as TextField).filters))
          {
             filter = (renderer.textField as TextField).filters[0];
-            filter.color = red << 16 | green << 8 | blue;
+            filter.color = color;
          }
       }
    }

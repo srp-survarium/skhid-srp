@@ -44,11 +44,28 @@ package
          return p;
       }
 
+      // The marker's arrow (every part of it, "renderer") and name colours, hex: "<arrow>/<name>", or
+      // "mixed" for parts of different colours.
+      private static function colour(marker:*) : String
+      {
+         var arrow:String = null;
+         for(var i:int = 0; i < marker.icon.numChildren; i++)
+         {
+            var part:* = marker.icon.getChildAt(i);
+            if(part.name != "renderer") continue;
+            var c:String = part.transform.colorTransform.color.toString(16);
+            arrow = arrow == null || arrow == c ? c : "mixed";
+         }
+         return arrow + "/" + marker.textField.textColor.toString(16);
+      }
+
       private function setup(root:*) : void
       {
          root.create_player_icon(1,0,1);
          root.create_player_icon(2,0,1);
          root.create_player_icon(3,0,1);
+         // the game stops each marker on its kind (set_player_icon_type), or the arrow runs through its frames
+         for(var id:int = 1; id <= 3; id++) root.set_player_icon_type(id,0);
          root.set_enemy_icon_ids([2,3]);
       }
 
@@ -64,14 +81,27 @@ package
                addChild(icons);
                setup(root_);
                root_.srp_show_carriers(true);
-               // 1 a teammate carrying, 2 an enemy carrying, 3 an enemy not
-               root_.set_player_icons_props([props(1,"Wolf",0xFFFFFF,true),props(2,"Raven",0xFF0000,true),props(3,"Fox",0xFF0000,false)]);
+               // 1 a teammate carrying, 2 an enemy carrying, 3 an enemy not; the game gave the enemy
+               // carrier his own team's white (the owner's test, 2026-11-21)
+               root_.set_player_icons_props([props(1,"Wolf",0xFFFFFF,true),props(2,"Raven",0xFFFFFF,true),props(3,"Fox",0xFF0000,false)]);
                var ally:* = root_.iconControl.getChildAt(1);
                var enemy:* = root_.iconControl.getChildAt(2);
                var other:* = root_.iconControl.getChildAt(3);
                check(ally.visible && ally.artefactMarkShown && !ally.icon_box.visible,"a teammate carrying: shown, the artefact's mark, not the box");
                check(enemy.visible && enemy.artefactMarkShown && !enemy.icon_box.visible,"an enemy carrying: shown with the artefact's mark");
                check(!other.visible,"an enemy not carrying: never shown");
+               check(colour(enemy) == "ff0000/ff0000","the enemy carrier red, though sent white: " + colour(enemy));
+               check(colour(ally) == "ffffff/ffffff","the teammate carrier white: " + colour(ally));
+               root_.set_player_color(2,255,255,255);
+               check(colour(enemy) == "ff0000/ff0000","and stays red at set_player_color white: " + colour(enemy));
+               phase = 4;
+               frames = 0;
+               return;
+            }
+            if(phase == 4)
+            {
+               // the names show after the markers' delay (500 ms)
+               if(frames < 50) return;
                trace("HUNT SHOT icons");
                phase = 1;
                frames = 0;
