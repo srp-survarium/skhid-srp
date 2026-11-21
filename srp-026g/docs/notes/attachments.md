@@ -501,7 +501,11 @@ Not done:
    under a moved scope is unseen. A grip's fingers were seen from
    across the lobby, not judged (the grips lane takes that picture).
 2. The order "the table before any weapon" held in every run; it stays LIKELY as a rule.
-3. **A dropped gun and a dead body's gun** draw their parts by code no game has shown yet.
+3. **A dead body's gun: SEEN** (2026-11-21, the full content of build-content 69, table v3): a teammate test bot
+   wearing the AK-74M with the shop PSO-1 died beside the client (`srp-bot --suicide-after`, a test-only flag of that
+   binary), and his gun lay on the grass with the PSO-1 and with its forend and brake, which the bare body lacks unless
+   the parts are drawn (`private/renders/attachments-core/deadmate1/lying-full.png`). Whether that was the ragdoll's
+   gun or the pickup's copy (`place_lying`) is not judged. The shells' place under a moved scope is still unseen.
 4. **The lookup by address** scans the registry at each weapon's draw; to be measured in a match
    before it is called done.
 5. The six guns whose left hand does not rest on the idle locator need their clip event before a
