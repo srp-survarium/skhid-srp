@@ -2261,6 +2261,8 @@ st_srp_artefact_532_description	No fall damage while an Onyx is active.
 st_srp_artefact_532_name	Onyx II
 st_srp_artefact_533_description	Activating a Larkspur restores all energy.
 st_srp_artefact_533_name	Larkspur II
+st_srp_artefact_534_description	After a death, your kit's artifacts move into the kit you respawn in, as many as its containers hold.
+st_srp_artefact_534_name	Courier
 st_srp_artefact_541_description	Your artifacts' passive effects also work on living teammates within 9 m.
 st_srp_artefact_541_name	Resonance
 st_srp_artefact_542_description	Activated artifacts also work on living teammates within 6 m. "They glow, you shine"

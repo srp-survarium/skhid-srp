@@ -28,6 +28,7 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 | 4 | 15 | 531 | Spring II | 1 | Spring: reload +5% passive, +15% active | exe (patch 54's Spring) |
 | 4 | 15 | 532 | Onyx II | 1 | no fall damage while Onyx is active | exe (patch 54's Onyx) |
 | 4 | 15 | 533 | Larkspur II | 1 | activation restores all energy | exe |
+| 4 | 15 | 534 | Courier | 1 | at a respawn into another kit, the dead kit's artefacts come along | exe |
 | 5 | 20 | 541 | Resonance | 1 | passives shared, 9 m; or Cascade | exe |
 | 5 | 20 | 542 | Cascade | 1 | actives shared, 6 m; or Resonance | exe |
 
@@ -40,15 +41,15 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 | - Q R - |    Quick Hands, Resistance
 | - - K S |    Knowledge of Artifacts, Artifact Sight
 | F P A - |    Forest Protection, Keeper of the Artifacts, Artifact Container
-| S O L - |    Spring II, Onyx II, Larkspur II
+| S O L C |    Spring II, Onyx II, Larkspur II, Courier
 | - N X - |    Resonance or Cascade (antiskills of each other)
 ```
 
-- Points (25 ranks in all; one of Resonance and Cascade): row I holds 8, rows I-II 14, rows
-  I-III 20, rows I-IV 23, a full build 24. Without Forest Protection rows I-IV hold 19: row V
-  needs at least one of its ranks.
+- Points (26 ranks in all; one of Resonance and Cascade): row I holds 8, rows I-II 14, rows
+  I-III 20, rows I-IV 24, a full build 25. Without Forest Protection rows I-IV hold 20: row V
+  opens without it.
 - Thresholds 0/5/10/15/17 (the owner, 2026-11-14: row V at 17; the stock 0/5/10/15/20 from
-  2026-11-07): every row opens (row I holds 8 for 5; rows I-IV hold 23 for 17, 19 without Forest
+  2026-11-07): every row opens (row I holds 8 for 5; rows I-IV hold 24 for 17, 20 without Forest
   Protection).
 - Quick Hands: 3 ranks of -8% search time (max -24%; the owner, 2026-11-09, "should be 3", with
   more a rank; 4 of -6% from 2026-11-07, the saved ranks past 3 settled and refunded). Resistance: 5 ranks
@@ -67,7 +68,7 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   in the patch); invalid (fractional, negative, too large, a rank past its levels) is no
   artefact skill at all. Bits: 0..2 Resistance (0..5), 3 Keeper, 4 Resonance, 5 Spring II,
   6 Onyx II, 7 Larkspur II, 8 Cascade, 9..11 Keeper's draw, 12 Artifact Sight, 13 a late
-  joiner's kit (srp's mark, not a skill: Keeper below).
+  joiner's kit (srp's mark, not a skill: Keeper below), 14 Courier.
 - Modifier 40 evidence (the exact 0.26g exe, 2026-11-05): all 94 calls of `apply_modifier` and
   its wrapper 0x2D5B80 resolve to an index, none 40; `artefact_power_modifier` is referenced
   only by the two name tables (0x9284E8, 0x9C9C88); no other config, edit list or code
@@ -76,7 +77,7 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   40 of every kit of every player, bots too, with the skill or not (bits 9..11: the kind's draw,
   1 Larkspur, 2 Onyx, 3 Spring; 4 the Sponge once it is on main; 0 none), so every game knows it
   from the static info. The parser takes 1..6; a draw past the kinds gives nothing.
-- Bit 14 and above: nothing (a payload with one is refused).
+- Bit 15 and above: nothing (a payload with one is refused).
 
 ## Quick Hands (501)
 
@@ -342,6 +343,50 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   `crates/mapdata/tests/artefact_keeper.rs` (the edit list against the table, the anomaly as a
   map object), `survarium::v026g::keeper` and the match-server test (the draw in every kit, a
   joiner's too; bit 13 for a joiner taken in process, none for one taken in the countdown).
+
+## Courier (534)
+
+- What it is for (the owner, 2026-11-21, from a player's report: the medical tree is stronger than
+  this one, since not every map has artefacts; Keeper helps, "but only in one kit"): with Keeper,
+  a player always has an artefact, whatever kit they play.
+- The rule (the owner, 2026-11-21): at a respawn into another kit, the artefacts of the kit the
+  player died in move into the new kit's empty containers, as many as fit; the rest stay in the
+  old kit. Any artefact, found or Keeper's ("this should not be just keeper, essentially any
+  artifacts move").
+- Only the kit just left gives (the owner's run, 2026-11-21): kit 1 with two artefacts dies into
+  kit 2 with no container: nothing moves; kit 2 dies into kit 3: nothing (kit 1's stay in kit 1);
+  kit 3 takes one and dies into kit 1, which has three containers: kit 1 holds three. Kit 1 with
+  two dies into kit 2 with one container: one moves, one stays in kit 1.
+- A respawn in the same kit moves nothing (the game keeps its artefacts: setup_from_profile's
+  on_taken switches their passives on again). The countdown's kit change moves nothing either:
+  only an artefact a death switched off (state 5) moves.
+- Row IV, column 4, 15 points, one rank: modifier 40 bit 14 (`artefact-skills-1.json`'s last
+  entry). Icon 0.69d0 anomaly/10 (a hooded figure holding an artefact close; my pick, first
+  chosen for the parked Hidden Stash, which would take another).
+- Where (exe patch 109, `artefact_courier.rs`, `vostok/courier.rs`): the respawn rule's spawn
+  (0x316DA0), every spawn of a match, the first too, in every game and every replay of its tick.
+  - `courier.spawn_kits` (0x316DDA, before `mov [eax+0Ch],dl` makes the chosen kit current): the
+    place's entry's +0Ch (the kit it was in) and +0Dh (the kit it spawns in); a change of kit is
+    kept for the end of this same call (nothing kept past it).
+  - `courier.spawned` (0x316EAB, the spawn's last pops): the new kit initialised (vtable+1Ch:
+    initialize clears its modifier lists, setup_from_profile sets its container range and links
+    its own artefacts) and in the world (vtable+20h). With the bit in the new kit, the old kit's
+    container artefacts in state 5 go, in container order, into the new kit's empty containers.
+- The move (`Inventory::take_from_dead_kit`): the old slot emptied as remove_item (0x2FC680) does
+  but without on_removed (vtable+34h, 0x313490): the death already unlinked the passive
+  (artefact_base::tick 0x3132E5: vtable+84h, then state 5; a non-stack item's count is 1,
+  0x2FFDD0, so every artefact goes there), and a second unlink is not harmless (Spring's
+  vostok::intrusive_list::unlink 0x2D5D00 on a node no longer linked empties its list's head).
+  So: owner 0, slot 23, state 0 (as on_removed leaves it), the slot and its reference released,
+  the old kit's weight to recalculate; then the game's own take_artefact (as a pickup: set_item,
+  on_taken links the passive, state 3). A free container keeps take_artefact off its eviction.
+- What a world carries is unchanged: a moved artefact's record is its owner (place, kit) and slot,
+  as after any pickup; `keeper::reconcile` keeps every kit's slots the world's after a load.
+- Changes what a match computes: a `next` row of `simulation_changes.tsv`.
+- Check: `client-patches/check_artefact_courier_026g.py` (Unicorn on the built exe: the owner's two
+  runs through the game's take_artefact, on_holder_death, artefact_base::tick and the spawn's two
+  sites; each moved artefact in its new container, state 3, unlinked once and linked once; nothing
+  without the bit, in the same kit, or from another place) and `artefact_courier`'s tests.
 
 ## Spring II (531)
 
@@ -641,3 +686,5 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   kit objects of their own, Spring's every list and the stagger's slow, every kind's activation)
   fails on main at a Spring's activation at 3.5 m (nothing played). The radii raised to 9 m and
   6 m. Implemented and checked with Unicorn, not played, not released.
+- Courier (534, 2026-11-21): implemented and checked with Unicorn
+  (`check_artefact_courier_026g.py`, the owner's two runs); not played, not released.

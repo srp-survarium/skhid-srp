@@ -82,6 +82,7 @@ pub mod weapon_pickup;
 pub mod medical_skills;
 pub mod artefact_skills;
 pub mod artefact_keeper;
+pub mod artefact_courier;
 
 pub mod hand_kill;
 pub mod trap_stock_hit;

@@ -13057,6 +13057,15 @@ impl CorePlace {
         unsafe { self.0.byte_add(0xc).cast::<u8>().as_ptr() }
     }
 
+    /// +0xd (u8): the kit the place chose for its next spawn: the respawn rule's spawn makes it the place's kit (0x316DDA mov dl,[eax+0Dh] / 0x316DE3 mov [eax+0Ch],dl)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn next_kit(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0xd).cast::<u8>().as_ptr() }
+    }
+
     /// +0x0 (obj<survarium::place_kit>): its kits' players as one array (kit0, kit1, kit2), indexed by its kit as core_active_player does (0x2D0AFD lea eax,[eax+ecx*4])
     ///
     /// # Safety
@@ -32760,6 +32769,54 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn world(machine: &impl Machine) -> Option<CoreWorld> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(CoreWorld)
+        }
+    }
+
+    /// courier.spawn_kits (0x316dda): the respawn rule's spawn 0x316DA0 before it makes the chosen kit current (mov dl,[eax+0Dh] / mov cl,[ecx+115h], then mov [eax+0Ch],dl at 0x316DE3): BL the place, EAX its entry of the core's places, +0Ch still the kit it was in, +0Dh the kit it spawns in
+    pub mod courier_spawn_kits {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn place(machine: &impl Machine) -> u32 {
+            machine.register(Register::Ebx)
+        }
+
+        /// EAX: a survarium::core_place (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn entry(machine: &impl Machine) -> Option<CorePlace> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(CorePlace)
+        }
+    }
+
+    /// courier.spawned (0x316eab): the respawn rule's spawn 0x316DA0 at its end (the five pops before ret 0Ch), after the new kit's player was initialised (vtable+1Ch: its inventory set up from the profile, its containers' range set) and put into the world (vtable+20h): BL the place, ESI its new current kit's player
+    pub mod courier_spawned {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn place(machine: &impl Machine) -> u32 {
+            machine.register(Register::Ebx)
+        }
+
+        /// ESI: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(Player)
         }
     }
 
