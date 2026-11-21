@@ -219,6 +219,64 @@ impl<'t> Inventory<'t> {
         }
         Ok(())
     }
+
+    /// Courier (crate::artefact_courier): the artefacts the dead kit `donor`'s death left in its
+    /// containers into this alive kit's empty containers, in the donor's container order, as many
+    /// as there are empty ones.
+    ///
+    /// Only an artefact its holder's death switched off moves (state 5: artefact_base::tick
+    /// 0x3132E5 unlinks its passive, vtable+84h, then writes 5; nothing else writes 5). Its slot is
+    /// emptied as remove_item (0x2FC680) empties one but without on_removed (vtable+34h, 0x313490),
+    /// whose vtable+84h would unlink the passive a second time: Spring's list removal (0x2D5D00) is
+    /// not idempotent (an unlinked node empties its list's head). So: no owner and slot 23 (the
+    /// set_owner remove_item calls, 0x243590), state 0 (on_removed's end), the slot and its
+    /// reference released, the weight to recalculate; then the game's own take_artefact (as a
+    /// pickup: set_item, on_taken links the passive, state 3). A free container keeps
+    /// take_artefact off its evicting path.
+    pub(super) fn take_from_dead_kit(&mut self, donor: &mut Inventory<'t>) -> crate::artefact_courier::Carried {
+        let mut carried = crate::artefact_courier::Carried::default();
+        if self.player.address() == donor.player.address() || self.this.address() == donor.this.address() {
+            return carried;
+        }
+        if !self.alive() || donor.alive() {
+            return carried;
+        }
+        let Some(containers) = donor.containers() else { return carried };
+        for n in 0..containers.count {
+            let index = ContainerIndex::parse(n).unwrap();
+            let (Some(item), Some(slot), Some(entry)) = (donor.item_in(index), donor.native_slot(index), containers.entry(index)) else {
+                continue;
+            };
+            // SAFETY: the donor slot's live item; inventory_item's and artefact_base's fields.
+            let dead = unsafe {
+                item.item().inventory() == Some(donor.this) && read(item.item().inventory_slot()) == slot && read(item.state()) == 5
+            };
+            if !dead {
+                continue;
+            }
+            if self.container_space() != ContainerSpace::Available {
+                carried.left += 1;
+                continue;
+            }
+            let held = RetainedItem::new(item, self.thread);
+            // SAFETY: the donor's occupied slot (`entry`) and its item, retained by `held` across
+            // the empty-slot interval; the recipient has an empty container.
+            unsafe {
+                item.item().set_inventory(None);
+                item.item().inventory_slot().write_volatile(u32::from(SLOTS));
+                item.state().write_volatile(0);
+                entry.set_item(None);
+                drop(RetainedItem::adopt(item, self.thread));
+                donor.this.weight_dirty().write_volatile(1);
+                let mut incoming = Some(held.this);
+                raw::engine_inventory_take_artefact(Some(self.this), &mut incoming);
+                if item.item().inventory() == Some(self.this) {
+                    carried.moved += 1;
+                }
+            }
+        }
+        carried
+    }
 }
 
 /// The 23 slots of an inventory (+10Ch), by their native index (the item's +254h).

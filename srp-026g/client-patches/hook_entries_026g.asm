@@ -966,6 +966,84 @@ artefact_carry_on_key_replay:
     db 0x8b, 0x75, 0x10, 0x83, 0xfe, 0x01
     jmp 0x23fe48
 
+; 0x316dda the respawn rule's spawn 0x316DA0 before it makes the chosen kit current (mov dl,[eax+0Dh] / mov cl,[ecx+115h], then mov [eax+0Ch],dl at 0x316DE3): BL the place, EAX its entry of the core's places, +0Ch still the kit it was in, +0Dh the kit it spawns in: lohook -> artefact_courier_on_spawn_kits
+global artefact_courier_on_spawn_kits
+extern hook_artefact_courier_on_spawn_kits
+artefact_courier_on_spawn_kits:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_courier_on_spawn_kits
+    mov edx, artefact_courier_on_spawn_kits_replay
+    cmp eax, 0
+    je artefact_courier_on_spawn_kits_go
+    mov edx, 0x316de3
+    cmp eax, 1
+    je artefact_courier_on_spawn_kits_go
+    ud2
+artefact_courier_on_spawn_kits_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_courier_on_spawn_kits_replay:
+    db 0x8a, 0x50, 0x0d, 0x8a, 0x89, 0x15, 0x01, 0x00, 0x00
+    jmp 0x316de3
+
+; 0x316eab the respawn rule's spawn 0x316DA0 at its end (the five pops before ret 0Ch), after the new kit's player was initialised (vtable+1Ch: its inventory set up from the profile, its containers' range set) and put into the world (vtable+20h): BL the place, ESI its new current kit's player: lohook -> artefact_courier_on_spawned
+global artefact_courier_on_spawned
+extern hook_artefact_courier_on_spawned
+artefact_courier_on_spawned:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_courier_on_spawned
+    mov edx, artefact_courier_on_spawned_replay
+    cmp eax, 0
+    je artefact_courier_on_spawned_go
+    mov edx, 0x316eb0
+    cmp eax, 1
+    je artefact_courier_on_spawned_go
+    ud2
+artefact_courier_on_spawned_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_courier_on_spawned_replay:
+    db 0x5f, 0x5e, 0x5d, 0x5b, 0x59
+    jmp 0x316eb0
+
 ; 0x31b8e0 generic_anomaly_core::register_artefacts at its entry (push ecx / mov eax,[esp+8]): the anomaly's pool is about to be registered from the core world's artefact vector length on, in pool order (each resolve links rebuilds the vector from empty): lohook -> artefact_keeper_on_register
 global artefact_keeper_on_register
 extern hook_artefact_keeper_on_register

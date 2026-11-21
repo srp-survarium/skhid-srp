@@ -574,6 +574,36 @@ pub extern "C" fn hook_artefact_carry_on_key(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- artefact_courier (patch 109) ----
+
+/// The entry `artefact_courier_on_spawn_kits` (0x316dda, the respawn rule's spawn 0x316DA0 before it makes the chosen kit current (mov dl,[eax+0Dh] / mov cl,[ecx+115h], then mov [eax+0Ch],dl at 0x316DE3): BL the place, EAX its entry of the core's places, +0Ch still the kit it was in, +0Dh the kit it spawns in) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_courier_on_spawn_kits(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_courier_on_spawn_kits` calls this, from the game's jump at 0x316dda,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_courier::on_spawn_kits(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- artefact_courier (patch 109) ----
+
+/// The entry `artefact_courier_on_spawned` (0x316eab, the respawn rule's spawn 0x316DA0 at its end (the five pops before ret 0Ch), after the new kit's player was initialised (vtable+1Ch: its inventory set up from the profile, its containers' range set) and put into the world (vtable+20h): BL the place, ESI its new current kit's player) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_courier_on_spawned(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_courier_on_spawned` calls this, from the game's jump at 0x316eab,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_courier::on_spawned(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- artefact_keeper (patch 109) ----
 
 /// The entry `artefact_keeper_on_register` (0x31b8e0, generic_anomaly_core::register_artefacts at its entry (push ecx / mov eax,[esp+8]): the anomaly's pool is about to be registered from the core world's artefact vector length on, in pool order (each resolve links rebuilds the vector from empty)) calls this with the saved machine.
