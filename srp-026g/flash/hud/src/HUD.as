@@ -1778,8 +1778,6 @@ package
          if(type == 12)
          {
             this.progress_indicator.gotoAndStop(this.GAME_MODE_TEAMDEATHMATCH + 1);
-            this.progress_indicator.team_1_score.maximum = 3;
-            this.progress_indicator.team_2_score.maximum = 3;
             this.set_game_progress(0,0);
             return;
          }
@@ -1804,12 +1802,12 @@ package
          this.progress_indicator.gotoAndStop(this._gameType + 1);
       }
 
-      // Freeze Tag uses the stock team score bars and collection/thaw widget.
-      public function freeze_tag_score(own:uint, other:uint) : void
+      // Freeze Tag uses the stock team score bars (full at the wins a match takes) and collection/thaw widget.
+      public function freeze_tag_score(own:uint, other:uint, wins:uint) : void
       {
          if(this._gameType != 12) this.set_game_type(12);
-         this.progress_indicator.team_1_score.maximum = 3;
-         this.progress_indicator.team_2_score.maximum = 3;
+         this.progress_indicator.team_1_score.maximum = wins;
+         this.progress_indicator.team_2_score.maximum = wins;
          this.set_game_progress(own,other);
       }
 
@@ -1823,13 +1821,13 @@ package
          this._freezeWasFrozen = isFrozen;
          var text:String;
          if(status >= 1 && status <= 3)
-            text = LocalizationData.getName(status == 1 ? "st_freeze_win" : status == 2 ? "st_freeze_lose" : "st_freeze_draw");
+            text = LocalizationData.getName(status == 1 ? "st_srp_hud_freeze_win" : status == 2 ? "st_srp_hud_freeze_lose" : "st_srp_hud_freeze_draw");
          else if(status >= 4)
-            text = LocalizationData.format(status == 4 ? "st_freeze_round_win" : status == 5 ? "st_freeze_round_lose" : "st_freeze_round_draw", String(Math.ceil(remaining / 1000)));
+            text = LocalizationData.format(status == 4 ? "st_srp_hud_freeze_round_win" : status == 5 ? "st_srp_hud_freeze_round_lose" : "st_srp_hud_freeze_round_draw", String(Math.ceil(remaining / 1000)));
          else if(isFrozen)
-            text = LocalizationData.format("st_freeze_frozen", String(Math.floor(progress / 30)));
+            text = LocalizationData.format("st_srp_hud_freeze_frozen", String(Math.floor(progress / 30)));
          else
-            text = LocalizationData.getName(progress > 0 ? "st_freeze_thawing" : "st_freeze_help");
+            text = LocalizationData.getName(progress > 0 ? "st_srp_hud_freeze_thawing" : "st_srp_hud_freeze_help");
          // Let native pickup/use prompts own the widget during ordinary play.
          this._freezeContext = isFrozen || progress > 0 || status != 0
             ? {text:text,value:status == 0 ? Math.floor(progress / 30) : 0,visible:true} : null;

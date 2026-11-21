@@ -1,13 +1,15 @@
 # Freeze Tag
 
-The initial mode uses two teams and a best-of-five match: first to three
-round wins. No artifact rescue in this version (owner, 2026-11-17).
+The initial mode uses two teams and a best-of-nine match: first to five
+round wins (the owner, 2026-11-21: "let's make it 5 rounds win"; it was
+three). No artifact rescue in this version (owner, 2026-11-17).
 
 - A lethal hit freezes the player where they were hit. Movement, weapons
   and interactions stop; the ordinary death teardown and ragdoll do not run.
 - While frozen, the camera uses the existing pre-match orbit and mouse-wheel
   zoom around that body. Thaw restores the previous first/third-person mode.
-- A living teammate within 3 metres, with a clear static-world ray between
+- A living teammate within 2 metres (the owner, 2026-11-21: "closer a bit";
+  it was 3), with a clear static-world ray between
   their bodies, thaws them after 3 continuous seconds. Losing that proximity
   resets progress. Extra teammates do not accelerate it.
 - Thaw restores health in place and clears input. It preserves equipment
@@ -15,7 +17,7 @@ round wins. No artifact rescue in this version (owner, 2026-11-17).
 - Freezing the entire opposing team awards one round. Simultaneous wipes
   award neither team a point and replay the round.
 - The existing match time limit still applies. If it expires before either
-  team reaches three wins, the unfinished series is a draw.
+  team reaches five wins, the unfinished series is a draw.
 - Between rounds all players wait 5 seconds, held in place. Then every
   present place is due at one step of the native respawn rule, which takes
   each out and spawns it at its team's points with its kit's load, the
@@ -24,16 +26,18 @@ round wins. No artifact rescue in this version (owner, 2026-11-17).
 - A disconnect cannot clear a frozen place. A new place starts on its first
   spawn in a round; one that enters in the pause or after the match waits
   for the next round. Absent players are excluded when a new round starts.
-- The HUD reuses the stock TDM score bars (maximum 3), collection progress
-  widget and blocked-hit UI sound. A frozen player's name over his head
+- The HUD reuses the stock TDM score bars (full at `WINS`, which the patch
+  passes to `freeze_tag_score`), collection progress
+  widget and blocked-hit UI sound. Its texts are `st_srp_hud_freeze_*`: the
+  content compile gives the hud movie only `st_srp_hud_*` keys. A frozen player's name over his head
   keeps his name and is drawn ice blue (the owner, 2026-11-21: "his name
   should be of 'frozen' color, not just read frozen"); it gets its own
   colour back on thaw. A rescuer sees progress only for a reachable frozen
   teammate.
 - A frozen body glows: the Spring artefact's activation glow in ice blue,
   fainter (the owner, 2026-11-21: "effect can be anomalous artifact spring
-  activation but of slightly different hue and less intense"), fading in four
-  clear steps as a teammate thaws him ("The frozen glow" below).
+  activation but of slightly different hue and less intense"), shrinking as a
+  teammate thaws him ("The frozen glow" below).
 
 The first authored map is Rudnya day, using its existing TDM project and
 team spawns. `freeze-tag-1.json` makes its config and fills unused map-dictionary
@@ -130,29 +134,38 @@ copies (`fx/artifacts/<name>_ice`, constant_emissive (0.62, 0.88, 1.0) x
 half its intensity: the owner's pick of the previews' variants ("a is good",
 2026-11-21). Spring's own files are unchanged.
 
-The thaw fades it (the owner: "would be nice if the glow was reducing as the
-player was unfrozen", "so others could deem the freeze state by look"): full
-for the first quarter of the 3 s thaw, then 70 %, 40 % and 15 % for the next
-quarters (emissive, rate and light times the strength), and full again if the
-progress resets. A particle instance takes no colour or emission scale once
-the scene plays it (scene_renderer has play, stop, remove and the transform's
-update only), so each strength is a system of its own in the pack
-(`human_frozen`, `_70`, `_40`, `_15`, each with its materials), swapped as the
-progress crosses a quarter. The steps are far apart so they read at fighting
-distance; 15 % is plainly "almost thawed".
+The thaw shrinks it (the owner: "would be nice if the glow was reducing as the
+player was unfrozen", "so others could deem the freeze state by look"; of the
+first build's four strengths swapped a quarter at a time: "it just disappears a
+few times without becoming smaller"). One system plays; every frame its
+instance's matrix is the body's with its axes scaled by 1 - 0.85 x progress /
+3 s about a point 0.9 m over the feet, so 15 % at the thaw, and full again if
+the progress resets. Swapping systems blinked: `remove_particle_system_instance`
+(0x229D0) drops an instance's particles at once and the next starts empty.
+What a scaled matrix does (0.10b source, `particle_emitter_instance`,
+`v_particle_sprite`/`particle_vertex_input.h`; 0.26g forwards the matrix
+unchanged, `update_particle_system_instance` 0x22B30): an emitter in the
+instance's space (all of this glow's but `distortion`) places every particle,
+spawned and alive, through the matrix each frame, so the cloud's spread and
+motion scale at once; a world-space emitter (`distortion`) takes it only at a
+particle's birth. A sprite's size is added after the matrix (view-aligned,
+`input.size`), so the sprites keep their size, and the point light keeps its
+intensity: the glow gathers to the body's middle rather than dims. The
+pack's `human_frozen_70`, `_40` and `_15` and their materials are no longer
+played (to drop from the pack in its next version).
 
 Each game draws it for itself, never in the simulation: an effect added to a
 body's simulated effect list at the first tick after a game loaded it enters
 each game's world at another tick (Artifact Hunt's carrier glow desynced so,
 2026-11-21). After the simulation's move (`game_world.after_move`, the
 frame hook, order 4) the game plays, moves (`update_particle_system_instance`
-0x22B30, on the body's simulated transform) and stops one instance a place in
+0x22B30, on the body's simulated transform, scaled as above) and stops one instance a place in
 the world's scene, from the world's rule state: every frozen body of a match in
-play, at its progress's strength, so every game, a rollback and a late join
+play, at its progress's size, so every game, a rollback and a late join
 show the same. It stops at the thaw, the round's restart, the match's end and
 another match, and everything of it leaves the scene with the world
-(`game_world.deactivate`, order 4). Each strength has an instance for each of
-the 20 places (a scene plays an instance once): 80 systems in one query at the
+(`game_world.deactivate`, order 4). Each of the 20 places has an instance of
+its own (a scene plays an instance once): 20 systems in one query at the
 first frame of a Freeze Tag match. The frozen player's camera is the orbit
 around his own body, so he sees the same particles; there is no first-person
 twin.
@@ -214,6 +227,9 @@ Open:
   came in too (the result has the match's count, not his), as in Artifact
   Hunt: his ceiling counts lives he did not have (what he is charged is
   still what his stacks lost, under it).
+- Late joiners spawn into the round in play; waiting for the next round (with
+  something to watch meanwhile, e.g. the frozen orbit camera around a living
+  teammate) is a possible later change.
 
 ### 2026-11-21, after the merge of main and the alignment
 

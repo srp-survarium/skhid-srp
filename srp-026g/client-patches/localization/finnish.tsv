@@ -1226,16 +1226,6 @@ st_freedom_026_head_desc	Vapauden tukirangan tiivis kypärä sisäisellä hengit
 st_freedom_026_helmet_name	Vapauden tukirankakypärä
 st_freedom_026_suit_desc	Kokeellinen sotilastukiranka Vapauden väreissä. Hinta ja suunnitteluvirheet estivät sarjatuotannon, mutta maanalaiset työpajat valmistavat yhä pieniä eriä. Sisäinen artefaktisäiliö.
 st_freedom_026_suit_name	Vapauden tukiranka
-st_freeze_draw	Tasapeli
-st_freeze_frozen	Olet jäässä. Odota joukkuetoveria. Sulatus: %1$s%
-st_freeze_help	Jäädytä kaikki vastustajat. Ensimmäinen 3 erää voittanut joukkue voittaa. Seiso 3 sekuntia enintään 3 metrin päässä jäätyneestä joukkuetoverista sulattaaksesi hänet.
-st_freeze_lose	Tappio — vastustajat voittivat kolme erää.
-st_freeze_round_draw	Tasapeli. Uusi erä %1$s s kuluttua.
-st_freeze_round_lose	Erä hävitty. Seuraava %1$s s kuluttua.
-st_freeze_round_win	Erä voitettu. Seuraava %1$s s kuluttua.
-st_freeze_standing	Taistelussa: oma joukkue %1$s — vastustajat %2$s
-st_freeze_thawing	Joukkuetoveria sulatetaan…
-st_freeze_win	Voitto — kolme erävoittoa.
 st_friend_options_label	Kaveriasetukset
 st_friend_search_hint	Hae painamalla Enter
 st_friend_state_away	Poissa
@@ -1545,7 +1535,7 @@ st_mode_05_description	Tehtäväsi on vallata liikkuvat tutkimusyksiköt. Jokain
 st_mode_05_name	Tutkimus
 st_mode_08_description	Jokainen taistelee itsensä puolesta. Ottelu päättyy, kun joku saavuttaa vaaditun tappomäärän tai aika loppuu. Eniten tappoja saanut taistelija voittaa.
 st_mode_08_name	Kaikki kaikkia vastaan
-st_mode_12_description	Jäädytä kaikki vastustajat. Ensimmäinen 3 erää voittanut joukkue voittaa. Seiso 3 sekuntia enintään 3 metrin päässä jäätyneestä joukkuetoverista sulattaaksesi hänet.
+st_mode_12_description	Jäädytä kaikki vastustajat. Ensimmäinen 5 erää voittanut joukkue voittaa. Seiso 3 sekuntia enintään 2 metrin päässä jäätyneestä joukkuetoverista sulattaaksesi hänet.
 st_mode_12_name	Jäädytys
 st_modification_screen_edit_decal_hint	Muuta merkin kokoa ja sijaintia klikkaamalla sen paikkaa
 st_modification_screen_hint	Vedä maastokuvio tai merkki tavaroistasi esineen muokkauspaikkaan
@@ -2562,6 +2552,16 @@ st_srp_hit_markers_kill	Vain tappomerkki
 st_srp_hud_add_friend	Lisää kaveriksi
 st_srp_hud_blackout_intro	Blackout: tuo akkuja joukkueesi laitteelle. Käyttöliittymä ja osumamerkit on piilotettu eläytymisen vuoksi. Pidä Tab pohjassa: ammukset, terveys, chat; kuolleena varustesarjan valinta.
 st_srp_hud_blackout_start	Blackout\nTuo akkuja joukkueesi laitteelle.\nKäyttöliittymä ja osumamerkit on piilotettu. Pidä Tab pohjassa nähdäksesi ammukset ja terveyden.
+st_srp_hud_freeze_draw	Tasapeli
+st_srp_hud_freeze_frozen	Olet jäässä. Odota joukkuetoveria. Sulatus: %1$s%
+st_srp_hud_freeze_help	Jäädytä kaikki vastustajat. Ensimmäinen 5 erää voittanut joukkue voittaa. Seiso 3 sekuntia enintään 2 metrin päässä jäätyneestä joukkuetoverista sulattaaksesi hänet.
+st_srp_hud_freeze_lose	Tappio — vastustajat voittivat viisi erää.
+st_srp_hud_freeze_round_draw	Tasapeli. Uusi erä %1$s s kuluttua.
+st_srp_hud_freeze_round_lose	Erä hävitty. Seuraava %1$s s kuluttua.
+st_srp_hud_freeze_round_win	Erä voitettu. Seuraava %1$s s kuluttua.
+st_srp_hud_freeze_standing	Taistelussa: oma joukkue %1$s — vastustajat %2$s
+st_srp_hud_freeze_thawing	Joukkuetoveria sulatetaan…
+st_srp_hud_freeze_win	Voitto — viisi erävoittoa.
 st_srp_hud_friend_not_sent	Kaveripyyntöä ei lähetetty
 st_srp_hud_friend_sent	Kaveripyyntö lähetetty
 st_srp_hud_mute_hide	Piilota chat

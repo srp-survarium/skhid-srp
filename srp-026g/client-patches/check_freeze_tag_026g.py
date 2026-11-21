@@ -157,9 +157,9 @@ def main():
     state = before[-LENGTH:]
     assert state[:2] == b"\x01\x00"
     assert state[7] == 3 and struct.unpack_from("<H", state, 8)[0] == 2950
-    assert r.freeze_hud(0) == [("root.freeze_tag_score", (0, 0)),
+    assert r.freeze_hud(0) == [("root.freeze_tag_score", (0, 0, 5)),
                                ("root.freeze_tag_update", (1, 2950, 0, 0))]
-    assert r.freeze_hud(1) == [("root.freeze_tag_score", (0, 0)),
+    assert r.freeze_hud(1) == [("root.freeze_tag_score", (0, 0, 5)),
                                ("root.freeze_tag_update", (0, 2950, 0, 0))]
     assert r.read(ffa.RULE + 0x138) == 0xFFFFFFFF
     # Only a frozen body's respawn is cancelled: another place's native
@@ -189,9 +189,9 @@ def main():
     assert state[1:4] == b"\x01\x00\x01"  # Between rounds, 0:1.
     assert bytes(r.emu.mem_read(STATS + 0x31E4, 1)) == b"\x02"
     assert struct.unpack("<2H", r.emu.mem_read(STATS + 0x31D4, 4)) == (0, 1)
-    assert r.freeze_hud(1) == [("root.freeze_tag_score", (0, 1)),
+    assert r.freeze_hud(1) == [("root.freeze_tag_score", (0, 1, 5)),
                                ("root.freeze_tag_update", (1, 0, 5, 5000))]
-    assert r.freeze_hud(2) == [("root.freeze_tag_score", (1, 0)),
+    assert r.freeze_hud(2) == [("root.freeze_tag_score", (1, 0, 5)),
                                ("root.freeze_tag_update", (0, 0, 4, 5000))]
     assert r.player_tick(2, 3150) and r.input(2)  # Winners also wait.
     # Between rounds whatever falls due waits for the restart (a late
@@ -220,18 +220,18 @@ def main():
     r.tick(8150)
     assert r.state()[1:4] == b"\x00\x00\x01"
     assert not r.player_tick(2, 8200) and not r.input(2)
-    for score in (2, 3):
+    for score in (2, 3, 4, 5):
         r.lethal(0)
         r.lethal(1)
         r.tick(8200)
         assert r.state()[3] == score
-        if score == 2:
+        if score < 5:
             r.tick(13200, 5000)
             for i in range(3):
                 r.emu.mem_write(ffa.player(i) + 0x33D, b"\0")
             r.tick(13250)
-    assert r.state()[1] == 3  # Match finished at three round wins.
-    assert r.state()[-2:] == b"\x02\x00"  # The last round is not restarted.
+    assert r.state()[1] == 3  # Match finished at five round wins.
+    assert r.state()[-2:] == b"\x04\x00"  # The last round is not restarted.
     assert bytes(r.emu.mem_read(STATS + 0x31E4, 1)) == b"\x01"
     saved = r.serialize()
     r.tick(18000, 5000)
@@ -239,7 +239,7 @@ def main():
     r.word(ffa.RULE + 0x138 + 8, 18050)
     r.tick(18050)
     assert r.read(ffa.RULE + 0x138 + 8) == 0xFFFFFFFF  # No spawn after the match.
-    print("ok best of five: pause holds what falls due, the restart makes everyone due, rollback and first to three")
+    print("ok best of nine: pause holds what falls due, the restart makes everyone due, rollback and first to five")
 
     r.start()
     for place in range(3):

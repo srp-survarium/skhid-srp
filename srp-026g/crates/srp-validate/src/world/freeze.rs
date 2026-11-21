@@ -6,10 +6,10 @@ use crate::{MAX_PLAYERS, Place, Places, Team};
 use core::num::NonZeroU16;
 
 pub const INTERMISSION: NonZeroU16 = NonZeroU16::new(5000).unwrap();
-pub const WINS: u8 = 3;
+pub const WINS: u8 = 5;
 pub const PLAYERS: usize = MAX_PLAYERS;
 pub const THAW_MS: u16 = 3000;
-pub const RADIUS: f32 = 3.0;
+pub const RADIUS: f32 = 2.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Player {
@@ -465,7 +465,7 @@ mod tests {
     fn match_bodies() -> [Body; PLAYERS] {
         let mut b = [Body::Absent; PLAYERS];
         b[0] = body(Team::First, 0.0, Condition::Lethal);
-        b[1] = body(Team::First, 3.0, Condition::Fighting);
+        b[1] = body(Team::First, RADIUS, Condition::Fighting);
         b[2] = body(Team::Second, 1.0, Condition::Fighting);
         b
     }
@@ -479,7 +479,7 @@ mod tests {
         assert_eq!(s.player(place(0)), Player::Fighting(Team::First));
         s = FreezeTag::read(&saved).unwrap();
         let mut far = b;
-        far[1] = body(Team::First, 3.01, Condition::Fighting);
+        far[1] = body(Team::First, RADIUS + 0.01, Condition::Fighting);
         assert_eq!(thawed(s.step(&far, &VISIBLE, 50)), 0);
         assert_eq!(thawed(s.step(&b, &VISIBLE, 2950)), 0);
         assert_eq!(thawed(s.step(&b, &VISIBLE, 50)), 1);
@@ -545,11 +545,9 @@ mod tests {
     }
 
     #[test]
-    fn best_of_five_restores_between_rounds_and_finishes_at_three() {
-        for winners in [
-            [Team::First; 3].as_slice(),
-            &[Team::First, Team::Second, Team::Second, Team::First, Team::Second],
-        ] {
+    fn best_of_nine_restores_between_rounds_and_finishes_at_five() {
+        use Team::{First, Second};
+        for winners in [[First; WINS as usize].as_slice(), &[First, Second, Second, First, Second, First, First, Second, Second]] {
             let mut s = FreezeTag::EMPTY;
             for (round, &winner) in winners.iter().enumerate() {
                 let mut bodies = [Body::Absent; PLAYERS];
@@ -650,10 +648,13 @@ mod tests {
         round(&mut s, &[0]);
         round(&mut s, &[1]);
         assert_eq!((s.points(), s.round_starts()), ([2, 1], 4));
+        round(&mut s, &[1]);
+        round(&mut s, &[1]);
+        assert_eq!((s.points(), s.round_starts()), ([4, 1], 6));
         // The match's last round is never restarted.
         round(&mut s, &[1]);
         assert_eq!(s.winner(), Some(Team::First));
-        assert_eq!(s.round_starts(), 4);
+        assert_eq!(s.round_starts(), 6);
         // A rollback restores the count with the rest.
         assert_eq!(FreezeTag::read(&s.bytes()), Some(s));
     }

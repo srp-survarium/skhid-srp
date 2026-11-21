@@ -1,4 +1,4 @@
-//! Freeze Tag: snapshot-owned best-of-five rule and native player lifecycle.
+//! Freeze Tag: snapshot-owned best-of-nine rule and native player lifecycle.
 #![forbid(unsafe_code)]
 use crate::vostok::{self, Context, Flow, GameCell, NoExit, OptionsRead};
 use crate::vostok::{FreezeTagOnInputExit, FreezeTagOnPlayerTickExit};
@@ -6,7 +6,7 @@ use crate::vostok::log::{self, Piece};
 use crate::vostok::resources::{self, Arrived, KeptParticle, QueryResults, QueryTag};
 use crate::vostok::parse::Reader;
 use srp_validate::Place;
-use srp_validate::world::freeze::{Actions, Body, Condition, FreezeTag, PLAYERS, Phase, Player, RoundEnd, Schedule, THAW_MS};
+use srp_validate::world::freeze::{Actions, Body, Condition, FreezeTag, PLAYERS, Phase, Player, RoundEnd, Schedule, THAW_MS, WINS};
 
 #[derive(Clone, Copy)]
 enum Match {
@@ -149,51 +149,33 @@ pub fn on_player_tick(ctx: &mut Context<'_>) -> Flow<FreezeTagOnPlayerTickExit> 
 
 // ---- the frozen glow -----------------------------------------------------
 
-/// The frozen glow's particle systems (pack freeze-tag-glow: the Spring activation glow in ice blue,
-/// fainter; docs/notes/freeze-tag.md "The frozen glow"), at each of its strengths.
-const GLOW_PARTICLES: [&core::ffi::CStr; STRENGTHS] = [
-    c"fx/artifacts/human_frozen",
-    c"fx/artifacts/human_frozen_70",
-    c"fx/artifacts/human_frozen_40",
-    c"fx/artifacts/human_frozen_15",
-];
-const STRENGTHS: usize = 4;
+/// The frozen glow's particle system (pack freeze-tag-glow: the Spring activation glow in ice blue,
+/// fainter; docs/notes/freeze-tag.md "The frozen glow").
+const GLOW_PARTICLE: &core::ffi::CStr = c"fx/artifacts/human_frozen";
+/// The glow's size at the end of the thaw, of its full size.
+const THAWED_SIZE: f32 = 0.15;
+/// The height on the body (metres over its feet) the glow shrinks toward.
+const GLOW_MIDDLE: f32 = 0.9;
 
-/// How strong a frozen body's glow is: the thaw fades it, a step a quarter of the 3 s (the owner,
-/// 2026-11-21: "so others could deem the freeze state by look"). The instances the engine plays take
-/// no colour or emission scale once playing (scene_renderer: play, stop, remove and the transform's
-/// update only), so each strength is a system of its own, 100, 70, 40 and 15 % of the glow.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Strength {
-    Full,
-    Seventy,
-    Forty,
-    Fifteen,
+/// The glow's matrix for a thaw progress: the body's, its axes scaled by 1 at no progress down to
+/// THAWED_SIZE at THAW_MS, about GLOW_MIDDLE (the owner, 2026-11-21: "it just disappears a few times
+/// without becoming smaller"). The emitters are in the instance's space, so their particles' places
+/// scale with it; a sprite keeps its size. A reset progress is full size again.
+fn glow_at(body: [f32; 16], progress: u16) -> [f32; 16] {
+    let done = f32::from(progress.min(THAW_MS)) / f32::from(THAW_MS);
+    let scale = 1.0 - (1.0 - THAWED_SIZE) * done;
+    let mut at = body;
+    for value in &mut at[..12] {
+        *value *= scale;
+    }
+    for axis in 0..3 {
+        at[12 + axis] += (1.0 - scale) * GLOW_MIDDLE * body[4 + axis];
+    }
+    at
 }
 
-impl Strength {
-    /// A frozen body's glow for its thaw progress: full until a quarter of THAW_MS, then a step
-    /// down a quarter; a reset progress is full again.
-    fn of(progress: u16) -> Strength {
-        match u32::from(progress) * 4 / u32::from(THAW_MS) {
-            0 => Strength::Full,
-            1 => Strength::Seventy,
-            2 => Strength::Forty,
-            _ => Strength::Fifteen,
-        }
-    }
-    const fn index(self) -> usize {
-        match self {
-            Strength::Full => 0,
-            Strength::Seventy => 1,
-            Strength::Forty => 2,
-            Strength::Fifteen => 3,
-        }
-    }
-}
-
-/// Each strength's instance for each place: a scene plays an instance once.
-type Particles = [[KeptParticle; PLAYERS]; STRENGTHS];
+/// Each place's instance: a scene plays an instance once.
+type Particles = [KeptParticle; PLAYERS];
 
 /// The glow's particle systems: asked at the first frame of a Freeze Tag match, kept for the process.
 #[derive(Clone, Copy)]
@@ -205,11 +187,11 @@ enum Load {
     Missing,
 }
 static GLOW: GameCell<Load> = GameCell::new(Load::Unasked);
-/// The glow this game has in the scene for each place, and its strength.
-static GLOWING: GameCell<[Option<Strength>; PLAYERS]> = GameCell::new([None; PLAYERS]);
+/// Whether this game has the glow of each place in the scene.
+static GLOWING: GameCell<[bool; PLAYERS]> = GameCell::new([false; PLAYERS]);
 
 /// Each frame after the simulation's move, this game draws the glow itself on every frozen body of
-/// a match in play, at the strength its thaw progress gives, from the world's rule state (so every
+/// a match in play, at the size its thaw progress gives, from the world's rule state (so every
 /// game, a rollback and a late join show it as the world has it), and stops it at the thaw, the
 /// round's restart, the match's end and another match. Nothing of it enters the simulation: an
 /// effect added there at the first tick after this game loaded it would enter each game's world at
@@ -221,13 +203,12 @@ fn draw_glow(thread: &vostok::Thread, world: &vostok::world::GameWorld<'_>) {
         Match::Other => None,
     };
     let shown = GLOWING.get(thread);
-    if state.is_none() && shown.iter().all(Option::is_none) {
+    if state.is_none() && !shown.contains(&true) {
         return;
     }
     let particles = match GLOW.get(thread) {
         Load::Unasked => {
-            let paths: [&core::ffi::CStr; STRENGTHS * PLAYERS] = core::array::from_fn(|i| GLOW_PARTICLES[i / PLAYERS]);
-            resources::query_particles(thread, &paths, crate::vostok::freeze_tag_on_loaded_entry());
+            resources::query_particles(thread, &[GLOW_PARTICLE; PLAYERS], crate::vostok::freeze_tag_on_loaded_entry());
             GLOW.set(thread, Load::Asked);
             return;
         }
@@ -236,28 +217,24 @@ fn draw_glow(thread: &vostok::Thread, world: &vostok::world::GameWorld<'_>) {
     };
     let Some(scene) = vostok::freeze::GlowScene::of(world, thread) else { return };
     let in_play = scene.in_play();
-    let mut now = [None; PLAYERS];
+    let mut now = [false; PLAYERS];
     for (place, (was, next)) in Place::all().zip(shown.into_iter().zip(now.iter_mut())) {
         let target = state
             .filter(|_| in_play)
             .and_then(|state| match state.player(place) {
-                Player::Frozen { progress, .. } => Some(Strength::of(progress.millis())),
+                Player::Frozen { progress, .. } => Some(progress.millis()),
                 Player::Waiting | Player::Fighting(_) => None,
             })
-            .zip(scene.body(place));
-        let particle = |strength: Strength| particles[strength.index()][place.index()];
+            .zip(scene.body(place))
+            .map(|(progress, body)| glow_at(body, progress));
+        let particle = particles[place.index()];
         match (was, target) {
-            (Some(was), Some((strength, at))) if was == strength => scene.move_to(particle(strength), &at),
-            (was, target) => {
-                if let Some(was) = was {
-                    scene.stop(particle(was));
-                }
-                if let Some((strength, at)) = target {
-                    scene.play(particle(strength), &at);
-                }
-            }
+            (true, Some(at)) => scene.move_to(particle, &at),
+            (false, Some(at)) => scene.play(particle, &at),
+            (true, None) => scene.stop(particle),
+            (false, None) => {}
         }
-        *next = target.map(|(strength, _)| strength);
+        *next = target.is_some();
     }
     GLOWING.set(thread, now);
 }
@@ -266,11 +243,8 @@ fn draw_glow(thread: &vostok::Thread, world: &vostok::world::GameWorld<'_>) {
 pub fn on_loaded(results: QueryResults<'_>, tag: QueryTag) {
     let thread = results.thread();
     let Arrived::Particles(arrived) = results.arrived(tag) else { return };
-    match arrived.all::<{ STRENGTHS * PLAYERS }>() {
-        Some(all) => {
-            let particles: Particles = core::array::from_fn(|s| core::array::from_fn(|p| all[s * PLAYERS + p]));
-            GLOW.set(thread, Load::Ready(particles));
-        }
+    match arrived.all::<PLAYERS>() {
+        Some(particles) => GLOW.set(thread, Load::Ready(particles)),
         None => {
             log::line(&[Piece::Text("freeze_tag: the frozen glow did not load; none this session")]);
             GLOW.set(thread, Load::Missing);
@@ -286,13 +260,13 @@ pub fn on_deactivate(ctx: &mut Context<'_>) -> Flow<NoExit> {
         && let Some(world) = vostok::world::GameWorld::at_deactivate(ctx)
         && let Some(scene) = vostok::freeze::GlowScene::of(&world, thread)
     {
-        for (place, strength) in Place::all().zip(shown) {
-            if let Some(strength) = strength {
-                scene.stop(particles[strength.index()][place.index()]);
+        for (particle, shown) in particles.into_iter().zip(shown) {
+            if shown {
+                scene.stop(particle);
             }
         }
     }
-    GLOWING.set(thread, [None; PLAYERS]);
+    GLOWING.set(thread, [false; PLAYERS]);
     Flow::Continue
 }
 
@@ -391,7 +365,7 @@ pub fn on_hud(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(movie) = ui.hud_movie() {
         movie.invoke_uints(
             c"root.freeze_tag_score",
-            &[u32::from(state.points_of(team)), u32::from(state.points_of(other))],
+            &[u32::from(state.points_of(team)), u32::from(state.points_of(other)), u32::from(WINS)],
         );
         movie.invoke_uints(
             c"root.freeze_tag_update",
@@ -417,14 +391,6 @@ pub fn on_hud(ctx: &mut Context<'_>) -> Flow<NoExit> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn the_glow_steps_down_a_quarter_of_the_thaw_at_a_time() {
-        let at = |progress| Strength::of(progress);
-        assert_eq!([at(0), at(749), at(750), at(1499), at(1500), at(2249), at(2250), at(THAW_MS - 1)],
-                   [Strength::Full, Strength::Full, Strength::Seventy, Strength::Seventy, Strength::Forty,
-                    Strength::Forty, Strength::Fifteen, Strength::Fifteen]);
-    }
 
     #[test]
     fn the_mode_entry_among_the_others() {

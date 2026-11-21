@@ -1226,16 +1226,6 @@ st_freedom_026_head_desc	Utěsněná přilba exoskeletu Svobody s vestavěným r
 st_freedom_026_helmet_name	Přilba exoskeletu Svobody
 st_freedom_026_suit_desc	Experimentální vojenský exoskelet přebarvený do barev Svobody. Cena a konstrukční vady zabránily sériové výrobě. Malé série stále vznikají v podzemních dílnách. Má vestavěný kontejner na artefakty.
 st_freedom_026_suit_name	Exoskelet Svobody
-st_freeze_draw	Remíza
-st_freeze_frozen	Jsi zmrazen. Počkej na spoluhráče. Rozmrazování: %1$s%
-st_freeze_help	Zmraz všechny soupeře. Vyhrává první tým se 3 vítěznými koly. Stůj 3 sekundy do 3 m od zmrazeného spoluhráče, aby rozmrzl.
-st_freeze_lose	Porážka — soupeři vyhráli tři kola.
-st_freeze_round_draw	Remíza. Nové kolo za %1$s s.
-st_freeze_round_lose	Prohrané kolo. Další za %1$s s.
-st_freeze_round_win	Vyhrané kolo. Další za %1$s s.
-st_freeze_standing	V boji: váš tým %1$s — soupeři %2$s
-st_freeze_thawing	Rozmrazování spoluhráče…
-st_freeze_win	Vítězství — tři vyhraná kola.
 st_friend_options_label	Možnosti přítele
 st_friend_search_hint	Hledej stisknutím Enter
 st_friend_state_away	Pryč
@@ -1545,7 +1535,7 @@ st_mode_05_description	Tvým úkolem je ovládnout mobilní výzkumné jednotky.
 st_mode_05_name	Výzkum
 st_mode_08_description	Každý bojuje sám za sebe. Zápas končí, když někdo dosáhne potřebného počtu zabití nebo když vyprší čas. Vyhrává bojovník s nejvíce zabitími.
 st_mode_08_name	Každý proti každému
-st_mode_12_description	Zmraz všechny soupeře. Vyhrává první tým se 3 vítěznými koly. Stůj 3 sekundy do 3 m od zmrazeného spoluhráče, aby rozmrzl.
+st_mode_12_description	Zmraz všechny soupeře. Vyhrává první tým s 5 vítěznými koly. Stůj 3 sekundy do 2 m od zmrazeného spoluhráče, aby rozmrzl.
 st_mode_12_name	Zmrazování
 st_modification_screen_edit_decal_hint	Velikost a umístění nášivky změníš kliknutím na její slot
 st_modification_screen_hint	Přetáhni kamufláž nebo nášivku z inventáře do slotu úprav předmětu
@@ -2562,6 +2552,16 @@ st_srp_hit_markers_kill	Jen ukazatel zabití
 st_srp_hud_add_friend	Přidat do přátel
 st_srp_hud_blackout_intro	Blackout: noste baterie k zařízení svého týmu. Rozhraní a ukazatele zásahů jsou skryté pro větší vtažení do hry. Podržte Tab: munice, zdraví, chat; po smrti výběr výbavy.
 st_srp_hud_blackout_start	Blackout\nNoste baterie k zařízení svého týmu.\nRozhraní a ukazatele zásahů jsou skryté. Podržte Tab pro zobrazení munice a zdraví.
+st_srp_hud_freeze_draw	Remíza
+st_srp_hud_freeze_frozen	Jsi zmrazen. Počkej na spoluhráče. Rozmrazování: %1$s%
+st_srp_hud_freeze_help	Zmraz všechny soupeře. Vyhrává první tým s 5 vítěznými koly. Stůj 3 sekundy do 2 m od zmrazeného spoluhráče, aby rozmrzl.
+st_srp_hud_freeze_lose	Porážka — soupeři vyhráli pět kol.
+st_srp_hud_freeze_round_draw	Remíza. Nové kolo za %1$s s.
+st_srp_hud_freeze_round_lose	Prohrané kolo. Další za %1$s s.
+st_srp_hud_freeze_round_win	Vyhrané kolo. Další za %1$s s.
+st_srp_hud_freeze_standing	V boji: váš tým %1$s — soupeři %2$s
+st_srp_hud_freeze_thawing	Rozmrazování spoluhráče…
+st_srp_hud_freeze_win	Vítězství — pět vyhraných kol.
 st_srp_hud_friend_not_sent	Žádost o přátelství nebyla odeslána
 st_srp_hud_friend_sent	Žádost o přátelství odeslána
 st_srp_hud_mute_hide	Skrýt chat
