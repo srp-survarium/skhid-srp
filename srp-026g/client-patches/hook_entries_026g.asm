@@ -5535,7 +5535,7 @@ hit_marker_walls_on_hit_replay:
     db 0xf3, 0x0f, 0x11, 0x46, 0x08
     jmp 0x1f3d7b
 
-; 0x247461 player::st_draw's call of game_world_ui::draw_damage_collector (lea eax,[ebp+0F534h], then call 0x238230 at 0x247467; EDI the ui, from 0x24745B): EBP the drawn player, whose collector it draws; the draw shows root.crosshair_enemy_hit(fraction, 200, false) (0x23838C) when the collector changed from its copy (+34Ch, +354h) and the fraction is not 0, and takes the copy; quiet is past the call (0x24746C), the collector and the copy left as they are: lohook -> hit_marker_walls_on_draw
+; 0x238272 game_world_ui::draw_damage_collector (0x238230; its one caller player::st_draw, 0x247467, gives it the drawn player's collector) once it found the collector's victim or fraction changed and took them into its copy (+34Ch, +354h; 0x23825D..0x23826C), before the fraction's 0 test (movss xmm0,[esi+8]): ESI the collector, EDI the ui; quiet is its epilogue (0x2383A4), where a 0 fraction goes, past root.crosshair_enemy_hit(fraction, 200, false) (0x23838C): lohook -> hit_marker_walls_on_draw
 global hit_marker_walls_on_draw
 extern hook_hit_marker_walls_on_draw
 hit_marker_walls_on_draw:
@@ -5559,10 +5559,10 @@ hit_marker_walls_on_draw:
     mov edx, hit_marker_walls_on_draw_replay
     cmp eax, 0
     je hit_marker_walls_on_draw_go
-    mov edx, 0x247467
+    mov edx, 0x238277
     cmp eax, 1
     je hit_marker_walls_on_draw_go
-    mov edx, 0x24746c
+    mov edx, 0x2383a4
     cmp eax, 2
     je hit_marker_walls_on_draw_go
     ud2
@@ -5574,8 +5574,8 @@ hit_marker_walls_on_draw_go:
     popfd
     ret
 hit_marker_walls_on_draw_replay:
-    db 0x8d, 0x85, 0x34, 0xf5, 0x00, 0x00
-    jmp 0x247467
+    db 0xf3, 0x0f, 0x10, 0x46, 0x08
+    jmp 0x238277
 
 ; 0x23a992 show_cursor's show (mov eax,[edi+18h] / lea esi,[edi+0Ch], then the call of base_game_scene::show_movie 0x23DC00 at 0x23A998): kept skips the movie, the flag (+2DCh) still written at 0x23A9A1: lohook -> hud_cursor_on_cursor_shown
 global hud_cursor_on_cursor_shown

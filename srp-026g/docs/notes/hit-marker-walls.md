@@ -20,7 +20,8 @@ leaves)", "red ones are still shown when killed"; then "Through a wall, kill sho
 - **Unchanged:** a hit with no surface in between or only leaves; a ricochet off a wall straight
   into the body; a gun-stock hit; grenades (the game gives them no white marker).
 - **Shotgun:** the pellets of one shot that hit the same player count together: one that reached
-  him clear shows the marker, with all the shot's damage.
+  him clear shows the marker, with all the shot's damage. So does a clear hit not shown yet when
+  a hit through a wall follows it.
 - **The next hit** that is not through a wall shows the marker as before, its size all the
   damage collected on that player.
 - **The hit marker list** (Settings, HUD): All is the rules above; Kill marker only and Hidden
@@ -52,17 +53,22 @@ leaves)", "red ones are still shown when killed"; then "Through a wall, kill sho
     (ranged ammo) through a surface not of the leaves' materials (24, 44, 49) is noted by its key
     (its id and fire time, +4 and +5Ch, which a reloaded world gives it again), the last 128;
   - `damage_collector.hit` (0x1F3D76, generate_hit_event's store into the collector): the
-    shooter's mark, by place: walled (the victim and time the collector shows) when the bullet was
-    noted and no clear hit of that victim and time came first, else clear;
-  - `damage_collector.draw` (0x247461, st_draw's call of draw_damage_collector): while the drawn
-    player's collector shows a walled mark, the draw is skipped; the next change is drawn.
+    shooter's mark, by place: a clear hit pending its draw, or walled (the collector, the victim
+    and time it shows) when the bullet was noted and no clear hit is pending;
+  - `damage_collector.draw` (0x238272, draw_damage_collector once the collector changed and it
+    took its copy): a walled mark of what the collector shows skips the marker's call; a pending
+    clear hit is drawn and no longer pending. The copy is the game's, so the next change is seen
+    as in the original.
 - **Rollback and re-simulation:** the marks are this game's alone, kept beside the world; a
   re-simulated hit makes its mark again from the same bullet's key.
-- **Limits:** a hit's mark follows the bullet only from the moment this game ran the pierce: a
-  world received with the bullet already through the wall (a late join, a resync in its flight)
-  shows that bullet's hit.
+- **Limits:**
+  - a hit's mark follows the bullet only from the moment this game ran the pierce: a world
+    received with the bullet already through the wall (a late join, a resync in its flight) shows
+    that bullet's hit;
+  - the marks are not rolled back with the world: a re-simulation can leave a clear hit pending
+    where it no longer is, and a walled hit re-simulated after it then shows the marker.
 - **Checks:** `../../client-patches/check_hit_marker_walls_026g.py` (Unicorn: the three sites in
   both exes, the marker the hud gets in each case above, the registers the original's, the kill
-  marker's and the draw's bytes the original's), Rust tests, the hud movie's Ruffle harness
-  (`../../scripts/hud-options/check.sh`: a kill after a hit's white bars with All draws what Kill
-  marker only draws). Not yet played.
+  marker's and the draw's bytes but the hook's the original's), Rust tests, the hud movie's Ruffle
+  harness (`../../scripts/hud-options/check.sh`, its HudHarness: a kill after a hit's white bars
+  with All draws what Kill marker only draws). Not yet played.

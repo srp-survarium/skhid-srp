@@ -2051,15 +2051,6 @@ impl Player {
     pub unsafe fn run_material_third(self) -> *mut u16 {
         unsafe { self.0.byte_add(0xf2ce).cast::<u16>().as_ptr() }
     }
-
-    /// +0xf534 (obj<survarium::damage_collector>): its inflicted_damage_collector: the hits it dealt (player::generate_hit_event 0x1F3CCF, serialized by player::serialize 0x1F3983, read back by player::deserialize 0x1F3AA7), which st_draw shows for its own player (0x247461)
-    ///
-    /// # Safety
-    /// `self` is alive (its fields are its kind's: the type says so).
-    #[inline(always)]
-    pub unsafe fn damage_collector(self) -> DamageCollector {
-        DamageCollector(unsafe { self.0.byte_add(0xf534) })
-    }
 }
 
 /// A survarium::player_profile (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -34248,18 +34239,18 @@ pub mod site {
         }
     }
 
-    /// damage_collector.draw (0x247461): player::st_draw's call of game_world_ui::draw_damage_collector (lea eax,[ebp+0F534h], then call 0x238230 at 0x247467; EDI the ui, from 0x24745B): EBP the drawn player, whose collector it draws; the draw shows root.crosshair_enemy_hit(fraction, 200, false) (0x23838C) when the collector changed from its copy (+34Ch, +354h) and the fraction is not 0, and takes the copy; quiet is past the call (0x24746C), the collector and the copy left as they are
+    /// damage_collector.draw (0x238272): game_world_ui::draw_damage_collector (0x238230; its one caller player::st_draw, 0x247467, gives it the drawn player's collector) once it found the collector's victim or fraction changed and took them into its copy (+34Ch, +354h; 0x23825D..0x23826C), before the fraction's 0 test (movss xmm0,[esi+8]): ESI the collector, EDI the ui; quiet is its epilogue (0x2383A4), where a 0 fraction goes, past root.crosshair_enemy_hit(fraction, 200, false) (0x23838C)
     pub mod damage_collector_draw {
         #[allow(unused_imports)]
         use super::*;
 
-        /// EBP: a survarium::player (None for 0).
+        /// ESI: a survarium::damage_collector (None for 0).
         ///
         /// # Safety
         /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
-            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(Player)
+        pub unsafe fn collector(machine: &impl Machine) -> Option<DamageCollector> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(DamageCollector)
         }
     }
 }

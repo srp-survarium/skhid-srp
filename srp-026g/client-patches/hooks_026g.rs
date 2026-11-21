@@ -3450,10 +3450,10 @@ pub extern "C" fn hook_hit_marker_walls_on_hit(frame: &mut Frame) -> u32 {
 #[repr(u32)]
 #[allow(dead_code)]
 pub enum HitMarkerWallsOnDrawExit { Quiet }
-/// The entry `hit_marker_walls_on_draw` (0x247461, player::st_draw's call of game_world_ui::draw_damage_collector (lea eax,[ebp+0F534h], then call 0x238230 at 0x247467; EDI the ui, from 0x24745B): EBP the drawn player, whose collector it draws; the draw shows root.crosshair_enemy_hit(fraction, 200, false) (0x23838C) when the collector changed from its copy (+34Ch, +354h) and the fraction is not 0, and takes the copy; quiet is past the call (0x24746C), the collector and the copy left as they are) calls this with the saved machine.
+/// The entry `hit_marker_walls_on_draw` (0x238272, game_world_ui::draw_damage_collector (0x238230; its one caller player::st_draw, 0x247467, gives it the drawn player's collector) once it found the collector's victim or fraction changed and took them into its copy (+34Ch, +354h; 0x23825D..0x23826C), before the fraction's 0 test (movss xmm0,[esi+8]): ESI the collector, EDI the ui; quiet is its epilogue (0x2383A4), where a 0 fraction goes, past root.crosshair_enemy_hit(fraction, 200, false) (0x23838C)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_hit_marker_walls_on_draw(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `hit_marker_walls_on_draw` calls this, from the game's jump at 0x247461,
+    // SAFETY: only the entry `hit_marker_walls_on_draw` calls this, from the game's jump at 0x238272,
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::hit_marker_walls::on_draw(&mut ctx) {

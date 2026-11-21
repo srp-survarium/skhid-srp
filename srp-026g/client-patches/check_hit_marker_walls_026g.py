@@ -15,23 +15,27 @@ run to run as a game keeps it:
   the fraction's sum (0x1F3D50) to its `ret 1Ch`, with the shooter's place
   and the time in its arguments;
 - a draw: player::st_draw's call of draw_damage_collector (0x24745B, its read
-  of the ui, to 0x24746C), root.crosshair_enemy_hit (Scaleform's invoke,
-  0x511600) a stand-in that keeps what it is given.
+  of the ui, to 0x24746C), with the game's draw (its hook inside, after it
+  took its copy) and root.crosshair_enemy_hit (Scaleform's invoke, 0x511600)
+  a stand-in that keeps what it is given; one hud for both shooters.
 
 What a game shows, for a shooter at place 2 on the victim at place 7:
 - a bullet that hit clear, through leaves (24, 44, 49), through a body (a
   receiver), a gun-stock (blunt) through a wall: the marker, as the original;
 - a round through a wall (a level's surface of any other material, the
   default's 11 too): none, and none on the next frames; the original shows it;
-- the next clear hit: the marker again, with the collected fraction;
+- the next clear hit: the marker again, with the collected fraction; one on
+  the first victim again after a hidden one on another, the same damage as
+  its first (the draw took the hidden one's copy);
+- a clear hit not drawn yet, then a walled one in a later step: the marker;
 - pellets of one step: one clear among walled ones shows it, in either order;
   only walled ones: none;
 - another shooter's (place 5) collector: its own hits only;
 - a bullet try_pierce stopped is not noted.
 In every run the registers the game keeps are the original's. The kill's
-marker (0x23CF20) and draw_damage_collector are the original's bytes: a kill
-through a wall reaches the hud by the kill's call alone, as "Kill marker
-only" shows it.
+marker (0x23CF20) and draw_damage_collector but its hook's five bytes are the
+original's: a kill through a wall reaches the hud by the kill's call alone,
+as "Kill marker only" shows it.
 """
 import os
 import struct
@@ -49,8 +53,9 @@ PIERCE_FROM, PIERCE_ON, PIERCE_STOPPED = 0x32D886, 0x32D8C4, 0x32D891
 HIT_FROM = 0x1F3D50
 DRAW_FROM, DRAW_DONE = 0x24745B, 0x24746C
 INVOKE = 0x511600
-KILL_MARKER, DRAW = (0x23CF20, 0x23D100), (0x238230, 0x2383AA)
-SITES = {0x32D88A: "bullet.pierced", 0x1F3D76: "damage_collector.hit", 0x247461: "damage_collector.draw"}
+KILL_MARKER, DRAW_SITE = (0x23CF20, 0x23D100), 0x238272
+DRAW_BEFORE, DRAW_AFTER = (0x238230, DRAW_SITE), (DRAW_SITE + 5, 0x2383AA)
+SITES = {0x32D88A: "bullet.pierced", 0x1F3D76: "damage_collector.hit", DRAW_SITE: "damage_collector.draw"}
 THREAD_SLOT = 0x870118
 HEAP, STUBS, STACK = 0x30000000, 0x38000000, 0x39000000
 PLAYERS = {2: HEAP, 5: HEAP + 0x10000}
@@ -143,7 +148,7 @@ class Game:
                                UC_X86_REG_EBX: 0, UC_X86_REG_EBP: 0x0BADF00D, UC_X86_REG_ESP: sp})
         return stop, self.emu.reg_read(UC_X86_REG_EBP), kept
 
-    def hit(self, shooter, bullet, time, fraction):
+    def hit(self, shooter, bullet, time, fraction, victim=VICTIM):
         """generate_hit_event's store of `shooter`'s collector: the victim, the
         time, the fraction (its sum, clamped there)."""
         sp = STACK + 0x8000
@@ -153,8 +158,8 @@ class Game:
         self.emu.reg_write(UC_X86_REG_XMM0, struct.unpack("<I", struct.pack("<f", fraction))[0])
         stop, kept = self.run(HIT_FROM, {RETURN},
                               {UC_X86_REG_ESI: PLAYERS[shooter] + COLLECTOR, UC_X86_REG_EBP: bullet,
-                               UC_X86_REG_EBX: VICTIM, UC_X86_REG_EDI: 0x0D0D0D0D, UC_X86_REG_ESP: sp})
-        assert struct.unpack("<BxxxIf", self.emu.mem_read(PLAYERS[shooter] + COLLECTOR, 12))[:2] == (VICTIM, time)
+                               UC_X86_REG_EBX: victim, UC_X86_REG_EDI: 0x0D0D0D0D, UC_X86_REG_ESP: sp})
+        assert struct.unpack("<BxxxIf", self.emu.mem_read(PLAYERS[shooter] + COLLECTOR, 12))[:2] == (victim, time)
         return kept
 
     def draw(self, player):
@@ -177,7 +182,7 @@ def main():
     for va, site in SITES.items():
         at = base.file_offset(va)
         check(va in installs and built[at] == 0xE9 and original[at] != 0xE9, f"{site} ({va:#x}): a jump to the build's hook")
-    for start, end in (KILL_MARKER, DRAW):
+    for start, end in (KILL_MARKER, DRAW_BEFORE, DRAW_AFTER):
         a, b = base.file_offset(start), base.file_offset(end)
         check(built[a:b] == original[a:b], f"{start:#x}..{end:#x}: the original's bytes")
 
@@ -196,15 +201,15 @@ def main():
                 check((kept, drawn) == regs, f"{what}: the registers the game keeps are the original's")
         check(seen == [[round(x, 4) for x in shows] for shows in (stock_shows, ours_shows)], f"{what}: the original shows {stock_shows}, the build {ours_shows}")
 
-    def clear(time, fraction, shooter=2):
-        return lambda game: game.hit(shooter, game.bullet(), time, fraction)
+    def clear(time, fraction, shooter=2, victim=VICTIM):
+        return lambda game: game.hit(shooter, game.bullet(), time, fraction, victim)
 
-    def through(material, time, fraction, kind=RANGED, receiver=0, shooter=2):
+    def through(material, time, fraction, kind=RANGED, receiver=0, shooter=2, victim=VICTIM):
         def steps(game):
             bullet = game.bullet(kind)
             stop, ebp, _ = game.pierce(bullet, material, receiver)
             assert stop == PIERCE_ON and ebp == 2, "check_collision goes on, pierced"
-            return game.hit(shooter, bullet, time, fraction)
+            return game.hit(shooter, bullet, time, fraction, victim)
         return steps
 
     def then(*steps):
@@ -227,6 +232,11 @@ def main():
     both("a round through a wall (metall_thin 17)", through(17, 150, 0.4), [0.4], [])
     both("the next frame", lambda game: None, [], [])
     both("the next clear hit", clear(200, 0.6), [0.6], [0.6])
+    both("a clear hit on another victim (8)", clear(205, 0.2, victim=8), [0.2], [0.2])
+    both("through a wall on the first (7)", through(17, 210, 0.5), [0.5], [])
+    both("a clear hit on 8 again, the damage of its first", clear(215, 0.2, victim=8), [0.2], [0.2])
+    both("a clear hit not drawn, then a walled one a step later",
+         then(clear(217, 0.3), through(17, 218, 0.35)), [0.35], [0.35])
     both("a round through the default material (11)", through(11, 220, 0.65), [0.65], [])
     for n, leaves in enumerate((24, 44, 49)):
         both(f"a round through leaves ({leaves})", through(leaves, 250 + n, 0.7 + n / 100), [0.7 + n / 100], [0.7 + n / 100])

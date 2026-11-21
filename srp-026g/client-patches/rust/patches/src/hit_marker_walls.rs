@@ -4,9 +4,11 @@
 //! - A bullet that went through a surface other than leaves is noted (by its
 //!   key) when it does.
 //! - Each bullet hit the game writes into its shooter's collector leaves the
-//!   shooter's mark: clear, or walled when the bullet was noted.
-//! - The collector drawn while it shows a walled hit gives no marker: as
-//!   "Kill marker only" treats a hit. The kill's marker is another call.
+//!   shooter's mark: a clear hit not drawn yet, or walled when the bullet
+//!   was noted.
+//! - A changed collector drawn while it shows a walled hit gives no marker,
+//!   as "Kill marker only" treats a hit; the draw still takes its copy. The
+//!   kill's marker is another call.
 //!
 //! The notes are this game's alone: the collector and the bullets are the
 //! world's, as they were.
@@ -14,7 +16,7 @@
 #![forbid(unsafe_code)]
 
 use crate::vostok::drug::HitType;
-use crate::vostok::hit_marker::{self, BulletKey, Collected, Pierce, Through};
+use crate::vostok::hit_marker::{self, BulletKey, Collected, CollectorId, Pierce, Through};
 use crate::vostok::types::Place;
 use crate::vostok::{Context, Flow, GameCell, HitMarkerWallsOnDrawExit, NoExit};
 
@@ -45,20 +47,31 @@ impl Walled {
     }
 }
 
-/// What a shooter's collector shows, by its last bullet hit.
+/// A shooter's last bullet hit, until the draw shows it (None: nothing to
+/// show, or shown).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Mark {
-    /// A hit at this victim and time reached the body clear.
-    Clear(Collected),
-    /// Every hit at this victim and time went through a wall.
+    /// A clear hit into this collector, not drawn yet: walled hits after it
+    /// show with it (a shotgun's pellets, some past the wall's edge).
+    Pending(CollectorId),
+    /// The collector shows this, and every hit since the last drawn went
+    /// through a wall.
     Walled(Collected),
 }
 
 impl Mark {
-    /// After a hit: a clear one of the same step stays shown (a shotgun's
-    /// pellets, some past the wall's edge).
-    fn after(last: Option<Mark>, collected: Collected, walled: bool) -> Mark {
-        if walled && last != Some(Mark::Clear(collected)) { Mark::Walled(collected) } else { Mark::Clear(collected) }
+    fn after_hit(last: Option<Mark>, collected: Collected, walled: bool) -> Mark {
+        let pending = Mark::Pending(collected.collector());
+        if walled && last != Some(pending) { Mark::Walled(collected) } else { pending }
+    }
+
+    /// The mark once the draw took `drawn`, and whether it shows no marker.
+    fn after_draw(mark: Option<Mark>, drawn: Collected) -> (Option<Mark>, bool) {
+        match mark {
+            Some(Mark::Walled(shown)) if shown == drawn => (mark, true),
+            Some(Mark::Pending(collector)) if collector == drawn.collector() => (None, false),
+            _ => (mark, false),
+        }
     }
 }
 
@@ -86,21 +99,29 @@ pub fn on_hit(ctx: &mut Context<'_>) -> Flow<NoExit> {
         let walled = WALLED.get(thread).holds(hit.bullet);
         MARKS.update(thread, |mut marks| {
             let mark = &mut marks[hit.shooter.index()];
-            *mark = Some(Mark::after(*mark, hit.collected, walled));
+            *mark = Some(Mark::after_hit(*mark, hit.collected, walled));
             marks
         });
     }
     Flow::Continue
 }
 
-/// st_draw about to draw its player's collector (`damage_collector.draw`).
+/// draw_damage_collector with a changed collector, its copy taken
+/// (`damage_collector.draw`).
 pub fn on_draw(ctx: &mut Context<'_>) -> Flow<HitMarkerWallsOnDrawExit> {
-    match hit_marker::drawn(ctx) {
-        Some((place, shown)) if MARKS.get(ctx.thread())[place.index()] == Some(Mark::Walled(shown)) => {
-            Flow::Exit(HitMarkerWallsOnDrawExit::Quiet)
+    let Some(drawn) = hit_marker::drawn(ctx) else {
+        return Flow::Continue;
+    };
+    let mut quiet = false;
+    MARKS.update(ctx.thread(), |mut marks| {
+        for mark in &mut marks {
+            let (next, hidden) = Mark::after_draw(*mark, drawn);
+            *mark = next;
+            quiet |= hidden;
         }
-        _ => Flow::Continue,
-    }
+        marks
+    });
+    if quiet { Flow::Exit(HitMarkerWallsOnDrawExit::Quiet) } else { Flow::Continue }
 }
 
 #[cfg(test)]
@@ -108,22 +129,32 @@ mod tests {
     use super::*;
     use crate::vostok::step::GroundMaterial;
 
+    const MINE: u32 = 0x3000_F534;
+
     fn at(victim: u8, time: u32) -> Collected {
-        Collected::for_test(victim, time)
+        Collected::for_test(MINE, victim, time)
+    }
+
+    fn pending() -> Mark {
+        Mark::Pending(at(0, 0).collector())
     }
 
     #[test]
-    fn a_clear_hit_shows() {
-        assert_eq!(Mark::after(None, at(3, 100), false), Mark::Clear(at(3, 100)));
-        assert_eq!(Mark::after(Some(Mark::Walled(at(3, 100))), at(3, 100), false), Mark::Clear(at(3, 100)));
+    fn a_clear_hit_waits_for_the_draw() {
+        assert_eq!(Mark::after_hit(None, at(3, 100), false), pending());
+        assert_eq!(Mark::after_hit(Some(Mark::Walled(at(3, 100))), at(3, 100), false), pending());
+        assert_eq!(Mark::after_draw(Some(pending()), at(3, 100)), (None, false));
     }
 
     #[test]
-    fn a_walled_hit_hides_unless_a_clear_one_of_its_step_shows() {
-        assert_eq!(Mark::after(None, at(3, 100), true), Mark::Walled(at(3, 100)));
-        assert_eq!(Mark::after(Some(Mark::Clear(at(3, 100))), at(3, 100), true), Mark::Clear(at(3, 100)));
-        assert_eq!(Mark::after(Some(Mark::Clear(at(3, 50))), at(3, 100), true), Mark::Walled(at(3, 100)));
-        assert_eq!(Mark::after(Some(Mark::Clear(at(4, 100))), at(3, 100), true), Mark::Walled(at(3, 100)));
+    fn a_walled_hit_hides_unless_a_clear_one_waits() {
+        assert_eq!(Mark::after_hit(None, at(3, 100), true), Mark::Walled(at(3, 100)));
+        assert_eq!(Mark::after_hit(Some(pending()), at(3, 150), true), pending());
+        let other = Collected::for_test(MINE + 0x10000, 3, 100);
+        assert_eq!(Mark::after_hit(Some(Mark::Pending(other.collector())), at(3, 150), true), Mark::Walled(at(3, 150)));
+        assert_eq!(Mark::after_draw(Some(Mark::Walled(at(3, 150))), at(3, 150)), (Some(Mark::Walled(at(3, 150))), true));
+        assert_eq!(Mark::after_draw(Some(Mark::Walled(at(3, 150))), at(0xFF, 0)), (Some(Mark::Walled(at(3, 150))), false));
+        assert_eq!(Mark::after_draw(Some(Mark::Walled(at(3, 150))), other), (Some(Mark::Walled(at(3, 150))), false));
     }
 
     #[test]

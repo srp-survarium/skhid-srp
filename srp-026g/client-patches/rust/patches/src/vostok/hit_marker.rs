@@ -6,9 +6,9 @@
 //! - `damage_collector.hit`: player::generate_hit_event writing a bullet's
 //!   hit into its shooter's inflicted_damage_collector, world state every
 //!   game computes;
-//! - `damage_collector.draw`: player::st_draw's call of draw_damage_collector,
-//!   which shows the marker (`root.crosshair_enemy_hit(fraction, 200,
-//!   false)`) when the drawn player's collector changed; `quiet` skips it.
+//! - `damage_collector.draw`: draw_damage_collector once the drawn player's
+//!   collector changed and it took its copy, before it shows the marker
+//!   (`root.crosshair_enemy_hit(fraction, 200, false)`); `quiet` skips that.
 //!
 //! The kill's red marker is another call (0x23CF20), not reached from here.
 //! The fields are fields_026g.tsv's.
@@ -79,19 +79,29 @@ pub fn pierce(ctx: &Context<'_>) -> Option<Pierce> {
     }
 }
 
-/// The hit an inflicted_damage_collector shows: whom its last hits went into
-/// (the game's place byte, 0FFh none) and when the last was. The game's
-/// marker shows when this or the collected fraction changes.
+/// An inflicted_damage_collector as a value kept between hooks (its player's
+/// +0F534h): its address, compared, never read through.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CollectorId(u32);
+
+/// The hit a collector shows: whom its last hits went into (the game's place
+/// byte, 0FFh none) and when the last was. The game's marker shows when the
+/// victim or the collected fraction changes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Collected {
+    collector: CollectorId,
     victim: u8,
     time: u32,
 }
 
 impl Collected {
+    pub fn collector(self) -> CollectorId {
+        self.collector
+    }
+
     #[cfg(test)]
-    pub fn for_test(victim: u8, time: u32) -> Collected {
-        Collected { victim, time }
+    pub fn for_test(collector: u32, victim: u8, time: u32) -> Collected {
+        Collected { collector: CollectorId(collector), victim, time }
     }
 }
 
@@ -101,7 +111,9 @@ impl Collected {
 /// `collector` is alive on this hook's thread.
 unsafe fn collected(collector: raw::DamageCollector) -> Collected {
     // SAFETY: the caller's.
-    unsafe { Collected { victim: read(collector.victim()), time: read(collector.time()) } }
+    unsafe {
+        Collected { collector: CollectorId(collector.address()), victim: read(collector.victim()), time: read(collector.time()) }
+    }
 }
 
 /// A bullet's hit gone into its shooter's collector (`damage_collector.hit`).
@@ -124,13 +136,10 @@ pub fn collector_hit(ctx: &Context<'_>) -> Option<CollectorHit> {
     }
 }
 
-/// The drawn player's place and what its collector shows, at
-/// `damage_collector.draw`.
-pub fn drawn(ctx: &Context<'_>) -> Option<(Place, Collected)> {
-    // SAFETY: the context is this site's: st_draw's player and its
-    // collector, alive while it draws, on its thread.
-    unsafe {
-        let player = raw::site::damage_collector_draw::player(ctx)?;
-        Some((Place::new(u32::from(read(player.place())))?, collected(player.damage_collector())))
-    }
+/// What the drawn collector shows, at `damage_collector.draw` (it changed,
+/// and the draw has taken it into its copy).
+pub fn drawn(ctx: &Context<'_>) -> Option<Collected> {
+    // SAFETY: the context is this site's: the drawn player's collector,
+    // alive while it draws, on its thread.
+    unsafe { Some(collected(raw::site::damage_collector_draw::collector(ctx)?)) }
 }
