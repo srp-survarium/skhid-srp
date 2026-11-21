@@ -14,6 +14,11 @@ LIKELY, OPEN.
 - A device is fitted through the weapon's kit, slot 4 (`weapon-kit.md`). What makes a weapon fitted
   is the contract of `attachments.md`: the item's modification adds `data/srp_muzzle`, its own dict
   id, to the weapon's config; the table says where it stands and where the shot leaves it.
+- **Decided 2026-11-21 by the coordinator, to whom the owner left these calls ("your pick"), final
+  unless he says otherwise:** the stats table below as it stands; the two Zenit DTK-4 on M24x1.5 in
+  as muzzle brakes (0.69d0's own class, the sound unchanged); duckbills at dispersion -15 %; flash
+  hiders the look and the flash alone; prices 6,000 (a brake, a compensator) and 4,500 (a flash
+  hider, a choke, a duckbill), seller 0.
 - Nothing is typed a device or a gun. A device's family, price, stats and shot effect are read from
   0.69d0's `game.options` and turned by three small tables (`rules.tsv`, `families.tsv`,
   `left_out.tsv`); the result is `devices.tsv`, checked in and refused by the build when stale.
@@ -46,7 +51,8 @@ scopes, configs `gameplay/items/muzzle_devices/<item>.options`. In the modules t
   recoil, aimed movement speed, the duckbill's two axes.
 - **Prices** (`families.tsv`; silver, seller 0 at no rank by the servers' rule for a module some gun
   takes): a brake or compensator 6,000; a flash hider, a choke, a duckbill 4,500. 0.69d0 prices
-  every device alike.
+  every device alike. The items table (`content-edit/items.tsv`, a row for every dictionary entry)
+  has the devices' rows from `items.py`.
 - **The card** shows the name and the description; the description says the numbers in the
   dictionary's own words for each stat. No `props_list`: how the lobby draws a modification's
   property on an item's card was not tried.
@@ -99,6 +105,7 @@ scripts/muzzle-devices/prepare.sh <vostok-port> <0.69d0 vostok-port> <0.69d0 .sp
     <srp-game-data> <inputs> --db <resources.db> --patch <patch> ...
 python3 -I scripts/muzzle-devices/devices.py <inputs>/d069/gameplay/game.options     # devices.tsv, or --write
 python3 -I scripts/muzzle-devices/texts.py --check                                    # the 11 dictionaries
+python3 -I scripts/muzzle-devices/items.py --check                                    # content-edit/items.tsv
 python3 scripts/muzzle-devices/render_icons.py --modules <weapon-modules pack> --inputs <inputs> --out <icons>
 python3 -I scripts/muzzle-devices/make_pack.py --inputs <inputs> --modules <weapon-modules pack> \
     --record <port-modules' modules-069d.json> --icons <icons> --out $SKHID_PACKS_DIR/muzzle-devices-<version>
