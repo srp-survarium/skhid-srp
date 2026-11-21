@@ -587,15 +587,11 @@ fn the_fingers_are_each_joint_in_its_parents_frame() {
     let table = Table::parse(&bytes).unwrap();
     with(&table, HK416, Wanted { grip: dict(MIKI), ..Wanted::default() }, |bare| {
         let (hand, locators) = (bare.left_hand.unwrap(), hand());
-        let own = [Affine::translation(1.0, 2.0, 3.0); FINGERS];
-        let whole = hand.fingers(FingerJoints::Grip, &own);
+        let whole = hand.fingers();
         // thumb 1 in the hand's frame, thumb 2 in thumb 1's, index 1 in the hand's
         assert!(near(&whole[0], &locators[0].then(&locators[15].inverse().unwrap())));
         assert!(near(&whole[1], &locators[1].then(&locators[0].inverse().unwrap())));
         assert!(near(&whole[3], &locators[3].then(&locators[15].inverse().unwrap())));
-        // the gun's joints: the grip's turn, the gun's own place
-        let kept = hand.fingers(FingerJoints::Gun, &own);
-        assert!(kept.iter().zip(&whole).all(|(kept, whole)| kept.x == whole.x && kept.z == whole.z && kept.t == [1.0, 2.0, 3.0]));
     });
 }
 
@@ -676,15 +672,6 @@ fn no_bytes_panic_the_parse() {
     assert_eq!(Table::parse(b"SRPX").err(), Some(Malformed::Magic));
 }
 
-/// The finger matrices the game is taken to have made of a gun's own finger
-/// locators, for [`the_samples_loadouts_are_pinned`] and the client's check.
-fn own_fingers() -> [Affine; FINGERS] {
-    core::array::from_fn(|n| {
-        let n = (n + 1) as f32;
-        Affine::translation(0.001 * n, 0.002 * n, 0.003 * n)
-    })
-}
-
 fn row(out: &mut String, head: &str, bone: Option<BoneIndex>, matrices: &[Affine]) {
     use core::fmt::Write;
     out.push_str(head);
@@ -710,8 +697,8 @@ fn placed(out: &mut String, head: &str, at: &Placement) {
 /// A case is `case <gun> <scope> <muzzle> <grip>` (dict ids, 0 none) and
 /// then `whole`, `refused <why>`, or `bare <body> <bones>` with a row a
 /// thing: `part <model> <bone> <12 floats>`, `optic`, `eye optic|gun_idle`,
-/// `fire`, `wrist` (each a bone and twelve floats), `fingers gun|grip`
-/// (fifteen matrices, over [`own_fingers`]), `effect <path>`.
+/// `fire`, `wrist` (each a bone and twelve floats), `fingers` (fifteen
+/// matrices), `effect <path>`.
 #[test]
 fn the_samples_loadouts_are_pinned() {
     use core::fmt::Write;
@@ -765,8 +752,7 @@ fn the_samples_loadouts_are_pinned() {
         }
         if let Some(hand) = &bare.left_hand {
             placed(&mut out, "wrist", &hand.wrist);
-            row(&mut out, "fingers\tgun", None, &hand.fingers(FingerJoints::Gun, &own_fingers()));
-            row(&mut out, "fingers\tgrip", None, &hand.fingers(FingerJoints::Grip, &own_fingers()));
+            row(&mut out, "fingers", None, &hand.fingers());
         }
         if let Some(effect) = bare.shot_effect {
             writeln!(out, "effect\t{}", effect.to_str().unwrap()).unwrap();

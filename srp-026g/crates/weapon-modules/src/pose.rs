@@ -95,19 +95,6 @@ impl Eye {
     }
 }
 
-/// Whose finger joints the left hand keeps on a grip. The game writes a
-/// finger's matrix whole, its translation too (`fingers_to_weapon_corrector`'s
-/// tick 0x390900), and that translation is the joint's place in the hand's
-/// skeleton.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum FingerJoints {
-    /// The gun's own (0.26g's hand, as the gun's model has them): the grip
-    /// gives each finger's turn only.
-    Gun,
-    /// The grip's (0.69d's hand), whole.
-    Grip,
-}
-
 /// The left hand on a grip.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Hand {
@@ -122,16 +109,14 @@ impl Hand {
         Some(Hand { wrist: grip.child(wrist), fingers: fingers(locators)? })
     }
 
-    /// The finger corrector's fifteen matrices. `gun` is what the game made
-    /// of the gun's own finger locators (the set this one replaces).
-    pub fn fingers(&self, joints: FingerJoints, gun: &[Affine; FINGERS]) -> [Affine; FINGERS] {
-        let mut out = self.fingers;
-        if joints == FingerJoints::Gun {
-            for (finger, own) in out.iter_mut().zip(gun) {
-                finger.t = own.t;
-            }
-        }
-        out
+    /// The finger corrector's fifteen matrices: the grip's own, whole. The
+    /// game writes a finger's matrix with its translation
+    /// (`fingers_to_weapon_corrector`'s tick 0x390900), which is the joint's
+    /// place in the hand's skeleton; the grips' locators carry 0.26g's own
+    /// hand's joints (all thirteen of 0.69d0's, within 3.4 micrometres of
+    /// its bind pose), so nothing of the gun's own set is kept.
+    pub fn fingers(&self) -> [Affine; FINGERS] {
+        self.fingers
     }
 }
 
