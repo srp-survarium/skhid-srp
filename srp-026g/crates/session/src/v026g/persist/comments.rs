@@ -156,11 +156,26 @@ mod tests {
         connection
             .execute("INSERT INTO g26_meta VALUES ('schema', ?1)", [own as i64])
             .unwrap();
-        super::super::write_account(&connection, 8, &crate::v026g::Account::new("Боб")).unwrap();
+        // The rows as that version wrote them (not today's `write_account`,
+        // whose columns came with later steps).
+        connection
+            .execute_batch(
+                "INSERT INTO g26_accounts (
+                    account_id, name, clan_tag, generic_money, premium_money, premium_until,
+                    exp_total, quest_faction, rating, rating_before, active_kit, autobuy,
+                    next_item_id, next_quest_instance, tutorial_step, tutorial_done
+                 ) VALUES (8, 'Боб', '', 0, 0, 0, 0, 0, 1000, 1000, 1, 0, 1, 1, 0, 0);
+                 INSERT INTO g26_extras (account_id, bonus_day) VALUES (8, 3);",
+            )
+            .unwrap();
         drop(connection);
 
         let mut repository = SqliteGameRepository::open(&path).unwrap();
-        assert_eq!(repository.load_all().unwrap()[0].1.name, "Боб");
+        let loaded = repository.load_all().unwrap();
+        assert_eq!(
+            (loaded[0].1.name.as_str(), loaded[0].1.extras.bonus.day),
+            ("Боб", 3)
+        );
         let blocker = Connection::open(&path).unwrap();
         blocker.execute_batch("BEGIN IMMEDIATE;").unwrap();
         let started = std::time::Instant::now();

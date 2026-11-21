@@ -903,10 +903,11 @@ mod tests {
         assert_eq!(buy_cost(214, 1), None);
     }
 
-    /// The badges (owner, 2026-11-07): every rank badge to everyone at no
-    /// rank, a million each but the Literator (50,000, the owner,
-    /// 2026-11-08) and the Flying Hussars; each faction badge by its faction
-    /// at the rank it is named after.
+    /// The badges (owner, 2026-11-07, `docs/notes/badges-shop.md`): every
+    /// rank badge to everyone at no rank; the Literator (50,000, 2026-11-08)
+    /// and the Flying Hussars cheap, the others an end-game ladder (2026-11-16)
+    /// up to the Alpha Squad at 100,000,000; each faction badge by its
+    /// faction at the rank it is named after.
     #[test]
     fn the_badges_are_sold_dear() {
         let dictionary = Dictionary::shared();
@@ -915,18 +916,26 @@ mod tests {
                 .unwrap()
                 .cost
         };
-        for n in 1..=7 {
+        for n in 1..=8 {
             let name = format!("decals_1_{n}");
             assert_eq!(sold_by(&name), [(0, 0)], "{name}");
-            let price = match n {
-                1 => 50_000,
-                2 => 10_000_000,
-                _ => 1_000_000,
-            };
-            assert_eq!(cost(&name), price, "{name}");
         }
-        assert_eq!(sold_by("decals_1_8"), [(0, 0)]);
+        assert_eq!(cost("decals_1_1"), 50_000);
         assert_eq!(cost("decals_1_8"), 20_000);
+        // Survivor, Explorer, Veteran, Master, Legend, Alpha: each dearer
+        // than the one before, from above the faction badges up to Alpha.
+        let ladder = [
+            "decals_1_3",
+            "decals_1_4",
+            "decals_1_5",
+            "decals_1_6",
+            "decals_1_7",
+            "decals_1_2",
+        ]
+        .map(cost);
+        assert!(ladder[0] > 100_000, "{ladder:?}");
+        assert!(ladder.windows(2).all(|pair| pair[0] < pair[1]), "{ladder:?}");
+        assert_eq!(ladder[5], 100_000_000);
         let (scav, bm, ren, edge) = (
             faction::SCAVENGERS,
             faction::BLACK_MARKET,
