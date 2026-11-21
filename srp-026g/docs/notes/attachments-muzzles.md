@@ -262,18 +262,32 @@ table version 3, `weapon-modules-quick@32` of six guns) and before it on e17ace6
   worlds, map 132, revision 69), `srp-world-check` of the tree with the content's game data: all
   passed. Not added to the world corpus (main's game data has no device items).
 
-**Still LIKELY, until a game shows it:** that the lobby's card shows the name and description as
-written; the shop and the Attachments window (the lead's) with these items.
+**The shop and the Attachments window, seen 2026-11-21** (exe and server c8df2f38d, a quick content
+build of the integrated tree with `muzzle-devices@3`; the AK-74M with nothing fitted, 30,000 silver):
+
+- The shop's Upgrades lists the devices; the search "DTK-3" leaves the Zenit DTK-3 muzzle brake
+  (6,000) and the Zenit DTK-4 flash hider, M30x1 (4,500). The DTK-3's card: its name, "Weapon recoil
+  -4 %. Aim time +3 %." and "Can be installed on:" with the guns that take it, the AK-74M first and
+  highlighted (the gun in the kit).
+- Buy: the dialog names it at 6,000; the account then has 24,000 and the item (dict 2635).
+- The equipment's AK-74M, right click, Attachments: three slots, Optics, Muzzle device, Grip. The
+  DTK-3 dragged from the inventory onto the muzzle slot stays there, and the window's gun wears it
+  at the muzzle. Confirm: the gun's record of the account is `<the device's item id>:2635:0:4`.
+- Not seen: a device dropped onto the slot of a gun that does not take it (the lead saw such a
+  device greyed in the inventory).
 
 **Seen in a game on 0.26g's scale (`muzzle-devices@3`), 2026-11-21:** the 22 files that differ
 from @2, as a local test patch mounted over the full content (the game mounts every
 `resources.db.patch_<n>` it finds; a test only). First view, from the rig's reference spawn point
-and view on Mamayev Kurgan (the same place and view for every gun, within 0.2 px):
+and view on Mamayev Kurgan (the same place and view for every gun, within 0.2 px), aimed (the
+owner, 2026-11-21: no shots from the hip in what is shown):
 
-| Gun, device | Effect | What the game showed |
+| Gun, device | Effect | What the game showed, aimed |
 |---|---|---|
-| AK-74M, Zenit DTK-3 (2635) | `dtk1_2`, light x2.27, fire x4 | a bright orange jet out of the device's side and a flame at its front, one game frame, plain in daylight |
-| Saiga-12, Hartman Kochevnik (2619) | `dtk11`, light x8.50, fire x4 | a large bright orange V of fire out of the device, about twice the DTK-3's flame in area |
+| AK-74M, Zenit DTK-3 (2635) | `dtk1_2`, light x2.27, fire x4 | orange jets to both sides of the front sight and a small flame over it, one game frame, plain in daylight; before the scale the same jets, faint |
+| Saiga-12, Hartman Kochevnik (2619) | `dtk11`, light x8.50, fire x4 | a large bright orange V of fire that covers the middle of the aimed view for one game frame; before the scale a dim wide V |
+| Saiga-12, custom 01 choke (2640) | none: the gun's own | a bright compact flash at the choke's end, over the front sight (the scale changes nothing of it) |
+| AK-74M, Dynacomp flash hider (2631) | `gas_small` | no fire, as made (the scale changes nothing of it) |
 
 **A capture at 30 frames a second shows only some shots' flashes** (counted 2026-11-21: the
 Saiga-12 with nothing fitted, aimed single shots 1.6 s apart in a dark hall, a shot told by its
