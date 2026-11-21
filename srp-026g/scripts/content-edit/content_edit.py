@@ -122,6 +122,14 @@ Edits (edits.json):
                                                        collision); the later entries move down in place, the
                                                        count drops by 1. Applied last: the paths of the edits
                                                        above are the live file's
+  "sort_entries":   [{"file", "list", "key"}]          the entries of the indexed table `list` in ascending
+                                                       order of their number `key` (equal ones keep their
+                                                       order), the records moved in place; applied after
+                                                       remove_entry, on a list no other edit of the file
+                                                       touches. The game's items_dict reader
+                                                       (items_dictionary_cook::on_configs_loaded 0x2C8FC2)
+                                                       logs "old items dictionary format" for each id lower
+                                                       than the one before it, then sorts the table itself
   "add_event_channel": [{"file", "from", "add"}]       an animation clip (`.b-spline`, not a config): `from`
                                                        is its live event channels, `add` one more after them,
                                                        each {"name", "type", "knots", "domains"}; the bone
@@ -1893,6 +1901,38 @@ def remove_entry(buf, path, where):
     return at
 
 
+def sort_entries(buf, path, key):
+    """The entries of the indexed table `path` in ascending order of their number `key` (a stable
+    sort), their records moved in place in the table's own array. Returns the new index of each
+    entry by its old one; an entry without the key as a number is refused."""
+    lst = find(buf, path)
+    if rec(buf, lst)[3] != T_INDEXED:
+        raise ValueError('%s is not an indexed table' % path)
+    kids = children(buf, lst)
+    keys = []
+    for i, e in enumerate(kids):
+        k = child(buf, e, key) if rec(buf, e)[3] == T_NAMED else None
+        if k is None or rec(buf, k)[3] not in (T_INT, T_FLOAT):
+            raise ValueError('%s[%d] has no number %s' % (path, i, key))
+        keys.append(as_number(rec(buf, k)[3], rec(buf, k)[0] & 0xffffffff))
+    order = sorted(range(len(kids)), key=keys.__getitem__)
+    records = [bytes(buf[e:e + 24]) for e in kids]
+    moved = [0] * len(kids)
+    for dst, src in enumerate(order):
+        buf[kids[dst]:kids[dst] + 24] = records[src]
+        moved[src] = dst
+    return moved
+
+
+def resorted(path, lst, moved):
+    """A path of the file before the table `lst` was sorted (`moved`: sort_entries'), after it."""
+    head = lst + '['
+    if not path.startswith(head):
+        return path
+    k, rest = path[len(head):].split(']', 1)
+    return '%s%d]%s' % (head, moved[int(k)], rest)
+
+
 def add_item(buf, path, where, key, value):
     """`value` after the items of the indexed table `key` of the one entry of `path` whose keys match
     `where`, a record like its first item. Returns (the entry's index, the new item's index)."""
@@ -2662,6 +2702,21 @@ def main():
         if any(unshifted(a, lst, at) is None for a in added.get(e['file'], ())):
             sys.exit('remove_entry: %s[%d] is an entry this list adds' % (lst, at))
         added[e['file']] = [unshifted(a, lst, at) for a in added.get(e['file'], ())]
+    resorts = {}
+    for e in edits.get('sort_entries', []):
+        lst = '/' + e['list']
+        touched = [q for q in list(allowed.get(e['file'], ())) + list(remade.get(e['file'], ()))
+                   + list(added.get(e['file'], ())) + list(grown.get(e['file'], {}))
+                   + [lst2 for lst2, _ in dropped.get(e['file'], ())] + [lst2 for lst2, _ in shifts.get(e['file'], ())]
+                   + ['/' + q2 for q2 in removed.get(e['file'], {})]
+                   if q == lst or q.startswith(lst + '[')]
+        if touched:
+            sys.exit('sort_entries: %s of %s is edited too (%s): sort a list nothing else edits'
+                     % (lst, e['file'], touched[0]))
+        moved = sort_entries(buf(e['file']), e['list'], e['key'])
+        resorts.setdefault(e['file'], []).append((lst, moved))
+        print('sort %s by %s: %d of %d entries moved' % (e['list'], e['key'],
+                                                          sum(new != old for old, new in enumerate(moved)), len(moved)))
     clips = {}  # animation clips: not configs, so add_event_channel reads them back itself
     for e in edits.get('retime_reload', []):
         paths = sorted(fnmatch.filter(files, e['files']))
@@ -2796,6 +2851,8 @@ def main():
             old = {shifted(q, lst, at): v for q, v in old.items()}
         for lst, at in dropped.get(p, ()):
             old = {unshifted(q, lst, at): v for q, v in old.items() if unshifted(q, lst, at) is not None}
+        for lst, moved in resorts.get(p, ()):
+            old = {resorted(q, lst, moved): v for q, v in old.items()}
         for lst, values in removed.get(p, {}).items():
             # A copied entry has no path in the original file. Compare with its
             # table just before removals, then follow any removed parent entries.
