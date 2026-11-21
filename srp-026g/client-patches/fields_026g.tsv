@@ -1509,8 +1509,8 @@ survarium::damage_collector	victim	0x0	u8	the inflicted_damage_collector's place
 survarium::damage_collector	time	0x4	u32	the time of its last hit (generate_hit_event's 1st argument, 0x1F3D5F), which player::tick ages (0x246F1E)
 survarium::collector_hit_frame	attacker	0x18	u32	player::generate_hit_event's 2nd argument (entry ESP+8) by the ESP of a site after its four pushes and the base's call (0x1F3C7E..0x1F3CA3, ESP entry - 10h): the shooter's place, whose player's collector it writes (get_player 0x1F3CC7)
 survarium::freeze_tick_frame	time	0x4	u32	base_player::tick entry argument, simulation milliseconds (0x2DAA6C after four pushes)
-survarium::freeze_rule_frame	elapsed	0x8	u32	player_respawn_rule_base::tick first argument, delta milliseconds
-survarium::freeze_rule_frame	time	0xC	u32	player_respawn_rule_base::tick second argument, simulation milliseconds (0x3169A2)
+survarium::respawn_tick_frame	elapsed	0x8	u32	player_respawn_rule_base::tick's first argument, the step's milliseconds
+survarium::respawn_tick_frame	time	0xC	u32	its second argument, the step's simulation time (0x3168B4 compares each place's time with it; 0x3169A2 passes it to the spawn)
 survarium::player	pending_death	0x33D	u8	lethal hit latched by hit_impl; base_player::tick 2DAA88 invokes on_player_death before clearing it
 survarium::player	input_rotation	0x32C	u32	packed half2 input delta, cleared by spawn 2DAC8D
 survarium::player_respawn_rule_base	core	0x134	ptr<survarium::core_world>	respawn tick 31689F reads the owning world

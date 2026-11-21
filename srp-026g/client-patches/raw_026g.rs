@@ -28262,21 +28262,21 @@ impl FreezeTickFrame {
     }
 }
 
-/// A survarium::freeze_rule_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// A survarium::respawn_tick_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct FreezeRuleFrame(NonNull<c_void>);
+pub struct RespawnTickFrame(NonNull<c_void>);
 
 #[allow(dead_code)]
-impl FreezeRuleFrame {
+impl RespawnTickFrame {
     /// Its address as a value (an id, a compare): never read through.
     #[inline(always)]
     pub fn address(self) -> u32 {
         self.0.as_ptr() as usize as u32
     }
 
-    /// +0x8 (u32): player_respawn_rule_base::tick first argument, delta milliseconds
+    /// +0x8 (u32): player_respawn_rule_base::tick's first argument, the step's milliseconds
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
@@ -28285,7 +28285,7 @@ impl FreezeRuleFrame {
         unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
     }
 
-    /// +0xc (u32): player_respawn_rule_base::tick second argument, simulation milliseconds (0x3169A2)
+    /// +0xc (u32): its second argument, the step's simulation time (0x3168B4 compares each place's time with it; 0x3169A2 passes it to the spawn)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
@@ -34506,8 +34506,8 @@ pub mod site {
         }
     }
 
-    /// freeze.rule_tick (0x316826): respawn tick after kit-change trampoline/prologue; before vectors (push ebx; push esi; mov ebx,ecx; push edi)
-    pub mod freeze_rule_tick {
+    /// respawn.tick (0x316826): player_respawn_rule_base::tick after patch 31's kit-change jump at 0x316820 and its prologue (push ebp / mov ebp,esp / sub esp,34h), before it reads a place's time (push ebx / push esi / mov ebx,ecx / push edi): ECX the rule, EBP its frame; the modes that hold the places' times or make them due (Freeze Tag, Artifact Hunt) chain here by order
+    pub mod respawn_tick {
         #[allow(unused_imports)]
         use super::*;
 
@@ -34520,28 +34520,13 @@ pub mod site {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(PlayerRespawnRuleBase)
         }
 
-        /// EBP: a survarium::freeze_rule_frame (None for 0).
+        /// EBP: a survarium::respawn_tick_frame (None for 0).
         ///
         /// # Safety
         /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn frame(machine: &impl Machine) -> Option<FreezeRuleFrame> {
-            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(FreezeRuleFrame)
-        }
-    }
-
-    /// freeze.input (0x2d86ee): set_input after full prologue, before alive check; frozen goes to native common epilogue
-    pub mod freeze_input {
-        #[allow(unused_imports)]
-        use super::*;
-
-        /// EDI: a survarium::player (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
-        #[inline(always)]
-        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
-            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(Player)
+        pub unsafe fn frame(machine: &impl Machine) -> Option<RespawnTickFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(RespawnTickFrame)
         }
     }
 }

@@ -155,10 +155,10 @@ impl<'t> Player<'t> {
         }
     }
     pub fn at_input(ctx: &'t Context<'_>) -> Option<Self> {
-        // SAFETY: set_input's player after its saved-register prologue.
+        // SAFETY: set_input's entry (patch 78's site): its ECX player.
         unsafe {
             Some(Self {
-                native: raw::site::freeze_input::player(ctx)?,
+                native: raw::site::carry_input::player(ctx)?,
                 _thread: ctx.thread(),
             })
         }
@@ -205,8 +205,8 @@ impl<'t> World<'t> {
     pub fn at_tick(ctx: &'t Context<'_>) -> Option<Self> {
         // SAFETY: respawn tick's entry: its live rule and frame arguments.
         unsafe {
-            let frame = raw::site::freeze_rule_tick::frame(ctx).expect("the respawn tick's frame");
-            let rule = raw::site::freeze_rule_tick::rule(ctx).expect("the respawn tick's rule");
+            let frame = raw::site::respawn_tick::frame(ctx).expect("the respawn tick's frame");
+            let rule = raw::site::respawn_tick::rule(ctx).expect("the respawn tick's rule");
             let core = rule.core().expect("a respawn rule's world");
             if read(core.time_state()) != 3 {
                 return None;
@@ -252,12 +252,26 @@ impl<'t> World<'t> {
     pub fn elapsed(&self) -> u16 {
         self.elapsed
     }
-    /// The new round: every place in the roster spawns now through the
-    /// native remove/spawn/kit setup (31697F).
+    /// The new round: every place in the roster is due at this step, so this
+    /// very tick takes out and spawns each, alive or frozen, through the
+    /// native remove/spawn/kit setup (31697F..3169BE).
     pub fn restart(&mut self) {
         for place in Place::all().filter(|place| player_at(self.core, *place).is_some()) {
             // SAFETY: the rule's twenty-entry schedule.
             unsafe { self.rule.times().add(place.index()).write(self.time) };
+        }
+    }
+    /// Every place due at this step is due no more (the tick spawns a place
+    /// whose time equals the step's, 3168BA).
+    pub fn hold_due(&mut self) {
+        for place in Place::all() {
+            // SAFETY: the rule's twenty-entry schedule; u32::MAX is its "unscheduled".
+            unsafe {
+                let at = self.rule.times().add(place.index());
+                if read(at) == self.time {
+                    at.write(u32::MAX);
+                }
+            }
         }
     }
     /// A frozen body is never respawned by its death's ordinary timer.

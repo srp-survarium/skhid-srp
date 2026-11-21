@@ -2474,3 +2474,4 @@ va	status	ref_021d	name
 0x001f3c70	reviewed	0x00157ab8	survarium::player::generate_hit_event
 0x00238230	reviewed	0x0018257b	survarium::game_world_ui::draw_damage_collector
 0x00246f10	observed		survarium::player::tick
+0x00316820	observed		survarium::player_respawn_rule_base::tick

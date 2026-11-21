@@ -4,7 +4,7 @@ use crate::vostok::{self, Context, Flow, GameCell, NoExit, OptionsRead};
 use crate::vostok::{FreezeTagOnInputExit, FreezeTagOnPlayerTickExit};
 use crate::vostok::parse::Reader;
 use srp_validate::Place;
-use srp_validate::world::freeze::{Actions, Body, Condition, FreezeTag, PLAYERS, Phase, Player, RoundEnd};
+use srp_validate::world::freeze::{Actions, Body, Condition, FreezeTag, PLAYERS, Phase, Player, RoundEnd, Schedule};
 
 #[derive(Clone, Copy)]
 enum Match {
@@ -86,12 +86,11 @@ pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
         Actions::Wait => {}
     }
     // A frozen body's death also queued its ordinary respawn; only the new
-    // round's restart spawns it. Places still waiting keep their native
-    // first spawn, and a restart's schedule is left to run.
-    if state.phase() != Phase::Restarting {
-        for place in Place::all().filter(|place| is_frozen(&state, *place)) {
-            world.unschedule(place);
-        }
+    // round's restart spawns it.
+    match state.schedule() {
+        Schedule::CancelFrozen(frozen) => frozen.iter().for_each(|place| world.unschedule(place)),
+        Schedule::HoldDue => world.hold_due(),
+        Schedule::Native => {}
     }
     world.publish(state.points(), state.winner());
     MATCH.set(ctx.thread(), Match::Freeze(state));
@@ -143,7 +142,7 @@ pub fn on_input(ctx: &mut Context<'_>) -> Flow<FreezeTagOnInputExit> {
         && let Some(player) = vostok::freeze::Player::at_input(ctx)
         && held(&state, &player)
     {
-        return Flow::Exit(FreezeTagOnInputExit::Frozen);
+        return Flow::Exit(FreezeTagOnInputExit::Held);
     }
     Flow::Continue
 }

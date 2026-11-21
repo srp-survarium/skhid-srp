@@ -129,10 +129,10 @@ artefact_carry_on_weapon_hide_replay:
     db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
     jmp 0x243fa6
 
-; 0x2d86e0 base_player set_input entry; ECX player, stack time and immutable input; before early-out: lohook -> artefact_carry_on_input
-global artefact_carry_on_input
-extern hook_artefact_carry_on_input
-artefact_carry_on_input:
+; 0x2d86e0 base_player set_input entry; ECX player, stack time and immutable input; before early-out: lohook -> freeze_tag_on_input
+global freeze_tag_on_input
+extern hook_freeze_tag_on_input_chain
+freeze_tag_on_input:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -149,22 +149,25 @@ artefact_carry_on_input:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_artefact_carry_on_input
-    mov edx, artefact_carry_on_input_replay
+    call hook_freeze_tag_on_input_chain
+    mov edx, freeze_tag_on_input_replay
     cmp eax, 0
-    je artefact_carry_on_input_go
+    je freeze_tag_on_input_go
     mov edx, 0x2d86e6
     cmp eax, 1
-    je artefact_carry_on_input_go
+    je freeze_tag_on_input_go
+    mov edx, 0x2d8a0c
+    cmp eax, 2
+    je freeze_tag_on_input_go
     ud2
-artefact_carry_on_input_go:
+freeze_tag_on_input_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-artefact_carry_on_input_replay:
+freeze_tag_on_input_replay:
     db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
     jmp 0x2d86e6
 
@@ -5331,7 +5334,7 @@ ragdoll_on_step_replay:
     db 0x80, 0x7c, 0x24, 0x0f, 0x00
     jmp 0x1f7c41
 
-; 0x316826 respawn tick after kit-change trampoline/prologue; before vectors (push ebx; push esi; mov ebx,ecx; push edi): lohook -> freeze_tag_on_tick
+; 0x316826 player_respawn_rule_base::tick after patch 31's kit-change jump at 0x316820 and its prologue (push ebp / mov ebp,esp / sub esp,34h), before it reads a place's time (push ebx / push esi / mov ebx,ecx / push edi): ECX the rule, EBP its frame; the modes that hold the places' times or make them due (Freeze Tag, Artifact Hunt) chain here by order: lohook -> freeze_tag_on_tick
 global freeze_tag_on_tick
 extern hook_freeze_tag_on_tick
 freeze_tag_on_tick:
@@ -5411,48 +5414,6 @@ freeze_tag_on_player_tick_go:
 freeze_tag_on_player_tick_replay:
     db 0x51, 0x53, 0x55, 0x8b, 0xd9
     jmp 0x2daa65
-
-; 0x2d86ee set_input after full prologue, before alive check; frozen goes to native common epilogue: lohook -> freeze_tag_on_input
-global freeze_tag_on_input
-extern hook_freeze_tag_on_input
-freeze_tag_on_input:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_freeze_tag_on_input
-    mov edx, freeze_tag_on_input_replay
-    cmp eax, 0
-    je freeze_tag_on_input_go
-    mov edx, 0x2d86f5
-    cmp eax, 1
-    je freeze_tag_on_input_go
-    mov edx, 0x2d8a06
-    cmp eax, 2
-    je freeze_tag_on_input_go
-    ud2
-freeze_tag_on_input_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-freeze_tag_on_input_replay:
-    db 0x80, 0xbf, 0x3c, 0x03, 0x00, 0x00, 0x00
-    jmp 0x2d86f5
 
 ; 0x59adf sound_world::tick's general pass, after the active scenes ticked (cmp byte [edi+48F0h],al; the je skips the pass when General is as last applied): the sound thread, EDI the world, EAX s_general_volume's value truncated (cvttss2si [0A7AF90h], 0 to 100); done 0x59B4B, past the pass (ESI 0 there as here: the scenes' walk ended): lohook -> game_volume_on_general
 global game_volume_on_general

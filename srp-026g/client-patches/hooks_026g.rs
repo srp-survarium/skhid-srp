@@ -199,8 +199,33 @@ pub extern "C" fn hook_artefact_carry_on_weapon_hide(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- freeze_tag (patch 160) ----
+
+/// The named exits of freeze_tag::on_input (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum FreezeTagOnInputExit { Held }
+/// The entry `freeze_tag_on_input` (0x2d86e0, base_player set_input entry; ECX player, stack time and immutable input; before early-out) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_freeze_tag_on_input(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `freeze_tag_on_input` calls this, from the game's jump at 0x2d86e0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::freeze_tag::on_input(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- artefact_carry (patch 78) ----
 
+/// The named exits of artefact_carry::on_input (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ArtefactCarryOnInputExit { Held }
 /// The entry `artefact_carry_on_input` (0x2d86e0, base_player set_input entry; ECX player, stack time and immutable input; before early-out) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_carry_on_input(frame: &mut Frame) -> u32 {
@@ -210,7 +235,7 @@ pub extern "C" fn hook_artefact_carry_on_input(frame: &mut Frame) -> u32 {
     match crate::artefact_carry::on_input(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
+        Flow::Exit(e) => 2 + e as u32,
     }
 }
 
@@ -3460,7 +3485,7 @@ pub extern "C" fn hook_freeze_tag_on_camera(frame: &mut Frame) -> u32 {
 
 // ---- freeze_tag (patch 160) ----
 
-/// The entry `freeze_tag_on_tick` (0x316826, respawn tick after kit-change trampoline/prologue; before vectors (push ebx; push esi; mov ebx,ecx; push edi)) calls this with the saved machine.
+/// The entry `freeze_tag_on_tick` (0x316826, player_respawn_rule_base::tick after patch 31's kit-change jump at 0x316820 and its prologue (push ebp / mov ebp,esp / sub esp,34h), before it reads a place's time (push ebx / push esi / mov ebx,ecx / push edi): ECX the rule, EBP its frame; the modes that hold the places' times or make them due (Freeze Tag, Artifact Hunt) chain here by order) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_freeze_tag_on_tick(frame: &mut Frame) -> u32 {
     // SAFETY: only the entry `freeze_tag_on_tick` calls this, from the game's jump at 0x316826,
@@ -3487,26 +3512,6 @@ pub extern "C" fn hook_freeze_tag_on_player_tick(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::freeze_tag::on_player_tick(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => 2 + e as u32,
-    }
-}
-
-// ---- freeze_tag (patch 160) ----
-
-/// The named exits of freeze_tag::on_input (the order the shim's Flow code
-/// follows, 2 upward).
-#[repr(u32)]
-#[allow(dead_code)]
-pub enum FreezeTagOnInputExit { Frozen }
-/// The entry `freeze_tag_on_input` (0x2d86ee, set_input after full prologue, before alive check; frozen goes to native common epilogue) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_freeze_tag_on_input(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `freeze_tag_on_input` calls this, from the game's jump at 0x2d86ee,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::freeze_tag::on_input(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
@@ -6956,6 +6961,15 @@ pub extern "C" fn hook_world_check_on_raw(frame: &mut Frame) -> u32 {
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
     }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_freeze_tag_on_input_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_freeze_tag_on_input(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_artefact_carry_on_input(frame);
+    if flow != 0 { return flow; }
+    0
 }
 
 #[unsafe(no_mangle)]

@@ -74,6 +74,24 @@ pub enum Actions {
     Restart,
 }
 
+/// What the native respawn rule's schedule (twenty times, one a place: the
+/// tick spawns a place whose time is the step's) is left to do after a step.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Schedule {
+    /// In play: a frozen body's death respawn is void (the freeze replaced
+    /// the death); every other place keeps its native time, so a late
+    /// arrival's first spawn runs.
+    CancelFrozen(Places),
+    /// Between rounds and after the match: a place that falls due waits, as
+    /// Artifact Hunt holds its round's end: a late arrival enters with the
+    /// next round, never into the pause.
+    HoldDue,
+    /// The round's restart: every present place is due at this step
+    /// ([`Actions::Restart`]), and a place without a free point retries
+    /// natively 50 ms later.
+    Native,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FreezeTag {
     players: [Player; PLAYERS],
@@ -104,6 +122,19 @@ impl FreezeTag {
     }
     pub fn complete(&self) -> bool {
         self.winner().is_some()
+    }
+    /// What the respawn rule's schedule is left to do in this phase.
+    pub fn schedule(&self) -> Schedule {
+        match self.phase {
+            Phase::Playing => Schedule::CancelFrozen(
+                Place::all()
+                    .zip(&self.players)
+                    .filter(|(_, player)| matches!(player, Player::Frozen { .. }))
+                    .fold(Places::EMPTY, |frozen, (place, _)| frozen.with(place)),
+            ),
+            Phase::Between { .. } | Phase::Finished(_) => Schedule::HoldDue,
+            Phase::Restarting => Schedule::Native,
+        }
     }
     /// Round wins, the first team's first.
     pub fn points(&self) -> [u16; 2] {
@@ -521,6 +552,28 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn the_schedule_cancels_frozen_in_play_holds_between_and_runs_the_restart() {
+        let mut bodies = match_bodies();
+        let mut s = FreezeTag::EMPTY;
+        assert_eq!(s.schedule(), Schedule::CancelFrozen(Places::EMPTY));
+        s.step(&bodies, &[[false; PLAYERS]; PLAYERS], 50);
+        assert_eq!(s.schedule(), Schedule::CancelFrozen(Places::EMPTY.with(place(0))));
+        bodies[1] = body(Team::First, 3.0, Condition::Lethal);
+        s.step(&bodies, &VISIBLE, 50);
+        assert_eq!(s.schedule(), Schedule::HoldDue);
+        assert_eq!(s.step(&bodies, &VISIBLE, INTERMISSION.get()), Actions::Restart);
+        assert_eq!(s.schedule(), Schedule::Native);
+        for b in bodies.iter_mut().take(3) {
+            if let Body::Present { condition, .. } = b {
+                *condition = Condition::Fighting;
+            }
+        }
+        s.step(&bodies, &VISIBLE, 50);
+        assert_eq!(s.phase(), Phase::Playing);
+        assert_eq!(s.schedule(), Schedule::CancelFrozen(Places::EMPTY));
     }
 
     #[test]

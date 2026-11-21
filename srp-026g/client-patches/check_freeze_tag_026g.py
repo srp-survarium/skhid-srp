@@ -96,13 +96,19 @@ class Run(ffa.Run):
                  {**hide.GAME, UC_X86_REG_ECX: ffa.player(place)})
         return self.stopped == ffa.RETURN
 
-    def input(self, place):
-        # After set_input's prologue, before its alive check. Stop at the
-        # common epilogue rather than fabricating the rest of its frame.
+    def input(self, place, time=0):
+        # set_input's entry (patch 78's carry.input): held is its own ret 8
+        # back to the caller; otherwise the chain goes on to patch 78 and
+        # the game's bytes, past the site.
         sp = hide.STACK + 0x8000
-        self.run(0x2D86EE, (0x2D86F5, 0x2D8A06), sp,
-                 {**hide.GAME, UC_X86_REG_EDI: ffa.player(place)})
-        return self.stopped == 0x2D8A06
+        packet = sp + 0x100
+        self.emu.mem_write(packet, bytes(8))
+        self.emu.mem_write(sp, struct.pack("<3I", ffa.RETURN, time, packet))
+        _, after = self.run(0x2D86E0, (0x2D86E6, ffa.RETURN), sp,
+                            {**hide.GAME, UC_X86_REG_ECX: ffa.player(place)})
+        held = self.stopped == ffa.RETURN
+        assert not held or after == sp + 12, "ret 8 gives back both arguments"
+        return held
 
     def state(self):
         return self.serialize()[-LENGTH:]
@@ -176,7 +182,12 @@ def main():
     assert r.freeze_hud(2) == [("root.freeze_tag_score", (1, 0)),
                                ("root.freeze_tag_update", (0, 0, 4, 5000))]
     assert r.player_tick(2, 3150) and r.input(2)  # Winners also wait.
+    # Between rounds whatever falls due waits for the restart (a late
+    # arrival enters with the next round); a later time is left alone.
+    r.word(ffa.RULE + 0x138 + 4, 8050)
+    r.word(ffa.RULE + 0x138 + 8, 9000)
     r.tick(8050, 4950)
+    assert [r.read(ffa.RULE + 0x138 + 4*i) for i in (1, 2)] == [0xFFFFFFFF, 9000]
     before_restart = r.serialize()
     assert struct.unpack_from("<H", r.state(), 4)[0] == 50
     r.tick(8100)
@@ -210,7 +221,10 @@ def main():
     saved = r.serialize()
     r.tick(18000, 5000)
     assert r.serialize() == saved
-    print("ok best of five: pause, native team respawn scheduling, rollback and first to three")
+    r.word(ffa.RULE + 0x138 + 8, 18050)
+    r.tick(18050)
+    assert r.read(ffa.RULE + 0x138 + 8) == 0xFFFFFFFF  # No spawn after the match.
+    print("ok best of five: pause holds what falls due, the restart makes everyone due, rollback and first to three")
 
     r.start()
     for place in range(3):

@@ -1,3 +1,5 @@
+# Patch 160: Freeze Tag, mode 12 (docs/notes/freeze-tag.md). The sites are
+# sites_026g.tsv's; the rule is srp_validate::world::freeze.
 name = "freeze_tag"
 patch = 160
 
@@ -10,23 +12,34 @@ order = 4
 site = "static_info.options_read"
 handler = "on_static_info"
 order = 6
+
 [[hook]]
 site = "replay.options_read"
 handler = "on_replay_options"
 order = 6
+
+# the rule's step and the places' schedule, before Artifact Hunt's (order 1);
+# each acts in its own mode only
 [[hook]]
-site = "freeze.rule_tick"
+site = "respawn.tick"
 handler = "on_tick"
+order = 0
+
 [[hook]]
 site = "freeze.player_tick"
 handler = "on_player_tick"
+
+# a held body's input is not applied, before patch 78's carry (order 1) sees it
 [[hook]]
-site = "freeze.input"
+site = "carry.input"
 handler = "on_input"
+order = 0
+
 [[hook]]
 site = "respawn.save"
 handler = "on_save"
 order = 1
+
 [[hook]]
 site = "respawn.load"
 handler = "on_load"

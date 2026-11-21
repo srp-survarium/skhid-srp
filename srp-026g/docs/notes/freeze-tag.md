@@ -16,20 +16,25 @@ round wins. No artifact rescue in this version (owner, 2026-11-17).
   award neither team a point and replay the round.
 - The existing match time limit still applies. If it expires before either
   team reaches three wins, the unfinished series is a draw.
-- Between rounds all players wait 5 seconds, then the existing team spawn
-  path removes/reinserts every current player and resets their kit normally.
-  The rule waits for delayed native spawns before opening the next round.
+- Between rounds all players wait 5 seconds, held in place. Then every
+  present place is due at one step of the native respawn rule, which takes
+  each out and spawns it at its team's points with its kit's load, the
+  living as the frozen. The rule waits for delayed native spawns before
+  opening the next round.
 - A disconnect cannot clear a frozen place. A new place starts on its first
-  spawn. Absent players are excluded when a new round starts.
+  spawn in a round; one that enters in the pause or after the match waits
+  for the next round. Absent players are excluded when a new round starts.
 - The HUD reuses the stock TDM score bars (maximum 3), collection progress
   widget and blocked-hit UI sound. Frozen players have a marker. A rescuer
   sees progress only for a reachable frozen teammate. No new ice assets.
 
 The first authored map is Rudnya day, using its existing TDM project and
 team spawns. `freeze-tag-1.json` makes its config and fills unused map-dictionary
-slot 114. Mode 12 is separate from FFA variations 9–11. Native rules are
-93, 91, 94: time, respawn, and kill counters; no TDM ticket rule. The options
-carry `SRPX`, tag 6 (4 is the wide map id, 5 the faces), length 1, version 1. Both client and server understand it.
+slot 114. Mode 12 is separate from FFA variations 9–11 and from Artifact
+Hunt's 13. Native rules are 93, 91, 94: time, respawn, and kill counters; no
+TDM ticket rule. The options carry `SRPX`, tag 6 (4 is the wide map id, 5 the
+faces), length 1, version 1, among the block's other entries. Both client and
+server understand it.
 
 ## State and native lifecycle
 
@@ -42,17 +47,26 @@ and round result. Rollback and late join restore progress and round score.
 
 The three native hooks are declared in `sites_026g.tsv`:
 
-- `2DAA60`, `base_player::tick`: a frozen player's clock advances, but the
-  deferred death callback and tick are skipped through the native `ret 4`
-  at `2DAB69`. Lethal hits already set `pending_death` (+33Dh), which also
-  prevents further damage in `hit_impl`.
-- `2D86EE`, after `set_input`'s saved-register prologue: frozen input takes
-  its common epilogue at `2D8A06`.
-- `316826`, after respawn tick's prologue and the existing warmup kit-change
-  trampoline: advance the rule, cancel a frozen body's death respawn, or schedule
-  all active places at this tick for the next round. Every other place keeps its
-  native schedule, so a late arrival's first spawn (its entry time) still runs. The original `31697F`
-  path owns removal, spawn point selection and spawn; no synthetic deaths.
+- `2DAA60` (`freeze.player_tick`), `base_player::tick`: a frozen player's
+  clock advances, but the deferred death callback and tick are skipped
+  through the native `ret 4` at `2DAB69`. Lethal hits already set
+  `pending_death` (+33Dh), which also prevents further damage in `hit_impl`.
+- `2D86E0` (`carry.input`, patch 78's site, order 0 before its handler at 1):
+  `set_input`'s entry. A held body's input leaves through the function's own
+  `ret 8` at `2D8A0C` (exit `held`): nothing of the player changes, the
+  native "nothing new". Patch 78's take and use never see it.
+- `316826` (`respawn.tick`, order 0; Artifact Hunt's handler is 1), after
+  the respawn tick's prologue and patch 31's kit-change jump, before the tick
+  reads any place's time: advance the rule, then do what
+  `FreezeTag::schedule` says with the places' native times. In play
+  (`CancelFrozen`) a frozen body's death respawn is cancelled and every other
+  place keeps its native time, so a late arrival's first spawn (its entry
+  time) runs. Between rounds and after the match (`HoldDue`) a place whose
+  time is the step's is held. The step that ends the pause makes every place
+  with a current player due at this step (`Actions::Restart`); then
+  (`Native`) the tick's own `31697F..3169BE` takes each out and spawns it,
+  and a place without a free point retries 50 ms later (`3169D8`). No
+  synthetic deaths.
 
 The typed `vostok::freeze` boundary uses generated fields and engine calls.
 Thaw calls the same `damage_model::reset` (`2E5290`, EDI receiver, stack time,
@@ -62,10 +76,10 @@ physics ray (group 24h, mask 2), chest to chest.
 
 `tools/check freeze-native` exercises installed hooks and round scheduling
 under Unicorn. Shared-rule tests cover continuous thaw, wall/enemy refusal,
-disconnects, draws, 3–0 and 3–2 finishes, codec rejection and rollback during
-intermission. Server tests cover map rules, mode registration and the native
-rule envelope. `tools/check` also selects the world corpus/drift and existing
-world-roundtrip checks.
+disconnects, draws, 3–0 and 3–2 finishes, codec rejection, rollback during
+intermission and the schedule of each phase. Server tests cover map rules,
+mode registration and the native rule envelope. `tools/check` also selects
+the world corpus/drift and existing world-roundtrip checks.
 
 The presentation hook after the simulation step borrows the native warmup
 camera with `game_world::switch_to_warmup_camera` (`1F8190`). The existing
@@ -75,37 +89,85 @@ end and clears pending input on both transitions. It owns no pregame,
 spectator or replay camera, and retains only an identity and previous mode;
 camera state does not enter the world format.
 
+## With Artifact Hunt
+
+The owner: Freeze Tag "will be similar to artihunt with
+respawns". Artifact Hunt (mode 13, patch 167, `artefact_hunt.md`
+"Respawns") also respawns everyone, the living too, at a round's start
+through the same tick, and holds respawns while a round ends. The two share
+two sites, each handler acting only in its own mode (Freeze Tag's from the
+options' tag 6, Artifact Hunt's from its rule of the world):
+
+- `respawn.tick` (0x316826): one row (named for the respawn rule, not for
+  one mode; it was `freeze.rule_tick`), Freeze Tag's handler order 0,
+  Artifact Hunt's order 1.
+- `carry.input` (0x2D86E0) with its exit `held@0x2D8A0C`: Freeze Tag's
+  handler order 0, patch 78's order 1 (which asks Artifact Hunt first).
+
+Taken from Artifact Hunt, and why:
+
+- **Held, then everyone due at once.** Freeze Tag cancelled only frozen
+  bodies' times, so a player who entered during the five-second pause
+  spawned into it, was held there, and was taken out and spawned again five
+  seconds later; one who entered after the match spawned into a finished
+  match. Holding every place that falls due between rounds and after the
+  match (Artifact Hunt's `Held`) spawns each once, with the round. The
+  restart itself was already the same as Artifact Hunt's `Everyone`: every
+  present place made due at the step, the native tick removing and spawning
+  them.
+- **The input at set_input's entry.** Freeze Tag dropped a held body's input
+  at 0x2D86EE, after patch 78's handler at the entry, which still took an
+  artefact (from the ground or a teammate's kit) on a frozen player's Use.
+  At the entry, before patch 78, with Artifact Hunt's `held` exit, nothing
+  of a held input is applied; the separate `freeze.input` site is gone.
+
+Kept as Freeze Tag's own: cancelling a frozen body's death respawn while a
+round is played (a thawed player must not be respawned by the death's old
+time), the hold of every player's tick in the pause (Artifact Hunt holds
+only the input in its countdown), and the wait for every spawn before the
+next round opens (a body still frozen would otherwise freeze again at once).
+
+## Validation
+
 An actual local match is still required before merging: body presentation,
 sound, camera, native spawn lifecycle and new-version world recordings must
 be checked in the running game. The owner deferred the proposed three-client
 playtest on 2026-11-17; no game windows were opened.
 
-## Validation of the first implementation (2026-11-17)
+Open:
+
+- No local test match yet, so no Freeze Tag worlds in the corpus.
+- A frozen player who leaves and comes back. The rule keeps the place frozen
+  and cancels the native entry spawn, so it should stay out of the world
+  until the next round. Whether a rejoin can bring the body back another
+  way (the server's late join), and so escape the freeze at the team's
+  spawn, is not known until a local match tries it.
+- The server's count of lives (`session::v026g::autobuy::used`: deaths and
+  kit changes) does not count a round start, which reloads every kit from
+  the profile; Artifact Hunt adds `MatchResult::round_starts` for that. Freeze
+  Tag's rule does not count its rounds (a draw replays one without a score),
+  so it cannot fill it yet.
+
+### 2026-11-17
 
 The shared rule/codec tests, installed native hooks, generated engine ABI,
-client tests and Clippy pass. The manifest content build and stock HUD/lobby
-Ruffle regression checks pass. Game/server validator comparison agrees on
+client tests and Clippy passed. The manifest content build and stock HUD/lobby
+Ruffle regression checks passed. Game/server validator comparison agreed on
 all 5,775 sampled worlds and their mutated copies (20 batches).
-The final camera checks execute the native warmup/player switches, preserve
+The camera checks execute the native warmup/player switches, preserve
 orbit across frames, clear input at transitions, restore on thaw/match end,
 re-enter after rollback, and reuse the existing seven native zoom/pitch-limit
 cases. They also cover a late join already in orbit and third-person restore.
 
-The broader checks are not clean: the existing badge-price assertion,
+The broader checks were not clean then: the badge-price assertion,
 player-comment migration (`shop_owned` missing), PvB map-count assertion
-and infinity-glyph localization check fail. The full existing corpus check
-accepts 45,697 of 46,578 worlds and refuses 881 for object fields or FFA
-spawn-point counts; it leaves 2,386 unchecked. These rules were not relaxed.
-Clippy was also run separately for the crates whose tests stopped before
-their lint stage, and passes.
+and infinity-glyph localization check failed. The full corpus check
+accepted 45,697 of 46,578 worlds and refused 881 for object fields or FFA
+spawn-point counts; it left 2,386 unchecked. These rules were not relaxed.
+The Vostok content-preservation assertion failed for an existing day-2
+object. The world-roundtrip cases themselves passed, but its coverage audit
+reported three unlisted weapon codec sites (`252B48`, `310224`, `33A51B`).
 
-The Vostok content-preservation assertion also fails for an existing day-2
-object. The world-roundtrip cases themselves pass (fresh A, fresh B and
-resync, eight worlds each), but its coverage audit reports three existing
-unlisted weapon codec sites (`252B48`, `310224`, `33A51B`). The FFA and
-late-join native cases preceding that audit pass.
-
-An uninstalled local test build is in this worktree's `private/freeze-tag/`:
-the executable, manifest-built content patch and matching server data.
-Its `README.txt` records the hashes and playtest cases. It is a quick build,
-not a release. The repository's release revision and patch list are unchanged.
+An uninstalled local test build of that date is in this worktree's
+`private/freeze-tag/` (base a08445576, content `patch_64`): stale since the
+merge of main on 2026-11-21. A local match needs a new build.
