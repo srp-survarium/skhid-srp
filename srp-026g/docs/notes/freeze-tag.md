@@ -14,6 +14,18 @@ three). No artifact rescue in this version (owner, 2026-11-17).
   resets progress. Extra teammates do not accelerate it.
 - Thaw restores health in place and clears input. It preserves equipment
   and ammunition. Frozen teammates cannot thaw each other.
+- A thaw is credited as a kill (the owner, 2026-11-21: "kill rn is fine"):
+  every fighting teammate within reach of the body (2 m, clear sight: the
+  thaw's own test) at the step it thaws counts score event 14, one each
+  (`Actions::Play::thawers`; the patch's `World::credit_thaw`, in its kit's
+  cell, the scoreboard told, at the rule's tick in every game alike). 14 is
+  the silent kill's number, which 0.26g counts nowhere. It is not event 0:
+  a record's kills must add up to its weapons' (patch 165, the world
+  check), and the Tab list's K/D is the kd rule's, which a thaw leaves as
+  it is. srp weighs it as a kill in mode 12 (`static_info::
+  FREEZE_TAG_WEIGHTS`: the scoreboard's 10) and pays it as one, in the
+  results' kills line (`rewards`: `SRP_KILL`); quests' kills are the kd
+  rule's and do not count it.
 - Freezing the entire opposing team awards one round. Simultaneous wipes
   award neither team a point and replay the round.
 - The existing match time limit still applies. If it expires before either

@@ -1,6 +1,7 @@
 //! Freeze Tag's engine boundary. Scoped native handles; all retained rule
 //! state belongs to the shared snapshot codec, never to native pointers.
 use super::round_countdown::Play;
+use super::statistics::{Score, ScoreEvent};
 use super::world::{floats, read};
 use super::{Context, Thread};
 use crate::raw;
@@ -262,6 +263,18 @@ impl<'t> World<'t> {
         for place in Place::all().filter(|place| player_at(self.core, *place).is_some()) {
             // SAFETY: the rule's twenty-entry schedule.
             unsafe { self.rule.times().add(place.index()).write(self.time) };
+        }
+    }
+    /// A thaw's credit for `place`, as for a kill ([`ScoreEvent::THAW`]): in its cell of the kit it
+    /// plays, the scoreboard told, at the rule's tick in every game alike.
+    pub fn credit_thaw(&mut self, place: Place) {
+        let Some(player) = player_at(self.core, place) else { return };
+        // SAFETY: the respawn rule's live core and its statistics; the place's live player.
+        unsafe {
+            let Some(statistics) = self.core.statistics() else { return };
+            if let Some(score) = Score::of(statistics.shared(), player) {
+                score.count(ScoreEvent::THAW, 1);
+            }
         }
     }
     /// The round's countdown on or off (`round_countdown`): at the rule's tick, in list 0 before

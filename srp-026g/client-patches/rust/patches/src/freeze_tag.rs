@@ -84,7 +84,10 @@ pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
     }
     match state.step(&bodies, &visible, world.elapsed()) {
         Actions::Restart => world.restart(),
-        Actions::Play { thawed } => thawed.iter().for_each(|place| world.thaw(place)),
+        Actions::Play { thawed, thawers } => {
+            thawed.iter().for_each(|place| world.thaw(place));
+            thawers.iter().for_each(|place| world.credit_thaw(place));
+        }
         Actions::Wait => {}
     }
     // A frozen body's death also queued its ordinary respawn; only the new

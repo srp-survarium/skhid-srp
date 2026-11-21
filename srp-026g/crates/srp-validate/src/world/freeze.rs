@@ -68,8 +68,10 @@ pub enum Phase {
 pub enum Actions {
     /// Between rounds, waiting for every body's new round spawn, or finished.
     Wait,
-    /// A played step: these places' native health and actions are restored.
-    Play { thawed: Places },
+    /// A played step: these places' native health and actions are restored;
+    /// `thawers` completed a thaw at it (every fighting teammate within
+    /// reach of a body thawed), each credited as for a kill.
+    Play { thawed: Places, thawers: Places },
     /// Every place spawns again now through the native team spawn.
     Restart,
 }
@@ -256,24 +258,27 @@ impl FreezeTag {
         }
         let before = self.players;
         let mut thawed = Places::EMPTY;
+        let mut thawers = Places::EMPTY;
         for (place, ((slot, body), sight)) in Place::all().zip(self.players.iter_mut().zip(bodies).zip(visible)) {
             let Player::Frozen { team, progress } = *slot else {
                 continue;
             };
-            let helped = match *body {
-                Body::Present { position, .. } => before.iter().zip(bodies).zip(sight).any(
-                    |((helper, body), clear)| match *body {
-                        Body::Present { position: other, .. } if *clear && *helper == Player::Fighting(team) => {
+            // The fighting teammates within reach, in clear sight.
+            let helpers = match *body {
+                Body::Present { position, .. } => Place::all().zip(before.iter().zip(bodies).zip(sight)).fold(
+                    Places::EMPTY,
+                    |helpers, (helper, ((player, body), clear))| match *body {
+                        Body::Present { position: other, .. } if *clear && *player == Player::Fighting(team) => {
                             let ([ax, ay, az], [bx, by, bz]) = (position, other);
                             let [x, y, z] = [ax - bx, ay - by, az - bz];
-                            x * x + y * y + z * z <= RADIUS * RADIUS
+                            if x * x + y * y + z * z <= RADIUS * RADIUS { helpers.with(helper) } else { helpers }
                         }
-                        _ => false,
+                        _ => helpers,
                     },
                 ),
-                Body::Absent => false,
+                Body::Absent => Places::EMPTY,
             };
-            let progress = if helped {
+            let progress = if helpers.count() > 0 {
                 progress.0.saturating_add(elapsed)
             } else {
                 0
@@ -281,6 +286,7 @@ impl FreezeTag {
             if progress >= THAW_MS {
                 *slot = Player::Fighting(team);
                 thawed = thawed.with(place);
+                thawers = Places::new(thawers.bits() | helpers.bits()).unwrap_or(thawers);
             } else {
                 *slot = Player::Frozen {
                     team,
@@ -301,7 +307,7 @@ impl FreezeTag {
                 },
             };
         }
-        Actions::Play { thawed }
+        Actions::Play { thawed, thawers }
     }
     /// A round ends once both teams entered and one or both have nobody fighting.
     fn result(&self) -> Option<RoundEnd> {
@@ -453,7 +459,7 @@ mod tests {
     use super::*;
     fn thawed(actions: Actions) -> u32 {
         match actions {
-            Actions::Play { thawed } => thawed.bits(),
+            Actions::Play { thawed, .. } => thawed.bits(),
             other => panic!("{other:?}"),
         }
     }

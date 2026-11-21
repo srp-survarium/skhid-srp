@@ -173,12 +173,17 @@ pub const ARTEFACT_HUNT_WEIGHTS: [(usize, f32); 2] = [
     (event::BRING_VICTORY_ITEM, 50.0),
 ];
 
+/// What Freeze Tag (mode 12) weighs otherwise: a thaw (event 14, counted
+/// for each fighting teammate within reach of the body thawed) scores as a
+/// kill (the owner, 2026-11-21: "kill rn is fine").
+pub const FREEZE_TAG_WEIGHTS: [(usize, f32); 1] = [(event::THAW, SCORE_WEIGHTS[event::KILL])];
+
 /// A kill in Team Deathmatch scores this many times its weight: there a
 /// kill is the only way to earn (the owner, 2026-11-04).
 pub const TDM_KILL_FACTOR: f32 = 3.0;
 
 /// The weights of a match of `game_mode`: `weights`, with Research's own
-/// in mode 5, Artifact Hunt's in mode 13 and a Team Deathmatch kill
+/// in mode 5, Freeze Tag's in mode 12, Artifact Hunt's in mode 13 and a Team Deathmatch kill
 /// [`TDM_KILL_FACTOR`] times its weight in mode 4. The other modes play
 /// with `weights` as they are.
 pub fn weights_of(game_mode: maps::RuleMode, weights: [f32; SCORE_EVENTS]) -> [f32; SCORE_EVENTS] {
@@ -186,6 +191,7 @@ pub fn weights_of(game_mode: maps::RuleMode, weights: [f32; SCORE_EVENTS]) -> [f
     let own: &[(usize, f32)] = match game_mode {
         maps::RuleMode::Research => &RESEARCH_WEIGHTS,
         maps::RuleMode::ArtefactHunt => &ARTEFACT_HUNT_WEIGHTS,
+        maps::RuleMode::FreezeTag => &FREEZE_TAG_WEIGHTS,
         _ => &[],
     };
     for &(event, weight) in own {

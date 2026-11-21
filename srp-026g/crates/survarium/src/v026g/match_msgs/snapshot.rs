@@ -67,6 +67,12 @@ pub mod event {
     pub const WON: usize = 12;
     pub const MELEE_KILL: usize = 13;
     pub const SILENT_KILL: usize = 14;
+    /// Freeze Tag's thaw (exe patch 160): each fighting teammate within reach
+    /// of a body thawed counts one, in the silent kill's number, which 0.26g
+    /// counts nowhere (`on_player_killed` 0x2F4EB0 no longer does); scored and
+    /// paid as a kill (`static_info::FREEZE_TAG_WEIGHTS`, `rewards`), never
+    /// one of the kills (event 0, the kd rule's).
+    pub const THAW: usize = SILENT_KILL;
     pub const HEADSHOT_KILL: usize = 15;
     pub const WINNING_TEAM_VI_BONUS: usize = 16;
     pub const STEAL_VICTORY_ITEM: usize = 17;
