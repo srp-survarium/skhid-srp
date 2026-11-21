@@ -6,6 +6,45 @@ bits 32
 section .text
 %include "rust_hook_026g.inc"
 
+; 0x295aa5 process_hands_ik (0x2959D0; mt_draw's bone pass, the held item's controller) in the first person with the aim's progress above 0, before its call of calculate_aim_alignment (0x295AAD): mov eax,[esp+1Ch] / lea esi,[esp+24h]; ECX the item's bones' matrices (its [ebp+10h], loaded at 0x295A9C), the site's ESP+1Ch the weapon (the EAX the replayed mov loads): lohook -> aim_pose_on_aim_alignment
+global aim_pose_on_aim_alignment
+extern hook_aim_pose_on_aim_alignment
+aim_pose_on_aim_alignment:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_aim_pose_on_aim_alignment
+    mov edx, aim_pose_on_aim_alignment_replay
+    cmp eax, 0
+    je aim_pose_on_aim_alignment_go
+    mov edx, 0x295aad
+    cmp eax, 1
+    je aim_pose_on_aim_alignment_go
+    ud2
+aim_pose_on_aim_alignment_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+aim_pose_on_aim_alignment_replay:
+    db 0x8b, 0x44, 0x24, 0x1c, 0x8d, 0x74, 0x24, 0x24
+    jmp 0x295aad
+
 ; 0x2d65ee the animations registry's lookup (0x2D6590, called only by base_player::animation_id_resolver 0x2D7C26) found no entry for the pair and is about to return 0FFFFh (pop edi / pop esi / mov eax,0FFFFh; reached by the three misses at 0x2D65D3, 0x2D65DA, 0x2D65E2): EDI the pair asked for, ESP+10h the registry, EBP the resolver's frame: lohook -> animation_id_log_on_id_missing
 global animation_id_log_on_id_missing
 extern hook_animation_id_log_on_id_missing
@@ -4934,6 +4973,201 @@ medical_skills_on_effect_clock_go:
 medical_skills_on_effect_clock_replay:
     db 0x8b, 0x54, 0x24, 0x10, 0x2b, 0x54, 0x24, 0x0c
     jmp 0x2e5d88
+
+; 0x1d910d effect_fstage_default_materials::compile (0x1D8F40, forward_default) among the pushes for its compile_begin (0x1CD0B0, called at 0x1D9126): setne cl / push edi / shl cl,6 (no address under them; the pushes of the two family names have base relocations); the options, the config tree and the configuration pushed (ESP+0 the configuration, the compile's [esp+50h]; +4 the material's config tree, EBX), the configuration's bytes but 7 final (byte 7 read at 0x1D9109, written at 0x1D9122); compile_begin writes the configuration's bytes 3 and 6 only (0x1CD0CD, 0x1CD12E), then copies it for begin_pass (0x1CD19A): lohook -> forward_effects_on_forward_begin
+global forward_effects_on_forward_begin
+extern hook_forward_effects_on_forward_begin
+forward_effects_on_forward_begin:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_forward_effects_on_forward_begin
+    mov edx, forward_effects_on_forward_begin_replay
+    cmp eax, 0
+    je forward_effects_on_forward_begin_go
+    mov edx, 0x1d9114
+    cmp eax, 1
+    je forward_effects_on_forward_begin_go
+    ud2
+forward_effects_on_forward_begin_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+forward_effects_on_forward_begin_replay:
+    db 0x0f, 0x95, 0xc1, 0x57, 0xc0, 0xe1, 0x06
+    jmp 0x1d9114
+
+; 0x1db34b effect_offscreen_particle_lighting_materials::compile (0x1DB170, particle_lighting) among the pushes for its compile_begin (0x1CD0B0, called at 0x1DB35B): lea eax,[esp+48h] / push eax / push ebx (the pushes of the family names after them have base relocations); the options and the config tree pushed (ESP+0 the tree, ESI), the configuration (the compile's [esp+40h], ESP+48h here) final, its last write 0x1DB347: lohook -> forward_effects_on_particle_lighting_begin
+global forward_effects_on_particle_lighting_begin
+extern hook_forward_effects_on_particle_lighting_begin
+forward_effects_on_particle_lighting_begin:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_forward_effects_on_particle_lighting_begin
+    mov edx, forward_effects_on_particle_lighting_begin_replay
+    cmp eax, 0
+    je forward_effects_on_particle_lighting_begin_go
+    mov edx, 0x1db351
+    cmp eax, 1
+    je forward_effects_on_particle_lighting_begin_go
+    ud2
+forward_effects_on_particle_lighting_begin_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+forward_effects_on_particle_lighting_begin_replay:
+    db 0x8d, 0x44, 0x24, 0x48, 0x50, 0x53
+    jmp 0x1db351
+
+; 0x1d964d effect_fstage_default_materials::compile at solid_color_specular's set_constant<float4> (push edi / lea ecx,[esp+68h], the call 0x1A8900 at 0x1D9652), before the block that sends constant_tile_uv (0x1D9657: set_constant<float2> 0x1D9740 at 0x1D96EE or 0x1D9716): EBX the material's config tree, EDI the compiler. A set_constant keeps a name's first value (0x1D97C0..0x1D97CB, 0x1A8988..0x1A8993: the binding vector is searched by the interned name, 0x3C3DD0 comparing +8, and a binding added only when none has it), so a constant set here stands and the block's later set of the name adds nothing: lohook -> forward_effects_on_tile_uv
+global forward_effects_on_tile_uv
+extern hook_forward_effects_on_tile_uv
+forward_effects_on_tile_uv:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_forward_effects_on_tile_uv
+    mov edx, forward_effects_on_tile_uv_replay
+    cmp eax, 0
+    je forward_effects_on_tile_uv_go
+    mov edx, 0x1d9652
+    cmp eax, 1
+    je forward_effects_on_tile_uv_go
+    ud2
+forward_effects_on_tile_uv_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+forward_effects_on_tile_uv_replay:
+    db 0x57, 0x8d, 0x4c, 0x24, 0x68
+    jmp 0x1d9652
+
+; 0x19015d stage_lights::stage_lights (0x18EE40) after its last constant host's registration (m_shadow3's, whose name holder it lets go by 0x190158): mov eax,10h, the one byte both of the release's branches (0x19014A, 0x190155) land on; EBX the stage. Its registrations: probe_parameters0..3 +0DCh..+0E8h, world_to_outer_probe +0ECh, probe_geometry_type +0F0h, ambient_light_particle_multiplier +0F4h, particle_screen_divider +0F8h, m_shadow0..3 +100h..+10Ch (shared_string::create 0xE0B50, the holder's assign 0x11170, register_constant_host 0x3C8BC0 with the backend [2260490h], which returns the host already made for a name): lohook -> forward_effects_on_stage_lights_constructed
+global forward_effects_on_stage_lights_constructed
+extern hook_forward_effects_on_stage_lights_constructed
+forward_effects_on_stage_lights_constructed:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_forward_effects_on_stage_lights_constructed
+    mov edx, forward_effects_on_stage_lights_constructed_replay
+    cmp eax, 0
+    je forward_effects_on_stage_lights_constructed_go
+    mov edx, 0x190162
+    cmp eax, 1
+    je forward_effects_on_stage_lights_constructed_go
+    ud2
+forward_effects_on_stage_lights_constructed_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+forward_effects_on_stage_lights_constructed_replay:
+    db 0xb8, 0x10, 0x00, 0x00, 0x00
+    jmp 0x190162
+
+; 0x19834b stage_lights::accumulate_particle_lighting (0x1961B0) where its two ways meet after the probe's constants (probe_geometry_type +0F0h, ambient_light_particle_multiplier +0F4h, particle_screen_divider +0F8h): mov ecx,[esi+4] / mov eax,[ecx+4170h] (the way that sets them with the vertex setter 0x14AE60 jumps here from 0x197C8C, the pixel one, set_ps_constant 0x132A90, falls through from 0x198346); ESI the stage, EBX the backend, [EBP-24h] the batch's probe or 0, the pass's program bound (0x19838E sets constants after it): lohook -> forward_effects_on_particle_probe
+global forward_effects_on_particle_probe
+extern hook_forward_effects_on_particle_probe
+forward_effects_on_particle_probe:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_forward_effects_on_particle_probe
+    mov edx, forward_effects_on_particle_probe_replay
+    cmp eax, 0
+    je forward_effects_on_particle_probe_go
+    mov edx, 0x198354
+    cmp eax, 1
+    je forward_effects_on_particle_probe_go
+    ud2
+forward_effects_on_particle_probe_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+forward_effects_on_particle_probe_replay:
+    db 0x8b, 0x4e, 0x04, 0x8b, 0x81, 0x70, 0x41, 0x00, 0x00
+    jmp 0x198354
 
 ; 0x3237e0 kd_stats_rule::on_event entry; cmp dword [esp+4],1; done is the original ret 0Ch, before any pushes: lohook -> free_for_all_on_kill_event
 global free_for_all_on_kill_event
@@ -10068,6 +10302,84 @@ texture_streaming_on_texture_memory_go:
 texture_streaming_on_texture_memory_replay:
     db 0x53, 0x56, 0x8b, 0xb0, 0xa4, 0x80, 0x08, 0x00
     jmp 0x3be288
+
+; 0x7c823 bullet_character_controller::can_skeep_player_step (0x7C7E0) after it stored the walk asked, squared, at [esp+0Ch] (mov eax,[esp+0Ch] / and eax,7FFFFFFFh, then the compare with 1e-5 at 0x7C830): EDX the controller, EBP its frame: lohook -> tick_parts_on_idle_walk
+global tick_parts_on_idle_walk
+extern hook_tick_parts_on_idle_walk
+tick_parts_on_idle_walk:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_tick_parts_on_idle_walk
+    mov edx, tick_parts_on_idle_walk_replay
+    cmp eax, 0
+    je tick_parts_on_idle_walk_go
+    mov edx, 0x7c82c
+    cmp eax, 1
+    je tick_parts_on_idle_walk_go
+    ud2
+tick_parts_on_idle_walk_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+tick_parts_on_idle_walk_replay:
+    db 0x8b, 0x44, 0x24, 0x0c, 0x25, 0xff, 0xff, 0xff, 0x7f
+    jmp 0x7c82c
+
+; 0x2d9541 base_player::assign_physics_transform (0x2D93A0) storing m_linear_horizontal_speed, the step's horizontal move over its ms (fld dword [esp+0Ch] / fstp dword [ebx+334h]): skipped, the value stays as it was: lohook -> tick_parts_on_speed_measured
+global tick_parts_on_speed_measured
+extern hook_tick_parts_on_speed_measured
+tick_parts_on_speed_measured:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_tick_parts_on_speed_measured
+    mov edx, tick_parts_on_speed_measured_replay
+    cmp eax, 0
+    je tick_parts_on_speed_measured_go
+    mov edx, 0x2d954b
+    cmp eax, 1
+    je tick_parts_on_speed_measured_go
+    ud2
+tick_parts_on_speed_measured_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+tick_parts_on_speed_measured_replay:
+    db 0xd9, 0x44, 0x24, 0x0c, 0xd9, 0x9b, 0x34, 0x03, 0x00, 0x00
+    jmp 0x2d954b
 
 ; 0x305540 booby_trap_core::hit with a hit type, its entry (mov eax,[ecx+194h]; then the set defuse_by_hit against the hit type, 0x30554C): ECX the trap, ESP the return address and the ten arguments; defuse is where a hit of the trap own type goes on (cmp byte [ecx+220h],0: ECX alone is read): lohook -> trap_stock_hit_on_hit
 global trap_stock_hit_on_hit

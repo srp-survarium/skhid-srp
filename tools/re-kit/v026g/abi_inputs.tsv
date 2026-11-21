@@ -1,4 +1,6 @@
 va	name	location	role	basis
+0x00011170	vostok::intrusive_ptr<shared_string>::assign	EDI	the holder written (lea edi,[esp+10h] / call 11170h, 0x18FF46)	observed
+0x00011170	vostok::intrusive_ptr<shared_string>::assign	EAX	the string put in it, its count raised (0x18FF41 -> 0x18FF4E)	observed
 0x00011540	vostok::intrusive_ptr<render_model_instance>::release	ECX	the intrusive pointer (count at +0D0h)	observed
 0x000127c0	vostok::buffer_string::assign	EAX	destination buffer_string	observed
 0x000127c0	vostok::buffer_string::assign	ECX	text	observed
@@ -535,6 +537,8 @@ va	name	location	role	basis
 0x0007ab30	vostok::network_core::mutable_buffer::resize	stack+4	requested_used_size	observed
 0x0007ab70	vostok::network_core::mutable_buffer::reallocate	ESI	the mutable_buffer {allocator, begin, capacity, size}; a null allocator: the assert "mutable buffer overflow" (0x9E3398), then a read through the null allocator (0x7ABF1)	observed
 0x0007ab70	vostok::network_core::mutable_buffer::reallocate	EDI	the new capacity (resize: the size asked, or the capacity doubled past it)	observed
+0x000e0ae0	vostok::shared_string::destroy	entry ESP+4	the string to destroy, its count 0 (push / call 0E0AE0h after lock xadd [string],-1 at 0x190158)	observed
+0x000e0b50	vostok::shared_string::create	entry ESP+4	the text, a C string (push 9F38F4h / call 0E0B50h in stage_lights::stage_lights 0x18FF3C)	observed
 0x000eb590	vostok::memory::mt_allocator::call_realloc	ECX	the allocator (the global multithreaded one, 0xA8001C, vtable 0x9E6000 slot +0x14; mutable_buffer::reallocate calls it)	observed
 0x000eb590	vostok::memory::mt_allocator::call_realloc	entry ESP+4	the block, or 0 for a new one	observed
 0x000eb590	vostok::memory::mt_allocator::call_realloc	entry ESP+8	the new size	observed
@@ -1020,6 +1024,9 @@ va	name	location	role	basis
 0x0012ec40	vostok::render::camouflage_decal_texture_type_baker_cook::process_compression	entry ESP+24	the cook parameters copy (on_textures_loaded &[esp+80h]): +13Ch its name text (0x12F052)	observed
 0x0012ec40	vostok::render::camouflage_decal_texture_type_baker_cook::process_compression	entry ESP+28	a pair forwarded as create_texture_from_memory entry ESP+16 and ESP+20 (0x12F086)	observed
 0x0012ec40	vostok::render::camouflage_decal_texture_type_baker_cook::process_compression	entry ESP+32	a value forwarded as create_texture_from_memory entry ESP+24 (0x12F09A)	observed
+0x00132a90	vostok::render::backend::set_ps_constant	EAX	the constant host written (mov eax,[ebx+0F0h] / call, 0x182586)	observed
+0x00132a90	vostok::render::backend::set_ps_constant	EDI	the backend, [2260490h] (0x18258D)	observed
+0x00132a90	vostok::render::backend::set_ps_constant	entry ESP+4	the value: a float4 buffer (lea eax,[esp+10h] / push eax, 0x1825B0)	observed
 0x00135900	vostok::render::material_effects_instance_cook::on_material_ready	ECX	cook owner	observed
 0x00135900	vostok::render::material_effects_instance_cook::on_material_ready	entry ESP+4	queries_result pointer	observed
 0x00135900	vostok::render::material_effects_instance_cook::on_material_ready	entry ESP+8	cook-data pointer	observed
@@ -6525,6 +6532,26 @@ va	name	location	role	basis
 0x00238230	survarium::game_world_ui::draw_damage_collector	EDI	the game_world_ui (the player's +0F480h, 0x24745B)	observed
 0x00246f10	survarium::player::tick	ECX	the player	observed
 0x00246f10	survarium::player::tick	entry ESP+4	the time (ms)	observed
+0x002d93a0	survarium::base_player::assign_physics_transform	entry ESP+4	the step's length in ms (u32; fild [ebp+8] 0x2D9528: m_linear_horizontal_speed +334h := the step's horizontal move x 1000 / it, stored at 0x2D9545)	observed
+0x002d93a0	survarium::base_player::assign_physics_transform	entry ESP+12	the ends-tick byte: 1 when the step ends on a 50 ms boundary (atomic_tick's sete 0x2D1E32, passed on by tick_delegates); only its low byte is set	observed
+0x002d1d20	survarium::game_world_core::tick_delegates	entry ESP+4	the delegate list (one of the world's seven at +18840h..+188B0h, 16 bytes each)	observed
+0x002d1d20	survarium::game_world_core::tick_delegates	entry ESP+8	the step's length in ms	observed
+0x002d1d20	survarium::game_world_core::tick_delegates	entry ESP+12	the step's end time in ms	observed
+0x002d1d20	survarium::game_world_core::tick_delegates	entry ESP+16	the ends-tick byte (low byte; the rest is garbage)	observed
+0x002d1e20	survarium::game_world_core::atomic_tick	EDI	the step's end time in ms (tick_events 0x2D22B9); a multiple of 50 ends a tick (sete 0x2D1E32: the world's base time +18FBCh is always 50, 0x2D00CD, 0x2D076A)	observed
+0x00337280	survarium::player_logic_stand_jump_state::initialize_weight_for_on_site_animation	EDX	the jump state (its player at +1Ch)	observed
+0x002d95b0	survarium::base_player::notify_actions_subscribers	entry ESP+4	the player (its m_linear_horizontal_speed +334h read at 0x2D95CF for the "is moving" notice)	observed
+0x00244d40	survarium::weapon::calculate_aim_alignment	EAX	the weapon	observed
+0x00244d40	survarium::weapon::calculate_aim_alignment	ECX	the item's bones' matrices (model space, 40h each; the locator's bone index picks one)	observed
+0x00244d40	survarium::weapon::calculate_aim_alignment	ESI	out matrix	observed
+0x00244d40	survarium::weapon::calculate_aim_alignment	entry ESP+4	the user's Item bone's matrix (the camera)	observed
+0x002959d0	survarium::portable_interactive_object::process_hands_ik	ECX	the held item's controller (+1F8h its user, +200h the hand IK solver)	observed
+0x002959d0	survarium::portable_interactive_object::process_hands_ik	entry ESP+4	passed on to the IK solver (update_bones_matrices gives [user+324h])	observed
+0x002959d0	survarium::portable_interactive_object::process_hands_ik	entry ESP+8	the user's bones' matrices (Weapon and Item among them)	observed
+0x002959d0	survarium::portable_interactive_object::process_hands_ik	entry ESP+0xC	the item's bones' matrices	observed
+0x002959d0	survarium::portable_interactive_object::process_hands_ik	entry ESP+0x10	pointer to the user's skeleton pointer (bone names)	observed
+0x0030e5c0	survarium::weapon_core_fire_state::clip_time_scale [descriptive]	EDI	pointer to the clip's resource pointer (the first hands clip)	observed
+0x0030e5c0	survarium::weapon_core_fire_state::clip_time_scale [descriptive]	entry ESP+4	float: the shots a second (rounds_per_minute / 60); the caller pops	observed
 0x002364c0	survarium::game_world_ui::set_game_progress	stack+4	UI receiver passed on to its HUD movie (236596 reads after 44h of locals and saves)	observed
 0x002364c0	survarium::game_world_ui::set_game_progress	stack+8	team 0 points (u16), loaded to BP at 2364CE	observed
 0x002364c0	survarium::game_world_ui::set_game_progress	stack+12	team 1 points (u16), loaded to DX at 2364C0	observed

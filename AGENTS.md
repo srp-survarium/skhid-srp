@@ -147,3 +147,18 @@ receiving game itself (patch 87), with the same code (`srp-validate`'s typed vie
   suites for shared infrastructure changes that affect them or release validation.
 - Broaden checks only for a concrete dependency or failure; do not repeat passing checks without
   relevant changes. Report validation limits and pre-existing failures without expanding the PR.
+
+## Local test builds
+
+- `tools/test-build <revision> <folder> [exe] [server] [content]` builds what a local test runs (the
+  exe, the debug server, the quick content) at the same time, each as you would by hand; a part
+  nothing changed for costs seconds. Use it instead of a build script of your own. With `--shared`
+  it builds the checkout's commit in one test tree whose cargo target stays warm from test to test:
+  the server compiles only what differs from the commit tested before, and a worktree needs no
+  target folder of its own to be tested.
+- `tools/dev <command...>` is `nix develop ./srp-026g --command <command...>` from a kept shell: 0.1 s
+  instead of 1 to 8 s a call. The release's scripts call `nix develop` themselves.
+- The exe's Rust is kept by what it was built from (`~/.cache/skhid-arena`, every worktree's;
+  `client-patches/README.md`, "A Rust crate as a source"): a build that changes no Rust source takes
+  5 s, a new worktree's first build too. `SRP_ARENA_CACHE=off` builds from source, as the release does.
+- Each worktree has its own cargo target folder; never share one.

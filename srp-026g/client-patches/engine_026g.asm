@@ -275,6 +275,12 @@ global engine_close_clipboard
 global engine_global_lock
 global engine_global_unlock
 global engine_set_texture
+global engine_set_constant_float4
+global engine_shared_string_create
+global engine_shared_string_destroy
+global engine_shared_string_assign
+global engine_register_constant_host
+global engine_set_ps_constant
 global engine_freeze_reset_health
 global engine_switch_to_warmup_camera
 global engine_switch_to_player_camera
@@ -391,6 +397,9 @@ engine_close_clipboard equ 0xaefed4   ; the IAT slot 0xaefed4 (an import, stdcal
 engine_global_lock equ 0x870078   ; the IAT slot 0x870078 (an import, stdcall)
 engine_global_unlock equ 0x87007c   ; the IAT slot 0x87007c (an import, stdcall)
 engine_set_texture equ 0x3d98b0   ; 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly
+engine_set_constant_float4 equ 0x1a8900   ; 0x1a8900 vostok::render::effect_compiler::set_constant_float4: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
+engine_shared_string_create equ 0xe0b50   ; 0xe0b50 vostok::shared_string::create: text ESP+4; pops 4; EAX; stdcall, called directly
+engine_shared_string_destroy equ 0xe0ae0   ; 0xe0ae0 vostok::shared_string::destroy: string ESP+4; pops 4; stdcall, called directly
 engine_play_particle_system equ 0x22660   ; 0x22660 vostok::render::scene_renderer::play_particle_system: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20, first_attachment ESP+24, second_attachment ESP+28; pops 28; stdcall, called directly
 engine_remove_particle_system equ 0x229d0   ; 0x229d0 vostok::render::scene_renderer::remove_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12; pops 12; stdcall, called directly
 engine_update_particle_system equ 0x22b30   ; 0x22b30 vostok::render::scene_renderer::update_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20; pops 20; stdcall, called directly
@@ -3204,6 +3213,56 @@ engine_text_edit_delete_selection:
     push edi
     mov esi, [esp + 20]   ; edit
     call 0x3486a0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_shared_string_assign:
+    ; 0x11170 vostok::intrusive_ptr<shared_string>::assign: holder EDI, string EAX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov edi, [esp + 20]   ; holder
+    mov eax, [esp + 24]   ; string
+    call 0x11170
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_register_constant_host:
+    ; 0x3c8bc0 vostok::render::backend::register_constant_host: backend EAX, name ESP+4, auxiliary ESP+8; pops 8; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; auxiliary -> 8
+    push dword [esp + 28]   ; name -> 4
+    mov eax, [esp + 28]   ; backend
+    call 0x3c8bc0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_set_ps_constant:
+    ; 0x132a90 vostok::render::backend::set_ps_constant: host EAX, backend EDI, value ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; value -> 4
+    mov eax, [esp + 24]   ; host
+    mov edi, [esp + 28]   ; backend
+    call 0x132a90
     pop edi
     pop esi
     pop ebx

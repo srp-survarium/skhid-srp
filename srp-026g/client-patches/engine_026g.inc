@@ -925,6 +925,27 @@ extern engine_global_unlock
 ; 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly
 ; stdcall: push (and ECX for thiscall) as that convention says
 extern engine_set_texture
+; void engine_set_constant_float4(const float *value, struct effect_compiler *compiler, const char *name)
+; 0x1a8900 vostok::render::effect_compiler::set_constant_float4: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_set_constant_float4
+; struct shared_string *engine_shared_string_create(const char *text)
+; 0xe0b50 vostok::shared_string::create: text ESP+4; pops 4; EAX; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_shared_string_create
+; void engine_shared_string_destroy(struct shared_string *string)
+; 0xe0ae0 vostok::shared_string::destroy: string ESP+4; pops 4; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_shared_string_destroy
+; void engine_shared_string_assign(struct shared_string **holder, struct shared_string *string)
+; 0x11170 vostok::intrusive_ptr<shared_string>::assign: holder EDI, string EAX; pops 0
+extern engine_shared_string_assign
+; struct constant_host *engine_register_constant_host(struct backend *backend, struct shared_string **name, unsigned int auxiliary)
+; 0x3c8bc0 vostok::render::backend::register_constant_host: backend EAX, name ESP+4, auxiliary ESP+8; pops 8; EAX
+extern engine_register_constant_host
+; void engine_set_ps_constant(struct constant_host *host, struct backend *backend, const float *value)
+; 0x132a90 vostok::render::backend::set_ps_constant: host EAX, backend EDI, value ESP+4; pops 4
+extern engine_set_ps_constant
 ; void engine_freeze_reset_health(struct medical_damage *receiver, unsigned int time)
 ; 0x2e5290 survarium::damage_model::reset: receiver EDI, time ESP+4; pops 4
 extern engine_freeze_reset_health

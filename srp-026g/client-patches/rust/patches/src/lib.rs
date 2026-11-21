@@ -63,6 +63,8 @@ pub mod weapon_stats;
 pub mod hud_options;
 // patch 167: no white hit marker through walls
 pub mod hit_marker_walls;
+// patch 169: the forward effects draw as 0.44a5's
+pub mod forward_effects;
 // patch 147: every run's logs in files of their own
 pub mod run_logs;
 pub mod tab_cursor;
@@ -113,6 +115,7 @@ pub mod voice;
 pub mod ban_time;
 pub mod sign_in_cipher;
 pub mod controller_position;
+pub mod tick_parts;
 pub mod use_scan;
 pub mod unplayed_match;
 pub mod texture_streaming;
@@ -130,6 +133,8 @@ pub mod collision_view;
 pub mod console_paste;
 // patch 158: the first-person eye stays out of the level's surfaces
 pub mod head_clearance;
+// patch 172: the aimed view is aligned to the gun's idle pose
+pub mod aim_pose;
 
 pub mod replay_file;
 pub mod free_for_all;

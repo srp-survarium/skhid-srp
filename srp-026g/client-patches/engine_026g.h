@@ -34,6 +34,7 @@ struct cc_float;
 struct cc_string;
 struct closest_ray_result_callback;
 struct collision_geometry;
+struct constant_host;
 struct core_world;
 struct critical_section;
 struct d3d_device;
@@ -126,6 +127,7 @@ struct scene_model_ref;
 struct scene_reference;
 struct scene_renderer;
 struct scroll_source;
+struct shared_string;
 struct simple_game_project;
 struct sound_emitter;
 struct sound_instance_proxy;
@@ -966,6 +968,24 @@ extern unsigned int (__attribute__((stdcall)) *const engine_global_unlock)(void 
 
 /* 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly */
 void __attribute__((stdcall)) engine_set_texture(struct effect_compiler *compiler, const char *slot, const char *texture, unsigned int option, unsigned int request, unsigned int lower, float lower_float, unsigned int flag);
+
+/* 0x1a8900 vostok::render::effect_compiler::set_constant_float4: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly */
+void __attribute__((thiscall)) engine_set_constant_float4(const float *value, struct effect_compiler *compiler, const char *name);
+
+/* 0xe0b50 vostok::shared_string::create: text ESP+4; pops 4; EAX; stdcall, called directly */
+struct shared_string *__attribute__((stdcall)) engine_shared_string_create(const char *text);
+
+/* 0xe0ae0 vostok::shared_string::destroy: string ESP+4; pops 4; stdcall, called directly */
+void __attribute__((stdcall)) engine_shared_string_destroy(struct shared_string *string);
+
+/* 0x11170 vostok::intrusive_ptr<shared_string>::assign: holder EDI, string EAX; pops 0 */
+void engine_shared_string_assign(struct shared_string **holder, struct shared_string *string);
+
+/* 0x3c8bc0 vostok::render::backend::register_constant_host: backend EAX, name ESP+4, auxiliary ESP+8; pops 8; EAX */
+struct constant_host *engine_register_constant_host(struct backend *backend, struct shared_string **name, unsigned int auxiliary);
+
+/* 0x132a90 vostok::render::backend::set_ps_constant: host EAX, backend EDI, value ESP+4; pops 4 */
+void engine_set_ps_constant(struct constant_host *host, struct backend *backend, const float *value);
 
 /* 0x2e5290 survarium::damage_model::reset: receiver EDI, time ESP+4; pops 4 */
 void engine_freeze_reset_health(struct medical_damage *receiver, unsigned int time);
