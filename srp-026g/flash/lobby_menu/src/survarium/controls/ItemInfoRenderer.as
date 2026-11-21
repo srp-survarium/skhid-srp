@@ -21,6 +21,7 @@ package survarium.controls
    import survarium.data.ItemDescriptor;
    import survarium.data.LocalizationData;
    import survarium.upgrade.UpgradeWindow;
+   import survarium.constants.CosmeticSlot;
    import survarium.constants.ItemCategory;
    import survarium.constants.ItemPlace;
    import survarium.constants.ItemRank;
@@ -240,16 +241,30 @@ package survarium.controls
          var hint:String = "";
          if(item.isWeapon)
          {
+            // what the weapon holds, each kind under its own heading: the scope (or its stock one), the
+            // muzzle device, the grip
+            var lines:Array = [];
+            var module:Object = null;
             scope = UpgradeWindow.attachedScope(item);
             if(Boolean(scope))
             {
-               return LocalizationData.getName("scope_slot") + ": " + scope.name;
+               lines.push(LocalizationData.getName("scope_slot") + ": " + scope.name);
             }
-            if(Boolean(UpgradeWindow.stockScopes[item.dictId]))
+            else if(Boolean(UpgradeWindow.stockScopes[item.dictId]))
             {
-               return LocalizationData.getName("scope_slot") + ": " + LocalizationData.getName("default_scope");
+               lines.push(LocalizationData.getName("scope_slot") + ": " + LocalizationData.getName("default_scope"));
             }
-            return null;
+            module = UpgradeWindow.attachedIn(item,CosmeticSlot.MUZZLE);
+            if(Boolean(module))
+            {
+               lines.push(LocalizationData.getName("st_srp_muzzle_slot") + ": " + module.name);
+            }
+            module = UpgradeWindow.attachedIn(item,CosmeticSlot.GRIP);
+            if(Boolean(module))
+            {
+               lines.push(LocalizationData.getName("st_srp_grip_slot") + ": " + module.name);
+            }
+            return lines.length > 0 ? lines.join("\n") : null;
          }
          if(item.category != ItemCategory.SCOPES)
          {

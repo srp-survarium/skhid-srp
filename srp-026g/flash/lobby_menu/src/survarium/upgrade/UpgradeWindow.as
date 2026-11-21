@@ -370,34 +370,30 @@ package survarium.upgrade
          return Boolean(wearer) ? [wearer.name] : null;
       }
       
-      public static function attachedScope(item:Object) : Object
+      // What a weapon holds in one of its slots (CosmeticSlot.CAMOUFLAGE the scope, MUZZLE, GRIP) as the
+      // inventory's item; null for none. Its records are the weapon kit's (kitUpgrades): the kit's own
+      // record is whichever kind the kit holds, so its record's slot alone says nothing.
+      public static function attachedIn(item:Object, slot:int) : Object
       {
          var upgrade:Object = null;
-         var scope:Object = null;
-         if(!item || !item.upgrades)
+         if(!item || !(item.upgrades as Array))
          {
             return null;
          }
-         var upgrades:Array = item.upgrades as Array;
-         if(!upgrades)
+         for each(upgrade in kitUpgrades(item.upgrades as Array))
          {
-            return null;
-         }
-         var i:int = 0;
-         while(i < upgrades.length)
-         {
-            upgrade = upgrades[i];
-            if(Boolean(upgrade) && upgrade.param == CosmeticSlot.CAMOUFLAGE)
+            if(Boolean(upgrade) && int(upgrade.param) == slot)
             {
-               scope = inventoryItem(uint(upgrade.id));
-               if(Boolean(scope) && scope.category == ItemCategory.SCOPES)
-               {
-                  return scope;
-               }
+               return inventoryItem(uint(upgrade.id));
             }
-            i++;
          }
          return null;
+      }
+
+      public static function attachedScope(item:Object) : Object
+      {
+         var scope:Object = attachedIn(item,CosmeticSlot.CAMOUFLAGE);
+         return Boolean(scope) && scope.category == ItemCategory.SCOPES ? scope : null;
       }
       
       public static function fitText(field:TextField, newText:String, maxWidth:Number) : void

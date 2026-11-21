@@ -26,6 +26,7 @@
 pub mod attachments;
 pub mod back_buffer;
 pub mod baker;
+pub mod aim;
 pub mod breadcrumbs;
 pub mod bullet;
 pub mod explosion;
