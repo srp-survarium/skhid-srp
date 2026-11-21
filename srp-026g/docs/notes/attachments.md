@@ -430,19 +430,34 @@ Done, 2026-11-20:
   `tests/sample-v2.loadouts.tsv` by the crate's test. Its objects are made up and its table is the
   crate's sample: it proves the patch's own code beside the game's, not the content.
 
-- **One game has run it, in the lobby** (a headless client, the content side's AK-74M quick pack and
-  a local edit that sets `data/srp_gun` 3 and `data/srp_muzzle` 2635): the game's log has the
-  table's line ("the modules table, bytes 24803") and none of a part not asked for, not loaded or
-  a model with fewer bones, and the lobby's character holds the AK-74M as its bare body with the
-  stock forend and the Zenit DTK-3 drawn on it, the device's shape the content side's own render
-  of that fit. The table was there for that weapon's cook, the first of the run.
+- **One gun runs in a game** (2026-11-21; a headless client on a local server, the content side's
+  AK-74M quick pack, and a local edit that sets `data/srp_gun` 3 and the fit on the gun's config;
+  beside it main's own exe on the same content as the look with nothing fitted):
+  - **A brake**, the Zenit DTK-3 (2635): in the lobby the device with its three ports and crown
+    where main's exe shows the stock brake; in the first view the gun idle and aimed over its iron
+    sights as ever (the device is behind the front sight there).
+  - **A flash hider and a grip on a swapped forend**, 2631 and the PTK grip 2661: in the lobby the
+    long plain flash hider, the railed tactical forend in place of the stock one and the left hand
+    on the grip under it; in the first view the railed forend and the left hand lower, under the
+    gun.
+  - **A scope**, the PSO-1 (2101, the shop scope item pointed at the optic's own two models), with
+    the DTK-3 and the grip: on the gun in the lobby and in the first view; aimed, the scope's
+    picture with its chevron's tip on the screen's centre (within a pixel at 1280x720, at rest).
+    The eye's 11.6 mm to the side of the optic's frame is 0.69d0's own, not a mirrored axis.
+  - Every game's log has the table's line and none of a part not asked for, not loaded or a model
+    with fewer bones. The table was there for every weapon's cook of these runs.
+  - One of the five sessions left its match in the countdown: the client stood still for twelve
+    seconds and timed out while the server's other player's ping reached 8.5 s in the same seconds
+    (the machine was running four heavy jobs). The same build and content stayed in its match the
+    next time. Read as the machine's, not proven.
 
 Not done:
 
-1. **Seen in one view only.** No picture yet with nothing fitted beside it, and none of the first
-   view (idle, aimed) or the third: the test session did not get into a match (its Play button
-   never took the click; not understood yet, and nothing in the game's log names this patch).
-2. The order "the table before any weapon" held in that one run; it stays LIKELY as a rule.
+1. **Seen by one viewer only.** The third view is the lobby's character (the same `weapon::draw`);
+   no second client has looked at a fitted gun in a match. No shot was fired: the flash at a
+   device's fire point, the shells' place under a moved scope and the shot's kick under a scope are
+   unseen. A grip's fingers were seen from across the lobby, not judged.
+2. The order "the table before any weapon" held in every run; it stays LIKELY as a rule.
 3. **A dropped gun and a dead body's gun.** `weapon::draw` is one path for the first view, the
    third view and the lobby (stage 0), and artefact carry takes a gun's parts out with the gun.
    srp's own lying guns are drawn by `vostok::pickup::place_lying`, which places the body in its
