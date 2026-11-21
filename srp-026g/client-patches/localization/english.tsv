@@ -269,9 +269,11 @@ st_artefact_hunt_draw	Draw. Time is out
 st_artefact_hunt_enemy_delivered	The opponent team delivered the artifact
 st_artefact_hunt_lost_collected	Defeat. All artifacts collected
 st_artefact_hunt_lost_time_out	Defeat. Time is out
+st_artefact_hunt_lost_wiped	Defeat. Your team is out
 st_artefact_hunt_team_delivered	Your team have delivered the artifact
 st_artefact_hunt_won_collected	Victory! All artifacts collected
 st_artefact_hunt_won_time_out	Victory! Time is out
+st_artefact_hunt_won_wiped	Victory! The opposing team is out
 st_artefact_hunt_you_picked	You picked the artifact
 st_artefact_no_free_slots	No empty slots to pick up the artifact!
 st_artefact_search_failed	Artifact not found

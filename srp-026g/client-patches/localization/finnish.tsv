@@ -269,9 +269,11 @@ st_artefact_hunt_draw	Tasapeli. Aika loppui
 st_artefact_hunt_enemy_delivered	Vastustajan joukkue toimitti artefaktin
 st_artefact_hunt_lost_collected	Tappio. Kaikki artefaktit kerätty
 st_artefact_hunt_lost_time_out	Tappio. Aika loppui
+st_artefact_hunt_lost_wiped	Tappio. Joukkueesi putosi
 st_artefact_hunt_team_delivered	Joukkueesi toimitti artefaktin
 st_artefact_hunt_won_collected	Voitto! Kaikki artefaktit kerätty
 st_artefact_hunt_won_time_out	Voitto! Aika loppui
+st_artefact_hunt_won_wiped	Voitto! Vastustajan joukkue putosi
 st_artefact_hunt_you_picked	Poimit artefaktin
 st_artefact_no_free_slots	Artefaktille ei ole vapaata paikkaa!
 st_artefact_search_failed	Artefaktia ei löytynyt

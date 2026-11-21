@@ -4259,5 +4259,9 @@ code is (`rust/patches/src/artefact_hunt.rs`, `artefact_hunt.toml`, `src/vostok/
   world's logic user +B0h, the proxy's play in mode 0: 0x23F676..0x23F6F8), the one playing freed first.
 - **The icon's mark** (`player_icons.carrier_mark` 0x1F2D8B, 7 bytes, exit `carrier@0x1F2D98`): the
   carrier's record gets EAX = place x 3 and CL = 1 (the `lea` and `setnz` skipped).
-- Checked: `check_artefact_hunt_026g.py` (41 cases through the game's own callers), the crate's tests,
+- **After the first local test** (2026-11-21; `artefact_hunt.md` "The implementation"): the tick takes
+  in the world's places whose player has a team the rule does not have him on (slot 8 comes before
+  the team: nobody was ever in the match, so no take); one log line a take, delivery, drop and entry;
+  the prompt gives the hud its key; a wiped team's end is reason 2 with its own texts.
+- Checked: `check_artefact_hunt_026g.py` (42 cases through the game's own callers), the crate's tests,
   `cargo test` / clippy of the patches. Not run in a game.

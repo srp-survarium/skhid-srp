@@ -269,9 +269,11 @@ st_artefact_hunt_draw	Unentschieden. Die Zeit ist um
 st_artefact_hunt_enemy_delivered	Das gegnerische Team hat das Artefakt abgeliefert
 st_artefact_hunt_lost_collected	Niederlage. Alle Artefakte gesammelt
 st_artefact_hunt_lost_time_out	Niederlage. Die Zeit ist um
+st_artefact_hunt_lost_wiped	Niederlage. Dein Team ist raus
 st_artefact_hunt_team_delivered	Dein Team hat das Artefakt abgeliefert
 st_artefact_hunt_won_collected	Sieg! Alle Artefakte gesammelt
 st_artefact_hunt_won_time_out	Sieg! Die Zeit ist um
+st_artefact_hunt_won_wiped	Sieg! Das gegnerische Team ist raus
 st_artefact_hunt_you_picked	Du hast das Artefakt aufgehoben
 st_artefact_no_free_slots	Es gibt kein Platz für Artefakten!
 st_artefact_search_failed	Artefakt ist nicht gefunden

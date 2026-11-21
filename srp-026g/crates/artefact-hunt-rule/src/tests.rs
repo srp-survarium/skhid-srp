@@ -897,7 +897,11 @@ fn in_sudden_death_nobody_respawns_and_a_wiped_team_gives_a_point() {
     assert_eq!(game.rule.score(), [2, 1], "team 1 has nobody left");
     assert_eq!(game.rule.result(), None);
     game.step();
-    assert_eq!(game.over().0, Outcome::Winner(Team::Zero));
+    assert_eq!(
+        (game.over().0, game.over().1.reason()),
+        (Outcome::Winner(Team::Zero), Reason::Wiped),
+        "its end says the other team was wiped"
+    );
 }
 
 #[test]
@@ -1667,7 +1671,7 @@ fn the_wire_is_parsed_and_never_trusted() {
     let over = bytes_of(&game.rule);
     assert_eq!((over.len(), over[18], over[23]), (25, 2, 1));
     let mut bad = over.clone();
-    bad[23] = 2;
+    bad[23] = 3;
     assert_eq!(
         Rule::read(&params, &bad).map(|_| ()),
         Err(WireError::Reason)

@@ -269,9 +269,11 @@ st_artefact_hunt_draw	Remis. Czas minął
 st_artefact_hunt_enemy_delivered	Drużyna przeciwnika dostarczyła artefakt
 st_artefact_hunt_lost_collected	Porażka. Wszystkie artefakty zebrane
 st_artefact_hunt_lost_time_out	Porażka. Czas minął
+st_artefact_hunt_lost_wiped	Porażka. Twoja drużyna odpadła
 st_artefact_hunt_team_delivered	Twoja drużyna dostarczyła artefakt
 st_artefact_hunt_won_collected	Zwycięstwo! Wszystkie artefakty zebrane
 st_artefact_hunt_won_time_out	Zwycięstwo! Czas minął
+st_artefact_hunt_won_wiped	Zwycięstwo! Drużyna przeciwnika odpadła
 st_artefact_hunt_you_picked	Podniosłeś artefakt
 st_artefact_no_free_slots	Brak wolnego miejsca na zabranie artefaktu!
 st_artefact_search_failed	Nie znaleziono artefaktu

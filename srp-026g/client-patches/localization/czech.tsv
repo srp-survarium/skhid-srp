@@ -269,9 +269,11 @@ st_artefact_hunt_draw	Remíza. Čas vypršel
 st_artefact_hunt_enemy_delivered	Nepřátelský tým doručil artefakt
 st_artefact_hunt_lost_collected	Porážka. Všechny artefakty sebrány
 st_artefact_hunt_lost_time_out	Porážka. Čas vypršel
+st_artefact_hunt_lost_wiped	Porážka. Tvůj tým vypadl
 st_artefact_hunt_team_delivered	Tvůj tým doručil artefakt
 st_artefact_hunt_won_collected	Vítězství! Všechny artefakty sebrány
 st_artefact_hunt_won_time_out	Vítězství! Čas vypršel
+st_artefact_hunt_won_wiped	Vítězství! Nepřátelský tým vypadl
 st_artefact_hunt_you_picked	Sebral jsi artefakt
 st_artefact_no_free_slots	Na artefakt není volný slot!
 st_artefact_search_failed	Artefakt nenalezen

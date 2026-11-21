@@ -9,7 +9,7 @@
 //! | u8 | `m_stage` | 0 idle (the scores 0), 1 play, 2 over |
 //! | | **over** | |
 //! | u32 | `m_over.at` | a time |
-//! | u8 | `m_over.reason` | 0 collected, 1 time out |
+//! | u8 | `m_over.reason` | 0 collected, 1 time out, 2 the other team wiped in sudden death |
 //! | | **play** | |
 //! | u32 | `m_start` | a time |
 //! | u8 | `m_round` | 2 waiting, 3 spawned, 4 carried, 5 dropped, 6 brought, 7 fade, 8 countdown (0.46c2's state ids) |
@@ -32,9 +32,9 @@
 //! `m_round_starts` is the points less one in 6 and 7 (the delivery's round
 //! is still to start) and less one more for sudden death's wiped team's
 //! point (unequal scores in sudden death), 0 idle; over, the points less one
-//! after the goal or a late lead (collected), the points to two less at a
-//! time out (a hunt timed out, a late delivery, sudden death's delivery or
-//! its wiped point, both in one step at most).
+//! after the goal or a late lead (collected) and after the wiped team's point
+//! (wiped), the points to two less at a time out (a hunt timed out, a late
+//! delivery, sudden death's delivery, with a wiped point in its step at most).
 //! The last byte, `m_size`, counts the bytes before it: the rules after this
 //! one are read from the section's end, and it says where this one starts
 //! ([`Rule::read_back`]). With it 20 bytes idle, 25 over, 29 to 138 in play.
@@ -331,6 +331,7 @@ impl Rule {
                 let reason = match input.u8()? {
                     0 => Reason::Collected,
                     1 => Reason::TimeOut,
+                    2 => Reason::Wiped,
                     _ => return Err(WireError::Reason),
                 };
                 Stage::Over(Over { at, reason })
@@ -379,8 +380,14 @@ fn round_starts_fit(count: u32, score: [u8; 2], stage: &Stage) -> bool {
             reason: Reason::Collected,
             ..
         }) => points.checked_sub(1),
+        // The wiped team's point started no round; every delivery did (the
+        // late one that equalised too: its fade began sudden death).
+        Stage::Over(Over {
+            reason: Reason::Wiped,
+            ..
+        }) => points.checked_sub(1),
         // A delivery or the time ending a hunt, sudden death's wiped point
-        // (and a delivery in its step) before it.
+        // and a delivery in one step before it.
         Stage::Over(Over {
             reason: Reason::TimeOut,
             ..

@@ -190,13 +190,17 @@ impl Play {
     }
 }
 
-/// Why the match ended: 0.46c2's two end texts (0x785EF0).
+/// Why the match ended: 0.46c2's two end texts (0x785EF0), and its sudden
+/// death's point for a team with nobody left told as such (2026-11-21's test:
+/// the owner's leaving gave the other team a "time out" win).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Reason {
-    /// `st_artefact_hunt_completed`: decided by deliveries before the time ran out.
-    Collected,
-    /// `st_timelimit_completed`: the match time ran out, or sudden death was on.
-    TimeOut,
+    /// Decided by deliveries before the time ran out.
+    Collected = 0,
+    /// The match time ran out, sudden death's did, or a delivery won it.
+    TimeOut = 1,
+    /// Sudden death's point for the team that still had somebody in.
+    Wiped = 2,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -951,7 +955,12 @@ impl Rule {
                         let spent = now
                             .since(sudden.from)
                             .is_some_and(|passed| passed >= params.sudden_death.get());
-                        if !equal || spent {
+                        // Unequal in sudden death: a team was wiped (a delivery
+                        // there ends the match at once).
+                        if !equal {
+                            return over(Reason::Wiped);
+                        }
+                        if spent {
                             return over(Reason::TimeOut);
                         }
                         clock

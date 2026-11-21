@@ -269,9 +269,11 @@ st_artefact_hunt_draw	Döntetlen. Lejárt az idő
 st_artefact_hunt_enemy_delivered	Az ellenfél csapata leszállította az artefaktumot
 st_artefact_hunt_lost_collected	Vereség. Minden artefaktum összegyűjtve
 st_artefact_hunt_lost_time_out	Vereség. Lejárt az idő
+st_artefact_hunt_lost_wiped	Vereség. A csapatod kiesett
 st_artefact_hunt_team_delivered	A csapatod leszállította az artefaktumot
 st_artefact_hunt_won_collected	Győzelem! Minden artefaktum összegyűjtve
 st_artefact_hunt_won_time_out	Győzelem! Lejárt az idő
+st_artefact_hunt_won_wiped	Győzelem! Az ellenfél csapata kiesett
 st_artefact_hunt_you_picked	Felvetted az artefaktumot
 st_artefact_no_free_slots	Nincs szabad rekesz az artefaktumnak!
 st_artefact_search_failed	Nem találtál artefaktumot

@@ -269,9 +269,11 @@ st_artefact_hunt_draw	Нічыя. Час выйшаў
 st_artefact_hunt_enemy_delivered	Каманда праціўніка даставіла артэфакт
 st_artefact_hunt_lost_collected	Паражэнне. Усе артэфакты сабраныя
 st_artefact_hunt_lost_time_out	Паражэнне. Час выйшаў
+st_artefact_hunt_lost_wiped	Паражэнне. Ваша каманда выбыла
 st_artefact_hunt_team_delivered	Ваша каманда даставіла артэфакт
 st_artefact_hunt_won_collected	Перамога! Усе артэфакты сабраныя
 st_artefact_hunt_won_time_out	Перамога! Час выйшаў
+st_artefact_hunt_won_wiped	Перамога! Каманда праціўніка выбыла
 st_artefact_hunt_you_picked	Вы падабралі артэфакт
 st_artefact_no_free_slots	Няма вольных слотаў, каб узяць артэфакт!
 st_artefact_search_failed	Артэфакт не знойдзены

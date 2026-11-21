@@ -269,9 +269,11 @@ st_artefact_hunt_draw	Neriješeno. Vrijeme je isteklo
 st_artefact_hunt_enemy_delivered	Protivnički tim je dostavio artefakt
 st_artefact_hunt_lost_collected	Poraz. Svi artefakti su sakupljeni
 st_artefact_hunt_lost_time_out	Poraz. Vrijeme je isteklo
+st_artefact_hunt_lost_wiped	Poraz. Tvoj tim je ispao
 st_artefact_hunt_team_delivered	Tvoj tim je dostavio artefakt
 st_artefact_hunt_won_collected	Pobjeda! Svi artefakti su sakupljeni
 st_artefact_hunt_won_time_out	Pobjeda! Vrijeme je isteklo
+st_artefact_hunt_won_wiped	Pobjeda! Protivnički tim je ispao
 st_artefact_hunt_you_picked	Podigao si artefakt
 st_artefact_no_free_slots	Nema slobodnih mjesta za preuzimanje artefakta!
 st_artefact_search_failed	Artefakt nije pronađen

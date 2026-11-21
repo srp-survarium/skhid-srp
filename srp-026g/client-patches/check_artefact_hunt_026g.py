@@ -328,15 +328,22 @@ def main():
     run.word(rules + 4, rule)
     run.word(CORE + research.RULES + 4, rules + 8)
 
-    # 4. Who is in: slot 8 through the world's loop.
+    # 4. Who is in: slot 8 through the world's loop. As in the game (the
+    # 2026-11-21 test: nobody was ever in the match), team 1's players have
+    # no team yet when slot 8 comes: the tick takes them in.
     ok = True
+    profiles = {place: run.read(players[place] + 0x6B8) + 0x45EC for place in TEAM1}
+    for place in TEAM1:
+        run.word(profiles[place], 7)
     for place in TEAM0 + TEAM1:
         eip, moved = run.span(0x2D1FFF, 0x2D202A, {UC_X86_REG_EDI: CORE}, [0] * 8 + [place, 0])
         ok = ok and eip == 0x2D202A and moved == 0
+    for place in TEAM1:
+        run.word(profiles[place], 1)
     blob = state(run, rule)
     sides = struct.unpack_from("<II", blob, 10)
-    check("driven: slot 8 through the world's loop: each place of its profile's team",
-          ok and sides == (0x0F, 0x3C00), f"sides {sides[0]:#x} {sides[1]:#x}")
+    check("driven: slot 8 through the world's loop: each place of its profile's team; one without a team "
+          "of the two not yet", ok and sides == (0x0F, 0), f"sides {sides[0]:#x} {sides[1]:#x}")
 
     # 5. The start: rules_on_event(0) as the time rule's countdown end sends
     # it; the match time from the time rule's +12Ch.
@@ -352,6 +359,12 @@ def main():
 
     # 6. Ticks through the tick list's runner until the artefact lies.
     now = START
+    now += 50
+    run.word(CORE + TIME, now)
+    run.call(0x2D1D20, args=(CORE + research.TICK_LIST, 50, now, 1))
+    sides = struct.unpack_from("<II", state(run, rule), 10)
+    check("the first tick takes in the players of the world's places slot 8 left out (their team known now)",
+          sides == (0x0F, 0x3C00), f"sides {sides[0]:#x} {sides[1]:#x}")
     while decoded(state(run, rule)).get("round") == 2 and now < START + 80000:
         now += 50
         run.word(CORE + TIME, now)

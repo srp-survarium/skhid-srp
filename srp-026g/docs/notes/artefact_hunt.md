@@ -592,6 +592,25 @@ The code is `client_patch.md` "Artifact Hunt (patch 171)"; checked by `check_art
   no sprint, his head marker and minimap dot for both teams, `root.srp_show_carriers` at every match
   start (true in a hunt, false otherwise), the hud's update call, the messages, the prompt, the
   welcome, the world check's parameters.
+- **After the first local test (2026-11-21, map 309, two windows):**
+  - nobody was ever in the match (the rule's `m_sides` 0 in every world): slot 8 comes before the
+    place's player has a team of the two, and an unknown team was taken for a spectator's. Now slot 8
+    takes a player in only with his team, and the tick takes in every place of the world's active
+    places (a leaver's bit goes in the same call as slot 9) whose player's team the rule does not have
+    him on. Without it no take, delivery or carrier, and sudden death found team 0 "wiped" at once:
+    the test's 1:0 end. `check_artefact_hunt_026g.py` now enters team 1 with no team at slot 8;
+  - a take, delivery, drop and a player taken in each write one line to the patches' log;
+  - the prompt gives the hud its key (`st_pickup_item`, `st_put_item`), as patches 78 and 85 give
+    theirs: the movie formats it with the Use key into the game's own context line; a translated text
+    was no key of its dictionary ("#Pick up (E)");
+  - an end by sudden death's wiped team is reason 2 (`m_over.reason`), its own texts
+    `st_artefact_hunt_won_wiped` / `st_artefact_hunt_lost_wiped` (the owner: the end must say what
+    happened);
+  - the two resyncs of the test were not the rule's: at 294,800 ms the two games' worlds differ only
+    in player 1's look pitch and turn and the bullets' first word, the rules sections byte-identical,
+    after the server found 8 of player 1's inputs too late to relay (a 1 s stall); the first followed
+    the server's move of player 2's input (147,150 -> 147,700 ms), and the rule's bytes were the same
+    in both games' worlds around it (it made no decision in the match: nobody was in it).
 - **Built after** (the same patch): the artefact in the world, the carrier's glow, the announcer and
   the icon's carrier mark.
   - The artefact: the item's model (class 15) and its idle, spawn and destroy particles (class 61)
@@ -666,7 +685,7 @@ number 8"): 13 goes every "else" way: no `set_tickets_required`, no native minim
   | u8 | `m_stage` | 0 idle (the scores 0), 1 play, 2 over |
   | | **over** | |
   | u32 | `m_over.at` | a time |
-  | u8 | `m_over.reason` | 0 collected, 1 time out |
+  | u8 | `m_over.reason` | 0 collected, 1 time out, 2 sudden death's wiped team (its point) |
   | | **play** | |
   | u32 | `m_start` | a time |
   | u8 | `m_round` | 2 waiting, 3 spawned, 4 carried, 5 dropped, 6 brought, 7 fade, 8 countdown (0.46c2's state ids) |
@@ -687,9 +706,10 @@ number 8"): 13 goes every "else" way: no `set_tickets_required`, no native minim
   in play (the section holds 0x800). `m_round_starts` (`Rule::round_starts()`, what the server charges
   lives by) is exact for the state: idle 0; in play the points, less one in 6 and 7 (that delivery's
   round has not started) and one more for sudden death's wiped team's point (unequal scores in
-  sudden death); over, the points less one when collected (the goal, or a late lead), the points to
-  two less at a time out (a timed-out hunt, a late delivery, a delivery in sudden death or its wiped
-  point, at most both in one step). Added after the review, before any release: the layout is not
+  sudden death); over, the points less one when collected (the goal, or a late lead) and when wiped
+  (sudden death's point for a team with nobody left: reason 2, its own end text), the points to two
+  less at a time out (a timed-out hunt, a late delivery, a delivery in sudden death, with a wiped
+  point in its step at most). Added after the review, before any release: the layout is not
   released. `horizon` is the match time, two round restarts
   (`time_before_new_round` + 1 s + `round_countdown_time`), sudden death, an artefact's longest wait
   or life and a minute. `m_size` is there for the world check: the respawn rule before this one has

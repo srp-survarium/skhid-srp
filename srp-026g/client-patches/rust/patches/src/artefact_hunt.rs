@@ -26,7 +26,7 @@ use core::ffi::CStr;
 use artefact_hunt_rule::{
     Action, After, ArtefactView, BaseDef, Cue, Event, Hud, Line, Message, Params, Place, Position, RawParams,
     RawShape, Reason, Rule, Shift, Spawner, Spawning, SuddenShown, Team, Time, View, Viewer, MAX_SHAPES, MAX_SPAWNERS,
-    REACH, along,
+    PLAYERS, REACH, along,
 };
 
 use crate::vostok::artefact_hunt::{
@@ -362,19 +362,28 @@ pub fn on_event(_: &OrigTdmRuleOnEvent, rule: &mut HuntRule<'_>, kind: u32, data
     });
 }
 
-/// Slot 8: a player entered the match, of his profile's team.
+/// Slot 8: a player entered the match, of his profile's team. In a match the
+/// place's player has no team of the two yet here (2026-11-21's test: nobody
+/// was ever in the match): the tick takes him in once he has one.
 pub fn on_entered(_: &OrigTdmRuleEntered, rule: &mut HuntRule<'_>, place: u32, time: u32) {
     let Some(world) = rule.world() else { return };
     let Some(place) = u8::try_from(place).ok().and_then(Place::new) else { return };
-    let team = world.body(place.get()).and_then(|body| Team::from_raw(body.team));
-    with_rule(rule, |hunt| {
-        let event = match team {
-            Some(team) => Event::Entered { place, team, now: Time::from_ms(time) },
-            // No team of the two (a spectator): not in the match.
-            None => Event::Left { place, now: Time::from_ms(time), ground: None },
-        };
-        step(&world, hunt, event);
-    });
+    let Some(team) = world.body(place.get()).and_then(|body| Team::from_raw(body.team)) else { return };
+    with_rule(rule, |hunt| step(&world, hunt, Event::Entered { place, team, now: Time::from_ms(time) }));
+}
+
+/// The places in the world (the core's active places: a leaver's bit goes in
+/// the same call as slot 9) whose player is of a team the rule does not have
+/// him on: entered now.
+fn take_in(world: &HuntWorld<'_>, hunt: &mut Hunt, now: Time) {
+    for place in (0..PLAYERS as u8).filter_map(Place::new) {
+        let Some(team) = world.body(place.get()).and_then(|body| Team::from_raw(body.team)) else { continue };
+        if hunt.state.sides().team_of(place) != Some(team) {
+            log::line(&[Piece::Text("artefact_hunt: place "), Piece::Dec(u32::from(place.get())),
+                        Piece::Text(" is in the match, team "), Piece::Dec(team as u32)]);
+            step(world, hunt, Event::Entered { place, team, now });
+        }
+    }
 }
 
 /// Slot 9: a player left (the place still holds his player).
@@ -400,6 +409,7 @@ pub fn on_tick(rule: &TickRule<'_>, _dt: u32, time: u32, _step: u32) {
     let Some(rule) = rule.rule() else { return };
     let Some(world) = rule.world() else { return };
     with_rule(&rule, |hunt| {
+        take_in(&world, hunt, Time::from_ms(time));
         step(&world, hunt, Event::Tick { now: Time::from_ms(time) });
         if matches!(hunt.state.stage(), artefact_hunt_rule::Stage::Play(_)) {
             world.set_respawns(hunt.state.respawns());
@@ -520,6 +530,7 @@ pub fn input(player: &Player<'_>, now: u32, use_pressed: bool, drop_pressed: boo
         if drop_pressed && carrier == Some(place) {
             let ground = ground_of(&world, place.get())?;
             step(&world, hunt, Event::Drop { place, now, ground });
+            decision("drops it", place, now);
         }
         if !use_pressed {
             return Some(Input::Game);
@@ -530,17 +541,26 @@ pub fn input(player: &Player<'_>, now: u32, use_pressed: bool, drop_pressed: boo
         match (hunt.state.artefact(&hunt.params), carrier) {
             (ArtefactView::Lying { at, .. }, _) if hunt.params.takes(&view, at, level) => {
                 step(&world, hunt, Event::Take { place, now });
-                Some(if hunt.state.carrier() == Some(place) { Input::Used } else { Input::Game })
+                let taken = hunt.state.carrier() == Some(place);
+                decision(if taken { "takes it" } else { "may not take it (not in the match, or fallen)" }, place, now);
+                Some(if taken { Input::Used } else { Input::Game })
             }
             (ArtefactView::Carried { by, team }, _) if by == place && hunt.params.delivers(&view, team, level) => {
                 let ground = position(player.feet())?;
                 step(&world, hunt, Event::Deliver { place, now, ground });
+                decision("delivers it", place, now);
                 Some(Input::Used)
             }
             _ => Some(Input::Game),
         }
     });
     decided.unwrap_or(Input::Game)
+}
+
+/// One line for a press the hunt decided on (a re-simulation logs it again).
+fn decision(what: &str, place: Place, now: Time) {
+    log::line(&[Piece::Text("artefact_hunt: place "), Piece::Dec(u32::from(place.get())), Piece::Text(" "),
+                Piece::Text(what), Piece::Text(" at "), Piece::Dec(now.ms()), Piece::Text(" ms")]);
 }
 
 // ---- the carrier -------------------------------------------------------------
@@ -677,6 +697,8 @@ fn message_key(message: Message) -> &'static CStr {
         Message::Won(Reason::TimeOut) => c"st_artefact_hunt_won_time_out",
         Message::Lost(Reason::Collected) => c"st_artefact_hunt_lost_collected",
         Message::Lost(Reason::TimeOut) => c"st_artefact_hunt_lost_time_out",
+        Message::Won(Reason::Wiped) => c"st_artefact_hunt_won_wiped",
+        Message::Lost(Reason::Wiped) => c"st_artefact_hunt_lost_wiped",
         Message::Draw => c"st_artefact_hunt_draw",
     }
 }
@@ -815,10 +837,12 @@ pub fn on_update_icons(ctx: &mut Context<'_>) -> Flow<NoExit> {
         }
     }
     let prompt = viewed_player.map_or(Prompt::None, |player| prompt_of(&hunt, &player));
+    // The key, as patches 78 and 85 give theirs: the movie formats it with
+    // the Use key into the game's own context line (a translated text there
+    // was no key of its dictionary: "#Pick up (E)").
     if shown.prompt != Some((movie.id(), prompt)) {
-        let mut text = [0; 0x200];
-        let label = if prompt == Prompt::None { c"" } else { ui.translate(prompt.key(), &mut text) };
-        if movie.invoke_text(c"root.show_artefact_offer", label) {
+        let key = if prompt == Prompt::None { c"" } else { prompt.key() };
+        if movie.invoke_text(c"root.show_artefact_offer", key) {
             shown.prompt = Some((movie.id(), prompt));
         }
     }
