@@ -2284,6 +2284,7 @@ st_srp_artefact_541_name	Резонанс
 st_srp_artefact_542_description	Активированные артефакты действуют и на живых союзников в радиусе 6 м. "Они сияют, а ты блистаешь"
 st_srp_artefact_542_name	Каскад
 st_srp_artefact_points	 ед.
+st_srp_attach_unfit	Не сочетается с дульным устройством или рукояткой оружия.
 st_srp_attachments	Обвес
 st_srp_ban_reason_account_trading	Продажа или попытка продажи учётной записи.
 st_srp_ban_reason_administration	Решение администрации.
@@ -2558,6 +2559,7 @@ st_srp_equipment069_snow_20_torso_7_desc	Описание пока недост�
 st_srp_equipment069_snow_20_torso_7_name	Бронежилет "Снег-20"
 st_srp_face	Лицо
 st_srp_face_card	Лицо %1$s
+st_srp_grip_slot	Рукоятка
 st_srp_hide_quests_option	Скрыть задания
 st_srp_hide_scores_option	Скрыть очки игроков
 st_srp_hit_markers_all	Все хитмаркеры
@@ -2732,6 +2734,7 @@ st_srp_mode_research	Исследование
 st_srp_mode_team_deathmatch	Командный бой
 st_srp_mouse_lock_option	Зафиксировать вертикальную чувствительность
 st_srp_mouse_vertical_option	Вертикальная чувствительность
+st_srp_muzzle_slot	Дульное устройство
 st_srp_optics	Оптика
 st_srp_options_hud	Интерфейс боя:
 st_srp_pierce_brick	Кирпич, сталь
@@ -2895,7 +2898,7 @@ st_srp_rooms_voting	Голосование
 st_srp_rooms_waiting	Ждём игроков
 st_srp_rooms_waiting_owner	Ждём, пока создатель начнёт.
 st_srp_rooms_waiting_short	Ожидание
-st_srp_scope_screen_hint	Перетяните прицел из вашего инвентаря в слот модификации оружия
+st_srp_scope_screen_hint	Перетяните прицел, дульное устройство или рукоятку из вашего инвентаря в его слот
 st_srp_scope_slot	Прицел
 st_srp_shop_not_owned	Скрыть имеющиеся
 st_srp_shop_not_owned_hint	Показывать только то, чего у вас нет

@@ -497,17 +497,53 @@ Not done:
    before it is called done.
 5. The six guns whose left hand does not rest on the idle locator need their clip event before a
    grip moves the hand (stage 0).
-6. The Attachments window's muzzle and grip slots. An account's load checks each record's slot,
-   not yet the pair the weapon holds.
-7. **`plane_slot`** (the scopes lane's finding, 2026-11-21): in 0.69d0's `game.options` every
-   collimator, every folding or rear iron sight and the dovetail, pistol and G3 rail mounts
-   override the eye as `slots_to_override { id: aim, locator: aim, plane_slot: body_aim }`; no
-   magnified scope does. Neither the crate nor the porter knows it: the table writes such a
-   module's own `aim` whole. LIKELY meaning, 0.69d's exe not read: the eye takes its line from the
-   module's `aim` and stays in the plane of the gun's own `body_aim` (the gun keeps its eye relief).
-   Decided way once the meaning is PROVEN from the exe: one flag on an attach's eye that `resolve`
-   applies with the gun's own aim (a table version 3), not per-gun rows. Until then nothing
-   changes.
+6. **The Attachments window's muzzle and grip slots: written, compiled, not seen** (2026-11-21).
+   Two more slots of the scope slot's own symbol (`SrvModifierRendererSk`, made by the window),
+   stacked under the scope on the Attachments page in armour's three decal places, only the kinds
+   the weapon takes. What goes on a weapon is the items dictionary's `items_compatibility` pairs of
+   all three kinds (`UpgradeWindow.attachmentPairs`); a pair's kind is the shop's scope range or
+   `survarium.data.ModuleKinds`, the table `ids.py --movie` writes from `ids.tsv` (check
+   `module-kinds`). A muzzle device and a grip that do not go together are refused by the server
+   with their own text (`st_srp_attach_unfit`), and the slot shows what the weapon holds again at
+   the account's update. An account's load checks each record's slot, not yet the pair the weapon
+   holds.
+7. **`plane_slot`: table version 3, started.** In 0.69d0's `game.options` every collimator, every
+   folding or rear iron sight and the dovetail, pistol and G3 rail mounts override the eye as
+   `slots_to_override { id: aim, locator: aim, plane_slot: body_aim }` (34 keys on `aim`, 5 on
+   piggyback sights that are out of scope); no magnified scope does. The scopes lane read the rule
+   in 0.69d0's exe (PROVEN, static and 400 Unicorn cases; `attachments-scopes.md`,
+   `get_slot_transform` 0x2006CF320): the slot's frame M keeps its axes, and its origin moves along
+   its own k (the line of sight) to the plane through the plane slot's origin normal to its k:
+   `s = (P.c - M.c)·P.k / M.k·P.k`, `M.c += s·M.k` when `s >= -2.0` m; a line along the plane or a
+   plane over 2 m behind leaves the locator whole. `aim_offset` is added after, along the same k.
+   So a collimator gives the line of sight and the gun keeps its own eye relief. Today's table
+   (version 2) writes such a module's `aim` whole: the eye is nearer the optic than in 0.69d0, the
+   reticle's centre the same.
+   - Decided (the coordinator): one value on an attach's eye that `resolve` applies with the gun's
+     own eye, not per-gun rows.
+   - On the branch `feat/attachments-table-v3` (one commit over c81ada3df, NOT merged): version 3
+     of the table (a gun record has its own eye, `body_aim`, 84 bytes; a point of kind 2 is an eye
+     at the gun's plane), `AttachEye::Own | InGunPlane`, `Gun::body_aim`, `resolve`'s
+     `in_gun_plane` in the aimed idle pose, the sample at version 3; the crate's 20 tests pass.
+   - Left for it: compile `survarium` and the patch crate against it; `check_attachments_026g.py`
+     (it reads `sample-v3.*` on that branch); a test of the two cases that leave the eye whole;
+     the porter writing `body_aim` and the 34 `InGunPlane` eyes; then link, check, a server and an
+     exe published TOGETHER with the first version 3 pack (a version 2 table is refused by a
+     version 3 game and server).
+8. **The left hand on a turned grip** (the grips lane's finding, the coordinator's decision,
+   2026-11-21; written in `Hand::new` the same day, the crate's
+   `a_turned_grip_keeps_the_hand_in_the_guns_axes`, the pinned loadouts and the Unicorn check
+   with it; exe `e17ace688`; not seen in a game): laid over each grip's mesh in all 24 orientations, the table's
+   convention for the hand locators is the best on twelve of the thirteen grips (finger joints 12
+   to 24 mm from the surface), which settles it by data. The thirteenth, the PKP's own grip (2668),
+   is 139 mm off: its is the only grip fit of 318 whose frame is turned on the gun (a quarter turn:
+   the PKP's `grip_picatinnyrail_point` is on the gun's side), and the hand lies on that grip
+   (19.9 mm) when placed at the grip's POSITION in the GUN'S axes. Decided: `Hand::new` takes the
+   grip's position and not its turn (wrist = locator x half turn x translation(the grip's
+   offset's translation), on the grip's bone); the fingers are untouched; it moves one fit and the
+   other 317 by under a degree. From 0.69d0's data alone, not its code: the PKP in a game is the
+   proof. Pictures: `private/renders/attachments-grips/computed/`. It changes the crate's pinned
+   loadouts (`sample-*.loadouts.tsv`) and so the Unicorn check's expectations.
 
 ## The two switches
 
@@ -637,6 +673,13 @@ Unfit::NoGun | Unfit::Refused(Refusal)    Refusal is resolve's own: NoFit, NoSlo
 - The `next` row of `simulation_changes.tsv` is one: each lane hands its words to the lead, who
   writes the row at the merge (grips: "a fitted grip changes the weapon's recoil kick bounds and
   aim time").
+- For the lobby's text: 66 muzzle x grip pairs are refused by `resolve` (the P90's two own-thread
+  devices with its six grips; on the VSK-94 and its premium nine devices with three grips).
+- A machine fact for every lane (the scopes lane, 2026-11-21): the system's `magick`
+  (`/run/current-system/sw/bin/magick`) is a bubblewrap wrapper that binds only its working folder,
+  so the porter run from its checkout cannot open a texture it just wrote in a work folder
+  elsewhere, on the SSD or the HDD alike. Run the porter with its dev shell's ImageMagick on PATH
+  (`nix develop -c ...` in the porter's checkout); then the work folder may be on the HDD.
 - The eight clamp fits stay refused: in 0.69d0 the clamp sits on a slot only a fitted suppressor
   brings. The 9A-91 takes no grip.
 - The SR-3M's, its premium's and the OTs-14's own foregrips stay the guns' own parts, always on,
@@ -654,8 +697,11 @@ Unfit::NoGun | Unfit::Refused(Refusal)    Refusal is resolve's own: NoFit, NoSlo
 - **The next pack version** (`weapon-modules@2`; the pack rebuilt over patch 68 with the same
   porter is byte for byte pack 1, so the row stays `@1` until then) takes: `sr3m_premium`'s fits;
   the VSSK barrels out of the fits; the PU 3.5x's row; the three own foregrips baked into both
-  bodies; the remodel bodies' camouflage masks (below); the scopes lane's legacy pairs; `plane_slot`
-  if its meaning is proven.
+  bodies; the remodel bodies' camouflage masks (below); the `items_compatibility` rows of every
+  device and grip item with its guns (what the lobby's window lists by, as for scopes); the scopes
+  lane's legacy pairs. Being built on the branch `feat/attachments-pack2` and the porter's
+  `feat/attachments-069d`. Table version 3 (`plane_slot`, "Not done" 7) comes with the version
+  after it, or with this one if it is ready first.
 - **The remodel bodies' camouflage masks** are made inside the attachments pack, by the mask maker
   main has today over `scripts/remodel-069/camo.tsv`: every gun gets a remodel body, so without them
   every owned camouflage would change with this PR. The one-rule masks of #2314 (parked) remake them

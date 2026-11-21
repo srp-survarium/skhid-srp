@@ -2284,6 +2284,7 @@ st_srp_artefact_541_name	Рэзананс
 st_srp_artefact_542_description	Актываваныя артэфакты дзейнічаюць і на жывых саюзнікаў у радыусе 6 м. "Яны ззяюць, а ты бліскаеш"
 st_srp_artefact_542_name	Каскад
 st_srp_artefact_points	 адз.
+st_srp_attach_unfit	Не спалучаецца з дульнай прыладай або рукаяццю зброі.
 st_srp_attachments	Абвес
 st_srp_ban_reason_account_trading	Продаж або спроба продажу ўліковага запісу.
 st_srp_ban_reason_administration	Рашэнне адміністрацыі.
@@ -2558,6 +2559,7 @@ st_srp_equipment069_snow_20_torso_7_desc	Апісанне пакуль неда�
 st_srp_equipment069_snow_20_torso_7_name	Бронекамізэлька "Снег-20"
 st_srp_face	Твар
 st_srp_face_card	Твар %1$s
+st_srp_grip_slot	Рукаяць
 st_srp_hide_quests_option	Схаваць заданні
 st_srp_hide_scores_option	Схаваць ачкі гульцоў
 st_srp_hit_markers_all	Усе хітмаркеры
@@ -2732,6 +2734,7 @@ st_srp_mode_research	Даследаванне
 st_srp_mode_team_deathmatch	Камандны бой
 st_srp_mouse_lock_option	Зафіксаваць вертыкальную адчувальнасць
 st_srp_mouse_vertical_option	Вертыкальная адчувальнасць
+st_srp_muzzle_slot	Дульная прылада
 st_srp_optics	Оптыка
 st_srp_options_hud	Інтэрфейс бою:
 st_srp_pierce_brick	Цэгла, сталь
@@ -2895,7 +2898,7 @@ st_srp_rooms_voting	Галасаванне
 st_srp_rooms_waiting	Чакаем гульцоў
 st_srp_rooms_waiting_owner	Чакаем, пакуль стваральнік пачне.
 st_srp_rooms_waiting_short	Чаканне
-st_srp_scope_screen_hint	Перацягніце прыцэл з вашага інвентару ў слот мадыфікацыі зброі
+st_srp_scope_screen_hint	Перацягніце прыцэл, дульную прыладу або рукаяць з вашага інвентару ў яго слот
 st_srp_scope_slot	Прыцэл
 st_srp_shop_not_owned	Схаваць наяўныя
 st_srp_shop_not_owned_hint	Паказваць толькі тое, чаго ў вас няма
