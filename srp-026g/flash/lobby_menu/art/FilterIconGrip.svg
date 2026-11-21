@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="88" viewBox="0 0 32 22">
+ <defs>
+  <mask id="grooves" maskUnits="userSpaceOnUse" x="0" y="0" width="32" height="22">
+   <rect width="32" height="22" fill="#fff"/>
+   <circle cx="11.9" cy="8.2" r="1.7" fill="#000"/>
+   <circle cx="11.9" cy="12.0" r="1.7" fill="#000"/>
+   <circle cx="12.0" cy="15.8" r="1.7" fill="#000"/>
+  </mask>
+ </defs>
+ <g fill="#f7f7f7">
+  <rect x="4" y="1.5" width="24" height="3.2" rx="0.6"/>
+  <path mask="url(#grooves)" d="M11.5 4.5 H20.5 L19.6 18.6 Q19.5 20.5 17.6 20.5 H14.4 Q12.5 20.5 12.4 18.6 Z"/>
+ </g>
+</svg>

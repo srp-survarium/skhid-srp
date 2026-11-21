@@ -2068,6 +2068,29 @@ package survarium.controls
          this.openModifiersWindow();
       }
       
+      // The page the next window opens on (a weapon's Attachments or Appearance entry), -1 none; the
+      // lobby takes it when it opens the window (takeUpgradePage).
+      private var _upgradePage:int = -1;
+
+      public function takeUpgradePage() : int
+      {
+         var page:int = this._upgradePage;
+         this._upgradePage = -1;
+         return page;
+      }
+
+      protected function attachmentsElement(event:Event = null) : void
+      {
+         this._upgradePage = UpgradeWindow.PAGE_ATTACHMENTS;
+         this.upgradeElelemnt(event);
+      }
+
+      protected function appearanceElement(event:Event = null) : void
+      {
+         this._upgradePage = UpgradeWindow.PAGE_APPEARANCE;
+         this.upgradeElelemnt(event);
+      }
+
       private function openModifiersWindow() : void
       {
          dispatchEvent(new Event(Events.OPEN_MODIFIERS));
@@ -3556,10 +3579,31 @@ package survarium.controls
                   }
                   if(owned && this.isUpgradeable(itemData))
                   {
-                     options.push({
-                        name:LocalizationData.getName(this.upgradeLabelKey(itemData)),
-                        click_function:this.upgradeElelemnt
-                     });
+                     if(!UpgradeWindow.isWeaponCategory(int(itemData.category)))
+                     {
+                        options.push({
+                           name:LocalizationData.getName("btn_upgrade_label"),
+                           click_function:this.upgradeElelemnt
+                        });
+                     }
+                     else
+                     {
+                        // a weapon: its window's two pages, each its own entry (the owner, 2026-11-22)
+                        if(UpgradeWindow.hasAttachments(int(itemData.dictId)))
+                        {
+                           options.push({
+                              name:LocalizationData.getName("scope_window_title"),
+                              click_function:this.attachmentsElement
+                           });
+                        }
+                        if(UpgradeWindow.hasAppearance(itemData))
+                        {
+                           options.push({
+                              name:LocalizationData.getName("btn_upgrade_label"),
+                              click_function:this.appearanceElement
+                           });
+                        }
+                     }
                   }
                }
             }
@@ -3879,7 +3923,7 @@ package survarium.controls
                for(j = 0; j < categoryes.length; j++)
                {
                   cat = (categoryes[j]);
-                  if(cat == itemData.category && (checkBaseOptions(itemData)))
+                  if(cat == UpgradeWindow.filterCategory(itemData) && (checkBaseOptions(itemData)))
                   {
                      filteredItemsShop.push(itemData);
                      break;
@@ -3895,7 +3939,7 @@ package survarium.controls
                   for(j = 0; j < categoryes.length; j++)
                   {
                      cat = (categoryes[j]);
-                     if(cat == itemData.category && (checkBaseOptions(itemData)))
+                     if(cat == UpgradeWindow.filterCategory(itemData) && (checkBaseOptions(itemData)))
                      {
                         relativeItem = shopDict[itemData.dictId];
                         if((relativeItem))
@@ -3955,11 +3999,6 @@ package survarium.controls
          itemsTileList.dataProvider = new DataProvider(filteredItems);
          itemsTileList.validateNow();
          trace("items:Filled::");
-      }
-      
-      private function upgradeLabelKey(value:Object) : String
-      {
-         return UpgradeWindow.isWeaponCategory(int(value.category)) ? "scope_window_title" : "btn_upgrade_label";
       }
       
       // The craft window ("Upgrade": two items of a kind make a better one)

@@ -2108,6 +2108,7 @@ package
       
       private function openModifierWindow(e:Event) : void
       {
+         var page:int = this.inventory_list.takeUpgradePage();
          if(this.modifierWindow.visible == true)
          {
             trace("!!modifierWindowIsOPened");
@@ -2145,7 +2146,7 @@ package
          // on the display list before setData, which places it by its parent's inventory list:
          // the close takes it off (#302), and a second open threw there and stopped half way
          addChild(this.modifierWindow);
-         this.modifierWindow.setData(itemData);
+         this.modifierWindow.setData(itemData,true,page);
          // the game shows a weapon in the character's hands (patch 32), any other item as before
          this._upgradeShown = Boolean(itemData);
          if(this._upgradeShown)
