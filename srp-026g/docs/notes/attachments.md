@@ -492,9 +492,12 @@ Not done:
    test bots, the headless client looked at its teammate bot side on: his AK-74M with the PSO-1 on
    its mount, the railed tactical forend, the ported brake at the muzzle, his left hand under the
    forend (`private/renders/attachments-core/orbit2/orbit-00.png`). The rig: `RIG_BOTS=3` and
-   `orbit.py`, which finds the teammate's name plate and turns to it. The flash's place at a
-   device's fire point seen by another player and the shells' place under a moved scope are
-   unseen. A grip's fingers were seen from
+   `orbit.py`, which finds the teammate's name plate and turns to it. **His shot, SEEN** the same
+   way (the test bot `srp-bot --drive=shots` stands and fires): from behind him, the flash blooms
+   just ahead of the end of his gun, where the DTK-3 is
+   (`private/renders/attachments-core/shots1/shot-third-view-flash.png` beside `-before.png`);
+   from that angle its place along the device is not judged to the centimetre. The shells' place
+   under a moved scope is unseen. A grip's fingers were seen from
    across the lobby, not judged (the grips lane takes that picture).
 2. The order "the table before any weapon" held in every run; it stays LIKELY as a rule.
 3. **A dropped gun and a dead body's gun** draw their parts by code no game has shown yet.
