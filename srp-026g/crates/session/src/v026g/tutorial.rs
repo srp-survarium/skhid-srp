@@ -331,7 +331,6 @@ pub fn message(show: bool) -> ServerMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use survarium::v026g::loadouts::{KitLayout, Loadout, SlotItem};
     use survarium::v026g::lobby::client_model::{Client, Decoded};
     use survarium::v026g::lobby::tutorial_model::State;
 
