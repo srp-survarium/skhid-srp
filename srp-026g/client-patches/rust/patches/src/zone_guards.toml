@@ -1,0 +1,12 @@
+# Patch 192: a damage zone's two unchecked finds skip a missing entry instead of moving memory
+# (zone_guards.rs; the sites are sites_026g.tsv's).
+name = "zone_guards"
+patch = 192
+
+[[hook]]
+site = "zones.unsubscribe_find"
+handler = "on_unsubscribe_find"
+
+[[hook]]
+site = "zones.left_find"
+handler = "on_left_find"

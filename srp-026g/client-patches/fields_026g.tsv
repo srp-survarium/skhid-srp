@@ -1809,3 +1809,28 @@ vostok::render::texture_pool_slot	size	0x1C	size	one slot (0x15424C)
 vostok::render::environment_probe	occluded	0x384	u8	the hi-Z occlusion's last answer (the constructor clears it, 0x1C2F6A; get_results_and_prepare_bounds_env_probes stores it, 0x1B81E3; the filter 0x1B9376 and its find_if 0x1B98C0 drop an occluded probe while the option is on; gather_statistics counts it)
 vostok::render::ambient_light	occluded	0xA4	u8	the hi-Z occlusion's last answer (get_results_and_prepare_bounds_ambient_lights stores it, 0x1B8043; the filter 0x1B9151 and its find_if 0x1B94C0 drop an occluded light while the option is on; gather_statistics counts it)
 vostok::render::light	occluded	0x270	u8	the hi-Z occlusion's last answer (get_results_and_prepare_bounds_lights stores it, 0x1B7C2B; stage_lights::execute 0x1934F0, render_forward_lighting 0x1932C0 and debug_render 0x195AA1 skip an occluded light while the option is on, unless it waits for a refresh; gather_statistics counts it)
+survarium::image	player_game_object_vtable	0x9FB3DC	u32	the vtable of a player's vostok::collision::game_object part at player+118h (RTTI; its +34h subscribe_to_actions 0x2DBE50, +38h unsubscribe_from_actions 0x2DBE90)
+survarium::sensed_object	vtable	0x0	u32	the vtable of a game object a damage zone's sensor names (a sensed object's owner, [object-4+0Ch] vtable +0, 0x3197D5): PLAYER_GAME_OBJECT_VTABLE for a player's part
+survarium::sensed_object	player	0x0	obj<survarium::player_game_object>	itself as a player's game_object part: only when its vtable is PLAYER_GAME_OBJECT_VTABLE, which the reader checks first
+survarium::player_game_object	place	-0x4	u8	the player's place (player+114h; this part is at player+118h)
+survarium::player_game_object	kit	-0x3	u8	the player's kit (player+115h)
+survarium::player_game_object	zones	0x1CC	u8	the player's count of damage zones he is in (player+2E4h: on_objects_entered 0x319967 adds one, on_objects_left 0x31980B takes one, initialize 0x2DADB5 and deserialize 0x2DB76D zero it; read by generate_killed_event 0x2DA317, 0x2DA40F)
+survarium::player_game_object	time	0x20C	u32	the player's simulation time, ms (player+324h, its tick 0x2DAA7F)
+survarium::player_game_object	subscribers	0x3B0	u32	the begin of its action subscribers (a vector of subscriber pointers: subscribe_to_actions 0x2DBE50 pushes, unsubscribe_from_actions 0x2DBE90 erases)
+survarium::player_game_object	subscribers_end	0x3B4	u32	the end of its action subscribers
+survarium::subscriber_slot	subscriber	0x0	ptr<survarium::zone_subscriber>	unsubscribe_from_actions' argument (EDI points at it, 0x2DBEA1): a damage zone's subscriber when the caller is one (damage_zone_core::on_objects_left 0x3197FA, deactivate 0x319D9B)
+survarium::zone_subscriber	listener_vtable	-0x24	u32	the vtable of the damage zone's sensor (listener) this subscriber is +24h of: 0xA0B8A4 a client damage_zone's, 0xA165CC a damage_zone_core's
+survarium::zone_subscriber	inside	0x2C	u32	the begin of the zone's inside list (listener +50h)
+survarium::zone_subscriber	inside_end	0x30	u32	the end of the zone's inside list (listener +54h)
+survarium::zone_listener	vtable	0x0	u32	a damage zone's collision sensor at zone+108h, the listener of on_objects_entered 0x3198D0 / on_objects_left 0x319780 (ECX, kept in EDI): its vtable
+survarium::zone_listener	inside	0x50	ptr<survarium::zone_entry>	the zone's inside list: a loose_ptr each (on_objects_entered pushes at 0x319983, on_objects_left erases at 0x31981D..0x31983A)
+survarium::zone_listener	inside_end	0x54	ptr<survarium::zone_entry>	the end of the inside list
+survarium::zone_entry	holder	0x0	ptr<survarium::zone_holder>	a loose_ptr: its holder
+survarium::zone_entry	size	0x4	size	a loose_ptr
+survarium::zone_holder	object	0x0	u32	the physics object a loose_ptr holder names (0 once it is gone); on_objects_left's find (0x308A40) compares entries by it
+survarium::image	client_zone_sensor_vtable	0xA0B8A4	u32	a client damage_zone's collision sensor vtable (its +108h; RTTI survarium::damage_zone): on_objects_entered 0x3198D0, on_objects_left 0x319780 at +3Ch, +44h
+survarium::image	core_zone_sensor_vtable	0xA165CC	u32	a damage_zone_core's collision sensor vtable (its +108h): the same handlers
+survarium::use_progress_frame	ui	0x4	ptr<survarium::game_world_ui>	set_using_progress_message's ui at its start (0x23A430, by the site's ESP): entry ESP+4 (player::st_draw pushes [player+F480h], 0x246FBA..0x246FC3)
+survarium::game_world_ui	prompt_text	0x334	u32	the use prompt's text key last given root.set_context by set_using_info_message (0x23A560: it calls set_context only when its text differs from this, then stores it, 0x23A570..0x23A584); initialize_match writes 0 (0x234ACC); set_using_progress_message neither reads nor writes it
+survarium::game_world_ui	team_zero_points	0xB4	u16	the hud state's +90h: team 0's points, which update_ui sends as root.set_game_progress (0x2364C0, the viewed team's first); written by the mode's rule (tdm_rule_core::fill_match_hud_state 0x31643B, Artifact Hunt's slot 17) and by nothing at a new match (match_hud_state is made once, 0x233680)
+survarium::game_world_ui	team_one_points	0xB6	u16	the hud state's +92h: team 1's points (as +90h)

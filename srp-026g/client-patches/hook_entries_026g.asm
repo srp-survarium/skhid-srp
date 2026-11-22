@@ -14280,6 +14280,45 @@ unplayed_match_on_ready_replay:
     db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5
     jmp 0x27aec4
 
+; 0x23a430 game_world_ui::set_using_progress_message (0x23A430) at its start (movss xmm0,[esp+8]): player::st_draw calls it each frame the drawn local player has an object in use (its user +4, player +134h; 0x246FC4) with the ui and the use's progress; ESP+4 the ui: lohook -> use_prompt_on_progress
+global use_prompt_on_progress
+extern hook_use_prompt_on_progress
+use_prompt_on_progress:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_use_prompt_on_progress
+    mov edx, use_prompt_on_progress_replay
+    cmp eax, 0
+    je use_prompt_on_progress_go
+    mov edx, 0x23a436
+    cmp eax, 1
+    je use_prompt_on_progress_go
+    ud2
+use_prompt_on_progress_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+use_prompt_on_progress_replay:
+    db 0xf3, 0x0f, 0x10, 0x44, 0x24, 0x08
+    jmp 0x23a436
+
 ; 0x2d84c0 base_player::detect_usable_object's start (push ebp / mov ebp,esp / and esp,-8): every use scan (a use's start 0x2D8900, its tick 0x2D86AD, the prompt 0x246FCD); ESP+4 the player, +8 the point or 0; returned is its `ret 8` (0x2D8697), EAX the object: lohook -> use_scan_on_detect
 global use_scan_on_detect
 extern hook_use_scan_on_detect
@@ -16038,6 +16077,90 @@ world_check_on_raw_go:
 world_check_on_raw_replay:
     db 0x8b, 0x8f, 0x40, 0x1c, 0x1f, 0x00
     jmp 0x27c105
+
+; 0x2dbeaa base_player::unsubscribe_from_actions 0x2DBE90 after its find (0x3C5510) of the subscriber, before the erase (mov ecx,esi / lea edx,[eax+4]; then the memmove 0x2DBEBA and the end's -4 at 0x2DBEC2, with no test of the find): EBX the player's game_object part, EAX what the find found, ESI the end (equal: not subscribed), EDI the argument's slot; missing is the function's own pop edi / pop esi / pop ebx / ret 4 (patch 192): lohook -> zone_guards_on_unsubscribe_find
+global zone_guards_on_unsubscribe_find
+extern hook_zone_guards_on_unsubscribe_find
+zone_guards_on_unsubscribe_find:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_zone_guards_on_unsubscribe_find
+    mov edx, zone_guards_on_unsubscribe_find_replay
+    cmp eax, 0
+    je zone_guards_on_unsubscribe_find_go
+    mov edx, 0x2dbeaf
+    cmp eax, 1
+    je zone_guards_on_unsubscribe_find_go
+    mov edx, 0x2dbec9
+    cmp eax, 2
+    je zone_guards_on_unsubscribe_find_go
+    ud2
+zone_guards_on_unsubscribe_find_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+zone_guards_on_unsubscribe_find_replay:
+    db 0x8b, 0xce, 0x8d, 0x50, 0x04
+    jmp 0x2dbeaf
+
+; 0x319811 damage_zone_core::on_objects_left 0x319780 before its erase of the object from the inside list (mov edx,[edi+54h] / mov eax,[edi+50h]; then the find 0x308A40 and the erase 0x319822..0x31983A, which pops the list's last entry when the find found none): EDI the listener, EBP the left object's holder (its copy at [esp+10h]), ESI the object's owner; missing is the release of that copy at 0x319870 (patch 192): lohook -> zone_guards_on_left_find
+global zone_guards_on_left_find
+extern hook_zone_guards_on_left_find
+zone_guards_on_left_find:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_zone_guards_on_left_find
+    mov edx, zone_guards_on_left_find_replay
+    cmp eax, 0
+    je zone_guards_on_left_find_go
+    mov edx, 0x319817
+    cmp eax, 1
+    je zone_guards_on_left_find_go
+    mov edx, 0x319870
+    cmp eax, 2
+    je zone_guards_on_left_find_go
+    ud2
+zone_guards_on_left_find_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+zone_guards_on_left_find_replay:
+    db 0x8b, 0x57, 0x54, 0x8b, 0x47, 0x50
+    jmp 0x319817
 
 section .rodata
 align 4

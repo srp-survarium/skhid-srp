@@ -94,7 +94,11 @@ three). No artifact rescue in this version (owner, 2026-11-17).
   when a new round starts. ("No place out of the world" below says why an
   entry is never held.)
 - The HUD reuses the stock TDM score bars (full at `WINS`, which the patch
-  passes to `freeze_tag_score`), collection progress (its bar the progress
+  passes to `freeze_tag_score`; their native source, the hud state's team
+  points +90h/+92h, which no Freeze Tag rule fills and nothing clears at a
+  new match, the patch writes from the rule every frame, so the last match's
+  score no longer shows: the owner, 2026-11-22, "freeze tag counter doesn't
+  reset after prev game"), collection progress (its bar the progress
   of `THAW_MS`, which the patch passes to `freeze_tag_update`)
   widget and blocked-hit UI sound. Its texts are `st_srp_hud_freeze_*`: the
   content compile gives the hud movie only `st_srp_hud_*` keys. A frozen player's name over his head
@@ -166,7 +170,10 @@ charges the kits' reloads.
 The three native hooks are declared in `sites_026g.tsv`:
 
 - `2DAA60` (`freeze.player_tick`), `base_player::tick`: a frozen player's
-  clock advances, but the deferred death callback and tick are skipped
+  clock advances, the gun in hand's too (its `m_last_tick_time` +5A4h: its
+  first tick after a thaw stepped the whole freeze at once, and the recoil's
+  spring, 0x331A50, pinned the kick of a shot fired before the freeze at -1
+  for seconds: the view moved by itself after a thaw, the owner 2026-11-22), but the deferred death callback and tick are skipped
   through the native `ret 4` at `2DAB69`. Lethal hits already set
   `pending_death` (+33Dh), which also prevents further damage in `hit_impl`.
 - `2D86E0` (`carry.input`, patch 78's site, order 0 before its handler at 1):

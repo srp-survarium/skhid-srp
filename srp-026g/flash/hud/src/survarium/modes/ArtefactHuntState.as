@@ -37,7 +37,7 @@ package survarium.modes
       // #0 for a viewer without a team.
       public static const NO_TEAM:int = 3;
 
-      public static const VALUES:int = 22;
+      public static const VALUES:int = 24;
 
       public static const PLACES:int = 20;
 
@@ -66,7 +66,10 @@ package survarium.modes
       public var carrier:int;
       public var carrierTeam:int;
       public var viewerCarries:Boolean;
-      // #21.. {team, x, y}
+      // #21, #22: the next respawn wave, every team's; 0, 0 when none comes (a restart, sudden death)
+      public var waveLeft:Number;
+      public var waveWhole:Number;
+      // #23.. {team, x, y}
       public var bases:Array;
 
       // getTimer() when the call came: the ms values count down from it.
@@ -109,8 +112,10 @@ package survarium.modes
          s.carrier = int(values[18]) == 255 ? -1 : int(values[18]);
          s.carrierTeam = int(values[19]) == 2 ? -1 : int(values[19]);
          s.viewerCarries = int(values[20]) != 0;
+         s.waveLeft = Number(values[21]);
+         s.waveWhole = Number(values[22]);
          s.bases = [];
-         for(var i:int = 0; i < int(values[21]); i++)
+         for(var i:int = 0; i < int(values[23]); i++)
          {
             s.bases.push({team:int(values[VALUES + 3 * i]),x:Number(values[VALUES + 3 * i + 1]),y:Number(values[VALUES + 3 * i + 2])});
          }
@@ -165,11 +170,15 @@ package survarium.modes
          {
             return "the viewer's carry";
          }
-         if(v[21] > 2 || v.length < VALUES + 3 * v[21])
+         if(v[21] > v[22] || (v[21] == 0) != (v[22] == 0))
+         {
+            return "wave";
+         }
+         if(v[23] > 2 || v.length < VALUES + 3 * v[23])
          {
             return "bases";
          }
-         for(i = 0; i < v[21]; i++)
+         for(i = 0; i < v[23]; i++)
          {
             if(v[VALUES + 3 * i] > 1)
             {
@@ -210,6 +219,22 @@ package survarium.modes
       public function phaseGoneAt(now:int) : Number
       {
          return Math.max(0,this.phaseWhole - this.phaseLeftAt(now));
+      }
+
+      public function get waveComing() : Boolean
+      {
+         return this.waveWhole > 0;
+      }
+
+      // ms to the next wave at `now` (0 none): the waves follow each other until an update says none.
+      public function waveLeftAt(now:int) : Number
+      {
+         var left:Number = this.waveLeft - (now - this.received);
+         while(this.waveComing && left <= 0)
+         {
+            left += this.waveWhole;
+         }
+         return Math.max(0,left);
       }
 
       // The 3 s before a new round (0.46c2's show_round_restart).

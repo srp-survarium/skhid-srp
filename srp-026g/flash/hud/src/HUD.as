@@ -153,7 +153,11 @@ package
          var freeze:Boolean = this._gameType == 12 && this._freezeContext != null;
          var context:Object = freeze ? this._freezeContext : this._nativeContext;
          var offer:Boolean = !freeze && this._artefactOfferKey.length != 0;
-         this.contextInfo.visible = (offer || freeze) ? !this._chatTyping && !this._profilePanel.visible : context.visible;
+         // An artefact offer waits under the kits; Freeze Tag's line does not: the pause shows its
+         // kits and its countdown at once (the owner, 2026-11-22: "timer in freeze tag disappeared
+         // when round is finished").
+         this.contextInfo.visible = offer ? !this._chatTyping && !this._profilePanel.visible
+            : freeze ? !this._chatTyping : context.visible;
          if(!this.contextInfo.visible) return;
          var value:int = offer ? 0 : context.value;
          var frame:int = value == 0 ? 1 : 2;
@@ -443,7 +447,8 @@ package
          researchUnits = new ResearchUnits();
          this.researchUnits.visible = false;
          addChild(this.researchUnits);
-         huntRow = new ArtefactHuntRow(new DefaultLabel3().textField,new SrvContextInfoPregame().contextText);
+         huntRow = new ArtefactHuntRow(new DefaultLabel3().textField,new SrvContextInfoPregame().contextText,
+            function():DisplayObject { return progress_indicator.match_time_2_tdm; });
          addChild(this.huntRow);
          voiceSpeakers = new VoiceSpeakers();
          addChild(this.voiceSpeakers);
@@ -2265,7 +2270,7 @@ package
       }
       
       // Artifact Hunt (mode 13), at a change and every 60 frames (the exe patch's artefact_hunt
-      // module; docs/notes/artefact_hunt.md "HUD calls"): 28 numbers, the whole state
+      // module; docs/notes/artefact_hunt.md "HUD calls"): 30 numbers, the whole state
       // (ArtefactHuntState). A call outside the contract's domains is refused and changes nothing.
       public function artefact_hunt_update(... values) : void
       {
@@ -2291,6 +2296,7 @@ package
             return;
          }
          this.drawHuntBars();
+         this.spreadHuntBars(state.waveComing ? this.huntRow.wave.room : 0);
          this.huntRow.draw(state,this.player_list.players.nameOf(state.carrier),getTimer());
          this.roundFade.update(state,getTimer());
          this.minimap.setArtefactHunt(state);
@@ -2307,6 +2313,7 @@ package
             return;
          }
          this._hunt = null;
+         this.spreadHuntBars(0);
          this.huntRow.clear();
          this.roundFade.update(null,0);
          this.minimap.setArtefactHunt(null);
@@ -2340,6 +2347,51 @@ package
             bar.team1LastPlayers.value = state.ownAlive;
             bar.team2LastPlayers.maximum = state.enemyTotal;
             bar.team2LastPlayers.value = state.enemyAlive;
+         }
+      }
+
+      // The indicator's parts as the timeline placed them, before spreadHuntBars moved them.
+      private var _huntBarsAt:Array = null;
+
+      // Room after the match time for the wave (in the row's units, 0 none): each team's bar and its
+      // texts move apart by half of it, the time to the left by half, so that it and the wave stay
+      // centred between them.
+      private function spreadHuntBars(room:Number) : void
+      {
+         var bar:SrvMatchProgress = this.progress_indicator;
+         if(bar == null || bar.match_time_2_tdm == null || bar.team_1_score == null)
+         {
+            return;
+         }
+         var parts:Array = [[bar.team_1_score,-1],[bar.team1Progress,-1],[bar.team1LastPlayers,-1],
+            [bar.team_2_score,1],[bar.team2Progress,1],[bar.team2LastPlayers,1],[bar.match_time_2_tdm,0]];
+         if(this._huntBarsAt == null)
+         {
+            if(room == 0)
+            {
+               return;
+            }
+            this._huntBarsAt = [];
+            for each(var p:Array in parts)
+            {
+               this._huntBarsAt.push(p[0] == null ? 0 : p[0].x);
+            }
+         }
+         // the row's units in the indicator's
+         var k:Number = this.huntRow.transform.concatenatedMatrix.a / bar.transform.concatenatedMatrix.a;
+         var half:Number = room * k / 2;
+         for(var i:int = 0; i < parts.length; i++)
+         {
+            var part:* = parts[i][0];
+            if(part != null)
+            {
+               // the time to the left, each bar outwards
+               part.x = this._huntBarsAt[i] + (parts[i][1] == 0 ? -half : parts[i][1] * half);
+            }
+         }
+         if(room == 0)
+         {
+            this._huntBarsAt = null;
          }
       }
 

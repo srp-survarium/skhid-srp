@@ -101,6 +101,14 @@ impl<'t> GameWorldUi<'t> {
         Some(GameWorldUi { this, thread: PhantomData })
     }
 
+    /// At `hud.initialize_match` (0x234880, once a match, before its first frame).
+    pub fn at_initialize_match(ctx: &'t Context<'_>) -> Option<GameWorldUi<'t>> {
+        // SAFETY: the context is this site's: initialize_match's first argument by its ESP, the
+        // hud, alive while it runs on the game's thread.
+        let this = unsafe { raw::site::hud_initialize_match::frame(ctx)?.ui() }?;
+        Some(GameWorldUi { this, thread: PhantomData })
+    }
+
     /// At `game_world_ui.welcome` (update_ui's mark of the welcome message,
     /// 0x23B36A: EDI the ui).
     pub fn at_welcome(ctx: &'t Context<'_>) -> Option<GameWorldUi<'t>> {
@@ -117,6 +125,18 @@ impl<'t> GameWorldUi<'t> {
     pub fn viewed_place(&self) -> Option<Place> {
         // SAFETY: the ui is alive for the hook; a byte of its hud state.
         Place::new(u32::from(unsafe { read(self.this.viewed_place()) }))
+    }
+
+    /// The teams' points in the hud state (+90h, +92h), which update_ui sends as the score bars
+    /// (root.set_game_progress, the viewed team's first). A mode without a rule that fills them
+    /// (Freeze Tag) writes them itself: nothing clears them at a new match, so the last match's
+    /// stayed (the owner, 2026-11-22: "freeze tag counter doesn't reset after prev game").
+    pub fn set_team_points(&self, points: [u16; 2]) {
+        // SAFETY: the ui is alive for the hook, on the game's thread; two u16 of its hud state.
+        unsafe {
+            self.this.team_zero_points().write(points[0]);
+            self.this.team_one_points().write(points[1]);
+        }
     }
 
     /// Freeze Tag's rescue reach, from the HUD's current player to a

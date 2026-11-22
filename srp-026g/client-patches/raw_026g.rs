@@ -4556,6 +4556,33 @@ impl GameWorldUi {
     pub unsafe fn kd(self) -> HudKd {
         HudKd(unsafe { self.0.byte_add(0xbc) })
     }
+
+    /// +0x334 (u32): the use prompt's text key last given root.set_context by set_using_info_message (0x23A560: it calls set_context only when its text differs from this, then stores it, 0x23A570..0x23A584); initialize_match writes 0 (0x234ACC); set_using_progress_message neither reads nor writes it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn prompt_text(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x334).cast::<u32>().as_ptr() }
+    }
+
+    /// +0xb4 (u16): the hud state's +90h: team 0's points, which update_ui sends as root.set_game_progress (0x2364C0, the viewed team's first); written by the mode's rule (tdm_rule_core::fill_match_hud_state 0x31643B, Artifact Hunt's slot 17) and by nothing at a new match (match_hud_state is made once, 0x233680)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn team_zero_points(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0xb4).cast::<u16>().as_ptr() }
+    }
+
+    /// +0xb6 (u16): the hud state's +92h: team 1's points (as +90h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn team_one_points(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0xb6).cast::<u16>().as_ptr() }
+    }
 }
 
 /// A vostok::ui::movie_holder (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -33535,6 +33562,376 @@ impl Light {
     }
 }
 
+/// A survarium::sensed_object (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SensedObject(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SensedObject {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): the vtable of a game object a damage zone's sensor names (a sensed object's owner, [object-4+0Ch] vtable +0, 0x3197D5): PLAYER_GAME_OBJECT_VTABLE for a player's part
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x0 (obj<survarium::player_game_object>): itself as a player's game_object part: only when its vtable is PLAYER_GAME_OBJECT_VTABLE, which the reader checks first
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn player(self) -> PlayerGameObject {
+        PlayerGameObject(unsafe { self.0.byte_add(0x0) })
+    }
+}
+
+/// A survarium::player_game_object (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PlayerGameObject(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PlayerGameObject {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// -0x4 (u8): the player's place (player+114h; this part is at player+118h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn place(self) -> *mut u8 {
+        unsafe { self.0.byte_sub(0x4).cast::<u8>().as_ptr() }
+    }
+
+    /// -0x3 (u8): the player's kit (player+115h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn kit(self) -> *mut u8 {
+        unsafe { self.0.byte_sub(0x3).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x1cc (u8): the player's count of damage zones he is in (player+2E4h: on_objects_entered 0x319967 adds one, on_objects_left 0x31980B takes one, initialize 0x2DADB5 and deserialize 0x2DB76D zero it; read by generate_killed_event 0x2DA317, 0x2DA40F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn zones(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x1cc).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x20c (u32): the player's simulation time, ms (player+324h, its tick 0x2DAA7F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn time(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x20c).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x3b0 (u32): the begin of its action subscribers (a vector of subscriber pointers: subscribe_to_actions 0x2DBE50 pushes, unsubscribe_from_actions 0x2DBE90 erases)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn subscribers(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x3b0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x3b4 (u32): the end of its action subscribers
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn subscribers_end(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x3b4).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::subscriber_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SubscriberSlot(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SubscriberSlot {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<survarium::zone_subscriber>): unsubscribe_from_actions' argument (EDI points at it, 0x2DBEA1): a damage zone's subscriber when the caller is one (damage_zone_core::on_objects_left 0x3197FA, deactivate 0x319D9B)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn subscriber(self) -> Option<ZoneSubscriber> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ZoneSubscriber>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<survarium::zone_subscriber>): unsubscribe_from_actions' argument (EDI points at it, 0x2DBEA1): a damage zone's subscriber when the caller is one (damage_zone_core::on_objects_left 0x3197FA, deactivate 0x319D9B)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_subscriber(self, value: Option<ZoneSubscriber>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ZoneSubscriber>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::zone_subscriber (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ZoneSubscriber(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ZoneSubscriber {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// -0x24 (u32): the vtable of the damage zone's sensor (listener) this subscriber is +24h of: 0xA0B8A4 a client damage_zone's, 0xA165CC a damage_zone_core's
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn listener_vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_sub(0x24).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x2c (u32): the begin of the zone's inside list (listener +50h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn inside(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x2c).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x30 (u32): the end of the zone's inside list (listener +54h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn inside_end(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x30).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::zone_listener (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ZoneListener(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ZoneListener {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): a damage zone's collision sensor at zone+108h, the listener of on_objects_entered 0x3198D0 / on_objects_left 0x319780 (ECX, kept in EDI): its vtable
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x50 (ptr<survarium::zone_entry>): the zone's inside list: a loose_ptr each (on_objects_entered pushes at 0x319983, on_objects_left erases at 0x31981D..0x31983A)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn inside(self) -> Option<ZoneEntry> {
+        unsafe { self.0.byte_add(0x50).cast::<Option<ZoneEntry>>().read_volatile() }
+    }
+
+    /// +0x50 (ptr<survarium::zone_entry>): the zone's inside list: a loose_ptr each (on_objects_entered pushes at 0x319983, on_objects_left erases at 0x31981D..0x31983A)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_inside(self, value: Option<ZoneEntry>) {
+        unsafe { self.0.byte_add(0x50).cast::<Option<ZoneEntry>>().write_volatile(value) }
+    }
+
+    /// +0x54 (ptr<survarium::zone_entry>): the end of the inside list
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn inside_end(self) -> Option<ZoneEntry> {
+        unsafe { self.0.byte_add(0x54).cast::<Option<ZoneEntry>>().read_volatile() }
+    }
+
+    /// +0x54 (ptr<survarium::zone_entry>): the end of the inside list
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_inside_end(self, value: Option<ZoneEntry>) {
+        unsafe { self.0.byte_add(0x54).cast::<Option<ZoneEntry>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::zone_entry (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ZoneEntry(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ZoneEntry {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<survarium::zone_holder>): a loose_ptr: its holder
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn holder(self) -> Option<ZoneHolder> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ZoneHolder>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<survarium::zone_holder>): a loose_ptr: its holder
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_holder(self, value: Option<ZoneHolder>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ZoneHolder>>().write_volatile(value) }
+    }
+
+    /// 0x4 bytes: a loose_ptr
+    pub const SIZE: usize = 0x4;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::zone_entrys (0x4 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct ZoneEntryStorage([u8; 0x4]);
+
+#[allow(dead_code)]
+impl ZoneEntryStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x4])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> ZoneEntry {
+        ZoneEntry(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<ZoneEntry> {
+        (!rooms.is_empty()).then(|| ZoneEntry(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::zone_holder (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ZoneHolder(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ZoneHolder {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): the physics object a loose_ptr holder names (0 once it is gone); on_objects_left's find (0x308A40) compares entries by it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn object(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::use_progress_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UseProgressFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl UseProgressFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<survarium::game_world_ui>): set_using_progress_message's ui at its start (0x23A430, by the site's ESP): entry ESP+4 (player::st_draw pushes [player+F480h], 0x246FBA..0x246FC3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn ui(self) -> Option<GameWorldUi> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<GameWorldUi>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<survarium::game_world_ui>): set_using_progress_message's ui at its start (0x23A430, by the site's ESP): entry ESP+4 (player::st_draw pushes [player+F480h], 0x246FBA..0x246FC3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_ui(self, value: Option<GameWorldUi>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<GameWorldUi>>().write_volatile(value) }
+    }
+}
+
 /// A survarium::bullet_manager_engine (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -34399,6 +34796,15 @@ pub mod image {
 
     /// 0xa16fac (u32, survarium::image): breath_state_holding's vtable (initialize_logic 0x31D4CF): +4h initialize 0x31D140, +0Ch finalize 0x31D190, +1Ch tick 0x31D200
     pub const BREATH_HOLDING_VTABLE: u32 = 0xa16fac;
+
+    /// 0x9fb3dc (u32, survarium::image): the vtable of a player's vostok::collision::game_object part at player+118h (RTTI; its +34h subscribe_to_actions 0x2DBE50, +38h unsubscribe_from_actions 0x2DBE90)
+    pub const PLAYER_GAME_OBJECT_VTABLE: u32 = 0x9fb3dc;
+
+    /// 0xa0b8a4 (u32, survarium::image): a client damage_zone's collision sensor vtable (its +108h; RTTI survarium::damage_zone): on_objects_entered 0x3198D0, on_objects_left 0x319780 at +3Ch, +44h
+    pub const CLIENT_ZONE_SENSOR_VTABLE: u32 = 0xa0b8a4;
+
+    /// 0xa165cc (u32, survarium::image): a damage_zone_core's collision sensor vtable (its +108h): the same handlers
+    pub const CORE_ZONE_SENSOR_VTABLE: u32 = 0xa165cc;
 }
 
 /// A general-purpose register at a hook's site.
@@ -41814,6 +42220,96 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn answer(machine: &impl Machine) -> u32 {
             machine.register(Register::Eax)
+        }
+    }
+
+    /// zones.unsubscribe_find (0x2dbeaa): base_player::unsubscribe_from_actions 0x2DBE90 after its find (0x3C5510) of the subscriber, before the erase (mov ecx,esi / lea edx,[eax+4]; then the memmove 0x2DBEBA and the end's -4 at 0x2DBEC2, with no test of the find): EBX the player's game_object part, EAX what the find found, ESI the end (equal: not subscribed), EDI the argument's slot; missing is the function's own pop edi / pop esi / pop ebx / ret 4 (patch 192)
+    pub mod zones_unsubscribe_find {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::player_game_object (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn object(machine: &impl Machine) -> Option<PlayerGameObject> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(PlayerGameObject)
+        }
+
+        /// EAX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn found(machine: &impl Machine) -> u32 {
+            machine.register(Register::Eax)
+        }
+
+        /// ESI: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn end(machine: &impl Machine) -> u32 {
+            machine.register(Register::Esi)
+        }
+
+        /// EDI: a survarium::subscriber_slot (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn slot(machine: &impl Machine) -> Option<SubscriberSlot> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(SubscriberSlot)
+        }
+    }
+
+    /// zones.left_find (0x319811): damage_zone_core::on_objects_left 0x319780 before its erase of the object from the inside list (mov edx,[edi+54h] / mov eax,[edi+50h]; then the find 0x308A40 and the erase 0x319822..0x31983A, which pops the list's last entry when the find found none): EDI the listener, EBP the left object's holder (its copy at [esp+10h]), ESI the object's owner; missing is the release of that copy at 0x319870 (patch 192)
+    pub mod zones_left_find {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::zone_listener (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn listener(machine: &impl Machine) -> Option<ZoneListener> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(ZoneListener)
+        }
+
+        /// EBP: a survarium::zone_holder (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn holder(machine: &impl Machine) -> Option<ZoneHolder> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(ZoneHolder)
+        }
+
+        /// ESI: a survarium::sensed_object (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn object(machine: &impl Machine) -> Option<SensedObject> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(SensedObject)
+        }
+    }
+
+    /// use_prompt.progress (0x23a430): game_world_ui::set_using_progress_message (0x23A430) at its start (movss xmm0,[esp+8]): player::st_draw calls it each frame the drawn local player has an object in use (its user +4, player +134h; 0x246FC4) with the ui and the use's progress; ESP+4 the ui
+    pub mod use_prompt_progress {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::use_progress_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<UseProgressFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(UseProgressFrame)
         }
     }
 }
