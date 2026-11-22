@@ -3086,15 +3086,15 @@ st_srp_technical_433_description	Twoje pułapki, w które strzelano, otwierają 
 st_srp_technical_433_name	Ponowne uzbrojenie
 st_srp_technical_441_description	Twój dym jest lekko zielony i truje wrogów w środku; butla tlenowa chroni. W kieszeni mieści się o połowę mniej granatów dymnych. Obrażenia toksyczne:
 st_srp_technical_441_name	Trujący dym
-st_srp_technical_442_description	Gdy butla tlenowa się opróżni: +10% szybkości na 20 s i pełna energia.
-st_srp_technical_442_name	Ostatni oddech
+st_srp_technical_442_description	Po każdych 20 s ciągłego używania butli tlenowej i gdy się opróżni: +10% szybkości na 20 s i pełna energia.
+st_srp_technical_442_name	Tlenowy zryw
 st_srp_technical_443_description	Zabójstwo twoim granatem zwraca jeden granat.
 st_srp_technical_443_name	Szabrownik
-st_srp_technical_444_description	Twoja pułapka łamie nogi temu, kto w nią wpadnie. W kieszeni mieści się o połowę mniej pułapek.
+st_srp_technical_444_description	Twoja pułapka łamie nogi temu, kto w nią wpadnie. Pułapka zajmuje 1,5 miejsca w kieszeni.
 st_srp_technical_444_name	Pułapka na niedźwiedzie
 st_srp_technical_disarm_speed	Szybkość rozbrajania pułapek
 st_srp_technical_friendly_blast	Obrażenia od własnych granatów
-st_srp_technical_last_gasp	Szybkość, gdy butla się opróżni
+st_srp_technical_oxygen_rush	Szybkość po 20 s butli i na końcu
 st_srp_technical_per_second	 na sekundę
 st_srp_technical_pocket_size	 do rozmiaru kieszeni
 st_srp_technical_pockets	 kiesz.

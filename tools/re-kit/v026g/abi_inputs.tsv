@@ -6722,6 +6722,14 @@ va	name	location	role	basis
 0x001f2720	survarium::player::insert	player+0F540h at 0x1F27DD	the player effect: made from the game's template ([[+0F478h]+1DA4h] vtable +20h) and played on +358h (game_effect_player::play 0x2DE090) at link 1 only, unless +0F4E3h (0x1F27DD..0x1F2859); a player put in with link 0 keeps what it had, none if it was out of the world	observed
 0x001f2870	survarium::player::remove	player+0F540h at 0x1F28A6	with flag 1 (and not +0F4E3h) the player effect stopped (game_effect_player::stop 0x2DE350 at 0x1F28A6, which finds none for a null: the read of 0 at 0x2DE36D) and released; the models out only when +0F4E0h (0x1F3670)	observed
 0x002d2770	survarium::game_world_core::deserialize	the tail's link 0 at 0x2D2D51	a place active before and after the load, its kit unchanged, gets player::insert(0) for its current player: one out of the world before the load (+33Fh 0) comes out with +33Fh 1 and no models, no player effect +0F540h and no tick lists (its time the loaded world's, base_player::deserialize 0x2DB4A5); the stock game never has an active place out of the world at a load	observed
+0x002dbe50	survarium::base_player::subscribe_to_actions	ECX	the player's vostok::collision::game_object part (player+118h)	observed
+0x002dbe50	survarium::base_player::subscribe_to_actions	entry ESP+4	the subscriber (a damage zone's sensor +24h)	observed
+0x002dbe90	survarium::base_player::unsubscribe_from_actions	ECX	the player's game_object part (player+118h)	observed
+0x002dbe90	survarium::base_player::unsubscribe_from_actions	entry ESP+4	the subscriber to erase	observed
+0x00319780	survarium::damage_zone_core::on_objects_left	ECX	the zone's collision sensor (zone+108h)	observed
+0x00319780	survarium::damage_zone_core::on_objects_left	entry ESP+4	the left objects (a vector of loose_ptr holders)	observed
+0x003198d0	survarium::damage_zone_core::on_objects_entered	ECX	the zone's collision sensor (zone+108h)	observed
+0x003198d0	survarium::damage_zone_core::on_objects_entered	entry ESP+4	the entered objects (a vector of loose_ptr holders)	observed
 0x0023c3d0	survarium::game_world_ui::show_grenade_icons [descriptive]	EAX	the game_world_ui ([player+F480h], player::st_draw 0x2471F2)	observed
 0x0023c3d0	survarium::game_world_ui::show_grenade_icons [descriptive]	ECX	the grenades' positions, float3 each (stride 0Ch), up to 6: player::st_draw's own team's grenades within grenades_sensor_radius (7 m), no kind and no side	observed
 0x0023c3d0	survarium::game_world_ui::show_grenade_icons [descriptive]	entry ESP+4	the count, a byte	observed

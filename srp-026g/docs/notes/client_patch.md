@@ -2528,6 +2528,48 @@ the shading-quality-3 programs of `flora_2/saksaul_tile_blend_vc` and `flora_2/l
   program supplier that patch 183 fills both constants (8 bytes each) for `gbuffer_pass.ps`, so the
   donor's parallax programs ship.
 
+### 3.101 The use prompt after a use (written 2026-11-22, README patch 195, the next release's revision) — PROVEN in the code; the stuck bar seen live, its trigger not
+
+A player (arto4221, Blackout, match 0x3e5cc7f9, 2026-11-22) was killed while taking an artefact from
+a container and played on after his respawn with the use's "Прогрес:" bar under the crosshair, almost
+empty. The same widget serves every use in every mode (an artefact container, an ammo stash, a
+battery's take and put), so the cause is not Blackout's; Blackout only keeps that widget on screen.
+
+- **The widget** is the hud's `contextInfo`, set by `root.set_context(text, value, time)` (a value
+  of 0 shows the text alone, any other the text over a bar at that value; `HUD.refresh_context`).
+  Nothing hides it: the game only sets it again.
+- **Who sets it** (PROVEN): `player::st_draw` (0x246F50), each frame, for the drawn player of the
+  local place. While the player's use user holds an object (`usable_object_user_data` at player
+  +130h, its object +4: player +134h), it calls `set_using_progress_message` (0x23A430) with the use's
+  progress (+24h: player +154h), which calls `root.set_context("st_using_progress_message",
+  progress x 100, 500)` unless the progress is 0. Otherwise it calls `set_using_info_message`
+  (0x23A560) with the text key `use_info` gives for what is in reach (a container's
+  `st_use_artefact_container` 0xA16BCC, or 0x9DB708 "" for nothing usable, a locked or empty
+  container, or a dead player, whose use scan finds nothing). That one calls `root.set_context(text,
+  0, 1000)` **only when the key differs from the one it gave last** (ui +334h, 0x23A570..0x23A584);
+  the progress neither reads nor writes that key.
+- **The simulation ends a use** (PROVEN): `use_execute` returning false (the use key released, the
+  object no longer the one in view) makes the player's tick call the object's `use_finalize`
+  (vtable +40h, 0x2F85B0: object 0, progress 0, unlinked; 0x2D86D4), and the client's death calls it
+  too (`player::on_player_death` 0x1F28F6..0x1F290C). In the live match the world shows it: Арто's
+  use record (start 826.85 s, progress 0.553 at 829.9 s) is gone at 834.9 s. Nothing of the use is
+  left: no lock on the container, no use key held (the death clears the input, +330h).
+- **So the bar stays** whenever the use ends while the prompt's key is the one it gave before the
+  use: the key does not change, nothing calls `set_context`, and the last progress stays drawn
+  until another key comes. The key before the use is usually the take prompt, which a death (a dead
+  player's "") replaces; it is "" when no frame drew the take prompt before the use began (the use
+  started in the tick the container became usable, or the frame's view and the tick's differ at the
+  reach's edge), and then a death, or a finished use with nothing usable left in view, leaves the bar.
+  Which of these Арто met the worlds (every 5 s) cannot show.
+- **The fix** (patch 195, `use_prompt.rs`, `vostok/use_prompt.rs`): a lohook at
+  `set_using_progress_message`'s start (`use_prompt.progress`, 0x23A430) writes 0 to the ui's key
+  (+334h), as `initialize_match` leaves it (0x234ACC). Every frame a use shows its progress, the key
+  is forgotten, so the first prompt after the use is given again whatever its text, and it replaces
+  the bar. Only the hud: nothing a match computes or a world holds changes.
+- **Checked:** `check_use_prompt_026g.py` (Unicorn, `tools/check use-prompt`): the two functions run
+  as st_draw calls them in both exes; the original keeps the bar after a use that ends with the
+  prompt's key unchanged, the build gives the prompt again; the other sequences as the original.
+
 ## 4. Mode 3 batteries: not needed in 0.26g
 
 - 0.26g splits the rule: `match_time_vi_spawn_rule` (vtable 0xA06C04) wraps `match_time_vi_spawn_rule_core` (vtable 0xA15CAC). The battery tick is no longer a vtable slot: the core's ctor 0x3147A0 stores a delegate `{this, 0x3148A0}` at +0x1C4 / +0x1C8 (0x3147F1). [V]
@@ -4553,7 +4595,7 @@ code is (`rust/patches/src/artefact_hunt.rs`, `artefact_hunt.toml`, `src/vostok/
   `player_names.enemy_spotted` and `minimap.enemy_spotted` (order 2, after patch 135's) show him;
   `player_icons.enemy_ids` tells the icons movie `root.srp_show_carriers(hunting)` at every match.
 - **The hud** (`player_icons.update_start`, order 5; `hud.initialize_match`; `game_world_ui.welcome`):
-  `root.artefact_hunt_update` with the 28 Numbers of "HUD calls" (a new `Movie::invoke_numbers`, GFx
+  `root.artefact_hunt_update` with the 30 Numbers of "HUD calls" (a new `Movie::invoke_numbers`, GFx
   type 5), the cues' messages through `set_parameterized_message`, the prompt `show_artefact_offer`.
 - **The world check**: patch 87 names the rule by its base type 6 (`world_context.rs`) and gives
   `srp_validate::world::Context::artefact_hunt` the rule's own `Params`.
@@ -4584,3 +4626,13 @@ code is (`rust/patches/src/artefact_hunt.rs`, `artefact_hunt.toml`, `src/vostok/
   the prompt gives the hud its key; a wiped team's end is reason 2 with its own texts.
 - Checked: `check_artefact_hunt_026g.py` (42 cases through the game's own callers), the crate's tests,
   `cargo test` / clippy of the patches. Not run in a game.
+
+### 3.102 A damage zone and its players out of step no longer move memory (written 2026-11-22, README patch 192) — PROVEN in the code and under Unicorn; the trigger NOT established; not run in a game
+
+- **The crash** (2026-11-22 14:45:41, revision 71, Artifact Hunt; the owner's dump): the logic thread at the zone tick of step 438000 (`damage_zone_core::tick` 0x319A89 → `collision_sensor::query_overlapping_objects` 0x307962 → `notify_and_erase_left_objects` 0x307D74 → `damage_zone_core::on_objects_left` 0x319802 → `base_player::unsubscribe_from_actions` 0x2DBEBF) called `memmove(it, it + 4, -4)`: the local player (place 1 kit 0) had an empty subscriber vector (+118h+3B0h, room for one) while the zone's inside list (sensor +50h) still held his object. About 39 MB of the "survarium" arena moved down 4 bytes before the fault; the render thread then died on the shifted movie pointers (exe+0x29F119).
+- **The two unchecked finds:** `unsubscribe_from_actions` (0x2DBE90) finds its argument (0x3C5510) and erases with no test of the find (0x2DBEAA..0x2DBEC2): a subscriber not there makes the move's count -4. `on_objects_left` (0x319780), after the unsubscribe, finds the object in the inside list (0x308A40, by the object a loose_ptr holder names) and erases with no test either (0x31981D..0x31983A): an object not there pops the list's last entry, another object's.
+- **The patch:** `zones.unsubscribe_find` (0x2DBEAA, 5 bytes, exit `missing@0x2DBEC9`, the function's own epilogue) and `zones.left_find` (0x319811, 6 bytes, before the find's arguments, exit `missing@0x319870`, the release of the loop's holder copy): what is not there is not erased, a line goes to srp_patches.log (the player's place, kit, time, zone count and subscribers; the zone's sensor and its inside list's size), and the match plays on (the owner, 2026-11-22: "noone did anything wrong"). Nothing that was there is erased otherwise, so a match that would not have crashed computes the same.
+- **What a skip leaves:** in the unsubscribe, the player's list as it was; on_objects_left then counts the player's +2E4h down as the original (a byte: from 0 it wraps to 255; generate_killed_event 0x2DA317, 0x2DA40F reads it as "in a damage zone" for the kill and death events of that life; initialize 0x2DADB5 zeroes it at the next spawn, deserialize 0x2DB76D at a world load) and erases the object from the inside list as the original. In on_objects_left's erase, the inside list as it was (the other object's entry kept).
+- **Checked:** `check_zone_guards_026g.py` (`tools/check zone-guards`): the game's own on_objects_entered/on_objects_left/subscribe/unsubscribe on a made-up sensor and players; entered and left as the original; left without a subscription: the original's memmove of -4 (0x2DBEBA), the build's skip, the inside list emptied, the line; left while not in the inside list: the original pops the other player's entry, the build keeps it, the line.
+- **Not established:** what put the two out of step at the step after Artifact Hunt's round restart (437950, every place taken out and spawned in one step). The log line is the instrument for it.
+

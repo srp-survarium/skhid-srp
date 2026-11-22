@@ -22,6 +22,8 @@ pub struct Text {
     pub instructions: &'static str,
     pub no_file: &'static str,
     pub discord: &'static str,
+    /// The button that shows the saved file in its folder.
+    pub open_folder: &'static str,
     pub close: &'static str,
     /// The button that copies the crash details for Discord, and its label
     /// once it did.
@@ -73,6 +75,7 @@ const ENGLISH: Text = Text {
     full_no_file: "Click “Copy”, then “Open Discord” below, open a new post in the #bugreports forum, paste the details and say what happened. No report file was saved.\r\nDo not post the .dmp: it is too big for Discord and its memory can hold your password. Keep it for the developer.",
     no_file: "Click “Copy”, then “Open Discord” below, paste the details in #bugreports and say what happened. No file was saved.",
     discord: "Open Discord",
+    open_folder: "Open folder",
     close: "Close",
     copy: "Copy",
     copied: "Copied",
@@ -99,6 +102,7 @@ const RUSSIAN: Text = Text {
     full_no_file: "Нажмите «Копировать», затем «Открыть Discord» внизу, создайте новую тему в форуме #bugreports, вставьте сведения и опишите, что произошло. Файл отчёта не сохранён.\r\nНе выкладывайте файл .dmp: он слишком большой для Discord, а в его памяти может быть ваш пароль. Сохраните его для разработчика.",
     no_file: "Нажмите «Копировать», затем «Открыть Discord» внизу, вставьте сведения в канал #bugreports и опишите, что произошло. Файл не сохранён.",
     discord: "Открыть Discord",
+    open_folder: "Открыть папку",
     close: "Закрыть",
     copy: "Копировать",
     copied: "Скопировано",
@@ -125,6 +129,7 @@ const UKRAINIAN: Text = Text {
     full_no_file: "Натисніть «Копіювати», потім «Відкрити Discord» внизу, створіть нову тему у форумі #bugreports, вставте відомості та опишіть, що сталося. Файл звіту не збережено.\r\nНе викладайте файл .dmp: він завеликий для Discord, а в його пам'яті може бути ваш пароль. Збережіть його для розробника.",
     no_file: "Натисніть «Копіювати», потім «Відкрити Discord» внизу, вставте відомості в канал #bugreports та опишіть, що сталося. Файл не збережено.",
     discord: "Відкрити Discord",
+    open_folder: "Відкрити папку",
     close: "Закрити",
     copy: "Копіювати",
     copied: "Скопійовано",
@@ -151,6 +156,7 @@ const GERMAN: Text = Text {
     full_no_file: "Klicke auf „Kopieren“, dann unten auf „Discord öffnen“, erstelle einen neuen Beitrag im Forum #bugreports, füge die Details ein und beschreibe, was passiert ist. Es wurde keine Berichtsdatei gespeichert.\r\nPoste die .dmp-Datei nicht: Sie ist zu groß für Discord, und ihr Speicher kann dein Passwort enthalten. Behalte sie für den Entwickler.",
     no_file: "Klicke auf „Kopieren“, dann unten auf „Discord öffnen“, füge die Details in #bugreports ein und beschreibe, was passiert ist. Es wurde keine Datei gespeichert.",
     discord: "Discord öffnen",
+    open_folder: "Ordner öffnen",
     close: "Schließen",
     copy: "Kopieren",
     copied: "Kopiert",
@@ -177,6 +183,7 @@ const POLISH: Text = Text {
     full_no_file: "Kliknij „Kopiuj”, a potem „Otwórz Discord” poniżej, utwórz nowy wpis na forum #bugreports, wklej szczegóły i opisz, co się stało. Plik raportu nie został zapisany.\r\nNie publikuj pliku .dmp: jest za duży na Discorda, a jego pamięć może zawierać Twoje hasło. Zachowaj go dla programisty.",
     no_file: "Kliknij „Kopiuj”, a potem „Otwórz Discord” poniżej, wklej szczegóły na kanale #bugreports i opisz, co się stało. Żaden plik nie został zapisany.",
     discord: "Otwórz Discord",
+    open_folder: "Otwórz folder",
     close: "Zamknij",
     copy: "Kopiuj",
     copied: "Skopiowano",

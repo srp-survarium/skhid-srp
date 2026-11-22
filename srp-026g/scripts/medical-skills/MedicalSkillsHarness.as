@@ -94,6 +94,17 @@ package {
    check(Info.pocketUnits(10,size.HALF)==4,"medicine bonus");
    check(Info.pocketUnits(10,size.WHOLE)==1,"booster stays one");
    check(Info.pocketUnits(11,size.HALF)==3,"nonmedicine unchanged");
+   // Bear Trap's trap takes 1.5 units, Toxic Smoke's grenade 2 (technical-skills.md, "Pocket units"):
+   // a pocket of 1..5 holds 1,1,2,2,3 traps and 1,1,1,2,2 grenades; without the skills its size.
+   var held:Function=function(category:int):String {var n:Array=[];for(var s:int=1;s<=5;s++) n.push(Info.pocketUnits(category,size.HALF,s));return n.join(",");};
+   Info.committedSkills([]);
+   check(held(11)=="1,2,3,4,5" && held(24)=="1,2,3,4,5","traps and grenades without the skills");
+   Info.committedSkills([{id:444,value:1},{id:441,value:1}]);
+   check(held(11)=="1,1,2,2,3","Bear Trap: 1.5 units a trap, three in five");
+   check(held(24)=="1,1,1,2,2","Toxic Smoke: 2 units a grenade");
+   check(held(10)=="1,2,3,4,5","medicine unchanged by the trap and grenade skills");
+   check(Info.itemUnits(11,size.HALF)==1.5 && Info.itemUnits(24,size.HALF)==2,"the card's pocket units 1.5 and 2");
+   Info.committedSkills([{id:322,value:1}]);
    // A put fills the pocket (one-pocket-a-type.md): all it holds of the item, at most the units owned.
    var item:Object=new Data();item.dictId=67;item.category=10;item.quickSlotItemSize=size.HALF;
    item.value=10;check(Doll.pocketUnits(item)==4,"a put fills the pocket with the fourth medicine");
