@@ -1451,6 +1451,7 @@ st_level_13_name	РЛС "Восток" (v0.11)
 st_level_14_name	Рудня (v0.69)
 st_level_25_name	Школа (v0.21)
 st_level_26_name	Тараканаўскі форт (v0.21)
+st_level_28_name	РЛС "Восток" (v0.69)
 st_level_29_name	Рудня (v0.21)
 st_level_31_name	Хімзавод (v0.21)
 st_level_32_name	Лондан (v0.42)
@@ -2801,6 +2802,7 @@ st_srp_map_vector	Лабараторыя "Вектар"
 st_srp_map_vostok	РЛС "Восток"
 st_srp_map_vostok_v011	РЛС "Восток" (v0.11)
 st_srp_map_vostok_v021	РЛС "Восток" (v0.21)
+st_srp_map_vostok_v069	РЛС "Восток" (v0.69)
 st_srp_matches_another_joining	Іншы гулец ужо далучаецца
 st_srp_matches_balanced	Матч ужо збалансаваны
 st_srp_matches_cannot_join	Зараз далучыцца нельга

@@ -46,6 +46,7 @@ PROVEN from `projects/*` and `gameplay/game_modes/*.options` (`match_making_para
 | 8 | level_08 | Cologne | day/evening/prerain × _2 _3 _4 | **new** |
 | 9 | level_09 | London (skhid's `resources.db.patch_14`, ids 181 to 183) | day × _2 _3 _4 | — |
 | 14 | v069d_level_01 | Rudnya (v0.69) (skhid's pack `rudnya-069d`, ids 204 and 216-218, `rudnya-069d.md`) | day × _2 _3 _4 _5 | — |
+| 28 | v069d_level_03 | Vostok Radar Station (v0.69) (skhid's pack `vostok-069d`, ids 258 and 259, `vostok-069d.md`) | day × _2 _4 | — |
 | 32 | v044a_level_09 | London (v0.42) (skhid's pack `london-v042`, ids 290-298, `london-v042.md`) | day, rain, evening × _2 _3 _4 | — |
 | 88 | test/tt5, test/tdm_test, test/artefact_testlevel | test maps | **no `projects/test/*` in the db** | — |
 

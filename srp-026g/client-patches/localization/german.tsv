@@ -1451,6 +1451,7 @@ st_level_13_name	RS Vostok (v0.11)
 st_level_14_name	Rudnya (v0.69)
 st_level_25_name	Schule (v0.21)
 st_level_26_name	Tarakanowski Fort (v0.21)
+st_level_28_name	RS Vostok (v0.69)
 st_level_29_name	Rudnya (v0.21)
 st_level_31_name	Chemiebetrieb (v0.21)
 st_level_32_name	London (v0.42)
@@ -2801,6 +2802,7 @@ st_srp_map_vector	Labor Vektor
 st_srp_map_vostok	RS Vostok
 st_srp_map_vostok_v011	RS Vostok (v0.11)
 st_srp_map_vostok_v021	RS Vostok (v0.21)
+st_srp_map_vostok_v069	RS Vostok (v0.69)
 st_srp_matches_another_joining	Ein anderer Spieler tritt gerade bei
 st_srp_matches_balanced	Match ist bereits ausgeglichen
 st_srp_matches_cannot_join	Beitritt gerade nicht möglich

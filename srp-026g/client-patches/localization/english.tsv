@@ -1451,6 +1451,7 @@ st_level_13_name	Vostok Radar Station (v0.11)
 st_level_14_name	Rudnya (v0.69)
 st_level_25_name	School (v0.21)
 st_level_26_name	Tarakanovsky Fort (v0.21)
+st_level_28_name	Vostok Radar Station (v0.69)
 st_level_29_name	Rudnya (v0.21)
 st_level_31_name	Chemical Plant (v0.21)
 st_level_32_name	London (v0.42)
@@ -2801,6 +2802,7 @@ st_srp_map_vector	Vector Laboratory
 st_srp_map_vostok	Vostok Radar Station
 st_srp_map_vostok_v011	Vostok Radar Station (v0.11)
 st_srp_map_vostok_v021	Vostok Radar Station (v0.21)
+st_srp_map_vostok_v069	Vostok Radar Station (v0.69)
 st_srp_matches_another_joining	Another player is joining
 st_srp_matches_balanced	Match is already balanced
 st_srp_matches_cannot_join	You cannot join now

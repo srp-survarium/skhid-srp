@@ -1451,6 +1451,7 @@ st_level_13_name	Radarová stanice Vostok (v0.11)
 st_level_14_name	Rudňa (v0.69)
 st_level_25_name	Škola (v0.21)
 st_level_26_name	Tarakanovská pevnost (v0.21)
+st_level_28_name	Radarová stanice Vostok (v0.69)
 st_level_29_name	Rudňa (v0.21)
 st_level_31_name	Chemička (v0.21)
 st_level_32_name	Londýn (v0.42)
@@ -2801,6 +2802,7 @@ st_srp_map_vector	Laboratoř Vektor
 st_srp_map_vostok	Radarová stanice Vostok
 st_srp_map_vostok_v011	Radarová stanice Vostok (v0.11)
 st_srp_map_vostok_v021	Radarová stanice Vostok (v0.21)
+st_srp_map_vostok_v069	Radarová stanice Vostok (v0.69)
 st_srp_matches_another_joining	Připojuje se jiný hráč
 st_srp_matches_balanced	Zápas je už vyvážený
 st_srp_matches_cannot_join	Teď se nemůžeš připojit
