@@ -12,7 +12,7 @@ from pathlib import Path
 import re
 import sys
 
-from localization_026g import (CATALOG, CYRILLIC, EMPTY_KEYS, FLASH_MOVIES, FLASH_PREFIX, FOREIGN_LETTERS,
+from localization_026g import (CATALOG, CYRILLIC, may_be_empty, FLASH_MOVIES, FLASH_PREFIX, FOREIGN_LETTERS,
                               LANGUAGES, discover, encode_strings, read_config, read_strings,
                               read_translations, rust_table_issue)
 from check_flash_localization_026g import audit_flash
@@ -58,7 +58,7 @@ def audit_catalog(root=CATALOG):
               'ui_mapping_found': False, 'ui_missing': {}}
     for language, strings in dictionaries.items():
         result = compare(dictionaries['english'], strings)
-        result['empty'] = sorted(k for k, v in strings.items() if not v.strip() and k not in EMPTY_KEYS)
+        result['empty'] = sorted(k for k, v in strings.items() if not v.strip() and not may_be_empty(k))
         # The game's localizer (0x1FEF90) makes {NAME} an action's key and drops any other
         # {...}: srp's own texts take %1$s placeholders.
         result['braces'] = sorted(k for k, v in strings.items()
