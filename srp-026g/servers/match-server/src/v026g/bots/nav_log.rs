@@ -488,6 +488,18 @@ pub fn arrival_up_line(goal: Vec3, rise: f32, feet: Vec3) -> String {
     format!("{PREFIX}goal up a ledge kept: goal {}, its floor {rise:.2} m over the feet {}, {:.2} m across", at(goal), at(feet), goal.distance_xz(feet))
 }
 
+/// [T3] `nav: goal down kept: goal (..), its floor D m under the feet (..), A m across`: a goal within its reach across whose floor
+/// lies more than `motor::ARRIVE_OVER_M` under the feet (the top of a drop to it), still walked to (`drive.rs` `Arrival::DownTo`).
+pub fn arrival_down_line(goal: Vec3, drop: f32, feet: Vec3) -> String {
+    format!("{PREFIX}goal down kept: goal {}, its floor {drop:.2} m under the feet {}, {:.2} m across", at(goal), at(feet), goal.distance_xz(feet))
+}
+
+/// [T3] `nav: route end under the feet: end (..), O m under the feet (..), A m across: walked on`: the motor's route end within its
+/// reach across but more than `motor::ARRIVE_OVER_M` under the feet, not arrived at (`Motor::take_over_end`).
+pub fn over_end_line(end: Vec3, over: f32, feet: Vec3) -> String {
+    format!("{PREFIX}route end under the feet: end {}, {over:.2} m under the feet {}, {:.2} m across: walked on", at(end), at(feet), end.distance_xz(feet))
+}
+
 /// [S7] A crouched climb: `nav: crouch climb up|not up: from (..) to (..), rise R m, crouched at its foot T ms before, feet (..)`:
 /// `up` once a world showed the body up it (`motor::is_up`), `not up` when none did within the watch.
 pub fn crouch_climb_line(up: bool, take_off: Vec3, top: Vec3, after_ms: u32, feet: Vec3) -> String {

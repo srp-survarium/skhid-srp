@@ -925,6 +925,22 @@ pub(super) const ARRIVE_BELOW_M: f32 = 0.5;
 /// battery 2's stand was "there". Every route's end at first: the batt
 /// bench's stuck rose +1.5 to +2.7 (about 2 SE) for it.
 pub(super) const ARRIVE_ABOVE_M: f32 = 0.6;
+/// [T3] Any route's end lower than the feet by more than this is not arrived at (the feet on another floor over it: the top of
+/// a drop down to it, an overhang), metres: the spot suite's own height for a goal reached. The 887 final round's timeouts
+/// "stops at the top" (S023, S039, S248, S279, S341, S206, S045) ended within 1 m across of the goal and 1.3-5.7 m over it,
+/// "arrived" at the drop's take-off with the drop not walked. An exact spot's end keeps [`ARRIVE_ABOVE_M`].
+pub(super) const ARRIVE_OVER_M: f32 = 1.0;
+
+/// [T3] Where the feet are against the route's end (`Motor::end_arrival`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum EndArrival {
+    /// Not within its reach across, or under it.
+    Short,
+    /// Within its reach across, over it by this many metres, more than the end allows: not arrived, walked on.
+    Over(f32),
+    /// Arrived at.
+    Arrived,
+}
 /// A route whose last leg is a jump is arrived at only on its landing:
 /// the end at most this higher than the feet, metres. GUESS: above a
 /// floor's unevenness under the feet, well below the lowest jump (a
@@ -1026,6 +1042,9 @@ pub struct Motor {
     held_line: Option<String>,
     /// [fix-lip] The log line of the last hop kept off the route's drop ([`Self::take_hop_line`]).
     hop_line: Option<String>,
+    /// [T3] The route end the feet stand over by more than [`ARRIVE_OVER_M`], within its reach across, and how far over: not
+    /// arrived at, walked on ([`Self::take_over_end`]).
+    over_end: Option<(Vec3, f32)>,
     /// [press forecast] The forecast press of the route jump under way ([`Feel::press_forecast`]).
     cast: Option<PressCast>,
     /// [press forecast] The log line of its last press or spent try ([`Self::take_cast_line`]).
@@ -2139,6 +2158,7 @@ impl Motor {
             walk_off_line: None,
             held_line: None,
             hop_line: None,
+            over_end: None,
             cast: None,
             cast_line: None,
             line_hold_line: None,
@@ -2645,11 +2665,15 @@ impl Motor {
                 self.sprinted_drop = None;
             }
         }
-        if self.arrived(route, s, pose.feet) {
-            self.walking = false;
-            self.sprinting = false;
-            let turn = self.turn_toward(pose, pose.yaw, 0.0);
-            return (Decision { keys: 0, turn }, Walked::Arrived);
+        match self.end_arrival(route, s, pose.feet) {
+            EndArrival::Arrived => {
+                self.walking = false;
+                self.sprinting = false;
+                let turn = self.turn_toward(pose, pose.yaw, 0.0);
+                return (Decision { keys: 0, turn }, Walked::Arrived);
+            }
+            EndArrival::Over(over) => self.over_end = Some((route.end(), over)),
+            EndArrival::Short => {}
         }
         if off > off_m {
             return (Decision::default(), Walked::Off(off));
@@ -3035,8 +3059,8 @@ impl Motor {
     /// it (an exact spot's own radius, [`Motor::exact_end`]), and not under it ([`ARRIVE_BELOW_M`]: an end up a ledge is jumped
     /// to; [`ARRIVE_ON_LANDING_M`] when the last leg is a jump: on its
     /// landing) nor, for an exact spot's end ([`Motor::exact_end`]), over it
-    /// ([`ARRIVE_ABOVE_M`]).
-    fn arrived(&self, route: &Route, s: f32, feet: Vec3) -> bool {
+    /// ([`ARRIVE_ABOVE_M`]), and for any end not over it by more than [`ARRIVE_OVER_M`] (T3).
+    fn end_arrival(&self, route: &Route, s: f32, feet: Vec3) -> EndArrival {
         let end = route.end();
         let below = if route.points().last().is_some_and(|p| p.jump.is_some()) {
             ARRIVE_ON_LANDING_M
@@ -3044,9 +3068,19 @@ impl Motor {
             ARRIVE_BELOW_M
         };
         let radius = self.exact_end.unwrap_or(self.feel.arrive_m);
-        (route.length() - s <= radius || feet.distance_xz(end) <= radius)
-            && end.y - feet.y <= below
-            && (self.exact_end.is_none() || feet.y - end.y <= ARRIVE_ABOVE_M)
+        let over = feet.y - end.y;
+        if !(route.length() - s <= radius || feet.distance_xz(end) <= radius) || end.y - feet.y > below {
+            EndArrival::Short
+        } else if over > self.exact_end.map_or(ARRIVE_OVER_M, |_| ARRIVE_ABOVE_M) {
+            EndArrival::Over(over)
+        } else {
+            EndArrival::Arrived
+        }
+    }
+
+    /// [T3] The route end the feet stood over this walk, not arrived at ([`EndArrival::Over`]): for the driver's nav line, once.
+    pub fn take_over_end(&mut self) -> Option<(Vec3, f32)> {
+        self.over_end.take()
     }
 
     /// The decision of one tick that walks the route while the view looks
@@ -3071,10 +3105,14 @@ impl Motor {
         route.set_below_walk(self.feel.off_walk_below_m);
         route.set_past_drop(self.feel.past_drop);
         let (s, off) = route.progress(pose.feet);
-        if self.arrived(route, s, pose.feet) {
-            self.walking = false;
-            let turn = self.aim_toward(pose, aim.0, aim.1);
-            return (Decision { keys: 0, turn }, Walked::Arrived);
+        match self.end_arrival(route, s, pose.feet) {
+            EndArrival::Arrived => {
+                self.walking = false;
+                let turn = self.aim_toward(pose, aim.0, aim.1);
+                return (Decision { keys: 0, turn }, Walked::Arrived);
+            }
+            EndArrival::Over(over) => self.over_end = Some((route.end(), over)),
+            EndArrival::Short => {}
         }
         if off > off_m {
             let turn = self.aim_toward(pose, aim.0, aim.1);
