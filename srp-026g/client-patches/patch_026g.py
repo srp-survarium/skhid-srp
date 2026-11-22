@@ -487,7 +487,8 @@ Patches:
   increase_health as a medkit). An artefact's
   press (artefact_base::action 0x313300, at its entry) activates every
   ready artefact of the pressed one's class in the artefact slots, so one
-  key fires all of a kind that are ready, even when the pressed one is not.
+  key fires all of a kind that are ready, even when the pressed one is not;
+  a press that fires one starts the cooldown of the kind's cooling ones again.
   Onyx: n fired together are each active 1 s longer per other one (3 s + (n
   - 1) s), and only the first active Onyx of the slots reduces a hit (its
   hit callback 0x312BF0, at 0x312C03), so n active Onyx reduce it once; its
@@ -4604,7 +4605,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      "an upgrade dropped on a weapon in its window is shown at once, "
                      f"Research (mode 5: rule class {RESEARCH_CLASS:#x}, its hud and messages), "
                      "a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills "
-                     "every body part's pool, and one press fires every artefact of its kind, "
+                     "every body part's pool, and one press fires every artefact of its kind and starts its cooling ones' cooldown again, "
                      "Onyx fired together each 1 s longer per other one and reducing a hit once, "
                      "their activation hint shown once a press for their active time, "
                      "the keys 1, 2 and 3 pick a kit while the kits are shown (none for a key pressed before "

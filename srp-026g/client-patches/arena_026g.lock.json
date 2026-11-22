@@ -2,7 +2,7 @@
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
   "size": 1668812,
-  "sha256": "0ff263bf4db59d95adbd282a2d8a619fc6f404da91cced3d3d6164bd6031f686",
+  "sha256": "b3a04e1b7e39869db966a99ff8d23a8f4b764851ec7108ea9d1e645df541cdae",
   "blocks": {
     "bullet_bounds.code": {
       "kind": "code",
@@ -37,7 +37,7 @@
     "artefacts.code": {
       "kind": "code",
       "va": "0xa435000",
-      "size": 1306
+      "size": 1399
     },
     "engine.code": {
       "kind": "code",

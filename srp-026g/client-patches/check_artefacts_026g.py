@@ -375,6 +375,7 @@ def run(data, patched):
         g.word(a + 0x250, inventory)
         g.word(a + 0x280, state)
         g.word(a + 0x28C, cooldown)
+        g.word(a + 0x274, 40000)               # cooldown_sec x 1000
         g.word(inventory + 0x10C + 4 * slot, a)
         return a
 
@@ -390,6 +391,10 @@ def run(data, patched):
     expect(sorted(g.pressed) == sorted([a, b, c] if patched else [a]), "enable_active once for each fired")
     expect(all(g.read(x + 0x2A0) == 1234 for x in ([a, b, c] if patched else [a])), "their activation time")
     expect(g.read(onyx + 0x280) == 3 and g.read(cooling + 0x280) == 3, "the Onyx and the cooling Spring stay")
+    # The press starts the cooling Spring's cooldown again (the whole 40 s); the Onyx, another
+    # kind, and a ready one keep theirs.
+    expect(g.read(cooling + 0x28C) == (40000 if patched else 500) and g.read(onyx + 0x28C) == 0,
+           "the cooling Spring's cooldown " + ("starts again" if patched else "goes on"))
     # The Onyx pressed: it alone (no other Onyx).
     g.pressed = []
     g.call(ACTION, (1, 1300), ecx=onyx)
@@ -399,6 +404,10 @@ def run(data, patched):
     g.call(ACTION, (0, 1400), ecx=cooling)
     g.call(ACTION, (1, 1400), ecx=a)
     expect(g.pressed == [], "a key-up or an active one: nothing")
+    # A press that fires nothing starts no cooldown again.
+    g.word(cooling + 0x28C, 500)
+    g.call(ACTION, (1, 1450), ecx=cooling)
+    expect(g.pressed == [] and g.read(cooling + 0x28C) == 500, "nothing ready: the cooling one's cooldown goes on")
     # A press of a cooling Spring's key, a ready one beside it: the ready one
     # fires in the build, nothing in the original.
     g.word(cooling + 0x28C, 500)
@@ -407,6 +416,8 @@ def run(data, patched):
     g.call(ACTION, (1, 1500), ecx=cooling)
     expect(g.pressed == ([ready] if patched else []) and g.read(ready + 0x280) == (4 if patched else 3)
            and g.read(cooling + 0x280) == 3, "a cooling one's key fires the ready one of its kind")
+    expect(g.read(cooling + 0x28C) == (40000 if patched else 500),
+           "the pressed cooling one's cooldown " + ("starts again" if patched else "goes on"))
 
     # Through the game's own callers, with what they pass: inventory::action
     # 0x2FCAA0 (edi = the inventory; slot, pressed, time) calls the pressed
@@ -465,6 +476,7 @@ def run(data, patched):
             g.word(o + 0x250, inventory)
             g.word(o + 0x280, state)
             g.word(o + 0x28C, cooldown)
+            g.word(o + 0x274, 60000)
             for at, value in ONYX.items():
                 g.emu.mem_write(o + at, struct.pack("<f" if isinstance(value, float) else "<I", value))
             g.word(inventory + 0x10C + 4 * slot, o)
@@ -539,6 +551,8 @@ def run(data, patched):
     g.call(ACTION, (1, 4000), ecx=ready_one)
     expect(g.read(cool + 0x280) == 3 and g.read(ready_one + 0x280) == 4 and g.read(ready_one + 0xF14) == 3000,
            "a cooling Onyx beside: the ready one alone, 3 s")
+    expect(g.read(cool + 0x28C) == (60000 if patched else 500),
+           "the cooling Onyx's cooldown " + ("starts again: 60 s" if patched else "goes on"))
     expect(hit(g, (cool, ready_one)) == (0.2375, 0.11875), "the cooling one's passive x0.95, the active x0.25")
     # Two Onyx active from two presses (the second once ready): one share.
     g, (a1, a2) = onyx_game([(3, 0), (3, 500)])
