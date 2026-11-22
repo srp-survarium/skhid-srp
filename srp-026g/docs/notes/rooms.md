@@ -158,6 +158,12 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     room's is always plain Free for all, and the create window has no twist tick (the owner's of
     2026-11-15: "we can also remove from private lobbies FFA: Saloon and FFA: Racket"; ticks from
     2026-11-14 to then). A window saved with them loads, the twists' modes left out.
+  - **A map played with a twist only** (Military Warehouses; the owner, 2026-11-22: "military
+    warehouses should not be playable on general ffa, only ffa: racket and other variants";
+    `ffa.md`, "Twists"): its config's `srp_twists_only`. An open room's card on it draws a twist
+    alone, by the twists' shares (the map drawn first, as any); a private room never has it: the
+    create window does not list it (`Core::private_entries`) and its pool leaves it out
+    (`Rooms::create_with_pool`).
   - **Blackout is on one card at the most** (the owner's of 2026-11-12: "Make it so blackout
     cannot be on two cards at the same time"): in every vote, one without a free-for-all card
     too. A case of no mode repeats (above): a mode comes again only when the pool has no other,
