@@ -84,8 +84,11 @@ is playable on all non FFA-only maps"): each level and weather maps_dict gives
 a battery, Team Deathmatch or Research config, 50 more, each config made as
 Rudnya's from the map's own Team Deathmatch config (`freeze/<its name>`), maps
 400-449 (`freeze-tag-maps-1.json`, made by `scripts/mode-maps/make.py`; the
-list: `artefact_hunt.md` "Maps"). Free for All's maps alone (the STALKER maps,
-Training Camp) have none.
+list: `artefact_hunt.md` "Maps"). Free for All's maps alone (the STALKER maps)
+have none. Training Camp has its own (maps_dict 450, `training-camp-teams-1.json`,
+which `make.py` leaves to it), made the same way from its Team Deathmatch config,
+on a project whose team spawns are Free for All's 47 points for both teams
+(`stalker-ffa.md`, "Team Deathmatch and Freeze Tag at the Free for All points").
 
 ## State and native lifecycle
 

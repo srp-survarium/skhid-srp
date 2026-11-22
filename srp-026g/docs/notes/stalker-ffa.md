@@ -380,6 +380,51 @@ stations; its four campfires are inside the fence, and their one fire damage
 zone over them (training-camp-fires-1, `stalker-maps.md`); its one anomaly is
 the Keeper's hidden pool at y = -1000.
 
+## Team Deathmatch and Freeze Tag at the Free for All points (2026-11-22)
+
+The owner: "add tdm and freeze tag on stk2 training camp, there are already many spawn points, we
+should just reuse them, all teams spawns everywhere randomly (there are no 'map sides')"; then "not
+the same rules, the same spawn points that already exist". `training-camp-teams-1.json`
+(`scripts/stalker-maps/make_training_teams.py`, from `day_8` as every row above it leaves it), after
+`artefact-hunt-1`, whose rows count the dictionary, and the other team maps' `freeze-tag-maps-1` and
+`artefact-hunt-maps-1`, whose rows follow its last:
+
+| maps_dict | mode | config | project |
+| ---: | --- | --- | --- |
+| 212 | Team Deathmatch (4) | `v010b_cs_training_camp_level_03_day_4.options`, its row again (`stalker-tdm-hold-1` takes it out; this list puts it back) | `v010b_cs_training_camp/day_teams` |
+| 450 | Freeze Tag (12) | `freeze/v010b_cs_training_camp_level_03_day_4.options`, a copy of 212's as `freeze-tag-1` makes Rudnya's (mode 12, `ui.icon` 4, its names, no ticket rule) | the same |
+
+450 is the first id past those `scripts/mode-maps/make.py` gives the other team maps (Artifact Hunt
+327-349, Freeze Tag 400-449). `make.py` leaves Training Camp out of its team maps (its STALKER
+ports, `v010b_` projects, are Free for All's or this list's).
+
+- **One pool, no sides.** A respawn point has one team, and the respawn rule fills its three groups
+  (team 0, 1, 2 at +188h, +18Ch, +190h) by it; no point is in two groups. So in `day_teams`, a copy
+  of Free for All's `day_8`, each of the 47 team-2 points (the owner's picks,
+  `ffa-training-camp-picks-1`) is a point of team 0 and one of team 1 at its place and facing, ids
+  0-46 in each team: Team Deathmatch's own 12 of each team (most at the gateways, outside the fence)
+  take the first 12 places, 35 more are made like them, and the 47 team-2 points go (a team mode
+  reads only its team's group). Both teams spawn anywhere the Free for All players do.
+- **Team Deathmatch's own spawning, not Free for All's** (the owner: "not the same rules"). Every
+  point is Team Deathmatch's kind: 6 s protection (`maps.tsv`), enemy radius 1.2 m, ally 0.8 m,
+  priority 1, chosen by the game's own `select_respawn_points` (0x3171D0: one of the team's free
+  points, by its own random state). None of Free for All's: not the cover rule's placement (the
+  owner's picks are kept as they are, 10 of them failing it), not patch 142's choice or its "never
+  the last two" (a free-for-all's alone, by its options' entry), not the 20 m exclusion or the
+  0.5 s. A player can spawn 1.2 m from an enemy, and two players of a team can take places a metre
+  apart: the owner's "spawns everywhere randomly".
+- **Freeze Tag's restart** spawns everyone through the same tick and the same selection
+  (`freeze-tag.md`, "State and native lifecycle": every place due at one step, the native tick
+  takes each out and spawns it at its team's points), so its rounds start at these points too. Its
+  rule needs nothing else of a map.
+- **The rest is Free for All's arena**, copied with the project: the wall behind the fence and the
+  three trucks in its gateways, the burning campfires, no ammo crates (`no-ammo-crates-1`: Team
+  Deathmatch's six stashes stood at the two sides' bases, some outside the fence). The minimap and
+  the loading picture are the level's: the project's `project_name` and the config's
+  `loading_screen_id` 33, as Team Deathmatch's config always had.
+- Not done: bots' map data (none of the STALKER maps has it), the site's Maps tab entry for the two
+  ids (the release's `build-site`).
+
 ## Millisecond protection
 
 The arena edit sets `invulnerability_time_ms = 500` on Training Camp's 26 FFA

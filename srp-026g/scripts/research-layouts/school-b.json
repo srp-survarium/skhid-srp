@@ -1,0 +1,29 @@
+{
+  "name": "School, layout B",
+  "edits": "research-school-b-1.json",
+  "level": "level_02",
+  "folder": "research_b",
+  "project": "5b",
+  "maps": [
+    {"weather": "day", "config": "level_02_day_5.options", "id": 500},
+    {"weather": "evening", "config": "level_02_evn_5.options", "id": 501},
+    {"weather": "rain", "config": "level_02_rain_5.options", "id": 502}
+  ],
+  "units": [
+    {"cp_id": 0, "what": "the north wing's hall under the broken roof, second floor",
+     "marker": [20.3, 131.0], "floor": 20.74, "yaw": 0,
+     "zone": {"type": 1, "position": [20.3, 22.545, 131.0], "half": [4.5, 1.925, 3.1]},
+     "antenna": [14.0, 29.9, 131.0]},
+    {"cp_id": 1, "what": "the terrace east of the school, between its two stairways",
+     "marker": [82.0, 104.3], "floor": 19.6, "yaw": 0,
+     "zone": {"type": 2, "position": [82.0, 21.3, 104.3], "half": [5.5, 1.774, 5.5]},
+     "cover": [
+       {"what": "the crates north of the station", "from": [42.0, 110.5, 45.0, 112.5], "shift": [0.0, 0.0, -2.0]},
+       {"what": "the crates south of it", "from": [42.8, 97.0, 47.0, 98.6], "shift": [0.0, 0.0, 2.0]}
+     ]},
+    {"cp_id": 2, "what": "the south wing's hall under the broken roof, second floor",
+     "marker": [20.3, 79.6], "floor": 20.74, "yaw": 0,
+     "zone": {"type": 1, "position": [20.3, 22.545, 79.6], "half": [4.5, 1.925, 3.1]},
+     "antenna": [14.0, 29.9, 79.6]}
+  ]
+}
