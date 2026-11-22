@@ -661,7 +661,8 @@ impl Rooms {
     /// the account's draft of them, or the `default` pool with none. The
     /// owner's equipment level `gear` must be within an open room's max
     /// level. A private one (a PIN) is [`PRIVATE_SIZE`] a side, whatever `spec`
-    /// says; one with bots `pvb/default_size` (8: always 8 v 8), and it keeps
+    /// says, and its pool has no map played with a twist only
+    /// (`MapMode::twists_only`: its free-for-all is plain); one with bots `pvb/default_size` (8: always 8 v 8), and it keeps
     /// only the maps of its pool in `bot_maps` (those the server's bots play).
     #[allow(clippy::too_many_arguments)]
     pub fn create(
@@ -697,6 +698,8 @@ impl Rooms {
     ) -> Result<u32, Refused> {
         if let Door::Pin { bots, .. } = spec.door {
             spec.size = PRIVATE_SIZE;
+            // Its free-for-all is plain: no map played with a twist only.
+            pool.retain(|&id| maps::map_mode(id).is_none_or(|map| !map.twists_only));
             if bots {
                 // Always 8 v 8 (the owner's of 2026-11-05): bots fill each
                 // team to its size, a team takes no more.
@@ -1343,13 +1346,15 @@ impl Rooms {
     /// The vote's cards from the pool ([`Self::draw`]), each a map a match
     /// can be played on, and then, in a room behind `door`, each
     /// free-for-all's twist or none: an open room's (the server's) drawn by
-    /// its share and armed for the room ([`twist::deal`]; the owner,
-    /// 2026-11-15: "let's make saloon 20%"), Racket with the gun of the
-    /// room's max level ("racket on lvl10 room should not give AK-12 and
-    /// instead AK74N"), Roulette with a band it allows and a hand of it
+    /// its share after its map, armed for the room ([`twist::draw`]; the
+    /// owner, 2026-11-15: "let's make saloon 20%"; a map played with a twist
+    /// only draws a twist), Racket with the gun of the room's max level
+    /// ("racket on lvl10 room should not give AK-12 and instead AK74N"),
+    /// Roulette with a band it allows and a hand of it
     /// (`docs/notes/ffa-roulette.md`), a private room's none (the owner,
     /// 2026-11-15: "we can also remove from private lobbies FFA: Saloon and
-    /// FFA: Racket"). A pool's id no match can play is no card.
+    /// FFA: Racket"; its pool has no map played with a twist only,
+    /// [`Self::create_with_pool`]). A pool's id no match can play is no card.
     fn deal(pool: &[MapId], door: Door, below: &mut impl FnMut(usize) -> usize) -> Vec<Played> {
         let maps: Vec<maps::MatchMap> = Self::draw(pool, below)
             .into_iter()
@@ -1358,10 +1363,7 @@ impl Rooms {
         maps.into_iter()
             .map(|map| match door {
                 Door::Open { max_level } if map.mode() == maps::GameMode::FreeForAll => {
-                    let roll = below(twist::SHARE_TOTAL as usize) as u32;
-                    twist::deal(roll, max_level, below)
-                        .and_then(|twist| Played::twisted(map, twist))
-                        .unwrap_or(Played::plain(map))
+                    twist::draw(map, max_level, below)
                 }
                 Door::Open { .. } | Door::Pin { .. } => Played::plain(map),
             })

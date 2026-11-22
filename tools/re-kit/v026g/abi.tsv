@@ -2813,3 +2813,5 @@ va	name	source	ret_cleanup	result
 0x0031d430	survarium::breath_vibration_calculator::insufficient_breath	manual	0	EAX 1 when the reserve (+50h) is 0.0 or less: holding -> short breathing
 0x0023ddd0	survarium::base_game_scene::apply_camera	manual	4	none; the scene (+0Ch the camera's transform, +4Ch the projection) set from the director for the frame's draw
 0x0031aca0	survarium::effect_zone_core::protect_players [descriptive]	manual	4	none; each own-team player of the list gets the damage model's +32Ch = the time + the zone's +48h and +330h = the zone's +4Ch (0x31AD0F, 0x31AD15)
+0x00176420	stlp_std::find_if<vostok::render::render_surface_instance * *,vostok::render::remove_invisible_models_predicate>	manual	0	EAX: the first instance whose screen factor (+58h; 1000 when its model's +116h is 0) is under the threshold, else the end (EDI); counts it at [0x226048C]+37F0h
+0x003cf260	sun_shadow_map_size [descriptive]	manual	8	EAX: each sun cascade map's side in texels: 512 at r_shadow_quality 0; 1024 at 1 and 2 with at least 640 MiB of video memory; 2048 at 3 with more than 1 GiB (else 1024, 512)

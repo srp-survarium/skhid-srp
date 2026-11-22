@@ -12,7 +12,7 @@ use super::racket::Gun;
 use super::roulette::{Band, Hand};
 
 /// What a free-for-all card of a server's room plays, as its share draws it ([`draw`]): the plain
-/// mode or a twist, before it is armed for the room ([`deal`]).
+/// mode or a twist, armed for the room by [`draw`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Pick {
     Plain,
@@ -21,59 +21,56 @@ pub enum Pick {
     Roulette,
 }
 
-/// The shares of a free-for-all card's draw ([`draw`]), in hundredths. Roulette 10 from the plain
-/// mode (the owner, 2026-11-22, approving my pick). Cowboy 10 in all since 2026-11-22 (20 from
-/// 2026-11-15:
-/// "let's make saloon 20% with two variations (no need to name them)"; was 10, "cowboy version
-/// should be rare with only 10% chance", 2026-11-14), in two variations (the owner, 2026-11-14:
-/// "saloon should have two variations with winchesters and colts or just with colts"), the
-/// Winchester and Colt 5 (the owner, 2026-11-22: "winchester should become 5% again on FFA";
-/// 15 from 2026-11-15) and the Colt alone 5; Racket 40. Racket's gun is its room's
+/// The shares of a free-for-all card's draw ([`draw`]), in hundredths (the owner, 2026-11-22):
+/// plain 30, Racket 30, Roulette 30, Saloon (Winchester) 5, Saloon 5 (the Colt alone). Before:
+/// plain 40, Racket 40, Roulette 10 (my pick, the same day); plain 50 and Racket 40 without
+/// Roulette; the Winchester 15 from 2026-11-15 ("winchester should become 5% again on FFA"), Saloon
+/// 10 at first ("cowboy version should be rare with only 10% chance"). Racket's gun is its room's
 /// (`racket`, `Gun::of_room`), Roulette's band one its room allows (`roulette::Band::draw`).
 pub const SHARES: [(Pick, u32); 5] = [
-    (Pick::Plain, 40),
-    (Pick::Racket, 40),
-    (Pick::Roulette, 10),
+    (Pick::Plain, 30),
+    (Pick::Racket, 30),
+    (Pick::Roulette, 30),
     (Pick::Cowboy(Variation::WinchesterAndColt), 5),
     (Pick::Cowboy(Variation::Colt), 5),
 ];
 
-/// The sum of the [`SHARES`]: what a draw's roll is below.
-pub const SHARE_TOTAL: u32 = {
-    let mut total = 0;
-    let mut at = 0;
-    while at < SHARES.len() {
-        total += SHARES[at].1;
-        at += 1;
-    }
-    total
-};
-
-/// What a free-for-all card of a server's room plays, for a roll below [`SHARE_TOTAL`]. A private
-/// room's never draws: its free-for-all is plain (`session::v026g::rooms`).
-pub fn draw(roll: u32) -> Pick {
-    let mut roll = roll % SHARE_TOTAL;
-    for (pick, share) in SHARES {
+/// What a free-for-all card of a server's room of `max_level` plays on `map`, drawn after it: the
+/// plain mode and each twist by its [`SHARES`], armed for the room (Racket with the room's gun,
+/// `racket::Gun::of_room`; Roulette with a band the room allows and a hand of it, dealt with the
+/// same rolls). On a map played with a twist only ([`MapMode::twists_only`]) the twists alone, by
+/// their shares (the plain mode's taken out, so the map comes as often as any, always twisted);
+/// Roulette only in a room that allows a band ([`Band::allowed`]). `below(n)` is a roll below `n`.
+/// A private room's never draws: its free-for-all is plain, and its pool has no such map
+/// (`session::v026g::rooms`).
+pub fn draw(map: MatchMap, max_level: u8, below: &mut impl FnMut(usize) -> usize) -> Played {
+    let banded = Band::allowed(max_level).next().is_some();
+    let drawn = SHARES.iter().filter(|&&(pick, _)| match pick {
+        Pick::Plain => !map.map().twists_only,
+        Pick::Roulette => banded,
+        Pick::Racket | Pick::Cowboy(_) => true,
+    });
+    let total: u32 = drawn.clone().map(|(_, share)| share).sum();
+    let mut roll = below(total as usize) as u32 % total;
+    let mut picked = Pick::Plain;
+    for &(pick, share) in drawn {
         if roll < share {
-            return pick;
+            picked = pick;
+            break;
         }
         roll -= share;
     }
-    unreachable!("a roll is below the shares' sum")
-}
-
-/// The twist a free-for-all card of a room of `max_level` plays for `roll` ([`draw`]), armed:
-/// Racket with the room's gun, Roulette with a band the room allows and a hand of it, dealt with
-/// `below`'s rolls; none for the plain mode, or a Roulette in a room that allows no band.
-pub fn deal(roll: u32, max_level: u8, below: &mut impl FnMut(usize) -> usize) -> Option<Armed> {
-    match draw(roll) {
+    let armed = match picked {
         Pick::Plain => None,
         Pick::Racket => Some(Armed::Racket(Gun::of_room(max_level))),
         Pick::Cowboy(variation) => Some(Armed::Cowboy(variation)),
         Pick::Roulette => {
             Band::draw(max_level, below).map(|band| Armed::Roulette(Hand::deal(band, below)))
         }
-    }
+    };
+    armed
+        .and_then(|twist| Played::twisted(map, twist))
+        .unwrap_or(Played::plain(map))
 }
 
 /// The lives a twist's ammo lasts: its stack's store is a kit's rounds this many times. The game
@@ -337,26 +334,40 @@ mod tests {
             assert_eq!(twisted.is_some(), map.mode == GameMode::FreeForAll, "{}", map.id);
             assert_eq!(Played::plain(played).lobby_number(), map.mode.lobby_number());
         }
-        let ffa = playable_in(GameMode::FreeForAll).next().unwrap();
+        let ffa = playable_in(GameMode::FreeForAll).find(|map| !map.twists_only).unwrap();
         let racket = Armed::Racket(Gun::Ak12);
         let racket = Played::twisted(MatchMap::of(ffa.id).unwrap(), racket).unwrap();
         assert_eq!((racket.lobby_number(), racket.mode()), (9, GameMode::FreeForAll));
-        // Every roll below the shares' sum: each its share, 40 / 40 / 10 / 5 / 5.
-        let drawn = |pick| (0..SHARE_TOTAL).filter(|&roll| draw(roll) == pick).count();
-        assert_eq!(SHARE_TOTAL, 100);
-        for (pick, share) in SHARES {
-            assert_eq!(drawn(pick), share as usize);
-        }
-        // Armed for its room: Racket with the room's gun, Roulette with a band the room allows,
-        // none in a room under the low band's top.
-        let mut zero = |_: usize| 0;
-        let roll = |wanted: Pick| (0..SHARE_TOTAL).find(|&roll| draw(roll) == wanted).unwrap();
-        let racket = deal(roll(Pick::Racket), 10, &mut zero);
+        // Every first roll below the shares' sum, the later ones (a Roulette's band and hand) 0:
+        // what each card plays, by its lobby number.
+        let rolls = |map: MatchMap, max_level: u8| {
+            let mut total = 0;
+            draw(map, max_level, &mut |below| {
+                total = total.max(below);
+                0
+            });
+            (0..total).map(move |roll| {
+                let mut first = Some(roll);
+                draw(map, max_level, &mut |_| first.take().unwrap_or(0)).lobby_number()
+            })
+        };
+        let plain = MatchMap::of(ffa.id).unwrap();
+        let count = |map, max_level, number| rolls(map, max_level).filter(|&n| n == number).count();
+        // 30 / 30 / 30 / 5 / 5, Roulette's band the room's first (`below` 0), Racket by the gun.
+        assert_eq!(rolls(plain, 15).count(), 100);
+        assert_eq!((count(plain, 15, 8), count(plain, 15, 9)), (30, 30));
+        assert_eq!((count(plain, 15, 14), count(plain, 15, 11), count(plain, 15, 10)), (30, 5, 5));
+        // A room that allows no band: no Roulette, the rest as before.
+        assert_eq!((rolls(plain, 4).count(), count(plain, 4, 14)), (70, 0));
+        // Racket in a level-10 room: the AK-74N.
+        let racket = draw(plain, 10, &mut |n| if n == 100 { 30 } else { 0 }).armed();
         assert_eq!(racket, Some(Armed::Racket(Gun::Ak74n)));
-        assert_eq!(deal(roll(Pick::Plain), 15, &mut zero), None);
-        assert_eq!(deal(roll(Pick::Roulette), 4, &mut zero), None);
-        let roulette = deal(roll(Pick::Roulette), 15, &mut zero).unwrap();
-        assert_eq!(roulette.lobby_number(), 14);
+        // A map played with a twist only: the twists alone, Roulette's too.
+        for map in playable_in(GameMode::FreeForAll).filter(|map| map.twists_only) {
+            let map = MatchMap::of(map.id).unwrap();
+            assert_eq!(rolls(map, 15).count(), 70);
+            assert_eq!((count(map, 15, 8), count(map, 15, 14)), (0, 30));
+        }
         // Each twist as it arms its own number; none a mode's (nor Scarcity's 7, not on main).
         for number in [9, 10, 11, 14, 15, 16] {
             let mode = LobbyMode::of_number(number).unwrap();

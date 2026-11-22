@@ -2495,3 +2495,5 @@ va	status	ref_021d	name
 0x0031a100	observed		survarium::damage_zone_core::play_effect
 0x0032a7a0	observed		survarium::body_part_parameters::play_effect
 0x001c89c0	reviewed	0x0013d25e	vostok::render::potential_request::cancel_request
+0x00176420	reviewed	0x00109836	stlp_std::find_if<vostok::render::render_surface_instance * *,vostok::render::remove_invisible_models_predicate>
+0x003cf260	reviewed		sun_shadow_map_size [descriptive]

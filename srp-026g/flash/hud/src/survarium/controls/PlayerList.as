@@ -40,6 +40,10 @@ package survarium.controls
       // is marked (PlayerListRenderer).
       private var _carrier:int = -1;
 
+      // Freeze Tag (HUD.freeze_tag_rows): bit n set while place n (a row's id) is frozen; his
+      // name is ice blue (PlayerListRenderer).
+      private var _frozen:uint = 0;
+
       // PlayerListz's authored lists each fit ten 30 px rows (twenty match places).
       private static const COLUMN_ROWS:int = 10;
 
@@ -111,6 +115,27 @@ package survarium.controls
             return;
          }
          _carrier = value;
+         this.redrawRows();
+      }
+
+      public function isFrozen(place:int) : Boolean
+      {
+         return place >= 0 && place < 32 && (this._frozen & (1 << place)) != 0;
+      }
+
+      // A change draws the rows again.
+      public function set frozen(mask:uint) : void
+      {
+         if(mask == this._frozen)
+         {
+            return;
+         }
+         _frozen = mask;
+         this.redrawRows();
+      }
+
+      private function redrawRows() : void
+      {
          for each(var column:DataProvider in [this._team1DP,this._team2DP])
          {
             if(column)

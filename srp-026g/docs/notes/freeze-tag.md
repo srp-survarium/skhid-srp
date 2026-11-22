@@ -169,7 +169,14 @@ give the name (its own, the team's by `render_name`'s `rgb` or
 `set_player_color`) and puts it back exactly on thaw, the newest one if the game
 set another while frozen; a name set while frozen stays blue (names are plain
 text); a marker made while its place is frozen is blue from the start. The
-native label is the game's, never written over. `tools/check freeze-names`
+native label is the game's, never written over. The Tab list shows it too
+(the owner, 2026-11-22: "frozen players should also be colored blue when
+tabbing"): `freeze_tag::on_hud` sends the same mask to the hud movie,
+`root.freeze_tag_rows(mask)`, and `PlayerList.frozen` draws the name of the row
+whose id is a frozen place in the same blue
+(`PlayerListRenderer.FROZEN_NAME_COLOR`); the row is drawn again from its data
+on thaw, so it has its own colour back. The movie clears the mask at a new
+match (`reset`) and another mode (`set_game_type`). `tools/check freeze-names`
 (`scripts/freeze-tag-hud`) checks it in Ruffle at 1920x1080 and 1280x720.
 
 **The frozen glow.** `fx/artifacts/human_frozen` (content pack

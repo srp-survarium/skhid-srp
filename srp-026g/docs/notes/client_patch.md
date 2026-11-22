@@ -4125,8 +4125,70 @@ uses either distance or projected bounds and releases its by-value model ref.
 The new hook follows its existing LOD0 return after the missing-LOD0 check.
 A separate 100-metre squared-distance check preceded the old culling hook.
 Maximum now keeps those frustum-query candidates too. Frustum and occlusion
-culling remain; per-pass draw limits and the shadow pass's explicit LOD bias
-remain native. The gbuffer pass supplies a 1,000,000-metre draw limit.
+culling remain. The gbuffer pass supplies a 1,000,000-metre draw limit. The
+sun's shadow pass has rules of its own (next section).
+
+**Sun shadows** (2026-11-22; read in the exe, the hooks' bytes checked in the
+built exe; owner: "LODs are not used on maximum settings, but shadows still
+change"). `stage_shadow_direct` draws up to four cascades (r_num_shadow_cascades,
+opt+C4h, 4; r_shadow_quality 0 drops the last). What it does differently from
+the camera:
+
+- Models: no shadow LOD of their own. `prepare_visibile_objects` (0x1750C0)
+  calls `scene::select_models` with mask 2 and the camera's view-projection
+  (renderer_context+5098h, 0x17512D), so `get_surfaces` (0x16F390) runs
+  `select_lod` as the camera does and Maximum's LOD0 reaches the shadows.
+  r_shadow_last_lod (0x1F1D9A4, off) would add up to two LODs for mask 2
+  (0x16F3C6).
+- Models: a per-cascade caster cull. With r_csm_cull_min_screen_factor
+  (0xA71A37, on) a surface leaves cascade N when its screen factor (+58h, the
+  camera's: max screen share x 100, 0x158D80) is under
+  r_shadow_cascade_N_max_screen_factor (opt+68h..74h: 3, 5, 7, 9) times 1,
+  0.85, 0.75 or 0.5 by r_shading_quality (opt+E8h 0..3), 0x175218..0x1752BD
+  (`find_if` 0x176420, `remove_copy_if` 0x176340; 0.21d's
+  `remove_invisible_models_predicate`). A model whose +116h is 0 counts 1000
+  (kept). So a 1 m box loses its shadow in cascade 0 beyond about 30 m, a 10 m
+  house in cascade 3 beyond about 100 m (r_shading_quality 1), and the shadow
+  goes as the camera moves away.
+- Grass: `render_grass` (0x175680) gives `grass_world::render` 25 m (0x17571E,
+  the float at 0xA2DC24; the gbuffer gives 1,000,000): only patches within
+  25 m of the eye cast shadows, a ring that moves with the camera.
+- Grass: `grass_patch::render` (0x1CC980) draws the shadow pass (pass 1Ah)
+  one LOD coarser than the selector's (0x1CCB4C `cmp esi,1Ah` / `inc eax`); a
+  patch at the last LOD then has no surface and casts nothing.
+- The cascades themselves: one map per cascade, 512/1024/2048 texels by
+  r_shadow_quality and video memory (`sun_shadow_map_size` 0x3CF260, read once
+  in the stage's constructor), and `stage_shadow_mask` (0x1A1910) applies them
+  from the last to the first with no blend: a step in sharpness at each
+  cascade's edge. Not changed (below).
+
+| Hook | Normal | High | Maximum |
+| --- | --- | --- | --- |
+| `0x175212` `detail_shadow_cull` (the `je` after the cull switch) | native | native | skips the cull, as r_csm_cull_min_screen_factor 0 |
+| `0x17528E` `detail_shadow_threshold` | native | threshold x 2/3 (the screen factor is linear in 1/distance: 1.5x the distance) | not reached |
+| `0x1CCB4C` `detail_grass_shadow_lod` | LOD + 1 | LOD + 1 (the selector's own 1.5x) | the camera's LOD |
+| `0x175724` `detail_grass_shadow_distance` (after the `fld`) | 25 m | 37.5 m | 1,000,000 m (the cascade's frustum) |
+
+Cost (from the code; no frame measured). Each kept caster is one more draw in
+its cascade's depth pass, at the LOD the camera draws (LOD0 at Maximum); the
+cull in the previous cascade (0xA71A36, on) still drops a caster that lies
+wholly in a nearer cascade. The engine counts the culled casters per frame at
+[0x226048C]+37F0h: that count is what Maximum adds. Grass is the larger
+part: at Maximum each cascade draws every grass patch in its frustum (one
+instanced draw per patch, LOD0) where Normal drew those within 25 m one LOD
+coarser; at worst about as many grass draws as the camera's, per cascade. A
+cap on that distance (say the camera's 100 m) is one constant if a frame
+shows it too heavy.
+
+Not changed, and what it would take. A blend across a cascade's edge is in the
+shadow mask's pixel shader (`effect_sun_shadows_apply`, `stage_shadow_mask`),
+which has no source in the repo and no content path yet. Bigger maps (4096)
+are `sun_shadow_map_size`'s answer, read once when the stage is built (a
+renderer restart; four depth maps and four cached copies: 2048 is 8 MiB each
+at 16 bits, 4096 32 MiB, so 64 -> 256 MiB) and four times the shadow fill;
+they sharpen every cascade but keep the steps. The cascade extents
+(`calculate_matrices` 0x174240, from the camera's `sun_cascade` +10Ch) were not
+read further.
 
 Grass regression coverage now starts before the distance rejection and executes
 the complete draw-time selector and surface fetch, including reference counts,

@@ -641,10 +641,10 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   hold one).
 - **Where:** in the server's rooms (Play's, the open ones) alone, each free-for-all card of a
   vote (the third card; all three in a pool of free-for-alls alone) draws its twist with the card,
-  by its share (`twist::SHARES`, `twist::draw`, armed for the room by `twist::deal`):
-  - plain Free for all 40 % (50 from 2026-11-22 until Roulette took 10 of it the same day),
-    **Racket** 40 % (my pick: as often as each other);
-  - **Roulette** 10 % (`ffa-roulette.md`): a level band the room allows and one hand of three kits
+  by its share (`twist::SHARES`, `twist::draw`, armed for the room):
+  - plain Free for all 30 % (the owner, 2026-11-22: plain 30, Racket 30, Roulette 30; 50 and 40
+    before Roulette), **Racket** 30 %;
+  - **Roulette** 30 % (`ffa-roulette.md`): a level band the room allows and one hand of three kits
     of it, every player's;
   - **Cowboy**, "Saloon" in the lobby, 10 % since 2026-11-22 (20 % from 2026-11-15, the owner: "let's make saloon 20% with
     two variations (no need to name them)"; 10 % before, 2026-11-14: "cowboy version should be
@@ -660,6 +660,23 @@ rules, spawns, pay and results, every kit's guns changed by the server.
     based on this"): "FFA: Saloon (Winchester)" and "FFA: Saloon" (the Colt alone).
 
   Won, the card's match plays its twist.
+- **Military Warehouses: a twist only** (the owner, 2026-11-22: "military warehouses should not be
+  playable on general ffa, only ffa: racket and other variants"). A property of the map's data, not
+  of the code: srp's key `mode.srp_twists_only = true` in its Free for All config
+  (`ffa/v010b_cs_mp_military_1_day_8.options`, maps_dict 43; `content-edit/ffa-twists-only-1.json`),
+  which the server reads as `maps::MapMode::twists_only` (refused on a config of another mode); the
+  game does not read it. Another map takes it by the same key.
+  - A card draws its map first, as any (`rooms.md`, "Each card is drawn from pools"), then its
+    twist: on such a map the plain share is taken out and the twists keep theirs, so Racket 42.9 %,
+    Roulette 42.9 % (its band one the room allows), each Saloon 7.1 % (`twist::draw`; Racket 80 % and
+    each Saloon 10 % before Roulette). My pick of the two orders: the map comes as often as any
+    free-for-all map, always twisted; drawing the twist first would have left it out of half the
+    free-for-all cards (the plain ones), and every other map's twist shares stay as they are. Of
+    all free-for-all cards, plain falls from 30 % to about 29.1 % (one map in 33).
+  - A private room's free-for-all is plain (below), so its pool never holds such a map: the
+    create window does not list it (`Core::private_entries`), and a private room's pool leaves it
+    out whatever it was made with (`Rooms::create_with_pool`: a saved window with it, the default
+    pool). Plain Play and clan matches play no free-for-all; Player vs Bots none either.
 - **Not in private rooms** (the owner, 2026-11-15: "we can also remove from private lobbies FFA:
   Saloon and FFA: Racket"; they were ticks of the create window from 2026-11-14, "they are not
   present in private room creations"): a private room's free-for-all card is always plain Free for
@@ -709,6 +726,12 @@ rules, spawns, pay and results, every kit's guns changed by the server.
     shot the others hear as the AS Val's muffled `weapons/val_m` (`states.fire.sounds.third_view`):
     the Val, the MP7 with its silencer and its Legend, the ported Kriss Vector. Loud: the SR-3M,
     the 9A-91, the MSBS (shots of their own).
+  - And every assault rifle, SMG and machine gun that fires no automatic mode (the owner,
+    2026-11-22: Racket's guns "should just be proper automatic weapons"; "remove g3sg from it and
+    replace with ak12", "check that socom is not available too"): its `parameters.fire_queue_types`
+    has no -1 (`item_params::ItemParams::automatic`, `racket::AUTOMATIC_CLASSES`), the G3SG/1 and
+    the SOCOM 16 among them. Shotguns and pistols stay as they are. Racket's own two guns must fire
+    automatic, or srp refuses to start (`racket::check`).
   - The gun, by the room's level (`racket::Gun::of_room`, the room's max level when its card is
     dealt, carried in the match's `twist::Armed::Racket`; the owner, 2026-11-15: "also racket on
     lvl10 room should not give AK-12 and instead AK74N with 7N10 ammo and eotech collimator"): a

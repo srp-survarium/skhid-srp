@@ -21,8 +21,8 @@ approved the name, level 0 in the low band and every recommendation below (2026-
   rifle and an SMG).
 - **Nothing of the players' is used or charged**: no item, no ammo, no medkit. Their skills still
   apply (more pockets, more ammo bags, Deep Pockets' one weapon).
-- **Share:** 10 % of the free-for-all cards, from the plain mode's: plain 40, Racket 40, Roulette
-  10, Saloon (Winchester) 5, Saloon 5.
+- **Share:** 30 % of the free-for-all cards (the owner, 2026-11-22): plain 30, Racket 30, Roulette
+  30, Saloon (Winchester) 5, Saloon 5.
 - **Name on the card:** "FFA: Roulette 11-15" (the band in the name, as Saloon's Winchester).
 - Server and content only (the lobby movie, the names in the 11 languages, the mode icons): no exe
   patch.
@@ -62,8 +62,8 @@ The card's names, `st_srp_mode_roulette_low` / `_mid` / `_high` (`<band>` is `1-
   (two assault rifles). [my pick; the owner said 1 to 5]
 - **Which bands a room allows:** each band whose top is at most the room's max level. A room of
   any max level (0) allows all three, as Racket takes such a room for a level-15 one
-  (`racket::Gun::of_room`). A room under level 5 allows none: its card never draws Roulette (its
-  share is the plain mode's). Public rooms are 10 or 15 today (`rooms.md`, the two brackets);
+  (`racket::Gun::of_room`). A room under level 5 allows none: its card never draws Roulette (left out
+  of the draw, the other shares as they are). Public rooms are 10 or 15 today (`rooms.md`, the two brackets);
   private rooms have no twists.
 - **Drawn per card,** uniformly among the bands the room allows (the owner: equal unless there is
   a reason): a level-15 room's Roulette 1-5, 6-10 and 11-15 a third each, a level-10 room's 1-5
@@ -211,11 +211,11 @@ pockets  military medkit, RGD-5, bandages, antitoxin, ...   (as many as each kit
 
 ## The draw share among the free-for-all cards
 
-Now plain 50, Racket 40, Saloon (Winchester) 5, Saloon 5. Proposed: **Roulette 10 from the
-plain mode**: plain 40, Racket 40, Roulette 10, Saloon (Winchester) 5, Saloon 5 (the plain mode
-took the 10 the Winchester freed on 2026-11-22; it gives them back). In a room that allows no band
-(under level 5) the 10 are the plain mode's. The band is a second draw of the 10 (each allowed
-band a third or a half of it), so no share is a fraction.
+**Plain 30, Racket 30, Roulette 30, Saloon (Winchester) 5, Saloon 5** (the owner, 2026-11-22; before
+it, plain 50, Racket 40 and the Saloons, then my pick of Roulette 10 from the plain mode). In a room that allows no band
+(under level 5) Roulette is left out of the draw. On a map played with a twist only (Military
+Warehouses, `ffa.md`) the plain share is out and Roulette keeps its 30 of the 70 left. The band is a second draw of
+the 30 (each allowed band a third or a half of it), so no share is a fraction.
 
 ## Lobby and HUD
 
@@ -243,7 +243,7 @@ band a third or a half of it), so no share is a fraction.
    as the owner wanted for Saloon).
 4. Level 0 in the low band (0-5, not 1-5): **yes** (rec.: starter guns, a thin band otherwise).
 5. Skills apply: **yes** (rec.).
-6. Share: **10, from the plain mode** (rec.).
+6. Share: 30 (the owner, after: plain 30, Racket 30, Roulette 30, the Saloons 5 each).
 7. Main guns of three different classes, each class as likely: **yes** (rec.; a class with one gun,
    the mid band's RPD, then comes as often as the 9 assault rifles).
 8. A pistol in every kit, the high band's from 6-10: **yes** (rec.); or no second weapon at all.

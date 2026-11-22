@@ -1722,6 +1722,7 @@ package
          this.set_match_time("");
          this.deathEyes.countdown("");
          this.endArtefactHunt();
+         this.player_list.players.frozen = 0;
          if(this.progress_indicator.respawn_time)
          {
             this.set_respawn_time("");
@@ -1816,6 +1817,10 @@ package
          _gameType = type;
          this._freezeContext = null;
          this._freezeWasFrozen = false;
+         if(type != 12)
+         {
+            this.player_list.players.frozen = 0;
+         }
          this.refresh_context();
          this.researchUnits.visible = type == this.GAME_MODE_RESEARCH;
          this.researchUnits.removeEventListener(Event.ENTER_FRAME,this.onResearchFrame);
@@ -1892,6 +1897,12 @@ package
          this._freezeContext = isFrozen || progress > 0 || status != 0
             ? {text:text,value:status == 0 ? Math.floor(progress / 30) : 0,visible:true} : null;
          this.refresh_context();
+      }
+
+      // The frozen places (bit n: place n), sent each frame; their Tab names ice blue.
+      public function freeze_tag_rows(mask:uint) : void
+      {
+         this.player_list.players.frozen = mask;
       }
 
       public function set_ffa_progress(own:int, top:int, target:int) : void
