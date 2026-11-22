@@ -2,7 +2,9 @@
 
 The owner, 2026-11-22: "let's design ffa: randomness (come up w/better name)", "where everyone gets
 the same random equipment of the same level (3 kits are different)"; of the levels: "it should be
-either lvl1 to 5, lvl6 to 10, lvl11 to 15"; "high lvl rooms can get low lvl bands".
+either lvl1 to 5, lvl6 to 10, lvl11 to 15"; "high lvl rooms can get low lvl bands"; then "roulette
+should also give random bonuses on equipment/weapons", "the ammo type should be highest available",
+"and for shotguns it should be a mix".
 
 A twist of the free-for-all cards (`ffa.md`, "Twists"), beside Racket and Saloon. The owner
 approved the name, level 0 in the low band and every recommendation below (2026-11-22). Code:
@@ -13,8 +15,9 @@ approved the name, level 0 in the low band and every recommendation below (2026-
 - The card draws a **level band** among those the room allows (a level-15 room 1-5, 6-10 or 11-15;
   a level-10 room 1-5 or 6-10), each as likely, then **one equipment**: three kits from that band.
 - **Everyone plays that same equipment**, all three kits, picked in the warm-up as any kit.
-- **Each kit:** a main gun, a pistol, the gun's ammo, a full set of armour, medkit, grenade and
-  more pockets. The three main guns are of **three different classes** (say a shotgun, a sniper
+- **Each kit:** a main gun, a pistol, the guns' best ammo (a shotgun buckshot and slugs), a full
+  set of armour, medkit, grenade and more pockets; every gun and armour piece with random bonuses,
+  as a dropped item gets them. The three main guns are of **three different classes** (say a shotgun, a sniper
   rifle and an SMG).
 - **Nothing of the players' is used or charged**: no item, no ammo, no medkit. Their skills still
   apply (more pockets, more ammo bags, Deep Pockets' one weapon).
@@ -64,10 +67,11 @@ The card's names, `st_srp_mode_roulette_low` / `_mid` / `_high` (`<band>` is `1-
 - **Drawn per card,** uniformly among the bands the room allows (the owner: equal unless there is
   a reason): a level-15 room's Roulette 1-5, 6-10 and 11-15 a third each, a level-10 room's 1-5
   and 6-10 half each. No reason seen to weigh them otherwise.
-- **The whole equipment from that band:** every gun and armour piece of it. The ammo and the
-  pockets are the band's or lower: the game has no medkit above `mm_level` 3 and no pistol above
-  10, so "at most the band's top" for those (below). Every kit's level is then within the band,
-  so every kit fits the room.
+- **The whole equipment from that band:** every gun and armour piece of it. The pockets are the
+  band's or lower (the game has no medkit above `mm_level` 3), the pistol too (none is above 10).
+  The ammo is a gun's highest, whatever its level (the owner: "the ammo type should be highest
+  available"): a kit's level may be over its band by its ammo alone, which no room checks in a
+  match (the rooms' door reads the account's own kits).
 
 ## What is drawn
 
@@ -76,10 +80,11 @@ One **hand**: three kits, drawn once per card. Each kit's slots (`data.md`, "slo
 | slot | what | rule |
 | --- | --- | --- |
 | 7, weapon 1 | a main gun of the band | its class (assault rifle, machine gun, shotgun, sniper rifle, SMG) one of three different classes the hand draws, one a kit |
-| 8 | weapon 1's ammo | its ammunition (below) |
+| 8 | weapon 1's ammo | its highest ammunition; a shotgun's highest buckshot (below) |
+| 9 | a shotgun's slugs | its highest slug, beside its buckshot; empty for any other gun |
 | 10, weapon 2 | a pistol of at most the band's top | from the band's pistols, else the highest band below that has some (the high band's from 6-10: no pistol is above level 10) |
 | 11 | the pistol's ammo | its ammunition |
-| 9, 12, 19-22 | empty | one ammo slot a gun |
+| 12, 19-22 | empty | a pistol fires one ammunition |
 | 0-6, armour | helmet, mask, torso, back, legs, gloves, boots: one piece of the band each | a slot another drawn piece covers stays empty (`covered_slots`) |
 | 13-18, pockets | a medkit, a grenade, then four other pocket items | drawn kinds, each pocket full (below) |
 | artefacts | none | no profile slot; they are found in the match |
@@ -98,13 +103,26 @@ One **hand**: three kits, drawn once per card. Each kit's slots (`data.md`, "slo
   ammo and pockets in. A kit over it draws its armour again (up to 16 times, the same draw); after
   that its heaviest pieces are left out, one by one, until it fits. (The high band's
   exoskeletons weigh 33 kg alone.)
-- **Ammo** of a gun: the ammunition the dictionary pairs with it (`compatible`) that fits its ammo
-  slot, the shop sells and has a `mm_level` at most the band's top; of those the highest level
-  (the lower dict id of two alike). Its rounds: a clip for each of the kit's ammo bags, as
-  Saloon's Winchester and Colt (`ffa-cowboy.md`, "Rounds"): the bags as the lobby counts them
-  (`racket::free_bags`: the player's 3, the worn pieces' `ammo_bags_modifier`, the skills'), the
-  main gun the first and every other one, the pistol the rest; a gun with no clip its magazine
-  alone.
+- **Ammo** of a gun: of the ammunition the dictionary pairs with it (`compatible`) that fits its
+  ammo slot and the shop sells, the highest level (the lower dict id of two alike), whatever the
+  band. A shotgun (category 14) a mix: its highest buckshot (a round of more than one pellet,
+  `data.buck_shot`) and its highest slug (one projectile), each in an ammo slot of its own (8 and
+  9), its bags split between them, the buckshot the first and every other one; a shotgun of one
+  kind (the KS-23M: buckshot only) has that alone. Its rounds: a clip for each of the kit's ammo
+  bags, as Saloon's Winchester and Colt (`ffa-cowboy.md`, "Rounds"): the bags as the lobby counts
+  them (`KitLayout::ammo_bags`: the player's 3, the worn pieces' `ammo_bags_modifier`, their
+  bonuses' and the skills'), the main gun the first and every other one, the pistol the rest; a gun
+  with no clip its magazine alone.
+- **Bonuses** (the owner, 2026-11-22: "roulette should also give random bonuses on
+  equipment/weapons"): every gun and armour piece of the hand gets its modifications as a dropped
+  item does (`Bonuses::roll`): a rarity from the after-match drop table (`drops::DropTable::
+  gear_rarity`, `rarity_points` [0, 1, 1.6, 1.9, 2]: none half the time, one 30 %, two 15 %, three
+  5 %, as the item's own `rarity` list allows), then that many modifications, each of another type
+  the item takes, by drop weight (`Modifications::roll_for_rarity`, the one pool of drops and
+  upgrades). Rolled once with the hand from a generator its card's draw seeds, so every player has
+  the same; on the match's items as their own modifications, as an owned item's reach a match. They
+  count in the kit's layout (an ammo bags or pockets bonus opens them). Nobody's inventory gets
+  them, and they pay nothing (below). The weight cap counts the pieces' plain weight.
 - **Pockets:** six kinds a kit, each a different item type (one pocket a type,
   `one-pocket-a-type.md`), of the pocket categories (10 medicines and boosters, 11 traps, 24
   grenades) the shop sells, at most the band's top: first a healing medkit (a medicine whose
@@ -139,7 +157,7 @@ pockets  military medkit, RGD-5, bandages, antitoxin, ...   (as many as each kit
 
 - **Drawn once, with the card,** in the lobby's deal (`session::v026g::rooms::Rooms::deal`), by
   the same random source as the card's map and twist (`below`), right after the twist's roll: the
-  band, the classes, the guns, the armour, the pockets. The hand is a value the card holds
+  band, the classes, the guns, the armour, the pockets, then the seed of the bonuses. The hand is a value the card holds
   (`twist::Armed::Roulette(Hand)`, in `twist::Played`), so the match server, the logs and the
   history read the same hand; nothing draws again.
 - **Sent as the other twists' kits:** the match server arms every profile it gives (the first
@@ -159,7 +177,8 @@ pockets  military medkit, RGD-5, bandages, antitoxin, ...   (as many as each kit
 ## Players' own things
 
 - **Nothing of theirs is in the match:** every item of the profile is the hand's (the account's
-  leave the profile's table), whole (`FULL_CONDITION`), no modifications of their own, no upgrades;
+  leave the profile's table), whole (`FULL_CONDITION`), its rolled bonuses its only own
+  modifications, no upgrades;
   ids from 1. Every stack's store is the largest kit's count of it [`twist::STORE_LIVES`] times, so
   every life has its ammo and its full pockets (`ffa.md`, "Twists").
 - **Nothing is charged:** no wear (no match wears an item since 2026-11-08), no ammo, no medkit,
@@ -216,7 +235,9 @@ band a third or a half of it), so no share is a fraction.
 7. Main guns of three different classes, each class as likely: **yes** (rec.; a class with one gun,
    the mid band's RPD, then comes as often as the 9 assault rifles).
 8. A pistol in every kit, the high band's from 6-10: **yes** (rec.); or no second weapon at all.
-9. Ammo: **the gun's highest-level ammo within the band** (rec.); or a random one it fires.
+9. Ammo: the gun's highest-level ammo, whatever the band (the owner, after: "the ammo type should
+   be highest available"); a shotgun its highest buckshot and its highest slug ("for shotguns it
+   should be a mix").
 10. Guns bare, no scope or attachment: **yes** (rec., as Saloon); or Racket's EOTech where it fits.
 11. The pay's equipment block: **none** (rec.).
 12. Weight held to 30 kg a kit: **yes** (rec.).
