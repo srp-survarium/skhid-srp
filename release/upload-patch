@@ -12,9 +12,13 @@
 #      place (mv -n: an existing file is never replaced);
 #   4. GET $SKHID_PATCHES_URL/<name> must answer 200 with the local file's
 #      sha256;
-#   5. adds `<name> <sha256> <size> <url>` to the list: commit it (the
-#      release's record PR). Mirrors go after <url> in the row:
-#      release/add-mirror.
+#   5. with a Dropbox account in release.env (SKHID_DROPBOX_REFRESH_TOKEN or
+#      SKHID_DROPBOX_TOKEN; not with --test): release/dropbox-upload puts the
+#      file there too and checks its address;
+#   6. adds `<name> <sha256> <size> <urls>` to the list, Dropbox's address
+#      before the patches server's (the owner's order: Google Drive's,
+#      Dropbox's, the patches server's, archive.org's): commit it (the
+#      release's record PR). More mirrors: release/add-mirror.
 # Each write asks y/N first, showing the command. --dry-run prints them only.
 # A published patch is never changed or deleted: a fix is the next revision.
 #
@@ -53,7 +57,7 @@ url=$PATCHES_URL/$name
 say "$name: $size bytes, sha256 $sha"
 row=$(list_row "$name")
 if [[ -n $row ]]; then
-    [[ $row == "$name $sha $size $url" || $row == "$name $sha $size $url "* ]] ||
+    [[ $row == "$name $sha $size "* && " ${row#"$name $sha $size "} " == *" $url "* ]] ||
         die "$name is in $PATCH_LIST already, with OTHER bytes ($row); a published patch is never replaced: make the next revision"
     die "$name is in $PATCH_LIST already, with these same bytes: nothing to do"
 fi
@@ -75,8 +79,11 @@ else
     fi
     write_on patches "cd $dir && test ! -e $(q "$name") && chmod 644 $(q "$name.tmp") && mv -n $(q "$name.tmp") $(q "$name") && test ! -e $(q "$name.tmp")"
 fi
+dropbox=0
+if [[ $which == live && -n ${SKHID_DROPBOX_REFRESH_TOKEN:-}${SKHID_DROPBOX_TOKEN:-} ]]; then dropbox=1; fi
 if ((DRY_RUN)); then
     say "[dry run] then: GET $url must answer 200 with sha256 $sha"
+    ((!dropbox)) || say "[dry run] then: release/dropbox-upload $file, its address before $url in the row"
     say "[dry run] and: $name $sha $size $url added to $PATCH_LIST"
     exit 0
 fi
@@ -88,6 +95,11 @@ status=$(http_get "$url" "$work/$name")
 got=$(sha256_of "$work/$name")
 [[ $got == "$sha" ]] || die "GET $url gave sha256 $got, not $sha; not added to $PATCH_LIST"
 say "published: $url (200, sha256 $sha)"
+if ((dropbox)); then
+    mirror=$("$(dirname "$0")/dropbox-upload" "$file" | cut -f2) && [[ -n $mirror ]] ||
+        die "$name is not on Dropbox, and not added to $PATCH_LIST: run this again (the patches server has it), or take the Dropbox settings out of $RELEASE_ENV to release without"
+    url="$mirror $url"
+fi
 if [[ -s $PATCH_LIST && -n $(tail -c 1 "$PATCH_LIST") ]]; then echo >>"$PATCH_LIST"; fi
 printf '%s\t%s\t%s\t%s\n' "$name" "$sha" "$size" "$url" >>"$PATCH_LIST"
 say "added to $PATCH_LIST: commit it with the release's record"

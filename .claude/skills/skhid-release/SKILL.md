@@ -127,6 +127,24 @@ one only when the owner requests it. Do not delay a release or ask for a Drive
 exception merely because no Drive uploader is configured. Keep existing
 committed mirror URLs unless the owner asks to remove them.
 
+**Dropbox** (owner, 2026-11-22: the patches server is cut by providers in
+Russia, Dropbox is the address for those players). With the account in
+`release.env` (`SKHID_DROPBOX_APP_KEY`, `SKHID_DROPBOX_APP_SECRET`,
+`SKHID_DROPBOX_REFRESH_TOKEN`, made once with `release/dropbox-upload
+--login`), `upload-patch` also puts a new patch on Dropbox
+(`release/dropbox-upload`: the upload, its public link, a whole download
+back against the sha256) and writes that address before the patches
+server's in the patch's row. The owner's order of a file's addresses:
+Google Drive's, Dropbox's, the patches server's, archive.org's (then the
+torrent). The address must be the
+`https://dl.dropboxusercontent.com/scl/fi/<id>/<name>?rlkey=<key>&dl=1`
+form, which the tool prints: the `www.dropbox.com` form of the same link
+redirects to an address ending in `#`, which the updater refuses. Dropbox
+Plus allows 1 TB of downloads a day; past it every link is paused for a
+day, and the other addresses serve. `release/dropbox-upload <file>...` by
+itself uploads any file (the game's archive, a bootstrap file) and prints
+its address for `release/add-mirror`.
+
 **Replays, and a change of what a match computes.** A game is given a
 replay only when every game of its recording was of the oldest replayable
 revision or later: the last row of

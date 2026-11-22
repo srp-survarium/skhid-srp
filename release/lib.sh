@@ -598,8 +598,9 @@ on_patches() { ssh "$PATCHES_SSH" "$1" <"${2:-/dev/null}"; }
 # The offered-patch list (use_patches first), a committed file: one patch a
 # line, `<name> <sha256> <size> <urls>` with tabs between, in revision order;
 # `#` starts a comment. <urls> is the patch's URLs, one space apart, in the
-# order the players' updater tries them (Google Drive's first, the owner's
-# rule; the patches server's among them, always), 1 to 8, none twice. The server data is built of exactly these
+# order the players' updater tries them (Google Drive's, Dropbox's, the
+# patches server's, archive.org's: the owner's rule; the patches server's
+# among them, always), 1 to 8, none twice. The server data is built of exactly these
 # and /patches offers exactly these; a file on the patches server that is
 # not in it is offered to no one. And release/game.tsv ($GAME_LIST), the
 # row of the game's archive in the same form ($GAME_NAME, any host first):
