@@ -27,6 +27,75 @@ impl Bots {
     /// guessed a mirrored z until a battery far from z = 0 voted otherwise;
     /// on level_05, whose spawners lie at z -0.5 to -1, they took the mirror
     /// image all match and never took those batteries.
+    /// [fix-team logging] The record of `victim`'s death (of `team`) between the views `(before, after)` of this world, the
+    /// kills by kind it shows `kinds` against the last world's, the kill feed's `death` (where it was last alive), at `time`.
+    fn death_record(
+        &self,
+        victim: Place,
+        team: usize,
+        (before, after): (&view::MatchView, &view::MatchView),
+        kinds: &[death_log::KillCounts],
+        death: Option<&view::Death>,
+        time: u32,
+    ) -> death_log::Death {
+        let killers: Vec<Place> = after
+            .places
+            .iter()
+            .zip(&before.places)
+            .filter(|(now, was)| usize::from(now.team & 1) != team && now.kills > was.kills)
+            .map(|(now, _)| now.place)
+            .collect();
+        let weapon = |place: Place| self.features.weapons.get(place).copied().flatten();
+        let hits = |place: Place, from: u32| -> Vec<u32> {
+            self.life_hits.get(place).map_or_else(Vec::new, |(_, times)| times.iter().copied().filter(|&t| t >= from && t <= time).collect())
+        };
+        let life = |place: Place| self.tracker.body(place).and_then(|body| body.fix()).map_or(0, |fix| fix.inserted);
+        let victim_view = before.place(victim).or_else(|| after.place(victim));
+        let killer = match killers[..] {
+            [killer] => before.place(killer).or_else(|| after.place(killer)).map(|k| (killer, k)),
+            _ => None,
+        };
+        // Both alive from the later of their lives' starts: the hits each took since.
+        let both = life(victim).max(killer.map_or(0, |(k, _)| life(k)));
+        let mut victim_side = victim_view.map_or_else(
+            || death_log::Side {
+                place: victim,
+                bot: false,
+                at: death.map_or(Vec3::ZERO, |d| d.at),
+                speed: 0.0,
+                crouched: false,
+                sprint_key: false,
+                weapon: weapon(victim),
+                hits: hits(victim, both),
+            },
+            |p| death_log::Side::of(p, weapon(victim), hits(victim, both)),
+        );
+        if let Some(d) = death {
+            victim_side.at = d.at;
+        }
+        // No kinds in the world (no statistics, the bench's stand-in): the kind is not read.
+        let kind = killer.filter(|_| !kinds.is_empty()).map(|(k, _)| {
+            let now = kinds.get(k).copied().unwrap_or_default();
+            let was = self.kill_kinds.get(k).copied().unwrap_or(now);
+            death_log::KillKind::of([0, 1, 2, 3].map(|i| now[i] > was[i]))
+        });
+        let senses = match self.bots.get(victim).and_then(Option::as_ref) {
+            None => death_log::Senses::Human,
+            Some(bot) => match killer.and_then(|(k, _)| bot.memory.tracks().iter().find(|t| t.who == k).copied()) {
+                Some(track) => death_log::Senses::Track { time: track.time, source: track.source, sight_since: track.sight_since },
+                None => death_log::Senses::Unknown,
+            },
+        };
+        death_log::Death {
+            time,
+            victim: victim_side,
+            killer: killer.map(|(k, p)| death_log::Side::of(p, weapon(k), hits(k, both))),
+            killers,
+            kind,
+            senses,
+        }
+    }
+
     pub fn facts(&mut self, mut facts: WorldFacts) -> Vec<Note> {
         let mut notes = Vec::new();
         // [Gap 9] The kill times date deaths with `think.kill_time` only.
@@ -41,6 +110,8 @@ impl Bots {
             playing: true,
         };
         let before = self.tracker.view(&at(time), &self.tunings.match_wide().kin, None);
+        // [fix-team logging] The kills by kind this world shows, against the last one's, for the death record.
+        let kill_kinds = std::mem::take(&mut facts.kill_kinds);
         let new_deaths = self.tracker.facts(facts);
         // Who the view believes carries the batteries, and why (`view`).
         for text in self.tracker.take_notes() {
@@ -71,6 +142,10 @@ impl Bots {
                 continue;
             }
             let team = usize::from(a.team & 1);
+            // [fix-team logging] The death's record, for the match log and the bot trace (`death_log.rs`): logging only.
+            let record = self.death_record(a.place, team, (&before, &after), &kill_kinds, new_deaths.iter().find(|d| d.place == a.place), time);
+            self.trace.line(record.json());
+            notes.push(Note { place: usize::MAX, time, text: record.line() });
             // The kill feed's spot: where the body was last reckoned alive
             // (the world showing the death has it without feet, and was
             // fixed first: `before` has none). A body never placed gives
@@ -341,6 +416,10 @@ impl Bots {
                 }
                 _ => {}
             }
+        }
+        // [fix-team logging] The kills by kind of this world: the next one's deaths are told against them.
+        if !kill_kinds.is_empty() {
+            self.kill_kinds = kill_kinds;
         }
         notes
     }

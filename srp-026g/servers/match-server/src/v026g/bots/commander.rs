@@ -1336,6 +1336,8 @@ impl Bots {
                 push_escape(tactics, &tuning, now, side, target.at(), home, &known, held)
             });
             let state = &mut self.teams[usize::from(team)];
+            // [fix-team logging] The enemies alive where the worlds put them: the push lines count them by the target.
+            let alive_enemies: Vec<Vec3> = view.enemies_of(team).map(|p| p.feet).collect();
             let picture = super::push::Picture {
                 now,
                 behind: view.objective().has_homes() && home.is_some() && rule.behind(state.signals.score_gap),
@@ -1344,6 +1346,7 @@ impl Bots {
                 home: home.unwrap_or(Vec3::new(0.0, 0.0, 0.0)),
                 targets: &targets,
                 escape,
+                enemies: &alive_enemies,
             };
             let before = std::mem::take(&mut state.knowledge.push);
             let (next, events) = before.clone().next(&picture, &rule);

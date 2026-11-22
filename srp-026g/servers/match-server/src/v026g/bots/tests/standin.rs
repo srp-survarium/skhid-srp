@@ -3194,6 +3194,8 @@ impl Game {
                 .collect(),
             respawns: Some(respawns),
             kill_times: self.last_kills.clone(),
+            // [fix-team logging] The stand-in books no kill kinds: the death record says the kind was not read.
+            kill_kinds: Vec::new(),
             time: self.tick,
             stats: self.stats.clone(),
             points: Some(self.tickets.unwrap_or(self.points)),
