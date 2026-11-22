@@ -1070,12 +1070,7 @@ impl Game {
         let walkers = driven::Walkers::new(&formed, &settings);
         // Once for the match: a private room's (a PIN) and one against bots
         // remove nobody.
-        let kind = match (formed.private, formed.vs_bots) {
-            (true, _) => afk::MatchKind::PrivateRoom,
-            (false, true) => afk::MatchKind::VsBots,
-            (false, false) => afk::MatchKind::Public,
-        };
-        let afk = Watch::new(settings.anti_afk, kind);
+        let afk = Watch::new(settings.anti_afk, formed.kind);
         log_unread_kits(&formed, 0);
         Self {
             id: formed.match_id,
@@ -1143,14 +1138,14 @@ impl Game {
             "mode": map.mode.rules().number(),
             "match_level": self.formed.match_level,
             "growing_roster": self.formed.growing_roster,
-            "vs_bots": self.formed.vs_bots,
+            "vs_bots": self.formed.kind.vs_bots(),
             "initial_players": self.formed.initial_players,
             "late_inputs": format!("{:?}", self.settings.late_inputs),
             "places": self.places_note(0),
         });
         self.recording = Some(recorder.open(
             &self.formed.replay_id,
-            self.formed.vs_bots,
+            self.formed.kind.vs_bots(),
             header,
             now,
         ));
@@ -4014,7 +4009,7 @@ impl Game {
     fn relay_to_others(&mut self, index: usize, what: &Relayed, time: u32, now: Instant) {
         // A solo human's inputs have no recipient. Keep the accepted
         // action after rejection/retiming, not the unchecked inbound packet.
-        if self.formed.vs_bots
+        if self.formed.kind.vs_bots()
             && !self.formed.places[index].driven
             && let Some(recording) = self.recording.as_mut()
         {
@@ -5364,7 +5359,7 @@ impl Game {
                 played,
                 &self.kill_pairs,
                 super::reward_caps::Objectives::of(self.formed.played.map()),
-                self.formed.vs_bots,
+                self.formed.kind.vs_bots(),
             );
             for cut in &payment.objectives {
                 log::info!(
@@ -5479,8 +5474,8 @@ impl Game {
             trusted_snapshot_ms: state.map(|state| state.time),
             trusted_by: state.map_or(0, |state| state.vouchers),
             players,
-            vs_bots: self.formed.vs_bots,
-            private: self.formed.private,
+            vs_bots: self.formed.kind.vs_bots(),
+            private: self.formed.kind.private(),
         }
     }
 
@@ -6144,7 +6139,7 @@ impl Game {
     }
 
     /// A match of one player against the server's bots
-    /// ([`Formed::vs_bots`]) whose player plays (in the match, its world
+    /// ([`Formed::kind`]) whose player plays (in the match, its world
     /// given) and has been asked for its world for `Timing::pvb_stall`
     /// with none uploaded is over, as one everyone left
     /// (`MatchEnd::Deserted`): the bots see the world only through that
@@ -6156,7 +6151,7 @@ impl Game {
     /// against bots with more players in it (a private room's with bots)
     /// has the rules of any match: its other players upload the world.
     fn check_pvb_stall(&mut self, now: Instant) {
-        if !self.formed.vs_bots || self.finished_at.is_some() || self.ending.is_some() {
+        if !self.formed.kind.vs_bots() || self.finished_at.is_some() || self.ending.is_some() {
             return;
         }
         let players = (0..self.formed.places.len())

@@ -65,7 +65,7 @@ mod words;
 
 pub use modes::Pools;
 pub use patches::{Downloads, OfferedPatch};
-pub use v026g::{Game, LiveMatch, LivePhase, LiveStanding, LobbyLink, MatchCounter};
+pub use v026g::{Game, LiveKind, LiveMatch, LivePhase, LiveStanding, LobbyLink, MatchCounter};
 
 use std::collections::HashMap;
 use std::fs::File;

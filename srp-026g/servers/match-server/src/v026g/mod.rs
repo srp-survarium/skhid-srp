@@ -239,7 +239,7 @@ pub(crate) struct Timing {
     /// way before the sync starts over (`SRP_ENTRY_STATE_SECONDS`). A game
     /// that plays is resynced within the 1.75 s of the client's own table.
     pub entry_state: Duration,
-    /// A match against the server's bots ([`MatchSetup::vs_bots`]) whose
+    /// A match against the server's bots ([`MatchSetup::kind`]) whose
     /// only player has been asked for its world this long and sent none
     /// is over (`SRP_PVB_STALL_S`): its bots see the world through that
     /// player's uploads alone.

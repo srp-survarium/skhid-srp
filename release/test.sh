@@ -396,8 +396,11 @@ M=http://127.0.0.1:$(cat "$T/mirror.port")
 # saying whether a release folder was staged then), /api/stats saying a
 # match runs for the first $T/state/busy asks, or (with $T/state/matches)
 # the next line of that file for each ask (its last line once it is the only
-# one), with "last_match_ends_in" of $T/state/ends-in when there is one (an
-# srp from before it without), the launcher's matches with the "Time left"
+# one; "<all> <normal>": that many of them normal), with "last_match_ends_in"
+# of $T/state/ends-in when there is one (an srp from before it without),
+# with "normal_matches" (all of them unless the line says) and
+# "last_normal_match_ends_in" of $T/state/normal-ends-in when there is one
+# (an srp from before them without), the launcher's matches with the "Time left"
 # of each line of $T/state/page-left (minutes, or - for none yet),
 # /api/client-files of the ZIP in place when asked.
 python3 - "$T/site" "$T/site.port" "$T/state" "$T/live/download/Survarium-0.26g-srp-files.zip" >/dev/null 2>&1 <<'EOF' &
@@ -413,10 +416,13 @@ def read(name, default=None):
 class Handler(http.server.SimpleHTTPRequestHandler):
     server_version, sys_version = "Caddy", ""
     def log_message(self, *args): pass
-    def stats(self, online, matches):
+    def stats(self, online, matches, normal=None):
         body = '{"online":%d,"registered":3,"matches":%d,"queued":0' % (online, matches)
         if read("ends-in") is not None:
             body += ',"last_match_ends_in":%d' % int(read("ends-in"))
+        if read("normal-ends-in") is not None:
+            body += ',"normal_matches":%d,"last_normal_match_ends_in":%d' % (
+                matches if normal is None else normal, int(read("normal-ends-in")))
         return self.answer(200, body + "}")
     def answer(self, status, body):
         data = body.encode()
@@ -440,15 +446,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             lines = read("matches").split("\n")
             if len(lines) > 1:
                 open(os.path.join(state, "matches"), "w").write("\n".join(lines[1:]) + "\n")
-            n = int(lines[0])
-            return self.stats(3, n)
+            counts = [int(each) for each in lines[0].split()]
+            return self.stats(3, counts[0], counts[1] if len(counts) > 1 else None)
         if self.path == "/api/stats" and read("busy"):
             busy = int(read("busy"))
             open(os.path.join(state, "busy"), "w").write(str(busy - 1))
             if busy > 0:
                 return self.stats(3, 1)
             return self.stats(0, 0)
-        if self.path == "/api/stats" and read("ends-in") is not None:
+        if self.path == "/api/stats" and (read("ends-in") is not None or read("normal-ends-in") is not None):
             return self.stats(0, 0)
         if self.path == "/api/client-files":
             try:
@@ -2400,6 +2406,30 @@ check "release: ... the page lists fewer than run: 16 min" bash -c "grep -q 'in 
 rm -f "$T/state/matches" "$T/state/page-left"
 check "release --dry-run: none of these planned anything" test ! -s "$T/state/admin.log"
 
+# --end-bot-and-private-matches: the normal matches alone are waited for.
+# An srp that does not tell them apart is a preflight problem, never a
+# silent wait for all of them or for none.
+expect_refused "release: --end-bot-and-private-matches and --now refused together" "one or the other" \
+    "$here/release.sh" --now --end-bot-and-private-matches
+echo 840 >"$T/state/ends-in"
+run quiet --dry-run --end-bot-and-private-matches && fail "release.sh --end-bot-and-private-matches --dry-run, an older srp: ended 0"
+check "release --end-bot-and-private-matches: an srp without the normal matches' fields is a preflight problem" has "$out" \
+    "MISSING  --end-bot-and-private-matches: .*/api/stats does not tell the normal matches apart (no normal_matches and last_normal_match_ends_in: its srp is from before them)"
+check "release --end-bot-and-private-matches: ... a real run would stop before the lock" has "$out" "a real run would stop before the lock"
+# 3 matches, the last ending in 14 min; the 1 normal one in 5: the
+# maintenance in 6 min, the swap once "normal_matches":0, the others ended.
+echo 300 >"$T/state/normal-ends-in"
+printf '3 1\n' >"$T/state/matches"
+run quiet --dry-run --end-bot-and-private-matches || fail "release.sh --end-bot-and-private-matches --dry-run: $out"
+check "release --end-bot-and-private-matches --dry-run: the preflight counts the normal matches" has "$out" \
+    "/api/stats: 1 of them normal (the last ends in 5:00 at the latest), 2 against bots or of private rooms"
+check "release --end-bot-and-private-matches --dry-run: the maintenance from the last normal match: 6 min" bash -c \
+    "grep -q 'in 6 min (now: /api/stats: the last normal match ends in 5:00 at the latest (last_normal_match_ends_in 300), then 30 s' <<<\"\$1\"" _ "$(plan_line)"
+check "release --end-bot-and-private-matches --dry-run: the swap once \"normal_matches\":0, the others ended at the stop" in_order "$out" \
+    '^\[dry run\] 5. at the planned time: .*"normal_matches":0 on ' \
+    'the stop ends without results (--end-bot-and-private-matches)' 'compose stop srp26'
+rm -f "$T/state/ends-in" "$T/state/normal-ends-in" "$T/state/matches"
+
 # A stop before the go (build-zip fails): nothing planned.
 echo 300 >"$T/state/ends-in"
 : >"$T/state/admin-seen.log"
@@ -2691,6 +2721,25 @@ check "release --test: no record" has "$out" "No record (--test): no commit, no 
 check "release --test: ... no tag, no branch" no_record 19
 check "release --test: ... main as it was, gh never asked" test "$(git -C "$T/origin.git" rev-parse main)|$(cat "$T/gh.log")" = "$main_before|"
 check "release --test: nothing put on the public DHT" test ! -s "$T/publish-dht.args"
+
+# --end-bot-and-private-matches (on the test environment: revision 20): the
+# maintenance from the last normal match, the swap once no normal match
+# runs, the two others ended at the stop and said by kind.
+: >"$T/state/admin.log"
+echo 0 >"$T/state/normal-ends-in"
+printf '3 1\n3 1\n3 1\n3 1\n2 0\n' >"$T/state/matches"
+run yes --test --end-bot-and-private-matches --label nb || fail "release.sh --test --end-bot-and-private-matches: $out"
+rm -f "$T/state/normal-ends-in" "$T/state/matches"
+check "release --end-bot-and-private-matches: plans the maintenance from the normal match" bash -c \
+    "test \"\$1\" = 'plan 1' && grep -q 'planning the maintenance in 1 min (/api/stats: no normal match runs (last_normal_match_ends_in 0)' <<<\"\$2\"" _ "$(admin_log)" "$out"
+check "release --end-bot-and-private-matches: ... waits while a normal match runs" has "$out" "1 normal match(es) "
+check "release --end-bot-and-private-matches: ... swaps with the others running" cmp -s "$T/work/r20.zip" "$T/live/download/Survarium-0.26g-srp-files.zip"
+check "release --end-bot-and-private-matches: ... says, right before the stop, the matches it ends by kind" in_order "$out" \
+    '5. no normal match is running; 2 match(es) against bots or of private rooms' '5. the swap' \
+    '--end-bot-and-private-matches: 2 match(es) running (2 against bots or of private rooms, 0 normal): the stop ends them now, WITHOUT RESULTS' \
+    'the server is up on the new data'
+check "release --end-bot-and-private-matches: ... kept in the folder's release.log" grep -q -- \
+    "--end-bot-and-private-matches: the stop ended 2 match(es) without results (2 against bots or of private rooms, 0 normal)" "$(folder 20 nb)/release.log"
 
 # No secret in any output or command line.
 check "release: the admin token is in no output" bash -c "! grep -qF -- '$token' $T/outputs"
