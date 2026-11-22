@@ -835,6 +835,8 @@ pub struct PlayerCard {
     pub level: u8,
     pub experience: u32,
     pub rating: u16,
+    /// `(skill id, points)` of the skills it has points in, as it took them.
+    pub skills: Vec<(u16, u8)>,
     pub totals: Totals,
 }
 
@@ -1616,8 +1618,15 @@ impl MatchHistory {
     /// The account's card; `None` for no account or one without a public
     /// match (its name is most often still the login).
     pub fn player(&self, account_id: u32) -> Result<Option<PlayerCard>, PersistError> {
-        Ok(self
-            .reader()
+        let connection = self.reader();
+        let skills = connection
+            .prepare_cached(
+                "SELECT skill_id, points FROM g26_skills
+                 WHERE account_id = ?1 AND points > 0 ORDER BY seq",
+            )?
+            .query_map([account_id], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .collect::<rusqlite::Result<_>>()?;
+        Ok(connection
             .query_row(
                 &format!(
                     "SELECT {NAMED}, a.exp_total, a.rating, {TOTALS}
@@ -1633,6 +1642,7 @@ impl MatchHistory {
                         level: level_of(experience),
                         experience,
                         rating: row.get(5)?,
+                        skills,
                         totals: totals_at(row, 6)?,
                     })
                 },
@@ -2329,6 +2339,7 @@ mod tests {
         let mut repository = SqliteGameRepository::open(&dir.db()).unwrap();
         let mut alice = Account::new("Alice");
         alice.rating = 150;
+        alice.skills = vec![(103, 2), (101, 5)];
         repository.save(10, &alice).unwrap();
         repository.save(11, &Account::new("Bob")).unwrap();
         repository
@@ -2790,6 +2801,7 @@ mod tests {
             })
         );
         assert_eq!(card.rating, 150);
+        assert_eq!(card.skills, [(103, 2), (101, 5)]);
         assert_eq!(
             card.totals,
             Totals {

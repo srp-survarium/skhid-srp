@@ -1155,7 +1155,7 @@ impl Web {
             if request.method == "GET" {
                 match request.path.as_str() {
                     "/api/stats" => return stats::response(&self.store, game),
-                    history::PATH => return stats_page(request.lang),
+                    history::PATH => return stats_page(request.lang, &request.target),
                     history::REPLAY
                         if !self.replay_ask_allowed(request.client, Instant::now()) =>
                     {
@@ -1769,13 +1769,14 @@ fn maps_page(lang: Lang) -> Response {
     maps::page(lang, &tool_header(lang, &lang.t("Maps")))
 }
 
-/// The stats: their page under the site's header, a tab of its own.
-fn stats_page(lang: Lang) -> Response {
+/// The stats: their page under the site's header, a tab of its own, for the request's `target`.
+fn stats_page(lang: Lang, target: &str) -> Response {
     let connect = CONNECT.get();
     let test = connect.is_some_and(|connect| connect.test_server);
     let other_url = connect.and_then(|connect| connect.other_url.as_deref());
     let (header, notice) = site_header(lang, true, test, other_url, history::PATH);
-    history::page(lang, &format!("{header}{notice}"))
+    let query = target.split_once('?').map_or("", |(_, query)| query);
+    history::page(lang, &format!("{header}{notice}"), query)
 }
 
 fn wiki_page(path: &str, target: &str, lang: Lang, game: &Game) -> Response {
