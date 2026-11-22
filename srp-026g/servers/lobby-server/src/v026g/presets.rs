@@ -33,10 +33,14 @@ impl Core<'_> {
                 Ok(_) => (PresetDone::Chosen, preset),
                 Err(_) => (PresetDone::Refused, preset),
             },
-            // The list's `K` row says what the kits are now, done or not.
+            // The list answers the click by name (its request in `preset`), set or refused, its
+            // `K` row what the kits are now: the movie takes no other list for it.
             PresetRequest::Perk { kit, perk, slot } => {
-                self.perk_slot(who, kit, perk, slot);
-                (PresetDone::Listed, 0)
+                let named = request.perk_request().unwrap_or(0);
+                match self.perk_slot(who, kit, perk, slot) {
+                    true => (PresetDone::PerkSet, named),
+                    false => (PresetDone::PerkRefused, named),
+                }
             }
         };
         self.send_presets(who, done, preset);
@@ -127,13 +131,13 @@ impl Core<'_> {
     /// not while it is in a match or on its way to one, as a
     /// preset choice. Changed: the client gets the inventory and the account (the kit's pockets
     /// and containers), and squad mates the kits.
-    fn perk_slot(&mut self, who: &Who, kit: u8, perk: SlotPerk, slot: PerkSlot) {
+    fn perk_slot(&mut self, who: &Who, kit: u8, perk: SlotPerk, slot: PerkSlot) -> bool {
         let free = self
             .player(who.addr)
             .is_some_and(|player| player.in_match.is_none() && player.connect.is_none());
         if !free {
             log::info!("{}: kit {kit}'s {perk:?} {slot:?}: refused, busy", who.name);
-            return;
+            return false;
         }
         let changed = who
             .account
@@ -144,10 +148,12 @@ impl Core<'_> {
                 log::info!("{}: kit {kit}'s {perk:?} {slot:?}", who.name);
                 self.push_account(who);
                 self.squads_dirty = true;
+                true
             }
-            Ok(false) => {}
+            Ok(false) => true,
             Err(error) => {
-                log::info!("{}: kit {kit}'s {perk:?} {slot:?}: refused ({error})", who.name)
+                log::info!("{}: kit {kit}'s {perk:?} {slot:?}: refused ({error})", who.name);
+                false
             }
         }
     }

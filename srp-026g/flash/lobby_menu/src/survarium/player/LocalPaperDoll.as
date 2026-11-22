@@ -337,15 +337,39 @@ package survarium.player
       {
          this._ammoControl.openSlots(slotsN,slotsA);
          super.openSlots(slotsN,slotsA);
+         // The marks count from srp's pockets as they come, not from the last drawing.
+         for each(var mark:PerkSlotMark in this._marks)
+         {
+            mark.counted(_slotsN);
+         }
+      }
+
+      // One switch at a time a kit (the owner, 2026-11-22: "when I click too fast, 'fake' pocket
+      // on top can appear for a moment"): none while another is asked, nor while a slot shakes.
+      private function mayClick() : Boolean
+      {
+         if(this._shaken != null)
+         {
+            return false;
+         }
+         for each(var mark:PerkSlotMark in this._marks)
+         {
+            if(mark.busy)
+            {
+               return false;
+            }
+         }
+         return true;
       }
 
       // The perks' slots of the kit shown, as srp says them (PerkSlotMark's states, a perk each),
       // and how to ask for others (LocalPlayerProfile).
-      public function perkSlots(kit:uint, states:Array, ask:Function) : void
+      // `answered`: the perk whose click this word answers (-1: none).
+      public function perkSlots(kit:uint, states:Array, ask:Function, answered:int = -1) : void
       {
          for(var perk:int = 0; perk < this._marks.length; perk++)
          {
-            this._marks[perk].told(kit,int(states[perk]),ask);
+            this._marks[perk].told(kit,int(states[perk]),ask,perk == answered);
          }
          invalidate(InvalidationType.DATA);
       }
@@ -422,38 +446,44 @@ package survarium.player
       }
 
       // Where each perk's slot is, the pockets and containers counted as srp's answer to a click
-      // will make them (PerkSlotMark.pocketShift): the weapon perk's pocket the last one, Artifact
-      // Container's pocket the one before it, its container the first after the pockets. A kit that
-      // declines the weapon perk shows the pocket it closes after every pocket and container, locked
-      // in red, while one of the six places is free.
+      // will make them (PerkSlotMark.pocketShift), by srp's order of the quick slots (`KitPockets`,
+      // loadouts.rs): the base pockets but the last, the weapon perk's added pocket, then the last
+      // base pocket, which Artifact Container switches: a pocket, or the container after the
+      // pockets. Each perk's slot is its own; one taken away slides the ones after it left. A kit
+      // that declines the weapon perk shows the pocket it closes after every pocket and container,
+      // locked in red, while one of the six places is free.
       private function placeMarks() : void
       {
          var cs:int = this.containerMark.pocketShift(_slotsN);
          var ws:int = this.weaponMark.pocketShift(_slotsN);
          var pockets:int = _slotsN + cs + ws;
          var containers:int = _slotsA - cs;
-         // A switch that takes a pocket away closes the last one (srp holds a kit to its count:
-         // the pockets past it are empty), so the pocket each such switch closes is the last.
-         var last:IPaperDollSlot = this.quick(pockets - 1,pockets);
-         var weaponTaken:Boolean = this.weaponMark.shown == PerkSlotMark.TAKEN;
-         var weaponDeclined:Boolean = this.weaponMark.shown == PerkSlotMark.DECLINED;
-         var containerDeclined:Boolean = this.containerMark.shown == PerkSlotMark.DECLINED;
-         // The weapon perk's yellow: its pocket, the last; but where Artifact Container's declined
-         // pocket is that one too, the container's mark is on it and the weapon perk switches from
-         // its red lock alone.
-         var weaponSlot:IPaperDollSlot = weaponDeclined ? _slots[ProfileSlot.WEAPON_2] as IPaperDollSlot : null;
-         this.mark(this.weaponMark,weaponTaken ? (containerDeclined ? null : last) : weaponSlot,weaponTaken ? last : weaponSlot);
-         var containerSlot:IPaperDollSlot = null;
-         if(this.containerMark.shown == PerkSlotMark.TAKEN)
+         var container:int = this.containerMark.shown;
+         var weapon:int = this.weaponMark.shown;
+         // Artifact Container's slot, the last: the container after the pockets, or the last pocket.
+         var switched:IPaperDollSlot = null;
+         if(container == PerkSlotMark.TAKEN)
          {
-            containerSlot = containers >= 1 ? this.quick(pockets,ProfileSlot.QUICK_POSITIONS) : null;
+            switched = containers >= 1 ? this.quick(pockets,ProfileSlot.QUICK_POSITIONS) : null;
          }
-         else if(containerDeclined)
+         else if(container == PerkSlotMark.DECLINED)
          {
-            containerSlot = last;
+            switched = this.quick(pockets - 1,pockets);
          }
-         this.mark(this.containerMark,containerSlot,containerDeclined ? last : null);
-         var closed:IPaperDollSlot = this.weaponMark.shown == PerkSlotMark.DECLINED ? this.quick(pockets + containers,ProfileSlot.QUICK_POSITIONS) : null;
+         this.mark(this.containerMark,switched,container == PerkSlotMark.DECLINED ? switched : null);
+         // The weapon perk's added pocket, before Artifact Container's pocket; declined, the second
+         // weapon slot open.
+         if(weapon == PerkSlotMark.TAKEN)
+         {
+            var added:IPaperDollSlot = this.quick(pockets - (container == PerkSlotMark.DECLINED ? 2 : 1),pockets);
+            this.mark(this.weaponMark,added,added);
+         }
+         else
+         {
+            var weaponSlot:IPaperDollSlot = weapon == PerkSlotMark.DECLINED ? _slots[ProfileSlot.WEAPON_2] as IPaperDollSlot : null;
+            this.mark(this.weaponMark,weaponSlot,weaponSlot);
+         }
+         var closed:IPaperDollSlot = weapon == PerkSlotMark.DECLINED ? this.quick(pockets + containers,ProfileSlot.QUICK_POSITIONS) : null;
          if(closed == null)
          {
             this._pocketLock.hide();
@@ -680,6 +710,7 @@ package survarium.player
             addChild(mark);
             mark.addEventListener(Event.CHANGE,this.onMarkChanged);
             mark.addEventListener(PerkSlotMark.DISPLACED,this.onMarkDisplaced);
+            mark.mayClick = this.mayClick;
          }
          var ammoSlots:Array = [_slotNames.indexOf("slotWpn1A1"),_slotNames.indexOf("slotWpn1A2"),_slotNames.indexOf("slotWpn2A1"),_slotNames.indexOf("slotWpn2A2"),_slotNames.indexOf("slotWpn5"),_slotNames.indexOf("slotWpn6"),_slotNames.indexOf("slotWpn7"),_slotNames.indexOf("slotWpn8")];
          trace("LPD::configUI");

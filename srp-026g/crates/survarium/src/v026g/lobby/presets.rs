@@ -51,6 +51,19 @@ pub enum PresetRequest {
     },
 }
 
+impl PresetRequest {
+    /// A perk switch's request as the list's header names it: `kit × 10 + perk × 2 + code`
+    /// ([`PERK_BASE`]'s offset); none for another request.
+    pub fn perk_request(self) -> Option<u8> {
+        match self {
+            PresetRequest::Perk { kit, perk, slot } => {
+                Some(kit * 10 + perk.index() as u8 * 2 + slot.code())
+            }
+            _ => None,
+        }
+    }
+}
+
 /// The presets request a reserved start is, if it is one.
 pub fn preset_request(start: u32) -> Option<PresetRequest> {
     let count = u32::from(PRESET_COUNT);
@@ -86,6 +99,12 @@ pub enum PresetDone {
     Chosen = 1,
     /// Nothing changed: the asker is in a match, or a kit rule refused.
     Refused = 2,
+    /// The perk switch asked is made (or was so already); `preset` names the request
+    /// ([`PresetRequest::perk_request`]), so the movie takes this list as that click's answer and
+    /// no other.
+    PerkSet = 3,
+    /// The perk switch asked is refused (in a match, no such skill); `preset` names it.
+    PerkRefused = 4,
 }
 
 /// One preset of the list.
@@ -266,6 +285,12 @@ mod tests {
                 slot: PerkSlot::Declined
             })
         );
+        // The list answering a switch names it as it was asked.
+        for offset in [1, 4, 12, 21, 24] {
+            let request = preset_request(PERK_BASE + offset).unwrap();
+            assert_eq!(request.perk_request(), Some(offset as u8));
+        }
+        assert_eq!(PresetRequest::List.perk_request(), None);
         assert_eq!(preset_request(PERK_BASE), None);
         assert_eq!(preset_request(PERK_BASE + 15), None);
         assert_eq!(preset_request(PERK_BASE + 31), None);

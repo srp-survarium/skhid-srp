@@ -245,17 +245,36 @@ chooses each.
 - **Every kit of before takes every perk**, so nobody's kits change until he clicks. Without a
   perk's skill every kit and preset kit takes it again (`change_skills`, and the repair at load), so
   the skill learned again starts so.
+- **Each perk owns its slot, in one order** (the owner, 2026-11-22: "two skills badly interact
+  with one another", "the additional pocket that we get should never be switchable to art
+  container", "[free pockets - 1] [additional pocket] [free pocket for switching with artis]", "if
+  [add pock] is removed last just slides off"; `KitPockets` and `PocketRole` of
+  `survarium::v026g::loadouts`, `Account::kit_pockets`): the quick places are the base pockets
+  (the gear's and the other skills') but the last, then the weapon perk's added pocket while the
+  kit takes it (`Added`, never a container), then the last base pocket, Artifact Container's
+  (`Switched(Taken)` the container, `Switched(Declined)` a pocket). That is the game's own order:
+  it opens the first `pockets` places as pockets and the containers after them, so the container
+  is the last place and the declined container's pocket the last pocket, in the lobby and in a
+  match alike (the kit's modifiers give the game the same counts; `each_perk_switches_its_own_slot`
+  checks both). A slot taken away slides the ones after it left, each with its role and its item
+  (`KitPockets::moved`, at a switch and at a skill learned or refunded): the weapon perk declined
+  takes the added pocket away, and Artifact Container's slot (its item, or the container) slides
+  one place left; taken again, the added pocket comes back empty before it. Gear that changes the
+  base pockets moves nothing (the pockets are places, as ever).
 - **What the slot held:** the container holds nothing in the lobby, so it opens as an empty
   pocket. The pocket made the container again: its item comes off the kit and stays owned, as any
   pocket that goes (`KitLayout::kept`); the server never saves an item in a container. The weapon
-  perk declined: the last pocket closes, its item off the kit (owned); taken again: the second
-  weapon comes off the kit (owned), as when the skill is learned.
+  perk declined: the added pocket's item off the kit (owned); taken again: the second weapon comes
+  off the kit (owned), as when the skill is learned.
 - **Wire** (`lobby.md` §2.16.4): `2 090 000 020 + kit × 10 + perk × 2 + state` asks it (perk 0
   Artifact Container: 1 the container, 2 the pocket; perk 1 the weapon perk: 3 the pocket, 4 the
   second weapon), refused without the skill, in a match or on the way to one; answered with the
-  account and the presets list, whose `K;<kit id>:<container>:<weapon>,...` row says every kit's
-  (each 0 without the skill, 1 taken, 2 declined). The movie asks for the list at every account it
-  is given, so learning, refunding or a preset chosen redraws it.
+  account (when the kit changed), then the presets list, whose header names the request it answers
+  (`done` 3 made, or so already, 4 refused; `preset` the request's `kit × 10 + perk × 2 + state`,
+  `PresetDone::PerkSet`, `PerkRefused`) and whose `K;<kit id>:<container>:<weapon>,...` row says
+  every kit's (each 0 without the skill, 1 taken, 2 declined). The movie asks for the list at every
+  account it is given, so learning, refunding or a preset chosen redraws it; such a list answers no
+  click.
 - **The lobby** (`PerkSlotMark`, `LocalPaperDoll`): with the skill, the slot has a soft edge
   of the lobby's yellow (`RoomsLook.YELLOW`, 0xFFD23F; the owner, "it should have yelow
   contours", then of the flat 2 px border: "can it be more beatiful not just yellow border"; he
@@ -288,14 +307,13 @@ chooses each.
     right button the shop's left click is untouched); holding a weapon, a right click is the
     weapon's menu, as in the stock game, and the red pocket switches (the weapon goes back, with
     the sound and the shake).
-  - **The pocket a switch closes is the last one**: srp holds a kit to its pocket count (the
-    pockets past it are empty, `KitLayout::pocket_units`), so Artifact Container taken again and
-    the weapon perk declined both close the last pocket. The movie marks it so: Artifact
-    Container's declined pocket is the last pocket, and so is the weapon perk's taken one; with both
-    (the container declined, the weapon perk taken) the last pocket has the container's mark and
-    the weapon perk switches from its red lock alone (`LocalPaperDoll.placeMarks`; the review of
-    #2476: a mark on another pocket than the one srp closes sent that pocket's item back
-    unasked).
+  - **Each mark on its perk's own slot**, by srp's order (`LocalPaperDoll.placeMarks`, the same
+    rule as `KitPockets`): Artifact Container's on the last pocket or the container after the
+    pockets; the weapon perk's yellow on the pocket before Artifact Container's (the last pocket
+    without it), its red pocket on the first free place after the pockets and containers. With
+    both perks each has its own yellow, and a switch closes its own slot only (the review of
+    #2476 found a mark on another pocket than the one srp closes; the owner then found the added
+    pocket switching to the container).
   - **A switch that sends an item back** (a red lock pressed while the yellow slot holds one; the
     owner, 2026-11-22: keep it so, "i wish there was some good sound design to say that, or maybe
     some shaking"): the item comes off the kit (it stays owned), the lobby plays the game's own
@@ -318,10 +336,23 @@ chooses each.
   of the click the exe hands the movie), and a slot that holds an item never switches, so the two
   never meet.
 - **A switch is a cross-fade**, about 130 ms eased, the hover's too, run on the movie's frames.
-  A click shows the other state's look at once and asks srp; the mark stays on its slot until
-  srp's answer (the account, whose new pocket count comes first, then the `K` row); a list that
-  was on its way says the old state and changes nothing meanwhile; no answer in 3 s shows srp's
-  last word again. The slot's own stock frame and label change when the account comes.
+  A click shows the other state's look at once and asks srp; the marks stay where the click puts
+  them until srp's answer: the account first (its new pocket count, which the movie reads as the
+  click's outcome: `PerkSlotMark.pocketShift` counts from the pockets at the click and the change
+  asked, whatever account comes meanwhile), then the list that names the click. Only that list
+  ends the hold, whatever it says (refused: srp's state again at once); any other list, one
+  asked before or at an account, changes nothing meanwhile; no answer in 3 s shows srp's last word
+  again. The slot's own stock frame and label change when the account comes.
+- **One switch at a time a kit** (the owner, 2026-11-22: "when I click too fast, 'fake' pocket on
+  top can appear for a moment", "there is data race there somewhere"): while a click is asked, a
+  right click on the other perk's slot or red lock is not taken (nor while a slot shakes). Before,
+  each mark held only its own clicks, and the movie took the first list matching the state shown
+  as the answer: two quick clicks on the two perks each moved the counts by their own guess
+  against accounts answering the other, and showed for a moment a layout neither before nor after
+  (a pocket too many, or the container's mark gone). srp itself handles a client's requests in
+  order and sends each switch's account before its list (lobby-server's
+  `a_kit_takes_or_declines_a_perks_slot`); the harness replays the quick clicks with a list asked
+  before arriving between.
 - **Its tip**, the game's tooltip above the slot, names the slot's skill (the owner, 2026-11-22:
   "pop up helper messages even on items should say which skill this 'slot' corresponds to"), in
   the game's own names (`st_srp_artefact_522_name`, `st_srp_deep_pockets_name`, the stock
@@ -350,6 +381,15 @@ chooses each.
  +-----------+ +-----------+      +-----------+ +-----------+
  the skill's slot: a thin yellow line, the glow (:) all round as the container, from the
  bottom up as the pocket
+```
+
+```text
+ Both perks (the stock pocket, Deep Pockets, Artifact Container declined), then Deep Pockets
+ declined: the added pocket goes, the container's pocket slides left with its item
+ +------+ +------+ +------+        +------+ +------+ +------+
+ | base | |added | |contnr|        | base | |contnr| |(lock)|
+ |      | |::::::| |pocket|        |      | |pocket| |      |
+ +------+ +------+ +------+        +------+ +------+ +------+
 ```
 
 ```text

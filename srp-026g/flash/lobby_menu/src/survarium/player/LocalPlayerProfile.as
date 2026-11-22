@@ -113,6 +113,11 @@ package survarium.player
       private static const PERK_BASE:int = PRESETS_FIRST + 20;
 
       private static const PERKS_ROW:String = "K;";
+
+      // What the list's header says of a perk switch it answers: set, refused.
+      private static const PERK_SET:int = 3;
+
+      private static const PERK_REFUSED:int = 4;
       
       private static const PRESET_COUNT:int = 5;
       
@@ -1607,7 +1612,7 @@ package survarium.player
       // `K;<kit id>:<container>:<weapon>,...`, the account's kits in order: each kit's perk slots
       // (PerkSlotMark's states, a perk each; 0 without the skill), told to the paper doll for the
       // kit shown.
-      private function takePerks(row:String) : void
+      private function takePerks(row:String, answer:int) : void
       {
          var kits:Array = [];
          for each(var entry:String in row.split(","))
@@ -1619,11 +1624,13 @@ package survarium.player
             }
          }
          this._perks = kits;
-         this.tellPerkSlots();
+         this.tellPerkSlots(answer);
       }
 
       // The kit shown's perk slots to its paper doll, with how to ask for others.
-      private function tellPerkSlots() : void
+      // `answer`: the perk switch this list answers (its request: kit x 10 + perk x 2 + state);
+      // -1 none.
+      private function tellPerkSlots(answer:int = -1) : void
       {
          var doll:LocalPaperDoll = profileItems as LocalPaperDoll;
          if(doll == null)
@@ -1631,7 +1638,9 @@ package survarium.player
             return;
          }
          var at:int = this.perkKit();
-         doll.perkSlots(uint(_profileId),at >= 0 ? this._perks[at][1] : [PerkSlotMark.NONE,PerkSlotMark.NONE],this.askPerkSlot);
+         // The answer is the kit shown's when its request names this kit.
+         var answered:int = at >= 0 && answer >= 0 && int(answer / 10) == at ? int((answer % 10 - 1) / 2) : -1;
+         doll.perkSlots(uint(_profileId),at >= 0 ? this._perks[at][1] : [PerkSlotMark.NONE,PerkSlotMark.NONE],this.askPerkSlot,answered);
       }
 
       // The kit shown's place among the account's kits (the `K` row's order); -1: not listed.
@@ -1703,7 +1712,9 @@ package survarium.player
             }
             if(name.indexOf(PERKS_ROW) == 0)
             {
-               this.takePerks(name.substr(PERKS_ROW.length));
+               // A perk switch's answer (`done` 3 set, 4 refused) names its request in `preset`.
+               var perkDone:int = int(head[2]);
+               this.takePerks(name.substr(PERKS_ROW.length),perkDone == PERK_SET || perkDone == PERK_REFUSED ? int(head[3]) : -1);
                i++;
                continue;
             }

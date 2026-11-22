@@ -170,9 +170,12 @@ package survarium.player
          return this._shown;
       }
 
-      // srp's word for the kit `kit` shown, and how to ask it for another. While a click is asked,
-      // a word that is not its answer changes nothing shown (an older list on its way).
-      public function told(kit:uint, state:int, ask:Function) : void
+      // srp's word for the kit `kit` shown, and how to ask it for another. `answered`: this word
+      // is srp's answer to this mark's click (the list's header names the request it answers,
+      // set or refused). While a click is asked only its answer is taken, whatever it says (a list
+      // asked before, or for another reason, changes nothing shown); the answer shows srp's state,
+      // the one asked or, refused, the one before, at once.
+      public function told(kit:uint, state:int, ask:Function, answered:Boolean) : void
       {
          this._state = state == TAKEN || state == DECLINED ? state : NONE;
          this._ask = ask;
@@ -183,20 +186,50 @@ package survarium.player
             this.show(this._state,true);
             return;
          }
-         if(this.pending() && this._state != this._shown)
+         if(this.pending() && !answered)
          {
             return;
          }
+         var changed:Boolean = this._pendingAt >= 0 && this._state != this._shown;
          this._pendingAt = -1;
          this.show(this._state,false);
+         if(changed)
+         {
+            dispatchEvent(new Event(Event.CHANGE));
+         }
       }
 
-      // How the kit's `pockets` (the paper doll's count, srp's) will change once srp has answered
-      // the click asked: the change, while the count is still the one of before the click.
+      // The paper doll's pockets now (srp's count, as the exe gives it).
+      public function counted(pockets:int) : void
+      {
+         if(!this.pending())
+         {
+            this._pockets = pockets;
+         }
+      }
+
+      // A click asked and not answered yet: no other switch of the kit is taken meanwhile
+      // (LocalPaperDoll's gate).
+      public function get busy() : Boolean
+      {
+         return this.pending();
+      }
+
+      // The paper doll's word whether a switch may start now (one at a time a kit, none while a
+      // slot shakes); none: always.
+      public var mayClick:Function;
+
+      // How far the kit's `pockets` (the paper doll's count, srp's) are from what the click asked
+      // will make them, until srp answers it: the pockets at the click and the change, whatever
+      // account comes meanwhile (srp sends a click's account before its answer).
       public function pocketShift(pockets:int) : int
       {
-         this._pockets = pockets;
-         return this.pending() && pockets == this._clickPockets ? this._pocketDelta : 0;
+         if(!this.pending())
+         {
+            this._pockets = pockets;
+            return 0;
+         }
+         return this._clickPockets + this._pocketDelta - pockets;
       }
 
       // On `slot` (null: hidden), which holds an item or not; its bounds in the paper doll's
@@ -335,7 +368,7 @@ package survarium.player
       {
          // The paper doll greyed (the kits locked: in a match, on the way to one): no change.
          var doll:UIComponent = parent as UIComponent;
-         if(this._shown == NONE || this._ask == null || doll != null && !doll.enabled || this.pending())
+         if(this._shown == NONE || this._ask == null || doll != null && !doll.enabled || this.pending() || this.mayClick != null && !this.mayClick())
          {
             return;
          }
