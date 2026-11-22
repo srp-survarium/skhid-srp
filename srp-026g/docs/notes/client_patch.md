@@ -2434,6 +2434,54 @@ through in the deferred composition pass, which 0.26g's programs do not.
 - **Not done.** Not run in a game: no headless load of a ported London with the patch yet. Not
   checked with Unicorn.
 
+### 3.99 A streamed texture whose size has no free slot takes a smaller one (written 2026-11-22, README patch 182, the next release's revision) — PROVEN in the code; RUN in a game (capture, below)
+
+The owner, 2026-11-22: some textures stay blurred ("мыльные") and never sharpen, on any map, now
+and then; London (v0.32) day_8 at -4.96 14.06 -19.69: the overhead concrete's underside a flat grey.
+
+- **The pools are a fixed table.** resource_pools (0x11B090, logged by 0x11A5C0's ".\resource_pools.cpp"
+  lines) makes one texture_pool for each key {width, height, array 1, format, mips, usage 0} of a
+  table in its code (0x11B3D0 per row, each size halved down to 4): BC1 (46h) and BC3 (4Ch), square,
+  2:1, 1:2, 4:1 and 1:4; at quality offset 0, 60 slots of 2048x2048 BC1, 30 of BC3, 120 of
+  1024x1024, 128 of 512x512, 512 of each smaller. The "streamable texture pool size" line is their
+  sum (0x3D33E0): the slot counts do not follow the video memory; the quality offset (+88190h,
+  0 on 1 GB and more) only halves every size.
+- **A request needs a free slot of exactly its size.** The async worker (update_wanted_mips
+  0x1C2120) makes a potential_request (64h bytes: resident and wanted mips and sizes) for every
+  streamable texture each batch, the wanted mips the most any instance's screen size asks
+  (0x1C8640; the window's height counts: 2560x1440 asks more than 1920x1080), sorted by
+  calc_priority (0x1C8A10). process_streaming (0x154020) gives each request whose mips change the
+  first slot of its key that is neither occupied (+18h) nor reserved (+19h) and reserves it
+  (0x1543C0, r_lazy_streaming off: its byte 0x1F1D990 has no writer but the console); the load
+  then takes that reserved slot (0x3D3220) and frees the old one (0x3D3550). With no such slot
+  (0x15433E) the request is cancelled (potential_request::cancel_request 0x1C89C0: wanted =
+  resident), after a look for another request leaving that size which, with lazy streaming off,
+  changes nothing. There is no step down to a size that has room: a texture loaded at its small
+  mips that wants 2048x2048 while 60 others hold those slots keeps its small mips until one of
+  them leaves, however near the camera it is. A load can make a slot (0x3D3010, when a creation
+  finds none), but no request reaches one: the big sizes never grow past the table.
+- **What fills them.** Every texture drawn near enough asks its full size: the map's (ported maps
+  bring many 1024 and 2048 textures: London v0.32's pack 124 of 1024x1024 BC1, 30 of 2048x2048),
+  the first-person weapon, and each player's baked camouflage, 2048x2048 for every part (the
+  owner's `streamed_textures` holds 327 BC1 and 77 BC3 of 2048x2048: about six BC1 2048 slots a
+  dressed player).
+- **Ruled out.** A failed load does not hold the streaming: on_texture_loaded (0x154C30) queues a
+  ready entry with no data, and process_ready_streaming_textures (0x154A00) drops the request
+  either way (0.10b's on_texture_loaded did not). The ported textures have whole mip chains (all
+  1933 of london-v032-1 and london-v042-1 checked). The "out of pool" lines are textures of a key
+  the table lacks (8:1, B8G8R8A8, one mip), made whole at their load.
+- **The patch** (`texture_pool`, Rust, the lohook `streaming.no_slot` at 0x15433E;
+  `vostok::texture_pool`). At a request with no free slot of its size it takes, largest first,
+  the first smaller size above what the texture has whose pool has a free slot: the slot reserved
+  as the game reserves one, the request's mips and size made that size, then the loop's next
+  request (exit `next`, 0x1543C4). The next batch asks the full size again and gets it when a
+  slot frees. A request with no such size, or for fewer mips, goes on as stock. No memory: the
+  slots are the table's.
+- **`SKHID_TEXTURE_STREAMING_LOG=on`** (read once): each such request in `srp_patches.log`, once a
+  texture while what it wants and takes stays the same: `texture_pool: <path> wants WxH/mips
+  (format) from WxH/mips: its pool N slots, N occupied, N reserved; takes WxH/mips` (or `stays`).
+- Textures only: nothing a match computes changes.
+
 ## 4. Mode 3 batteries: not needed in 0.26g
 
 - 0.26g splits the rule: `match_time_vi_spawn_rule` (vtable 0xA06C04) wraps `match_time_vi_spawn_rule_core` (vtable 0xA15CAC). The battery tick is no longer a vtable slot: the core's ctor 0x3147A0 stores a delegate `{this, 0x3148A0}` at +0x1C4 / +0x1C8 (0x3147F1). [V]

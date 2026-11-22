@@ -2494,3 +2494,4 @@ va	status	ref_021d	name
 0x0023ddd0	observed		survarium::base_game_scene::apply_camera
 0x0031a100	observed		survarium::damage_zone_core::play_effect
 0x0032a7a0	observed		survarium::body_part_parameters::play_effect
+0x001c89c0	reviewed	0x0013d25e	vostok::render::potential_request::cancel_request
