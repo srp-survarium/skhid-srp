@@ -5,7 +5,6 @@ Skhid wiki	Skhid wiki
 Modes	Načini
 Every mode: its rules, numbers and maps.	Svaki način: pravila, brojevi i karte.
 Versions	Inačice
-Public and private rooms	Javne i privatne sobe
 Public rooms only	Samo javne sobe
 Private rooms only	Samo privatne sobe
 Not offered now	Trenutačno se ne nudi
@@ -58,7 +57,6 @@ Level bands: {0}.	Rasponi razina: {0}.
 A room draws bands up to its level.	Soba izvlači raspone do svoje razine.
 Each kit a gun of another class, with random bonuses and attachments.	U svakom kompletu oružje druge klase, s nasumičnim bonusima i dodacima.
 {0} % of deals: pistols only.	{0} % dijeljenja: samo pištolji.
-Nothing of yours is used or spent.	Ništa vaše se ne koristi niti troši.
 Plain FFA: {0} % of FFA cards.	Obični FFA: {0} % FFA karata.
 {0} % of FFA cards.	{0} % FFA karata.
 FFA: Roulette	FFA: Rulet

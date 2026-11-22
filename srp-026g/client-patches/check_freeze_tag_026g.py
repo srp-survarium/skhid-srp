@@ -6,7 +6,7 @@ import struct
 import sys
 from unicorn import UC_HOOK_CODE, UcError
 from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDI, UC_X86_REG_EIP,
-                                UC_X86_REG_ESP, UC_X86_REG_EBP)
+                                UC_X86_REG_ESI, UC_X86_REG_ESP, UC_X86_REG_EBP)
 import patch_026g as base
 import check_free_for_all_026g as ffa
 import check_blackout_026g as blackout
@@ -133,6 +133,22 @@ class Run(ffa.Run):
         has not spawned yet."""
         self.emu.mem_write(ffa.player(place) + 0x33F, b"\x00")
 
+    def countdown_view(self, local):
+        """The client time rule's camera test (time_rule.camera_state, 0x267AE6) with the local
+        player at place `local` (None: no local player): the state the camera is set for, 2 the
+        countdown's (the warmup camera, patch 31's kits), 3 play's."""
+        rule = CAMERA_STACK + 0x10000
+        self.emu.mem_write(rule, bytes(0x200))
+        self.word(rule + 0x128, ffa.CORE)
+        self.word(rule + 0x148, 3)
+        kept = self.read(ffa.CLIENT + 4)
+        self.word(ffa.CLIENT + 4, 0 if local is None else ffa.player(local))
+        regs, _ = self.run(0x267AE6, (0x267AEC,), CAMERA_STACK + 0xF0000,
+                           {**hide.GAME, UC_X86_REG_EDI: rule, UC_X86_REG_ESI: ffa.CLIENT})
+        self.word(ffa.CLIENT + 4, kept)
+        assert self.stopped == 0x267AEC
+        return regs[UC_X86_REG_EDI]
+
     def lethal(self, place):
         self.emu.mem_write(ffa.player(place) + 0x33D, b"\x01")
         # The native death event already queued an ordinary respawn.
@@ -240,7 +256,14 @@ def main():
     assert r.freeze_hud(2) == [("root.freeze_tag_score", (1, 0, 5)),
                                ("root.freeze_tag_update", (0, 0, 4, 5000, 4000, 0)),
                                ("root.freeze_tag_rows", (3,))]
-    assert r.player_tick(2, 4150) and r.input(2)  # Winners also wait.
+    # Only the frozen stop in the pause (the owner, 2026-11-22: "only frozen people do"): the
+    # winner's tick and input are his, and he keeps his camera; the frozen are held and see the
+    # round's countdown (the warmup camera and the kits).
+    assert not r.player_tick(2, 4150) and not r.input(2)
+    assert r.player_tick(0, 4150) and r.input(0) and r.player_tick(1, 4150) and r.input(1)
+    assert r.read(ffa.CORE + 0x18FE4) == 4
+    assert r.countdown_view(2) == 3 and r.countdown_view(0) == 2 and r.countdown_view(None) == 2
+    print("ok in the pause the winner moves on with his camera; the frozen are held and see the countdown")
     # Between rounds no place keeps a time (a death's respawn, a late
     # arrival's entry): the restart spawns everyone; the core's time state
     # is the round's countdown (4).

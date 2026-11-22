@@ -66,7 +66,11 @@ three). No artifact rescue in this version (owner, 2026-11-17).
   or two").
 - The existing match time limit still applies. If it expires before either
   team reaches five wins, the unfinished series is a draw.
-- Between rounds all players wait 5 seconds, held in place. Then every
+- Between rounds the pause lasts 5 seconds. Only the frozen stop in it: everyone
+  else moves on, his own camera, weapons and input his (the owner, 2026-11-22:
+  "when one team in freeze tag wins a round it shouldn't stop moving", "only
+  frozen people do"); no thaw progresses and no auto-thaw clock runs in it.
+  Then every
   present place is due at one step of the native respawn rule, which takes
   each out and spawns it at its team's points with its kit's load, the
   living as the frozen. The rule waits for delayed native spawns before
@@ -75,11 +79,15 @@ three). No artifact rescue in this version (owner, 2026-11-17).
   Hunt's round does, with its code (the owner, 2026-11-21: "reswapn logic
   should be the same one as in arthunt"; "With Artifact Hunt" below): the
   warmup camera (drag to turn, wheel to zoom) and patch 31's kits, so a
-  player can pick another kit; the restart spawns him in it.
+  player can pick another kit; the restart spawns him in it. Only a frozen
+  local player sees it: one who moves on keeps his camera and has no kits
+  to pick in the pause (`freeze_tag::countdown_view` at the client's camera
+  test, `time_rule.camera_state`).
 - A disconnect cannot clear a frozen place. A new place starts on its first
   spawn in a round. Everyone who enters spawns at once, at his team's points,
-  in every phase: in the pause or after the match he is held there with
-  everyone, and the restart spawns him again with the round. A frozen player
+  in every phase: in the pause he moves on as the others who are not frozen,
+  after the match he is held with everyone, and the restart spawns him again
+  with the round. A frozen player
   who leaves and comes back appears at his team's points, frozen there until
   a teammate or the auto-thaw thaws him: rejoining is no way out of a freeze
   (the release manager's pick, 2026-11-22). Absent players are excluded
@@ -383,9 +391,11 @@ Taken from Artifact Hunt, and why:
 
 Kept as Freeze Tag's own: cancelling a frozen body's death respawn while a
 round is played (a thawed player must not be respawned by the death's old
-time), the hold of every player's tick in the pause (Artifact Hunt holds
-only the input in its countdown), and the wait for every spawn before the
-next round opens (a body still frozen would otherwise freeze again at once).
+time), the hold of the frozen players' ticks in the pause (Artifact Hunt holds
+only the input in its countdown; until 2026-11-22 Freeze Tag held everyone's),
+and the wait for every frozen body's spawn before the next round opens (a body
+still frozen would otherwise freeze again at once; a player who moved on in
+the pause and had no free point is spawned 50 ms into the round).
 
 ## Validation
 
