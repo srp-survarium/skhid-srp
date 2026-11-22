@@ -67,6 +67,7 @@ pub mod jump_arc;
 pub mod jump_carry;
 #[cfg(feature = "jump-test")]
 pub mod jump_test;
+pub mod key_sources;
 pub mod kin;
 pub mod know;
 pub mod lane_ahead;
@@ -314,6 +315,11 @@ pub struct Bot {
     /// The sprint gate (`pace.rs`): its walk from the ring, and its last answer for the counts.
     pace: pace::PaceState,
     sent_keys: u32,
+    /// [keys] Where its sent keys came from: this tick's stages and the ticks before (`key_sources`, a debug trace).
+    key_tick: key_sources::Tick,
+    key_trail: key_sources::Trail,
+    /// [keys] The lip guard's last swap, held its ticks (`drive::LipHold`).
+    lip_hold: drive::LipHold,
     /// Its rest, kept off a lip ([`rest`]).
     rest: rest::RestWatch,
     /// Whether it presses against something as it walks ([`contact`]), counted only.
@@ -641,6 +647,9 @@ impl Bot {
             stamina: stamina::Reckoning::default(),
             pace: pace::PaceState::default(),
             sent_keys: 0,
+            key_tick: key_sources::Tick::default(),
+            key_trail: key_sources::Trail::default(),
+            lip_hold: drive::LipHold::default(),
             rest: rest::RestWatch::default(),
             contact: contact::ContactWatch::default(),
             self_kill: stuck::SelfKill::default(),
@@ -2652,6 +2661,8 @@ impl Bots {
             nav_log::PREFIX
         ));
         // [F42] The reckoned steps of bodies with both legs broken by their crouch selector state.
+        // [keys] The walk keys' and the crouch key's changes by the stage that made them (`key_sources`).
+        lines.extend(key_sources::lines().into_iter().map(|line| format!("{}{line}", nav_log::PREFIX)));
         let (steady, unparks) = drive::steady_creeps::take();
         lines.push(format!(
             "{}steady creep ticks since the last match end (every match on this server): {steady}, of them {unparks} letting the move go to leave on site",

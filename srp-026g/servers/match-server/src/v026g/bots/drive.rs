@@ -383,12 +383,16 @@ pub(super) fn drive_tick(
     bot.motor.carrying = tuning.feel.carry_jumps && bot.carry.holds(time);
     // [S6] The closed drops of this bot's searches only.
     drop(mapdata::take_falls_closed());
+    bot.key_tick = super::key_sources::Tick::default();
     let mut decision = drive_tick_inner(bot, me, view, tactics, tuning, time, searching, press);
+    // [keys] The unstick replay's keys skip the stages (`key_sources`).
+    bot.key_tick.begun_or(super::key_sources::Stage::Unstick, decision.keys);
     log_falls_closed(bot, &tactics.world.grid, time);
     // The motor turned the view's elevation; the input carries the game's pitch unit (`pitch.rs`).
     decision.turn.1 = Pitch::view(me.pitch, bot.reflex.kick_before()).turn_for(tuning.kin.pitch_scale, decision.turn.1);
     // [A277] At the clip end of the shot that emptied the weapon: the count's reload and its key, the sprint taken off.
     decision.keys = bot.reflex.keys_sent(time, decision.keys);
+    bot.key_tick.after(super::key_sources::Stage::Sent, decision.keys);
     // [2d] A route jump that went out this tick is carried through the client's clip, and the carry has the last word on the
     // walk's keys and the view's yaw, whatever path of the tick made them (`jump_carry`, `feel.carry_jumps`).
     if tuning.feel.carry_jumps {
@@ -408,6 +412,7 @@ pub(super) fn drive_tick(
     } else {
         bot.carry = jump_carry::JumpCarry::Free;
     }
+    bot.key_tick.after(super::key_sources::Stage::Carry, decision.keys);
     // [A325f] The legs' `leg_damage` gate (`kin.leg_damage`; the world's affects, `legs`): the bot does not ask for a move, sprint
     // or jump its legs refuse (two legs held: none until the first ends; one: no sprint, no jump), on every path of the tick (an
     // unstick's keys too). Its own reckoned body takes the same keys.
@@ -418,7 +423,11 @@ pub(super) fn drive_tick(
         decision = steady_creep(bot, decision, time);
     }
     decision.keys = bot.hurt.leg_damage.at(time).keys(decision.keys);
+    bot.key_tick.after(super::key_sources::Stage::Legs, decision.keys);
     creep_watch(bot, me, decision.keys, time);
+    // [keys] Where this tick's change of the keys came from: a debug trace that decides nothing (`key_sources`).
+    let traced = bot.tracing.then_some(&mut bot.traced);
+    bot.key_trail.sent(&bot.key_tick, decision.keys, time, decision.keys & key::FIRE != 0, bot.place, traced);
     bot.sent_keys = decision.keys;
     crouch_climb_watch(bot, me, decision.keys, time);
     decision
@@ -642,7 +651,9 @@ fn drive_tick_inner(
         sprint_block: sprint_block(bot, me, time, tuning.think.stamina),
         urgent: false,
         gait: motor::Gait::Walk,
-        floor: motor::Floor::Open,
+        // [keys] The floor under the feet, for the motor's key hold (`Motor::pick_keys`): open only where the grid knows it is away
+        // from a lip and a fall; a body off the grid is taken at an edge.
+        floor: floor_kind(&tactics.world.grid, me.feet),
         held_short_m: bot.held_short_m,
         walk_cap: bot.walk_cap,
         footing: bot.footing,
@@ -2293,6 +2304,8 @@ fn drive_tick_inner(
     {
         bot.bench_motor_keys = decision.keys;
     }
+    // [keys] The tick's keys as the motor made them (`key_sources`).
+    bot.key_tick.begin(if bot.motor.picked() { super::key_sources::Stage::MotorPick } else { super::key_sources::Stage::MotorOther }, decision.keys);
     // A lift at its face asks sprint and forward held: where those keys go (`lifts::keys`).
     let lift_face = bot.motor.lift_at_face();
     let lift_wants = key::SPRINT | key::FORWARD;
@@ -2388,6 +2401,7 @@ fn drive_tick_inner(
             }
         }
     }
+    bot.key_tick.after(super::key_sources::Stage::SideStep, decision.keys);
     // [spacing.apart] A teammate inside the body (no collision between teammates): a step away from him, over the ground the fight's own test finds clear. Not while the reflex
     // strafes or fires, nor while a use is held, nor with a side key already down.
     #[cfg(test)]
@@ -2452,6 +2466,7 @@ fn drive_tick_inner(
             }
         }
     }
+    bot.key_tick.after(super::key_sources::Stage::Apart, decision.keys);
     // [spacing.queue] A212: a teammate just ahead on the bot's way is not walked into (`apart::queue`, Reynolds' queuing): the sprint is dropped inside `gap_m`, forward too
     // inside `stop_m`. Not on a jump of the route (a sprint jump needs its run-up), not while the fight holds the keys, not in an escape. It only lets keys go: the lip guard
     // below still has the last word.
@@ -2494,25 +2509,30 @@ fn drive_tick_inner(
     // body over the rim (the walk's own diagonal, a side step, the eight-way keys of a walk that aims) is let
     // go for one that stops on the floor, unless the route drops there. Every unplanned fall of the bench was
     // off a lip (`WalkGrid::near_lip`), with the body's keys pushing it over or its glide carrying it.
+    bot.key_tick.after(super::key_sources::Stage::Queue, decision.keys);
     let lift_stepped = decision.keys & lift_wants == lift_wants;
+    lip_held(bot, &mut decision, time);
     // [CPU] The bench's split of the ticks' time (`bench_cpu`): timing only.
     #[cfg(test)]
     let lip_span = super::bench_cpu::Span::begin();
     guard_keys(bot, &mut decision, me, tactics, tuning, time);
     #[cfg(test)]
     lip_span.end(super::bench_cpu::Part::LipGuard);
+    bot.key_tick.after(super::key_sources::Stage::LipGuard, decision.keys);
     // [#2081] The own-trap guard, the last say on the move keys: no step ends within contact of a known own trap (or one it noticed)
     // unless it moves away from it (`traps::own_trap_guard`); its replacement keys pass the lip guard's test too.
     let lip_ok = lip_ok_of(bot, me, tactics, tuning, decision.turn.0);
     if let Some(keys) = traps::guard_own_traps(bot, decision.keys, decision.turn.0, me, tuning, &tactics.world.grid, lip_ok, time) {
         decision.keys = keys;
     }
+    bot.key_tick.after(super::key_sources::Stage::OwnTrap, decision.keys);
     let lift_guarded = decision.keys & lift_wants == lift_wants;
     // The stance and pace.
     if intent.crouch || intent.pace == Pace::Sneak {
         decision.keys |= key::CROUCH;
         decision.keys &= !key::SPRINT;
     }
+    bot.key_tick.after(super::key_sources::Stage::Stance, decision.keys);
     bot.pace.saw(intent.pace);
     match intent.pace {
         Pace::Run | Pace::Escape(_) => bot.pace.unasked(),
@@ -2557,6 +2577,7 @@ fn drive_tick_inner(
         decision.keys &= !key::SPRINT;
     }
     decision.keys |= intent.hold | std::mem::take(&mut bot.press);
+    bot.key_tick.after(super::key_sources::Stage::Reflex, decision.keys);
     let lift_overridden = decision.keys & lift_wants == lift_wants;
     // Lining up for a jump of its route, and in it: standing (a crouched
     // body seldom jumps: 9 route jumps of 12 pressed crouched did in the
@@ -2569,6 +2590,7 @@ fn drive_tick_inner(
             decision.keys &= !key::SPRINT;
         }
     }
+    bot.key_tick.after(super::key_sources::Stage::LiningUp, decision.keys);
     if decision.keys & key::QUICK[0] != 0 {
         bot.features.stock.medkits_used = bot.features.stock.medkits_used.saturating_add(1);
     }
@@ -2607,6 +2629,7 @@ fn drive_tick_inner(
         }
         _ => by,
     };
+    bot.key_tick.after(super::key_sources::Stage::Riser, decision.keys);
     if lift_face {
         let stage = if walking_aimed {
             motor::lifts::Keys::AimedWalk
@@ -2630,6 +2653,7 @@ fn drive_tick_inner(
         motor::lifts::keys(stage);
     }
     decision.keys = jumping(bot, decision.keys, by, me.feet, time);
+    bot.key_tick.after(super::key_sources::Stage::Jump, decision.keys);
     decision
 }
 
@@ -3502,6 +3526,90 @@ fn take_off_near(route: &super::path::Route, feet: Vec3) -> Option<(&'static str
         .min_by(|a, b| a.1.distance_xz(feet).total_cmp(&b.1.distance_xz(feet)))
 }
 
+/// [keys] A swap of the lip guard is held at least this many ticks (200 ms): a crouch it swaps in, and the walk keys it gave for the
+/// motor's same keys. The guard's forecast holds a tick's keys `lip_guard_ticks` (2) and asks again each tick, so a swap went back
+/// to the motor's keys the next tick they stopped on the floor again: the crouch key for one input, the walk set back and forth.
+/// In the owner's 14 local matches the bots held the crouch one input 3,197 times (585 on the tick of a "swapped to +CROUCH" note;
+/// the note writes one line a kind a bot in 2 s), the owner never (his shortest holds 400 ms, p10); his walk sets are held 300 ms
+/// (median), the bots' 150 ms. The key-source trace of one bench match (level_06 batteries, seed 1, `key_sources`): 107 of 110
+/// one-tick crouches were the guard's, and the guard owned a walk set in 1,177 of 5,252 changes and in 265 of 667 chatters.
+/// Each held tick is still asked of the guard with the held keys.
+pub(super) const LIP_HOLD_TICKS: u32 = 4;
+
+/// [keys] What the lip guard's last swap holds ([`LIP_HOLD_TICKS`]).
+#[derive(Clone, Copy, Debug, Default)]
+pub(super) struct LipHold {
+    /// The crouch it swapped in, held to this time, ms.
+    crouch_until: Option<u32>,
+    /// Its swap of the walk: the motor's walk keys and sprint it was asked, those it gave, held to this time, ms.
+    walk: Option<LipWalk>,
+    /// This tick's keys before the holds: what a swap this tick was asked of the motor.
+    unheld: u32,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct LipWalk {
+    asked: u32,
+    gave: u32,
+    until: u32,
+}
+
+/// The walk keys and the sprint: what a held swap of the walk keeps.
+const LIP_WALK_KEYS: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT;
+
+impl LipHold {
+    /// The swap the guard made this tick (to `to`, at `time`), held from the next tick.
+    fn swapped(&mut self, to: u32, time: u32) {
+        let asked = self.unheld;
+        let until = time + (LIP_HOLD_TICKS - 1) * super::anomalies::TICK_MS;
+        if to & key::CROUCH != 0 && asked & key::CROUCH == 0 {
+            self.crouch_until = Some(until);
+        }
+        // A swap to no walk key (a stop) is not held: the motor's walk is asked again at once.
+        let (asked, gave) = (asked & LIP_WALK_KEYS, to & LIP_WALK_KEYS);
+        if gave != asked && gave & !key::SPRINT != 0 {
+            self.walk = Some(LipWalk { asked, gave, until });
+        }
+    }
+
+    /// This tick's keys with the swaps still held: the crouch to its end, the walk while the motor asks the same keys. Not on a jump's
+    /// line-up, a press, a carried jump or a forecast press's flight (they let the crouch go and walk their own way).
+    fn hold(&mut self, keys: u32, time: u32, jumping: bool) -> u32 {
+        if jumping {
+            *self = Self { unheld: keys, ..Self::default() };
+            return keys;
+        }
+        self.unheld = keys;
+        let mut keys = keys;
+        match self.walk {
+            Some(walk) if time <= walk.until && keys & LIP_WALK_KEYS == walk.asked => keys = (keys & !LIP_WALK_KEYS) | walk.gave,
+            Some(_) => self.walk = None,
+            None => {}
+        }
+        match self.crouch_until {
+            Some(until) if time <= until => keys = (keys | key::CROUCH) & !key::SPRINT,
+            Some(_) => self.crouch_until = None,
+            None => {}
+        }
+        keys
+    }
+}
+
+/// [keys] The lip guard's swaps held to their end ([`LipHold`]), before the guard asks this tick's keys.
+fn lip_held(bot: &mut Bot, decision: &mut Decision, time: u32) {
+    let jumping = bot.motor.lining_up() || bot.motor.jumped().is_some() || bot.motor.carrying || bot.motor.press_flight();
+    decision.keys = bot.lip_hold.hold(decision.keys, time, jumping);
+    bot.key_tick.after(super::key_sources::Stage::LipGuard, decision.keys);
+}
+
+/// [keys] The floor's kind under `feet` for the motor ([`motor::Floor`]): an edge on a lip's floor, next to a lip or a fall, or off the grid.
+fn floor_kind(grid: &mapdata::WalkGrid, feet: Vec3) -> motor::Floor {
+    match grid.locate(feet, 1.5) {
+        Some(node) if !(grid.is_lip(node) || grid.near_lip(node) || grid.near_fall(node)) => motor::Floor::Open,
+        _ => motor::Floor::Edge,
+    }
+}
+
 /// [`lip_guard_with`] on the tick's decision.
 fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &Tactics, tuning: &Tuning, time: u32) {
     #[cfg(test)]
@@ -3707,6 +3815,10 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
             };
             motor::counts::guard_from(from, GUARD_FLOOR.get());
         }
+    }
+    // [keys] The swap is held its ticks (`LipHold`).
+    if let LipGuard::Swapped(to) = guard {
+        bot.lip_hold.swapped(to, time);
     }
     if let LipGuard::Swapped(to) | LipGuard::Braked(to) = guard {
         let verdict = if matches!(guard, LipGuard::Braked(_)) { "braked" } else { "swapped" };

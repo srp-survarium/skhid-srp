@@ -945,6 +945,17 @@ const HOP_SIDE_M: f32 = 1.0;
 /// human holds a set 100 ms or more in 92 % of his holds (574 players in 12+
 /// live matches), a one-tick hold is 1-2 %.
 const KEY_HOLD_TICKS: u32 = 2;
+/// [keys] On open floors ([`Floor::Open`]: no lip or fall next to them) a set is held at least this many ticks (200 ms) …
+const KEY_HOLD_OPEN_TICKS: u32 = 4;
+/// … and after that kept while the way stays within this much past its sector's edge, radians (8 degrees): a way that hovers at the
+/// boundary of two sets no longer changes the set each hold. The key-source trace of one bench match (level_06 batteries, seed 1,
+/// `key_sources`): the pick owned a set in 644 of 667 chatters (6+ changes of the walk set in 2 s) and changed its set 2,368 times
+/// after its two ticks' hold against 95 for a swung way. In the owner's 14 local matches the bots' walk sets were held 150 ms
+/// (median; diagonal sets 100 ms, 51 % of them one or two inputs), his 300 ms. Off open floors the two ticks and the nearest set
+/// stay: a set held past the boundary walks the body up to the band's angle off its line, which an edge's floor does not have.
+const KEY_BAND_RAD: f32 = 8.0 * std::f32::consts::PI / 180.0;
+// The band stays well inside a sector's half-width.
+const _: () = assert!(KEY_BAND_RAD < std::f32::consts::FRAC_PI_8);
 /// A set is let go at once when the way to go is this far from it, radians
 /// (more than a sector and a half: the facing swung round).
 const KEY_FORCE_RAD: f32 = 3.0 * std::f32::consts::FRAC_PI_8;
@@ -1086,6 +1097,8 @@ pub struct Motor {
     link_why: link_time::Why,
     /// The walk key set held ([`Motor::pick_keys`]).
     key_hold: Option<KeyHold>,
+    /// [keys] The motor's tick of its last eight-way pick (the debug trace `key_sources`).
+    picked_at: Option<u32>,
     /// [spot suite] TEST ONLY: what held the route jump's press last, and the motor's tick ([`PressHeld`]).
     #[cfg(test)]
     bench_held: Option<(u32, PressHeld)>,
@@ -2133,9 +2146,16 @@ impl Motor {
             links: super::link_time::Watch::default(),
             link_why: link_time::Why::Unknown,
             key_hold: None,
+            picked_at: None,
             #[cfg(test)]
             bench_held: None,
         }
+    }
+
+    /// [keys] Whether this tick's walk keys are the eight-way pick's ([`Motor::pick_keys`]), for the debug trace of where a key
+    /// change comes from (`key_sources`).
+    pub fn picked(&self) -> bool {
+        self.picked_at == Some(self.clock)
     }
 
     /// The walk keys for a way to go `relative` to the facing (positive to
@@ -2145,19 +2165,23 @@ impl Motor {
     /// mouse. (A dither between the two nearest sets for a mean track was
     /// tried: its minor holds weave the body 0.25 m off the line and it fell
     /// off ledges it walks with the nearest set alone.)
-    fn pick_keys(&mut self, relative: f32) -> u32 {
-        use std::f32::consts::FRAC_PI_4;
+    fn pick_keys(&mut self, relative: f32, floor: Floor) -> u32 {
+        use std::f32::consts::{FRAC_PI_4, FRAC_PI_8};
         let relative = wrap(relative);
         let nearest = (relative / FRAC_PI_4).round() as i32;
         let held = self
             .key_hold
             .filter(|hold| self.clock.wrapping_sub(hold.at) <= 2);
+        // [keys] On open floors the longer hold and the band past the sector's edge.
+        let (hold_ticks, band) = match floor {
+            Floor::Open => (KEY_HOLD_OPEN_TICKS, KEY_BAND_RAD),
+            Floor::Edge => (KEY_HOLD_TICKS, 0.0),
+        };
         let (sector, ticks) = match held {
-            Some(hold)
-                if hold.sector == nearest
-                    || (hold.held < KEY_HOLD_TICKS
-                        && wrap(relative - hold.sector as f32 * FRAC_PI_4).abs()
-                            <= KEY_FORCE_RAD) =>
+            Some(hold) if hold.sector == nearest || {
+                let off = wrap(relative - hold.sector as f32 * FRAC_PI_4).abs();
+                (hold.held < hold_ticks && off <= KEY_FORCE_RAD) || off <= FRAC_PI_8 + band
+            } =>
             {
                 (hold.sector, hold.held + 1)
             }
@@ -2169,6 +2193,14 @@ impl Motor {
             held.is_some_and(|hold| hold.sector != sector),
             held.map_or(0, |hold| hold.held),
         );
+        // [keys] The debug trace of where a key change comes from (`key_sources`).
+        match held {
+            None => super::key_sources::pick(super::key_sources::Pick::Fresh),
+            Some(hold) if hold.sector != sector && hold.held < hold_ticks => super::key_sources::pick(super::key_sources::Pick::Forced),
+            Some(hold) if hold.sector != sector => super::key_sources::pick(super::key_sources::Pick::AfterHold),
+            Some(_) => {}
+        }
+        self.picked_at = Some(self.clock);
         self.key_hold = Some(KeyHold {
             sector,
             at: self.clock,
@@ -2702,7 +2734,7 @@ impl Motor {
                 self.key_hold = None;
                 key::FORWARD
             } else {
-                self.pick_keys(relative)
+                self.pick_keys(relative, pose.floor)
             };
             if self.sprinting {
                 keys |= key::SPRINT;
@@ -3062,7 +3094,7 @@ impl Motor {
         } else {
             // The set nearest the way to go, and the other nearest in
             // proportion ([`Motor::pick_keys`]): no steady bias.
-            keys = self.pick_keys(relative);
+            keys = self.pick_keys(relative, pose.floor);
             if jump.is_none() && route.low_ahead(s, LOW_AHEAD_M) {
                 keys |= key::CROUCH;
             }
@@ -6518,7 +6550,7 @@ mod tests {
         (0..ticks)
             .map(|_| {
                 motor.next_tick();
-                motor.pick_keys(relative)
+                motor.pick_keys(relative, Floor::Edge)
             })
             .collect()
     }
@@ -6563,7 +6595,7 @@ mod tests {
                 motor.next_tick();
                 // 2 degrees either side of the boundary, every tick.
                 let wobble = if k % 2 == 0 { 0.035 } else { -0.035 };
-                motor.pick_keys(boundary + wobble)
+                motor.pick_keys(boundary + wobble, Floor::Edge)
             })
             .collect();
         let mut holds = Vec::new();
@@ -6580,6 +6612,36 @@ mod tests {
             holds.iter().skip(1).all(|&hold| hold >= KEY_HOLD_TICKS),
             "holds {holds:?}"
         );
+    }
+
+    /// [keys] On an open floor a way that hovers at a boundary keeps one set (the band past its sector's edge), and a way past the
+    /// band changes it after the open hold.
+    #[test]
+    fn on_an_open_floor_a_boundary_keeps_its_set() {
+        let mut rng = Rng::new(3);
+        let mut motor = Motor::new(Feel::default(), &mut rng);
+        let boundary = std::f32::consts::FRAC_PI_8;
+        let sets: Vec<u32> = (0..400)
+            .map(|k| {
+                motor.next_tick();
+                let wobble = if k % 2 == 0 { 0.035 } else { -0.035 };
+                motor.pick_keys(boundary + wobble, Floor::Open)
+            })
+            .collect();
+        assert!(sets.windows(2).all(|w| w[0] == w[1]), "one set held");
+        // Past the band: the nearest set, once the open hold is over.
+        let past = boundary + KEY_BAND_RAD + 0.05;
+        let mut motor = Motor::new(Feel::default(), &mut rng);
+        motor.next_tick();
+        assert_eq!(motor.pick_keys(0.0, Floor::Open), key::FORWARD);
+        let next: Vec<u32> = (0..KEY_HOLD_OPEN_TICKS)
+            .map(|_| {
+                motor.next_tick();
+                motor.pick_keys(past, Floor::Open)
+            })
+            .collect();
+        assert_eq!(next[..KEY_HOLD_OPEN_TICKS as usize - 1], vec![key::FORWARD; KEY_HOLD_OPEN_TICKS as usize - 1][..]);
+        assert_eq!(next[KEY_HOLD_OPEN_TICKS as usize - 1], key::FORWARD | key::LEFT);
     }
 
     /// A way that swings round (the facing turned a long way) changes the
