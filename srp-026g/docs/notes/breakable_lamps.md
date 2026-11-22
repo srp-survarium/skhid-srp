@@ -148,10 +148,24 @@ London (v0.42)'s rain light is as blue as the tubes: no split. The lamp and
 the probes (their names, places and boxes) are the same in every weather
 (checked on both Londons), so where a weather's own split cannot be made the
 day's lamp light in the probe of that name and place is taken out of the
-weather's, if what is left has that weather's room colour (within
-`SPLIT_ANGLE`): London (v0.42)'s rain binds 4 probes so (`hall(2)`'s rest is
-off by 14 degrees: left). Its evening bake carries no lamp (taking the day's
-lamp out leaves negative light) and its own split binds nothing.
+weather's, where some of every channel is left: London (v0.42)'s rain binds 5
+probes so. What is left need not have the room's colour: the rain is as blue
+as the lamp (which is why its own split cannot be made), and the neighbours'
+floor below keeps the room from going darker than the rooms beside it. (Until
+the owner's 2026-11-22-07-52-13.png the rest had to be within `SPLIT_ANGLE`
+of the room's colour, which left out `hall(2)`, the stone building's opened
+first-floor room, 14 degrees off: it keeps 0.41 now.) Its evening bake
+carries no lamp (taking the day's lamp out leaves negative light) and its
+own split binds nothing.
+
+That room stays brighter than the rain outside with its lamp lit or broken:
+both Londons' rain light it with `ambient_light(14)`, a fill of radius 9 and
+intensity 2 (adding its whole warm-white colour, 255, 223, 225), the
+strongest rain fill there. It is not a lamp's: its centre is outside the
+room's probe, in the facade's opening, 5.7 m from the tube, of another colour
+than the tube's, and the rain sets have no fill tied to a lamp. Whether 0.26g
+adds it as 0.44a5 and 0.32a4 do is not checked yet (the reference rig, in
+rain, at that spot).
 
 The fill lights inside a lamp's room probe (ambient lights, additive in
 London: intensity above 1) are its room's baked light too and go out with
