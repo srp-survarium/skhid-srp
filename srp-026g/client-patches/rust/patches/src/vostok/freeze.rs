@@ -143,6 +143,30 @@ fn player_at(core: raw::CoreWorld, place: Place) -> Option<raw::Player> {
     }
 }
 
+/// A place's current player as the native world has it.
+#[derive(Clone, Copy)]
+enum Seat {
+    /// No current player (not in the match).
+    Empty,
+    /// In the match, its player out of the world: entered (or came back) and not spawned yet.
+    /// It must spawn at its entry time. Every world load puts every active place's player into
+    /// the world, one out of it with link 0 (game_world_core::deserialize 0x2D2D51: no models, no
+    /// player effect +F540h, no tick lists), and the next removal with 1 then reads a null
+    /// effect (0x2DE36D): the respawn tick's at the restart, or the respawn rule's leave handler
+    /// (0x316BE0), which removes without asking (the crash of 2026-11-22, a rejoin in the pause).
+    Entering,
+    /// In the world: a body, fighting or frozen.
+    InWorld,
+}
+fn seat(core: raw::CoreWorld, place: Place) -> Seat {
+    match player_at(core, place) {
+        None => Seat::Empty,
+        // SAFETY: the roster's live current player of the place.
+        Some(player) if unsafe { read(player.inserted()) } == 0 => Seat::Entering,
+        Some(_) => Seat::InWorld,
+    }
+}
+
 pub struct Player<'t> {
     native: raw::Player,
     _thread: &'t Thread,
@@ -294,18 +318,17 @@ impl<'t> World<'t> {
         // SAFETY: the respawn rule's live core, on the simulation's thread.
         unsafe { super::round_countdown::set(self.core, on) }
     }
-    /// No place has a native time (u32::MAX: unscheduled, and no respawn countdown on the hud,
-    /// 0x316C35).
-    pub fn cancel_all(&mut self) {
-        for place in Place::all() {
-            // SAFETY: the rule's twenty-entry schedule.
-            unsafe { self.rule.times().add(place.index()).write(u32::MAX) };
+    /// The place's native respawn time cancelled (u32::MAX: unscheduled, and no respawn
+    /// countdown on the hud, 0x316C35), unless the place is entering: its entry spawn always
+    /// runs natively ([`Seat::Entering`]).
+    pub fn cancel(&mut self, place: Place) {
+        match seat(self.core, place) {
+            Seat::InWorld | Seat::Empty => {
+                // SAFETY: the rule's twenty-entry schedule.
+                unsafe { self.rule.times().add(place.index()).write(u32::MAX) };
+            }
+            Seat::Entering => {}
         }
-    }
-    /// A frozen body is never respawned by its death's ordinary timer.
-    pub fn unschedule(&mut self, place: Place) {
-        // SAFETY: the rule's twenty-entry schedule; u32::MAX is its "unscheduled".
-        unsafe { self.rule.times().add(place.index()).write(u32::MAX) };
     }
     pub fn clear(&self, from: Place, to: Place) -> bool {
         clear(self.core, from, to)

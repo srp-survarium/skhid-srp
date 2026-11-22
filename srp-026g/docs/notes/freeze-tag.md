@@ -77,8 +77,14 @@ three). No artifact rescue in this version (owner, 2026-11-17).
   warmup camera (drag to turn, wheel to zoom) and patch 31's kits, so a
   player can pick another kit; the restart spawns him in it.
 - A disconnect cannot clear a frozen place. A new place starts on its first
-  spawn in a round; one that enters in the pause or after the match waits
-  for the next round. Absent players are excluded when a new round starts.
+  spawn in a round. Everyone who enters spawns at once, at his team's points,
+  in every phase: in the pause or after the match he is held there with
+  everyone, and the restart spawns him again with the round. A frozen player
+  who leaves and comes back appears at his team's points, frozen there until
+  a teammate or the auto-thaw thaws him: rejoining is no way out of a freeze
+  (the release manager's pick, 2026-11-22). Absent players are excluded
+  when a new round starts. ("No place out of the world" below says why an
+  entry is never held.)
 - The HUD reuses the stock TDM score bars (full at `WINS`, which the patch
   passes to `freeze_tag_score`), collection progress (its bar the progress
   of `THAW_MS`, which the patch passes to `freeze_tag_update`)
@@ -162,11 +168,13 @@ The three native hooks are declared in `sites_026g.tsv`:
   `FreezeTag::schedule` says with the places' native times. In play
   (`CancelFrozen`) a frozen body's death respawn is cancelled and every other
   place keeps its native time, so a late arrival's first spawn (its entry
-  time) runs. Between rounds and after the match (`CancelAll`) no place keeps
+  time) runs. Between rounds and after the match (`CancelAll`) no body keeps
   a time: not the round's last frozen body's death respawn (which the hud
   showed as "respawn in 8 seconds", its `respawn_time`, counting while the 5 s
-  pause ran: the owner, 2026-11-22), not a late arrival's entry; the restart
-  spawns everyone, the match's end nobody. The step that ends the pause makes every place
+  pause ran: the owner, 2026-11-22); the restart spawns everyone, the
+  match's end nobody. No cancel touches an entering place (its current
+  player out of the world: `vostok::freeze::Seat::Entering`): its entry
+  spawn runs in every phase. The step that ends the pause makes every place
   with a current player due at this step (`Actions::Restart`); then
   (`Native`) the tick's own `31697F..3169BE` takes each out and spawns it,
   and a place without a free point retries 50 ms later (`3169D8`). No
@@ -192,6 +200,32 @@ are reused. It restores `switch_to_player_camera` (`1F8200`) on thaw or match
 end and clears pending input on both transitions. It owns no pregame,
 spectator or replay camera, and retains only an identity and previous mode;
 camera state does not enter the world format.
+
+## No place out of the world
+
+The crash of 2026-11-22 (revision 69, every game of the match at the same
+step: the owner's Wine dump and a Windows player's report, the same stack):
+place 7 left at 124 900 ms and came back into its place at 144 000 ms, in
+the pause. The pause cancelled its entry spawn (`CancelAll`; in play
+`CancelFrozen` did the same for a frozen place that came back), so the place
+was in the match with its player out of the world. 0.26g never has that
+across a saved world: an entry spawns at its entry's step, a death keeps its
+body in the world. Every world load (`game_world_core::deserialize`) puts
+every active place's current player into the world, one already there with
+link 0 (0x2D2D51: `player::insert(0)`, +33Fh 1 only: no models, no player
+effect +F540h, no tick lists; its time stays the loaded world's, 146 950
+in the dump). The restart's native removal (vtable +24h with 1) then
+removed a model not in the scene (`remove_model`'s `m_in_scene` assert) and
+stopped the null effect: `game_effect_player::stop` read 0 at 0x2DE36D. The
+respawn rule's leave handler (0x316BE0: time -1, then the current player out
+with 1, unasked) reads it the same, with no load at all, if such a place
+leaves again.
+
+So an entry is never cancelled or held: Freeze Tag's `World::cancel` leaves
+a place whose current player is out of the world (`Seat::Entering`) to the
+native tick, which spawns it at its entry, and Artifact Hunt's `hold_due`
+skips it the same. Every game, every load and every leave then sees each
+place of the match in the world, as the stock game does.
 
 ## The frozen name and the frozen glow
 
@@ -283,7 +317,8 @@ Taken from Artifact Hunt, and why:
   match. Holding every place that falls due between rounds and after the
   match (Artifact Hunt's `Held`) spawns each once, with the round; since
   2026-11-22 Freeze Tag cancels every time there instead (`CancelAll`), so
-  no respawn countdown shows in the pause or after the match. The
+  no respawn countdown shows in the pause or after the match. Neither holds
+  an entry any more ("No place out of the world"). The
   restart itself was already the same as Artifact Hunt's `Everyone`: every
   present place made due at the step, the native tick removing and spawning
   them.
@@ -340,11 +375,8 @@ Rudnya day; the matches record into the world corpus):
 
 Open:
 
-- A frozen player who leaves and comes back. The rule keeps the place frozen
-  and cancels the native entry spawn, so it should stay out of the world
-  until the next round. Whether a rejoin can bring the body back another
-  way (the server's late join), and so escape the freeze at the team's
-  spawn, is not known until a local match tries it.
+- A frozen player who leaves and comes back, and one who enters in the
+  pause: not played yet with the entry fix ("No place out of the world").
 - A late joiner's lives count the match's round starts, those before he
   came in too (the result has the match's count, not his), as in Artifact
   Hunt: his ceiling counts lives he did not have (what he is charged is
