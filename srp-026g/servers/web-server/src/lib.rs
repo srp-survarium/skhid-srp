@@ -1981,7 +1981,7 @@ fn faq(lang: Lang) -> String {
         ),
         (
             lang.t("“Blocked on this network: …”"),
-            lang.t("Your provider blocks skhid.link: the launcher sets <b>Relay</b> (bottom left) to auto. Press Retry."),
+            lang.t("Your provider blocks our server. The launcher has already switched to our relay, a way around the block (<b>Relay: auto</b>, bottom left). Just press <b>Retry</b>."),
         ),
         (
             lang.t("Nothing works."),
