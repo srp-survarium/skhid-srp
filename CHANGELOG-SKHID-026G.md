@@ -9,6 +9,12 @@ release that made it what it is now.
 
 ---
 
+## 22 Nov, 10:52 — TODO: the owner's words (update required)
+
+<!-- Revision 70 (026g-rev70), released 2026-11-22 10:52 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2430 Freeze Tag: the HUD gets all six values; 1 v 1 players off each other's map
+
 ## 22 Nov, 09:46 — TODO: the owner's words (update required)
 
 <!-- Revision 69 (026g-rev69), released 2026-11-22 09:46 UTC. To be worded for players; what it shipped: -->
