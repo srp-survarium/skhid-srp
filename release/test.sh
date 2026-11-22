@@ -2765,9 +2765,16 @@ print("1 files edited, 0 unexpected differences")
 EOF
 edit_list() { printf '{"set": [{"file": "gameplay/items/%s", "from": "%s", "to": "%s"}]}\n' "$2" "$3" "$4" >"$C/srp-026g/scripts/content-edit/$1"; }
 edit_list e1.json a.txt "old item" "new item"
+# As flash_tree.py: `graphics` the movie with CODE where the version goes (and the tree's
+# placements.tsv, its graphics, after it), `code` the built movie's version put there (a pack's
+# lines after it kept).
 cat >"$T/build-movie" <<'EOF'
 #!/usr/bin/env bash
-printf 'built %s %s over %s\n' "$1" "$(cat "$2/src/version")" "$(sha256sum <"$3" | cut -c1-64)" >"$4"
+case $1 in
+graphics) { printf 'built %s CODE over %s\n' "${2##*/}" "$(sha256sum <"$3" | cut -c1-64)"; cat "$2/placements.tsv" 2>/dev/null; } >"$4" ;;
+code) sed "1s/ CODE / $(head -n 1 "$3" | cut -d' ' -f3) /" "$2" >"$4" ;;
+*) printf 'built %s %s over %s\n' "$1" "$(cat "$2/src/version")" "$(sha256sum <"$3" | cut -c1-64)" >"$4" ;;
+esac
 echo "$1: built"
 EOF
 cat >"$T/vostok-port" <<'EOF'
@@ -2926,10 +2933,22 @@ manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|hat@1|$hat_sha" "
 out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42i1" 2>&1) || fail "build-content, a pack editing the movie: $out"
 check "build-content: a pack that edits a movie: over the built one, and why" bash -c \
     "grep -q 'flash_movies/m.swf: movie m (srp-026g/flash/m), then pack hat@1, icons@1' <<<\"\$1\"" _ "$out"
-check "build-content: ... the built movie given to the pack that edits it" grep -q -- '--replace flash_movies/m.swf=' "$T/vostok-args"
+check "build-content: ... its graphics given to the pack that edits it" grep -q -- '--replace flash_movies/m.swf=' "$T/vostok-args"
+m_sha=$(sha256sum <"$T/b40/flash_movies/m.swf" | cut -c1-64)
+quiet "$bin" get --db "$T/work/c42i1/resources.db.patch_42" --out "$T/bc-get-i1" flash_movies/m.swf
+check "build-content: ... the movie built from its tree with what the pack drew" \
+    test "$(cat "$T/bc-get-i1/flash_movies/m.swf")" = "built m 2 over $m_sha"$'\n'"edited by icons-1"
 echo 1 >"$C/srp-026g/flash/m/src/version"
-out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42i2" 2>&1) || fail "build-content, the edited movie changed: $out"
-check "build-content: ... that movie changed: the packs composed again" bash -c "! grep -q 'composed them: the cache' <<<\"\$1\"" _ "$out"
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42i2" 2>&1) || fail "build-content, the edited movie's code changed: $out"
+check "build-content: ... its code changed: the packs from the cache (they draw into its graphics)" bash -c \
+    "grep -q 'composed them: the cache' <<<\"\$1\"" _ "$out"
+quiet "$bin" get --db "$T/work/c42i2/resources.db.patch_42" --out "$T/bc-get-i2" flash_movies/m.swf
+check "build-content: ... the new code with what the pack drew" \
+    test "$(cat "$T/bc-get-i2/flash_movies/m.swf")" = "built m 1 over $m_sha"$'\n'"edited by icons-1"
+echo "# none" >"$C/srp-026g/flash/m/placements.tsv"
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42i4" 2>&1) || fail "build-content, the edited movie's graphics changed: $out"
+rm "$C/srp-026g/flash/m/placements.tsv"
+check "build-content: ... its graphics changed: the packs composed again" bash -c "! grep -q 'composed them: the cache' <<<\"\$1\"" _ "$out"
 printf '{"id": "icons", "version": "1", "operations": [{"op": "add_file", "path": "gameplay/items/icon.txt"}]}\n' >"$T/packs/icons-1/pack.json"
 manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|hat@1|$hat_sha" \
     "pack|icons@1|$(sha256sum <"$T/packs/icons-1/pack.json" | cut -c1-64)" "edit|e1.json|-"
@@ -2938,6 +2957,20 @@ expect_refused "build-content: a movie vostok-port changed that no operation nam
     env SKHID_VOSTOK_PORT="$T/vostok-port" SKHID_PACKS_DIR="$T/packs" "$bc" 42 --out "$T/work/c42i3"
 rm -r "$T/packs/icons-1"
 manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|hat@1|$hat_sha" "edit|e1.json|-"
+# --delta-from: over an earlier build, only what the game would see otherwise; the earlier patch's
+# files known by its digests.tsv (the patch's sha256, then each file's), or, without one, read.
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bcq" 42 --out "$T/work/d42" 2>&1) || fail "build-content (quick) before a delta: $out"
+check "build-content: digests.tsv: the patch's sha256, then each file's" test \
+    "$(head -n 1 "$T/work/d42/digests.tsv") $(grep -vc '^#' "$T/work/d42/digests.tsv")" = \
+    "# resources.db.patch_42 $(sha256sum <"$T/work/d42/resources.db.patch_42" | cut -c1-64) $(grep -vc '^same' "$T/work/d42/files.tsv")"
+echo 3 >"$C/srp-026g/flash/m/src/version"
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bcq" 43 --out "$T/work/d43" --delta-from "$T/work/d42" 2>&1) || fail "build-content --delta-from: $out"
+check "build-content --delta-from: the changed movie only" test "$(cut -f1 "$T/work/d43/delta.tsv")" = flash_movies/m.swf
+rm "$T/work/d42/digests.tsv"
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bcq" 43 --out "$T/work/d43b" --delta-from "$T/work/d42" --no-cache 2>&1) || fail "build-content --delta-from, no digests.tsv: $out"
+check "build-content --delta-from: ... over a folder without digests.tsv, the same patch" \
+    cmp -s "$T/work/d43/resources.db.patch_43" "$T/work/d43b/resources.db.patch_43"
+echo 1 >"$C/srp-026g/flash/m/src/version"
 
 # A pack that rewrites a base config's vector as an indexed table: the value-
 # type check refuses it, naming the file, the path and both types.

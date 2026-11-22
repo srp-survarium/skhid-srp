@@ -3615,6 +3615,79 @@ va	status	ref_021d	name
 0x00011450	inferred-high		vostok::resources::managed_resource_ptr::~managed_resource_ptr [descriptive]
 0x002f4b40	inferred-high		survarium::shared_statistics::shared_statistics
 0x002f4c20	inferred-high		survarium::shared_statistics::clear
+0x00304e20	inferred-medium		survarium::booby_trap_core::insert_collision
+0x0031d970	inferred-medium		survarium::breath_vibration_calculator::start
+0x0033e3d0	inferred-medium		survarium::oxygen_tank::register_in_game_world
+0x0033e590	inferred-medium		survarium::oxygen_tank::refill
+0x003295a0	inferred-medium		survarium::player_stamina::reset
+0x003296c0	inferred-medium		survarium::player_stamina::decrease
+0x00329960	inferred-medium		survarium::player_stamina::boost
+0x002e5040	inferred-medium		survarium::damage_model::regenerate
+0x0032a600	inferred-medium		survarium::body_part::expire_affects
+0x0032a9c0	inferred-medium		survarium::body_part::update_health_modifiers
+0x00303b90	inferred-high		survarium::grenade_core::arm
+0x00303d10	inferred-high		survarium::grenade_core::disarm
+0x00303d50	inferred-high		survarium::grenade_core::remove_from_physics
+0x00303b60	inferred-high		survarium::grenade_core::explode
+0x00303b20	inferred-medium		survarium::grenade_core::update_in_physics
+0x0030a4a0	inferred-high		survarium::grenade_set_core::explode
+0x00309e70	inferred-medium		survarium::grenade_set_core::reset_grenades
+0x00309f00	inferred-high		survarium::grenade_set_core::hand_transform
+0x0030a090	inferred-medium		survarium::grenade_set_core::can_pull_pin
+0x00248310	inferred-high		survarium::grenade::grenade
+0x00248460	inferred-high		survarium::grenade::arm
+0x00248520	inferred-high		survarium::grenade::throw_grenade
+0x00248600	inferred-high		survarium::grenade::remove_from_physics
+0x00248650	inferred-medium		survarium::grenade::update
+0x00248720	inferred-high		survarium::grenade::explode
+0x00297100	inferred-medium		survarium::grenade_set::show_in_hand
+0x003056d0	inferred-high		survarium::booby_trap_core::explode
+0x0033a770	inferred-high		survarium::weapon_core_throw_grenade_state::release_grenade
+0x00310680	inferred-medium		survarium::weapon_core_throw_grenade_throw_substate::on_animation_event
+0x003043b0	inferred-medium		survarium::booby_trap_core::is_active
+0x003049c0	inferred-medium		survarium::booby_trap_core::set_transform
+0x00304bd0	inferred-medium		survarium::booby_trap_core::on_enter
+0x00304e80	inferred-medium		survarium::booby_trap_core::insert
+0x00304f00	inferred-medium		survarium::booby_trap_core::remove
+0x00304f30	inferred-high		survarium::booby_trap_core::use_execute
+0x00305070	inferred-medium		survarium::booby_trap_core::can_use
+0x003050c0	inferred-medium		survarium::booby_trap_core::defuse_completed
+0x00305150	inferred-medium		survarium::booby_trap_core::on_state_timer_finished
+0x00305540	inferred-medium		survarium::booby_trap_core::hit
+0x00305580	inferred-medium		survarium::booby_trap_core::hit
+0x003055b0	inferred-medium		survarium::booby_trap_core::inventory_item_clear
+0x00305940	inferred-medium		survarium::booby_trap_core::is_disarmed
+0x00305950	inferred-medium		survarium::booby_trap_set_core::booby_trap_set_core
+0x00305ea0	inferred-medium		survarium::booby_trap_set_core::try_to_place_trap
+0x00305f50	inferred-medium		survarium::booby_trap_set_core::find_inactive_trap
+0x00305fc0	inferred-medium		survarium::booby_trap_set_core::find_disarmed_trap
+0x003063e0	inferred-medium		survarium::booby_trap_set_core::get_visible_place_transform
+0x00306720	inferred-medium		survarium::booby_trap_set_core::action
+0x00306820	inferred-medium		survarium::booby_trap_set_core::inventory_item_clear
+0x003068e0	inferred-medium		survarium::booby_trap_set_core::find_oldest_placed_trap
+0x00247cc0	inferred-medium		survarium::booby_trap::booby_trap
+0x00247db0	inferred-medium		survarium::booby_trap::~booby_trap
+0x00247ef0	inferred-medium		survarium::booby_trap::draw
+0x00248130	inferred-medium		survarium::booby_trap::insert
+0x002478c0	inferred-medium		survarium::booby_trap_set::booby_trap_set
+0x002479d0	inferred-medium		survarium::booby_trap_set::register_in_game_world
+0x00247a90	inferred-medium		survarium::booby_trap_set::action
+0x000205e0	inferred-medium		boost::function1<void,unsigned int>::operator()
+0x002484a0	inferred-medium		survarium::grenade::unregister_tick
+0x00248980	inferred-medium		survarium::grenade::on_contact
+0x0025e030	inferred-medium		survarium::grenade_cook::query_resources
+0x0025e1c0	inferred-medium		survarium::grenade_cook::on_resources_loaded
+0x00303640	inferred-high		survarium::grenade_core::grenade_core
+0x00319af0	inferred-high		survarium::damage_zone_core::hit_bodies
+0x002dbed0	inferred-medium		survarium::base_player::reset_kit
+0x002fe300	inferred-medium		survarium::inventory::reset_items
+0x0035ba10	inferred-high		vostok::particle::particle_world::set_paused
+0x0035b9b0	inferred-medium		vostok::particle::particle_world::set_transform
+0x00245860	inferred-medium		survarium::delayed_callbacks_queue<64>::process
+0x002483d0	inferred-high		survarium::grenade::`scalar deleting destructor'
+0x002483f0	inferred-high		survarium::grenade::~grenade
+0x00027980	inferred-medium		vostok::render::scene_renderer::update_particle_system_instance_bind
+0x00318540	inferred-medium		survarium::deserialize_local_fixed_time
 0x001a29b0	inferred-medium		vostok::render::effect_sun_shadows_apply<no_sky,0>::compile
 0x001a2b40	inferred-medium		vostok::render::effect_sun_shadows_apply<no_sky,1>::compile
 0x001a2ce0	inferred-medium		vostok::render::effect_sun_shadows_apply<no_sky,2>::compile
@@ -3644,3 +3717,7 @@ va	status	ref_021d	name
 0x000fde20	inferred-high		vostok::console_commands::logging_rule::execute [descriptive]
 0x0031aca0	inferred-high		survarium::effect_zone_core::protect_players [descriptive]
 0x00316470	inferred-medium		survarium::tdm_rule_core::protect_players [descriptive]
+0x001c8a10	inferred-medium	0x0013d2a6	vostok::render::potential_request::calc_priority
+0x00176340	inferred-high		stlp_std::remove_copy_if<vostok::render::render_surface_instance * *,vostok::render::remove_invisible_models_predicate> [descriptive]
+0x00173fc0	inferred-high	0x001081cd	vostok::render::remove_model_if_fully_in_frustum_predicate::operator()
+0x001740d0	inferred-high	0x001082aa	vostok::render::remove_model_if_shadow_not_it_frustum_predicate::operator()

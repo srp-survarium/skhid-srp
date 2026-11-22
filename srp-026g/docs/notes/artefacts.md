@@ -159,6 +159,8 @@ down) when you use artifact? Note that your vision should still be clear")
 - Version 13: the leg quarters one particle effect of view 2 each, without the point light and the
   haze (what the carrier saw is what everyone sees), no first-person twin; Forest Protection's smoke
   emitters' Rate and MaxParticles x1.5.
+- Version 15 (14 is the open #1586's): Forest Protection's first-person twin plays its smoke too,
+  beside the rays, at three quarters of the third person's rate (artefact-skills.md).
 - History: version 1 (a lighter copy) and version 2 (with `up_light`'s lights at x0.35) showed
   too little in the first person; version 3, the stock glow without the head, was tested by the
   owner and approved (2026-10-25: "this version is good"). Version 4 is the same files.

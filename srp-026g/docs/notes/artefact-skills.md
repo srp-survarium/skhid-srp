@@ -182,6 +182,20 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   `up`, `body`, `left_hend`, `right_hend`) have their Rate (curve and data source) and
   MaxParticles (rounded up) x1.5 (`SMOKE_THICKER`); colours, sizes, the rays and the twin as @12.
   `check_forest` allows exactly that factor.
+- Since @15 (the owner, 2026-11-22: the carrier saw only the rays, the smoke should show in the
+  first person too, "so the person knows they are protected"; @14 is the open #1586's): the
+  first-person twin plays the smoke emitters as well as the rays (FOREST_FIRST_PERSON), still
+  without `up_light` and `distortion`, the smoke's Rate (curve and data source) and MaxParticles
+  (rounded up) three quarters of the third person's (`FIRST_PERSON_SMOKE`, nine eighths of the
+  stock rate: about 191 live puffs, 6 body strokes, 5 a hand). Tried in game by the owner,
+  2026-11-22: a third, then "can also be a tiny bit more"; a half, then "make it a bit more visible
+  still (usually you are already in smoke when this is active, so it is hard to see your hands
+  exuding smoke)". view_cone.py: `up`'s puffs reach the view's axis in both poses, `body` 4
+  degrees from it at the hip, the hand strokes 25..34 degrees at the hip; aimed, all of them (and
+  the rays) reach it. A rough estimate (discs of the particles' sizes, half opaque, fading over
+  their life): at the hip about 7 % of the view, the centre clear; aimed, some smoke over about
+  seven tenths of the 15-degree centre (a mean opacity of about a third there), against about
+  nine tenths at the third person's rate. `check_forest` allows exactly that twin.
 
 ## Artifact Container (522)
 

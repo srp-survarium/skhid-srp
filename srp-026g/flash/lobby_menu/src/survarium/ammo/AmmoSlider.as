@@ -60,15 +60,14 @@ package survarium.ammo
       
       private var _hoverCells:Boolean = false;
 
-      // The cells one step of the value takes (a pocket's RGD-5: two units of the pocket each).
-      public var cellUnits:int = 1;
-
-      // The colour of the cells no item is in (null: the cell's own): of each filled step's
-      // cells all but the first, and the open cells left over that hold no whole step.
-      public var takenTint:ColorTransform = null;
-
       // The cells the pocket opens.
       public var openCells:int = 0;
+
+      // The last open cells no item can take (a pocket of RGD-5s: the units its pairs use up),
+      // shown in blockedTint.
+      public var blockedCells:int = 0;
+
+      public var blockedTint:ColorTransform = null;
 
       // A cell shown in its own colour whatever its state (a pocket's unit a skill added), or -1.
       public var bonusCell:int = -1;
@@ -383,15 +382,14 @@ package survarium.ammo
          var cell:MovieClip;
          var cellValue:uint;
          var preview:Boolean;
-         var spare:Boolean;
+         var blocked:Boolean;
          while(i < this._cells.length)
          {
             cell = this._cells[i];
-            cellValue = int(i / this.cellUnits) * snapInterval;
+            cellValue = i * snapInterval;
             // A cell the pointer would add or take away shows the slider's own preview.
             preview = cellValue >= this._selectValue && cellValue < value && this._selectValue < value || cellValue >= value && cellValue < this._selectValue && this._selectValue >= value;
-            // The open cells that hold no whole step (none where the pocket is smaller than one).
-            spare = i < this.openCells && i >= Math.max(this.cellUnits,int(this.openCells / this.cellUnits) * this.cellUnits);
+            blocked = i < this.openCells && i >= this.openCells - this.blockedCells;
             if(preview)
             {
                cell.transform.colorTransform = NO_TINT;
@@ -400,9 +398,9 @@ package survarium.ammo
             {
                cell.transform.colorTransform = cellValue < value ? this.bonusTint : this.bonusEmptyTint;
             }
-            else if(this.takenTint != null && (cellValue < value && i % this.cellUnits != 0 || spare))
+            else if(blocked && this.blockedTint != null)
             {
-               cell.transform.colorTransform = this.takenTint;
+               cell.transform.colorTransform = this.blockedTint;
             }
             else
             {
@@ -412,8 +410,9 @@ package survarium.ammo
             {
                cell.gotoAndStop(3);
             }
-            else if(cellValue < value)
+            else if(cellValue < value || blocked)
             {
+               // a blocked cell is drawn filled: its red shows only on a filled cell's face
                cell.gotoAndStop(4);
             }
             else if(cellValue < this.total)
@@ -433,7 +432,7 @@ package survarium.ammo
          if(cell)
          {
             track.height = cell.height;
-            track.width = this.total / snapInterval * this.cellUnits * (cell.width + this.shiftInterval);
+            track.width = this.total / snapInterval * (cell.width + this.shiftInterval);
          }
       }
       
@@ -463,7 +462,7 @@ package survarium.ammo
                i++;
             }
             this._cells.length = 0;
-            cellCount = maximum / snapInterval * this.cellUnits;
+            cellCount = maximum / snapInterval;
             j = 0;
             while(j < cellCount)
             {

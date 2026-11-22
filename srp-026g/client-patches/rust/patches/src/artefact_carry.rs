@@ -222,6 +222,9 @@ pub fn on_input_end(ctx: &mut Context<'_>) -> Flow<NoExit> {
         let encoded = chord.step(actions, key.is_down());
         CHORD.set(ctx.thread(), chord);
         handler.set_actions(ActionMask::from_bits(encoded));
+        // Patch 180: Use's press on an offered live enemy grenade is its throw-back (patch 85 then
+        // sees Use consumed).
+        crate::technical_return_to_sender::on_input_end(&mut handler, ctx.thread());
         // Patch 85: Use's press on a dropped gun is sent as its pickup.
         crate::weapon_pickup::on_input_end(&mut handler, ctx.thread());
     }
@@ -234,16 +237,18 @@ pub fn on_hud(ctx: &Context<'_>) {
     // a priority over weapon"): while Use would take it or put it in, nothing
     // here is aimed or shown, so no gun pickup goes into the input (Use stays
     // Use, which the hunt takes at carry.input in every game) and the hunt's
-    // prompt is the one shown. Then patch 78's own targets, then patch 85's gun.
+    // prompt is the one shown. Then patch 180's live enemy grenade (it is about
+    // to explode), then patch 78's own targets, then patch 85's gun.
     let local = native::local_player(ctx);
     if local.as_ref().is_some_and(crate::artefact_hunt::offers) {
         crate::weapon_pickup::aim(ctx, None);
         HINT.set(ctx.thread(), None);
         return;
     }
-    let carry = local.as_ref().is_some_and(|p| target(p, ctx).is_some() || ground_target(p).is_some());
-    let gun = crate::weapon_pickup::aim(ctx, local.as_ref().filter(|_| !carry));
-    let visible = carry || gun.is_some();
+    let grenade = crate::technical_return_to_sender::aim(ctx, local.as_ref());
+    let carry = grenade.is_none() && local.as_ref().is_some_and(|p| target(p, ctx).is_some() || ground_target(p).is_some());
+    let gun = crate::weapon_pickup::aim(ctx, local.as_ref().filter(|_| !carry && grenade.is_none()));
+    let visible = grenade.is_some() || carry || gun.is_some();
     let Some(ui) = crate::vostok::GameWorldUi::at_update_icons(ctx) else { return };
     if let Some(movie) = ui.hud_movie() {
         let previous = HINT.get(ctx.thread());
@@ -252,15 +257,20 @@ pub fn on_hud(ctx: &Context<'_>) {
         // the movie, even if the world target itself did not change.
         if !visible && previous.is_none_or(|(id, shown)| id != movie.id() || !shown) { return; }
         let mut text = [0u8; 0x200];
-        let shown = match gun {
-            _ if carry => movie.invoke_text(c"root.show_artefact_offer", c"st_artefact_take_teammate"),
-            Some(crate::weapon_pickup::Prompt::Take(name)) => {
-                let name = if name.get().is_empty() { c"" } else { ui.translate(name.get(), &mut text) };
-                movie.invoke_strings(c"root.show_artefact_offer", &[c"st_weapon_pick_up", name])
+        let shown = if let Some(crate::technical_return_to_sender::Prompt(name)) = &grenade {
+            let name = if name.get().is_empty() { c"" } else { ui.translate(name.get(), &mut text) };
+            movie.invoke_strings(c"root.show_artefact_offer", &[c"st_weapon_pick_up", name])
+        } else {
+            match gun {
+                _ if carry => movie.invoke_text(c"root.show_artefact_offer", c"st_artefact_take_teammate"),
+                Some(crate::weapon_pickup::Prompt::Take(name)) => {
+                    let name = if name.get().is_empty() { c"" } else { ui.translate(name.get(), &mut text) };
+                    movie.invoke_strings(c"root.show_artefact_offer", &[c"st_weapon_pick_up", name])
+                }
+                // Why it cannot be taken (none is silent).
+                Some(crate::weapon_pickup::Prompt::Cannot(key)) => movie.invoke_text(c"root.show_artefact_offer", key),
+                None => movie.invoke_text(c"root.show_artefact_offer", c""),
             }
-            // Why it cannot be taken (none is silent).
-            Some(crate::weapon_pickup::Prompt::Cannot(key)) => movie.invoke_text(c"root.show_artefact_offer", key),
-            None => movie.invoke_text(c"root.show_artefact_offer", c""),
         };
         if shown { HINT.set(ctx.thread(), next); }
     }

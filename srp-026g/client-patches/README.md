@@ -177,6 +177,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/v021d_render.rs`, `src/v021d_render.toml`, `src/vostok/render_stage.rs`, `src/vostok/effect_compile.rs`, `check_rain_v021d_026g.py` | Patch 130: the ported 0.21 maps render the 0.21 way: effect_wet_surface and effect_rain compile 0.21 twins of their techniques after their own (the wet pass with `wet_surface_v021d.ps`, the drops with `ported/v021d/engine/rain_drop`), and on the scene of a project whose config says `srp_renderer_v021d` the wet pass runs at any shading quality with its twin, the drops with theirs and 0.21d's half-float rain_drops_parameters1.zw; a material with `srp_grass_v021d` takes the 0.21 grass vertex shaders, one with `srp_water_v021d` the 0.21 wave normals; the sky stage's god-rays pass is skipped on that scene; fourteen lohooks; its check runs both compiles whole, the map's sites, the god-rays pass's entry, compile_begin and the water's compile in both exes, 0.21d's drop parameters in its own (needs Unicorn; `../docs/notes/client_patch.md` section 3.82) |
 | `rust/patches/src/memory_profile.rs`, `src/memory_profile.toml`, `src/vostok/memory_profile.rs`, `memory_profile_026g.asm`, `check_memory_profile_026g.py`, `../scripts/memory-profile/analyze.py` | Patch 127: a memory profiler of the engine's arenas for the owner and for workers' local tests, never players: on with `SKHID_MEMORY_PROFILE=on` in the game's environment. Off, the exe keeps the game's allocator bytes: its five gates (dlmalloc's three entries, ptmalloc3's two frees of mapped blocks) and the out-of-memory hook are installed on demand (`install = "on_demand"`, written at the start only when on). On, each block is counted to its arena and the call site that asked; snapshots (each arena's use, holes and sites; the address space) go to `srp_memory_profile.txt` in the user data folder at a world in, a match closing, a full arena and Scroll Lock; `analyze.py` prints the report; its check runs dlmalloc on a made-up arena in both exes and reads the snapshot (needs Unicorn; `../docs/notes/memory-profile.md`) |
 | `rust/patches/src/texture_streaming.rs`, `src/texture_streaming.toml`, `src/vostok/streaming.rs`, `check_texture_streaming_026g.py` | Patch 137: texture streaming's per-frame bookkeeping in Rust, the same values: scene::update_streaming_data (every streaming record from its proxy, the three proxy classes' virtuals read once by their vtable, one square root a surface) and resource_manager::get_texture_video_memory_size (the registry's texture memory without the "$user$" names, searched 16 bytes at a time); two lohooks, each the whole function; its check runs both functions on made-up scenes and registries in both exes, every byte the same, and counts their instructions (needs Unicorn; `../docs/notes/client_patch.md` section 3.79) |
+| `rust/patches/src/texture_pool.rs`, `src/texture_pool.toml`, `src/vostok/texture_pool.rs` | Patch 182: a streamed texture that wants a size whose pool slots are all taken takes the largest smaller size with a free slot, instead of keeping its small load-time mips until a slot of exactly that size frees (the pools are a fixed table of slots per size: 60 of 2048x2048 BC1, 30 of BC3, 120 of 1024x1024, ...); a lohook at process_streaming's no-slot path (0x15433E); `SKHID_TEXTURE_STREAMING_LOG=on` logs each such request (`../docs/notes/client_patch.md` section 3.99) |
 | `rust/patches/src/constant_upload.toml`, `constant_upload_026g.asm`, `check_constant_upload_026g.py` | Patch 134: shader constants cost the render thread less, the same bytes on the GPU: shader_constant_buffer::set_memory (0x11B5A0) copies 16 bytes at a time, not one, and update (0x3DDFD0) maps a buffer only when its bytes differ from the ones it last uploaded (four `code` hooks); its check runs set_memory on 4000 made-up cases in both exes (every register, XMM0..7 and the memory alike), the constructor, and 150 draws over four buffers with a model of the device context (the GPU's bytes after every update alike) (needs Unicorn) |
 | `rust/patches/src/replay_map.rs`, `src/replay_map.toml`, `src/vostok/ui.rs` (`GameWorldUi::at_enemy_ids`), `check_replay_map_026g.py` | Patch 135: a replay shows every enemy, spotted or not (`../docs/notes/replay-map.md`): its dot (update_minimap_players' spotted test, 0x239505), its marker and red name with Alt (render_name's, 0x1F2B50), the icons movie told `root.srp_show_enemies` before initialize_match's enemy list (0x235709); a replay known by the game's network client's class (`vostok::world::Playback`), no state of its own; its check runs the three sites in both exes (needs Unicorn) |
 | `rust/patches/src/replay_keys.rs`, `src/replay_keys.toml`, `src/vostok/world.rs` (`GameWorld::replay_player`, `places_in_match`), `src/vostok/keyboard.rs` (`GameWorldKey::replay_player`) | Patch 140: a replay's keys and the followed player's return (`../docs/notes/replay-keys.md`): at on_keyboard_action's start (0x25CD00) a key that goes down in a replay is kept, and at the frame's end (game_world::tick after the move, 0x1F7C3C) the replay player movie is told it (`root.srp_key`) and, when they changed, the places in the match (`root.srp_places`); a replay known by the game's network client's class, as patch 135 |
@@ -6129,7 +6130,12 @@ option and bounded `r_distance_detail` command: 0 Normal (default), 1 High,
 Hardware mip filtering, frustum and occlusion culling remain active. Maximum
 also removes grass's separate 100-metre cutoff and forces the draw-time grass
 model selector to LOD0; changing only the culling cache did not affect that
-selector. Native shadow-pass limits and its explicit LOD bias remain.
+selector. The sun's shadows follow it: Maximum keeps every model caster in
+every cascade (no per-cascade screen-factor cull), draws grass shadows at the
+camera's grass LOD (not one coarser) and at every distance (not 25 m);
+High lowers the cull thresholds by 2/3 and draws grass shadows to 37.5 m;
+Normal is unchanged (`docs/notes/client_patch.md`, "Sun shadows").
+Model shadows already took the camera's LOD. The cascades' edges stay hard.
 The Graphics presets include this row: Ultra selects Maximum; High selects High;
 Minimum, Low and Medium select Normal. Changing this row away from the selected
 preset selects Custom through the native integer-option comparison. The
@@ -6437,6 +6443,52 @@ draw_damage_collector takes its copy and skips its invoke while the collector sh
 kill marker is the kill event's own call, unchanged. The hud alone: nothing a match computes or a world
 holds changes. Checked with `check_hit_marker_walls_026g.py` (Unicorn; `tools/check hit-marker-walls`)
 and the hud's Ruffle harness (`../scripts/hud-options/check.sh`, HudHarness). Not run in a game.
+## The technical tree (patch 180, unreleased)
+The fourth skills tab (`../docs/notes/technical-skills.md`). Every skill travels packed in kit
+modifier 47 (`spot_enemy_traps`, read by nothing of 0.26g), parsed once by the `technical-skills`
+crate, which srp shares. Rust modules `technical_skills` and its siblings (`technical_*.toml`).
+- Tank Pocket / Tank Depth (413/414): at apply_kit_parameter's epilogue (`medical.pocket_count`,
+  order 1, before the medical tree's clamp) a kit whose worn slots hold an oxygen tank (item config
+  `data.type` 1) gets a pocket or a pocket size a rank (2 at most). srp's kit layout counts the same.
+- Steady Breath (403) at `technical.breath_vibration` (0x31D95B) and `technical.dispersion`
+  (0x2E1DBE), Deep Breaths (431) at `medical.sprint` (order 2), while the player's oxygen tank
+  (vtable 0xA1C874) is on.
+- Last Gasp (442): `technical.tank_empty` (0x33E661) starts it (stamina full, the boost's end in the
+  tank's tail padding +294h, saved after m_amount_ms: `technical.tank_save` / `tank_load`, cleared by
+  `tank_construct` and both refills); x1.1 at `medical.movement` (order 2); its end at
+  `battery.carrier_tick` (order 6). srp-validate's `OxygenTank` reads the word.
+- Dexterous Hands (401) at `technical.battery_take` (0x338B61) and `technical.resupply_time`
+  (0x2F8147, the ms passed at an ammo crate), Sapper (411) at `technical.defuse_time`
+  (0x304F92), Rearm (433) at `technical.trap_shot` (0x305552, exit to its `ret 28h`) and
+  `technical.trap_reopen` (0x304DCF, exit past the delayed action; engine rows
+  `engine_trap_switch_state` 0x305210 and `engine_trap_insert_collision` 0x304E20).
+- Trophy Trap (423): srp sends a skilled player's trap pocket one unit more; refills never fill
+  it (`technical.resupply`, 0x2FFD1B); a disarmed enemy trap does (`technical.trap_defused`,
+  0x304FCF).
+- Blast Drill (404) at `medical.hit` (order 2), Scavenger (443) at `player.killed_event` (order 2,
+  its frame: time, killer, source).
+- Bear Trap (444) at `medical.wound` (0x32A28B, order 2; the site's ESI is the hit): a leg's pool
+  hit by a trap set of a skilled holder is stored as 0.
+- Toxic Smoke's and Bear Trap's halved pockets are srp's (`KitLayout::share`) and the lobby's
+  (`PlayerInfo.pocketUnits`); nothing of them in the exe.
+- Sharp Ears (412, `technical_sharp_ears`): at `weapon_sound.made` (order 2) an enemy's pin pull also
+  plays a long-range copy of its sound (content edit technical-sharp-ears-1) through
+  game_world::play_sound 0x25B940 for a local player with the skill; presentation only.
+- Return to Sender (422, `technical_return_to_sender`): patch 85's Use press on a live enemy grenade
+  is sent as a command (marker bit 29, all six quick bits; srp checks the skill); every game at
+  `technical.throw_back` (0x2D8747) removes the grenade from the physics world and throws it along
+  the player's view. Composed in artefact_carry's input end and hud.
+- Dead Man's Switch (432, `technical_dead_man`): a dead player's profile input 80h (sent on the
+  50 ms grid, `game.frame_end`; the throw key at `technical.game_key`) drops one of its smokes at its
+  body at the place's tick (`technical.place_tick`, 0x321790).
+- Dense Smoke and Toxic Smoke (402, 441, `technical_smoke`): the client grenade grows to 270h bytes;
+  a skilled thrower's smoke keeps a toxic cloud (saved: current_state bit 3 and 16 bytes) that hits
+  enemies inside each tick, drawn green (pack toxic-smoke); its particle instance paused for
+  rank x 2.9 s of its hold. Forest Protection (patch 109's modifier 41) takes a toxic cloud for a
+  damage zone: `smoke.anomaly_zones` (0x332833, exit 0x33283C) for the hit's factor, patch 111's glow
+  by `effect::Player::in_toxic_smoke`.
+Changes what a match computes (simulation_changes.tsv `next`); the tank saves 4 bytes more.
+Checked with `check_technical_skills_026g.py` and `check_technical_smoke_026g.py` (Unicorn) and the crates' and servers' tests; not run in a game.
 
 ## A part of a tick: its least walk and the speed read from it (patch 168, unreleased)
 
