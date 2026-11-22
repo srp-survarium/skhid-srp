@@ -119,6 +119,18 @@ impl<'t> GameWorldUi<'t> {
         Place::new(u32::from(unsafe { read(self.this.viewed_place()) }))
     }
 
+    /// The teams' points in the hud state (+90h, +92h), which update_ui sends as the score bars
+    /// (root.set_game_progress, the viewed team's first). A mode without a rule that fills them
+    /// (Freeze Tag) writes them itself: nothing clears them at a new match, so the last match's
+    /// stayed (the owner, 2026-11-22: "freeze tag counter doesn't reset after prev game").
+    pub fn set_team_points(&self, points: [u16; 2]) {
+        // SAFETY: the ui is alive for the hook, on the game's thread; two u16 of its hud state.
+        unsafe {
+            self.this.team_zero_points().write(points[0]);
+            self.this.team_one_points().write(points[1]);
+        }
+    }
+
     /// Freeze Tag's rescue reach, from the HUD's current player to a
     /// frozen teammate. The same static-world query the rule uses.
     pub fn freeze_reachable(&self, from: srp_validate::Place, target: srp_validate::Place) -> bool {

@@ -4556,6 +4556,24 @@ impl GameWorldUi {
     pub unsafe fn kd(self) -> HudKd {
         HudKd(unsafe { self.0.byte_add(0xbc) })
     }
+
+    /// +0xb4 (u16): the hud state's +90h: team 0's points, which update_ui sends as root.set_game_progress (0x2364C0, the viewed team's first); written by the mode's rule (tdm_rule_core::fill_match_hud_state 0x31643B, Artifact Hunt's slot 17) and by nothing at a new match (match_hud_state is made once, 0x233680)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn team_zero_points(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0xb4).cast::<u16>().as_ptr() }
+    }
+
+    /// +0xb6 (u16): the hud state's +92h: team 1's points (as +90h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn team_one_points(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0xb6).cast::<u16>().as_ptr() }
+    }
 }
 
 /// A vostok::ui::movie_holder (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,

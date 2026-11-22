@@ -344,6 +344,8 @@ pub fn on_hud(ctx: &mut Context<'_>) -> Flow<NoExit> {
         }
         return Flow::Continue;
     };
+    // The score bars' native source, every frame of the match from its first, whoever is viewed.
+    ui.set_team_points(state.points());
     let Some(viewed) = ui.viewed_place() else {
         return Flow::Continue;
     };
