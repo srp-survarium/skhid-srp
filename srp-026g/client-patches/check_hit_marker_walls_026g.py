@@ -32,7 +32,10 @@ What a game shows, for a shooter at place 2 on the victim at place 7:
 - pellets of one step: one clear among walled ones shows it, in either order;
   only walled ones: none;
 - another shooter's (place 5) collector: its own hits only;
-- a bullet try_pierce stopped is not noted.
+- a bullet try_pierce stopped is not noted;
+- a lethal round through a wall: no white marker, then its kill event, run
+  through the game world's walk of its events (0x1FB6C0, 0x233770, 0x23CF20
+  to the invoke): the kill marker (1.0, killed) in both, once.
 In every run the registers the game keeps are the original's. The kill's
 marker (0x23CF20) and draw_damage_collector but its hook's five bytes are the
 original's: a kill through a wall reaches the hud by the kill's call alone,
@@ -67,6 +70,9 @@ COLLECTOR, PLACE, UI_OF = 0xF534, 0x114, 0xF480
 RANGED, BLUNT = 0, 1
 CONCRETE, GLASS_HARD = 0.23, 0.10    # game.materials' armor
 VICTIM = 7
+KILL_WALK, SHOW_KILL_MARKER = 0x1FB6C0, 0xA70EC6    # process_kill_cross_events, show_enemy_killed_marker
+KILL_EVENT, HIT_EVENT = 0, 2    # a world event's type (+18h)
+KILL_LIST, KILL_EVENTS, KILL_UI, GAME_WORLD = HEAP + 0x23000, HEAP + 0x24000, HEAP + 0x26000, HEAP + 0x27000
 KEPT = (UC_X86_REG_EBX, UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EBP, UC_X86_REG_ESP)
 
 failed = 0
@@ -173,6 +179,36 @@ class Game:
                             UC_X86_REG_ESP: STACK + 0x8000})
         return [m[2] for m in self.markers if m[0] == b"root.crosshair_enemy_hit" and m[1] == 4 and not m[3]], kept
 
+    def kill_walk(self, events, shooter=2):
+        """The game world's tick handing its world events (each (type, victim,
+        killer, time)) to the kill marker (0x1FB6C0, as 0x1F7FF6 calls it: the
+        bound the newest ticked time, stock's delay 0): the kill markers the hud
+        got."""
+        node = KILL_EVENTS
+        self.u32(KILL_LIST, node if events else 0)
+        for n, (kind, victim, killer, time) in enumerate(events):
+            self.emu.mem_write(node, bytes([victim, killer]))
+            self.u32(node + 0x18, kind)
+            self.u32(node + 0x1C, node + 0x40 if n + 1 < len(events) else 0)
+            self.u32(node + 0x24, time)
+            self.emu.mem_write(node + 0x28, b"\x01" if kind == HIT_EVENT else b"\x00")
+            node += 0x40
+        self.u32(KILL_UI + 0x9C, KILL_UI + 0x100)
+        self.u32(KILL_UI + 0x100 + 0x53AC, KILL_UI + 0x400)
+        self.u32(KILL_UI + 0x400 + 4, PLAYERS[shooter])
+        self.u32(PLAYERS[shooter] + 0xD0, 100)    # its reference count, never 0 here
+        self.u32(KILL_UI + 0x1FC + 8, HOLDER)
+        self.u32(GAME_WORLD + 0x568, KILL_UI)
+        self.emu.mem_write(SHOW_KILL_MARKER, b"\x01")
+        sp = STACK + 0x8000
+        self.u32(sp, RETURN)
+        self.u32(sp + 4, self.u32(GAME_WORLD + 0x564))
+        self.u32(sp + 8, GAME_WORLD + 0x564)
+        self.markers = []
+        self.run(KILL_WALK, {RETURN}, {UC_X86_REG_ECX: KILL_LIST - 0x12744, UC_X86_REG_EDX: max(e[3] for e in events),
+                                      UC_X86_REG_ESP: sp})
+        return [m[2] for m in self.markers if m[0] == b"root.crosshair_enemy_hit" and m[1] == 4 and m[3]]
+
 
 def main():
     if len(sys.argv) != 2:
@@ -264,6 +300,12 @@ def main():
     both("place 5's collector drawn", lambda game: None, [0.45], [0.45], shooter=5)
     both("place 5 through a wall", through(CONCRETE, 700, 0.55, shooter=5), [0.55], [], shooter=5)
     both("place 2's clear hit", clear(700, 0.6), [0.6], [0.6])
+
+    both("a lethal round through a wall", through(CONCRETE, 800, 1.0), [1.0], [])
+    kill = [(HIT_EVENT, VICTIM, 2, 800), (KILL_EVENT, VICTIM, 2, 800)]
+    check([game.kill_walk(kill) for game in (stock, ours)] == [[1.0], [1.0]],
+          "its kill event: the kill marker (1.0, killed) in the original and the build")
+    check([game.kill_walk(kill) for game in (stock, ours)] == [[], []], "the next frame: no second kill marker")
 
     if failed:
         sys.exit(f"{failed} check(s) failed")

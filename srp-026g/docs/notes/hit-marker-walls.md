@@ -69,8 +69,20 @@ leaves)", "red ones are still shown when killed"; then "Through a wall, kill sho
     that bullet's hit;
   - the marks are not rolled back with the world: a re-simulation can leave a clear hit pending
     where it no longer is, and a walled hit re-simulated after it then shows the marker.
+- **The kill marker** (PROVEN, the original's, unchanged here): game_world's tick walks the world
+  events after the last time it walked (`process_kill_cross_events` 0x1FB6C0, its bound the newest
+  ticked time); `on_kill_cross_event` (0x233770) draws the marker for a kill (type 0) by the
+  drawn player and writes the time of every event it is given, of any type (a hit, 2, a battery's
+  user, 1), into the last time (game_world+564h). A world load drops the events after its time
+  (0x2D3700) and the re-simulation makes them again, but the last time stays. So a kill this game
+  first simulates in a re-simulation (the victim's or another's late input made the hit lethal or
+  made it hit at all) gets no kill marker when any event at or after its time had been walked,
+  the same shot's predicted hit too; the kill feed (its own walker, 500 ms behind) shows it. With
+  this patch such a kill through a wall shows nothing on the crosshair (the original showed the
+  predicted hit's white bars).
 - **Checks:** `../../client-patches/check_hit_marker_walls_026g.py` (Unicorn: the three sites in
-  both exes, the marker the hud gets in each case above, the registers the original's, the kill
+  both exes, the marker the hud gets in each case above, a lethal round through a wall and its
+  kill event walked to the kill marker's invoke in both, the registers the original's, the kill
   marker's and the draw's bytes but the hook's the original's), Rust tests, the hud movie's Ruffle
   harness (`../../scripts/hud-options/check.sh`, its HudHarness: a kill after a hit's white bars
   with All draws what Kill marker only draws). Not yet played.
