@@ -172,6 +172,19 @@ the project goes. One multiplier dims the probe's light, not its colour: the
 lamp's tint stays in what is left. A probe in the boxes of two lamps (a
 room's or a building's) is left as it is.
 
+A dimmed probe is never darker than what is drawn beside it, where its room
+goes on into the next (`neighbour_light`): the probes that overlap it
+without holding all of it (not one under it, a building's), at most twice
+its radius, laid over one another as the renderer does (largest first, each
+by its smoothstep alpha), just outside its box at its middle height. Its
+`keeps` is at least their light over its own. The split alone took London
+(v0.32) evening's corridor probe `gerkin(4)` to 0.26 of 0.33 (0.085) between
+`gerkin(1)`, `(2)`, `(3)` and `gerkin_hall_centre` at 0.11 to 0.13: its box
+showed as a dark rectangle, and the corridor beyond it as a lit patch (the
+owner's 2026-11-22-07-16-06.png). It keeps 0.38 now, their 0.12. A probe the
+lamp-free rooms beside are as bright as (London (v0.42)'s
+`hall_2_floor(3)`, darker than them with its lamp on) keeps all of it.
+
 The renderer draws the visible probes largest radius first, equal radii in
 no set order. A neighbour of the dimmed probe's radius that overlaps it
 (London (v0.32)'s `bkg_building_all_floor_low_32(7)` over the top half metre
