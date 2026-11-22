@@ -3,7 +3,7 @@
 // 9457. The page, its script, its policy and /api/history/... are the HTTP
 // preview's (cargo test -p web-server serve_wiki_preview -- --ignored
 // --nocapture), whose history is made up (history::tests::preview: twelve
-// players, two clans, 23 public matches). This script serves it again on
+// players, six clans, 23 public matches). This script serves it again on
 // port 24584 with each /api/history/ answer late by 300 ms and kept, so the
 // page is seen loading and its cells are compared with what was answered.
 // Saves review screenshots to /tmp/wiki-stats-review.
@@ -196,6 +196,21 @@ try {
   // Over the boards: the day's leaders, five lists of five, and everything added up.
   assert.equal(await count('.stats-leaders .stats-table'), 5);
   assert.equal(await count('.stats-leaders .stats-table tbody tr'), 25, 'five rows each, empty ones too');
+  // Every row one line. The hours played list (everyone ties there: the first players by id) holds a
+  // real long name, one as wide as the live server's widest, and the longest a player can choose with
+  // the longest tag in wide capitals: the real ones whole; that one cut short below a desktop, whole in
+  // its title.
+  for (const width of [1440, 1024, 360]) {
+    await send('browsingContext.setViewport', {context, viewport: {width, height: 1000}, devicePixelRatio: 1});
+    const [heights, names] = JSON.parse(await evaluate(`JSON.stringify([
+      [...new Set([...document.querySelectorAll('.stats-leaders tbody tr')].map(tr => tr.getBoundingClientRect().height))],
+      Object.fromEntries([...document.querySelectorAll('.stats-leaders .table-scroll:last-child td.l')].map(td =>
+        [td.textContent, [td.scrollWidth <= td.clientWidth, td.firstChild.title === td.textContent]]))])`));
+    assert.equal(heights.length, 1, `${width}: every row as tall as the next`);
+    for (const name of ['[ДЕДКИ] bugz_bunny_95_', '[SKH] Длинноимённый_Сталкер']) assert.deepEqual(names[name], [true, true], `${width}: ${name}`);
+    assert.deepEqual(names['[ЩЮЖШЩЮ] ЩЮЖШЩЮЖШЩЮЖШЩЮЖШ'], [width >= 1280, true], `${width}: the widest name`);
+  }
+  await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 1});
   assert.deepEqual(await cells('.stats-leaders .table-scroll:first-child tbody td:nth-child(3)'),
     [...answered.today.leaders.kills.map(row => String(row.value)), ...Array(5 - answered.today.leaders.kills.length).fill('\u00a0')]);
   assert.equal(answered.today.leaders.kills.length, 5);
@@ -223,7 +238,7 @@ try {
   await screenshot('boards-accuracy');
   await evaluate("document.querySelector('[data-board=clans]').click()");
   await settled();
-  assert.equal(await count('.stats-board .stats-table tbody tr'), 2);
+  assert.equal(await count('.stats-board .stats-table tbody tr'), 6);
   const firstClan = answered.clans.clans[0];
   assert.equal(await text('.stats-board .stats-table tbody tr td:nth-child(2) a'), `[${firstClan.tag}] ${firstClan.name}`);
   assert.equal(await text('.stats-board .stats-table tbody tr td:nth-child(4)'), String(firstClan.members));
@@ -550,12 +565,12 @@ try {
   }
 
   // Another of the game's languages: the game's names in it, the page's own words in English; the
-  // header names it and offers the ten others, each keeping what is shown.
+  // header names it and offers the eleven others, each keeping what is shown.
   await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 1});
   await navigate('/stats?board=latest&lang=ru');
   assert.equal(await evaluate('document.documentElement.lang'), 'ru');
   assert.equal(await text('.lang summary'), 'Русский');
-  assert.equal(await count('.lang a'), 10);
+  assert.equal(await count('.lang a'), 11);
   assert.ok((await evaluate("document.querySelector('.lang a[hreflang=pl]').href")).includes('board=latest'));
   assert.equal(await text('.stats-heading'), 'Daily leaders');
   assert.ok(asked.some(path => path.startsWith('/api/history/matches') && path.includes('lang=ru')), 'the names are asked for in it');
