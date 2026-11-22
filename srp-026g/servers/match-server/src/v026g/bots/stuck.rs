@@ -224,6 +224,9 @@ pub struct Stuck {
     spots: Vec<Spot>,
     /// How often at the spot of the last time.
     last_times: u32,
+    /// [self-kill facts] The last [`Recovery::GiveUp`] not yet written to the log (time, feet): taken by
+    /// [`Self::take_give_up`].
+    give_up_untold: Option<(u32, Vec3)>,
     /// Its stucks and falls since the team last heard ([`Self::tell`]):
     /// where, and whether a fall.
     told: Vec<(Vec3, bool)>,
@@ -296,6 +299,14 @@ struct Spot {
     times: u32,
     /// A body fell off its route from here ([`Stuck::fell`]).
     fell: bool,
+}
+
+/// [self-kill facts] A stuck spot as the log tells it ([`Stuck::spot_at`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SpotWord {
+    pub first: u32,
+    pub times: u32,
+    pub fell: bool,
 }
 
 impl Stuck {
@@ -461,7 +472,26 @@ impl Stuck {
             2 => Recovery::Sidestep,
             _ => Recovery::GiveUp,
         };
+        if recovery == Recovery::GiveUp {
+            self.give_up_untold = Some((time, feet));
+        }
         Some((recovery, by_keys && !by_reckoning))
+    }
+
+    /// [self-kill facts] The last [`Recovery::GiveUp`] since this was last asked (time, feet), once.
+    pub fn take_give_up(&mut self) -> Option<(u32, Vec3)> {
+        self.give_up_untold.take()
+    }
+
+    /// [self-kill facts] The stuck spot at `feet` (the one [`Self::hopeless`]'s ladder reads, the latest): when it first caught
+    /// the body in this run, how often, and whether a fall or a failed jump or drop marked it (a marked spot is never
+    /// hopeless).
+    pub fn spot_at(&self, feet: Vec3) -> Option<SpotWord> {
+        self.spots
+            .iter()
+            .filter(|spot| near(spot.at, feet))
+            .max_by_key(|spot| spot.last)
+            .map(|spot| SpotWord { first: spot.first, times: spot.times, fell: spot.fell })
     }
 
     /// For a note of a stuck body the reckoned watch told of: how far its keys meant to move it over the window, as
@@ -1171,28 +1201,69 @@ pub enum SelfKillAct {
     Send { again: bool },
 }
 
+/// [self-kill facts] The first rule of [`Facts::allowed`] that holds a self-kill back, in the order the rules are read (for the
+/// log: `think.rs` `self_kill` writes it at each [`Recovery::GiveUp`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SelfKillRefusal {
+    /// `suicide_after_ms` is off.
+    Off,
+    /// [`Stuck::hopeless`] says it still has something to try.
+    NotHopeless,
+    /// Hopeless, but for less than `suicide_after_ms`.
+    HopelessShort,
+    /// An enemy sensed or a hit within `suicide_quiet_ms`, and the loud waiver ([A302]) does not hold.
+    Fight,
+    Carrying,
+    LifeYoung,
+    MatchYoung,
+    Tickets,
+    /// Its own last self-kill within `suicide_bot_gap_ms`.
+    BotGap,
+    /// Its team's self-kills of the last minute at `suicide_team_per_min`.
+    TeamCap,
+}
+
 impl Facts {
     /// Whether every rule lets it, [`UnstickTuning`]'s numbers. `again`
     /// (a second try in the life) is not counted against the bot's and the
     /// team's caps a second time.
     fn allowed(&self, rule: &UnstickTuning, again: bool) -> bool {
+        self.refusal(rule, again).is_none()
+    }
+
+    /// The first rule that holds it back ([`SelfKillRefusal`]); none: every rule lets it ([`Self::allowed`]).
+    pub fn refusal(&self, rule: &UnstickTuning, again: bool) -> Option<SelfKillRefusal> {
         let Some(after) = rule.suicide_after_ms else {
-            return false;
+            return Some(SelfKillRefusal::Off);
         };
-        let hopeless_ms = self.hopeless.map(|h| self.now.saturating_sub(h.since));
+        let Some(hopeless_ms) = self.hopeless.map(|h| self.now.saturating_sub(h.since)) else {
+            return Some(SelfKillRefusal::NotHopeless);
+        };
         // The quiet rule, or [A302] its waiver for a bot hopeless that much longer that no hit has come to lately.
-        let loud = rule.suicide_loud.is_some_and(|loud| {
-            hopeless_ms.is_some_and(|ms| ms >= after.saturating_add(loud.after_ms)) && self.hit_quiet_ms >= loud.hit_quiet_ms
-        });
-        hopeless_ms.is_some_and(|ms| ms >= after)
-            && (self.quiet_ms >= rule.suicide_quiet_ms || loud)
-            && !self.carrying
-            && self.life_ms >= rule.suicide_life_ms
-            && self.match_ms >= rule.suicide_match_ms
-            && self.tickets.is_none_or(|t| t > rule.suicide_min_tickets)
-            && (again
-                || (self.since_last_ms.is_none_or(|s| s >= rule.suicide_bot_gap_ms)
-                    && self.team_last_minute < rule.suicide_team_per_min))
+        let loud = rule
+            .suicide_loud
+            .is_some_and(|loud| hopeless_ms >= after.saturating_add(loud.after_ms) && self.hit_quiet_ms >= loud.hit_quiet_ms);
+        if hopeless_ms < after {
+            Some(SelfKillRefusal::HopelessShort)
+        } else if !(self.quiet_ms >= rule.suicide_quiet_ms || loud) {
+            Some(SelfKillRefusal::Fight)
+        } else if self.carrying {
+            Some(SelfKillRefusal::Carrying)
+        } else if self.life_ms < rule.suicide_life_ms {
+            Some(SelfKillRefusal::LifeYoung)
+        } else if self.match_ms < rule.suicide_match_ms {
+            Some(SelfKillRefusal::MatchYoung)
+        } else if self.tickets.is_some_and(|t| t <= rule.suicide_min_tickets) {
+            Some(SelfKillRefusal::Tickets)
+        } else if again {
+            None
+        } else if self.since_last_ms.is_some_and(|s| s < rule.suicide_bot_gap_ms) {
+            Some(SelfKillRefusal::BotGap)
+        } else if self.team_last_minute >= rule.suicide_team_per_min {
+            Some(SelfKillRefusal::TeamCap)
+        } else {
+            None
+        }
     }
 }
 
@@ -2308,6 +2379,45 @@ mod tests {
         // The setting at 0 is never.
         let off = UnstickTuning { suicide_after_ms: None, ..rule() };
         assert_eq!(self_kill_step(SelfKill::Ready, &ok, &off), (SelfKill::Ready, None));
+        // [self-kill facts] The log names the rule that stopped each one, and none where all let it.
+        let named = [
+            SelfKillRefusal::NotHopeless,
+            SelfKillRefusal::HopelessShort,
+            SelfKillRefusal::Fight,
+            SelfKillRefusal::Carrying,
+            SelfKillRefusal::LifeYoung,
+            SelfKillRefusal::MatchYoung,
+            SelfKillRefusal::Tickets,
+            SelfKillRefusal::BotGap,
+            SelfKillRefusal::TeamCap,
+        ];
+        for ((what, facts), refusal) in stops.iter().zip(named) {
+            assert_eq!(facts.refusal(&rule(), false), Some(refusal), "{what}");
+        }
+        assert_eq!(ok.refusal(&rule(), false), None);
+        assert_eq!(ok.refusal(&off, false), Some(SelfKillRefusal::Off));
+        // A second try is not held back by the caps.
+        assert_eq!(Facts { team_last_minute: 2, ..ok }.refusal(&rule(), true), None);
+    }
+
+    /// [self-kill facts] Each GiveUp is told once, with the spot the ladder reads there: its first catch, its count, and the
+    /// mark a fall or a failed jump or drop leaves (a marked spot is never hopeless).
+    #[test]
+    fn each_give_up_is_told_once_with_its_spot() {
+        let mut stuck = Stuck::default();
+        let spot = Vec3::new(10.0, 0.0, 10.0);
+        let t0 = 10_000;
+        for k in 0..3 {
+            let at = t0 + k * 3_000;
+            assert_eq!(walk(&mut stuck, at, spot, None), None);
+            assert!(walk(&mut stuck, at + 1_600, spot, None).is_some());
+            assert_eq!(stuck.take_give_up(), (k == 2).then_some((at + 1_600, spot)), "stuck {} times", k + 1);
+            assert_eq!(stuck.take_give_up(), None, "told once");
+        }
+        assert_eq!(stuck.spot_at(spot), Some(SpotWord { first: t0 + 1_600, times: 3, fell: false }));
+        stuck.fell(t0 + 9_000, spot);
+        assert_eq!(stuck.spot_at(spot).map(|s| s.fell), Some(true));
+        assert_eq!(stuck.spot_at(Vec3::new(30.0, 0.0, 10.0)), None);
     }
 
     /// [A302] Enemies sensed all round keep a hopeless bot alive only so long: hopeless 60 + 30 s, with no hit to it in 5 s, the
