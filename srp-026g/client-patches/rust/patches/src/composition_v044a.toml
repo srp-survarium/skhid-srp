@@ -1,0 +1,105 @@
+# Patch 178: the ported Londons' deferred composition is 0.44a5's: foliage lit
+# through by the sun (composition_v044a.rs; README "The ported Londons'
+# composition"). The sites are sites_026g.tsv's.
+name = "composition_v044a"
+patch = 178
+
+# The map: a project whose config has srp_composition_v044a (after patch 130's).
+[[hook]]
+site = "project.insert"
+handler = "on_project_insert"
+order = 3
+[[hook]]
+site = "project.removed"
+handler = "on_project_removed"
+order = 3
+[[hook]]
+site = "project.destroy"
+handler = "on_project_destroy"
+order = 3
+
+# The compiles: each of the eight composition effects compiles its technique
+# again after its own, with 0.44a5's program and its sun shadow's name.
+[[hook]]
+site = "composition_000.begin_pass"
+handler = "on_begin_pass_000"
+[[hook]]
+site = "composition_000.sun_shadow"
+handler = "on_sun_shadow_000"
+[[hook]]
+site = "composition_000.compiled"
+handler = "on_compiled_000"
+[[hook]]
+site = "composition_100.begin_pass"
+handler = "on_begin_pass_100"
+[[hook]]
+site = "composition_100.sun_shadow"
+handler = "on_sun_shadow_100"
+[[hook]]
+site = "composition_100.compiled"
+handler = "on_compiled_100"
+[[hook]]
+site = "composition_010.begin_pass"
+handler = "on_begin_pass_010"
+[[hook]]
+site = "composition_010.sun_shadow"
+handler = "on_sun_shadow_010"
+[[hook]]
+site = "composition_010.compiled"
+handler = "on_compiled_010"
+[[hook]]
+site = "composition_110.begin_pass"
+handler = "on_begin_pass_110"
+[[hook]]
+site = "composition_110.sun_shadow"
+handler = "on_sun_shadow_110"
+[[hook]]
+site = "composition_110.compiled"
+handler = "on_compiled_110"
+[[hook]]
+site = "composition_001.begin_pass"
+handler = "on_begin_pass_001"
+[[hook]]
+site = "composition_001.sun_shadow"
+handler = "on_sun_shadow_001"
+[[hook]]
+site = "composition_001.compiled"
+handler = "on_compiled_001"
+[[hook]]
+site = "composition_101.begin_pass"
+handler = "on_begin_pass_101"
+[[hook]]
+site = "composition_101.sun_shadow"
+handler = "on_sun_shadow_101"
+[[hook]]
+site = "composition_101.compiled"
+handler = "on_compiled_101"
+[[hook]]
+site = "composition_011.begin_pass"
+handler = "on_begin_pass_011"
+[[hook]]
+site = "composition_011.sun_shadow"
+handler = "on_sun_shadow_011"
+[[hook]]
+site = "composition_011.compiled"
+handler = "on_compiled_011"
+[[hook]]
+site = "composition_111.begin_pass"
+handler = "on_begin_pass_111"
+[[hook]]
+site = "composition_111.sun_shadow"
+handler = "on_sun_shadow_111"
+[[hook]]
+site = "composition_111.compiled"
+handler = "on_compiled_111"
+
+# The draw: on a ported London's scene, the twin and the map's four values.
+[[hook]]
+site = "composition.constructed"
+handler = "on_constructed"
+[[hook]]
+site = "composition.technique"
+handler = "on_technique"
+[[hook]]
+site = "composition.constants"
+handler = "on_constants"

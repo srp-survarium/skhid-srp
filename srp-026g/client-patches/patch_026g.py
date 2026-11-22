@@ -681,6 +681,14 @@ Patches:
   of a material with srp_grass_v021d its 0.21 vertex shader family
   (0x1CD1B6), the forward water of one with srp_water_v021d 0.21's wave
   normals (0x1E603C). Nothing a match computes;
+- the ported Londons' deferred composition is 0.44a5's (patch 178, the
+  Rust patch composition_v044a; docs/notes/client_patch.md section 3.98):
+  the eight effect_composition compiles compile a twin of their technique
+  after their own (0x1A95C8 and the same offset in each: 0.44a5's
+  composition_v044a.ps, its sun shadow as t_sun_shadow); on the scene of a
+  project whose config has srp_composition_v044a, stage_composition's
+  execute applies the twin (0x1A85B4) and sets its four constants from that
+  table (0x1A85D6). Nothing a match computes;
 - every player drawn with srp's face of the account (patch 123, faces;
   docs/notes/client_patch.md section 3.87): the faces srp gives, the
   account's and its squad's by name (0x87's and 0x88's byte), a match's or
