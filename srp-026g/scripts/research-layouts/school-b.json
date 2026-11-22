@@ -51,33 +51,71 @@
       ],
       "props": [
         {
-          "what": "lockers with their backs to the east wall, a couch against the west one, both facing the room",
+          "what": "the east corner: lockers on the east wall, a cargo crate standing out from them along the hall's mouth, sandbags at the breach beside",
           "model": "props/furniture/logjam_03",
           "at": [
             24.7,
             20.72,
-            130.6
+            131.3
           ],
           "yaw": 270
         },
         {
-          "model": "props/furniture/coach_05",
+          "model": "props/box/woodbox_cargo_big_01",
           "at": [
-            17.3,
+            22.9,
             20.72,
-            132.4
+            132.9
           ],
-          "yaw": 270
+          "yaw": 5
         },
         {
-          "what": "a furniture barricade at the breach towards the courtyard",
+          "model": "props/bag/sandbag_tile",
+          "at": [
+            22.3,
+            20.78,
+            128.9
+          ],
+          "yaw": 0
+        },
+        {
+          "what": "the breach's west half: a furniture barricade, a slit between it and the sandbags",
           "model": "props/furniture/barricade01",
           "at": [
             18.0,
             20.72,
-            128.9
+            128.7
           ],
           "yaw": 100
+        },
+        {
+          "what": "the west side: a couch pulled out from the wall, turned to the room",
+          "model": "props/furniture/coach_05",
+          "at": [
+            17.9,
+            20.72,
+            131.2
+          ],
+          "yaw": 300
+        },
+        {
+          "what": "in the corridor, the first cover of who comes along it: a crate east at the far wall, one west at the hall's",
+          "model": "props/box/woodbox_big1",
+          "at": [
+            27.6,
+            20.72,
+            135.6
+          ],
+          "yaw": 90
+        },
+        {
+          "model": "props/box/woodbox_big1",
+          "at": [
+            11.6,
+            20.72,
+            133.9
+          ],
+          "yaw": 90
         }
       ]
     },
@@ -307,12 +345,12 @@
       ],
       "props": [
         {
-          "what": "shelving at the west wall, one unit dragged to the breach",
+          "what": "the west corner: shelving on the west wall, a vaulting horse standing out from it at the hall's mouth",
           "model": "props/furniture/shelv_stend_big_01_02",
           "at": [
             16.4,
             20.72,
-            78.6
+            78.9
           ],
           "yaw": 90
         },
@@ -321,11 +359,21 @@
           "at": [
             16.4,
             20.72,
-            79.9
+            80.2
           ],
           "yaw": 90
         },
         {
+          "model": "props/tool/kon_indoorsport_01",
+          "at": [
+            17.4,
+            20.72,
+            77.6
+          ],
+          "yaw": 340
+        },
+        {
+          "what": "the breach: a shelving unit dragged to it east, cartons spilled west, a gap between",
           "model": "props/furniture/shelv_stend_big_02_01",
           "at": [
             23.2,
@@ -335,23 +383,42 @@
           "yaw": 25
         },
         {
-          "what": "cartons spilled towards the courtyard, a cargo crate at the east wall",
           "model": "props/box/box_group_03",
           "at": [
-            17.9,
+            18.4,
             20.72,
-            81.6
+            81.7
           ],
-          "yaw": 30
+          "yaw": 10
         },
         {
+          "what": "the east side: a cargo crate in the room",
           "model": "props/box/woodbox_cargo_big_01",
           "at": [
-            23.6,
+            22.9,
             20.72,
-            78.6
+            78.9
           ],
-          "yaw": 80
+          "yaw": 60
+        },
+        {
+          "what": "in the corridor: a crate east at the hall's wall, one west at the far wall",
+          "model": "props/box/woodbox_big1",
+          "at": [
+            28.0,
+            20.72,
+            76.1
+          ],
+          "yaw": 90
+        },
+        {
+          "model": "props/box/woodbox_big1",
+          "at": [
+            12.0,
+            20.72,
+            74.4
+          ],
+          "yaw": 90
         }
       ]
     }

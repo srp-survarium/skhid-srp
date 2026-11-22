@@ -201,10 +201,14 @@ about arranging things beautifully". The places: his cursor on the minimap, thre
       on, a corner half cover open towards the north stairs; south a full cover and a corner half
       cover open towards the station, against the big tree; a cargo crate by the gate; the old unit
       B's wooden crates as the first cover at the top of each stairway.
-    - A, the north hall: lockers with their backs to the east wall, a couch against the west one, a
-      furniture barricade at the breach towards the courtyard.
-    - C, the south hall: shelving at the west wall and one unit dragged to the breach, cartons
-      spilled towards the courtyard, a cargo crate at the east wall.
+    - A, the north hall (the owner, 2026-11-22: "let's now fix inside school too"): its east corner
+      the strong one, lockers on the east wall and a cargo crate standing out from them along the
+      hall's mouth, sandbags at the breach beside; a furniture barricade at the breach's west half,
+      a slit between; a couch pulled out from the west wall; a crate in the corridor on each side.
+    - C, the south hall: its west corner the strong one, shelving on the west wall and a vaulting
+      horse standing out from it at the mouth; a shelving unit dragged to the breach east, cartons
+      west, a gap between; a cargo crate in the room east; a crate in the corridor on each side,
+      at other places than the north hall's.
     - Quick looks while arranging: the map editor (`~/Projects/survarium/map-editor`) with a
       preview patch of the list, `--variant day_5b`; the game's own pictures by `capture.py`.
   - `mapdata-zones` (2026-11-22, a preview patch of the list): each unit one floor, none above or
