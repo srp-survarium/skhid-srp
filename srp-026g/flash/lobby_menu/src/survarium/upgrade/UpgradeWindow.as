@@ -1098,11 +1098,28 @@ package survarium.upgrade
          var category:int = 0;
          trace("onItemMouseClicked",event.target,event.currentTarget);
          var slot:UpgradeSlot = event.currentTarget as UpgradeSlot;
-         if(Boolean(slot) && !slot.data)
+         if(!slot)
+         {
+            return;
+         }
+         // a weapon's scope, muzzle device or grip slot, empty or not: the list of its own kind (the
+         // owner, 2026-11-22: "it should open those ones in a list", "not scopes")
+         var kind:int = hostDictId >= 0 ? attachmentFilter(slot) : -1;
+         if(kind >= 0 && event.target.name != "btnDrop")
+         {
+            this._inventory.selectCategory([kind]);
+         }
+         else if(!slot.data)
          {
             category = hostDictId >= 0 ? this.weaponSlotCategory(slot) : int(this._slotAgreements[slot.index]);
             this._inventory.selectCategory([category]);
          }
+      }
+
+      // The Upgrades filter of a weapon's attachment slot (ShopFilters), -1 for any other slot.
+      private function attachmentFilter(slot:UpgradeSlot) : int
+      {
+         return slot == this.camoSlot ? ItemCategory.SCOPES : (slot == this.muzzleSlot ? ItemCategory.MUZZLE_DEVICES : (slot == this.gripSlot ? ItemCategory.GRIPS : -1));
       }
       
       // What goes in a weapon's slot: its camouflage, its scope or a decal.
