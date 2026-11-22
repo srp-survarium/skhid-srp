@@ -318,6 +318,8 @@ pub struct Bot {
     /// [keys] Where its sent keys came from: this tick's stages and the ticks before (`key_sources`, a debug trace).
     key_tick: key_sources::Tick,
     key_trail: key_sources::Trail,
+    /// [keys] The lip guard's last swap, held its ticks (`drive::LipHold`).
+    lip_hold: drive::LipHold,
     /// Its rest, kept off a lip ([`rest`]).
     rest: rest::RestWatch,
     /// Whether it presses against something as it walks ([`contact`]), counted only.
@@ -647,6 +649,7 @@ impl Bot {
             sent_keys: 0,
             key_tick: key_sources::Tick::default(),
             key_trail: key_sources::Trail::default(),
+            lip_hold: drive::LipHold::default(),
             rest: rest::RestWatch::default(),
             contact: contact::ContactWatch::default(),
             self_kill: stuck::SelfKill::default(),

@@ -651,7 +651,9 @@ fn drive_tick_inner(
         sprint_block: sprint_block(bot, me, time, tuning.think.stamina),
         urgent: false,
         gait: motor::Gait::Walk,
-        floor: motor::Floor::Open,
+        // [keys] The floor under the feet, for the motor's key hold (`Motor::pick_keys`): open only where the grid knows it is away
+        // from a lip and a fall; a body off the grid is taken at an edge.
+        floor: floor_kind(&tactics.world.grid, me.feet),
         held_short_m: bot.held_short_m,
         walk_cap: bot.walk_cap,
         footing: bot.footing,
@@ -2509,6 +2511,7 @@ fn drive_tick_inner(
     // off a lip (`WalkGrid::near_lip`), with the body's keys pushing it over or its glide carrying it.
     bot.key_tick.after(super::key_sources::Stage::Queue, decision.keys);
     let lift_stepped = decision.keys & lift_wants == lift_wants;
+    lip_held(bot, &mut decision, time);
     // [CPU] The bench's split of the ticks' time (`bench_cpu`): timing only.
     #[cfg(test)]
     let lip_span = super::bench_cpu::Span::begin();
@@ -3523,6 +3526,90 @@ fn take_off_near(route: &super::path::Route, feet: Vec3) -> Option<(&'static str
         .min_by(|a, b| a.1.distance_xz(feet).total_cmp(&b.1.distance_xz(feet)))
 }
 
+/// [keys] A swap of the lip guard is held at least this many ticks (200 ms): a crouch it swaps in, and the walk keys it gave for the
+/// motor's same keys. The guard's forecast holds a tick's keys `lip_guard_ticks` (2) and asks again each tick, so a swap went back
+/// to the motor's keys the next tick they stopped on the floor again: the crouch key for one input, the walk set back and forth.
+/// In the owner's 14 local matches the bots held the crouch one input 3,197 times (585 on the tick of a "swapped to +CROUCH" note;
+/// the note writes one line a kind a bot in 2 s), the owner never (his shortest holds 400 ms, p10); his walk sets are held 300 ms
+/// (median), the bots' 150 ms. The key-source trace of one bench match (level_06 batteries, seed 1, `key_sources`): 107 of 110
+/// one-tick crouches were the guard's, and the guard owned a walk set in 1,177 of 5,252 changes and in 265 of 667 chatters.
+/// Each held tick is still asked of the guard with the held keys.
+pub(super) const LIP_HOLD_TICKS: u32 = 4;
+
+/// [keys] What the lip guard's last swap holds ([`LIP_HOLD_TICKS`]).
+#[derive(Clone, Copy, Debug, Default)]
+pub(super) struct LipHold {
+    /// The crouch it swapped in, held to this time, ms.
+    crouch_until: Option<u32>,
+    /// Its swap of the walk: the motor's walk keys and sprint it was asked, those it gave, held to this time, ms.
+    walk: Option<LipWalk>,
+    /// This tick's keys before the holds: what a swap this tick was asked of the motor.
+    unheld: u32,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct LipWalk {
+    asked: u32,
+    gave: u32,
+    until: u32,
+}
+
+/// The walk keys and the sprint: what a held swap of the walk keeps.
+const LIP_WALK_KEYS: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT;
+
+impl LipHold {
+    /// The swap the guard made this tick (to `to`, at `time`), held from the next tick.
+    fn swapped(&mut self, to: u32, time: u32) {
+        let asked = self.unheld;
+        let until = time + (LIP_HOLD_TICKS - 1) * super::anomalies::TICK_MS;
+        if to & key::CROUCH != 0 && asked & key::CROUCH == 0 {
+            self.crouch_until = Some(until);
+        }
+        // A swap to no walk key (a stop) is not held: the motor's walk is asked again at once.
+        let (asked, gave) = (asked & LIP_WALK_KEYS, to & LIP_WALK_KEYS);
+        if gave != asked && gave & !key::SPRINT != 0 {
+            self.walk = Some(LipWalk { asked, gave, until });
+        }
+    }
+
+    /// This tick's keys with the swaps still held: the crouch to its end, the walk while the motor asks the same keys. Not on a jump's
+    /// line-up, a press, a carried jump or a forecast press's flight (they let the crouch go and walk their own way).
+    fn hold(&mut self, keys: u32, time: u32, jumping: bool) -> u32 {
+        if jumping {
+            *self = Self { unheld: keys, ..Self::default() };
+            return keys;
+        }
+        self.unheld = keys;
+        let mut keys = keys;
+        match self.walk {
+            Some(walk) if time <= walk.until && keys & LIP_WALK_KEYS == walk.asked => keys = (keys & !LIP_WALK_KEYS) | walk.gave,
+            Some(_) => self.walk = None,
+            None => {}
+        }
+        match self.crouch_until {
+            Some(until) if time <= until => keys = (keys | key::CROUCH) & !key::SPRINT,
+            Some(_) => self.crouch_until = None,
+            None => {}
+        }
+        keys
+    }
+}
+
+/// [keys] The lip guard's swaps held to their end ([`LipHold`]), before the guard asks this tick's keys.
+fn lip_held(bot: &mut Bot, decision: &mut Decision, time: u32) {
+    let jumping = bot.motor.lining_up() || bot.motor.jumped().is_some() || bot.motor.carrying || bot.motor.press_flight();
+    decision.keys = bot.lip_hold.hold(decision.keys, time, jumping);
+    bot.key_tick.after(super::key_sources::Stage::LipGuard, decision.keys);
+}
+
+/// [keys] The floor's kind under `feet` for the motor ([`motor::Floor`]): an edge on a lip's floor, next to a lip or a fall, or off the grid.
+fn floor_kind(grid: &mapdata::WalkGrid, feet: Vec3) -> motor::Floor {
+    match grid.locate(feet, 1.5) {
+        Some(node) if !(grid.is_lip(node) || grid.near_lip(node) || grid.near_fall(node)) => motor::Floor::Open,
+        _ => motor::Floor::Edge,
+    }
+}
+
 /// [`lip_guard_with`] on the tick's decision.
 fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &Tactics, tuning: &Tuning, time: u32) {
     #[cfg(test)]
@@ -3728,6 +3815,10 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
             };
             motor::counts::guard_from(from, GUARD_FLOOR.get());
         }
+    }
+    // [keys] The swap is held its ticks (`LipHold`).
+    if let LipGuard::Swapped(to) = guard {
+        bot.lip_hold.swapped(to, time);
     }
     if let LipGuard::Swapped(to) | LipGuard::Braked(to) = guard {
         let verdict = if matches!(guard, LipGuard::Braked(_)) { "braked" } else { "swapped" };
