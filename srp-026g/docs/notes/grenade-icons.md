@@ -57,7 +57,10 @@ grenade that already exists"):
   head, the neck, the shoulder, the body to its rim (a band a little wider than the body, 62 to 67 px
   of 79.5), the bottom cap under the rim (a dome 25 px across and 12.5 px tall; the owner: without it
   "it looks flat"), one silhouette with the body, the step in width at the rim showing it (the owner:
-  "there is no need for separation"), and the lever's wire down the shoulder's left. The pin's ring is left out, as the
+  "there is no need for separation"), and the lever's wire down the shoulder's left. The band is
+  drawn 1 screen px past the body on each side (the owner: "the band on smoke can be a bit more
+  pronounced"; the icon's own is 1 px past it, about 0.3 screen px, which does not show), as the
+  frag glyph widens the RGD-5's seam into its nubs: a small ledge over the cap. The pin's ring is left out, as the
   frag glyph leaves out the RGD-5's.
 - **The hand**: the frag glyph's. Its tilt (its fuse rod's line, 31 degrees; the RGD-5's icon leans
   about 15, so the glyph leans about 19 more, and so does the RDG-M's from its 12.5), its height
