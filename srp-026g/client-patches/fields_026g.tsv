@@ -1639,6 +1639,104 @@ survarium::bullet	born	0x5C	u32	m_born_time_in_ms: the time it was fired (emit_b
 survarium::damage_collector	victim	0x0	u8	the inflicted_damage_collector's place of the player its last hits went into, 0FFh none: player::generate_hit_event writes it (0x1F3D62; a hit on another player resets it first, 0x1F3CFD), player::tick resets it some time after the last (0x246F2F); draw_damage_collector shows a change of it or of +8 (0x238243)
 survarium::damage_collector	time	0x4	u32	the time of its last hit (generate_hit_event's 1st argument, 0x1F3D5F), which player::tick ages (0x246F1E)
 survarium::collector_hit_frame	attacker	0x18	u32	player::generate_hit_event's 2nd argument (entry ESP+8) by the ESP of a site after its four pushes and the base's call (0x1F3C7E..0x1F3CA3, ESP entry - 10h): the shooter's place, whose player's collector it writes (get_player 0x1F3CC7)
+survarium::player_params_modifiers_container	technical_ranks	0xBC	f32	modifier 47 spot_enemy_traps (no getter call; its name only in the two name tables, refs 0x928504 and 0x9C9CA4; no kit-stride read of its offset; neither the stock resources.db nor the server game data names it): the technical tree's packed skills; technical-skills.md
+survarium::player_profile	items	0x1568	obj<survarium::item_record>	the profile's items, 0B4h each: a kit slot's item index is into them (apply_kit_parameter 0x2F76C3: lea eax,[edx*0B4h+ebp+1568h])
+survarium::profile_kit_record	slots	0x40	obj<survarium::kit_slots>	apply_kit_parameter's EBX, profile +58h + kit x 704h (0x2F7676): its 23 slot words at +40h (0x2F76A6 reads [ebx+slot*4+40h])
+survarium::profile_kit_record	modifiers	0x9C	obj<survarium::player_params_modifiers_container>	its modifiers (0x2F7680: lea eax,[ebx+9Ch], the getter's EAX)
+survarium::kit_parameter_frame	dictionary	0x1C	ptr<survarium::items_dictionary>	apply_kit_parameter's third argument by ESP at its epilogue 0x2F76E8 (after the getter's ret 8 and the four pushes; 0x2F76B5 passes it to 0x2F7470, which looks items up in it with item_by_id 0x1F0090)
+survarium::image	oxygen_tank_vtable	0xA1C874	u32	oxygen_tank's vtable: written only by its ctor 0x33E029 and the dtor 0x33E2CE (technical-skills.md)
+survarium::item	oxygen_tank	0x0	obj<survarium::oxygen_tank>	itself as an oxygen tank: only when its vtable is OXYGEN_TANK_VTABLE, which the reader checks first
+survarium::oxygen_tank	item	0x0	obj<survarium::item>	its inventory item (0x268 bytes, then the tank's own fields)
+survarium::oxygen_tank	active	0x268	u8	m_active: switched on (set_active 0x33E403; serialize 0x33E7BB)
+survarium::oxygen_tank	amount	0x26C	u32	m_amount_ms, the air left (the ctor 0x33E0B4: amount_time_sec x 1000; tick 0x33E5D0 spends it; serialize 0x33E7DB)
+survarium::oxygen_tank	gasp_until	0x294	u32	patch 180's Last Gasp: the stamina clock's ms its boost lasts until, 0 none; in the tail padding no native code touches (the object is 298h bytes, its last native field +290h); saved after m_amount_ms
+survarium::breath_vibration_calculator	user	0x3C	ptr<survarium::player>	its weapon's user (breath_vibration_calculator::tick 0x31D6E0 reads its +115h kit, +6B8h profile, +72Ch stamina; serialize 0x31DA30)
+survarium::player_stamina	clock	0x70	u32	m_current_time_in_ms, the stamina's simulation clock (written every stamina tick 0x329861; serialized)
+survarium::battery_take_state	item	0x1C	ptr<survarium::victory_item_core>	the take state's battery (victory_item_core_take_state ctor 0x338965)
+survarium::battery_take_frame	scale	0x0	f32	item_and_hands_expression's time scale for the taker's animation, just stored (fstp [esp] at 0x338B5E; state +0E8h's)
+survarium::booby_trap_core	set	0x194	ptr<survarium::booby_trap_set>	m_owner: the pocket item (booby_trap_set_core) the trap is of
+survarium::booby_trap_core	state	0x198	u8	m_trap_state: 0 removed, 1 armed, 2 fired, 3 disarmed (switch_to_state 0x305210; serialize 0x3052E0)
+survarium::booby_trap_core	explosive	0x220	u8	data/is_explosive (load 0x304849; stock false)
+survarium::booby_trap_core	action_time	0x260	u32	m_action_time_in_ms: when the delayed action runs, -1 never (tick 0x304DC1; saved); a non-explosive trap never sets it natively, patch 180's Rearm keeps its reopening time there
+survarium::booby_trap_core	state_timer	0x268	u32	m_state_timer: ms left in the state, 0 none (tick 0x304DDC; saved)
+survarium::trap_use	trap	-0x34	obj<survarium::booby_trap_core>	the trap whose usable_object this is (use_execute's ECX, kept in EBP; lea eax,[ebp-34h] 0x30501D)
+survarium::booby_trap_set	item	0x0	obj<survarium::item>	its inventory item (inventory +250h, the owner's)
+survarium::trap_hit_frame	now	0x4	u32	booby_trap_core::hit's first argument by ESP (0x305540, no pushes before 0x305552): the bullet's simulation ms
+survarium::item	grenade_set	0x0	obj<survarium::grenade_set>	itself as a grenade stack: only when its vtable is one of the two grenade set vtables, which the reader checks first
+survarium::grenade_set	item	0x0	obj<survarium::item>	its inventory item
+survarium::grenade_set	amount	0x260	u16	m_amount, the units left (pull_pin 0x30A175 takes one; the crate's resupply 0x2FFCE0 raises it; saved by inventory_item::serialize 0x2FFE0D)
+survarium::grenade_set	grenades	0x268	ptr<survarium::grenade_slot>	its grenade objects, one a unit, made at the cook (a buffer_vector's begin; ctor 0x309AFF): pull_pin arms grenades[amount] after taking the unit
+survarium::grenade_set	grenades_end	0x26C	ptr<survarium::grenade_slot>	the vector's end
+survarium::grenade_slot	grenade	0x0	ptr<survarium::grenade_core>	one grenade object
+survarium::grenade_slot	size	0x4	size	a pointer
+survarium::grenade_core	physics	0x148	u32	the physics world while it flies, 0 otherwise (throw 0x303C45, remove 0x303D88)
+survarium::grenade_core	explode_time	0x14C	u32	m_explode_time_ms, absolute; -1 not armed (arm 0x303B94, disarm 0x303D3B; saved)
+survarium::medical_hit	item	0x40	ptr<survarium::item>	the item the hit came from (hit_info ctor's tenth argument): a grenade's stack, a trap's set
+survarium::killed_event_frame	time	0x44	u32	generate_killed_event's first argument by ESP at 0x2DA3DF: the hit's time (0x2DA3AD reads it there)
+survarium::killed_event_frame	killer	0x48	u8	its second: the killer's place, 0FFh none (0x2DA3B4)
+survarium::killed_event_frame	source	0x50	ptr<survarium::item>	its fourth: the item the kill came from (hit +40h; a grenade's own stack)
+survarium::image	trap_set_vtable	0xA044D4	u32	the game's booby_trap_set vtable (client class; technical-skills.md)
+survarium::image	trap_set_core_vtable	0xA14414	u32	booby_trap_set_core's vtable (ctor 0x305950); its +64h answers no grenade set
+survarium::item	trap_set	0x0	obj<survarium::booby_trap_set>	itself as a trap stack: only when its vtable is one of the two trap set vtables, which the reader checks first
+survarium::booby_trap_set	amount	0x260	u16	m_amount: the traps left to place (action 0x306732 takes one; resupply 0x2FFCE0 raises it; saved by inventory_item::serialize)
+survarium::booby_trap_set	traps	0x268	u32	its trap objects' vector begin (one a unit of the kit slot's count, made at the cook; ctor 0x305A31): read as a word with traps_end for their number
+survarium::booby_trap_set	traps_end	0x26C	u32	the vector's end: (end - begin) / 4 objects
+survarium::weapon_sound_effect	world	0x34	ptr<survarium::game_world>	its game world (play_sound_callback 0x297E44: +9Ch its game, +53ACh the network client, +4 the local player whose place 0x297E6F compares with the user's; 0x297EFC: +94h the scene it emits into)
+survarium::weapon_sound_effect	pull_pin_handler	-0x148	u32	the word 148h before it: when the effect is weapon_sound_events_handler_state<weapon_core_throw_grenade_pull_pin_substate>'s (its +160h, initialize 0x2537C3), that state's +18h vtable 0xA052F0 (ctor 0x255386, the only write of that value in the image); inside its own state, as core_fire_handler
+survarium::image	pull_pin_sound_handler	0xA052F0	u32	weapon_sound_events_handler_state<weapon_core_throw_grenade_pull_pin_substate>'s +18h vtable (ctor 0x255386, the primary 0xA052C4 at 0x255380; "GThrow(pull)" 0x25534F)
+survarium::grenade_core	spent	0x154	u8	exploded: explode sets it (0x303B85, the game's 0x248758), arm clears it (0x303BA8); saved (serialize's flag bit 2)
+survarium::grenade_core	centre	0x1C0	f32	this tick's position, a float3: the transform +190h's translation (+30h), from the body while in the world (tick 0x303A8B..0x303A96), the hand's otherwise; deserialize loads it (0x3040B5)
+survarium::grenade_set	throw_power	0x2B8	f32	throw_power (ctor 0x309BB9): a throw's speed, times the thrower's modifier 27 (grenade_set_core::throw_grenade 0x30A2D5..0x30A312)
+survarium::set_input_frame	time	0x8	u32	base_player::set_input's first argument by EBP (push ebp / mov ebp,esp at 0x2D86E0): the input's time, ms
+survarium::core_place	kit_in_use	0xC	u8	the kit in use: its player is [place + kit x 4] (core_active_player 0x2D0AE7 with kit +0Ch; the late join copies it at 0x2D4CFD, the next kit +0Dh beside it)
+survarium::core_place	core	0x28	ptr<survarium::core_world>	its world core (apply_profile_input 0x321794: mov edx,[ecx+28h])
+survarium::core_place	place	0x2C	u8	its place (apply_profile_input 0x321790: movzx eax,byte [ecx+2Ch])
+survarium::core_world	kit_choices	0x89D8	ptr<survarium::kit_choice_list>	the places' profile-input (kit choice) lists, one of 480h a place (apply_profile_input 0x321797; change_input<profile_input>'s own entries 0x1FBE0A)
+survarium::core_world	tick_ms	0x18FBC	u32	the tick's length, 50 (set at 0x2D00CD; pull_pin's grid 0x30A139)
+survarium::kit_choice_list	newest	0x8	ptr<survarium::kit_choice_node>	the newest node (apply_profile_input 0x3217A3 walks older from it)
+survarium::kit_choice_list	size	0x480	size	a place's list (lea eax,[eax+eax*8] / shl eax,7 at 0x32179D)
+survarium::kit_choice_node	older	0x4	ptr<survarium::kit_choice_node>	the next older node, 0 none (apply_profile_input 0x3217B5)
+survarium::kit_choice_node	value	0x8	u8	the input's value: a kit 0..2 (apply_profile_input keeps the next kit for 3 or more, 0x3217C8), patch 180's Dead Man's Switch 80h
+survarium::kit_choice_node	time	0x20	u32	the input's time, ms (apply_profile_input 0x3217B0)
+survarium::place_tick_frame	time	0x8	u32	apply_profile_input's second argument by ESP at its start: the tick's time (0x3217AB; the tick list's call, as the respawn rule's tick 0x316820 [ebp+0Ch])
+survarium::match_rule	respawn_times	0x138	u32	the respawn rule's m_player_respawn_times, a u32 a place (20): the place's next spawn, ms on the tick grid (on_event 0x316BA3 at a death; the tick spawns the place whose time is the tick's, 0x3168BA); only of a respawn rule's vtable
+survarium::grenade_set	ttl	0x2BC	u16	ttl_ms, the fuse (ctor 0x309B8A; pull_pin adds it to now, 0x30A127)
+survarium::grenade_set	splash_radius	0x2A0	f32	splash_radius as configured (ctor 0x309BDD): 0 for the smoke (rdg-m), 10 for the RGD-5
+survarium::grenade_set	splash_max_damage	0x2A8	f32	splash_max_damage as configured (ctor 0x309C01): 0 for the smoke
+survarium::game	time	0x5854	u32	the game's time, ms: game::tick sets it at the frame's end (0x1ECC47), so the frame's keys and hud (select_profile through get_current_time_in_ms 0x1F96E0) see the last frame's
+survarium::image	grenade_vtable	0xA046A0	u32	the game's survarium::grenade vtable (its ctor 0x248310 writes it, the dtor 0x2483F0 too): the only grenade class the game makes (grenade_cook::new_derived_resource 0x1F6630), what exe patch 180's smoke fields (+258h..) are on
+survarium::grenade_core	vtable	0x0	u32	its vtable: the game's grenade's is GRENADE_VTABLE (survarium::grenade, 258h bytes natively, 270h with patch 180's tail)
+survarium::grenade_core	particle	0x21C	ptr<vostok::particle::particle_system_instance>	survarium::grenade's particle_explosion instance, one a grenade object (the cook's callback 0x25E2EB); explode plays it (0x248908)
+survarium::grenade_core	played	0x232	u8	survarium::grenade's "explosion effects played": explode plays the particle only while 0 and sets it (0x248965); a fresh throw clears it (0x248460), a load keeps it; not saved
+survarium::grenade_core	cloud	0x258	u32	patch 180's Toxic Smoke state, in the tail it adds (the cook allocates 270h, smoke.grenade_size): 0 no cloud, 1 a toxic cloud (cloud_blast, cloud_centre); saved after the thrown fields
+survarium::grenade_core	cloud_blast	0x25C	u32	patch 180's toxic cloud's blast, the simulation's ms (the explode's tick)
+survarium::grenade_core	cloud_centre	0x260	f32	patch 180's toxic cloud's centre, a float3 (centre +1C0h at the blast)
+survarium::grenade_core	toxic_particle	0x26C	ptr<vostok::particle::particle_system_instance>	patch 180's green particle_explosion instance of a smoke grenade (fx/explosions/smoke_grenade_toxic, the cook's fourth result, one reference owned until the dtor)
+survarium::grenade_serializable	grenade	-0x10	obj<survarium::grenade_core>	grenade_core's serializable subobject (its +10h, vtable 0xA046D0; serialize 0x303DA0 and deserialize 0x303F80 get it in ECX, [ecx-0Ch] m_id): the grenade 10h before it
+survarium::grenade_save_frame	state	0x23	u8	grenade_core::serialize's current_state byte by ESP at 0x303DF8 (stored at 0x303DF4, w<u8> 0x1F3DE0 writes it next): bits 0 in physics, 1 thrown, 2 spent; patch 180's bit 3 a toxic cloud
+survarium::grenade_load_frame	state	0x13	u8	grenade_core::deserialize's current_state byte by ESP at 0x30406C (stored at 0x303FB8, overwritten with bit 0 at 0x304099): patch 180's bit 3 a toxic cloud
+survarium::grenade_query_frame	requests	0x44	obj<survarium::resource_request>	grenade_cook::query_resources' three requests by ESP at 0x25E154 (model class 0Fh, particle_explosion class 3Dh, sound_explosion; filled 0x25E068..0x25E0A7)
+survarium::grenade_query_frame	callback	0x0	ptr<u8>	query_resources' first stack argument at this pre-call site: the cook's callback (0x25E1C0's boost function)
+survarium::grenade_query_frame	allocator	0x4	ptr<u8>	its second: the allocator
+survarium::grenade_query_frame	user_data	0x8	ptr<u8>	its third: the user data (0)
+survarium::grenade_query_frame	parent	0xC	ptr<u8>	its fourth: the parent query (the cook's [ebp+8])
+survarium::grenade_query_frame	flag	0x10	u32	its fifth (1)
+vostok::resources::queries_result	toxic_particle	0x9CC	ptr<vostok::particle::particle_system_instance>	the fourth result's resource (12Ch + 3 x 2E0h): patch 180's green smoke instance in the grenade cook's extended query
+vostok::particle::particle_system_instance	references	0xD0	u32	its reference count (the unmanaged resource's; lock xadd at 0x24891C, released by 0x0E0210 at 0)
+vostok::particle::particle_system_instance	paused	0x302	u8	particle_system_instance_impl's m_paused: tick 0x35DAF5 returns at once while set (no time, no emitter tick, not finished), calc_num_max_particles 0x35D250 counts none; particle_world::set_paused 0x35BA10 writes it, the game never sets it (the facade 0x22B30 binds false, 0x27980)
+survarium::player	owner	0x110	obj<survarium::bullet_owner>	its hit initiator / bullet owner (+4 its place; a grenade's +8 at a throw, 0x30A21A; weapon_core::set_user 0x2E299D)
+survarium::player	hit_receiver	0x118	obj<survarium::hit_receiver>	its hit receiver subobject: base_player::hit 0x2D9AE0's ECX (damage_zone_core 0x319C9A calls its vtable +20h)
+survarium::hit_part	name	0x4C	ptr<u8>	a hit's part descriptor as base_player::hit reads it: only its +4Ch, the part's name (0x2D9B0C, buffer_string 0x12780)
+survarium::hit_part	size	0x50	size	room for the descriptor up to its name
+survarium::hit_receiver	player	-0x118	obj<survarium::player>	the player whose hit receiver it is (base_player::hit 0x2D9B52: add esi,-118h)
+survarium::grenade_core	stack	0xC	ptr<survarium::grenade_set>	its stack, the thrower's pocket item (explode 0x24872E hands it to grenade_set_core::explode; deserialize 0x303F8C finds the thrower through it)
+survarium::select_profile_frame	value	0x4	u8	game_world::select_profile's argument by ESP at its start: the profile input's value (a kit 0..2 from the hud: movzx ecx,byte [eax+8] / push ecx at 0x233F1A; patch 180's Dead Man's Switch 80h)
+vostok::sound::proxy_slot	proxy	0x0	ptr<vostok::sound::sound_instance_proxy>	an intrusive_ptr<sound_instance_proxy> an emit fills: the new proxy with one reference, or 0 (emit_point_sound 0x65670, new_hud_sound_instance_proxy 0x65100)
+survarium::weapon_play_sound_frame	effect	0x24	ptr<survarium::weapon_sound_effect>	play_sound_callback's effect (its ECX, kept at [esp+24h] by 0x297E32; at 0x297F7E both paths' pushes are popped by their callees, the same ESP)
+survarium::weapon_sound_effect	weapon	0x30	ptr<survarium::weapon_core>	its weapon (on_sound_event 0x297C60, play_sound_callback 0x297E47: +594h its user's place)
+survarium::weapon_core	user	0x594	ptr<survarium::weapon_user>	its user: the holder's player + 110h (instant_fire calls its slot +4, 0x2E258D; on_sound_event and play_sound_callback read its place, 0x297C69, 0x297E50); deactivate leaves it (0x2E2EA4)
+survarium::weapon_user	place	0x4	u8	its player's place (player + 114h)
+survarium::medical_hit	time	0x3C	u32	the hit's simulation time, ms (hit_info +3Ch: base_player::hit's first argument, 0x2D9B72; body_part::hit stores it as the pool's last hit, 0x32A29B)
 survarium::hands_ik_frame	weapon	0x1C	ptr<survarium::weapon>	ESP+1Ch at hands_ik.aim_alignment (0x295AA5): the held item as a weapon (its vtable +70h at 0x295A07, kept at 0x295A09; never 0 here, the je at 0x295A0F)
 survarium::weapon	state	0x330	ptr<survarium::weapon_state>	the state it is in (selected_animations 0x2E10CD calls its vtable +20h for the item's and the hands' expression)
 survarium::weapon_state	id	0x124	u32	which state it is, the base constructor's second argument (0x31EB22): 1 show, 2 hide, 3 idle (the three idle classes: 0x30D412, 0x30F0C3, 0x30F923), 4 reload, 5 fire, 6 chamber a round, 7 and 8 a grenade's, 9 the preview's

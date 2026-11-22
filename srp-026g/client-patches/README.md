@@ -6438,6 +6438,52 @@ draw_damage_collector takes its copy and skips its invoke while the collector sh
 kill marker is the kill event's own call, unchanged. The hud alone: nothing a match computes or a world
 holds changes. Checked with `check_hit_marker_walls_026g.py` (Unicorn; `tools/check hit-marker-walls`)
 and the hud's Ruffle harness (`../scripts/hud-options/check.sh`, HudHarness). Not run in a game.
+## The technical tree (patch 180, unreleased)
+The fourth skills tab (`../docs/notes/technical-skills.md`). Every skill travels packed in kit
+modifier 47 (`spot_enemy_traps`, read by nothing of 0.26g), parsed once by the `technical-skills`
+crate, which srp shares. Rust modules `technical_skills` and its siblings (`technical_*.toml`).
+- Tank Pocket / Tank Depth (413/414): at apply_kit_parameter's epilogue (`medical.pocket_count`,
+  order 1, before the medical tree's clamp) a kit whose worn slots hold an oxygen tank (item config
+  `data.type` 1) gets a pocket or a pocket size a rank (2 at most). srp's kit layout counts the same.
+- Steady Breath (403) at `technical.breath_vibration` (0x31D95B) and `technical.dispersion`
+  (0x2E1DBE), Deep Breaths (431) at `medical.sprint` (order 2), while the player's oxygen tank
+  (vtable 0xA1C874) is on.
+- Last Gasp (442): `technical.tank_empty` (0x33E661) starts it (stamina full, the boost's end in the
+  tank's tail padding +294h, saved after m_amount_ms: `technical.tank_save` / `tank_load`, cleared by
+  `tank_construct` and both refills); x1.1 at `medical.movement` (order 2); its end at
+  `battery.carrier_tick` (order 6). srp-validate's `OxygenTank` reads the word.
+- Dexterous Hands (401) at `technical.battery_take` (0x338B61) and `technical.resupply_time`
+  (0x2F8147, the ms passed at an ammo crate), Sapper (411) at `technical.defuse_time`
+  (0x304F92), Rearm (433) at `technical.trap_shot` (0x305552, exit to its `ret 28h`) and
+  `technical.trap_reopen` (0x304DCF, exit past the delayed action; engine rows
+  `engine_trap_switch_state` 0x305210 and `engine_trap_insert_collision` 0x304E20).
+- Trophy Trap (423): srp sends a skilled player's trap pocket one unit more; refills never fill
+  it (`technical.resupply`, 0x2FFD1B); a disarmed enemy trap does (`technical.trap_defused`,
+  0x304FCF).
+- Blast Drill (404) at `medical.hit` (order 2), Scavenger (443) at `player.killed_event` (order 2,
+  its frame: time, killer, source).
+- Bear Trap (444) at `medical.wound` (0x32A28B, order 2; the site's ESI is the hit): a leg's pool
+  hit by a trap set of a skilled holder is stored as 0.
+- Toxic Smoke's and Bear Trap's halved pockets are srp's (`KitLayout::share`) and the lobby's
+  (`PlayerInfo.pocketUnits`); nothing of them in the exe.
+- Sharp Ears (412, `technical_sharp_ears`): at `weapon_sound.made` (order 2) an enemy's pin pull also
+  plays a long-range copy of its sound (content edit technical-sharp-ears-1) through
+  game_world::play_sound 0x25B940 for a local player with the skill; presentation only.
+- Return to Sender (422, `technical_return_to_sender`): patch 85's Use press on a live enemy grenade
+  is sent as a command (marker bit 29, all six quick bits; srp checks the skill); every game at
+  `technical.throw_back` (0x2D8747) removes the grenade from the physics world and throws it along
+  the player's view. Composed in artefact_carry's input end and hud.
+- Dead Man's Switch (432, `technical_dead_man`): a dead player's profile input 80h (sent on the
+  50 ms grid, `game.frame_end`; the throw key at `technical.game_key`) drops one of its smokes at its
+  body at the place's tick (`technical.place_tick`, 0x321790).
+- Dense Smoke and Toxic Smoke (402, 441, `technical_smoke`): the client grenade grows to 270h bytes;
+  a skilled thrower's smoke keeps a toxic cloud (saved: current_state bit 3 and 16 bytes) that hits
+  enemies inside each tick, drawn green (pack toxic-smoke); its particle instance paused for
+  rank x 2.9 s of its hold. Forest Protection (patch 109's modifier 41) takes a toxic cloud for a
+  damage zone: `smoke.anomaly_zones` (0x332833, exit 0x33283C) for the hit's factor, patch 111's glow
+  by `effect::Player::in_toxic_smoke`.
+Changes what a match computes (simulation_changes.tsv `next`); the tank saves 4 bytes more.
+Checked with `check_technical_skills_026g.py` and `check_technical_smoke_026g.py` (Unicorn) and the crates' and servers' tests; not run in a game.
 
 ## A part of a tick: its least walk and the speed read from it (patch 168, unreleased)
 

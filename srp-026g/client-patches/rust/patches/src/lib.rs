@@ -95,6 +95,11 @@ pub mod medical_skills;
 pub mod artefact_skills;
 pub mod artefact_keeper;
 pub mod artefact_courier;
+pub mod technical_skills;
+pub mod technical_sharp_ears;
+pub mod technical_return_to_sender;
+pub mod technical_dead_man;
+pub mod technical_smoke;
 
 pub mod hand_kill;
 pub mod trap_stock_hit;

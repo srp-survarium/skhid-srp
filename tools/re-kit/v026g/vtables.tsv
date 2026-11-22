@@ -205,6 +205,10 @@ vtable	slot	va	class	base	basis
 0x00a0755c	0x18	0x0026daf0	survarium::base_game_statistics_handler	survarium::base_game_statistics_handler	observed: the damage record's add (0x2F58E0); called by generate_hit_event alone (0x2DA10A)
 0x00a0755c	0x30	0x0026db40	survarium::base_game_statistics_handler	survarium::base_game_statistics_handler	observed: serialize (shared_statistics::serialize 0x2F5AC0 of +8); called by game_world_core::serialize alone (0x2D265F)
 0x00a0755c	0x34	0x0026db60	survarium::base_game_statistics_handler	survarium::base_game_statistics_handler	observed: deserialize (0x2F5BE0 of +8, then the scores 0x26DC30); called by the world's apply alone (0x2D2B18), its reader the statistics section's bytes (0x2D2AEE..0x2D2B09)
+0x00a13fb8	0x18	0x00303c10	survarium::grenade_core	survarium::grenade_core	observed: grenade_core's ctor 0x303640 sets it (0x3036AE); +18h throw_grenade (transform, velocity), as grenade_set_core::throw_grenade 0x30A321 calls it
+0x00a13fb8	0x1c	0x00303d50	survarium::grenade_core	survarium::grenade_core	observed: grenade_core's ctor 0x303640 sets it (0x3036AE); +1Ch remove_from_physics, as explode 0x303B7A calls it
+0x00a046a0	0x18	0x00248520	survarium::grenade	survarium::grenade_core	observed: the game's grenade, ctor 0x248310 sets it (0x24832C); calls grenade_core::throw_grenade (0x2485B8), then adds its model to the scene
+0x00a046a0	0x1c	0x00248600	survarium::grenade	survarium::grenade_core	observed: the game's grenade, ctor 0x248310 sets it (0x24832C); removes its model from the scene, then jumps to grenade_core::remove_from_physics (0x24863C)
 0x00a16f64	0x18	0x00372420	survarium::breath_state_normal	vostok::ai::fsm_state	observed: initialize_logic 0x31D48B; is_ready_for_transition, always 1
 0x00a16f64	0x1c	0x0031d040	survarium::breath_state_normal	vostok::ai::fsm_state	observed: its tick, from breath_vibration_calculator::tick 0x31D75D (dispersion, dt)
 0x00a16fac	0x4	0x0031d140	survarium::breath_state_holding	vostok::ai::fsm_state	observed: initialize_logic 0x31D4CF; initialize, fsm::tick 0x38CAD1 on entering it

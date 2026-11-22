@@ -24,6 +24,7 @@ dependencies = [
  "ragdoll",
  "sign-in-cipher",
  "srp-validate",
+ "technical-skills",
  "voice-abi",
  "weapon-kit",
  "weapon-modules",
@@ -45,8 +46,16 @@ version = "0.1.0"
 dependencies = [
  "artefact-carry",
  "artefact-hunt-rule",
+ "technical-skills",
  "weapon-pickup",
  "world-frame",
+]
+
+[[package]]
+name = "technical-skills"
+version = "0.1.0"
+dependencies = [
+ "weapon-pickup",
 ]
 
 [[package]]

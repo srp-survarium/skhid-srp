@@ -5817,7 +5817,6 @@ va	name	location	role	basis
 0x001f8120	survarium::game_world::local_player_profiles	entry ESP+4	the kit in use, a byte written	observed
 0x001f8120	survarium::game_world::local_player_profiles	entry ESP+8	the next kit, a byte written: show_profiles_selector selects it on the hud's tabs (0x2383F3)	observed
 0x00305210	survarium::booby_trap_core::switch_to_state	ECX	the booby trap (its core at +0x74: m_trap_state +0x198)	observed
-0x00305210	survarium::booby_trap_core::switch_to_state	stack+4	the new booby_trap_state, an index into a jump table of 4 (0x3052C8) with no bound	observed
 0x003134c0	survarium::artefact_base::start_spawn_in_container	EAX	the artefact: m_state +0x280 = 1, m_container_id +0x284, m_time_left_to_spawn +0x288	observed
 0x003134c0	survarium::artefact_base::start_spawn_in_container	stack+4	the artefact_container_core (its id byte +0x64)	observed
 0x002ddad0	survarium::game_effect_player::serialize	EAX	the game_effect_player: +0 m_current_time_in_ms, +2Ch the first node (each +4Ch the next)	observed
@@ -6633,6 +6632,37 @@ va	name	location	role	basis
 0x00238230	survarium::game_world_ui::draw_damage_collector	EDI	the game_world_ui (the player's +0F480h, 0x24745B)	observed
 0x00246f10	survarium::player::tick	ECX	the player	observed
 0x00246f10	survarium::player::tick	entry ESP+4	the time (ms)	observed
+0x00305210	survarium::booby_trap_core::switch_to_state	entry ESP+4	the state: 0 removed, 1 armed, 2 fired, 3 disarmed	observed
+0x00304e20	survarium::booby_trap_core::insert_collision	ESI	the trap (booby_trap_core); insert 0x304E80 and deserialize 0x30544F call it for an armed trap	observed
+0x00304f00	survarium::booby_trap_core::remove	ESI	the trap (booby_trap_core); defuse_completed 0x305138, switch_to_state(2/3) and try_to_place_trap 0x305F1D call it	observed
+0x00303d50	survarium::grenade_core::remove_from_physics	ECX	the grenade_core	observed
+0x00248520	survarium::grenade::throw_grenade	ECX	the grenade_core (the game's grenade, its primary vtable 0xA046A0)	observed
+0x00248520	survarium::grenade::throw_grenade	entry ESP+4	the transform (a 4x4, to the body via grenade_core::throw_grenade)	observed
+0x00248520	survarium::grenade::throw_grenade	entry ESP+8	the velocity (float3*, passed on to grenade_core::throw_grenade)	observed
+0x00248600	survarium::grenade::remove_from_physics	ECX	the grenade_core (the game's grenade)	observed
+0x002d86e0	survarium::base_player::apply_new_input	at 0x2D8747: EDI, ESI, EBP	the player, the new input (+4 its actions) and the frame ([EBP+8] the time), once both early-outs are passed (a dead player 0x2D86F5; the same actions and no turn 0x2D870A..0x2D8741), before the copy to +32Ch (site technical.throw_back)	observed
+0x002da4b0	survarium::base_player::computed_head_transform	at 0x2DB8CC, 0x2D941C, 0x2D9485, 0x2DABC9	its callers: base_player::deserialize, assign_physics_transform (twice), set_transform: the eye +44Ch is simulation state, made again by a load	observed
+0x001f8070	survarium::game_world::select_profile	EDI	the game world (its +9Ch the game, +4D4Ch the match)	observed
+0x001f8070	survarium::game_world::select_profile	entry ESP+4	the value byte: a kit 0..2 (the hud's profile_changed 0x233F23), any other value queued as it is	observed
+0x0030a120	survarium::grenade_set_core::pull_pin	entry ESP+4	the grenade set (its +2BCh ttl_ms, +260h m_amount, +268h the objects)	observed
+0x0030a120	survarium::grenade_set_core::pull_pin	entry ESP+8	now: the simulation ms the fuse starts at	observed
+0x00022b30	vostok::render::scene_renderer::update_particle_system_instance	entry ESP+4	the scene renderer (+0 the render engine world, +4 the channel, +8 the allocator); then the scene and instance resource pointers' addresses and two float4x4 pointers; visible and paused are not arguments in 0.26g: its bind 0x27980 hard-wires true and false (0x27990, 0x27993), so no game call can pause a particle system	observed
+0x00118e10	vostok::render::engine::world::update_particle_system_instance	entry ESP+4	the instance (by value), then the scene, a float4x4 and a word for set_transform, visible, paused: the particle world's vtable +40h set_transform 0x35B9B0, +44h set_visible 0x35B9D0, +48h set_paused 0x35BA10 (the vtable at 0xA1F93C, RTTI 0xA1F938; +4Ch set_particle_system_time 0x35B9F0)	observed
+0x0035dad0	vostok::particle::particle_system_instance_impl::tick	EDI	the instance (+2ECh m_particle_system_time, +302h m_paused: returns 0 at once while set, 0x35DAF5)	observed
+0x0035dad0	vostok::particle::particle_system_instance_impl::tick	entry ESP+4	the frame's seconds, a float (also in XMM0 from 0x35DAD8)	observed
+0x002483f0	survarium::grenade::~grenade	ECX	the grenade (vtables back, then +220h the sound, +21Ch the particle instance, +218h the model released)	observed
+0x002d9ae0	survarium::base_player::hit	stack+4	the hit's time, ms (hit_info +3Ch, 0x2D9B72)	observed
+0x002d9ae0	survarium::base_player::hit	stack+8	the attacker: its +4 byte the attacker's place (hit +44h, 0x2D9AF4); null is no attacker (0FFh)	observed
+0x002d9ae0	survarium::base_player::hit	stack+16	the hit's kind (hit +1Ch: survarium::hit_type, 4 toxic, 3 explosive)	observed
+0x002d9ae0	survarium::base_player::hit	stack+20	the damage, a float (hit +34h)	observed
+0x002d9ae0	survarium::base_player::hit	stack+24	the armour piercing, a float (hit +38h)	observed
+0x002d9ae0	survarium::base_player::hit	stack+28	the initiator (hit +20h; hit_impl calls its vtable[0] when not null, 0x2D9C74); damage zones pass null	observed
+0x002d9ae0	survarium::base_player::hit	stack+32	the source item (hit +40h: a grenade's stack, a trap's set; the kill's source); damage zones pass null; with an item the initiator must not be null: once the hit is applied hit_impl calls the item's vtable +64h and then the initiator's vtable +4 (0x2D9CD5)	observed
+0x00329ff0	survarium::body_part_parameters::hit_by_type	at 0x32A28B: EBP, ESI, XMM0	the pool, the hit (hit_info: mov esi,[esp+13Ch] at 0x32A284, on every path to the store) and the new health before it is stored	observed
+0x00332810	survarium::body_part_parameters::apply_hit_modifiers	at 0x332833: EAX, EBP	the victim player (its damage zones +2E4h read here) and the hit (its time +3Ch); past the jna, 0x33283C, modifier 41 scales the damage with EAX still the player	observed
+0x00304a40	survarium::booby_trap_core::hit_victim	entry ESP+4	the trap (booby_trap_core): its set (+194h) has the config's damage_parameters at +274h..+278h, 1Ch each (+0 the body part's name, +10h the hit type, +14h the amount, +18h the piercing)	observed
+0x00304a40	survarium::booby_trap_core::hit_victim	entry ESP+10h	the victim: each damage parameter is one call of its vtable +20h (base_player::hit), the amount x the getter of modifier 11, the set as the item	observed
+0x002f8120	survarium::resupply_zone_core::update_use	at 0x2F8147: EAX, EDI, ECX	the ms passed since the use began (now - the record +8), the user's player ([esi]) and the zone, whose resupply time (+50h, resupply_time_in_ms) EAX is compared with next (finish_use at or past it) and divided by for the progress (record +24h, 0x2F8163..0x2F818C)	observed
 0x002d93a0	survarium::base_player::assign_physics_transform	entry ESP+4	the step's length in ms (u32; fild [ebp+8] 0x2D9528: m_linear_horizontal_speed +334h := the step's horizontal move x 1000 / it, stored at 0x2D9545)	observed
 0x002d93a0	survarium::base_player::assign_physics_transform	entry ESP+12	the ends-tick byte: 1 when the step ends on a 50 ms boundary (atomic_tick's sete 0x2D1E32, passed on by tick_delegates); only its low byte is set	observed
 0x002d1d20	survarium::game_world_core::tick_delegates	entry ESP+4	the delegate list (one of the world's seven at +18840h..+188B0h, 16 bytes each)	observed
