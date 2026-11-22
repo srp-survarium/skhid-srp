@@ -3726,3 +3726,7 @@ va	status	ref_021d	name
 0x002dbe90	inferred-high		survarium::base_player::unsubscribe_from_actions
 0x00306b60	inferred-medium		survarium::game_material_manager::game_material_manager [descriptive]
 0x00306e00	inferred-medium		survarium::game_material_manager::find_material_id [descriptive]
+0x0023c3d0	inferred-medium		survarium::game_world_ui::show_grenade_icons [descriptive]
+0x0023c430	inferred-medium		survarium::game_world_ui::hide_grenade_icons [descriptive]
+0x0023c470	inferred-medium		survarium::game_world_ui::show_trap_icons [descriptive]
+0x0023c750	inferred-medium		survarium::game_world_ui::place_object_icon [descriptive]

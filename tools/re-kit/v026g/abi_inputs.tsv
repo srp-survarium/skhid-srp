@@ -6730,3 +6730,17 @@ va	name	location	role	basis
 0x00319780	survarium::damage_zone_core::on_objects_left	entry ESP+4	the left objects (a vector of loose_ptr holders)	observed
 0x003198d0	survarium::damage_zone_core::on_objects_entered	ECX	the zone's collision sensor (zone+108h)	observed
 0x003198d0	survarium::damage_zone_core::on_objects_entered	entry ESP+4	the entered objects (a vector of loose_ptr holders)	observed
+0x0023c3d0	survarium::game_world_ui::show_grenade_icons [descriptive]	EAX	the game_world_ui ([player+F480h], player::st_draw 0x2471F2)	observed
+0x0023c3d0	survarium::game_world_ui::show_grenade_icons [descriptive]	ECX	the grenades' positions, float3 each (stride 0Ch), up to 6: player::st_draw's own team's grenades within grenades_sensor_radius (7 m), no kind and no side	observed
+0x0023c3d0	survarium::game_world_ui::show_grenade_icons [descriptive]	entry ESP+4	the count, a byte	observed
+0x0023c430	survarium::game_world_ui::hide_grenade_icons [descriptive]	EDX	the game_world_ui	observed
+0x0023c470	survarium::game_world_ui::show_trap_icons [descriptive]	EDI	the game_world_ui ([player+F480h], player::st_draw 0x247345)	observed
+0x0023c470	survarium::game_world_ui::show_trap_icons [descriptive]	ECX	the traps' positions, float3 each, up to 50: the own team's traps within traps_sensor_radius	observed
+0x0023c470	survarium::game_world_ui::show_trap_icons [descriptive]	entry ESP+4	the count, a byte	observed
+0x0023c750	survarium::game_world_ui::place_object_icon [descriptive]	EDI	the game_world_ui	observed
+0x0023c750	survarium::game_world_ui::place_object_icon [descriptive]	entry ESP+4	the icon id, a byte	observed
+0x0023c750	survarium::game_world_ui::place_object_icon [descriptive]	entry ESP+8	the point, float3 in world space	observed
+0x0023c750	survarium::game_world_ui::place_object_icon [descriptive]	entry ESP+12	shown when off the screen too, a byte (show_grenade_icons passes 1)	observed
+0x0023bea0	survarium::game_world_ui::set_hud_icon_type	entry ESP+4	the ui (the game_world_ui)	observed
+0x0023bea0	survarium::game_world_ui::set_hud_icon_type	entry ESP+8	the icon id, a byte (movzx at 0x23BEEA)	observed
+0x0023bea0	survarium::game_world_ui::set_hud_icon_type	entry ESP+12	the type, a byte (movzx at 0x23BF1D): the icon's frame - 1 (initialize_match: 0 a grenade, 1 a trap, 0Dh a battery)	observed

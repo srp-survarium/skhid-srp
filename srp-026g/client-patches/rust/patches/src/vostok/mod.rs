@@ -53,6 +53,7 @@ pub mod crc32;
 mod context;
 pub mod draw;
 pub mod headwear;
+pub mod grenade_icons;
 pub mod hit_marker;
 mod hook;
 mod hud_input;

@@ -8036,6 +8036,45 @@ geometry_share_on_deallocate_replay:
     db 0x83, 0xec, 0x14, 0x8b, 0x48, 0x08
     jmp 0x3d4516
 
+; 0x2471a4 player::st_draw's grenade sensor (0x246F50) once a grenade near the followed player is his team's (the team test 0x24719C passed; mov edx,[esi] / mov edx,[edx+1Ch] reads its position next): ESI the grenade's body (its user the grenade +1Ch), EBP the followed player, BL the marker it takes (0..5, icon 2Fh + BL; show_grenade_icons 0x2471FC shows that many): lohook -> grenade_icons_on_sensed
+global grenade_icons_on_sensed
+extern hook_grenade_icons_on_sensed
+grenade_icons_on_sensed:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_grenade_icons_on_sensed
+    mov edx, grenade_icons_on_sensed_replay
+    cmp eax, 0
+    je grenade_icons_on_sensed_go
+    mov edx, 0x2471a9
+    cmp eax, 1
+    je grenade_icons_on_sensed_go
+    ud2
+grenade_icons_on_sensed_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+grenade_icons_on_sensed_replay:
+    db 0x8b, 0x16, 0x8b, 0x52, 0x1c
+    jmp 0x2471a9
+
 ; 0x2e50c7 EDI damage model ESI hit_info; invulnerability applied: lohook -> hand_kill_on_hit
 global hand_kill_on_hit
 extern hook_hand_kill_on_hit_chain
