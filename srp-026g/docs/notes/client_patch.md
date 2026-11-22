@@ -4595,7 +4595,7 @@ code is (`rust/patches/src/artefact_hunt.rs`, `artefact_hunt.toml`, `src/vostok/
   `player_names.enemy_spotted` and `minimap.enemy_spotted` (order 2, after patch 135's) show him;
   `player_icons.enemy_ids` tells the icons movie `root.srp_show_carriers(hunting)` at every match.
 - **The hud** (`player_icons.update_start`, order 5; `hud.initialize_match`; `game_world_ui.welcome`):
-  `root.artefact_hunt_update` with the 28 Numbers of "HUD calls" (a new `Movie::invoke_numbers`, GFx
+  `root.artefact_hunt_update` with the 30 Numbers of "HUD calls" (a new `Movie::invoke_numbers`, GFx
   type 5), the cues' messages through `set_parameterized_message`, the prompt `show_artefact_offer`.
 - **The world check**: patch 87 names the rule by its base type 6 (`world_context.rs`) and gives
   `srp_validate::world::Context::artefact_hunt` the rule's own `Params`.

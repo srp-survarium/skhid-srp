@@ -69,3 +69,10 @@ order = 3
 [[hook]]
 site = "resources.query_done"
 handler = "on_loaded"
+
+# Every match's start, whatever its mode: the hud state's team points 0:0 (a mode's rule fills
+# them from its first frame; nothing else clears them at a new match).
+[[hook]]
+site = "hud.initialize_match"
+handler = "on_initialize_match"
+order = 3

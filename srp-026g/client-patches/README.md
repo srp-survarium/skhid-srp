@@ -6575,7 +6575,7 @@ getter sites add the carrier's two modifiers (lists 4 and 2); `hunt.can_sprint` 
 marker, minimap dot and icon mark (0x1F2D8B) for both teams, and his glow (`artefact_wood_shine`); the
 artefact's model and its idle, spawn and destroy particles in the world (a query of the patch's own, the
 scene reconciled each frame); the announcer's seven lines (sound collections in the game's language's voice);
-the hud's `root.artefact_hunt_update` (28 Numbers), its messages, the prompt and the welcome. The spec and design: `docs/notes/artefact_hunt.md`; the code: `client_patch.md`
+the hud's `root.artefact_hunt_update` (30 Numbers), its messages, the prompt and the welcome. The spec and design: `docs/notes/artefact_hunt.md`; the code: `client_patch.md`
 "Artifact Hunt (patch 171)". A simulation change for mode 13 only. Checked with
 `check_artefact_hunt_026g.py` (Unicorn; `tools/check artefact-hunt-native`) and `cargo test -p
 artefact-hunt-rule`. Not run in a game.
