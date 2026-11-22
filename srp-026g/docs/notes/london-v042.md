@@ -4,9 +4,19 @@ The reworked London as a map of its own beside London (v0.32) (the owner, 2026-1
 want london 0.32 in the game and london 0.42 in the game"; "let's finish london", "both versions").
 Update 0.42 (2016-05-11) moved both bases in, cut the outskirts and changed the tower's inside; no
 build of 0.35 to 0.43 is archived, so the donor is 0.44a5 (build 3808, 2016-09-20), the first
-archived build with the rework (`private/renders/london-history`). Content pack `london-v042@1`,
+archived build with the rework (`private/renders/london-history`). Content pack `london-v042@2`,
 made by resource-porter's `build-survarium-near-map` from 0.44a5's own projects
 (`ports/survarium-044a5-london-to-026g.json`, `docs/near-builds.md` there).
+
+Version 2 (the owner's test, 2026-11-22: hard terrain edges, swaying walls, glossy vines, black and
+dithered walls, pale grass, the glass on the sand, the rain's empty texture cook) is built with the
+donor's own switch sets (`--keep-switch-sets`) and the donor's programs of the g-buffer, its emissive
+pass and the vertex shaders with their two shadow passes: version 1 gave 31 materials of each London
+the nearest switch set players have programs for, which dropped parallax, roughness and translucency
+maps, hardened blended terrain edges (vertex_blend_technique 2 to 0) and gave static walls wind (0 to
+2). Also by rule now: an environment setting the donor leaves empty is left out (0.44a5's rain
+`sky_clouds_normal_texture` ""), a texture no archive has is cleared with the switch that samples it,
+and a surface whose mesh carries no wind weights draws its windy material without wind.
 
 | maps_dict id | project | mode | weather | loading id |
 | ---: | --- | --- | --- | ---: |
