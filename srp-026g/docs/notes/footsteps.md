@@ -94,8 +94,13 @@ point. A step is silent when:
    with a ground one stands on (below). Fixed by step-sounds-1;
 6. no pair (0x248B92): a foot material that is no pair master. That is the on-site logic states
    (`stand_on_site`, `crouch_on_site`, `dead`: movement id 0), for which `on_foot_step` reads the
-   word before the table (player +0F2C4h). Whether a step event ever comes in such a state is NOT
-   VERIFIED: the step log shows it (`movement 0` and its foot material); not patched blind;
+   word before the table (player +0F2C4h). VERIFIED by a crash (a player's rev71 dump, Freeze Tag
+   on School, his own step in first person): the word was a pointer's low half, 0x6860, and
+   `material_pair` read `[materials + 0x6860*4 + 108h]`, far past its tables, and handed `on_step`
+   garbage (the write at 0x248BB6). Fixed by patch 101: `on_foot_step`'s read (0x2A6545,
+   `player_sound.foot_material`, past both paths in, with a world core or not) ends a foot step in
+   a state with no foot material (movement 0, or an id past 4) silently; the patch log says so at
+   the 1st, 10th, 100th, .. of a run, the step log's event line says `dropped (no foot material)`;
 7. past `on_step`: emitted and not heard (no free voice, the cull under fire: `sound_voices.md`,
    patch 96; the quiet samples go first: thick metal's own step has `volume_k` 0.06).
 
@@ -306,7 +311,8 @@ srp: step: own foot, movement 3, first person, foot 56 at 5910 347 8984 cm; root
 
 The event line: whose, the effect, the domain (0 and 1 the feet, 2..4 the rustles), the event's
 time and the core's `maximum_time`, the logic state's movement id, whether the feet were read, and
-what the guard did (`plays`, `skipped (a re-simulated copy)`, `the game's test`). The step line's
+what the guard did (`plays`, `skipped (a re-simulated copy)`, `the game's test`), or `dropped (no
+foot material)` for a foot step that `on_foot_step` then ends (path 6). The step line's
 body: the root (the player's simulated feet), the foot's offset from it, the controller's support
 normal's y (x100), its vertical velocity and `on_ground` (0x7EF90's test).
 
