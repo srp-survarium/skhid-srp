@@ -364,16 +364,17 @@ try {
   const guns = answered['player/weapons'].weapons;
   assert.ok(guns.length >= 2 && guns.every((gun, i) => !i || guns[i - 1].kills >= gun.kills), 'most kills first');
   assert.deepEqual(await cells('.stats-weapons thead th'),
-    ['Weapon', 'Kills', 'K/D', 'HS %', 'Accuracy', 'Avg distance', 'Through walls', 'Ricochets', 'Hours played']);
+    ['Weapon', 'Kills', 'K/D', 'Kills/min', 'HS %', 'Accuracy', 'Avg distance', 'Through walls', 'Ricochets', 'Hours played']);
   assert.equal(await text('.stats-weapons thead th.sorted'), 'Kills');
   assert.deepEqual(await cells('.stats-weapons tbody td.l'), guns.map(gun => gun.name ?? '—'));
   assert.deepEqual(await cells('.stats-weapons tbody td:nth-child(2)'), guns.map(gun => String(gun.kills)));
   assert.deepEqual(await cells('.stats-weapons tbody td:nth-child(3)'), guns.map(gun => gun.kd.toFixed(2)), 'by the deaths with it in the hands');
-  assert.deepEqual(await cells('.stats-weapons tbody td:nth-child(5)'), guns.map(gun => aim(gun)));
-  assert.deepEqual(await cells('.stats-weapons tbody td:nth-child(6)'), guns.map(gun => gun.kill_distance_m === null ? '—' : `${Math.round(gun.kill_distance_m)} m`));
-  assert.deepEqual(await cells('.stats-weapons tbody td:nth-child(7)'), guns.map(gun => String(gun.wall_kills)));
-  assert.deepEqual(await cells('.stats-weapons tbody td:nth-child(8)'), guns.map(gun => String(gun.ricochet_kills)));
-  assert.deepEqual(await cells('.stats-weapons tbody td:nth-child(9)'), guns.map(gun => (gun.held_s / 3600).toFixed(1)));
+  assert.deepEqual(await cells('.stats-weapons tbody td:nth-child(4)'),
+    guns.map(gun => gun.kills_per_minute === null ? '—' : gun.kills_per_minute.toFixed(2)), 'by the time in the hands');  assert.deepEqual(await cells('.stats-weapons tbody td:nth-child(6)'), guns.map(gun => aim(gun)));
+  assert.deepEqual(await cells('.stats-weapons tbody td:nth-child(7)'), guns.map(gun => gun.kill_distance_m === null ? '—' : `${Math.round(gun.kill_distance_m)} m`));
+  assert.deepEqual(await cells('.stats-weapons tbody td:nth-child(8)'), guns.map(gun => String(gun.wall_kills)));
+  assert.deepEqual(await cells('.stats-weapons tbody td:nth-child(9)'), guns.map(gun => String(gun.ricochet_kills)));
+  assert.deepEqual(await cells('.stats-weapons tbody td:nth-child(10)'), guns.map(gun => (gun.held_s / 3600).toFixed(1)));
   assert.ok(guns.some(gun => gun.name === null), 'a weapon gone from the game data');
   assert.deepEqual(await evaluate("[...document.querySelectorAll('.stats-weapons a')].map(a => a.pathname + a.hash).join()"),
     guns.filter(gun => gun.key).map(gun => `/wiki/weapons#wpn_${gun.key}`).join(), 'each leads to its card in the wiki');
@@ -383,7 +384,7 @@ try {
   assert.equal(await fits(), true, 'the weapons fit the width');
   await screenshot('player-weapons');
   // A click on a heading sorts by its column, the largest first.
-  for (const [label, by, value] of [['K/D', 'kd', gun => gun.kd], ['HS %', 'headshot_rate', gun => gun.kills ? gun.headshots / gun.kills : -1],
+  for (const [label, by, value] of [['K/D', 'kd', gun => gun.kd], ['Kills/min', 'kills_per_minute', gun => gun.kills_per_minute ?? -1], ['HS %', 'headshot_rate', gun => gun.kills ? gun.headshots / gun.kills : -1],
     ['Accuracy', 'accuracy', gun => gun.shots ? gun.hits / gun.shots : -1], ['Avg distance', 'kill_distance', gun => gun.kill_distance_m ?? -1],
     ['Through walls', 'wall_kills', gun => gun.wall_kills], ['Ricochets', 'ricochet_kills', gun => gun.ricochet_kills],
     ['Hours played', 'held', gun => gun.held_s], ['Kills', 'kills', gun => gun.kills]]) {
@@ -575,7 +576,7 @@ try {
   assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'mobile page fits');
   await navigate('/stats?player=Sheep&tab=weapons&lang=uk');
   assert.deepEqual(await cells('.stats-weapons thead th'),
-    ['Зброя', 'Вбивства', 'В/С', 'У голову %', 'Точність', 'Сер. відстань', 'Крізь стіни', 'Рикошетом', 'Годин у грі']);
+    ['Зброя', 'Вбивства', 'В/С', 'Вбивств/хв', 'У голову %', 'Точність', 'Сер. відстань', 'Крізь стіни', 'Рикошетом', 'Годин у грі']);
   assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'the weapons fit a phone');
   await screenshot('player-weapons-uk-phone');
   await screenshot('player-mobile-uk');

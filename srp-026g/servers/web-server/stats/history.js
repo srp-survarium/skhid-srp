@@ -236,10 +236,11 @@
   // hands. WEAPONS empty rows while loading, and without an `id` yet; a
   // list sorted anew stays until the new one is here.
   const WEAPONS = 5;
-  const WEAPON_KEYS = ['kills', 'kd', 'headshot_rate', 'accuracy', 'kill_distance', 'wall_kills', 'ricochet_kills', 'held'];
+  const WEAPON_KEYS = ['kills', 'kd', 'kills_per_minute', 'headshot_rate', 'accuracy', 'kill_distance', 'wall_kills', 'ricochet_kills', 'held'];
   function weaponList(id) {
     const columns = [[TEXT.weapon, item => itemCell(item, wikiWeapon(item)), 'l', '', () => itemCell(null)],
-      [TEXT.kills, item => n(item.kills), '', 'kills'], [TEXT.kd, item => kd(item.kd), '', 'kd'], [TEXT.headshotRate, headshotRate, '', 'headshot_rate'],
+      [TEXT.kills, item => n(item.kills), '', 'kills'], [TEXT.kd, item => kd(item.kd), '', 'kd'],
+      [TEXT.killsPerMinute, item => kd(item.kills_per_minute), '', 'kills_per_minute'], [TEXT.headshotRate, headshotRate, '', 'headshot_rate'],
       [TEXT.accuracy, aim, '', 'accuracy'],
       [TEXT.avgDistance, item => item.kill_distance_m === null ? '—' : metres.format(item.kill_distance_m), '', 'kill_distance'],
       [TEXT.wallKills, item => n(item.wall_kills), '', 'wall_kills'], [TEXT.ricochetKills, item => n(item.ricochet_kills), '', 'ricochet_kills'],
