@@ -2528,6 +2528,48 @@ the shading-quality-3 programs of `flora_2/saksaul_tile_blend_vc` and `flora_2/l
   program supplier that patch 183 fills both constants (8 bytes each) for `gbuffer_pass.ps`, so the
   donor's parallax programs ship.
 
+### 3.101 The use prompt after a use (written 2026-11-22, README patch 195, the next release's revision) — PROVEN in the code; the stuck bar seen live, its trigger not
+
+A player (arto4221, Blackout, match 0x3e5cc7f9, 2026-11-22) was killed while taking an artefact from
+a container and played on after his respawn with the use's "Прогрес:" bar under the crosshair, almost
+empty. The same widget serves every use in every mode (an artefact container, an ammo stash, a
+battery's take and put), so the cause is not Blackout's; Blackout only keeps that widget on screen.
+
+- **The widget** is the hud's `contextInfo`, set by `root.set_context(text, value, time)` (a value
+  of 0 shows the text alone, any other the text over a bar at that value; `HUD.refresh_context`).
+  Nothing hides it: the game only sets it again.
+- **Who sets it** (PROVEN): `player::st_draw` (0x246F50), each frame, for the drawn player of the
+  local place. While the player's use user holds an object (`usable_object_user_data` at player
+  +130h, its object +4: player +134h), it calls `set_using_progress_message` (0x23A430) with the use's
+  progress (+24h: player +154h), which calls `root.set_context("st_using_progress_message",
+  progress x 100, 500)` unless the progress is 0. Otherwise it calls `set_using_info_message`
+  (0x23A560) with the text key `use_info` gives for what is in reach (a container's
+  `st_use_artefact_container` 0xA16BCC, or 0x9DB708 "" for nothing usable, a locked or empty
+  container, or a dead player, whose use scan finds nothing). That one calls `root.set_context(text,
+  0, 1000)` **only when the key differs from the one it gave last** (ui +334h, 0x23A570..0x23A584);
+  the progress neither reads nor writes that key.
+- **The simulation ends a use** (PROVEN): `use_execute` returning false (the use key released, the
+  object no longer the one in view) makes the player's tick call the object's `use_finalize`
+  (vtable +40h, 0x2F85B0: object 0, progress 0, unlinked; 0x2D86D4), and the client's death calls it
+  too (`player::on_player_death` 0x1F28F6..0x1F290C). In the live match the world shows it: Арто's
+  use record (start 826.85 s, progress 0.553 at 829.9 s) is gone at 834.9 s. Nothing of the use is
+  left: no lock on the container, no use key held (the death clears the input, +330h).
+- **So the bar stays** whenever the use ends while the prompt's key is the one it gave before the
+  use: the key does not change, nothing calls `set_context`, and the last progress stays drawn
+  until another key comes. The key before the use is usually the take prompt, which a death (a dead
+  player's "") replaces; it is "" when no frame drew the take prompt before the use began (the use
+  started in the tick the container became usable, or the frame's view and the tick's differ at the
+  reach's edge), and then a death, or a finished use with nothing usable left in view, leaves the bar.
+  Which of these Арто met the worlds (every 5 s) cannot show.
+- **The fix** (patch 195, `use_prompt.rs`, `vostok/use_prompt.rs`): a lohook at
+  `set_using_progress_message`'s start (`use_prompt.progress`, 0x23A430) writes 0 to the ui's key
+  (+334h), as `initialize_match` leaves it (0x234ACC). Every frame a use shows its progress, the key
+  is forgotten, so the first prompt after the use is given again whatever its text, and it replaces
+  the bar. Only the hud: nothing a match computes or a world holds changes.
+- **Checked:** `check_use_prompt_026g.py` (Unicorn, `tools/check use-prompt`): the two functions run
+  as st_draw calls them in both exes; the original keeps the bar after a use that ends with the
+  prompt's key unchanged, the build gives the prompt again; the other sequences as the original.
+
 ## 4. Mode 3 batteries: not needed in 0.26g
 
 - 0.26g splits the rule: `match_time_vi_spawn_rule` (vtable 0xA06C04) wraps `match_time_vi_spawn_rule_core` (vtable 0xA15CAC). The battery tick is no longer a vtable slot: the core's ctor 0x3147A0 stores a delegate `{this, 0x3148A0}` at +0x1C4 / +0x1C8 (0x3147F1). [V]

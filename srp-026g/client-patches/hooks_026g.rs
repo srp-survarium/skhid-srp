@@ -8755,6 +8755,21 @@ pub extern "C" fn hook_unplayed_match_on_ready(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- use_prompt (patch 195) ----
+
+/// The entry `use_prompt_on_progress` (0x23a430, game_world_ui::set_using_progress_message (0x23A430) at its start (movss xmm0,[esp+8]): player::st_draw calls it each frame the drawn local player has an object in use (its user +4, player +134h; 0x246FC4) with the ui and the use's progress; ESP+4 the ui) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_use_prompt_on_progress(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `use_prompt_on_progress` calls this, from the game's jump at 0x23a430,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::use_prompt::on_progress(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- use_scan (patch 23) ----
 
 /// The named exits of use_scan::on_detect (the order the shim's Flow code
