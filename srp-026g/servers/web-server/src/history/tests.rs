@@ -948,19 +948,34 @@ fn an_unknown_endpoint_is_not_found_and_no_database_no_history() {
 
 /// A made-up history for the local preview (`serve_wiki_preview`) and the
 /// page's browser check (`scripts/wiki/check_history.mjs`), in a new `srp.db`
-/// under `dir`: twelve players and Nova, who never played, two clans (RAD's
+/// under `dir`: twelve players and Nova, who never played, six clans (RAD's
 /// commander is Nova), and 23 public matches ending at `now`, written as srp
 /// writes them: one a free-for-all, one a draw, one too short to count;
 /// Yasen in the newest 15 only, with too few shots for the accuracy list
 /// and no weapons counted;
 /// Dub leaves every fifth; one weapon is gone from the game data; Sheep was
-/// Baran, then Yahnia. With a `crowd`, as many more players, each with a few
-/// matches of today among themselves (newer than the 23), and Sheep with a
-/// dozen more names left: for looking at long lists.
+/// Baran, then Yahnia. The third has the longest name a player can choose
+/// (the game's sixteen letters) and the longest tag (six), in the widest
+/// capitals; the fifth's is as wide as the widest of the live server's
+/// (181 px with its tag); five more are named as players there are. With a
+/// `crowd`, as many more players, each with a few matches of today among
+/// themselves (newer than the 23), and Sheep with a dozen more names left:
+/// for looking at long lists.
 pub(crate) fn preview(dir: &std::path::Path, now: u64, crowd: u32) -> GameAccounts {
     const NAMES: [&str; 13] = [
-        "Sheep", "Volk", "Kvitka", "Lys", "Bars", "Grim", "Sova", "Taras", "Zhuk", "Orel", "Dub",
-        "Yasen", "Nova",
+        "Sheep",
+        "bugz_bunny_95_",
+        "ЩЮЖШЩЮЖШЩЮЖШЩЮЖШ",
+        "Lys",
+        "Длинноимённый_Сталкер",
+        "fess",
+        "Sova",
+        "Ataman",
+        "Lucia",
+        "Ŗàmzęś",
+        "Dub",
+        "Yasen",
+        "Nova",
     ];
     const FIRST: u32 = 1042;
     let mut repository = SqliteGameRepository::open_in(dir).unwrap();
@@ -983,8 +998,12 @@ pub(crate) fn preview(dir: &std::path::Path, now: u64, crowd: u32) -> GameAccoun
         repository.save(FIRST + u32::from(index), &account).unwrap();
     }
     let clans = [
-        (7, "Skhid", "SKH", vec![0, 1, 4]),
+        (7, "Skhid", "SKH", vec![0, 4, 6]),
         (9, "Radianty", "RAD", vec![12, 3, 5]),
+        (11, "Shyroki", "ЩЮЖШЩЮ", vec![2]),
+        (13, "Dedki", "ДЕДКИ", vec![1]),
+        (15, "Bots", "BOTS", vec![8]),
+        (17, "Legion", "LEGION", vec![9]),
     ];
     for (id, name, tag, members) in &clans {
         repository

@@ -1119,4 +1119,7 @@ void __attribute__((thiscall)) engine_player_remove(struct player *player, unsig
 /* 0x316da0 survarium::player_respawn_rule_base::spawn_player: rule ECX, place ESP+4, point ESP+8, time ESP+12; pops 12; thiscall, called directly */
 void __attribute__((thiscall)) engine_spawn_player(struct player_respawn_rule_base *rule, unsigned int place, const unsigned int *point, unsigned int time);
 
+/* 0x23bea0 survarium::game_world_ui::set_hud_icon_type: ui ESP+4, id ESP+8, type ESP+12; pops 12 */
+void engine_set_hud_icon_type(struct game_world_ui *ui, unsigned int id, unsigned int type);
+
 #endif

@@ -1212,6 +1212,21 @@ pub extern "C" fn hook_artefact_hunt_on_enemy_ids(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- grenade_icons (patch 194) ----
+
+/// The entry `grenade_icons_on_markers_made` (0x235709, game_world_ui::initialize_match (0x234880) about to send the player icons movie its enemy list (root.set_enemy_icon_ids, the Invoke at 0x235726; the icons movie [[ui+10h]+108h]+4), before any marker of the match is sent: mov ecx,[esi+10h] / mov edx,[ecx+108h]; ESI the ui (0x235702). the late join's lists_hook is on the bytes after the Invoke (0x23572B)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_grenade_icons_on_markers_made(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `grenade_icons_on_markers_made` calls this, from the game's jump at 0x235709,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::grenade_icons::on_markers_made(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- blackout (patch 65) ----
 
 /// The entry `blackout_on_update_icons` (0x23aa10, game_world_ui::update_player_icons' start, every frame of a match ([esp+4] the ui)) calls this with the saved machine.
@@ -5411,6 +5426,21 @@ pub extern "C" fn hook_geometry_share_on_deallocate(frame: &mut Frame) -> u32 {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- grenade_icons (patch 194) ----
+
+/// The entry `grenade_icons_on_sensed` (0x2471a4, player::st_draw's grenade sensor (0x246F50) once a grenade near the followed player is his team's (the team test 0x24719C passed; mov edx,[esi] / mov edx,[edx+1Ch] reads its position next): ESI the grenade's body (its user the grenade +1Ch), EBP the followed player, BL the marker it takes (0..5, icon 2Fh + BL; show_grenade_icons 0x2471FC shows that many)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_grenade_icons_on_sensed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `grenade_icons_on_sensed` calls this, from the game's jump at 0x2471a4,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::grenade_icons::on_sensed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
     }
 }
 
@@ -9636,6 +9666,8 @@ pub extern "C" fn hook_replay_map_on_enemy_ids_chain(frame: &mut Frame) -> u32 {
     let flow = hook_replay_map_on_enemy_ids(frame);
     if flow != 0 { return flow; }
     let flow = hook_artefact_hunt_on_enemy_ids(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_grenade_icons_on_markers_made(frame);
     if flow != 0 { return flow; }
     0
 }

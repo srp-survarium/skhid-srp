@@ -131,11 +131,6 @@ pub const fn weight(n: usize) -> u32 {
 pub const LOW: u32 = weight(FIELDS.len() - 1);
 const _: () = assert!(LOW <= 1 << 24 && FIELDS[FIELDS.len() - 1].ranks == 1);
 
-/// Tank Container (445): a kit that wears an oxygen tank gets one more artefact container. No digit
-/// of [`MODIFIER`]: the skill's data is the container (`artefact_slots` +1, as Artifact Container's),
-/// which srp leaves out of the modifier block of a kit without a tank; the exe never knows it.
-pub const TANK_CONTAINER: u16 = 445;
-
 /// Rearm (433): how long a trap that was shot stays sprung, in milliseconds, by rank.
 const REARM_MS: [u32; 2] = [30_000, 20_000];
 
@@ -466,6 +461,11 @@ impl Skills {
         }
     }
 }
+
+/// Tank Container (445): a kit that wears an oxygen tank gets one more artefact container. No digit
+/// of [`MODIFIER`]: the skill's data is the container (`artefact_slots` +1, as Artifact Container's),
+/// which srp leaves out of the modifier block of a kit without a tank; the exe never knows it.
+pub const TANK_CONTAINER: u16 = 445;
 
 #[cfg(test)]
 mod tests {
