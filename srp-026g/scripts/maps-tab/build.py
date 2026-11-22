@@ -282,8 +282,8 @@ def main():
         for folder in sorted(maps, key=lambda f: (BUILDS.index(maps[f]["build"]), f)):
             m = maps[folder]
             modes, project_name, artefacts = [], None, None
-            for mode_id in sorted(m["modes"]):
-                mm = m["modes"][mode_id]
+            for mode_id, layout in sorted(m["modes"]):
+                mm = m["modes"][mode_id, layout]
                 seen = None
                 for path in mm["projects"]:
                     project = load(raw, f"projects/{path}/client_project")
@@ -309,7 +309,9 @@ def main():
                 # [x, z, y, cp_id], by cp_id (0, 1, 2: A, B, C).
                 seen["units"] = (sorted((xzy(zone) + [zone.get("cp_id", 0)] for zone in p.get("capture_zones") or []),
                                         key=lambda unit: unit[3]) if RESEARCH in rules else [])
-                modes.append({"mode": mode_id, "ids": sorted(mm["ids"]), "name": text(mm["mode_name"]),
+                # A mode's other layout (Research's units elsewhere) is a choice of its own: "5.2".
+                modes.append({"key": f"{mode_id}.{layout + 1}" if layout else str(mode_id), "layout": layout,
+                              "mode": mode_id, "ids": sorted(mm["ids"]), "name": text(mm["mode_name"]),
                               "stations_active": p.get("spawn_points_count"), "batteries": p.get("victory_items_count"),
                               **seen})
             for a in artefacts:
