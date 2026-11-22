@@ -23,12 +23,20 @@ reading chosen where the owner's list leaves it open (the owner may overrule it)
 - 2026-11-21 (the owner): Sapper 3 ranks of +15%; Rearm 2 ranks, 30 s then 20 s; Last Gasp in
   row IV; Tank Pocket and Tank Depth 2 ranks each (+2 pockets, +2 pocket size); Deep Breaths the
   sprint's energy use; Steady Breath the dispersion too.
-- 2026-11-22 (the owner): "last gasp should be renamed and activate every 30 seconds of oxygen
-  tank usage". Last Gasp (442) is Oxygen Rush («Кислородный рывок», my pick of the name; "Second
-  Wind" is medical skill 324's in every language): the same boost (energy full, +10% speed for
-  20 s) at each further 30 s of the tank's air spent since its fill, not when it runs out; a mark
-  while it runs gives it its 20 s again, no stacking (my pick). Its id, place, icon and modifier
-  digit stay, so its owners keep it.
+- 2026-11-22 (the owner), Oxygen Rush (442), in four steps: "last gasp should be renamed and
+  activate every 30 seconds of oxygen tank usage" (Last Gasp becomes Oxygen Rush, «Кислородный
+  рывок», my pick of the name, which he kept; "Second Wind" is medical skill 324's in every
+  language); then "it should be that and once oxygen tank runs out" (the run-out trigger back
+  beside the use one); "note that might mean one trigger while another is active" and "but that
+  just overrides the timer" (one boost at a time: a start while a boost runs sets its end to 20 s
+  from that start, the speed never stacks, the energy is filled again); and "and I wish it was
+  20consequtive seconds, not 30 at any point" (the 30 s of air at any point are superseded: 20 s
+  of use without a break, counted again from 0 when the tank is switched on). So the boost
+  (energy full, +10% speed for 20 s) starts after every 20 s of the tank's use without a break
+  and when the tank runs out (both at one tick: one start). A known consequence, not an
+  accident: with a 20 s period and a 20 s boost, a player who keeps the tank on is boosted from
+  its 20th second until 20 s after it is switched off or runs out. Its id, place, icon and
+  modifier digit stay, so its owners keep it.
 - 2026-11-22 (the owner): Trophy Trap also gives back one's own disarmed trap, and a trap it pockets leaves the map at once; Rearm reopens a
   trap only when it was shot or hit with a weapon (a hand disarm stays the stock one: "only when
   they were shot at", "or hit with weapon").
@@ -56,7 +64,7 @@ reading chosen where the owner's list leaves it open (the owner may overrule it)
 | 3 | 8 | 431 | Deep Breaths | 3 | sprint energy use while an oxygen tank is on -20/-30/-40% | exe |
 | 4 | 12 | 432 | Dead Man's Switch | 1 | killed: the throw key drops one of its smokes at the body | exe |
 | 4 | 12 | 433 | Rearm | 2 | its traps that were shot open again after 30 s (20 s) | exe |
-| 4 | 12 | 442 | Oxygen Rush | 1 | every 30 s of oxygen tank use: +10% speed for 20 s, energy full | exe |
+| 4 | 12 | 442 | Oxygen Rush | 1 | after every 20 s of oxygen tank use without a break and at its run-out: +10% speed for 20 s, energy full | exe |
 | 5 | 16 | 441 | Toxic Smoke | 3 | its smoke is tinted green and does toxic damage to enemies inside; a pocket holds half as many grenades | exe + pack + srp + lobby |
 | 5 | 16 | 443 | Scavenger | 1 | a kill with its grenade gives one grenade back | exe |
 | 5 | 16 | 444 | Bear Trap | 1 | its trap breaks the legs it catches; a pocket holds half as many traps | exe + srp + lobby |
@@ -132,27 +140,46 @@ booster's modifications; 29 the hand-kill marker.
   tank is on. Jumps keep their cost.
 - Oxygen Rush (442; Last Gasp until 2026-11-22): the tank's tick spends the air (0x33E661,
   `technical.tank_spent`, a living holder's only). The tick runs only while the tank is on
-  (set_active 0x33E400 puts it in the world's tick list and takes it out): it spends min(the air
-  left, the elapsed ms) (EAX at the site; ECX the air left after it). The tank's use is its
-  capacity (+270h, a full tank's ms: amount_time_sec x 1000 with the item's modifications) minus
-  the air left, counted across pauses of use; `technical_skills::TankTick` takes the three
-  numbers once and `oxygen_rush_mark` says whether this tick took the use past another multiple
-  of 30 000 ms (one mark however much it spent). Nothing new is saved: the count is the tank's own
-  air. A refill (vtable +38h at a respawn, +40h an ammo crate's resupply, both amount := capacity)
-  starts it again from the new fill; a mark the tank ran out at counts (a 30 s tank's), running out
-  between marks does nothing. A tank comes only with its kit (no item pickup takes one), so a
-  tank's count is always its own kit's. At a mark the stamina is set to its maximum (as Larkspur
-  II does) and the boost starts, or a running one is given its 20 s from this mark:
-  `OxygenRush::On { until }` on the stamina clock (+70h, saved), 20 s. Full tanks of the game data
-  (30/50/80/120/140 s) give 1/1/2/4/4 boosts. The boost lives in the tank's tail padding (+294h,
-  no native access: the object is 298h bytes, its last native field +290h), saved after
-  m_amount_ms (`technical.tank_save`, read back by `technical.tank_load`, checked against the
-  stream's end), cleared by the ctor (`technical.tank_construct`) and by both refills
-  (`technical.tank_refill`, `_2`: a respawn ends it). The speed: x1.1 at `medical.movement`
-  (order 2, after Adrenalin); movement is cached, so the start and the end set the player's
+  (set_active 0x33E400 puts it in the world's tick list and takes it out; it is called by the
+  player's switch, action 0x33E3BD, and by the tick's off, 0x33E66F, at a run-out or a dead
+  holder; deserialize lists a loaded tank itself): it spends min(the air left, the elapsed ms)
+  (EAX at the site; ECX the air left after it), so the air spent while on is the time of use.
+- Its use without a break: `technical_skills::TankUse`, the ms of air spent since the tank was
+  switched on, filled or last started a boost (0..20 000), one machine over `TankEvent` (`On` at
+  set_active's store of AL, `technical.tank_switch` 0x33E403; `Refill` at both refills and the
+  ctor; `Spent` at the tick). A tick that reaches 20 000 is a start (the ms past it kept, so the
+  marks are 20 s of air apart wherever the ticks fall), and so is a tick that spends the last air
+  (`RushCause::Use`, `RanOut`, `UseAtRunOut`: one start). Switched off, the tick does not run and
+  nothing counts; switched on, it counts from 0. Every tank counts, whoever holds it; only a
+  holder with the skill gets the boost.
+- What else resets it: death switches the tank off (the tick's dead path); a respawn refills it
+  (vtable +38h), and so does an ammo crate (+40h, `resupply_from_profile_slot`'s slot), each
+  counting from 0 and ending a running boost (as since Last Gasp); a kit change is another kit's
+  tank, with its own count; a round restart of Artifact Hunt or Freeze Tag is a spawn of the
+  respawn rule, so its refill (LIKELY: not read for those modes).
+- Why a saved u16 and not the air alone: the count of use without a break is not in the tank's
+  own state (set_active keeps no time and no air level; the tick-list entry holds none), and the
+  one word of the boost cannot also hold it: a tank switched off and on during a boost has a boost
+  end (a clock) and a new count at once, more than 32 bits exactly. So the count is its own field:
+  +292h, a u16 in the tail padding after the influences' count byte (+290h; the tank code only
+  ever reads that byte), saved after the boost's word.
+- At a start the stamina is set to its maximum (as Larkspur II does) and the boost starts, or a
+  running one's end moves to 20 s from now: `OxygenRush::On { until }` on the stamina clock (+70h,
+  saved). At a use mark the previous boost ends on the same tick the new one starts (20 s apart);
+  the end is checked at `battery.carrier_tick`, so whichever of the two runs first in that tick,
+  the boost is on at the tick's end. Full tanks kept on from full (20, 30, 50, 80, 120, 140 s)
+  start it 1, 2, 3, 4, 6, 7 times and are boosted from the 20th second to 20 s after they run out.
+  The boost lives in the tank's tail padding (+294h, no native access: the object is 298h bytes,
+  its last native field +290h), saved after m_amount_ms (`technical.tank_save`, read back by
+  `technical.tank_load`, checked against the stream's end), cleared by the ctor
+  (`technical.tank_construct`) and by both refills. The speed: x1.1 at `medical.movement` (order
+  2, after Adrenalin); movement is cached, so the start and the end set the player's
   refresh_selection (+33Eh); the end is checked each tick at `battery.carrier_tick` (order 6).
-  srp-validate's `OxygenTank` reads the word (`oxygen_rush()`): every tank of every world saves
-  4 more bytes, as since Last Gasp (the same word, the same meaning).
+- The world format: every tank of every world saves the boost's u32 and the use's u16 after
+  m_amount_ms, 2 bytes more than revisions 70 and 71 (srp-validate's `OxygenTank`, `oxygen_rush()`
+  and `oxygen_rush_use()`, a use of 20 000 or more refused). Worlds recorded by revisions 70 and
+  71 do not parse with it: the release needs worlds recorded by this build, and the world corpus
+  moves the older recordings aside (packet-validation.md, "The world corpus").
 
 ## Dexterous Hands (401)
 

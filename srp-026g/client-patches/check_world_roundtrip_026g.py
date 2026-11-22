@@ -166,9 +166,9 @@ OWN_CHECKS = {
                    "(serialize, then the load: the same cloud, the reader at its end)",
     (0x303E40, 7): "smoke.save_cloud: the cloud's 16 bytes after the thrown fields, as smoke.save_state",
     (0x30406C, 7): "smoke.load_cloud: as smoke.save_state (a world without the bit clears the grenade's cloud)",
-    (0x33E7E7, 5): "technical.tank_save (patch 180, Oxygen Rush): the boost's u32 after the oxygen tank's m_amount_ms, "
-                   "always written (the players section; srp-validate's OxygenTank reads it); "
-                   "technical_skills::OxygenRush's test and srp-validate's parse",
+    (0x33E7E7, 5): "technical.tank_save (patch 180, Oxygen Rush): the boost's u32 and the use's u16 after the oxygen "
+                   "tank's m_amount_ms, always written (the players section; srp-validate's OxygenTank reads them); "
+                   "technical_skills::OxygenRush's and TankUse's tests and srp-validate's parse",
     (0x33E82F, 7): "technical.tank_load: as technical.tank_save, checked against the stream's end",
 }
 CODEC = re.compile(r"::(de)?serialize")

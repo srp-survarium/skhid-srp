@@ -3086,7 +3086,7 @@ st_srp_technical_433_description	A csapdáid, amelyekre lőttek, újra kinyílna
 st_srp_technical_433_name	Újrafeszítés
 st_srp_technical_441_description	A füstöd enyhén zöld és mérgezi a benne lévő ellenségeket; az oxigénpalack véd. Egy zsebbe feleannyi füstgránát fér. Mérgező sebzés:
 st_srp_technical_441_name	Mérgező füst
-st_srp_technical_442_description	Az oxigénpalack minden 30 mp használata után: +10% sebesség 20 mp-ig és teljes energia.
+st_srp_technical_442_description	Az oxigénpalack minden 20 mp folyamatos használata után és amikor kiürül: +10% sebesség 20 mp-ig és teljes energia.
 st_srp_technical_442_name	Oxigénroham
 st_srp_technical_443_description	Egy gránátoddal szerzett ölés visszaad egy gránátot.
 st_srp_technical_443_name	Dögevő
@@ -3094,7 +3094,7 @@ st_srp_technical_444_description	A csapdád eltöri annak a lábát, aki belelé
 st_srp_technical_444_name	Medvecsapda
 st_srp_technical_disarm_speed	Csapdahatástalanítás sebessége
 st_srp_technical_friendly_blast	Sebzés a saját gránátoktól
-st_srp_technical_oxygen_rush	Sebesség 30 mp palackhasználatonként
+st_srp_technical_oxygen_rush	Sebesség 20 mp palackhasználat után és a végén
 st_srp_technical_per_second	 másodpercenként
 st_srp_technical_pocket_size	 zsebméret
 st_srp_technical_pockets	 zseb

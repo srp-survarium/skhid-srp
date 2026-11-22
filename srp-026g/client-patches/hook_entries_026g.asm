@@ -12843,6 +12843,45 @@ technical_skills_on_tank_spent_replay:
     db 0xf3, 0x0f, 0x11, 0x87, 0x60, 0x02, 0x00, 0x00
     jmp 0x33e669
 
+; 0x33e403 oxygen_tank::set_active's store of m_active (mov [edi+268h],al): AL the new state, EDI the tank; called by action 0x33E3BD (the player's switch) and the tick's off 0x33E66F (run-out or a dead holder); deserialize lists a loaded tank itself, without it: lohook -> technical_skills_on_tank_switch
+global technical_skills_on_tank_switch
+extern hook_technical_skills_on_tank_switch
+technical_skills_on_tank_switch:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_tank_switch
+    mov edx, technical_skills_on_tank_switch_replay
+    cmp eax, 0
+    je technical_skills_on_tank_switch_go
+    mov edx, 0x33e409
+    cmp eax, 1
+    je technical_skills_on_tank_switch_go
+    ud2
+technical_skills_on_tank_switch_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_tank_switch_replay:
+    db 0x88, 0x87, 0x68, 0x02, 0x00, 0x00
+    jmp 0x33e409
+
 ; 0x33e293 oxygen_tank's ctor epilogue (pop edi / pop esi / mov eax,ebp / pop ebp): EBP the tank, its tail padding as the allocator left it: lohook -> technical_skills_on_tank_construct
 global technical_skills_on_tank_construct
 extern hook_technical_skills_on_tank_construct

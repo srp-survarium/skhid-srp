@@ -126,8 +126,8 @@ const REARM_MS: [u32; 2] = [30_000, 20_000];
 /// Oxygen Rush (442): how long its speed lasts, in milliseconds, and the speed it adds.
 pub const OXYGEN_RUSH_MS: u32 = 20_000;
 pub const OXYGEN_RUSH_SPEED: f32 = 0.10;
-/// Oxygen Rush (442): another this many milliseconds of a tank's air spent starts it.
-pub const OXYGEN_RUSH_EVERY_MS: u32 = 30_000;
+/// Oxygen Rush (442): this many milliseconds of a tank's use without a break start it.
+pub const OXYGEN_RUSH_USE_MS: u16 = 20_000;
 
 /// A player's stamina clock (`player_stamina` +70h, the simulation's ms, saved), wrapping.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -144,27 +144,67 @@ impl Clock {
     }
 }
 
-/// One tick of an oxygen tank's air (`oxygen_tank::tick`): how much of its fill it had spent
-/// before the tick and after it. The air is spent only while the tank is on (the tick runs only
-/// then), so this is the tank's time of use since its last fill.
+/// A tank's use without a break toward its next Oxygen Rush, in milliseconds of air spent
+/// (0..[`OXYGEN_RUSH_USE_MS`]; patch 180 keeps it on the tank and saves it with it as a u16). The
+/// tank's tick runs only while it is on, and spends the elapsed ms (but at its last air), so the
+/// air spent since the tank was switched on is its time of use.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TankUse(u16);
+
+/// What happens to an oxygen tank, as its use toward Oxygen Rush counts it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct TankTick {
-    before: u32,
-    after: u32,
+pub enum TankEvent {
+    /// Switched on (`set_active(1)`): the use counts from 0. Off, it does not count at all.
+    On,
+    /// Filled again (a respawn's or an ammo crate's): the use counts from 0.
+    Refill,
+    /// Its tick while on: `spent` ms of air, `left` after it.
+    Spent { spent: u32, left: u32 },
 }
 
-impl TankTick {
-    /// From the tank's capacity (a full tank's ms), the ms left after the tick and the ms the tick
-    /// spent; none for numbers no tank holds (more air than its capacity).
-    pub fn parse(capacity: u32, left: u32, spent: u32) -> Option<Self> {
-        let before = capacity.checked_sub(left.checked_add(spent)?)?;
-        Some(Self { before, after: before + spent })
+/// Why Oxygen Rush starts at a tank's tick.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RushCause {
+    /// Another [`OXYGEN_RUSH_USE_MS`] of use without a break.
+    Use,
+    /// The tank ran out (its tick spent its last air).
+    RanOut,
+    /// Both at the same tick: one start.
+    UseAtRunOut,
+}
+
+impl TankUse {
+    /// The saved u16; none past the count's domain.
+    pub fn parse(raw: u16) -> Option<Self> {
+        (raw < OXYGEN_RUSH_USE_MS).then_some(Self(raw))
     }
 
-    /// Oxygen Rush's mark: this tick's air took the tank past another [`OXYGEN_RUSH_EVERY_MS`]
-    /// of use (one mark however much the tick spent).
-    pub fn oxygen_rush_mark(self) -> bool {
-        self.after / OXYGEN_RUSH_EVERY_MS > self.before / OXYGEN_RUSH_EVERY_MS
+    pub fn raw(self) -> u16 {
+        self.0
+    }
+
+    /// The use after `event`, and why Oxygen Rush starts, if it does. A use mark keeps the
+    /// milliseconds past it (the next mark is 20 s of air after this one, wherever the ticks fall);
+    /// a tank that ran out counts from 0.
+    pub fn after(self, event: TankEvent) -> (Self, Option<RushCause>) {
+        let Self(used) = self;
+        let (spent, left) = match event {
+            TankEvent::On | TankEvent::Refill => return (Self(0), None),
+            TankEvent::Spent { spent, left } => (spent, left),
+        };
+        let total = u32::from(used).saturating_add(spent);
+        let every = u32::from(OXYGEN_RUSH_USE_MS);
+        let mark = total >= every;
+        let ran_out = spent > 0 && left == 0;
+        let cause = match (mark, ran_out) {
+            (true, true) => Some(RushCause::UseAtRunOut),
+            (true, false) => Some(RushCause::Use),
+            (false, true) => Some(RushCause::RanOut),
+            (false, false) => None,
+        };
+        let rest = if ran_out { 0 } else { total % every };
+        // `rest` is below OXYGEN_RUSH_USE_MS, a u16.
+        (Self(rest as u16), cause)
     }
 }
 
@@ -193,8 +233,9 @@ impl OxygenRush {
         }
     }
 
-    /// A mark at `now`: the boost until [`OXYGEN_RUSH_MS`] later, whatever was left of a running
-    /// one (it does not stack). A clock of 0, which the word cannot hold, is a millisecond later.
+    /// A start at `now` ([`RushCause`]): the boost until [`OXYGEN_RUSH_MS`] later, whatever was left
+    /// of a running one (the new start sets its end; the speed never stacks). A clock of 0, which
+    /// the word cannot hold, is a millisecond later.
     pub fn start(now: Clock) -> Self {
         let until = now.after(OXYGEN_RUSH_MS);
         Self::On { until: Clock(until.0.max(1)) }
@@ -381,8 +422,9 @@ impl Skills {
         self.toxic_smoke
     }
 
-    /// Oxygen Rush (442): every [`OXYGEN_RUSH_EVERY_MS`] of oxygen tank use, [`OXYGEN_RUSH_SPEED`]
-    /// for [`OXYGEN_RUSH_MS`] and the energy full.
+    /// Oxygen Rush (442): after every [`OXYGEN_RUSH_USE_MS`] of oxygen tank use without a break
+    /// and when the tank runs out ([`TankUse::after`]), [`OXYGEN_RUSH_SPEED`] for [`OXYGEN_RUSH_MS`]
+    /// and the energy full.
     pub fn oxygen_rush(self) -> bool {
         self.oxygen_rush
     }
@@ -460,43 +502,77 @@ mod tests {
         // A start whose end is clock 0 keeps a word that is not "none".
         assert_ne!(OxygenRush::start(Clock(0u32.wrapping_sub(20_000))).raw(), 0);
         assert_eq!(OxygenRush::parse(0), OxygenRush::Off);
-        // A mark while it runs: 20 s from that mark.
-        let first = OxygenRush::start(Clock(1_000));
-        assert_eq!(OxygenRush::start(Clock(15_000)), OxygenRush::On { until: Clock(35_000) });
-        assert_ne!(first, OxygenRush::start(Clock(15_000)));
+    }
+
+    /// A tank's use, tick by tick: `ticks` of `(spent, left)` from a use of 0.
+    fn run(ticks: impl IntoIterator<Item = TankEvent>) -> (TankUse, Vec<Option<RushCause>>) {
+        let mut causes = Vec::new();
+        let used = ticks.into_iter().fold(TankUse::default(), |used, event| {
+            let (next, cause) = used.after(event);
+            causes.push(cause);
+            next
+        });
+        (used, causes)
+    }
+
+    /// `ms` of use in 16 ms ticks of a tank holding `air`.
+    fn on_for(air: u32, ms: u32) -> Vec<TankEvent> {
+        (1..=ms / 16).map(|n| TankEvent::Spent { spent: 16, left: air - n * 16 }).collect()
     }
 
     #[test]
-    fn oxygen_rush_marks_every_thirty_seconds_of_air() {
-        let mark = |capacity, left, spent| TankTick::parse(capacity, left, spent).unwrap().oxygen_rush_mark();
-        // A 120 s tank: 30 s spent (90 left) is the first mark, reached exactly or passed.
-        assert!(mark(120_000, 90_000, 16));
-        assert!(mark(120_000, 89_990, 16));
-        assert!(!mark(120_000, 90_016, 16));
-        assert!(mark(120_000, 60_000, 33));
-        // Running out is a mark only when it ends another 30 s: a 30 s tank's, not a 50 s one's.
-        assert!(mark(30_000, 0, 16));
-        assert!(!mark(50_000, 0, 16));
-        // A full tank's first tick, and a tick that spends nothing.
-        assert!(!mark(120_000, 119_984, 16));
-        assert!(!mark(120_000, 90_000, 0));
-        // A tick that spends more than 30 s is one mark.
-        assert!(mark(120_000, 40_000, 70_000));
-        // The marks of whole tanks: 30/50/80/120/140 s give 1/1/2/4/4.
-        let marks = |capacity: u32| {
-            (16..=capacity).step_by(16).chain([capacity]).fold((0, capacity), |(n, left), spent_to| {
-                let left_after = capacity - spent_to;
-                (n + u32::from(mark(capacity, left_after, left - left_after)), left_after)
-            }).0
-        };
-        assert_eq!([30_000, 50_000, 80_000, 120_000, 140_000].map(marks), [1, 1, 2, 4, 4]);
+    fn oxygen_rush_after_twenty_seconds_without_a_break() {
+        // 20 s on: one start, at the tick that reaches it.
+        let (used, causes) = run(on_for(120_000, 20_000));
+        assert_eq!(causes.iter().flatten().collect::<Vec<_>>(), [&RushCause::Use]);
+        assert_eq!(causes.last(), Some(&Some(RushCause::Use)));
+        assert_eq!(used, TankUse(0));
+        // 19 s, off, on, 19 s: no start (switching on counts from 0).
+        let mut ticks = on_for(120_000, 19_008);
+        ticks.push(TankEvent::On);
+        ticks.extend(on_for(100_992, 19_008));
+        assert!(run(ticks).1.iter().all(Option::is_none));
+        // A second 20 s: a second start; a tick past the mark keeps the rest.
+        let (used, causes) = run(on_for(120_000, 40_000));
+        assert_eq!(causes.iter().flatten().count(), 2);
+        assert_eq!(used, TankUse(0));
+        assert_eq!(TankUse(19_990).after(TankEvent::Spent { spent: 16, left: 50_000 }), (TankUse(6), Some(RushCause::Use)));
+        // A refill counts from 0.
+        assert_eq!(TankUse(19_000).after(TankEvent::Refill), (TankUse(0), None));
     }
 
     #[test]
-    fn a_tank_tick_holds_no_more_air_than_the_tank() {
-        assert_eq!(TankTick::parse(30_000, 20_000, 10_001), None);
-        assert_eq!(TankTick::parse(30_000, u32::MAX, 1), None);
-        assert!(TankTick::parse(30_000, 20_000, 10_000).is_some());
+    fn oxygen_rush_when_the_tank_runs_out() {
+        // Out between marks: a start; out on a mark: one start, not two.
+        assert_eq!(TankUse(5_000).after(TankEvent::Spent { spent: 16, left: 0 }), (TankUse(0), Some(RushCause::RanOut)));
+        assert_eq!(TankUse(19_984).after(TankEvent::Spent { spent: 16, left: 0 }), (TankUse(0), Some(RushCause::UseAtRunOut)));
+        // A tick that spends nothing is no run-out.
+        assert_eq!(TankUse(5_000).after(TankEvent::Spent { spent: 0, left: 0 }), (TankUse(5_000), None));
+        // Whole tanks kept on from full: 20 s (the defect's 30 - 10), 30, 50, 80, 120, 140 s give
+        // 1, 2, 3, 4, 6, 7 starts.
+        let starts = |air: u32| run(on_for(air, air)).1.iter().flatten().count();
+        assert_eq!([20_000, 30_000, 50_000, 80_000, 120_000, 140_000].map(starts), [1, 2, 3, 4, 6, 7]);
+    }
+
+    /// The owner, 2026-11-22: "note that might mean one trigger while another is active". A start
+    /// while a boost runs sets its end to 20 s from that start: one boost, x1.1 once.
+    #[test]
+    fn a_start_while_a_boost_runs_sets_its_end_again() {
+        // A 30 s tank kept on: the use mark's boost from 20 s has 10 s left when the tank runs out
+        // at 30 s; the run-out's start makes it end at 50 s, not 40 + 20.
+        let running = OxygenRush::start(Clock(20_000));
+        assert_eq!(running.at(Clock(30_000)), OxygenRush::On { until: Clock(40_000) });
+        let again = OxygenRush::start(Clock(30_000));
+        assert_eq!(again, OxygenRush::On { until: Clock(50_000) });
+        assert_eq!(again.at(Clock(45_000)).speed(), 1.1);
+        assert_eq!(again.at(Clock(50_000)), OxygenRush::Off);
+    }
+
+    #[test]
+    fn a_tank_use_is_below_twenty_seconds() {
+        assert_eq!(TankUse::parse(19_999), Some(TankUse(19_999)));
+        assert_eq!(TankUse::parse(20_000), None);
+        assert_eq!(TankUse::parse(u16::MAX), None);
     }
 
     #[test]

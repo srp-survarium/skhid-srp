@@ -6466,12 +6466,13 @@ crate, which srp shares. Rust modules `technical_skills` and its siblings (`tech
   (0x2E1DBE), Deep Breaths (431) at `medical.sprint` (order 2), while the player's oxygen tank
   (vtable 0xA1C874) is on.
 - Oxygen Rush (442, Last Gasp until 2026-11-22): `technical.tank_spent` (0x33E661, ECX the air
-  left, EAX the ms the tick spent) starts it when the tick takes the tank's use (capacity +270h minus
-  the air left) past another 30 s (`technical_skills::TankTick`): stamina full, the boost's end in the
-  tank's tail padding +294h (a running one given its 20 s again), saved after m_amount_ms:
-  `technical.tank_save` / `tank_load`, cleared by `tank_construct` and both refills; x1.1 at
-  `medical.movement` (order 2); its end at `battery.carrier_tick` (order 6). srp-validate's
-  `OxygenTank` reads the word.
+  left, EAX the ms the tick spent) counts the tank's use without a break (`technical_skills::TankUse`,
+  +292h u16, 0 again when switched on at `technical.tank_switch` 0x33E403 and at both refills) and
+  starts the boost after every 20 s of it and when the tank runs out (one start when both): stamina
+  full, the boost's end in the tank's tail padding +294h (a running one's end moved to now + 20 s),
+  both saved after m_amount_ms: `technical.tank_save` / `tank_load` (6 bytes: a world-format
+  change), cleared by `tank_construct` and both refills; x1.1 at `medical.movement` (order 2); its
+  end at `battery.carrier_tick` (order 6). srp-validate's `OxygenTank` reads both.
 - Dexterous Hands (401) at `technical.battery_take` (0x338B61) and `technical.resupply_time`
   (0x2F8147, the ms passed at an ammo crate), Sapper (411) at `technical.defuse_time`
   (0x304F92), Rearm (433) at `technical.trap_shot` (0x305552, exit to its `ret 28h`) and

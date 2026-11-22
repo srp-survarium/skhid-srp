@@ -53,6 +53,12 @@ pub fn on_tank_spent(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
+/// Oxygen Rush (442): the tank switched on counts its use from 0.
+pub fn on_tank_switch(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    technical::tank_switch(ctx);
+    Flow::Continue
+}
+
 /// Oxygen Rush's end, every simulation tick of every player.
 pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
     technical::oxygen_rush_tick(ctx);
@@ -65,7 +71,8 @@ pub fn on_movement(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// Oxygen Rush's saved word: none in a new tank and after a refill; saved and loaded with the tank.
+/// Oxygen Rush's saved words (the boost, the use): none in a new tank and after a refill; saved and
+/// loaded with the tank.
 pub fn on_tank_construct(ctx: &mut Context<'_>) -> Flow<NoExit> {
     technical::tank_construct(ctx);
     Flow::Continue

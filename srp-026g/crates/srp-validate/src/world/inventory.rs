@@ -27,7 +27,7 @@
 //!   u8  m_slot_id, < 23, the item's own
 //! medkit (0x33DCA0)          bool m_active; if active u32 u32 and an
 //!                            f32 per influence    [`Medkit`]
-//! oxygen tank (0x33E7F0)     bool, u32, u32 (the last exe patch 180's) [`OxygenTank`]
+//! oxygen tank (0x33E7F0)     bool, u32, u32, u16 (the last two exe patch 180's) [`OxygenTank`]
 //! weapon (0x2E3490)          [`WeaponState`], its doc
 //! after the items            [`AfterItems`], its doc
 //! ```
@@ -372,13 +372,15 @@ impl<'a> MedkitUse<'a> {
 }
 
 /// An oxygen tank's state (`oxygen_tank::deserialize` 0x33E7F0, writer
-/// 0x33E790), and after m_amount_ms exe patch 180's Oxygen Rush word
+/// 0x33E790), and after m_amount_ms exe patch 180's Oxygen Rush: the boost's
+/// u32, then the tank's use toward the next one, a u16 below 20 000
 /// (`technical.tank_save` / `tank_load`, docs/notes/technical-skills.md).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OxygenTank {
     active: bool,
     amount_ms: u32,
     oxygen_rush: technical_skills::OxygenRush,
+    oxygen_rush_use: technical_skills::TankUse,
 }
 
 impl OxygenTank {
@@ -395,6 +397,11 @@ impl OxygenTank {
     /// Oxygen Rush's boost on it (every word is one: 0 none, else its end).
     pub fn oxygen_rush(&self) -> technical_skills::OxygenRush {
         self.oxygen_rush
+    }
+
+    /// Its use without a break toward the next Oxygen Rush, in ms of air.
+    pub fn oxygen_rush_use(&self) -> technical_skills::TankUse {
+        self.oxygen_rush_use
     }
 }
 
@@ -415,6 +422,20 @@ fn active(reader: &mut Reader, owned: bool) -> Result<bool, Fault> {
         ));
     }
     Ok(active)
+}
+
+/// An oxygen tank's use toward Oxygen Rush: below 20 000 ms (the patch keeps it so).
+fn tank_use(reader: &mut Reader) -> Result<technical_skills::TankUse, Fault> {
+    let at = reader.at();
+    let raw = reader.u16().map_err(short)?;
+    technical_skills::TankUse::parse(raw).ok_or((
+        at,
+        Reason::TailField {
+            at,
+            field: "an oxygen tank's Oxygen Rush use",
+            value: raw.into(),
+        },
+    ))
 }
 
 /// What an item saves after its header, read.
@@ -528,6 +549,7 @@ impl<'a> ItemState<'a> {
                 active: active(reader, owned)?,
                 amount_ms: u32(reader)?,
                 oxygen_rush: technical_skills::OxygenRush::parse(u32(reader)?),
+                oxygen_rush_use: tank_use(reader)?,
             }),
             Body::Weapon(gun) => ItemBody::Weapon(WeaponState::read(reader, gun, shape)?),
         })

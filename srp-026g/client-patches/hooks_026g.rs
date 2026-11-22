@@ -8162,6 +8162,21 @@ pub extern "C" fn hook_technical_skills_on_tank_spent(frame: &mut Frame) -> u32 
 
 // ---- technical_skills (patch 180) ----
 
+/// The entry `technical_skills_on_tank_switch` (0x33e403, oxygen_tank::set_active's store of m_active (mov [edi+268h],al): AL the new state, EDI the tank; called by action 0x33E3BD (the player's switch) and the tick's off 0x33E66F (run-out or a dead holder); deserialize lists a loaded tank itself, without it) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_skills_on_tank_switch(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_skills_on_tank_switch` calls this, from the game's jump at 0x33e403,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_skills::on_tank_switch(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_skills (patch 180) ----
+
 /// The entry `technical_skills_on_tank_construct` (0x33e293, oxygen_tank's ctor epilogue (pop edi / pop esi / mov eax,ebp / pop ebp): EBP the tank, its tail padding as the allocator left it) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_technical_skills_on_tank_construct(frame: &mut Frame) -> u32 {
