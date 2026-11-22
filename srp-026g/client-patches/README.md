@@ -5566,13 +5566,18 @@ reads the place's entry's +0Ch (the kit it was in) and +0Dh (the kit it spawns i
 change of kit for the end of the same call; `courier.spawned` (0x316EAB, the spawn's last pops,
 after the new kit's initialise and insert) moves, when the new kit has the bit, each artefact the
 death left in the old kit's containers (state 5: the death unlinked its passive) into the new
-kit's empty containers, in container order, as many as fit. The old slot is emptied as
+kit's empty containers, in container order, as many as fit. The old kit's container range is gone
+by then (the respawn rule's tick removes the dead player before the spawn, 0x31699B, and its
+unload_to_profile clears +168h/+16Ch, 0x2FDBE8), so its artefacts are found in its 23 slots: the
+world's registered artefacts (+18940h) whose owner and slot are that slot's, in slot order.
+Revision 69 read the cleared range and moved nothing (match 0xf62d810b). The old slot is emptied as
 remove_item (0x2FC680) does but without on_removed (vtable+34h), which would unlink the passive a
 second time; then the game's own take_artefact (0x2FC850) puts it in and links its passive. A
 respawn in the same kit, or one from a kit with no dead artefact, moves nothing. Nothing is added
 to a world: a moved artefact's owner and slot are a pickup's. Checked with
-`check_artefact_courier_026g.py` (the owner's two runs, the passive unlinked once and linked
-once) and the patch's `artefact_courier` tests; not run in a game.
+`check_artefact_courier_026g.py` (the owner's two runs, the dead kit unloaded by the game's own
+unload_to_profile before each spawn, the passive unlinked once and linked once) and the patch's
+`artefact_courier` tests; the fix not run in a game.
 
 ## A character controller's position stays finite (patch 118, unreleased)
 
