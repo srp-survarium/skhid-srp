@@ -8036,6 +8036,45 @@ geometry_share_on_deallocate_replay:
     db 0x83, 0xec, 0x14, 0x8b, 0x48, 0x08
     jmp 0x3d4516
 
+; 0x2471a4 player::st_draw's grenade sensor (0x246F50) once a grenade near the followed player is his team's (the team test 0x24719C passed; mov edx,[esi] / mov edx,[edx+1Ch] reads its position next): ESI the grenade's body (its user the grenade +1Ch), EBP the followed player, BL the marker it takes (0..5, icon 2Fh + BL; show_grenade_icons 0x2471FC shows that many): lohook -> grenade_icons_on_sensed
+global grenade_icons_on_sensed
+extern hook_grenade_icons_on_sensed
+grenade_icons_on_sensed:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_grenade_icons_on_sensed
+    mov edx, grenade_icons_on_sensed_replay
+    cmp eax, 0
+    je grenade_icons_on_sensed_go
+    mov edx, 0x2471a9
+    cmp eax, 1
+    je grenade_icons_on_sensed_go
+    ud2
+grenade_icons_on_sensed_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+grenade_icons_on_sensed_replay:
+    db 0x8b, 0x16, 0x8b, 0x52, 0x1c
+    jmp 0x2471a9
+
 ; 0x2e50c7 EDI damage model ESI hit_info; invulnerability applied: lohook -> hand_kill_on_hit
 global hand_kill_on_hit
 extern hook_hand_kill_on_hit_chain
@@ -12804,10 +12843,10 @@ technical_skills_on_dispersion_replay:
     db 0xf3, 0x0f, 0x11, 0x4c, 0x24, 0x7c
     jmp 0x2e1dc4
 
-; 0x33e661 oxygen_tank::tick after the air is spent, a living holder's only (the dead path jumps past it): ECX m_amount_ms left, 0 when it ran out this tick (set_active(0) follows at 0x33E66D): lohook -> technical_skills_on_tank_empty
-global technical_skills_on_tank_empty
-extern hook_technical_skills_on_tank_empty
-technical_skills_on_tank_empty:
+; 0x33e661 oxygen_tank::tick after the air is spent, a living holder's only (the dead path jumps past it; the tick runs only while the tank is on, set_active 0x33E400 lists it): ECX m_amount_ms left, 0 when it ran out this tick (set_active(0) follows at 0x33E66D), EAX the ms this tick spent (min(m_amount_ms, the elapsed ms), 0x33E5F3..0x33E607): lohook -> technical_skills_on_tank_spent
+global technical_skills_on_tank_spent
+extern hook_technical_skills_on_tank_spent
+technical_skills_on_tank_spent:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -12824,24 +12863,63 @@ technical_skills_on_tank_empty:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_technical_skills_on_tank_empty
-    mov edx, technical_skills_on_tank_empty_replay
+    call hook_technical_skills_on_tank_spent
+    mov edx, technical_skills_on_tank_spent_replay
     cmp eax, 0
-    je technical_skills_on_tank_empty_go
+    je technical_skills_on_tank_spent_go
     mov edx, 0x33e669
     cmp eax, 1
-    je technical_skills_on_tank_empty_go
+    je technical_skills_on_tank_spent_go
     ud2
-technical_skills_on_tank_empty_go:
+technical_skills_on_tank_spent_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-technical_skills_on_tank_empty_replay:
+technical_skills_on_tank_spent_replay:
     db 0xf3, 0x0f, 0x11, 0x87, 0x60, 0x02, 0x00, 0x00
     jmp 0x33e669
+
+; 0x33e403 oxygen_tank::set_active's store of m_active (mov [edi+268h],al): AL the new state, EDI the tank; called by action 0x33E3BD (the player's switch) and the tick's off 0x33E66F (run-out or a dead holder); deserialize lists a loaded tank itself, without it: lohook -> technical_skills_on_tank_switch
+global technical_skills_on_tank_switch
+extern hook_technical_skills_on_tank_switch
+technical_skills_on_tank_switch:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_tank_switch
+    mov edx, technical_skills_on_tank_switch_replay
+    cmp eax, 0
+    je technical_skills_on_tank_switch_go
+    mov edx, 0x33e409
+    cmp eax, 1
+    je technical_skills_on_tank_switch_go
+    ud2
+technical_skills_on_tank_switch_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_tank_switch_replay:
+    db 0x88, 0x87, 0x68, 0x02, 0x00, 0x00
+    jmp 0x33e409
 
 ; 0x33e293 oxygen_tank's ctor epilogue (pop edi / pop esi / mov eax,ebp / pop ebp): EBP the tank, its tail padding as the allocator left it: lohook -> technical_skills_on_tank_construct
 global technical_skills_on_tank_construct
@@ -14240,6 +14318,45 @@ unplayed_match_on_ready_go:
 unplayed_match_on_ready_replay:
     db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5
     jmp 0x27aec4
+
+; 0x23a430 game_world_ui::set_using_progress_message (0x23A430) at its start (movss xmm0,[esp+8]): player::st_draw calls it each frame the drawn local player has an object in use (its user +4, player +134h; 0x246FC4) with the ui and the use's progress; ESP+4 the ui: lohook -> use_prompt_on_progress
+global use_prompt_on_progress
+extern hook_use_prompt_on_progress
+use_prompt_on_progress:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_use_prompt_on_progress
+    mov edx, use_prompt_on_progress_replay
+    cmp eax, 0
+    je use_prompt_on_progress_go
+    mov edx, 0x23a436
+    cmp eax, 1
+    je use_prompt_on_progress_go
+    ud2
+use_prompt_on_progress_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+use_prompt_on_progress_replay:
+    db 0xf3, 0x0f, 0x10, 0x44, 0x24, 0x08
+    jmp 0x23a436
 
 ; 0x2d84c0 base_player::detect_usable_object's start (push ebp / mov ebp,esp / and esp,-8): every use scan (a use's start 0x2D8900, its tick 0x2D86AD, the prompt 0x246FCD); ESP+4 the player, +8 the point or 0; returned is its `ret 8` (0x2D8697), EAX the object: lohook -> use_scan_on_detect
 global use_scan_on_detect
@@ -15999,6 +16116,90 @@ world_check_on_raw_go:
 world_check_on_raw_replay:
     db 0x8b, 0x8f, 0x40, 0x1c, 0x1f, 0x00
     jmp 0x27c105
+
+; 0x2dbeaa base_player::unsubscribe_from_actions 0x2DBE90 after its find (0x3C5510) of the subscriber, before the erase (mov ecx,esi / lea edx,[eax+4]; then the memmove 0x2DBEBA and the end's -4 at 0x2DBEC2, with no test of the find): EBX the player's game_object part, EAX what the find found, ESI the end (equal: not subscribed), EDI the argument's slot; missing is the function's own pop edi / pop esi / pop ebx / ret 4 (patch 192): lohook -> zone_guards_on_unsubscribe_find
+global zone_guards_on_unsubscribe_find
+extern hook_zone_guards_on_unsubscribe_find
+zone_guards_on_unsubscribe_find:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_zone_guards_on_unsubscribe_find
+    mov edx, zone_guards_on_unsubscribe_find_replay
+    cmp eax, 0
+    je zone_guards_on_unsubscribe_find_go
+    mov edx, 0x2dbeaf
+    cmp eax, 1
+    je zone_guards_on_unsubscribe_find_go
+    mov edx, 0x2dbec9
+    cmp eax, 2
+    je zone_guards_on_unsubscribe_find_go
+    ud2
+zone_guards_on_unsubscribe_find_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+zone_guards_on_unsubscribe_find_replay:
+    db 0x8b, 0xce, 0x8d, 0x50, 0x04
+    jmp 0x2dbeaf
+
+; 0x319811 damage_zone_core::on_objects_left 0x319780 before its erase of the object from the inside list (mov edx,[edi+54h] / mov eax,[edi+50h]; then the find 0x308A40 and the erase 0x319822..0x31983A, which pops the list's last entry when the find found none): EDI the listener, EBP the left object's holder (its copy at [esp+10h]), ESI the object's owner; missing is the release of that copy at 0x319870 (patch 192): lohook -> zone_guards_on_left_find
+global zone_guards_on_left_find
+extern hook_zone_guards_on_left_find
+zone_guards_on_left_find:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_zone_guards_on_left_find
+    mov edx, zone_guards_on_left_find_replay
+    cmp eax, 0
+    je zone_guards_on_left_find_go
+    mov edx, 0x319817
+    cmp eax, 1
+    je zone_guards_on_left_find_go
+    mov edx, 0x319870
+    cmp eax, 2
+    je zone_guards_on_left_find_go
+    ud2
+zone_guards_on_left_find_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+zone_guards_on_left_find_replay:
+    db 0x8b, 0x57, 0x54, 0x8b, 0x47, 0x50
+    jmp 0x319817
 
 section .rodata
 align 4

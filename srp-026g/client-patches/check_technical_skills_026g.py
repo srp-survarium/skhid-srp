@@ -9,10 +9,13 @@ modifier 47, with and without the skill, the oxygen tank on, off or absent, on t
   tank on, else as it was.
 - Steady Breath: breath_vibration_calculator::tick's stores (0x31D95B): both sway offsets
   x0.9/0.8 with the tank on; a shot's dispersion (0x2E1DBE, XMM1) the same.
-- Last Gasp: the tank's tick after the air is spent (0x33E661): an empty tank fills its holder's
-  stamina and saves the boost's end (+294h, the stamina clock + 20 s); the movement speed's end
-  (0x2DBC91) x1.1 while it lasts (its end is the crate's Gasp test); a tank with air
-  left, or no skill: nothing.
+- Oxygen Rush: the tank's tick after the air is spent (0x33E661, ECX the ms left, EAX the ms spent):
+  the tank's use (+292h, u16) counts the air; a tick that ends 20 s of use without a break, or runs
+  the tank out, fills its holder's stamina and saves the boost's end (+294h, the stamina clock +
+  20 s); a start while a boost runs moves its end to now + 20 s (x1.1 once, never stacked); the
+  movement speed's end (0x2DBC91) x1.1 while it lasts (its end is the crate's OxygenRush test); a
+  tick short of 20 s, or no skill: no boost. set_active's store (0x33E403): switched on, the use
+  counts from 0; switched off, it is left (the tick no longer runs).
 - Dexterous Hands: the take expression's stored scale (0x338B61) x1.1/1.2/1.3 for the taker; the ms
   passed at an ammo crate (update_use, 0x2F8147) x (10 + rank) / 10 for its user.
 - Sapper: use_execute's defuse ms (0x304F92) x 20 / (20 + 3 x rank).
@@ -110,27 +113,47 @@ def check_steady_breath(data, kit):
     print(f'Steady Breath kit {kit}: both sway offsets and a shot\'s dispersion x0.9/0.8 with the oxygen tank on, else as they were: PASS')
 
 
-def check_last_gasp(data, kit):
-    for ranks, left, starts in [(rank(442, 1), 0, True), (rank(442, 1), 500, False), (0, 0, False)]:
-        g, tank = fixture(data, kit, ranks, False)
+def check_oxygen_rush(data, kit):
+    skill = rank(442, 1)
+    # (ranks, use before, left, spent, the boost's word before, the word after, use after): the
+    # stamina clock is 50 000.
+    for ranks, used, left, spent, before, after, used_after in [
+            (skill, 19_984, 50_000, 16, 0, 70_000, 0),           # 20 s of use without a break
+            (skill, 19_990, 50_000, 16, 0, 70_000, 6),           # passed within the tick: the rest kept
+            (skill, 5_000, 50_000, 16, 0, 0, 5_016),             # short of 20 s
+            (skill, 5_000, 0, 16, 0, 70_000, 0),                 # runs out between marks
+            (skill, 19_984, 0, 16, 0, 70_000, 0),                # runs out at a mark: one start
+            (skill, 19_984, 50_000, 16, 55_000, 70_000, 0),      # a mark while a boost runs: its end moves
+            (skill, 5_000, 0, 16, 60_000, 70_000, 0),            # runs out while a boost runs: its end moves
+            (0, 19_984, 50_000, 16, 0, 0, 0)]:                   # no skill: counted, no boost
+        g, tank = fixture(data, kit, ranks, True)
+        g.emu.mem_write(tank + 0x292, struct.pack('<H', used))
+        g.word(tank + 0x294, before)
         stamina = PLAYER + 0x6C0
         g.word(stamina, bits(100.0))
         g.word(stamina + 0x6C, bits(12.0))
         g.word(stamina + 0x70, 50_000)
         g.emu.mem_write(PLAYER + 0x33E, b'\0')
-        g.step(0x33E661, 8, xmm=0.5, ecx=left, edi=tank)
-        if starts:
-            close(g.float(stamina + 0x6C), 100.0)
-            assert g.read(tank + 0x294) == 70_000 and g.emu.mem_read(PLAYER + 0x33E, 1)[0] == 1
-        else:
-            close(g.float(stamina + 0x6C), 12.0)
-            assert g.read(tank + 0x294) == 0
-        # The speed while it lasts. (Its end at the tick, `battery.carrier_tick` after four other
-        # patches' handlers, is technical_skills::Gasp's test.)
+        g.step(0x33E661, 8, xmm=0.5, eax=spent, ecx=left, edi=tank)
+        have = (g.read(tank + 0x294), struct.unpack('<H', g.emu.mem_read(tank + 0x292, 2))[0])
+        assert have == (after, used_after), (ranks, used, left, before, have)
+        started = after != before
+        close(g.float(stamina + 0x6C), 100.0 if started else 12.0)
+        assert g.emu.mem_read(PLAYER + 0x33E, 1)[0] == int(started)
+        # The speed while it lasts, x1.1 once whatever started it again. (Its end at the tick,
+        # `battery.carrier_tick` after four other patches' handlers, is technical_skills::OxygenRush's test.)
         speed = g.step(0x2DBC91, 5, xmm=4.0, ebx=PLAYER, ebp=STACK + 0x40)
-        close(speed, 4.4 if starts else 4.0)
-    print(f'Last Gasp kit {kit}: a tank that runs out fills its holder\'s stamina and saves the boost until the stamina clock + 20 s '
-          '(x1.1 movement); air left or no skill: nothing: PASS')
+        close(speed, 4.4 if after else 4.0)
+    # set_active's store: on counts from 0, off leaves the use; m_active is stored as the game does.
+    for active, want in [(1, 0), (0, 12_345)]:
+        g, tank = fixture(data, kit, skill, not active)
+        g.emu.mem_write(tank + 0x292, struct.pack('<H', 12_345))
+        g.step(0x33E403, 6, eax=active, edi=tank)
+        assert struct.unpack('<H', g.emu.mem_read(tank + 0x292, 2))[0] == want, (active, want)
+        assert g.emu.mem_read(tank + 0x268, 1)[0] == active
+    print(f'Oxygen Rush kit {kit}: 20 s of tank use without a break, or the tank running out, fills its holder\'s stamina '
+          'and saves the boost until the stamina clock + 20 s (x1.1 movement, once), a running one\'s end moved; short of '
+          '20 s or no skill: no boost; switching on counts the use from 0: PASS')
 
 
 def check_dexterous_hands(data, kit):
@@ -271,7 +294,7 @@ def main():
     for kit in (0, 2):
         check_deep_breaths(patched, kit)
         check_steady_breath(patched, kit)
-        check_last_gasp(patched, kit)
+        check_oxygen_rush(patched, kit)
         check_dexterous_hands(patched, kit)
         check_sapper(patched, kit)
         check_rearm(patched, kit)

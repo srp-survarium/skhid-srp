@@ -258,6 +258,9 @@ pub const MAX_POCKET_UNITS: u32 = 5;
 /// an artefact container.
 pub const ARTIFACT_CONTAINER: u16 = 522;
 
+/// Tank Container, technical skill 445: one more artefact container with an oxygen tank worn.
+pub use technical_skills::TANK_CONTAINER;
+
 /// What a kit makes of the slot Artifact Container gives a choice on (the owner, 2026-11-22):
 /// the container, or the pocket it was. A kit whose slot is the pocket takes the skill's
 /// modifiers no more ([`Self::skills_taken`]), as a kit without it.
@@ -294,6 +297,18 @@ impl ContainerSlot {
             .filter(|&(id, _)| !(self == ContainerSlot::Pocket && id == ARTIFACT_CONTAINER))
             .collect()
     }
+}
+
+/// The skills of the account's `skills` (`(id, points)`) a kit's modifier block carries: Artifact
+/// Container's only when the kit's slot is the container ([`ContainerSlot::skills_taken`]), Tank
+/// Container's ([`TANK_CONTAINER`]) only while the kit wears an `oxygen_tank`
+/// ([`is_oxygen_tank`]). Neither changes a [`KitLayout`] but by Artifact Container's pocket: a
+/// container takes a quick position the pockets leave (the lobby's `ProfileSlot.artifactCount`,
+/// the match's `inventory::setup_from_profile`), never a pocket.
+pub fn kit_skills(skills: &[(u16, u8)], container: ContainerSlot, oxygen_tank: bool) -> Vec<(u16, u8)> {
+    let mut taken = container.skills_taken(skills);
+    taken.retain(|&(id, _)| oxygen_tank || id != TANK_CONTAINER);
+    taken
 }
 
 /// What one unit of the item takes of a pocket (its config's,
@@ -990,8 +1005,10 @@ impl KitLayout {
             Some(ItemClass::TrapSet) => Some(technical_skills::Stack::Traps),
             _ => None,
         };
-        match (pocket_share(dict_id), stack) {
-            (PocketShare::Unit, Some(stack)) if self.technical.halves(stack) => PocketShare::Pair,
+        use technical_skills::StackUnits;
+        match (pocket_share(dict_id), stack.map(|stack| self.technical.stack_units(stack))) {
+            (PocketShare::Unit, Some(StackUnits::Two)) => PocketShare::Pair,
+            (PocketShare::Unit, Some(StackUnits::OneAndHalf)) => PocketShare::ThreeHalves,
             (share, _) => share,
         }
     }
@@ -1101,6 +1118,15 @@ mod tests {
     }
 
     #[test]
+    fn tank_container_only_with_a_tank_and_artifact_container_only_as_the_container() {
+        let skills = [(ARTIFACT_CONTAINER, 1), (TANK_CONTAINER, 1), (101, 2)];
+        assert_eq!(kit_skills(&skills, ContainerSlot::Container, true), skills);
+        assert_eq!(kit_skills(&skills, ContainerSlot::Container, false), [(ARTIFACT_CONTAINER, 1), (101, 2)]);
+        assert_eq!(kit_skills(&skills, ContainerSlot::Pocket, true), [(TANK_CONTAINER, 1), (101, 2)]);
+        assert_eq!(kit_skills(&skills, ContainerSlot::Pocket, false), [(101, 2)]);
+    }
+
+    #[test]
     fn tank_pocket_opens_a_pocket_only_beside_an_oxygen_tank() {
         let medicine = Dictionary::shared()
             .items
@@ -1123,7 +1149,7 @@ mod tests {
     }
 
     #[test]
-    fn toxic_smoke_and_bear_trap_halve_their_pockets() {
+    fn toxic_smoke_halves_its_pocket_and_bear_trap_takes_one_and_a_half() {
         let find = |class: item_params::ItemClass| {
             Dictionary::shared()
                 .items
@@ -1139,20 +1165,35 @@ mod tests {
         let (trap, smoke) = (find(item_params::ItemClass::TrapSet), find(item_params::ItemClass::GrenadeSet));
         let (smokes, traps) = (usize::from(POCKET_SLOTS[0]), usize::from(POCKET_SLOTS[1]));
         let mut slots: [Option<(u16, u32)>; 23] = [None; 23];
-        slots[smokes] = Some((smoke, 4));
-        slots[traps] = Some((trap, 4));
-        // Pockets of four units, two of them.
-        let kit = |technical: f32| {
+        slots[smokes] = Some((smoke, 5));
+        slots[traps] = Some((trap, 5));
+        // Two pockets of `size` units (the player's one and the skills' rest).
+        let kit = |technical: f32, size: u32| {
             let mut modifiers = [0.0; skills::MODIFIERS];
             modifiers[skills::slot_modifier::POCKET_SLOTS] = 1.0;
-            modifiers[skills::slot_modifier::POCKET_SLOT_SIZE] = 3.0;
+            modifiers[skills::slot_modifier::POCKET_SLOT_SIZE] = size as f32 - 1.0;
             modifiers[technical_skills::MODIFIER] = technical;
             let kept = KitLayout::new(&[], &modifiers, false).kept(&slots);
             (kept[smokes].map(|(_, units)| units), kept[traps].map(|(_, units)| units))
         };
-        assert_eq!(kit(0.0), (Some(4), Some(4)));
-        assert_eq!(kit(technical_skills::weight(13) as f32), (Some(2), Some(4))); // Toxic Smoke
-        assert_eq!(kit(-(technical_skills::LOW as f32)), (Some(4), Some(2))); // Bear Trap
+        let (toxic, bear) = (technical_skills::weight(13) as f32, -(technical_skills::LOW as f32));
+        assert_eq!(kit(0.0, 4), (Some(4), Some(4)));
+        assert_eq!(kit(toxic, 4), (Some(2), Some(4)));
+        assert_eq!(kit(bear, 4), (Some(4), Some(2)));
+        // The owner, 2026-11-22: "so you could take 3 traps": the largest pocket, five units.
+        assert_eq!(kit(bear, 5), (Some(5), Some(3)));
+    }
+
+    /// The units of an item a pocket of 1..=5 holds: unchanged for every share of before, two in
+    /// three for Bear Trap's trap (at least one, as a pair).
+    #[test]
+    fn a_pocket_holds_two_traps_in_three_units() {
+        use item_params::PocketShare::*;
+        let held = |share: item_params::PocketShare| (1..=MAX_POCKET_UNITS).map(|size| share.units_in(size)).collect::<Vec<_>>();
+        assert_eq!(held(Unit), [1, 2, 3, 4, 5]);
+        assert_eq!(held(Pair), [1, 1, 1, 2, 2]);
+        assert_eq!(held(Whole), [1, 1, 1, 1, 1]);
+        assert_eq!(held(ThreeHalves), [1, 1, 2, 2, 3]);
     }
 
     #[test]

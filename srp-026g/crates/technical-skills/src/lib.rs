@@ -40,11 +40,22 @@ impl Rank<3> {
     }
 }
 
-/// A pocket stack a skill can halve ([`Skills::halves`]).
+/// A pocket stack a skill makes take more of a pocket ([`Skills::stack_units`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stack {
     Grenades,
     Traps,
+}
+
+/// What one unit of such a stack takes of a pocket's units.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StackUnits {
+    /// Its own (the item's config).
+    Own,
+    /// One and a half: two in three of the pocket's units (Bear Trap).
+    OneAndHalf,
+    /// Two: half the pocket's units (Toxic Smoke, as the RGD-5).
+    Two,
 }
 
 /// Row II's either/or pair: what an oxygen tank in the kit adds to its pockets.
@@ -123,9 +134,11 @@ const _: () = assert!(LOW <= 1 << 24 && FIELDS[FIELDS.len() - 1].ranks == 1);
 /// Rearm (433): how long a trap that was shot stays sprung, in milliseconds, by rank.
 const REARM_MS: [u32; 2] = [30_000, 20_000];
 
-/// Last Gasp (442): how long its speed lasts, in milliseconds, and the speed it adds.
-pub const LAST_GASP_MS: u32 = 20_000;
-pub const LAST_GASP_SPEED: f32 = 0.10;
+/// Oxygen Rush (442): how long its speed lasts, in milliseconds, and the speed it adds.
+pub const OXYGEN_RUSH_MS: u32 = 20_000;
+pub const OXYGEN_RUSH_SPEED: f32 = 0.10;
+/// Oxygen Rush (442): this many milliseconds of a tank's use without a break start it.
+pub const OXYGEN_RUSH_USE_MS: u16 = 20_000;
 
 /// A player's stamina clock (`player_stamina` +70h, the simulation's ms, saved), wrapping.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -142,16 +155,80 @@ impl Clock {
     }
 }
 
-/// Last Gasp's boost, kept on the oxygen tank that ran out (patch 180 saves it with the tank as
-/// one u32: 0 none, else the clock it lasts until).
+/// A tank's use without a break toward its next Oxygen Rush, in milliseconds of air spent
+/// (0..[`OXYGEN_RUSH_USE_MS`]; patch 180 keeps it on the tank and saves it with it as a u16). The
+/// tank's tick runs only while it is on, and spends the elapsed ms (but at its last air), so the
+/// air spent since the tank was switched on is its time of use.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum Gasp {
+pub struct TankUse(u16);
+
+/// What happens to an oxygen tank, as its use toward Oxygen Rush counts it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TankEvent {
+    /// Switched on (`set_active(1)`): the use counts from 0. Off, it does not count at all.
+    On,
+    /// Filled again (a respawn's or an ammo crate's): the use counts from 0.
+    Refill,
+    /// Its tick while on: `spent` ms of air, `left` after it.
+    Spent { spent: u32, left: u32 },
+}
+
+/// Why Oxygen Rush starts at a tank's tick.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RushCause {
+    /// Another [`OXYGEN_RUSH_USE_MS`] of use without a break.
+    Use,
+    /// The tank ran out (its tick spent its last air).
+    RanOut,
+    /// Both at the same tick: one start.
+    UseAtRunOut,
+}
+
+impl TankUse {
+    /// The saved u16; none past the count's domain.
+    pub fn parse(raw: u16) -> Option<Self> {
+        (raw < OXYGEN_RUSH_USE_MS).then_some(Self(raw))
+    }
+
+    pub fn raw(self) -> u16 {
+        self.0
+    }
+
+    /// The use after `event`, and why Oxygen Rush starts, if it does. A use mark keeps the
+    /// milliseconds past it (the next mark is 20 s of air after this one, wherever the ticks fall);
+    /// a tank that ran out counts from 0.
+    pub fn after(self, event: TankEvent) -> (Self, Option<RushCause>) {
+        let Self(used) = self;
+        let (spent, left) = match event {
+            TankEvent::On | TankEvent::Refill => return (Self(0), None),
+            TankEvent::Spent { spent, left } => (spent, left),
+        };
+        let total = u32::from(used).saturating_add(spent);
+        let every = u32::from(OXYGEN_RUSH_USE_MS);
+        let mark = total >= every;
+        let ran_out = spent > 0 && left == 0;
+        let cause = match (mark, ran_out) {
+            (true, true) => Some(RushCause::UseAtRunOut),
+            (true, false) => Some(RushCause::Use),
+            (false, true) => Some(RushCause::RanOut),
+            (false, false) => None,
+        };
+        let rest = if ran_out { 0 } else { total % every };
+        // `rest` is below OXYGEN_RUSH_USE_MS, a u16.
+        (Self(rest as u16), cause)
+    }
+}
+
+/// Oxygen Rush's boost, kept on the oxygen tank (patch 180 saves it with the tank as one u32: 0
+/// none, else the clock it lasts until).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum OxygenRush {
     #[default]
     Off,
     On { until: Clock },
 }
 
-impl Gasp {
+impl OxygenRush {
     /// The saved word.
     pub fn parse(raw: u32) -> Self {
         match raw {
@@ -167,10 +244,11 @@ impl Gasp {
         }
     }
 
-    /// The tank ran out at `now`: the boost until [`LAST_GASP_MS`] later (a clock of 0, which the
-    /// word cannot hold, a millisecond later).
+    /// A start at `now` ([`RushCause`]): the boost until [`OXYGEN_RUSH_MS`] later, whatever was left
+    /// of a running one (the new start sets its end; the speed never stacks). A clock of 0, which
+    /// the word cannot hold, is a millisecond later.
     pub fn start(now: Clock) -> Self {
-        let until = now.after(LAST_GASP_MS);
+        let until = now.after(OXYGEN_RUSH_MS);
         Self::On { until: Clock(until.0.max(1)) }
     }
 
@@ -186,7 +264,7 @@ impl Gasp {
     pub fn speed(self) -> f32 {
         match self {
             Self::Off => 1.0,
-            Self::On { .. } => 1.0 + LAST_GASP_SPEED,
+            Self::On { .. } => 1.0 + OXYGEN_RUSH_SPEED,
         }
     }
 }
@@ -207,7 +285,7 @@ pub struct Skills {
     dead_mans_switch: bool,
     rearm: Rank<2>,
     toxic_smoke: Rank<3>,
-    last_gasp: bool,
+    oxygen_rush: bool,
     scavenger: bool,
     bear_trap: bool,
 }
@@ -238,7 +316,7 @@ impl Skills {
             dead_mans_switch: flag(11),
             rearm: Rank::parse(field(12))?,
             toxic_smoke: Rank::parse(field(13))?,
-            last_gasp: flag(14),
+            oxygen_rush: flag(14),
             scavenger: flag(15),
             bear_trap,
         })
@@ -261,7 +339,7 @@ impl Skills {
             u8::from(self.dead_mans_switch),
             self.rearm.0,
             self.toxic_smoke.0,
-            u8::from(self.last_gasp),
+            u8::from(self.oxygen_rush),
             u8::from(self.scavenger),
         ];
         let low = (0..FIELDS.len() - 1).zip(ranks).map(|(n, r)| u32::from(r) * weight(n)).sum::<u32>();
@@ -355,10 +433,11 @@ impl Skills {
         self.toxic_smoke
     }
 
-    /// Last Gasp (442): when the oxygen tank runs out, [`LAST_GASP_SPEED`] for [`LAST_GASP_MS`]
+    /// Oxygen Rush (442): after every [`OXYGEN_RUSH_USE_MS`] of oxygen tank use without a break
+    /// and when the tank runs out ([`TankUse::after`]), [`OXYGEN_RUSH_SPEED`] for [`OXYGEN_RUSH_MS`]
     /// and the energy full.
-    pub fn last_gasp(self) -> bool {
-        self.last_gasp
+    pub fn oxygen_rush(self) -> bool {
+        self.oxygen_rush
     }
 
     /// Scavenger (443): a kill with its grenade gives one grenade back.
@@ -371,15 +450,22 @@ impl Skills {
         self.bear_trap
     }
 
-    /// Toxic Smoke (441) and Bear Trap (444): a grenade or a trap of such a kit takes two of a
-    /// pocket's units, as the RGD-5 does.
-    pub fn halves(self, stack: Stack) -> bool {
+    /// Toxic Smoke (441): a grenade of such a kit takes two of a pocket's units, as the RGD-5
+    /// does. Bear Trap (444): a trap takes one and a half (the owner, 2026-11-22: "so you could take
+    /// 3 traps").
+    pub fn stack_units(self, stack: Stack) -> StackUnits {
         match stack {
-            Stack::Grenades => self.toxic_smoke.0 > 0,
-            Stack::Traps => self.bear_trap,
+            Stack::Grenades if self.toxic_smoke.0 > 0 => StackUnits::Two,
+            Stack::Traps if self.bear_trap => StackUnits::OneAndHalf,
+            _ => StackUnits::Own,
         }
     }
 }
+
+/// Tank Container (445): a kit that wears an oxygen tank gets one more artefact container. No digit
+/// of [`MODIFIER`]: the skill's data is the container (`artefact_slots` +1, as Artifact Container's),
+/// which srp leaves out of the modifier block of a kit without a tank; the exe never knows it.
+pub const TANK_CONTAINER: u16 = 445;
 
 #[cfg(test)]
 mod tests {
@@ -414,8 +500,9 @@ mod tests {
         assert_eq!(s.rearm_ms(), Some(20_000));
         assert_eq!(Skills::parse(packed(&[(433, 1)])).unwrap().rearm_ms(), Some(30_000));
         assert_eq!(Skills::default().rearm_ms(), None);
-        assert!(s.halves(Stack::Grenades) && s.halves(Stack::Traps));
-        assert!(!Skills::default().halves(Stack::Grenades) && !Skills::default().halves(Stack::Traps));
+        assert_eq!((s.stack_units(Stack::Grenades), s.stack_units(Stack::Traps)), (StackUnits::Two, StackUnits::OneAndHalf));
+        let none = Skills::default();
+        assert_eq!((none.stack_units(Stack::Grenades), none.stack_units(Stack::Traps)), (StackUnits::Own, StackUnits::Own));
         assert_eq!(s.pack(), value);
         // Everything at its most, Tank Depth for the pair: 30 points.
         let most: Vec<_> = FIELDS.iter().filter(|f| f.skill != 413).map(|f| (f.skill, f.ranks)).collect();
@@ -424,16 +511,87 @@ mod tests {
     }
 
     #[test]
-    fn last_gasp_lasts_twenty_seconds_across_the_wrap() {
+    fn oxygen_rush_lasts_twenty_seconds_across_the_wrap() {
         for now in [0u32, 5_000, u32::MAX - 5_000] {
-            let gasp = Gasp::start(Clock(now));
-            assert_eq!(Gasp::parse(gasp.raw()), gasp);
-            assert_eq!(gasp.at(Clock(now.wrapping_add(19_999))).speed(), 1.1);
-            assert_eq!(gasp.at(Clock(now.wrapping_add(20_000))), Gasp::Off);
+            let rush = OxygenRush::start(Clock(now));
+            assert_eq!(OxygenRush::parse(rush.raw()), rush);
+            assert_eq!(rush.at(Clock(now.wrapping_add(19_999))).speed(), 1.1);
+            assert_eq!(rush.at(Clock(now.wrapping_add(20_000))), OxygenRush::Off);
         }
         // A start whose end is clock 0 keeps a word that is not "none".
-        assert_ne!(Gasp::start(Clock(0u32.wrapping_sub(20_000))).raw(), 0);
-        assert_eq!(Gasp::parse(0), Gasp::Off);
+        assert_ne!(OxygenRush::start(Clock(0u32.wrapping_sub(20_000))).raw(), 0);
+        assert_eq!(OxygenRush::parse(0), OxygenRush::Off);
+    }
+
+    /// A tank's use, tick by tick: `ticks` of `(spent, left)` from a use of 0.
+    fn run(ticks: impl IntoIterator<Item = TankEvent>) -> (TankUse, Vec<Option<RushCause>>) {
+        let mut causes = Vec::new();
+        let used = ticks.into_iter().fold(TankUse::default(), |used, event| {
+            let (next, cause) = used.after(event);
+            causes.push(cause);
+            next
+        });
+        (used, causes)
+    }
+
+    /// `ms` of use in 16 ms ticks of a tank holding `air`.
+    fn on_for(air: u32, ms: u32) -> Vec<TankEvent> {
+        (1..=ms / 16).map(|n| TankEvent::Spent { spent: 16, left: air - n * 16 }).collect()
+    }
+
+    #[test]
+    fn oxygen_rush_after_twenty_seconds_without_a_break() {
+        // 20 s on: one start, at the tick that reaches it.
+        let (used, causes) = run(on_for(120_000, 20_000));
+        assert_eq!(causes.iter().flatten().collect::<Vec<_>>(), [&RushCause::Use]);
+        assert_eq!(causes.last(), Some(&Some(RushCause::Use)));
+        assert_eq!(used, TankUse(0));
+        // 19 s, off, on, 19 s: no start (switching on counts from 0).
+        let mut ticks = on_for(120_000, 19_008);
+        ticks.push(TankEvent::On);
+        ticks.extend(on_for(100_992, 19_008));
+        assert!(run(ticks).1.iter().all(Option::is_none));
+        // A second 20 s: a second start; a tick past the mark keeps the rest.
+        let (used, causes) = run(on_for(120_000, 40_000));
+        assert_eq!(causes.iter().flatten().count(), 2);
+        assert_eq!(used, TankUse(0));
+        assert_eq!(TankUse(19_990).after(TankEvent::Spent { spent: 16, left: 50_000 }), (TankUse(6), Some(RushCause::Use)));
+        // A refill counts from 0.
+        assert_eq!(TankUse(19_000).after(TankEvent::Refill), (TankUse(0), None));
+    }
+
+    #[test]
+    fn oxygen_rush_when_the_tank_runs_out() {
+        // Out between marks: a start; out on a mark: one start, not two.
+        assert_eq!(TankUse(5_000).after(TankEvent::Spent { spent: 16, left: 0 }), (TankUse(0), Some(RushCause::RanOut)));
+        assert_eq!(TankUse(19_984).after(TankEvent::Spent { spent: 16, left: 0 }), (TankUse(0), Some(RushCause::UseAtRunOut)));
+        // A tick that spends nothing is no run-out.
+        assert_eq!(TankUse(5_000).after(TankEvent::Spent { spent: 0, left: 0 }), (TankUse(5_000), None));
+        // Whole tanks kept on from full: 20 s (the defect's 30 - 10), 30, 50, 80, 120, 140 s give
+        // 1, 2, 3, 4, 6, 7 starts.
+        let starts = |air: u32| run(on_for(air, air)).1.iter().flatten().count();
+        assert_eq!([20_000, 30_000, 50_000, 80_000, 120_000, 140_000].map(starts), [1, 2, 3, 4, 6, 7]);
+    }
+
+    /// The owner, 2026-11-22: "note that might mean one trigger while another is active". A start
+    /// while a boost runs sets its end to 20 s from that start: one boost, x1.1 once.
+    #[test]
+    fn a_start_while_a_boost_runs_sets_its_end_again() {
+        // A 30 s tank kept on: the use mark's boost from 20 s has 10 s left when the tank runs out
+        // at 30 s; the run-out's start makes it end at 50 s, not 40 + 20.
+        let running = OxygenRush::start(Clock(20_000));
+        assert_eq!(running.at(Clock(30_000)), OxygenRush::On { until: Clock(40_000) });
+        let again = OxygenRush::start(Clock(30_000));
+        assert_eq!(again, OxygenRush::On { until: Clock(50_000) });
+        assert_eq!(again.at(Clock(45_000)).speed(), 1.1);
+        assert_eq!(again.at(Clock(50_000)), OxygenRush::Off);
+    }
+
+    #[test]
+    fn a_tank_use_is_below_twenty_seconds() {
+        assert_eq!(TankUse::parse(19_999), Some(TankUse(19_999)));
+        assert_eq!(TankUse::parse(20_000), None);
+        assert_eq!(TankUse::parse(u16::MAX), None);
     }
 
     #[test]

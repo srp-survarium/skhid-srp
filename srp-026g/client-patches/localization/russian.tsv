@@ -3086,15 +3086,17 @@ st_srp_technical_433_description	Ваши капканы, в которые ст
 st_srp_technical_433_name	Перевзвод
 st_srp_technical_441_description	Ваш дым слегка зелёный и отравляет врагов внутри; кислородный баллон защищает. В карман помещается вдвое меньше дымовых гранат. Токсичный урон:
 st_srp_technical_441_name	Ядовитый дым
-st_srp_technical_442_description	Когда кислородный баллон пустеет: +10% к скорости на 20 с и полная энергия.
-st_srp_technical_442_name	Последний вдох
+st_srp_technical_442_description	После каждых 20 с непрерывной работы кислородного баллона и когда он пустеет: +10% к скорости на 20 с и полная энергия.
+st_srp_technical_442_name	Кислородный рывок
 st_srp_technical_443_description	Убийство вашей гранатой возвращает одну гранату.
 st_srp_technical_443_name	Мародёр
-st_srp_technical_444_description	Ваш капкан ломает ноги попавшему в него. В карман помещается вдвое меньше капканов.
+st_srp_technical_444_description	Ваш капкан ломает ноги попавшему в него. Капкан занимает 1,5 места в кармане.
 st_srp_technical_444_name	Медвежий капкан
+st_srp_technical_445_description	С кислородным баллоном в комплекте: ещё один контейнер для артефакта.
+st_srp_technical_445_name	Контейнер в баллоне
 st_srp_technical_disarm_speed	Скорость разминирования
 st_srp_technical_friendly_blast	Урон от своих гранат
-st_srp_technical_last_gasp	Скорость, когда баллон пуст
+st_srp_technical_oxygen_rush	Скорость после 20 с баллона и в конце
 st_srp_technical_per_second	 в секунду
 st_srp_technical_pocket_size	 к размеру карманов
 st_srp_technical_pockets	 карм.

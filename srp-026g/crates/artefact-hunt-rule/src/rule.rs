@@ -415,6 +415,19 @@ pub struct Hud {
     pub alive: [u8; 2],
     pub total: [u8; 2],
     pub artefact: ArtefactView,
+    /// The next respawn wave, while one comes: a round's hunt out of sudden
+    /// death; `None` before the start, in a round's restart (respawns
+    /// held), in sudden death and once over.
+    pub wave: Option<Wave>,
+}
+
+/// The next respawn wave as the hud shows it: the ms to it and a wave's
+/// whole length. Every team's: a player's own time is the respawn rule's
+/// (his modifier, the 7 s least time).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Wave {
+    pub left_ms: u32,
+    pub total_ms: u32,
 }
 
 impl Rule {
@@ -587,10 +600,8 @@ impl Rule {
         if !self.respawns() {
             return None;
         }
-        let wave = params.respawn_wave.get();
         let least = death.after(params.respawn_least).elapsed(play.start);
-        let waves = least.saturating_sub(1) / wave + 1;
-        let moved = i64::from(waves * wave) + i64::from(shift.get());
+        let moved = i64::from(wave_from(params, least)) + i64::from(shift.get());
         let after = moved.clamp(i64::from(least), i64::from(u32::MAX >> 1)) as u32;
         Some(Time::from_ms(play.start.ms().wrapping_add(after)))
     }
@@ -640,6 +651,7 @@ impl Rule {
                 self.sides.of(Team::One).len(),
             ],
             artefact: self.artefact(params),
+            wave: None,
         };
         let play = match self.stage {
             Stage::Idle => return hud,
@@ -716,6 +728,19 @@ impl Rule {
             }
         };
         hud.phase = phase;
+        if let Round::Hunt {
+            clock: Clock::Regular,
+            ..
+        } = play.round
+        {
+            // The wave of this very step has come (the respawn rule's tick
+            // is before the hud's): the next one is after it.
+            let passed = now.elapsed(play.start);
+            hud.wave = Some(Wave {
+                left_ms: wave_from(params, passed + 1) - passed,
+                total_ms: params.respawn_wave.get(),
+            });
+        }
         if let Some((until, total)) = timer {
             hud.phase_ms = now.left(until);
             hud.phase_total_ms = total.get();
@@ -1054,6 +1079,13 @@ impl Rule {
 
 /// The one time test of a delivery made at `until` less
 /// `time_before_new_round` with the scores after it.
+/// The first wave (a multiple of `respawn_time` from the match's start) at or
+/// after `passed` ms from the start, in ms from the start.
+fn wave_from(params: &Params, passed: u32) -> u32 {
+    let wave = params.respawn_wave.get();
+    (passed.saturating_sub(1) / wave + 1) * wave
+}
+
 fn after(params: &Params, start: Time, until: Time, score: [u8; 2]) -> After {
     let delivered = Time::from_ms(until.ms().wrapping_sub(params.before_new_round.get()));
     // Less match time left than `time_needed_to_continue_match`.

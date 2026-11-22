@@ -250,6 +250,9 @@ pub enum PocketShare {
     /// Two units (`parameters.pocket_units` 2, srp's key: the RGD-5): the
     /// pocket holds half its size, at least one.
     Pair,
+    /// One and a half units (a trap with Bear Trap; no config says it): the
+    /// pocket holds two in three of its size, at least one.
+    ThreeHalves,
     /// The whole pocket, one in it (`parameters.fills_whole_pocket`, the
     /// game's key: the boosters).
     Whole,
@@ -262,6 +265,7 @@ impl PocketShare {
         match self {
             Self::Unit => size,
             Self::Pair => (size / 2).max(1).min(size),
+            Self::ThreeHalves => (size * 2 / 3).max(1).min(size),
             Self::Whole => 1,
         }
     }
