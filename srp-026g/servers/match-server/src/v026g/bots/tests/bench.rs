@@ -2771,7 +2771,7 @@ pub(crate) fn real_bot_cost() {
             let riser = crate::v026g::bots::drive::riser_counts::counts();
             eprintln!(
                 "risers so far: sprinted ticks {}, jumps {}, neither ticks {}, flown press not makeable ticks {}, no press ticks {}, \
-                 refused and planned again {}; \
+                 refused and planned again {}, sprint held at the face past the lift's wait ticks {}; \
                  gap landings let go ticks {}; flown presses backed off: off the height {}, slow too fast {}, off the lead {}, off the line {}",
                 riser[0],
                 riser[1],
@@ -2779,6 +2779,7 @@ pub(crate) fn real_bot_cost() {
                 riser[3],
                 riser[4],
                 riser[5],
+                riser[6],
                 crate::v026g::bots::motor::stays::count(),
                 crate::v026g::bots::motor::flown_presses::counts()[0],
                 crate::v026g::bots::motor::flown_presses::counts()[1],

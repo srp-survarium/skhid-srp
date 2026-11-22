@@ -793,10 +793,12 @@ pub const LIFT_RUN_UP_M: f32 = 1.0;
 /// A lift is at its face from this near the take-off along the jump, metres (the client holds 0.15-0.3 s there before it
 /// lifts, PROVEN).
 const LIFT_FACE_M: f32 = 0.5;
-/// A lift that has stood at the face this long, seconds, and is not up is given up for the jump (the lift is up 1.2-1.5 s
-/// after the start of the run and the hold at the face is 0.3 s, LIKELY: a second is a margin); so is one whose sprint the
-/// client no longer takes (a shot, an aim).
-const LIFT_WAIT_S: f32 = 1.0;
+/// A lift that has stood at the face this long, seconds, and is not up is given up for the jump; so is one whose sprint the
+/// client no longer takes (a shot, an aim). [fix-move] PROVEN on the exe (rig_real_v3, the game's own objects, 2026-11-22): a
+/// sprinting body at a face was lifted within 0.85 s at each of the 13 faces it was lifted at (S219 from 0.2 m back at its
+/// tick 10, S262 on the bot's own keys at tick 17), and never later in runs of 2-3 s; S284 and S008 were held for the whole
+/// run. The riser gait gives its sprint up after the same wait (`drive::RISER_LIFT_WAIT_MS`).
+pub(super) const LIFT_WAIT_S: f32 = 1.0;
 /// A lift at its face that the walk has not asked for in this long is left: it is counted left, and the jump is the way up.
 const LIFT_RESUME_S: f32 = 0.5;
 /// A sprint-band press needs the body's velocity within this of the jump's way, degrees, and its speed along that way
