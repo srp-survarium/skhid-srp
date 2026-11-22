@@ -127,6 +127,8 @@ pub mod tick_parts;
 pub mod use_scan;
 pub mod unplayed_match;
 pub mod texture_streaming;
+// patch 182: a streamed texture with no free slot of its size takes a smaller one
+pub mod texture_pool;
 pub mod animation_math;
 pub mod replay_keys;
 // patch 152: two keys save the game's picture as a PNG

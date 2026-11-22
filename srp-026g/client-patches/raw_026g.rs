@@ -18167,6 +18167,15 @@ impl ResTexture {
     pub unsafe fn memory(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x30).cast::<u32>().as_ptr() }
     }
+
+    /// +0x40 (u32): the texture's DXGI format as the pools key it, typeless (on_texture_loaded_res_impl writes it; process_streaming reads it for both keys at 0x1541BD)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn pool_format(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x40).cast::<u32>().as_ptr() }
+    }
 }
 
 /// A vostok::render::baked_texture_resource (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -23894,6 +23903,60 @@ impl StreamableTexture {
         unsafe { self.0.byte_add(0x110).cast::<Option<StreamingTextureInstance>>().write_volatile(value) }
     }
 
+    /// +0x0 (ptr<u8>): the texture's path, a fixed_string<260>'s begin, not NUL-terminated (process_streaming copies [begin, end) at 0x154545..0x154557)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn path(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x0).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<u8>): the texture's path, a fixed_string<260>'s begin, not NUL-terminated (process_streaming copies [begin, end) at 0x154545..0x154557)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_path(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x0).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// +0x4 (ptr<u8>): the path's end (0x154547)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn path_end(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x4).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<u8>): the path's end (0x154547)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_path_end(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x4).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// +0x114 (ptr<vostok::render::res_texture>): the streamed texture (process_streaming 0x1541A0 reads its pool format)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn texture(self) -> Option<ResTexture> {
+        unsafe { self.0.byte_add(0x114).cast::<Option<ResTexture>>().read_volatile() }
+    }
+
+    /// +0x114 (ptr<vostok::render::res_texture>): the streamed texture (process_streaming 0x1541A0 reads its pool format)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_texture(self, value: Option<ResTexture>) {
+        unsafe { self.0.byte_add(0x114).cast::<Option<ResTexture>>().write_volatile(value) }
+    }
+
     /// 0x148 bytes: one streamable texture: the vector steps 148h (0x1559EE)
     pub const SIZE: usize = 0x148;
 
@@ -24265,6 +24328,24 @@ impl ResourceManager {
     #[inline(always)]
     pub unsafe fn set_vertex_pool(self, value: Option<HwBufferPool>) {
         unsafe { self.0.byte_add(0x881ac).cast::<Option<HwBufferPool>>().write_volatile(value) }
+    }
+
+    /// +0x94914 (ptr<vostok::render::texture_pool_map>): the streamed textures' pools, an STLport map from texture_pool_key to texture_pool* (process_streaming 0x15413D; built by resource_pools 0x11B090: fixed slot counts per size, 0x11B3D0); 0 without pools
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn texture_pools(self) -> Option<TexturePoolMap> {
+        unsafe { self.0.byte_add(0x94914).cast::<Option<TexturePoolMap>>().read_volatile() }
+    }
+
+    /// +0x94914 (ptr<vostok::render::texture_pool_map>): the streamed textures' pools, an STLport map from texture_pool_key to texture_pool* (process_streaming 0x15413D; built by resource_pools 0x11B090: fixed slot counts per size, 0x11B3D0); 0 without pools
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_texture_pools(self, value: Option<TexturePoolMap>) {
+        unsafe { self.0.byte_add(0x94914).cast::<Option<TexturePoolMap>>().write_volatile(value) }
     }
 }
 
@@ -31101,6 +31182,445 @@ impl CameraDirector {
     #[inline(always)]
     pub unsafe fn projection(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x44).cast::<f32>().as_ptr() }
+    }
+}
+
+/// A vostok::render::process_streaming_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ProcessStreamingFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ProcessStreamingFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (ptr<vostok::render::scene>): scene::process_streaming's (0x154020, push ebp / mov ebp,esp) first argument, the scene (0x154162)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn scene(self) -> Option<Scene> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<Scene>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<vostok::render::scene>): scene::process_streaming's (0x154020, push ebp / mov ebp,esp) first argument, the scene (0x154162)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_scene(self, value: Option<Scene>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<Scene>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::potential_request (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PotentialRequest(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PotentialRequest {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): the index of its texture in the scene's streamable textures (update_wanted_mips 0x1C2120 writes it; process_streaming 0x154160 reads it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn texture(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x4 (u32): the mips the texture has now (the texture's num_mips, its loaded_num_mips when 0; 0x1C2120)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn resident_mips(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x8 (u32): the mips it wants (the most any instance's distance asks, 0x1C8640; process_streaming's keys at 0x1541C3; 0x1C89C0 sets it back to resident_mips to cancel)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn wanted_mips(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x14 (u32): the texture's array size, the keys' array size (0x1541CF)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn array_size(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x14).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x1c (u32): the top mip's width at wanted_mips, the key's width (0x1541C0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn wanted_width(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1c).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x20 (u32): its height (0x1541C9)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn wanted_height(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x20).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x24 (u32): the top mip's width now (0x1C2120)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn resident_width(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x24).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x28 (u32): its height now
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn resident_height(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x28).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::render::texture_pool_map (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TexturePoolMap(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl TexturePoolMap {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (ptr<vostok::render::texture_pool_node>): the root, the header's (map+4) parent; 0 when empty (the find 0x3D3AA0 starts at [header+4])
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn root(self) -> Option<TexturePoolNode> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<TexturePoolNode>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<vostok::render::texture_pool_node>): the root, the header's (map+4) parent; 0 when empty (the find 0x3D3AA0 starts at [header+4])
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_root(self, value: Option<TexturePoolNode>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<TexturePoolNode>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::texture_pool_node (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TexturePoolNode(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl TexturePoolNode {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (ptr<vostok::render::texture_pool_node>): the left child, 0 for none (0x3D3B04)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn left(self) -> Option<TexturePoolNode> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<TexturePoolNode>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<vostok::render::texture_pool_node>): the left child, 0 for none (0x3D3B04)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_left(self, value: Option<TexturePoolNode>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<TexturePoolNode>>().write_volatile(value) }
+    }
+
+    /// +0xc (ptr<vostok::render::texture_pool_node>): the right child, 0 for none (0x3D3AFB)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn right(self) -> Option<TexturePoolNode> {
+        unsafe { self.0.byte_add(0xc).cast::<Option<TexturePoolNode>>().read_volatile() }
+    }
+
+    /// +0xc (ptr<vostok::render::texture_pool_node>): the right child, 0 for none (0x3D3AFB)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_right(self, value: Option<TexturePoolNode>) {
+        unsafe { self.0.byte_add(0xc).cast::<Option<TexturePoolNode>>().write_volatile(value) }
+    }
+
+    /// +0x10 (u32): the key's top-mip width (texture_pool_key; 0x11B4B3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn width(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x10).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x14 (u32): its height (0x11B4B7)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn height(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x14).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x18 (u32): its array size, 1 (0x11B4BB)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn array_size(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x18).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x1c (u32): its typeless DXGI format, 46h BC1 or 4Ch BC3 (0x11B4C3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn format(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1c).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x20 (u32): its mips (0x11B4C7)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn mips(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x20).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x24 (u32): its D3D11 usage, 0 (0x11B4CB)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn usage(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x24).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x28 (ptr<vostok::render::texture_pool>): the value, the pool of that key (0x15422F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn pool(self) -> Option<TexturePool> {
+        unsafe { self.0.byte_add(0x28).cast::<Option<TexturePool>>().read_volatile() }
+    }
+
+    /// +0x28 (ptr<vostok::render::texture_pool>): the value, the pool of that key (0x15422F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_pool(self, value: Option<TexturePool>) {
+        unsafe { self.0.byte_add(0x28).cast::<Option<TexturePool>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::texture_pool (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TexturePool(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl TexturePool {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x64 (ptr<vostok::render::texture_pool_slot>): its slots' vector, the begin (0x154232; get_pools_size 0x3D33F3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn slots(self) -> Option<TexturePoolSlot> {
+        unsafe { self.0.byte_add(0x64).cast::<Option<TexturePoolSlot>>().read_volatile() }
+    }
+
+    /// +0x64 (ptr<vostok::render::texture_pool_slot>): its slots' vector, the begin (0x154232; get_pools_size 0x3D33F3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_slots(self, value: Option<TexturePoolSlot>) {
+        unsafe { self.0.byte_add(0x64).cast::<Option<TexturePoolSlot>>().write_volatile(value) }
+    }
+
+    /// +0x68 (ptr<vostok::render::texture_pool_slot>): the end (0x154235)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn slots_end(self) -> Option<TexturePoolSlot> {
+        unsafe { self.0.byte_add(0x68).cast::<Option<TexturePoolSlot>>().read_volatile() }
+    }
+
+    /// +0x68 (ptr<vostok::render::texture_pool_slot>): the end (0x154235)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_slots_end(self, value: Option<TexturePoolSlot>) {
+        unsafe { self.0.byte_add(0x68).cast::<Option<TexturePoolSlot>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::texture_pool_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TexturePoolSlot(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl TexturePoolSlot {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::render::res_texture>): the texture in it while occupied (the take's caller on_texture_loaded_res_impl writes it, 0x3BD51D)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn texture(self) -> Option<ResTexture> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ResTexture>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::render::res_texture>): the texture in it while occupied (the take's caller on_texture_loaded_res_impl writes it, 0x3BD51D)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_texture(self, value: Option<ResTexture>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ResTexture>>().write_volatile(value) }
+    }
+
+    /// +0x4 (ptr<u8>): that texture's name, its +98h buffer string's begin, NUL-terminated (0x3BD51A)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn name(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x4).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<u8>): that texture's name, its +98h buffer string's begin, NUL-terminated (0x3BD51A)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_name(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x4).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// +0x18 (u8): a texture lives in it (the take 0x3D3271 sets it; the release 0x3D3550 clears it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn occupied(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x18).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x19 (u8): promised to a request of this batch (process_streaming 0x1543C0; cleared for every slot before each batch, 0x3D3510); the take after the load wants it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn reserved(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x19).cast::<u8>().as_ptr() }
+    }
+
+    /// 0x1c bytes: one slot (0x15424C)
+    pub const SIZE: usize = 0x1c;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::render::texture_pool_slots (0x1c bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct TexturePoolSlotStorage([u8; 0x1c]);
+
+#[allow(dead_code)]
+impl TexturePoolSlotStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x1c])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> TexturePoolSlot {
+        TexturePoolSlot(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<TexturePoolSlot> {
+        (!rooms.is_empty()).then(|| TexturePoolSlot(NonNull::from(rooms).cast()))
     }
 }
 
@@ -38470,6 +38990,30 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn model(machine: &impl Machine) -> Option<MedicalDamage> {
             NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(MedicalDamage)
+        }
+    }
+
+    /// streaming.no_slot (0x15433e): scene::process_streaming's turn of a request whose pool has no free, unreserved slot of the key it wants (mov eax,[ebp+8] / mov edx,[eax+980550h]; the non-lazy path, r_lazy_streaming off): the game then looks for another request leaving that size and cancels this one either way (0x1C89C0: wanted_mips = resident_mips), so the texture stays as it is; next is the loop's step to the next request (add esi,64h), the stack as at the site
+    pub mod streaming_no_slot {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::render::potential_request (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn request(machine: &impl Machine) -> Option<PotentialRequest> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(PotentialRequest)
+        }
+
+        /// EBP: a vostok::render::process_streaming_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<ProcessStreamingFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(ProcessStreamingFrame)
         }
     }
 }

@@ -12282,6 +12282,48 @@ text_input_on_char_replay:
     db 0x8b, 0x47, 0xe8, 0x8b, 0x70, 0x10
     jmp 0x79d36f
 
+; 0x15433e scene::process_streaming's turn of a request whose pool has no free, unreserved slot of the key it wants (mov eax,[ebp+8] / mov edx,[eax+980550h]; the non-lazy path, r_lazy_streaming off): the game then looks for another request leaving that size and cancels this one either way (0x1C89C0: wanted_mips = resident_mips), so the texture stays as it is; next is the loop's step to the next request (add esi,64h), the stack as at the site: lohook -> texture_pool_on_no_slot
+global texture_pool_on_no_slot
+extern hook_texture_pool_on_no_slot
+texture_pool_on_no_slot:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_texture_pool_on_no_slot
+    mov edx, texture_pool_on_no_slot_replay
+    cmp eax, 0
+    je texture_pool_on_no_slot_go
+    mov edx, 0x154347
+    cmp eax, 1
+    je texture_pool_on_no_slot_go
+    mov edx, 0x1543c4
+    cmp eax, 2
+    je texture_pool_on_no_slot_go
+    ud2
+texture_pool_on_no_slot_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+texture_pool_on_no_slot_replay:
+    db 0x8b, 0x45, 0x08, 0x8b, 0x90, 0x50, 0x05, 0x98, 0x00
+    jmp 0x154347
+
 ; 0x155980 scene::update_streaming_data's start (sub esp,18h / push ebx / mov ebx,[eax+12615Ch]), every frame from process_streaming (0x1540DE) while the scene has streamable textures: EAX the scene; returned is its `ret` (0x1559FE): lohook -> texture_streaming_on_update
 global texture_streaming_on_update
 extern hook_texture_streaming_on_update
