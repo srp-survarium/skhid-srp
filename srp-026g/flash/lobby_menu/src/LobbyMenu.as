@@ -1465,6 +1465,11 @@ package
          if(e.target is ScrollingList)
          {
             this.itemHintRenderer.x = this.inventory_list.x - 195 - this.itemHintRenderer.width;
+            // left of the open attachments window, not over it
+            if(this.modifierWindow.visible && this.modifierWindow.parent != null)
+            {
+               this.itemHintRenderer.x = Math.min(this.itemHintRenderer.x,this.modifierWindow.container.getBounds(this._cards).left - 3 - this.itemHintRenderer.width);
+            }
          }
          else
          {

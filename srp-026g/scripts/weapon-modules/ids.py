@@ -46,13 +46,15 @@ EFFECTS = HERE.parent / 'muzzle-devices/effect_scale.tsv'
 # shot's flash: a line of its own, the barrel length roll's icon (2010..) and these words.
 NO_FLASH = {'icon': 33, 'label': 'st_srp_no_muzzle_flash'}
 # A stat a device or a grip changes (a share of the weapon's own value: modifier type 2), as the
-# card shows the game's own weapon roll of the same key: that roll's line (its ui_desc prop_id) and
-# icon (gameplay/items/modifications: 2070.. aim time, 2080.. the six kick bounds, 2020.. barrel
-# rifling). The weapon's card and Alt then count it as such a roll (UpgradeWindow.withFitted).
+# card shows the game's own weapon roll of the same key: that roll's line (its ui_desc prop_id: the
+# value and its colour; Alt counts it as such a roll, UpgradeWindow.withFitted) and icon
+# (gameplay/items/modifications: 2070.. aim time, 2080.. the six kick bounds, 2020.. barrel
+# rifling); `words`, the line whose name says what the share is of: the weapon card's own "Aim
+# time" (133) for aim time, as the roll's "Aiming speed" would read a longer aim as faster.
 STAT_UI = {
-    'parameters/aim_time': {'prop': 102, 'icon': 39},
-    'recoil': {'prop': 115, 'icon': 40},
-    'dispersion/base_dispersion': {'prop': 2, 'icon': 34},
+    'parameters/aim_time': {'prop': 102, 'icon': 39, 'words': 133},
+    'recoil': {'prop': 115, 'icon': 40, 'words': 115},
+    'dispersion/base_dispersion': {'prop': 2, 'icon': 34, 'words': 2},
 }
 
 
@@ -97,16 +99,16 @@ def stats_table():
             '# line with no stat (prop 0) its icon and its words (label). Written by srp-026g/scripts/\n'
             '# weapon-modules/ids.py from devices.tsv, effect_scale.tsv and grips.tsv: do not edit. The\n'
             '# lobby build makes it the class survarium.data.AttachmentStats.\n'
-            'list\tdict:int\tshare:String\tprop:int\ticon:int\tlabel:String\n')
+            'list\tdict:int\tshare:String\tprop:int\ticon:int\twords:int\tlabel:String\n')
     out = []
     for dict_id, key, share in sorted(found, key=lambda f: f[0]):
         if key is None:
-            out.append(f"stats\t{dict_id}\t\t0\t{NO_FLASH['icon']}\t{NO_FLASH['label']}\n")
+            out.append(f"stats\t{dict_id}\t\t0\t{NO_FLASH['icon']}\t0\t{NO_FLASH['label']}\n")
             continue
         if key not in STAT_UI:
             sys.exit(f'{dict_id}: no card line for the stat {key} (ids.py STAT_UI)')
         ui = STAT_UI[key]
-        out.append(f"stats\t{dict_id}\t{share:g}\t{ui['prop']}\t{ui['icon']}\t\n")
+        out.append(f"stats\t{dict_id}\t{share:g}\t{ui['prop']}\t{ui['icon']}\t{ui['words']}\t\n")
     return head + ''.join(out)
 
 

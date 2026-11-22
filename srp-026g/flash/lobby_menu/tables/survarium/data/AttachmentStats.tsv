@@ -3,95 +3,95 @@
 # line with no stat (prop 0) its icon and its words (label). Written by srp-026g/scripts/
 # weapon-modules/ids.py from devices.tsv, effect_scale.tsv and grips.tsv: do not edit. The
 # lobby build makes it the class survarium.data.AttachmentStats.
-list	dict:int	share:String	prop:int	icon:int	label:String
-stats	2601	0.03	102	39	
-stats	2601	-0.04	115	40	
-stats	2602	0.03	102	39	
-stats	2602	-0.04	115	40	
-stats	2603		0	33	st_srp_no_muzzle_flash
-stats	2604		0	33	st_srp_no_muzzle_flash
-stats	2605	0.03	102	39	
-stats	2605	-0.04	115	40	
-stats	2606	0.03	102	39	
-stats	2606	-0.04	115	40	
-stats	2607		0	33	st_srp_no_muzzle_flash
-stats	2608		0	33	st_srp_no_muzzle_flash
-stats	2609		0	33	st_srp_no_muzzle_flash
-stats	2610		0	33	st_srp_no_muzzle_flash
-stats	2611		0	33	st_srp_no_muzzle_flash
-stats	2612		0	33	st_srp_no_muzzle_flash
-stats	2613	0.03	102	39	
-stats	2613	-0.04	115	40	
-stats	2614	0.03	102	39	
-stats	2614	-0.04	115	40	
-stats	2615	0.03	102	39	
-stats	2615	-0.04	115	40	
-stats	2616	0.03	102	39	
-stats	2616	-0.04	115	40	
-stats	2617	0.03	102	39	
-stats	2617	-0.04	115	40	
-stats	2618	-0.16	2	34	
-stats	2619	-0.16	2	34	
-stats	2620	0.03	102	39	
-stats	2620	-0.04	115	40	
-stats	2621	0.03	102	39	
-stats	2621	-0.04	115	40	
-stats	2622	0.03	102	39	
-stats	2622	-0.04	115	40	
-stats	2623		0	33	st_srp_no_muzzle_flash
-stats	2624		0	33	st_srp_no_muzzle_flash
-stats	2625		0	33	st_srp_no_muzzle_flash
-stats	2626		0	33	st_srp_no_muzzle_flash
-stats	2627	-0.16	2	34	
-stats	2628		0	33	st_srp_no_muzzle_flash
-stats	2629	0.03	102	39	
-stats	2629	-0.04	115	40	
-stats	2630	0.03	102	39	
-stats	2630	-0.04	115	40	
-stats	2631		0	33	st_srp_no_muzzle_flash
-stats	2632		0	33	st_srp_no_muzzle_flash
-stats	2633		0	33	st_srp_no_muzzle_flash
-stats	2634	0.03	102	39	
-stats	2634	-0.04	115	40	
-stats	2635	0.03	102	39	
-stats	2635	-0.04	115	40	
-stats	2638	-0.2	2	34	
-stats	2638	0.03	102	39	
-stats	2639	-0.15	2	34	
-stats	2640	-0.2	2	34	
-stats	2640	0.03	102	39	
-stats	2641	-0.15	2	34	
-stats	2642	-0.15	2	34	
-stats	2643	-0.15	2	34	
-stats	2644	-0.15	2	34	
-stats	2645	-0.15	2	34	
-stats	2646	0.03	102	39	
-stats	2646	-0.04	115	40	
-stats	2647	-0.2	2	34	
-stats	2647	0.03	102	39	
-stats	2648	-0.2	2	34	
-stats	2648	0.03	102	39	
-stats	2649	-0.2	2	34	
-stats	2649	0.03	102	39	
-stats	2650	-0.2	2	34	
-stats	2650	0.03	102	39	
-stats	2651	-0.2	2	34	
-stats	2651	0.03	102	39	
-stats	2656	0.03	102	39	
-stats	2656	-0.04	115	40	
-stats	2657	0.03	102	39	
-stats	2657	-0.04	115	40	
-stats	2658		0	33	st_srp_no_muzzle_flash
-stats	2659	-0.04	115	40	
-stats	2659	0.015	102	39	
-stats	2660	-0.04	115	40	
-stats	2661	-0.06	115	40	
-stats	2662	-0.06	115	40	
-stats	2663	-0.04	115	40	
-stats	2663	0.015	102	39	
-stats	2664	-0.02	115	40	
-stats	2665	-0.06	115	40	
-stats	2666	-0.06	115	40	
-stats	2668	-0.06	115	40	
-stats	2671	-0.06	115	40	
-stats	2671	0.015	102	39	
+list	dict:int	share:String	prop:int	icon:int	words:int	label:String
+stats	2601	0.03	102	39	133	
+stats	2601	-0.04	115	40	115	
+stats	2602	0.03	102	39	133	
+stats	2602	-0.04	115	40	115	
+stats	2603		0	33	0	st_srp_no_muzzle_flash
+stats	2604		0	33	0	st_srp_no_muzzle_flash
+stats	2605	0.03	102	39	133	
+stats	2605	-0.04	115	40	115	
+stats	2606	0.03	102	39	133	
+stats	2606	-0.04	115	40	115	
+stats	2607		0	33	0	st_srp_no_muzzle_flash
+stats	2608		0	33	0	st_srp_no_muzzle_flash
+stats	2609		0	33	0	st_srp_no_muzzle_flash
+stats	2610		0	33	0	st_srp_no_muzzle_flash
+stats	2611		0	33	0	st_srp_no_muzzle_flash
+stats	2612		0	33	0	st_srp_no_muzzle_flash
+stats	2613	0.03	102	39	133	
+stats	2613	-0.04	115	40	115	
+stats	2614	0.03	102	39	133	
+stats	2614	-0.04	115	40	115	
+stats	2615	0.03	102	39	133	
+stats	2615	-0.04	115	40	115	
+stats	2616	0.03	102	39	133	
+stats	2616	-0.04	115	40	115	
+stats	2617	0.03	102	39	133	
+stats	2617	-0.04	115	40	115	
+stats	2618	-0.16	2	34	2	
+stats	2619	-0.16	2	34	2	
+stats	2620	0.03	102	39	133	
+stats	2620	-0.04	115	40	115	
+stats	2621	0.03	102	39	133	
+stats	2621	-0.04	115	40	115	
+stats	2622	0.03	102	39	133	
+stats	2622	-0.04	115	40	115	
+stats	2623		0	33	0	st_srp_no_muzzle_flash
+stats	2624		0	33	0	st_srp_no_muzzle_flash
+stats	2625		0	33	0	st_srp_no_muzzle_flash
+stats	2626		0	33	0	st_srp_no_muzzle_flash
+stats	2627	-0.16	2	34	2	
+stats	2628		0	33	0	st_srp_no_muzzle_flash
+stats	2629	0.03	102	39	133	
+stats	2629	-0.04	115	40	115	
+stats	2630	0.03	102	39	133	
+stats	2630	-0.04	115	40	115	
+stats	2631		0	33	0	st_srp_no_muzzle_flash
+stats	2632		0	33	0	st_srp_no_muzzle_flash
+stats	2633		0	33	0	st_srp_no_muzzle_flash
+stats	2634	0.03	102	39	133	
+stats	2634	-0.04	115	40	115	
+stats	2635	0.03	102	39	133	
+stats	2635	-0.04	115	40	115	
+stats	2638	-0.2	2	34	2	
+stats	2638	0.03	102	39	133	
+stats	2639	-0.15	2	34	2	
+stats	2640	-0.2	2	34	2	
+stats	2640	0.03	102	39	133	
+stats	2641	-0.15	2	34	2	
+stats	2642	-0.15	2	34	2	
+stats	2643	-0.15	2	34	2	
+stats	2644	-0.15	2	34	2	
+stats	2645	-0.15	2	34	2	
+stats	2646	0.03	102	39	133	
+stats	2646	-0.04	115	40	115	
+stats	2647	-0.2	2	34	2	
+stats	2647	0.03	102	39	133	
+stats	2648	-0.2	2	34	2	
+stats	2648	0.03	102	39	133	
+stats	2649	-0.2	2	34	2	
+stats	2649	0.03	102	39	133	
+stats	2650	-0.2	2	34	2	
+stats	2650	0.03	102	39	133	
+stats	2651	-0.2	2	34	2	
+stats	2651	0.03	102	39	133	
+stats	2656	0.03	102	39	133	
+stats	2656	-0.04	115	40	115	
+stats	2657	0.03	102	39	133	
+stats	2657	-0.04	115	40	115	
+stats	2658		0	33	0	st_srp_no_muzzle_flash
+stats	2659	-0.04	115	40	115	
+stats	2659	0.015	102	39	133	
+stats	2660	-0.04	115	40	115	
+stats	2661	-0.06	115	40	115	
+stats	2662	-0.06	115	40	115	
+stats	2663	-0.04	115	40	115	
+stats	2663	0.015	102	39	133	
+stats	2664	-0.02	115	40	115	
+stats	2665	-0.06	115	40	115	
+stats	2666	-0.06	115	40	115	
+stats	2668	-0.06	115	40	115	
+stats	2671	-0.06	115	40	115	
+stats	2671	0.015	102	39	133	

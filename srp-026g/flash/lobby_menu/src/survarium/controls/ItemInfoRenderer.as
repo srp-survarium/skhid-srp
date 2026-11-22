@@ -219,15 +219,17 @@ package survarium.controls
                   defaultModifiers.push({icon:icons.getIcon(stat.icon),label:LocalizationData.getName(stat.label)});
                   continue;
                }
+               // the roll's line gives the value and its colour, `words` the name of what it is a share of
                var description:Object = properties.getPropertyDescription(stat.prop);
+               var words:Object = properties.getPropertyDescription(stat.words);
                var share:Number = Number(stat.share);
-               if(!description)
+               if(!description || !words)
                {
                   continue;
                }
                defaultModifiers.push({
                   icon:icons.getIcon(stat.icon),
-                  label:description.prop_name + ": " + Util.styledChar(ModificationRolls.format(description,share),ModificationRolls.style(description,stat.prop,share))
+                  label:words.prop_name + ": " + Util.styledChar(ModificationRolls.format(description,share),ModificationRolls.style(description,stat.prop,share))
                });
             }
          }
@@ -342,7 +344,7 @@ package survarium.controls
          {
             hint += (hint.length > 0 ? "\n" : "") + LocalizationData.getName("can_be_installed_on") + ": " + names.join(", ");
          }
-         if(Boolean(item.itemId) && Boolean(UpgradeWindow.instance) && item.descriptor != ItemPlace.SHOP)
+         if(Boolean(item.itemId) && Boolean(UpgradeWindow.instance) && item.descriptor != ItemPlace.SHOP && !inWindow)
          {
             names = UpgradeWindow.wearers(item);
             if(Boolean(names) && names.length > 0)
