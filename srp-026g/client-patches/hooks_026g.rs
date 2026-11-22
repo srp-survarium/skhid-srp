@@ -1162,6 +1162,26 @@ pub extern "C" fn hook_artefact_hunt_on_enemy(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- freeze_tag (patch 160) ----
+
+/// The named exits of freeze_tag::on_enemy (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum FreezeTagOnEnemyExit { Shown }
+/// The entry `freeze_tag_on_enemy` (0x239505, update_minimap_players (0x239420) at its test of an enemy (a place of another team than the local player, alive and in the world): cmp dword [eax+348h],esi (ESI 0), its time spotted; the ja after it (0x23950B) lists it while that is above 0, else 0x23950D drops it. shown is the listing (0x23951B, where the team test's je goes too): the icon object for the place in EAX) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_freeze_tag_on_enemy(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `freeze_tag_on_enemy` calls this, from the game's jump at 0x239505,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::freeze_tag::on_enemy(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- replay_map (patch 135) ----
 
 /// The entry `replay_map_on_enemy_ids` (0x235709, game_world_ui::initialize_match (0x234880) about to send the player icons movie its enemy list (root.set_enemy_icon_ids, the Invoke at 0x235726; the icons movie [[ui+10h]+108h]+4), before any marker of the match is sent: mov ecx,[esi+10h] / mov edx,[ecx+108h]; ESI the ui (0x235702). the late join's lists_hook is on the bytes after the Invoke (0x23572B)) calls this with the saved machine.
@@ -9480,6 +9500,8 @@ pub extern "C" fn hook_replay_map_on_enemy_chain(frame: &mut Frame) -> u32 {
     let flow = hook_replay_map_on_enemy(frame);
     if flow != 0 { return flow; }
     let flow = hook_artefact_hunt_on_enemy(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_freeze_tag_on_enemy(frame);
     if flow != 0 { return flow; }
     0
 }

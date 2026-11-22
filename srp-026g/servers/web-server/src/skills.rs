@@ -50,7 +50,6 @@ pub(crate) fn file(path: &str) -> Option<(&'static str, &'static [u8])> {
 /// before it.
 const PLANNER: &str = "<div class=\"skill-plan\"";
 /// Where the built body's trees start.
-#[cfg(test)]
 const TREES: &str = "<div class=\"skill-trees\"";
 
 /// Where a skill of the built body starts, its id next; its disc follows.
@@ -83,6 +82,17 @@ pub(crate) fn body(lang: Lang, now: &Now) -> String {
         levels(lang, now.per_match),
         with_takers(lang, &built[at..], &now.takers)
     )
+}
+
+/// The trees alone in `lang`, with their tooltip's box and their script, for a page that shows
+/// one player's skills (the stats page, [`crate::history`]): the script draws the build that
+/// page gives the trees and takes no change to it.
+pub(crate) fn trees(lang: Lang) -> &'static str {
+    let built = match lang.written() {
+        Written::En => include_str!("../skills/skills.en.html"),
+        Written::Uk => include_str!("../skills/skills.uk.html"),
+    };
+    &built[built.find(TREES).expect("the built skills page has its trees")..]
 }
 
 /// `trees` with, on each skill's disc, how many players took it.

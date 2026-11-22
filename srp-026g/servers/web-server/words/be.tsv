@@ -1,1 +1,64 @@
-# The site's own words in this language (README.md here). No rows yet: every text is shown in English.
+# The site's own words in Belarusian (README.md here): English as in the code, Belarusian. A text without a row is shown in English.
+Wiki	Вікі
+Maps	Мапы
+Skhid wiki	Вікі Схода
+Modes	Рэжымы
+Every mode: its rules, numbers and maps.	Усе рэжымы: правілы, лікі і мапы.
+Versions	Версіі
+Public and private rooms	Публічныя і прыватныя пакоі
+Public rooms only	Толькі публічныя пакоі
+Private rooms only	Толькі прыватныя пакоі
+Not offered now	Цяпер не прапануецца
+Respawn after {0} s.	Адраджэнне праз {0} с.
+Batteries lie on the map.	Батарэі ляжаць на мапе.
+Carry them to your team's container.	Нясіце іх да кантэйнера сваёй каманды.
+First to {0} batteries wins.	Перамагае першая каманда з {0} батарэямі.
+Time limit {0}: more batteries wins.	Ліміт часу {0}: перамагае каманда з большай колькасцю батарэй.
+Batteries come out of {0} active chargers.	Батарэі з'яўляюцца з {0} актыўных зараднікаў.
+A new battery every {0} s, give or take {1} s.	Новая батарэя кожныя {0} с, плюс-мінус {1} с.
+Protective device rules: batteries, no chargers.	Правілы ахоўнай прылады: батарэі, без зараднікаў.
+No interface: no ammo, health, crosshair or minimap.	Без інтэрфейсу: ні патронаў, ні здароўя, ні прыцэла, ні мінімапы.
+Teammates' markers stay; enemies have none.	Меткі саюзнікаў застаюцца; у ворагаў іх няма.
+Hold Tab for ammo, body state, the clock and the team list.	Трымайце Tab: патроны, стан цела, час і спіс каманды.
+Each team has {0} tickets.	У кожнай каманды {0} білетаў.
+A death costs one ticket; a teamkill costs none.	Смерць каштуе адзін білет; забойства саюзніка — ніводнага.
+Out of tickets, a team stops respawning and loses when its last player dies.	Без білетаў каманда больш не адраджаецца і прайграе, калі гіне яе апошні гулец.
+Time limit {0}: more tickets wins.	Ліміт часу {0}: перамагае каманда з большай колькасцю білетаў.
+Capture research units: be inside with no enemy there.	Захоплівайце даследчыя ўстаноўкі: будзьце ўнутры, калі там няма ворагаў.
+Owned units earn points; more units, faster.	Захопленыя ўстаноўкі прыносяць ачкі; чым больш установак, тым хутчэй.
+First to {0} points wins.	Перамагае першая каманда з {0} ачкамі.
+Time limit {0}: more points wins.	Ліміт часу {0}: перамагае каманда з большай колькасцю ачкоў.
+Every player for himself.	Кожны сам за сябе.
+First to {0} kills wins.	Перамагае першы, хто набярэ {0} забойстваў.
+Time limit {0}: most kills wins.	Ліміт часу {0}: перамагае той, у каго больш за ўсё забойстваў.
+Public rooms: each FFA card draws a version.	Публічныя пакоі: кожная картка FFA атрымлівае сваю версію.
+Private rooms: plain FFA only.	Прыватныя пакоі: толькі звычайны FFA.
+A lethal hit freezes you in place.	Смяротнае трапленне замарожвае на месцы.
+A teammate within {0} m thaws you in {1} s.	Саюзнік у межах {0} м размарожвае за {1} с.
+A thaw counts as a kill.	Размарозка залічваецца як забойства.
+A frozen player thaws by himself after {0}.	Замарожаны гулец размарожваецца сам праз {0}.
+A team's last fighter shows on the enemies' map.	Апошняга байца каманды відаць на карце супернікаў.
+Freeze the whole enemy team to win the round.	Замарозьце ўсю каманду суперніка, каб выйграць раўнд.
+{0} s pause between rounds, then everyone respawns.	{0} с паўзы паміж раўндамі, потым усе адраджаюцца.
+First to {0} rounds wins.	Перамагае першая каманда, што выйграе {0} раўндаў.
+Time limit {0}: an unfinished series is a draw.	Ліміт часу {0}: незавершаная серыя — нічыя.
+One artefact at a time, {0}–{1} s into a round.	Адзін артэфакт за раз, праз {0}–{1} с ад пачатку раўнда.
+Bring it to your own base: 1 point, and the round ends.	Прынясіце яго на сваю базу: 1 ачко, і раўнд заканчваецца.
+The carrier is slower and seen by everyone.	Носьбіт павольнейшы і бачны ўсім.
+Respawn in waves every {0} s.	Адраджэнне хвалямі кожныя {0} с.
+Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Ліміт часу {0}: перамагае большы лік; пры нічыі — {1} раптоўнай смерці без адраджэння.
+Sniper rifles, silenced guns and guns without automatic fire are replaced.	Снайперскія вінтоўкі, зброя з глушыцелем і зброя без аўтаматычнага агню замяняюцца.
+Rooms up to level {0}: {1}.	Пакоі да ўзроўню {0}: {1}.
+Other rooms: {0}.	Астатнія пакоі: {0}.
+Sight: {0}.	Прыцэл: {0}.
+Every kit: {0} only.	Кожны набор: толькі {0}.
+Every kit: {0} and {1}.	Кожны набор: {0} і {1}.
+Everyone plays the same {0} random kits.	Усе гуляюць тымі ж {0} выпадковымі наборамі.
+Level bands: {0}.	Дыяпазоны ўзроўняў: {0}.
+A room draws bands up to its level.	Пакой атрымлівае дыяпазоны да свайго ўзроўню.
+Each kit a gun of another class, with random bonuses and attachments.	У кожным наборы зброя іншага класа з выпадковымі бонусамі і модулямі.
+{0} % of deals: pistols only.	{0} % раздач: толькі пісталеты.
+Nothing of yours is used or spent.	Нічога вашага не выкарыстоўваецца і не траціцца.
+Plain FFA: {0} % of FFA cards.	Звычайны FFA: {0} % картак FFA.
+{0} % of FFA cards.	{0} % картак FFA.
+FFA: Roulette	FFA: Рулетка

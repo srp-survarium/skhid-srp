@@ -1,1 +1,64 @@
-# The site's own words in this language (README.md here). No rows yet: every text is shown in English.
+# The site's own words in Czech (README.md here): English as in the code, Czech. A text without a row is shown in English.
+Wiki	Wiki
+Maps	Mapy
+Skhid wiki	Wiki Skhid
+Modes	Režimy
+Every mode: its rules, numbers and maps.	Každý režim: pravidla, čísla a mapy.
+Versions	Varianty
+Public and private rooms	Veřejné i soukromé místnosti
+Public rooms only	Jen veřejné místnosti
+Private rooms only	Jen soukromé místnosti
+Not offered now	Nyní se nenabízí
+Respawn after {0} s.	Oživení po {0} s.
+Batteries lie on the map.	Baterie leží na mapě.
+Carry them to your team's container.	Noste je do kontejneru svého týmu.
+First to {0} batteries wins.	Vyhrává první tým s {0} bateriemi.
+Time limit {0}: more batteries wins.	Časový limit {0}: vyhrává víc baterií.
+Batteries come out of {0} active chargers.	Baterie vycházejí z {0} aktivních nabíječek.
+A new battery every {0} s, give or take {1} s.	Nová baterie každých {0} s, plus minus {1} s.
+Protective device rules: batteries, no chargers.	Pravidla ochranného zařízení: baterie, bez nabíječek.
+No interface: no ammo, health, crosshair or minimap.	Bez rozhraní: bez munice, zdraví, zaměřovače i minimapy.
+Teammates' markers stay; enemies have none.	Značky spoluhráčů zůstávají; nepřátelé je nemají.
+Hold Tab for ammo, body state, the clock and the team list.	Podržte Tab: munice, stav těla, čas a seznam týmu.
+Each team has {0} tickets.	Každý tým má {0} tiketů.
+A death costs one ticket; a teamkill costs none.	Smrt stojí jeden tiket; zabití spoluhráče žádný.
+Out of tickets, a team stops respawning and loses when its last player dies.	Bez tiketů se tým přestane oživovat a prohraje, když padne jeho poslední hráč.
+Time limit {0}: more tickets wins.	Časový limit {0}: vyhrává víc tiketů.
+Capture research units: be inside with no enemy there.	Obsazujte výzkumné jednotky: buďte uvnitř bez nepřítele.
+Owned units earn points; more units, faster.	Držené jednotky dávají body; víc jednotek, rychleji.
+First to {0} points wins.	Vyhrává první tým s {0} body.
+Time limit {0}: more points wins.	Časový limit {0}: vyhrává víc bodů.
+Every player for himself.	Každý sám za sebe.
+First to {0} kills wins.	Vyhrává první, kdo dosáhne {0} zabití.
+Time limit {0}: most kills wins.	Časový limit {0}: vyhrává nejvíc zabití.
+Public rooms: each FFA card draws a version.	Veřejné místnosti: každá karta FFA losuje variantu.
+Private rooms: plain FFA only.	Soukromé místnosti: jen obyčejné FFA.
+A lethal hit freezes you in place.	Smrtelný zásah tě zmrazí na místě.
+A teammate within {0} m thaws you in {1} s.	Spoluhráč do {0} m tě rozmrazí za {1} s.
+A thaw counts as a kill.	Rozmrazení se počítá jako zabití.
+A frozen player thaws by himself after {0}.	Zmrazený hráč se sám rozmrazí po {0}.
+A team's last fighter shows on the enemies' map.	Poslední bojovník týmu je vidět na mapě soupeřů.
+Freeze the whole enemy team to win the round.	Zmrazte celý nepřátelský tým a vyhrajte kolo.
+{0} s pause between rounds, then everyone respawns.	{0} s pauza mezi koly, pak se všichni oživí.
+First to {0} rounds wins.	Vyhrává první tým s {0} vyhranými koly.
+Time limit {0}: an unfinished series is a draw.	Časový limit {0}: nedokončená série je remíza.
+One artefact at a time, {0}–{1} s into a round.	Jeden artefakt najednou, {0}–{1} s po začátku kola.
+Bring it to your own base: 1 point, and the round ends.	Doneste ho do vlastní základny: 1 bod a kolo končí.
+The carrier is slower and seen by everyone.	Nosič je pomalejší a vidí ho všichni.
+Respawn in waves every {0} s.	Oživení ve vlnách každých {0} s.
+Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Časový limit {0}: vyhrává vyšší skóre; při remíze {1} náhlé smrti bez oživení.
+Sniper rifles, silenced guns and guns without automatic fire are replaced.	Odstřelovací pušky, tlumené zbraně a zbraně bez automatické palby se nahrazují.
+Rooms up to level {0}: {1}.	Místnosti do úrovně {0}: {1}.
+Other rooms: {0}.	Ostatní místnosti: {0}.
+Sight: {0}.	Zaměřovač: {0}.
+Every kit: {0} only.	Každá sada: jen {0}.
+Every kit: {0} and {1}.	Každá sada: {0} a {1}.
+Everyone plays the same {0} random kits.	Všichni hrají stejné {0} náhodné sady.
+Level bands: {0}.	Rozsahy úrovní: {0}.
+A room draws bands up to its level.	Místnost losuje rozsahy do své úrovně.
+Each kit a gun of another class, with random bonuses and attachments.	V každé sadě zbraň jiné třídy, s náhodnými bonusy a doplňky.
+{0} % of deals: pistols only.	{0} % rozdání: jen pistole.
+Nothing of yours is used or spent.	Nic vašeho se nepoužije ani nespotřebuje.
+Plain FFA: {0} % of FFA cards.	Obyčejné FFA: {0} % karet FFA.
+{0} % of FFA cards.	{0} % karet FFA.
+FFA: Roulette	FFA: Ruleta

@@ -124,6 +124,9 @@ pub struct Game {
     /// The matches the lobby keeps the results of: what a match gives now,
     /// for the skills page's levels ([`crate::skills`]).
     pub results: Arc<session::v026g::rewards::Results>,
+    /// Where the rooms offer each map (the lobby's pools), for the wiki's
+    /// modes ([`crate::modes`]).
+    pub pools: crate::Pools,
 }
 
 /// The longest line of the operator's text: the client's buffers are 64

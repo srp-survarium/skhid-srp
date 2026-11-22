@@ -110,10 +110,11 @@ class Run(research.Run):
             self.word(iat, clock + 0x20 * n)
             self.emu.mem_write(clock + 0x20 * n, bytes.fromhex("8b442404c70001000000c7400400000000b801000000c20400"))
         # the patches' log (another handler of a chain may write a line): GetCurrentProcessId,
-        # CreateFileA, WriteFile, CloseHandle
-        files = self.allocate(0x40)
+        # CreateFileA, WriteFile, CloseHandle; GetEnvironmentVariableA (the handlers' SKHID_HUNT_LOG): unset
+        files = self.allocate(0x50)
         for n, (iat, code) in enumerate(((0x8701B8, "b82a000000c3"), (0x870048, "b844000000c21c00"),
-                                         (0x870108, "b801000000c21400"), (0x870040, "b801000000c20400"))):
+                                         (0x870108, "b801000000c21400"), (0x870040, "b801000000c20400"),
+                                         (0x8701B4, "31c0c20c00"))):
             self.word(iat, files + 0x10 * n)
             self.emu.mem_write(files + 0x10 * n, bytes.fromhex(code))
         for address in (QUERY_ON, INPUT_ON, SPRINT_ON, AFTER_MOVE_ON, DEACTIVATE_ON, ICONS_ON,
@@ -272,7 +273,7 @@ def main():
           and run.read(rule + 0x10C) == 6 and run.read(rule + R_CORE) == 0 and run.read(rule + 0x13C) == game,
           f"esp moved {moved}, size {size:#x}, rule {rule:#x}")
     blob = state(run, rule)
-    check("a new rule is idle: 20 bytes, its rng the match's seed", len(blob) == 20 and blob[18] == 0
+    check("a new rule is idle: 100 bytes, its rng the match's seed", len(blob) == 100 and blob[18] == 0
           and struct.unpack_from("<I", blob, 0)[0] == 7, blob.hex())
 
     # 3. The world: slot 11 through the core's loop links the tick at the
@@ -548,6 +549,40 @@ def main():
     check("slot 18, completed: not before the end", run.thiscall(research.vtable(run, rule, 18), rule, now)[0]
           & 0xFF == 0)
 
+    # 14b. Slots 15, 16 and 18 through the game's own loops over the world's
+    # rules (game_world_core's serialize 0x2D2661..0x2D2688, deserialize
+    # 0x2D2B1A..0x2D2B5F, rule_completed's 0x2D271D..), ours the one rule.
+    run.word(rules, rule)
+    run.word(CORE + research.RULES + 4, rules + 4)
+    snapshot = research.FAKE
+    loop_writer, loop_buffer = snapshot + 0xB7EF0, run.allocate(0x10)
+    run.emu.mem_write(loop_writer, bytes(0x20))
+    run.word(loop_writer + 0x14, loop_buffer)
+    run.word(loop_buffer + 4, run.allocate(0x200))
+    run.word(loop_buffer + 8, 0x200)
+    run.word(loop_buffer + 0xC, 0)
+    eip, moved = run.span(0x2D2661, 0x2D2688, {UC_X86_REG_EBP: CORE, UC_X86_REG_ESI: snapshot})
+    looped = bytes(run.emu.mem_read(run.read(loop_buffer + 4), run.read(loop_buffer + 0xC)))
+    check("driven: slot 15, serialize through the snapshot's rules loop 0x2D2661: esp as before, the rule's bytes",
+          eip == 0x2D2688 and moved == 0 and looped == blob, f"esp moved {moved}, {len(looped)} bytes")
+    source = run.allocate(0x200)
+    run.emu.mem_write(source, blob)
+    run.word(snapshot + 0xB7EE4, source)
+    run.word(snapshot + 0xB7EEC, source + len(blob))
+    eip, moved = run.span(0x2D2B1A, 0x2D2B5F, {UC_X86_REG_EBP: CORE, UC_X86_REG_EBX: snapshot},
+                          [0] * 0x21 + [0x7E57])           # [esp+84h]: the dword the loop passes on
+    check("driven: slot 16, deserialize through the snapshot's rules loop 0x2D2B42: esp as before, the cursor "
+          "past its bytes, the same state", eip == 0x2D2B5F and moved == 0
+          and run.read(STACK + 0x6000 + 0x58) == source + len(blob) and state(run, rule) == blob,
+          f"esp moved {moved}, cursor {run.read(STACK + 0x6000 + 0x58):#x} of {source:#x}")
+    run.word(CORE + 0x18FC0, now)
+    eip, moved = run.span(0x2D271D, 0x2D274B, {UC_X86_REG_EBP: CORE, UC_X86_REG_ESI: run.allocate(0xC0C00)})
+    check("driven: slot 18, completed through the world's loop 0x2D2730: not before the end, the loop goes on",
+          eip == 0x2D274B and moved == 0, f"{eip:#x}, esp moved {moved}")
+    run.word(rules, time_rule)
+    run.word(rules + 4, rule)
+    run.word(CORE + research.RULES + 4, rules + 8)
+
     # 15. The artefact in the world. The match's game world (the game's +18h),
     # its renderer's scene renderer and its scene; the pack's assets asked by
     # a query of the patch's own (model 15, particles 61) at the first frame,
@@ -618,7 +653,7 @@ def main():
     got = [(d[0], d[-1]) for d in drawn]
     check("the Drop key: it lies 0.13 m over his feet (no ground ray without a physics world), the model and the "
           "idle there, no spawn particle", decoded(state(run, rule)).get("round") == 5
-          and ("model+", lies) in [(d[0], tuple(round(v, 3) for v in d[-1])) for d in drawn]
+          and ("model+", lies) in [(d[0], tuple(round(v, 3) for v in d[-1])) for d in drawn if d[0] == "model+"]
           and sum(d[0] == "particle+" for d in drawn) == 1
           and ("particle-", scene_renderer, scene, particles[3]) in drawn, str(got))
     while decoded(state(run, rule)).get("round") == 5:
@@ -629,11 +664,6 @@ def main():
     check("removed by its 60 s: the model and the idle out, the destroy particle played where it lay",
           [d[3] for d in drawn if d[0] == "particle+"] == [particles[2]]
           and ("model-", scene_renderer, model + 0x108, scene) in drawn, str(drawn))
-    run.drawn = []
-    run.span(0x1F9520, DEACTIVATE_ON, {UC_X86_REG_ECX: game_world}, [0] * 8)
-    removed = sorted(d[3] for d in run.drawn if d[0] == "particle-")
-    check("the match's scene left: the one-shot particles played are removed, nothing of ours stays",
-          removed == sorted([particles[1], particles[2]]), str(run.drawn))
 
     # 16. A new artefact taken again, for the mark below.
     while decoded(state(run, rule)).get("round") == 2:
@@ -706,6 +736,22 @@ def main():
     said = hud()
     check("the next line frees the one playing first, then plays (enemy_got_art)",
           said and said[0][0] == "free" and ("emit", emitters[2], sound_scene, user) in said, str(said))
+
+    # 19. Slot 9 through the world's loop (0x2D2119..0x2D214A): place 11
+    # left, out of his team's side.
+    before = struct.unpack_from("<II", state(run, rule), 10)
+    eip, moved = run.span(0x2D2119, 0x2D214A, {UC_X86_REG_EBP: CORE}, [0] * 8 + [11, now])
+    sides = struct.unpack_from("<II", state(run, rule), 10)
+    check("driven: slot 9, left through the world's loop 0x2D2130: place 11 out of team 1's side",
+          eip == 0x2D214A and moved == 0 and before[1] & 1 << 11 and sides == (before[0], before[1] & ~(1 << 11)),
+          f"esp moved {moved}, sides {before} -> {sides}")
+
+    # 20. The match's scene left (it drops the hunt, #2376: last).
+    run.drawn = []
+    run.span(0x1F9520, DEACTIVATE_ON, {UC_X86_REG_ECX: game_world}, [0] * 8)
+    removed = sorted(d[3] for d in run.drawn if d[0] == "particle-")
+    check("the match's scene left: the one-shot particles played are removed, nothing of ours stays",
+          removed == sorted([particles[1], particles[2]]), str(run.drawn))
     print(f"{sum(results)}/{len(results)} checks passed")
     sys.exit(0 if all(results) else 1)
 
