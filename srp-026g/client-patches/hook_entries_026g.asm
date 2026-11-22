@@ -9305,6 +9305,123 @@ language_on_configs_texts_replay:
     db 0x8d, 0x87, 0xa8, 0x52, 0x00, 0x00
     jmp 0x1ea30c
 
+; 0x1b81e3 get_results_and_prepare_bounds_env_probes (0x1B8190) storing an environment probe's hi-Z answer (mov [ecx+384h],al): ECX the probe, AL 1 occluded / 0 visible, as hiz.light_answer (its index +37Ch); joined by the never-queried path (jmp at 0x1B81D0): lohook -> light_occlusion_on_probe_answer
+global light_occlusion_on_probe_answer
+extern hook_light_occlusion_on_probe_answer
+light_occlusion_on_probe_answer:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_light_occlusion_on_probe_answer
+    mov edx, light_occlusion_on_probe_answer_replay
+    cmp eax, 0
+    je light_occlusion_on_probe_answer_go
+    mov edx, 0x1b81e9
+    cmp eax, 1
+    je light_occlusion_on_probe_answer_go
+    ud2
+light_occlusion_on_probe_answer_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+light_occlusion_on_probe_answer_replay:
+    db 0x88, 0x81, 0x84, 0x03, 0x00, 0x00
+    jmp 0x1b81e9
+
+; 0x1b8043 get_results_and_prepare_bounds_ambient_lights (0x1B7FF0) storing an ambient light's hi-Z answer (mov [ecx+0A4h],al): ECX the light, AL 1 occluded / 0 visible, as hiz.light_answer (its index +9Ch); joined by the never-queried path (jmp at 0x1B8030): lohook -> light_occlusion_on_ambient_light_answer
+global light_occlusion_on_ambient_light_answer
+extern hook_light_occlusion_on_ambient_light_answer
+light_occlusion_on_ambient_light_answer:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_light_occlusion_on_ambient_light_answer
+    mov edx, light_occlusion_on_ambient_light_answer_replay
+    cmp eax, 0
+    je light_occlusion_on_ambient_light_answer_go
+    mov edx, 0x1b8049
+    cmp eax, 1
+    je light_occlusion_on_ambient_light_answer_go
+    ud2
+light_occlusion_on_ambient_light_answer_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+light_occlusion_on_ambient_light_answer_replay:
+    db 0x88, 0x81, 0xa4, 0x00, 0x00, 0x00
+    jmp 0x1b8049
+
+; 0x1b7c2b get_results_and_prepare_bounds_lights (0x1B7BD0) storing a point or spot light's hi-Z answer (mov [ecx+270h],al): ECX the light, AL 1 occluded / 0 visible, its result in the last query (0 at [stage+1Ch] + the index it had then, +2ACh; 0 when it never had one, -1), read when that query's results came in (quary_and_get_results_if_ready 0x1D7E30); EDI the index it takes in the query sent now (written next, 0x1B7C33): it grows within a pass, all kinds sharing one counter from 0. Joined by the never-queried path (jmp at 0x1B7C1B): lohook -> light_occlusion_on_light_answer
+global light_occlusion_on_light_answer
+extern hook_light_occlusion_on_light_answer
+light_occlusion_on_light_answer:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_light_occlusion_on_light_answer
+    mov edx, light_occlusion_on_light_answer_replay
+    cmp eax, 0
+    je light_occlusion_on_light_answer_go
+    mov edx, 0x1b7c31
+    cmp eax, 1
+    je light_occlusion_on_light_answer_go
+    ud2
+light_occlusion_on_light_answer_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+light_occlusion_on_light_answer_replay:
+    db 0x88, 0x81, 0x70, 0x02, 0x00, 0x00
+    jmp 0x1b7c31
+
 ; 0x2747c3 read_squad_info (0x274720, the 0xA1 squad info handler) with its squad id kept (+1EAAA4h, 0x2747A8) and compared with 0 (the je at 0x2747CA reads the flags), at mov byte [ebx+1EAAACh],0: EBX the lobby client, ESI the message's reader (its cursor past the id: srp's two bytes there when the id is 0); both paths pass, a squad id of 0 (no squad) jumps over the members and the rest from here: lohook -> lobby_scene_on_squad_id
 global lobby_scene_on_squad_id
 extern hook_lobby_scene_on_squad_id

@@ -1,1 +1,63 @@
-# The site's own words in this language (README.md here). No rows yet: every text is shown in English.
+# The site's own words in Hungarian (README.md here): English as in the code, Hungarian. A text without a row is shown in English.
+Wiki	Wiki
+Maps	Pályák
+Skhid wiki	Skhid wiki
+Modes	Játékmódok
+Every mode: its rules, numbers and maps.	Minden játékmód: szabályok, számok és pályák.
+Versions	Változatok
+Public and private rooms	Nyilvános és privát szobák
+Public rooms only	Csak nyilvános szobák
+Private rooms only	Csak privát szobák
+Not offered now	Most nem elérhető
+FFA versions only	Csak FFA-változatok
+Respawn after {0} s.	Újraéledés {0} mp után.
+Batteries lie on the map.	Az akkumulátorok a pályán hevernek.
+Carry them to your team's container.	Vidd őket a csapatod konténeréhez.
+First to {0} batteries wins.	Az első csapat nyer, amely {0} akkumulátort gyűjt.
+Time limit {0}: more batteries wins.	Időkorlát {0}: több akkumulátor nyer.
+Batteries come out of {0} active chargers.	Az akkumulátorok {0} aktív töltőből jönnek.
+A new battery every {0} s, give or take {1} s.	Új akkumulátor {0} mp-enként, plusz-mínusz {1} mp.
+Protective device rules: batteries, no chargers.	A védőeszköz szabályai: akkumulátorok, töltők nélkül.
+No interface: no ammo, health, crosshair or minimap.	Nincs kezelőfelület: se lőszer, se életerő, se célkereszt, se minitérkép.
+Teammates' markers stay; enemies have none.	A csapattársak jelölői megmaradnak; az ellenfeleknek nincs.
+Hold Tab for ammo, body state, the clock and the team list.	Tab nyomva tartva: lőszer, testi állapot, óra és csapatlista.
+Each team has {0} tickets.	Minden csapatnak {0} jegye van.
+A death costs one ticket; a teamkill costs none.	Egy halál egy jegybe kerül; csapattárs megölése egybe sem.
+Out of tickets, a team stops respawning and loses when its last player dies.	Jegyek nélkül a csapat nem éled újra, és veszít, amikor utolsó játékosa elesik.
+Time limit {0}: more tickets wins.	Időkorlát {0}: több jegy nyer.
+Capture research units: be inside with no enemy there.	Foglald el a kutatóegységeket: légy bent, amikor nincs ott ellenség.
+Owned units earn points; more units, faster.	A birtokolt egységek pontot adnak; több egység, gyorsabban.
+First to {0} points wins.	Az első csapat nyer, amely {0} pontot gyűjt.
+Time limit {0}: more points wins.	Időkorlát {0}: több pont nyer.
+Every player for himself.	Mindenki mindenki ellen.
+First to {0} kills wins.	Az nyer, aki elsőként eléri a {0} ölést.
+Time limit {0}: most kills wins.	Időkorlát {0}: a legtöbb ölés nyer.
+Public rooms: each FFA card draws a version.	Nyilvános szobák: minden FFA-kártya változatot sorsol.
+Private rooms: plain FFA only.	Privát szobák: csak sima FFA.
+A lethal hit freezes you in place.	Egy halálos találat a helyedre fagyaszt.
+A teammate within {0} m thaws you in {1} s.	Egy {0} m-en belüli csapattárs {1} mp alatt kiolvaszt.
+A thaw counts as a kill.	A kiolvasztás ölésnek számít.
+Freeze the whole enemy team to win the round.	Fagyaszd le az egész ellenfél csapatot a kör megnyeréséhez.
+{0} s pause between rounds, then everyone respawns.	{0} mp szünet a körök között, aztán mindenki újraéled.
+First to {0} rounds wins.	Az első csapat nyer, amely {0} kört nyer.
+Time limit {0}: an unfinished series is a draw.	Időkorlát {0}: a befejezetlen sorozat döntetlen.
+One artefact at a time, {0}–{1} s into a round.	Egyszerre egy artefaktum, {0}–{1} mp-cel a kör kezdete után.
+Bring it to your own base: 1 point, and the round ends.	Vidd a saját bázisodra: 1 pont, és a kör véget ér.
+The carrier is slower and seen by everyone.	A hordozó lassabb, és mindenki látja.
+Respawn in waves every {0} s.	Újraéledés hullámokban, {0} mp-enként.
+Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Időkorlát {0}: a magasabb pontszám nyer; döntetlennél {1} hirtelen halál újraéledés nélkül.
+Sniper rifles, silenced guns and guns without automatic fire are replaced.	A mesterlövészpuskák, a hangtompítós és a sorozatlövés nélküli fegyverek lecserélődnek.
+Rooms up to level {0}: {1}.	{0}. szintig a szobákban: {1}.
+Other rooms: {0}.	Többi szoba: {0}.
+Sight: {0}.	Irányzék: {0}.
+Every kit: {0} only.	Minden felszerelés: csak {0}.
+Every kit: {0} and {1}.	Minden felszerelés: {0} és {1}.
+Everyone plays the same {0} random kits.	Mindenki ugyanazzal a {0} véletlen felszereléssel játszik.
+Level bands: {0}.	Szintsávok: {0}.
+A room draws bands up to its level.	A szoba a szintjéig sorsol sávot.
+Each kit a gun of another class, with random bonuses and attachments.	Minden felszerelésben más osztályú fegyver, véletlen bónuszokkal és kiegészítőkkel.
+{0} % of deals: pistols only.	Az osztások {0} %-a: csak pisztolyok.
+Nothing of yours is used or spent.	Semmi sem fogy a sajátodból.
+Plain FFA: {0} % of FFA cards.	Sima FFA: az FFA-kártyák {0} %-a.
+{0} % of FFA cards.	Az FFA-kártyák {0} %-a.
+FFA: Roulette	FFA: Rulett

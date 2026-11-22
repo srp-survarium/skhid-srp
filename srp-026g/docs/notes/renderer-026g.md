@@ -707,6 +707,34 @@ RGBA8, a direction in rgb (x2-1) and occlusion in a) is read by the composition 
 and by the point and spot light shaders (4.4). Only with `r_ambient_occlusion_quality` = 3 and
 `r_ssdo`. Both options are user graphics settings (`st_options_ssao`, `st_options_ssdo` strings).
 
+### 5.7 The hi-Z occlusion answers (`stage_visibility::execute_stage` 0x1B6A10)
+
+With the hi-Z option on (render options +12Dh), each frame first asks for the last query's
+results (`quary_and_get_results_if_ready` 0x1D7E30: the staging copy mapped into [stage+1Ch], a
+byte per bound, 0 occluded; AL 0 while not ready), then frustum-culls (0x1B74D0). Only in a frame
+whose results came in, `occlusion_culling` (0x1B79A0) runs the `get_results_and_prepare_bounds_*`
+of every kind in view (models, lights, grass, decals, ambient lights, environment probes, ambient
+volumes, particles, portals): each object stores the result at the index it had in the last query
+(light +2ACh -> +270h at 0x1B7C2B, ambient light +9Ch -> +A4h at 0x1B8043, probe +37Ch -> +384h at
+0x1B81E3; -1, never queried, stores 0), takes the next index of the query sent now (one counter for
+every kind) and adds its bound: the sphere around its world box. `process_culling` (0x1D73C0)
+then copies the scene depth, which at stage_visibility is still the frame before's, downsamples
+it, tests the bounds and copies the results for a later frame. In a frame without results the
+stored answers stay. PROVEN (instructions read).
+
+So an answer is acted on a frame or more after its query, against a depth a frame older still:
+while the camera moves, objects in sight are called occluded, and one back in view reads, once,
+the result at the index it had when last in view, another object's. Patch 189's log of four
+minutes in London (v0.42, 2026-11-22): per frame on average 64 probes in view, 24 of them left out;
+75 ambient lights, 39 left out; 17 lights, 11 left out. 5,080 drops of a probe or ambient light,
+1,269 of them back within a frame (20 ms); 552 of a light, 77 within a frame. A probe left out lets
+the one under it light its surfaces; an ambient light left out takes its light away.
+
+Patch 190 (`light_occlusion`) stores every probe's and ambient light's answer as visible: drawn
+hidden, it costs its draws (the light mask and two techniques, 5.3, 5.4) over its volume's
+screen area at most. A point or spot light is stored occluded only after four occluded answers
+in a row: a hidden one would render its shadow map.
+
 ## 6. Composition and emission
 
 ### 6.1 Composition (`stage_composition::execute` 0x1A8170)

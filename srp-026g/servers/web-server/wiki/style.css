@@ -246,6 +246,30 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .quest-levels b { font:700 1rem var(--display); color:var(--accent) }
 .quest-levels .quest-levels-key { text-align:left; font:.75rem/1.75 var(--body); color:var(--ink-3) }
 .quest-levels .quest-levels-key b { font:700 .75rem/1.75 var(--body); color:var(--ink-3) }
+/* Modes (src/modes.rs): an index of chips, then a section a mode as the modifiers', its rules
+   beside its maps; a free-for-all's versions as cards under it. */
+.mode-index { display:flex; flex-wrap:wrap; gap:8px; margin:18px 0 0 }
+.mode-index a { display:inline-flex; align-items:center; gap:6px; padding:4px 10px 4px 4px; border:1px solid var(--rule); background:var(--panel); color:var(--ink-2); text-decoration:none; font:700 .8rem var(--display) }
+.mode-index a:hover { border-color:var(--accent); color:var(--accent) }
+.mode-index .mode-icon { width:28px; height:28px }
+.mode { scroll-margin-top:20px }
+.mode>h2,.mode-version>h3 { display:flex; align-items:center; gap:10px }
+.mode-icon { width:44px; height:44px; object-fit:contain; flex:none }
+.mode-rooms { margin:0 0 10px; font:700 .72rem var(--display); text-transform:uppercase; letter-spacing:.08em; color:var(--accent) }
+.mode-body { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr); gap:8px 32px }
+.mode-body h3,.mode-versions { font-size:.85rem; margin:0 0 6px; color:var(--ink-3); text-transform:uppercase; letter-spacing:.08em }
+.mode-versions { margin-top:22px }
+.mode-rules,.mode-maps { margin:0; padding-left:1.1em; color:var(--ink-2) }
+.mode-rules li,.mode-maps li { margin:0 0 4px }
+.mode-maps { list-style:none; padding:0 }
+.mode-maps a { color:var(--ink); font-weight:700; text-decoration:none }
+.mode-maps a:hover { color:var(--accent) }
+.mode-maps small { color:var(--ink-3); font:.8rem var(--data) }
+.mode-maps em { color:var(--accent); font-size:.8rem }
+.mode-version { margin:12px 0 0; padding:14px 18px; border:1px solid var(--rule); background:var(--panel); scroll-margin-top:20px }
+.mode-version h3 { margin:0 0 4px; font:700 1.1rem var(--display); text-transform:none; letter-spacing:normal }
+.mode-version .mode-icon { width:36px; height:36px }
+@media(max-width:700px) { .mode-body { grid-template-columns:1fr } }
 /* Skills: each branch a card of the wiki's (.wiki-link), its skills the lobby's own (the
    skill renderer's icons, states and rank indicator; PerkTipRenderer's tooltip). A tree is
    never reflowed: a card that does not fit goes to the next row, and one wider than the

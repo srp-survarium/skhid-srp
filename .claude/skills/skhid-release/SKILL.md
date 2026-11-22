@@ -88,10 +88,6 @@ Ask, in this order:
    Such a script writes nothing that reads or rebuilds the 0.21d nickname
    index (no `VACUUM`, no `integrity_check`, no `accounts.name`): its
    collation is srp's own.
-   Open: `srp-026g/scripts/ammo-top-up/ammo_top_up.py` (1000 rounds of
-   every ammo for every account, PR #1785; dry run on the pre-rev58 copy:
-   614 of 799 accounts, 3,035,296 rounds). Remove its line here when it has
-   run.
 
 **The revision is the release's own.** Every release has a new patch
 revision, content or not: it is how the server refuses games without the
