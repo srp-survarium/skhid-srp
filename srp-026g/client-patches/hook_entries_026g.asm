@@ -12804,10 +12804,10 @@ technical_skills_on_dispersion_replay:
     db 0xf3, 0x0f, 0x11, 0x4c, 0x24, 0x7c
     jmp 0x2e1dc4
 
-; 0x33e661 oxygen_tank::tick after the air is spent, a living holder's only (the dead path jumps past it): ECX m_amount_ms left, 0 when it ran out this tick (set_active(0) follows at 0x33E66D): lohook -> technical_skills_on_tank_empty
-global technical_skills_on_tank_empty
-extern hook_technical_skills_on_tank_empty
-technical_skills_on_tank_empty:
+; 0x33e661 oxygen_tank::tick after the air is spent, a living holder's only (the dead path jumps past it; the tick runs only while the tank is on, set_active 0x33E400 lists it): ECX m_amount_ms left, 0 when it ran out this tick (set_active(0) follows at 0x33E66D), EAX the ms this tick spent (min(m_amount_ms, the elapsed ms), 0x33E5F3..0x33E607): lohook -> technical_skills_on_tank_spent
+global technical_skills_on_tank_spent
+extern hook_technical_skills_on_tank_spent
+technical_skills_on_tank_spent:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -12824,22 +12824,22 @@ technical_skills_on_tank_empty:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_technical_skills_on_tank_empty
-    mov edx, technical_skills_on_tank_empty_replay
+    call hook_technical_skills_on_tank_spent
+    mov edx, technical_skills_on_tank_spent_replay
     cmp eax, 0
-    je technical_skills_on_tank_empty_go
+    je technical_skills_on_tank_spent_go
     mov edx, 0x33e669
     cmp eax, 1
-    je technical_skills_on_tank_empty_go
+    je technical_skills_on_tank_spent_go
     ud2
-technical_skills_on_tank_empty_go:
+technical_skills_on_tank_spent_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-technical_skills_on_tank_empty_replay:
+technical_skills_on_tank_spent_replay:
     db 0xf3, 0x0f, 0x11, 0x87, 0x60, 0x02, 0x00, 0x00
     jmp 0x33e669
 

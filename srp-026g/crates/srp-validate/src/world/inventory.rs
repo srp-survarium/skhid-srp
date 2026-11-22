@@ -372,13 +372,13 @@ impl<'a> MedkitUse<'a> {
 }
 
 /// An oxygen tank's state (`oxygen_tank::deserialize` 0x33E7F0, writer
-/// 0x33E790), and after m_amount_ms exe patch 180's Last Gasp word
+/// 0x33E790), and after m_amount_ms exe patch 180's Second Wind word
 /// (`technical.tank_save` / `tank_load`, docs/notes/technical-skills.md).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OxygenTank {
     active: bool,
     amount_ms: u32,
-    gasp: technical_skills::Gasp,
+    second_wind: technical_skills::SecondWind,
 }
 
 impl OxygenTank {
@@ -392,9 +392,9 @@ impl OxygenTank {
         self.amount_ms
     }
 
-    /// Last Gasp's boost on it (every word is one: 0 none, else its end).
-    pub fn gasp(&self) -> technical_skills::Gasp {
-        self.gasp
+    /// Second Wind's boost on it (every word is one: 0 none, else its end).
+    pub fn second_wind(&self) -> technical_skills::SecondWind {
+        self.second_wind
     }
 }
 
@@ -527,7 +527,7 @@ impl<'a> ItemState<'a> {
             Body::OxygenTank => ItemBody::OxygenTank(OxygenTank {
                 active: active(reader, owned)?,
                 amount_ms: u32(reader)?,
-                gasp: technical_skills::Gasp::parse(u32(reader)?),
+                second_wind: technical_skills::SecondWind::parse(u32(reader)?),
             }),
             Body::Weapon(gun) => ItemBody::Weapon(WeaponState::read(reader, gun, shape)?),
         })

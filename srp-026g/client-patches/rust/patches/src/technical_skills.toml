@@ -24,11 +24,12 @@ handler = "on_sprint_cost"
 order = 2
 
 
-# Last Gasp: the tank ran out; its end each tick (after the battery, Resonance, Forest glow and
-# Keeper handlers, orders 1-4); its speed after the medical tree's (order 1); its saved word.
+# Second Wind: every 30 s of the tank's air spent; its end each tick (after the battery, Resonance,
+# Forest glow and Keeper handlers, orders 1-4); its speed after the medical tree's (order 1); its
+# saved word.
 [[hook]]
-site = "technical.tank_empty"
-handler = "on_tank_empty"
+site = "technical.tank_spent"
+handler = "on_tank_spent"
 
 [[hook]]
 site = "battery.carrier_tick"

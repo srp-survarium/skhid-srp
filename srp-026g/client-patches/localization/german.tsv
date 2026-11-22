@@ -3086,19 +3086,19 @@ st_srp_technical_433_description	Deine Fallen, auf die geschossen wurde, öffnen
 st_srp_technical_433_name	Nachspannen
 st_srp_technical_441_description	Dein Rauch ist leicht grün und vergiftet Gegner darin; eine Sauerstoffflasche schützt. In eine Tasche passen nur halb so viele Rauchgranaten. Giftschaden:
 st_srp_technical_441_name	Giftrauch
-st_srp_technical_442_description	Wenn deine Sauerstoffflasche leer ist: +10% Tempo für 20 s und volle Energie.
-st_srp_technical_442_name	Letzter Atemzug
+st_srp_technical_442_description	Alle 30 s Nutzung der Sauerstoffflasche: +10% Tempo für 20 s und volle Energie.
+st_srp_technical_442_name	Zweite Luft
 st_srp_technical_443_description	Ein Kill mit deiner Granate gibt dir eine Granate zurück.
 st_srp_technical_443_name	Plünderer
 st_srp_technical_444_description	Deine Falle bricht dem Gefangenen die Beine. In eine Tasche passen nur halb so viele Fallen.
 st_srp_technical_444_name	Bärenfalle
 st_srp_technical_disarm_speed	Entschärfungstempo
 st_srp_technical_friendly_blast	Schaden durch eigene Granaten
-st_srp_technical_last_gasp	Tempo, wenn die Flasche leer ist
 st_srp_technical_per_second	 pro Sekunde
 st_srp_technical_pocket_size	 Taschengröße
 st_srp_technical_pockets	 Taschen
 st_srp_technical_rearm	Öffnet sich nach einem Schuss wieder
+st_srp_technical_second_wind	Tempo alle 30 s Flasche
 st_srp_technical_smoke_duration	Rauchdauer
 st_srp_technical_toxic_damage	Giftschaden
 st_srp_unit_days	%1$s T.

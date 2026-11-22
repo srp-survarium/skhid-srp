@@ -23,6 +23,11 @@ reading chosen where the owner's list leaves it open (the owner may overrule it)
 - 2026-11-21 (the owner): Sapper 3 ranks of +15%; Rearm 2 ranks, 30 s then 20 s; Last Gasp in
   row IV; Tank Pocket and Tank Depth 2 ranks each (+2 pockets, +2 pocket size); Deep Breaths the
   sprint's energy use; Steady Breath the dispersion too.
+- 2026-11-22 (the owner): "last gasp should be renamed and activate every 30 seconds of oxygen
+  tank usage". Last Gasp (442) is Second Wind («Второе дыхание», my pick of the name): the same
+  boost (energy full, +10% speed for 20 s) at each further 30 s of the tank's air spent since its
+  fill, not when it runs out; a mark while it runs gives it its 20 s again, no stacking (my pick).
+  Its id, place, icon and modifier digit stay, so its owners keep it.
 - 2026-11-22 (the owner): Trophy Trap also gives back one's own disarmed trap, and a trap it pockets leaves the map at once; Rearm reopens a
   trap only when it was shot or hit with a weapon (a hand disarm stays the stock one: "only when
   they were shot at", "or hit with weapon").
@@ -50,7 +55,7 @@ reading chosen where the owner's list leaves it open (the owner may overrule it)
 | 3 | 8 | 431 | Deep Breaths | 3 | sprint energy use while an oxygen tank is on -20/-30/-40% | exe |
 | 4 | 12 | 432 | Dead Man's Switch | 1 | killed: the throw key drops one of its smokes at the body | exe |
 | 4 | 12 | 433 | Rearm | 2 | its traps that were shot open again after 30 s (20 s) | exe |
-| 4 | 12 | 442 | Last Gasp | 1 | the tank runs out: +10% speed for 20 s, energy full | exe |
+| 4 | 12 | 442 | Second Wind | 1 | every 30 s of oxygen tank use: +10% speed for 20 s, energy full | exe |
 | 5 | 16 | 441 | Toxic Smoke | 3 | its smoke is tinted green and does toxic damage to enemies inside; a pocket holds half as many grenades | exe + pack + srp + lobby |
 | 5 | 16 | 443 | Scavenger | 1 | a kill with its grenade gives one grenade back | exe |
 | 5 | 16 | 444 | Bear Trap | 1 | its trap breaks the legs it catches; a pocket holds half as many traps | exe + srp + lobby |
@@ -124,17 +129,29 @@ booster's modifications; 29 the hand-kill marker.
   regeneration): at the sprint's stamina cost a second (`medical.sprint` 0x329AAD, after both
   spending modifiers and Numb Legs, order 2) x `Skills::tank_sprint_cost` (0.8/0.7/0.6) while the
   tank is on. Jumps keep their cost.
-- Last Gasp (442): the tank's tick spends the air (0x33E661, `technical.tank_empty`, a living
-  holder's only); ECX 0 means it ran out this tick. Then the stamina is set to its maximum (as
-  Larkspur II does) and the boost starts: `Gasp::On { until }` on the stamina clock (+70h,
-  saved), 20 s. It lives in the tank's tail padding (+294h, no native access: the object is 298h
-  bytes, its last native field +290h), saved after m_amount_ms (`technical.tank_save`, read back by
-  `technical.tank_load`, checked against the stream's end), cleared by the ctor
-  (`technical.tank_construct`) and by both refills (`technical.tank_refill`, `_2`: a respawn ends
-  it). The speed: x1.1 at `medical.movement` (order 2, after Adrenalin); movement is cached, so the
-  start and the end set the player's refresh_selection (+33Eh); the end is checked each tick at
-  `battery.carrier_tick` (order 6). srp-validate's `OxygenTank` reads the word (`gasp()`): every
-  tank of every world now saves 4 more bytes.
+- Second Wind (442; Last Gasp until 2026-11-22): the tank's tick spends the air (0x33E661,
+  `technical.tank_spent`, a living holder's only). The tick runs only while the tank is on
+  (set_active 0x33E400 puts it in the world's tick list and takes it out): it spends min(the air
+  left, the elapsed ms) (EAX at the site; ECX the air left after it). The tank's use is its
+  capacity (+270h, a full tank's ms: amount_time_sec x 1000 with the item's modifications) minus
+  the air left, counted across pauses of use; `technical_skills::TankTick` takes the three
+  numbers once and `second_wind_mark` says whether this tick took the use past another multiple
+  of 30 000 ms (one mark however much it spent). Nothing new is saved: the count is the tank's own
+  air. A refill (vtable +38h at a respawn, +40h an ammo crate's resupply, both amount := capacity)
+  starts it again from the new fill; a mark the tank ran out at counts (a 30 s tank's), running out
+  between marks does nothing. A tank comes only with its kit (no item pickup takes one), so a
+  tank's count is always its own kit's. At a mark the stamina is set to its maximum (as Larkspur
+  II does) and the boost starts, or a running one is given its 20 s from this mark:
+  `SecondWind::On { until }` on the stamina clock (+70h, saved), 20 s. Full tanks of the game data
+  (30/50/80/120/140 s) give 1/1/2/4/4 boosts. The boost lives in the tank's tail padding (+294h,
+  no native access: the object is 298h bytes, its last native field +290h), saved after
+  m_amount_ms (`technical.tank_save`, read back by `technical.tank_load`, checked against the
+  stream's end), cleared by the ctor (`technical.tank_construct`) and by both refills
+  (`technical.tank_refill`, `_2`: a respawn ends it). The speed: x1.1 at `medical.movement`
+  (order 2, after Adrenalin); movement is cached, so the start and the end set the player's
+  refresh_selection (+33Eh); the end is checked each tick at `battery.carrier_tick` (order 6).
+  srp-validate's `OxygenTank` reads the word (`second_wind()`): every tank of every world saves
+  4 more bytes, as since Last Gasp (the same word, the same meaning).
 
 ## Dexterous Hands (401)
 

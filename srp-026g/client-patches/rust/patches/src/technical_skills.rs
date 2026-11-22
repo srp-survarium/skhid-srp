@@ -47,25 +47,25 @@ pub fn on_sprint_cost(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 
 
-/// Last Gasp (442): the tank ran out.
-pub fn on_tank_empty(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    technical::tank_empty(ctx);
+/// Second Wind (442): the tank spent its air for this tick.
+pub fn on_tank_spent(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    technical::tank_spent(ctx);
     Flow::Continue
 }
 
-/// Last Gasp's end, every simulation tick of every player.
+/// Second Wind's end, every simulation tick of every player.
 pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    technical::gasp_tick(ctx);
+    technical::second_wind_tick(ctx);
     Flow::Continue
 }
 
-/// Last Gasp's speed.
+/// Second Wind's speed.
 pub fn on_movement(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    technical::gasp_movement(ctx);
+    technical::second_wind_movement(ctx);
     Flow::Continue
 }
 
-/// Last Gasp's saved word: none in a new tank and after a refill; saved and loaded with the tank.
+/// Second Wind's saved word: none in a new tank and after a refill; saved and loaded with the tank.
 pub fn on_tank_construct(ctx: &mut Context<'_>) -> Flow<NoExit> {
     technical::tank_construct(ctx);
     Flow::Continue

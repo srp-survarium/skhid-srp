@@ -213,7 +213,7 @@ package survarium.player
          }
          if(tank(item))
          {
-            if(rank(442) > 0) skillLine(lines,"st_srp_technical_last_gasp",1.1,true);
+            if(rank(442) > 0) skillLine(lines,"st_srp_technical_second_wind",1.1,true);
          }
          return lines;
       }

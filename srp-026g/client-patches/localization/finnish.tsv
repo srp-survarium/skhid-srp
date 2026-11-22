@@ -3086,19 +3086,19 @@ st_srp_technical_433_description	Ammuttujen ansojesi uudelleenavautumisaika:
 st_srp_technical_433_name	Viritys
 st_srp_technical_441_description	Savusi on hieman vihreää ja myrkyttää sen sisällä olevat viholliset; happipullo suojaa. Taskuun mahtuu puolet vähemmän savukranaatteja. Myrkkyvahinko:
 st_srp_technical_441_name	Myrkkysavu
-st_srp_technical_442_description	Kun happipullosi tyhjenee: +10% nopeutta 20 s ajan ja täysi energia.
-st_srp_technical_442_name	Viimeinen henkäys
+st_srp_technical_442_description	Joka 30 s happipullon käyttöä: +10% nopeutta 20 s ajan ja täysi energia.
+st_srp_technical_442_name	Toinen tuuli
 st_srp_technical_443_description	Tappo kranaatillasi antaa yhden kranaatin takaisin.
 st_srp_technical_443_name	Haaskalintu
 st_srp_technical_444_description	Ansasi murtaa siihen jääneen jalat. Taskuun mahtuu puolet vähemmän ansoja.
 st_srp_technical_444_name	Karhunrauta
 st_srp_technical_disarm_speed	Ansojen purkunopeus
 st_srp_technical_friendly_blast	Vahinko omista kranaateista
-st_srp_technical_last_gasp	Nopeus, kun pullo tyhjenee
 st_srp_technical_per_second	 sekunnissa
 st_srp_technical_pocket_size	 taskujen kokoon
 st_srp_technical_pockets	 taskua
 st_srp_technical_rearm	Aukeaa uudelleen ammuttaessa
+st_srp_technical_second_wind	Nopeus joka 30 s pullon käyttöä
 st_srp_technical_smoke_duration	Savun kesto
 st_srp_technical_toxic_damage	Myrkkyvahinko
 st_srp_unit_days	%1$s pv

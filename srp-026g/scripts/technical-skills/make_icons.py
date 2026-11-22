@@ -181,7 +181,7 @@ def main():
         413: badge(tank(), plus),                      # Tank Pocket: one pocket more
         414: badge(tank(), bars),                      # Tank Depth: every pocket bigger
         431: badge(tank(), modifier(10, 25)),         # Deep Breaths: lungs
-        442: badge(tank(), modifier(11, 24)),         # Last Gasp: a runner against the clock
+        442: badge(tank(), modifier(11, 24)),         # Second Wind: a runner against the clock
         # smoke grenades
         402: badge(on('smoke_black', haze((215, 215, 215), ((22, 22, 13), (38, 14, 12), (52, 26, 11), (26, 40, 10)), 150)), stopwatch),  # Dense Smoke
         432: badge(on('smoke_black'), glyph(donor(SKULL), 21)),                               # Dead Man's Switch

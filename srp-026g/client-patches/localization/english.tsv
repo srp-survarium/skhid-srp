@@ -3086,19 +3086,19 @@ st_srp_technical_433_description	Your traps that were shot open again after:
 st_srp_technical_433_name	Rearm
 st_srp_technical_441_description	Your smoke is tinted green and poisons enemies inside; an oxygen tank protects. A pocket holds half as many smoke grenades. Toxic damage:
 st_srp_technical_441_name	Toxic Smoke
-st_srp_technical_442_description	When your oxygen tank runs out: +10% speed for 20 s and full energy.
-st_srp_technical_442_name	Last Gasp
+st_srp_technical_442_description	Every 30 s of oxygen tank use: +10% speed for 20 s and full energy.
+st_srp_technical_442_name	Second Wind
 st_srp_technical_443_description	A kill with your grenade gives one grenade back.
 st_srp_technical_443_name	Scavenger
 st_srp_technical_444_description	Your trap breaks the legs it catches. A pocket holds half as many traps.
 st_srp_technical_444_name	Bear Trap
 st_srp_technical_disarm_speed	Trap disarming speed
 st_srp_technical_friendly_blast	Damage from own grenades
-st_srp_technical_last_gasp	Speed when the tank runs out
 st_srp_technical_per_second	 a second
 st_srp_technical_pocket_size	 pocket size
 st_srp_technical_pockets	 pockets
 st_srp_technical_rearm	Opens again after a shot
+st_srp_technical_second_wind	Speed every 30 s of tank use
 st_srp_technical_smoke_duration	Smoke duration
 st_srp_technical_toxic_damage	Toxic damage
 st_srp_unit_days	%1$s d

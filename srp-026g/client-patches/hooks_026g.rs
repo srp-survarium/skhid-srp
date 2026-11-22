@@ -8147,13 +8147,13 @@ pub extern "C" fn hook_technical_skills_on_dispersion(frame: &mut Frame) -> u32 
 
 // ---- technical_skills (patch 180) ----
 
-/// The entry `technical_skills_on_tank_empty` (0x33e661, oxygen_tank::tick after the air is spent, a living holder's only (the dead path jumps past it): ECX m_amount_ms left, 0 when it ran out this tick (set_active(0) follows at 0x33E66D)) calls this with the saved machine.
+/// The entry `technical_skills_on_tank_spent` (0x33e661, oxygen_tank::tick after the air is spent, a living holder's only (the dead path jumps past it; the tick runs only while the tank is on, set_active 0x33E400 lists it): ECX m_amount_ms left, 0 when it ran out this tick (set_active(0) follows at 0x33E66D), EAX the ms this tick spent (min(m_amount_ms, the elapsed ms), 0x33E5F3..0x33E607)) calls this with the saved machine.
 #[unsafe(no_mangle)]
-pub extern "C" fn hook_technical_skills_on_tank_empty(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `technical_skills_on_tank_empty` calls this, from the game's jump at 0x33e661,
+pub extern "C" fn hook_technical_skills_on_tank_spent(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_skills_on_tank_spent` calls this, from the game's jump at 0x33e661,
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
-    match crate::technical_skills::on_tank_empty(&mut ctx) {
+    match crate::technical_skills::on_tank_spent(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},

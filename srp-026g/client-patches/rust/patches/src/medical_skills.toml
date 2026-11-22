@@ -24,7 +24,7 @@ handler = "on_initialize"
 [[hook]]
 site = "medical.movement"
 handler = "on_movement"
-# Before Last Gasp (patch 180, order 2) multiplies the result.
+# Before Second Wind (patch 180, order 2) multiplies the result.
 order = 1
 
 [[hook]]

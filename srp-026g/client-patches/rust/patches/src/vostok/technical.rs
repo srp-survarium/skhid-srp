@@ -1,6 +1,6 @@
 //! The technical tree's native sites (patch 180, technical-skills.md): a kit's packed skills
 //! (modifier 47, parsed by the `technical-skills` crate) and what each site reads of the game.
-use technical_skills::{Clock, Gasp, Skills};
+use technical_skills::{Clock, SecondWind, Skills, TankTick};
 
 use super::config::{ConfigError, ConfigValue};
 use super::context::{Context, Reg};
@@ -196,53 +196,55 @@ pub fn sprint_cost(ctx: &mut Context<'_>) {
 }
 
 
-/// Last Gasp (442) at the tank's tick after the air is spent (`technical.tank_empty`): a tank
-/// that ran out this tick (ECX 0) starts its boost and fills its holder's stamina.
-pub fn tank_empty(ctx: &Context<'_>) {
-    use raw::site::technical_tank_empty as site;
-    if ctx.reg(Reg::Ecx) != 0 {
-        return;
-    }
+/// Second Wind (442) at the tank's tick after the air is spent (`technical.tank_spent`): a tick
+/// that takes the tank past another 30 s of use ([`TankTick::second_wind_mark`]) starts its boost,
+/// or gives a running one its 20 s again, and fills its holder's stamina.
+pub fn tank_spent(ctx: &Context<'_>) {
+    use raw::site::technical_tank_spent as site;
     // SAFETY: the tick's live tank and its living holder (the dead path jumps past the site);
     // the holder's stamina is embedded in it.
     unsafe {
         let Some(tank) = site::tank(ctx) else { return };
+        let tick = TankTick::parse(read(tank.capacity()), site::left(ctx), site::spent(ctx));
+        if !tick.is_some_and(TankTick::second_wind_mark) {
+            return;
+        }
         let Some(player) = holder(tank) else { return };
-        if !skills(player).last_gasp() {
+        if !skills(player).second_wind() {
             return;
         }
         let stamina = player.stamina();
         *stamina.current() = read(stamina.maximum());
         let now = Clock(read(stamina.clock()));
-        *tank.gasp_until() = Gasp::start(now).raw();
+        *tank.second_wind_until() = SecondWind::start(now).raw();
         *player.refresh_selection() = 1;
     }
 }
 
-/// Last Gasp's end, each simulation tick of each player (`battery.carrier_tick`): a boost whose
+/// Second Wind's end, each simulation tick of each player (`battery.carrier_tick`): a boost whose
 /// end the player's stamina clock reached is over, and the movement selected again.
-pub fn gasp_tick(ctx: &Context<'_>) {
+pub fn second_wind_tick(ctx: &Context<'_>) {
     use raw::site::battery_carrier_tick as site;
     // SAFETY: base_player::tick's live player, its inventory's tank and its embedded stamina.
     unsafe {
         let Some(player) = site::player(ctx) else { return };
         let Some(tank) = tank_of(player) else { return };
-        let gasp = Gasp::parse(read(tank.gasp_until()));
-        let next = gasp.at(Clock(read(player.stamina().clock())));
-        if next != gasp {
-            *tank.gasp_until() = next.raw();
+        let wind = SecondWind::parse(read(tank.second_wind_until()));
+        let next = wind.at(Clock(read(player.stamina().clock())));
+        if next != wind {
+            *tank.second_wind_until() = next.raw();
             *player.refresh_selection() = 1;
         }
     }
 }
 
-/// Last Gasp's speed at the movement speed's end (`medical.movement`, after the medical tree).
-pub fn gasp_movement(ctx: &mut Context<'_>) {
+/// Second Wind's speed at the movement speed's end (`medical.movement`, after the medical tree).
+pub fn second_wind_movement(ctx: &mut Context<'_>) {
     use raw::site::medical_movement as site;
     // SAFETY: the movement epilogue's live player and its inventory's tank.
     let factor = unsafe {
         let Some(player) = site::player(ctx) else { return };
-        tank_of(player).map_or(1.0, |tank| Gasp::parse(read(tank.gasp_until())).speed())
+        tank_of(player).map_or(1.0, |tank| SecondWind::parse(read(tank.second_wind_until())).speed())
     };
     if factor != 1.0 {
         let speed = ctx.xmm_f32(0);
@@ -255,7 +257,7 @@ pub fn gasp_movement(ctx: &mut Context<'_>) {
 pub fn tank_reset(tank: Option<raw::OxygenTank>) {
     // SAFETY: the ctor's or the refill's live tank; the word is our own padding.
     if let Some(tank) = tank {
-        unsafe { *tank.gasp_until() = Gasp::Off.raw() };
+        unsafe { *tank.second_wind_until() = SecondWind::Off.raw() };
     }
 }
 
@@ -283,7 +285,7 @@ pub fn tank_save(ctx: &Context<'_>) {
     // SAFETY: serialize's live tank and writer.
     unsafe {
         let (Some(tank), Some(writer)) = (site::tank(ctx), site::writer(ctx)) else { return };
-        super::carry_runtime::write_bytes(writer, &read(tank.gasp_until()).to_le_bytes());
+        super::carry_runtime::write_bytes(writer, &read(tank.second_wind_until()).to_le_bytes());
     }
 }
 
@@ -295,7 +297,7 @@ pub fn tank_load(ctx: &Context<'_>) {
     unsafe {
         let (Some(tank), Some(reader)) = (site::tank(ctx), site::reader(ctx)) else { return };
         let word = super::carry_runtime::read_bytes::<4>(reader).map_or(0, u32::from_le_bytes);
-        *tank.gasp_until() = Gasp::parse(word).raw();
+        *tank.second_wind_until() = SecondWind::parse(word).raw();
     }
 }
 
