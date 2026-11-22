@@ -544,6 +544,7 @@ va	status	ref_021d	name
 0x000ed090	inferred-medium	0x000b6745	vostok::console_commands::cc_help::execute
 0x000ed680	inferred-high	0x000b6be9	vostok::math::try_invert4x4
 0x000ee040	inferred-medium	0x000b758c	vostok::math::float4x4::try_invert
+0x000ee370	inferred-medium		vostok::math::float4x4::get_angles
 0x000ee700	inferred-high		vostok::math::float4x4::multiply_affine
 0x000ef940	inferred-high	0x000b8aed	vostok::math::frustum::frustum
 0x000efcc0	inferred-medium	0x000b928b	vostok::memory::stack_allocator::realloc_impl

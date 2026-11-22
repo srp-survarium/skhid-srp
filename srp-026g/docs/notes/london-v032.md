@@ -75,6 +75,13 @@ team projects):
   the matrix with `create_rotation` 0x725E0 and takes the angles of its k row, 0xEE370), so a rotation
   `(pi, a, pi)`, which most of the map editor's points have, faces the opposite way to `(0, a, 0)`, as the site's
   map tab draws it (`scripts/maps-tab/build.py`, `heading`).
+- A spawn's facing in check-points `report` (the owner: "this should be pit of success (move correct
+  direction)"): for each spawn, how far its facing is clear at eye height (1.6 m, up to 20 m) and how far it
+  turns from the way to the map's centre; a team spawn whose facing meets a wall or the map's box within 3 m is
+  named. His 13 picks are clear 5.8 m and more and turn at most 116 degrees from the centre (to face a door);
+  of the 10 old red points two met a wall within 3 m (2.4, 2.6) and five turned over 120 degrees.
+  `--team-maps` reports every playable team map of `SRP_GAME_DATA`. A report: it changes nothing and fails
+  on nothing.
 
 ## Checked
 

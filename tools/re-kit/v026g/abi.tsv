@@ -219,6 +219,7 @@ va	name	source	ret_cleanup	result
 0x000e7e80	vostok::resources::query_mount_physical	manual	0	
 0x000e7ef0	vostok::resources::query_mount_archive	manual	0	
 0x000eb600	vostok::memory::doug_lea_allocator::usable_size_impl	manual	4	
+0x000ee370	vostok::math::float4x4::get_angles	manual	0	[EDI]: float3 angles of the matrix; y = atan2(-k.x, k.z) of its third row (0xEE40C); respawn_point_core::load takes it as the point's yaw (0x2F4687)
 0x000ee700	vostok::math::float4x4::multiply_affine	manual	0	EAX = the out matrix = EDX * ECX (apply EDX first; the w column taken as 0, 0, 0, 1); caller pops
 0x000f1850	vostok::resources::unmanaged_resource::~unmanaged_resource	manual	0	
 0x000f6b10	vostok::configs::binary_config_value::operator[]	manual	0	EAX: the child value (no end check)

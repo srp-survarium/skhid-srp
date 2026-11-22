@@ -9,5 +9,7 @@ publish = false
 [dependencies]
 binary-config-parser = { path = "../../../crates/binary-config-parser" }
 mapdata = { path = "../../../crates/mapdata" }
+# The playable maps and their modes (`report --team-maps`).
+survarium = { path = "../../../crates/survarium" }
 
 [workspace]

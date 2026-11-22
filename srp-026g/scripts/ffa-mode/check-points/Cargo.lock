@@ -225,6 +225,7 @@ version = "0.1.0"
 dependencies = [
  "binary-config-parser",
  "mapdata",
+ "survarium",
 ]
 
 [[package]]

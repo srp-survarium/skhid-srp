@@ -624,6 +624,8 @@ va	name	location	role	basis
 0x000e7ef0	vostok::resources::query_mount_archive	entry ESP+16	descriptor (C string, the mount id)	observed
 0x000e7ef0	vostok::resources::query_mount_archive	entry ESP+20	callback (boost::function, copied into the task)	observed
 0x000eb600	vostok::memory::doug_lea_allocator::usable_size_impl	entry ESP+4	allocation pointer	observed
+0x000ee370	vostok::math::float4x4::get_angles	ESI	the matrix (rows at +0, +10h, +20h)	observed
+0x000ee370	vostok::math::float4x4::get_angles	EDI	the float3 angles out	observed
 0x000ee700	vostok::math::float4x4::multiply_affine	ECX	the second matrix (applied last)	observed
 0x000ee700	vostok::math::float4x4::multiply_affine	EDX	the first matrix (applied first)	observed
 0x000ee700	vostok::math::float4x4::multiply_affine	entry ESP+4	out matrix	observed
