@@ -55,14 +55,14 @@
 .stats-heading-row { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:26px 0 10px }
 .stats-heading-row .stats-heading,.stats-heading-row .slot-filter { margin:0 }
 .stats-sizes button { padding:4px 10px }
-/* The day's leaders: five lists, three a row on a desktop, wide enough for a whole name (a six-letter
-   tag and the game's sixteen letters); the rank and the number narrow, every list's columns alike.
-   The number's heading reaches over the name's; a name longer than the list wraps, never cut. */
+/* The day's leaders: five lists, three a row on a desktop, wide enough for the players' names whole;
+   the rank and the number narrow, every list's columns alike, one line a row. The number's heading
+   reaches over the name's; a name longer than its list is cut short (whole in its title). */
 .stats-leaders { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr)); gap:12px }
 .stats-leaders .stats-table { table-layout:fixed }
 .stats-leaders .stats-table th:first-child { width:1.75rem }
 .stats-leaders .stats-table th:last-child { width:3.75rem }
-.stats-leaders .stats-table td.l { white-space:normal; overflow-wrap:anywhere }
+.stats-leaders .stats-table td.l { overflow:hidden; text-overflow:ellipsis }
 .stats-leaders .stats-over { display:inline-block; margin-left:-10rem }
 /* Everything added up: one row, each number as wide as the next. */
 .stats-all { margin-bottom:22px }

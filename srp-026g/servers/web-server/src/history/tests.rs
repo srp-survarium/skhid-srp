@@ -956,20 +956,21 @@ fn an_unknown_endpoint_is_not_found_and_no_database_no_history() {
 /// Dub leaves every fifth; one weapon is gone from the game data; Sheep was
 /// Baran, then Yahnia. The third has the longest name a player can choose
 /// (the game's sixteen letters) and the longest tag (six), in the widest
-/// capitals; five more are named as players of the live server are. With a
+/// capitals; the fifth's is as wide as the widest of the live server's
+/// (181 px with its tag); five more are named as players there are. With a
 /// `crowd`, as many more players, each with a few matches of today among
 /// themselves (newer than the 23), and Sheep with a dozen more names left:
 /// for looking at long lists.
 pub(crate) fn preview(dir: &std::path::Path, now: u64, crowd: u32) -> GameAccounts {
     const NAMES: [&str; 13] = [
         "Sheep",
-        "Ataman",
+        "bugz_bunny_95_",
         "ЩЮЖШЩЮЖШЩЮЖШЩЮЖШ",
         "Lys",
-        "Bars",
+        "Длинноимённый_Сталкер",
         "fess",
         "Sova",
-        "bugz_bunny_95_",
+        "Ataman",
         "Lucia",
         "Ŗàmzęś",
         "Dub",
@@ -997,10 +998,10 @@ pub(crate) fn preview(dir: &std::path::Path, now: u64, crowd: u32) -> GameAccoun
         repository.save(FIRST + u32::from(index), &account).unwrap();
     }
     let clans = [
-        (7, "Skhid", "SKH", vec![0, 1, 4]),
+        (7, "Skhid", "SKH", vec![0, 4, 6]),
         (9, "Radianty", "RAD", vec![12, 3, 5]),
         (11, "Shyroki", "ЩЮЖШЩЮ", vec![2]),
-        (13, "Dedki", "ДЕДКИ", vec![7]),
+        (13, "Dedki", "ДЕДКИ", vec![1]),
         (15, "Bots", "BOTS", vec![8]),
         (17, "Legion", "LEGION", vec![9]),
     ];

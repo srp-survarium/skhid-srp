@@ -196,11 +196,21 @@ try {
   // Over the boards: the day's leaders, five lists of five, and everything added up.
   assert.equal(await count('.stats-leaders .stats-table'), 5);
   assert.equal(await count('.stats-leaders .stats-table tbody tr'), 25, 'five rows each, empty ones too');
-  // The longest name a player can choose, with the longest tag, in wide capitals: whole, on one line.
-  assert.deepEqual(JSON.parse(await evaluate(`JSON.stringify((() => {
-    const td = [...document.querySelectorAll('.stats-leaders td.l')].find(cell => cell.textContent.includes('ЩЮЖШЩЮЖШ'));
-    return td && [td.textContent, td.firstChild.getClientRects().length, td.scrollWidth <= td.clientWidth]; })())`)),
-    ['[ЩЮЖШЩЮ] ЩЮЖШЩЮЖШЩЮЖШЩЮЖШ', 1, true], 'the widest name in a list of three a row');
+  // Every row one line. The hours played list (everyone ties there: the first players by id) holds a
+  // real long name, one as wide as the live server's widest, and the longest a player can choose with
+  // the longest tag in wide capitals: the real ones whole; that one cut short below a desktop, whole in
+  // its title.
+  for (const width of [1440, 1024, 360]) {
+    await send('browsingContext.setViewport', {context, viewport: {width, height: 1000}, devicePixelRatio: 1});
+    const [heights, names] = JSON.parse(await evaluate(`JSON.stringify([
+      [...new Set([...document.querySelectorAll('.stats-leaders tbody tr')].map(tr => tr.getBoundingClientRect().height))],
+      Object.fromEntries([...document.querySelectorAll('.stats-leaders .table-scroll:last-child td.l')].map(td =>
+        [td.textContent, [td.scrollWidth <= td.clientWidth, td.firstChild.title === td.textContent]]))])`));
+    assert.equal(heights.length, 1, `${width}: every row as tall as the next`);
+    for (const name of ['[ДЕДКИ] bugz_bunny_95_', '[SKH] Длинноимённый_Сталкер']) assert.deepEqual(names[name], [true, true], `${width}: ${name}`);
+    assert.deepEqual(names['[ЩЮЖШЩЮ] ЩЮЖШЩЮЖШЩЮЖШЩЮЖШ'], [width >= 1280, true], `${width}: the widest name`);
+  }
+  await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 1});
   assert.deepEqual(await cells('.stats-leaders .table-scroll:first-child tbody td:nth-child(3)'),
     [...answered.today.leaders.kills.map(row => String(row.value)), ...Array(5 - answered.today.leaders.kills.length).fill('\u00a0')]);
   assert.equal(answered.today.leaders.kills.length, 5);

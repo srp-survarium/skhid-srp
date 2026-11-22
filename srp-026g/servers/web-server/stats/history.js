@@ -555,12 +555,14 @@
     const sizes = el('div', {className: 'slot-filter stats-sizes', role: 'group', ariaLabel: TEXT.today});
     const lists = el('div', {className: 'stats-leaders'});
     const box = el('div', {}, el('div', {className: 'stats-heading-row'}, el('h2', {className: 'stats-heading'}, TEXT.today), sizes), lists);
+    // A name too long for its list is cut short: whole in its title.
+    const named = player => { const name = playerLink(player); name.title = name.textContent; return name; };
     const draw = data => {
       const of = key => data && (data.leaders[key] || []).map((row, rank) => ({...row, rank}));
       const longest = Math.max(LEADER_SIZES[0], ...LEADERS.map(([key]) => (of(key) || []).length));
       lists.replaceChildren(...LEADERS.map(([key, label]) => {
         const rows = of(key);
-        const list = table([[TEXT.rank, row => n(row.rank + 1)], [TEXT.player, row => playerLink(row.player), 'l'],
+        const list = table([[TEXT.rank, row => n(row.rank + 1)], [TEXT.player, row => named(row.player), 'l'],
           [el('span', {className: 'stats-over'}, TEXT[label]), row => value(key, row.value)]], rows, longest, '', openPlayer);
         if (rows) list.blank(longest - rows.length);
         return list;
