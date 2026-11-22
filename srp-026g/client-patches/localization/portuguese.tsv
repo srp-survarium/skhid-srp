@@ -2761,8 +2761,10 @@ st_srp_loadout_sell_and	 e
 st_srp_loadout_sell_item	Kit %1$s
 st_srp_loadout_sell_many	Usado em %1$s. Vender mesmo assim?
 st_srp_loadout_sell_one	Usado no Kit %1$s. Vender mesmo assim?
-st_srp_loadout_slot_to_container	Clique: recipiente para artefato
-st_srp_loadout_slot_to_pocket	Clique: bolso
+st_srp_loadout_slot_skill	Espaço: %1$s
+st_srp_loadout_slot_to_container	Clique direito: recipiente para artefato
+st_srp_loadout_slot_to_pocket	Clique direito: bolso
+st_srp_loadout_slot_to_weapon	Clique direito: segunda arma
 st_srp_loadout_title	Kit
 st_srp_loadout_unfit	não jogável
 st_srp_lobby_basement	Porão

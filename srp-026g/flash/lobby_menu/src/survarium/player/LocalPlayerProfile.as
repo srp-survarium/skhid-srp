@@ -17,6 +17,7 @@ package survarium.player
    import flash.utils.Timer;
    import flash.utils.getTimer;
    import scaleform.clik.controls.Button;
+   import scaleform.clik.core.UIComponent;
    import scaleform.clik.data.DataProvider;
    import scaleform.clik.events.ButtonEvent;
    import scaleform.clik.events.ComponentEvent;
@@ -108,10 +109,16 @@ package survarium.player
       
       private static const PRESET_CHOOSE:int = PRESETS_FIRST + 10;
 
-      // A kit's Artifact Container slot made one (+ kit x 10 + state), and the list's row of them.
-      private static const CONTAINER_BASE:int = PRESETS_FIRST + 20;
+      // A kit's perk slot taken or declined (+ kit x 10 + perk x 2 + state), and the list's row
+      // of them.
+      private static const PERK_BASE:int = PRESETS_FIRST + 20;
 
-      private static const CONTAINERS_ROW:String = "K;";
+      private static const PERKS_ROW:String = "K;";
+
+      // What the list's header says of a perk switch it answers: set, refused.
+      private static const PERK_SET:int = 3;
+
+      private static const PERK_REFUSED:int = 4;
       
       private static const PRESET_COUNT:int = 5;
       
@@ -217,8 +224,14 @@ package survarium.player
       // server last said.
       private var _presetUses:Object = {};
 
-      // The `K` row: [kit id, ContainerSlotMark state] a kit, the account's kits in order.
-      private var _containers:Array = [];
+      // The `K` row: [kit id, [PerkSlotMark state a perk]] a kit, the account's kits in order.
+      private var _perks:Array = [];
+
+      // A perk switch of the kit shown, while srp answers it: the kit's account held until its
+      // answer, both drawn at once (PerkSwitch).
+      private var _perkSwitch:PerkSwitch;
+
+      private var _perkWait:Timer;
       
       // The U rows the uses came from, to tell a change.
       private var _presetUsesRows:String = "";
@@ -650,7 +663,14 @@ package survarium.player
          return this._playerInventory.getInventoryItem(value.itemId);
       }
       
+      // The exe's account of the kit shown: drawn now, or held while a perk switch of that kit is
+      // asked (PerkSwitch), to be drawn with its answer.
       override public function fillProfileItems(data:Object) : void
+      {
+         this.perkStep(PerkSwitch.FILL,data);
+      }
+
+      private function drawProfileItems(data:Object) : void
       {
          trace("fillProfileItems",data.items.length);
          var oldData:DataProvider = profileItems.dataProvider as DataProvider;
@@ -667,8 +687,6 @@ package survarium.player
          }
          this._unresolvedItems.length = 0;
          super.fillProfileItems(data);
-         // The kit shown may be another: its Artifact Container slot as last told.
-         this.tellContainerSlot();
          // The presets' levels follow the inventory: asked again.
          this.askPresets();
          trace("PP:invalidateItems");
@@ -1603,43 +1621,85 @@ package survarium.player
          }
       }
       
-      // `K;<kit id>:<state>,...`, the account's kits in order: each kit's Artifact Container
-      // slot (ContainerSlotMark's states; 0 without the skill), told to the paper doll for the
+      // `K;<kit id>:<container>:<weapon>,...`, the account's kits in order: each kit's perk slots
+      // (PerkSlotMark's states, a perk each; 0 without the skill), told to the paper doll for the
       // kit shown.
-      private function takeContainers(row:String) : void
+      // The perk switch's transition (PerkSwitch.step) and what it says to do, in one go: the
+      // accounts held drawn, then srp's perk states told, so the kit is drawn old or new, never
+      // half of each.
+      private function perkStep(event:int, value:*) : Object
+      {
+         if(this._perkSwitch == null)
+         {
+            this._perkSwitch = new PerkSwitch(this.sendPerk);
+         }
+         var out:Object = this._perkSwitch.step(event,value);
+         // srp's accounts, then its states (of the kit they show), then the paper doll drawn now:
+         // one pass, so no frame shows the new counts with the old states or the other way round.
+         for each(var fill:Object in out.fills)
+         {
+            this.drawProfileItems(fill);
+         }
+         if(out.tell)
+         {
+            this.tellPerkSlots();
+         }
+         if((out.tell || out.fills.length > 0) && profileItems is UIComponent)
+         {
+            (profileItems as UIComponent).validateNow();
+         }
+         return out;
+      }
+
+      // The perk switch's own sender, the harness's to replace.
+      public function get perkSwitch() : PerkSwitch
+      {
+         if(this._perkSwitch == null)
+         {
+            this._perkSwitch = new PerkSwitch(this.sendPerk);
+         }
+         return this._perkSwitch;
+      }
+
+      private function sendPerk(request:int) : void
+      {
+         this.sendPresets(PERK_BASE + request);
+      }
+
+      private function takePerks(row:String, answer:int) : void
       {
          var kits:Array = [];
          for each(var entry:String in row.split(","))
          {
-            var pair:Array = entry.split(":");
-            if(pair.length == 2)
+            var fields:Array = entry.split(":");
+            if(fields.length == 3)
             {
-               kits.push([uint(pair[0]),int(pair[1])]);
+               kits.push([uint(fields[0]),[int(fields[1]),int(fields[2])]]);
             }
          }
-         this._containers = kits;
-         this.tellContainerSlot();
+         this._perks = kits;
+         this.perkStep(PerkSwitch.LIST,answer);
       }
 
-      // The kit shown's Artifact Container slot to its paper doll, with how to ask for the other.
-      private function tellContainerSlot() : void
+      // The kit shown's perk slots to its paper doll, with how to ask for others.
+      private function tellPerkSlots() : void
       {
          var doll:LocalPaperDoll = profileItems as LocalPaperDoll;
          if(doll == null)
          {
             return;
          }
-         var at:int = this.containerKit();
-         doll.containerSlot(uint(_profileId),at >= 0 ? int(this._containers[at][1]) : ContainerSlotMark.NONE,this.askContainerSlot);
+         var at:int = this.perkKit();
+         doll.perkSlots(uint(_profileId),at >= 0 ? this._perks[at][1] : [PerkSlotMark.NONE,PerkSlotMark.NONE],this.askPerkSlot);
       }
 
       // The kit shown's place among the account's kits (the `K` row's order); -1: not listed.
-      private function containerKit() : int
+      private function perkKit() : int
       {
          var i:int = 0;
-         while(i < this._containers.length)
+         while(i < this._perks.length)
          {
-            if(this._containers[i][0] == uint(_profileId))
+            if(this._perks[i][0] == uint(_profileId))
             {
                return i;
             }
@@ -1648,19 +1708,37 @@ package survarium.player
          return -1;
       }
 
-      // A click on the slot: the kit shown's made `state` (CONTAINER_BASE + kit x 10 + state),
-      // answered with the account and the list.
-      private function askContainerSlot(state:int) : void
+      // A click on a perk's slot: the kit shown's made `state` (PERK_BASE + kit x 10 + perk x 2 +
+      // state), answered with the account and the list.
+      // Whether it was asked: one switch at a time (PerkSwitch); none for a kit not listed.
+      private function askPerkSlot(perk:int, state:int) : Boolean
       {
-         var at:int = this.containerKit();
-         if(at >= 0)
+         var at:int = this.perkKit();
+         if(at < 0 || !this.perkStep(PerkSwitch.ASK,{
+            "request":at * 10 + perk * 2 + state,
+            "kit":uint(_profileId)
+         }).accepted)
          {
-            this.sendPresets(CONTAINER_BASE + at * 10 + state);
+            return false;
          }
+         // No answer in time: what is held is drawn.
+         if(this._perkWait == null)
+         {
+            this._perkWait = new Timer(PerkSwitch.WAIT_MS,1);
+            this._perkWait.addEventListener(TimerEvent.TIMER_COMPLETE,this.onPerkWait);
+         }
+         this._perkWait.reset();
+         this._perkWait.start();
+         return true;
+      }
+
+      private function onPerkWait(e:TimerEvent) : void
+      {
+         this.perkStep(PerkSwitch.TIMEOUT,null);
       }
 
       // `P2;L;<done>;<preset>;<active>;<blocks>;<minutes>`, then `<preset>;<saved>;<level>`
-      // each, then the `K;` row (takeContainers), then `U;<item id>:<presets>,...` rows.
+      // each, then the `K;` row (takePerks), then `U;<item id>:<presets>,...` rows.
       private function takePresets(rows:Array) : void
       {
          var head:Array = String(rows[0].nickname).split(";");
@@ -1700,9 +1778,11 @@ package survarium.player
                i++;
                continue;
             }
-            if(name.indexOf(CONTAINERS_ROW) == 0)
+            if(name.indexOf(PERKS_ROW) == 0)
             {
-               this.takeContainers(name.substr(CONTAINERS_ROW.length));
+               // A perk switch's answer (`done` 3 set, 4 refused) names its request in `preset`.
+               var perkDone:int = int(head[2]);
+               this.takePerks(name.substr(PERKS_ROW.length),perkDone == PERK_SET || perkDone == PERK_REFUSED ? int(head[3]) : -1);
                i++;
                continue;
             }

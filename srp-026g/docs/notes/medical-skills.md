@@ -35,6 +35,10 @@ Additional Medicine, one or the other):
 | - S M - |    Supply Pocket XOR Additional Medicine
 ```
 
+Supply Pocket's pocket, like Deep Pockets', may be declined by each kit for the second weapon
+slot again, by a click on its slots in the lobby (the owner, 2026-11-22; `artefact-skills.md`,
+"The slot a pocket again, by kit").
+
 Points held: tier 1 = 3 (exactly row 2's), tiers 1-2 = 16, tiers 1-3 = 24, tiers 1-4 = 36; a
 full build 37.
 
