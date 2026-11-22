@@ -54,7 +54,7 @@ import bcw  # noqa: E402
 import devices as dev  # noqa: E402
 
 PACK_ID = 'muzzle-devices'
-VERSION = '3'
+VERSION = '4'
 CATEGORY = 22
 CONFIGS = 'gameplay/items/muzzle_devices/'
 ICON_ATLAS = 'LobbyMenu_AmmoIcons'

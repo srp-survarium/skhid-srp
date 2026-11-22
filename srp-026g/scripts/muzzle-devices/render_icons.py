@@ -122,6 +122,32 @@ def shadowed(surfaces, camera):
     return out
 
 
+def stock_brightness(inputs):
+    """The stock scopes' icons' mean brightness (LobbyMenu_AmmoIcons [1..3, 4] of the players' lobby
+    movie, prepare.sh's): what every drawn icon is exposed to."""
+    _, tags = R.swf_tags((inputs / 'live/flash_movies/lobby_menu.swf').read_bytes())
+    _, _, argb = R.atlas(tags, ATLAS)
+    rgba = argb[:, :, [1, 2, 3, 0]]
+    W, H, P = R.CELL_W, R.CELL_H, R.PITCH
+    return np.mean([R.mean_luma(rgba[(r - 1) * P:(r - 1) * P + H, (c - 1) * W:c * W]) for r, c in STOCK_SCOPES])
+
+
+def icon_of(modules, model, target):
+    """A module's lobby icon (a 171x83 cell, straight alpha) drawn from its model of the modules pack:
+    the three-quarter view, the brightness `target`, the weapons' soft shadow. The grips' icons too
+    (../weapon-grips/render_icons.py)."""
+    W, H = R.CELL_W, R.CELL_H
+    camera = view(YAW, PITCH)
+    surfaces = shadowed(parts(modules, model), camera)
+    exposure = 1.0
+    for _ in range(4):      # the finished icon's brightness is not linear in the exposure
+        icon = R.render(surfaces, camera, (W - 24, H - 16), light=LIGHT, exposure=exposure)
+        exposure *= target / max(R.mean_luma(np.asarray(icon)), 1e-6)
+    canvas = Image.new('RGBA', (W, H))
+    canvas.paste(icon, ((W - icon.size[0]) // 2, (H - 4 - icon.size[1]) // 2))
+    return R.with_shadow(canvas)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--modules', type=Path, required=True)
@@ -129,24 +155,12 @@ def main():
     ap.add_argument('--out', type=Path, required=True)
     args = ap.parse_args()
     args.out.mkdir(parents=True)
-    _, tags = R.swf_tags((args.inputs / 'live/flash_movies/lobby_menu.swf').read_bytes())
-    _, _, argb = R.atlas(tags, ATLAS)
-    rgba = argb[:, :, [1, 2, 3, 0]]
-    W, H, P = R.CELL_W, R.CELL_H, R.PITCH
-    target = np.mean([R.mean_luma(rgba[(r - 1) * P:(r - 1) * P + H, (c - 1) * W:c * W]) for r, c in STOCK_SCOPES])
+    W, H = R.CELL_W, R.CELL_H
+    target = stock_brightness(args.inputs)
     found = dev.read_table()
-    size = (W - 24, H - 16)
-    camera = view(YAW, PITCH)
     icons = []
     for device in found:
-        surfaces = shadowed(parts(args.modules, device['model']), camera)
-        exposure = 1.0
-        for _ in range(4):      # the finished icon's brightness is not linear in the exposure
-            icon = R.render(surfaces, camera, size, light=LIGHT, exposure=exposure)
-            exposure *= target / max(R.mean_luma(np.asarray(icon)), 1e-6)
-        canvas = Image.new('RGBA', (W, H))
-        canvas.paste(icon, ((W - icon.size[0]) // 2, (H - 4 - icon.size[1]) // 2))
-        canvas = R.with_shadow(canvas)
+        canvas = icon_of(args.modules, device['model'], target)
         canvas.save(args.out / f'{device["item"]}.png')
         icons.append((device, canvas))
         print(f'{device["item"]}: brightness {R.mean_luma(np.asarray(canvas)):.1f} (the stock scopes\' {target:.1f})')
