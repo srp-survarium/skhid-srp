@@ -1699,7 +1699,16 @@ dry=()
 if [[ -n $resources ]]; then
     progress "2. publishing ${resources##*/} on $PATCHES_LABEL"
     "$here/upload-patch" "${step_flags[@]}" "${dry[@]}" "$resources" </dev/null || die "upload-patch failed"
-    ((DRY_RUN)) || published=1
+    if ((!DRY_RUN)); then
+        published=1
+        # The row is upload-patch's now: the patch's Dropbox address before
+        # the patches server's when it went there too. What the server data
+        # must offer is that row, not the one planned before it was published.
+        new_row=$(awk -F '\t' -v n="${resources##*/}" '$1 == n { print $1, $2, $3, $4 }' "$PATCH_LIST")
+        [[ -n $new_row ]] || die "upload-patch added no row of ${resources##*/} to $PATCH_LIST"
+        OFFERED=$(offered_of_list "$new_row")
+        say "${resources##*/} will be offered at: ${new_row#* * * }"
+    fi
 fi
 data=$work/$DATA_NAME
 zip=$work/zip/$ZIP_NAME
