@@ -25,6 +25,7 @@ package survarium.rooms
     import survarium.constants.ChatChannel;
     import survarium.constants.ChatTab;
     import survarium.data.LocalizationData;
+    import survarium.gsearch.LobbyGameLoad;
 
     // Rooms, the players' "servers" (srp's own; the wire is lobby.md 2.16.3,
     // contract S1, RoomsWire), the only way PvP matches are made. The top
@@ -966,6 +967,7 @@ package survarium.rooms
                 settle();
                 var had:Boolean = _room != null;
                 _room = null;
+                LobbyGameLoad.twist = 0;
                 _roomSig = "";
                 var code:int = int(head[2]);
                 var queueKey:int = int(head[3]);
@@ -1063,6 +1065,8 @@ package survarium.rooms
                 // here, said once; our own word (a PIN not of 4 digits) stays
                 // while we stay.
                 RoomsLook.markSquads(_room.members, squads);
+                // The loading screen's icon of a free-for-all's twist: the match the room is in.
+                LobbyGameLoad.twist = _room.phase == RoomPhase.IN_MATCH ? _room.lastMode : 0;
                 var roomCode:int = head.length > 16 ? int(head[16]) : RoomCode.NONE;
                 if (roomCode == RoomCode.NONE && _code < RoomCode.NONE && was != null && was.key == _room.key)
                     roomCode = _code;

@@ -15,7 +15,7 @@
 
 #![forbid(unsafe_code)]
 
-use crate::vostok::log::{Piece::*, line};
+use crate::vostok::log::{Piece, Piece::*, parts};
 use crate::vostok::texture_pool::{Level, NoSlot, Pool, Want};
 use crate::vostok::{Context, Flow, GameCell, Lock, TexturePoolOnNoSlotExit, Thread};
 
@@ -61,52 +61,44 @@ fn report(thread: &Thread, request: &NoSlot, want: Want, took: Option<Level>) {
         return;
     }
     let path = core::str::from_utf8(request.path()).unwrap_or("(a path not text)");
-    let mut pieces = [Text(""); 32];
-    let mut n = 0;
-    let mut put = |piece| {
-        pieces[n] = piece;
-        n += 1;
-    };
-    put(Text("texture_pool: "));
-    put(Text(path));
-    put(Text(" wants "));
-    size(&mut put, want.wanted);
-    put(Text(" (format "));
-    put(Dec(want.format));
-    put(Text(") from "));
-    size(&mut put, want.resident);
-    match request.pool(want.wanted) {
-        Pool::Absent => put(Text(": no pool of that size")),
+    let slots;
+    let pool: &[Piece] = match request.pool(want.wanted) {
+        Pool::Absent => &[Text(": no pool of that size")],
         Pool::Slots { total, reserved, occupied } => {
-            put(Text(": its pool "));
-            put(Dec(total));
-            put(Text(" slots, "));
-            put(Dec(reserved));
-            put(Text(" reserved, occupied by "));
-            put(Dec(occupied.in_scene));
-            put(Text(" of the scene's, "));
-            put(Dec(occupied.baked_elsewhere));
-            put(Text(" baked and "));
-            put(Dec(occupied.other_elsewhere));
-            put(Text(" other textures it does not stream"));
+            slots = [
+                Text(": its pool "),
+                Dec(total),
+                Text(" slots, "),
+                Dec(reserved),
+                Text(" reserved, occupied by "),
+                Dec(occupied.in_scene),
+                Text(" of the scene's, "),
+                Dec(occupied.baked_elsewhere),
+                Text(" baked and "),
+                Dec(occupied.other_elsewhere),
+                Text(" other textures it does not stream"),
+            ];
+            &slots
         }
-    }
-    match took {
-        Some(level) => {
-            put(Text("; takes "));
-            size(&mut put, level);
-        }
-        None => put(Text("; stays")),
-    }
-    line(&pieces[..n]);
+    };
+    let took = took.map(size);
+    let outcome: [&[Piece]; 2] = match &took {
+        Some(level) => [&[Text("; takes ")], level],
+        None => [&[Text("; stays")], &[]],
+    };
+    parts(&[
+        &[Text("texture_pool: "), Text(path), Text(" wants ")],
+        &size(want.wanted),
+        &[Text(" (format "), Dec(want.format), Text(") from ")],
+        &size(want.resident),
+        pool,
+        outcome[0],
+        outcome[1],
+    ]);
 }
 
-fn size<'a>(put: &mut impl FnMut(crate::vostok::log::Piece<'a>), level: Level) {
-    put(Dec(level.width));
-    put(Text("x"));
-    put(Dec(level.height));
-    put(Text("/"));
-    put(Dec(level.mips));
+fn size(level: Level) -> [Piece<'static>; 5] {
+    [Dec(level.width), Text("x"), Dec(level.height), Text("/"), Dec(level.mips)]
 }
 
 /// SKHID_TEXTURE_STREAMING_LOG as the game was started with it, read at the first request.

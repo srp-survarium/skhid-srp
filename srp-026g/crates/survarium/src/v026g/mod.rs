@@ -19,6 +19,7 @@ pub mod new_account;
 pub mod prices;
 pub mod quests;
 pub mod racket;
+pub mod roulette;
 pub mod scopes;
 pub mod shop_offers;
 pub mod skills;

@@ -188,8 +188,12 @@ walker collision.
   showed through them (the owner, 2026-11-16, "holes in textures").
 - **Fire Station:** the earlier package's west roof ramp (34°) and the planks
   over clmbl#0 reach the main building's roof (743 m²); clmbl#3's top is
-  walked too. The slabs over the rungs of clmbl#2, #7 and #9 stay; the
-  tower, the 97 m² roof and the two ~100 m² roofs stay out of reach.
+  walked too. Both are drawn as planks since `stalker-maps-2@5`: up to @4 the
+  west ramp (`roof_west_ramp`, by clmbl#1) had no `planks` in the porter's
+  `maps.json`, so it was walked but not drawn (the owner, 2026-11-22: "one of
+  them is invisible", "even though it has collision"). The slabs over the rungs
+  of clmbl#2, #7 and #9 stay; the tower, the 97 m² roof and the two ~100 m²
+  roofs stay out of reach.
 - **Vehicle Station:** its four ladder areas (79-333 m²) stay out of reach;
   no spawn stands on them (one the spawn rule kept on clmbl#4's roof is left
   out, below). Its puddles (Clear Sky `effects\wallmarkmult`, 6 patches)

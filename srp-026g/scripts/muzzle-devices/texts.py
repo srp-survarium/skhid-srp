@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""texts.py [--check]: the muzzle devices' names and descriptions in the eleven dictionaries.
+"""texts.py [--check]: the muzzle devices' names and descriptions in the twelve dictionaries.
 
 Writes, into every ../../client-patches/localization/<language>.tsv in key order (the tables' own
 rule, check_localization_026g.py), for each device of devices.tsv:
@@ -30,25 +30,26 @@ KIND = {
         'ukrainian': ('Дульне гальмо', True), 'belarusian': ('Дульны тормаз', True),
         'czech': ('Úsťová brzda', True), 'finnish': ('suujarru', False),
         'hungarian': ('csőszájfék', False), 'serbian': ('Usna kočnica', True),
-        'croatian': ('Plinska kočnica', True)},
+        'croatian': ('Plinska kočnica', True), 'portuguese': ('Freio de boca', True)},
     'flash_hider': {
         'english': ('flash hider', False), 'german': ('Mündungsfeuerdämpfer', False),
         'polish': ('Tłumik płomieni', True), 'russian': ('Пламегаситель', True),
         'ukrainian': ("Полум'ягасник", True), 'belarusian': ('Полымягасільнік', True),
         'czech': ('Tlumič plamene', True), 'finnish': ('liekinvaimennin', False),
         'hungarian': ('lángrejtő', False), 'serbian': ('Skrivač plamena', True),
-        'croatian': ('Skrivač plamena', True)},
+        'croatian': ('Skrivač plamena', True), 'portuguese': ('Quebra-chamas', True)},
     'choke': {
         'english': ('choke', False), 'german': ('Choke', False), 'polish': ('Czok', True),
         'russian': ('Чок', True), 'ukrainian': ('Чок', True), 'belarusian': ('Чок', True),
         'czech': ('Zahrdlení', True), 'finnish': ('supistaja', False), 'hungarian': ('szűkítő', False),
-        'serbian': ('Čok', True), 'croatian': ('Čok', True)},
+        'serbian': ('Čok', True), 'croatian': ('Čok', True), 'portuguese': ('Choke', True)},
     'duckbill': {
         'english': ('duckbill', False), 'german': ('Duckbill', False), 'polish': ('Kaczy dziób', True),
         'russian': ('Утиный клюв', True), 'ukrainian': ('Качиний дзьоб', True),
         'belarusian': ('Качыная дзюба', True), 'czech': ('Kachní zobák', True),
         'finnish': ('ankannokka', False), 'hungarian': ('kacsacsőr', False),
-        'serbian': ('Pačji kljun', True), 'croatian': ('Pačji kljun', True)},
+        'serbian': ('Pačji kljun', True), 'croatian': ('Pačji kljun', True),
+        'portuguese': ('Bico de pato', True)},
 }
 # a stat's word: the dictionary's own key for it, in the order a description says them
 STATS = (('recoil', 'st_multiplicative_recoil_modifier'), ('dispersion/base_dispersion', 'st_inv_dispersion'),
@@ -57,7 +58,7 @@ STATS = (('recoil', 'st_multiplicative_recoil_modifier'), ('dispersion/base_disp
 NO_FLASH = {'english': 'No muzzle flash', 'german': 'Kein Mündungsfeuer', 'polish': 'Brak błysku',
             'russian': 'Без вспышки', 'ukrainian': 'Без спалаху', 'belarusian': 'Без успышкі',
             'czech': 'Bez záblesku', 'finnish': 'Ei suuliekkiä', 'hungarian': 'Nincs torkolattűz',
-            'serbian': 'Bez bljeska', 'croatian': 'Bez bljeska'}
+            'serbian': 'Bez bljeska', 'croatian': 'Bez bljeska', 'portuguese': 'Sem clarão'}
 
 
 def percent(value):

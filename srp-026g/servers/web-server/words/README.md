@@ -2,7 +2,7 @@
 
 The web server's pages are written in English in the code: `lang.t("Daily leaders")`. What a page
 says in another language is here, one file a language (`<code>.tsv`, the codes of `Lang::code`:
-the game's eleven languages but English, whose words are the code's own).
+the game's twelve languages but English, whose words are the code's own).
 
 A row is
 

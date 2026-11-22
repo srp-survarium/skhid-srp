@@ -64,7 +64,8 @@ def ranges_of_the_patch(original, patched, section_size):
         allowed.append((image.offset(old_va, 1), len(L.utf16(old)), what + " old text"))
     for va, left, top, new_left, new_top, what in L.RECTS:
         allowed.append((image.offset(va, 1), 8, what))
-    allowed.append((image.offset(L.ROUTE_TABLE[0], 1), 4, L.ROUTE_TABLE[2]))
+    for va, _, what in L.MESSAGE_TABLES:
+        allowed.append((image.offset(va, 1), 4, what))
     allowed.append((headers.table + 40 * L.DATA_SECTION[0] + 8, 4, ".data's VirtualSize"))
     # Headers: section count, size of code, size of image, checksum, the
     # security directory, the sixth section table entry.
@@ -157,17 +158,19 @@ def main():
                       and va + 5 + struct.unpack_from("<i", site, 1)[0] == L.SECTION_VA + entry
                       and set(site[5:]) <= {0x90} and section[entry] == 0xE9
                       and L.SECTION_VA + entries_end <= jump_to < L.SECTION_VA + len(section))
-    check("3c", all(landed), f"{sum(landed)} of {len(L.ENTRY_HOOKS)} language, Allow torrent and Relay "
+    check("3c", all(landed), f"{sum(landed)} of {len(L.ENTRY_HOOKS)} language, Allow torrent, Relay and file count "
           "sites reach their code through their entries")
-    route_entry = L.ENTRIES_AT + 8 * L.ROUTE_ENTRY
-    table = struct.unpack_from("<I", patched, image.offset(L.ROUTE_TABLE[0], 4))[0]
-    route_to = L.SECTION_VA + route_entry + 5 + struct.unpack_from("<i", section, route_entry + 1)[0]
     data_size = struct.unpack_from("<I", patched, headers.table + 40 * L.DATA_SECTION[0] + 8)[0]
-    check("3d", table == L.SECTION_VA + route_entry and L.ROUTE_TABLE[0] in L.relocated(patched)
-          and section[route_entry] == 0xE9 and L.SECTION_VA + entries_end + 8 <= route_to < L.SECTION_VA + len(section)
-          and data_size == L.DATA_SECTION[3],
-          f"message 0A's dispatch entry is {table:#x} (relocated), its code at {route_to:#x}; "
-          f".data's VirtualSize {data_size:#x}")
+    tables_end = entries_end + 8 * len(L.MESSAGE_TABLES)
+    for number, (va, _, what) in enumerate(L.MESSAGE_TABLES, L.ROUTE_ENTRY):
+        entry = L.ENTRIES_AT + 8 * number
+        table = struct.unpack_from("<I", patched, image.offset(va, 4))[0]
+        goes_to = L.SECTION_VA + entry + 5 + struct.unpack_from("<i", section, entry + 1)[0]
+        check("3d", table == L.SECTION_VA + entry and va in L.relocated(patched)
+              and section[entry] == 0xE9 and L.SECTION_VA + tables_end <= goes_to < L.SECTION_VA + len(section)
+              and data_size == L.DATA_SECTION[3],
+              f"{what}: its dispatch entry is {table:#x} (relocated), its code at {goes_to:#x}; "
+              f".data's VirtualSize {data_size:#x}")
     slots = {}
     for slot, (start, size) in L.SLOTS.items():
         slots[slot] = section[start:start + size].split(b"\0")[0].decode("ascii")

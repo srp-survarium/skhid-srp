@@ -229,6 +229,17 @@ class LauncherTests(unittest.TestCase):
         del self.data["server"]["env"]
         self.assertEqual([revision for _, revision in run.check_revisions(self.load(), 2)], [54, None])
 
+    def test_a_server_that_exits_at_its_start_says_why_and_the_fix_of_game_data_above_the_revision(self):
+        config = self.load()
+        log = self.root / "server.log"
+        log.write_text("starting\nsrp: SRP_MIN_PATCH_REVISION is 69, but the server's game data (x.db) has "
+                       "resources.db.patch_71: a game of an older revision lacks that patch's items\n\n")
+        said = run.server_exit(config, log)
+        self.assertIn("SRP_MIN_PATCH_REVISION is 69: set it to 71", said)
+        self.assertIn("--revision 71", said)
+        log.write_text("srp: SRP_GAME_DATA: no such file\n")
+        self.assertIn("server exited: srp: SRP_GAME_DATA: no such file", run.server_exit(config, log))
+
 
 if __name__ == "__main__":
     unittest.main()

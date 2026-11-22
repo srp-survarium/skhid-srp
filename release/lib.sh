@@ -180,6 +180,23 @@ http_get() {
     curl -sS --max-time "${HTTP_TIMEOUT:-600}" -o "$2" -w '%{http_code}' "$1" || true
 }
 
+# Whether a new patch also goes to Dropbox (release/dropbox-upload), by
+# release.env (load_env first): `on` with the account there (or an access
+# token given), `off` with SKHID_DROPBOX=off, said on purpose. Neither: it
+# was forgotten, nothing is printed, and upload-patch and release.sh stop
+# with DROPBOX_FORGOTTEN: a patch without its Dropbox address leaves the
+# players whose providers cut the patches server without the content.
+dropbox_setting() {
+    if [[ ${SKHID_DROPBOX:-} == off ]]; then
+        echo off
+    elif [[ -n ${SKHID_DROPBOX_TOKEN:-} ]] ||
+        [[ -n ${SKHID_DROPBOX_APP_KEY:-} && -n ${SKHID_DROPBOX_APP_SECRET:-} && -n ${SKHID_DROPBOX_REFRESH_TOKEN:-} ]]; then
+        echo on
+    fi
+}
+# shellcheck disable=SC2034 # used by the scripts that source this
+DROPBOX_FORGOTTEN="no Dropbox account in release.env: a new patch must go to Dropbox too. Set SKHID_DROPBOX_APP_KEY and SKHID_DROPBOX_APP_SECRET there and run release/dropbox-upload --login (once); or say SKHID_DROPBOX=off there to release without, on purpose"
+
 # The most URLs a patch may have (the players' updater takes up to 8).
 MAX_PATCH_URLS=8
 
@@ -598,8 +615,9 @@ on_patches() { ssh "$PATCHES_SSH" "$1" <"${2:-/dev/null}"; }
 # The offered-patch list (use_patches first), a committed file: one patch a
 # line, `<name> <sha256> <size> <urls>` with tabs between, in revision order;
 # `#` starts a comment. <urls> is the patch's URLs, one space apart, in the
-# order the players' updater tries them (Google Drive's first, the owner's
-# rule; the patches server's among them, always), 1 to 8, none twice. The server data is built of exactly these
+# order the players' updater tries them (Google Drive's, Dropbox's, the
+# patches server's, archive.org's: the owner's rule; the patches server's
+# among them, always), 1 to 8, none twice. The server data is built of exactly these
 # and /patches offers exactly these; a file on the patches server that is
 # not in it is offered to no one. And release/game.tsv ($GAME_LIST), the
 # row of the game's archive in the same form ($GAME_NAME, any host first):
