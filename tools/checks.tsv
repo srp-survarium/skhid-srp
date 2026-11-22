@@ -20,6 +20,7 @@
 name	inputs	command	notes
 ignore	**/*.md **/*.txt docs/** srp-026g/docs/** LICENSE .claude/** .gitignore tools/checks.tsv	-
 check-runner	tools/check tools/check.py tools/test_check.py	python3 tools/test_check.py	tools/check itself, on a temporary repository
+test-patch	tools/test-patch tools/testpatch.py tools/test_testpatch.py	python3 tools/test_testpatch.py	tools/test-patch's choices (what it packs, leaves out, refuses), without a game
 content-edit	srp-026g/scripts/content-edit/** srp-026g/client-patches/localization_026g.py srp-026g/client-patches/build_localization_026g.py	cd srp-026g/scripts/content-edit && python3 -m unittest discover -p 'test_*.py'	the edit lists' tool (content_edit.py) and its unit tests
 lamp-authoring	srp-026g/scripts/breakable-lamps/** srp-026g/scripts/content-edit/content_edit.py	cd srp-026g/scripts/breakable-lamps && python3 -m unittest test_lamps	Breakable fixture association, donor-light rebinding and built-resource binding checks
 localization	srp-026g/client-patches/localization/** srp-026g/client-patches/*localization*.py srp-026g/client-patches/languages_026g.rs srp-026g/client-patches/launcher/launcher_languages_026g.inc srp-026g/flash/**/*.as release/content.tsv release/build_content.py srp-026g/scripts/content-edit/*.json	cd srp-026g/client-patches && python3 check_localization_026g.py && python3 -m unittest test_localization	the dictionaries, the movies' text keys, the edit lists' keys
