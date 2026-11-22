@@ -161,6 +161,75 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   units in the first build, has none: the first build took a player's transform for his capsule's
   centre (client_patch.md §3.50, "A player's transform is his feet").
 
+## Layouts (2026-11-22)
+
+The owner, 2026-11-22: "add new spawn points on research mode in school map, it should be variation,
+either that one or another one"; "one spawn should be in flat elevation to the side of the school with
+stairs leading to it", "another two should be on the second floor parallel to their bases"; "it is also
+about arranging things beautifully". The places: his cursor on the minimap, three pictures.
+
+- **What a layout is:** the same map, weather and mode under a maps_dict id of its own, its three units
+  at other places. Rules, time, points, spawns and ammo are the map's Research as it is.
+- **Which one is played:** either alike. A room's draw takes its mode, then its map, then one id alike
+  among that map's ids of that mode (`rooms.rs` `Left::take`), so a map of two layouts in three
+  weathers plays each layout half the time and each weather a third. No code of its own.
+- **Told before the match:** nothing. The vote card and the room's tile show the map as ever (its
+  name and picture are the level's); a private room's tile holds both layouts. My pick, not the
+  owner's word.
+- **School, layout B** (maps 500, 501, 502: day, evening, rain; `school-b.json`):
+  - A: the north wing's hall of the second floor, under the broken roof (the floor at 20.72 m), a box
+    9 x 6.2 m, 3.85 m high;
+  - C: the south wing's hall of the second floor, the same box, mirrored;
+  - B: the terrace east of the school, behind the mosaic wall between its two stairways (19.6 m), a
+    cylinder 5.5 m round.
+  - Each unit's station is the Research project's own (shelves, transmitter, computers, generator,
+    charger, small antenna, their sounds, sparks and light), moved as one piece and standing in the
+    middle of its zone, as 0.27d's stand. The two roof antennas stand on the roof over the halls.
+  - Cover (the owner, 2026-11-22: "the one outside should have a bit more cover", "it is barely
+    playable with 6 crates", "the ones inside can have something too"). His rules for it:
+    - a place is dressed on its own, never as another's mirror ("it should be interesting
+      everywhere"), and not as a ring on a rectangle's edge: it reads as one scene, built up the way
+      such a place would be ("organically", "a complete picture");
+    - the station stays in the middle of its zone, unturned: it shows where the capture is; only
+      what is around it is arranged;
+    - in the halls nothing stands in the middle of the back wall, and furniture faces the room;
+    - the terrace plays on both of its sides as Rudnya's unit by the bus stop does: runs of cover
+      at the zone's edge, each of several heights, gaps between them to come through; not the same
+      amount on each side by count.
+    - B, the terrace: the parapet towards the school sandbagged, the generator's barrels by the
+      station; north a full cover with a low cover inside it and a half cover carrying the line
+      on, a corner half cover open towards the north stairs; south a full cover and a corner half
+      cover open towards the station, against the big tree; a cargo crate by the gate; the old unit
+      B's wooden crates as the first cover at the top of each stairway.
+    - A, the north hall: lockers with their backs to the east wall, a couch against the west one, a
+      furniture barricade at the breach towards the courtyard.
+    - C, the south hall: shelving at the west wall and one unit dragged to the breach, cartons
+      spilled towards the courtyard, a cargo crate at the east wall.
+    - Quick looks while arranging: the map editor (`~/Projects/survarium/map-editor`) with a
+      preview patch of the list, `--variant day_5b`; the game's own pictures by `capture.py`.
+  - `mapdata-zones` (2026-11-22, a preview patch of the list): each unit one floor, none above or
+    below it inside its shapes (A 20.26-22.89 m, B 19.53-21.90 m, C 19.52-22.91 m: the halls' rubble
+    and the terrace).
+  - Not taken from the old places: the wardrobes of the east wing and the moved car (the car stands
+    where Team Deathmatch has it).
+- **Data:** the edit list `research-school-b-1.json`, made by `scripts/research-layouts/make.py` from
+  the layout's file (its docstring says the format and the base it needs):
+  - the project `projects/level_02/<weather>_5b/`: a copy of the map's Team Deathmatch project (the
+    same team spawns, ammo, probes, lamps and Keeper pool as Research's, whose project differs from
+    it by the stations alone) with the stations added after its last entries, so no lamp's index
+    moves;
+  - the config `gameplay/game_modes/research_b/level_02_<w>_5.options`: a copy of the map's Research
+    config (after `modes.tsv` and the music list, so with their values) with the project's name and
+    the units' places and zones;
+  - its maps_dict row after the map's own Research row.
+- **Maps page:** a mode's second layout is a choice of its own, "Research · 2" (`#level_02/5.2`).
+- **Bots, late joiners, replays:** nothing new (Research has no bots; a replay names its map id).
+- **Release impact:** content and the site's pages; no exe, no server code. Three more entries of a
+  room's pool (256 at most, `lobby/rooms.rs` `POOL_BITS`).
+- **Another layout:** a file beside `school-b.json` and its list's row in `release/content.tsv`. More
+  cover at a unit: a `props` entry of its layout file (a model the map or an `examples` project
+  has, its place and yaw), then the list made again.
+
 ## The exe (patch 53)
 
 - **Rule:** `rn_rule` = game_match_rule_base (type 5) + the 0.26g rule slots (event 7: kills;

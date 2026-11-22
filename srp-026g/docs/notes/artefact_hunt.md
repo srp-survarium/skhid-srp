@@ -481,6 +481,9 @@ The native respawn rule (91) keeps its points and its spawn; four things are ask
     playing; otherwise both removed; the spawn and destroy particles once at the view's own changes
     (nothing to a spawner's artefact; a lying one to nothing by its time);
   - forgets the view at the cook's create and removes it at `game_world.deactivate` (0x1F9520).
+    The hunt itself (rule, params, state) is forgotten there too: it is found by the match core's
+    address, which the next match's core can take (2026-11-22: a Free for All right after a hunt,
+    in the same game, drew the hunt's dropped artefact and ran its respawns and Use).
   A rollback or a load only changes what the next frame reconciles to: nothing is drawn twice or
   left. While it is carried, and in a round's restart, nothing is drawn in the world.
   - New `engine_026g.tsv` rows: `play_particle_system`, `remove_particle_system_instance` (with the
