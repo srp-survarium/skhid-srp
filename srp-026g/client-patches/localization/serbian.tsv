@@ -3087,18 +3087,18 @@ st_srp_technical_433_name	Ponovno nameštanje
 st_srp_technical_441_description	Tvoj dim je blago zelen i truje neprijatelje u njemu; boca s kiseonikom štiti. U džep staje upola manje dimnih granata. Toksična šteta:
 st_srp_technical_441_name	Otrovni dim
 st_srp_technical_442_description	Svakih 30 s korišćenja boce s kiseonikom: +10% brzine na 20 s i puna energija.
-st_srp_technical_442_name	Drugi dah
+st_srp_technical_442_name	Kiseonički nalet
 st_srp_technical_443_description	Ubistvo tvojom granatom vraća jednu granatu.
 st_srp_technical_443_name	Strvinar
 st_srp_technical_444_description	Tvoja zamka lomi noge onome ko u nju upadne. U džep staje upola manje zamki.
 st_srp_technical_444_name	Medveđa zamka
 st_srp_technical_disarm_speed	Brzina razoružavanja zamki
 st_srp_technical_friendly_blast	Šteta od sopstvenih granata
+st_srp_technical_oxygen_rush	Brzina svakih 30 s boce
 st_srp_technical_per_second	 u sekundi
 st_srp_technical_pocket_size	 veličine džepova
 st_srp_technical_pockets	 džep.
 st_srp_technical_rearm	Ponovo se otvara posle pucnja
-st_srp_technical_second_wind	Brzina svakih 30 s boce
 st_srp_technical_smoke_duration	Trajanje dima
 st_srp_technical_toxic_damage	Toksična šteta
 st_srp_unit_days	%1$s d

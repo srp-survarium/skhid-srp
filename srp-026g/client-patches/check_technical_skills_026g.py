@@ -9,11 +9,11 @@ modifier 47, with and without the skill, the oxygen tank on, off or absent, on t
   tank on, else as it was.
 - Steady Breath: breath_vibration_calculator::tick's stores (0x31D95B): both sway offsets
   x0.9/0.8 with the tank on; a shot's dispersion (0x2E1DBE, XMM1) the same.
-- Second Wind: the tank's tick after the air is spent (0x33E661, ECX the ms left, EAX the ms spent):
+- Oxygen Rush: the tank's tick after the air is spent (0x33E661, ECX the ms left, EAX the ms spent):
   a tick that takes the tank's use (capacity +270h minus the air left) past another 30 s fills its
   holder's stamina and saves the boost's end (+294h, the stamina clock + 20 s; a running boost gets
   its 20 s from this mark); the movement speed's end (0x2DBC91) x1.1 while it lasts (its end is the
-  crate's SecondWind test); a tick without a mark, a tank that runs out between marks, or no skill:
+  crate's OxygenRush test); a tick without a mark, a tank that runs out between marks, or no skill:
   nothing.
 - Dexterous Hands: the take expression's stored scale (0x338B61) x1.1/1.2/1.3 for the taker; the ms
   passed at an ammo crate (update_use, 0x2F8147) x (10 + rank) / 10 for its user.
@@ -112,7 +112,7 @@ def check_steady_breath(data, kit):
     print(f'Steady Breath kit {kit}: both sway offsets and a shot\'s dispersion x0.9/0.8 with the oxygen tank on, else as they were: PASS')
 
 
-def check_second_wind(data, kit):
+def check_oxygen_rush(data, kit):
     skill = rank(442, 1)
     # (ranks, capacity, left, spent, the boost's word before, the word after): the stamina clock is 50 000.
     for ranks, capacity, left, spent, before, after in [
@@ -137,10 +137,10 @@ def check_second_wind(data, kit):
         close(g.float(stamina + 0x6C), 100.0 if started else 12.0)
         assert g.emu.mem_read(PLAYER + 0x33E, 1)[0] == int(started)
         # The speed while it lasts. (Its end at the tick, `battery.carrier_tick` after four other
-        # patches' handlers, is technical_skills::SecondWind's test.)
+        # patches' handlers, is technical_skills::OxygenRush's test.)
         speed = g.step(0x2DBC91, 5, xmm=4.0, ebx=PLAYER, ebp=STACK + 0x40)
         close(speed, 4.4 if after else 4.0)
-    print(f'Second Wind kit {kit}: a tick that takes the tank past another 30 s of use fills its holder\'s stamina and saves '
+    print(f'Oxygen Rush kit {kit}: a tick that takes the tank past another 30 s of use fills its holder\'s stamina and saves '
           'the boost until the stamina clock + 20 s (x1.1 movement), a running one extended; no mark, running out between '
           'marks or no skill: nothing: PASS')
 
@@ -283,7 +283,7 @@ def main():
     for kit in (0, 2):
         check_deep_breaths(patched, kit)
         check_steady_breath(patched, kit)
-        check_second_wind(patched, kit)
+        check_oxygen_rush(patched, kit)
         check_dexterous_hands(patched, kit)
         check_sapper(patched, kit)
         check_rearm(patched, kit)

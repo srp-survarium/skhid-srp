@@ -31423,12 +31423,12 @@ impl OxygenTank {
         unsafe { self.0.byte_add(0x270).cast::<u32>().as_ptr() }
     }
 
-    /// +0x294 (u32): patch 180's Second Wind: the stamina clock's ms its boost lasts until, 0 none; in the tail padding no native code touches (the object is 298h bytes, its last native field +290h); saved after m_amount_ms
+    /// +0x294 (u32): patch 180's Oxygen Rush: the stamina clock's ms its boost lasts until, 0 none; in the tail padding no native code touches (the object is 298h bytes, its last native field +290h); saved after m_amount_ms
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
-    pub unsafe fn second_wind_until(self) -> *mut u32 {
+    pub unsafe fn oxygen_rush_until(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x294).cast::<u32>().as_ptr() }
     }
 }

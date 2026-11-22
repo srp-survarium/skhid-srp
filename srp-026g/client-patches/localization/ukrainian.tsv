@@ -3087,18 +3087,18 @@ st_srp_technical_433_name	Перезвід
 st_srp_technical_441_description	Ваш дим трохи зелений і отруює ворогів усередині; кисневий балон захищає. У кишеню вміщується вдвічі менше димових гранат. Токсична шкода:
 st_srp_technical_441_name	Отруйний дим
 st_srp_technical_442_description	Кожні 30 с роботи кисневого балона: +10% до швидкості на 20 с і повна енергія.
-st_srp_technical_442_name	Друге дихання
+st_srp_technical_442_name	Кисневий ривок
 st_srp_technical_443_description	Вбивство вашою гранатою повертає одну гранату.
 st_srp_technical_443_name	Мародер
 st_srp_technical_444_description	Ваш капкан ламає ноги тому, хто в нього потрапив. У кишеню вміщується вдвічі менше капканів.
 st_srp_technical_444_name	Ведмежий капкан
 st_srp_technical_disarm_speed	Швидкість розмінування
 st_srp_technical_friendly_blast	Шкода від своїх гранат
+st_srp_technical_oxygen_rush	Швидкість кожні 30 с балона
 st_srp_technical_per_second	 за секунду
 st_srp_technical_pocket_size	 до розміру кишень
 st_srp_technical_pockets	 киш.
 st_srp_technical_rearm	Знову відкривається після пострілу
-st_srp_technical_second_wind	Швидкість кожні 30 с балона
 st_srp_technical_smoke_duration	Тривалість диму
 st_srp_technical_toxic_damage	Токсична шкода
 st_srp_unit_days	%1$s д

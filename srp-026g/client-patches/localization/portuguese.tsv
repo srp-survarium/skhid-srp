@@ -3087,18 +3087,18 @@ st_srp_technical_433_name	Rearmar
 st_srp_technical_441_description	Sua fumaça fica esverdeada e envenena os inimigos dentro dela; o tanque de oxigênio protege. Cada bolso comporta metade das granadas de fumaça. Dano tóxico:
 st_srp_technical_441_name	Fumaça Tóxica
 st_srp_technical_442_description	A cada 30 s de uso do tanque de oxigênio: +10% de velocidade por 20 s e estamina cheia.
-st_srp_technical_442_name	Segundo Fôlego
+st_srp_technical_442_name	Arrancada de Oxigênio
 st_srp_technical_443_description	Uma eliminação com sua granada devolve uma granada.
 st_srp_technical_443_name	Saqueador
 st_srp_technical_444_description	Sua armadilha quebra as pernas de quem ela pega. Cada bolso comporta metade das armadilhas.
 st_srp_technical_444_name	Armadilha de Urso
 st_srp_technical_disarm_speed	Velocidade de desarme
 st_srp_technical_friendly_blast	Dano das próprias granadas
+st_srp_technical_oxygen_rush	Velocidade a cada 30 s de tanque
 st_srp_technical_per_second	 por segundo
 st_srp_technical_pocket_size	 no tamanho dos bolsos
 st_srp_technical_pockets	 bolsos
 st_srp_technical_rearm	Reabre após um tiro
-st_srp_technical_second_wind	Velocidade a cada 30 s de tanque
 st_srp_technical_smoke_duration	Duração da fumaça
 st_srp_technical_toxic_damage	Dano tóxico
 st_srp_unit_days	%1$s d

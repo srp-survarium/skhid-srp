@@ -3087,18 +3087,18 @@ st_srp_technical_433_name	Перазвод
 st_srp_technical_441_description	Ваш дым крыху зялёны і атручвае ворагаў унутры; кіслародны балон абараняе. У кішэню змяшчаецца ўдвая менш дымавых гранат. Таксічныя страты:
 st_srp_technical_441_name	Атрутны дым
 st_srp_technical_442_description	Кожныя 30 с працы кіслароднага балона: +10% да хуткасці на 20 с і поўная энергія.
-st_srp_technical_442_name	Другое дыханне
+st_srp_technical_442_name	Кіслародны рывок
 st_srp_technical_443_description	Забойства вашай гранатай вяртае адну гранату.
 st_srp_technical_443_name	Марадзёр
 st_srp_technical_444_description	Ваш капкан ламае ногі таму, хто ў яго трапіў. У кішэню змяшчаецца ўдвая менш капканаў.
 st_srp_technical_444_name	Мядзведжы капкан
 st_srp_technical_disarm_speed	Хуткасць размініравання
 st_srp_technical_friendly_blast	Страты ад сваіх гранат
+st_srp_technical_oxygen_rush	Хуткасць кожныя 30 с балона
 st_srp_technical_per_second	 за секунду
 st_srp_technical_pocket_size	 да памеру кішэняў
 st_srp_technical_pockets	 кіш.
 st_srp_technical_rearm	Зноў адкрываецца пасля стрэлу
-st_srp_technical_second_wind	Хуткасць кожныя 30 с балона
 st_srp_technical_smoke_duration	Працягласць дыму
 st_srp_technical_toxic_damage	Таксічная шкода
 st_srp_unit_days	%1$s дз

@@ -123,11 +123,11 @@ const _: () = assert!(LOW <= 1 << 24 && FIELDS[FIELDS.len() - 1].ranks == 1);
 /// Rearm (433): how long a trap that was shot stays sprung, in milliseconds, by rank.
 const REARM_MS: [u32; 2] = [30_000, 20_000];
 
-/// Second Wind (442): how long its speed lasts, in milliseconds, and the speed it adds.
-pub const SECOND_WIND_MS: u32 = 20_000;
-pub const SECOND_WIND_SPEED: f32 = 0.10;
-/// Second Wind (442): another this many milliseconds of a tank's air spent starts it.
-pub const SECOND_WIND_EVERY_MS: u32 = 30_000;
+/// Oxygen Rush (442): how long its speed lasts, in milliseconds, and the speed it adds.
+pub const OXYGEN_RUSH_MS: u32 = 20_000;
+pub const OXYGEN_RUSH_SPEED: f32 = 0.10;
+/// Oxygen Rush (442): another this many milliseconds of a tank's air spent starts it.
+pub const OXYGEN_RUSH_EVERY_MS: u32 = 30_000;
 
 /// A player's stamina clock (`player_stamina` +70h, the simulation's ms, saved), wrapping.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -161,23 +161,23 @@ impl TankTick {
         Some(Self { before, after: before + spent })
     }
 
-    /// Second Wind's mark: this tick's air took the tank past another [`SECOND_WIND_EVERY_MS`]
+    /// Oxygen Rush's mark: this tick's air took the tank past another [`OXYGEN_RUSH_EVERY_MS`]
     /// of use (one mark however much the tick spent).
-    pub fn second_wind_mark(self) -> bool {
-        self.after / SECOND_WIND_EVERY_MS > self.before / SECOND_WIND_EVERY_MS
+    pub fn oxygen_rush_mark(self) -> bool {
+        self.after / OXYGEN_RUSH_EVERY_MS > self.before / OXYGEN_RUSH_EVERY_MS
     }
 }
 
-/// Second Wind's boost, kept on the oxygen tank (patch 180 saves it with the tank as one u32: 0
+/// Oxygen Rush's boost, kept on the oxygen tank (patch 180 saves it with the tank as one u32: 0
 /// none, else the clock it lasts until).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum SecondWind {
+pub enum OxygenRush {
     #[default]
     Off,
     On { until: Clock },
 }
 
-impl SecondWind {
+impl OxygenRush {
     /// The saved word.
     pub fn parse(raw: u32) -> Self {
         match raw {
@@ -193,10 +193,10 @@ impl SecondWind {
         }
     }
 
-    /// A mark at `now`: the boost until [`SECOND_WIND_MS`] later, whatever was left of a running
+    /// A mark at `now`: the boost until [`OXYGEN_RUSH_MS`] later, whatever was left of a running
     /// one (it does not stack). A clock of 0, which the word cannot hold, is a millisecond later.
     pub fn start(now: Clock) -> Self {
-        let until = now.after(SECOND_WIND_MS);
+        let until = now.after(OXYGEN_RUSH_MS);
         Self::On { until: Clock(until.0.max(1)) }
     }
 
@@ -212,7 +212,7 @@ impl SecondWind {
     pub fn speed(self) -> f32 {
         match self {
             Self::Off => 1.0,
-            Self::On { .. } => 1.0 + SECOND_WIND_SPEED,
+            Self::On { .. } => 1.0 + OXYGEN_RUSH_SPEED,
         }
     }
 }
@@ -233,7 +233,7 @@ pub struct Skills {
     dead_mans_switch: bool,
     rearm: Rank<2>,
     toxic_smoke: Rank<3>,
-    second_wind: bool,
+    oxygen_rush: bool,
     scavenger: bool,
     bear_trap: bool,
 }
@@ -264,7 +264,7 @@ impl Skills {
             dead_mans_switch: flag(11),
             rearm: Rank::parse(field(12))?,
             toxic_smoke: Rank::parse(field(13))?,
-            second_wind: flag(14),
+            oxygen_rush: flag(14),
             scavenger: flag(15),
             bear_trap,
         })
@@ -287,7 +287,7 @@ impl Skills {
             u8::from(self.dead_mans_switch),
             self.rearm.0,
             self.toxic_smoke.0,
-            u8::from(self.second_wind),
+            u8::from(self.oxygen_rush),
             u8::from(self.scavenger),
         ];
         let low = (0..FIELDS.len() - 1).zip(ranks).map(|(n, r)| u32::from(r) * weight(n)).sum::<u32>();
@@ -381,10 +381,10 @@ impl Skills {
         self.toxic_smoke
     }
 
-    /// Second Wind (442): every [`SECOND_WIND_EVERY_MS`] of oxygen tank use, [`SECOND_WIND_SPEED`]
-    /// for [`SECOND_WIND_MS`] and the energy full.
-    pub fn second_wind(self) -> bool {
-        self.second_wind
+    /// Oxygen Rush (442): every [`OXYGEN_RUSH_EVERY_MS`] of oxygen tank use, [`OXYGEN_RUSH_SPEED`]
+    /// for [`OXYGEN_RUSH_MS`] and the energy full.
+    pub fn oxygen_rush(self) -> bool {
+        self.oxygen_rush
     }
 
     /// Scavenger (443): a kill with its grenade gives one grenade back.
@@ -450,25 +450,25 @@ mod tests {
     }
 
     #[test]
-    fn second_wind_lasts_twenty_seconds_across_the_wrap() {
+    fn oxygen_rush_lasts_twenty_seconds_across_the_wrap() {
         for now in [0u32, 5_000, u32::MAX - 5_000] {
-            let wind = SecondWind::start(Clock(now));
-            assert_eq!(SecondWind::parse(wind.raw()), wind);
-            assert_eq!(wind.at(Clock(now.wrapping_add(19_999))).speed(), 1.1);
-            assert_eq!(wind.at(Clock(now.wrapping_add(20_000))), SecondWind::Off);
+            let rush = OxygenRush::start(Clock(now));
+            assert_eq!(OxygenRush::parse(rush.raw()), rush);
+            assert_eq!(rush.at(Clock(now.wrapping_add(19_999))).speed(), 1.1);
+            assert_eq!(rush.at(Clock(now.wrapping_add(20_000))), OxygenRush::Off);
         }
         // A start whose end is clock 0 keeps a word that is not "none".
-        assert_ne!(SecondWind::start(Clock(0u32.wrapping_sub(20_000))).raw(), 0);
-        assert_eq!(SecondWind::parse(0), SecondWind::Off);
+        assert_ne!(OxygenRush::start(Clock(0u32.wrapping_sub(20_000))).raw(), 0);
+        assert_eq!(OxygenRush::parse(0), OxygenRush::Off);
         // A mark while it runs: 20 s from that mark.
-        let first = SecondWind::start(Clock(1_000));
-        assert_eq!(SecondWind::start(Clock(15_000)), SecondWind::On { until: Clock(35_000) });
-        assert_ne!(first, SecondWind::start(Clock(15_000)));
+        let first = OxygenRush::start(Clock(1_000));
+        assert_eq!(OxygenRush::start(Clock(15_000)), OxygenRush::On { until: Clock(35_000) });
+        assert_ne!(first, OxygenRush::start(Clock(15_000)));
     }
 
     #[test]
-    fn second_wind_marks_every_thirty_seconds_of_air() {
-        let mark = |capacity, left, spent| TankTick::parse(capacity, left, spent).unwrap().second_wind_mark();
+    fn oxygen_rush_marks_every_thirty_seconds_of_air() {
+        let mark = |capacity, left, spent| TankTick::parse(capacity, left, spent).unwrap().oxygen_rush_mark();
         // A 120 s tank: 30 s spent (90 left) is the first mark, reached exactly or passed.
         assert!(mark(120_000, 90_000, 16));
         assert!(mark(120_000, 89_990, 16));

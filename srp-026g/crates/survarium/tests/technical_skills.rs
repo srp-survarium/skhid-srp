@@ -109,7 +109,7 @@ fn technical_tree_progression_and_modifiers() {
     assert!(matches!(full.tank_harness(), TankHarness::Depth(_)));
     let pocket = Skills::parse(tree.modifiers(&build(5, TANK_POCKET))[at]).unwrap();
     assert!(matches!(pocket.tank_harness(), TankHarness::Pocket(_)));
-    assert!(full.sharp_ears() && full.scavenger() && full.second_wind() && full.bear_trap());
+    assert!(full.sharp_ears() && full.scavenger() && full.oxygen_rush() && full.bear_trap());
     for (n, field) in FIELDS.iter().enumerate() {
         let one = tree.modifiers(&[(field.skill, 1)])[at];
         let want = if field.skill == 444 { -(LOW as f32) } else { weight(n) as f32 };

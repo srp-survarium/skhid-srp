@@ -47,25 +47,25 @@ pub fn on_sprint_cost(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 
 
-/// Second Wind (442): the tank spent its air for this tick.
+/// Oxygen Rush (442): the tank spent its air for this tick.
 pub fn on_tank_spent(ctx: &mut Context<'_>) -> Flow<NoExit> {
     technical::tank_spent(ctx);
     Flow::Continue
 }
 
-/// Second Wind's end, every simulation tick of every player.
+/// Oxygen Rush's end, every simulation tick of every player.
 pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    technical::second_wind_tick(ctx);
+    technical::oxygen_rush_tick(ctx);
     Flow::Continue
 }
 
-/// Second Wind's speed.
+/// Oxygen Rush's speed.
 pub fn on_movement(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    technical::second_wind_movement(ctx);
+    technical::oxygen_rush_movement(ctx);
     Flow::Continue
 }
 
-/// Second Wind's saved word: none in a new tank and after a refill; saved and loaded with the tank.
+/// Oxygen Rush's saved word: none in a new tank and after a refill; saved and loaded with the tank.
 pub fn on_tank_construct(ctx: &mut Context<'_>) -> Flow<NoExit> {
     technical::tank_construct(ctx);
     Flow::Continue

@@ -1662,7 +1662,7 @@ survarium::oxygen_tank	item	0x0	obj<survarium::item>	its inventory item (0x268 b
 survarium::oxygen_tank	active	0x268	u8	m_active: switched on (set_active 0x33E403; serialize 0x33E7BB)
 survarium::oxygen_tank	amount	0x26C	u32	m_amount_ms, the air left (the ctor 0x33E0B4: amount_time_sec x 1000; tick 0x33E5D0 spends it; serialize 0x33E7DB)
 survarium::oxygen_tank	capacity	0x270	u32	m_capacity_ms, a full tank's air (the ctor 0x33E0BA: amount_time_sec x 1000, as m_amount_ms; both refills 0x33E590/0x33E5A0 copy it to m_amount_ms); not saved
-survarium::oxygen_tank	second_wind_until	0x294	u32	patch 180's Second Wind: the stamina clock's ms its boost lasts until, 0 none; in the tail padding no native code touches (the object is 298h bytes, its last native field +290h); saved after m_amount_ms
+survarium::oxygen_tank	oxygen_rush_until	0x294	u32	patch 180's Oxygen Rush: the stamina clock's ms its boost lasts until, 0 none; in the tail padding no native code touches (the object is 298h bytes, its last native field +290h); saved after m_amount_ms
 survarium::breath_vibration_calculator	user	0x3C	ptr<survarium::player>	its weapon's user (breath_vibration_calculator::tick 0x31D6E0 reads its +115h kit, +6B8h profile, +72Ch stamina; serialize 0x31DA30)
 survarium::player_stamina	clock	0x70	u32	m_current_time_in_ms, the stamina's simulation clock (written every stamina tick 0x329861; serialized)
 survarium::battery_take_state	item	0x1C	ptr<survarium::victory_item_core>	the take state's battery (victory_item_core_take_state ctor 0x338965)

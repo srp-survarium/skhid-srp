@@ -6465,7 +6465,7 @@ crate, which srp shares. Rust modules `technical_skills` and its siblings (`tech
 - Steady Breath (403) at `technical.breath_vibration` (0x31D95B) and `technical.dispersion`
   (0x2E1DBE), Deep Breaths (431) at `medical.sprint` (order 2), while the player's oxygen tank
   (vtable 0xA1C874) is on.
-- Second Wind (442, Last Gasp until 2026-11-22): `technical.tank_spent` (0x33E661, ECX the air
+- Oxygen Rush (442, Last Gasp until 2026-11-22): `technical.tank_spent` (0x33E661, ECX the air
   left, EAX the ms the tick spent) starts it when the tick takes the tank's use (capacity +270h minus
   the air left) past another 30 s (`technical_skills::TankTick`): stamina full, the boost's end in the
   tank's tail padding +294h (a running one given its 20 s again), saved after m_amount_ms:
