@@ -2,9 +2,9 @@
 //! be, and a free-for-all's versions (twists), on one page, a section each
 //! with its anchor (`#team-deathmatch`, `#racket`). Each has its
 //! loading-screen icon ([`IconSet::Mode`]), its rules in short lines, the
-//! numbers they hold, its maps (linked to the Maps tab) and whether the
+//! numbers they hold, and whether the
 //! rooms offer it. Nothing is typed in that the server has:
-//! - the maps and their numbers (time limit, respawn, batteries, chargers,
+//! - the numbers (time limit, respawn, batteries, chargers,
 //!   tickets, points, kills, Artifact Hunt's rule) are the playable configs'
 //!   ([`maps::playable_in`], [`maps::MapMode`]): a span where maps differ;
 //! - Freeze Tag's are its rule's ([`freeze`]), a free-for-all's versions
@@ -19,15 +19,14 @@ use srp_validate::world::freeze;
 use survarium::v026g::cowboy::{self, Variation};
 use survarium::v026g::dictionary::{Dictionary, MapId};
 use survarium::v026g::item_params;
-use survarium::v026g::localization;
 use survarium::v026g::maps::{self, GameMode, MapMode};
 use survarium::v026g::racket::{self, Arms, Gun};
 use survarium::v026g::roulette::{self, Band};
 use survarium::v026g::twist::{self, LobbyMode, Pick};
 
 use crate::icons::{self, IconSet};
-use crate::launcher::{lobby_mode_name, map_name};
-use crate::{Lang, escape, maps as maps_tab, modifiers};
+use crate::launcher::lobby_mode_name;
+use crate::{Lang, escape, modifiers};
 
 /// The page's address.
 pub(crate) const PATH: &str = "/wiki/modes";
@@ -134,6 +133,11 @@ impl Rooms {
     }
 }
 
+/// A mode's section on the Modes page, in `lang`.
+pub(crate) fn url(lang: Lang, mode: LobbyMode) -> String {
+    format!("{PATH}?lang={}#{}", lang.code(), anchor(mode))
+}
+
 /// A section's anchor: the lobby mode's.
 fn anchor(mode: LobbyMode) -> &'static str {
     match mode {
@@ -185,19 +189,6 @@ fn seconds(ms: u32) -> String {
     modifiers::number(ms as f32 / 1000.0)
 }
 
-/// The key of a weather's name in the game's texts (the rooms',
-/// `RoomsText.WEATHER`).
-fn weather_key(weather: u8) -> Option<&'static str> {
-    match weather {
-        maps::weather::DAY => Some("st_srp_weather_day"),
-        maps::weather::RAIN => Some("st_srp_weather_rain"),
-        maps::weather::EVENING => Some("st_srp_weather_evening"),
-        maps::weather::NIGHT => Some("st_srp_weather_night"),
-        maps::weather::PRERAIN => Some("st_srp_weather_before_rain"),
-        _ => None,
-    }
-}
-
 /// A mode's icon, as its maps' loading screen shows it: frame `ui.icon` + 1.
 fn mode_icon(maps: &[&MapMode]) -> String {
     maps.first()
@@ -212,65 +203,6 @@ fn version_icon(mode: LobbyMode) -> String {
     icons::url(IconSet::Mode, &format!("twist-{}", mode.number())).map_or_else(String::new, |url| {
         format!("<img class=mode-icon src=\"{}\" alt=\"\">", escape(&url))
     })
-}
-
-/// The maps of a mode, a line a map (its project's folder) in the rooms'
-/// order, with its weathers, a link to it on the Maps tab when the tab has
-/// it, and where only some rooms offer it.
-fn map_list(lang: Lang, pools: &Pools, maps: &[&MapMode]) -> String {
-    let tab = maps_tab::file("/maps/maps.js").map_or("", |(_, bytes)| {
-        std::str::from_utf8(bytes).unwrap_or("")
-    });
-    let mut rows: Vec<(&MapMode, Vec<&MapMode>)> = Vec::new();
-    for &map in maps {
-        let folder = map.project.split('/').next().unwrap_or("");
-        match rows
-            .iter_mut()
-            .find(|(first, _)| first.project.split('/').next() == Some(folder))
-        {
-            Some((_, weathers)) => weathers.push(map),
-            None => rows.push((map, vec![map])),
-        }
-    }
-    rows.sort_by_key(|(first, _)| (first.build, first.level));
-    let mut out = String::from("<ul class=mode-maps>");
-    for (first, mut weathers) in rows {
-        weathers.sort_by_key(|map| maps::weather::list_place(map.weather));
-        // A mode with two layouts of a map (Research's units) has a weather twice.
-        weathers.dedup_by_key(|map| map.weather);
-        let folder = first.project.split('/').next().unwrap_or("");
-        let name = escape(&map_name(lang, first));
-        let name = if tab.contains(&format!("{{\"key\":\"{folder}\",")) {
-            format!(
-                "<a href=\"{}?lang={}#{folder}/{}\">{name}</a>",
-                maps_tab::PATH,
-                lang.code(),
-                first.mode.rules().number()
-            )
-        } else {
-            name
-        };
-        let weathers: Vec<String> = weathers
-            .iter()
-            .filter_map(|map| weather_key(map.weather))
-            .filter_map(|key| localization::text(lang.game(), key))
-            .map(escape)
-            .collect();
-        let note = if first.twists_only {
-            format!(" <em>{}</em>", lang.t("FFA versions only"))
-        } else if pools.offer(first) == Some(Offer::PrivateOnly) {
-            format!(" <em>{}</em>", lang.t("Private rooms only"))
-        } else {
-            String::new()
-        };
-        let _ = write!(
-            out,
-            "<li>{name} <small>{}</small>{note}</li>",
-            weathers.join(" · ")
-        );
-    }
-    out.push_str("</ul>");
-    out
 }
 
 /// A list of rules, a line each.
@@ -548,12 +480,10 @@ pub(crate) fn body(lang: Lang, pools: &Pools) -> String {
         let _ = write!(
             sections,
             "<section class=\"modifiers mode\" id={}><h2>{icon}{name}</h2>\
-             <p class=mode-rooms>{}</p><div class=mode-body>{}<div><h3>{}</h3>{}</div></div>",
+             <p class=mode-rooms>{}</p><div class=mode-body>{}</div>",
             anchor(lobby),
             rooms.text(lang),
             rules(&mode_rules(lang, mode, shown)),
-            lang.t("Maps"),
-            map_list(lang, pools, shown),
         );
         if mode == GameMode::FreeForAll {
             versions(lang, &mut sections, rooms);
