@@ -293,6 +293,11 @@ fn mode_rules(lang: Lang, mode: GameMode, maps: &[&MapMode]) -> Vec<String> {
                 ],
             ),
             lang.t("A thaw counts as a kill."),
+            lang.tf(
+                "A frozen player thaws by himself after {0}.",
+                &[("0", &clock(freeze::AUTO_THAW_MS.get() / 1000))],
+            ),
+            lang.t("A team's last fighter shows on the enemies' map."),
             lang.t("Freeze the whole enemy team to win the round."),
             lang.tf(
                 "{0} s pause between rounds, then everyone respawns.",

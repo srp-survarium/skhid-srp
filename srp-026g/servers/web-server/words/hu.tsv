@@ -36,6 +36,8 @@ Private rooms: plain FFA only.	Privát szobák: csak sima FFA.
 A lethal hit freezes you in place.	Egy halálos találat a helyedre fagyaszt.
 A teammate within {0} m thaws you in {1} s.	Egy {0} m-en belüli csapattárs {1} mp alatt kiolvaszt.
 A thaw counts as a kill.	A kiolvasztás ölésnek számít.
+A frozen player thaws by himself after {0}.	A fagyott játékos {0} után magától kiolvad.
+A team's last fighter shows on the enemies' map.	A csapat utolsó harcosa látszik az ellenfelek térképén.
 Freeze the whole enemy team to win the round.	Fagyaszd le az egész ellenfél csapatot a kör megnyeréséhez.
 {0} s pause between rounds, then everyone respawns.	{0} mp szünet a körök között, aztán mindenki újraéled.
 First to {0} rounds wins.	Az első csapat nyer, amely {0} kört nyer.
