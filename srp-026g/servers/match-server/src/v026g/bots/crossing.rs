@@ -316,7 +316,10 @@ pub fn resume(
 /// in zones that left a bot under 0.6 health began under 0.7 (C: 10 such
 /// stretches in all); 23 began within 3 s of an enemy's hit. GUESS: at
 /// 0.7 the dearest crossing borne (half the health) leaves 0.35, over the
-/// abort's its give-up.
+/// abort's its give-up. [zone start gate] Read on each pool the crossing takes from (`Reserve::start_refusal`): with
+/// `hazard.zone_pools` routed a toxic or radiation zone costs the infection pool, not the body, and a body pool it never
+/// touches no longer refuses it (the body is still asked by `bears`, its reserve kept). With the raw model the cost is
+/// the body's, and the gate is the body's as before.
 pub const START_HEALTH: f32 = 0.7;
 
 /// Whether a crossing walked `walked` m along `route` still leaves a bot
@@ -389,16 +392,24 @@ pub fn choose(
         return (plain, false, kept, None);
     };
     let cost = hurt(tactics, &crossed, 0.0, crossed.length(), body.armour());
-    let borne = cost.most() <= 0.0 || (body.health() >= START_HEALTH && body.bears(cost));
+    // [zone start gate] Each pool the crossing takes from at `START_HEALTH` or more, not the body pool whatever it takes.
+    let gate = body.budget.reserve.start_refusal(cost, START_HEALTH);
+    let borne = cost.most() <= 0.0 || (gate.is_none() && body.bears(cost));
+    let not_borne = || gate.clone().map_or_else(|| "not borne".to_string(), |gate| format!("not begun: {gate}"));
     match plain {
         Some(plain) if stuck::worth_round(plain.length(), crossed.length()) || !borne => {
             count(Count::Refused);
-            let why = if borne { "the way round is short enough" } else { "not borne" };
-            (Some(plain), false, true, Some(priced_line("crossing refused", why, cost, body, crossed.length())))
+            let why = if borne { "the way round is short enough".to_string() } else { not_borne() };
+            (Some(plain), false, true, Some(priced_line("crossing refused", &why, cost, body, crossed.length())))
         }
         _ if borne => {
             count(Count::Taken);
-            (Some(crossed), cost.most() > 0.0, false, None)
+            // [zone start gate] Begun where the body's own 0.70 would have refused it: the pools it takes, for the log.
+            let line = (cost.most() > 0.0 && body.health() < START_HEALTH).then(|| {
+                let why = format!("the start gate on the pools it takes ({}), the body {:.3} not taken", body.budget.reserve.taken(cost), body.health());
+                priced_line("crossing begun", &why, cost, body, crossed.length())
+            });
+            (Some(crossed), cost.most() > 0.0, false, line)
         }
         _ => match out_of_ring(tactics, from, &crossed, body, time, side, objective) {
             Some(out) => {
@@ -407,7 +418,7 @@ pub fn choose(
             }
             None => {
                 count(Count::Refused);
-                (None, false, false, Some(priced_line("crossing refused", "not borne, no way", cost, body, crossed.length())))
+                (None, false, false, Some(priced_line("crossing refused", &format!("{}, no way", not_borne()), cost, body, crossed.length())))
             }
         },
     }
