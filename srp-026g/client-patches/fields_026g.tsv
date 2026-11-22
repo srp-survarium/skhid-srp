@@ -50,6 +50,8 @@ survarium::ammo_data	mass	0x14	f32	the ammo config's data.mass (ammo_data::load 
 survarium::bullet_manager	engine	0x90	ptr<survarium::bullet_manager_engine>	the game world's interface (the world's +0ECh; its slot +24h get_player, bullet::bullet 0x32BD3E); 0: no effects (play_particle 0x3223EB)
 survarium::bullet_manager	materials	0x94	ptr<survarium::game_material_manager>	the game material manager (check_collision 0x32D845)
 survarium::game_material	id	0x64	u16	its id (the material pair's index, 0x306D50)
+survarium::game_material_manager	default_id	0x1030C	u16	the default material's id, 11 (the constructor 0x306BBF; the manager is 10310h bytes, 0x2CD1F2): material_pair's master and second for an id whose slot is empty. The manager's tables: +108h 128 material slots by id (0x200 bytes zeroed at 0x306BC6; find by name 0x306E00 walks 128), +308h 128 x 128 pair slots, [master x 128 + second] (0x10000 bytes, 0x306BD8), +10308h the default material
+survarium::game_material	master	0x66	u16	its pair master's id, 0FFFFh itself (material_pair 0x306D5F)
 survarium::material_pair	sound	0x18	u32	its sound's resource slot (process_front_face_piercing 0x32E6BA)
 survarium::material_pair	particles	0x24	ptr<survarium::particle_slot>	its particles' slots, begin (0x32E6E9)
 survarium::material_pair	particles_end	0x28	ptr<survarium::particle_slot>	their end (0x32E6EC)
@@ -1445,7 +1447,7 @@ survarium::pvp_match	materials	0x12C	ptr<survarium::game_material_manager>	the g
 survarium::material_pair	step_sound	0x20	u32	its collision sound's resource, a step's (on_step 0x248B98: 0 none, the step silent)
 survarium::player_equipment_sound_effect	logic	0x38	ptr<survarium::player_logic>	the player's logic selector (on_foot_step 0x2A652C)
 survarium::player_logic	state	0x20	ptr<survarium::player_logic_state>	its current logic state (on_foot_step 0x2A652F)
-survarium::player_logic_state	movement	0x24	u32	the state's movement id (on_foot_step 0x2A6532): 0 stand_on_site, crouch_on_site and dead, 1 crouch_walk, 2 stand_run, 3 stand_sprint, 4 stand_jump (the constructors 0x2FABB0..0x2FADCC); the foot material is the player's u16 at +0F2C4h + 4 x id + 2 x third view, so 0 reads before the table
+survarium::player_logic_state	movement	0x24	u32	the state's movement id (on_foot_step 0x2A6532): 0 stand_on_site, crouch_on_site and dead, 1 crouch_walk, 2 stand_run, 3 stand_sprint, 4 stand_jump (the constructors 0x2FABB0..0x2FADCC); the foot material is the player's u16 at +0F2C4h + 4 x id + 2 x third view, so 0 reads before the table (a rev71 crash in step_manager::on_step: patch 101 drops such a step at 0x2A6545)
 survarium::player	run_material_first	0xF2CC	u16	the boots' run_1st_view_material_id (movement 2, first person: actor_local 42), the foot material of the player's own walking step
 survarium::player	run_material_third	0xF2CE	u16	the boots' run_3rd_view_material_id (movement 2, third person: actor 10)
 survarium::image	foot_step_return	0x2A6577	u8	on_foot_step's return from on_step (call 0x2A6572)
@@ -1806,3 +1808,7 @@ vostok::render::texture_pool_slot	size	0x1C	size	one slot (0x15424C)
 vostok::render::environment_probe	occluded	0x384	u8	the hi-Z occlusion's last answer (the constructor clears it, 0x1C2F6A; get_results_and_prepare_bounds_env_probes stores it, 0x1B81E3; the filter 0x1B9376 and its find_if 0x1B98C0 drop an occluded probe while the option is on; gather_statistics counts it)
 vostok::render::ambient_light	occluded	0xA4	u8	the hi-Z occlusion's last answer (get_results_and_prepare_bounds_ambient_lights stores it, 0x1B8043; the filter 0x1B9151 and its find_if 0x1B94C0 drop an occluded light while the option is on; gather_statistics counts it)
 vostok::render::light	occluded	0x270	u8	the hi-Z occlusion's last answer (get_results_and_prepare_bounds_lights stores it, 0x1B7C2B; stage_lights::execute 0x1934F0, render_forward_lighting 0x1932C0 and debug_render 0x195AA1 skip an occluded light while the option is on, unless it waits for a refresh; gather_statistics counts it)
+survarium::use_progress_frame	ui	0x4	ptr<survarium::game_world_ui>	set_using_progress_message's ui at its start (0x23A430, by the site's ESP): entry ESP+4 (player::st_draw pushes [player+F480h], 0x246FBA..0x246FC3)
+survarium::game_world_ui	prompt_text	0x334	u32	the use prompt's text key last given root.set_context by set_using_info_message (0x23A560: it calls set_context only when its text differs from this, then stores it, 0x23A570..0x23A584); initialize_match writes 0 (0x234ACC); set_using_progress_message neither reads nor writes it
+survarium::game_world_ui	team_zero_points	0xB4	u16	the hud state's +90h: team 0's points, which update_ui sends as root.set_game_progress (0x2364C0, the viewed team's first); written by the mode's rule (tdm_rule_core::fill_match_hud_state 0x31643B, Artifact Hunt's slot 17) and by nothing at a new match (match_hud_state is made once, 0x233680)
+survarium::game_world_ui	team_one_points	0xB6	u16	the hud state's +92h: team 1's points (as +90h)

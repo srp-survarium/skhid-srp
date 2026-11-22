@@ -15,6 +15,7 @@ use survarium::v026g::faces::Face;
 use survarium::v026g::golden;
 use survarium::v026g::item_params;
 use survarium::v026g::loadouts::{self, AMMO_SLOTS, KitLayout, Loadout, POCKET_SLOTS};
+pub use survarium::v026g::loadouts::{ARTIFACT_CONTAINER, ContainerSlot};
 use survarium::v026g::lobby::{FULL_CONDITION, limits};
 use survarium::v026g::quests::FACTIONS;
 use survarium::v026g::skills::{self, SkillsTree};
@@ -84,6 +85,23 @@ pub struct KitSlot {
     pub count: u32,
 }
 
+/// Why a kit's Artifact Container slot was not changed ([`Account::set_container_slot`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ContainerError {
+    /// No kit at that place.
+    NoSuchKit,
+    /// The account lacks Artifact Container: no slot to choose.
+    NoSkill,
+}
+
+impl std::fmt::Display for ContainerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+
+impl std::error::Error for ContainerError {}
+
 /// One kit: the client's "profile".
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Kit {
@@ -95,6 +113,8 @@ pub struct Kit {
     /// rebuilds the character it shows.
     pub revision: u32,
     pub slots: [Option<KitSlot>; KIT_SLOTS],
+    /// Artifact Container's slot in this kit ([`Account::set_container_slot`]).
+    pub container: ContainerSlot,
 }
 
 impl Kit {
@@ -104,6 +124,7 @@ impl Kit {
             name: String::new(),
             revision: 1,
             slots: [None; KIT_SLOTS],
+            container: ContainerSlot::Container,
         }
     }
 
@@ -336,7 +357,7 @@ impl Account {
             account.kits[0].slots[slot] = Some(KitSlot { item_id, count });
         }
         let mut slots = account.kits[0].slots;
-        account.keep_to_layout(&mut slots);
+        account.keep_to_layout(0, &mut slots);
         account.kits[0].slots = slots;
         account
     }
@@ -643,7 +664,7 @@ impl Account {
                     }
                 }
             }
-            self.keep_to_layout(&mut slots);
+            self.keep_to_layout(index, &mut slots);
             let kit = &mut self.kits[index];
             let upgraded = kit
                 .slots
@@ -682,11 +703,17 @@ impl Account {
     /// stays full: a skill that makes it larger fills it, as far as the
     /// units owned go.
     pub fn change_skills(&mut self, skills: Vec<(u16, u8)>, tree: &SkillsTree) {
-        let before = tree.modifiers(&self.skills);
-        let modifiers = tree.modifiers(&skills);
-        self.skills = skills;
-        for index in 0..self.kits.len() {
+        let skills_before = std::mem::replace(&mut self.skills, skills);
+        let kits_before: Vec<ContainerSlot> = self.kits.iter().map(|kit| kit.container).collect();
+        let presets_before = self.presets.map(|preset| preset.map(|preset| preset.containers));
+        self.forget_container_slots();
+        let modifiers_of = |skills: &[(u16, u8)], container: ContainerSlot| {
+            tree.modifiers(&container.skills_taken(skills))
+        };
+        for (index, &container_before) in kits_before.iter().enumerate() {
             let found = self.kits[index].slots;
+            let before = modifiers_of(&skills_before, container_before);
+            let modifiers = modifiers_of(&self.skills, self.kits[index].container);
             let mut slots = found;
             self.follow_layout(&found, &before, &mut slots, &modifiers);
             let kit = &mut self.kits[index];
@@ -694,28 +721,103 @@ impl Account {
             kit.revision = kit.revision.wrapping_add(1);
         }
         let mut presets = self.presets;
-        for kit in presets
-            .iter_mut()
-            .flatten()
-            .flat_map(|preset| &mut preset.kits)
-        {
-            let held = kit.map(|slot| slot.map(|saved| (saved.dict_id, saved.count)));
-            let worn = || kit.iter().flatten().map(|saved| saved.item_id);
-            let layout = self.layout_of(worn(), &modifiers);
-            // A preset is put on with at most the units owned (`fill_kit`).
-            let kept = layout.followed(&self.layout_of(worn(), &before), &held);
-            keep_into(kit, &held, kept, |saved| &mut saved.count);
+        for (preset, before) in presets.iter_mut().zip(presets_before) {
+            let (Some(preset), Some(containers_before)) = (preset, before) else {
+                continue;
+            };
+            for ((kit, container), container_before) in preset
+                .kits
+                .iter_mut()
+                .zip(preset.containers)
+                .zip(containers_before)
+            {
+                let before = modifiers_of(&skills_before, container_before);
+                let modifiers = modifiers_of(&self.skills, container);
+                let held = kit.map(|slot| slot.map(|saved| (saved.dict_id, saved.count)));
+                let worn = || kit.iter().flatten().map(|saved| saved.item_id);
+                let layout = self.layout_of(worn(), &modifiers);
+                // A preset is put on with at most the units owned (`fill_kit`).
+                let kept = layout.followed(&self.layout_of(worn(), &before), &held);
+                keep_into(kit, &held, kept, |saved| &mut saved.count);
+            }
         }
         self.presets = presets;
     }
 
-    /// A kit's `slots` held to its layout: what its worn items and the
-    /// account's skills open ([`KitLayout::kept`]). Every change of a kit
-    /// ends in it ([`Self::sync_kits`], `rules::relocate`), so a request can
-    /// not put back what the layout took off, nor fill more than it opens.
-    pub fn keep_to_layout(&self, slots: &mut [Option<KitSlot>; KIT_SLOTS]) {
+    /// Whether the account has Artifact Container, whose slot each kit may make a pocket again.
+    pub fn has_container_skill(&self) -> bool {
+        self.skills
+            .iter()
+            .any(|&(id, points)| id == ARTIFACT_CONTAINER && points > 0)
+    }
+
+    /// Without Artifact Container, every kit's and preset's slot is the container (so the skill
+    /// learned again gives the container everywhere, as at first). Whether anything changed.
+    fn forget_container_slots(&mut self) -> bool {
+        if self.has_container_skill() {
+            return false;
+        }
+        let mut changed = false;
+        let containers = self
+            .kits
+            .iter_mut()
+            .map(|kit| &mut kit.container)
+            .chain(self.presets.iter_mut().flatten().flat_map(|preset| &mut preset.containers));
+        for container in containers {
+            changed |= *container != ContainerSlot::Container;
+            *container = ContainerSlot::Container;
+        }
+        changed
+    }
+
+    /// The skills' modifiers the kit at `kit_index` carries (the lobby's and the match's kit
+    /// block): every skill's, but Artifact Container's in a kit whose slot is the pocket
+    /// ([`ContainerSlot`]).
+    pub fn kit_modifiers(&self, kit_index: usize) -> [f32; skills::MODIFIERS] {
+        let container = self
+            .kits
+            .get(kit_index)
+            .map_or(ContainerSlot::Container, |kit| kit.container);
+        SkillsTree::shared().modifiers(&container.skills_taken(&self.skills))
+    }
+
+    /// The kit at `kit_index` makes Artifact Container's slot `container` (the lobby's click,
+    /// `presets.md`): the slot a pocket again, or the container. What the pocket held comes off
+    /// the kit and stays owned, as when any pocket goes ([`Self::keep_to_layout`]). Whether the
+    /// kit changed (a new revision). `tree` is the skills tree (`SkillsTree::shared`).
+    pub fn set_container_slot(
+        &mut self,
+        kit_index: usize,
+        container: ContainerSlot,
+        tree: &SkillsTree,
+    ) -> Result<bool, ContainerError> {
+        if kit_index >= self.kits.len() {
+            return Err(ContainerError::NoSuchKit);
+        }
+        if !self.has_container_skill() {
+            return Err(ContainerError::NoSkill);
+        }
+        if self.kits[kit_index].container == container {
+            return Ok(false);
+        }
+        self.kits[kit_index].container = container;
+        let modifiers = tree.modifiers(&container.skills_taken(&self.skills));
+        let found = self.kits[kit_index].slots;
+        let mut slots = found;
+        self.follow_layout(&found, &modifiers, &mut slots, &modifiers);
+        let kit = &mut self.kits[kit_index];
+        kit.slots = slots;
+        kit.revision = kit.revision.wrapping_add(1);
+        Ok(true)
+    }
+
+    /// The slots of the kit at `kit_index`, `slots`, held to its layout: what its worn items and
+    /// the skills it carries open ([`KitLayout::kept`], [`Self::kit_modifiers`]). Every change
+    /// of a kit ends in it ([`Self::sync_kits`], `rules::relocate`), so a request can not put
+    /// back what the layout took off, nor fill more than it opens.
+    pub fn keep_to_layout(&self, kit_index: usize, slots: &mut [Option<KitSlot>; KIT_SLOTS]) {
         let found = *slots;
-        self.keep_to_layout_after(&found, slots);
+        self.keep_to_layout_after(kit_index, &found, slots);
     }
 
     /// [`Self::keep_to_layout`] at the end of a request that found the kit
@@ -726,10 +828,11 @@ impl Account {
     /// asked for.
     pub fn keep_to_layout_after(
         &self,
+        kit_index: usize,
         before: &[Option<KitSlot>; KIT_SLOTS],
         slots: &mut [Option<KitSlot>; KIT_SLOTS],
     ) {
-        let modifiers = SkillsTree::shared().modifiers(&self.skills);
+        let modifiers = self.kit_modifiers(kit_index);
         self.follow_layout(before, &modifiers, slots, &modifiers);
     }
 
@@ -829,7 +932,7 @@ impl Account {
                     held.count = owned;
                 }
             }
-            self.keep_to_layout(&mut slots);
+            self.keep_to_layout(index, &mut slots);
             let kit = &mut self.kits[index];
             if kit.slots != slots {
                 kit.slots = slots;
@@ -893,6 +996,7 @@ impl Account {
         let dictionary = Dictionary::shared();
         let before = self.clone();
         self.settle_skills(SkillsTree::shared());
+        self.forget_container_slots();
 
         let mut seen = Vec::new();
         self.inventory.retain(|item| {
@@ -1463,5 +1567,82 @@ mod tests {
         );
         // Settled once, the set stays as it is.
         assert!(!account.settle_skills(&tree));
+    }
+
+    /// The skills tree with Artifact Container as the game data has it (the test archive is
+    /// older): one rank, modifiers 14 +1 and 15 -1.
+    fn tree_with_container() -> SkillsTree {
+        let mut tree = SkillsTree::shared().clone();
+        let mut container = tree.skill(113).unwrap().clone();
+        container.id = ARTIFACT_CONTAINER;
+        container.levels = vec![vec![(14, 1.0), (skills::slot_modifier::POCKET_SLOTS, -1.0)]];
+        tree.skills.push(container);
+        tree.skills.sort_by_key(|skill| skill.id);
+        tree
+    }
+
+    /// A kit's Artifact Container slot: the pocket again and back (the owner, 2026-11-22). A
+    /// kit with the stock pocket has none with the container, one with the pocket; what the
+    /// pocket held comes off when it is the container again, and stays owned.
+    #[test]
+    fn a_kit_makes_the_container_a_pocket_and_back() {
+        let tree = tree_with_container();
+        let medkit = Dictionary::shared().item_named("medkit").unwrap().dict_id;
+        let mut account = Account::new("Alice");
+        let held = account.add_item(medkit, 2);
+        assert_eq!(
+            account.set_container_slot(1, ContainerSlot::Pocket, &tree),
+            Err(ContainerError::NoSkill)
+        );
+        account.change_skills(vec![(ARTIFACT_CONTAINER, 1)], &tree);
+        let layout = |account: &Account, kit: usize| {
+            let container = account.kits[kit].container;
+            account
+                .layout_of([], &tree.modifiers(&container.skills_taken(&account.skills)))
+                .pockets()
+        };
+        assert_eq!(account.kits[1].container, ContainerSlot::Container);
+        assert_eq!(layout(&account, 1), 0);
+
+        let revision = account.kits[1].revision;
+        assert_eq!(account.set_container_slot(1, ContainerSlot::Pocket, &tree), Ok(true));
+        assert_eq!(account.set_container_slot(1, ContainerSlot::Pocket, &tree), Ok(false));
+        assert_eq!(account.kits[1].revision, revision.wrapping_add(1));
+        assert_eq!(layout(&account, 1), 1);
+        // The other kits keep the container.
+        assert_eq!(layout(&account, 2), 0);
+
+        in_pocket(&mut account, 1, 13, held, 2);
+        let inventory = account.inventory.clone();
+        assert_eq!(account.set_container_slot(1, ContainerSlot::Container, &tree), Ok(true));
+        assert_eq!(account.kits[1].slots[13], None);
+        assert_eq!(account.inventory, inventory);
+        assert_eq!(
+            account.set_container_slot(3, ContainerSlot::Pocket, &tree),
+            Err(ContainerError::NoSuchKit)
+        );
+    }
+
+    /// The skill refunded: every kit and preset kit has the container again, so the skill
+    /// learned again starts as at first; the pocket's item stays where the stock pocket is.
+    #[test]
+    fn the_skill_taken_back_forgets_the_pockets() {
+        use crate::v026g::presets::Preset;
+        let tree = tree_with_container();
+        let mut account = Account::new("Alice");
+        account.change_skills(vec![(ARTIFACT_CONTAINER, 1)], &tree);
+        account.set_container_slot(0, ContainerSlot::Pocket, &tree).unwrap();
+        let mut preset = Preset::EMPTY;
+        preset.containers[2] = ContainerSlot::Pocket;
+        account.presets[1] = Some(preset);
+
+        account.change_skills(Vec::new(), &tree);
+        assert!(account.kits.iter().all(|kit| kit.container == ContainerSlot::Container));
+        assert_eq!(account.presets[1].map(|preset| preset.is_empty()), Some(true));
+
+        // A saved account with a pocket and no skill (an admin's refund) is repaired so too.
+        account.kits[2].container = ContainerSlot::Pocket;
+        assert!(account.repair());
+        assert_eq!(account.kits[2].container, ContainerSlot::Container);
     }
 }

@@ -8,13 +8,18 @@
 //!
 //! Choosing changes the kits the way a move does: the client is sent the
 //! inventory and the account ([`Core::push_account`]), as after `46 00`,
-//! and squad mates see the new kits.
+//! and squad mates see the new kits. So does a kit's Artifact Container slot made the pocket
+//! or the container (`artefact-skills.md`), on the same wire.
 
 use session::LockExt;
+use session::v026g::account::ContainerSlot;
 use session::v026g::presets::{self, Applied, PresetError};
 use session::v026g::quests;
 use session::v026g::rules;
-use survarium::v026g::lobby::presets::{self as wire, PresetDone, PresetRequest, PresetRow};
+use survarium::v026g::lobby::presets::{
+    self as wire, PresetDone, PresetList, PresetRequest, PresetRow,
+};
+use survarium::v026g::skills::SkillsTree;
 
 use super::core::{Core, Who};
 
@@ -27,6 +32,11 @@ impl Core<'_> {
                 Ok(_) => (PresetDone::Chosen, preset),
                 Err(_) => (PresetDone::Refused, preset),
             },
+            // The list's `K` row says what the kits are now, done or not.
+            PresetRequest::Container { kit, slot } => {
+                self.container_slot(who, kit, slot);
+                (PresetDone::Listed, 0)
+            }
         };
         self.send_presets(who, done, preset);
     }
@@ -77,7 +87,7 @@ impl Core<'_> {
     pub(super) fn send_presets(&mut self, who: &Who, done: PresetDone, preset: u8) {
         let minutes = self.store.minutes_to_maintenance();
         let blocks = self.entry_blocks(who);
-        let (rows, active, uses) = {
+        let (rows, active, uses, containers) = {
             let account = who.account.locked();
             let levels = presets::levels(&account, quests::now());
             let rows: Vec<PresetRow> = (1..=presets::PRESETS as u8)
@@ -87,11 +97,54 @@ impl Core<'_> {
                     level,
                 })
                 .collect();
-            (rows, account.active_preset, presets::uses(&account))
+            let has_skill = account.has_container_skill();
+            let containers: Vec<(u32, Option<ContainerSlot>)> = account
+                .kits
+                .iter()
+                .map(|kit| (kit.id, has_skill.then_some(kit.container)))
+                .collect();
+            let uses = presets::uses(&account);
+            (rows, account.active_preset, uses, containers)
         };
-        self.send_made(
-            who.addr,
-            wire::preset_list(done, preset, active, blocks, minutes, &rows, &uses),
-        );
+        let list = PresetList {
+            done,
+            preset,
+            active,
+            blocks,
+            minutes,
+            rows: &rows,
+            containers: &containers,
+            uses: &uses,
+        };
+        self.send_made(who.addr, wire::preset_list(&list));
+    }
+
+    /// The asker's kit at `kit` makes Artifact Container's slot `slot`
+    /// (`Account::set_container_slot`), not while it is in a match or on its way to one, as a
+    /// preset choice. Changed: the client gets the inventory and the account (the kit's pockets
+    /// and containers), and squad mates the kits.
+    fn container_slot(&mut self, who: &Who, kit: u8, slot: ContainerSlot) {
+        let free = self
+            .player(who.addr)
+            .is_some_and(|player| player.in_match.is_none() && player.connect.is_none());
+        if !free {
+            log::info!("{}: kit {kit}'s container slot {slot:?}: refused, busy", who.name);
+            return;
+        }
+        let changed = who
+            .account
+            .locked()
+            .set_container_slot(usize::from(kit), slot, SkillsTree::shared());
+        match changed {
+            Ok(true) => {
+                log::info!("{}: kit {kit}'s container slot {slot:?}", who.name);
+                self.push_account(who);
+                self.squads_dirty = true;
+            }
+            Ok(false) => {}
+            Err(error) => {
+                log::info!("{}: kit {kit}'s container slot {slot:?}: refused ({error})", who.name)
+            }
+        }
     }
 }

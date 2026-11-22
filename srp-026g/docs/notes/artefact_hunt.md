@@ -42,6 +42,8 @@ the mode. This note is the specification: the rules below are 0.46c2's; where 0.
   match ends (scores differ) or goes to sudden death (equal).
 - **Respawn in a round:** in waves every 15 s (`respawn_time`) counted from the match start, never
   sooner than 7 s after the death (`time_needed_to_respawn`); the player's respawn modifier applies.
+  The hud counts to the next wave beside the match time, for everyone (srp's addition: "HUD calls",
+  "The respawn wave").
 - **Match time** 900 s (`match_time`). When it runs out: the higher score wins at once; equal scores:
   sudden death.
 - **Sudden death,** 180 s (`draw_additional_time`): no respawns; a team with nobody left gives the
@@ -824,10 +826,10 @@ re-simulation undoes: Research has the same exposure.
   1 to 3 taken, 4 by Freeze Tag's worktree: 5), and `hud.initialize_match` 0x234880 to forget what
   was shown. The viewed place is the hud state's first byte (ui+24h, the watched player in a
   replay; 0FFh none), his team the profile's.
-- **`root.artefact_hunt_update(...)`:** 28 values, every one a GFx Number (type 5, as Research's
+- **`root.artefact_hunt_update(...)`:** 30 values, every one a GFx Number (type 5, as Research's
   sender; `vostok::ui::Movie` needs an `invoke_numbers`), from `Rule::hud` and the viewer. Sent
-  when a checksum over them changes (the four ms values taken as whole seconds, rounded up) and
-  every 60 frames; the movie runs its own timers between.
+  when a checksum over them changes (the ms left of #5, #8 and #21 taken as whole seconds, rounded
+  up) and every 60 frames; the movie runs its own timers between.
 
   | # | value | domain |
   |---|---|---|
@@ -847,8 +849,10 @@ re-simulation undoes: Research has the same exposure.
   | 18 | carrier's place | 0..19; 255 none |
   | 19 | carrier's team | 0, 1; 2 none |
   | 20 | the viewed player carries | 0, 1 |
-  | 21 | bases | 2 |
-  | 22..27 | a base: team, x, -z | team 0's first |
+  | 21 | ms to the next respawn wave | 1..#22 in a hunt out of sudden death; else 0 |
+  | 22 | a wave's whole length, ms | `respawn_time` (15000) with #21; else 0 |
+  | 23 | bases | 2 |
+  | 24..29 | a base: team, x, -z | team 0's first |
 
   The movie draws from it: the scores (its own branch for game type 13; `set_game_type(13)` is
   native), the minimap's artefact while lying and the bases (its own highlighted with #20), as
@@ -858,6 +862,43 @@ re-simulation undoes: Research has the same exposure.
   `show_fade_animation(1.0, true)`), the countdown's "Awaiting match start: 00:05" with #5 in
   phase 8 (0.46c2's pregame text: `st_final_countdown`, the exe's own key, in the movie's pregame
   box), and what #10 announces.
+- **The respawn wave** (#21, #22; the owner, 2026-11-22: "for art hunt since respawns there are
+  timer based, this timer should also be visible", "exactly like in dirty bomb", "a smaller timer
+  after the main one"). `Rule::hud`'s `wave`: in a round's hunt out of sudden death, the time from
+  now to the first multiple of `respawn_time` from the match's start after now (the arithmetic of
+  `Rule::respawn_at`, one function: a wave of this very step has come, the respawn rule's tick
+  being before the hud's); `None` before the start, in the 3 s, the fade and the countdown (respawns
+  held), in sudden death and once over. The game spawns a wave at the simulation step at or after
+  it (the 50 ms grid): the hud is at most a step early. Display only: nothing a match computes
+  changes. The movie counts down between updates and goes on to the next wave at 0 (the waves
+  repeat until an update says none): no timer of its own.
+  - **What is shown** (decided by the owner, 2026-11-22: "exactly like in dirty bomb", "There it is
+    a smaller timer after the main one", "yes, let's go 1", out of ten looks drawn): a smaller
+    number of seconds right after the match time, on its baseline, in the row's font, white with
+    its dark edge (`ArtefactHuntWave`, owned by the row); the bars move apart by its widest ("00")
+    so that the time and it stay centred between them, and close again while no wave comes.
+  - **Every team's wave, not a player's.** Both teams share one wave clock (from the match's
+    start), so one number serves both. A dead player's own time stays the game's respawn line under
+    the row (`root.set_respawn_time` from the respawn rule's own time: the 7 s least time and his
+    modifier in it): dead in time for the coming wave with no modifier, the two say the same; dead
+    less than 7 s before it, his line says the wave after (the wave number shows 3, his line 00:18);
+    with a modifier his line is shifted by it. This is Dirty Bomb's split too (below): the wave
+    timer is the team's, the death screen says one's own.
+  - **No number that will not happen:** hidden before the start, in a round's restart, in sudden
+    death (its "Sudden death" line says why) and at the end.
+  - **Spectators and replays** see the same number (it is nobody's), beside the same match time;
+    the respawn line is the watched player's, as ever.
+  - **Dirty Bomb** (Splash Damage, 2015), the reference. Its Stopwatch mode spawns both teams in
+    waves at the same moments (25 s then), and the wave countdown is a small timer at the match
+    timer in the top-left corner, for everyone ("look at the top left corner, there is a timer";
+    "if you look to the left of the game timer, you can see when you and your enemies will be
+    spawning": forums.splashdamage.com/t/spawn-timer/222338); in its Objective mode the teams'
+    waves are offset (hard to read for the enemy's, the same thread). The players' wish before it
+    was a "small hud element" for the next wave (forums.splashdamage.com/t/thoughts-on-dirty-bombs-
+    spawn-system/142749). The owner's description, "a smaller timer after the main one", places it
+    after the match time here; one forum post puts it to the left. Not confirmed from a source:
+    what a dead player sees there (recalled: a large "respawning in N" line, as 0.26g's own line).
+  - Research and the other modes have no waves (the native respawn rule's per-death time).
 - **Native calls that go on by themselves:** `root.set_game_progress` (0x2364C0, from hud+90h, +92h:
   slot 17 writes the scores there, u16), `root.set_match_time` (from hud+4, above),
   `root.set_respawn_time` (0x236C30 from the respawn rule's own time, 0x316C20: a wave shows by

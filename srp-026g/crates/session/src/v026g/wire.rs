@@ -9,7 +9,6 @@ use survarium::v026g::lobby::{
 };
 use survarium::v026g::modifications::Modifications;
 use survarium::v026g::shop_offers;
-use survarium::v026g::skills::SkillsTree;
 use survarium::v026g::weapon_kit;
 
 use super::account::{Account, Item};
@@ -76,10 +75,9 @@ pub fn upgrades_descr(item: &Item) -> Vec<Upgrade> {
 /// item once however many kits wear it. A slot whose item the inventory
 /// lacks is left out (the client would look it up and crash).
 pub fn account_body(account: &Account) -> AccountBody {
-    let modifiers = SkillsTree::shared().modifiers(&account.skills);
     let mut items: Vec<ItemDescr> = Vec::new();
     let mut kits = Vec::with_capacity(account.kits.len());
-    for kit in account.kits.iter().take(limits::KITS) {
+    for (index, kit) in account.kits.iter().take(limits::KITS).enumerate() {
         let mut slots = [None; limits::KIT_SLOTS];
         for (slot, held) in kit.slots.iter().enumerate() {
             let Some(held) = held else {
@@ -105,7 +103,8 @@ pub fn account_body(account: &Account) -> AccountBody {
             id: kit.id,
             name: kit.name.clone(),
             slots,
-            modifiers,
+            // Each kit its own: Artifact Container's slot is the kit's choice.
+            modifiers: account.kit_modifiers(index),
         });
     }
     AccountBody {

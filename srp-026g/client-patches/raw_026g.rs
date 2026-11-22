@@ -3533,6 +3533,15 @@ impl GameMaterial {
         unsafe { self.0.byte_add(0x64).cast::<u16>().as_ptr() }
     }
 
+    /// +0x66 (u16): its pair master's id, 0FFFFh itself (material_pair 0x306D5F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn master(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x66).cast::<u16>().as_ptr() }
+    }
+
     /// +0x4c (f32): its physic armor (game.materials): try_pierce's A (0x32D980); 0 lets every bullet through for nothing (k = 1, 0x32D99E)
     ///
     /// # Safety
@@ -3540,6 +3549,30 @@ impl GameMaterial {
     #[inline(always)]
     pub unsafe fn armor(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x4c).cast::<f32>().as_ptr() }
+    }
+}
+
+/// A survarium::game_material_manager (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GameMaterialManager(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl GameMaterialManager {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x1030c (u16): the default material's id, 11 (the constructor 0x306BBF; the manager is 10310h bytes, 0x2CD1F2): material_pair's master and second for an id whose slot is empty. The manager's tables: +108h 128 material slots by id (0x200 bytes zeroed at 0x306BC6; find by name 0x306E00 walks 128), +308h 128 x 128 pair slots, [master x 128 + second] (0x10000 bytes, 0x306BD8), +10308h the default material
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn default_id(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x1030c).cast::<u16>().as_ptr() }
     }
 }
 
@@ -4522,6 +4555,33 @@ impl GameWorldUi {
     #[inline(always)]
     pub unsafe fn kd(self) -> HudKd {
         HudKd(unsafe { self.0.byte_add(0xbc) })
+    }
+
+    /// +0x334 (u32): the use prompt's text key last given root.set_context by set_using_info_message (0x23A560: it calls set_context only when its text differs from this, then stores it, 0x23A570..0x23A584); initialize_match writes 0 (0x234ACC); set_using_progress_message neither reads nor writes it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn prompt_text(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x334).cast::<u32>().as_ptr() }
+    }
+
+    /// +0xb4 (u16): the hud state's +90h: team 0's points, which update_ui sends as root.set_game_progress (0x2364C0, the viewed team's first); written by the mode's rule (tdm_rule_core::fill_match_hud_state 0x31643B, Artifact Hunt's slot 17) and by nothing at a new match (match_hud_state is made once, 0x233680)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn team_zero_points(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0xb4).cast::<u16>().as_ptr() }
+    }
+
+    /// +0xb6 (u16): the hud state's +92h: team 1's points (as +90h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn team_one_points(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0xb6).cast::<u16>().as_ptr() }
     }
 }
 
@@ -27942,7 +28002,7 @@ impl PlayerLogicState {
         self.0.as_ptr() as usize as u32
     }
 
-    /// +0x24 (u32): the state's movement id (on_foot_step 0x2A6532): 0 stand_on_site, crouch_on_site and dead, 1 crouch_walk, 2 stand_run, 3 stand_sprint, 4 stand_jump (the constructors 0x2FABB0..0x2FADCC); the foot material is the player's u16 at +0F2C4h + 4 x id + 2 x third view, so 0 reads before the table
+    /// +0x24 (u32): the state's movement id (on_foot_step 0x2A6532): 0 stand_on_site, crouch_on_site and dead, 1 crouch_walk, 2 stand_run, 3 stand_sprint, 4 stand_jump (the constructors 0x2FABB0..0x2FADCC); the foot material is the player's u16 at +0F2C4h + 4 x id + 2 x third view, so 0 reads before the table (a rev71 crash in step_manager::on_step: patch 101 drops such a step at 0x2A6545)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
@@ -33493,6 +33553,39 @@ impl Light {
     }
 }
 
+/// A survarium::use_progress_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UseProgressFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl UseProgressFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<survarium::game_world_ui>): set_using_progress_message's ui at its start (0x23A430, by the site's ESP): entry ESP+4 (player::st_draw pushes [player+F480h], 0x246FBA..0x246FC3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn ui(self) -> Option<GameWorldUi> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<GameWorldUi>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<survarium::game_world_ui>): set_using_progress_message's ui at its start (0x23A430, by the site's ESP): entry ESP+4 (player::st_draw pushes [player+F480h], 0x246FBA..0x246FC3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_ui(self, value: Option<GameWorldUi>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<GameWorldUi>>().write_volatile(value) }
+    }
+}
+
 /// A survarium::bullet_manager_engine (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -33501,21 +33594,6 @@ pub struct BulletManagerEngine(NonNull<c_void>);
 
 #[allow(dead_code)]
 impl BulletManagerEngine {
-    /// Its address as a value (an id, a compare): never read through.
-    #[inline(always)]
-    pub fn address(self) -> u32 {
-        self.0.as_ptr() as usize as u32
-    }
-}
-
-/// A survarium::game_material_manager (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
-/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct GameMaterialManager(NonNull<c_void>);
-
-#[allow(dead_code)]
-impl GameMaterialManager {
     /// Its address as a value (an id, a compare): never read through.
     #[inline(always)]
     pub fn address(self) -> u32 {
@@ -36996,6 +37074,63 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn core(machine: &impl Machine) -> Option<CoreWorld> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(CoreWorld)
+        }
+    }
+
+    /// player_sound.foot_material (0x2a6545): on_foot_step's read of the foot material (lea eax,[edx+ecx*2+7962h] / mov ecx,[esi+3Ch] / movzx edi,word [ecx+eax*2]: the player's u16 at +0F2C4h + 4 x movement + 2 x third view), the one path of both feet's cases of on_player_sound_event (0x2A64B6, 0x2A64D2), whether or not the player has a world core: ESI the effect, ECX the logic state's movement id (+24h, 0x2A6532), EDX 1 for third view; skip 0x2A6577, on_foot_step's end (pop edi / add esp,8 / ret 8, the stack as here: its own je there when the world has no step manager)
+    pub mod player_sound_foot_material {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::player_equipment_sound_effect (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn effect(machine: &impl Machine) -> Option<PlayerEquipmentSoundEffect> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(PlayerEquipmentSoundEffect)
+        }
+
+        /// ECX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn movement(machine: &impl Machine) -> u32 {
+            machine.register(Register::Ecx)
+        }
+    }
+
+    /// material_pair.entry (0x306d50): game_material_manager::material_pair's start (movzx eax,dx / mov eax,[ecx+eax*4+108h]): ECX the manager, DX and DI the two material ids, indexed into its 128 material slots (+108h) with no bound; done 0x306DF8, its ret (nothing pushed yet), EAX the pair or 0 (no pair: every caller tests it, 0x2481A6 0x2487F8 0x248A74 0x248B90 0x32E5A0 0x32E7FA 0x32EA20 0x32EC9F)
+    pub mod material_pair_entry {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::game_material_manager (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn manager(machine: &impl Machine) -> Option<GameMaterialManager> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(GameMaterialManager)
+        }
+
+        /// EDX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn first(machine: &impl Machine) -> u32 {
+            machine.register(Register::Edx)
+        }
+
+        /// EDI: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn second(machine: &impl Machine) -> u32 {
+            machine.register(Register::Edi)
         }
     }
 
@@ -41688,6 +41823,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn answer(machine: &impl Machine) -> u32 {
             machine.register(Register::Eax)
+        }
+    }
+
+    /// use_prompt.progress (0x23a430): game_world_ui::set_using_progress_message (0x23A430) at its start (movss xmm0,[esp+8]): player::st_draw calls it each frame the drawn local player has an object in use (its user +4, player +134h; 0x246FC4) with the ui and the use's progress; ESP+4 the ui
+    pub mod use_prompt_progress {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::use_progress_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<UseProgressFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(UseProgressFrame)
         }
     }
 }

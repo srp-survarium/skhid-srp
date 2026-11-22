@@ -5,7 +5,7 @@
 //! choosing it before the join.
 
 use session::v026g::{matchmaking, quests};
-use survarium::v026g::lobby::presets::{PRESET_CHOOSE_BASE, PRESETS_FIRST};
+use survarium::v026g::lobby::presets::{CONTAINER_BASE, PRESET_CHOOSE_BASE, PRESETS_FIRST};
 use survarium::v026g::lobby::rooms::{
     ROOM_JOIN_BASE, ROOM_LEAVE, ROOM_MEMBERS_BASE, ROOM_OFFER_BASE, ROOM_PIN_BASE, ROOM_PLAY,
     ROOM_PRESET_BASE, ROOM_QUEUE_BASE, ROOM_STATE, ROOMS_LIST, RoomSpec,
@@ -771,4 +771,31 @@ fn a_full_rooms_queue_offers_nothing_where_join_would_not() {
         rows(&mut world, rae, ROOM_QUEUE_BASE + high, 1),
         [format!("S1;N;0;{high};1")]
     );
+}
+
+/// Artifact Container's slot (`artefact-skills.md`): a click asks for a kit's slot as the pocket
+/// or the container, answered with the account (the kit's new pockets) and the list, whose `K`
+/// row says every kit's; without the skill nothing changes and the row says none.
+#[test]
+fn a_kit_makes_artifact_containers_slot_a_pocket() {
+    use session::v026g::account::{ARTIFACT_CONTAINER, ContainerSlot};
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let k_row = |list: &[String]| list.iter().find(|row| row.starts_with("K;")).cloned();
+
+    let (lists, decoded) = asked(&mut world, alice, CONTAINER_BASE + 10 + 2);
+    assert_eq!(k_row(&lists[0]).as_deref(), Some("K;1:0,2:0,3:0"));
+    assert!(!sent_account(&decoded));
+
+    world.change(alice, |account| account.skills = vec![(ARTIFACT_CONTAINER, 1)]);
+    let (lists, decoded) = asked(&mut world, alice, CONTAINER_BASE + 10 + 2);
+    assert_eq!(k_row(&lists[0]).as_deref(), Some("K;1:1,2:2,3:1"));
+    assert!(sent_account(&decoded));
+    assert_eq!(world.account(alice).kits[1].container, ContainerSlot::Pocket);
+
+    // Asked again: nothing to change, nothing sent but the list.
+    let (_, decoded) = asked(&mut world, alice, CONTAINER_BASE + 10 + 2);
+    assert!(!sent_account(&decoded));
+    let (lists, _) = asked(&mut world, alice, CONTAINER_BASE + 10 + 1);
+    assert_eq!(k_row(&lists[0]).as_deref(), Some("K;1:1,2:1,3:1"));
 }

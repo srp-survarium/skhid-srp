@@ -260,6 +260,12 @@ def main():
     # Only the frozen stop in the pause (the owner, 2026-11-22: "only frozen people do"): the
     # winner's tick and input are his, and he keeps his camera; the frozen are held and see the
     # round's countdown (the warmup camera and the kits).
+    # The score bars' native source is the hud state's +90h/+92h, which no Freeze Tag rule fills
+    # and nothing clears at a new match: the last match's 7:3 is written over with the rule's.
+    r.emu.mem_write(ffa.HUD + 0xB4, struct.pack("<2H", 7, 3))
+    r.freeze_hud(1)
+    assert struct.unpack("<2H", r.emu.mem_read(ffa.HUD + 0xB4, 4)) == (0, 1)
+    print("ok the hud state's team points are the rule's (the last match's 7:3 written over)")
     assert not r.player_tick(2, 4150) and not r.input(2)
     assert r.player_tick(0, 4150) and r.input(0) and r.player_tick(1, 4150) and r.input(1)
     assert r.read(ffa.CORE + 0x18FE4) == 4
@@ -422,6 +428,13 @@ def main():
     assert all(abs(y) < 0.03 for y in kept) and abs(kept[5]) < 0.01, kept
     print("ok the game's recoil spring: one step of the freeze pins the kick at -1 (1 s and more), a kept clock "
           "settles it")
+
+    # A new match: the rule's 0:0 from its first frame, before anyone has entered.
+    r.start()
+    r.emu.mem_write(ffa.HUD + 0xB4, struct.pack("<2H", 7, 3))
+    assert r.freeze_hud(0) == []                   # nobody entered yet: no Freeze Tag call
+    assert struct.unpack("<2H", r.emu.mem_read(ffa.HUD + 0xB4, 4)) == (0, 0)
+    print("ok the hud state's team points are the rule's 0:0 from a new match's first frame, nobody entered yet")
 
     # No place out of the world (freeze-tag.md): an entering place's spawn is never cancelled.
     r.start()

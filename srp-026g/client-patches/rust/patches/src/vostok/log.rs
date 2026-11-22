@@ -107,6 +107,15 @@ fn text_of(parts: &[&[Piece]]) -> Line {
     line
 }
 
+/// Whether the `n`th of a fault seen again and again is logged: the 1st,
+/// 10th, 100th, .. (a line that cannot flood, with its count).
+pub fn is_power_of_ten(mut n: u32) -> bool {
+    while n % 10 == 0 && n > 1 {
+        n /= 10;
+    }
+    n == 1
+}
+
 /// Appends a line to the patches' log.
 pub fn line(pieces: &[Piece]) {
     parts(&[pieces]);
