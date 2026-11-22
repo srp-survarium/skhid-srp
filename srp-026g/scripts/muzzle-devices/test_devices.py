@@ -72,8 +72,8 @@ class Rules(unittest.TestCase):
         self.assertEqual(self.stats(315, 402), ('parameters/unmasking_radius', []))
 
     def test_the_pellet_axes_are_one_spread(self):
-        self.assertEqual(self.stats(307, 403)[1], [('dispersion/base_dispersion', -0.2), ('parameters/aim_time', 0.03)])
-        self.assertEqual(self.stats(308, 405)[1], [('dispersion/base_dispersion', -0.15)])
+        self.assertEqual(self.stats(307, 403)[1], [('dispersion/base_dispersion', -0.2), ('parameters/aim_time', 0.025)])
+        self.assertEqual(self.stats(308, 405)[1], [('dispersion/base_dispersion', -0.15), ('parameters/aim_time', 0.019)])
 
     def test_a_key_without_a_rule_stops_the_build(self):
         with self.assertRaises(SystemExit):
