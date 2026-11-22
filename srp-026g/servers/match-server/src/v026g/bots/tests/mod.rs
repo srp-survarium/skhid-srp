@@ -60,6 +60,7 @@ use crate::v026g::drive::{half_value, key};
 mod arrival_height;
 mod batteries;
 mod bench;
+mod blocked_census;
 mod bench_spread;
 mod blind_walk;
 mod camper;

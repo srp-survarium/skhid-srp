@@ -2032,7 +2032,7 @@ impl WalkGrid {
                 let (cut, reaim, lips, mut walked, deep_kept, deep_also) = grid.landing_drops(&wide, world, seeds, spawns);
                 stats.drops_past_harmless_cut = deep_kept;
                 let held;
-                (walked.walk_offs, walked.walk_offs_reaimed, walked.walk_offs_unlanded, walked.walk_offs_released, held) =
+                (walked.walk_offs, walked.walk_offs_reaimed, walked.walk_offs_unlanded, walked.walk_offs_released, held, walked.walk_offs_blocked) =
                     grid.walk_off_links(&mut wide, world, seeds, spawns);
                 walked.releases_held_thin += held;
                 stats.drops_walked = walked;
