@@ -79,6 +79,11 @@ TDM ticket rule. The options carry `SRPX`, tag 6 (4 is the wide map id, 5 the
 faces), length 1, version 1, among the block's other entries. Both client and
 server understand it.
 
+Training Camp (maps_dict 420, `training-camp-teams-1.json`) is made the same way
+from its Team Deathmatch config, on a project whose team spawns are Free for
+All's 47 points for both teams (`stalker-ffa.md`, "Team Deathmatch and Freeze
+Tag at the Free for All points").
+
 ## State and native lifecycle
 
 `srp-validate::world::freeze` owns the deterministic transition and codec.
