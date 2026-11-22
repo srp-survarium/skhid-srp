@@ -23,8 +23,8 @@ spec.loader.exec_module(probe_light)
 
 # The prefixes a fixture model has: stock, and the ports' own copies of the models (a port imports a
 # model under its namespace where its materials or settings differ from players'; the London ports'
-# lamps are such copies, the same meshes).
-PORT_PREFIXES = ('', 'ported/v011e/', 'ported/v021d/', 'ported/v032a/', 'ported/v044a/')
+# lamps are such copies, the same meshes, and the 0.69d ports' (v069d_<map>/)).
+PORT_PREFIXES = ('', 'ported/v011e/', 'ported/v021d/', 'ported/v032a/', 'ported/v044a/', 'v069d_rudnya/', 'v069d_vostok/')
 # The London ports' fixtures, beside the stock ones the older ports never had.
 LONDON_PREFIXES = ('ported/v032a/', 'ported/v044a/')
 BASE_REPLACEMENTS = {
@@ -148,8 +148,23 @@ def glass_line(group, bounds):
     return tuple([sum(line[i][k] for line in same) / len(same) for k in range(3)] for i in (0, 1))
 
 
+def named(v):
+    """A render visual as the rules read it: by `visual_name`. A 0.69d port's entries name their
+    model by `lib_name` alone (the game draws it); they are read by it and selected by it."""
+    return v if 'visual_name' in v else dict(v, visual_name=v.get('lib_name'), by_lib_name=True)
+
+
+def name_key(v):
+    return 'lib_name' if v.get('by_lib_name') else 'visual_name'
+
+
+def as_model(v, model):
+    """`v` naming `model` the way its entry names one."""
+    return dict(v, visual_name=model, lib_name=model) if v.get('by_lib_name') else dict(v, visual_name=model)
+
+
 def selector(v):
-    return {key: v[key] for key in ('visual_name', 'position', 'rotation', 'scale')}
+    return {key: v[key] for key in (name_key(v), 'position', 'rotation', 'scale')}
 
 
 def is_red(colour):
@@ -201,7 +216,7 @@ def author(path, data, bounds, break_material, effect_material, cubemap=None, da
     level's day split for its other weathers (main authors a level's day projects first)."""
     root = tree(data)
     carried = root.get('srp_lamps')
-    visuals = root.get('render_visuals', [])
+    visuals = [named(v) for v in root.get('render_visuals', [])]
     components = [(i, v) for i, v in enumerate(visuals) if v.get('visual_name') in PARTS]
     # Overlapping bulb/cover meshes form one fixture (level_06). A shot
     # through its cover must extinguish the bulb inside it as well.
@@ -314,15 +329,17 @@ def author(path, data, bounds, break_material, effect_material, cubemap=None, da
             continue
         match = selector(v)
         replacement = REPLACEMENTS[v['visual_name']]
-        broken_key = json.dumps(dict(match, visual_name=replacement), sort_keys=True)
+        broken = selector(as_model(v, replacement))
+        broken_key = json.dumps(broken, sort_keys=True)
         if broken_key in added:
             continue
         added.add(broken_key)
         if carried is not None and any(all(k in f and c.same(f[k], val) for k, val in
-                                           dict(match, visual_name=replacement).items()) for f in visuals):
+                                           broken.items()) for f in visuals):
             continue
         edit = {'files': path, 'list': 'render_visuals', 'after': match, 'like': match,
-                'values': {'visual_name': replacement, 'lib_name': replacement}}
+                'values': {'lib_name': replacement} if v.get('by_lib_name') else
+                          {'visual_name': replacement, 'lib_name': replacement}}
         assert c.add_entry(result, edit['list'], match, match, edit['values']) is not None
         additions.append(edit)
     final_visuals = tree(result)['render_visuals']
@@ -343,7 +360,7 @@ def author(path, data, bounds, break_material, effect_material, cubemap=None, da
             vs[f'intact{j}'] = {'index': index(v), 'state': 0}
             if v['visual_name'] in GLASS:
                 continue
-            broken_index = index(dict(v, visual_name=REPLACEMENTS[v['visual_name']]))
+            broken_index = index(as_model(v, REPLACEMENTS[v['visual_name']]))
             if broken_index not in broken_indices:
                 vs[f'broken{j}'] = {'index': broken_index, 'state': 1}
                 broken_indices.add(broken_index)
@@ -386,7 +403,7 @@ def check_built(path, data):
     root = tree(data)
     if 'srp_lamps' not in root:
         return []
-    visuals = root.get('render_visuals', [])
+    visuals = [named(v) for v in root.get('render_visuals', [])]
     placed = {kind: [o['position'] for o in root.get('client_objects', []) if o.get('game_object_type') == kind]
               for kind in ('light', 'ambient_light', 'particle', 'environment_probe')}
     problems = []
@@ -434,7 +451,7 @@ def main():
     for p in sorted((args.projects / 'projects').glob('*/*/client_project')):
         if p.parts[-3] != 'lobby_scene' and p.parts[-2].endswith(('_2', '_3', '_4', '_5')):
             projects.append(p)
-    used = {v.get('visual_name') for p in projects
+    used = {named(v).get('visual_name') for p in projects
             for v in tree(p.read_bytes()).get('render_visuals', [])} & PARTS
     bounds = {}
     for name in sorted(used):
