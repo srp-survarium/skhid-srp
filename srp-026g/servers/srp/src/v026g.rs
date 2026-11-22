@@ -122,6 +122,7 @@ impl web_server::MatchCounter for RegistryHost {
             .into_iter()
             .map(|live| web_server::LiveMatch {
                 map_id: live.map_id,
+                kind: live.kind,
                 phase: phase(live.phase),
                 players: live.players,
                 played: live.played,
@@ -157,8 +158,7 @@ impl MatchHost for RegistryHost {
             // The game's own weights: the ones the rewards are counted
             // with (`rewards::Terms::at`).
             score_weights: None,
-            vs_bots: setup.vs_bots,
-            private: setup.private,
+            kind: setup.kind,
             room_minimum: setup.room_minimum,
         };
         let ticket = match pool {

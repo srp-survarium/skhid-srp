@@ -49,11 +49,17 @@ pub trait MatchCounter: Send + Sync {
 /// with it the rules of what is listed (`session::v026g::matches_now`).
 pub use session::v026g::matches_now::Phase as LivePhase;
 
+/// Who a match is for: a release waits for the normal ones alone with
+/// `release.sh --end-bot-and-private-matches` (`GET /api/stats`).
+pub use session::v026g::match_kind::MatchKind as LiveKind;
+
 /// A match as the launcher's page shows it: no player is named.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LiveMatch {
     /// The `maps_dict` id: the map and the mode.
     pub map_id: survarium::v026g::maps::MapId,
+    /// Who it is for, as the lobby made it.
+    pub kind: LiveKind,
     pub phase: LivePhase,
     /// Each team's players who have not left.
     pub players: [u8; 2],

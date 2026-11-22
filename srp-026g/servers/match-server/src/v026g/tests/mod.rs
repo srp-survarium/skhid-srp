@@ -90,8 +90,7 @@ pub fn setup(players: usize, map_id: MapId) -> MatchSetup {
             })
             .collect(),
         score_weights: None,
-        vs_bots: false,
-        private: false,
+        kind: session::v026g::match_kind::MatchKind::Normal,
         room_minimum: None,
     }
 }
@@ -189,10 +188,10 @@ impl Bench {
     }
 
     /// A match of one player against the server's own bots at `driven`
-    /// ("Player vs Bots": `MatchSetup::vs_bots`), of growing rosters.
+    /// ("Player vs Bots": `MatchKind::VsBots`), of growing rosters.
     pub fn vs_bots(players: usize, map_id: MapId, settings: Settings, driven: &[usize]) -> Self {
         let mut setup = setup(players, map_id);
-        setup.vs_bots = true;
+        setup.kind = session::v026g::match_kind::MatchKind::VsBots;
         Self::with_setup(setup, settings, &[], driven, true)
     }
 

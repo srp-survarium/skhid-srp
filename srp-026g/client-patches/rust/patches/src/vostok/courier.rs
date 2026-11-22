@@ -21,6 +21,7 @@ pub fn spawn_kits(ctx: &Context<'_>) -> Option<(u32, u8, u8)> {
 /// The spawn's end (`courier.spawned`): the new kit's player, initialised and in the world.
 pub struct Spawned<'t> {
     player: raw::Player,
+    world: raw::CoreWorld,
     entry: raw::CorePlace,
     place: u8,
     kit: Kit,
@@ -33,15 +34,15 @@ impl<'t> Spawned<'t> {
         // SAFETY: the spawn's ESI, the new current kit's player, and BL its place.
         let (player, place) = unsafe { (site::player(ctx)?, (site::place(ctx) & 0xFF) as u8) };
         // SAFETY: the live player's world core; its places vector, bounded by its end.
-        let entry = unsafe {
+        let (world, entry) = unsafe {
             let world = player.world_core()?;
             let (first, end) = world.places().zip(world.places_end())?;
-            (usize::from(place) < end.index_from(first)?).then(|| first.at(usize::from(place)))?
+            (world, (usize::from(place) < end.index_from(first)?).then(|| first.at(usize::from(place)))?)
         };
         // SAFETY: the live entry's kit, the spawn's new one (0x316DE3).
         let kit = Kit::parse(unsafe { read(entry.kit()) })?;
         // The spawn's player is its place's current kit's.
-        (Self::kit_player(entry, kit)? == player).then_some(Spawned { player, entry, place, kit, thread: ctx.thread() })
+        (Self::kit_player(entry, kit)? == player).then_some(Spawned { player, world, entry, place, kit, thread: ctx.thread() })
     }
 
     fn kit_player(entry: raw::CorePlace, kit: Kit) -> Option<raw::Player> {
@@ -74,7 +75,7 @@ impl<'t> Spawned<'t> {
             return Carried::default();
         };
         match (Inventory::of_player(self.player, self.thread), Inventory::of_player(donor, self.thread)) {
-            (Some(mut recipient), Some(mut donor)) => recipient.take_from_dead_kit(&mut donor),
+            (Some(mut recipient), Some(mut donor)) => recipient.take_from_dead_kit(&mut donor, self.world),
             _ => Carried::default(),
         }
     }

@@ -31,6 +31,7 @@ use udp_transport::relay::Peer;
 use session::matchmaking_policy::{self as policy, LateRule, Worth};
 use session::v026g::bot_kits::{self, BotKit, BotKits};
 use session::v026g::level_stats;
+use session::v026g::match_kind::MatchKind;
 use session::v026g::{Account, matchmaking, quests, rules, wire};
 use session::{Level, LockExt, MAX_PLAYERS_PER_MATCH, QueuePool, QueueState, Strength};
 use survarium::v026g::faces::{Face, Faces};
@@ -258,12 +259,10 @@ pub struct MatchSetup {
     /// (`session::v026g::matchmaking::match_level`).
     pub match_level: u16,
     pub players: Vec<MatchPlayer>,
-    /// One player against the server's own bots (`pvb`): the match
-    /// server's `MatchSetup::vs_bots`.
-    pub vs_bots: bool,
-    /// A match of a room with a PIN: it pays nothing (the match server's
-    /// `MatchSetup::private`; the owner's of 2026-10-20).
-    pub private: bool,
+    /// Against the server's bots (`pvb`, a room's with bots), a room's with
+    /// a PIN (it pays nothing: the owner's of 2026-10-20), or a normal one:
+    /// the match server's `MatchSetup::kind`.
+    pub kind: MatchKind,
     /// A room's match: the room's minimum of players (the match server's
     /// `MatchSetup::room_minimum`).
     pub room_minimum: Option<u8>,
@@ -1157,8 +1156,11 @@ impl Core<'_> {
             (None, _) => Vec::new(),
         };
         // Against bots, a room's with bots too: paid as against bots.
-        let vs_bots = pvb.is_some()
-            || room.is_some_and(|room| matches!(room.kind, RoomKind::WithBots { .. }));
+        let kind = match (pvb, room.map(|room| room.kind)) {
+            (Some(_), _) | (None, Some(RoomKind::WithBots { .. })) => MatchKind::VsBots,
+            (None, Some(RoomKind::Private)) => MatchKind::PrivateRoom,
+            (None, Some(RoomKind::Open) | None) => MatchKind::Normal,
+        };
         let bot_roles = server_bot_roles(&bot_teams);
         // Their kits: of the players' equipment level, the top players'.
         let bot_level = bots_gear_level(&gear_levels);
@@ -1220,8 +1222,7 @@ impl Core<'_> {
                     played,
                     match_level,
                     players,
-                    vs_bots,
-                    private: room.is_some_and(|room| room.kind == RoomKind::Private),
+                    kind,
                     room_minimum: room.map(|room| room.minimum),
                 })
                 .map(|ticket| (ticket, played)),
@@ -1293,7 +1294,7 @@ impl Core<'_> {
                 // The map is one more that each of them has played; a
                 // match against bots (a room's with bots too) counts towards
                 // no map rotation.
-                for seat in formed.seats.iter().filter(|_| !vs_bots) {
+                for seat in formed.seats.iter().filter(|_| !kind.vs_bots()) {
                     let account_id = seat.player.account_id;
                     if let Some(account) = self.accounts.get(account_id) {
                         matchmaking::count_map_play(&mut account.locked(), map);

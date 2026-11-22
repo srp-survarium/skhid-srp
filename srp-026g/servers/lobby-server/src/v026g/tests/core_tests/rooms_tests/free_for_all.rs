@@ -87,7 +87,7 @@ fn a_room_whose_vote_wins_a_free_for_all_card_plays_it_with_each_ready_member() 
     assert_eq!(seated(&setup), accounts(&world, &[alice, bob, carol]));
     assert!(setup.players.iter().all(|player| player.profile.squad == 0));
     assert_eq!(setup.room_minimum, Some(2));
-    assert!(!setup.private && !setup.vs_bots);
+    assert_eq!(setup.kind, session::v026g::match_kind::MatchKind::Normal);
     let room = world.core.rooms.get(key).unwrap();
     assert!(matches!(room.stage, Stage::InMatch { .. }));
     assert_eq!(room.in_match.len(), 3);
@@ -186,7 +186,7 @@ fn a_room_with_bots_fills_a_free_for_all_as_a_match_of_two_teams() {
     assert_eq!(bots, 14);
     // The members first, the bots after them.
     assert!(setup.players[..2].iter().all(|player| !player.driven));
-    assert!(setup.vs_bots && !setup.private);
+    assert_eq!(setup.kind, session::v026g::match_kind::MatchKind::VsBots);
 }
 
 /// A private room's owner starts a free-for-all alone: a match of one, the
@@ -201,7 +201,10 @@ fn a_private_rooms_owner_starts_a_free_for_all_alone() {
     assert_eq!(setup.players.len(), 1);
     assert_eq!(setup.players[0].account_id, world.ids[owner].0);
     assert_eq!(setup.room_minimum, Some(1));
-    assert!(setup.private && !setup.vs_bots);
+    assert_eq!(
+        setup.kind,
+        session::v026g::match_kind::MatchKind::PrivateRoom
+    );
     assert!(matches!(
         world.core.rooms.get(key).unwrap().stage,
         Stage::InMatch { .. }

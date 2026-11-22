@@ -15,6 +15,7 @@ use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use session::matchmaking_policy::Closed;
+use session::v026g::match_kind::MatchKind;
 use session::v026g::replays::ReplayId;
 use survarium::v026g::keeper;
 use survarium::v026g::twist::{Armed, Played};
@@ -91,15 +92,15 @@ pub struct MatchSetup {
     /// The clients' score weights; `None` for srp's own of the map's mode
     /// (`static_info::score_weights`: Research weighs its captures).
     pub score_weights: Option<[f32; SCORE_EVENTS]>,
-    /// A match of one player against the server's own bots ("Player vs
-    /// Bots", the lobby's `pvb`): its teams are fixed and it takes no late
-    /// joiner (the lobby's rule), it ends when its only player stops
-    /// uploading worlds it is asked for (`Timing::pvb_stall`), and its
-    /// result says so ([`MatchResult::vs_bots`]: the rewards pay less).
-    pub vs_bots: bool,
-    /// A match of a room with a PIN: its result says so
-    /// ([`MatchResult::private`]: the rewards pay nothing).
-    pub private: bool,
+    /// Who the match is for, as the lobby made it. Against the server's own
+    /// bots ("Player vs Bots", the lobby's `pvb`, or a PIN room's with
+    /// bots): its teams are fixed and it takes no late joiner (the lobby's
+    /// rule), it ends when its only player stops uploading worlds it is
+    /// asked for (`Timing::pvb_stall`), and its result says so
+    /// ([`MatchResult::vs_bots`]: the rewards pay less). A room's with a
+    /// PIN: its result says so ([`MatchResult::private`]: the rewards pay
+    /// nothing). Anti-AFK removes nobody from either.
+    pub kind: MatchKind,
     /// A room's match: the room's own minimum of players to start (2 for
     /// 1 v 1, 4, 6; 1 for a private room, which its owner starts with whoever
     /// is in, 1 v 0 too: no side needs a player; `docs/notes/rooms.md`). With it, a match the clients'
@@ -209,10 +210,8 @@ pub(crate) struct Formed {
     /// Every connecting client must advertise the matching capability.
     pub growing_roster: bool,
     pub initial_players: usize,
-    /// [`MatchSetup::vs_bots`].
-    pub vs_bots: bool,
-    /// [`MatchSetup::private`].
-    pub private: bool,
+    /// [`MatchSetup::kind`].
+    pub kind: MatchKind,
     /// [`MatchSetup::room_minimum`].
     pub room_minimum: Option<u8>,
     /// Keeper of the Artifacts' kind, drawn once when the match is made and written into every
@@ -276,6 +275,8 @@ pub struct LiveMatch {
     pub match_id: u32,
     /// The `maps_dict` id: the map and the mode.
     pub map_id: maps::MapId,
+    /// [`MatchSetup::kind`].
+    pub kind: MatchKind,
     pub phase: LivePhase,
     /// Each team's players who have not left: before the countdown the
     /// ones still to come count too.
@@ -590,8 +591,7 @@ impl MatchRegistry {
                 replay_id: ReplayId::new(match_id, std::time::SystemTime::now()),
                 growing_roster,
                 initial_players: options.players.len(),
-                vs_bots: setup.vs_bots,
-                private: setup.private,
+                kind: setup.kind,
                 room_minimum: setup.room_minimum,
                 keeper,
             }),
@@ -610,7 +610,7 @@ impl MatchRegistry {
             map.name,
             played.lobby_number(),
             options.players.len(),
-            if setup.vs_bots {
+            if setup.kind.vs_bots() {
                 ", one player against the server's bots"
             } else {
                 ""
@@ -956,6 +956,7 @@ impl MatchRegistry {
             return LiveMatch {
                 match_id: formed.match_id,
                 map_id: formed.played.map().id,
+                kind: formed.kind,
                 phase: LivePhase::Gathering,
                 players,
                 present: (1_u32 << formed.places.len().min(31)) - 1,
@@ -969,6 +970,7 @@ impl MatchRegistry {
         LiveMatch {
             match_id: formed.match_id,
             map_id: formed.played.map().id,
+            kind: formed.kind,
             phase: live.phase,
             players: live.players,
             present: live.present,
@@ -1154,9 +1156,9 @@ pub struct MatchResult {
     pub trusted_by: u8,
     /// By roster place.
     pub players: Vec<PlayerResult>,
-    /// [`MatchSetup::vs_bots`].
+    /// [`MatchKind::vs_bots`] of [`MatchSetup::kind`].
     pub vs_bots: bool,
-    /// [`MatchSetup::private`].
+    /// [`MatchKind::private`] of [`MatchSetup::kind`].
     pub private: bool,
 }
 

@@ -28,7 +28,7 @@ package survarium.controls
       protected var _objectsHidden:Boolean = false;
       
       protected var _markers:Dictionary = new Dictionary();
-      // Freeze Tag (patch 160): the places frozen, a bit each; their names are drawn ice blue
+      // Freeze Tag (patch 160): the places frozen, a bit each; their names and arrows are drawn ice blue
       // (HUDMarker.frozen), a marker made later included.
       private var _freezeMask:uint = 0;
 
@@ -108,20 +108,6 @@ package survarium.controls
          }
          return renderer.kind != 0 || this.enemiesShown || this._enemyIds.indexOf(id) == -1
             || this._carriersShown && renderer.carrying;
-      }
-
-      // The marker's arrow in a colour: every part of it named renderer (each frame of the icon has two,
-      // the arrow and its inner part; icon.renderer names one of them only).
-      protected static function paintIcon(renderer:HUDMarker, colour:ColorTransform) : void
-      {
-         var icon:MovieClip = renderer.icon;
-         for(var i:int = 0; icon != null && i < icon.numChildren; i++)
-         {
-            if(icon.getChildAt(i).name == "renderer")
-            {
-               icon.getChildAt(i).transform.colorTransform = colour;
-            }
-         }
       }
 
       // A player of the other team (the game's enemy list, set_enemy_icon_ids).
@@ -423,7 +409,7 @@ package survarium.controls
                colorTransfor = new ColorTransform();
                color = this.isEnemy(id) ? ENEMY_RGB : uint(props.rgb);
                colorTransfor.color = color;
-               paintIcon(renderer,colorTransfor);
+               renderer.iconColour = colorTransfor;
                if(textField)
                {
                   renderer.nameColor = color;
@@ -479,7 +465,7 @@ package survarium.controls
          colorTransfor.alphaOffset = alpha - 255;
          var renderer:HUDMarker = this._markers[id];
          var filter:DropShadowFilter;
-         paintIcon(renderer,colorTransfor);
+         renderer.iconColour = colorTransfor;
          if(renderer.textField)
          {
             renderer.nameColor = color;

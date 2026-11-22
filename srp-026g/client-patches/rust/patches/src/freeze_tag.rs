@@ -91,10 +91,13 @@ pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
         Actions::Wait => {}
     }
     // A frozen body's death also queued its ordinary respawn; only the new
-    // round's restart spawns it.
+    // round's restart spawns it. An entering place's spawn is never cancelled
+    // (`World::cancel`): a frozen place that comes back appears at his team's
+    // points and stays frozen there (the rule keeps it, the hold keeps it
+    // lethal) until a teammate or the auto-thaw thaws it.
     match state.schedule() {
-        Schedule::CancelFrozen(frozen) => frozen.iter().for_each(|place| world.unschedule(place)),
-        Schedule::CancelAll => world.cancel_all(),
+        Schedule::CancelFrozen(frozen) => frozen.iter().for_each(|place| world.cancel(place)),
+        Schedule::CancelAll => Place::all().for_each(|place| world.cancel(place)),
         Schedule::Native => {}
     }
     // The pause and the restart play the match start's countdown, as Artifact Hunt's round.
@@ -103,9 +106,11 @@ pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
     MATCH.set(ctx.thread(), Match::Freeze(state));
     Flow::Continue
 }
-/// update_minimap_players' spotted test of an enemy: a team's last one fighting, his dot on the
-/// minimap and the Tab map always, as a spotted enemy's (the owner, 2026-11-22: "last member is
-/// always shown on the map"). From the rule state, the same in every game; nothing simulated.
+/// update_minimap_players' spotted test of an enemy: a team's last one fighting, his teammates
+/// frozen, two at least, his dot on the minimap and the Tab map always, as a spotted enemy's (the
+/// owner, 2026-11-22: "last member is always shown on the map"); never in 1 v 1, 2 v 1 or 2 v 2
+/// ("when 1vs1 we see each other on the map, bad", "2vs1 should also not show"). From the rule
+/// state, the same in every game; nothing simulated.
 pub fn on_enemy(ctx: &mut Context<'_>) -> Flow<FreezeTagOnEnemyExit> {
     let Match::Freeze(state) = MATCH.get(ctx.thread()) else {
         return Flow::Continue;
@@ -140,15 +145,28 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
+/// Whom the rule holds (his tick and input skipped): a lethal body always; a
+/// frozen player in play and in the pause between rounds, where everyone else
+/// moves on (the owner, 2026-11-22: "when one team in freeze tag wins a round
+/// it shouldn't stop moving", "only frozen people do"); everyone in the
+/// restart and after the match.
 fn held(state: &FreezeTag, player: &vostok::freeze::Player<'_>) -> bool {
     player.playing()
         && (player.lethal()
-            || matches!(
-                state.phase(),
-                Phase::Between { .. } | Phase::Restarting | Phase::Finished(_)
-            )
-            || (state.phase() == Phase::Playing
-                && matches!(state.player(player.place()), Player::Frozen { .. })))
+            || match state.phase() {
+                Phase::Playing | Phase::Between { .. } => is_frozen(state, player.place()),
+                Phase::Restarting | Phase::Finished(_) => true,
+            })
+}
+/// Whether the local player at `local` sees a round's countdown (the warmup
+/// camera, patch 31's kits) while the core says one is about to start: in
+/// Freeze Tag only a frozen one; the others keep their camera and move on
+/// (`held`). Any other mode with rounds: everyone.
+pub fn countdown_view(thread: &vostok::Thread, local: Option<Place>) -> bool {
+    match (MATCH.get(thread), local) {
+        (Match::Freeze(state), Some(place)) => is_frozen(&state, place),
+        (Match::Freeze(_), None) | (Match::Other, _) => true,
+    }
 }
 pub fn on_player_tick(ctx: &mut Context<'_>) -> Flow<FreezeTagOnPlayerTickExit> {
     let Match::Freeze(state) = MATCH.get(ctx.thread()) else {
