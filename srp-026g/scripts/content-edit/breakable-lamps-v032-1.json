@@ -3295,6 +3295,14 @@
                 "name": "environment_and_lights/light/lamp_sparks(5)/point_light(4)"
               }
             },
+            "ambient_lights": {
+              "light0": {
+                "x": 0.38600000739097595,
+                "y": 15.79800033569336,
+                "z": -14.064000129699707,
+                "name": "environment_and_lights/ambient_evening_light/ambient_light(283)"
+              }
+            },
             "probes": {
               "probe0": {
                 "x": 5.318999767303467,
@@ -3946,6 +3954,14 @@
                 "name": "environment_and_lights/light/lamp_sparks(5)/point_light(4)"
               }
             },
+            "ambient_lights": {
+              "light0": {
+                "x": 0.38600000739097595,
+                "y": 15.79800033569336,
+                "z": -14.064000129699707,
+                "name": "environment_and_lights/ambient_evening_light/ambient_light(283)"
+              }
+            },
             "probes": {
               "probe0": {
                 "x": 5.318999767303467,
@@ -4565,6 +4581,14 @@
                 "name": "environment_and_lights/light/lamp_sparks(5)/point_light(4)"
               }
             },
+            "ambient_lights": {
+              "light0": {
+                "x": 0.38600000739097595,
+                "y": 15.79800033569336,
+                "z": -14.064000129699707,
+                "name": "environment_and_lights/ambient_evening_light/ambient_light(283)"
+              }
+            },
             "probes": {
               "probe0": {
                 "x": 5.318999767303467,
@@ -4712,6 +4736,14 @@
                 "y": 8.2867431640625,
                 "z": 38.1799430847168,
                 "name": "mode_containers_props/lamp_sparks/point_light(4)"
+              }
+            },
+            "ambient_lights": {
+              "light0": {
+                "x": -67.7020034790039,
+                "y": 6.567999839782715,
+                "z": 43.23899841308594,
+                "name": "environment_and_lights/ambient_light_rain/ambient_light(77)"
               }
             },
             "probes": {
@@ -5007,6 +5039,14 @@
                 "name": "environment_and_lights/light/lamp_sparks(1)/point_light(4)"
               }
             },
+            "ambient_lights": {
+              "light0": {
+                "x": -53.167999267578125,
+                "y": 9.267000198364258,
+                "z": 7.434000015258789,
+                "name": "environment_and_lights/ambient_light_rain/ambient_light(69)"
+              }
+            },
             "probes": {
               "probe0": {
                 "x": -50.34000015258789,
@@ -5243,6 +5283,14 @@
                 "y": 16.798229217529297,
                 "z": -15.54977035522461,
                 "name": "environment_and_lights/light/lamp_sparks(5)/point_light(4)"
+              }
+            },
+            "ambient_lights": {
+              "light0": {
+                "x": 0.7110000252723694,
+                "y": 15.244000434875488,
+                "z": -17.520000457763672,
+                "name": "environment_and_lights/ambient_light_rain/ambient_light(125)"
               }
             },
             "probes": {
@@ -5394,6 +5442,14 @@
                 "name": "mode_containers_props/lamp_sparks/point_light(4)"
               }
             },
+            "ambient_lights": {
+              "light0": {
+                "x": -67.7020034790039,
+                "y": 6.567999839782715,
+                "z": 43.23899841308594,
+                "name": "environment_and_lights/ambient_light_rain/ambient_light(77)"
+              }
+            },
             "probes": {
               "probe0": {
                 "x": -73.03700256347656,
@@ -5687,6 +5743,14 @@
                 "name": "environment_and_lights/light/lamp_sparks(1)/point_light(4)"
               }
             },
+            "ambient_lights": {
+              "light0": {
+                "x": -53.167999267578125,
+                "y": 9.267000198364258,
+                "z": 7.434000015258789,
+                "name": "environment_and_lights/ambient_light_rain/ambient_light(69)"
+              }
+            },
             "probes": {
               "probe0": {
                 "x": -50.34000015258789,
@@ -5925,6 +5989,14 @@
                 "name": "environment_and_lights/light/lamp_sparks(5)/point_light(4)"
               }
             },
+            "ambient_lights": {
+              "light0": {
+                "x": 0.7110000252723694,
+                "y": 15.244000434875488,
+                "z": -17.520000457763672,
+                "name": "environment_and_lights/ambient_light_rain/ambient_light(125)"
+              }
+            },
             "probes": {
               "probe0": {
                 "x": 5.318999767303467,
@@ -6011,6 +6083,14 @@
                 "y": 8.2867431640625,
                 "z": 38.1799430847168,
                 "name": "mode_containers_props/lamp_sparks/point_light(4)"
+              }
+            },
+            "ambient_lights": {
+              "light0": {
+                "x": -67.7020034790039,
+                "y": 6.567999839782715,
+                "z": 43.23899841308594,
+                "name": "environment_and_lights/ambient_light_rain/ambient_light(77)"
               }
             },
             "probes": {
@@ -6306,6 +6386,14 @@
                 "name": "environment_and_lights/light/lamp_sparks(1)/point_light(4)"
               }
             },
+            "ambient_lights": {
+              "light0": {
+                "x": -53.167999267578125,
+                "y": 9.267000198364258,
+                "z": 7.434000015258789,
+                "name": "environment_and_lights/ambient_light_rain/ambient_light(69)"
+              }
+            },
             "probes": {
               "probe0": {
                 "x": -50.34000015258789,
@@ -6542,6 +6630,14 @@
                 "y": 16.798229217529297,
                 "z": -15.54977035522461,
                 "name": "environment_and_lights/light/lamp_sparks(5)/point_light(4)"
+              }
+            },
+            "ambient_lights": {
+              "light0": {
+                "x": 0.7110000252723694,
+                "y": 15.244000434875488,
+                "z": -17.520000457763672,
+                "name": "environment_and_lights/ambient_light_rain/ambient_light(125)"
               }
             },
             "probes": {

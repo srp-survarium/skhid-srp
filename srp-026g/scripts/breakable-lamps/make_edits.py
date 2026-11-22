@@ -193,11 +193,12 @@ def close(a, b):
     return a == b
 
 
-def author(path, data, bounds, break_material, effect_material, cubemap=None):
+def author(path, data, bounds, break_material, effect_material, cubemap=None, days=None):
     """A project's lamp edits. A project a pack made from a lamp-carrying day (London's and the
     0.21 maps' rain and evening) has the day's broken models and table already: its fixtures are
     authored over them, and the table is replaced only where this rule now binds otherwise.
-    `cubemap(probe)` is a probe's irradiance cube map (probe_light.py)."""
+    `cubemap(probe)` is a probe's irradiance cube map (probe_light.py); `days` gathers each
+    level's day split for its other weathers (main authors a level's day projects first)."""
     root = tree(data)
     carried = root.get('srp_lamps')
     visuals = root.get('render_visuals', [])
@@ -244,10 +245,24 @@ def author(path, data, bounds, break_material, effect_material, cubemap=None):
             if near is not None:
                 flames[near].append(light)
     # The room probes a lamp's light is baked into, and what each keeps
-    # once the lamp is broken (probe_light.py).
-    probes = probe_light.lamp_probes(
+    # once the lamp is broken (probe_light.py); a weather's split falls back
+    # on its level's day.
+    days = {} if days is None else days
+    level, weather = Path(path).parts[-3], Path(path).parts[-2].rsplit('_', 1)[0]
+    probes, lamp_light = probe_light.lamp_probes(
         [o for o in root.get('client_objects', []) if o.get('game_object_type') == 'environment_probe'],
-        [(i, light) for i, own in enumerate(lights) for light in own], cubemap)
+        [(i, light) for i, own in enumerate(lights) for light in own], cubemap,
+        None if weather == 'day' else days.get(level))
+    if weather == 'day':
+        days.setdefault(level, lamp_light)
+    # The fill lights (ambient lights) inside a lamp's room probe are its
+    # room's baked light too: they go out with it (the nearest lamp's).
+    for light in root.get('client_objects', []):
+        if light.get('game_object_type') != 'ambient_light' or any(light in g for g in glows):
+            continue
+        rooms = [i for i, own in probes.items() if any(probe_light.holds(p, light['position']) for p, _ in own)]
+        if rooms:
+            glows[min(rooms, key=lambda i: math.dist(centers[i], light['position']))].append(light)
     placements, result = [], bytearray(data)
     for i, v in enumerate(visuals):
         legacy = v.get('visual_name') == LEGACY_CONE
@@ -448,9 +463,11 @@ def main():
              'Legacy cones start at the emitter: their full-opacity material exposes offsets '
              'hidden by the 0.26 material. Stock and v0.21 placements stay unchanged.',
              'set_entry': [], 'add_entry': [], 'add_value': []}
-    for p in projects:
+    days = {}
+    # A level's day projects first: its other weathers' probes use the day's split.
+    for p in sorted(projects, key=lambda p: (p.parts[-3], not p.parts[-2].startswith('day_'), p.parts[-2])):
         placements, adds, spec = author(str(p.relative_to(args.projects)), p.read_bytes(), bounds,
-                                        live['glass'][0], live['bullet'][0], cubemap)
+                                        live['glass'][0], live['bullet'][0], cubemap, days)
         if spec:
             if spec.pop('replaces'):
                 edits.setdefault('remove_key', []).append({'files': spec['files'][0], 'keys': ['srp_lamps']})

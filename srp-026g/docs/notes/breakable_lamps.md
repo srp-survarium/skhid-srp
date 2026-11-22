@@ -142,10 +142,27 @@ least 0.15, `KEEPS_FLOOR`). The two colours must differ by 8 degrees
 (`SPLIT_ANGLE`): a warm bulb or a kerosene flame (no light object) is the
 daylight's colour and splits nothing. London (v0.42)'s day projects bind 5
 probes (`gerkin(4)` keeps 0.43, `gerkin(5)`, `hall(2)`, `hall_2_floor(3)`,
-`(11)`), London (v0.32)'s day, rain and evening 5 to 7. London (v0.42)'s
-evening probes carry no lamp's colour, and its rain's light is as blue as
-the tubes: none is bound there. The rule binds 4 probes on Vostok (v0.11)
-too, whose list (`breakable-lamps-1.json`) is not regenerated yet.
+`(11)`), London (v0.32)'s day, rain and evening 5 to 7.
+
+London (v0.42)'s rain light is as blue as the tubes: no split. The lamp and
+the probes (their names, places and boxes) are the same in every weather
+(checked on both Londons), so where a weather's own split cannot be made the
+day's lamp light in the probe of that name and place is taken out of the
+weather's, if what is left has that weather's room colour (within
+`SPLIT_ANGLE`): London (v0.42)'s rain binds 4 probes so (`hall(2)`'s rest is
+off by 14 degrees: left). Its evening bake carries no lamp (taking the day's
+lamp out leaves negative light) and its own split binds nothing.
+
+The fill lights inside a lamp's room probe (ambient lights, additive in
+London: intensity above 1) are its room's baked light too and go out with
+it, in the row's `ambient_lights` table (a fill in two lamps' probes is the
+nearest lamp's): London (v0.32)'s rain 3 (`ambient_light(125)` in `gerkin(5)`
+was one of the two pools the owner saw in rain_4's office,
+2026-11-22-06-30-46.png), its evening 1, London (v0.42)'s day and rain 1. A
+fill outside any lamp's probe (the other pool there, `ambient_light(124)`, in
+`gerkin(13)`, which holds no lamp) stays: the weathers' fill sets light rooms
+with no lamp alike. The rule binds 4 probes on Vostok (v0.11) too, whose list
+(`breakable-lamps-1.json`) is not regenerated yet.
 
 A broken lamp's probe stays drawn, with its `diffuse_multiplier` and
 `specular_multiplier` (+3F0h, +3F4h, read by `insert`) times `keeps`: the
@@ -154,6 +171,14 @@ registry takes it out and puts it back with the other multipliers
 the project goes. One multiplier dims the probe's light, not its colour: the
 lamp's tint stays in what is left. A probe in the boxes of two lamps (a
 room's or a building's) is left as it is.
+
+The renderer draws the visible probes largest radius first, equal radii in
+no set order. A neighbour of the dimmed probe's radius that overlaps it
+(London (v0.32)'s `bkg_building_all_floor_low_32(7)` over the top half metre
+of `hall_2_floor(4)`'s room, 0.124 against the dimmed 0.049: the owner's
+bright strip under the ceiling, 2026-11-22-06-31-49.png) shows through where
+it happens to be drawn later. While dimmed, the probe's radius (+3ECh, the
+sort key) is 1 mm less: it is drawn over its equals.
 
 ## Rust implementation and ownership
 

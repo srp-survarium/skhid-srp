@@ -200,6 +200,7 @@ survarium::object_particle_visual	vtable	0x0	u32	particle object interface
 survarium::object_particle_visual	position	0x140	f32	translation float3, the last row of the transform (+110h) object_particle_visual::insert 0x292CC0 plays its system (+158h) at
 survarium::object_environment_probe	vtable	0x0	u32	environment probe object interface
 survarium::object_environment_probe	position	0x140	f32	translation float3, the last row of the transform (+110h) object_environment_probe::insert 0x28FFD0 copies
+survarium::object_environment_probe	radius	0x3EC	f32	radius as load 0x28F3B0 read it (0x28F42C); insert hands it to the render probe (+320h), the key the visible probes are sorted by (largest first)
 survarium::object_environment_probe	diffuse_multiplier	0x3F0	f32	diffuse_multiplier as load 0x28F3B0 read it (0x28F451); insert hands it to the render probe (its +328h, color_parameters.x)
 survarium::object_environment_probe	specular_multiplier	0x3F4	f32	specular_multiplier as load read it (0x28F476); insert hands it to the render probe (its +32Ch, color_parameters.y)
 survarium::render_visual_methods	rtti	-4	u32	native complete object locator

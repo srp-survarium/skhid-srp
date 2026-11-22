@@ -181,13 +181,21 @@ impl Share {
     pub fn parse(value: f32) -> Option<Self> { (value > 0.0 && value <= 1.0).then_some(Self(value)) }
 }
 
-/// A probe's diffuse and specular multipliers (+3F0h, +3F4h): its own, and
-/// the dimmed ones it is drawn with while its binding is Hidden.
+/// A probe's diffuse and specular multipliers (+3F0h, +3F4h) and radius
+/// (+3ECh): its own, and those it is drawn with while its binding is Hidden:
+/// the multipliers dimmed, the radius 1 mm less, so that it is drawn over the
+/// probes of its own radius (the renderer draws the largest first, equal ones
+/// in no set order), whose light would show through where they overlap it.
 #[derive(Clone, Copy)]
-struct ProbeLight { own: [f32; 2], dimmed: [f32; 2] }
+struct ProbeLight { own: ProbeFields, dimmed: ProbeFields }
+#[derive(Clone, Copy)]
+struct ProbeFields { diffuse: f32, specular: f32, radius: f32 }
 impl ProbeLight {
-    fn new(own: [f32; 2], keeps: Share) -> Self { Self { own, dimmed: own.map(|m| m * keeps.0) } }
-    fn at(self, membership: Membership) -> [f32; 2] {
+    fn new(own: ProbeFields, keeps: Share) -> Self {
+        let dimmed = ProbeFields { diffuse: own.diffuse * keeps.0, specular: own.specular * keeps.0, radius: own.radius - 0.001 };
+        Self { own, dimmed }
+    }
+    fn at(self, membership: Membership) -> ProbeFields {
         if membership == Membership::Hidden { self.dimmed } else { self.own }
     }
 }
@@ -290,7 +298,8 @@ impl<'t, D, K> ProjectPlan<'t, D, K> {
             Some((object.probe(), super::world::floats(object.probe().position())))
         }, BindingError::UnknownProbe, BindingError::AmbiguousProbe)?;
         // SAFETY: the probe object_at found is alive and loaded for this insertion.
-        let own = unsafe { [probe.diffuse_multiplier().read(), probe.specular_multiplier().read()] };
+        let own = unsafe { ProbeFields { diffuse: probe.diffuse_multiplier().read(), specular: probe.specular_multiplier().read(),
+                                         radius: probe.radius().read() } };
         self.add(NativeObject::Probe(probe, ProbeLight::new(own, keeps)), key)
     }
     pub fn data_mut(&mut self) -> &mut D { &mut self.data }
@@ -346,9 +355,10 @@ unsafe fn drive_probe(probe: raw::ObjectEnvironmentProbe, light: ProbeLight, pre
     if previous == next { return; }
     unsafe {
         if previous != Membership::Detached { raw::engine_probe_remove(Some(probe)); }
-        let [diffuse, specular] = light.at(next);
-        probe.diffuse_multiplier().write(diffuse);
-        probe.specular_multiplier().write(specular);
+        let fields = light.at(next);
+        probe.diffuse_multiplier().write(fields.diffuse);
+        probe.specular_multiplier().write(fields.specular);
+        probe.radius().write(fields.radius);
         if next != Membership::Detached { raw::engine_probe_insert(Some(probe)); }
     }
 }

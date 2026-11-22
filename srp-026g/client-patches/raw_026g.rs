@@ -7123,6 +7123,15 @@ impl ObjectEnvironmentProbe {
         unsafe { self.0.byte_add(0x140).cast::<f32>().as_ptr() }
     }
 
+    /// +0x3ec (f32): radius as load 0x28F3B0 read it (0x28F42C); insert hands it to the render probe (+320h), the key the visible probes are sorted by (largest first)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn radius(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x3ec).cast::<f32>().as_ptr() }
+    }
+
     /// +0x3f0 (f32): diffuse_multiplier as load 0x28F3B0 read it (0x28F451); insert hands it to the render probe (its +328h, color_parameters.x)
     ///
     /// # Safety

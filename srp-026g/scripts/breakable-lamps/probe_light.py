@@ -14,6 +14,14 @@ map's probes that hold no lamp). Where those two colours differ enough (a
 fluorescent tube's lavender against the warm daylight), the mix's two
 weights say how much of the probe is the lamp's. A kerosene lamp's flame
 (no light object) or a warm bulb is the daylight's colour: no split.
+
+A weather's sky can have the tubes' colour (London's rain is as blue as
+them). The lamp is the same in every weather, and so is the probe (its
+place and box): where a weather's own split cannot be made, the lamp's light
+the day's split found in the probe of that name and place is taken out of
+the weather's, if what is left is that weather's room colour (London
+(v0.42)'s rain; its evening bake has no lamp in it, and its own split binds
+nothing there).
 """
 import math
 import struct
@@ -111,24 +119,40 @@ def split(light, lamp, room):
     return a / total, min(1.0, max(KEEPS_FLOOR, d / total))
 
 
-def lamp_probes(probes, lamp_lights, cubemap):
-    """{lamp: [(probe, keeps)]}: each diffuse probe that holds the light of one lamp alone and
-    whose light is at least LAMP_SHARE that lamp's, with the share it keeps once the lamp is
-    broken. `lamp_lights` is [(lamp, light object)], `cubemap(probe)` a probe's irradiance file."""
+def angle(a, b):
+    cos = sum(x * y for x, y in zip(a, b)) / math.sqrt(sum(x * x for x in a) * sum(y * y for y in b))
+    return math.degrees(math.acos(max(-1.0, min(1.0, cos))))
+
+
+def lamp_probes(probes, lamp_lights, cubemap, day=None):
+    """({lamp: [(probe, keeps)]}, {probe name: (position, the lamp's light in it)}): each diffuse
+    probe that holds the light of one lamp alone and whose light is at least LAMP_SHARE that
+    lamp's, with the share it keeps once the lamp is broken, and the lamp's light the split
+    found in it. `lamp_lights` is [(lamp, light object)], `cubemap(probe)` a probe's irradiance
+    file, `day` the day project's second result (for a weather's probes its own split cannot
+    tell apart)."""
     diffuse = [p for p in probes if p.get('affect_diffuse', 1)]
     light_of = {id(p): irradiance(cubemap(p)) for p in diffuse}
     free = [p for p in diffuse if not any(holds(p, light['position']) for _, light in lamp_lights)]
     if not free:
-        return {}
+        return {}, {}
     room = [sum(hue(light_of[id(p)])[c] for p in free) / len(free) for c in range(3)]
-    found = {}
+    found, lamp_light = {}, {}
     for probe in diffuse:
         inside = {lamp for lamp, light in lamp_lights if holds(probe, light['position'])}
         if len(inside) != 1:
             continue
         lamp = inside.pop()
         colours = [hue(light['color']) for owner, light in lamp_lights if owner == lamp]
-        result = split(light_of[id(probe)], [sum(c[k] for c in colours) / len(colours) for k in range(3)], room)
+        colour = [sum(c[k] for c in colours) / len(colours) for k in range(3)]
+        light = light_of[id(probe)]
+        result = split(light, colour, room)
+        if result is not None:
+            lamp_light[probe['full_name']] = (probe['position'], [result[0] * luminance(light) * c for c in colour])
+        elif day and day.get(probe['full_name'], (None,))[0] == probe['position']:
+            left = [a - b for a, b in zip(light, day[probe['full_name']][1])]
+            if min(left) > 0 and angle(left, room) < SPLIT_ANGLE:
+                result = 1 - luminance(left) / luminance(light), min(1.0, max(KEEPS_FLOOR, luminance(left) / luminance(light)))
         if result is not None and result[0] >= LAMP_SHARE:
             found.setdefault(lamp, []).append((probe, round(result[1], 3)))
-    return found
+    return found, lamp_light
