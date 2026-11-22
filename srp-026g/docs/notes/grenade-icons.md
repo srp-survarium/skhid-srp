@@ -54,18 +54,21 @@ grenade that already exists"):
 
 - **The source**: rdg-m's own icon (`ui_desc/icon` 3, 6, icon 49: the stock hud's hudItems cell 15,
   the same render as the lobby's AmmoIcons one), measured upright (it leans 12.5 degrees): the fuse
-  head, the neck, the shoulder, the body and its domed bottom, and the lever's wire down the
-  shoulder's left. The pin's ring is left out, as the frag glyph leaves out the RGD-5's.
+  head, the neck, the shoulder, the body to its rim (a band a little wider than the body, 62 to 67 px
+  of 79.5), the bottom cap under the rim (a dome 25 px across and 12.5 px tall; the owner: without it
+  "it looks flat"), and the lever's wire down the shoulder's left. The pin's ring is left out, as the
+  frag glyph leaves out the RGD-5's.
 - **The hand**: the frag glyph's. Its tilt (its fuse rod's line, 31 degrees; the RGD-5's icon leans
   about 15, so the glyph leans about 19 more, and so does the RDG-M's from its 12.5), its height
   (617 twips), its centre in the ring, its strokes (40 twips) and cuts (about 20) between the body,
   the fuse head and the lever.
 - `srp-026g/scripts/grenade-icons/smoke_glyph.py` makes the polygons (shapely) from those
   measurements and prints them as `SmokeMark`'s arrays.
-- **Toxic smoke** (the owner: "fully green inside"): the same sketch, its body green inside a 1 px
-  white edge, the fuse head and the lever white. The green is Toxic Smoke's own icon's
-  (`scripts/technical-skills/make_icons.py` GREEN, 0x7BD11F). The cloud's own tint in the game (the
-  toxic-smoke pack's emissive 0.40, 0.52, 0.38) is too dark and grey for a 20 px mark.
+- **Toxic smoke** (the owner: "fully green inside"): the same sketch, its body and cap green inside
+  a 1 px white edge, the fuse head and the lever white. The green, 0x71AB40, is halfway from Toxic
+  Smoke's own icon's (`scripts/technical-skills/make_icons.py` GREEN, 0x7BD11F; the owner: "a bit too
+  bright") to the cloud's own tint in the game (the toxic-smoke pack's emissive 0.40, 0.52, 0.38,
+  0x668561, too dull for a 20 px mark).
 
 Check: `srp-026g/scripts/grenade-icons/check.sh` (Ruffle, the stock feed and the feed with kinds).
 

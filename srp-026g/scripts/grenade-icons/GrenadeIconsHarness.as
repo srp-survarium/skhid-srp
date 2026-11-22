@@ -66,12 +66,12 @@ package
          if(done) return;
          try
          {
-            frames++;
             var root_:* = icons.content;
+            // the frames count from the first the movie's root has its layer (a slow load waits)
             if(root_ == null || root_.iconControl == null) return;
+            frames++;
             var layer:* = root_.iconControl;
-            if(frames < 3) return;
-            if(frames == 3)
+            if(frames == 1)
             {
                addChild(icons);
                var props:Array = [];
