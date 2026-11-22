@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""texts.py: the grips' names and descriptions in the eleven localization tables
+"""texts.py: the grips' names and descriptions in the twelve localization tables
 (../../client-patches/localization/<language>.tsv), under 0.69d0's own keys.
 
 usage: python3 -I texts.py <donor folder> [--write | --check]
@@ -32,6 +32,7 @@ DESCRIPTION = {
     'czech': ('Zpětný ráz {}%.', 'Doba míření {}%.'),
     'hungarian': ('Visszarúgás {}%.', 'Célzási idő {}%.'),
     'finnish': ('Rekyyli {}%.', 'Tähtäysaika {}%.'),
+    'portuguese': ('Recuo {}%.', 'Tempo de mira {}%.'),
 }
 
 

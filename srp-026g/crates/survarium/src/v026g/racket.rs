@@ -69,6 +69,7 @@ pub const SIGHT: &str = "shop_scope_eotech_552";
 /// 9A-91 and the MSBS fire loud shots of their own.
 pub const SILENCED_SHOT: &str = "weapons/val_m";
 
+
 /// The profile slots of the two weapons (`srp_validate::world::WEAPON_SLOTS`).
 const WEAPON_SLOTS: [usize; 2] = [7, 10];
 
@@ -104,6 +105,9 @@ impl Arms {
             .ok_or_else(|| format!("the dictionary has no ammunition `{ammo_name}`"))?;
         if !dictionary.compatible(gun, ammo) {
             return Err(format!("`{name}` does not fire `{ammo_name}`"));
+        }
+        if !item_params::item_params(gun).is_some_and(|params| params.automatic) {
+            return Err(format!("`{name}` fires no automatic mode"));
         }
         if let Some(slot) = AMMO_SLOTS.iter().find(|&&slot| !dictionary.fits(ammo, slot)) {
             return Err(format!("`{name}`'s ammo `{ammo_name}` does not fit ammo slot {slot}"));
@@ -147,14 +151,26 @@ fn is_ammo(dict_id: u16) -> bool {
     item_params::item_params(dict_id).is_some_and(|params| params.class == ItemClass::Ammunition)
 }
 
+/// The rifle classes a Racket match plays automatic only (the owner, 2026-11-22: Racket's guns
+/// "should just be proper automatic weapons"; of "remove g3sg from it and replace with ak12" and
+/// "check that socom is not available too"): one of these with no automatic fire mode
+/// ([`item_params::ItemParams::automatic`]) is replaced, as a sniper rifle is. Shotguns and pistols
+/// stay as they are.
+pub const AUTOMATIC_CLASSES: [u8; 3] =
+    [category::ASSAULT_RIFLES, category::SMGS, category::MACHINE_GUNS];
+
 /// Whether Racket replaces the gun `dict_id`: a sniper rifle (its golden and premium copies are
-/// of their plain gun's category), or a gun whose shot is [`SILENCED_SHOT`].
+/// of their plain gun's category), a gun whose shot is [`SILENCED_SHOT`], or a rifle of
+/// [`AUTOMATIC_CLASSES`] that fires no automatic mode (the G3SG/1, the SOCOM 16, the SKS...).
 pub fn replaces(dictionary: &Dictionary, dict_id: u16) -> bool {
-    dictionary
-        .item(dict_id)
-        .is_some_and(|item| item.category == category::SNIPER_RIFLES)
-        || item_params::item_params(dict_id).and_then(|params| params.shot_heard)
-            == Some(SILENCED_SHOT)
+    let Some(item) = dictionary.item(dict_id) else {
+        return false;
+    };
+    let params = item_params::item_params(dict_id);
+    item.category == category::SNIPER_RIFLES
+        || params.and_then(|params| params.shot_heard) == Some(SILENCED_SHOT)
+        || (AUTOMATIC_CLASSES.contains(&item.category)
+            && params.is_some_and(|params| params.gun.is_some() && !params.automatic))
 }
 
 /// `profile` armed for Racket:

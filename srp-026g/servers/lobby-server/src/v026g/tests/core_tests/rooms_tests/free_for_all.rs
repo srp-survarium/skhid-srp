@@ -49,9 +49,9 @@ fn accounts(world: &World, members: &[usize]) -> HashSet<u32> {
     members.iter().map(|&member| world.ids[member].0).collect()
 }
 
-/// The room's pool has two maps of two teams and a free-for-all: its vote's
-/// third card is the free-for-all (the owner's of 2026-11-12), the first two
-/// the others. The members vote for it, and the match is that map's with
+/// The room's pool has two maps of two teams and a free-for-all: its vote
+/// shows the three, the free-for-all on any card (the owner's of
+/// 2026-11-22). The members vote for it, and the match is that map's with
 /// each of them in it, in no squad. One who comes while it is played, its
 /// places not all given, goes into it.
 #[test]
@@ -70,10 +70,14 @@ fn a_room_whose_vote_wins_a_free_for_all_card_plays_it_with_each_ready_member() 
     let voting = state(&mut world, alice);
     assert_eq!(header(&voting)[PHASE], "3", "the vote");
     let offered = cards(&voting);
-    assert!(offered[..2].contains(&MapId::new(61)) && offered[..2].contains(&MapId::new(117)), "{offered:?}");
-    assert_eq!(offered[2..], [free_for_all], "{offered:?}");
+    let mut sorted = offered.clone();
+    sorted.sort_unstable();
+    let mut pool = vec![MapId::new(61), MapId::new(117), free_for_all];
+    pool.sort_unstable();
+    assert_eq!(sorted, pool, "{offered:?}");
+    let card = offered.iter().position(|&id| id == free_for_all).unwrap() as u32;
     for index in [alice, bob, carol] {
-        rows(&mut world, index, ROOM_VOTE_BASE + 2, 1);
+        rows(&mut world, index, ROOM_VOTE_BASE + card, 1);
     }
     let ticket = room_match_starts(&mut world, &[alice, bob, carol], VOTE_AND_WAIT);
     assert_eq!(world.host.made.locked().len(), 1);

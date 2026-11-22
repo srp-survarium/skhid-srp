@@ -155,6 +155,10 @@ pub fn used(
     respawns: u32,
     twist: Option<Armed>,
 ) -> Vec<(u16, u32)> {
+    // Roulette's kits held nothing of the account's (`survarium::v026g::roulette`).
+    if matches!(twist, Some(Armed::Roulette(_))) {
+        return Vec::new();
+    }
     let dictionary = Dictionary::shared();
     let buckshot = dictionary.item_named(BUCKSHOT).map(|item| item.dict_id);
     let block = supplies.filter(|supplies| !supplies.alive || supplies.inventory_read);

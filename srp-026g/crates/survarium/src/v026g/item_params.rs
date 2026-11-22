@@ -55,9 +55,15 @@ pub struct ItemParams {
     pub clip_size: u32,
     pub clip_weight: f32,
     pub required_bags: u32,
+    /// Ammo: the pellets a round flies as (`data.buck_shot`): over 1 for buckshot, 0 or 1 for a
+    /// single projectile (a slug, a bullet).
+    pub pellets: u32,
     /// Weapons: the rounds a magazine holds.
     pub magazine_capacity: u32,
     pub double_handed: bool,
+    /// Weapons: whether a fire mode is automatic (`parameters.fire_queue_types` holds -1, the whole
+    /// magazine while the trigger is held; 1 is single shots, n a burst of n).
+    pub automatic: bool,
     /// What one unit of it takes of a pocket ([`PocketShare`]).
     pub pocket_share: PocketShare,
     /// Cosmetics: the modification that puts it on an item.
@@ -495,7 +501,11 @@ impl ItemParams {
             clip_weight: float(p, "clip_weight")?,
             required_bags: int(p, "required_bags")?,
             magazine_capacity: int(p, "magazine_capacity")?,
+            pellets: int(config.get("data"), "buck_shot")?,
             double_handed: flag(p, "double_handed")?,
+            automatic: p
+                .and_then(|p| p.get("fire_queue_types"))
+                .is_some_and(|modes| modes.children().iter().any(|mode| mode.as_i32() == Some(-1))),
             pocket_share: PocketShare::from_config(p)?,
             class: ItemClass::from_config(config)?,
             gun: GunStates::from_config(config)?,

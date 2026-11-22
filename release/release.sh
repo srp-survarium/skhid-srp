@@ -1207,6 +1207,13 @@ fi
 # The new patch.
 if [[ -n $resources ]]; then
     name=${resources##*/}
+    if ((!test_server)); then
+        case $(dropbox_setting) in
+        on) okay "the new patch goes to Dropbox too (release/dropbox-upload)" ;;
+        off) say "  note     the new patch does NOT go to Dropbox: SKHID_DROPBOX=off in release.env" ;;
+        *) problem "--resources: $DROPBOX_FORGOTTEN" ;;
+        esac
+    fi
     if [[ -n $(list_row "$name") ]]; then
         problem "--resources: $name is in $PATCH_LIST already: run without --resources (the list is what is offered)"
     elif [[ -n $rev && $name != "resources.db.patch_$rev" ]]; then

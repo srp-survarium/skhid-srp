@@ -22,7 +22,7 @@ root=$(dirname "$here")
 command -v python3 >/dev/null || { echo "test.sh: python3 is needed" >&2; exit 1; }
 
 if command -v shellcheck >/dev/null; then
-    (cd "$here" && shellcheck -x -s bash lib.sh build-patch build-content upload-patch add-mirror build-server-db build-site build-zip build-torrent build-bootstrap publish-dht make-signing-key deploy rollback setup-patches-server release.sh bot-data world-corpus test.sh &&
+    (cd "$here" && shellcheck -x -s bash lib.sh build-patch build-content upload-patch dropbox-upload add-mirror build-server-db build-site build-zip build-torrent build-bootstrap publish-dht make-signing-key deploy rollback setup-patches-server release.sh bot-data world-corpus test.sh &&
         shellcheck -s sh host-rollback.sh host-bot-data.sh)
     echo "ok   shellcheck"
 else
@@ -531,6 +531,7 @@ SKHID_GAME_LIST=$T/game.tsv
 SKHID_STOCK_DB=$T/resources.db
 SKHID_RELEASE_LOCK=$T/lock
 SKHID_BACKUP_DIR=$T/backups
+SKHID_DROPBOX=off
 EOF
 export SKHID_RELEASE_ENV=$T/release.env
 
@@ -2804,13 +2805,16 @@ manifest() { # the rows, `kind name source` a line ('|' for a tab), into $T/cont
 }
 manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "edit|e1.json|-"
 bc_env=$(changed_env "s|^SKHID_PATCH_LIST=.*|SKHID_PATCH_LIST=$T/content-list.tsv|")
-# $bc: the release's build (--full); $bcq: the plain command, a quick build.
-cat >"$T/bcq" <<EOF
+# $bc: the release's build (--full); $bcq: a quick build (--slow); $bc0: the plain command.
+cat >"$T/bc0" <<EOF
 #!/usr/bin/env bash
 SKHID_RELEASE_ENV=$bc_env SKHID_TEST_BUILD_MOVIE=$T/build-movie SKHID_TEST_BUILD_SITE=$T/build-site TEST_DIR=$T exec "$here/build-content" "\$@" --tree "$C" --manifest "$T/content.tsv"
 EOF
-printf '#!/usr/bin/env bash\nexec %q "$@" --full\n' "$T/bcq" >"$T/bc"
-chmod +x "$T/bc" "$T/bcq"
+printf '#!/usr/bin/env bash\nexec %q "$@" --slow\n' "$T/bc0" >"$T/bcq"
+printf '#!/usr/bin/env bash\nexec %q "$@" --full\n' "$T/bc0" >"$T/bc"
+chmod +x "$T/bc" "$T/bcq" "$T/bc0"
+expect_refused "build-content: a local build without --slow points to tools/test-patch" \
+    "tools/test-patch <setup> <inputs> (a minute); to build the whole content anyway" "$T/bc0" 41 --out "$T/work/c41-plain"
 bcq=$T/bcq
 bc=$T/bc
 site_runs=$(grep -c . "$T/build-site.args" || true)

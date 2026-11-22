@@ -3369,7 +3369,8 @@ passive, x0.85 active, x0.7 for two active Springs, speed x1.05 / x1.15 / x1.3; 
 enable_active with made-up pools: every body part's full (a limb's at the maximum Strong Bones
 gives it too), `infection`, a full pool and a missing one left alone; an
 inventory of two Springs, an Onyx, a Spring cooling and one active: one press fires the ready
-Springs alone, the Onyx alone, a key-up nothing, a cooling Spring's key the ready one; the stagger with made-up hits: -0.45, -0.5 at
+Springs alone, the Onyx alone, a key-up nothing, a cooling Spring's key the ready one, and each
+such press starts the cooling Spring's (and a cooling Onyx's) cooldown again, a press that fires nothing none; the stagger with made-up hits: -0.45, -0.5 at
 most, an old hit out, and 0 with an active Spring in the build; through the game's own callers, a
 slot's key through inventory::action 0x2FCAA0 fires both Springs, whose own enable_active
 0x3118D0 links their nodes (aim x0.7, speed x1.3) and whose disable_active 0x311970 unlinks one's;

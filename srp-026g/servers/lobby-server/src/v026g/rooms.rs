@@ -2406,11 +2406,16 @@ impl Core<'_> {
             bots[0],
             bots[1]
         );
-        for player in teams.iter().flatten() {
-            self.room_send_to_match(*player, now);
-        }
         // `launch` made the match (it is in `matches` from here on).
         self.rooms.started(key, match_id, played, &seated, now);
+        for player in teams.iter().flatten() {
+            // The room's state first, its `L` row this match's mode: the movie's loading screen
+            // shows a free-for-all twist's own icon from its first frame (`LobbyGameLoad.twist`).
+            if let Some(who) = self.who_is(player.account_id) {
+                self.send_room_state(&who, RoomCode::None, now);
+            }
+            self.room_send_to_match(*player, now);
+        }
         // The match started without who could not play it: out of the room,
         // told why (they may come back with a kit that can).
         for (member, fit) in unfit {

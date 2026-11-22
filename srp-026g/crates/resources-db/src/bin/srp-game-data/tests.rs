@@ -287,7 +287,13 @@ fn get_and_compare_see_the_files_as_the_game_mounts_them() {
     );
 
     let made = game.0.join("made");
-    for (path, text) in [("a/x", "patched x"), ("a/y", "new y"), ("b/z", "z")] {
+    for (path, text) in [
+        ("a/x", "patched x"),
+        ("a/y", "new y"),
+        ("b/z", "z"),
+        ("gameplay/g", "g"),
+        ("projects/p/client_project", "not a config"),
+    ] {
         std::fs::create_dir_all(made.join(path).parent().unwrap()).unwrap();
         std::fs::write(made.join(path), text).unwrap();
     }
@@ -297,7 +303,54 @@ fn get_and_compare_see_the_files_as_the_game_mounts_them() {
         [
             "same a/x resources.db.patch_5",
             "differs a/y resources.db",
-            "new b/z"
+            "new b/z",
+            "new gameplay/g server",
+            "new projects/p/client_project server",
         ]
     );
+}
+
+/// A project's change is the server's only when its cut changes.
+#[test]
+fn the_server_sees_a_project_change_only_in_its_cut() {
+    use binary_config_parser::tree::ConfigValue;
+    let project = |light: &str, points: usize| {
+        let named = |pairs: Vec<(&str, ConfigValue)>| {
+            ConfigValue::Named(pairs.into_iter().map(|(k, v)| (k.into(), v)).collect())
+        };
+        let object =
+            |kind: &str| named(vec![("game_object_type", ConfigValue::String(kind.into()))]);
+        named(vec![
+            ("light_name", ConfigValue::String(light.into())),
+            (
+                "client_objects",
+                ConfigValue::Indexed(vec![object("ambient_light")]),
+            ),
+            (
+                "server_objects",
+                named(vec![(
+                    "respawn_points",
+                    ConfigValue::Indexed(vec![
+                        named(vec![("team", ConfigValue::Integer(1))]);
+                        points
+                    ]),
+                )]),
+            ),
+        ])
+        .to_bytes()
+        .unwrap()
+    };
+    let path = "projects/level_01/day/client_project";
+    assert!(!server_sees(
+        path,
+        Some(&project("warm", 2)),
+        &project("cold", 2)
+    ));
+    assert!(server_sees(
+        path,
+        Some(&project("warm", 2)),
+        &project("warm", 3)
+    ));
+    assert!(server_sees(path, None, &project("warm", 2)));
+    assert!(!server_sees("textures/a.dds", None, b"x"));
 }

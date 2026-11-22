@@ -547,15 +547,13 @@ pub(crate) fn body(lang: Lang) -> String {
         "<p class=breadcrumb><a href=\"/wiki?lang={code}\">{wiki}</a> / {title}</p>\
          <div class=wiki-heading><div><p class=eyebrow>{eyebrow}</p><h1>{title}</h1></div>\
          <span class=catalogue-count role=status aria-live=polite data-count data-label=\"{pieces}\">{count} {pieces}</span></div>\
-         <p class=wiki-intro>{intro}</p><p class=wiki-note>{note}</p>{slots}{tools}<ul id=gear-sets hidden>{set_list}</ul>\
+         {slots}{tools}<ul id=gear-sets hidden>{set_list}</ul>\
          <div id=gear-list>{list}</div><p id=gear-empty hidden>{empty}</p><script src=\"{script}\"></script>",
         wiki = lang.t("Wiki"),
         title = lang.t("Equipment"),
         eyebrow = lang.t("Equipment reference"),
         pieces = lang.t("pieces"),
         count = rows.len(),
-        intro = lang.t("Every armour piece: protection by body part, weight, what it has built in and what it can roll."),
-        note = lang.tf("Armour (bullets, melee, explosions) and isolation (fire, radiation, electricity, toxins) are the share of damage stopped (×100); worn pieces add up. Over {0} kg a kit slows you, up to −20% speed and +150% sprint stamina at the limit, where you can't sprint.", &[("0", &item_params::player().min_carried_weight)]),
         empty = lang.t("Nothing matches."),
         script = script_url(),
     )
