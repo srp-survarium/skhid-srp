@@ -1332,6 +1332,21 @@ pub extern "C" fn hook_artefact_hunt_on_initialize_match(frame: &mut Frame) -> u
     }
 }
 
+// ---- freeze_tag (patch 160) ----
+
+/// The entry `freeze_tag_on_initialize_match` (0x234880, game_world_ui::initialize_match's start (sub esp,5D4h), once a match (from 0x1F855D; the late join's rebuild enters at 0x234E71): the site's ESP+4 the hud, whose kits (+2DFh) and cursor (+2DCh) are the last match's) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_freeze_tag_on_initialize_match(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `freeze_tag_on_initialize_match` calls this, from the game's jump at 0x234880,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::freeze_tag::on_initialize_match(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- music (patch 88) ----
 
 /// The entry `music_on_announced` (0x23b36a, update_ui marks the welcome message shown (mov byte [edi+370h],1; the mode's jne at 0x23B354 lands here too): once a world, at its first update past the pregame, as the countdown ends) calls this with the saved machine.
@@ -8740,6 +8755,21 @@ pub extern "C" fn hook_unplayed_match_on_ready(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- use_prompt (patch 195) ----
+
+/// The entry `use_prompt_on_progress` (0x23a430, game_world_ui::set_using_progress_message (0x23A430) at its start (movss xmm0,[esp+8]): player::st_draw calls it each frame the drawn local player has an object in use (its user +4, player +134h; 0x246FC4) with the ui and the use's progress; ESP+4 the ui) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_use_prompt_on_progress(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `use_prompt_on_progress` calls this, from the game's jump at 0x23a430,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::use_prompt::on_progress(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- use_scan (patch 23) ----
 
 /// The named exits of use_scan::on_detect (the order the shim's Flow code
@@ -9577,6 +9607,8 @@ pub extern "C" fn hook_hud_cursor_on_match_start_chain(frame: &mut Frame) -> u32
     let flow = hook_free_for_all_on_initialize_match(frame);
     if flow != 0 { return flow; }
     let flow = hook_artefact_hunt_on_initialize_match(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_freeze_tag_on_initialize_match(frame);
     if flow != 0 { return flow; }
     0
 }

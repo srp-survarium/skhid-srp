@@ -8,7 +8,7 @@ use alloc::vec::Vec;
 use core::ffi::c_void;
 use core::ptr::{null, null_mut};
 
-use updater_logic::download::{self, PAGE_HEAD, Speed};
+use updater_logic::download::{self, Failure, PAGE_HEAD, Refused};
 use updater_logic::diagnosis::{Reach, Via};
 use updater_logic::problem::{Fault, Miss, Stage};
 use updater_logic::route::Choice;
@@ -51,11 +51,11 @@ pub enum HttpError {
     /// A patch's file was redirected to an address a list may not name
     /// (its `Location`, at most 200 characters of it).
     BadRedirect(String),
-    /// Slower than `download::MIN_SPEED` over a stretch of
-    /// `download::SLOW_WINDOW_MS`: its bytes a second.
-    Slow(u64),
     /// A `206 Partial Content` of another range than the one asked for.
     BadRange,
+    /// A `416` to a request from a byte on: the file has no byte past those
+    /// kept. Its size, when the answer says it.
+    PastEnd(Option<u64>),
 }
 
 /// The step of a network error while the body came, after the answer's
@@ -63,6 +63,16 @@ pub enum HttpError {
 const READ_STEP: &str = "read";
 
 impl HttpError {
+    /// How an address failed, for the choice of the next one
+    /// (`download::Mirrors`): the network (a next pass may do better), or an
+    /// answer that is not the file.
+    pub fn failure(&self) -> Failure {
+        match self {
+            Self::Network(..) | Self::Cut { .. } | Self::Status(500..=599) => Failure::Network,
+            _ => Failure::Refused,
+        }
+    }
+
     /// How an address failed, for the player's box (`updater_logic::problem`):
     /// not reached, or an answer that is not the file (one that broke off
     /// while the file came is cut short).
@@ -79,12 +89,12 @@ impl HttpError {
             Self::Status(status) => Miss::Answered(Fault::Status(*status)),
             Self::Cut { .. } => Miss::Answered(Fault::CutShort),
             Self::Html(..) => Miss::Answered(Fault::WebPage),
-            Self::Slow(_) => Miss::Answered(Fault::TooSlow),
             Self::TooLarge
             | Self::Stopped
             | Self::Redirects
             | Self::BadRedirect(_)
-            | Self::BadRange => Miss::Answered(Fault::Other),
+            | Self::BadRange
+            | Self::PastEnd(_) => Miss::Answered(Fault::Other),
         }
     }
 }
@@ -116,17 +126,6 @@ fn relay_proxy(url: &Url) -> Option<String> {
         url.secure && url.port == 443
             && config.direct.host().eq_ignore_ascii_case(&url.host)
     }).map(|config| alloc::format!("{}:8080", config.relay.host()))
-}
-
-/// What a download slower than `download::MIN_SPEED` over a stretch of
-/// `download::SLOW_WINDOW_MS` does.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Slow {
-    /// Goes on: no other address would give the file (the last of a list's,
-    /// and every download of one address).
-    Wait,
-    /// Ends with `HttpError::Slow`: another address may do better.
-    Leave,
 }
 
 /// Where a file's body goes: `sink(at, chunk)`, `chunk` the file's bytes
@@ -244,7 +243,6 @@ pub fn get_stream(
         &answer.request,
         0,
         limit,
-        Slow::Wait,
         &mut |_, chunk| sink(chunk),
         progress,
     )
@@ -263,12 +261,11 @@ pub fn get_stream(
 /// part) is the whole file again, from byte 0. `sink(at, chunk)`: `chunk`
 /// is the file's from byte `at`. `progress(done, total)`: the file's bytes
 /// up to here, of its size when the answer says it. `limit`: the most bytes
-/// the file may have; `slow`: whether a slow download ends.
+/// the file may have.
 pub fn get_file(
     url: &Url,
     from: u64,
     limit: u64,
-    slow: Slow,
     hop: &mut dyn FnMut(&str),
     sink: &mut Sink,
     progress: &mut dyn FnMut(u64, Option<u64>) -> bool,
@@ -298,17 +295,16 @@ pub fn get_file(
         hop(&text);
         url = next;
     };
-    let at = match answer.status {
-        200 => 0,
-        206 if from > 0 => {
-            text_header(&answer.request, WINHTTP_QUERY_CONTENT_RANGE, 128)
-                .and_then(|range| download::range_start(&range))
-                .filter(|&start| start == from)
-                .ok_or(HttpError::BadRange)?;
-            from
+    let range = matches!(answer.status, 206 | 416)
+        .then(|| text_header(&answer.request, WINHTTP_QUERY_CONTENT_RANGE, 128))
+        .flatten();
+    let at = download::body_start(from, answer.status, range.as_deref()).map_err(|refused| {
+        match refused {
+            Refused::Status(status) => HttpError::Status(status),
+            Refused::BadRange => HttpError::BadRange,
+            Refused::PastEnd(size) => HttpError::PastEnd(size),
         }
-        status => return Err(HttpError::Status(status)),
-    };
+    })?;
     if text_header(&answer.request, WINHTTP_QUERY_CONTENT_TYPE, 256).is_some_and(|kind| {
         kind.trim_start()
             .get(..9)
@@ -320,7 +316,6 @@ pub fn get_file(
             &answer.request,
             0,
             u64::MAX,
-            Slow::Wait,
             &mut |_, chunk| {
                 page.extend_from_slice(chunk);
                 if page.len() >= PAGE_HEAD {
@@ -334,7 +329,76 @@ pub fn get_file(
         let read = page.len() as u64;
         return Err(HttpError::Html(download::title(&page), read));
     }
-    receive(&answer.request, at, limit, slow, sink, progress)
+    receive(&answer.request, at, limit, sink, progress)
+}
+
+/// What a download into a file did ([`get_file_into`]).
+pub struct Saved {
+    /// The address's answer: `Ok` once its body came whole.
+    pub result: Result<(), HttpError>,
+    /// The bytes of it received (of a web page, those read for its title).
+    pub received: u64,
+    /// Where the file's bytes end now.
+    pub end: u64,
+}
+
+/// The file of a download could not be written or flushed.
+pub enum DiskError {
+    Write(Code),
+    Flush(Code),
+}
+
+/// What [`get_file_into`]'s sink calls a write that failed, to tell it
+/// from the network's.
+const WRITE_STEP: &str = "write the download";
+
+/// [`get_file`] into `file`, opened with `from` bytes of the file in it
+/// and at their end (`win::File::download`): a `206` from byte `from` is
+/// appended, a `200` is the whole file again from byte 0 (what was there is
+/// cut first). The file is flushed at the end, unless told to stop. The
+/// game's archive and the patches download so: what one address gave, the
+/// next goes on from, this run or the next.
+pub fn get_file_into(
+    file: &win::File,
+    url: &Url,
+    from: u64,
+    limit: u64,
+    hop: &mut dyn FnMut(&str),
+    progress: &mut dyn FnMut(u64, Option<u64>) -> bool,
+) -> Result<Saved, DiskError> {
+    let mut end = from;
+    let mut received = 0_u64;
+    let result = get_file(
+        url,
+        from,
+        limit,
+        hop,
+        &mut |at, chunk| {
+            if at != end {
+                file.cut(at).map_err(|code| HttpError::Network(WRITE_STEP, code))?;
+                end = at;
+            }
+            file.write(chunk)
+                .map_err(|code| HttpError::Network(WRITE_STEP, code))?;
+            end += chunk.len() as u64;
+            received += chunk.len() as u64;
+            Ok(())
+        },
+        progress,
+    );
+    match result {
+        Err(HttpError::Network(WRITE_STEP, code)) => return Err(DiskError::Write(code)),
+        Err(HttpError::Stopped) => {}
+        _ => file.flush().map_err(DiskError::Flush)?,
+    }
+    if let Err(HttpError::Html(_, read)) = &result {
+        received = *read;
+    }
+    Ok(Saved {
+        result,
+        received,
+        end,
+    })
 }
 
 /// How long a step of a request may take: name lookup, connect, send,
@@ -534,13 +598,11 @@ fn text_header(request: &Internet, which: u32, limit: usize) -> Option<String> {
     (ok != 0).then(|| from_wide(&text[..(size as usize / 2).min(text.len())]))
 }
 
-/// The body of the answer, the file's from byte `at`, into `sink`; with
-/// [`Slow::Leave`] a stretch slower than `download::MIN_SPEED` ends it.
+/// The body of the answer, the file's from byte `at`, into `sink`.
 fn receive(
     request: &Internet,
     at: u64,
     limit: u64,
-    slow: Slow,
     sink: &mut Sink,
     progress: &mut dyn FnMut(u64, Option<u64>) -> bool,
 ) -> Result<(), HttpError> {
@@ -550,16 +612,10 @@ fn receive(
         return Err(HttpError::TooLarge);
     }
     let mut received = 0_u64;
-    let mut speed = Speed::new(win::ticks(), 0);
     let mut buffer = alloc::vec![0_u8; 64 * 1024];
     loop {
         if !progress(at + received, total) {
             return Err(HttpError::Stopped);
-        }
-        if slow == Slow::Leave
-            && let Some(speed) = speed.slow(win::ticks(), received)
-        {
-            return Err(HttpError::Slow(speed));
         }
         let mut read = 0_u32;
         let ok = unsafe {

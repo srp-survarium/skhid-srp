@@ -94,7 +94,11 @@ three). No artifact rescue in this version (owner, 2026-11-17).
   when a new round starts. ("No place out of the world" below says why an
   entry is never held.)
 - The HUD reuses the stock TDM score bars (full at `WINS`, which the patch
-  passes to `freeze_tag_score`), collection progress (its bar the progress
+  passes to `freeze_tag_score`; their native source, the hud state's team
+  points +90h/+92h, which no Freeze Tag rule fills and nothing clears at a
+  new match, the patch writes from the rule every frame, so the last match's
+  score no longer shows: the owner, 2026-11-22, "freeze tag counter doesn't
+  reset after prev game"), collection progress (its bar the progress
   of `THAW_MS`, which the patch passes to `freeze_tag_update`)
   widget and blocked-hit UI sound. Its texts are `st_srp_hud_freeze_*`: the
   content compile gives the hud movie only `st_srp_hud_*` keys. A frozen player's name over his head

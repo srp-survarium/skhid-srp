@@ -593,6 +593,7 @@ fn a_players_weapons_are_what_its_games_counted() {
             "key",
             "kill_distance_m",
             "kills",
+            "kills_per_minute",
             "longest_kill_m",
             "matches",
             "name",
@@ -607,7 +608,8 @@ fn a_players_weapons_are_what_its_games_counted() {
         weapons[0],
         json!({
             "id": dict_id("ak_74u"), "key": "ak_74u", "name": weapons[0]["name"],
-            "icon": weapons[0]["icon"], "matches": 3, "kills": 42, "deaths": 15, "kd": 2.8, "headshots": 9,
+            "icon": weapons[0]["icon"], "matches": 3, "kills": 42, "deaths": 15, "kd": 2.8,
+            "kills_per_minute": 1.2, "headshots": 9,
             "wall_kills": 6, "ricochet_kills": 3, "shots": 1200, "hits": 300, "accuracy": 0.25,
             "damage": 126.0, "kill_distance_m": 31.3, "longest_kill_m": 84.5, "held_s": 2100,
         })
@@ -621,6 +623,7 @@ fn a_players_weapons_are_what_its_games_counted() {
     for by in [
         "kills",
         "kd",
+        "kills_per_minute",
         "headshot_rate",
         "accuracy",
         "kill_distance",
