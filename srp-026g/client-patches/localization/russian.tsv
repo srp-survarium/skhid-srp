@@ -3092,6 +3092,8 @@ st_srp_technical_443_description	Убийство вашей гранатой в
 st_srp_technical_443_name	Мародёр
 st_srp_technical_444_description	Ваш капкан ломает ноги попавшему в него. Капкан занимает 1,5 места в кармане.
 st_srp_technical_444_name	Медвежий капкан
+st_srp_technical_445_description	С кислородным баллоном в комплекте: ещё один контейнер для артефакта.
+st_srp_technical_445_name	Контейнер в баллоне
 st_srp_technical_disarm_speed	Скорость разминирования
 st_srp_technical_friendly_blast	Урон от своих гранат
 st_srp_technical_oxygen_rush	Скорость после 20 с баллона и в конце

@@ -3092,6 +3092,8 @@ st_srp_technical_443_description	Вбивство вашою гранатою п
 st_srp_technical_443_name	Мародер
 st_srp_technical_444_description	Ваш капкан ламає ноги тому, хто в нього потрапив. Капкан займає 1,5 місця в кишені.
 st_srp_technical_444_name	Ведмежий капкан
+st_srp_technical_445_description	З кисневим балоном у комплекті: ще один контейнер для артефакту.
+st_srp_technical_445_name	Контейнер у балоні
 st_srp_technical_disarm_speed	Швидкість розмінування
 st_srp_technical_friendly_blast	Шкода від своїх гранат
 st_srp_technical_oxygen_rush	Швидкість після 20 с балона і в кінці

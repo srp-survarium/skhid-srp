@@ -3092,6 +3092,8 @@ st_srp_technical_443_description	A kill with your grenade gives one grenade back
 st_srp_technical_443_name	Scavenger
 st_srp_technical_444_description	Your trap breaks the legs it catches. A trap takes 1.5 pocket slots.
 st_srp_technical_444_name	Bear Trap
+st_srp_technical_445_description	With an oxygen tank in the kit: one more artifact container.
+st_srp_technical_445_name	Tank Container
 st_srp_technical_disarm_speed	Trap disarming speed
 st_srp_technical_friendly_blast	Damage from own grenades
 st_srp_technical_oxygen_rush	Speed after 20 s of tank use and at its end

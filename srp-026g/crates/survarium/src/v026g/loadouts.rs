@@ -258,6 +258,9 @@ pub const MAX_POCKET_UNITS: u32 = 5;
 /// an artefact container.
 pub const ARTIFACT_CONTAINER: u16 = 522;
 
+/// Tank Container, technical skill 445: one more artefact container with an oxygen tank worn.
+pub use technical_skills::TANK_CONTAINER;
+
 /// What a kit makes of the slot Artifact Container gives a choice on (the owner, 2026-11-22):
 /// the container, or the pocket it was. A kit whose slot is the pocket takes the skill's
 /// modifiers no more ([`Self::skills_taken`]), as a kit without it.
@@ -294,6 +297,18 @@ impl ContainerSlot {
             .filter(|&(id, _)| !(self == ContainerSlot::Pocket && id == ARTIFACT_CONTAINER))
             .collect()
     }
+}
+
+/// The skills of the account's `skills` (`(id, points)`) a kit's modifier block carries: Artifact
+/// Container's only when the kit's slot is the container ([`ContainerSlot::skills_taken`]), Tank
+/// Container's ([`TANK_CONTAINER`]) only while the kit wears an `oxygen_tank`
+/// ([`is_oxygen_tank`]). Neither changes a [`KitLayout`] but by Artifact Container's pocket: a
+/// container takes a quick position the pockets leave (the lobby's `ProfileSlot.artifactCount`,
+/// the match's `inventory::setup_from_profile`), never a pocket.
+pub fn kit_skills(skills: &[(u16, u8)], container: ContainerSlot, oxygen_tank: bool) -> Vec<(u16, u8)> {
+    let mut taken = container.skills_taken(skills);
+    taken.retain(|&(id, _)| oxygen_tank || id != TANK_CONTAINER);
+    taken
 }
 
 /// What one unit of the item takes of a pocket (its config's,
@@ -1100,6 +1115,15 @@ mod tests {
                 assert!(dictionary.compatible(weapon.dict_id, ammo.dict_id));
             }
         }
+    }
+
+    #[test]
+    fn tank_container_only_with_a_tank_and_artifact_container_only_as_the_container() {
+        let skills = [(ARTIFACT_CONTAINER, 1), (TANK_CONTAINER, 1), (101, 2)];
+        assert_eq!(kit_skills(&skills, ContainerSlot::Container, true), skills);
+        assert_eq!(kit_skills(&skills, ContainerSlot::Container, false), [(ARTIFACT_CONTAINER, 1), (101, 2)]);
+        assert_eq!(kit_skills(&skills, ContainerSlot::Pocket, true), [(TANK_CONTAINER, 1), (101, 2)]);
+        assert_eq!(kit_skills(&skills, ContainerSlot::Pocket, false), [(101, 2)]);
     }
 
     #[test]
