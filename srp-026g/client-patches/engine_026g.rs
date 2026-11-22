@@ -333,6 +333,18 @@ unsafe extern "C" {
     pub fn engine_draw_triangles(renderer: *mut c_void, vertex_begin: *const c_void, vertex_end: *const c_void, index_begin: *const u16, index_end: *const u16, override_flag: u32);
     /// 0x3486a0 vostok::ui::ui_text_edit's delete of the selection: edit ESI; pops 0
     pub fn engine_text_edit_delete_selection(edit: *mut c_void);
+    /// 0x304e20 survarium::booby_trap_core::insert_collision: trap ESI; pops 0
+    pub fn engine_trap_insert_collision(trap: *mut c_void);
+    /// 0x304f00 survarium::booby_trap_core::remove: trap ESI; pops 0
+    pub fn engine_trap_remove(trap: *mut c_void);
+    /// virtual survarium::grenade_core+0x1c (2 vtables of vtables.tsv: 0x248600, 0x303d50): grenade ECX; pops 0
+    pub fn engine_grenade_remove(grenade: *mut c_void);
+    /// virtual survarium::grenade_core+0x18 (2 vtables of vtables.tsv: 0x248520, 0x303c10): grenade ECX, transform ESP+4, velocity ESP+8; pops 8
+    pub fn engine_grenade_throw(grenade: *mut c_void, transform: *const f32, velocity: *const f32);
+    /// 0x1f8070 survarium::game_world::select_profile: world EDI, value ESP+4; pops 4
+    pub fn engine_select_profile(world: *mut c_void, value: u32);
+    /// 0xe0210 vostok::render::render_model_instance::destroy: instance ECX, count EAX; pops 0
+    pub fn engine_release_particle(instance: *mut c_void, count: *mut u32);
     /// 0x3dd990 vostok::resources::pinned_ptr_const<unsigned char>::pinned_ptr_const [descriptive]: pinned EAX, resource ESP+4; pops 4
     pub fn engine_pin_resource(pinned: *mut c_void, resource: *mut c_void);
     /// 0x3c1020 vostok::resources::pinned_ptr_const<unsigned char>::~pinned_ptr_const [descriptive]: pinned ECX; pops 0
@@ -377,6 +389,8 @@ unsafe extern "stdcall" {
     pub fn engine_fsm_append_transition(source: *mut c_void, destination: *mut c_void, predicate: *const c_void);
     /// 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly
     pub fn engine_set_texture(compiler: *mut c_void, slot: *const u8, texture: *const u8, option: u32, request: u32, lower: u32, lower_float: f32, flag: u32);
+    /// 0x30a120 survarium::grenade_set_core::pull_pin: set ESP+4, now ESP+8; pops 8; AL; stdcall, called directly
+    pub fn engine_pull_pin(set: *mut c_void, now: u32) -> u8;
     /// 0x390620 vostok::animation::fingers_to_weapon_corrector::set_weapon_model: corrector ESP+4, instance ESP+8, first_view ESP+12; pops 12; stdcall, called directly
     pub fn engine_fingers_set_weapon_model(corrector: *mut c_void, instance: u32, first_view: u32);
     /// 0xe0b50 vostok::shared_string::create: text ESP+4; pops 4; EAX; stdcall, called directly
@@ -497,6 +511,12 @@ unsafe extern "thiscall" {
     pub fn engine_text_edit_set_text(part: *mut c_void, text: *const u8);
     /// 0x3488a0 vostok::ui::ui_text_edit::set_caret_position: edit ECX, position ESP+4, select ESP+8; pops 8; thiscall, called directly
     pub fn engine_text_edit_set_caret(edit: *mut c_void, position: u32, select: u32);
+    /// 0x305210 survarium::booby_trap_core::switch_to_state: trap ECX, state ESP+4; pops 4; thiscall, called directly
+    pub fn engine_trap_switch_state(trap: *mut c_void, state: u32);
+    /// 0x25b940 survarium::game_world::play_sound: world ECX, slot ESP+4, position ESP+8; pops 8; thiscall, called directly
+    pub fn engine_world_play_sound(world: *mut c_void, slot: *const u32, position: *const f32);
+    /// 0x2d9ae0 survarium::base_player::hit: receiver ECX, time ESP+4, attacker ESP+8, bodypart ESP+12, kind ESP+16, damage ESP+20, piercing ESP+24, initiator ESP+28, item ESP+32; pops 32; thiscall, called directly
+    pub fn engine_player_hit(receiver: *mut c_void, time: u32, attacker: *const c_void, bodypart: *const c_void, kind: u32, damage: f32, piercing: f32, initiator: *const c_void, item: *mut c_void);
     /// 0x1a8900 vostok::render::effect_compiler::set_constant_float4: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
     pub fn engine_set_constant_float4(value: *const f32, compiler: *mut c_void, name: *const u8);
     /// 0x2063f0 survarium::tdm_rule_cook::create_resource: cook ECX, query ESP+4; pops 4; EAX; thiscall, called directly

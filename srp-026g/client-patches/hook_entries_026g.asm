@@ -9892,7 +9892,7 @@ medical_skills_on_initialize_replay:
 
 ; 0x2dbc91 EBX player XMM0 final movement speed: lohook -> medical_skills_on_movement
 global medical_skills_on_movement
-extern hook_medical_skills_on_movement
+extern hook_medical_skills_on_movement_chain
 medical_skills_on_movement:
     lea esp, [esp - 4]
     pushfd
@@ -9910,7 +9910,7 @@ medical_skills_on_movement:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_medical_skills_on_movement
+    call hook_medical_skills_on_movement_chain
     mov edx, medical_skills_on_movement_replay
     cmp eax, 0
     je medical_skills_on_movement_go
@@ -9968,9 +9968,9 @@ medical_skills_on_heal_replay:
     db 0xf3, 0x0f, 0x11, 0x86, 0xa0, 0x00, 0x00, 0x00
     jmp 0x32a468
 
-; 0x32a28b EBP pool XMM0 new health before write: lohook -> medical_skills_on_wound
+; 0x32a28b EBP pool, ESI the hit (mov esi,[esp+13Ch] at 0x32A284, on every path here), XMM0 new health before write: lohook -> medical_skills_on_wound
 global medical_skills_on_wound
-extern hook_medical_skills_on_wound
+extern hook_medical_skills_on_wound_chain
 medical_skills_on_wound:
     lea esp, [esp - 4]
     pushfd
@@ -9988,7 +9988,7 @@ medical_skills_on_wound:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_medical_skills_on_wound
+    call hook_medical_skills_on_wound_chain
     mov edx, medical_skills_on_wound_replay
     cmp eax, 0
     je medical_skills_on_wound_go
@@ -10049,10 +10049,10 @@ medical_skills_on_protection_replay:
     db 0x8b, 0x44, 0x24, 0x04, 0x8b, 0x10
     jmp 0x33db36
 
-; 0x2f76e8 apply_kit_parameter epilogue: ESI parameter index, XMM0 final base+skills+equipment value; replay pops EDI ESI EBP EBX and returns: lohook -> medical_skills_on_pocket_count
-global medical_skills_on_pocket_count
-extern hook_medical_skills_on_pocket_count
-medical_skills_on_pocket_count:
+; 0x2f76e8 player_profile::apply_kit_parameter epilogue (every caller is the lobby's): ESI parameter index (15 pockets, 17 pocket size), XMM0 final base+skills+equipment value, EBX the kit record, EBP the profile, the dictionary argument by ESP; replay pops EDI ESI EBP EBX and returns: lohook -> technical_skills_on_kit_parameter
+global technical_skills_on_kit_parameter
+extern hook_technical_skills_on_kit_parameter_chain
+technical_skills_on_kit_parameter:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -10069,28 +10069,28 @@ medical_skills_on_pocket_count:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_medical_skills_on_pocket_count
-    mov edx, medical_skills_on_pocket_count_replay
+    call hook_technical_skills_on_kit_parameter_chain
+    mov edx, technical_skills_on_kit_parameter_replay
     cmp eax, 0
-    je medical_skills_on_pocket_count_go
+    je technical_skills_on_kit_parameter_go
     mov edx, 0x2f76ed
     cmp eax, 1
-    je medical_skills_on_pocket_count_go
+    je technical_skills_on_kit_parameter_go
     ud2
-medical_skills_on_pocket_count_go:
+technical_skills_on_kit_parameter_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-medical_skills_on_pocket_count_replay:
+technical_skills_on_kit_parameter_replay:
     db 0x5f, 0x5e, 0x5d, 0x5b, 0xc3
     jmp 0x2f76ed
 
 ; 0x329aad player_stamina::sprint after both spending modifiers (19, 67): XMM0 sprint stamina per second, before the elapsed-time multiply: lohook -> medical_skills_on_sprint
 global medical_skills_on_sprint
-extern hook_medical_skills_on_sprint
+extern hook_medical_skills_on_sprint_chain
 medical_skills_on_sprint:
     lea esp, [esp - 4]
     pushfd
@@ -10108,7 +10108,7 @@ medical_skills_on_sprint:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_medical_skills_on_sprint
+    call hook_medical_skills_on_sprint_chain
     mov edx, medical_skills_on_sprint_replay
     cmp eax, 0
     je medical_skills_on_sprint_go
@@ -11315,9 +11315,9 @@ ragdoll_on_render_bones_replay:
     db 0x80, 0xbf, 0xd8, 0x62, 0x00, 0x00, 0x00
     jmp 0x15a957
 
-; 0x2da3df generate_killed_event after enqueue: ESI victim, BL cause (1 headshot, 0 other, 3 suicide/no killer); replays mov eax,[esi+120h]: lohook -> ragdoll_on_killed
+; 0x2da3df generate_killed_event after enqueue: ESI victim, BL cause (1 headshot, 0 other, 3 suicide/no killer); replays mov eax,[esi+120h]; ESP its frame (the arguments at +44h..: time, killer, bone, source): lohook -> ragdoll_on_killed
 global ragdoll_on_killed
-extern hook_ragdoll_on_killed
+extern hook_ragdoll_on_killed_chain
 ragdoll_on_killed:
     lea esp, [esp - 4]
     pushfd
@@ -11335,7 +11335,7 @@ ragdoll_on_killed:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_ragdoll_on_killed
+    call hook_ragdoll_on_killed_chain
     mov edx, ragdoll_on_killed_replay
     cmp eax, 0
     je ragdoll_on_killed_go
@@ -12239,6 +12239,1272 @@ tab_cursor_on_hud_call_go:
 tab_cursor_on_hud_call_replay:
     db 0x53, 0x56, 0x8b, 0x74, 0x24, 0x10
     jmp 0x233d36
+
+; 0x321790 player_slot::apply_profile_input's start (movzx eax,byte [ecx+2Ch] / mov edx,[ecx+28h]): each place's tick (tick list 0, after the respawn rule), every game, every replay of a tick; ECX the place, [esp+8] the tick's time: lohook -> technical_dead_man_on_place_tick
+global technical_dead_man_on_place_tick
+extern hook_technical_dead_man_on_place_tick
+technical_dead_man_on_place_tick:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_dead_man_on_place_tick
+    mov edx, technical_dead_man_on_place_tick_replay
+    cmp eax, 0
+    je technical_dead_man_on_place_tick_go
+    mov edx, 0x321797
+    cmp eax, 1
+    je technical_dead_man_on_place_tick_go
+    ud2
+technical_dead_man_on_place_tick_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_dead_man_on_place_tick_replay:
+    db 0x0f, 0xb6, 0x41, 0x2c, 0x8b, 0x51, 0x28
+    jmp 0x321797
+
+; 0x25cd69 game_world::on_keyboard_action after the binder's answer for a key down with Tab up (mov edi,eax / cmp edi,3Fh): EAX the key's action (kinds 1; 20h throw_grenade), EBX the game; also on the death screen: lohook -> technical_dead_man_on_game_key
+global technical_dead_man_on_game_key
+extern hook_technical_dead_man_on_game_key
+technical_dead_man_on_game_key:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_dead_man_on_game_key
+    mov edx, technical_dead_man_on_game_key_replay
+    cmp eax, 0
+    je technical_dead_man_on_game_key_go
+    mov edx, 0x25cd6e
+    cmp eax, 1
+    je technical_dead_man_on_game_key_go
+    ud2
+technical_dead_man_on_game_key_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_dead_man_on_game_key_replay:
+    db 0x8b, 0xf8, 0x83, 0xff, 0x3f
+    jmp 0x25cd6e
+
+; 0x1f8070 game_world::select_profile's start (mov eax,[edi+9Ch]): every profile input this game queues (the hud's kit pick 0x233F23, patch 180's Dead Man's Switch); EDI the game world, [esp+4] the value; held is its `ret 4` (0x1F8115, the stack as at the start): nothing queued: lohook -> technical_dead_man_on_select_profile
+global technical_dead_man_on_select_profile
+extern hook_technical_dead_man_on_select_profile
+technical_dead_man_on_select_profile:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_dead_man_on_select_profile
+    mov edx, technical_dead_man_on_select_profile_replay
+    cmp eax, 0
+    je technical_dead_man_on_select_profile_go
+    mov edx, 0x1f8076
+    cmp eax, 1
+    je technical_dead_man_on_select_profile_go
+    mov edx, 0x1f8115
+    cmp eax, 2
+    je technical_dead_man_on_select_profile_go
+    ud2
+technical_dead_man_on_select_profile_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_dead_man_on_select_profile_replay:
+    db 0x8b, 0x87, 0x9c, 0x00, 0x00, 0x00
+    jmp 0x1f8076
+
+; 0x1ecc47 game::tick where it sets the game's time to the frame's (mov [ebx+5854h],ecx): after the input tick, the game world's update and the network client's tick of the frame; EBX the game: lohook -> technical_dead_man_on_frame_end
+global technical_dead_man_on_frame_end
+extern hook_technical_dead_man_on_frame_end
+technical_dead_man_on_frame_end:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_dead_man_on_frame_end
+    mov edx, technical_dead_man_on_frame_end_replay
+    cmp eax, 0
+    je technical_dead_man_on_frame_end_go
+    mov edx, 0x1ecc4d
+    cmp eax, 1
+    je technical_dead_man_on_frame_end_go
+    ud2
+technical_dead_man_on_frame_end_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_dead_man_on_frame_end_replay:
+    db 0x89, 0x8b, 0x54, 0x58, 0x00, 0x00
+    jmp 0x1ecc4d
+
+; 0x2d8747 base_player::set_input past its early-outs (a dead player 0x2D86F5; the same actions and no turn 0x2D8741), before the new input is copied to +32Ch (mov ecx,[edi+32Ch]; 0x2D870A and 0x2D8725 jump here): EDI the player, ESI the new input, [EBP+8] its time; every game, before patch 78's filter (carry.filter): lohook -> technical_return_to_sender_on_input
+global technical_return_to_sender_on_input
+extern hook_technical_return_to_sender_on_input
+technical_return_to_sender_on_input:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_return_to_sender_on_input
+    mov edx, technical_return_to_sender_on_input_replay
+    cmp eax, 0
+    je technical_return_to_sender_on_input_go
+    mov edx, 0x2d874d
+    cmp eax, 1
+    je technical_return_to_sender_on_input_go
+    ud2
+technical_return_to_sender_on_input_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_return_to_sender_on_input_replay:
+    db 0x8b, 0x8f, 0x2c, 0x03, 0x00, 0x00
+    jmp 0x2d874d
+
+; 0x297f7e weapon_sound_effect::play_sound_callback with its new proxy (mov eax,[eax] / xor ebx,ebx / xor edi,edi), where the hud (0x297F5E) and point (0x297F79) paths join: EAX the out slot, the effect at [esp+24h]: lohook -> technical_sharp_ears_on_weapon_sound
+global technical_sharp_ears_on_weapon_sound
+extern hook_technical_sharp_ears_on_weapon_sound
+technical_sharp_ears_on_weapon_sound:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_sharp_ears_on_weapon_sound
+    mov edx, technical_sharp_ears_on_weapon_sound_replay
+    cmp eax, 0
+    je technical_sharp_ears_on_weapon_sound_go
+    mov edx, 0x297f84
+    cmp eax, 1
+    je technical_sharp_ears_on_weapon_sound_go
+    ud2
+technical_sharp_ears_on_weapon_sound_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_sharp_ears_on_weapon_sound_replay:
+    db 0x8b, 0x00, 0x33, 0xdb, 0x33, 0xff
+    jmp 0x297f84
+
+; 0x14730 the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query: callback -> technical_sharp_ears_on_loaded (wraps engine_store_first_resource 0x14730)
+    RUST_CDECL technical_sharp_ears_on_loaded, hook_technical_sharp_ears_on_loaded, 2
+
+; 0x31d95b breath_vibration_calculator::tick's stores of m_vibration (mov [edi+44h],eax / mov [edi+48h],ecx): EAX the horizontal sway's bits, ECX the vertical's, EDI the calculator; the tick never reads them back: lohook -> technical_skills_on_breath_vibration
+global technical_skills_on_breath_vibration
+extern hook_technical_skills_on_breath_vibration
+technical_skills_on_breath_vibration:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_breath_vibration
+    mov edx, technical_skills_on_breath_vibration_replay
+    cmp eax, 0
+    je technical_skills_on_breath_vibration_go
+    mov edx, 0x31d961
+    cmp eax, 1
+    je technical_skills_on_breath_vibration_go
+    ud2
+technical_skills_on_breath_vibration_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_breath_vibration_replay:
+    db 0x89, 0x47, 0x44, 0x89, 0x4f, 0x48
+    jmp 0x31d961
+
+; 0x2e1dbe weapon_core::get_dispersed_bullet_direction's store of the shot's dispersion (movss [esp+7Ch],xmm1; read again only by the tilt's fmul at 0x2E1E0A): XMM1 the final dispersion, static + dynamic; EBX the weapon (loaded at 0x2E1D5C, [EBX+8] its user); every player's shot in every game (instant_fire 0x2E245C): lohook -> technical_skills_on_dispersion
+global technical_skills_on_dispersion
+extern hook_technical_skills_on_dispersion
+technical_skills_on_dispersion:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_dispersion
+    mov edx, technical_skills_on_dispersion_replay
+    cmp eax, 0
+    je technical_skills_on_dispersion_go
+    mov edx, 0x2e1dc4
+    cmp eax, 1
+    je technical_skills_on_dispersion_go
+    ud2
+technical_skills_on_dispersion_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_dispersion_replay:
+    db 0xf3, 0x0f, 0x11, 0x4c, 0x24, 0x7c
+    jmp 0x2e1dc4
+
+; 0x33e661 oxygen_tank::tick after the air is spent, a living holder's only (the dead path jumps past it): ECX m_amount_ms left, 0 when it ran out this tick (set_active(0) follows at 0x33E66D): lohook -> technical_skills_on_tank_empty
+global technical_skills_on_tank_empty
+extern hook_technical_skills_on_tank_empty
+technical_skills_on_tank_empty:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_tank_empty
+    mov edx, technical_skills_on_tank_empty_replay
+    cmp eax, 0
+    je technical_skills_on_tank_empty_go
+    mov edx, 0x33e669
+    cmp eax, 1
+    je technical_skills_on_tank_empty_go
+    ud2
+technical_skills_on_tank_empty_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_tank_empty_replay:
+    db 0xf3, 0x0f, 0x11, 0x87, 0x60, 0x02, 0x00, 0x00
+    jmp 0x33e669
+
+; 0x33e293 oxygen_tank's ctor epilogue (pop edi / pop esi / mov eax,ebp / pop ebp): EBP the tank, its tail padding as the allocator left it: lohook -> technical_skills_on_tank_construct
+global technical_skills_on_tank_construct
+extern hook_technical_skills_on_tank_construct
+technical_skills_on_tank_construct:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_tank_construct
+    mov edx, technical_skills_on_tank_construct_replay
+    cmp eax, 0
+    je technical_skills_on_tank_construct_go
+    mov edx, 0x33e298
+    cmp eax, 1
+    je technical_skills_on_tank_construct_go
+    ud2
+technical_skills_on_tank_construct_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_tank_construct_replay:
+    db 0x5f, 0x5e, 0x8b, 0xc5, 0x5d
+    jmp 0x33e298
+
+; 0x33e590 oxygen_tank's vtable +38h (amount := capacity, a refill): ECX the tank: lohook -> technical_skills_on_tank_refill
+global technical_skills_on_tank_refill
+extern hook_technical_skills_on_tank_refill
+technical_skills_on_tank_refill:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_tank_refill
+    mov edx, technical_skills_on_tank_refill_replay
+    cmp eax, 0
+    je technical_skills_on_tank_refill_go
+    mov edx, 0x33e596
+    cmp eax, 1
+    je technical_skills_on_tank_refill_go
+    ud2
+technical_skills_on_tank_refill_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_tank_refill_replay:
+    db 0x8b, 0x81, 0x70, 0x02, 0x00, 0x00
+    jmp 0x33e596
+
+; 0x33e5a0 oxygen_tank's vtable +40h, the same refill body with ret 8: ECX the tank: lohook -> technical_skills_on_tank_refill_2
+global technical_skills_on_tank_refill_2
+extern hook_technical_skills_on_tank_refill_2
+technical_skills_on_tank_refill_2:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_tank_refill_2
+    mov edx, technical_skills_on_tank_refill_2_replay
+    cmp eax, 0
+    je technical_skills_on_tank_refill_2_go
+    mov edx, 0x33e5a6
+    cmp eax, 1
+    je technical_skills_on_tank_refill_2_go
+    ud2
+technical_skills_on_tank_refill_2_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_tank_refill_2_replay:
+    db 0x8b, 0x81, 0x70, 0x02, 0x00, 0x00
+    jmp 0x33e5a6
+
+; 0x33e7e7 oxygen_tank::serialize after m_amount_ms (0x33E7DB): ESI the tank, EDI the writer: lohook -> technical_skills_on_tank_save
+global technical_skills_on_tank_save
+extern hook_technical_skills_on_tank_save
+technical_skills_on_tank_save:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_tank_save
+    mov edx, technical_skills_on_tank_save_replay
+    cmp eax, 0
+    je technical_skills_on_tank_save_go
+    mov edx, 0x33e7ec
+    cmp eax, 1
+    je technical_skills_on_tank_save_go
+    ud2
+technical_skills_on_tank_save_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_tank_save_replay:
+    db 0x5f, 0x5e, 0x8b, 0xe5, 0x5d
+    jmp 0x33e7ec
+
+; 0x33e82f oxygen_tank::deserialize after m_amount_ms (ECX it), before its active test (cmp byte [esi+268h],0): ESI the tank, EDI the reader at the bytes after it: lohook -> technical_skills_on_tank_load
+global technical_skills_on_tank_load
+extern hook_technical_skills_on_tank_load
+technical_skills_on_tank_load:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_tank_load
+    mov edx, technical_skills_on_tank_load_replay
+    cmp eax, 0
+    je technical_skills_on_tank_load_go
+    mov edx, 0x33e836
+    cmp eax, 1
+    je technical_skills_on_tank_load_go
+    ud2
+technical_skills_on_tank_load_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_tank_load_replay:
+    db 0x80, 0xbe, 0x68, 0x02, 0x00, 0x00, 0x00
+    jmp 0x33e836
+
+; 0x338b61 victory_item_core_take_state::item_and_hands_expression after it stored the take animation's time scale (push 1 / push 2 / push eax / push esi before get_user_hands_lexeme_impl 0x344F60): ESI the take state, [ESP] the scale: lohook -> technical_skills_on_battery_take
+global technical_skills_on_battery_take
+extern hook_technical_skills_on_battery_take
+technical_skills_on_battery_take:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_battery_take
+    mov edx, technical_skills_on_battery_take_replay
+    cmp eax, 0
+    je technical_skills_on_battery_take_go
+    mov edx, 0x338b67
+    cmp eax, 1
+    je technical_skills_on_battery_take_go
+    ud2
+technical_skills_on_battery_take_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_battery_take_replay:
+    db 0x6a, 0x01, 0x6a, 0x02, 0x50, 0x56
+    jmp 0x338b67
+
+; 0x2f8147 resupply_zone_core::update_use 0x2F8120 after the ms passed (sub eax,[esi+8]), before the zone's resupply time is read and compared (mov edx,[ecx+50h] / cmp eax,edx): EAX the ms passed at the crate, which also the progress divides (0x2F8163), EDI the user's player ([esi]): lohook -> technical_skills_on_resupply_time
+global technical_skills_on_resupply_time
+extern hook_technical_skills_on_resupply_time
+technical_skills_on_resupply_time:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_resupply_time
+    mov edx, technical_skills_on_resupply_time_replay
+    cmp eax, 0
+    je technical_skills_on_resupply_time_go
+    mov edx, 0x2f814c
+    cmp eax, 1
+    je technical_skills_on_resupply_time_go
+    ud2
+technical_skills_on_resupply_time_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_resupply_time_replay:
+    db 0x8b, 0x51, 0x50, 0x3b, 0xc2
+    jmp 0x2f814c
+
+; 0x304f92 booby_trap_core::use_execute after floor(defuse_time) (add esp,4 / test eax,eax): EAX the defuse's ms, ESI the ms passed, EBX the disarmer's usable user data: lohook -> technical_skills_on_defuse_time
+global technical_skills_on_defuse_time
+extern hook_technical_skills_on_defuse_time
+technical_skills_on_defuse_time:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_defuse_time
+    mov edx, technical_skills_on_defuse_time_replay
+    cmp eax, 0
+    je technical_skills_on_defuse_time_go
+    mov edx, 0x304f97
+    cmp eax, 1
+    je technical_skills_on_defuse_time_go
+    ud2
+technical_skills_on_defuse_time_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_defuse_time_replay:
+    db 0x83, 0xc4, 0x04, 0x85, 0xc0
+    jmp 0x304f97
+
+; 0x305552 booby_trap_core::hit after its hit-type check (cmp byte [ecx+220h],0): ECX the trap; shot is its ret 28h after the native defuse_completed: lohook -> technical_skills_on_trap_shot
+global technical_skills_on_trap_shot
+extern hook_technical_skills_on_trap_shot
+technical_skills_on_trap_shot:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_trap_shot
+    mov edx, technical_skills_on_trap_shot_replay
+    cmp eax, 0
+    je technical_skills_on_trap_shot_go
+    mov edx, 0x305559
+    cmp eax, 1
+    je technical_skills_on_trap_shot_go
+    mov edx, 0x305571
+    cmp eax, 2
+    je technical_skills_on_trap_shot_go
+    ud2
+technical_skills_on_trap_shot_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_trap_shot_replay:
+    db 0x80, 0xb9, 0x20, 0x02, 0x00, 0x00, 0x00
+    jmp 0x305559
+
+; 0x304dcf booby_trap_core::tick when now (EBX) reached m_action_time (push ebx / mov [eax+20h],-1 before the delayed action's call): ESI the trap; reopened goes on past the call to the state timer: lohook -> technical_skills_on_trap_reopen
+global technical_skills_on_trap_reopen
+extern hook_technical_skills_on_trap_reopen
+technical_skills_on_trap_reopen:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_trap_reopen
+    mov edx, technical_skills_on_trap_reopen_replay
+    cmp eax, 0
+    je technical_skills_on_trap_reopen_go
+    mov edx, 0x304dd7
+    cmp eax, 1
+    je technical_skills_on_trap_reopen_go
+    mov edx, 0x304ddc
+    cmp eax, 2
+    je technical_skills_on_trap_reopen_go
+    ud2
+technical_skills_on_trap_reopen_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_trap_reopen_replay:
+    db 0x53, 0xc7, 0x40, 0x20, 0xff, 0xff, 0xff, 0xff
+    jmp 0x304dd7
+
+; 0x305025 booby_trap_core::use_execute's finished defuse after defuse_completed (0x305020) returned (pop edi / pop esi / pop ebx / mov al,1): a trap that goes off at the defuse (the owner's modifier 46) goes to 0x30502E instead; EBX the disarmer's usable user data, EDI the trap's set, EBP the trap's usable_object (the trap at -34h): lohook -> technical_skills_on_trap_defused
+global technical_skills_on_trap_defused
+extern hook_technical_skills_on_trap_defused
+technical_skills_on_trap_defused:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_trap_defused
+    mov edx, technical_skills_on_trap_defused_replay
+    cmp eax, 0
+    je technical_skills_on_trap_defused_go
+    mov edx, 0x30502a
+    cmp eax, 1
+    je technical_skills_on_trap_defused_go
+    ud2
+technical_skills_on_trap_defused_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_trap_defused_replay:
+    db 0x5f, 0x5e, 0x5b, 0xb0, 0x01
+    jmp 0x30502a
+
+; 0x1f6642 grenade_cook::new_derived_resource 0x1F6630, the client grenade's size (mov eax,258h before doug_lea_allocator::malloc_impl 0xE4F90; the only maker of the class, its jmp 0x1F6651 the only way to its ctor): patch 180 asks 270h, its smoke fields after the native ones: lohook -> technical_smoke_on_grenade_size
+global technical_smoke_on_grenade_size
+extern hook_technical_smoke_on_grenade_size
+technical_smoke_on_grenade_size:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_smoke_on_grenade_size
+    mov edx, technical_smoke_on_grenade_size_replay
+    cmp eax, 0
+    je technical_smoke_on_grenade_size_go
+    mov edx, 0x1f6647
+    cmp eax, 1
+    je technical_smoke_on_grenade_size_go
+    ud2
+technical_smoke_on_grenade_size_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_smoke_on_grenade_size_replay:
+    db 0xb8, 0x58, 0x02, 0x00, 0x00
+    jmp 0x1f6647
+
+; 0x2483be survarium::grenade's ctor 0x248310 at its last store (mov [edi+250h],ax): EDI the grenade, patch 180's tail (+258h..+26Fh) as the allocator left it: lohook -> technical_smoke_on_grenade_construct
+global technical_smoke_on_grenade_construct
+extern hook_technical_smoke_on_grenade_construct
+technical_smoke_on_grenade_construct:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_smoke_on_grenade_construct
+    mov edx, technical_smoke_on_grenade_construct_replay
+    cmp eax, 0
+    je technical_smoke_on_grenade_construct_go
+    mov edx, 0x2483c5
+    cmp eax, 1
+    je technical_smoke_on_grenade_construct_go
+    ud2
+technical_smoke_on_grenade_construct_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_smoke_on_grenade_construct_replay:
+    db 0x66, 0x89, 0x87, 0x50, 0x02, 0x00, 0x00
+    jmp 0x2483c5
+
+; 0x2483f0 survarium::grenade's destructor body (push esi / mov esi,ecx / lea ecx,[esi+220h]; the deleting dtor 0x2483D0 calls it): ECX the grenade, before its own resources are released: lohook -> technical_smoke_on_grenade_destroy
+global technical_smoke_on_grenade_destroy
+extern hook_technical_smoke_on_grenade_destroy
+technical_smoke_on_grenade_destroy:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_smoke_on_grenade_destroy
+    mov edx, technical_smoke_on_grenade_destroy_replay
+    cmp eax, 0
+    je technical_smoke_on_grenade_destroy_go
+    mov edx, 0x2483f9
+    cmp eax, 1
+    je technical_smoke_on_grenade_destroy_go
+    ud2
+technical_smoke_on_grenade_destroy_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_smoke_on_grenade_destroy_replay:
+    db 0x56, 0x8b, 0xf1, 0x8d, 0x8e, 0x20, 0x02, 0x00, 0x00
+    jmp 0x2483f9
+
+; 0x25e154 grenade_cook::query_resources 0x25E030 before its query (mov ecx,3 / lea eax,[esp+44h]; the five cdecl arguments pushed): its three requests at ESP+44h; done is past the call (add esp,14h, the cleanup, follows): lohook -> technical_smoke_on_cook_query
+global technical_smoke_on_cook_query
+extern hook_technical_smoke_on_cook_query
+technical_smoke_on_cook_query:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_smoke_on_cook_query
+    mov edx, technical_smoke_on_cook_query_replay
+    cmp eax, 0
+    je technical_smoke_on_cook_query_go
+    mov edx, 0x25e15d
+    cmp eax, 1
+    je technical_smoke_on_cook_query_go
+    mov edx, 0x25e162
+    cmp eax, 2
+    je technical_smoke_on_cook_query_go
+    ud2
+technical_smoke_on_cook_query_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_smoke_on_cook_query_replay:
+    db 0xb9, 0x03, 0x00, 0x00, 0x00, 0x8d, 0x44, 0x24, 0x44
+    jmp 0x25e15d
+
+; 0x25e308 grenade_cook's callback 0x25E1C0 after the particle instance's store (+21Ch, 0x25E2EB), before the sound's (mov ecx,[ebx+6ECh]): EDI the grenade, EBX the results: lohook -> technical_smoke_on_cook_ready
+global technical_smoke_on_cook_ready
+extern hook_technical_smoke_on_cook_ready
+technical_smoke_on_cook_ready:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_smoke_on_cook_ready
+    mov edx, technical_smoke_on_cook_ready_replay
+    cmp eax, 0
+    je technical_smoke_on_cook_ready_go
+    mov edx, 0x25e30e
+    cmp eax, 1
+    je technical_smoke_on_cook_ready_go
+    ud2
+technical_smoke_on_cook_ready_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_smoke_on_cook_ready_replay:
+    db 0x8b, 0x8b, 0xec, 0x06, 0x00, 0x00
+    jmp 0x25e30e
+
+; 0x248720 survarium::grenade::explode (vtable 0xA046A0 +28h; grenade_core::tick 0x303A60 calls it when +14Ch is the tick's time, every game, a re-simulation too): ECX the grenade, +14Ch still its explode time, +1C0h its centre (push ebp / mov ebp,esp / and esp,-8): lohook -> technical_smoke_on_explode
+global technical_smoke_on_explode
+extern hook_technical_smoke_on_explode
+technical_smoke_on_explode:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_smoke_on_explode
+    mov edx, technical_smoke_on_explode_replay
+    cmp eax, 0
+    je technical_smoke_on_explode_go
+    mov edx, 0x248726
+    cmp eax, 1
+    je technical_smoke_on_explode_go
+    ud2
+technical_smoke_on_explode_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_smoke_on_explode_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x248726
+
+; 0x303df8 grenade_core::serialize 0x303DA0 with its current_state byte stored at [esp+23h], before w<u8> writes it (push edi / lea eax,[esp+27h]): ESI the grenade's serializable (+10h): lohook -> technical_smoke_on_save_state
+global technical_smoke_on_save_state
+extern hook_technical_smoke_on_save_state
+technical_smoke_on_save_state:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_smoke_on_save_state
+    mov edx, technical_smoke_on_save_state_replay
+    cmp eax, 0
+    je technical_smoke_on_save_state_go
+    mov edx, 0x303dfd
+    cmp eax, 1
+    je technical_smoke_on_save_state_go
+    ud2
+technical_smoke_on_save_state_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_smoke_on_save_state_replay:
+    db 0x57, 0x8d, 0x44, 0x24, 0x27
+    jmp 0x303dfd
+
+; 0x303e40 grenade_core::serialize after the thrown fields (m_explode_time_ms, m_id; both paths join here), before the physics test (cmp dword [esi+138h],0): ESI the serializable, EDI the writer: lohook -> technical_smoke_on_save_cloud
+global technical_smoke_on_save_cloud
+extern hook_technical_smoke_on_save_cloud
+technical_smoke_on_save_cloud:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_smoke_on_save_cloud
+    mov edx, technical_smoke_on_save_cloud_replay
+    cmp eax, 0
+    je technical_smoke_on_save_cloud_go
+    mov edx, 0x303e47
+    cmp eax, 1
+    je technical_smoke_on_save_cloud_go
+    ud2
+technical_smoke_on_save_cloud_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_smoke_on_save_cloud_replay:
+    db 0x83, 0xbe, 0x38, 0x01, 0x00, 0x00, 0x00
+    jmp 0x303e47
+
+; 0x30406c grenade_core::deserialize 0x303F80 after the thrown fields, where its three paths join, before the physics fields (xorps xmm0,xmm0 / mov al,[esp+13h]): EBX the serializable, ESI the reader, [esp+13h] the state byte read: lohook -> technical_smoke_on_load_cloud
+global technical_smoke_on_load_cloud
+extern hook_technical_smoke_on_load_cloud
+technical_smoke_on_load_cloud:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_smoke_on_load_cloud
+    mov edx, technical_smoke_on_load_cloud_replay
+    cmp eax, 0
+    je technical_smoke_on_load_cloud_go
+    mov edx, 0x304073
+    cmp eax, 1
+    je technical_smoke_on_load_cloud_go
+    ud2
+technical_smoke_on_load_cloud_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_smoke_on_load_cloud_replay:
+    db 0x0f, 0x57, 0xc0, 0x8a, 0x44, 0x24, 0x13
+    jmp 0x304073
+
+; 0x248908 survarium::grenade::explode's particle, played only while +232h is 0 (once a throw, never in a re-simulation): the instance's load (mov eax,[esi+21Ch]) before its by-value copy for scene_renderer::play_particle_system 0x22660; Skip goes on with the EAX the hook chose: lohook -> technical_smoke_on_play
+global technical_smoke_on_play
+extern hook_technical_smoke_on_play
+technical_smoke_on_play:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_smoke_on_play
+    mov edx, technical_smoke_on_play_replay
+    cmp eax, 0
+    je technical_smoke_on_play_go
+    mov edx, 0x24890e
+    cmp eax, 1
+    je technical_smoke_on_play_go
+    ud2
+technical_smoke_on_play_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_smoke_on_play_replay:
+    db 0x8b, 0x86, 0x1c, 0x02, 0x00, 0x00
+    jmp 0x24890e
+
+; 0x35daf5 particle_system_instance_impl::tick 0x35DAD0 at its pause test (cmp byte [edi+302h],0; the je follows), the particle world's thread: EDI the instance, XMM0 the tick's seconds: lohook -> technical_smoke_on_particle_tick
+global technical_smoke_on_particle_tick
+extern hook_technical_smoke_on_particle_tick
+technical_smoke_on_particle_tick:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_smoke_on_particle_tick
+    mov edx, technical_smoke_on_particle_tick_replay
+    cmp eax, 0
+    je technical_smoke_on_particle_tick_go
+    mov edx, 0x35dafc
+    cmp eax, 1
+    je technical_smoke_on_particle_tick_go
+    ud2
+technical_smoke_on_particle_tick_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_smoke_on_particle_tick_replay:
+    db 0x80, 0xbf, 0x02, 0x03, 0x00, 0x00, 0x00
+    jmp 0x35dafc
+
+; 0x332833 the anomaly weapon-damage rule 0x332810 where a hit with an owner (hit +20h, 0x332825) reads the victim's damage zones (cmp byte [eax+2E4h],0 / jna): EAX the victim, EBP the hit; the exit is past the jna, where modifier 41 scales the damage (EAX still the victim): lohook -> technical_smoke_on_anomaly_zones
+global technical_smoke_on_anomaly_zones
+extern hook_technical_smoke_on_anomaly_zones
+technical_smoke_on_anomaly_zones:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_smoke_on_anomaly_zones
+    mov edx, technical_smoke_on_anomaly_zones_replay
+    cmp eax, 0
+    je technical_smoke_on_anomaly_zones_go
+    mov edx, 0x33283a
+    cmp eax, 1
+    je technical_smoke_on_anomaly_zones_go
+    mov edx, 0x33283c
+    cmp eax, 2
+    je technical_smoke_on_anomaly_zones_go
+    ud2
+technical_smoke_on_anomaly_zones_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_smoke_on_anomaly_zones_replay:
+    db 0x80, 0xb8, 0xe4, 0x02, 0x00, 0x00, 0x00
+    jmp 0x33283a
 
 ; 0x79d369 AvmTextField::OnCharEvent before GetAS3Obj: EDI the AvmTextField interface, its raw/collectible AS3 pointers at -1Ch/-20h; ignore sets BL=0 for the original false-return epilogue, no event allocated: lohook -> text_input_on_char
 global text_input_on_char

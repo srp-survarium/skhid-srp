@@ -180,6 +180,11 @@ pub use statistics::{Band, Batteries, Battery, BatteryCarry, Cell, Delivery, Hel
 
 pub mod medical;
 pub mod artefact_skills;
+pub mod technical;
+pub mod technical_sharp_ears;
+pub mod technical_return_to_sender;
+pub mod technical_dead_man;
+pub mod technical_smoke;
 pub mod keeper;
 pub mod courier;
 pub mod effect;

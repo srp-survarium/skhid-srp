@@ -3925,7 +3925,7 @@ package
       public function fill_skills(value:Array) : void
       {
          trace("root.fill_skills");
-         PlayerInfo.medicalSkills(value);
+         PlayerInfo.committedSkills(value);
          this.charWindow.fillSkills(value);
          this.player_profile.updatePocketSize(PlayerInfo.pocketSize);
       }

@@ -31,8 +31,11 @@
 //! grenade_core           serialize 0x303DA0, deserialize 0x303F80
 //!   u8   current_state   bit 0: in the physics world (+0x138 set),
 //!                        bit 1: thrown (+0x13C m_explode_time_ms not -1),
-//!                        bit 2: +0x144 (meaning unknown); no other bit
+//!                        bit 2: +0x144 (meaning unknown),
+//!                        bit 3: exe patch 180's toxic cloud; no other bit
 //!   bit 1:  u32 m_explode_time_ms, u32 m_id
+//!   bit 3:  u32 the blast's ms, f32 x3 its centre (Toxic Smoke 441,
+//!           technical_skills::smoke::Cloud; technical-skills.md)
 //!   bit 0:  f32 x16 m_transform, f32 x3 linear_velocity,
 //!           f32 x3 angular_velocity
 //!
@@ -523,9 +526,10 @@ impl UsableObject {
 }
 
 /// A grenade's `grenade_core`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GrenadeCore {
     thrown: Option<Thrown>,
+    cloud: Option<technical_skills::smoke::Cloud>,
     motion: Option<Motion>,
     flag_144: bool,
 }
@@ -584,18 +588,34 @@ impl GrenadeCore {
     const IN_PHYSICS: u8 = 1;
     const THROWN: u8 = 2;
     const FLAG_144: u8 = 4;
+    /// Exe patch 180's: a toxic cloud follows the thrown fields.
+    const CLOUD: u8 = 8;
 
     fn read(reader: &mut Reader) -> Result<Self, ObjectFault> {
         let state = bits(
             reader,
             "grenade current_state",
-            Self::IN_PHYSICS | Self::THROWN | Self::FLAG_144,
+            Self::IN_PHYSICS | Self::THROWN | Self::FLAG_144 | Self::CLOUD,
         )?;
         let thrown = if state & Self::THROWN != 0 {
             Some(Thrown {
                 explode_time_ms: reader.u32()?,
                 id: reader.u32()?,
             })
+        } else {
+            None
+        };
+        let cloud = if state & Self::CLOUD != 0 {
+            let at = reader.at();
+            let mut bytes = [0; technical_skills::smoke::Cloud::BYTES];
+            for byte in &mut bytes {
+                *byte = reader.u8()?;
+            }
+            let centre = ObjectFault::NotNumber {
+                at: at.saturating_add(4),
+                field: "toxic cloud centre",
+            };
+            Some(technical_skills::smoke::Cloud::parse(bytes).ok_or(centre)?)
         } else {
             None
         };
@@ -606,6 +626,7 @@ impl GrenadeCore {
         };
         Ok(Self {
             thrown,
+            cloud,
             motion,
             flag_144: state & Self::FLAG_144 != 0,
         })
@@ -614,6 +635,11 @@ impl GrenadeCore {
     /// Set when it was thrown (bit 1 of `current_state`).
     pub fn thrown(&self) -> Option<Thrown> {
         self.thrown
+    }
+
+    /// Exe patch 180's toxic cloud kept on it since its last blast (bit 3).
+    pub fn cloud(&self) -> Option<technical_skills::smoke::Cloud> {
+        self.cloud
     }
 
     /// Set while it is in the physics world (bit 0).
@@ -2017,11 +2043,44 @@ mod tests {
         nan[9..13].copy_from_slice(&f32::NAN.to_le_bytes());
         assert_eq!(field(&list, &nan), Some("m_transform"));
         let mut flag = bytes.clone();
-        flag[0] |= 8;
+        flag[0] |= 16;
         assert_eq!(field(&list, &flag), Some("grenade current_state"));
         let mut trap = bytes.clone();
         trap[1 + 8 + 88] = 4;
         assert_eq!(field(&list, &trap), Some("m_trap_state"));
+    }
+
+    #[test]
+    fn a_spent_smoke_keeps_its_toxic_cloud() {
+        let empty = Map {
+            damage_zones: 0,
+            resupply_zones: 0,
+            anomalies: &[],
+        };
+        let list = Objects {
+            held: &[Held::Grenade],
+            map: &empty,
+        };
+        let cloud = technical_skills::smoke::Cloud {
+            blast: technical_skills::Clock(12_050),
+            centre: [3.0, 1.5, -7.25],
+        };
+        let mut bytes = std::vec![GrenadeCore::FLAG_144 | GrenadeCore::CLOUD];
+        bytes.extend(cloud.to_bytes());
+        assert_eq!(reason(&list, &bytes), None);
+        let read = GameObjects::read(&section(&bytes), &list).unwrap();
+        let GameObject::Grenade(grenade) = read.objects().next().unwrap() else {
+            panic!("a grenade")
+        };
+        assert_eq!(
+            (grenade.cloud(), grenade.thrown(), grenade.motion()),
+            (Some(cloud), None, None)
+        );
+        // a centre that is not a number; a cloud cut short
+        let mut nan = bytes.clone();
+        nan[9..13].copy_from_slice(&f32::NAN.to_le_bytes());
+        assert_eq!(field(&list, &nan), Some("toxic cloud centre"));
+        assert!(reason(&list, &bytes[..10]).is_some());
     }
 
     #[test]
