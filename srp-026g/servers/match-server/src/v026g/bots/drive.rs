@@ -2917,6 +2917,34 @@ const RISER_SPRINT_M: f32 = RISER_FACE_M + 2.0 * RISER_TICK_WALK_M;
 /// A riser's jump is not pressed again within the jump's own air and landing (the bot's last jump watched): [`jumping`]'s gate
 /// drops a press made in it (F3).
 const RISER_JUMP_AGAIN_MS: u32 = super::body::JUMP_AIR_MS;
+/// [fix-move S284] A sprint held at a riser's face this long, ms, and not up is one the client does not lift: the motor's give-up
+/// of the same lift ([`motor::LIFT_WAIT_S`], PROVEN on the exe: every lift came within 0.85 s at the face, none later).
+const RISER_LIFT_WAIT_MS: u32 = (motor::LIFT_WAIT_S * 1000.0) as u32;
+
+/// [fix-move S284] A riser the body sprints into at its face (within [`RISER_JUMP_M`] of its top, the top still over the feet,
+/// [`path::Route::riser_ahead`]): its top and the tick it was first there ([`riser_gait`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct RiserFace {
+    top: Vec3,
+    since: u32,
+}
+
+impl RiserFace {
+    /// The face after this tick: kept while the body sprints at the same riser's face, begun where it first does, none otherwise
+    /// (away from it, not sprinting into it, or a riser that is gone: climbed, or the route changed).
+    fn next(was: Option<Self>, top: Vec3, sprinting_at_face: bool, time: u32) -> Option<Self> {
+        match (was, sprinting_at_face) {
+            (_, false) => None,
+            (Some(face), true) if face.top == top => Some(face),
+            (_, true) => Some(Self { top, since: time }),
+        }
+    }
+
+    /// How long it has sprinted at this face, ms.
+    fn held_ms(self, time: u32) -> u32 {
+        time.wrapping_sub(self.since)
+    }
+}
 
 /// [C2 riser] The client's walking body is held by a face from 0.76 m up (its complex move test), a sprinting one climbs it
 /// (the simple capsule test, 0x7D33D), and the jump's gate has no held-item test (0x2FC230): a route's Walk link up a riser of
@@ -2935,17 +2963,25 @@ const RISER_JUMP_AGAIN_MS: u32 = super::body::JUMP_AIR_MS;
 /// jump now), the riser is refused ([`RiserStep::Refused`]), with the refusal's reasons for the log: the walking body is held at
 /// the face for good (the client's step-up, `step_forward_impl` 0x7D33D; the exe at the Vector Laboratory spawn exit held a walk
 /// and an aimed walk 40 ticks, owner-16 report 1c), so standing there pressing forward gets nowhere.
-fn riser_gait(bot: &Bot, me: &PlaceView, keys: &mut u32, time: u32, tuning: &Tuning) -> Option<RiserStep> {
-    let riser = bot.route.as_ref().and_then(|(route, _)| route.riser_ahead(me.feet, RISER_SPRINT_M))?;
-    let top = riser.top;
-    if *keys & key::FORWARD == 0 {
+///
+/// [fix-move S284] A sprint held at the riser's face for [`RISER_LIFT_WAIT_MS`] with the top still over the feet is one the client
+/// does not lift ([`RiserFace`]): from then on the riser is played as for a body that may not sprint (its press, or its refusal and
+/// a new plan), with the hold as the log's reason. Before, the body pushed at a sprint until the stuck watch backed it off (S284:
+/// keys 0x201 for 3.5 s, 0.38 m from a top 1.17 m up; the exe held it there too).
+fn riser_gait(bot: &mut Bot, me: &PlaceView, keys: &mut u32, time: u32, tuning: &Tuning) -> Option<RiserStep> {
+    let riser = bot.route.as_ref().and_then(|(route, _)| route.riser_ahead(me.feet, RISER_SPRINT_M));
+    let Some(riser) = riser.filter(|_| *keys & key::FORWARD != 0) else {
+        bot.riser_face = None;
         return None;
-    }
+    };
+    let top = riser.top;
     let leg_free = bot.hurt.leg_damage.at(time) == super::legs::LegGate::Free;
     let block = sprint_block(bot, me, time, tuning.think.stamina);
     let held = *keys & (key::CROUCH | key::AIM | key::FIRE | key::BACK);
     let may_sprint = block.is_none() && leg_free && held == 0;
-    if may_sprint {
+    bot.riser_face = RiserFace::next(bot.riser_face, top, may_sprint && top.distance_xz(me.feet) <= RISER_JUMP_M, time);
+    let held_ms = bot.riser_face.map_or(0, |face| face.held_ms(time));
+    if may_sprint && held_ms < RISER_LIFT_WAIT_MS {
         *keys |= key::SPRINT;
         riser_counts::note(0);
         return None;
@@ -2954,6 +2990,10 @@ fn riser_gait(bot: &Bot, me: &PlaceView, keys: &mut u32, time: u32, tuning: &Tun
         Some(motor::SprintBlock::Carrying) => "a battery carried".to_string(),
         Some(block) => format!("sprint refused: {block:?}"),
         None if !leg_free => "sprint refused: a leg wound".to_string(),
+        None if may_sprint => {
+            riser_counts::note(6);
+            format!("the sprint held at its face {held_ms} ms, not lifted")
+        }
         None => format!("sprint refused: keys {held:#x} held"),
     };
     let may_jump = bot.hurt.may_jump(time) && (!tuning.think.stamina || bot.stamina.may_jump());
@@ -3060,18 +3100,19 @@ fn sights_yield(bot: &Bot, me: &PlaceView) -> Option<reflex::SightsYield> {
 
 /// [C2 riser] The bench's counts: ticks a riser was sprinted at, walking jumps pressed at one, ticks at one the body could do
 /// neither; [A386] ticks at one whose flown press the body cannot make here (slow, or the sprint jump), ticks at one no flown
-/// press gets up; [fix-move] risers refused and planned again without ([`RiserStep::Refused`]).
+/// press gets up; [fix-move] risers refused and planned again without ([`RiserStep::Refused`]); [fix-move S284] ticks at a face whose
+/// sprint was held there past [`super::RISER_LIFT_WAIT_MS`] and is given up ([`super::RiserFace`]).
 pub mod riser_counts {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    static COUNTS: [AtomicU64; 6] = [const { AtomicU64::new(0) }; 6];
+    static COUNTS: [AtomicU64; 7] = [const { AtomicU64::new(0) }; 7];
 
     pub fn note(kind: usize) {
         COUNTS[kind].fetch_add(1, Ordering::Relaxed);
     }
 
     #[cfg(test)]
-    pub fn counts() -> [u64; 6] {
+    pub fn counts() -> [u64; 7] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
@@ -4394,7 +4435,7 @@ mod tests {
                 .with_riser(path::RiserUp { top, take_off: Vec3::new(52.2, 2.0, 33.0), press });
             bot.route = Some((route.clone(), route.end()));
             let mut keys = keys;
-            let step = riser_gait(&bot, &me, &mut keys, 1_000, &tuning);
+            let step = riser_gait(&mut bot, &me, &mut keys, 1_000, &tuning);
             (step, keys)
         };
         let (step, keys) = gait(path::RiserPress::NoPress, key::FORWARD);
@@ -4411,6 +4452,57 @@ mod tests {
             matches!(gait(path::RiserPress::Unflown, key::FORWARD | key::AIM).0, Some(RiserStep::Press(_))),
             "a walking jump at the face"
         );
+    }
+
+    /// [fix-move S284] A body that may sprint sprints into a riser's face; held there for the lift's wait with the top still over
+    /// it, the sprint is given up and the riser is played as for a body that may not sprint (here its walking jump at the face, with
+    /// the hold as its reason). Off the face the hold starts again; a riser with no press is refused after the same wait.
+    #[test]
+    fn a_riser_sprint_held_at_its_face_past_the_lift_wait_is_given_up() {
+        let tuning = crate::v026g::bots::tuning::Tuning::default();
+        let toward = -std::f32::consts::FRAC_PI_2; // facing +x
+        let me = PlaceView { velocity: [0.0, 0.0], ..on_the_slab(52.0, toward, 0.0) };
+        let away = PlaceView { velocity: [0.0, 0.0], ..on_the_slab(51.75, toward, 0.0) };
+        let top = Vec3::new(52.6, 3.0, 33.0);
+        let way = |x: f32| path::Waypoint { at: Vec3::new(x, 2.0, 33.0), node: 0, jump: None, low: false };
+        let bot_at = |press: path::RiserPress| {
+            let mut bot = Bot::new(1, 0, 0, None, &tuning);
+            let route = path::Route::new(vec![way(50.0), way(56.0)])
+                .with_riser(path::RiserUp { top, take_off: Vec3::new(52.2, 2.0, 33.0), press });
+            bot.route = Some((route.clone(), route.end()));
+            bot
+        };
+        let tick = |bot: &mut Bot, me: &PlaceView, time: u32| {
+            let mut keys = key::FORWARD;
+            let step = riser_gait(bot, me, &mut keys, time, &tuning);
+            (step, keys & key::SPRINT)
+        };
+        let start = 1_000;
+        let mut bot = bot_at(path::RiserPress::Unflown);
+        for time in (start..start + RISER_LIFT_WAIT_MS).step_by(50) {
+            assert_eq!(tick(&mut bot, &me, time), (None, key::SPRINT), "sprinted into at {time}");
+        }
+        match tick(&mut bot, &me, start + RISER_LIFT_WAIT_MS) {
+            (Some(RiserStep::Press(line)), 0) => assert!(line.contains("the sprint held at its face 1000 ms, not lifted"), "{line}"),
+            other => panic!("{other:?}"),
+        }
+        // Off the face (still within the sprint's reach of the riser), and back: the hold starts again.
+        let later = start + RISER_LIFT_WAIT_MS + 50;
+        assert_eq!(tick(&mut bot, &away, later), (None, key::SPRINT));
+        assert_eq!(tick(&mut bot, &me, later + 50), (None, key::SPRINT), "the hold starts again");
+        assert_eq!(bot.riser_face.map(|face| face.held_ms(later + 50)), Some(0));
+        // No press flown: refused after the same wait, with the hold as its reason.
+        let mut bot = bot_at(path::RiserPress::NoPress);
+        for time in (start..start + RISER_LIFT_WAIT_MS).step_by(50) {
+            assert_eq!(tick(&mut bot, &me, time), (None, key::SPRINT));
+        }
+        match tick(&mut bot, &me, start + RISER_LIFT_WAIT_MS) {
+            (Some(RiserStep::Refused { top: at, line }), 0) => {
+                assert_eq!(at, top);
+                assert!(line.contains("not lifted") && line.contains("no press flown"), "{line}");
+            }
+            other => panic!("{other:?}"),
+        }
     }
 
     /// [#2081] A route over a noticed trap that the own-trap guard holds at rest (the walk on it refused, no other key) past the
