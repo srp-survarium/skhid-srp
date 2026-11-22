@@ -171,6 +171,7 @@ pub use project::{RenderVisual, ObjectLight, ObjectAmbientLight, ObjectParticleV
 pub mod history;
 pub mod drug;
 pub mod breath;
+pub mod protection;
 mod artefact;
 pub use artefact::{ArtefactPickup, Slots};
 pub mod statistics;

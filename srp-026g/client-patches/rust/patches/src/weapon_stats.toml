@@ -14,9 +14,11 @@ handler = "on_killed"
 site = "weapon_stats.hit"
 handler = "on_hit"
 
+# shared with patch 179 (after this one)
 [[hook]]
 site = "weapon_stats.fired"
 handler = "on_fired"
+order = 0
 
 [[hook]]
 site = "weapon_stats.save"
