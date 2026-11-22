@@ -31441,12 +31441,21 @@ impl OxygenTank {
         unsafe { self.0.byte_add(0x26c).cast::<u32>().as_ptr() }
     }
 
-    /// +0x294 (u32): patch 180's Last Gasp: the stamina clock's ms its boost lasts until, 0 none; in the tail padding no native code touches (the object is 298h bytes, its last native field +290h); saved after m_amount_ms
+    /// +0x292 (u16): patch 180's Oxygen Rush: the ms of air spent since the tank was switched on, filled or last started it (technical_skills::TankUse, 0..20000); in the tail padding after the influences' count byte +290h, no native code touches it; saved after the boost's word
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
-    pub unsafe fn gasp_until(self) -> *mut u32 {
+    pub unsafe fn oxygen_rush_use(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x292).cast::<u16>().as_ptr() }
+    }
+
+    /// +0x294 (u32): patch 180's Oxygen Rush: the stamina clock's ms its boost lasts until, 0 none; in the tail padding no native code touches (the object is 298h bytes, its last native field +290h); saved after m_amount_ms
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn oxygen_rush_until(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x294).cast::<u32>().as_ptr() }
     }
 }
@@ -41386,8 +41395,8 @@ pub mod site {
         }
     }
 
-    /// technical.tank_empty (0x33e661): oxygen_tank::tick after the air is spent, a living holder's only (the dead path jumps past it): ECX m_amount_ms left, 0 when it ran out this tick (set_active(0) follows at 0x33E66D)
-    pub mod technical_tank_empty {
+    /// technical.tank_spent (0x33e661): oxygen_tank::tick after the air is spent, a living holder's only (the dead path jumps past it; the tick runs only while the tank is on, set_active 0x33E400 lists it): ECX m_amount_ms left, 0 when it ran out this tick (set_active(0) follows at 0x33E66D), EAX the ms this tick spent (min(m_amount_ms, the elapsed ms), 0x33E5F3..0x33E607)
+    pub mod technical_tank_spent {
         #[allow(unused_imports)]
         use super::*;
 
@@ -41398,6 +41407,48 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn tank(machine: &impl Machine) -> Option<OxygenTank> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(OxygenTank)
+        }
+
+        /// ECX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn left(machine: &impl Machine) -> u32 {
+            machine.register(Register::Ecx)
+        }
+
+        /// EAX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn spent(machine: &impl Machine) -> u32 {
+            machine.register(Register::Eax)
+        }
+    }
+
+    /// technical.tank_switch (0x33e403): oxygen_tank::set_active's store of m_active (mov [edi+268h],al): AL the new state, EDI the tank; called by action 0x33E3BD (the player's switch) and the tick's off 0x33E66F (run-out or a dead holder); deserialize lists a loaded tank itself, without it
+    pub mod technical_tank_switch {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::oxygen_tank (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn tank(machine: &impl Machine) -> Option<OxygenTank> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(OxygenTank)
+        }
+
+        /// EAX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn active(machine: &impl Machine) -> u32 {
+            machine.register(Register::Eax)
         }
     }
 
