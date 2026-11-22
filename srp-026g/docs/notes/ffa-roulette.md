@@ -24,7 +24,8 @@ approved the name, level 0 in the low band and every recommendation below (2026-
 - **Share:** 10 % of the free-for-all cards, from the plain mode's: plain 40, Racket 40, Roulette
   10, Saloon (Winchester) 5, Saloon 5.
 - **Name on the card:** "FFA: Roulette 11-15" (the band in the name, as Saloon's Winchester).
-- Server and lobby movie only, and the names in the 11 languages: no exe patch, no new content.
+- Server and content only (the lobby movie, the names in the 11 languages, the mode icons): no exe
+  patch.
 
 ## The name
 
@@ -245,7 +246,7 @@ band a third or a half of it), so no share is a fraction.
 
 ## Implementation plan
 
-No exe patch, no content edit list. Server, lobby movie, the names.
+No exe patch. Server, lobby movie, the names, the icons.
 
 - `crates/survarium/src/v026g/roulette.rs` (new), the twist's rules, as `racket.rs` and `cowboy.rs`:
   - `Band` (`Low`, `Mid`, `High`: its levels, `allowed(max_level) -> &[Band]`), `Hand` (its band
@@ -279,11 +280,13 @@ No exe patch, no content edit list. Server, lobby movie, the names.
 - Lobby movie: `RoomsText.as` `MODES` rows 14-16, `RoomsLook.as` `MODE_COLOUR` 14-16; the test that
   ties them to `LobbyMode` follows. A movie edit, no new content row; the movie and the server ship
   together (an older movie shows no name for a number it does not know: `RoomsText.modeName`).
-- Names: 3 keys in the 11 `client-patches/localization/*.tsv` (in key order); they reach players
-  with the download, as Racket's did.
+- Names: 3 keys in the 11 `client-patches/localization/*.tsv` (in key order); the content patch
+  makes them the game's own texts (content edit `localization-1`), as Racket's.
 - Docs: `ffa.md` "Twists" (the shares, the names, the numbers), `rooms.md` (the shares line), this
   note; the `next` line of `simulation_changes.tsv`.
-- Release: server, the lobby movie's content patch and the download (the names) together.
+- Mode icons (`ffa.md`, "Mode icons"): `SrvGameModeIcons` frames 6-10 and their bitmaps, the loading
+  screen's twist icon by the room's match, content edit `ffa-icon-1` (Free for All's `ui.icon` 5).
+- Release: the server and the content patch (the movie, the texts, `ffa-icon-1`) together.
 
 ## Risks
 
