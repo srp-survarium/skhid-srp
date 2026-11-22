@@ -536,6 +536,17 @@ pub fn zone_line(battery: Vec3, term: &str) -> String {
     format!("{PREFIX}zone battery at {} refused: {term}", at(battery))
 }
 
+/// [cheapest entry, zone start gate] A zone battery a crossing takes, by its routed crossing: `nav: zone battery at (..)
+/// borne by its crossing from (..): W m inside, cost <pools taken, of what the body has>, the body B (start gate on the pools
+/// taken)`.
+pub fn zone_take_line(battery: Vec3, entry: Vec3, walk_m: f32, taken: &str, body: f32) -> String {
+    format!(
+        "{PREFIX}zone battery at {} borne by its crossing from {}: {walk_m:.1} m inside, cost {taken}, the body {body:.3} (start gate on the pools taken)",
+        at(battery),
+        at(entry)
+    )
+}
+
 /// [owner-5] A zone spawner the battery search skipped: `nav: zone spawner <i> at (..) not searched: <filter>`.
 pub fn spawner_line(index: usize, item: Vec3, filter: &str) -> String {
     format!("{PREFIX}zone spawner {index} at {} not searched: {filter}", at(item))

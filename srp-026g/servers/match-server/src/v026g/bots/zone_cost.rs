@@ -195,6 +195,28 @@ impl Reserve {
             .max(of(self.pain, cost.pain))
     }
 
+    /// [zone start gate] Why a walk that costs `cost` is not begun (`None`: it may be): a pool it takes from is under `floor`
+    /// at the start (`crossing::START_HEALTH`). Only the pools it takes from are read. A toxic or radiation crossing that
+    /// costs the infection pool alone is not refused for a body pool the zone never touches. Chemical Plant's battery 0:
+    /// 27 of 27 refusals were at body 0.24-0.67, the crossing infection only, and a human's body stayed 1.000 in that zone.
+    /// Whether the walk kills or cripples stays [`Self::bears`]'s (the body pool always asked, `left` kept in each).
+    pub fn start_refusal(&self, cost: Cost, floor: f32) -> Option<String> {
+        [("body", self.body, cost.body), ("head", self.head, cost.head), ("infection", self.infection, cost.infection), ("pain", self.pain, cost.pain)]
+            .into_iter()
+            .find(|&(_, have, takes)| takes > 0.0 && have < floor)
+            .map(|(name, have, takes)| format!("{name} pool {have:.3} under {floor:.2} at the start (the walk takes {takes:.3} of it)"))
+    }
+
+    /// [zone start gate] The pools `cost` takes from and what the body has of each, for the log: `infection 0.544 of 1.000`.
+    pub fn taken(&self, cost: Cost) -> String {
+        let parts: Vec<String> = [("body", self.body, cost.body), ("head", self.head, cost.head), ("infection", self.infection, cost.infection), ("pain", self.pain, cost.pain)]
+            .into_iter()
+            .filter(|&(_, _, takes)| takes > 0.0)
+            .map(|(name, have, takes)| format!("{name} {takes:.3} of {have:.3}"))
+            .collect();
+        if parts.is_empty() { "none".to_string() } else { parts.join(", ") }
+    }
+
     /// Whether `cost` leaves at least `left` in every pool it takes from (the body pool always).
     pub fn leaves(&self, cost: Cost, left: f32) -> bool {
         self.body - cost.body >= left

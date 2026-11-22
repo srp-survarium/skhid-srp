@@ -100,6 +100,85 @@ impl Cheapest {
     }
 }
 
+/// [cheapest entry] The cheapest way into the zones round floor `goal` (a battery's stand): from any dry floor within
+/// `within_m` across of it that the side reaches (no zone marks it, a way leads to it past the zones on all match, not
+/// another side's spawn area, in `spawn`'s piece of the grid), over the floors [`Cheapest`] walks, each floor stepped onto
+/// priced at `damage_per_s` (the caller's price of the walk, so the way found is the one its price is least on; any
+/// damage outweighs any detour, as [`Cheapest`]). The floors of the way, from that dry floor (the entry) to `goal`; none
+/// when no such floor leads there.
+///
+/// One search, bounded by the box: the sources are all those dry floors next to a marked one at price 0, so the first way
+/// that reaches `goal` is the cheapest of every entry, whatever side of the zone it is on. Before, a battery's crossing was the route from
+/// the team's spawn, entered where that route first met the zone (Chemical Plant's battery 0: 12.1 m inside for one
+/// team against a 4.7 m entry both teams reach; Vector Laboratory's battery 2: 21.6 m against 4.8 m).
+pub fn cheapest_entry(
+    tactics: &Tactics,
+    spawn: NodeId,
+    goal: NodeId,
+    side: Option<i32>,
+    damage_per_s: impl Fn(NodeId) -> f32,
+    within_m: f32,
+) -> Option<Vec<NodeId>> {
+    use std::collections::HashMap;
+    let grid = &tactics.world.grid;
+    let hazards = &tactics.hazards;
+    let at = grid.position(goal);
+    let area = [at.x - within_m, at.z - within_m, at.x + within_m, at.z + within_m];
+    let inside = |p: mapdata::Vec3| (p.x - at.x).abs() <= within_m && (p.z - at.z).abs() <= within_m;
+    let walkable = |b: NodeId| (hazards.hazard_free(b) || hazards.only_fixed_at(b)) && tactics.spawn_ok(b, side, false);
+    let mut price: HashMap<NodeId, f32> = HashMap::new();
+    let mut prev: HashMap<NodeId, NodeId> = HashMap::new();
+    let mut heap = BinaryHeap::new();
+    for node in grid.floors_in(area) {
+        // Only a dry floor by a marked one can be an entry: the others' dry neighbours are sources at the same price.
+        if hazards.hazard_free(node)
+            && grid.links(node).any(|(b, _)| !hazards.hazard_free(b))
+            && tactics.past_fixed_zones(node)
+            && tactics.spawn_ok(node, side, false)
+            && grid.may_reach(spawn, node)
+        {
+            price.insert(node, 0.0);
+            heap.push((Reverse(0.0f32.to_bits()), node));
+        }
+    }
+    while let Some((Reverse(bits), a)) = heap.pop() {
+        let here = f32::from_bits(bits);
+        if price.get(&a).is_some_and(|&p| here > p) {
+            continue;
+        }
+        if a == goal {
+            let mut path = vec![goal];
+            let mut node = goal;
+            while let Some(&before) = prev.get(&node) {
+                path.push(before);
+                node = before;
+            }
+            path.reverse();
+            return Some(path);
+        }
+        let from = grid.position(a);
+        for (b, kind) in grid.links(a) {
+            let to = grid.position(b);
+            if !inside(to) || !walkable(b) {
+                continue;
+            }
+            let walk = grid.link_cost(a, b, kind);
+            if !walk.is_finite() {
+                continue;
+            }
+            let metres = (to - from).length();
+            let damage = damage_per_s(b) * metres / CROSS_MPS;
+            let through = here + walk.max(metres) + damage * DAMAGE_M;
+            if price.get(&b).is_none_or(|&p| through < p) {
+                price.insert(b, through);
+                prev.insert(b, a);
+                heap.push((Reverse(through.to_bits()), b));
+            }
+        }
+    }
+    None
+}
+
 /// The loss a body walking `path` over the grid takes, at [`CROSS_MPS`], in each pool, and the
 /// metres it walks.
 pub fn walk_cost(tactics: &Tactics, path: &[NodeId], armour: Option<&ZoneArmour>) -> (Cost, f32) {
