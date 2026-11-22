@@ -202,16 +202,25 @@ impl FreezeTag {
             .get(places..)
             .is_some_and(|rest| rest.iter().all(|p| *p == Player::Waiting))
     }
-    /// Whether `place` is his team's last one fighting in a round in play:
-    /// the other team sees him on its map (the owner, 2026-11-22: "last
-    /// member is always shown on the map").
+    /// Whether `place` is his team's last one fighting in a round in play,
+    /// every teammate of his frozen: the other team sees him on its map (the
+    /// owner, 2026-11-22: "last member is always shown on the map"). A team
+    /// of one never is (the owner: "when 1vs1 we see each other on the map,
+    /// bad").
     pub fn last_standing(&self, place: Place) -> bool {
-        self.phase == Phase::Playing && matches!(self.player(place), Player::Fighting(team) if self.living(team) == 1)
+        self.phase == Phase::Playing
+            && matches!(self.player(place), Player::Fighting(team) if self.living(team) == 1 && self.frozen(team) != 0)
     }
     fn living(&self, team: Team) -> usize {
         self.players
             .iter()
             .filter(|p| **p == Player::Fighting(team))
+            .count()
+    }
+    fn frozen(&self, team: Team) -> usize {
+        self.players
+            .iter()
+            .filter(|p| matches!(p, Player::Frozen { team: side, .. } if *side == team))
             .count()
     }
 
@@ -836,5 +845,17 @@ mod tests {
         b[1] = body(Team::First, RADIUS, Condition::Lethal);
         s.step(&b, &[[false; PLAYERS]; PLAYERS], 50);
         assert!(!s.last_standing(place(2)));
+    }
+
+    #[test]
+    fn a_team_of_one_is_never_last_standing() {
+        let mut b = [Body::Absent; PLAYERS];
+        b[0] = body(Team::First, 0.0, Condition::Fighting);
+        b[1] = body(Team::Second, 10.0, Condition::Fighting);
+        let mut s = FreezeTag::EMPTY;
+        s.step(&b, &[[false; PLAYERS]; PLAYERS], 50);
+        // 1 v 1, a round in play: nobody shown.
+        assert!(matches!(s.phase(), Phase::Playing));
+        assert!(!s.last_standing(place(0)) && !s.last_standing(place(1)));
     }
 }

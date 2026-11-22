@@ -158,9 +158,11 @@ def main():
     assert state[:2] == b"\x02\x00"
     assert state[7] == 3 and struct.unpack_from("<H", state, 8)[0] == 3950
     assert r.freeze_hud(0) == [("root.freeze_tag_score", (0, 0, 5)),
-                               ("root.freeze_tag_update", (1, 3950, 0, 0, 4000, 116050))]
+                               ("root.freeze_tag_update", (1, 3950, 0, 0, 4000, 116050)),
+                               ("root.freeze_tag_rows", (1,))]
     assert r.freeze_hud(1) == [("root.freeze_tag_score", (0, 0, 5)),
-                               ("root.freeze_tag_update", (0, 3950, 0, 0, 4000, 0))]
+                               ("root.freeze_tag_update", (0, 3950, 0, 0, 4000, 0)),
+                               ("root.freeze_tag_rows", (1,))]
     assert r.read(ffa.RULE + 0x138) == 0xFFFFFFFF
     # Only a frozen body's respawn is cancelled: another place's native
     # schedule (a late arrival's first spawn) is left to run.
@@ -190,9 +192,11 @@ def main():
     assert bytes(r.emu.mem_read(STATS + 0x31E4, 1)) == b"\x02"
     assert struct.unpack("<2H", r.emu.mem_read(STATS + 0x31D4, 4)) == (0, 1)
     assert r.freeze_hud(1) == [("root.freeze_tag_score", (0, 1, 5)),
-                               ("root.freeze_tag_update", (1, 0, 5, 5000, 4000, 119950))]
+                               ("root.freeze_tag_update", (1, 0, 5, 5000, 4000, 119950)),
+                               ("root.freeze_tag_rows", (3,))]
     assert r.freeze_hud(2) == [("root.freeze_tag_score", (1, 0, 5)),
-                               ("root.freeze_tag_update", (0, 0, 4, 5000, 4000, 0))]
+                               ("root.freeze_tag_update", (0, 0, 4, 5000, 4000, 0)),
+                               ("root.freeze_tag_rows", (3,))]
     assert r.player_tick(2, 4150) and r.input(2)  # Winners also wait.
     # Between rounds no place keeps a time (a death's respawn, a late
     # arrival's entry): the restart spawns everyone; the core's time state

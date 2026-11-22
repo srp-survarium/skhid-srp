@@ -78,7 +78,8 @@ IMPORTS = 0x3E000000
 IMPORT_STUBS = ((0x870118, b"\xB8\x01\x00\x00\x00\xC3"),
                 (0x870158, b"\x8B\x44\x24\x04\xC7\x00\x00\x00\x00\x00\xC7\x40\x04\x00\x00\x00\x00\xB0\x01\xC2\x04\x00"),
                 (0x870150, b"\x8B\x44\x24\x04\xC7\x00\x80\x96\x98\x00\xC7\x40\x04\x00\x00\x00\x00\xB0\x01\xC2\x04\x00"),
-                (0x870048, b"\xB8\xFF\xFF\xFF\xFF\xC2\x1C\x00"))   # the patches' log: CreateFileA fails, nothing written
+                (0x870048, b"\xB8\xFF\xFF\xFF\xFF\xC2\x1C\x00"),   # the patches' log: CreateFileA fails, nothing written
+                (0x8701B4, b"\x31\xC0\xC2\x0C\x00"))   # GetEnvironmentVariableA (Artifact Hunt's SKHID_HUNT_LOG): unset
 REGS = (UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_EBX, UC_X86_REG_ESI, UC_X86_REG_EDI,
         UC_X86_REG_EBP)
 GAME = dict(zip(REGS, (0x0A0A0A0A, 0x0C0C0C0C, 0x0D0D0D0D, 0x0B0B0B0B, 0x05050505, 0x0E0E0E0E, 0x0019FF00)))

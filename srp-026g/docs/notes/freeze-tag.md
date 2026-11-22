@@ -37,10 +37,12 @@ three). No artifact rescue in this version (owner, 2026-11-17).
 - The freezer's kill is his always (the owner, 2026-11-22: "credit for
   freezing is given always"): the kd rule counts it at the lethal hit, and
   no thaw, a teammate's or the auto-thaw, takes it back or changes it.
-- A team's last one fighting, while a round is in play, is on the other
-  team's minimap and Tab map at all times, until a teammate of his is
-  thawed or the round ends (the owner, 2026-11-22: "last member is always
-  shown on the map"); a team of one is so from the start. The game's own
+- A team's last one fighting, every teammate of his frozen, while a round
+  is in play, is on the other team's minimap and Tab map at all times,
+  until a teammate of his is thawed or the round ends (the owner,
+  2026-11-22: "last member is always shown on the map"). A team of one
+  never is (the owner, 2026-11-22: "when 1vs1 we see each other on the
+  map, bad"). The game's own
   spotted-enemy path: `minimap.enemy_spotted` (update_minimap_players'
   test of an enemy's spotted time, 0x239505) lists his dot as a spotted
   enemy's, as Artifact Hunt's carrier and a replay's enemies; from the rule
