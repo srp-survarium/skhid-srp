@@ -2761,6 +2761,7 @@ st_srp_loadout_sell_and	 i
 st_srp_loadout_sell_item	%1$s
 st_srp_loadout_sell_many	Używany w zestawach %1$s. Sprzedać?
 st_srp_loadout_sell_one	Używany w zestawie %1$s. Sprzedać?
+st_srp_loadout_slot_skill	Miejsce: %1$s
 st_srp_loadout_slot_to_container	Prawy przycisk: pojemnik na artefakt
 st_srp_loadout_slot_to_pocket	Prawy przycisk: kieszeń
 st_srp_loadout_slot_to_weapon	Prawy przycisk: druga broń

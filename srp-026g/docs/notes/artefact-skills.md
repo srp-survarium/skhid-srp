@@ -275,16 +275,19 @@ chooses each.
   (becomes red as in when item is blocked)"):
   - taken (the default): the pocket it adds, the last pocket, has the yellow soft edge (glowing
     from the bottom, a pocket's); the second weapon slot shows the red lock it always had
-    (`SlotLock`, the skills' `SkillLockSpriteRed`; its tip the skill's name, then "Right-click:
-    second weapon", `st_srp_loadout_slot_to_weapon`);
+    (`SlotLock`, the skills' `SkillLockSpriteRed`; its tip "Deep Pockets — Right-click: second
+    weapon", `st_srp_loadout_slot_to_weapon`);
   - declined: the second weapon slot is open and has the yellow soft edge (all round); the pocket
     is closed with the same red lock, shown where the next quick place is after the pockets and
-    containers (where the pocket was, without containers), its tip "Right-click: pocket";
+    containers (where the pocket was, without containers), its tip "Deep Pockets — Right-click:
+    pocket";
   - a right click on either red lock switches (its slot is empty); a right click on the yellow
     pocket switches while it holds nothing (on an item it opens the item's menu, as on any slot);
-    the open second weapon slot never switches, empty or not (the owner, 2026-11-22: he described
-    only the pocket's click opening the weapon slot), so a kit takes the perk again from the red
-    pocket.
+    a right click on the open second weapon slot takes the pocket again while it is empty (the
+    owner, 2026-11-22: "rmb on Deep pocket enabled weapon doesn't switch"; with the switch on the
+    right button the shop's left click is untouched); holding a weapon, a right click is the
+    weapon's menu, as in the stock game, and the red pocket switches (the weapon goes back, with
+    the sound and the shake).
   - **The pocket a switch closes is the last one**: srp holds a kit to its pocket count (the
     pockets past it are empty, `KitLayout::pocket_units`), so Artifact Container taken again and
     the weapon perk declined both close the last pocket. The movie marks it so: Artifact
@@ -319,13 +322,21 @@ chooses each.
   srp's answer (the account, whose new pocket count comes first, then the `K` row); a list that
   was on its way says the old state and changes nothing meanwhile; no answer in 3 s shows srp's
   last word again. The slot's own stock frame and label change when the account comes.
-- **Its hint**, the game's tooltip: "Right-click: pocket" / "Right-click: artifact container"
-  (`st_srp_loadout_slot_to_pocket`, `_to_container`). A right click on the container makes it the
+- **Its tip**, the game's tooltip above the slot, names the slot's skill (the owner, 2026-11-22:
+  "pop up helper messages even on items should say which skill this 'slot' corresponds to"), in
+  the game's own names (`st_srp_artefact_522_name`, `st_srp_deep_pockets_name`, the stock
+  `st_convert_weapon_slot_to_pocket_name`'s copy the lobby is handed, `st_srp_medical_331_name`):
+  on an empty slot and on a red lock, the skill and what a right click does ("Deep Pockets —
+  Right-click: second weapon", "Artifact Container — Right-click: pocket",
+  `st_srp_loadout_slot_to_pocket`, `_to_container`, `_to_weapon`); on a slot holding an item, the
+  item's own card beside it as ever and above the slot one line, "Slot: Deep Pockets"
+  (`st_srp_loadout_slot_skill`). A right click on the container makes it the
   pocket; a right click on the empty pocket makes it the container; on the pocket holding an
   item it is the item's, as any pocket's (the owner's pick of 2026-11-22: empty it first, so a stray
   click never moves an item). One ask at a time. Checked in Ruffle:
   `scripts/perk-slots/check.sh` (its zoom.png, Artifact Container's slot before and after; its
-  weapon.png, the weapon perk's slots before and after).
+  weapon.png, the weapon perk's slots before and after with their tips, a pocket holding an item
+  among them).
 
 ```text
  Container (default)              Pocket (after a click)

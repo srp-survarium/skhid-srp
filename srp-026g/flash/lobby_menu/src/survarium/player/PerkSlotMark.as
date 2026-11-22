@@ -14,6 +14,7 @@ package survarium.player
    import scaleform.clik.core.UIComponent;
    import scaleform.gfx.MouseEventEx;
    import survarium.constants.UiSound;
+   import survarium.controls.PlayerInfo;
    import survarium.data.LocalizationData;
    import survarium.rooms.RoomsLook;
 
@@ -30,9 +31,9 @@ package survarium.player
    //   A press on the red lock switches too (blockedClicked).
    // - The marked slot has a soft edge of the lobby's yellow: all round on a container or a
    //   weapon slot, glowing from the bottom up on a pocket. A click on it while it holds an item
-   //   is the item's (the owner's pick of 2026-11-22: a stray click never moves an item); the open
-   //   second weapon slot keeps its own click always (the owner, 2026-11-22: it is switched back
-   //   from the red pocket). The red lock's slot is empty, so its click always switches, and what
+   //   is the item's (the owner's pick of 2026-11-22: a stray click never moves an item; on the
+   //   open second weapon slot holding a weapon, its menu, the red pocket switching then). The red
+   //   lock's slot is empty, so its click always switches, and what
    //   the yellow slot held comes off the kit (it stays owned): the item goes back with a sound and
    //   a shake of its slot (DISPLACED, the paper doll's; the owner: "some good sound design to say
    //   that, or maybe some shaking").
@@ -222,20 +223,22 @@ package survarium.player
             this.drawLooks();
          }
          this._tip.anchor = slot;
-         this._tip.tipData = {"name":this.hint()};
+         this._tip.tipData = {"name":this.label()};
          mouseEnabled = mouseChildren = this.takesMouse(this._shown);
          visible = true;
       }
 
       // The hover: the look lifted; where the slot keeps the mouse (the paper doll's word) the
-      // hint too, while it is empty.
+      // tip too, above the slot: the skill and what a right click does while it is empty; the
+      // skill alone beside a held item's card (the owner, 2026-11-22: "pop up helper messages
+      // even on items should say which skill this 'slot' corresponds to").
       public function hover(over:Boolean) : void
       {
-         this._overWanted = over && this.switches(this._shown);
+         this._overWanted = over;
          this.fade();
-         if(over && this.switches(this._shown) && !this.takesMouse(this._shown) && !this._holds && visible)
+         if(over && !this.takesMouse(this._shown) && visible)
          {
-            this._tip.tipData = {"name":this.hint()};
+            this._tip.tipData = {"name":this._holds ? LocalizationData.format("st_srp_loadout_slot_skill",this.skillName()) : this.label()};
             this._tip.showNow();
          }
          else if(!over || !this.takesMouse(this._shown))
@@ -256,7 +259,24 @@ package survarium.player
          this.clicked(true);
       }
 
-      // What a click switches to (the hints' word, the red lock's too).
+      // The skill this slot is of, in the game's own names.
+      public function skillName() : String
+      {
+         if(this._perk == CONTAINER)
+         {
+            return LocalizationData.getName("st_srp_artefact_522_name");
+         }
+         return LocalizationData.getName(PlayerInfo.supplyPocket ? "st_srp_medical_331_name" : "st_srp_deep_pockets_name");
+      }
+
+      // The tip of the slot while empty, and of the red locks: its skill and what a right click
+      // does ("Deep Pockets — Right-click: second weapon").
+      public function label() : String
+      {
+         return this.skillName() + " — " + this.hint();
+      }
+
+      // What a click switches to.
       public function hint() : String
       {
          var pocket:String = "st_srp_loadout_slot_to_pocket";
@@ -296,12 +316,6 @@ package survarium.player
          return this._pendingAt >= 0 && getTimer() - this._pendingAt < PENDING_MS;
       }
 
-      // Whether a click on the yellow slot switches: not on the open second weapon slot.
-      private function switches(state:int) : Boolean
-      {
-         return !(this._perk == WEAPON && state == DECLINED);
-      }
-
       // Where the mark itself takes the mouse: on Artifact Container's container, a locked slot.
       private function takesMouse(state:int) : Boolean
       {
@@ -325,7 +339,7 @@ package survarium.player
          {
             return;
          }
-         if(!blocked && (!visible || this._holds || !this.switches(this._shown)))
+         if(!blocked && (!visible || this._holds))
          {
             return;
          }
@@ -351,7 +365,7 @@ package survarium.player
          }
          this.show(wanted,false);
          mouseEnabled = mouseChildren = this.takesMouse(wanted);
-         this._tip.tipData = {"name":this.hint()};
+         this._tip.tipData = {"name":this.label()};
          // The paper doll draws its slots again (the second weapon slot open or closed).
          dispatchEvent(new Event(Event.CHANGE));
          if(displaced)

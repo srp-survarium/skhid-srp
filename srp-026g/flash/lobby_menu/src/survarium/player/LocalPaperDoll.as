@@ -463,7 +463,7 @@ package survarium.player
          closed.artifact = false;
          closed.enabled = false;
          closed.label = LocalizationData.getName("filter_items");
-         this._pocketLock.show(this,closed as DisplayObject,this.weaponMark.hint(),this.weaponMark.blockedClicked);
+         this._pocketLock.show(this,closed as DisplayObject,this.weaponMark.label(),this.weaponMark.blockedClicked);
       }
 
       // The quick slot `i` (0 the first), when it is below `below`; else none.
@@ -866,7 +866,7 @@ package survarium.player
          }
          var text:String = LocalizationData.format("st_srp_weapon_slot_closed",LocalizationData.getName(PlayerInfo.supplyPocket ? "st_srp_medical_331_name" : "st_srp_deep_pockets_name"));
          var switchable:Boolean = this.weaponMark.shown == PerkSlotMark.TAKEN;
-         this._weaponLock.show(this,slot,switchable ? text + "\n" + this.weaponMark.hint() : text,switchable ? this.weaponMark.blockedClicked : null);
+         this._weaponLock.show(this,slot,switchable ? this.weaponMark.label() : text,switchable ? this.weaponMark.blockedClicked : null);
       }
 
       protected function onMouseItemClick(event:MouseEventEx) : void

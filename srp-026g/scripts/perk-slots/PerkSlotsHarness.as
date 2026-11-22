@@ -25,10 +25,10 @@ package {
  // (weapon.png; before, the red lock alone). The slot labels are the stock English (english.tsv).
  // Traces PERK lines, `PERK shot <name>` when a capture is due, and `PERK RESULT pass|fail: ...`.
  public class PerkSlotsHarness extends Sprite {
-  private static const W:int=2100, H:int=1450;
+  private static const W:int=3400, H:int=1500;
   private static const LOOKS:Array=["before","after"];
   private static const CONTAINER_CELLS:Array=["container","container, hover","pocket","pocket, hover"];
-  private static const WEAPON_CELLS:Array=["perk: pocket","pocket, hover","second weapon","second weapon, hover (no switch)"];
+  private static const WEAPON_CELLS:Array=["perk: pocket","pocket, hover","second weapon","second weapon, hover","pocket holding an item, hover"];
   private static const WEAPON_2:int=10;
   private var loader:Loader=new Loader();
   private var domain:ApplicationDomain;
@@ -39,6 +39,8 @@ package {
   private var step:int=0, wait:int=0, frames:int=0;
   private var zoom:Bitmap, weapon:Bitmap;
   private var sheetSteps:Array=[];
+  // The lobby's tooltips' layer (ToolTip.tipContainer), drawn into the sheets' cells too.
+  private var tipsLayer:Sprite;
   // A slot watched for its shake: where it rests, and the most it moved.
   private var shaken:DisplayObject, shakenX:Number=0, shakenMost:Number=0;
   public function PerkSlotsHarness() {
@@ -68,6 +70,7 @@ package {
     domain.getDefinition("MainScene").stage=lobby;
     domain.getDefinition("survarium.data.LocalizationData").setData(texts("english"));
     var tips:Sprite=new Sprite();
+    tipsLayer=tips;
     C("scaleform.clik.controls.ToolTip")["tipContainer"]=tips;
     var Container:Class=C("survarium.data.IconContainer");
     for each(var icons:String in ["equipment","camo","consumables","bundles","factionItemIcons"]) new Container(icons,1,1,new BitmapData(1,1,true,0),false,1,0,0,false);
@@ -146,7 +149,12 @@ package {
   }
   private function cell(b:Bitmap,area:Rectangle,scale:Number,r:int,c:int):void {
    var x:Number=cellX(c,area.width*scale), y:Number=cellY(r,area.height*scale);
-   b.bitmapData.draw(doll as DisplayObject,new Matrix(scale,0,0,scale,x-area.x*scale,y-area.y*scale),null,null,new Rectangle(x,y,area.width*scale,area.height*scale),false);
+   var m:Matrix=new Matrix(scale,0,0,scale,x-area.x*scale,y-area.y*scale), clip:Rectangle=new Rectangle(x,y,area.width*scale,area.height*scale);
+   b.bitmapData.draw(doll as DisplayObject,m,null,null,clip,false);
+   // the tooltips shown, where they are over the paper doll
+   var t:Matrix=tipsLayer.transform.concatenatedMatrix.clone(), d:Matrix=DisplayObject(doll).transform.concatenatedMatrix.clone();
+   d.invert();t.concat(d);t.concat(m);
+   b.bitmapData.draw(tipsLayer,t,null,null,clip,true);
   }
   private function frame(b:Bitmap,area:Rectangle,scale:Number,r:int,c:int,s:DisplayObject):void {
    var a:Rectangle=s.getBounds(doll as DisplayObject);
@@ -160,22 +168,26 @@ package {
    zoom=sheet(CONTAINER_CELLS,z,3);
    for(var r:int=0;r<2;r++) for(var c:int=0;c<4;c++) {
     var pocket:Boolean=c>=2, over:Boolean=c%2==1, before:Boolean=r==0, rr:int=r, cc:int=c;
-    sheetSteps.push(function(pocket:Boolean,over:Boolean):Function {return function():void {kit(2,pocket?4:3,pocket?0:1);doll.perkSlots(2,[pocket?2:1,0],ask);cm.hover(over);};}(pocket,over));
+    sheetSteps.push(function(pocket:Boolean,over:Boolean):Function {return function():void {cm.hover(false);kit(2,pocket?4:3,pocket?0:1);doll.perkSlots(2,[pocket?2:1,0],ask);cm.hover(over);};}(pocket,over && !before));
     sheetSteps.push(function(before:Boolean,rr:int,cc:int):Function {return function():void {
      cm.visible=!before;cell(zoom,z,3,rr,cc);if(before) frame(zoom,z,3,rr,cc,slot(4));cm.visible=true;};}(before,rr,cc));
    }
    var a:Rectangle=weaponSlot().getBounds(doll as DisplayObject);
    for(var q:int=1;q<=4;q++) a=a.union(slot(q).getBounds(doll as DisplayObject));
-   a.inflate(10,10);
+   // room for the tips: above the slots, and right of them
+   a.inflate(10,10);a.top-=40;a.right+=200;
    weapon=sheet(WEAPON_CELLS,a,1);
-   for(r=0;r<2;r++) for(c=0;c<4;c++) {
+   for(r=0;r<2;r++) for(c=0;c<5;c++) {
     if(r==0 && c>0) continue;
-    var declined:Boolean=c>=2;
-    over=c%2==1;before=r==0;rr=r;cc=c;
+    var declined:Boolean=c==2 || c==3, held:Boolean=c==4;
+    over=c%2==1 || held;before=r==0;rr=r;cc=c;
     sheetSteps.push(function(declined:Boolean,over:Boolean):Function {return function():void {
-     profile.enableSecondWeapon(false);kit(2,declined?1:2,0);doll.perkSlots(2,[0,declined?2:1],ask);wm.hover(over);};}(declined,over));
-    sheetSteps.push(function(before:Boolean,rr:int,cc:int):Function {return function():void {
-     wm.visible=!before;cell(weapon,a,1,rr,cc);wm.visible=true;};}(before,rr,cc));
+     wm.hover(false);profile.enableSecondWeapon(false);kit(2,declined?1:2,0);doll.perkSlots(2,[0,declined?2:1],ask);wm.hover(over);};}(declined,over && !before && !held));
+    sheetSteps.push(function(before:Boolean,held:Boolean,rr:int,cc:int):Function {return function():void {
+     // an item in the yellow pocket: its own card (the lobby's, not drawn here) and the slot's skill above it
+     if(held) {wm.place(slot(2),true);wm.hover(true);}
+     wm.visible=!before;cell(weapon,a,1,rr,cc);wm.visible=true;
+     if(held) {wm.hover(false);wm.place(slot(2),false);}};}(before,held,rr,cc));
    }
   }
 
@@ -195,7 +207,7 @@ package {
       trace("PERK container: "+m.visible+" on "+(m.slot?m.slot.name:null)+", "+int(m.width)+" x "+int(m.height));
       check(on(m,slot(4)),"as the container: on the first container, slot 4");
       check(m.shown==Mark.TAKEN && m.mouseEnabled,"as the container the mark takes the mouse (the slot is locked)");
-      check(hint(m)=="Right-click: pocket","the hint as the container: "+hint(m));
+      check(hint(m)=="Artifact Container — Right-click: pocket","the tip as the container: its skill, what a right click does: "+hint(m));
       check(!wm.visible,"no weapon perk: no mark");
       // A left click does nothing here; a right click: the pocket shown at once and asked for,
       // once while it waits.
@@ -221,7 +233,7 @@ package {
       check(on(m,slot(4)),"as the pocket: on the last pocket, slot 4");
       check(!m.mouseEnabled,"as the pocket the slot keeps the mouse (drops, its item)");
       slot(4).dispatchEvent(new MouseEvent(MouseEvent.ROLL_OVER));
-      check(hint(m)=="Right-click: artifact container","the hint as the pocket: "+hint(m));
+      check(hint(m)=="Artifact Container — Right-click: artifact container","the tip as the pocket: "+hint(m));
       slot(4).dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
       doll.perkSlots(2,[2,0],ask);asked.length=0;
       clickOn(slot(3));
@@ -261,7 +273,7 @@ package {
       check(on(wm,slot(2)),"taken: the yellow on the pocket it adds, slot 2");
       check(!doll.getSlotAt(WEAPON_2).enabled,"taken: the second weapon slot closed");
       var lock:Object=lockOn(weaponSlot());
-      check(lock!=null && String(lock.tipData.name).indexOf("Right-click: second weapon")>=0,"taken: the red lock on the second weapon slot, its hint: "+(lock?lock.tipData.name:null));
+      check(lock!=null && String(lock.tipData.name)=="Deep Pockets — Right-click: second weapon","taken: the red lock on the second weapon slot, its hint: "+(lock?lock.tipData.name:null));
       // A press on the red lock, a medkit in the yellow pocket: the second weapon at once, asked
       // for once; the medkit goes back, its slot shaken.
       wm.place(slot(2),true);wm.closing(slot(2),true);
@@ -295,17 +307,22 @@ package {
      case 11:
       check(lockOn(slot(2))!=null && slot(2).visible,"the closed pocket shown, red, after the pockets");
       check(shaken.x==shakenX,"the shaken slot back where it rests");
-      // The open second weapon slot keeps its own clicks: empty or not, nothing asked.
+      // The open second weapon slot: its tip; a left click is its own; holding a weapon, the
+      // weapon's tip line and menu (nothing asked); empty, a right click takes the pocket again.
+      weaponSlot().dispatchEvent(new MouseEvent(MouseEvent.ROLL_OVER));
+      check(hint(wm)=="Deep Pockets — Right-click: pocket","the open weapon slot's tip: "+hint(wm));
+      weaponSlot().dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
       clickOn(weaponSlot(),0);
-      clickOn(weaponSlot());
-      check(asked.length==0,"the empty second weapon slot's click asks nothing: "+asked);
+      check(asked.length==0,"the empty second weapon slot's left click asks nothing: "+asked);
       wm.place(weaponSlot(),true);
+      weaponSlot().dispatchEvent(new MouseEvent(MouseEvent.ROLL_OVER));
+      check(hint(wm)=="Slot: Deep Pockets","a held weapon: the slot's skill beside its card: "+hint(wm));
+      weaponSlot().dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
       clickOn(weaponSlot());
       check(asked.length==0,"a weapon slot holding a weapon keeps it: "+asked);
       wm.place(weaponSlot(),false);
-      // The red pocket's click takes the perk again.
-      clickOn(lockOn(slot(2)));
-      check(asked.join()=="1:1","the red pocket's click asks for the pocket: "+asked);
+      clickOn(weaponSlot());
+      check(asked.join()=="1:1","the empty second weapon slot's right click asks for the pocket: "+asked);
       kit(2,2,0);list("K;1:0:1,2:0:1,3:0:1");
       break;
      case 12:
@@ -313,14 +330,26 @@ package {
       check(lockOn(slot(3))==null,"no red pocket once taken");
       for each(var lang:String in HarnessText.LANGUAGES) {
        var t:Object=HarnessText.DATA[lang];
-       for each(var key:String in ["st_srp_loadout_slot_to_pocket","st_srp_loadout_slot_to_container","st_srp_loadout_slot_to_weapon"]) {
+       for each(var key:String in ["st_srp_loadout_slot_to_pocket","st_srp_loadout_slot_to_container","st_srp_loadout_slot_to_weapon","st_srp_loadout_slot_skill"]) {
         check(t[key]!=null && String(t[key]).length>0 && String(t[key]).length<=40,lang+": "+key);
        }
       }
+      // The perk declined again, to try its red pocket.
+      kit(2,1,0);list("K;1:0:1,2:0:2,3:0:1");doll.perkSlots(2,[0,2],ask);asked.length=0;
+      break;
+     case 13:
+      check(lockOn(slot(2))!=null && String(lockOn(slot(2)).tipData.name)=="Deep Pockets — Right-click: pocket","the red pocket's tip: "+(lockOn(slot(2))?lockOn(slot(2)).tipData.name:null));
+      clickOn(lockOn(slot(2)),0);
+      check(asked.length==0,"the red pocket's left click asks nothing: "+asked);
+      clickOn(lockOn(slot(2)));
+      check(asked.join()=="1:1","the red pocket's right click asks for the pocket: "+asked);
+      kit(2,2,0);list("K;1:0:1,2:0:1,3:0:1");
+      break;
+     case 14:
       // Both perks, Artifact Container declined and Deep Pockets taken: three pockets.
       kit(2,3,0);list("K;1:0:1,2:2:1,3:0:1");doll.perkSlots(2,[2,1],ask);asked.length=0;
       break;
-     case 13:
+     case 15:
       // A switch that takes a pocket away closes the last one (srp's rule), so both perks' switches
       // close slot 3: the container's mark is on it, the weapon perk's yellow nowhere else.
       check(on(m,slot(3)),"both: the declined container's pocket is the last, slot 3");
@@ -337,7 +366,7 @@ package {
       check(asked.join()=="1:2","both: the red lock asks for the second weapon: "+asked);
       wait=40;
       break;
-     case 14:
+     case 16:
       check(shakenMost>=1 && shaken.x==shakenX,"both: the pocket that closes, the last, shakes: "+shakenMost);
       planSheets();
       break;

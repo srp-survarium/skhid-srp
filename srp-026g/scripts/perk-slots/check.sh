@@ -16,11 +16,11 @@ lobby=$(readlink -f "$1")
 . "$here/../ruffle_harness.sh"
 harness_work "${2:-}"
 "${PYTHON:-python3}" "$here/../localization-check/harness_text.py" "$work"
-harness_compile "$here/PerkSlotsHarness.as" 2100,1450 -source-path+="$work"
+harness_compile "$here/PerkSlotsHarness.as" 3400,1500 -source-path+="$work"
 "${PYTHON:-python3}" "$here/../medical-cards/ruffle_movie.py" "$lobby" "$work/lobby_menu.swf"
 cp "$here/../../client-patches/localization/english.tsv" "$work/"
-harness_display 2100x1450 imagemagick
-HARNESS_TIMEOUT=240 harness_run ruffle.log -p low --width 2100 --height 1450 PerkSlotsHarness.swf
+harness_display 3400x1500 imagemagick
+HARNESS_TIMEOUT=240 harness_run ruffle.log -p low --width 3400 --height 1500 PerkSlotsHarness.swf
 for shot in zoom weapon; do
     wait_for ruffle.log "PERK shot $shot" 900 || break
     sleep 1

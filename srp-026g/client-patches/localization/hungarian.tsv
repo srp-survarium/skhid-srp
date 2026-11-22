@@ -2761,6 +2761,7 @@ st_srp_loadout_sell_and	 és
 st_srp_loadout_sell_item	%1$s. összeállítás
 st_srp_loadout_sell_many	Ezekben használod: %1$s. Így is eladod?
 st_srp_loadout_sell_one	A(z) %1$s. összeállításban használod. Így is eladod?
+st_srp_loadout_slot_skill	Hely: %1$s
 st_srp_loadout_slot_to_container	Jobb klikk: artefaktumtároló
 st_srp_loadout_slot_to_pocket	Jobb klikk: zseb
 st_srp_loadout_slot_to_weapon	Jobb klikk: második fegyver

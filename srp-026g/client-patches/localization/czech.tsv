@@ -2761,6 +2761,7 @@ st_srp_loadout_sell_and	 a
 st_srp_loadout_sell_item	Výbava %1$s
 st_srp_loadout_sell_many	Použito v: %1$s. Přesto prodat?
 st_srp_loadout_sell_one	Používá se ve výbavě %1$s. Přesto prodat?
+st_srp_loadout_slot_skill	Slot: %1$s
 st_srp_loadout_slot_to_container	Pravé tlačítko: kontejner na artefakt
 st_srp_loadout_slot_to_pocket	Pravé tlačítko: kapsa
 st_srp_loadout_slot_to_weapon	Pravé tlačítko: druhá zbraň
