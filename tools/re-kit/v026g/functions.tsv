@@ -2472,6 +2472,14 @@ va	status	ref_021d	name
 0x001f3c70	reviewed	0x00157ab8	survarium::player::generate_hit_event
 0x00238230	reviewed	0x0018257b	survarium::game_world_ui::draw_damage_collector
 0x00246f10	observed		survarium::player::tick
+0x00303d50	observed		survarium::grenade_core::remove_from_physics
+0x00248520	observed		survarium::grenade::throw_grenade
+0x00248600	observed		survarium::grenade::remove_from_physics
+0x003185a0	observed		survarium::serialize_local_fixed_time
+0x00305ea0	observed		survarium::booby_trap_set_core::try_to_place_trap
+0x00305f50	observed		survarium::booby_trap_set_core::find_inactive_trap
+0x00305fc0	observed		survarium::booby_trap_set_core::find_disarmed_trap
+0x00304f00	observed		survarium::booby_trap_core::remove
 0x00316820	observed		survarium::player_respawn_rule_base::tick
 0x0031d040	reviewed	0x001f7dbf	survarium::breath_state_normal::tick
 0x0031d0a0	reviewed	0x001f7e12	survarium::breath_state_shortbreathing::tick
@@ -2484,3 +2492,6 @@ va	status	ref_021d	name
 0x0031d430	reviewed	0x001f8046	survarium::breath_vibration_calculator::insufficient_breath
 0x0031d450	reviewed	0x001f8053	survarium::breath_vibration_calculator::initialize_logic
 0x0023ddd0	observed		survarium::base_game_scene::apply_camera
+0x0031a100	observed		survarium::damage_zone_core::play_effect
+0x0032a7a0	observed		survarium::body_part_parameters::play_effect
+0x001c89c0	reviewed	0x0013d25e	vostok::render::potential_request::cancel_request

@@ -1483,6 +1483,21 @@ pub extern "C" fn hook_freeze_tag_on_frame(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- technical_sharp_ears (patch 180) ----
+
+/// The entry `technical_sharp_ears_on_frame` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_sharp_ears_on_frame(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_sharp_ears_on_frame` calls this, from the game's jump at 0x1f7c3c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_sharp_ears::on_frame(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- voice (patch 66) ----
 
 /// The entry `voice_on_deactivate` (0x1f9520, game_world::on_deactivate's start (push ebx / push esi / push edi / mov edi,ecx): the match scene left) calls this with the saved machine.
@@ -1647,6 +1662,36 @@ pub extern "C" fn hook_weapon_stats_on_tick(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::weapon_stats::on_tick(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_skills (patch 180) ----
+
+/// The entry `technical_skills_on_tick` (0x2daad3, base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_skills_on_tick(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_skills_on_tick` calls this, from the game's jump at 0x2daad3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_skills::on_tick(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_smoke (patch 180) ----
+
+/// The entry `technical_smoke_on_tick` (0x2daad3, base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_smoke_on_tick(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_smoke_on_tick` calls this, from the game's jump at 0x2daad3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_smoke::on_tick(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -5344,6 +5389,21 @@ pub extern "C" fn hook_medical_skills_on_hit(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- technical_skills (patch 180) ----
+
+/// The entry `technical_skills_on_hit` (0x2e50c7, EDI damage model ESI hit_info; invulnerability applied) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_skills_on_hit(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_skills_on_hit` calls this, from the game's jump at 0x2e50c7,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_skills::on_hit(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- ragdoll (patch 76) ----
 
 /// The entry `ragdoll_on_eye` (0x1f3643, update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player)) calls this with the saved machine.
@@ -6588,6 +6648,21 @@ pub extern "C" fn hook_medical_skills_on_movement(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- technical_skills (patch 180) ----
+
+/// The entry `technical_skills_on_movement` (0x2dbc91, EBX player XMM0 final movement speed) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_skills_on_movement(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_skills_on_movement` calls this, from the game's jump at 0x2dbc91,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_skills::on_movement(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- medical_skills (patch 94) ----
 
 /// The entry `medical_skills_on_heal` (0x32a460, ESI pool XMM0 new health before write) calls this with the saved machine.
@@ -6605,13 +6680,28 @@ pub extern "C" fn hook_medical_skills_on_heal(frame: &mut Frame) -> u32 {
 
 // ---- medical_skills (patch 94) ----
 
-/// The entry `medical_skills_on_wound` (0x32a28b, EBP pool XMM0 new health before write) calls this with the saved machine.
+/// The entry `medical_skills_on_wound` (0x32a28b, EBP pool, ESI the hit (mov esi,[esp+13Ch] at 0x32A284, on every path here), XMM0 new health before write) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_medical_skills_on_wound(frame: &mut Frame) -> u32 {
     // SAFETY: only the entry `medical_skills_on_wound` calls this, from the game's jump at 0x32a28b,
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::medical_skills::on_wound(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_skills (patch 180) ----
+
+/// The entry `technical_skills_on_wound` (0x32a28b, EBP pool, ESI the hit (mov esi,[esp+13Ch] at 0x32A284, on every path here), XMM0 new health before write) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_skills_on_wound(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_skills_on_wound` calls this, from the game's jump at 0x32a28b,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_skills::on_wound(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -6638,9 +6728,24 @@ pub extern "C" fn hook_medical_skills_on_protection(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- technical_skills (patch 180) ----
+
+/// The entry `technical_skills_on_kit_parameter` (0x2f76e8, player_profile::apply_kit_parameter epilogue (every caller is the lobby's): ESI parameter index (15 pockets, 17 pocket size), XMM0 final base+skills+equipment value, EBX the kit record, EBP the profile, the dictionary argument by ESP; replay pops EDI ESI EBP EBX and returns) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_skills_on_kit_parameter(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_skills_on_kit_parameter` calls this, from the game's jump at 0x2f76e8,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_skills::on_kit_parameter(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- medical_skills (patch 94) ----
 
-/// The entry `medical_skills_on_pocket_count` (0x2f76e8, apply_kit_parameter epilogue: ESI parameter index, XMM0 final base+skills+equipment value; replay pops EDI ESI EBP EBX and returns) calls this with the saved machine.
+/// The entry `medical_skills_on_pocket_count` (0x2f76e8, player_profile::apply_kit_parameter epilogue (every caller is the lobby's): ESI parameter index (15 pockets, 17 pocket size), XMM0 final base+skills+equipment value, EBX the kit record, EBP the profile, the dictionary argument by ESP; replay pops EDI ESI EBP EBX and returns) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_medical_skills_on_pocket_count(frame: &mut Frame) -> u32 {
     // SAFETY: only the entry `medical_skills_on_pocket_count` calls this, from the game's jump at 0x2f76e8,
@@ -6662,6 +6767,21 @@ pub extern "C" fn hook_medical_skills_on_sprint(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::medical_skills::on_sprint(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_skills (patch 180) ----
+
+/// The entry `technical_skills_on_sprint_cost` (0x329aad, player_stamina::sprint after both spending modifiers (19, 67): XMM0 sprint stamina per second, before the elapsed-time multiply) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_skills_on_sprint_cost(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_skills_on_sprint_cost` calls this, from the game's jump at 0x329aad,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_skills::on_sprint_cost(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -7182,13 +7302,28 @@ pub extern "C" fn hook_ragdoll_on_render_bones(frame: &mut Frame) -> u32 {
 
 // ---- ragdoll (patch 76) ----
 
-/// The entry `ragdoll_on_killed` (0x2da3df, generate_killed_event after enqueue: ESI victim, BL cause (1 headshot, 0 other, 3 suicide/no killer); replays mov eax,[esi+120h]) calls this with the saved machine.
+/// The entry `ragdoll_on_killed` (0x2da3df, generate_killed_event after enqueue: ESI victim, BL cause (1 headshot, 0 other, 3 suicide/no killer); replays mov eax,[esi+120h]; ESP its frame (the arguments at +44h..: time, killer, bone, source)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_ragdoll_on_killed(frame: &mut Frame) -> u32 {
     // SAFETY: only the entry `ragdoll_on_killed` calls this, from the game's jump at 0x2da3df,
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::ragdoll::on_killed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_skills (patch 180) ----
+
+/// The entry `technical_skills_on_killed` (0x2da3df, generate_killed_event after enqueue: ESI victim, BL cause (1 headshot, 0 other, 3 suicide/no killer); replays mov eax,[esi+120h]; ESP its frame (the arguments at +44h..: time, killer, bone, source)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_skills_on_killed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_skills_on_killed` calls this, from the game's jump at 0x2da3df,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_skills::on_killed(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -7684,6 +7819,528 @@ pub extern "C" fn hook_voice_on_hud_call(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- technical_dead_man (patch 180) ----
+
+/// The entry `technical_dead_man_on_place_tick` (0x321790, player_slot::apply_profile_input's start (movzx eax,byte [ecx+2Ch] / mov edx,[ecx+28h]): each place's tick (tick list 0, after the respawn rule), every game, every replay of a tick; ECX the place, [esp+8] the tick's time) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_dead_man_on_place_tick(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_dead_man_on_place_tick` calls this, from the game's jump at 0x321790,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_dead_man::on_place_tick(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_dead_man (patch 180) ----
+
+/// The entry `technical_dead_man_on_game_key` (0x25cd69, game_world::on_keyboard_action after the binder's answer for a key down with Tab up (mov edi,eax / cmp edi,3Fh): EAX the key's action (kinds 1; 20h throw_grenade), EBX the game; also on the death screen) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_dead_man_on_game_key(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_dead_man_on_game_key` calls this, from the game's jump at 0x25cd69,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_dead_man::on_game_key(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_dead_man (patch 180) ----
+
+/// The named exits of technical_dead_man::on_select_profile (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum TechnicalDeadManOnSelectProfileExit { Held }
+/// The entry `technical_dead_man_on_select_profile` (0x1f8070, game_world::select_profile's start (mov eax,[edi+9Ch]): every profile input this game queues (the hud's kit pick 0x233F23, patch 180's Dead Man's Switch); EDI the game world, [esp+4] the value; held is its `ret 4` (0x1F8115, the stack as at the start): nothing queued) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_dead_man_on_select_profile(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_dead_man_on_select_profile` calls this, from the game's jump at 0x1f8070,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_dead_man::on_select_profile(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- technical_dead_man (patch 180) ----
+
+/// The entry `technical_dead_man_on_frame_end` (0x1ecc47, game::tick where it sets the game's time to the frame's (mov [ebx+5854h],ecx): after the input tick, the game world's update and the network client's tick of the frame; EBX the game) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_dead_man_on_frame_end(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_dead_man_on_frame_end` calls this, from the game's jump at 0x1ecc47,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_dead_man::on_frame_end(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_return_to_sender (patch 180) ----
+
+/// The entry `technical_return_to_sender_on_input` (0x2d8747, base_player::set_input past its early-outs (a dead player 0x2D86F5; the same actions and no turn 0x2D8741), before the new input is copied to +32Ch (mov ecx,[edi+32Ch]; 0x2D870A and 0x2D8725 jump here): EDI the player, ESI the new input, [EBP+8] its time; every game, before patch 78's filter (carry.filter)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_return_to_sender_on_input(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_return_to_sender_on_input` calls this, from the game's jump at 0x2d8747,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_return_to_sender::on_input(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_sharp_ears (patch 180) ----
+
+/// The entry `technical_sharp_ears_on_weapon_sound` (0x297f7e, weapon_sound_effect::play_sound_callback with its new proxy (mov eax,[eax] / xor ebx,ebx / xor edi,edi), where the hud (0x297F5E) and point (0x297F79) paths join: EAX the out slot, the effect at [esp+24h]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_sharp_ears_on_weapon_sound(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_sharp_ears_on_weapon_sound` calls this, from the game's jump at 0x297f7e,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_sharp_ears::on_weapon_sound(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_sharp_ears (patch 180) ----
+
+/// The entry `technical_sharp_ears_on_loaded` (a callback in engine_store_first_resource's convention, the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query)
+/// calls this with its 2 arguments, typed by the row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `technical_sharp_ears_on_loaded`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_technical_sharp_ears_on_loaded(a0: Option<raw::QueriesResult>, a1: *mut c_void) -> u32 {
+    // SAFETY: only the entry `technical_sharp_ears_on_loaded` calls this, when the game calls the callback
+    // a patch handed it, on the thread that asked; a0.. are the callback's arguments.
+    let thread = unsafe { Thread::new() };
+    let result = unsafe { QueryResults::from_raw(&thread, a0) };
+    let tag = QueryTag::from_raw(a1 as usize as u32);
+    { crate::technical_sharp_ears::on_loaded(result, tag); 0 }
+}
+
+// ---- technical_skills (patch 180) ----
+
+/// The entry `technical_skills_on_breath_vibration` (0x31d95b, breath_vibration_calculator::tick's stores of m_vibration (mov [edi+44h],eax / mov [edi+48h],ecx): EAX the horizontal sway's bits, ECX the vertical's, EDI the calculator; the tick never reads them back) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_skills_on_breath_vibration(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_skills_on_breath_vibration` calls this, from the game's jump at 0x31d95b,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_skills::on_breath_vibration(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_skills (patch 180) ----
+
+/// The entry `technical_skills_on_dispersion` (0x2e1dbe, weapon_core::get_dispersed_bullet_direction's store of the shot's dispersion (movss [esp+7Ch],xmm1; read again only by the tilt's fmul at 0x2E1E0A): XMM1 the final dispersion, static + dynamic; EBX the weapon (loaded at 0x2E1D5C, [EBX+8] its user); every player's shot in every game (instant_fire 0x2E245C)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_skills_on_dispersion(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_skills_on_dispersion` calls this, from the game's jump at 0x2e1dbe,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_skills::on_dispersion(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_skills (patch 180) ----
+
+/// The entry `technical_skills_on_tank_empty` (0x33e661, oxygen_tank::tick after the air is spent, a living holder's only (the dead path jumps past it): ECX m_amount_ms left, 0 when it ran out this tick (set_active(0) follows at 0x33E66D)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_skills_on_tank_empty(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_skills_on_tank_empty` calls this, from the game's jump at 0x33e661,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_skills::on_tank_empty(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_skills (patch 180) ----
+
+/// The entry `technical_skills_on_tank_construct` (0x33e293, oxygen_tank's ctor epilogue (pop edi / pop esi / mov eax,ebp / pop ebp): EBP the tank, its tail padding as the allocator left it) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_skills_on_tank_construct(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_skills_on_tank_construct` calls this, from the game's jump at 0x33e293,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_skills::on_tank_construct(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_skills (patch 180) ----
+
+/// The entry `technical_skills_on_tank_refill` (0x33e590, oxygen_tank's vtable +38h (amount := capacity, a refill): ECX the tank) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_skills_on_tank_refill(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_skills_on_tank_refill` calls this, from the game's jump at 0x33e590,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_skills::on_tank_refill(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_skills (patch 180) ----
+
+/// The entry `technical_skills_on_tank_refill_2` (0x33e5a0, oxygen_tank's vtable +40h, the same refill body with ret 8: ECX the tank) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_skills_on_tank_refill_2(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_skills_on_tank_refill_2` calls this, from the game's jump at 0x33e5a0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_skills::on_tank_refill_2(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_skills (patch 180) ----
+
+/// The entry `technical_skills_on_tank_save` (0x33e7e7, oxygen_tank::serialize after m_amount_ms (0x33E7DB): ESI the tank, EDI the writer) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_skills_on_tank_save(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_skills_on_tank_save` calls this, from the game's jump at 0x33e7e7,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_skills::on_tank_save(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_skills (patch 180) ----
+
+/// The entry `technical_skills_on_tank_load` (0x33e82f, oxygen_tank::deserialize after m_amount_ms (ECX it), before its active test (cmp byte [esi+268h],0): ESI the tank, EDI the reader at the bytes after it) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_skills_on_tank_load(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_skills_on_tank_load` calls this, from the game's jump at 0x33e82f,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_skills::on_tank_load(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_skills (patch 180) ----
+
+/// The entry `technical_skills_on_battery_take` (0x338b61, victory_item_core_take_state::item_and_hands_expression after it stored the take animation's time scale (push 1 / push 2 / push eax / push esi before get_user_hands_lexeme_impl 0x344F60): ESI the take state, [ESP] the scale) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_skills_on_battery_take(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_skills_on_battery_take` calls this, from the game's jump at 0x338b61,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_skills::on_battery_take(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_skills (patch 180) ----
+
+/// The entry `technical_skills_on_resupply_time` (0x2f8147, resupply_zone_core::update_use 0x2F8120 after the ms passed (sub eax,[esi+8]), before the zone's resupply time is read and compared (mov edx,[ecx+50h] / cmp eax,edx): EAX the ms passed at the crate, which also the progress divides (0x2F8163), EDI the user's player ([esi])) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_skills_on_resupply_time(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_skills_on_resupply_time` calls this, from the game's jump at 0x2f8147,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_skills::on_resupply_time(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_skills (patch 180) ----
+
+/// The entry `technical_skills_on_defuse_time` (0x304f92, booby_trap_core::use_execute after floor(defuse_time) (add esp,4 / test eax,eax): EAX the defuse's ms, ESI the ms passed, EBX the disarmer's usable user data) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_skills_on_defuse_time(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_skills_on_defuse_time` calls this, from the game's jump at 0x304f92,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_skills::on_defuse_time(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_skills (patch 180) ----
+
+/// The named exits of technical_skills::on_trap_shot (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum TechnicalSkillsOnTrapShotExit { Shot }
+/// The entry `technical_skills_on_trap_shot` (0x305552, booby_trap_core::hit after its hit-type check (cmp byte [ecx+220h],0): ECX the trap; shot is its ret 28h after the native defuse_completed) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_skills_on_trap_shot(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_skills_on_trap_shot` calls this, from the game's jump at 0x305552,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_skills::on_trap_shot(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- technical_skills (patch 180) ----
+
+/// The named exits of technical_skills::on_trap_reopen (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum TechnicalSkillsOnTrapReopenExit { Reopened }
+/// The entry `technical_skills_on_trap_reopen` (0x304dcf, booby_trap_core::tick when now (EBX) reached m_action_time (push ebx / mov [eax+20h],-1 before the delayed action's call): ESI the trap; reopened goes on past the call to the state timer) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_skills_on_trap_reopen(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_skills_on_trap_reopen` calls this, from the game's jump at 0x304dcf,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_skills::on_trap_reopen(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- technical_skills (patch 180) ----
+
+/// The entry `technical_skills_on_trap_defused` (0x305025, booby_trap_core::use_execute's finished defuse after defuse_completed (0x305020) returned (pop edi / pop esi / pop ebx / mov al,1): a trap that goes off at the defuse (the owner's modifier 46) goes to 0x30502E instead; EBX the disarmer's usable user data, EDI the trap's set, EBP the trap's usable_object (the trap at -34h)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_skills_on_trap_defused(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_skills_on_trap_defused` calls this, from the game's jump at 0x305025,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_skills::on_trap_defused(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_smoke (patch 180) ----
+
+/// The entry `technical_smoke_on_grenade_size` (0x1f6642, grenade_cook::new_derived_resource 0x1F6630, the client grenade's size (mov eax,258h before doug_lea_allocator::malloc_impl 0xE4F90; the only maker of the class, its jmp 0x1F6651 the only way to its ctor): patch 180 asks 270h, its smoke fields after the native ones) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_smoke_on_grenade_size(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_smoke_on_grenade_size` calls this, from the game's jump at 0x1f6642,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_smoke::on_grenade_size(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_smoke (patch 180) ----
+
+/// The entry `technical_smoke_on_grenade_construct` (0x2483be, survarium::grenade's ctor 0x248310 at its last store (mov [edi+250h],ax): EDI the grenade, patch 180's tail (+258h..+26Fh) as the allocator left it) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_smoke_on_grenade_construct(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_smoke_on_grenade_construct` calls this, from the game's jump at 0x2483be,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_smoke::on_grenade_construct(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_smoke (patch 180) ----
+
+/// The entry `technical_smoke_on_grenade_destroy` (0x2483f0, survarium::grenade's destructor body (push esi / mov esi,ecx / lea ecx,[esi+220h]; the deleting dtor 0x2483D0 calls it): ECX the grenade, before its own resources are released) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_smoke_on_grenade_destroy(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_smoke_on_grenade_destroy` calls this, from the game's jump at 0x2483f0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_smoke::on_grenade_destroy(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_smoke (patch 180) ----
+
+/// The named exits of technical_smoke::on_cook_query (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum TechnicalSmokeOnCookQueryExit { Done }
+/// The entry `technical_smoke_on_cook_query` (0x25e154, grenade_cook::query_resources 0x25E030 before its query (mov ecx,3 / lea eax,[esp+44h]; the five cdecl arguments pushed): its three requests at ESP+44h; done is past the call (add esp,14h, the cleanup, follows)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_smoke_on_cook_query(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_smoke_on_cook_query` calls this, from the game's jump at 0x25e154,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_smoke::on_cook_query(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- technical_smoke (patch 180) ----
+
+/// The entry `technical_smoke_on_cook_ready` (0x25e308, grenade_cook's callback 0x25E1C0 after the particle instance's store (+21Ch, 0x25E2EB), before the sound's (mov ecx,[ebx+6ECh]): EDI the grenade, EBX the results) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_smoke_on_cook_ready(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_smoke_on_cook_ready` calls this, from the game's jump at 0x25e308,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_smoke::on_cook_ready(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_smoke (patch 180) ----
+
+/// The entry `technical_smoke_on_explode` (0x248720, survarium::grenade::explode (vtable 0xA046A0 +28h; grenade_core::tick 0x303A60 calls it when +14Ch is the tick's time, every game, a re-simulation too): ECX the grenade, +14Ch still its explode time, +1C0h its centre (push ebp / mov ebp,esp / and esp,-8)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_smoke_on_explode(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_smoke_on_explode` calls this, from the game's jump at 0x248720,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_smoke::on_explode(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_smoke (patch 180) ----
+
+/// The entry `technical_smoke_on_save_state` (0x303df8, grenade_core::serialize 0x303DA0 with its current_state byte stored at [esp+23h], before w<u8> writes it (push edi / lea eax,[esp+27h]): ESI the grenade's serializable (+10h)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_smoke_on_save_state(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_smoke_on_save_state` calls this, from the game's jump at 0x303df8,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_smoke::on_save_state(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_smoke (patch 180) ----
+
+/// The entry `technical_smoke_on_save_cloud` (0x303e40, grenade_core::serialize after the thrown fields (m_explode_time_ms, m_id; both paths join here), before the physics test (cmp dword [esi+138h],0): ESI the serializable, EDI the writer) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_smoke_on_save_cloud(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_smoke_on_save_cloud` calls this, from the game's jump at 0x303e40,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_smoke::on_save_cloud(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_smoke (patch 180) ----
+
+/// The entry `technical_smoke_on_load_cloud` (0x30406c, grenade_core::deserialize 0x303F80 after the thrown fields, where its three paths join, before the physics fields (xorps xmm0,xmm0 / mov al,[esp+13h]): EBX the serializable, ESI the reader, [esp+13h] the state byte read) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_smoke_on_load_cloud(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_smoke_on_load_cloud` calls this, from the game's jump at 0x30406c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_smoke::on_load_cloud(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_smoke (patch 180) ----
+
+/// The entry `technical_smoke_on_play` (0x248908, survarium::grenade::explode's particle, played only while +232h is 0 (once a throw, never in a re-simulation): the instance's load (mov eax,[esi+21Ch]) before its by-value copy for scene_renderer::play_particle_system 0x22660; Skip goes on with the EAX the hook chose) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_smoke_on_play(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_smoke_on_play` calls this, from the game's jump at 0x248908,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_smoke::on_play(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_smoke (patch 180) ----
+
+/// The entry `technical_smoke_on_particle_tick` (0x35daf5, particle_system_instance_impl::tick 0x35DAD0 at its pause test (cmp byte [edi+302h],0; the je follows), the particle world's thread: EDI the instance, XMM0 the tick's seconds) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_smoke_on_particle_tick(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_smoke_on_particle_tick` calls this, from the game's jump at 0x35daf5,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_smoke::on_particle_tick(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_smoke (patch 180) ----
+
+/// The named exits of technical_smoke::on_anomaly_zones (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum TechnicalSmokeOnAnomalyZonesExit { Inside }
+/// The entry `technical_smoke_on_anomaly_zones` (0x332833, the anomaly weapon-damage rule 0x332810 where a hit with an owner (hit +20h, 0x332825) reads the victim's damage zones (cmp byte [eax+2E4h],0 / jna): EAX the victim, EBP the hit; the exit is past the jna, where modifier 41 scales the damage (EAX still the victim)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_smoke_on_anomaly_zones(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_smoke_on_anomaly_zones` calls this, from the game's jump at 0x332833,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_smoke::on_anomaly_zones(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- text_input (patch 52) ----
 
 /// The named exits of text_input::on_char (the order the shim's Flow code
@@ -7698,6 +8355,26 @@ pub extern "C" fn hook_text_input_on_char(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::text_input::on_char(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- texture_pool (patch 182) ----
+
+/// The named exits of texture_pool::on_no_slot (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum TexturePoolOnNoSlotExit { Next }
+/// The entry `texture_pool_on_no_slot` (0x15433e, scene::process_streaming's turn of a request whose pool has no free, unreserved slot of the key it wants (mov eax,[ebp+8] / mov edx,[eax+980550h]; the non-lazy path, r_lazy_streaming off): the game then looks for another request leaving that size and cancels this one either way (0x1C89C0: wanted_mips = resident_mips), so the texture stays as it is; next is the loop's step to the next request (add esi,64h), the stack as at the site) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_texture_pool_on_no_slot(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `texture_pool_on_no_slot` calls this, from the game's jump at 0x15433e,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::texture_pool::on_no_slot(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
@@ -8745,6 +9422,8 @@ pub extern "C" fn hook_ragdoll_on_step_chain(frame: &mut Frame) -> u32 {
     if flow != 0 { return flow; }
     let flow = hook_freeze_tag_on_frame(frame);
     if flow != 0 { return flow; }
+    let flow = hook_technical_sharp_ears_on_frame(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -8772,6 +9451,10 @@ pub extern "C" fn hook_battery_progress_on_carrier_tick_chain(frame: &mut Frame)
     let flow = hook_artefact_keeper_on_tick(frame);
     if flow != 0 { return flow; }
     let flow = hook_weapon_stats_on_tick(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_technical_skills_on_tick(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_technical_smoke_on_tick(frame);
     if flow != 0 { return flow; }
     0
 }
@@ -9028,6 +9711,8 @@ pub extern "C" fn hook_hand_kill_on_hit_chain(frame: &mut Frame) -> u32 {
     if flow != 0 { return flow; }
     let flow = hook_medical_skills_on_hit(frame);
     if flow != 0 { return flow; }
+    let flow = hook_technical_skills_on_hit(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -9121,6 +9806,51 @@ pub extern "C" fn hook_music_on_unload_chain(frame: &mut Frame) -> u32 {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_movement_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_medical_skills_on_movement(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_technical_skills_on_movement(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_wound_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_medical_skills_on_wound(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_technical_skills_on_wound(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_skills_on_kit_parameter_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_technical_skills_on_kit_parameter(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_medical_skills_on_pocket_count(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_sprint_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_medical_skills_on_sprint(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_technical_skills_on_sprint_cost(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_ragdoll_on_killed_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_ragdoll_on_killed(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_technical_skills_on_killed(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn hook_voice_on_key_chain(frame: &mut Frame) -> u32 {
     let flow = hook_voice_on_key(frame);
     if flow != 0 { return flow; }
@@ -9201,6 +9931,15 @@ pub fn music_on_query_done_entry() -> super::hook::CallbackEntry<OrigStoreFirstR
     // SAFETY: the generated entry lives for the executable's lifetime and takes the
     // arguments of engine_store_first_resource, whose `Original` names the entry's type.
     unsafe { super::hook::CallbackEntry::from_entry(music_on_query_done as *const () as *const c_void) }
+}
+
+unsafe extern "C" { fn technical_sharp_ears_on_loaded(); }
+/// The entry `technical_sharp_ears_on_loaded`, in engine_store_first_resource's convention (the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query): a
+/// callback the patch hands the game (no site is rewritten).
+pub fn technical_sharp_ears_on_loaded_entry() -> super::hook::CallbackEntry<OrigStoreFirstResource> {
+    // SAFETY: the generated entry lives for the executable's lifetime and takes the
+    // arguments of engine_store_first_resource, whose `Original` names the entry's type.
+    unsafe { super::hook::CallbackEntry::from_entry(technical_sharp_ears_on_loaded as *const () as *const c_void) }
 }
 
 // ---- memory_profile: its hooks installed on demand ----

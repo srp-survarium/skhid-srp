@@ -355,7 +355,7 @@ package survarium.controls
          // Held Alt over a medicine: under its own lines, what the medical skills do while it is
          // active or as it heals (MatchEffects.medicineSkillLines). They keep their rows: with
          // more to show than the card's rows, it is the stat rows before the weight that go.
-         var skillLines:Array = effects != null && medical ? effects.medicineSkillLines(this._primary) : [];
+         var skillLines:Array = effects == null ? [] : medical ? effects.medicineSkillLines(this._primary) : effects.technicalSkillLines(this._primary);
          for each(var s:Object in fitted(cardRows(ownOnly),ammoDetails,weaponDetails,indicators - index - skillLines.length))
          {
             if(ammoDetails || weaponDetails && s.prop_id == 24) continue;
@@ -394,19 +394,17 @@ package survarium.controls
                }
             }
          }
-         // Held Alt over a medicine: below its own lines, what the medical skills do while it is
-         // active or as it heals (MatchEffects.medicineSkillLines), "100 -> in a match" in %.
-         if(effects != null && medical)
+         // Held Alt: below its own lines, what the skills do with it (MatchEffects.medicineSkillLines,
+         // technicalSkillLines), "100 -> in a match" in %, or a value with its own postfix.
+         for each(var line:Object in skillLines)
          {
-            for each(var line:Object in skillLines)
-            {
-               if(index == indicators) break;
-               modifier_value = 0;
-               initIndicatorValues(this._indicator[index],{prop_id:-1,prop_name:line.name,postfix:"%",min_value:0,max_value:200,
-                  direction:line.higherIsBetter ? PropertyDirection.HIGHER_IS_BETTER : PropertyDirection.LOWER_IS_BETTER},line.after,line.after);
-               _diff.indicator.setChange(MatchEffects.change(line.before,line.after,2) + "%",MatchEffects.verdict(line.before,line.after,line.higherIsBetter));
-               index++;
-            }
+            if(index == indicators) break;
+            var linePostfix:String = line.postfix != null ? line.postfix : "%";
+            modifier_value = 0;
+            initIndicatorValues(this._indicator[index],{prop_id:-1,prop_name:line.name,postfix:linePostfix,min_value:0,max_value:200,
+               direction:line.higherIsBetter ? PropertyDirection.HIGHER_IS_BETTER : PropertyDirection.LOWER_IS_BETTER},line.after,line.after);
+            _diff.indicator.setChange(MatchEffects.change(line.before,line.after,2) + linePostfix,MatchEffects.verdict(line.before,line.after,line.higherIsBetter));
+            index++;
          }
          while(index < indicators)
          {
@@ -568,7 +566,7 @@ package survarium.controls
          if(item == null || item.category != ItemCategory.MEDKITS && item.category != ItemCategory.BOOBY_TRAPS && item.category != ItemCategory.GRENADES)
             return 0;
          if(item.quickSlotItemSize == QuickSlotSize.WHOLE) return PlayerInfo.MAX_POCKET_UNITS;
-         return item.quickSlotItemSize == QuickSlotSize.PAIR ? 2 : 1;
+         return PlayerInfo.itemUnits(item.category,item.quickSlotItemSize);
       }
    }
 }

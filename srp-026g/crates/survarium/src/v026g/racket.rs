@@ -287,7 +287,10 @@ pub(super) fn free_bags(kit: &MatchKit, items: &[MatchItem]) -> u32 {
                 .then(|| u32::from(count).div_ceil(params.clip_size) * params.required_bags)
         })
         .sum();
-    KitLayout::new(&worn, &kit.modifiers)
+    let oxygen_tank = (0..kit.slots.len())
+        .filter_map(held)
+        .any(|(item, _)| loadouts::is_oxygen_tank(item.dict_id));
+    KitLayout::new(&worn, &kit.modifiers, oxygen_tank)
         .ammo_bags()
         .saturating_sub(taken)
 }

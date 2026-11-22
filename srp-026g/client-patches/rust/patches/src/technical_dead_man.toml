@@ -1,0 +1,24 @@
+# Patch 180: Dead Man's Switch (432; docs/notes/technical-skills.md). The logic is
+# technical_dead_man.rs; the native side vostok/technical_dead_man.rs.
+name = "technical_dead_man"
+patch = 180
+
+# Every game: each place's tick, before its kit choice; a switch of this tick drops the smoke.
+[[hook]]
+site = "technical.place_tick"
+handler = "on_place_tick"
+
+# This game: the throw key on the game world's handler (the death screen's too).
+[[hook]]
+site = "technical.game_key"
+handler = "on_game_key"
+
+# Every profile input this game queues (the hud's kit picks, the switch): its time.
+[[hook]]
+site = "technical.select_profile"
+handler = "on_select_profile"
+
+# The frame's end, before the game's time moves on: the pending switch goes out.
+[[hook]]
+site = "game.frame_end"
+handler = "on_frame_end"

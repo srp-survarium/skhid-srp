@@ -1,0 +1,11 @@
+# Patch 180: Return to Sender (422; docs/notes/technical-skills.md). The logic is
+# technical_return_to_sender.rs; its prompt and its Use press are composed from artefact_carry's
+# on_hud and on_input_end (one detour at those addresses).
+name = "technical_return_to_sender"
+patch = 180
+
+# set_input past its early-outs, before the new input is copied (every game): a throw-back command
+# takes the nearest live enemy grenade in reach and throws it along the player's view.
+[[hook]]
+site = "technical.throw_back"
+handler = "on_input"

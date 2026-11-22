@@ -17,7 +17,7 @@ approved the name, level 0 in the low band and every recommendation below (2026-
 - **Everyone plays that same equipment**, all three kits, picked in the warm-up as any kit.
 - **Each kit:** a main gun, a pistol, the guns' best ammo (a shotgun buckshot and slugs), a full
   set of armour, medkit, grenade and more pockets; every gun and armour piece with random bonuses,
-  as a dropped item gets them. The three main guns are of **three different classes** (say a shotgun, a sniper
+  as a dropped item gets them, every gun random attachments that fit it. The three main guns are of **three different classes** (say a shotgun, a sniper
   rifle and an SMG).
 - **Nothing of the players' is used or charged**: no item, no ammo, no medkit. Their skills still
   apply (more pockets, more ammo bags, Deep Pockets' one weapon).
@@ -89,7 +89,7 @@ One **hand**: three kits, drawn once per card. Each kit's slots (`data.md`, "slo
 | 0-6, armour | helmet, mask, torso, back, legs, gloves, boots: one piece of the band each | a slot another drawn piece covers stays empty (`covered_slots`) |
 | 13-18, pockets | a medkit, a grenade, then four other pocket items | drawn kinds, each pocket full (below) |
 | artefacts | none | no profile slot; they are found in the match |
-| a gun's kit slots (scope, camo, muzzle, grip) | none | bare as Saloon's guns; a sniper rifle keeps the scope its own config names (`weapon_scopes.md` §1) |
+| a gun's kit slots (scope, muzzle, grip) | random attachments that fit it (below) | a sniper rifle no scope: it keeps the one its own config names (`weapon_scopes.md` §1); no camo |
 
 - **Three classes:** the hand draws three different classes among the main-gun classes the band
   has (each class as likely: 4 in the low band, which has no machine gun; 5 in the others), then a
@@ -134,14 +134,25 @@ One **hand**: three kits, drawn once per card. Each kit's slots (`data.md`, "slo
   pockets and pocket size its worn pieces and skills give, the RGD-5's half rule, Additional
   Medicine). A player's base layout is one pocket of one unit, so most of a kit's pockets come
   from its drawn torso and backpack.
-- **The pool** (every slot): the items the shop sells (`prices::price`, not `ShopRule::NotSold`:
-  no test, quest, event or reward item), that are no golden or premium copy of another
-  (`Item::like`), that fit the slot, of the band. So the guns no shop sells (`shop.tsv` `not_sold`:
-  the VSS, the SR-3M, the SOCOM 16, the second NeoStead) are not dealt. Cosmetics have no profile
-  slot. Plain items the
-  data calls premium (the AK-74N, the tier-4 Scavenger and Black Market suits) are in: they are
-  bought for silver as every item. Nothing is listed in code; an item to keep out later would
-  take a key of its own in the game data.
+- **The pool:** the guns, the armour and the attachments are every item of the dictionary that fits
+  the slot (or is a module of the gun), of the band, and is no golden or premium copy of another
+  (`Item::like`): the owner, 2026-11-22, "the VSS, SR-3M, SOCOM 16 and the second NeoStead must be
+  in". Against the shop's list (the rule before), that lets in exactly those four guns and nothing
+  else, gun or armour: every other plain gear item of the live data (revision 69's quick build) is
+  sold, or a premium plain item (the AK-74N, the tier-4 Scavenger suit's torso and legs), and every
+  one has a name in the game's texts; none is a test or event item. The ammunition and the pocket
+  items stay the shop's (sold, or premium). Cosmetics have no profile slot. Nothing is listed in
+  code; an item to keep out later would take a key of its own in the game data.
+- **Attachments** (the owner, 2026-11-22: "there should be random applicable attachments on
+  weapons"; `attachments.md`): every gun of the hand, the main gun and the pistol, for each kind
+  of module it takes by the game data's modules table (the scope, the muzzle device, the grip:
+  `weapon_modules::Modules::fits`), none half the time (my pick), else one of the modules of that
+  kind that fit it beside those drawn before it (`Modules::check`, the one fit check), each as
+  likely (`Attachments::roll`). A sniper rifle gets no scope: its own stays. The modules have no
+  levels (`match_making_level` 0 for all 84), so any band takes any. Drawn once with the hand;
+  they reach the game as an owned module does, the gun's records (`weapon_kit::pack`, as Racket's
+  sight), their item ids from 1,000,000 up (no item of the profile, as an owned module is in no
+  kit). Nobody's inventory gives or gets one.
 - **The three kits** differ by their main gun's class at least; armour, pistol and pockets are
   drawn for each kit on its own and may repeat.
 
@@ -239,7 +250,8 @@ band a third or a half of it), so no share is a fraction.
 9. Ammo: the gun's highest-level ammo, whatever the band (the owner, after: "the ammo type should
    be highest available"); a shotgun its highest buckshot and its highest slug ("for shotguns it
    should be a mix").
-10. Guns bare, no scope or attachment: **yes** (rec., as Saloon); or Racket's EOTech where it fits.
+10. Attachments: random ones that fit (the owner, after: "there should be random applicable
+    attachments on weapons"), each kind half the time (my pick).
 11. The pay's equipment block: **none** (rec.).
 12. Weight held to 30 kg a kit: **yes** (rec.).
 13. The hand shown on the card before the vote: **later** (rec.).

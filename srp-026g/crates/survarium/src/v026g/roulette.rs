@@ -13,12 +13,15 @@ use super::drops::{Drops, Rng};
 use super::game_data::{GameData, GameDataError};
 use super::item_params::{self, ItemClass};
 use super::loadouts::{self, KitLayout, POCKET_SLOTS, bot_gear::category};
-use super::match_msgs::static_info::{FULL_CONDITION, KIT_USABLE, MatchItem, MatchKit, MatchProfile};
+use super::match_msgs::static_info::{
+    FULL_CONDITION, KIT_USABLE, MatchItem, MatchKit, MatchProfile, Upgrade,
+};
 use super::modifications::{MAX_RANK, Modifications};
 use super::prices;
 use super::skills::MODIFIERS;
 use super::skills::slot_modifier::{DISABLE_SECOND_WEAPON, USE_TWO_DOUBLE_HANDED_WEAPONS};
 use super::twist::STORE_LIVES;
+use super::weapon_modules::{self, Fitted, Kind, Modules};
 
 /// The kits of a hand: a profile's three.
 pub const KITS: usize = 3;
@@ -48,6 +51,10 @@ const WEIGHT_DRAWS: usize = 16;
 
 /// What a pocket is dealt: more than any pocket holds, so it is full ([`KitLayout::kept`]).
 const POCKET_FILL: u32 = 100;
+
+/// Where the item ids of a profile's attachment records start ([`arm`]): over every item id of a
+/// profile (its items' are 1 up), as an owned module's is no item of the profile.
+const RECORD_IDS: u32 = 1_000_000;
 
 /// A level band: every gun and armour piece of a hand is of one (the owner, 2026-11-22: "it should
 /// be either lvl1 to 5, lvl6 to 10, lvl11 to 15"; level 0 with the low one, his of the same day),
@@ -150,6 +157,7 @@ impl Bonuses {
 pub struct Gun {
     pub gun: u16,
     pub bonuses: Bonuses,
+    pub attachments: Attachments,
     pub ammo: Ammo,
     pub second: Option<Ammo>,
 }
@@ -157,6 +165,73 @@ pub struct Gun {
 impl Gun {
     fn ammo(&self) -> impl Iterator<Item = Ammo> {
         std::iter::once(self.ammo).chain(self.second)
+    }
+}
+
+/// The modules fitted to a gun of a hand, by kind in [`Kind::ALL`]'s order (the scope, the muzzle
+/// device, the grip): the owner, 2026-11-22: "there should be random applicable attachments on
+/// weapons" ([`Self::roll`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct Attachments([Option<u16>; 3]);
+
+impl Attachments {
+    /// What `gun` is fitted with: for each kind it takes ([`Modules::fits`]), none half the time,
+    /// else one of the modules of that kind that fit beside those drawn before it
+    /// ([`Modules::check`]), each as likely. A sniper rifle takes no scope: its own stays (the one
+    /// its config names).
+    fn roll(gun: u16, gear: &[u16], below: &mut impl FnMut(usize) -> usize) -> Self {
+        let modules = Modules::shared();
+        let sniper = Dictionary::shared()
+            .item(gun)
+            .is_some_and(|item| item.category == category::SNIPER_RIFLES);
+        let fits = modules.fits(gun);
+        let mut fitted = Fitted::default();
+        let mut attachments = [None; 3];
+        for (at, kind) in Kind::ALL.into_iter().enumerate() {
+            if sniper && kind == Kind::Scope {
+                continue;
+            }
+            let candidates: Vec<u16> = fits
+                .iter()
+                .filter(|&&(module, of)| of == kind && gear.contains(&module))
+                .map(|&(module, _)| module)
+                .filter(|&module| modules.check(gun, fitted.with(kind, Some(module))).is_ok())
+                .collect();
+            if candidates.is_empty() || pick(2, below) == 0 {
+                continue;
+            }
+            let module = candidates[pick(candidates.len(), below)];
+            fitted = fitted.with(kind, Some(module));
+            attachments[at] = Some(module);
+        }
+        Self(attachments)
+    }
+
+    /// The gun's records of them, as an owned module's reach a match (`weapon_kit::pack`, as
+    /// Racket's sight): each its module's dict id in its kind's slot, the record's item id from
+    /// `ids` (no item of the profile: an owned module is in no kit either).
+    fn records(&self, ids: &mut impl FnMut() -> u32) -> Vec<Upgrade> {
+        let held: Vec<super::lobby::Upgrade> = Kind::ALL
+            .into_iter()
+            .zip(self.0)
+            .filter_map(|(kind, module)| {
+                Some(super::lobby::Upgrade {
+                    id: ids(),
+                    a: u32::from(module?),
+                    value: 0,
+                    param: weapon_modules::slot_of(kind),
+                })
+            })
+            .collect();
+        super::weapon_kit::pack(&held)
+            .into_iter()
+            .map(|record| Upgrade {
+                id: record.id,
+                unknown_4: record.a,
+                unknown_8: record.value,
+                param: record.param,
+            })
+            .collect()
     }
 }
 
@@ -191,6 +266,15 @@ impl Dealt {
             CarryRule::OneDoubleHanded | CarryRule::TwoDoubleHanded => {
                 vec![(MAIN, self.main), (PISTOL, self.pistol)]
             }
+        }
+    }
+
+    /// The attachments of the gun in `slot` (none for any other slot).
+    fn attachments_at(&self, slot: usize) -> Attachments {
+        match slot {
+            7 => self.main.attachments,
+            10 => self.pistol.attachments,
+            _ => Attachments::default(),
         }
     }
 
@@ -232,7 +316,11 @@ impl Dealt {
                     .chain(self.bonuses_at(slot).modifications())
             })
             .collect();
-        let layout = KitLayout::new(&worn, modifiers);
+        let oxygen_tank = slots
+            .iter()
+            .flatten()
+            .any(|&(dict_id, _)| loadouts::is_oxygen_tank(dict_id));
+        let layout = KitLayout::new(&worn, modifiers, oxygen_tank);
         let bags = layout.ammo_bags();
         let shares = match guns.len() {
             1 => vec![bags],
@@ -289,6 +377,7 @@ impl Hand {
     ///   filled), a medkit, a grenade and four other pocket items in a drawn order; a kit over a
     ///   player's carry limit draws its armour again, [`WEIGHT_DRAWS`] times at most, then leaves
     ///   its heaviest pieces out until it fits;
+    /// - every gun its attachments ([`Attachments::roll`]);
     /// - every gun and armour piece its bonuses ([`Bonuses::roll`]; the owner, 2026-11-22:
     ///   "roulette should also give random bonuses on equipment/weapons"), from a generator
     ///   seeded by a roll.
@@ -300,6 +389,11 @@ impl Hand {
             let main = class[pick(class.len(), below)];
             pool.kit(main, below)
         });
+        for kit in &mut kits {
+            for gun in [&mut kit.main, &mut kit.pistol] {
+                gun.attachments = Attachments::roll(gun.gun, &pool.modules, below);
+            }
+        }
         let seed = (pick(1 << 31, below) as u64) << 32 | pick(1 << 31, below) as u64;
         let mut rng = Rng::new(seed);
         for kit in &mut kits {
@@ -384,6 +478,8 @@ struct BandPool {
     grenades: Vec<u16>,
     /// The other pocket items.
     others: Vec<u16>,
+    /// The modules a gun may be fitted with (they have no levels: every band's the same).
+    modules: Vec<u16>,
 }
 
 impl BandPool {
@@ -470,15 +566,26 @@ struct Pool {
 }
 
 impl Pool {
-    /// The pools of `dictionary`'s items that are dealt: those the shop offers (sold, or a premium
-    /// item, sold for silver as any), no golden or premium copy of another; or what a band lacks
-    /// for a hand: three main-gun classes, a pistol, a medkit, a grenade.
+    /// The pools of `dictionary`'s items that are dealt, or what a band lacks for a hand: three
+    /// main-gun classes, a pistol, a medkit, a grenade. The guns, the armour and the modules are
+    /// every such item of the dictionary that is no golden or premium copy of another (the owner,
+    /// 2026-11-22: the guns no shop sells too, the VSS, the SR-3M, the SOCOM 16); the ammunition
+    /// and the pocket items those the shop offers (sold, or a premium item, sold for silver as any).
     fn of(dictionary: &Dictionary) -> Result<Self, String> {
-        let offered: Vec<&Item> = dictionary
+        let gear: Vec<&Item> = dictionary
             .items
             .iter()
             .filter(|item| item.like.is_none())
+            .collect();
+        let offered: Vec<&Item> = gear
+            .iter()
+            .copied()
             .filter(|item| item.is_premium || prices::price(item.dict_id).is_some())
+            .collect();
+        let modules: Vec<u16> = gear
+            .iter()
+            .filter(|item| Modules::shared().is_module(item.dict_id))
+            .map(|item| item.dict_id)
             .collect();
         // The ammunitions the shop offers that `gun` fires and `slot` takes, with their clips.
         let ammo_of = |gun: u16, slot: u8| -> Vec<(u8, u32, Ammo)> {
@@ -513,7 +620,7 @@ impl Pool {
         };
         // The guns of `category` fitting `slots` in `band`'s levels, each with its ammunition.
         let guns = |category: u8, (gun_slot, ammo_slots): (u8, [u8; 2]), levels: Band| {
-            offered
+            gear
                 .iter()
                 .filter(|item| {
                     !item.is_stack
@@ -538,6 +645,7 @@ impl Pool {
                     Some(Gun {
                         gun: item.dict_id,
                         bonuses: Bonuses::default(),
+                        attachments: Attachments::default(),
                         ammo: first,
                         second,
                     })
@@ -562,7 +670,7 @@ impl Pool {
                 .find(|pistols| !pistols.is_empty())
                 .unwrap_or_default();
             let armour = std::array::from_fn(|slot| {
-                offered
+                gear
                     .iter()
                     .filter(|item| {
                         !item.is_stack
@@ -600,6 +708,7 @@ impl Pool {
                 medkits: ids(&medkit),
                 grenades: ids(&grenade),
                 others: ids(&|item: &Item| !medkit(item) && !grenade(item)),
+                modules: modules.clone(),
             };
             let lacks = [
                 (pool.classes.len() < KITS, "three main-gun classes"),
@@ -635,11 +744,17 @@ pub fn check(data: &GameData) -> Result<(), GameDataError> {
 
 /// `profile` with `hand`'s kits as its own: kit `n` the hand's `n`-th, held to the layout its skills
 /// give ([`Dealt::slots`]), loaded, its id, name and skills kept, its pockets packed. The profile's
-/// items are the hand's alone: each once (an item and its bonuses), held by every kit that has it,
-/// whole, its bonuses its own modifications, no upgrades, ids from 1; a stack's store the largest
-/// kit's units of it [`STORE_LIVES`] times.
+/// items are the hand's alone: each once (an item, its bonuses and its attachments), held by every
+/// kit that has it, whole, its bonuses its own modifications, a gun's attachments its records
+/// ([`Attachments::records`], their ids from [`RECORD_IDS`]), ids from 1; a stack's store the
+/// largest kit's units of it [`STORE_LIVES`] times.
 pub fn arm(profile: &mut MatchProfile, hand: &Hand) {
-    let mut items: Vec<MatchItem> = Vec::new();
+    let mut items: Vec<(MatchItem, Attachments)> = Vec::new();
+    let mut next_record = RECORD_IDS;
+    let mut record_id = || {
+        next_record += 1;
+        next_record
+    };
     let dictionary = Dictionary::shared();
     for (n, kit) in profile.kits.iter_mut().enumerate() {
         let dealt = &hand.kits[n % KITS];
@@ -650,25 +765,28 @@ pub fn arm(profile: &mut MatchProfile, hand: &Hand) {
             };
             let units = u16::try_from(units).unwrap_or(u16::MAX);
             let modifications = dealt.bonuses_at(slot).modifications();
-            let same = |item: &MatchItem| {
-                item.dict_id == dict_id && item.modifications == modifications
+            let attachments = dealt.attachments_at(slot);
+            let same = |(item, fitted): &(MatchItem, Attachments)| {
+                (item.dict_id, &item.modifications, *fitted) == (dict_id, &modifications, attachments)
             };
             let at = match items.iter().position(same) {
                 Some(at) => at,
                 None => {
                     let stack = dictionary.is_stack(dict_id);
-                    items.push(MatchItem {
+                    let item = MatchItem {
                         instance_id: items.len() as u32 + 1,
                         dict_id,
                         condition_or_stack: if stack { 0 } else { FULL_CONDITION },
                         modifications,
+                        upgrades: attachments.records(&mut record_id),
                         ..MatchItem::default()
-                    });
+                    };
+                    items.push((item, attachments));
                     items.len() - 1
                 }
             };
             if dictionary.is_stack(dict_id) {
-                let store = &mut items[at].condition_or_stack;
+                let store = &mut items[at].0.condition_or_stack;
                 *store = (*store).max(u32::from(units).saturating_mul(STORE_LIVES));
             }
             slots[slot] = Some((at as u16, units));
@@ -676,7 +794,7 @@ pub fn arm(profile: &mut MatchProfile, hand: &Hand) {
         let name = std::mem::take(&mut kit.name);
         *kit = MatchKit::new(KIT_USABLE, kit.id, name, slots, kit.modifiers);
     }
-    profile.items = items;
+    profile.items = items.into_iter().map(|(item, _)| item).collect();
 }
 
 #[cfg(test)]

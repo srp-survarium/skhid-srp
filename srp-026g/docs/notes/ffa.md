@@ -692,6 +692,12 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   loading screen shows its own frame for Free for All's (`SrvGameModeIcons.forTwist`): 7 Racket
   (crossed AK-12s), 8 Saloon (a cowboy hat), 9 Saloon (Winchester) (the hat over a Winchester), 10
   Roulette (two dice). The bitmaps are `flash/lobby_menu/bitmaps/GameModeIcon*.png`, 61 x 56.
+  - From the loading screen's first frame (the owner, 2026-11-22: never the skull first): when a
+    room's match is made the lobby server marks the room in it and sends each of its players the
+    room's state, its `L` row this match's mode, before it sends them to the match
+    (`room_send_to_match`), so the movie knows the twist (`LobbyGameLoad.twist`) before the game
+    opens the loading screen and calls `set_mm_level`. Later states (the 2 s poll) keep it; out of
+    a room, or a room not in its match, it is none.
 - **The kits:** the server owns what spawns: the static info's profiles, which every game cooks
   each life from. The match server arms every profile it gives (the first players', each late
   joiner's) before the Keeper's draw; the clients, late joiners and replays get the armed ones.

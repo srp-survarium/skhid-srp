@@ -1,0 +1,17 @@
+{
+ "_about": "Sharp Ears (412, the technical tree; docs/notes/technical-skills.md): a long-range copy of the grenade pin pull that exe patch 180 plays, on the skilled player's own game only, at an enemy's pin pull. The stock pull (every gun's throw_grenade/pull_pin_substate sounds, weapons/grenade_throw/grenade_pin_out_01) has spl_preset melee_wear (0.755 at 0 m, 0.29 at 1.2 m, 0.06 at 2.7 m, silent from 5 m) and stays as it is for everyone. The copy, weapons/grenade_throw/grenade_pin_out_far, is the same sample (its .high.ogg and .high.rms byte for byte) with spl_preset material_hit (1 at 0 m, 0.42 at 9 m, 0.22 at 16 m, 0.06 at 23 m, silent from 35 m: heard to about 25 m); volume_k (0.9) and spl_value (60) stay stock, the lesson of grenade-bounce-1 (a louder, hotter mix sounded different). Live = stock 0.26g (no patch carries these files): take the live folder from the stock resources.db.",
+ "copy": [
+  {
+   "files": "sounds/single/weapons/grenade_throw/grenade_pin_out_01.*",
+   "from": "sounds/single/weapons/grenade_throw/grenade_pin_out_01",
+   "to": "sounds/single/weapons/grenade_throw/grenade_pin_out_far"
+  }
+ ],
+ "replace_string": [
+  {
+   "files": "sounds/single/weapons/grenade_throw/grenade_pin_out_far.raw_options",
+   "from": "melee_wear",
+   "to": "material_hit"
+  }
+ ]
+}

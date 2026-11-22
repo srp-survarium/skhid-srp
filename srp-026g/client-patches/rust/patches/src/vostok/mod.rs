@@ -85,6 +85,7 @@ pub mod gun_cook;
 pub mod pickup;
 pub mod use_scan;
 pub mod streaming;
+pub mod texture_pool;
 pub mod ray_test;
 mod rt;
 pub mod sound;
@@ -180,6 +181,11 @@ pub use statistics::{Band, Batteries, Battery, BatteryCarry, Cell, Delivery, Hel
 
 pub mod medical;
 pub mod artefact_skills;
+pub mod technical;
+pub mod technical_sharp_ears;
+pub mod technical_return_to_sender;
+pub mod technical_dead_man;
+pub mod technical_smoke;
 pub mod keeper;
 pub mod courier;
 pub mod effect;
