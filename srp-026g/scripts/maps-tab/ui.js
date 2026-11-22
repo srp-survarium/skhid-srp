@@ -38,13 +38,13 @@
   };
   const fromHash = () => {
     const [key, mode] = decodeURIComponent(location.hash.slice(1)).split("/");
-    if (MAPS.maps.some(m => m.key === key)) { state.map = key; state.mode = Number(mode) || null; }
+    if (MAPS.maps.some(m => m.key === key)) { state.map = key; state.mode = mode || null; }
   };
   fromHash();
   const map = () => MAPS.maps.find(m => m.key === state.map);
   // Two maps in (nearly) one frame: a port and its original.
   const sameFrame = (a, b) => a.box.every((v, i) => Math.abs(v - b.box[i]) < 2);
-  const mode = () => map().modes.find(m => m.mode === state.mode) || map().modes[0];
+  const mode = () => map().modes.find(m => m.key === state.mode) || map().modes[0];
 
   document.title = T("Survarium maps", "Мапи Survarium");
   $("title").textContent = T("Maps", "Мапи");
@@ -60,6 +60,7 @@
   }
   const modeName = (m, all) => {
     const same = all.filter(o => N(o.name) === N(m.name));
+    if (m.layout) return `${N(m.name)} · ${m.layout + 1}`;
     return same.length > 1 && m.stations.length ? `${N(m.name)} · ${T("chargers", "зарядки")}` : N(m.name);
   };
 
@@ -130,9 +131,9 @@
 
   function drawControls() {
     const m = map();
-    if (!m.modes.some(o => o.mode === state.mode)) state.mode = m.modes[0].mode;
+    if (!m.modes.some(o => o.key === state.mode)) state.mode = m.modes[0].key;
     chips($("maps"), MAPS.maps.map(o => [o.key, N(o.name)]), state.map, k => { state.map = k; go(); });
-    chips($("modes"), m.modes.map(o => [o.mode, modeName(o, m.modes)]), state.mode, k => { state.mode = k; go(); });
+    chips($("modes"), m.modes.map(o => [o.key, modeName(o, m.modes)]), state.mode, k => { state.mode = k; go(); });
     chips($("views"), [["minimap", T("Minimap", "Мінімапа")], ["render", T("From above", "Згори")]], state.view,
       v => { state.view = v; store.set("view", v); go(); });
     const mo = mode();

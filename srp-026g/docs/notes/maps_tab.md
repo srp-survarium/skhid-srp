@@ -15,6 +15,8 @@ served by `servers/web-server/src/maps.rs`.
   - artefact spawns.
 - Research (mode 5) shows its three units, A to C, where its config puts them (`parameters.capture_zones`), as the
   HUD draws one nobody owns (a white letter on grey; its icon is drawn in code, not one of `_icons`).
+- A mode's second layout (School's Research, `research_mode.md` "Layouts") is a choice of its own beside the mode,
+  "Research · 2", with its own units; its address is `#level_02/5.2`.
 - Free for All (mode 8; the owner, 2026-11-13: "add to the wiki new mode with its spawns and a map") is a mode of
   every map that has it, and the maps played in it alone (the STALKER ports) are on the page with that one mode.
   It shows the spawns its players get: the team-2 points of its own project (`ffa.md`), never the two teams' points

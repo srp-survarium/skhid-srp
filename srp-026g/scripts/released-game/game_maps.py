@@ -4,7 +4,7 @@ their modes, and each project's HUD minimap. Shared by the Maps tab
 (srp-026g/scripts/maps-tab/build.py) and the top-down renders
 (srp-026g/scripts/damage-calc/assets/maps/tools/build_maps.py).
 
-    maps = playable(raw)                      # {folder: {"map_name", "build", "modes": {mode: {...}}}}
+    maps = playable(raw)                      # {folder: {"map_name", "build", "modes": {(mode, layout): {...}}}}
     minimaps = hud_minimaps(ffdec, raw, work)  # {project_name: (frame, bitmap png)}
 """
 import os
@@ -47,8 +47,10 @@ def playable(raw):
     variants (`mode.srp_variant`: Blackout's configs are mode 2, under
     their own ids) and whose project (`match_making_params.map_name`)
     exists. Of each map: the name key
-    (`map_name`) and per mode the ids, their projects and configs, the mode's
-    name key, parameters and rules."""
+    (`map_name`) and per mode and layout the ids, their projects and configs,
+    the mode's name key, parameters and rules. A layout is a mode's configs
+    of the same Research units (`parameters.capture_zones`): 0 the first the
+    dictionary gives, which every mode without units has alone."""
     dictionary = load(raw, "gameplay/db_static_dictionaries")
     maps = defaultdict(lambda: {"modes": defaultdict(lambda: {"ids": [], "projects": [], "configs": []})})
     for entry in dictionary["maps_dict"]:
@@ -63,7 +65,11 @@ def playable(raw):
         m = maps[folder]
         m["map_name"] = mode["ui"]["map_name"]
         m["build"] = build_of(mode, folder)
-        entry_mode = m["modes"][mode["mode"]]
+        units = [zone.get("position") for zone in (mode.get("parameters") or {}).get("capture_zones") or []]
+        layouts = m.setdefault("layouts", {}).setdefault(mode["mode"], [])
+        if units not in layouts:
+            layouts.append(units)
+        entry_mode = m["modes"][mode["mode"], layouts.index(units)]
         entry_mode["ids"].append(entry["id"])
         entry_mode["projects"].append(project_path)
         entry_mode["configs"].append({"id": entry["id"], "config": entry["cfg_mode_name"], "name": mode.get("name"),
