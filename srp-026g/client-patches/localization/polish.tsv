@@ -3090,7 +3090,7 @@ st_srp_technical_442_description	Po każdych 20 s ciągłego używania butli tle
 st_srp_technical_442_name	Tlenowy zryw
 st_srp_technical_443_description	Zabójstwo twoim granatem zwraca jeden granat.
 st_srp_technical_443_name	Szabrownik
-st_srp_technical_444_description	Twoja pułapka łamie nogi temu, kto w nią wpadnie. W kieszeni mieści się o połowę mniej pułapek.
+st_srp_technical_444_description	Twoja pułapka łamie nogi temu, kto w nią wpadnie. Pułapka zajmuje 1,5 miejsca w kieszeni.
 st_srp_technical_444_name	Pułapka na niedźwiedzie
 st_srp_technical_disarm_speed	Szybkość rozbrajania pułapek
 st_srp_technical_friendly_blast	Obrażenia od własnych granatów

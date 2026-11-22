@@ -3090,7 +3090,7 @@ st_srp_technical_442_description	Nach je 20 s ununterbrochener Nutzung der Sauer
 st_srp_technical_442_name	Sauerstoffschub
 st_srp_technical_443_description	Ein Kill mit deiner Granate gibt dir eine Granate zurück.
 st_srp_technical_443_name	Plünderer
-st_srp_technical_444_description	Deine Falle bricht dem Gefangenen die Beine. In eine Tasche passen nur halb so viele Fallen.
+st_srp_technical_444_description	Deine Falle bricht dem Gefangenen die Beine. Eine Falle belegt 1,5 Taschenplätze.
 st_srp_technical_444_name	Bärenfalle
 st_srp_technical_disarm_speed	Entschärfungstempo
 st_srp_technical_friendly_blast	Schaden durch eigene Granaten

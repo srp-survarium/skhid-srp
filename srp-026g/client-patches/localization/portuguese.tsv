@@ -3090,7 +3090,7 @@ st_srp_technical_442_description	A cada 20 s de uso contínuo do tanque de oxig�
 st_srp_technical_442_name	Arrancada de Oxigênio
 st_srp_technical_443_description	Uma eliminação com sua granada devolve uma granada.
 st_srp_technical_443_name	Saqueador
-st_srp_technical_444_description	Sua armadilha quebra as pernas de quem ela pega. Cada bolso comporta metade das armadilhas.
+st_srp_technical_444_description	Sua armadilha quebra as pernas de quem ela pega. Cada armadilha ocupa 1,5 espaço no bolso.
 st_srp_technical_444_name	Armadilha de Urso
 st_srp_technical_disarm_speed	Velocidade de desarme
 st_srp_technical_friendly_blast	Dano das próprias granadas

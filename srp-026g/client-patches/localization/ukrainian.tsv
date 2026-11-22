@@ -3090,7 +3090,7 @@ st_srp_technical_442_description	Після кожних 20 с безперер�
 st_srp_technical_442_name	Кисневий ривок
 st_srp_technical_443_description	Вбивство вашою гранатою повертає одну гранату.
 st_srp_technical_443_name	Мародер
-st_srp_technical_444_description	Ваш капкан ламає ноги тому, хто в нього потрапив. У кишеню вміщується вдвічі менше капканів.
+st_srp_technical_444_description	Ваш капкан ламає ноги тому, хто в нього потрапив. Капкан займає 1,5 місця в кишені.
 st_srp_technical_444_name	Ведмежий капкан
 st_srp_technical_disarm_speed	Швидкість розмінування
 st_srp_technical_friendly_blast	Шкода від своїх гранат

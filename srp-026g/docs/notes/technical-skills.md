@@ -23,6 +23,12 @@ reading chosen where the owner's list leaves it open (the owner may overrule it)
 - 2026-11-21 (the owner): Sapper 3 ranks of +15%; Rearm 2 ranks, 30 s then 20 s; Last Gasp in
   row IV; Tank Pocket and Tank Depth 2 ranks each (+2 pockets, +2 pocket size); Deep Breaths the
   sprint's energy use; Steady Breath the dispersion too.
+- 2026-11-22 (the owner): "traps always break legs skill should take 1.5 slots, not 2", "so you
+  could take 3 traps", "we can simulate fractions somehow, we don't need to overcomplicate there,
+  internally we can just multiply all by 2 or something, or use higher numbers for more logic",
+  "either way do what fits the most". Bear Trap's trap takes one and a half of a pocket's units:
+  a pocket holds two in three of its units in traps, at least one (see "Pocket units: Toxic Smoke
+  (441) and Bear Trap (444)").
 - 2026-11-22 (the owner), Oxygen Rush (442), in four steps: "last gasp should be renamed and
   activate every 30 seconds of oxygen tank usage" (Last Gasp becomes Oxygen Rush, «Кислородный
   рывок», my pick of the name, which he kept; "Second Wind" is medical skill 324's in every
@@ -67,7 +73,7 @@ reading chosen where the owner's list leaves it open (the owner may overrule it)
 | 4 | 12 | 442 | Oxygen Rush | 1 | after every 20 s of oxygen tank use without a break and at its run-out: +10% speed for 20 s, energy full | exe |
 | 5 | 16 | 441 | Toxic Smoke | 3 | its smoke is tinted green and does toxic damage to enemies inside; a pocket holds half as many grenades | exe + pack + srp + lobby |
 | 5 | 16 | 443 | Scavenger | 1 | a kill with its grenade gives one grenade back | exe |
-| 5 | 16 | 444 | Bear Trap | 1 | its trap breaks the legs it catches; a pocket holds half as many traps | exe + srp + lobby |
+| 5 | 16 | 444 | Bear Trap | 1 | its trap breaks the legs it catches; a trap takes 1.5 pocket units | exe + srp + lobby |
 
 "Weapon dispersion" in the owner's list is read as the aimed sway (my pick, as on 2026-11-08: a
 skill never changes what a shot does).
@@ -248,16 +254,37 @@ the ms passed become ms x (10 + rank) / 10 for the user's player (`Skills::crate
   affects follow from the stored health. Only the legs: the body's and the pain's shares are the
   stock ones.
 
-## Halved pockets: Toxic Smoke (441) and Bear Trap (444)
+## Pocket units: Toxic Smoke (441) and Bear Trap (444)
 
 - "Decreases the carry capacity to 2 slots (like normal grenades)": the RGD-5 takes two of a pocket's
   units (`parameters/pocket_units` 2, `PocketShare::Pair`; one-pocket-a-type.md). With Toxic Smoke
-  every grenade of the kit does, with Bear Trap every trap (`technical_skills::Skills::halves`).
-- srp: `loadouts::KitLayout::share`, so every kit and preset is held to it, and taking the skill
-  takes the units over the half off (a slot names units of the inventory's stack: nothing is lost).
-- The lobby: `PlayerInfo.pocketUnits` by the item's category (grenades 24, traps 11), fed by the
-  committed skills (`PlayerInfo.committedSkills`).
-- The match plays the kit it is sent, so nothing of this is in the exe.
+  every grenade of the kit does. With Bear Trap every trap takes one and a half
+  (`PocketShare::ThreeHalves`; `technical_skills::Skills::stack_units`): a pocket of `n` units holds
+  2n/3 traps, rounded down, at least one, as a pair's pocket holds n/2, at least one.
+- Where the units are counted: a pocket's size (`pocket_slot_size` plus the gear's and the skills'
+  modifiers, at most five) and what one item takes of it are srp's (`loadouts::KitLayout`,
+  `PocketShare::units_in`) and the lobby's (`PlayerInfo.pocketUnits`, `itemUnits`), each as a
+  number of items a pocket holds; the match plays the kit it is sent (its slot counts), so nothing
+  of this is in the exe and nothing saved or sent changes meaning. One and a half was the one new
+  share: srp computes it in whole numbers (`size * 2 / 3`), the lobby in halves (`2 x size / 3`
+  of a share of 3 halves, a pair's 4, one unit's 2: the same numbers as before for every other
+  item); the card's "Pocket slots" row shows 1.5.
+- What fits in one pocket (one pocket a type, so this is the most a kit carries):
+
+  | Pocket units | 1 | 2 | 3 | 4 | 5 |
+  |---|---:|---:|---:|---:|---:|
+  | traps, without Bear Trap | 1 | 2 | 3 | 4 | 5 |
+  | traps, Bear Trap until 2026-11-22 (2 units) | 1 | 1 | 1 | 2 | 2 |
+  | traps, Bear Trap now (1.5 units) | 1 | 1 | 2 | 2 | 3 |
+
+  A pocket of five (the most: the player's one, the gear's +1/+2 and Tank Depth, capped at five)
+  holds three, the owner's "so you could take 3 traps". A pocket of one holds one, as a pair's.
+- srp: `loadouts::KitLayout::share`, so every kit and preset is held to it; a skill change keeps
+  what still fits and takes the rest off (a slot names units of the inventory's stack: nothing is
+  lost).
+- The lobby: fed by the committed skills (`PlayerInfo.committedSkills`); a pocket draws its units
+  as cells, the traps in it and the units they use up in pale red last (5 units: 3 traps, 2 red).
+- A change of what a kit can carry into a match: the `next` row.
 
 ## Grenades: Blast Drill (404), Scavenger (443)
 
