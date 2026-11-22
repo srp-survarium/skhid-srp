@@ -68,7 +68,6 @@ use std::time::{Duration, Instant};
 use survarium::v026g::drops::Rng;
 use survarium::v026g::lobby::rooms::rules;
 use survarium::v026g::maps::{self, MapId};
-use survarium::v026g::racket;
 use survarium::v026g::twist::{self, Played};
 
 use super::level_stats;
@@ -1344,10 +1343,11 @@ impl Rooms {
     /// The vote's cards from the pool ([`Self::draw`]), each a map a match
     /// can be played on, and then, in a room behind `door`, each
     /// free-for-all's twist or none: an open room's (the server's) drawn by
-    /// its share ([`twist::draw`]; the owner, 2026-11-15: "let's make saloon
-    /// 20%"), Racket with the gun of the room's max level
-    /// ([`racket::Gun::of_room`]: "racket on lvl10 room should not give
-    /// AK-12 and instead AK74N"), a private room's none (the owner,
+    /// its share and armed for the room ([`twist::deal`]; the owner,
+    /// 2026-11-15: "let's make saloon 20%"), Racket with the gun of the
+    /// room's max level ("racket on lvl10 room should not give AK-12 and
+    /// instead AK74N"), Roulette with a band it allows and a hand of it
+    /// (`docs/notes/ffa-roulette.md`), a private room's none (the owner,
     /// 2026-11-15: "we can also remove from private lobbies FFA: Saloon and
     /// FFA: Racket"). A pool's id no match can play is no card.
     fn deal(pool: &[MapId], door: Door, below: &mut impl FnMut(usize) -> usize) -> Vec<Played> {
@@ -1359,7 +1359,7 @@ impl Rooms {
             .map(|map| match door {
                 Door::Open { max_level } if map.mode() == maps::GameMode::FreeForAll => {
                     let roll = below(twist::SHARE_TOTAL as usize) as u32;
-                    twist::draw(roll, racket::Gun::of_room(max_level))
+                    twist::deal(roll, max_level, below)
                         .and_then(|twist| Played::twisted(map, twist))
                         .unwrap_or(Played::plain(map))
                 }

@@ -867,6 +867,7 @@ fn init_with(data: GameData) -> Result<&'static GameData, GameDataError> {
     super::keeper::check(data)?;
     super::racket::check(data)?;
     super::cowboy::check(data)?;
+    super::roulette::check(data)?;
     log::info!(
         "game data: {} ({} gameplay and text files, {} projects; made of {}; {} patch(es) offered at \
          /patches)",

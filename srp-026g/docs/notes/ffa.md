@@ -641,8 +641,11 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   hold one).
 - **Where:** in the server's rooms (Play's, the open ones) alone, each free-for-all card of a
   vote (the third card; all three in a pool of free-for-alls alone) draws its twist with the card,
-  by its share (`twist::shares`, `twist::draw`):
-  - plain Free for all 40 %, **Racket** 40 % (my pick: as often as each other);
+  by its share (`twist::SHARES`, `twist::draw`, armed for the room by `twist::deal`):
+  - plain Free for all 40 % (50 from 2026-11-22 until Roulette took 10 of it the same day),
+    **Racket** 40 % (my pick: as often as each other);
+  - **Roulette** 10 % (`ffa-roulette.md`): a level band the room allows and one hand of three kits
+    of it, every player's;
   - **Cowboy**, "Saloon" in the lobby, 10 % since 2026-11-22 (20 % from 2026-11-15, the owner: "let's make saloon 20% with
     two variations (no need to name them)"; 10 % before, 2026-11-14: "cowboy version should be
     rare with only 10% chance"), in two variations (the owner, 2026-11-14: "saloon should have
@@ -673,11 +676,22 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   (Винчестер), Салун (Вінчестер) (uk), Салун (Вінчэстар) (be), Saloon (Winchester) (pl, de, cs,
   hu), Salun (Winchester), Saluuna (Winchester) (the game's own words for the Winchester: its
   item's and its ammunition's).
-  The lobby's mode numbers 9 Racket, 10 Saloon (the Colt alone) and 11 Saloon (Winchester)
+  `st_srp_mode_roulette_low`, `_mid`, `_high` FFA: Roulette 0-5, 6-10, 11-15 (Рулетка in ru, uk,
+  be; `ffa-roulette.md` has every language).
+  The lobby's mode numbers 9 Racket, 10 Saloon (the Colt alone), 11 Saloon (Winchester) and 14,
+  15, 16 Roulette by its band
   (`Armed::lobby_number`: the twist as it arms; 7 is Scarcity's; the two Saloons' tags one
   colour): a card's tag and colour, the room's banner of its match (`lobby.md`, rooms' `C` and `L`
   rows), the log's "mode". The game's own screens (loading, results, the HUD) say Free for all:
   they read the map's config.
+- **Mode icons** (the owner's picks, 2026-11-22; until then all four showed Team Deathmatch's skull):
+  the loading screen shows the lobby movie's `SrvGameModeIcons` frame `ui.icon` + 1. Free for
+  All's configs have `ui.icon` 5, frame 6 (a bone skull with a bullet hole; content edit
+  `ffa-icon-1`, after every list that makes a Free for All config). A twist has no config: while
+  the room's match plays one (the room state's `L` row in the match's phase, its lobby mode), the
+  loading screen shows its own frame for Free for All's (`SrvGameModeIcons.forTwist`): 7 Racket
+  (crossed AK-12s), 8 Saloon (a cowboy hat), 9 Saloon (Winchester) (the hat over a Winchester), 10
+  Roulette (two dice). The bitmaps are `flash/lobby_menu/bitmaps/GameModeIcon*.png`, 61 x 56.
 - **The kits:** the server owns what spawns: the static info's profiles, which every game cooks
   each life from. The match server arms every profile it gives (the first players', each late
   joiner's) before the Keeper's draw; the clients, late joiners and replays get the armed ones.

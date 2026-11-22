@@ -1,11 +1,12 @@
-# Free for all: Roulette (working name "The Deal"), everyone plays the same random equipment
+# Free for all: Roulette, everyone plays the same random equipment
 
 The owner, 2026-11-22: "let's design ffa: randomness (come up w/better name)", "where everyone gets
 the same random equipment of the same level (3 kits are different)"; of the levels: "it should be
 either lvl1 to 5, lvl6 to 10, lvl11 to 15"; "high lvl rooms can get low lvl bands".
 
-A twist of the free-for-all cards (`ffa.md`, "Twists"), beside Racket and Saloon. Spec and plan
-only: nothing of it is implemented.
+A twist of the free-for-all cards (`ffa.md`, "Twists"), beside Racket and Saloon. The owner
+approved the name, level 0 in the low band and every recommendation below (2026-11-22). Code:
+`survarium::v026g::roulette`, `twist`, `session::v026g::rooms::Rooms::deal`.
 
 ## In short (for the owner)
 
@@ -24,7 +25,8 @@ only: nothing of it is implemented.
 
 ## The name
 
-Proposed: **Roulette**, ru **Рулетка**, uk **Рулетка** (my pick over "The Deal"): one word, as
+**Roulette**, ru **Рулетка**, uk **Рулетка** (my pick over the working name "The Deal", the owner's
+choice): one word, as
 Racket and Saloon; it says "random" at once, in every language nearly the same word; the band
 after it says what is at stake. The working name stays the alternative: **Deal**, ru **Раздача**,
 uk **Роздача** (everyone is dealt the same hand; in English "a deal" also reads as a bargain, and
@@ -105,7 +107,8 @@ One **hand**: three kits, drawn once per card. Each kit's slots (`data.md`, "slo
   alone.
 - **Pockets:** six kinds a kit, each a different item type (one pocket a type,
   `one-pocket-a-type.md`), of the pocket categories (10 medicines and boosters, 11 traps, 24
-  grenades) the shop sells, at most the band's top: first a healing medkit (one of the medkits,
+  grenades) the shop sells, at most the band's top: first a healing medkit (a medicine whose
+  dictionary name ends in `medkit`: the Medikit, the military, science and Black Market ones,
   as likely), then a grenade (frag or smoke), then four of the rest (bandages, antitoxin,
   painkiller, the boosters, the trap, the other grenade) in a drawn order. The kit holds as many as
   its pockets open, each pocket full: the layout's own limit (`loadouts::KitLayout::kept`: the
@@ -114,10 +117,12 @@ One **hand**: three kits, drawn once per card. Each kit's slots (`data.md`, "slo
   from its drawn torso and backpack.
 - **The pool** (every slot): the items the shop sells (`prices::price`, not `ShopRule::NotSold`:
   no test, quest, event or reward item), that are no golden or premium copy of another
-  (`Item::like`), that fit the slot, of the band. Cosmetics have no profile slot. Plain items the
+  (`Item::like`), that fit the slot, of the band. So the guns no shop sells (`shop.tsv` `not_sold`:
+  the VSS, the SR-3M, the SOCOM 16, the second NeoStead) are not dealt. Cosmetics have no profile
+  slot. Plain items the
   data calls premium (the AK-74N, the tier-4 Scavenger and Black Market suits) are in: they are
-  bought for silver as every item. Nothing is listed in code; an item to keep out later is a key
-  of its config set by an edit list (`srp_no_roulette`), read with the rest of the data.
+  bought for silver as every item. Nothing is listed in code; an item to keep out later would
+  take a key of its own in the game data.
 - **The three kits** differ by their main gun's class at least; armour, pistol and pockets are
   drawn for each kit on its own and may repeat.
 
@@ -196,9 +201,10 @@ band a third or a half of it), so no share is a fraction.
   main guns: the card row would carry them, `C;...` in `RoomsWindow.as`, and the movie draw them),
   and a line at the match's start. The band in the name says what the vote needs; the guns are a
   surprise until the warm-up, which is the twist's point.
-- The game's own screens (loading, results, HUD) say Free for all, as for every twist.
+- The game's own screens (loading, results, HUD) say Free for all, as for every twist. The loading
+  screen's icon is Roulette's own (two dice; `ffa.md`, "Mode icons"), by the room's match.
 
-## Open decisions (each with my recommendation)
+## Decisions (the owner approved each recommendation, 2026-11-22)
 
 1. Name: **Roulette / Рулетка / Рулетка** (rec.), or Deal / Раздача / Роздача.
 2. Band odds: **equal among the allowed bands** (rec., the owner's default).
