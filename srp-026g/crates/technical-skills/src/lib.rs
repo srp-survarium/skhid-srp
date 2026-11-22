@@ -462,6 +462,11 @@ impl Skills {
     }
 }
 
+/// Tank Container (445): a kit that wears an oxygen tank gets one more artefact container. No digit
+/// of [`MODIFIER`]: the skill's data is the container (`artefact_slots` +1, as Artifact Container's),
+/// which srp leaves out of the modifier block of a kit without a tank; the exe never knows it.
+pub const TANK_CONTAINER: u16 = 445;
+
 #[cfg(test)]
 mod tests {
     use super::*;

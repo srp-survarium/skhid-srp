@@ -3092,6 +3092,8 @@ st_srp_technical_443_description	Uma eliminação com sua granada devolve uma gr
 st_srp_technical_443_name	Saqueador
 st_srp_technical_444_description	Sua armadilha quebra as pernas de quem ela pega. Cada armadilha ocupa 1,5 espaço no bolso.
 st_srp_technical_444_name	Armadilha de Urso
+st_srp_technical_445_description	Com tanque de oxigênio no kit: mais um recipiente para artefato.
+st_srp_technical_445_name	Recipiente no Tanque
 st_srp_technical_disarm_speed	Velocidade de desarme
 st_srp_technical_friendly_blast	Dano das próprias granadas
 st_srp_technical_oxygen_rush	Velocidade após 20 s de tanque e no fim

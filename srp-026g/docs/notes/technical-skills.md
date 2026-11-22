@@ -7,7 +7,7 @@ reading chosen where the owner's list leaves it open (the owner may overrule it)
 ## The tree
 
 - The fourth skills tab, "Technical skills" (`st_engineering_skills_label`, the stock text in
-  every language), ids 401..443 (branch 4, the tens digit the row). Seventeen skills about the
+  every language), ids 401..445 (branch 4, the tens digit the row). Eighteen skills about the
   equipment players have: batteries, oxygen tanks, smoke grenades, traps, grenades. No new items.
 - Source: `scripts/content-edit/technical-skills-1.json` (`release/content.tsv`), names and
   descriptions in `client-patches/localization/*.tsv` (`st_srp_technical_<id>_name` /
@@ -16,13 +16,20 @@ reading chosen where the owner's list leaves it open (the owner may overrule it)
   render with a white badge (`scripts/technical-skills/make_icons.py`, the owner 2026-11-21), the
   others 0.69d0 engineering/utility artwork.
 - Rows at 0/4/8/12/16 (the stock rule: a row needs that many points in the rows above it, in
-  this branch). A full build is 30 points; Tank Pocket and Tank Depth exclude each other.
+  this branch). A full build is 31 points; Tank Pocket and Tank Depth exclude each other.
 - A build can leave out one item's skills and still reach row V (the owner, 2026-11-21: "people
   cannot use this skill tree while ignoring some other skills like oxygen tanks"): without the
   tank skills rows I-IV give 17 points, without the traps' 18 (my thresholds).
 - 2026-11-21 (the owner): Sapper 3 ranks of +15%; Rearm 2 ranks, 30 s then 20 s; Last Gasp in
   row IV; Tank Pocket and Tank Depth 2 ranks each (+2 pockets, +2 pocket size); Deep Breaths the
   sprint's energy use; Steady Breath the dispersion too.
+- 2026-11-22 (the owner): "and we need one more skill which gives artifact container in oxygen
+  tanks, it should be lvl5". Tank Container (445, «Контейнер в баллоне», name and id my picks), row V
+  in the tanks' column, one rank: a kit that wears an oxygen tank has one more artefact container,
+  beside Artifact Container's (522) when it has both. It takes a quick position the pockets leave,
+  never a pocket (see "Tank Container (445)"). The owner, the same day, on a kit whose pockets
+  fill the six quick positions: "yes, we have max 6 slots, and if there are already 6 sdlots, new
+  ones are not added" (no container there, no pocket given up).
 - 2026-11-22 (the owner): "traps always break legs skill should take 1.5 slots, not 2", "so you
   could take 3 traps", "we can simulate fractions somehow, we don't need to overcomplicate there,
   internally we can just multiply all by 2 or something, or use higher numbers for more logic",
@@ -74,6 +81,7 @@ reading chosen where the owner's list leaves it open (the owner may overrule it)
 | 5 | 16 | 441 | Toxic Smoke | 3 | its smoke is tinted green and does toxic damage to enemies inside; a pocket holds half as many grenades | exe + pack + srp + lobby |
 | 5 | 16 | 443 | Scavenger | 1 | a kill with its grenade gives one grenade back | exe |
 | 5 | 16 | 444 | Bear Trap | 1 | its trap breaks the legs it catches; a trap takes 1.5 pocket units | exe + srp + lobby |
+| 5 | 16 | 445 | Tank Container | 1 | with an oxygen tank in the kit: one more artifact container | srp (the kit's block) + lobby |
 
 "Weapon dispersion" in the owner's list is read as the aimed sway (my pick, as on 2026-11-08: a
 skill never changes what a shot does).
@@ -87,7 +95,9 @@ others' bound) away: every sum lies in -LOW..LOW, each an exact f32 (the tree ha
 builds, more than 2^24 non-negative integers hold). The `technical-skills` crate
 (`crates/technical-skills`) parses it once for exe patch 180 and srp; each skill's numbers are
 there and nowhere else. A value that is not a whole number below the bound, or holds both of the
-pair, is no skill at all.
+pair, is no skill at all. Tank Container (445) has no digit: one more one-rank digit would double
+the builds past what the f32 holds, and the exe has nothing to do for it (its data is the
+container, below).
 
 | Order (weight) | Skill (ranks) |
 |---|---|
@@ -120,6 +130,39 @@ booster's modifications; 29 the hand-kill marker.
 - srp: `loadouts::KitLayout` counts the same pocket (an oxygen tank among the worn slots,
   `ItemClass::OxygenTank`), so a skill change (`narrowed`) takes off what the pair opened only when
   the pair goes, and never what the lobby's own limit allowed.
+
+## Tank Container (445)
+
+- Data: modifier 14 `artefact_slots` +1 (`technical-skills-1.json`), additive, as Artifact
+  Container's, without its `pocket_slots` -1. The kit's modifier block is the only source of
+  skills in a match (`skills.rs`) and the lobby's apply_kit_parameter reads the same block, so
+  nothing of the exe changes.
+- srp's alone decides where it counts: `Account::kit_modifiers` builds a kit's block from
+  `loadouts::kit_skills`, which leaves Tank Container out of a kit that wears no oxygen tank
+  (`is_oxygen_tank`, the item class, as Tank Pocket's) and Artifact Container out of a kit whose
+  slot is the pocket. The account goes to the lobby after every change of a kit (a move's answer is
+  the account), so a tank put on or taken off brings or takes the container at once; the match
+  takes the same block (`MatchProfile` from the account body).
+- Where it sits: the six quick positions (13..18) are the pockets first, then the containers
+  (the lobby: `ProfileSlot.artifactCount`, at most 6 - pockets; the match:
+  `inventory::setup_from_profile` 0x2FD1C3, from the first quick slot with no object, at most to
+  slot 18, none when all six hold one). So it is a real slot more, in the first place the pockets
+  leave, drawn as any artefact container; it never takes a pocket. A kit whose pockets already
+  take all six positions has no room for it (the owner's rule, medical-skills.md: six supply
+  pockets leave no artifact slot), as for any container its gear gives. With the tank worn a kit
+  has no backpack, so it has room unless its pockets are six (a torso of two pockets, Tank
+  Pocket 2, Deep Pockets or Supply Pocket).
+- Nothing is ever lost: srp never puts a lobby item in a container, and a container never takes a
+  pocket, so taking the tank off, refunding the skill or putting on a preset changes no pocket
+  (`keep_to_layout` holds as before). Artifact Container's click (pocket or container) is its own
+  slot's only: the tank's container has no choice. In a match it is a container as any other:
+  Keeper's gift goes into the first empty one, Courier moves into it, take_artefact fills it.
+- The lobby: the tank's card lists it with its built-in bonuses ("Artifact slots" +1, 1040's
+  icon 4 and prop 9; `MatchEffects.tankBonuses`, from the committed skills,
+  `PlayerInfo.tankContainer`).
+- Icon: the tank's render with a cut gem in the badge (`make_icons.py`, `gem`).
+- A change of what a match computes (a kit carries one more artefact): `simulation_changes.tsv`'s
+  `next` row.
 
 ## The oxygen tank skills (403, 431, 442)
 

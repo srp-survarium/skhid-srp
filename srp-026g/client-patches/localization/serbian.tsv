@@ -3092,6 +3092,8 @@ st_srp_technical_443_description	Ubistvo tvojom granatom vraća jednu granatu.
 st_srp_technical_443_name	Strvinar
 st_srp_technical_444_description	Tvoja zamka lomi noge onome ko u nju upadne. Zamka zauzima 1,5 mesta u džepu.
 st_srp_technical_444_name	Medveđa zamka
+st_srp_technical_445_description	Sa bocom s kiseonikom u kompletu: još jedan kontejner za artefakt.
+st_srp_technical_445_name	Kontejner u boci
 st_srp_technical_disarm_speed	Brzina razoružavanja zamki
 st_srp_technical_friendly_blast	Šteta od sopstvenih granata
 st_srp_technical_oxygen_rush	Brzina posle 20 s boce i na kraju

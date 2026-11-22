@@ -3092,6 +3092,8 @@ st_srp_technical_443_description	Zabití tvým granátem vrátí jeden granát.
 st_srp_technical_443_name	Mrchožrout
 st_srp_technical_444_description	Tvá past láme nohy tomu, koho chytí. Past zabere 1,5 místa v kapse.
 st_srp_technical_444_name	Medvědí past
+st_srp_technical_445_description	S kyslíkovou láhví v sadě: o jeden kontejner na artefakt víc.
+st_srp_technical_445_name	Kontejner v láhvi
 st_srp_technical_disarm_speed	Rychlost zneškodnění pastí
 st_srp_technical_friendly_blast	Poškození od vlastních granátů
 st_srp_technical_oxygen_rush	Rychlost po 20 s láhve a na konci
