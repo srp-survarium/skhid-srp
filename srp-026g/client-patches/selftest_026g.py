@@ -1936,19 +1936,20 @@ def test_hide_ui(original, image, before):
     check(all("public function hide_interface(hidden:Boolean) : void" in t and "visible = !hidden;" in t
               for t in (hud, icons)) and "public function interface_hidden() : Boolean" in hud
           and hud_adds == [("HUD.as", "stage", "this._keptLayer"), ("HUD.as", "stage", "this.deathEyes"),
-                           ("HUD.as", "stage", "this.effectContainer")]
+                           ("HUD.as", "stage", "this.effectContainer"), ("HUD.as", "stage", "this.roundFade")]
           and not icon_adds
           and "stage.addChildAt(this.effectContainer,stage.getChildIndex(this));" in hud
           and "stage.addChildAt(this.deathEyes,stage.getChildIndex(this));" in hud
+          and "stage.addChildAt(this.roundFade,stage.getChildIndex(this));" in hud
           and "this._stageLayer.addChild(this.gameInfo);" in hud and "place.concat(this.transform.matrix);" in hud
           and all(f"override public function {f}" in hud for f in ("addChild(", "addChildAt(", "setChildIndex("))
           and "InterfaceHider" not in "".join(tree("hud").values()) + "".join(tree("player_icons").values())
           and all(f"this.effects[this.{name}] = " in hud for name in ("BLOOD_EFFECT", "BLOOD_DRIP1", "GRENADE_EFFECT")),
           "the hud's and the player icons' interface is their root, hidden in one step (root.hide_interface; the "
-          "hud's interface_hidden); the hud's fps line is in the root's _stageLayer; the two things on the hud's "
-          "stage beside the root are the screen effects' container (add_effect's blood, its drips, the grenade's "
-          "flash), below the root, placed as the root is scaled: the scene's, so it stays (the owner, 2026-10-24), "
-          "and the death fade (DeathEyes, #529) between them, which F11 leaves too")
+          "hud's interface_hidden); the hud's fps line is in the root's _stageLayer; below the root on the hud's "
+          "stage are the screen effects' container (add_effect's blood, its drips, the grenade's flash), placed as "
+          "the root is scaled: the scene's, so it stays (the owner, 2026-10-24), then the death fade (DeathEyes, "
+          "#529) and Artifact Hunt's round fade (RoundFade, #2363), which F11 leaves too")
     check("public function toggle_interface() : void" in lobby and "public function interface_hidden() : Boolean" in lobby,
           "the lobby movie has root.toggle_interface and root.interface_hidden")
 
