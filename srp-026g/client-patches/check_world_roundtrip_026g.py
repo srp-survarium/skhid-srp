@@ -161,6 +161,15 @@ OWN_CHECKS = {
                    "check_free_for_all_026g.py (saved after the game's own bytes, loaded by a late joiner and in a "
                    "rollback, saved the same, the same choices after; another mode's bytes the game's alone)",
     (0x317038, 7): "respawn.load: as respawn.save",
+    (0x303DF8, 5): "smoke.save_state (patch 180, Toxic Smoke): grenade_core::serialize's current_state bit 3 when "
+                   "the grenade keeps a toxic cloud (the objects section, no decoder); check_technical_smoke_026g.py "
+                   "(serialize, then the load: the same cloud, the reader at its end)",
+    (0x303E40, 7): "smoke.save_cloud: the cloud's 16 bytes after the thrown fields, as smoke.save_state",
+    (0x30406C, 7): "smoke.load_cloud: as smoke.save_state (a world without the bit clears the grenade's cloud)",
+    (0x33E7E7, 5): "technical.tank_save (patch 180, Last Gasp): the boost's u32 after the oxygen tank's m_amount_ms, "
+                   "always written (the players section; srp-validate's OxygenTank reads it); "
+                   "technical_skills::Gasp's test and srp-validate's parse",
+    (0x33E82F, 7): "technical.tank_load: as technical.tank_save, checked against the stream's end",
 }
 CODEC = re.compile(r"::(de)?serialize")
 CODEC_ALSO = {0x32BBC0: "survarium::bullet::bullet (the bullet loader)",

@@ -302,6 +302,14 @@ extern engine_particle_insert
 ; 0x292dc0 survarium::object_particle_visual::remove: particle ECX; pops 0; thiscall, called directly
 ; thiscall: push (and ECX for thiscall) as that convention says
 extern engine_particle_remove
+; void engine_probe_insert(struct object_environment_probe *probe)
+; 0x28ffd0 survarium::object_environment_probe::insert: probe ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_probe_insert
+; void engine_probe_remove(struct object_environment_probe *probe)
+; 0x2904a0 survarium::object_environment_probe::remove: probe ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_probe_remove
 ; void engine_inventory_remove(struct inventory *inventory, unsigned int slot)
 ; 0x2fc680 survarium::inventory::remove_item: inventory ESI, slot EAX; pops 0
 extern engine_inventory_remove
@@ -925,6 +933,40 @@ extern engine_global_unlock
 ; 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly
 ; stdcall: push (and ECX for thiscall) as that convention says
 extern engine_set_texture
+; void engine_trap_switch_state(struct booby_trap_core *trap, unsigned int state)
+; 0x305210 survarium::booby_trap_core::switch_to_state: trap ECX, state ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_trap_switch_state
+; void engine_trap_insert_collision(struct booby_trap_core *trap)
+; 0x304e20 survarium::booby_trap_core::insert_collision: trap ESI; pops 0
+extern engine_trap_insert_collision
+; void engine_trap_remove(struct booby_trap_core *trap)
+; 0x304f00 survarium::booby_trap_core::remove: trap ESI; pops 0
+extern engine_trap_remove
+; void engine_world_play_sound(struct game_world *world, const unsigned int *slot, const float *position)
+; 0x25b940 survarium::game_world::play_sound: world ECX, slot ESP+4, position ESP+8; pops 8; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_world_play_sound
+; void engine_grenade_remove(struct grenade_core *grenade)
+; virtual survarium::grenade_core+0x1c (2 vtables of vtables.tsv: 0x248600, 0x303d50): grenade ECX; pops 0
+extern engine_grenade_remove
+; void engine_grenade_throw(struct grenade_core *grenade, const float *transform, const float *velocity)
+; virtual survarium::grenade_core+0x18 (2 vtables of vtables.tsv: 0x248520, 0x303c10): grenade ECX, transform ESP+4, velocity ESP+8; pops 8
+extern engine_grenade_throw
+; void engine_select_profile(struct game_world *world, unsigned int value)
+; 0x1f8070 survarium::game_world::select_profile: world EDI, value ESP+4; pops 4
+extern engine_select_profile
+; unsigned char engine_pull_pin(struct grenade_set *set, unsigned int now)
+; 0x30a120 survarium::grenade_set_core::pull_pin: set ESP+4, now ESP+8; pops 8; AL; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_pull_pin
+; void engine_player_hit(struct hit_receiver *receiver, unsigned int time, const struct bullet_owner *attacker, const struct hit_part *bodypart, unsigned int kind, float damage, float piercing, const void *initiator, struct item *item)
+; 0x2d9ae0 survarium::base_player::hit: receiver ECX, time ESP+4, attacker ESP+8, bodypart ESP+12, kind ESP+16, damage ESP+20, piercing ESP+24, initiator ESP+28, item ESP+32; pops 32; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_player_hit
+; void engine_release_particle(struct particle_system_instance *instance, unsigned int *count)
+; 0xe0210 vostok::render::render_model_instance::destroy: instance ECX, count EAX; pops 0
+extern engine_release_particle
 ; void engine_fingers_set_weapon_model(struct fingers_corrector *corrector, unsigned int instance, unsigned int first_view)
 ; 0x390620 vostok::animation::fingers_to_weapon_corrector::set_weapon_model: corrector ESP+4, instance ESP+8, first_view ESP+12; pops 12; stdcall, called directly
 ; stdcall: push (and ECX for thiscall) as that convention says
@@ -939,6 +981,10 @@ extern engine_unpin_resource
 ; 0x1a8900 vostok::render::effect_compiler::set_constant_float4: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
 ; thiscall: push (and ECX for thiscall) as that convention says
 extern engine_set_constant_float4
+; void engine_set_constant_float2(const float *value, struct effect_compiler *compiler, const char *name)
+; 0x1d9740 vostok::render::effect_compiler::set_constant_float2: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_set_constant_float2
 ; struct shared_string *engine_shared_string_create(const char *text)
 ; 0xe0b50 vostok::shared_string::create: text ESP+4; pops 4; EAX; stdcall, called directly
 ; stdcall: push (and ECX for thiscall) as that convention says

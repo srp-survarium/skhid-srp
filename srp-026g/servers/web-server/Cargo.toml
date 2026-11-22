@@ -14,6 +14,8 @@ openssl = { workspace = true }
 resources-db = { workspace = true }
 # The stats API's answers (`history`).
 serde_json = { workspace = true }
+# Freeze Tag's rule (`srp_validate::world::freeze`), for the wiki's modes.
+srp-validate = { workspace = true }
 
 session = { workspace = true }
 survarium = { workspace = true }

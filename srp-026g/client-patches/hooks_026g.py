@@ -125,7 +125,8 @@ TYPES["f32"] = {
 }
 # Native presentation interfaces. Their raw kinds come from fields_026g.tsv;
 # the public views borrow the generated hook's thread.
-for _view in ("RenderVisual", "GameScene", "ObjectLight", "ObjectAmbientLight", "ObjectParticleVisual"):
+for _view in ("RenderVisual", "GameScene", "ObjectLight", "ObjectAmbientLight", "ObjectParticleVisual",
+              "ObjectEnvironmentProbe"):
     TYPES[_view] = {
         "raw": f"Option<{_view}>", "fallible": True,
         "build": f"{_view}::from_raw(&thread, {{a}})",

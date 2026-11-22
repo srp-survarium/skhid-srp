@@ -31,6 +31,14 @@ VISUALS, OBJECTS, LIGHTS, MODELS = HEAP + 0x300000, HEAP + 0x400000, HEAP + 0x41
 AMBIENTS, LIGHT_VTABLE, AMBIENT_VTABLE = HEAP + 0x440000, 0xa0adec, 0xa0ac4c
 # object_particle_visual objects (0xA0AFAC), last in the vector, and the particle system each plays (+158h).
 FLAMES, FLAME_SYSTEMS, PARTICLE_VTABLE = HEAP + 0x460000, HEAP + 0x480000, 0xa0afac
+# object_environment_probe objects (0xA0ABEC), last: their radius, diffuse and specular multipliers
+# (+3ECh..+3F4h) as load leaves them; the share of its light a broken lamp's probe keeps.
+PROBES, PROBE_VTABLE, PROBE, KEEPS = HEAP + 0x4c0000, 0xa0abec, (4., 1.5, .75), .43
+f32 = lambda v: struct.unpack('<f', struct.pack('<f', v))[0]
+# The probe while its lamp is broken: its radius 0.1 less (DRAWN_OVER, #2412), its multipliers times KEEPS (f32, as ProbeLight).
+DIMMED = (f32(PROBE[0] - f32(.1)), f32(PROBE[1] * f32(KEEPS)), f32(PROBE[2] * f32(KEEPS)))
+# The project's lights, ambient lights, particles and probes.
+PLACED = ([(0., 0., 0.), (3., 0., 0.)], [(3., .5, 0.)], [(0., .2, 0.)], [(0., 1., 0.)])
 MANAGER, BULLET, RESULT, WRITER, READER, BUFFER = (HEAP + i * 0x10000 for i in range(5, 11))
 # The project config, relocated: Vector's, with its 99 fixtures, is 72 KB.
 CFG, CFG_SIZE = HEAP + 0x600000, 0x100000
@@ -64,8 +72,9 @@ def config_tree():
                            visuals=views, lights={'light': dict(x=x, y=0.0, z=0.0)})
         if i == 1:   # an alarm lamp's glow; the other row has no table
             rows[str(i)]['ambient_lights'] = {'glow': dict(x=x, y=0.5, z=0.0)}
-        else:        # a kerosene lamp's flame; the same
+        else:        # a kerosene lamp's flame and its room's probe; the same
             rows[str(i)]['particles'] = {'flame': dict(x=x, y=0.2, z=0.0)}
+            rows[str(i)]['probes'] = {'room': dict(x=x, y=1.0, z=0.0, keeps=KEEPS)}
     return {'srp_lamps': {'version': 3, 'break_material': 29, 'effect_material': 7, 'lamps': rows}}
 
 
@@ -95,7 +104,7 @@ class Game:
             u.mem_map(addr, (max(vsize, rsize) + 0xfff) & ~0xfff)
             u.mem_write(addr, bytes(built[raw:raw + min(rsize, vsize or rsize)]))
         u.mem_map(HEAP, 0xa00000)
-        self.active, self.events, self.output = set(), [], bytearray()
+        self.active, self.events, self.output, self.probes = set(), [], bytearray(), {}
         self.effects, self.decals, self.traces, self.bursts = [], [], [], []
         self.passes = 1.0
         u.hook_add(UC_HOOK_CODE, self.endpoint, begin=0x21cd0, end=0x21cd0)
@@ -105,6 +114,8 @@ class Game:
         u.hook_add(UC_HOOK_CODE, self.endpoint, begin=0x23a70, end=0x23a70)
         u.hook_add(UC_HOOK_CODE, self.endpoint, begin=0x23b90, end=0x23b90)
         u.hook_add(UC_HOOK_CODE, self.endpoint, begin=0x229d0, end=0x229d0)
+        u.hook_add(UC_HOOK_CODE, self.probe, begin=0x23300, end=0x23300)
+        u.hook_add(UC_HOOK_CODE, self.probe, begin=0x23430, end=0x23430)
         u.hook_add(UC_HOOK_CODE, self.write, begin=0x1f48a0, end=0x1f48a0)
         u.hook_add(UC_HOOK_CODE, self.effect, begin=0x3223e0, end=0x3223e0)
         u.hook_add(UC_HOOK_CODE, self.effect, begin=0x3222f0, end=0x3222f0)
@@ -120,7 +131,7 @@ class Game:
         for i in range(5):
             self.w(VISUALS + i * 0x48, 0xa029b4)
             self.w(VISUALS + i * 0x48 + 0x44, MODELS + i * 0x200)
-        self.objects([(float(i * 3), 0., 0.) for i in range(2)], [(3., .5, 0.)], [(0., .2, 0.)])
+        self.objects(*PLACED)
         u.mem_write(CFG, bytes(relocated_config(config_tree())))
         self.w(MANAGER + 0x98, PHYSICS); self.w(BULLET + 0x44, MANAGER)
         self.w(MANAGER + 0x90, RENDERER); self.w(MANAGER + 0x94, MATERIALS)
@@ -147,9 +158,13 @@ class Game:
             u.mem_write(stub, code)
         self.w(0x870048, RET + 0x1a0)
         u.mem_write(RET + 0x1a0, bytes.fromhex('b8ffffffffc21c00'))
+        # Capture's frame hook (patch 176) reads SKHID_CAPTURE at its first
+        # frame: unset, as on players' machines (GetEnvironmentVariableA).
+        self.w(0x8701b4, RET + 0x1c0)
+        u.mem_write(RET + 0x1c0, bytes.fromhex('31c0c20c00'))
 
     def map_metadata(self, metadata):
-        assert not self.active
+        assert not self.active and not self.probes
         config = bytes(relocated_config({'srp_lamps': metadata}))
         assert len(config) <= CFG_SIZE, len(config)
         self.u.mem_write(CFG, config)
@@ -163,20 +178,22 @@ class Game:
             self.w(VISUALS + i * 0x48 + 0x44, 0)
         for i in indices:
             self.w(VISUALS + i * 0x48 + 0x44, MODELS + i * 0x200)
-        lights, ambients, flames = (
+        lights, ambients, flames, probes = (
             [tuple(light[k] for k in 'xyz') for row in rows for light in row.get(table, {}).values()]
-            for table in ('lights', 'ambient_lights', 'particles'))
-        self.objects(lights, ambients, flames)
+            for table in ('lights', 'ambient_lights', 'particles', 'probes'))
+        self.objects(lights, ambients, flames, probes)
         return {('model', v['index']) for row in rows for v in row['visuals'].values() if v['state'] == 0} | {
             ('light', i) for i in range(len(lights))} | {('ambient', i) for i in range(len(ambients))} | {
             ('flame', i) for i in range(len(flames))}
 
-    def objects(self, lights, ambients, flames):
+    def objects(self, lights, ambients, flames, probes=()):
         """The project's object vector: its lights (render id 100 + i, +250h), then its ambient lights
         (200 + i, +154h; the identity transform at +110h, white, intensity 1, radius 2), then its
-        particle objects (a system each at +158h, counted at its +0D0h; no track, +160h)."""
+        particle objects (a system each at +158h, counted at its +0D0h; no track, +160h), then its
+        environment probes (300 + i, +3E4h; the identity transform, PROBE's radius and multipliers)."""
         assert len(lights) * 0x300 <= AMBIENTS - LIGHTS and len(flames) * 0x300 <= FLAME_SYSTEMS - FLAMES
-        self.w(PROJECT + 0x188, OBJECTS + (len(lights) + len(ambients) + len(flames)) * 4)
+        assert len(probes) * 0x400 <= MODELS - PROBES
+        self.w(PROJECT + 0x188, OBJECTS + (len(lights) + len(ambients) + len(flames) + len(probes)) * 4)
         for i, position in enumerate(lights):
             light = LIGHTS + i * 0x300
             self.w(OBJECTS + i * 4, light); self.w(light, LIGHT_VTABLE)
@@ -193,6 +210,12 @@ class Game:
             self.w(OBJECTS + (len(lights) + len(ambients) + i) * 4, flame); self.w(flame, PARTICLE_VTABLE)
             self.w(flame + 0x108, SCENE); self.w(flame + 0x158, FLAME_SYSTEMS + i * 0x200); self.w(flame + 0x160, 0)
             self.f(flame + 0x110, (1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0.) + tuple(position) + (1.,))
+        for i, position in enumerate(probes):
+            probe = PROBES + i * 0x400
+            self.w(OBJECTS + (len(lights) + len(ambients) + len(flames) + i) * 4, probe); self.w(probe, PROBE_VTABLE)
+            self.w(probe + 0x108, SCENE); self.w(probe + 0x3e4, 300 + i)
+            self.f(probe + 0x110, (1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0.) + tuple(position) + (1.,))
+            self.f(probe + 0x3ec, PROBE)
 
     def w(self, at, value):
         self.u.mem_write(at, struct.pack('<I', value))
@@ -226,6 +249,22 @@ class Game:
         assert (key not in self.active) if add else (key in self.active), (va, key, self.active)
         (self.active.add if add else self.active.remove)(key)
         self.events.append((add, key)); self.finish(cleanup)
+
+    def probe(self, u, va, _size, _data):
+        # scene_renderer::update_environment_probe (renderer, scene, id, the properties insert builds:
+        # radius +31Ch, diffuse and specular multipliers +324h, +328h), remove_environment_probe
+        # (renderer, scene, id). The renderer gets what the object holds.
+        esp = u.reg_read(UC_X86_REG_ESP)
+        add, key = va == 0x23300, ('probe', self.r(esp + 12) - 300)
+        assert (key not in self.probes) if add else (key in self.probes), (va, key, self.probes)
+        if add:
+            radius, _, diffuse, specular = struct.unpack('<4f', u.mem_read(self.r(esp + 16) + 0x31c, 16))
+            fields = struct.unpack('<3f', u.mem_read(PROBES + key[1] * 0x400 + 0x3ec, 12))
+            assert (radius, diffuse, specular) == fields, (radius, diffuse, specular, fields)
+            self.probes[key] = fields
+        else:
+            del self.probes[key]
+        self.events.append((add, key)); self.finish(16 if add else 12)
 
     def write(self, u, *_):
         self.output += u.mem_read(u.reg_read(UC_X86_REG_EAX), 4)
@@ -387,9 +426,10 @@ def main():
     g = Game(built)
     g.insert()
     intact = {('model', i) for i in (0, 2, 4)} | {('light', 0), ('light', 1), ('ambient', 0), ('flame', 0)}
-    assert g.active == intact
+    assert g.active == intact and g.probes == {('probe', 0): PROBE}
     print('ok: visual insert through project loop; light insert through project loop; '
-          'ambient light insert through project loop; particle insert through project loop')
+          'ambient light insert through project loop; particle insert through project loop; '
+          'probe insert through project loop')
     # Exercise both displaced branches; the fallthrough must still execute
     # its native fld, and neither path may disturb the frame's registers.
     for flag_byte, flags, stop in ((0, 0x46, 0x1f7c6c), (1, 2, 0x1f7c4a)):
@@ -423,7 +463,10 @@ def main():
                 and game.mark((-.12, 0., 0.)) and game.mark((1.5, 0., 0.)) and game.mark((-.1, 0., 0.), BULLET_MAT))
     assert marks(g) and g.active == intact and not g.effects
     print('ok: no glass decal on an intact fixture (four hit kinds); other surfaces and materials keep theirs')
+    start = len(g.events)
     g.shoot(); g.present()
+    assert g.probes == {('probe', 0): DIMMED}
+    assert [e for e in g.events[start:] if e[1][0] == 'probe'] == [(False, ('probe', 0)), (True, ('probe', 0))]
     broken = (intact - {('model', 0), ('model', 4), ('light', 0), ('flame', 0)}) | {('model', 1)}
     assert g.active == broken
     assert marks(g) and g.active == broken
@@ -434,12 +477,16 @@ def main():
     assert len(g.effects) == 2
     damaged = g.save(); assert damaged != fresh
     print('ok: hit switches model and removes light, cone and flame once, preserving the bullet')
-    g.load(fresh); g.present(); assert g.active == intact
+    print('ok: a break takes its room probe out and puts it back once, its multipliers times keeps, '
+          'its radius 0.1 less')
+    g.load(fresh); g.present(); assert g.active == intact and g.probes == {('probe', 0): PROBE}
     g.shoot(); assert g.save() == damaged
-    g.present(); assert g.active == broken
-    g.load(damaged); g.present(); assert g.active == broken
+    g.present(); assert g.active == broken and g.probes == {('probe', 0): DIMMED}
+    g.load(damaged); g.present(); assert g.active == broken and g.probes == {('probe', 0): DIMMED}
+    print('ok: rollback gives the probe its own light back; resimulation and snapshot load dim it again')
     print('ok: rollback restores the intact lamp; resimulation and snapshot load reproduce the break')
-    late = Game(built); late.insert(); late.load(damaged); late.present(); assert late.active == broken
+    late = Game(built); late.insert(); late.load(damaged); late.present()
+    assert late.active == broken and late.probes == {('probe', 0): DIMMED}
     assert marks(late)
     assert not late.effects  # snapshot loading must not replay a historical break
     quiet = Game(built); quiet.insert(); quiet.u.mem_write(BULLET + 0x80, b'\x01')
@@ -467,18 +514,20 @@ def main():
     g.shoot(length=5.); g.present(); assert g.active == {('model', 1), ('model', 3)}
     print('ok: late join/replay snapshot; two lamps on one unobstructed segment, the second with its ambient glow')
     print('ok: no glass decal on a broken fixture, after rollback, resimulation or a late join')
-    g.remove(); assert not g.active
+    g.remove(); assert not g.active and not g.probes
     assert all(g.r(VISUALS + i * 0x48) == 0xa029b4 for i in range(5))
     assert all(g.r(LIGHTS + i * 0x300) == LIGHT_VTABLE for i in range(2)) and g.r(AMBIENTS) == AMBIENT_VTABLE
-    assert g.r(FLAMES) == PARTICLE_VTABLE
+    assert g.r(FLAMES) == PARTICLE_VTABLE and g.r(PROBES) == PROBE_VTABLE
+    assert struct.unpack('<3f', g.u.mem_read(PROBES + 0x3ec, 12)) == PROBE
     print('ok: visual remove through project loop; light remove through project loop; '
           'ambient light remove through project loop; particle remove through project loop; '
+          'probe remove through project loop (a broken lamp\'s probe with its own light); '
           'original vtables restored')
-    g.insert(); assert g.active == intact and g.save() == fresh
+    g.insert(); assert g.active == intact and g.save() == fresh and g.probes == {('probe', 0): PROBE}
     # Destruction without remove still drops exactly the inserted objects
     # before the native destructor starts releasing members.
     g.run(0x285330, 0x28533a, regs={UC_X86_REG_ECX: PROJECT})
-    assert not g.active
+    assert not g.active and not g.probes and g.r(PROBES) == PROBE_VTABLE
     assert all(g.r(VISUALS + i * 0x48) == 0xa029b4 for i in range(5))
     # A map without metadata retains the original bullet wire format.
     g.u.mem_write(CFG, bytes(relocated_config({})))
@@ -506,6 +555,13 @@ def main():
     missing_flame = config_tree()
     next(iter(list(missing_flame['srp_lamps']['lamps'].values())[0]['particles'].values()))['y'] = 999.0
     cases.append((missing_flame, False))
+    missing_probe = config_tree()
+    next(iter(list(missing_probe['srp_lamps']['lamps'].values())[0]['probes'].values()))['y'] = 999.0
+    cases.append((missing_probe, False))
+    cases.append((config_tree(), False, [(0., 1., 0.)] * 2))   # a second probe where the row names one
+    no_share = config_tree()
+    next(iter(list(no_share['srp_lamps']['lamps'].values())[0]['probes'].values()))['keeps'] = 0.0
+    cases.append((no_share, True))
     invalid_bounds = config_tree()
     last = list(invalid_bounds['srp_lamps']['lamps'].values())[-1]
     last['max_x'] = last['min_x']
@@ -514,8 +570,9 @@ def main():
     del list(no_glass['srp_lamps']['lamps'].values())[-1]['glass_to_z']
     cases.append((no_glass, True))
     unbound = {('model', i) for i in range(5)} | {('light', 0), ('light', 1), ('ambient', 0), ('flame', 0)}
-    for tree, aborts in cases:
-        refused = Game(built)
+    for tree, aborts, *probes in cases:
+        probes = probes[0] if probes else PLACED[3]
+        refused = Game(built); refused.objects(*PLACED[:3], probes)
         refused.u.mem_write(CFG, bytes(relocated_config(tree)))
         try:
             refused.insert()
@@ -529,17 +586,22 @@ def main():
             assert refused.active == unbound
             refused.shoot(); refused.present()
             assert refused.active == unbound and not refused.effects and len(refused.save()) == 16
+            assert refused.probes == {('probe', i): PROBE for i in range(len(probes))}
             refused.remove()
         assert not refused.active
         assert all(refused.r(VISUALS + i * 0x48) == 0xa029b4 for i in range(5))
         assert all(refused.r(LIGHTS + i * 0x300) == LIGHT_VTABLE for i in range(2))
         assert refused.r(AMBIENTS) == AMBIENT_VTABLE and refused.r(FLAMES) == PARTICLE_VTABLE
+        assert not refused.probes and all(refused.r(PROBES + i * 0x400) == PROBE_VTABLE for i in range(len(probes)))
+        refused.objects(*PLACED)
         refused.u.mem_write(CFG, bytes(relocated_config(config_tree())))
-        refused.insert(); assert refused.active == intact
+        refused.insert(); assert refused.active == intact and refused.probes == {('probe', 0): PROBE}
         refused.remove(); assert not refused.active
     print('ok: duplicate visuals and missing lights, ambient lights or particles leave the map without lamps, '
           'late malformed bounds refuse; '
           'nothing bound either way, retry has no leaked owner')
+    print('ok: a probe position no probe has, or two probes have, leaves the map without lamps, its probes '
+          'the game\'s; a probe keeping no share refuses')
     # A native scenery project without metadata does not require lamp-only
     # physics/scene inputs, and must not disturb another bound project.
     scenery_only = Game(built)
@@ -560,6 +622,16 @@ def main():
         g.insert(); assert g.active == expected, entry['files']
         g.remove(); assert not g.active, entry['files']
     print(f"ok: all {len(source['add_value'])} map variants bind, insert and remove their authored fixtures through native code")
+    # London's (v0.42, v0.32) lists name their rooms' probes too.
+    london = [e for name in ('v042', 'v032')
+              for e in json.loads((ROOT / f'scripts/content-edit/breakable-lamps-{name}-1.json').read_text())['add_value']]
+    for entry in london:
+        expected = g.map_metadata(entry['value'])
+        probes = sum(len(row.get('probes', {})) for row in entry['value']['lamps'].values())
+        g.insert(); assert g.active == expected and g.probes == {('probe', i): PROBE for i in range(probes)}, entry['files']
+        g.remove(); assert not g.active and not g.probes, entry['files']
+    print(f"ok: London's {len(london)} map variants bind their lamps and rooms' probes, each probe inserted once with "
+          "its own light")
 
     # A break plays the glass pair's shards along the fixture's authored
     # glass line, about one burst per 15 cm of it (at most ten), each in the

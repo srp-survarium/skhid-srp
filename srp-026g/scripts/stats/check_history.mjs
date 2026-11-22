@@ -258,7 +258,7 @@ try {
   await evaluate("document.querySelector('.stats-board .stats-table tbody tr td:nth-child(5)').click()");
   await new Promise(resolve => setTimeout(resolve, 500));
   await settled();
-  assert.equal(await evaluate('location.search'), '?player=Sheep&lang=en');
+  assert.equal(await evaluate('location.search'), '?id=1042&lang=en', 'a link to a player is by its id');
   await navigate('/stats?board=clans&lang=en');
   await evaluate("document.querySelector('.stats-board .stats-table tbody tr td:nth-child(5)').click()");
   await new Promise(resolve => setTimeout(resolve, 500));
@@ -268,14 +268,14 @@ try {
   await evaluate("document.querySelector('.stats-table tbody tr td:nth-child(5)').click()");
   await new Promise(resolve => setTimeout(resolve, 500));
   await settled();
-  assert.equal(await evaluate("new URLSearchParams(location.search).get('player')"), answered.match.players[0].player.name);
+  assert.equal(await evaluate("new URLSearchParams(location.search).get('id')"), String(answered.match.players[0].player.id));
 
   // The search goes to a player with only what is filled in.
   await navigate('/stats');
   await evaluate("document.querySelector('.stats-find [name=player]').value = ' sheep ';document.querySelector('.stats-find button').click()");
   await new Promise(resolve => setTimeout(resolve, 500));
   await settled();
-  assert.equal(await evaluate('location.search'), '?player=sheep&lang=en');
+  assert.equal(await evaluate('location.search'), '?lang=en&id=1042', 'found by the name, the address is the id\'s');
 
   // A player: nothing moves while it loads; 15 matches, then 8 older.
   await navigate('/stats?player=Sheep&lang=en', 'interactive');
@@ -353,7 +353,7 @@ try {
 
   // A player's weapons: its other list, what its games counted of each, most kills first.
   await navigate('/stats?player=Sheep&lang=en');
-  assert.deepEqual(await cells('.stats-tabs button'), ['Matches', 'Weapons']);
+  assert.deepEqual(await cells('.stats-tabs button'), ['Matches', 'Weapons', 'Skills']);
   assert.equal(await text('.stats-tabs button[aria-pressed=true]'), 'Matches');
   await evaluate("[...document.querySelectorAll('.stats-tabs button')].find(b => b.textContent === 'Weapons').click()");
   await settled();
@@ -412,7 +412,7 @@ try {
   assert.equal(answered['player/weapons'].order, 'desc');
   await evaluate("[...document.querySelectorAll('.stats-tabs button')].find(b => b.textContent === 'Matches').click()");
   await settled();
-  assert.equal(await evaluate('location.search'), '?player=Sheep&lang=en', 'the matches: neither the list nor its order in the address');
+  assert.equal(await evaluate('location.search'), '?lang=en&id=1042', 'the matches: neither the list nor its order in the address');
   assert.ok(!(await evaluate("document.querySelector('.lang a[hreflang=uk]').href")).includes('tab='), 'nor in the language link');
   // The address opens the list; five empty rows while it loads.
   await navigate('/stats?player=Sheep&tab=weapons&lang=en', 'interactive');
@@ -422,6 +422,17 @@ try {
   await evaluate("document.querySelector('.stats-weapons tbody tr td:nth-child(2)').click()");
   await new Promise(resolve => setTimeout(resolve, 800));
   assert.equal(await evaluate('location.pathname + location.hash'), `/wiki/weapons#wpn_${guns[0].key}`, 'a click anywhere on its row too');
+  // The skills: the wiki's trees with the player's ranks (the preview's Sheep has nine skills,
+  // 25 points), drawn empty while its card loads; a click changes nothing.
+  await navigate('/stats?id=1042&tab=skills&lang=en', 'interactive');
+  assert.equal(await count('.stats-skills .skill'), await count('.stats-skills .skill:not(.taken)'), 'the trees are drawn before the build');
+  await settled();
+  await new Promise(resolve => setTimeout(resolve, 500));
+  assert.equal(await count('.stats-skills .skill.taken'), 9);
+  assert.equal(await text('.stats-skills .skill-branch-points'), '17', 'the first branch\'s points');
+  await evaluate("document.querySelector('.stats-skills .skill:not(.taken)').click()");
+  assert.equal(await count('.stats-skills .skill.taken'), 9);
+  assert.equal(await count('.stats-skills .skill-plan'), 0, 'no planner');
   // Yasen's games counted none.
   await navigate('/stats?player=Yasen&tab=weapons&lang=en');
   assert.equal(await text('.stats-weapons .stats-empty'), 'No weapons counted yet.');
@@ -556,11 +567,11 @@ try {
   await navigate('/stats?player=Sheep&lang=uk');
   assert.equal(await evaluate('document.documentElement.lang'), 'uk');
   assert.equal(await text('.stats-heading'), 'Улюблене спорядження');
-  assert.deepEqual(await cells('.stats-tabs button'), ['Матчі', 'Зброя']);
+  assert.deepEqual(await cells('.stats-tabs button'), ['Матчі', 'Зброя', 'Навички']);
   assert.notEqual(await panel('Артефакти'), null);
   assert.equal(await panel('Точність'), aim(answered.player.totals, 'uk'));
   assert.equal(await evaluate("getComputedStyle(document.querySelector('.stats-favourites')).gridTemplateColumns.split(' ').length"), 1, 'the favourites stacked');
-  assert.ok((await evaluate("document.querySelector('.lang a[hreflang=en]').href")).includes('player=Sheep'));
+  assert.ok((await evaluate("document.querySelector('.lang a[hreflang=en]').href")).includes('id=1042'));
   assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'mobile page fits');
   await navigate('/stats?player=Sheep&tab=weapons&lang=uk');
   assert.deepEqual(await cells('.stats-weapons thead th'),

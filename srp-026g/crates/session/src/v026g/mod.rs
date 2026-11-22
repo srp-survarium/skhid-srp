@@ -40,6 +40,7 @@ pub mod extras;
 pub mod items_rules;
 pub mod known;
 pub mod level_stats;
+pub mod match_kind;
 pub mod matches_now;
 pub mod matchmaking;
 pub mod mode_intro;

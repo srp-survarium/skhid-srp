@@ -1,1 +1,62 @@
-# The site's own words in this language (README.md here). No rows yet: every text is shown in English.
+# The site's own words in Polish (README.md here): English as in the code, Polish. A text without a row is shown in English.
+Wiki	Wiki
+Maps	Mapy
+Skhid wiki	Wiki Skhid
+Modes	Tryby
+Every mode: its rules, numbers and maps.	Każdy tryb: zasady, liczby i mapy.
+Versions	Warianty
+Public rooms only	Tylko pokoje publiczne
+Private rooms only	Tylko pokoje prywatne
+Not offered now	Obecnie niedostępny
+Respawn after {0} s.	Odrodzenie po {0} s.
+Batteries lie on the map.	Baterie leżą na mapie.
+Carry them to your team's container.	Zanoś je do kontenera swojej drużyny.
+First to {0} batteries wins.	Wygrywa pierwsza drużyna z {0} bateriami.
+Time limit {0}: more batteries wins.	Limit czasu {0}: wygrywa więcej baterii.
+Batteries come out of {0} active chargers.	Baterie pojawiają się z {0} aktywnych ładowarek.
+A new battery every {0} s, give or take {1} s.	Nowa bateria co {0} s, plus minus {1} s.
+Protective device rules: batteries, no chargers.	Zasady urządzenia ochronnego: baterie, bez ładowarek.
+No interface: no ammo, health, crosshair or minimap.	Bez interfejsu: bez amunicji, zdrowia, celownika i minimapy.
+Teammates' markers stay; enemies have none.	Znaczniki sojuszników zostają; wrogowie ich nie mają.
+Hold Tab for ammo, body state, the clock and the team list.	Przytrzymaj Tab: amunicja, stan ciała, czas i lista drużyny.
+Each team has {0} tickets.	Każda drużyna ma {0} biletów.
+A death costs one ticket; a teamkill costs none.	Śmierć kosztuje jeden bilet; zabicie sojusznika żadnego.
+Out of tickets, a team stops respawning and loses when its last player dies.	Bez biletów drużyna przestaje się odradzać i przegrywa, gdy ginie jej ostatni gracz.
+Time limit {0}: more tickets wins.	Limit czasu {0}: wygrywa więcej biletów.
+Capture research units: be inside with no enemy there.	Przejmuj jednostki badawcze: bądź w środku, gdy nie ma tam wroga.
+Owned units earn points; more units, faster.	Przejęte jednostki dają punkty; im więcej jednostek, tym szybciej.
+First to {0} points wins.	Wygrywa pierwsza drużyna z {0} punktami.
+Time limit {0}: more points wins.	Limit czasu {0}: wygrywa więcej punktów.
+Every player for himself.	Każdy na każdego.
+First to {0} kills wins.	Wygrywa pierwszy, kto zdobędzie {0} zabójstw.
+Time limit {0}: most kills wins.	Limit czasu {0}: wygrywa najwięcej zabójstw.
+Public rooms: each FFA card draws a version.	Pokoje publiczne: każda karta FFA losuje wariant.
+Private rooms: plain FFA only.	Pokoje prywatne: tylko zwykłe FFA.
+A lethal hit freezes you in place.	Śmiertelne trafienie zamraża cię w miejscu.
+A teammate within {0} m thaws you in {1} s.	Sojusznik w promieniu {0} m odmraża cię w {1} s.
+A thaw counts as a kill.	Odmrożenie liczy się jako zabójstwo.
+A frozen player thaws by himself after {0}.	Zamrożony gracz sam się odmraża po {0}.
+A team's last fighter shows on the enemies' map.	Ostatni walczący drużyny jest widoczny na mapie przeciwników.
+Freeze the whole enemy team to win the round.	Zamroź całą drużynę wroga, by wygrać rundę.
+{0} s pause between rounds, then everyone respawns.	{0} s przerwy między rundami, potem wszyscy się odradzają.
+First to {0} rounds wins.	Wygrywa pierwsza drużyna z {0} wygranymi rundami.
+Time limit {0}: an unfinished series is a draw.	Limit czasu {0}: niedokończona seria to remis.
+One artefact at a time, {0}–{1} s into a round.	Jeden artefakt naraz, {0}–{1} s od początku rundy.
+Bring it to your own base: 1 point, and the round ends.	Zanieś go do własnej bazy: 1 punkt i koniec rundy.
+The carrier is slower and seen by everyone.	Niosący jest wolniejszy i widoczny dla wszystkich.
+Respawn in waves every {0} s.	Odrodzenie falami co {0} s.
+Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Limit czasu {0}: wygrywa wyższy wynik; przy remisie {1} nagłej śmierci bez odrodzeń.
+Sniper rifles, silenced guns and guns without automatic fire are replaced.	Karabiny snajperskie, broń z tłumikiem i broń bez ognia automatycznego są zastępowane.
+Rooms up to level {0}: {1}.	Pokoje do poziomu {0}: {1}.
+Other rooms: {0}.	Pozostałe pokoje: {0}.
+Sight: {0}.	Celownik: {0}.
+Every kit: {0} only.	Każdy zestaw: tylko {0}.
+Every kit: {0} and {1}.	Każdy zestaw: {0} i {1}.
+Everyone plays the same {0} random kits.	Wszyscy grają tymi samymi {0} losowymi zestawami.
+Level bands: {0}.	Przedziały poziomów: {0}.
+A room draws bands up to its level.	Pokój losuje przedziały do swojego poziomu.
+Each kit a gun of another class, with random bonuses and attachments.	W każdym zestawie broń innej klasy, z losowymi bonusami i dodatkami.
+{0} % of deals: pistols only.	{0} % rozdań: tylko pistolety.
+Plain FFA: {0} % of FFA cards.	Zwykłe FFA: {0} % kart FFA.
+{0} % of FFA cards.	{0} % kart FFA.
+FFA: Roulette	FFA: Ruletka

@@ -6,18 +6,20 @@ package
    import flash.system.*;
 
    // Freeze Tag's frozen names (docs/notes/freeze-tag.md, the HUD) with the player icons movie's own
-   // root, fed as the game feeds it: the markers, render_name's props (name, rgb) and patch 160's
-   // root.freeze_tag_markers(mask). Four tags: a teammate and an enemy, each as he is and frozen.
+   // root, fed as the game feeds it: the markers (each a player's: its arrow's frame), render_name's
+   // props (name, rgb) and patch 160's root.freeze_tag_markers(mask). Four tags: a teammate and an
+   // enemy, each as he is and frozen.
    // Over background.png in the work folder when there is one (a game screen), else a sky over
    // ground drawn here. Checks:
-   // - a frozen place's name is ice blue, no label is written over it, the others keep their colour;
-   // - a name or a colour the game sets while frozen keeps the blue, and the colour comes back on
-   //   thaw, the newest one; a marker made while its place is frozen is blue from the start;
+   // - a frozen place's name and arrow are ice blue, no label is written over it, the others keep
+   //   their colour;
+   // - a name, a colour or an arrow's frame the game sets while frozen keeps the blue, and the colour
+   //   comes back on thaw, the newest one; a marker made while its place is frozen is blue from the start;
    // - the native label stays the game's.
    // "FREEZE SHOT tags" for check.sh's screenshot; ends with "FREEZE RESULT pass" or "... fail: ...".
    public class FreezeIconsHarness extends Sprite
    {
-      // The movie's own frozen colour (HUDMarker.FROZEN_NAME_COLOR), read when it has loaded.
+      // The movie's own frozen colour (HUDMarker.FROZEN_COLOR), read when it has loaded.
       private var ICE:uint;
       private static const ALLY:uint = 0xFFFFFF;
       private static const ENEMY:uint = 0xFF0000;
@@ -84,6 +86,22 @@ package
          return root_.iconControl.getChildAt(id);
       }
 
+      // The colour of a marker's arrow: its parts named renderer, -1 when they differ or there are none.
+      private function arrow(child:int) : int
+      {
+         var icon:DisplayObjectContainer = marker(child).icon;
+         var colour:int = -1;
+         for(var i:int = 0; i < icon.numChildren; i++)
+         {
+            var part:DisplayObject = icon.getChildAt(i);
+            if(part == null || part.name != "renderer") continue;
+            var c:int = int(part.transform.colorTransform.color);
+            if(colour != -1 && c != colour) return -1;
+            colour = c;
+         }
+         return colour;
+      }
+
       private function tick(e:Event) : void
       {
          try
@@ -93,10 +111,14 @@ package
             {
                if(icons.content == null || Object(icons.content).iconControl == null) return;
                root_ = icons.content;
-               ICE = (icons.contentLoaderInfo.applicationDomain.getDefinition("survarium.controls.HUDMarker") as Class).FROZEN_NAME_COLOR;
+               ICE = (icons.contentLoaderInfo.applicationDomain.getDefinition("survarium.controls.HUDMarker") as Class).FROZEN_COLOR;
                trace("FREEZE colour 0x" + ICE.toString(16).toUpperCase());
                addChild(icons);
-               for(var id:int = 1; id <= 8; id++) root_.create_player_icon(id,0,1);
+               for(var id:int = 1; id <= 8; id++)
+               {
+                  root_.create_player_icon(id,0,1);
+                  root_.set_player_icon_type(id,1);
+               }
                root_.set_player_icons_props(all());
                root_.set_player_icon_label(3,"");
                // Lynx and Fox frozen, in both rows.
@@ -107,6 +129,8 @@ package
                   "a frozen teammate's and enemy's names ice blue");
                check(marker(1).textField.textColor == ALLY && marker(3).textField.textColor == ENEMY,
                   "the others keep their colour");
+               check(arrow(2) == int(ICE) && arrow(4) == int(ICE),"a frozen teammate's and enemy's arrows ice blue");
+               check(arrow(1) == int(ALLY) && arrow(3) == int(ENEMY),"the others' arrows keep their colour");
                check(marker(2).textField.text == "Lynx" && marker(4).textField.text == "Fox",
                   "the names are the players' own");
                check(!("freeze_tag_label" in root_) && marker(2).numChildren == marker(1).numChildren,
@@ -124,16 +148,22 @@ package
                root_.set_player_color(2,0,255,0);
                check(marker(2).textField.textColor == ICE && marker(2).textField.text == "Lynx2",
                   "a name and a colour set while frozen: still ice blue");
+               check(arrow(2) == int(ICE),"a colour set while frozen: the arrow still ice blue");
+               root_.set_player_icon_type(4,2);
+               check(arrow(4) == int(ICE),"another arrow's frame while frozen: ice blue");
                root_.freeze_tag_markers((1 << 4) | (1 << 6) | (1 << 8));
                check(marker(2).textField.textColor == 0x00FF00,"thawed: the newest own colour comes back");
+               check(arrow(2) == 0x00FF00,"thawed: the arrow's newest own colour comes back");
                check(marker(4).textField.textColor == ICE,"the others still frozen");
                root_.freeze_tag_markers(0);
                check(marker(4).textField.textColor == ENEMY && marker(6).textField.textColor == ALLY,
                   "the mask cleared (another mode, the round's restart): every own colour back");
+               check(arrow(4) == int(ENEMY) && arrow(6) == int(ALLY),"the mask cleared: every arrow's own colour back");
                root_.freeze_tag_markers(1 << 12);
                root_.create_player_icon(12,0,1);
+               root_.set_player_icon_type(12,1);
                root_.set_player_icons_props([props(12,"Bear",ALLY)]);
-               check(marker(9).textField.textColor == ICE,"a marker made while its place is frozen: ice blue");
+               check(marker(9).textField.textColor == ICE && arrow(9) == int(ICE),"a marker made while its place is frozen: ice blue");
                root_.freeze_tag_markers(0);
                trace("FREEZE RESULT " + (failures.length ? "fail: " + failures.join("; ") : "pass"));
                phase = 2;

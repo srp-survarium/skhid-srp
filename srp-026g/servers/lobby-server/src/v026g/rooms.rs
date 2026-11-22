@@ -306,6 +306,17 @@ impl Core<'_> {
             .collect()
     }
 
+    /// The maps a private room's pool may hold, in the order their bits name them: what the
+    /// create window lists (players create private rooms only). [`Self::room_entries`] but the
+    /// free-for-alls played with a twist only (`MapMode::twists_only`): a private room's
+    /// free-for-all is plain.
+    pub(super) fn private_entries(&self) -> Vec<PoolEntry> {
+        self.room_entries()
+            .into_iter()
+            .filter(|entry| maps::map_mode(entry.map_id).is_some_and(|map| !map.twists_only))
+            .collect()
+    }
+
     /// The mate a squad's action takes along (the owner's of 2026-10-31:
     /// only its commander acts for the squad: Play, Join, Queue, Switch),
     /// with its equipment level: the commander's mate while it is free in
@@ -487,7 +498,7 @@ impl Core<'_> {
             }
             RoomRequest::State => self.send_room_state(who, RoomCode::None, now),
             RoomRequest::Pool { page } => {
-                let entries = self.room_entries();
+                let entries = self.private_entries();
                 self.send_made(who.addr, wire::room_pool(&entries, page));
             }
             // The movie put up its "Room Chat" tab: the room's last lines,
@@ -499,7 +510,7 @@ impl Core<'_> {
             // The create window's start: the asker's last room made by hand,
             // fitted to the pool and its equipment now.
             RoomRequest::Form => {
-                let entries = self.room_entries();
+                let entries = self.private_entries();
                 let form = {
                     let account = who.account.locked();
                     let gear = matchmaking::gear_level(&account, quests::now());
@@ -903,7 +914,7 @@ impl Core<'_> {
                         min_side: default.min_side,
                     };
                     let entries: Vec<maps::MapId> = self
-                        .room_entries()
+                        .private_entries()
                         .iter()
                         .map(|entry| entry.map_id)
                         .collect();
@@ -947,8 +958,9 @@ impl Core<'_> {
         let gear = matchmaking::gear_level(&who.account.locked(), quests::now());
         let key = match made {
             Made::Before { bots } => {
+                // A draft names the create window's entries (a private room's).
                 let entries: Vec<maps::MapId> = self
-                    .room_entries()
+                    .private_entries()
                     .iter()
                     .map(|entry| entry.map_id)
                     .collect();
@@ -1073,7 +1085,7 @@ impl Core<'_> {
             spec.wait,
             pin,
             &room.pool,
-            &self.room_entries(),
+            &self.private_entries(),
         );
         let mut account = who.account.locked();
         if account.room_settings.as_ref() != Some(&settings) {
@@ -2394,11 +2406,16 @@ impl Core<'_> {
             bots[0],
             bots[1]
         );
-        for player in teams.iter().flatten() {
-            self.room_send_to_match(*player, now);
-        }
         // `launch` made the match (it is in `matches` from here on).
         self.rooms.started(key, match_id, played, &seated, now);
+        for player in teams.iter().flatten() {
+            // The room's state first, its `L` row this match's mode: the movie's loading screen
+            // shows a free-for-all twist's own icon from its first frame (`LobbyGameLoad.twist`).
+            if let Some(who) = self.who_is(player.account_id) {
+                self.send_room_state(&who, RoomCode::None, now);
+            }
+            self.room_send_to_match(*player, now);
+        }
         // The match started without who could not play it: out of the room,
         // told why (they may come back with a kit that can).
         for (member, fit) in unfit {

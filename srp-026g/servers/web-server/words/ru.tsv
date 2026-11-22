@@ -1,1 +1,62 @@
-# The site's own words in this language (README.md here). No rows yet: every text is shown in English.
+# The site's own words in Russian (README.md here): English as in the code, Russian. A text without a row is shown in English.
+Wiki	Вики
+Maps	Карты
+Skhid wiki	Вики Схода
+Modes	Режимы
+Every mode: its rules, numbers and maps.	Все режимы: правила, числа и карты.
+Versions	Версии
+Public rooms only	Только публичные комнаты
+Private rooms only	Только приватные комнаты
+Not offered now	Сейчас не предлагается
+Respawn after {0} s.	Возрождение через {0} с.
+Batteries lie on the map.	Батареи лежат на карте.
+Carry them to your team's container.	Несите их к контейнеру своей команды.
+First to {0} batteries wins.	Побеждает первая команда с {0} батареями.
+Time limit {0}: more batteries wins.	Лимит времени {0}: побеждает команда с большим числом батарей.
+Batteries come out of {0} active chargers.	Батареи появляются из {0} активных зарядников.
+A new battery every {0} s, give or take {1} s.	Новая батарея каждые {0} с, плюс-минус {1} с.
+Protective device rules: batteries, no chargers.	Правила защитного устройства: батареи, без зарядников.
+No interface: no ammo, health, crosshair or minimap.	Без интерфейса: ни патронов, ни здоровья, ни прицела, ни миникарты.
+Teammates' markers stay; enemies have none.	Метки союзников остаются; у врагов их нет.
+Hold Tab for ammo, body state, the clock and the team list.	Держите Tab: патроны, состояние тела, время и список команды.
+Each team has {0} tickets.	У каждой команды {0} билетов.
+A death costs one ticket; a teamkill costs none.	Смерть стоит один билет; убийство союзника — ни одного.
+Out of tickets, a team stops respawning and loses when its last player dies.	Без билетов команда больше не возрождается и проигрывает, когда гибнет её последний игрок.
+Time limit {0}: more tickets wins.	Лимит времени {0}: побеждает команда с большим числом билетов.
+Capture research units: be inside with no enemy there.	Захватывайте исследовательские установки: будьте внутри, когда там нет врагов.
+Owned units earn points; more units, faster.	Захваченные установки приносят очки; чем больше установок, тем быстрее.
+First to {0} points wins.	Побеждает первая команда с {0} очками.
+Time limit {0}: more points wins.	Лимит времени {0}: побеждает команда с большим числом очков.
+Every player for himself.	Каждый сам за себя.
+First to {0} kills wins.	Побеждает первый, кто наберёт {0} убийств.
+Time limit {0}: most kills wins.	Лимит времени {0}: побеждает тот, у кого больше всего убийств.
+Public rooms: each FFA card draws a version.	Публичные комнаты: каждая карточка FFA получает свою версию.
+Private rooms: plain FFA only.	Приватные комнаты: только обычный FFA.
+A lethal hit freezes you in place.	Смертельное попадание замораживает на месте.
+A teammate within {0} m thaws you in {1} s.	Союзник в пределах {0} м размораживает за {1} с.
+A thaw counts as a kill.	Разморозка засчитывается как убийство.
+A frozen player thaws by himself after {0}.	Замороженный игрок размораживается сам через {0}.
+A team's last fighter shows on the enemies' map.	Последнего бойца команды видно на карте противников.
+Freeze the whole enemy team to win the round.	Заморозьте всю команду противника, чтобы выиграть раунд.
+{0} s pause between rounds, then everyone respawns.	{0} с паузы между раундами, затем все возрождаются.
+First to {0} rounds wins.	Побеждает первая команда, выигравшая {0} раундов.
+Time limit {0}: an unfinished series is a draw.	Лимит времени {0}: незавершённая серия — ничья.
+One artefact at a time, {0}–{1} s into a round.	Один артефакт за раз, через {0}–{1} с после начала раунда.
+Bring it to your own base: 1 point, and the round ends.	Принесите его на свою базу: 1 очко, и раунд заканчивается.
+The carrier is slower and seen by everyone.	Носитель медленнее и виден всем.
+Respawn in waves every {0} s.	Возрождение волнами каждые {0} с.
+Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Лимит времени {0}: побеждает больший счёт; при ничьей — {1} внезапной смерти без возрождения.
+Sniper rifles, silenced guns and guns without automatic fire are replaced.	Снайперские винтовки, оружие с глушителем и оружие без автоматического огня заменяются.
+Rooms up to level {0}: {1}.	Комнаты до уровня {0}: {1}.
+Other rooms: {0}.	Остальные комнаты: {0}.
+Sight: {0}.	Прицел: {0}.
+Every kit: {0} only.	Каждый набор: только {0}.
+Every kit: {0} and {1}.	Каждый набор: {0} и {1}.
+Everyone plays the same {0} random kits.	Все играют одними и теми же {0} случайными наборами.
+Level bands: {0}.	Диапазоны уровней: {0}.
+A room draws bands up to its level.	Комната получает диапазоны до своего уровня.
+Each kit a gun of another class, with random bonuses and attachments.	В каждом наборе оружие другого класса со случайными бонусами и модулями.
+{0} % of deals: pistols only.	{0} % раздач: только пистолеты.
+Plain FFA: {0} % of FFA cards.	Обычный FFA: {0} % карточек FFA.
+{0} % of FFA cards.	{0} % карточек FFA.
+FFA: Roulette	FFA: Рулетка

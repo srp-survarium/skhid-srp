@@ -6,7 +6,7 @@ players have: release/build-content's work (run it, not this; --help there).
         --bin <srp-game-data> --tree <checkout> --manifest <content.tsv> --work <new folder>
         --stock-sha256 <its sha256> [--bin-source <the srp-026g it was built from>]
         [--tools <tools.json>] [--vostok-port <program>] [--packs <folder>] [--cache <folder>]
-        [--quick] [--delta-over <patch>...]
+        [--quick] [--delta-over <patch>=<its sha256>...]
 
 With --cache, a step whose inputs are those of an earlier build (a movie, the packs, an edit list,
 the checks of a file, a map's lamps or a stats table) takes what it made or found then from there
@@ -33,7 +33,8 @@ Writes into --work: world/ (every file a movie, pack or edit made, at its path, 
 check of players' files with the patch; not with --quick, which skips that check), patch/ (those of
 them players do not have so: what the next patch carries; absent when there is none) and
 files.tsv (`<status> <path> <why> <live in>`, a line a file; with --delta-over also delta.tsv,
-`<path> <why>` of each file in patch/) and game-data-id (srp-game-data as the cache knows it).
+`<path> <why>` of each file in patch/), digests.tsv (`<sha256> <path>` of each file in patch/) and
+game-data-id (srp-game-data as the cache knows it).
 Prints each file and why, and the
 checks; exits 1 on any problem (nothing in patch/ then). A live file of no base row that no row
 makes is a problem, unless an earlier version of a pack row added it (<packs>/<id>-<n>, n below
@@ -439,10 +440,13 @@ class Game:
         """{path: (status, archive or '')}: same, differs, new."""
         text = run([self.binary, 'compare'] + self.layers(archives) + ['--dir', folder], 'srp-game-data compare')
         out = {}
-        # `new <path>` or `<same|differs> <path> <archive>`: a path may hold spaces (0.21d's
-        # `render/material #825364/` folders), an archive name none.
+        # `new <path>` or `<same|differs> <path> <archive>`, a new or differing file the server
+        # reads followed by ` server`: a path may hold spaces (0.21d's `render/material #825364/`
+        # folders), an archive name none.
         for line in text.splitlines():
             status, rest = line.split(' ', 1)
+            if status != 'same':
+                rest = rest.removesuffix(' server')
             path, name = (rest, '') if status == 'new' else rest.rsplit(' ', 1)
             out[path] = (status, name)
         return out
@@ -488,12 +492,83 @@ class World:
         return held if held is not None else self.cache.blob(self.digests[path])
 
 
+class Drawn:
+    """The movies a pack draws into (vostok-port's lobby icons) without their code: a pack composes
+    over a movie's graphics (flash_tree.py graphics: the tree's movie, a tag where its code goes), so
+    that a change of a tree's code alone leaves the packs' runs as they were, and the code goes into
+    the composed movie after them (flash_tree.py code): the movie the tree builds, with what the packs
+    drew. Each cached by what it reads."""
+
+    def __init__(self, tree, programs, stand_in, work, game, cache, world):
+        self.tree, self.programs, self.stand_in = tree, programs, stand_in
+        self.work, self.game, self.cache, self.world = work, game, cache, world
+        self.movies, self.made = {}, {}             # path: (name, movie dir, its original's archive, sha256)
+
+    def add(self, path, name, movie_dir, archive, archive_sha):
+        self.movies[path] = (name, movie_dir, archive, archive_sha)
+
+    def program(self, *args):
+        if self.stand_in:
+            return [self.stand_in, *args]
+        return [sys.executable, self.tree / 'tools' / 'actionscript' / 'flash_tree.py', *args]
+
+    def graphics(self, path):
+        """(sha256, bytes or None when in the cache) of the movie at `path` without its code."""
+        if path in self.made:
+            return self.made[path]
+        name, movie_dir, archive, archive_sha = self.movies[path]
+        # Everything of the tree but its code (src/, tables/ and movie.json's data tables).
+        drawing = sha256(json.dumps([(e.name, tree_digest(e) if e.is_dir() else sha256(e.read_bytes()))
+                                     for e in sorted(movie_dir.iterdir()) if e.name not in ('src', 'tables')]).encode())
+        key = Cache.key('movie graphics', name, archive_sha, drawing, self.programs, self.stand_in, sys.version)
+        made = self.cache.get(key)
+        if made:
+            self.made[path] = (made[0][path], None)
+            return self.made[path]
+        folder = self.work / 'graphics' / name
+        folder.mkdir(parents=True)
+        (folder / 'original.swf').write_bytes(self.game.get([archive], [path])[path])
+        out = folder / 'graphics.swf'
+        run(self.program('graphics', movie_dir, folder / 'original.swf', out), f'the graphics of movie {name}')
+        data = out.read_bytes()
+        shutil.rmtree(folder)
+        self.cache.put(key, {path: data}, '')
+        self.made[path] = (sha256(data), data)
+        return self.made[path]
+
+    def graphics_data(self, path):
+        digest, data = self.graphics(path)
+        return data if data is not None else self.cache.blob(digest)
+
+    def with_code(self, path, drawn, digest):
+        """(bytes or None, sha256) of the movie the tree at `path` builds (in world now) with what the
+        packs drew into its graphics (`drawn`: its bytes or None, `digest`)."""
+        built = self.world.sha256(path)
+        key = Cache.key('movie with its code', path, digest, built, self.programs, self.stand_in, sys.version)
+        made = self.cache.get(key)
+        if made:
+            return None, made[0][path]
+        folder = self.work / 'with-code' / self.movies[path][0]
+        folder.mkdir(parents=True)
+        (folder / 'drawn.swf').write_bytes(drawn if drawn is not None else self.cache.blob(digest))
+        (folder / 'built.swf').write_bytes(self.world.data(path))
+        out = folder / 'movie.swf'
+        run(self.program('code', folder / 'drawn.swf', folder / 'built.swf', out), f'the code of movie {path}')
+        data = out.read_bytes()
+        shutil.rmtree(folder)
+        self.cache.put(key, {path: data}, '')
+        return data, sha256(data)
+
+
 def build_movies(rows, tree, archive_of, sha_of, game, tools, work, world, cache):
+    """Every movie row's movie, built from its tree, in `world`; returns their Drawn."""
     stand_in = os.environ.get('SKHID_TEST_BUILD_MOVIE')
     # What a movie's build reads besides its tree and its original: the build's programs and the tools.
     programs = files_digest(sorted((tree / 'tools' / 'actionscript').glob('*.py'))
                             + [tree / 'srp-026g' / 'client-patches' / 'build_lobby_026g.py']
                             + [Path(p) for p in (stand_in, tools) if p])
+    drawn = Drawn(tree, files_digest(sorted((tree / 'tools' / 'actionscript').glob('*.py'))
+                                     + [Path(p) for p in (stand_in,) if p]), stand_in, work, game, cache, world)
     for kind, name, _, _, at in rows:
         if kind != 'movie':
             continue
@@ -503,6 +578,7 @@ def build_movies(rows, tree, archive_of, sha_of, game, tools, work, world, cache
         if archive not in archive_of:
             raise Problem(f'{at}: movie {name}: its original is in {archive} (movie.json), which is neither the '
                           'stock resources.db nor a base row')
+        drawn.add(spec['movie'], name, movie_dir, archive_of[archive], sha_of[archive])
         # The repository's tables movie.json's `data` makes classes of (flash_tree.data_sources).
         sources = files_digest(sorted(tree / path for path in spec.get('data', {}).values()))
         key = Cache.key('movie', name, sha_of[archive], tree_digest(movie_dir), sources, programs, stand_in,
@@ -537,6 +613,7 @@ def build_movies(rows, tree, archive_of, sha_of, game, tools, work, world, cache
         cache.put(key, {spec['movie']: data}, said)
         world.put(spec['movie'], data, f'movie {name} (srp-026g/flash/{name})')
         print(f'  movie {name}: {spec["movie"]}, {len(data)} bytes, sha256 {sha256(data)[:16]}…')
+    return drawn
 
 
 def movies_packs_edit(specs, movies):
@@ -628,7 +705,7 @@ def pack_runs(specs, links=()):
     return [sorted(packs.items()) for _, packs in sorted(runs.items())]
 
 
-def compose_packs(rows, base, base_shas, vostok, packs_dir, work, world, cache):
+def compose_packs(rows, base, base_shas, vostok, packs_dir, work, world, cache, drawn):
     applied = [(name, source, at) for kind, name, source, _, at in rows if kind == 'pack' and SHA.match(source)]
     if not applied:
         return
@@ -653,12 +730,12 @@ def compose_packs(rows, base, base_shas, vostok, packs_dir, work, world, cache):
         specs.append(spec)
     # What vostok-port reads: the base archives (their sha256: it reads them itself, not through
     # srp-game-data), each pack's folder (its files by size and time: a folder is one version, made
-    # once) and operations, the bytes of the movies they edit (given as --replace; the others are
-    # the movie rows') and itself (the program and the files beside it named after it: a wrapper and
-    # its binary). Each run (pack_runs) is composed and cached apart.
+    # once) and operations, the bytes of the movies they edit (their graphics, Drawn, given as
+    # --replace; the others are the movie rows') and itself (the program and the files beside it
+    # named after it: a wrapper and its binary). Each run (pack_runs) is composed and cached apart.
     program = Path(vostok).resolve()
     composer = Composer(vostok, base, base_shas, files_digest(sorted(program.parent.glob(program.name + '*'))),
-                        applied, folders, specs, work, world, cache)
+                        applied, folders, specs, work, world, cache, drawn)
     # vostok-port checks what the files it adds refer to (a model's materials, a project's probes)
     # across every file it makes: a run whose files refer to another pack's (no `requires` says so)
     # is refused. The packs whose added paths its refusal names are linked to it (kept in the cache,
@@ -691,6 +768,8 @@ def compose_packs(rows, base, base_shas, vostok, packs_dir, work, world, cache):
           + ('' if composer.fresh else ': as an earlier build of the same packs over the same movies composed them: '
              'the cache'))
     for path, (data, digest) in sorted(composed.items()):
+        if path in drawn.movies:                # a movie's graphics, drawn into: its code goes in
+            data, digest = drawn.with_code(path, data, digest)
         if data is None:
             world.put_cached(path, digest, reason)
         else:
@@ -712,10 +791,10 @@ class Composer:
     has, so that vostok-port's checks of the order and of layered files hold within it), or (None)
     every pack whole at once."""
 
-    def __init__(self, vostok, base, base_shas, program_id, applied, folders, specs, work, world, cache):
+    def __init__(self, vostok, base, base_shas, program_id, applied, folders, specs, work, world, cache, drawn):
         self.vostok, self.base, self.base_shas, self.program_id = vostok, base, base_shas, program_id
         self.applied, self.folders, self.specs = applied, folders, specs
-        self.work, self.world, self.cache = work, world, cache
+        self.work, self.world, self.cache, self.drawn = work, world, cache, drawn
         self.fresh, self.stats = 0, {}
 
     def folder_stats(self, i, operations):
@@ -772,7 +851,7 @@ class Composer:
             key = Cache.key('packs', self.base_shas, self.program_id,
                             [(self.folders[i].name, manifests[i], self.folder_stats(i, operations))
                              for i, operations in run],
-                            sorted((path, self.world.sha256(path)) for path in edited))
+                            sorted((path, self.drawn.graphics(path)[0]) for path in edited))
             made = self.cache.get(key)
             if made:
                 composed.update({path: (None, digest) for path, digest in made[0].items()})
@@ -813,7 +892,7 @@ class Composer:
         for path in sorted(edited):
             target = self.work / 'movies-for-packs' / path
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(self.world.data(path))
+            target.write_bytes(self.drawn.graphics_data(path))
             command += ['--replace', f'{path}={target}']
         label = f'packs {"whole" if whole else f"run {number}"} ({", ".join(self.applied[i][0] for i, _ in run)})'
         return runs_dir, label, command + ['--out-dir', runs_dir / 'out']
@@ -844,12 +923,13 @@ class Composer:
         return {path: (data, digests[path]) for path, data in files.items()}
 
 
-def left_by_earlier_packs(rows, packs_dir, paths, base_files, live, game):
+def left_by_earlier_packs(rows, packs_dir, paths, base_files, live, game, cache, live_id):
     """{path: '<id>@<n>'} of the live files `paths` (no base row's, made by no row) that an earlier
     version of a composed pack left: its folder <packs>/<id>-<n>, n below the row's version, adds the
     path (add_file, not over a base file) and its files/<path> is the live file byte for byte, so it is
     what that version shipped. Nothing refers to it: a pack's new version puts what it changes at new
-    paths (a patch only adds files), so it stays as it is, not packed."""
+    paths (a patch only adds files), so it stays as it is, not packed. Cached by players' archives
+    (`live_id`) and each such path's files of the earlier versions (by size and time)."""
     paths = [p for p in paths if p not in base_files]
     if not paths or not packs_dir:
         return {}
@@ -866,17 +946,32 @@ def left_by_earlier_packs(rows, packs_dir, paths, base_files, live, game):
             spec = json.loads(manifest.read_text())
             if (spec.get('id'), str(spec.get('version'))) != (ident, str(n)):
                 raise Problem(f'{at}: pack {name}: {manifest} says {spec.get("id")}@{spec.get("version")}')
+            files = f'{manifest.parent}/files/'
             for op in spec.get('operations', []):
                 if op.get('op') == 'add_file':
-                    added.setdefault(op['path'], []).append((f'{ident}@{n}', manifest.parent / 'files' / op['path']))
+                    added.setdefault(op['path'], []).append((f'{ident}@{n}', files + op['path']))
     wanted = [p for p in paths if p in added]
+
+    def stat(file):
+        try:
+            info = os.stat(file)
+        except OSError:
+            return None
+        return info.st_size, info.st_mtime_ns
+
+    key = Cache.key('left by earlier packs', code_digest(left_by_earlier_packs), live_id,
+                    [(p, [(version, file, stat(file)) for version, file in added[p]]) for p in wanted])
+    known = cache.get(key)
+    if known:
+        return known[1]
     got = game.get(live, wanted)
     left = {}
     for path in wanted:
         for version, file in added[path]:
-            if file.is_file() and file.read_bytes() == got[path]:
+            if os.path.isfile(file) and Path(file).read_bytes() == got[path]:
                 left[path] = version
                 break
+    cache.put(key, {}, left)
     return left
 
 
@@ -929,12 +1024,16 @@ def apply_edits(rows, tree, base, work, world, cache):
     programs = files_digest(sorted(p for p in edits_dir(tree).glob('*.py') if not p.name.startswith('test_')))
     localization = files_digest(sorted(p for p in (tree / 'srp-026g' / 'client-patches').glob('*localization*.py')
                                        if not p.name.startswith('test_')))
-    known, count = [], None
+    known = sorted(set(base.of) | set(world))
+    present, count = set(known), len(world)
     for kind, name, source, _, at in rows:
         if kind != 'edit' or source != '-':
             continue
-        if count != len(world):                          # a path added since: sorted again
-            known, count = sorted(set(base.of) | set(world)), len(world)
+        for path in list(world)[count:] if count != len(world) else []:    # the paths added since (in order)
+            if path not in present:
+                present.add(path)
+                bisect.insort(known, path)
+        count = len(world)
         edits = {} if name.endswith('.tsv') else json.loads((edits_dir(tree) / name).read_text(encoding='utf-8'))
         if name.endswith('.tsv'):
             paths = own_content_edit().stats_paths(own_content_edit().stats_category(name), known)
@@ -1328,11 +1427,12 @@ def grass_check(base, world, cache):
     print(f'grass: each of {len(maps)} map folder(s) at most {GRASS_MAX} instances (most: {folder}, {most})')
 
 
-def pierce_check(rows, tree, base, world):
+def pierce_check(rows, tree, base, world, cache):
     """Every pierce line (an add_entry with `pierce_line`, content_edit.pierce_lines) is what the final
     files make: a row after the list's that retunes a weapon's or a round's piercing, a material's
     armour or what fires what, or adds a gun or a round, leaves a line stale or missing (and a
-    weapon the list's _inputs does not declare, a line computed without it), and is a Problem."""
+    weapon the list's _inputs does not declare, a line computed without it), and is a Problem. Its
+    findings are cached by the lines and the bytes of every file it reads."""
     ce = own_content_edit()
     lines = [(name, entry) for kind, name, source, _, _ in rows
              if kind == 'edit' and source == '-' and name.endswith('.json')
@@ -1345,6 +1445,15 @@ def pierce_check(rows, tree, base, world):
     # Every item config the dictionary can pair, read once.
     needed = sorted(p for p in known if p.startswith('gameplay/items/') and p.endswith('.options'))
     needed += [ce.GAME_MATERIALS, ce.DICTIONARY]
+    digests, _ = base.digests([p for p in needed if p not in world], keep=False)
+    modules = sorted(p for p in Path(ce.__file__).parent.glob('*.py') if not p.name.startswith('test_'))
+    key = Cache.key('pierce lines', code_digest(pierce_check), files_digest(modules), sys.version, lines,
+                    [(p, world.sha256(p) if p in world else digests[p]) for p in needed])
+    found = cache.get(key)
+    if found:
+        problems, checked = found[1]
+        report_pierce(problems, checked)
+        return
     files = base.game.get(base.archives, [p for p in needed if p not in world])
     files.update({p: world.data(p) for p in needed if p in world})
     files = {p: bytearray(b) for p, b in files.items()}
@@ -1364,6 +1473,11 @@ def pierce_check(rows, tree, base, world):
                 problems.append(f'{path}: line {prop_id} says {have!r}, its data makes {want.get(path)!r} '
                                 f'({name}: a row after it changes what it is computed from)')
         checked += len(want)
+    cache.put(key, {}, [problems, checked])
+    report_pierce(problems, checked)
+
+
+def report_pierce(problems, checked):
     if problems:
         for problem in problems:
             print(f'PIERCE: {problem}')
@@ -1408,16 +1522,34 @@ def clothing_check(base, world):
     print(f'clothing fit: {len(rows)} boot shafts cover their native trousers class')
 
 
-def delta(chain, live, players, world, changed, game):
-    """{path: (its bytes of path, why)} of what a patch over `chain` (the earlier builds' patches,
-    ascending, over players' files) holds so that the game sees every file as this build's own patch
-    over players' files would show it: a file this build packs that the chain gives otherwise, and
-    a file the chain gives that this build does not pack, as players have it. A patch adds or
-    replaces files and cannot take one away: a file the chain gives that neither players have nor
-    this build packs is a Problem."""
-    names = {patch.name for patch in chain}
-    given = sorted(p for p, name in game.files(live + chain).items() if name in names)
-    theirs = game.get(live + chain, given)
+DIGESTS = 'digests.tsv'
+
+
+def chain_layers(live, live_sha_of, chain, game, cache, reader):
+    """Layers of players' files (`live`, `live_sha_of` their sha256s by name) with the earlier
+    builds' patches (`chain`: [(patch, its sha256)]) over them. A patch's files' sha256s come from
+    DIGESTS beside it (build-content writes it with the patch: its first line names the patch's
+    sha256) or, without one, are read once and then known from the cache by the patch's sha256."""
+    layers = Layers(game, cache, reader, live + [patch for patch, _ in chain],
+                    live_sha_of | {patch.name: sha for patch, sha in chain})
+    for patch, sha in chain:
+        listing = patch.parent / DIGESTS
+        lines = listing.read_text().splitlines() if listing.is_file() else []
+        if lines and lines[0] == f'# {patch.name} {sha}':
+            layers.known[patch.name] = dict(reversed(line.split('\t', 1)) for line in lines[1:])
+    return layers
+
+
+def delta(chain, players, world, changed):
+    """{path: (its bytes of path, why)} of what a patch over `chain` (chain_layers: the earlier
+    builds' patches over players' files) holds so that the game sees every file as this build's own
+    patch over players' files would show it: a file this build packs that the chain gives
+    otherwise, and a file the chain gives that this build does not pack, as players have it. A
+    patch adds or replaces files and cannot take one away: a file the chain gives that neither
+    players have nor this build packs is a Problem."""
+    names = {Path(patch).name for patch in chain.archives[len(players.archives):]}
+    given = sorted(p for p, name in chain.of.items() if name in names)
+    theirs, _ = chain.digests(given, keep=False)
     packed = set(changed)
     back = [p for p in given if p not in packed]
     gone = [p for p in back if p not in players.of]
@@ -1425,10 +1557,10 @@ def delta(chain, live, players, world, changed, game):
         raise Problem(f'{gone[0]} (and {len(gone) - 1} more): the earlier build\'s patch adds it, players do not '
                       'have it and this build does not make it; a patch cannot take a file away: build it whole '
                       '(without --delta-from)')
-    live_digests, _ = players.digests(back)
+    live_digests, _ = players.digests(back, keep=False)
     out = {}
     for path in given:
-        have = sha256(theirs[path])
+        have = theirs[path]
         if path in packed:
             if have != world.sha256(path):
                 out[path] = (world.data, 'made: the earlier build gives it otherwise')
@@ -1436,7 +1568,7 @@ def delta(chain, live, players, world, changed, game):
             out[path] = (None, 'as players have it: the earlier build changed it, this one does not')
     for path in packed - set(given):
         out[path] = (world.data, 'made')
-    had = game.get(live, [p for p, (data_of, _) in out.items() if data_of is None])
+    had = players.game.get(players.archives, [p for p, (data_of, _) in out.items() if data_of is None])
     return {p: (data_of or had.__getitem__, why) for p, (data_of, why) in out.items()}
 
 
@@ -1451,7 +1583,7 @@ def main():
     parser.add_argument('--bin-source', type=Path)
     parser.add_argument('--cache', type=Path)
     parser.add_argument('--quick', action='store_true')
-    parser.add_argument('--delta-over', type=Path, nargs='*')
+    parser.add_argument('--delta-over', nargs='*')
     args = parser.parse_args()
     work = args.work
     work.mkdir(parents=True)
@@ -1482,10 +1614,10 @@ def main():
         world = World(cache)
         print('the movies, from source:')
         with timed('the movies'):
-            build_movies(rows, args.tree, archive_of, sha_of, game, args.tools, work, world, cache)
+            drawn = build_movies(rows, args.tree, archive_of, sha_of, game, args.tools, work, world, cache)
         with timed('the packs'):
             compose_packs(rows, base, [(n, sha_of[n]) for n in base_names], args.vostok_port, args.packs, work,
-                          world, cache)
+                          world, cache, drawn)
         with timed('the base files'):
             base_layers = Layers(game, cache, reader, base, sha_of)
         print('the edit lists, in order:')
@@ -1501,7 +1633,7 @@ def main():
             with timed('the lamps'):
                 lamp_check(world, cache)
             with timed('the pierce lines'):
-                pierce_check(rows, args.tree, base_layers, world)
+                pierce_check(rows, args.tree, base_layers, world, cache)
             with timed('the Keeper pool'):
                 keeper_check(rows, base_layers, world)
             with timed('the grass'):
@@ -1544,7 +1676,7 @@ def main():
         with timed('the live files'):
             live_files = players.of
             unmade = sorted(p for p, name in live_files.items() if name not in base_names and p not in world)
-            left = left_by_earlier_packs(rows, args.packs, unmade, base_layers.of, live, game)
+            left = left_by_earlier_packs(rows, args.packs, unmade, base_layers.of, live, game, cache, live_id)
         for path in unmade:
             if path not in left:
                 problems.append(f'{path}: live from {live_files[path]}, which is no base row, and made by no row '
@@ -1578,8 +1710,12 @@ def main():
         print()
         if args.delta_over is not None:
             with timed('the delta'):
-                packed = delta(args.delta_over, live, players, world, changed, game)
+                chain = chain_layers(live, {'resources.db': args.stock_sha256} | dict(offered),
+                                     [(Path(p), sha) for p, _, sha in (a.rpartition('=') for a in args.delta_over)],
+                                     game, cache, reader)
+                packed = delta(chain, players, world, changed)
             players.save()
+            chain.save()
             (work / 'delta.tsv').write_text(''.join(f'{path}\t{why}\n' for path, (_, why) in sorted(packed.items())))
             if not packed:
                 print('nothing to ship over the earlier build: the game sees every file through it as this build '
@@ -1591,13 +1727,17 @@ def main():
                 print('nothing to ship: players have every file as the manifest makes it')
                 return
         patch = work / 'patch'
-        size = 0
+        size, digests = 0, []
         for path, (data_of, _) in sorted(packed.items()):
             target = patch / path
             target.parent.mkdir(parents=True, exist_ok=True)
             data = data_of(path)
             target.write_bytes(data)
             size += len(data)
+            digests.append(f'{world.sha256(path) if data_of == world.data else sha256(data)}\t{path}\n')
+        # Each file's sha256, for a later --delta-over this patch (build-content puts the patch's
+        # sha256 above them, DIGESTS).
+        (work / DIGESTS).write_text(''.join(digests))
         print(f'the next patch: {len(packed)} file(s), {size} bytes')
     except Problem as problem:
         sys.exit(f'build-content: {problem}')

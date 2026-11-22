@@ -50,6 +50,7 @@ pub mod item_tables;
 mod launcher;
 mod maps;
 mod moderation;
+mod modes;
 mod modifiers;
 mod password_reset;
 mod patches;
@@ -62,8 +63,9 @@ mod v026g;
 mod wiki;
 mod words;
 
+pub use modes::Pools;
 pub use patches::{Downloads, OfferedPatch};
-pub use v026g::{Game, LiveMatch, LivePhase, LiveStanding, LobbyLink, MatchCounter};
+pub use v026g::{Game, LiveKind, LiveMatch, LivePhase, LiveStanding, LobbyLink, MatchCounter};
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -136,7 +138,7 @@ const TOKEN_LOCKOUT: Duration = Duration::from_secs(60);
 const POLICY: &str =
     "default-src 'none'; style-src 'unsafe-inline'; font-src 'self'; form-action 'self'";
 
-/// The page's languages: the game's eleven, in its order. A page is asked
+/// The page's languages: the game's twelve, in its order. A page is asked
 /// for in one of them, names the game's things in it ([`Lang::game`]) and
 /// says its own words in it where its file has them ([`Lang::t`],
 /// `words`), in English where not.
@@ -153,6 +155,7 @@ enum Lang {
     Fi,
     Be,
     Hr,
+    Pt,
 }
 
 /// A language the pages built at a release are written in (the wiki's
@@ -164,7 +167,7 @@ enum Written {
 }
 
 impl Lang {
-    const ALL: [Self; 11] = [
+    const ALL: [Self; 12] = [
         Self::En,
         Self::Uk,
         Self::Ru,
@@ -176,6 +179,7 @@ impl Lang {
         Self::Fi,
         Self::Be,
         Self::Hr,
+        Self::Pt,
     ];
 
     /// `?lang=` or the form's `lang`, else the first of the browser's
@@ -216,6 +220,7 @@ impl Lang {
             Self::Fi => "fi",
             Self::Be => "be",
             Self::Hr => "hr",
+            Self::Pt => "pt",
         }
     }
 
@@ -233,6 +238,7 @@ impl Lang {
             Self::Fi => "Suomi",
             Self::Be => "Беларуская",
             Self::Hr => "Hrvatski",
+            Self::Pt => "Português",
         }
     }
 
@@ -251,6 +257,7 @@ impl Lang {
             Self::Fi => Language::Finnish,
             Self::Be => Language::Belarusian,
             Self::Hr => Language::Croatian,
+            Self::Pt => Language::Portuguese,
         }
     }
 
@@ -873,6 +880,7 @@ impl Web {
                     | wiki::EQUIPMENT
                     | skills::PATH
                     | quests::PATH
+                    | modes::PATH
             )
         {
             damage::POLICY
@@ -1147,7 +1155,7 @@ impl Web {
             if request.method == "GET" {
                 match request.path.as_str() {
                     "/api/stats" => return stats::response(&self.store, game),
-                    history::PATH => return stats_page(request.lang),
+                    history::PATH => return stats_page(request.lang, &request.target),
                     history::REPLAY
                         if !self.replay_ask_allowed(request.client, Instant::now()) =>
                     {
@@ -1184,7 +1192,8 @@ impl Web {
                     | wiki::MODIFIERS
                     | wiki::EQUIPMENT
                     | skills::PATH
-                    | quests::PATH) => {
+                    | quests::PATH
+                    | modes::PATH) => {
                         return wiki_page(path, &request.target, request.lang, game);
                     }
                     path if path.starts_with(launcher::FRESH) => {
@@ -1760,13 +1769,14 @@ fn maps_page(lang: Lang) -> Response {
     maps::page(lang, &tool_header(lang, &lang.t("Maps")))
 }
 
-/// The stats: their page under the site's header, a tab of its own.
-fn stats_page(lang: Lang) -> Response {
+/// The stats: their page under the site's header, a tab of its own, for the request's `target`.
+fn stats_page(lang: Lang, target: &str) -> Response {
     let connect = CONNECT.get();
     let test = connect.is_some_and(|connect| connect.test_server);
     let other_url = connect.and_then(|connect| connect.other_url.as_deref());
     let (header, notice) = site_header(lang, true, test, other_url, history::PATH);
-    history::page(lang, &format!("{header}{notice}"))
+    let query = target.split_once('?').map_or("", |(_, query)| query);
+    history::page(lang, &format!("{header}{notice}"), query)
 }
 
 fn wiki_page(path: &str, target: &str, lang: Lang, game: &Game) -> Response {
@@ -1774,6 +1784,15 @@ fn wiki_page(path: &str, target: &str, lang: Lang, game: &Game) -> Response {
     let test = connect.is_some_and(|connect| connect.test_server);
     let other_url = connect.and_then(|connect| connect.other_url.as_deref());
     let (header, notice) = site_header(lang, true, test, other_url, wiki::PATH);
+    if path == modes::PATH {
+        return wiki::framed(
+            lang,
+            &lang.t("Modes"),
+            &lang.t("Skhid wiki"),
+            &format!("{header}{notice}"),
+            &modes::body(lang, &game.pools),
+        );
+    }
     let query = target.split_once('?').map_or("", |(_, query)| query);
     let now = if path == skills::PATH {
         skills::Now {
@@ -1976,7 +1995,7 @@ fn faq(lang: Lang) -> String {
         ),
         (
             lang.t("“Blocked on this network: …”"),
-            lang.t("Your provider blocks skhid.link: the launcher sets <b>Relay</b> (bottom left) to auto. Press Retry."),
+            lang.t("Your provider blocks our server. The launcher has already switched to our relay, a way around the block (<b>Relay: auto</b>, bottom left). Just press <b>Retry</b>."),
         ),
         (
             lang.t("Nothing works."),
@@ -2031,25 +2050,16 @@ fn home(lang: Lang, stats: Stats) -> String {
         ),
         None => String::new(),
     };
-    // 0.26g: the whole game folder by BitTorrent too, when the ZIP holds a
-    // torrent.
-    let torrent = available_download()
-        .filter(|_| v026g)
-        .and_then(|file| torrent::in_zip(file))
-        .map_or_else(String::new, |torrent| {
-            format!(
-                "<small>{} <a href=\"{}\">.torrent</a> &middot; <a href=\"{}\">magnet</a></small>",
-                lang.t("Or the whole game by BitTorrent:"),
-                torrent::PATH,
-                escape(&torrent.magnet())
-            )
-        });
-    // 0.26g: the script that gets it all without this site, when there is one.
+    // 0.26g: for a browser or an antivirus that refuses the ZIP, the script
+    // that gets it all by itself, when there is one.
     let bootstrap = if v026g && torrent::BOOTSTRAP.is_some() {
+        let script = format!("<a href=\"{}\">Skhid-get.bat</a>", torrent::BOOTSTRAP_PATH);
         format!(
-            "<small>{} <a href=\"{}\">Skhid-get.bat</a></small>",
-            lang.t("Without this site, by BitTorrent:"),
-            torrent::BOOTSTRAP_PATH
+            "<small>{}</small>",
+            lang.tf(
+                "Can't download? Run {script}: it downloads the whole game into a Survarium folder beside it.",
+                &[("script", &script)]
+            )
         )
     } else {
         String::new()
@@ -2140,9 +2150,9 @@ fn home(lang: Lang, stats: Stats) -> String {
         String::new()
     };
     format!(
-        "<section class=card><h1>{}</h1><p>{}</p><p>{}</p><p class=note><b>{}</b> {}</p>{stats}</section> <section class=card><h2>{}</h2><ol> {original}<li>{}<div class=dl>{download}{hash}{torrent}{bootstrap}</div></li> <li>{start}</li> <li>{}</li></ol></section>{faq}",
+        "<section class=card><h1>{}</h1><p>{}</p><p>{}</p><p class=note><b>{}</b> {}</p>{stats}</section> <section class=card><h2>{}</h2><ol> {original}<li>{}<div class=dl>{download}{hash}{bootstrap}</div></li> <li>{start}</li> <li>{}</li></ol></section>{faq}",
         lang.t("Skhid"),
-        lang.tf("Skhid (Ukrainian for “east”) is a small community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.", &[("version", &version)]),
+        lang.tf("Skhid (Ukrainian for “east”) is a community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.", &[("version", &version)]),
         lang.t("Project Discord: <a href=\"https://discord.gg/pxywZfaxRQ\">discord.gg/pxywZfaxRQ</a>"),
         lang.t("Early test server."),
         lang.t("It has bugs and may not work fully. Your progress, items and accounts can be lost or reset at any time, and the server may be stopped at any time. By playing you accept this."),
@@ -3023,12 +3033,13 @@ mod tests {
     }
 
     #[test]
-    fn the_language_is_one_of_the_games_eleven() {
+    fn the_language_is_one_of_the_games_twelve() {
         assert_eq!(Lang::pick("uk", "en"), Lang::Uk);
         assert_eq!(Lang::pick("ua", "en"), Lang::Uk, "the launcher's code");
         assert_eq!(Lang::pick("en", "uk"), Lang::En);
         assert_eq!(Lang::pick("de", "uk-UA,uk;q=0.9"), Lang::De);
         assert_eq!(Lang::pick("", "ru-RU,ru"), Lang::Ru);
+        assert_eq!(Lang::pick("", "pt-BR,pt;q=0.9,en;q=0.8"), Lang::Pt);
         // The first the site has, as the browser orders them; none: English.
         assert_eq!(Lang::pick("", "fr-FR,fr;q=0.9,pl;q=0.8,en;q=0.7"), Lang::Pl);
         assert_eq!(Lang::pick("xx", "ja,zh"), Lang::En);

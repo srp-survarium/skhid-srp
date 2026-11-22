@@ -5,15 +5,20 @@ package {
  import flash.net.*;
  import flash.system.*;
  public class MedicalSkillsHarness extends Sprite {
-  // Our trees' skills and each's embedded artwork (bitmaps/<class>.png; medical-skills and
-  // artefact-skills icons-069.tsv).
-  private static const ARTWORK:Object = {301:"MedicalSkill069301",302:"MedicalSkill069302",303:"MedicalSkill069301",
-   311:"MedicalSkill069311",312:"MedicalSkill069312",314:"MedicalSkill069322",321:"MedicalSkill069321",
-   322:"MedicalSkill069322",323:"MedicalSkill069301",324:"MedicalSkill069322",331:"MedicalSkill069331",332:"MedicalSkill069332",
-   333:"MedicalSkill069322",341:"MedicalSkill069341",342:"MedicalSkill069342",
+  // Our trees' skills and each's embedded artwork (bitmaps/<class>.png; medical-skills,
+  // artefact-skills and technical-skills icons-069.tsv).
+  private static const ARTWORK:Object = {301:"MedicalSkill069301",302:"MedicalSkill069302",303:"MedicalSkill069303",
+   311:"MedicalSkill069311",312:"MedicalSkill069312",314:"MedicalSkill069314",321:"MedicalSkill069321",
+   322:"MedicalSkill069322",323:"MedicalSkill069323",324:"MedicalSkill069324",331:"MedicalSkill069331",332:"MedicalSkill069332",
+   333:"MedicalSkill069333",341:"MedicalSkill069341",342:"MedicalSkill069342",
    501:"ArtefactSkill069501",502:"ArtefactSkill069502",512:"ArtefactSkill069512",513:"ArtefactSkill069513",
    521:"ArtefactSkill069521",522:"ArtefactSkill069522",523:"ArtefactSkill069523",531:"ArtefactSkill069531",532:"ArtefactSkill069532",
-   533:"ArtefactSkill069533",534:"ArtefactSkill069534",541:"ArtefactSkill069541",542:"ArtefactSkill069542"};
+   533:"ArtefactSkill069533",534:"ArtefactSkill069534",541:"ArtefactSkill069541",542:"ArtefactSkill069542",
+   401:"TechnicalSkill069401",402:"TechnicalSkill069402",403:"TechnicalSkill069403",404:"TechnicalSkill069404",
+   411:"TechnicalSkill069411",412:"TechnicalSkill069412",413:"TechnicalSkill069413",414:"TechnicalSkill069414",
+   422:"TechnicalSkill069422",423:"TechnicalSkill069423",431:"TechnicalSkill069431",432:"TechnicalSkill069432",
+   433:"TechnicalSkill069433",441:"TechnicalSkill069441",442:"TechnicalSkill069442",443:"TechnicalSkill069443",
+   444:"TechnicalSkill069444"};
   private var loader:Loader = new Loader();
   private var failures:Array = [];
   private var icons:Object;
@@ -21,8 +26,9 @@ package {
   private var domain:ApplicationDomain;
   private var edits:Object;
   private var artefactEdits:Object;
+  private var technicalEdits:Object;
   private var catalog:Object = {};
-  private var pending:int = 4;
+  private var pending:int = 5;
   private var sources:Array = [];
   private var stage_:String = "";
   public function MedicalSkillsHarness() {
@@ -37,6 +43,10 @@ package {
    artefacts.addEventListener(Event.COMPLETE,function(e:Event):void {artefactEdits=JSON.parse(String(artefacts.data));ready();});
    artefacts.addEventListener(IOErrorEvent.IO_ERROR,function(e:Event):void {failures.push("no artefact-skills-1.json");finish();});
    artefacts.load(new URLRequest("artefact-skills-1.json"));
+   var technicals:URLLoader = new URLLoader();
+   technicals.addEventListener(Event.COMPLETE,function(e:Event):void {technicalEdits=JSON.parse(String(technicals.data));ready();});
+   technicals.addEventListener(IOErrorEvent.IO_ERROR,function(e:Event):void {failures.push("no technical-skills-1.json");finish();});
+   technicals.load(new URLRequest("technical-skills-1.json"));
    // The English catalog (client-patches/localization/english.tsv), where the artefact tree's texts are.
    var tsv:URLLoader = new URLLoader();
    tsv.addEventListener(Event.COMPLETE,function(e:Event):void {
@@ -75,12 +85,12 @@ package {
    check(Slots.artifactCount(5,0)==0,"no free artifact unlock");
    check(Slots.artifactCount(3,2)==2,"existing artifact capacity");
    Info.pocketSize=3;
-   Info.medicalSkills([]);
+   Info.committedSkills([]);
    check(Info.pocketUnits(10,size.HALF)==3,"base medicine");
    check(Info.pocketUnits(10,size.WHOLE)==1,"base whole pocket");
-   Info.medicalSkills([{id:322,value:0,newValue:1}]);
+   Info.committedSkills([{id:322,value:0,newValue:1}]);
    check(Info.pocketUnits(10,size.HALF)==3,"uncommitted preview");
-   Info.medicalSkills([{id:322,value:1}]);
+   Info.committedSkills([{id:322,value:1}]);
    check(Info.pocketUnits(10,size.HALF)==4,"medicine bonus");
    check(Info.pocketUnits(10,size.WHOLE)==1,"booster stays one");
    check(Info.pocketUnits(11,size.HALF)==3,"nonmedicine unchanged");
@@ -90,13 +100,13 @@ package {
    item.value=2;check(Doll.pocketUnits(item)==2,"a put takes no more than is owned");
    item.quickSlotItemSize=size.WHOLE;item.value=10;check(Doll.pocketUnits(item)==1,"a put of a whole-pocket item is one");
    item.quickSlotItemSize=size.HALF;
-   Info.medicalSkills([]);
+   Info.committedSkills([]);
    check(Info.pocketUnits(10,size.HALF)==3,"reset removes bonus");
    for each(var capacity:int in [4,5,6,20]) {
     Info.pocketSize=capacity;
-    Info.medicalSkills([]);
+    Info.committedSkills([]);
     check(Info.pocketUnits(10,size.HALF)==Math.min(5,capacity),"plain capacity cap " + capacity);
-    Info.medicalSkills([{id:322,value:1}]);
+    Info.committedSkills([{id:322,value:1}]);
     check(Info.pocketUnits(10,size.HALF)==5,"medicine bonus capped " + capacity);
     check(Info.pocketUnits(11,size.HALF)==Math.min(5,capacity),"grenade capacity cap " + capacity);
     check(Info.pocketUnits(10,size.WHOLE)==1,"booster stays one " + capacity);
@@ -157,6 +167,18 @@ package {
      branch_points:v.preconditions.branch_points});
     values.push({id:v.id,value:0});
    }
+   var technicals:Object={};
+   for each(entry in technicalEdits.append_entry) {
+    v=entry.value;technicals[v.id]=v;
+    check(v.modifiers.length==v.levels_amount,"modifiers per rank "+v.id);
+    if(v.ui.skill_descriptions) check(v.ui.skill_descriptions.length==v.levels_amount+1,"rank rows "+v.id);
+    check(english(v.ui.name)!=null && english(v.ui.description)!=null,"technical texts "+v.id);
+    props.push({id:v.id,branch:int(v.id/100)-1,max_value:v.levels_amount,name:english(v.ui.name),
+     description_1:english(v.ui.description),description_2:described(v.ui,v.levels_amount),icon:v.ui.icon,
+     column:v.ui.position[0],row:v.ui.position[1],antiskills:v.preconditions.antiskills,
+     branch_points:v.preconditions.branch_points});
+    values.push({id:v.id,value:0});
+   }
    var id:String;var have:Object;
    var Window:Class=domain.getDefinition("SrvCharWindow") as Class;
    var Renderer:Class=domain.getDefinition("SrvSkillRendererCh") as Class;
@@ -165,7 +187,7 @@ package {
    stage_="init";win.init(new Event(Event.RENDER));
    stage_="properties";win.fillSkillsProperties(props);
    stage_="skills";win.fillSkills(values);
-   stage_="points";win.setData({points_available:80});
+   stage_="points";win.setData({points_available:120});
    stage_="progress";win.fillSkillsProgress([{points:0},{points:0},{points:0}]);
    stage_="medical tab";win.skillsTabPage.selectedIndex=2;
    stage_="checks";var shown:Object=renderers(win,Renderer);

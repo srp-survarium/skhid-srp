@@ -1,1 +1,62 @@
-# The site's own words in this language (README.md here). No rows yet: every text is shown in English.
+# The site's own words in Serbian (Latin) (README.md here): English as in the code, Serbian (Latin). A text without a row is shown in English.
+Wiki	Viki
+Maps	Mape
+Skhid wiki	Skhid viki
+Modes	Režimi
+Every mode: its rules, numbers and maps.	Svaki režim: pravila, brojevi i mape.
+Versions	Varijante
+Public rooms only	Samo javne sobe
+Private rooms only	Samo privatne sobe
+Not offered now	Trenutno se ne nudi
+Respawn after {0} s.	Ponovno oživljavanje posle {0} s.
+Batteries lie on the map.	Baterije leže na mapi.
+Carry them to your team's container.	Nosite ih do kontejnera svog tima.
+First to {0} batteries wins.	Pobeđuje prvi tim sa {0} baterija.
+Time limit {0}: more batteries wins.	Vremensko ograničenje {0}: pobeđuje više baterija.
+Batteries come out of {0} active chargers.	Baterije izlaze iz {0} aktivnih punjača.
+A new battery every {0} s, give or take {1} s.	Nova baterija na svakih {0} s, plus-minus {1} s.
+Protective device rules: batteries, no chargers.	Pravila zaštitnog uređaja: baterije, bez punjača.
+No interface: no ammo, health, crosshair or minimap.	Bez interfejsa: bez municije, zdravlja, nišana i mini-mape.
+Teammates' markers stay; enemies have none.	Oznake saigrača ostaju; neprijatelji ih nemaju.
+Hold Tab for ammo, body state, the clock and the team list.	Držite Tab: municija, stanje tela, vreme i spisak tima.
+Each team has {0} tickets.	Svaki tim ima {0} tiketa.
+A death costs one ticket; a teamkill costs none.	Smrt košta jedan tiket; ubistvo saigrača nijedan.
+Out of tickets, a team stops respawning and loses when its last player dies.	Bez tiketa tim više ne oživljava i gubi kada padne njegov poslednji igrač.
+Time limit {0}: more tickets wins.	Vremensko ograničenje {0}: pobeđuje više tiketa.
+Capture research units: be inside with no enemy there.	Zauzimajte istraživačke jedinice: budite unutra bez neprijatelja.
+Owned units earn points; more units, faster.	Zauzete jedinice donose poene; više jedinica, brže.
+First to {0} points wins.	Pobeđuje prvi tim sa {0} poena.
+Time limit {0}: more points wins.	Vremensko ograničenje {0}: pobeđuje više poena.
+Every player for himself.	Svako za sebe.
+First to {0} kills wins.	Pobeđuje prvi sa {0} ubistava.
+Time limit {0}: most kills wins.	Vremensko ograničenje {0}: pobeđuje najviše ubistava.
+Public rooms: each FFA card draws a version.	Javne sobe: svaka FFA karta izvlači varijantu.
+Private rooms: plain FFA only.	Privatne sobe: samo obični FFA.
+A lethal hit freezes you in place.	Smrtonosni pogodak te zamrzava na mestu.
+A teammate within {0} m thaws you in {1} s.	Saigrač na manje od {0} m te odmrzava za {1} s.
+A thaw counts as a kill.	Odmrzavanje se računa kao ubistvo.
+A frozen player thaws by himself after {0}.	Zamrznuti igrač se sam odmrzne posle {0}.
+A team's last fighter shows on the enemies' map.	Poslednji borac tima vidi se na mapi protivnika.
+Freeze the whole enemy team to win the round.	Zamrznite ceo protivnički tim da biste dobili rundu.
+{0} s pause between rounds, then everyone respawns.	{0} s pauze između rundi, zatim svi oživljavaju.
+First to {0} rounds wins.	Pobeđuje prvi tim sa {0} dobijenih rundi.
+Time limit {0}: an unfinished series is a draw.	Vremensko ograničenje {0}: nezavršena serija je nerešena.
+One artefact at a time, {0}–{1} s into a round.	Jedan artefakt odjednom, {0}–{1} s od početka runde.
+Bring it to your own base: 1 point, and the round ends.	Donesite ga u svoju bazu: 1 poen, i runda se završava.
+The carrier is slower and seen by everyone.	Nosilac je sporiji i svi ga vide.
+Respawn in waves every {0} s.	Oživljavanje u talasima na svakih {0} s.
+Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Vremensko ograničenje {0}: pobeđuje veći rezultat; kod nerešenog {1} iznenadne smrti bez oživljavanja.
+Sniper rifles, silenced guns and guns without automatic fire are replaced.	Snajperske puške, oružje sa prigušivačem i oružje bez automatske paljbe se zamenjuju.
+Rooms up to level {0}: {1}.	Sobe do nivoa {0}: {1}.
+Other rooms: {0}.	Ostale sobe: {0}.
+Sight: {0}.	Nišan: {0}.
+Every kit: {0} only.	Svaki komplet: samo {0}.
+Every kit: {0} and {1}.	Svaki komplet: {0} i {1}.
+Everyone plays the same {0} random kits.	Svi igraju iste {0} nasumične komplete.
+Level bands: {0}.	Opsezi nivoa: {0}.
+A room draws bands up to its level.	Soba izvlači opsege do svog nivoa.
+Each kit a gun of another class, with random bonuses and attachments.	U svakom kompletu oružje druge klase, sa nasumičnim bonusima i dodacima.
+{0} % of deals: pistols only.	{0} % deljenja: samo pištolji.
+Plain FFA: {0} % of FFA cards.	Obični FFA: {0} % FFA karata.
+{0} % of FFA cards.	{0} % FFA karata.
+FFA: Roulette	FFA: Rulet

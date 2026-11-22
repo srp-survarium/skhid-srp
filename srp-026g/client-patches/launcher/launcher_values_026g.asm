@@ -305,8 +305,13 @@ language_entries:                       ; patch_launcher_026g.py: 8 bytes each, 
         align   8, db 0xCC
         jmp     near restart_text
         align   8, db 0xCC
-                                        ; and the dispatch table's entry of message 0A
+                                        ; then COUNT_HOOKS ("(5/69)", patch 17)
+        jmp     near count_text
+        align   8, db 0xCC
+                                        ; and the dispatch table's entries of messages 0A and 0B
         jmp     near route_message
+        align   8, db 0xCC
+        jmp     near count_message
         align   8, db 0xCC
 
 ; eax = index -> eax = its label (UTF-16). Called in place of
@@ -1627,6 +1632,99 @@ restart_text:
         pop     ebp
         pop     edi
         pop     ebx
+        ret
+
+; Patch 17: which file of how many is being downloaded, "(5/69)" after the
+; downloading line's "... left". The updater says it (message 0B: two
+; 16-bit numbers, the file and how many; 0 of 0: none), kept past the relay
+; row's state in .data.
+FILE_COUNT              equ RELAY_STATE + 16    ; word: the file; word: of how many (0: none)
+COUNT_ROOM              equ 16                  ; characters of " (65535/65535)" and its zero
+
+; on_updater_message's jump for message 0B (the dispatch table's entry):
+; the message after its id at [esp+18h]. A file past the last is none.
+; Every register as it was; on to the handlers' common end.
+count_message:
+        pushad
+        mov     eax, [esp + 32 + 0x18]
+        mov     eax, [eax]
+        movzx   ecx, ax                 ; the file
+        dec     ecx
+        shr     eax, 16                 ; of how many
+        cmp     ecx, eax
+        jb      .keep
+        xor     eax, eax
+        xor     ecx, ecx
+        dec     ecx
+.keep:  inc     ecx
+        shl     eax, 16
+        or      eax, ecx
+        DELTA
+        mov     [ebx + FILE_COUNT], eax
+        popad
+        jmp     MESSAGE_DONE
+
+; In place of load_string's call for "%s left" of the downloading line
+; (refresh_status 0x16ADF; cdecl: the id, the buffer, its size in
+; characters): load_string's own, then " (5/69)" after it while the updater
+; counts files. eax is load_string's; ecx, edx changed, as it may.
+count_text:
+        push    dword [esp + 12]
+        push    dword [esp + 12]
+        push    dword [esp + 12]
+        call    LOAD_STRING
+        add     esp, 12
+        push    eax
+        push    ebx
+        push    edi
+        DELTA
+        mov     edi, [ebx + FILE_COUNT]
+        test    edi, 0xFFFF0000
+        jz      .done
+        mov     ecx, [esp + 12 + 8]     ; the buffer
+        mov     edx, [esp + 12 + 12]    ; its size
+        sub     edx, COUNT_ROOM
+        jbe     .done
+.end:   cmp     word [ecx], 0
+        je      .room
+        add     ecx, 2
+        dec     edx
+        jnz     .end
+        jmp     .done                   ; no room after the text
+.room:  mov     dword [ecx], ' ' | ('(' << 16)
+        add     ecx, 4
+        movzx   eax, di
+        call    count_digits
+        mov     word [ecx], '/'
+        add     ecx, 2
+        mov     eax, edi
+        shr     eax, 16
+        call    count_digits
+        mov     dword [ecx], ')'        ; and the zero
+.done:  pop     edi
+        pop     ebx
+        pop     eax
+        ret
+
+; eax = a number -> its decimal digits (UTF-16) at ecx; ecx = past them.
+; eax, edx changed.
+count_digits:
+        push    ebx
+        mov     ebx, 10
+        push    0                       ; under the digits
+.split: xor     edx, edx
+        div     ebx
+        add     edx, '0'
+        push    edx
+        test    eax, eax
+        jnz     .split
+.digit: pop     eax
+        test    eax, eax
+        jz      .out
+        mov     [ecx], ax
+        add     ecx, 2
+        jmp     .digit
+.out:   pop     ebx
         ret
 
 ; ebx = DELTA -> eax = the relay row's language: 0 English, 1 Russian, 2

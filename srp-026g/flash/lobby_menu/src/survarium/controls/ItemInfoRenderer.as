@@ -21,6 +21,8 @@ package survarium.controls
    import survarium.data.IconContainer;
    import survarium.data.ItemData;
    import survarium.data.ItemDescriptor;
+   import survarium.data.PropertiesDescriptor;
+   import survarium.item.ModificationRolls;
    import survarium.data.LocalizationData;
    import survarium.upgrade.UpgradeWindow;
    import survarium.constants.CosmeticSlot;
@@ -250,6 +252,14 @@ package survarium.controls
                regularModifiers.push(entry);
             }
             i++;
+         }
+         // An oxygen tank: what Tank Pocket or Tank Depth adds, as a built-in bonus reads.
+         var names:PropertiesDescriptor = PropertiesDescriptor.getPropertiesDescriptor("properties");
+         for each(var bonus:Object in MatchEffects.tankBonuses(_data))
+         {
+            var description:Object = names.getPropertyDescription(bonus.prop_id);
+            if(description == null) continue;
+            defaultModifiers.push({icon:icons.getIcon(bonus.icon),label:description.prop_name + ": " + Util.styledChar(ModificationRolls.format(description,bonus.value),ModificationRolls.style(description,bonus.prop_id,bonus.value))});
          }
       }
       

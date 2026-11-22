@@ -1,1 +1,62 @@
-# The site's own words in this language (README.md here). No rows yet: every text is shown in English.
+# The site's own words in German (README.md here): English as in the code, German. A text without a row is shown in English.
+Wiki	Wiki
+Maps	Karten
+Skhid wiki	Skhid-Wiki
+Modes	Modi
+Every mode: its rules, numbers and maps.	Jeder Modus: Regeln, Zahlen und Karten.
+Versions	Varianten
+Public rooms only	Nur öffentliche Räume
+Private rooms only	Nur private Räume
+Not offered now	Derzeit nicht angeboten
+Respawn after {0} s.	Respawn nach {0} s.
+Batteries lie on the map.	Batterien liegen auf der Karte.
+Carry them to your team's container.	Bringt sie zum Container eures Teams.
+First to {0} batteries wins.	Das erste Team mit {0} Batterien gewinnt.
+Time limit {0}: more batteries wins.	Zeitlimit {0}: mehr Batterien gewinnt.
+Batteries come out of {0} active chargers.	Batterien kommen aus {0} aktiven Ladestationen.
+A new battery every {0} s, give or take {1} s.	Alle {0} s eine neue Batterie, plus/minus {1} s.
+Protective device rules: batteries, no chargers.	Regeln der Schutzeinrichtung: Batterien, keine Ladestationen.
+No interface: no ammo, health, crosshair or minimap.	Keine Oberfläche: keine Munition, Gesundheit, Fadenkreuz oder Minikarte.
+Teammates' markers stay; enemies have none.	Markierungen der Teamkameraden bleiben; Gegner haben keine.
+Hold Tab for ammo, body state, the clock and the team list.	Tab halten: Munition, Körperzustand, Uhr und Teamliste.
+Each team has {0} tickets.	Jedes Team hat {0} Tickets.
+A death costs one ticket; a teamkill costs none.	Ein Tod kostet ein Ticket; ein Teamkill keines.
+Out of tickets, a team stops respawning and loses when its last player dies.	Ohne Tickets respawnt ein Team nicht mehr und verliert, wenn sein letzter Spieler fällt.
+Time limit {0}: more tickets wins.	Zeitlimit {0}: mehr Tickets gewinnt.
+Capture research units: be inside with no enemy there.	Forschungseinheiten erobern: drinnen sein, ohne Gegner darin.
+Owned units earn points; more units, faster.	Gehaltene Einheiten bringen Punkte; mehr Einheiten, schneller.
+First to {0} points wins.	Das erste Team mit {0} Punkten gewinnt.
+Time limit {0}: more points wins.	Zeitlimit {0}: mehr Punkte gewinnt.
+Every player for himself.	Jeder gegen jeden.
+First to {0} kills wins.	Wer zuerst {0} Kills hat, gewinnt.
+Time limit {0}: most kills wins.	Zeitlimit {0}: die meisten Kills gewinnen.
+Public rooms: each FFA card draws a version.	Öffentliche Räume: jede FFA-Karte zieht eine Variante.
+Private rooms: plain FFA only.	Private Räume: nur normales FFA.
+A lethal hit freezes you in place.	Ein tödlicher Treffer friert dich an Ort und Stelle ein.
+A teammate within {0} m thaws you in {1} s.	Ein Teamkamerad im Umkreis von {0} m taut dich in {1} s auf.
+A thaw counts as a kill.	Ein Auftauen zählt als Kill.
+A frozen player thaws by himself after {0}.	Ein eingefrorener Spieler taut nach {0} von selbst auf.
+A team's last fighter shows on the enemies' map.	Der letzte Kämpfer eines Teams ist auf der Karte der Gegner zu sehen.
+Freeze the whole enemy team to win the round.	Friere das ganze gegnerische Team ein, um die Runde zu gewinnen.
+{0} s pause between rounds, then everyone respawns.	{0} s Pause zwischen den Runden, dann respawnen alle.
+First to {0} rounds wins.	Das erste Team mit {0} gewonnenen Runden gewinnt.
+Time limit {0}: an unfinished series is a draw.	Zeitlimit {0}: eine unvollendete Serie ist ein Unentschieden.
+One artefact at a time, {0}–{1} s into a round.	Ein Artefakt zur Zeit, {0}–{1} s nach Rundenbeginn.
+Bring it to your own base: 1 point, and the round ends.	Bring es zur eigenen Basis: 1 Punkt, und die Runde endet.
+The carrier is slower and seen by everyone.	Der Träger ist langsamer und für alle sichtbar.
+Respawn in waves every {0} s.	Respawn in Wellen alle {0} s.
+Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Zeitlimit {0}: der höhere Stand gewinnt; bei Gleichstand {1} Sudden Death ohne Respawn.
+Sniper rifles, silenced guns and guns without automatic fire are replaced.	Scharfschützengewehre, schallgedämpfte Waffen und Waffen ohne Dauerfeuer werden ersetzt.
+Rooms up to level {0}: {1}.	Räume bis Stufe {0}: {1}.
+Other rooms: {0}.	Andere Räume: {0}.
+Sight: {0}.	Visier: {0}.
+Every kit: {0} only.	Jedes Kit: nur {0}.
+Every kit: {0} and {1}.	Jedes Kit: {0} und {1}.
+Everyone plays the same {0} random kits.	Alle spielen dieselben {0} zufälligen Kits.
+Level bands: {0}.	Stufenbereiche: {0}.
+A room draws bands up to its level.	Ein Raum zieht Bereiche bis zu seiner Stufe.
+Each kit a gun of another class, with random bonuses and attachments.	Jedes Kit eine Waffe einer anderen Klasse, mit zufälligen Boni und Anbauteilen.
+{0} % of deals: pistols only.	{0} % der Ausgaben: nur Pistolen.
+Plain FFA: {0} % of FFA cards.	Normales FFA: {0} % der FFA-Karten.
+{0} % of FFA cards.	{0} % der FFA-Karten.
+FFA: Roulette	FFA: Roulette

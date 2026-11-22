@@ -8,6 +8,7 @@
 /* A player's lists (matches, weapons): the buttons where a heading would be. */
 .stats-tabs { margin:26px 0 10px }
 .stats-weapons .stats-table td.l { width:100% }
+.stats-skills .skill:not(.locked) { cursor:default }
 .stats-table { border-collapse:collapse; width:100%; font:.82rem var(--data); background:var(--panel); border:1px solid var(--rule) }
 .stats-table th,.stats-table td { padding:6px; border-bottom:1px solid var(--rule); text-align:right; white-space:nowrap; vertical-align:middle }
 .stats-table thead th { font:700 .7rem var(--display); text-transform:uppercase; letter-spacing:.04em; color:var(--ink-3) }

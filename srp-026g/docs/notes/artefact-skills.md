@@ -182,6 +182,20 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   `up`, `body`, `left_hend`, `right_hend`) have their Rate (curve and data source) and
   MaxParticles (rounded up) x1.5 (`SMOKE_THICKER`); colours, sizes, the rays and the twin as @12.
   `check_forest` allows exactly that factor.
+- Since @15 (the owner, 2026-11-22: the carrier saw only the rays, the smoke should show in the
+  first person too, "so the person knows they are protected"; @14 is the open #1586's): the
+  first-person twin plays the smoke emitters as well as the rays (FOREST_FIRST_PERSON), still
+  without `up_light` and `distortion`, the smoke's Rate (curve and data source) and MaxParticles
+  (rounded up) three quarters of the third person's (`FIRST_PERSON_SMOKE`, nine eighths of the
+  stock rate: about 191 live puffs, 6 body strokes, 5 a hand). Tried in game by the owner,
+  2026-11-22: a third, then "can also be a tiny bit more"; a half, then "make it a bit more visible
+  still (usually you are already in smoke when this is active, so it is hard to see your hands
+  exuding smoke)". view_cone.py: `up`'s puffs reach the view's axis in both poses, `body` 4
+  degrees from it at the hip, the hand strokes 25..34 degrees at the hip; aimed, all of them (and
+  the rays) reach it. A rough estimate (discs of the particles' sizes, half opaque, fading over
+  their life): at the hip about 7 % of the view, the centre clear; aimed, some smoke over about
+  seven tenths of the 15-degree centre (a mean opacity of about a third there), against about
+  nine tenths at the third person's rate. `check_forest` allows exactly that twin.
 
 ## Artifact Container (522)
 
@@ -372,6 +386,17 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
     initialize clears its modifier lists, setup_from_profile sets its container range and links
     its own artefacts) and in the world (vtable+20h). With the bit in the new kit, the old kit's
     container artefacts in state 5 go, in container order, into the new kit's empty containers.
+  - The old kit's container range is gone by the spawn (PROVEN): the respawn rule's tick takes a
+    dead player still in the world out of it before its spawn (0x316999..0x3169A0: vtable+24h with
+    1, player::remove 0x1F2870 -> base_player::remove 0x2DA790), whose unload_to_profile 0x2FD2D0
+    ends with +168h 0 and +16Ch 0 (0x2FDBE8..0x2FDBF2); its slots keep their items, and the next
+    spawn in that kit sets the range again (0x2FD29F). So the old kit's artefacts are found in its
+    23 slots: an item of the world's registered artefacts (+18940h) whose owner and slot are that
+    slot's, in slot order (a range is a run of slots, so the containers' order). Revision 69 read
+    them through the cleared range and moved nothing, at every respawn into another kit (match
+    0xf62d810b, Chemical Plant, 2026-11-22: place 10's static info has bit 14 (22509), its Spring
+    in kit 0 slot 16 went to state 5 at the death at 210 s and stayed there in every world after
+    the respawn into kit 1 at 218 s; no `courier:` line in the owner's log).
 - The move (`Inventory::take_from_dead_kit`): the old slot emptied as remove_item (0x2FC680) does
   but without on_removed (vtable+34h, 0x313490): the death already unlinked the passive
   (artefact_base::tick 0x3132E5: vtable+84h, then state 5, for an amount above 0, 0x2FFDD0; an
@@ -385,9 +410,11 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   as after any pickup; `keeper::reconcile` keeps every kit's slots the world's after a load.
 - Changes what a match computes: a `next` row of `simulation_changes.tsv`.
 - Check: `client-patches/check_artefact_courier_026g.py` (Unicorn on the built exe: the owner's two
-  runs through the game's take_artefact, on_holder_death, artefact_base::tick and the spawn's two
+  runs through the game's take_artefact, on_holder_death, artefact_base::tick, the dead kit's
+  unload_to_profile before each spawn (as the respawn rule's tick removes it) and the spawn's two
   sites; each moved artefact in its new container, state 3, unlinked once and linked once; nothing
-  without the bit, in the same kit, or from another place) and `artefact_courier`'s tests.
+  without the bit, in the same kit, or from another place; it fails on revision 69's build) and
+  `artefact_courier`'s tests.
 
 ## Spring II (531)
 

@@ -85,6 +85,8 @@ pub mod gun_cook;
 pub mod pickup;
 pub mod use_scan;
 pub mod streaming;
+pub mod texture_pool;
+pub mod occlusion;
 pub mod ray_test;
 mod rt;
 pub mod sound;
@@ -122,7 +124,7 @@ mod generated {
     #[allow(unused_imports)]
     use crate::raw;
     #[allow(unused_imports)]
-    use super::{RenderVisual, ObjectLight, ObjectAmbientLight, ObjectParticleVisual, GameScene};
+    use super::{RenderVisual, ObjectLight, ObjectAmbientLight, ObjectParticleVisual, ObjectEnvironmentProbe, GameScene};
     #[allow(unused_imports)]
     use super::resources::{QueryResults, QueryTag};
     #[allow(unused_imports)]
@@ -166,7 +168,7 @@ pub mod geometry;
 pub mod presentation;
 
 pub mod project;
-pub use project::{RenderVisual, ObjectLight, ObjectAmbientLight, ObjectParticleVisual, GameScene};
+pub use project::{RenderVisual, ObjectLight, ObjectAmbientLight, ObjectParticleVisual, ObjectEnvironmentProbe, GameScene};
 
 pub mod history;
 pub mod drug;
@@ -180,6 +182,11 @@ pub use statistics::{Band, Batteries, Battery, BatteryCarry, Cell, Delivery, Hel
 
 pub mod medical;
 pub mod artefact_skills;
+pub mod technical;
+pub mod technical_sharp_ears;
+pub mod technical_return_to_sender;
+pub mod technical_dead_man;
+pub mod technical_smoke;
 pub mod keeper;
 pub mod courier;
 pub mod effect;

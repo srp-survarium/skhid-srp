@@ -737,15 +737,40 @@ pub struct KitLayout {
     ammo_bags: u32,
     extra_medicine: bool,
     carry: CarryRule,
+    technical: technical_skills::Skills,
+}
+
+/// Whether `dict_id` is an oxygen tank: what Tank Pocket and Tank Depth need worn.
+pub fn is_oxygen_tank(dict_id: u16) -> bool {
+    item_params::item_params(dict_id)
+        .is_some_and(|params| params.class == item_params::ItemClass::OxygenTank)
 }
 
 impl KitLayout {
+    /// The pockets the kit opens.
+    pub fn pockets(&self) -> u32 {
+        self.pockets
+    }
+
     /// The layout of a kit whose worn items have `modifications`, with the
-    /// skills' `modifiers` ([`skills::SkillsTree::modifiers`]).
-    pub fn new(modifications: &[(u32, bool)], modifiers: &[f32; skills::MODIFIERS]) -> KitLayout {
+    /// skills' `modifiers` ([`skills::SkillsTree::modifiers`]); `oxygen_tank`
+    /// when one of its worn items is one ([`is_oxygen_tank`]: Tank Pocket's
+    /// pocket or Tank Depth's unit, exe patch 180 in the lobby, before the clamp).
+    pub fn new(
+        modifications: &[(u32, bool)],
+        modifiers: &[f32; skills::MODIFIERS],
+        oxygen_tank: bool,
+    ) -> KitLayout {
         use skills::slot_modifier::*;
-        let total = |base: u32, parameter, skill: usize| {
-            (base as f32 + added_by(modifications, parameter) + modifiers[skill]).max(0.0) as u32
+        let technical =
+            technical_skills::Skills::parse(modifiers[technical_skills::MODIFIER]).unwrap_or_default();
+        let (harness_pockets, harness_size) = match oxygen_tank {
+            true => technical.tank_harness().pockets(),
+            false => (0, 0),
+        };
+        let total = |base: u32, parameter, skill: usize, harness: u8| {
+            (base as f32 + added_by(modifications, parameter) + modifiers[skill] + f32::from(harness))
+                .max(0.0) as u32
         };
         let ranks = modifiers[MEDICAL_RANKS];
         let ranks = (ranks >= 0.0 && ranks < (1 << 24) as f32 && ranks.fract() == 0.0)
@@ -756,20 +781,23 @@ impl KitLayout {
                 player.pocket_slots_count,
                 "pocket_slots_modifier",
                 POCKET_SLOTS,
+                harness_pockets,
             )
             .min(MAX_POCKETS as u32),
             pocket_size: total(
                 player.pocket_slot_size,
                 "pocket_slot_size_modifier",
                 POCKET_SLOT_SIZE,
+                harness_size,
             )
             .min(MAX_POCKET_UNITS),
-            ammo_bags: total(player.ammo_bags_count, "ammo_bags_modifier", AMMO_BAGS),
+            ammo_bags: total(player.ammo_bags_count, "ammo_bags_modifier", AMMO_BAGS, 0),
             extra_medicine: ranks.is_some_and(|ranks| ranks >> ADDITIONAL_MEDICINE_BIT & 1 == 1),
             carry: CarryRule::from_modifiers(
                 modifiers[DISABLE_SECOND_WEAPON],
                 modifiers[USE_TWO_DOUBLE_HANDED_WEAPONS],
             ),
+            technical,
         }
     }
 
@@ -782,7 +810,8 @@ impl KitLayout {
             .flat_map(|item| default_modifications(item.dict_id))
             .collect();
         modifications.extend_from_slice(own);
-        KitLayout::new(&modifications, &[0.0; skills::MODIFIERS])
+        let oxygen_tank = loadout.items.iter().any(|item| is_oxygen_tank(item.dict_id));
+        KitLayout::new(&modifications, &[0.0; skills::MODIFIERS], oxygen_tank)
     }
 
     /// The kit's ammo bags, which its ammunition slots share.
@@ -906,7 +935,23 @@ impl KitLayout {
             .item(dict_id)
             .is_some_and(|item| item.category == MEDICINE_CATEGORY);
         let size = self.pocket_size + u32::from(self.extra_medicine && medicine);
-        Some(pocket_share(dict_id).units_in(size.min(MAX_POCKET_UNITS)))
+        Some(self.share(dict_id).units_in(size.min(MAX_POCKET_UNITS)))
+    }
+
+    /// What one unit of `dict_id` takes of a pocket of this kit: the item's own share, or two
+    /// units for a grenade with Toxic Smoke and a trap with Bear Trap (the lobby's
+    /// `PlayerInfo.pocketUnits`).
+    fn share(&self, dict_id: u16) -> item_params::PocketShare {
+        use item_params::{ItemClass, PocketShare};
+        let stack = match item_params::item_params(dict_id).map(|params| params.class) {
+            Some(ItemClass::GrenadeSet) => Some(technical_skills::Stack::Grenades),
+            Some(ItemClass::TrapSet) => Some(technical_skills::Stack::Traps),
+            _ => None,
+        };
+        match (pocket_share(dict_id), stack) {
+            (PocketShare::Unit, Some(stack)) if self.technical.halves(stack) => PocketShare::Pair,
+            (share, _) => share,
+        }
     }
 
     /// The most units of `dict_id` slot `slot` may hold, beside
@@ -930,6 +975,47 @@ impl KitLayout {
             CarryRule::OneDoubleHanded | CarryRule::TwoDoubleHanded => None,
         }
     }
+}
+
+/// Trophy Trap (423, exe patch 180; docs/notes/technical-skills.md): the pocket of a kit sent to a
+/// match that gets an empty one-trap slot, so a player with the skill and no traps can keep a
+/// trap it disarms (the owner, 2026-11-22: "it only gives slot, not pocket depth", "only if you
+/// don't have traps equipped", "without having some at the beginning"). None with a trap stack
+/// in the kit (a disarm fills its placed units), without the skill, or with no pocket free of the
+/// `open` ones the kit's layout opens. The slot goes with a stock of 0 of the trap
+/// ([`trap_set_dict`]): the game fills a pocket at the kit's load and at a refill only from the
+/// match's stock, so it starts and stays empty until a disarm. `dict_of` gives a slot's item's
+/// dictionary id.
+pub fn trophy_pocket<const SLOTS: usize>(
+    slots: &[Option<(u16, u16)>; SLOTS],
+    modifiers: &[f32; skills::MODIFIERS],
+    open: u32,
+    dict_of: impl Fn(u16) -> Option<u16>,
+) -> Option<usize> {
+    let trophy = technical_skills::Skills::parse(modifiers[technical_skills::MODIFIER])
+        .unwrap_or_default()
+        .trophy_trap();
+    let held = |pocket: &u8| slots.get(usize::from(*pocket)).copied().flatten();
+    let traps = POCKET_SLOTS.iter().filter_map(held).any(|(item, count)| {
+        count > 0
+            && dict_of(item)
+                .and_then(item_params::item_params)
+                .is_some_and(|params| params.class == item_params::ItemClass::TrapSet)
+    });
+    let used = POCKET_SLOTS.iter().filter(|pocket| held(pocket).is_some()).count() as u32;
+    if !trophy || traps || used >= open {
+        return None;
+    }
+    POCKET_SLOTS.iter().find(|pocket| held(pocket).is_none()).map(|&pocket| usize::from(pocket))
+}
+
+/// The trap stack the game's dictionary has (the trophy slot's item).
+pub fn trap_set_dict() -> Option<u16> {
+    Dictionary::shared()
+        .items
+        .iter()
+        .find(|item| item_params::item_params(item.dict_id).is_some_and(|p| p.class == item_params::ItemClass::TrapSet))
+        .map(|item| item.dict_id)
 }
 
 #[cfg(test)]
@@ -970,6 +1056,88 @@ mod tests {
                 assert!(dictionary.compatible(weapon.dict_id, ammo.dict_id));
             }
         }
+    }
+
+    #[test]
+    fn tank_pocket_opens_a_pocket_only_beside_an_oxygen_tank() {
+        let medicine = Dictionary::shared()
+            .items
+            .iter()
+            .find(|item| item.category == MEDICINE_CATEGORY && item_params::item_params(item.dict_id).is_some())
+            .unwrap()
+            .dict_id;
+        // The first pocket past the player's own: only Tank Pocket opens it.
+        let pocket = usize::from(POCKET_SLOTS[item_params::player().pocket_slots_count as usize]);
+        let mut harness = [0.0; skills::MODIFIERS];
+        harness[technical_skills::MODIFIER] = technical_skills::weight(6) as f32; // Tank Pocket
+        let none = [0.0; skills::MODIFIERS];
+        let mut slots: [Option<(u16, u32)>; 23] = [None; 23];
+        slots[pocket] = Some((medicine, 1));
+        let kept = |modifiers, tank| KitLayout::new(&[], modifiers, tank).kept(&slots)[pocket];
+        assert_eq!(kept(&harness, true), Some((medicine, 1)));
+        // The skill taken back, or no tank worn: the pocket goes.
+        assert_eq!(kept(&none, true), None);
+        assert_eq!(kept(&harness, false), None);
+    }
+
+    #[test]
+    fn toxic_smoke_and_bear_trap_halve_their_pockets() {
+        let find = |class: item_params::ItemClass| {
+            Dictionary::shared()
+                .items
+                .iter()
+                .find(|item| {
+                    item_params::item_params(item.dict_id).is_some_and(|p| {
+                        p.class == class && p.pocket_share == item_params::PocketShare::Unit
+                    })
+                })
+                .unwrap()
+                .dict_id
+        };
+        let (trap, smoke) = (find(item_params::ItemClass::TrapSet), find(item_params::ItemClass::GrenadeSet));
+        let (smokes, traps) = (usize::from(POCKET_SLOTS[0]), usize::from(POCKET_SLOTS[1]));
+        let mut slots: [Option<(u16, u32)>; 23] = [None; 23];
+        slots[smokes] = Some((smoke, 4));
+        slots[traps] = Some((trap, 4));
+        // Pockets of four units, two of them.
+        let kit = |technical: f32| {
+            let mut modifiers = [0.0; skills::MODIFIERS];
+            modifiers[skills::slot_modifier::POCKET_SLOTS] = 1.0;
+            modifiers[skills::slot_modifier::POCKET_SLOT_SIZE] = 3.0;
+            modifiers[technical_skills::MODIFIER] = technical;
+            let kept = KitLayout::new(&[], &modifiers, false).kept(&slots);
+            (kept[smokes].map(|(_, units)| units), kept[traps].map(|(_, units)| units))
+        };
+        assert_eq!(kit(0.0), (Some(4), Some(4)));
+        assert_eq!(kit(technical_skills::weight(13) as f32), (Some(2), Some(4))); // Toxic Smoke
+        assert_eq!(kit(-(technical_skills::LOW as f32)), (Some(4), Some(2))); // Bear Trap
+    }
+
+    #[test]
+    fn trophy_trap_gives_a_kit_without_traps_an_empty_slot() {
+        let find = |class: item_params::ItemClass| {
+            Dictionary::shared()
+                .items
+                .iter()
+                .find(|item| item_params::item_params(item.dict_id).is_some_and(|p| p.class == class))
+                .unwrap()
+                .dict_id
+        };
+        let (trap, grenade) = (find(item_params::ItemClass::TrapSet), find(item_params::ItemClass::GrenadeSet));
+        assert_eq!(trap_set_dict(), Some(trap));
+        // Items by index: 0 the trap stack, 1 the grenades.
+        let dict_of = |index: u16| [trap, grenade].get(usize::from(index)).copied();
+        let mut skill = [0.0; skills::MODIFIERS];
+        skill[technical_skills::MODIFIER] = technical_skills::weight(9) as f32;
+        let mut grenades: [Option<(u16, u16)>; 23] = [None; 23];
+        grenades[13] = Some((1, 2));
+        assert_eq!(trophy_pocket(&grenades, &skill, 3, dict_of), Some(14));
+        // No free pocket of those the kit opens, no skill, or traps in the kit: none.
+        assert_eq!(trophy_pocket(&grenades, &skill, 1, dict_of), None);
+        assert_eq!(trophy_pocket(&grenades, &[0.0; skills::MODIFIERS], 3, dict_of), None);
+        let mut traps = grenades;
+        traps[14] = Some((0, 2));
+        assert_eq!(trophy_pocket(&traps, &skill, 3, dict_of), None);
     }
 
     #[test]

@@ -49,6 +49,7 @@ package
    import survarium.modes.ArtefactHuntRow;
    import survarium.modes.ArtefactHuntState;
    import survarium.modes.FfaProgress;
+   import survarium.modes.FrozenPlaces;
    import survarium.constants.UiSound;
    import survarium.modes.RoundFade;
    import survarium.modes.ModeNotice;
@@ -654,6 +655,8 @@ package
 
       private static const FREEZE_BAR_WIDTH:Number = 120;
       private var _freezeWasFrozen:Boolean = false;
+      // Freeze Tag: the places frozen now (freeze_tag_rows), which the Tab list and both maps show.
+      private var _frozen:FrozenPlaces = FrozenPlaces.NONE;
       private var _pregameText:String = "";
 
       // Each frame the mode notice shows (its countdown, then its reading time): its end, and its place
@@ -1722,6 +1725,7 @@ package
          this.set_match_time("");
          this.deathEyes.countdown("");
          this.endArtefactHunt();
+         this.showFrozen(FrozenPlaces.NONE);
          if(this.progress_indicator.respawn_time)
          {
             this.set_respawn_time("");
@@ -1816,6 +1820,10 @@ package
          _gameType = type;
          this._freezeContext = null;
          this._freezeWasFrozen = false;
+         if(type != 12)
+         {
+            this.showFrozen(FrozenPlaces.NONE);
+         }
          this.refresh_context();
          this.researchUnits.visible = type == this.GAME_MODE_RESEARCH;
          this.researchUnits.removeEventListener(Event.ENTER_FRAME,this.onResearchFrame);
@@ -1872,7 +1880,9 @@ package
       }
 
       // Status: 0 playing; 1/2/3 match win/loss/draw; 4/5/6 round win/loss/draw.
-      public function freeze_tag_update(frozen:uint, progress:uint, status:uint, remaining:uint) : void
+      // thaw: the thaw time in ms (THAW_MS); the bar shows progress of it. thawsIn: the frozen
+      // player's time left to the auto-thaw (ms).
+      public function freeze_tag_update(frozen:uint, progress:uint, status:uint, remaining:uint, thaw:uint, thawsIn:uint) : void
       {
          // The last freeze also ends a round; it still gets the freeze cue.
          var isFrozen:Boolean = frozen != 0;
@@ -1885,13 +1895,39 @@ package
          else if(status >= 4)
             text = LocalizationData.format(status == 4 ? "st_srp_hud_freeze_round_win" : status == 5 ? "st_srp_hud_freeze_round_lose" : "st_srp_hud_freeze_round_draw", String(Math.ceil(remaining / 1000)));
          else if(isFrozen)
-            text = LocalizationData.getName("st_srp_hud_freeze_frozen");
+            text = LocalizationData.format("st_srp_hud_freeze_frozen", freezeClock(thawsIn));
          else
             text = LocalizationData.getName(progress > 0 ? "st_srp_hud_freeze_thawing" : "st_srp_hud_freeze_help");
          // Let native pickup/use prompts own the widget during ordinary play.
          this._freezeContext = isFrozen || progress > 0 || status != 0
-            ? {text:text,value:status == 0 ? Math.floor(progress / 30) : 0,visible:true} : null;
+            ? {text:text,value:status == 0 ? Math.floor(progress * 100 / thaw) : 0,visible:true} : null;
          this.refresh_context();
+      }
+
+      // m:ss of a time in ms, rounded up.
+      private static function freezeClock(ms:uint) : String
+      {
+         var seconds:uint = Math.ceil(ms / 1000);
+         var rest:uint = seconds % 60;
+         return String(Math.floor(seconds / 60)) + ":" + (rest < 10 ? "0" : "") + String(rest);
+      }
+
+      // The frozen places (bit n: place n), sent each frame (exe patch 160, freeze_tag::on_hud): their
+      // Tab rows' names, and their dots on the minimap and the Tab map while they are teammates, ice blue.
+      public function freeze_tag_rows(mask:uint) : void
+      {
+         if(mask != this._frozen.mask)
+         {
+            this.showFrozen(new FrozenPlaces(mask));
+         }
+      }
+
+      private function showFrozen(places:FrozenPlaces) : void
+      {
+         this._frozen = places;
+         this.player_list.players.frozen = places;
+         this.minimap.frozen = places;
+         this.tabMinimap.frozen = places;
       }
 
       public function set_ffa_progress(own:int, top:int, target:int) : void

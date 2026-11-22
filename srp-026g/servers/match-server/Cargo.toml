@@ -30,6 +30,8 @@ srp-validate = { workspace = true }
 artefact-hunt-rule = { workspace = true }
 # Client patch 85's pickup command, checked as the clients check it.
 weapon-pickup = { path = "../../crates/weapon-pickup" }
+# Client patch 180's throw-back command (Return to Sender), checked against the kits' skills.
+technical-skills = { path = "../../crates/technical-skills" }
 
 # The replay conversion thread runs at nice 19 (`v026g::replay`).
 [target.'cfg(target_os = "linux")'.dependencies]

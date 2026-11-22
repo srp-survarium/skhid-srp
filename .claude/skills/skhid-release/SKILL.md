@@ -88,10 +88,6 @@ Ask, in this order:
    Such a script writes nothing that reads or rebuilds the 0.21d nickname
    index (no `VACUUM`, no `integrity_check`, no `accounts.name`): its
    collation is srp's own.
-   Open: `srp-026g/scripts/ammo-top-up/ammo_top_up.py` (1000 rounds of
-   every ammo for every account, PR #1785; dry run on the pre-rev58 copy:
-   614 of 799 accounts, 3,035,296 rounds). Remove its line here when it has
-   run.
 
 **The revision is the release's own.** Every release has a new patch
 revision, content or not: it is how the server refuses games without the
@@ -126,6 +122,27 @@ Google Drive (owner, 2026-11-17). A Drive mirror is optional: add or configure
 one only when the owner requests it. Do not delay a release or ask for a Drive
 exception merely because no Drive uploader is configured. Keep existing
 committed mirror URLs unless the owner asks to remove them.
+
+**Dropbox** (owner, 2026-11-22: the patches server is cut by providers in
+Russia, Dropbox is the address for those players). With the account in
+`release.env` (`SKHID_DROPBOX_APP_KEY`, `SKHID_DROPBOX_APP_SECRET`,
+`SKHID_DROPBOX_REFRESH_TOKEN`, made once with `release/dropbox-upload
+--login`), `upload-patch` also puts a new patch on Dropbox. It cannot be
+forgotten: without the account `release.sh --resources` stops in its
+preflight and `upload-patch` publishes nothing (`SKHID_DROPBOX=off` in
+`release.env` releases without, on purpose: only on the owner's word).
+The step is `release/dropbox-upload`: the upload, its public link, a whole download
+back against the sha256; then that address is written before the patches
+server's in the patch's row. The owner's order of a file's addresses:
+Google Drive's, Dropbox's, the patches server's, archive.org's (then the
+torrent). The address must be the
+`https://dl.dropboxusercontent.com/scl/fi/<id>/<name>?rlkey=<key>&dl=1`
+form, which the tool prints: the `www.dropbox.com` form of the same link
+redirects to an address ending in `#`, which the updater refuses. Dropbox
+Plus allows 1 TB of downloads a day; past it every link is paused for a
+day, and the other addresses serve. `release/dropbox-upload <file>...` by
+itself uploads any file (the game's archive, a bootstrap file) and prints
+its address for `release/add-mirror`.
 
 **Replays, and a change of what a match computes.** A game is given a
 replay only when every game of its recording was of the oldest replayable
@@ -300,7 +317,8 @@ at 1600 MB).
 ```
 release/release.sh [--resources <resources.db.patch_<rev>>] [--test]
                    [--revision <n>] [--server-code auto|yes|no]
-                   [--minutes <n> | --no-maintenance] [--now]
+                   [--minutes <n> | --no-maintenance]
+                   [--now | --end-bot-and-private-matches]
                    [--match-wait <minutes>] [--label <word>] [--ref <branch>]
                    [--no-bot-data] [--worlds <folder>] [--no-selftest]
                    [--dry-run] [--yes --i-know]
@@ -473,6 +491,8 @@ The order, as it runs:
      every running match (≤ 9 min: 10); else a whole match and 30 s, 16.
      The log says which.
    - `--minutes <n>`: `<n>`, planned at the same point (right after the go).
+   - `--end-bot-and-private-matches`: the same over the normal matches alone,
+     `last_normal_match_ends_in` for `last_match_ends_in` (below).
    - `--no-maintenance` or `--now`: nothing is planned (below).
 5. **The swap, at the planned time at the latest**: while it waits for it, it reads
    `/api/stats` every quarter of a minute, and once `"matches":0` has held 30 s (the
@@ -626,6 +646,32 @@ come up. `--now --no-maintenance` is the same thing (accepted, with a
 note); `--now --minutes` is refused; `--match-wait` is ignored. Use it only
 when the owner asks for it: every player in a match loses that match.
 
+### Normal matches only: --end-bot-and-private-matches
+
+Between the default and `--now` (the owner, 2026-11-22: "only stops bot
+matches and private ones", "but normal ones are fine"): the release waits
+for the **normal matches** alone, those neither against bots (Player vs Bots,
+a PIN room made with bots) nor of a private room (a PIN). One long bot or
+private match no longer holds everyone. Everything else is the default: at
+the go the maintenance is planned 30 s after the last normal match ends
+(`last_normal_match_ends_in`; or `--minutes`), Play locks, and the swap comes
+once `"normal_matches":0` (sooner once that held 30 s while Play is locked;
+`--match-wait` after the planned time), whatever bot and private matches
+still run. Right before it stops srp26 it says how many matches run and of
+which kinds (`--end-bot-and-private-matches: <n> match(es) running (<b>
+against bots or of private rooms, 0 normal): the stop ends them now, WITHOUT
+RESULTS`); its last lines and the folder's release.log keep the numbers.
+With `--no-maintenance` it waits for `"normal_matches":0` from the go
+instead. `--now` with it is refused.
+
+The target's srp must say the normal matches apart: `/api/stats` gives
+`normal_matches` and `last_normal_match_ends_in` from the server change that
+added them on. A target without them is a preflight problem (the release
+stops before the lock), never a silent wait for every match or for none:
+release it without the option, or with `--now`. So the option works from the
+release after the one that ships that server change. Use it only when the
+owner asks for it: every player in a bot or private match loses that match.
+
 ### The release folder
 
 Every release keeps a folder on its target:
@@ -720,7 +766,7 @@ shows the command, unless release.sh, already given the go-ahead, runs it):
 
 | Script | Does | Writes |
 |---|---|---|
-| `release/build-content <rev> --full [--out <folder>] [--tree] [--site] [--manifest] [--no-cache]` (local tests: without `--full`, or `--delta-from <earlier folder>`) | the next content patch of `release/content.tsv`: what differs from players' files (the stock db, the listed patches), each file with why; `server-game-data.db` with it; then, from the same patches, the item tables (srp-item-tables; only changes, each said) and, with `--site`, the site's pages (build-site) | a local folder (with `item-tables/`), the patch cache, the steps' cache (`~/.cache/skhid-release/build-content`: a step whose inputs are the same bytes (an edit list: its own bytes, its tool's and the files it reads; the type check: each file's bytes; the server data: its archives; the header lists each key) is taken from it, the same files; delete it any time; `--no-cache` runs every step; without `--full`, a quick build for local tests: no check of players' files with the patch, no item tables, `QUICK-BUILD` in the folder, which `release.sh`/`upload-patch` refuse: a release always passes `--full`; `--delta-from <folder>`, a local test's micro-patch mounted over that earlier build's: only the files the game would see otherwise, the server data only when a file the server reads is in it); with `--site`, `--tree`'s site pages |
+| `release/build-content <rev> --full [--out <folder>] [--tree] [--site] [--manifest] [--no-cache]` (local tests: `--slow` instead of `--full`, or `--slow --delta-from <earlier folder>`; a test of a few changed files is `tools/test-patch`'s, a minute) | the next content patch of `release/content.tsv`: what differs from players' files (the stock db, the listed patches), each file with why; `server-game-data.db` with it; then, from the same patches, the item tables (srp-item-tables; only changes, each said) and, with `--site`, the site's pages (build-site) | a local folder (with `item-tables/`), the patch cache, the steps' cache (`~/.cache/skhid-release/build-content`: a step whose inputs are the same bytes (an edit list: its own bytes, its tool's and the files it reads; the type check: each file's bytes; the server data: its archives; the header lists each key) is taken from it, the same files; delete it any time; `--no-cache` runs every step; with `--slow` instead of `--full`, a quick build for local tests: no check of players' files with the patch, no item tables, `QUICK-BUILD` in the folder, which `release.sh`/`upload-patch` refuse: a release always passes `--full`; `--delta-from <folder>`, a local test's micro-patch mounted over that earlier build's: only the files the game would see otherwise, the server data only when a file the server reads is in it: the quick way to test a small edit; the packs draw into the movies' graphics and the code goes in after, so a lobby code edit composes no pack again); with `--site`, `--tree`'s site pages |
 | `release/build-patch <folder> <rev> [--out <file>]` | packs a folder into `resources.db.patch_<rev>` (read back and compared) | a local file | (build-content's step; never by hand)
 | `release/upload-patch [--test] [--dry-run] <file>` | publishes one patch: `.tmp`, sha256 there, `chmod 644`, `mv -n`, GET must be 200 with the sha256, then its row in the list; never replaces one | the patches server, the list |
 | `release/add-mirror [--test] <name> <url>` | another URL of a listed patch: downloaded as the updater does, not a web page, the row's size and sha256, then appended to the row | the list (and the URL cache) |

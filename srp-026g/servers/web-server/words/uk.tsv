@@ -52,8 +52,6 @@ Wiki	Вікі
 Equipment	Спорядження
 Equipment reference	Довідник спорядження
 pieces	предметів
-Every armour piece: protection by body part, weight, what it has built in and what it can roll.	Усе спорядження: захист за частинами тіла, вага, вбудовані властивості й модифікатори.
-Armour (bullets, melee, explosions) and isolation (fire, radiation, electricity, toxins) are the share of damage stopped (×100); worn pieces add up. Over {0} kg a kit slows you, up to −20% speed and +150% sprint stamina at the limit, where you can't sprint.	Броня (кулі, холодна зброя, вибухи) та ізоляція (вогонь, радіація, електрика, токсини) — частка зупиненої шкоди (×100); вдягнені предмети додаються. Понад {0} кг комплект сповільнює: до −20% швидкості й +150% витрат енергії на біг на межі, де бігти не можна.
 Nothing matches.	Нічого не знайдено.
 Stats	Статистика
 Public matches	Публічні матчі
@@ -133,7 +131,7 @@ Start <code>Skhid.bat</code> again. Still failing? Run <code>Skhid-without-updat
 “No connection: …”	«Немає з'єднання: …»
 Run <code>Skhid-network-setup.cmd</code>.	Запустіть <code>Skhid-network-setup.cmd</code>.
 “Blocked on this network: …”	«Заблоковано в цій мережі: …»
-Your provider blocks skhid.link: the launcher sets <b>Relay</b> (bottom left) to auto. Press Retry.	Ваш провайдер блокує skhid.link: лаунчер ставить <b>Релей</b> (ліворуч унизу) на авто. Натисніть «Повторити».
+Your provider blocks our server. The launcher has already switched to our relay, a way around the block (<b>Relay: auto</b>, bottom left). Just press <b>Retry</b>.	Ваш провайдер блокує наш сервер. Лаунчер уже сам перемкнувся на наш релей, що обходить блокування (<b>Релей: авто</b>, ліворуч унизу). Просто натисніть <b>«Повторити»</b>.
 Nothing works.	Нічого не працює.
 Run <code>Skhid-collect-logs.cmd</code> and send the zip it makes to us on Discord: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.	Запустіть <code>Skhid-collect-logs.cmd</code> і надішліть zip, який він зробить, нам у Discord: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.
 Q:	П:
@@ -142,8 +140,7 @@ If something goes wrong	Якщо щось не так
 Download the files	Завантажити файли
 Download the game	Завантажити гру
 The download link is coming soon.	Посилання на завантаження скоро з'явиться.
-Or the whole game by BitTorrent:	Або всю гру через BitTorrent:
-Without this site, by BitTorrent:	Без цього сайту, через BitTorrent:
+Can't download? Run {script}: it downloads the whole game into a Survarium folder beside it.	Не завантажується? Запустіть {script}: він сам завантажить усю гру в теку Survarium поруч із собою.
 Get the game	Отримати гру
 The link is coming soon.	Посилання скоро з'явиться.
 Get the original Survarium 0.26g (build 2777) and unpack it.	Отримайте оригінальну Survarium 0.26g (збірка 2777) і розпакуйте її.
@@ -162,7 +159,7 @@ Start it with this command line:	Запустіть гру з такою ком�
 english	ukrainian
 server address	адреса сервера
 language: english, russian, ukrainian	мова: english, russian, ukrainian
-Skhid (Ukrainian for “east”) is a small community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.	Схід — невеликий ком'юніті сервер, на якому клієнт Survarium {version} знову може входити, торгувати, збирати загони й грати матчі.
+Skhid (Ukrainian for “east”) is a community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.	Схід — ком'юніті сервер, на якому клієнт Survarium {version} знову може входити, торгувати, збирати загони й грати матчі.
 Project Discord: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>	Discord проєкту: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>
 Early test server.	Тестовий сервер.
 It has bugs and may not work fully. Your progress, items and accounts can be lost or reset at any time, and the server may be stopped at any time. By playing you accept this.	Можливі помилки та збої. Ваш прогрес, предмети й акаунти можуть зникнути або бути скинуті будь-коли, а сервер можуть зупинити будь-коли. Граючи, ви з цим погоджуєтесь.
@@ -467,3 +464,63 @@ No public match {}.	Публічного матчу {} немає.
 This server keeps no match history.	Цей сервер не зберігає історію матчів.
 Could not load the stats. Reload the page.	Не вдалося завантажити статистику. Оновіть сторінку.
 Nobody yet.	Поки нікого.
+
+# The wiki's modes (src/modes.rs).
+Modes	Режими
+Every mode: its rules, numbers and maps.	Усі режими: правила, числа й мапи.
+Versions	Версії
+Public rooms only	Лише публічні кімнати
+Private rooms only	Лише приватні кімнати
+Not offered now	Зараз не пропонується
+Respawn after {0} s.	Відродження через {0} с.
+Batteries lie on the map.	Батареї лежать на мапі.
+Carry them to your team's container.	Несіть їх до контейнера своєї команди.
+First to {0} batteries wins.	Перемагає перша команда з {0} батареями.
+Time limit {0}: more batteries wins.	Ліміт часу {0}: перемагає команда з більшою кількістю батарей.
+Batteries come out of {0} active chargers.	Батареї з'являються з {0} активних зарядників.
+A new battery every {0} s, give or take {1} s.	Нова батарея кожні {0} с, плюс-мінус {1} с.
+Protective device rules: batteries, no chargers.	Правила захисного пристрою: батареї, без зарядників.
+No interface: no ammo, health, crosshair or minimap.	Без інтерфейсу: ні набоїв, ні здоров'я, ні прицілу, ні мінімапи.
+Teammates' markers stay; enemies have none.	Мітки союзників лишаються; у ворогів їх немає.
+Hold Tab for ammo, body state, the clock and the team list.	Утримуйте Tab: набої, стан тіла, час і список команди.
+Each team has {0} tickets.	У кожної команди {0} квитків.
+A death costs one ticket; a teamkill costs none.	Смерть коштує один квиток; вбивство союзника — жодного.
+Out of tickets, a team stops respawning and loses when its last player dies.	Без квитків команда більше не відроджується і програє, коли гине її останній гравець.
+Time limit {0}: more tickets wins.	Ліміт часу {0}: перемагає команда з більшою кількістю квитків.
+Capture research units: be inside with no enemy there.	Захоплюйте дослідницькі установки: будьте всередині, коли там немає ворогів.
+Owned units earn points; more units, faster.	Захоплені установки приносять очки; що більше установок, то швидше.
+First to {0} points wins.	Перемагає перша команда з {0} очками.
+Time limit {0}: more points wins.	Ліміт часу {0}: перемагає команда з більшою кількістю очок.
+Every player for himself.	Кожен сам за себе.
+First to {0} kills wins.	Перемагає перший, хто набере {0} вбивств.
+Time limit {0}: most kills wins.	Ліміт часу {0}: перемагає той, хто має найбільше вбивств.
+Public rooms: each FFA card draws a version.	Публічні кімнати: кожна картка FFA отримує свою версію.
+Private rooms: plain FFA only.	Приватні кімнати: лише звичайний FFA.
+A lethal hit freezes you in place.	Смертельне влучання заморожує на місці.
+A teammate within {0} m thaws you in {1} s.	Союзник у межах {0} м розморожує за {1} с.
+A thaw counts as a kill.	Розморожування зараховується як вбивство.
+A frozen player thaws by himself after {0}.	Заморожений гравець розморожується сам через {0}.
+A team's last fighter shows on the enemies' map.	Останнього бійця команди видно на карті суперників.
+Freeze the whole enemy team to win the round.	Заморозьте всю команду суперника, щоб виграти раунд.
+{0} s pause between rounds, then everyone respawns.	{0} с паузи між раундами, потім усі відроджуються.
+First to {0} rounds wins.	Перемагає перша команда, що виграє {0} раундів.
+Time limit {0}: an unfinished series is a draw.	Ліміт часу {0}: незавершена серія — нічия.
+One artefact at a time, {0}–{1} s into a round.	Один артефакт за раз, через {0}–{1} с після початку раунду.
+Bring it to your own base: 1 point, and the round ends.	Принесіть його на свою базу: 1 очко, і раунд завершується.
+The carrier is slower and seen by everyone.	Носій повільніший і видимий усім.
+Respawn in waves every {0} s.	Відродження хвилями кожні {0} с.
+Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Ліміт часу {0}: перемагає більший рахунок; за нічиєї — {1} раптової смерті без відродження.
+Sniper rifles, silenced guns and guns without automatic fire are replaced.	Снайперські гвинтівки, зброя з глушником і зброя без автоматичного вогню замінюються.
+Rooms up to level {0}: {1}.	Кімнати до рівня {0}: {1}.
+Other rooms: {0}.	Інші кімнати: {0}.
+Sight: {0}.	Приціл: {0}.
+Every kit: {0} only.	Кожен набір: лише {0}.
+Every kit: {0} and {1}.	Кожен набір: {0} і {1}.
+Everyone plays the same {0} random kits.	Усі грають тими самими {0} випадковими наборами.
+Level bands: {0}.	Діапазони рівнів: {0}.
+A room draws bands up to its level.	Кімната отримує діапазони до свого рівня.
+Each kit a gun of another class, with random bonuses and attachments.	У кожному наборі зброя іншого класу з випадковими бонусами й модулями.
+{0} % of deals: pistols only.	{0} % роздач: лише пістолети.
+Plain FFA: {0} % of FFA cards.	Звичайний FFA: {0} % карток FFA.
+{0} % of FFA cards.	{0} % карток FFA.
+FFA: Roulette	FFA: Рулетка

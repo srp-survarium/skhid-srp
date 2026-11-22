@@ -720,12 +720,22 @@ impl<'t> RespawnTick<'t> {
         true
     }
 
-    /// Every place due now is due no more.
+    /// Every place due now is due no more, but an entering one: a place in the match whose
+    /// player is out of the world (entered or came back, not spawned yet) spawns at its entry
+    /// time. Held out, every world load would put it half into the world (link 0: no models, no
+    /// player effect +F540h) and its next removal with 1 read a null effect at 0x2DE36D (the
+    /// round's start, or the respawn rule's leave handler 0x316BE0), as Freeze Tag's of 2026-11-22.
     pub fn hold_due(&self) {
-        for place in 0..usize::from(PLACES) {
+        let world = self.world();
+        for place in 0..PLACES {
+            let entering = world.as_ref().and_then(|world| world.player(place))
+                .is_some_and(|player| !player.inserted());
+            if entering {
+                continue;
+            }
             // SAFETY: the rule's twenty respawn times (+138h).
             unsafe {
-                let at = self.rule.times().add(place);
+                let at = self.rule.times().add(usize::from(place));
                 if read(at) == self.time {
                     at.write_volatile(NO_RESPAWN);
                 }

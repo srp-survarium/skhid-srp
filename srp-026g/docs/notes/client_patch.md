@@ -1607,7 +1607,7 @@ A node is {prev, next, index, value}, linked at the tail of the holder's list ho
 
 **The slow from bullets.** base_player::hit_impl (0x2D9B90) queues (time, stopping_power x k_power) in m_recent_hits (player+2E8h) once per bullet; the stagger 0x2DBCD0 (eax = the player, the time; `ret 4`; from the tick at 0x2D8FE5) sums those younger than [+320h] (0.5 s) into xmm0 and its local [esp+14h], both ways (the loop's end, or none at 0x2DBCF9) reaching 0x2DBD89 `movss xmm2,[esi+31Ch]`; then -min(local, [+31Ch] 0.5) goes into the player's own node +2F4h (index [+2FCh] = 4, value +300h). 0x2DBD89 -> `jmp stagger`: the getter on list 42 with (the sum, 1.0), the result into xmm0 and the local, xmm1 0, the instruction; back at 0x2DBD91. List 42 is artefact_synergy: no getter call reads it (re-kit damage notes) and no retail config sets it, so without a Spring the factor is 1. The Spring's seventh node, +3C8h, index 2Ah, `active/stopping_power_mod`, is filled by the loader hook and linked and unlinked with the aim node (the object 3D8h bytes; 3F8h since Spring II's two reload nodes, +3D8h with the passive and +3E8h with the active, artefact-skills.md). Since 2026-11-05 the stagger then calls patch 94's generated entry `medical_skills_on_stopping` (cdecl: the player, the sum in and out; every register kept): the medical skill Unflinching multiplies the sum while a painkiller is active (medical-skills.md). The one hook at 0x2DBD89 stays patch 54's.
 
-**One press.** artefact_base::action 0x313300 (thiscall, pressed, time; `ret 8`): state 3, pressed, no cooldown (+28Ch) -> vtable +80h enable_active, the effect (0x313350), +2A0h = the time, state 4 at 0x313339. inventory::action (0x2FCAA0) calls an item of kind 1 (+24Ch) through vtable +2Ch with (pressed, time); the artefact slots are inventory+10Ch + 4 x 13..18; [artefact+250h] is the inventory. The entry's ten bytes (`push esi / mov esi,ecx / cmp dword [esi+280h],3`) -> `jmp fire_kind`: a key-down activates the pressed one, then each other slot's item with the same vtable and kind 1, each only in state 3 with no cooldown and as action does (vtable +80h with the time, 0x313350 (it, the time), +2A0h, state 4), and returns `ret 8`; nothing is pressed through action, so nothing recurses, and a press of a cooling or active one still fires the ready ones of its kind. A key-up runs the ten bytes and goes on at 0x31330A (the jne on their flags).
+**One press.** artefact_base::action 0x313300 (thiscall, pressed, time; `ret 8`): state 3, pressed, no cooldown (+28Ch) -> vtable +80h enable_active, the effect (0x313350), +2A0h = the time, state 4 at 0x313339. inventory::action (0x2FCAA0) calls an item of kind 1 (+24Ch) through vtable +2Ch with (pressed, time); the artefact slots are inventory+10Ch + 4 x 13..18; [artefact+250h] is the inventory. The entry's ten bytes (`push esi / mov esi,ecx / cmp dword [esi+280h],3`) -> `jmp fire_kind`: a key-down activates the pressed one, then each other slot's item with the same vtable and kind 1, each only in state 3 with no cooldown and as action does (vtable +80h with the time, 0x313350 (it, the time), +2A0h, state 4), and returns `ret 8`; nothing is pressed through action, so nothing recurses, and a press of a cooling or active one still fires the ready ones of its kind. A press that fired one then starts the cooldown of each other copy of the kind on its cooldown again (the pressed one's too; state 3, +28Ch not 0; the owner, 2026-11-22, artefacts.md): `recool` enters the end of an active's own code at 0x3135BD (after its uses and its disable_active call, vtable +88h) with edi the copy and the two dwords its `pop esi / pop ecx / ret` take, so the cooldown is the game's own number (+274h times the holder's modifier 38 through the getter, 0x1E800 to an integer, into +28Ch; state 3 written again). A press with none ready returns before it. A key-up runs the ten bytes and goes on at 0x31330A (the jne on their flags).
 
 **Onyx stacking (2026-10-25).** An Onyx (`artefact_onyx_core`, 0xF20 bytes, its wrapper 0xF40, vtable 0xA157BC / 0xA06084) is built by 0x3126E0: its loader 0x33B780 (cdecl: the config at +C7Ch, `data`) fills +EE8h hit_type, +EECh..+EF8h the passive's damage_add, damage_mul, armor_piercing_add, armor_piercing_mul, +EFCh..+F08h the active's, +F0Ch absorb_total, +F10h active/duration ms, and the protected parts at +C90h (1Ch each); then one damage protector (70h bytes, at +340h) per part, each bound to the hit callback 0x312BF0 with the Onyx (0x312777). enable_passive_effects 0x312810 (vtable +7Ch, at pickup) links each protector into its pool's list (pool+BCh, next at +68h), disable_passive_effects 0x312950 (+84h, at death and drop) unlinks them: they are in from pickup to death in both states. enable_active_effects 0x3128C0 (+80h): +F14h (time left, ms) = trunc(+F10h x M39 artefact_duration, set by nothing in 0.26g), +F18h = absorb_total; tick_impl 0x3127E0 counts +F14h down; active_effect_ended 0x312A50 is 1 when +F14h is 0 or +F18h is 0.0 (nothing writes +F18h during the active: absorb_total is a cap per hit, 5 in retail); disable_active_effects 0x312A30 zeroes both. The base's tick 0x313200 (+74h) ends a state-4 artefact through 0x313530 (cooldown_sec x 1000 x M38 into +28Ch, state 3). The callback (thiscall: the hit, &damage, &piercing; `ret 0Ch`): the hit's type (+1Ch) must be +EE8h; state 3: D = (D + add) x mul, P likewise (passive); else D -= min(+F18h, D - (D + add) x mul) and P = (P + add) x mul (active). So n active Onyx gave D x 0.1^n, each 3 s. The press (fire_kind) now counts the ready ones it fires first (`ready`, `kin`: state 3, no cooldown; same vtable and kind 1 in the slots) and, when the kind's enable_active (vtable +80h) is 0x3128C0, adds (n - 1) x 1000 ms (ONYX_EXTRA_MS) to each fired one's +F14h after its activation: all n end on the same tick and cool down together. 0x312C03 `cmp dword [ecx+280h],3` (seven bytes, after the hit type test; the next instruction `mov eax,[esp+8]` at 0x312C0A, then `jne 0x312C47`) -> `jmp onyx_hit` (JUMP): state 3 goes back at once (ZF set, the passive's way); otherwise the slots 13..18 are walked and the first item that is the Onyx itself, or of its vtable in state 4, decides: itself -> the compare again (ZF clear) and back at 0x312C0A (the active's way); another -> `ret 0Ch` with damage and piercing unchanged. An Onyx in no slot goes on as before. eax and edx are free there (eax is loaded at 0x312C0A, edx, the hit, is not read after 0x312BFA); esi and ebx are pushed and popped.
 
@@ -2433,6 +2433,100 @@ through in the deferred composition pass, which 0.26g's programs do not.
   present flag and a value, 0x65FF52 and the rest; the presenter's blend of them was not read).
 - **Not done.** Not run in a game: no headless load of a ported London with the patch yet. Not
   checked with Unicorn.
+
+### 3.99 A streamed texture whose size has no free slot takes a smaller one (written 2026-11-22, README patch 182, the next release's revision) — PROVEN in the code; RUN in a game (capture, below)
+
+The owner, 2026-11-22: some textures stay blurred ("мыльные") and never sharpen, on any map, now
+and then; London (v0.32) day_8 at -4.96 14.06 -19.69: the overhead concrete's underside a flat grey.
+
+- **The pools are a fixed table.** resource_pools (0x11B090, logged by 0x11A5C0's ".\resource_pools.cpp"
+  lines) makes one texture_pool for each key {width, height, array 1, format, mips, usage 0} of a
+  table in its code (0x11B3D0 per row, each size halved down to 4): BC1 (46h) and BC3 (4Ch), square,
+  2:1, 1:2, 4:1 and 1:4; at quality offset 0, 60 slots of 2048x2048 BC1, 30 of BC3, 120 of
+  1024x1024, 128 of 512x512, 512 of each smaller. The "streamable texture pool size" line is their
+  sum (0x3D33E0): the slot counts do not follow the video memory; the quality offset (+88190h,
+  0 on 1 GB and more) only halves every size.
+- **A request needs a free slot of exactly its size.** The async worker (update_wanted_mips
+  0x1C2120) makes a potential_request (64h bytes: resident and wanted mips and sizes) for every
+  streamable texture each batch, the wanted mips the most any instance's screen size asks
+  (0x1C8640; the window's height counts: 2560x1440 asks more than 1920x1080), sorted by
+  calc_priority (0x1C8A10). process_streaming (0x154020) gives each request whose mips change the
+  first slot of its key that is neither occupied (+18h) nor reserved (+19h) and reserves it
+  (0x1543C0, r_lazy_streaming off: its byte 0x1F1D990 has no writer but the console); the load
+  then takes that reserved slot (0x3D3220) and frees the old one (0x3D3550). With no such slot
+  (0x15433E) the request is cancelled (potential_request::cancel_request 0x1C89C0: wanted =
+  resident), after a look for another request leaving that size which, with lazy streaming off,
+  changes nothing. There is no step down to a size that has room: a texture loaded at its small
+  mips that wants 2048x2048 while 60 others hold those slots keeps its small mips until one of
+  them leaves, however near the camera it is. A load can make a slot (0x3D3010, when a creation
+  finds none), but no request reaches one: the big sizes never grow past the table.
+- **What fills them.** Every texture drawn near enough asks its full size: the map's (ported maps
+  bring many 1024 and 2048 textures: London v0.32's pack 124 of 1024x1024 BC1, 30 of 2048x2048),
+  the first-person weapon, and each player's baked camouflage, 2048x2048 for every part (the
+  owner's `streamed_textures` holds 327 BC1 and 77 BC3 of 2048x2048: about six BC1 2048 slots a
+  dressed player).
+- **Ruled out.** A failed load does not hold the streaming: on_texture_loaded (0x154C30) queues a
+  ready entry with no data, and process_ready_streaming_textures (0x154A00) drops the request
+  either way (0.10b's on_texture_loaded did not). The ported textures have whole mip chains (all
+  1933 of london-v032-1 and london-v042-1 checked). The "out of pool" lines are textures of a key
+  the table lacks (8:1, B8G8R8A8, one mip), made whole at their load.
+- **The patch** (`texture_pool`, Rust, the lohook `streaming.no_slot` at 0x15433E;
+  `vostok::texture_pool`). At a request with no free slot of its size it takes, largest first,
+  the first smaller size above what the texture has whose pool has a free slot: the slot reserved
+  as the game reserves one, the request's mips and size made that size, then the loop's next
+  request (exit `next`, 0x1543C4). The next batch asks the full size again and gets it when a
+  slot frees. A request with no such size, or for fewer mips, goes on as stock. No memory: the
+  slots are the table's.
+- **`SKHID_TEXTURE_STREAMING_LOG=on`** (read once): each such request in `srp_patches.log`, once a
+  texture while what it wants and takes stays the same: `texture_pool: <path> wants WxH/mips
+  (format) from WxH/mips: its pool N slots, N occupied, N reserved; takes WxH/mips` (or `stays`).
+- Textures only: nothing a match computes changes.
+
+### 3.100 The g-buffer's parallax constants are 0.44a5's (written 2026-11-22, README patch 183, the next release's revision) — PROVEN in the code of 0.26g, 0.44a5 and 0.32a4
+
+London kept-switch-set packs crash at load when a kept material selects a donor g-buffer program the
+porter could not ship. Of 0.44a5's g-buffer programs players lack, 118 read `parallax_uv_scale_factors`
+and/or `parallax_uv_scrolling_factors`, which no 0.26g program reads and 0.26g never sets: for London,
+the shading-quality-3 programs of `flora_2/saksaul_tile_blend_vc` and `flora_2/l9_anom_tile_top_vc`
+(GLOBAL_SHADING_QUALITY 3 is every r_shading_quality but 0: renderer-026g.md).
+
+- **What 0.44a5 does** (PROVEN; re-kit `v044a5` 0x4C1F20). Its g-buffer material compile
+  (effect_gstage_default_materials::compile, the one reference of `gbuffer_pass` and of `t_height_map`)
+  has a parallax block (configuration [esp+3Ah] bit 80h, 0x4C4371): constant_parallax_scale, the
+  t_height_map texture (0x4C440F), then `parallax_uv_scrolling_factors` = (parallax_u_scrolling_speed,
+  parallax_v_scrolling_speed), 0 for each missing (0x4C4414..0x4C44D9), and `parallax_uv_scale_factors`
+  = (parallax_u_scale, parallax_v_scale), 1.0 for each missing (0x4C44DE..0x4C45A3), each value a float
+  or an integer made a float, by set_constant<float2> (0x4BEC60). 0.32a4's compile has the same block
+  with the same defaults (0x80BB87..0x80BD16).
+- **What 0.26g has** (PROVEN). effect_gstage_default_materials::compile (0x1DDD50) is the only reference
+  of `gbuffer_pass` (0x1DE6DE) and `t_height_map` (0x1DFFA2): no sibling compile sets parallax. Its
+  parallax block (configuration [esp+1Ah] bit 40h, from use_parallax at 0x1DDEA9..0x1DDF01, tested at
+  0x1DFF18) sets constant_parallax_scale when the material has it (0x1DFF23..0x1DFF6A) and t_height_map
+  (0x1DFFA7), and nothing else; the gbuffer_emissive_pass technique begins after it (0x1E0C68), as in
+  0.44a5 (0x4C5450). No string of 0.26g names the two constants or the four fields.
+- **The patch** (Rust `parallax_uv`, one lohook of `sites_026g.tsv`; `vostok::effect_compile::GstageParallax`):
+  `gstage.parallax` 0x1DFF85 (`D9 44 24 3C 8B 54 24 2C`, fld dword [esp+3Ch] / mov edx,[esp+2Ch], replayed;
+  no address under them, no branch into them, reached only inside the parallax block after
+  texture_bump's lookup): the material (EBX, the compile's config tree) read once into its two pairs,
+  sent by the game's set_constant<float2> (0x1D9740, a new engine_026g.tsv row; ECX the value, the
+  compiler [EBP+8], the name; `ret 8`). It binds only while building (+61F4Ch 0) and only a name not
+  bound yet, as for patch 169's constant_tile_uv; the compile runs twice (caching, building) with the
+  same inputs. As in 0.44a5, every material with parallax gets them, the defaults when it lacks a field.
+- **What changes:** the g-buffer pass of a parallax material binds two more constants. The pass's
+  end (0x3DA450, building only) applies its bindings to the bound programs (0x3D7F40, which skips a
+  name a program lacks) and empties the vector; no program players have reads either name (the
+  porter's family reads of the live db), so their draws are as before. The vector holds 32 bindings
+  a pass (0x280 bytes of 14h, 0x3D95AB..0x3D95C2; push_back 0x3C1110 asserts past it): the pass's
+  setters name 34 constants with every feature on, 9 always, so a parallax material now has two
+  fewer to spare.
+- **Not done: constant_parallax_scale's default.** 0.44a5 sets it to 1.0 when the material lacks it
+  (0x4C43BA); 0.26g sets it only when present (0x1DFF2A). Setting the default would change players'
+  parallax materials without the field; both London materials have it (1). Rendering only: nothing a match computes or a world holds changes (no `simulation_changes.tsv`
+  row, no world format change).
+- **The content** (resource-porter): a ported material keeps the four fields
+  (`ports/near-build/client-fields-026g.tsv`), and the London manifests' `shader_keys.filled` tells the
+  program supplier that patch 183 fills both constants (8 bytes each) for `gbuffer_pass.ps`, so the
+  donor's parallax programs ship.
 
 ## 4. Mode 3 batteries: not needed in 0.26g
 
@@ -4077,8 +4171,70 @@ uses either distance or projected bounds and releases its by-value model ref.
 The new hook follows its existing LOD0 return after the missing-LOD0 check.
 A separate 100-metre squared-distance check preceded the old culling hook.
 Maximum now keeps those frustum-query candidates too. Frustum and occlusion
-culling remain; per-pass draw limits and the shadow pass's explicit LOD bias
-remain native. The gbuffer pass supplies a 1,000,000-metre draw limit.
+culling remain. The gbuffer pass supplies a 1,000,000-metre draw limit. The
+sun's shadow pass has rules of its own (next section).
+
+**Sun shadows** (2026-11-22; read in the exe, the hooks' bytes checked in the
+built exe; owner: "LODs are not used on maximum settings, but shadows still
+change"). `stage_shadow_direct` draws up to four cascades (r_num_shadow_cascades,
+opt+C4h, 4; r_shadow_quality 0 drops the last). What it does differently from
+the camera:
+
+- Models: no shadow LOD of their own. `prepare_visibile_objects` (0x1750C0)
+  calls `scene::select_models` with mask 2 and the camera's view-projection
+  (renderer_context+5098h, 0x17512D), so `get_surfaces` (0x16F390) runs
+  `select_lod` as the camera does and Maximum's LOD0 reaches the shadows.
+  r_shadow_last_lod (0x1F1D9A4, off) would add up to two LODs for mask 2
+  (0x16F3C6).
+- Models: a per-cascade caster cull. With r_csm_cull_min_screen_factor
+  (0xA71A37, on) a surface leaves cascade N when its screen factor (+58h, the
+  camera's: max screen share x 100, 0x158D80) is under
+  r_shadow_cascade_N_max_screen_factor (opt+68h..74h: 3, 5, 7, 9) times 1,
+  0.85, 0.75 or 0.5 by r_shading_quality (opt+E8h 0..3), 0x175218..0x1752BD
+  (`find_if` 0x176420, `remove_copy_if` 0x176340; 0.21d's
+  `remove_invisible_models_predicate`). A model whose +116h is 0 counts 1000
+  (kept). So a 1 m box loses its shadow in cascade 0 beyond about 30 m, a 10 m
+  house in cascade 3 beyond about 100 m (r_shading_quality 1), and the shadow
+  goes as the camera moves away.
+- Grass: `render_grass` (0x175680) gives `grass_world::render` 25 m (0x17571E,
+  the float at 0xA2DC24; the gbuffer gives 1,000,000): only patches within
+  25 m of the eye cast shadows, a ring that moves with the camera.
+- Grass: `grass_patch::render` (0x1CC980) draws the shadow pass (pass 1Ah)
+  one LOD coarser than the selector's (0x1CCB4C `cmp esi,1Ah` / `inc eax`); a
+  patch at the last LOD then has no surface and casts nothing.
+- The cascades themselves: one map per cascade, 512/1024/2048 texels by
+  r_shadow_quality and video memory (`sun_shadow_map_size` 0x3CF260, read once
+  in the stage's constructor), and `stage_shadow_mask` (0x1A1910) applies them
+  from the last to the first with no blend: a step in sharpness at each
+  cascade's edge. Not changed (below).
+
+| Hook | Normal | High | Maximum |
+| --- | --- | --- | --- |
+| `0x175212` `detail_shadow_cull` (the `je` after the cull switch) | native | native | skips the cull, as r_csm_cull_min_screen_factor 0 |
+| `0x17528E` `detail_shadow_threshold` | native | threshold x 2/3 (the screen factor is linear in 1/distance: 1.5x the distance) | not reached |
+| `0x1CCB4C` `detail_grass_shadow_lod` | LOD + 1 | LOD + 1 (the selector's own 1.5x) | the camera's LOD |
+| `0x175724` `detail_grass_shadow_distance` (after the `fld`) | 25 m | 37.5 m | 1,000,000 m (the cascade's frustum) |
+
+Cost (from the code; no frame measured). Each kept caster is one more draw in
+its cascade's depth pass, at the LOD the camera draws (LOD0 at Maximum); the
+cull in the previous cascade (0xA71A36, on) still drops a caster that lies
+wholly in a nearer cascade. The engine counts the culled casters per frame at
+[0x226048C]+37F0h: that count is what Maximum adds. Grass is the larger
+part: at Maximum each cascade draws every grass patch in its frustum (one
+instanced draw per patch, LOD0) where Normal drew those within 25 m one LOD
+coarser; at worst about as many grass draws as the camera's, per cascade. A
+cap on that distance (say the camera's 100 m) is one constant if a frame
+shows it too heavy.
+
+Not changed, and what it would take. A blend across a cascade's edge is in the
+shadow mask's pixel shader (`effect_sun_shadows_apply`, `stage_shadow_mask`),
+which has no source in the repo and no content path yet. Bigger maps (4096)
+are `sun_shadow_map_size`'s answer, read once when the stage is built (a
+renderer restart; four depth maps and four cached copies: 2048 is 8 MiB each
+at 16 bits, 4096 32 MiB, so 64 -> 256 MiB) and four times the shadow fill;
+they sharpen every cascade but keep the steps. The cascade extents
+(`calculate_matrices` 0x174240, from the camera's `sun_cascade` +10Ch) were not
+read further.
 
 Grass regression coverage now starts before the distance rejection and executes
 the complete draw-time selector and surface fetch, including reference counts,

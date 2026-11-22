@@ -237,8 +237,11 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
         "the vote's winner when it started"
     );
     assert_eq!(setup.players.len(), 2, "no bots");
-    assert!(!setup.vs_bots);
-    assert!(!setup.private, "no PIN: it pays");
+    assert_eq!(
+        setup.kind,
+        session::v026g::match_kind::MatchKind::Normal,
+        "no PIN: it pays"
+    );
     world.advance(Duration::from_secs(1));
     let playing = state(&mut world, alice);
     assert_eq!(header(&playing)[PHASE], "2");
@@ -2261,7 +2264,10 @@ fn a_private_rooms_owner_starts_its_match_with_one_three_or_five() {
         };
         assert_eq!([team(0), team(1)], sides, "{count}");
         assert_eq!(setup.room_minimum, Some(1));
-        assert!(setup.private);
+        assert_eq!(
+            setup.kind,
+            session::v026g::match_kind::MatchKind::PrivateRoom
+        );
 
         world.end_match(ticket, 0);
         world.advance(Duration::from_secs(2));
@@ -2458,7 +2464,7 @@ fn a_private_room_with_bots_fills_its_teams_with_them() {
         assert_eq!(on(false) + on(true), size, "team {side}: filled with bots");
     }
     // Paid as against bots (the owner's of 2026-11-05), not as a PIN room.
-    assert!(setup.vs_bots && !setup.private);
+    assert_eq!(setup.kind, session::v026g::match_kind::MatchKind::VsBots);
     let list = rows(&mut world, alice, ROOMS_LIST, 10);
     let row = list.iter().find(|row| row.starts_with(&format!("{key};"))).unwrap();
     assert_eq!(row.split(';').nth(8), Some("2"), "BOT in the list: {row}");

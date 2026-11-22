@@ -39,24 +39,44 @@ package survarium.controls
 
       private static var additionalMedicine:Boolean = false;
 
+      // Toxic Smoke (441) and Bear Trap (444): a grenade and a trap take two of a pocket's units,
+      // as the RGD-5 does (the server's KitLayout).
+      private static var halvedGrenades:Boolean = false;
+
+      private static var halvedTraps:Boolean = false;
+
       // Supply Pocket (331) taken: the skill that closes the second weapon slot, where Deep
       // Pockets does not.
       public static var supplyPocket:Boolean = false;
 
       // Only committed skill values affect equipment, never unspent previews.
-      public static function medicalSkills(value:Array) : void
+      public static function committedSkills(value:Array) : void
       {
          additionalMedicine = false;
          supplyPocket = false;
+         halvedGrenades = false;
+         halvedTraps = false;
          for each(var skill:Object in value)
          {
-            if(skill != null && skill.id == 331 && skill.value > 0)
+            if(skill == null || skill.value <= 0)
+            {
+               continue;
+            }
+            if(skill.id == 331)
             {
                supplyPocket = true;
             }
-            if(skill != null && skill.id == 322 && skill.value > 0)
+            if(skill.id == 322)
             {
                additionalMedicine = true;
+            }
+            if(skill.id == 441)
+            {
+               halvedGrenades = true;
+            }
+            if(skill.id == 444)
+            {
+               halvedTraps = true;
             }
          }
       }
@@ -66,12 +86,32 @@ package survarium.controls
          // Boosters share category 10 with drugs, but fill a whole pocket.
          if(size == QuickSlotSize.WHOLE)
             return 1;
-         var units:int = base < 0 ? pocketSize : base;
-         var total:int = Math.max(0,Math.min(MAX_POCKET_UNITS,units + (additionalMedicine && category == ItemCategory.MEDKITS ? 1 : 0)));
-         // An item of two units (the RGD-5): half the pocket, at least one (the server's PocketShare).
-         if(size == QuickSlotSize.PAIR)
+         var total:int = pocketTotal(category,base);
+         // An item of two units: half the pocket, at least one (the server's PocketShare).
+         if(itemUnits(category,size) == 2)
             return Math.min(total,Math.max(1,int(total / 2)));
          return total;
+      }
+
+      // A pocket's units, whatever its items take.
+      public static function pocketTotal(category:uint, base:int = -1) : int
+      {
+         var units:int = base < 0 ? pocketSize : base;
+         return Math.max(0,Math.min(MAX_POCKET_UNITS,units + (medicineBonus(category) ? 1 : 0)));
+      }
+
+      // Whether a pocket of `category` has Additional Medicine's extra unit.
+      public static function medicineBonus(category:uint) : Boolean
+      {
+         return additionalMedicine && category == ItemCategory.MEDKITS;
+      }
+
+      // The pocket units one item takes: 2 for the RGD-5, a grenade with Toxic Smoke and a trap
+      // with Bear Trap; else 1.
+      public static function itemUnits(category:uint, size:Number) : int
+      {
+         var pair:Boolean = size == QuickSlotSize.PAIR || (halvedGrenades && category == ItemCategory.GRENADES) || (halvedTraps && category == ItemCategory.BOOBY_TRAPS);
+         return pair ? 2 : 1;
       }
       
       public static var currentLevel:int = 0;

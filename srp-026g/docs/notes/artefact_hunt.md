@@ -83,7 +83,7 @@ Each one a decision; the owner's are marked, the rest are the port's and open to
   collision as the battery project has them, on a copy of the map's Team Deathmatch project
   (its spawns; each base checked on its own team's side). Pack `artefact-hunt-maps` (the configs)
   and `artefact-hunt-maps-1.json` (projects, maps_dict 327-350), both made by
-  `scripts/mode-maps/make.py`. Rudnya v0.69 too: 0.46c2's Rudnya points are for 0.26's geometry,
+  `scripts/mode-maps/make.py` (each map's id kept in its `ids.tsv`: a new map's is the next free one). Rudnya v0.69 too: 0.46c2's Rudnya points are for 0.26's geometry,
   its bases where the battery containers stand anyway. London likewise since it plays 0.32a4's
   projects (`london-v032-1`): maps 324-326 keep their ids and play configs of v0.32's own battery
   mode on copies of its Team Deathmatch projects (`artefact_hunt/v032a_level_09_<weather>_ah`);
@@ -329,7 +329,10 @@ The native respawn rule (91) keeps its points and its spawn; four things are ask
   at the tick's 0x316826 (`53 56 8B D9 57`, 5 bytes, after patch 31's `jmp kit_change` at 0x316820
   and its prologue; ECX the rule, `[EBP+0Ch]` the step's time) asks `Rule::spawning(time)`:
   - `Held` (the 3 s and the fade): every place whose time is the step's gets -1; a death in them is
-    given its wave by the delay above and is held the same when it falls due;
+    given its wave by the delay above and is held the same when it falls due. Not an entering
+    place (its current player out of the world: a late arrival, a player who came back): it spawns
+    at its entry, as the stock game's, since a world loaded while it was out would put it half
+    into the world and its next removal crash (freeze-tag.md, "No place out of the world");
   - `Everyone` (the step that ends the fade): every place 0..19 with a current player gets the
     step's time, so this very tick takes out and spawns them all, alive or dead, at their team's
     points; one without a free point the next step (the native +50 ms), inside the countdown;

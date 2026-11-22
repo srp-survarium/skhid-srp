@@ -487,7 +487,8 @@ Patches:
   increase_health as a medkit). An artefact's
   press (artefact_base::action 0x313300, at its entry) activates every
   ready artefact of the pressed one's class in the artefact slots, so one
-  key fires all of a kind that are ready, even when the pressed one is not.
+  key fires all of a kind that are ready, even when the pressed one is not;
+  a press that fires one starts the cooldown of the kind's cooling ones again.
   Onyx: n fired together are each active 1 s longer per other one (3 s + (n
   - 1) s), and only the first active Onyx of the slots reduces a hit (its
   hit callback 0x312BF0, at 0x312C03), so n active Onyx reduce it once; its
@@ -917,7 +918,7 @@ WORLD_UNPACK = (
 # its "Release revision <n>" commit), never a feature change: a release
 # builds with --revision=<n>, the live exe's + 1, which changes the revision
 # byte alone, and records <n> here once it went out.
-REVISION = 68
+REVISION = 71
 # The first revision whose default build takes the lobby's replay link
 # (REPLAY_LINK): the server's replay rule asks for it
 # (session::v026g::replays::MIN_REVISION).
@@ -2519,7 +2520,8 @@ ARTEFACTS_HOOKS = (
 )
 ARTEFACTS_BACKS = (0x33AE1A, 0x311BCA, 0x311DA5, 0x3122B0, 0x31330A, 0x2DBD91, 0x312C0A,
                    0x25F9E8, 0x311ADA, 0x311D15)  # where each goes on (the pop-up's skip: 0x25F9F8)
-ARTEFACTS_EXITS = (0x25F9F8,)                   # the Onyx pop-up's skip past set_parameterized_message (POPUP_SKIP)
+ARTEFACTS_EXITS = (0x25F9F8,                    # the Onyx pop-up's skip past set_parameterized_message (POPUP_SKIP)
+                   0x3135BD)                    # an active's end from its cooldown on (COOLDOWN_START: recool)
 ARTEFACTS_SPRING_SIZE = 0x3F8                  # the active's two nodes at +3B8h and +3C8h, Spring II's at +3D8h, +3E8h
 ARTEFACTS_SIZES = (
     (0x25E7A8, bytes.fromhex("b8b8030000"), b"\xB8" + struct.pack("<I", ARTEFACTS_SPRING_SIZE)),
@@ -3106,6 +3108,11 @@ DETAIL_HOOKS = (
     (0x158D26, bytes.fromhex("8b81e8000000"), "detail_shader", 0xE9),
     (0x1605E0, bytes.fromhex("f30f105150"), "detail_grass", 0xE9),
     (0x3D9C43, bytes.fromhex("8b9194810800"), "detail_texture", 0xE9),
+    # The sun's shadow cascades: per-cascade caster cull, grass shadow LOD and distance.
+    (0x175212, bytes.fromhex("0f84f6000000"), "detail_shadow_cull", 0xE9),
+    (0x17528E, bytes.fromhex("f30f11442410"), "detail_shadow_threshold", 0xE9),
+    (0x1CCB4C, bytes.fromhex("83fe1a750140"), "detail_grass_shadow_lod", 0xE9),
+    (0x175724, bytes.fromhex("8b5424586a01"), "detail_grass_shadow_distance", 0xE9),
 )
 DETAIL_PATCHES = (
     (0x261373, bytes.fromhex("80f90a"), bytes.fromhex("80f90b")),
@@ -4599,7 +4606,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      "an upgrade dropped on a weapon in its window is shown at once, "
                      f"Research (mode 5: rule class {RESEARCH_CLASS:#x}, its hud and messages), "
                      "a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills "
-                     "every body part's pool, and one press fires every artefact of its kind, "
+                     "every body part's pool, and one press fires every artefact of its kind and starts its cooling ones' cooldown again, "
                      "Onyx fired together each 1 s longer per other one and reducing a hit once, "
                      "their activation hint shown once a press for their active time, "
                      "the keys 1, 2 and 3 pick a kit while the kits are shown (none for a key pressed before "

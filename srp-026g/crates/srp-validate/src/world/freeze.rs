@@ -1,15 +1,21 @@
 //! Freeze Tag's deterministic rule and world format. A frozen body remains
-//! installed in the native world, at its lethal hit, until a teammate thaws it.
-//! This state is saved after the respawn rule; there is no wall-clock state.
+//! installed in the native world, at its lethal hit, until a teammate thaws it
+//! or, after [`AUTO_THAW_MS`], it thaws by itself. This state is saved after
+//! the respawn rule; there is no wall-clock state.
 
 use crate::{MAX_PLAYERS, Place, Places, Team};
-use core::num::NonZeroU16;
+use core::num::{NonZeroU16, NonZeroU32};
 
 pub const INTERMISSION: NonZeroU16 = NonZeroU16::new(5000).unwrap();
 pub const WINS: u8 = 5;
 pub const PLAYERS: usize = MAX_PLAYERS;
-pub const THAW_MS: u16 = 3000;
+pub const THAW_MS: u16 = 4000;
+/// A frozen player thaws by himself this long after his freeze, a stop gap
+/// (the owner, 2026-11-22: "2 min unthaw is good for now as a stop gap").
+pub const AUTO_THAW_MS: NonZeroU32 = NonZeroU32::new(120_000).unwrap();
 pub const RADIUS: f32 = 2.0;
+/// A player record's bytes: tag, thaw progress (u16), auto-thaw time left (u32).
+const RECORD: usize = 7;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Player {
@@ -18,8 +24,20 @@ pub enum Player {
     Fighting(Team),
     Frozen {
         team: Team,
+        /// A teammate's thaw.
         progress: Progress,
+        /// The time left to the auto-thaw.
+        thaws_in: NonZeroU32,
     },
+}
+impl Player {
+    fn frozen(team: Team) -> Self {
+        Self::Frozen {
+            team,
+            progress: Progress::ZERO,
+            thaws_in: AUTO_THAW_MS,
+        }
+    }
 }
 
 /// Completed progress is an action (thaw), never a retained frozen state.
@@ -68,9 +86,10 @@ pub enum Phase {
 pub enum Actions {
     /// Between rounds, waiting for every body's new round spawn, or finished.
     Wait,
-    /// A played step: these places' native health and actions are restored;
-    /// `thawers` completed a thaw at it (every fighting teammate within
-    /// reach of a body thawed), each credited as for a kill.
+    /// A played step: these places' native health and actions are restored
+    /// (a teammate's thaw or the auto-thaw); `thawers` completed a thaw at it
+    /// (every fighting teammate within reach of a body a teammate thawed),
+    /// each credited as for a kill; an auto-thaw credits nobody.
     Play { thawed: Places, thawers: Places },
     /// Every place spawns again now through the native team spawn.
     Restart,
@@ -78,17 +97,22 @@ pub enum Actions {
 
 /// What the native respawn rule's schedule (twenty times, one a place: the
 /// tick spawns a place whose time is the step's) is left to do after a step.
+/// A cancel never applies to a place entering the match (its player not in
+/// the world yet): its entry spawn always runs, in every phase, so no place
+/// of the match is ever out of the world when a world is saved or loaded.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Schedule {
     /// In play: a frozen body's death respawn is void (the freeze replaced
     /// the death); every other place keeps its native time, so a late
     /// arrival's first spawn runs.
     CancelFrozen(Places),
-    /// Between rounds and after the match: no place has a native time (a
-    /// death's respawn, the round's last freeze too, or a late arrival's
-    /// entry): the restart spawns everyone, the end nobody, and the hud
-    /// shows no respawn countdown (the owner, 2026-11-22: it showed the last
-    /// frozen body's death respawn, "respawn in 8 seconds").
+    /// Between rounds and after the match: no body has a native time (a
+    /// death's respawn, the round's last freeze too): the restart spawns
+    /// everyone, the end nobody, and the hud shows no respawn countdown (the
+    /// owner, 2026-11-22: it showed the last frozen body's death respawn,
+    /// "respawn in 8 seconds"). A late arrival spawns at his entry, moves
+    /// on in the pause as everyone not frozen, and spawns again with the
+    /// round.
     CancelAll,
     /// The round's restart: every present place is due at this step
     /// ([`Actions::Restart`]), and a place without a free point retries
@@ -115,8 +139,11 @@ impl FreezeTag {
         restarts: 0,
     };
     /// Version, phase, scores, countdown (u16), round result, twenty player
-    /// records, then the restarts (u16).
-    pub const LEN: usize = 7 + PLAYERS * 3 + 2;
+    /// records (tag, thaw progress u16, auto-thaw time left u32), then the
+    /// restarts (u16).
+    pub const LEN: usize = 7 + PLAYERS * RECORD + 2;
+    /// 2: each frozen player's auto-thaw time.
+    const VERSION: u8 = 2;
     pub fn player(&self, place: Place) -> Player {
         // A place is below PLAYERS; the crate reaches no panic.
         self.players.get(place.index()).copied().unwrap_or(Player::Waiting)
@@ -180,10 +207,27 @@ impl FreezeTag {
             .get(places..)
             .is_some_and(|rest| rest.iter().all(|p| *p == Player::Waiting))
     }
+    /// Whether `place` is his team's last one fighting in a round in play,
+    /// with two teammates of his frozen at least: the other team sees him on
+    /// its map (the owner, 2026-11-22: "last member is always shown on the
+    /// map"). Only in a team of three or more: never in 1 v 1, 2 v 1 or 2 v 2
+    /// (the owner: "when 1vs1 we see each other on the map, bad", "2vs1
+    /// should also not show", and the two-player side's last one hidden too:
+    /// "yes").
+    pub fn last_standing(&self, place: Place) -> bool {
+        self.phase == Phase::Playing
+            && matches!(self.player(place), Player::Fighting(team) if self.living(team) == 1 && self.frozen(team) >= 2)
+    }
     fn living(&self, team: Team) -> usize {
         self.players
             .iter()
             .filter(|p| **p == Player::Fighting(team))
+            .count()
+    }
+    fn frozen(&self, team: Team) -> usize {
+        self.players
+            .iter()
+            .filter(|p| matches!(p, Player::Frozen { team: side, .. } if *side == team))
             .count()
     }
 
@@ -241,19 +285,16 @@ impl FreezeTag {
                         ..
                     },
                 ) => {
-                    *player = Player::Frozen {
-                        team,
-                        progress: Progress::ZERO,
-                    };
+                    *player = Player::frozen(team);
                 }
                 (Player::Waiting, Body::Present { team, .. }) => *player = Player::Fighting(team),
                 // Leaving cannot erase a freeze. Nor can reconnecting turn
-                // a retained frozen place back into a fighting player.
+                // a retained frozen place back into a fighting player: he
+                // comes back at his team's spawn, frozen there until a
+                // teammate or the auto-thaw thaws him (the release manager's
+                // pick, 2026-11-22: rejoining is no way out of a freeze).
                 (Player::Fighting(team), Body::Absent) => {
-                    *player = Player::Frozen {
-                        team,
-                        progress: Progress::ZERO,
-                    };
+                    *player = Player::frozen(team);
                 }
                 _ => {}
             }
@@ -262,7 +303,7 @@ impl FreezeTag {
         let mut thawed = Places::EMPTY;
         let mut thawers = Places::EMPTY;
         for (place, ((slot, body), sight)) in Place::all().zip(self.players.iter_mut().zip(bodies).zip(visible)) {
-            let Player::Frozen { team, progress } = *slot else {
+            let Player::Frozen { team, progress, thaws_in } = *slot else {
                 continue;
             };
             // The fighting teammates within reach, in clear sight.
@@ -285,15 +326,29 @@ impl FreezeTag {
             } else {
                 0
             };
-            if progress >= THAW_MS {
-                *slot = Player::Fighting(team);
-                thawed = thawed.with(place);
-                thawers = Places::new(thawers.bits() | helpers.bits()).unwrap_or(thawers);
-            } else {
-                *slot = Player::Frozen {
-                    team,
-                    progress: Progress(progress),
-                };
+            // The auto-thaw's clock runs on a body in the world: a place that
+            // left stays frozen.
+            let thaws_in = match *body {
+                Body::Present { .. } => NonZeroU32::new(thaws_in.get().saturating_sub(u32::from(elapsed))),
+                Body::Absent => Some(thaws_in),
+            };
+            match (progress >= THAW_MS, thaws_in) {
+                (true, _) => {
+                    *slot = Player::Fighting(team);
+                    thawed = thawed.with(place);
+                    thawers = Places::new(thawers.bits() | helpers.bits()).unwrap_or(thawers);
+                }
+                (false, None) => {
+                    *slot = Player::Fighting(team);
+                    thawed = thawed.with(place);
+                }
+                (false, Some(thaws_in)) => {
+                    *slot = Player::Frozen {
+                        team,
+                        progress: Progress(progress),
+                        thaws_in,
+                    };
+                }
             }
         }
         if let Some(end) = self.result() {
@@ -311,22 +366,25 @@ impl FreezeTag {
         }
         Actions::Play { thawed, thawers }
     }
-    /// A round ends once both teams entered and one or both have nobody fighting.
+    fn entered(&self, side: Team) -> bool {
+        self.players.iter().any(|p| match *p {
+            Player::Fighting(team) | Player::Frozen { team, .. } => team == side,
+            Player::Waiting => false,
+        })
+    }
+    /// A round ends once a team that entered has nobody fighting (a place
+    /// that left stays frozen): the other team wins it if it has someone
+    /// fighting, else it is a draw and is replayed, a double wipe as a team
+    /// frozen with nobody on the other side (the owner, 2026-11-22: a solo
+    /// player stayed frozen; a draw scores nothing, so nobody farms a point
+    /// alone). Before anybody entered nothing ends.
     fn result(&self) -> Option<RoundEnd> {
-        let entered = |side| {
-            self.players.iter().any(|p| match *p {
-                Player::Fighting(team) | Player::Frozen { team, .. } => team == side,
-                Player::Waiting => false,
-            })
-        };
-        if !entered(Team::First) || !entered(Team::Second) {
-            return None;
-        }
-        match (self.living(Team::First), self.living(Team::Second)) {
-            (0, 0) => Some(RoundEnd::Draw),
-            (0, _) => Some(RoundEnd::Won(Team::Second)),
-            (_, 0) => Some(RoundEnd::Won(Team::First)),
-            _ => None,
+        let wiped = |team| self.entered(team) && self.living(team) == 0;
+        match (wiped(Team::First), wiped(Team::Second)) {
+            (false, false) => None,
+            (true, false) if self.living(Team::Second) > 0 => Some(RoundEnd::Won(Team::Second)),
+            (false, true) if self.living(Team::First) > 0 => Some(RoundEnd::Won(Team::First)),
+            _ => Some(RoundEnd::Draw),
         }
     }
 
@@ -354,7 +412,7 @@ impl FreezeTag {
         let mut bytes = [0; Self::LEN];
         let [version, phase, zero, one, low, high, result, slots @ .., restarts_low, restarts_high] = &mut bytes;
         [*restarts_low, *restarts_high] = self.restarts.to_le_bytes();
-        *version = 1;
+        *version = Self::VERSION;
         [*zero, *one] = self.score;
         let team = |team| match team {
             Team::First => 1,
@@ -379,22 +437,22 @@ impl FreezeTag {
                 3
             }
         };
-        for (player, out) in self.players.iter().zip(slots.as_chunks_mut::<3>().0) {
-            let (tag, progress) = match *player {
-                Player::Waiting => (0, 0),
-                Player::Fighting(side) => (team(side), 0),
-                Player::Frozen { team: Team::First, progress } => (3, progress.0),
-                Player::Frozen { team: Team::Second, progress } => (4, progress.0),
+        for (player, out) in self.players.iter().zip(slots.as_chunks_mut::<RECORD>().0) {
+            let (tag, progress, thaws_in) = match *player {
+                Player::Waiting => (0, 0, 0),
+                Player::Fighting(side) => (team(side), 0, 0),
+                Player::Frozen { team: side, progress, thaws_in } => (team(side) + 2, progress.0, thaws_in.get()),
             };
-            let [low, high] = progress.to_le_bytes();
-            *out = [tag, low, high];
+            let [p0, p1] = progress.to_le_bytes();
+            let [t0, t1, t2, t3] = thaws_in.to_le_bytes();
+            *out = [tag, p0, p1, t0, t1, t2, t3];
         }
         bytes
     }
     pub fn read(bytes: &[u8]) -> Option<Self> {
         let bytes: &[u8; Self::LEN] = bytes.try_into().ok()?;
         let [version, phase, zero, one, low, high, result, slots @ .., restarts_low, restarts_high] = bytes;
-        if *version != 1 {
+        if *version != Self::VERSION {
             return None;
         }
         let mut state = Self::EMPTY;
@@ -421,20 +479,22 @@ impl FreezeTag {
         if !state.complete() && (*zero == WINS || *one == WINS) {
             return None;
         }
-        for (player, &[tag, low, high]) in state.players.iter_mut().zip(slots.as_chunks::<3>().0) {
-            let progress = u16::from_le_bytes([low, high]);
-            *player = match (tag, progress) {
-                (0, 0) => Player::Waiting,
-                (1, 0) => Player::Fighting(Team::First),
-                (2, 0) => Player::Fighting(Team::Second),
-                (3, p) if p < THAW_MS => Player::Frozen {
-                    team: Team::First,
-                    progress: Progress(p),
-                },
-                (4, p) if p < THAW_MS => Player::Frozen {
-                    team: Team::Second,
-                    progress: Progress(p),
-                },
+        for (player, &[tag, p0, p1, t0, t1, t2, t3]) in state.players.iter_mut().zip(slots.as_chunks::<RECORD>().0) {
+            let progress = u16::from_le_bytes([p0, p1]);
+            let thaws_in = u32::from_le_bytes([t0, t1, t2, t3]);
+            let frozen = |team| {
+                Some(Player::Frozen {
+                    team,
+                    progress: Progress(progress),
+                    thaws_in: NonZeroU32::new(thaws_in)?,
+                })
+            };
+            *player = match (tag, progress, thaws_in) {
+                (0, 0, 0) => Player::Waiting,
+                (1, 0, 0) => Player::Fighting(Team::First),
+                (2, 0, 0) => Player::Fighting(Team::Second),
+                (3, p, t) if p < THAW_MS && t <= AUTO_THAW_MS.get() => frozen(Team::First)?,
+                (4, p, t) if p < THAW_MS && t <= AUTO_THAW_MS.get() => frozen(Team::Second)?,
                 _ => return None,
             };
         }
@@ -469,6 +529,7 @@ mod tests {
         Place::new(n).unwrap()
     }
     const VISIBLE: [[bool; PLAYERS]; PLAYERS] = [[true; PLAYERS]; PLAYERS];
+    const BLIND: [[bool; PLAYERS]; PLAYERS] = [[false; PLAYERS]; PLAYERS];
     fn body(team: Team, x: f32, condition: Condition) -> Body {
         Body::Present {
             team,
@@ -484,10 +545,10 @@ mod tests {
         b
     }
     #[test]
-    fn proximity_requires_three_continuous_seconds_and_restores_after_rollback() {
+    fn proximity_requires_the_continuous_thaw_time_and_restores_after_rollback() {
         let b = match_bodies();
         let mut s = FreezeTag::EMPTY;
-        assert_eq!(thawed(s.step(&b, &VISIBLE, 2950)), 0);
+        assert_eq!(thawed(s.step(&b, &VISIBLE, THAW_MS - 50)), 0);
         let saved = s.bytes();
         assert_eq!(thawed(s.step(&b, &VISIBLE, 50)), 1);
         assert_eq!(s.player(place(0)), Player::Fighting(Team::First));
@@ -495,7 +556,7 @@ mod tests {
         let mut far = b;
         far[1] = body(Team::First, RADIUS + 0.01, Condition::Fighting);
         assert_eq!(thawed(s.step(&far, &VISIBLE, 50)), 0);
-        assert_eq!(thawed(s.step(&b, &VISIBLE, 2950)), 0);
+        assert_eq!(thawed(s.step(&b, &VISIBLE, THAW_MS - 50)), 0);
         assert_eq!(thawed(s.step(&b, &VISIBLE, 50)), 1);
     }
     #[test]
@@ -503,13 +564,13 @@ mod tests {
         let mut b = match_bodies();
         b[3] = body(Team::First, 20.0, Condition::Fighting);
         let mut s = FreezeTag::EMPTY;
-        assert_eq!(thawed(s.step(&b, &[[false; PLAYERS]; PLAYERS], 3000)), 0);
+        assert_eq!(thawed(s.step(&b, &[[false; PLAYERS]; PLAYERS], THAW_MS)), 0);
         b[1] = body(Team::First, 1.0, Condition::Lethal);
-        assert_eq!(thawed(s.step(&b, &VISIBLE, 3000)), 0);
+        assert_eq!(thawed(s.step(&b, &VISIBLE, THAW_MS)), 0);
         assert!(!s.complete());
     }
     #[test]
-    fn team_wipe_is_terminal_simultaneous_wipe_draws_and_solo_waits() {
+    fn team_wipe_is_terminal_simultaneous_wipe_and_a_team_alone_draw() {
         let mut b = match_bodies();
         let mut s = FreezeTag::EMPTY;
         s.step(&b, &VISIBLE, 50);
@@ -534,10 +595,18 @@ mod tests {
                 ..
             }
         ));
+        // A team alone (1 v 0): its wipe is a draw, replayed, no point.
         b[2] = Body::Absent;
         let mut s = FreezeTag::EMPTY;
         s.step(&b, &VISIBLE, 50);
-        assert!(!s.complete());
+        assert!(matches!(s.phase(), Phase::Between { result: RoundEnd::Draw, .. }));
+        assert_eq!(s.points(), [0, 0]);
+        assert_eq!(FreezeTag::read(&s.bytes()), Some(s));
+        assert_eq!(s.step(&b, &VISIBLE, INTERMISSION.get()), Actions::Restart);
+        // Nobody at all: nothing ends.
+        let mut s = FreezeTag::EMPTY;
+        s.step(&[Body::Absent; PLAYERS], &VISIBLE, 50);
+        assert_eq!(s.phase(), Phase::Playing);
     }
     #[test]
     fn wire_domains_and_roster_are_checked() {
@@ -555,6 +624,18 @@ mod tests {
         bytes = s.bytes();
         bytes[1] = 4;
         assert!(FreezeTag::read(&bytes).is_none());
+        // The auto-thaw time: 1 ms to AUTO_THAW_MS, a frozen record's only.
+        let thaws_in = |bytes: &mut [u8; FreezeTag::LEN], at: usize, ms: u32| {
+            bytes[at + 3..at + 7].copy_from_slice(&ms.to_le_bytes());
+        };
+        for (ms, ok) in [(1, true), (AUTO_THAW_MS.get(), true), (0, false), (AUTO_THAW_MS.get() + 1, false)] {
+            let mut bytes = s.bytes();
+            thaws_in(&mut bytes, 7, ms);
+            assert_eq!(FreezeTag::read(&bytes).is_some(), ok, "{ms}");
+        }
+        let mut fighting = s.bytes();
+        thaws_in(&mut fighting, 7 + RECORD, 1);
+        assert!(FreezeTag::read(&fighting).is_none());
         assert!(FreezeTag::read(&bytes[..bytes.len() - 1]).is_none());
     }
 
@@ -728,5 +809,97 @@ mod tests {
         assert_eq!(s.points(), [0, 0]);
         assert_eq!(s.step(&bodies, &VISIBLE, INTERMISSION.get()), Actions::Restart);
         assert_eq!(FreezeTag::read(&s.bytes()), Some(s));
+    }
+
+    #[test]
+    fn a_frozen_body_thaws_by_itself_after_two_minutes_crediting_nobody() {
+        const NO_SIGHT: [[bool; PLAYERS]; PLAYERS] = [[false; PLAYERS]; PLAYERS];
+        let b = match_bodies();
+        let mut s = FreezeTag::EMPTY;
+        let mut left = AUTO_THAW_MS.get();
+        while left > 50 {
+            let step = u16::try_from((left - 50).min(60_000)).unwrap();
+            assert_eq!(s.step(&b, &NO_SIGHT, step), Actions::Play { thawed: Places::EMPTY, thawers: Places::EMPTY });
+            left -= u32::from(step);
+        }
+        assert!(matches!(s.player(place(0)), Player::Frozen { thaws_in, .. } if thaws_in.get() == 50));
+        assert_eq!(FreezeTag::read(&s.bytes()), Some(s));
+        let saved = s;
+        let thawed = Places::EMPTY.with(place(0));
+        assert_eq!(s.step(&b, &NO_SIGHT, 50), Actions::Play { thawed, thawers: Places::EMPTY });
+        assert_eq!(s.player(place(0)), Player::Fighting(Team::First));
+        // A teammate beside him then has not thawed him: no credit.
+        let mut s = saved;
+        let Actions::Play { thawers, .. } = s.step(&b, &VISIBLE, 50) else { panic!() };
+        assert_eq!(thawers, Places::EMPTY);
+        // A place that left keeps its freeze and its time.
+        let mut s = saved;
+        let mut gone = b;
+        gone[0] = Body::Absent;
+        s.step(&gone, &NO_SIGHT, 50);
+        assert_eq!(s.player(place(0)), saved.player(place(0)));
+    }
+
+    #[test]
+    fn a_team_of_three_shows_its_last_one_fighting_in_play_only() {
+        // 3 v 1: the first team 0, 1 and 3; the second 2 alone.
+        let mut b = [Body::Absent; PLAYERS];
+        b[0] = body(Team::First, 0.0, Condition::Lethal);
+        b[1] = body(Team::First, 10.0, Condition::Fighting);
+        b[2] = body(Team::Second, 20.0, Condition::Fighting);
+        b[3] = body(Team::First, 30.0, Condition::Fighting);
+        let mut s = FreezeTag::EMPTY;
+        s.step(&b, &BLIND, 50);
+        // One frozen, two fighting: nobody.
+        assert!(!(0..4).any(|n| s.last_standing(place(n))));
+        b[3] = body(Team::First, 30.0, Condition::Lethal);
+        s.step(&b, &BLIND, 50);
+        // Two frozen: their last one is shown; the lone one never.
+        assert!(s.last_standing(place(1)));
+        assert!(![0, 2, 3].into_iter().any(|n| s.last_standing(place(n))));
+        // The round over: nobody.
+        b[1] = body(Team::First, 10.0, Condition::Lethal);
+        s.step(&b, &BLIND, 50);
+        assert!(!(0..4).any(|n| s.last_standing(place(n))));
+    }
+
+    #[test]
+    fn two_v_one_shows_nobody_whoever_is_frozen() {
+        for frozen in [0, 1] {
+            let mut b = [Body::Absent; PLAYERS];
+            b[0] = body(Team::First, 0.0, Condition::Fighting);
+            b[1] = body(Team::First, 10.0, Condition::Fighting);
+            b[2] = body(Team::Second, 20.0, Condition::Fighting);
+            b[frozen] = body(Team::First, 10.0 * frozen as f32, Condition::Lethal);
+            let mut s = FreezeTag::EMPTY;
+            s.step(&b, &BLIND, 50);
+            assert!(matches!(s.phase(), Phase::Playing));
+            assert!(!(0..3).any(|n| s.last_standing(place(n))), "{frozen}");
+        }
+    }
+
+    #[test]
+    fn two_v_two_shows_nobody() {
+        let mut b = [Body::Absent; PLAYERS];
+        b[0] = body(Team::First, 0.0, Condition::Lethal);
+        b[1] = body(Team::First, 10.0, Condition::Fighting);
+        b[2] = body(Team::Second, 20.0, Condition::Fighting);
+        b[3] = body(Team::Second, 30.0, Condition::Lethal);
+        let mut s = FreezeTag::EMPTY;
+        s.step(&b, &BLIND, 50);
+        assert!(matches!(s.phase(), Phase::Playing));
+        assert!(!(0..4).any(|n| s.last_standing(place(n))));
+    }
+
+    #[test]
+    fn a_team_of_one_is_never_last_standing() {
+        let mut b = [Body::Absent; PLAYERS];
+        b[0] = body(Team::First, 0.0, Condition::Fighting);
+        b[1] = body(Team::Second, 10.0, Condition::Fighting);
+        let mut s = FreezeTag::EMPTY;
+        s.step(&b, &[[false; PLAYERS]; PLAYERS], 50);
+        // 1 v 1, a round in play: nobody shown.
+        assert!(matches!(s.phase(), Phase::Playing));
+        assert!(!s.last_standing(place(0)) && !s.last_standing(place(1)));
     }
 }

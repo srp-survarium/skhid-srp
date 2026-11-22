@@ -10,8 +10,8 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
 - `/stats` is a tab of the site's own, beside Home and Wiki (the owner, 2026-11-20: "stats are
   not part of wiki"), in the wiki's look: a frame the web server gives, which
   `servers/web-server/stats/history.js` fills from the API when it is viewed.
-- The address says what it shows: `?player=<name>` (its matches, or with `&tab=weapons` its
-  weapons), `?match=<number>`, `?clan=<tag>`, else the
+- The address says what it shows: `?id=<account>` (a player: its matches, or with `&tab=weapons`
+  its weapons, with `&tab=skills` its skills), `?match=<number>`, `?clan=<tag>`, else the
   leaderboards (`?board=players|clans|best|latest&by=<key>`), under the day's leaders (five
   lists of five: kills, assists, score, wins, hours; they open up to 20 or 50 each by the buttons
   at their heading, `&leaders=20|50`, the owner, 2026-11-20) and the all-time totals. Each view is drawn once empty in
@@ -23,6 +23,15 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   earlier names (the owner, 2026-11-20: "we also need name history"): those it left (fifty at most; the last five shown, the rest behind a `+N` button), the
   last left first, each with its day on a hover; `?player=` finds a player by a name it left
   while nobody has that name now.
+- Every link to a player is by the account's id (the owner, 2026-11-22: a name "can always
+  change", "while his id cannot"). `?player=<name>` (the search, an older link) still finds the
+  player, and the address becomes the id's once the page has it.
+- A player's Skills tab (the owner, 2026-11-22: "the ability to see for players which skills
+  they have chosen"): the wiki's skill trees (`/wiki/skills`, the same markup and script) with
+  the player's ranks filled, the lobby's locks as that build has them, each branch's points in
+  its heading, the tooltip's "Current value" of the ranks taken. Nothing in it can be changed.
+  Anyone sees anyone's. The build is the saved one (`g26_skills`), so a change shows after the
+  server's next save of the account.
 - A match's teams (a free-for-all's one list) come by place and sort in the page by a click on
   a heading, each team alone; they have no Level and no Captures (the owner, 2026-11-20).
 - The tables keep to few numbers (the owner, 2026-11-20): the average score, never the total;
@@ -195,13 +204,14 @@ Common objects:
 
 A player's card. `name` is the in-game name, exact (Latin letters in any case), or, with no
 player of that name now, one a player left (the last to leave it). `names`: the names
-it left (fifty at most), the last left first, each with `until` (UTC seconds). `404` for an
+it left (fifty at most), the last left first, each with `until` (UTC seconds). `skills`: the
+skills it has points in, `[skill id, points]` each, in the order it took them. `404` for an
 account without a public match, as for no account.
 
 ```json
 {"player":{"id":1042,"name":"Sheep","clan":{"id":7,"tag":"SKH"}},
  "names":[{"name":"Baran","until":1795000000}],
- "level":34,"experience":1234567,"rating":1180,
+ "level":34,"experience":1234567,"rating":1180,"skills":[[101,5],[102,3],[201,3]],
  "totals":{"matches":120,"wins":64,"losses":52,"kills":900,"deaths":700,"assists":210,"score":30500,
            "headshots":180,"grenade_kills":12,"melee_kills":3,"batteries":40,"captures":5.5,
            "artefacts":25,"shots":52000,"hits":15600,"accuracy":0.3,"kd":1.29,"win_rate":0.533,

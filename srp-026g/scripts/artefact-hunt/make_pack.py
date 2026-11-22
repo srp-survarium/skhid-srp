@@ -17,7 +17,7 @@ usage: python3 -I make_pack.py --inputs <folder> --out <packs>/artefact-hunt-<ve
 --mapdata  the `<project>.mapdata` files of 0.26g's 27 Team Deathmatch projects (`mapdata-dump
            --db <stock> --patch ... --project level_01/day_4 ...`): with them it prints the fit
            report, each of 0.46c2's points against 0.26g's floors and walls (floors.py).
---catalog  the mode's texts (texts.tsv, the 11 languages) against the game's dictionaries: says
+--catalog  the mode's texts (texts.tsv, the 12 languages) against the game's dictionaries: says
            which rows they lack; --write puts them in, in key order.
 
 Nine levels in three weathers, as 0.46c2 has them (27 maps). What is made:
@@ -47,7 +47,7 @@ The edit list (applied by release/build-content after the rows above it, as Free
   Free for All's lists add theirs (MAPS_DICT_COUNT).
 
 Texts are rows of the game's dictionaries (client-patches/localization/*.tsv), not of the pack:
-texts.tsv holds them for the 11 languages.
+texts.tsv holds them for the 12 languages.
 
 moves.tsv: a point of 0.46c2 put elsewhere (a place the fit report proposes, taken by the
 owner); the report says which rows are applied.
@@ -114,7 +114,7 @@ BOX_SNAP = 0.02
 STANDS = ('props/garbage/concrete_plita1', 'props/garbage/concrete_plita2', 'props/garage/pallet',
           'level/08/furniture/bed')
 STAND_REACH = 1.6
-# The mode's texts a config names (texts.tsv has them in the 11 languages).
+# The mode's texts a config names (texts.tsv has them in the 12 languages).
 NAME_KEY, DESCRIPTION_KEY = f'st_mode_{MODE:02}_name', f'st_mode_{MODE:02}_description'
 HINT_KEYS = [f'st_map_hint_{MODE}_{n}' for n in (1, 2, 3)]
 # What else the mode names: the lobby's name, the hud movie's, the welcome, the round's restart, the hud's
@@ -126,7 +126,7 @@ OTHER_KEYS = (['st_srp_mode_artefact_hunt', 'st_srp_hud_artefact_hunt_carrying',
                                                           'won_collected', 'lost_collected', 'won_time_out',
                                                           'lost_time_out', 'draw')])
 LANGUAGES = ('english', 'ukrainian', 'russian', 'german', 'polish', 'serbian', 'czech', 'hungarian', 'finnish',
-             'belarusian', 'croatian')
+             'belarusian', 'croatian', 'portuguese')
 
 # ---- assets ------------------------------------------------------------------------------
 MESH_CHUNKS = (3, 4)        # vertices, indices: all a 0.26g mesh has (0.46c2 adds 110 and 113)

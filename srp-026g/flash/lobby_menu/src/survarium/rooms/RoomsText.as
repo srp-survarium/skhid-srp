@@ -30,7 +30,10 @@ package survarium.rooms
             // A free-for-all's twist (docs/notes/ffa.md, "Twists"): no maps of its own, a card's mode.
             "9": "st_srp_mode_racket",
             "10": "st_srp_mode_cowboy",
-            "11": "st_srp_mode_cowboy_winchester"
+            "11": "st_srp_mode_cowboy_winchester",
+            "14": "st_srp_mode_roulette_low",
+            "15": "st_srp_mode_roulette_mid",
+            "16": "st_srp_mode_roulette_high"
         };
         // maps_dict's map_weather_id: 1 day, 2 rain, 3 evening, 4 night, 5 prerain.
         private static const WEATHER:Object = {
