@@ -331,6 +331,17 @@ pub fn on_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
+/// Every match's start, whatever its mode: the score bars' native source (the hud state's team
+/// points) 0:0. Made once with the hud and cleared by nothing, it kept the last match's score for a
+/// mode whose rule does not fill it (the owner, 2026-11-22: "freeze tag counter doesn't reset after
+/// prev game", "make sure arthunt also resets it at the beginning").
+pub fn on_initialize_match(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Some(ui) = vostok::GameWorldUi::at_initialize_match(ctx) {
+        ui.set_team_points([0, 0]);
+    }
+    Flow::Continue
+}
+
 pub fn on_hud(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(ui) = vostok::GameWorldUi::at_update_icons(ctx) else {
         return Flow::Continue;
