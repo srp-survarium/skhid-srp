@@ -68,7 +68,7 @@ class Lamps(unittest.TestCase):
             v['lib_name'] = v['visual_name']
         original = bytearray(pack.serialize((3, [('render_visuals', (4, [record(fixture), record(cone)])),
                                                  ('client_objects', (4, [record(light)]))])))
-        moves, _, spec = edits.author('test', original,
+        moves, _, spec = edits.author('lv/day_4/test', original,
                                       {fixture['visual_name']: ([-.296, -.254, -.296], [.296, 0., .296])}, 29, 7)
         self.assertEqual(len(moves), 1)
         move = moves[0]
@@ -95,7 +95,7 @@ class Lamps(unittest.TestCase):
         original = bytearray(pack.serialize((3, [('render_visuals', (4, [record(v) for v in (fixture, cone, other)])),
                                                  ('client_objects', (4, [record(light)]))])))
         bounds = {'props/light/lamp_on': ([-.056, -.209, -.056], [.056, 0., .055])}
-        _, additions, spec = edits.author('p', original, bounds, 29, 7)
+        _, additions, spec = edits.author('lv/day_4/p', original, bounds, 29, 7)
         def built(spec):
             data = bytearray(original)
             for add in additions:
@@ -133,7 +133,7 @@ class Lamps(unittest.TestCase):
         original = bytearray(pack.serialize((3, [('render_visuals', (4, [record(alarm), record(unlit)])),
                                                  ('client_objects', (4, [record(o) for o in objects]))])))
         box = ([-.1, -.2, -.1], [.1, 0., .1])
-        _, additions, spec = edits.author('p', original, {alarm['visual_name']: box, unlit['visual_name']: box}, 29, 7)
+        _, additions, spec = edits.author('lv/day_4/p', original, {alarm['visual_name']: box, unlit['visual_name']: box}, 29, 7)
         lit, other = spec['value']['lamps'].values()
         self.assertEqual([light['name'] for light in lit['ambient_lights'].values()], ['glow'])
         self.assertNotIn('ambient_lights', other)
@@ -166,7 +166,7 @@ class Lamps(unittest.TestCase):
                                                  ('client_objects', (4, [record(o) for o in objects]))])))
         bounds = {frame['visual_name']: ([-.12, 0., -.12], [.12, .62, .12]),
                   glass['visual_name']: ([-.07, .11, -.07], [.07, .39, .07])}
-        _, additions, spec = edits.author('p', original, bounds, 29, 7)
+        _, additions, spec = edits.author('lv/day_4/p', original, bounds, 29, 7)
         lamp, = spec['value']['lamps'].values()
         self.assertEqual(additions, [])   # nothing replaces the glass
         self.assertEqual(list(lamp['visuals'].values()), [{'index': 1, 'state': 0}])   # the glass, intact only
@@ -194,20 +194,20 @@ class Lamps(unittest.TestCase):
         def day(*visuals):
             data = bytearray(pack.serialize((3, [('render_visuals', (4, [record(v) for v in visuals])),
                                                  ('client_objects', (4, [record(flame)]))])))
-            _, additions, spec = edits.author('day', data, bounds, 29, 7)
+            _, additions, spec = edits.author('lv/day_4/day', data, bounds, 29, 7)
             for add in additions:
                 edits.c.add_entry(data, add['list'], add['after'], add['like'], add['values'])
             edits.c.add_value(data, spec['table'], spec['key'], spec['value'])
             return data
-        self.assertEqual(edits.author('rain', day(bulb, frame, glass), bounds, 29, 7), ([], [], None))
-        moves, additions, spec = edits.author('rain', day(bulb, frame), bounds, 29, 7)
+        self.assertEqual(edits.author('lv/rain_4/rain', day(bulb, frame, glass), bounds, 29, 7), ([], [], None))
+        moves, additions, spec = edits.author('lv/rain_4/rain', day(bulb, frame), bounds, 29, 7)
         self.assertEqual((moves, additions, spec), ([], [], None))
         carried = day(bulb)
         rain = bytearray(pack.serialize((3, [('render_visuals', (4, [record(v) for v in
                                                                     edits.tree(carried)['render_visuals'] + [frame, glass]])),
                                              ('client_objects', (4, [record(flame)]))])))
         edits.c.add_value(rain, '', 'srp_lamps', edits.tree(carried)['srp_lamps'])
-        moves, additions, spec = edits.author('rain', rain, bounds, 29, 7)
+        moves, additions, spec = edits.author('lv/rain_4/rain', rain, bounds, 29, 7)
         self.assertEqual((moves, additions, spec.pop('replaces')), ([], [], True))
         self.assertEqual(sorted(len(row.get('particles', {})) for row in spec['value']['lamps'].values()), [0, 1])
         edits.c.remove_key(rain, 'srp_lamps')
@@ -222,7 +222,7 @@ class Lamps(unittest.TestCase):
                    for visual in (fixture, cone, scenery)]
         original = bytearray(pack.serialize((3, [('render_visuals', (4, objects))])))
         bounds = {fixture['visual_name']: box}
-        moves, additions, spec = edits.author('test', original, bounds, 29, 7)
+        moves, additions, spec = edits.author('lv/day_4/test', original, bounds, 29, 7)
         self.assertEqual(len(moves), moves_expected)
         edited = bytearray(original)
         for move in moves:
@@ -296,7 +296,7 @@ class Lamps(unittest.TestCase):
                                                  ('client_objects', (4, [record(light)]))])))
         bounds = {'props/light/lamp_midle_04': ([-.351, -.107, -.265], [.35, .007, .265]),
                   'fx/lamp2': ([-.347, -.044, -.024], [.347, 0., .026])}
-        _, additions, spec = edits.author('p', original, bounds, 29, 7)
+        _, additions, spec = edits.author('lv/day_4/p', original, bounds, 29, 7)
         self.assertEqual(additions, [])
         lamp, = spec['value']['lamps'].values()
         self.assertEqual(lamp['visuals'], {'intact0': {'index': 1, 'state': 0}})
@@ -319,7 +319,7 @@ class Lamps(unittest.TestCase):
         record = (3, [(k, (7 if isinstance(v, list) else 5, v)) for k, v in fixture.items()])
         original = bytearray(pack.serialize((3, [('render_visuals', (4, [record]))])))
         bounds = {'props/light/lamp_big_01': ([-1.289, -.88, -.179], [.211, 0., .156])}
-        _, _, spec = edits.author('p', original, bounds, 29, 7)
+        _, _, spec = edits.author('lv/day_4/p', original, bounds, 29, 7)
         lamp, = spec['value']['lamps'].values()
         start, end = ([lamp[f'glass_{e}_{a}'] for a in 'xyz'] for e in ('from', 'to'))
         self.assertAlmostEqual(math.dist(start, end), 1.5, places=5)
