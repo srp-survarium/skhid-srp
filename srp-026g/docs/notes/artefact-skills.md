@@ -284,8 +284,15 @@ chooses each.
     pocket switches while it holds nothing (on an item it opens the item's menu, as on any slot);
     the open second weapon slot never switches, empty or not (the owner, 2026-11-22: he described
     only the pocket's click opening the weapon slot), so a kit takes the perk again from the red
-    pocket. With Artifact Container
-    too, its pocket is the one before the weapon perk's.
+    pocket.
+  - **The pocket a switch closes is the last one**: srp holds a kit to its pocket count (the
+    pockets past it are empty, `KitLayout::pocket_units`), so Artifact Container taken again and
+    the weapon perk declined both close the last pocket. The movie marks it so: Artifact
+    Container's declined pocket is the last pocket, and so is the weapon perk's taken one; with both
+    (the container declined, the weapon perk taken) the last pocket has the container's mark and
+    the weapon perk switches from its red lock alone (`LocalPaperDoll.placeMarks`; the review of
+    #2476: a mark on another pocket than the one srp closes sent that pocket's item back
+    unasked).
   - **A switch that sends an item back** (a red lock pressed while the yellow slot holds one; the
     owner, 2026-11-22: keep it so, "i wish there was some good sound design to say that, or maybe
     some shaking"): the item comes off the kit (it stays owned), the lobby plays the game's own
@@ -293,8 +300,10 @@ chooses each.
     movie plays nothing when an item is unequipped, and the stock list has no other sound of an
     item moved) in place of the click, and the slot it left shakes: sideways, 4 px, three swings
     fading out over 260 ms, on the movie's frames (`LocalPaperDoll.onShake`), then the slots are
-    drawn again where they rest. Artifact Container's switch never sends an item back (its pocket
-    switches only empty), so it has none; any other switch that does gets the same
+    drawn again where they rest. The sound and the shake follow the slot the switch closes (the
+    last pocket, or the second weapon slot: `PerkSlotMark.closing`), whichever mark was pressed:
+    a red lock pressed while the last pocket holds an item, whoever's mark is on it. A right click
+    on Artifact Container's own pocket switches only while it is empty, so it sends nothing back
     (`PerkSlotMark.DISPLACED`).
   - The movie reads the counts as srp's answer will make them while a click is asked
     (`PerkSlotMark.pocketShift`), so neither the yellow nor the red moves when the account

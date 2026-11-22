@@ -264,7 +264,7 @@ package {
       check(lock!=null && String(lock.tipData.name).indexOf("Right-click: second weapon")>=0,"taken: the red lock on the second weapon slot, its hint: "+(lock?lock.tipData.name:null));
       // A press on the red lock, a medkit in the yellow pocket: the second weapon at once, asked
       // for once; the medkit goes back, its slot shaken.
-      wm.place(slot(2),true);
+      wm.place(slot(2),true);wm.closing(slot(2),true);
       shaken=slot(2);shakenX=slot(2).x;shakenMost=0;
       clickOn(lock,0);
       check(asked.length==0,"the red lock's left click asks nothing: "+asked);
@@ -317,6 +317,28 @@ package {
         check(t[key]!=null && String(t[key]).length>0 && String(t[key]).length<=40,lang+": "+key);
        }
       }
+      // Both perks, Artifact Container declined and Deep Pockets taken: three pockets.
+      kit(2,3,0);list("K;1:0:1,2:2:1,3:0:1");doll.perkSlots(2,[2,1],ask);asked.length=0;
+      break;
+     case 13:
+      // A switch that takes a pocket away closes the last one (srp's rule), so both perks' switches
+      // close slot 3: the container's mark is on it, the weapon perk's yellow nowhere else.
+      check(on(m,slot(3)),"both: the declined container's pocket is the last, slot 3");
+      check(!wm.visible,"both: no second yellow pocket for the weapon perk");
+      check(lockOn(weaponSlot())!=null,"both: the weapon perk switches from its red lock");
+      // A medkit in the last pocket: the container's right click is its menu (nothing asked); the
+      // red lock's sends the medkit back, the last pocket shaken.
+      m.place(slot(3),true);
+      clickOn(slot(3));
+      check(asked.length==0,"both: the last pocket holding an item keeps it: "+asked);
+      wm.closing(slot(3),true);
+      shaken=slot(3);shakenX=slot(3).x;shakenMost=0;
+      clickOn(lockOn(weaponSlot()));
+      check(asked.join()=="1:2","both: the red lock asks for the second weapon: "+asked);
+      wait=40;
+      break;
+     case 14:
+      check(shakenMost>=1 && shaken.x==shakenX,"both: the pocket that closes, the last, shakes: "+shakenMost);
       planSheets();
       break;
      case 200:

@@ -373,7 +373,7 @@ package survarium.player
 
       private function onMarkDisplaced(e:Event) : void
       {
-         var slot:DisplayObject = (e.target as PerkSlotMark).slot;
+         var slot:DisplayObject = (e.target as PerkSlotMark).closingSlot;
          if(slot == null || this._shaken != null)
          {
             return;
@@ -432,19 +432,27 @@ package survarium.player
          var ws:int = this.weaponMark.pocketShift(_slotsN);
          var pockets:int = _slotsN + cs + ws;
          var containers:int = _slotsA - cs;
+         // A switch that takes a pocket away closes the last one (srp holds a kit to its count:
+         // the pockets past it are empty), so the pocket each such switch closes is the last.
+         var last:IPaperDollSlot = this.quick(pockets - 1,pockets);
          var weaponTaken:Boolean = this.weaponMark.shown == PerkSlotMark.TAKEN;
-         this.mark(this.weaponMark,weaponTaken ? this.quick(pockets - 1,pockets) : (this.weaponMark.shown == PerkSlotMark.DECLINED ? _slots[ProfileSlot.WEAPON_2] : null));
-         var end:int = weaponTaken ? pockets - 1 : pockets;
+         var weaponDeclined:Boolean = this.weaponMark.shown == PerkSlotMark.DECLINED;
+         var containerDeclined:Boolean = this.containerMark.shown == PerkSlotMark.DECLINED;
+         // The weapon perk's yellow: its pocket, the last; but where Artifact Container's declined
+         // pocket is that one too, the container's mark is on it and the weapon perk switches from
+         // its red lock alone.
+         var weaponSlot:IPaperDollSlot = weaponDeclined ? _slots[ProfileSlot.WEAPON_2] as IPaperDollSlot : null;
+         this.mark(this.weaponMark,weaponTaken ? (containerDeclined ? null : last) : weaponSlot,weaponTaken ? last : weaponSlot);
          var containerSlot:IPaperDollSlot = null;
          if(this.containerMark.shown == PerkSlotMark.TAKEN)
          {
             containerSlot = containers >= 1 ? this.quick(pockets,ProfileSlot.QUICK_POSITIONS) : null;
          }
-         else if(this.containerMark.shown == PerkSlotMark.DECLINED)
+         else if(containerDeclined)
          {
-            containerSlot = this.quick(end - 1,end);
+            containerSlot = last;
          }
-         this.mark(this.containerMark,containerSlot);
+         this.mark(this.containerMark,containerSlot,containerDeclined ? last : null);
          var closed:IPaperDollSlot = this.weaponMark.shown == PerkSlotMark.DECLINED ? this.quick(pockets + containers,ProfileSlot.QUICK_POSITIONS) : null;
          if(closed == null)
          {
@@ -464,8 +472,10 @@ package survarium.player
          return i >= 0 && i < below && i < ProfileSlot.QUICK_POSITIONS ? _slots[ProfileSlot.QUICK_1 + i] as IPaperDollSlot : null;
       }
 
-      private function mark(mark:PerkSlotMark, slot:IPaperDollSlot) : void
+      // `mark` on `slot`; `closing` the slot its switch closes (its item sent back).
+      private function mark(mark:PerkSlotMark, slot:IPaperDollSlot, closing:IPaperDollSlot) : void
       {
+         mark.closing(closing as DisplayObject,closing != null && closing.data != null);
          mark.place(slot as DisplayObject,slot != null && slot.data != null);
       }
 

@@ -96,6 +96,12 @@ package survarium.player
 
       private var _holds:Boolean = false;
 
+      // The slot a switch closes (the last pocket, or the second weapon slot; null: none), and
+      // whether it holds an item, which the switch sends back.
+      private var _closing:DisplayObject;
+
+      private var _closingHolds:Boolean = false;
+
       // Each state's look at rest and what the hover adds ([NONE] unused), and how much of each is
       // shown now, eased toward its target a frame at a time.
       private var _rest:Array = [null,new Shape(),new Shape()];
@@ -141,6 +147,20 @@ package survarium.player
       public function get slot() : DisplayObject
       {
          return this._slot;
+      }
+
+      // The slot a switch closes; null: none.
+      public function get closingSlot() : DisplayObject
+      {
+         return this._closing;
+      }
+
+      // The slot a switch from the state shown closes, and whether it holds an item (the paper
+      // doll's, before place).
+      public function closing(slot:DisplayObject, holds:Boolean) : void
+      {
+         this._closing = slot;
+         this._closingHolds = slot != null && holds;
       }
 
       // The look shown (the click's while it is asked).
@@ -309,8 +329,9 @@ package survarium.player
          {
             return;
          }
-         // The red lock's switch with an item in the yellow slot: that item goes back.
-         var displaced:Boolean = blocked && visible && this._holds;
+         // A switch that closes a slot holding an item: that item goes back (srp's word: the slot
+         // it closes is the last pocket, or the second weapon slot).
+         var displaced:Boolean = this._closingHolds;
          var wanted:int = this._shown == TAKEN ? DECLINED : TAKEN;
          // Artifact Container declined is a pocket more; Deep Pockets or Supply Pocket declined
          // a pocket less.
