@@ -553,6 +553,41 @@ impl Estimate {
 
 /// How far off its reckoned place the body may be (m): the median of the bench is 0.17, the 90th percentile 0.33.
 pub const RECKONING_M: f32 = 0.3;
+/// [fix-lip] The worlds whose reckoning error sets the lip guard's margin ([`MeasuredError`]).
+pub const MARGIN_WORLDS: usize = 3;
+
+/// [fix-lip] The reckoning's own error, measured at the bot's last worlds (the flat distance from the reckoned feet to the world's):
+/// the lip guard's stop forecast's margin ([`Stop::margin`]). The fixed [`RECKONING_M`] braked bodies the game stops on the floor:
+/// in the spot suite (887697d4a) 26 lip-guard brakes came from the margin point alone, 0.47 m (median) ahead of the feet over the
+/// gap, while the reckoning was 0.05 m (median) off the stand-in's feet and the game's body glided 0.0-0.31 m and stopped up.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct MeasuredError {
+    /// The last worlds' errors, newest first; none until that many worlds of this life were measured.
+    worlds: [Option<f32>; MARGIN_WORLDS],
+}
+
+impl MeasuredError {
+    /// A world of this life: its reckoning error (m, flat).
+    pub fn world(&mut self, flat_m: f32) {
+        self.worlds.rotate_right(1);
+        self.worlds[0] = Some(flat_m);
+    }
+
+    /// A new life: nothing measured yet.
+    pub fn new_life(&mut self) {
+        *self = Self::default();
+    }
+
+    /// The margin (m): the largest error of the last [`MARGIN_WORLDS`] worlds, at most [`RECKONING_M`]; [`RECKONING_M`] until
+    /// that many were measured.
+    pub fn margin_m(&self) -> f32 {
+        self.worlds
+            .iter()
+            .try_fold(0.0f32, |most, error| error.map(|e| most.max(e)))
+            .map_or(RECKONING_M, |most| most.min(RECKONING_M))
+    }
+}
+
 /// A fall within this of a landing of the route's own drops (m) is planned.
 pub(super) const PLANNED_LANDING_M: f32 = 1.0;
 
@@ -631,6 +666,9 @@ pub struct Stop<'a> {
     pub grid: &'a WalkGrid,
     pub planned: &'a [Vec3],
     pub hold: u32,
+    /// How far on along its way the same stop must not fall either (m): [`RECKONING_M`], or the lip guard's measured
+    /// [`MeasuredError::margin_m`].
+    pub margin: f32,
 }
 
 /// Whether the body `at` that holds `keys` for the next tick (turning `turn` radians) and then lets go keeps up: no
@@ -638,7 +676,7 @@ pub struct Stop<'a> {
 /// the floor it stands on. A body does not stop at once (the blend of [`Kinematics::blend_ticks`]): a key
 /// pressed at a rim carries it a stride on, so the check plays the stop, not the step.
 pub fn stays_up(at: &Estimate, keys: u32, turn: f32, stop: &Stop) -> bool {
-    let Stop { kin, level, grid, planned, hold } = *stop;
+    let Stop { kin, level, grid, planned, hold, margin: margin_m } = *stop;
     let mut at = at.landed(grid);
     let top = at.feet.y;
     for k in 0..kin.blend_ticks + hold + 2 {
@@ -651,15 +689,16 @@ pub fn stays_up(at: &Estimate, keys: u32, turn: f32, stop: &Stop) -> bool {
             return false;
         }
         // The body is not exactly where it is reckoned (a world's lateness, a ping's jitter): the same stop
-        // from [`RECKONING_M`] further on along its way must not fall either ([`MarginEdge`]: at the lattice's edge, or the body's).
+        // from [`Stop::margin`] further on along its way must not fall either ([`MarginEdge`]: at the lattice's edge, or the body's).
         let speed = at.velocity[0].hypot(at.velocity[1]);
         if speed > 0.3
+            && margin_m > 0.0
             && let Some(node) = at.node
         {
             let to = Vec3::new(
-                at.feet.x + at.velocity[0] / speed * RECKONING_M,
+                at.feet.x + at.velocity[0] / speed * margin_m,
                 at.feet.y,
-                at.feet.z + at.velocity[1] / speed * RECKONING_M,
+                at.feet.z + at.velocity[1] / speed * margin_m,
             );
             let (margin_node, margin, _) = match kin.margin_edge {
                 MarginEdge::Lattice => slide(grid, node, at.feet, to),
@@ -3182,6 +3221,26 @@ pub(super) mod tests {
     use crate::v026g::drive::key;
     use mapdata::{Body, Triangle, WalkerBehaviour};
 
+    /// [fix-lip] The margin is `RECKONING_M` until three worlds of the life were measured, then their largest error, capped; a new
+    /// life starts again.
+    #[test]
+    fn the_margin_is_the_largest_of_the_last_three_worlds_errors() {
+        let mut error = MeasuredError::default();
+        assert_eq!(error.margin_m(), RECKONING_M);
+        error.world(0.02);
+        error.world(0.05);
+        assert_eq!(error.margin_m(), RECKONING_M);
+        error.world(0.04);
+        assert_eq!(error.margin_m(), 0.05);
+        error.world(0.01);
+        error.world(0.03);
+        assert_eq!(error.margin_m(), 0.04);
+        error.world(0.9);
+        assert_eq!(error.margin_m(), RECKONING_M);
+        error.new_life();
+        assert_eq!(error.margin_m(), RECKONING_M);
+    }
+
     /// [F42] Both legs broken: the forced crouch puts the body on site; each selector event flips run <-> on site while the crouch
     /// key and a move are held; with no move the run ends at the next event and on site stays; no event, no change. Unbroken legs:
     /// free.
@@ -4606,7 +4665,7 @@ pub(super) mod tests {
         let mut track = BodyTrack::default();
         track.fixed(fix(0, Vec3::new(8.0, 2.0, 5.0), yaw), &kin, Some(&grid));
         let falling = Estimate { feet: mid.1, fall: mid.2, node: grid.locate(Vec3::new(mid.1.x, 0.0, mid.1.z), 0.5), ..*track.estimate().unwrap() };
-        let stop = Stop { kin: &kin, level: 1.0, grid: &grid, planned: &[], hold: 2 };
+        let stop = Stop { kin: &kin, level: 1.0, grid: &grid, planned: &[], hold: 2, margin: RECKONING_M };
         assert_eq!(
             stays_up(&falling, key::FORWARD, 0.0, &stop),
             stays_up(&falling.landed(&grid), key::FORWARD, 0.0, &stop),

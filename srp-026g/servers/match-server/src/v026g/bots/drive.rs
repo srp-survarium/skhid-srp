@@ -3276,10 +3276,13 @@ pub(super) struct LipAsk {
     full: bool,
     /// [A388 step 2b] The reckoning's kept controller the forecast starts from (compared field by field).
     kept: Option<body::KeptBody>,
+    /// [fix-lip] The stop forecast's margin ([`body::Stop::margin`]).
+    margin: u32,
 }
 
 impl LipAsk {
-    fn of(me: &PlaceView, turn: f32, keys: u32, planned: &[Vec3], hold: u32, full: bool, kept: Option<body::KeptBody>) -> Self {
+    #[allow(clippy::too_many_arguments)]
+    fn of(me: &PlaceView, turn: f32, keys: u32, planned: &[Vec3], hold: u32, full: bool, kept: Option<body::KeptBody>, margin: f32) -> Self {
         let bits = |v: Vec3| [v.x.to_bits(), v.y.to_bits(), v.z.to_bits()];
         Self {
             feet: bits(me.feet),
@@ -3293,6 +3296,7 @@ impl LipAsk {
             hold,
             full,
             kept,
+            margin: margin.to_bits(),
         }
     }
 }
@@ -3357,7 +3361,7 @@ pub(super) enum LipGuard {
 /// lip (`WalkGrid::near_lip`), with the keys pushing the body over or its glide carrying it.
 #[cfg(test)]
 pub(super) fn lip_guard(grid: &mapdata::WalkGrid, kin: &kin::Kinematics, me: &PlaceView, turn: f32, keys: u32, planned: &[Vec3], hold: u32) -> LipGuard {
-    lip_guard_with(grid, kin, me, turn, keys, planned, hold, false, None)
+    lip_guard_with(grid, kin, me, turn, keys, planned, hold, false, None, body::RECKONING_M)
 }
 
 /// The lip guard with the three gaps closed when `full` ([`Feel::lip_guard_full`]): a body with no move key held that still
@@ -3365,7 +3369,8 @@ pub(super) fn lip_guard(grid: &mapdata::WalkGrid, kin: &kin::Kinematics, me: &Pl
 /// about the reckoned feet count for a lip's floors (the reckoned floor may be off the lip's band while the body is on it); and a
 /// walk is held when the same stop from the feet [`body::RECKONING_M`] to either side, where there is a floor, would fall.
 /// `kept`: the reckoning's kept controller at the view's feet ([`body::Estimate::kept`]), which the forecast starts from (the client's
-/// height on the rim and its crouch: the exe review of #1892); none: a standing body placed at the feet.
+/// height on the rim and its crouch: the exe review of #1892); none: a standing body placed at the feet. `margin`: how far on along
+/// its way the same stop must not fall either ([`body::Stop::margin`]: the bot's measured [`body::MeasuredError::margin_m`]).
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lip_guard_with(
     grid: &mapdata::WalkGrid,
@@ -3377,6 +3382,7 @@ pub(super) fn lip_guard_with(
     hold: u32,
     full: bool,
     kept: Option<body::KeptBody>,
+    margin: f32,
 ) -> LipGuard {
     const MOVE: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT;
     let node = grid.locate(me.feet, 1.5);
@@ -3424,7 +3430,7 @@ pub(super) fn lip_guard_with(
         });
     }
     let at = body::Estimate { kept, ..body::Estimate::of_view(me, node) };
-    let stop = body::Stop { kin, level: 1.0, grid, planned, hold };
+    let stop = body::Stop { kin, level: 1.0, grid, planned, hold, margin };
     // The same body a reckoning's error to either side, where the floor is (across the way it goes).
     let sides: Vec<body::Estimate> = if full && speed > 0.3 {
         let (ux, uz) = (me.velocity[0] / speed, me.velocity[1] / speed);
@@ -3523,6 +3529,7 @@ fn lip_ok_of<'a>(bot: &mut Bot, me: &'a PlaceView, tactics: &'a Tactics, tuning:
     let hold = bot.motor.feel.lip_guard_ticks;
     let full = bot.motor.feel.lip_guard_full;
     let kept = bot.reckoned_kept;
+    let margin = bot.reckon_error.margin_m();
     let truth = bot.motor.feel.drop_truth;
     let planned = if hold == 0 {
         Vec::new()
@@ -3535,7 +3542,7 @@ fn lip_ok_of<'a>(bot: &mut Bot, me: &'a PlaceView, tactics: &'a Tactics, tuning:
     move |keys: u32| {
         hold == 0
             || matches!(
-                lip_guard_with(&tactics.world.grid, &tuning.kin, me, turn, keys, &planned, hold, full, kept),
+                lip_guard_with(&tactics.world.grid, &tuning.kin, me, turn, keys, &planned, hold, full, kept, margin),
                 LipGuard::Clear | LipGuard::Safe
             )
     }
@@ -3746,7 +3753,7 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
                 OwnDrop::NotInReach(reach)
             } else {
                 let at = body::Estimate { kept, ..body::Estimate::of_view(me, grid.locate(me.feet, 1.5)) };
-                let stop = body::Stop { kin: &tuning.kin, level: 1.0, grid, planned: &planned, hold };
+                let stop = body::Stop { kin: &tuning.kin, level: 1.0, grid, planned: &planned, hold, margin: body::RECKONING_M };
                 if route.walk_off_path_on_line(walked, reach, &body::stop_path(&at, decision.keys, decision.turn.0, &stop), line_m) {
                     OwnDrop::Own
                 } else {
@@ -3767,13 +3774,15 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
         return;
     }
     let full = bot.motor.feel.lip_guard_full;
+    // [fix-lip] The stop forecast's margin: the reckoning's error the bot measured at its last worlds, at most `RECKONING_M`.
+    let margin = bot.reckon_error.margin_m();
     let guard = if matches!(bot.lip_watch, LipWatch::Off(until) if time < until) {
         LipGuard::Clear
     } else {
         let hold = bot.motor.feel.lip_guard_ticks;
         let kept = bot.reckoned_kept;
-        let ask = LipAsk::of(me, decision.turn.0, decision.keys, &planned, hold, full, kept);
-        bot.lip_memo.answer(ask, || lip_guard_with(&tactics.world.grid, &tuning.kin, me, decision.turn.0, decision.keys, &planned, hold, full, kept))
+        let ask = LipAsk::of(me, decision.turn.0, decision.keys, &planned, hold, full, kept, margin);
+        bot.lip_memo.answer(ask, || lip_guard_with(&tactics.world.grid, &tuning.kin, me, decision.turn.0, decision.keys, &planned, hold, full, kept, margin))
     };
     let guard = if full {
         const MOVE: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT;
@@ -3820,7 +3829,9 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
         // line (591 braked and 783 swapped lines of the live log) because it was handed none.
         let edge = super::nav_log::EdgeWord::at(&tactics.world.grid, me.feet, bot.reckoned_kept.as_ref().map(|kept| kept.airborne()));
         let speed = me.velocity[0].hypot(me.velocity[1]);
-        bot.nav_log.push(super::nav_log::Kind::Guard, time, super::nav_log::guard_line(verdict, me.feet, decision.keys, to, speed, edge));
+        // [fix-lip] With the stop forecast's margin it was judged with.
+        let line = format!("{}, margin {margin:.2} m", super::nav_log::guard_line(verdict, me.feet, decision.keys, to, speed, edge));
+        bot.nav_log.push(super::nav_log::Kind::Guard, time, line);
     }
     #[cfg(test)]
     {
@@ -3863,7 +3874,7 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
     }
     if let LipGuard::Swapped(to) | LipGuard::Braked(to) = guard {
         let verdict = if matches!(guard, LipGuard::Braked(_)) { "braked" } else { "swapped" };
-        let rule = format!("the stop forecast falls; the route's own drop: {}", own_drop.word());
+        let rule = format!("the stop forecast falls, margin {margin:.2} m; the route's own drop: {}", own_drop.word());
         take_off_note(bot, me, tactics, tuning, decision, time, verdict, &rule, Some(to));
         decision.keys = to;
     }
@@ -3917,7 +3928,7 @@ fn take_off_note(bot: &mut Bot, me: &PlaceView, tactics: &Tactics, tuning: &Tuni
     }
     let grid = &tactics.world.grid;
     let at = body::Estimate { kept: bot.reckoned_kept, ..body::Estimate::of_view(me, grid.locate(me.feet, 1.5)) };
-    let stop = body::Stop { kin: &tuning.kin, level: 1.0, grid, planned: &[], hold: bot.motor.feel.lip_guard_ticks };
+    let stop = body::Stop { kin: &tuning.kin, level: 1.0, grid, planned: &[], hold: bot.motor.feel.lip_guard_ticks, margin: body::RECKONING_M };
     let end = body::stop_path(&at, decision.keys, decision.turn.0, &stop).last().copied();
     let air = bot.footing == motor::Footing::Air;
     let line = super::nav_log::take_off_line(verdict, rule, me.feet, link, take_off, end, bot.motor.carrying, air, decision.keys, to.unwrap_or(decision.keys), records);
@@ -4362,14 +4373,14 @@ mod tests {
         let kin = kin::Kinematics::default();
         let toward = -std::f32::consts::FRAC_PI_2; // facing +x, the rim at x = 56
         let at_rest = |x: f32| PlaceView { velocity: [0.0, 0.0], keys: 0, ..on_the_slab(x, toward, 0.0) };
-        let lip_ok = |me: &PlaceView, k: u32| matches!(lip_guard_with(grid, &kin, me, 0.0, k, &[], HOLD, true, None), LipGuard::Clear | LipGuard::Safe);
+        let lip_ok = |me: &PlaceView, k: u32| matches!(lip_guard_with(grid, &kin, me, 0.0, k, &[], HOLD, true, None, body::RECKONING_M), LipGuard::Clear | LipGuard::Safe);
         // Where the walk straight on goes over and a stop stays up.
         let me = (0..20)
             .map(|k| at_rest(55.0 + 0.05 * k as f32))
             .find(|me| !lip_ok(me, key::FORWARD) && lip_ok(me, 0))
             .expect("a place by the rim where straight on falls");
         let at = body::Estimate::of_view(&me, grid.locate(me.feet, 1.5));
-        let stop = body::Stop { kin: &kin, level: 1.0, grid, planned: &[], hold: traps::GUARD_HOLD_TICKS };
+        let stop = body::Stop { kin: &kin, level: 1.0, grid, planned: &[], hold: traps::GUARD_HOLD_TICKS, margin: body::RECKONING_M };
         let path_of = |k: u32| body::stop_path(&at, k, 0.0, &stop);
         let diagonal = key::FORWARD | key::LEFT;
         let touches = |k: u32, t: Vec3| traps::path_touches(&path_of(k), &[t.into()], me.feet);
@@ -4578,7 +4589,7 @@ mod tests {
         // The reckoning's margin grows with the world's age: a trap 0.85 m past the stop's reach is clear of a fresh world's
         // (0.80 m) and not of a second-old one's (0.90 m).
         let at = body::Estimate::of_view(&me, world.grid.locate(me.feet, 1.5));
-        let stop = body::Stop { kin: &tuning.kin, level: 1.0, grid: &world.grid, planned: &[], hold: traps::GUARD_HOLD_TICKS };
+        let stop = body::Stop { kin: &tuning.kin, level: 1.0, grid: &world.grid, planned: &[], hold: traps::GUARD_HOLD_TICKS, margin: body::RECKONING_M };
         let reach = body::stop_path(&at, key::FORWARD, 0.0, &stop).iter().map(|p| p.x).fold(f32::MIN, f32::max);
         bot.features.traps.world_armed = Arc::new(vec![Vec3::new(reach + 0.85, 2.0, 33.0)]);
         bot.features.traps.field = Arc::new(crate::v026g::bots::trap_know::TrapField::round(vec![Vec3::new(reach + 0.85, 2.0, 33.0)], &world.grid));
@@ -4604,7 +4615,7 @@ mod tests {
         let toward = -std::f32::consts::FRAC_PI_2; // facing +x, the rim at x = 56
         let me = on_the_slab(55.6, toward, 3.5);
         let at = body::Estimate::of_view(&me, grid.locate(me.feet, 1.5));
-        let stop = body::Stop { kin: &kin, level: 1.0, grid, planned: &[], hold: traps::GUARD_HOLD_TICKS };
+        let stop = body::Stop { kin: &kin, level: 1.0, grid, planned: &[], hold: traps::GUARD_HOLD_TICKS, margin: body::RECKONING_M };
         let path = body::stop_path(&at, key::FORWARD, 0.0, &stop);
         let landing = *path.last().unwrap();
         assert!(landing.y < 1.0, "the walk on falls off the rim: {landing:?}");
@@ -4746,11 +4757,11 @@ mod tests {
         let toward = -std::f32::consts::FRAC_PI_2;
         let at_rim = on_the_slab(55.4, toward, 3.5);
         assert_eq!(lip_guard(grid, &kin, &at_rim, 0.0, 0, &[], HOLD), LipGuard::Clear, "as it was: nothing to let go of");
-        assert!(matches!(lip_guard_with(grid, &kin, &at_rim, 0.0, 0, &[], HOLD, true, None), LipGuard::Braked(_) | LipGuard::Swapped(_)));
-        assert_eq!(lip_guard_with(grid, &kin, &on_the_slab(55.4, toward, 0.2), 0.0, 0, &[], HOLD, true, None), LipGuard::Clear, "no glide");
-        assert_eq!(lip_guard_with(grid, &kin, &on_the_slab(52.0, toward, 3.5), 0.0, 0, &[], HOLD, true, None), LipGuard::Clear, "far from the rim");
+        assert!(matches!(lip_guard_with(grid, &kin, &at_rim, 0.0, 0, &[], HOLD, true, None, body::RECKONING_M), LipGuard::Braked(_) | LipGuard::Swapped(_)));
+        assert_eq!(lip_guard_with(grid, &kin, &on_the_slab(55.4, toward, 0.2), 0.0, 0, &[], HOLD, true, None, body::RECKONING_M), LipGuard::Clear, "no glide");
+        assert_eq!(lip_guard_with(grid, &kin, &on_the_slab(52.0, toward, 3.5), 0.0, 0, &[], HOLD, true, None, body::RECKONING_M), LipGuard::Clear, "far from the rim");
         // With the keys held it is the same as ever.
-        let walk = |full: bool| lip_guard_with(grid, &kin, &at_rim, 0.0, key::FORWARD, &[], HOLD, full, None);
+        let walk = |full: bool| lip_guard_with(grid, &kin, &at_rim, 0.0, key::FORWARD, &[], HOLD, full, None, body::RECKONING_M);
         assert_eq!(walk(true), walk(false));
     }
 
@@ -4766,7 +4777,7 @@ mod tests {
         for k in 0..60 {
             let me = on_the_slab(50.0 + k as f32 * 0.1, toward, 0.1);
             let old = lip_guard(grid, &kin, &me, 0.0, key::FORWARD, &[], HOLD) != LipGuard::Clear;
-            let new = lip_guard_with(grid, &kin, &me, 0.0, key::FORWARD, &[], HOLD, true, None) != LipGuard::Clear;
+            let new = lip_guard_with(grid, &kin, &me, 0.0, key::FORWARD, &[], HOLD, true, None, body::RECKONING_M) != LipGuard::Clear;
             wider += usize::from(new && !old);
             narrower += usize::from(old && !new);
         }
@@ -4786,7 +4797,7 @@ mod tests {
         let lattice = kin::Kinematics { margin_edge: kin::MarginEdge::Lattice, ..body.clone() };
         assert_eq!((body.edge, body.margin_edge), (kin::Edge::Controller, kin::MarginEdge::Body), "the defaults (A93, A388 step 2)");
         let held = |guard: LipGuard| matches!(guard, LipGuard::Swapped(_) | LipGuard::Braked(_) | LipGuard::Doomed);
-        let walk = |kin: &kin::Kinematics, x: f32, yaw: f32, full: bool| lip_guard_with(grid, kin, &on_the_slab(x, yaw, 3.5), 0.0, key::FORWARD, &[], HOLD, full, None);
+        let walk = |kin: &kin::Kinematics, x: f32, yaw: f32, full: bool| lip_guard_with(grid, kin, &on_the_slab(x, yaw, 3.5), 0.0, key::FORWARD, &[], HOLD, full, None, body::RECKONING_M);
         // Along the rim on its last floor: the sides.
         assert!(held(walk(&lattice, 55.875, 0.0, true)), "held for a side");
         assert_eq!(walk(&lattice, 55.875, 0.0, false), LipGuard::Safe, "the plain guard has no sides");
