@@ -577,28 +577,25 @@ and spatial review; they still need multiplayer playtesting for balance.
 
 - **Rooms:** a mode of the pool, as Research is: in every room's default pool, a mode tick of the
   create window.
-  - **Always the vote's third card** (the owner, 2026-11-12: "ffa should be a third pane always,
-    blackout should be in general pool"; before, each free-for-all was one more entry the three
-    cards were drawn from alike, and Blackout had the third card, 2026-11-02): every vote, public
-    or private, of a room whose pool has a free-for-all.
-    - Cards 1 and 2: drawn from the rest of the pool, of two modes while it has them (the owner,
-      2026-11-15: "no mode repeats", `rooms.md`, "Each card is drawn from pools"); never a
-      free-for-all.
-    - Card 3: one of the pool's free-for-alls at random, on a map cards 1 and 2 are not while
-      there is one; won, its match is a free-for-all (as below). Drawn map first, then weather
-      (the owner, 2026-11-15: "make 3 new stalker maps 3 times as likely in FFA", "the pick
-      should be first map, then weather"; Training Camp had been played twice in about 35
-      free-for-alls): every free-for-all map alike, so Experimental Pool, Military Warehouses
-      and Training Camp (one weather each) come as often as a levels 1-8 map (three); before,
-      every id alike, a third as often (`rooms.md`, "Each card is drawn from pools").
-    - No switch. A pool without one (a private room's maker unticked the mode, or the server's
-      `SRP_MATCH_MODES` leaves 8 out) or of free-for-alls alone: its three cards drawn as before.
-      A public room's pool has them (the default pool is every playable map).
+  - **A mode of the general pool, on one card at the most** (the owner, 2026-11-22: "all columns
+    should draw from a general pool", "there can only be one ffa (or none)", "first choose ffa,
+    then its version"): every vote, public or private, draws each card's mode alike among the
+    pool's modes no card shows, Free for All one of them, on any card; then its map, then its
+    weather (`rooms.md`, "Each card is drawn from pools"), and on a free-for-all card of an open
+    room its twist (below). From 2026-11-12 to then it was always the third card ("ffa should be
+    a third pane always"); before, each free-for-all was one more entry the cards were drawn
+    from alike, and Blackout had the third card, 2026-11-02.
+    - One free-for-all card or none, plain or of any twist: Free for All comes on a second card
+      only when the pool has no other mode left (a private pool of free-for-alls alone).
+    - Its map alike among the pool's free-for-all maps (the owner, 2026-11-15: "make 3 new
+      stalker maps 3 times as likely in FFA", "the pick should be first map, then weather"):
+      Experimental Pool, Military Warehouses and Training Camp (one weather each) come as often
+      as a levels 1-8 map (three).
     - A room with bots keeps only maps with a bots' map file in its pool: no free-for-all for now
-      (below), so its three cards are drawn as for a pool without one.
-    - The card is there whatever the room's size and members: the match seats every member who
-      can play, as below. Nothing is offered that a room cannot start.
-    - The mode is named in one place, `session::v026g::rooms::THIRD_CARD` (`Rooms::draw`).
+      (below).
+    - The card can be there whatever the room's size and members: the match seats every member
+      who can play, as below. Nothing is offered that a room cannot start.
+    - Named in one place with Blackout, `session::v026g::rooms::ONE_CARD_AT_MOST` (`Rooms::draw`).
   - A room's free-for-all seats every member who can play, as a match of two teams: a room holds
     20 at the most, the most a match has, so nobody waits for the next match (until 2026-11-13 it
     seated 10, the others first next time). A late joiner comes in as into a match of two teams.
@@ -640,7 +637,7 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   is what a match plays: a map, and on a free-for-all's a twist or none (no other mode's map can
   hold one).
 - **Where:** in the server's rooms (Play's, the open ones) alone, each free-for-all card of a
-  vote (the third card; all three in a pool of free-for-alls alone) draws its twist with the card,
+  vote (any card; all three in a pool of free-for-alls alone) draws its twist after its map,
   by its share (`twist::SHARES`, `twist::draw`, armed for the room):
   - plain Free for all 30 % (the owner, 2026-11-22: plain 30, Racket 30, Roulette 30; 50 and 40
     before Roulette), **Racket** 30 %;
@@ -859,7 +856,7 @@ rules, spawns, pay and results, every kit's guns changed by the server.
 
 - Kills, not score, decide the end, the winner and the ranking, so the top row is the winner.
 - No player minimum (0.31's mode had 3).
-- No FFA-only card filter: the third card is a free-for-all in a room of any size.
+- No FFA-only card filter: a free-for-all card is offered in a room of any size.
 - Player vs Bots offers the day free-for-alls only.
 
 
