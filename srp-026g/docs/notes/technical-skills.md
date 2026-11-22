@@ -7,7 +7,7 @@ reading chosen where the owner's list leaves it open (the owner may overrule it)
 ## The tree
 
 - The fourth skills tab, "Technical skills" (`st_engineering_skills_label`, the stock text in
-  every language), ids 401..443 (branch 4, the tens digit the row). Seventeen skills about the
+  every language), ids 401..445 (branch 4, the tens digit the row). Eighteen skills about the
   equipment players have: batteries, oxygen tanks, smoke grenades, traps, grenades. No new items.
 - Source: `scripts/content-edit/technical-skills-1.json` (`release/content.tsv`), names and
   descriptions in `client-patches/localization/*.tsv` (`st_srp_technical_<id>_name` /
@@ -16,13 +16,40 @@ reading chosen where the owner's list leaves it open (the owner may overrule it)
   render with a white badge (`scripts/technical-skills/make_icons.py`, the owner 2026-11-21), the
   others 0.69d0 engineering/utility artwork.
 - Rows at 0/4/8/12/16 (the stock rule: a row needs that many points in the rows above it, in
-  this branch). A full build is 30 points; Tank Pocket and Tank Depth exclude each other.
+  this branch). A full build is 31 points; Tank Pocket and Tank Depth exclude each other.
 - A build can leave out one item's skills and still reach row V (the owner, 2026-11-21: "people
   cannot use this skill tree while ignoring some other skills like oxygen tanks"): without the
   tank skills rows I-IV give 17 points, without the traps' 18 (my thresholds).
 - 2026-11-21 (the owner): Sapper 3 ranks of +15%; Rearm 2 ranks, 30 s then 20 s; Last Gasp in
   row IV; Tank Pocket and Tank Depth 2 ranks each (+2 pockets, +2 pocket size); Deep Breaths the
   sprint's energy use; Steady Breath the dispersion too.
+- 2026-11-22 (the owner): "and we need one more skill which gives artifact container in oxygen
+  tanks, it should be lvl5". Tank Container (445, «Контейнер в баллоне», name and id my picks), row V
+  in the tanks' column, one rank: a kit that wears an oxygen tank has one more artefact container,
+  beside Artifact Container's (522) when it has both. It takes a quick position the pockets leave,
+  never a pocket (see "Tank Container (445)"). The owner, the same day, on a kit whose pockets
+  fill the six quick positions: "yes, we have max 6 slots, and if there are already 6 sdlots, new
+  ones are not added" (no container there, no pocket given up).
+- 2026-11-22 (the owner): "traps always break legs skill should take 1.5 slots, not 2", "so you
+  could take 3 traps", "we can simulate fractions somehow, we don't need to overcomplicate there,
+  internally we can just multiply all by 2 or something, or use higher numbers for more logic",
+  "either way do what fits the most". Bear Trap's trap takes one and a half of a pocket's units:
+  a pocket holds two in three of its units in traps, at least one (see "Pocket units: Toxic Smoke
+  (441) and Bear Trap (444)").
+- 2026-11-22 (the owner), Oxygen Rush (442), in four steps: "last gasp should be renamed and
+  activate every 30 seconds of oxygen tank usage" (Last Gasp becomes Oxygen Rush, «Кислородный
+  рывок», my pick of the name, which he kept; "Second Wind" is medical skill 324's in every
+  language); then "it should be that and once oxygen tank runs out" (the run-out trigger back
+  beside the use one); "note that might mean one trigger while another is active" and "but that
+  just overrides the timer" (one boost at a time: a start while a boost runs sets its end to 20 s
+  from that start, the speed never stacks, the energy is filled again); and "and I wish it was
+  20consequtive seconds, not 30 at any point" (the 30 s of air at any point are superseded: 20 s
+  of use without a break, counted again from 0 when the tank is switched on). So the boost
+  (energy full, +10% speed for 20 s) starts after every 20 s of the tank's use without a break
+  and when the tank runs out (both at one tick: one start). A known consequence, not an
+  accident: with a 20 s period and a 20 s boost, a player who keeps the tank on is boosted from
+  its 20th second until 20 s after it is switched off or runs out. Its id, place, icon and
+  modifier digit stay, so its owners keep it.
 - 2026-11-22 (the owner): Trophy Trap also gives back one's own disarmed trap, and a trap it pockets leaves the map at once; Rearm reopens a
   trap only when it was shot or hit with a weapon (a hand disarm stays the stock one: "only when
   they were shot at", "or hit with weapon").
@@ -50,10 +77,11 @@ reading chosen where the owner's list leaves it open (the owner may overrule it)
 | 3 | 8 | 431 | Deep Breaths | 3 | sprint energy use while an oxygen tank is on -20/-30/-40% | exe |
 | 4 | 12 | 432 | Dead Man's Switch | 1 | killed: the throw key drops one of its smokes at the body | exe |
 | 4 | 12 | 433 | Rearm | 2 | its traps that were shot open again after 30 s (20 s) | exe |
-| 4 | 12 | 442 | Last Gasp | 1 | the tank runs out: +10% speed for 20 s, energy full | exe |
+| 4 | 12 | 442 | Oxygen Rush | 1 | after every 20 s of oxygen tank use without a break and at its run-out: +10% speed for 20 s, energy full | exe |
 | 5 | 16 | 441 | Toxic Smoke | 3 | its smoke is tinted green and does toxic damage to enemies inside; a pocket holds half as many grenades | exe + pack + srp + lobby |
 | 5 | 16 | 443 | Scavenger | 1 | a kill with its grenade gives one grenade back | exe |
-| 5 | 16 | 444 | Bear Trap | 1 | its trap breaks the legs it catches; a pocket holds half as many traps | exe + srp + lobby |
+| 5 | 16 | 444 | Bear Trap | 1 | its trap breaks the legs it catches; a trap takes 1.5 pocket units | exe + srp + lobby |
+| 5 | 16 | 445 | Tank Container | 1 | with an oxygen tank in the kit: one more artifact container | srp (the kit's block) + lobby |
 
 "Weapon dispersion" in the owner's list is read as the aimed sway (my pick, as on 2026-11-08: a
 skill never changes what a shot does).
@@ -67,7 +95,9 @@ others' bound) away: every sum lies in -LOW..LOW, each an exact f32 (the tree ha
 builds, more than 2^24 non-negative integers hold). The `technical-skills` crate
 (`crates/technical-skills`) parses it once for exe patch 180 and srp; each skill's numbers are
 there and nowhere else. A value that is not a whole number below the bound, or holds both of the
-pair, is no skill at all.
+pair, is no skill at all. Tank Container (445) has no digit: one more one-rank digit would double
+the builds past what the f32 holds, and the exe has nothing to do for it (its data is the
+container, below).
 
 | Order (weight) | Skill (ranks) |
 |---|---|
@@ -101,6 +131,39 @@ booster's modifications; 29 the hand-kill marker.
   `ItemClass::OxygenTank`), so a skill change (`narrowed`) takes off what the pair opened only when
   the pair goes, and never what the lobby's own limit allowed.
 
+## Tank Container (445)
+
+- Data: modifier 14 `artefact_slots` +1 (`technical-skills-1.json`), additive, as Artifact
+  Container's, without its `pocket_slots` -1. The kit's modifier block is the only source of
+  skills in a match (`skills.rs`) and the lobby's apply_kit_parameter reads the same block, so
+  nothing of the exe changes.
+- srp's alone decides where it counts: `Account::kit_modifiers` builds a kit's block from
+  `loadouts::kit_skills`, which leaves Tank Container out of a kit that wears no oxygen tank
+  (`is_oxygen_tank`, the item class, as Tank Pocket's) and Artifact Container out of a kit whose
+  slot is the pocket. The account goes to the lobby after every change of a kit (a move's answer is
+  the account), so a tank put on or taken off brings or takes the container at once; the match
+  takes the same block (`MatchProfile` from the account body).
+- Where it sits: the six quick positions (13..18) are the pockets first, then the containers
+  (the lobby: `ProfileSlot.artifactCount`, at most 6 - pockets; the match:
+  `inventory::setup_from_profile` 0x2FD1C3, from the first quick slot with no object, at most to
+  slot 18, none when all six hold one). So it is a real slot more, in the first place the pockets
+  leave, drawn as any artefact container; it never takes a pocket. A kit whose pockets already
+  take all six positions has no room for it (the owner's rule, medical-skills.md: six supply
+  pockets leave no artifact slot), as for any container its gear gives. With the tank worn a kit
+  has no backpack, so it has room unless its pockets are six (a torso of two pockets, Tank
+  Pocket 2, Deep Pockets or Supply Pocket).
+- Nothing is ever lost: srp never puts a lobby item in a container, and a container never takes a
+  pocket, so taking the tank off, refunding the skill or putting on a preset changes no pocket
+  (`keep_to_layout` holds as before). Artifact Container's click (pocket or container) is its own
+  slot's only: the tank's container has no choice. In a match it is a container as any other:
+  Keeper's gift goes into the first empty one, Courier moves into it, take_artefact fills it.
+- The lobby: the tank's card lists it with its built-in bonuses ("Artifact slots" +1, 1040's
+  icon 4 and prop 9; `MatchEffects.tankBonuses`, from the committed skills,
+  `PlayerInfo.tankContainer`).
+- Icon: the tank's render with a cut gem in the badge (`make_icons.py`, `gem`).
+- A change of what a match computes (a kit carries one more artefact): `simulation_changes.tsv`'s
+  `next` row.
+
 ## The oxygen tank skills (403, 431, 442)
 
 - "The tank is on": a player's inventory item whose vtable is `oxygen_tank`'s (0xA1C874, written
@@ -124,17 +187,51 @@ booster's modifications; 29 the hand-kill marker.
   regeneration): at the sprint's stamina cost a second (`medical.sprint` 0x329AAD, after both
   spending modifiers and Numb Legs, order 2) x `Skills::tank_sprint_cost` (0.8/0.7/0.6) while the
   tank is on. Jumps keep their cost.
-- Last Gasp (442): the tank's tick spends the air (0x33E661, `technical.tank_empty`, a living
-  holder's only); ECX 0 means it ran out this tick. Then the stamina is set to its maximum (as
-  Larkspur II does) and the boost starts: `Gasp::On { until }` on the stamina clock (+70h,
-  saved), 20 s. It lives in the tank's tail padding (+294h, no native access: the object is 298h
-  bytes, its last native field +290h), saved after m_amount_ms (`technical.tank_save`, read back by
+- Oxygen Rush (442; Last Gasp until 2026-11-22): the tank's tick spends the air (0x33E661,
+  `technical.tank_spent`, a living holder's only). The tick runs only while the tank is on
+  (set_active 0x33E400 puts it in the world's tick list and takes it out; it is called by the
+  player's switch, action 0x33E3BD, and by the tick's off, 0x33E66F, at a run-out or a dead
+  holder; deserialize lists a loaded tank itself): it spends min(the air left, the elapsed ms)
+  (EAX at the site; ECX the air left after it), so the air spent while on is the time of use.
+- Its use without a break: `technical_skills::TankUse`, the ms of air spent since the tank was
+  switched on, filled or last started a boost (0..20 000), one machine over `TankEvent` (`On` at
+  set_active's store of AL, `technical.tank_switch` 0x33E403; `Refill` at both refills and the
+  ctor; `Spent` at the tick). A tick that reaches 20 000 is a start (the ms past it kept, so the
+  marks are 20 s of air apart wherever the ticks fall), and so is a tick that spends the last air
+  (`RushCause::Use`, `RanOut`, `UseAtRunOut`: one start). Switched off, the tick does not run and
+  nothing counts; switched on, it counts from 0. Every tank counts, whoever holds it; only a
+  holder with the skill gets the boost.
+- What else resets it: death switches the tank off (the tick's dead path); a respawn refills it
+  (vtable +38h), and so does an ammo crate (+40h, `resupply_from_profile_slot`'s slot), each
+  counting from 0 and ending a running boost (as since Last Gasp); a kit change is another kit's
+  tank, with its own count; a round restart of Artifact Hunt or Freeze Tag makes every present
+  place due at the respawn rule's tick (freeze-tag.md, "With Artifact Hunt"), which removes the
+  player and spawns it again, the living too: the spawn's `inventory::setup_from_profile` calls
+  every slot item's vtable +38h (0x2FD1A5..0x2FD1C1), the tank's refill, so the count and the boost
+  start again at every round, as at every spawn (read in the exe, not run in a match).
+- Why a saved u16 and not the air alone: the count of use without a break is not in the tank's
+  own state (set_active keeps no time and no air level; the tick-list entry holds none), and the
+  one word of the boost cannot also hold it: a tank switched off and on during a boost has a boost
+  end (a clock) and a new count at once, more than 32 bits exactly. So the count is its own field:
+  +292h, a u16 in the tail padding after the influences' count byte (+290h; the tank code only
+  ever reads that byte), saved after the boost's word.
+- At a start the stamina is set to its maximum (as Larkspur II does) and the boost starts, or a
+  running one's end moves to 20 s from now: `OxygenRush::On { until }` on the stamina clock (+70h,
+  saved). At a use mark the previous boost ends on the same tick the new one starts (20 s apart);
+  the end is checked at `battery.carrier_tick`, so whichever of the two runs first in that tick,
+  the boost is on at the tick's end. Full tanks kept on from full (20, 30, 50, 80, 120, 140 s)
+  start it 1, 2, 3, 4, 6, 7 times and are boosted from the 20th second to 20 s after they run out.
+  The boost lives in the tank's tail padding (+294h, no native access: the object is 298h bytes,
+  its last native field +290h), saved after m_amount_ms (`technical.tank_save`, read back by
   `technical.tank_load`, checked against the stream's end), cleared by the ctor
-  (`technical.tank_construct`) and by both refills (`technical.tank_refill`, `_2`: a respawn ends
-  it). The speed: x1.1 at `medical.movement` (order 2, after Adrenalin); movement is cached, so the
-  start and the end set the player's refresh_selection (+33Eh); the end is checked each tick at
-  `battery.carrier_tick` (order 6). srp-validate's `OxygenTank` reads the word (`gasp()`): every
-  tank of every world now saves 4 more bytes.
+  (`technical.tank_construct`) and by both refills. The speed: x1.1 at `medical.movement` (order
+  2, after Adrenalin); movement is cached, so the start and the end set the player's
+  refresh_selection (+33Eh); the end is checked each tick at `battery.carrier_tick` (order 6).
+- The world format: every tank of every world saves the boost's u32 and the use's u16 after
+  m_amount_ms, 2 bytes more than revisions 70 and 71 (srp-validate's `OxygenTank`, `oxygen_rush()`
+  and `oxygen_rush_use()`, a use of 20 000 or more refused). Worlds recorded by revisions 70 and
+  71 do not parse with it: the release needs worlds recorded by this build, and the world corpus
+  moves the older recordings aside (packet-validation.md, "The world corpus").
 
 ## Dexterous Hands (401)
 
@@ -200,16 +297,37 @@ the ms passed become ms x (10 + rank) / 10 for the user's player (`Skills::crate
   affects follow from the stored health. Only the legs: the body's and the pain's shares are the
   stock ones.
 
-## Halved pockets: Toxic Smoke (441) and Bear Trap (444)
+## Pocket units: Toxic Smoke (441) and Bear Trap (444)
 
 - "Decreases the carry capacity to 2 slots (like normal grenades)": the RGD-5 takes two of a pocket's
   units (`parameters/pocket_units` 2, `PocketShare::Pair`; one-pocket-a-type.md). With Toxic Smoke
-  every grenade of the kit does, with Bear Trap every trap (`technical_skills::Skills::halves`).
-- srp: `loadouts::KitLayout::share`, so every kit and preset is held to it, and taking the skill
-  takes the units over the half off (a slot names units of the inventory's stack: nothing is lost).
-- The lobby: `PlayerInfo.pocketUnits` by the item's category (grenades 24, traps 11), fed by the
-  committed skills (`PlayerInfo.committedSkills`).
-- The match plays the kit it is sent, so nothing of this is in the exe.
+  every grenade of the kit does. With Bear Trap every trap takes one and a half
+  (`PocketShare::ThreeHalves`; `technical_skills::Skills::stack_units`): a pocket of `n` units holds
+  2n/3 traps, rounded down, at least one, as a pair's pocket holds n/2, at least one.
+- Where the units are counted: a pocket's size (`pocket_slot_size` plus the gear's and the skills'
+  modifiers, at most five) and what one item takes of it are srp's (`loadouts::KitLayout`,
+  `PocketShare::units_in`) and the lobby's (`PlayerInfo.pocketUnits`, `itemUnits`), each as a
+  number of items a pocket holds; the match plays the kit it is sent (its slot counts), so nothing
+  of this is in the exe and nothing saved or sent changes meaning. One and a half was the one new
+  share: srp computes it in whole numbers (`size * 2 / 3`), the lobby in halves (`2 x size / 3`
+  of a share of 3 halves, a pair's 4, one unit's 2: the same numbers as before for every other
+  item); the card's "Pocket slots" row shows 1.5.
+- What fits in one pocket (one pocket a type, so this is the most a kit carries):
+
+  | Pocket units | 1 | 2 | 3 | 4 | 5 |
+  |---|---:|---:|---:|---:|---:|
+  | traps, without Bear Trap | 1 | 2 | 3 | 4 | 5 |
+  | traps, Bear Trap until 2026-11-22 (2 units) | 1 | 1 | 1 | 2 | 2 |
+  | traps, Bear Trap now (1.5 units) | 1 | 1 | 2 | 2 | 3 |
+
+  A pocket of five (the most: the player's one, the gear's +1/+2 and Tank Depth, capped at five)
+  holds three, the owner's "so you could take 3 traps". A pocket of one holds one, as a pair's.
+- srp: `loadouts::KitLayout::share`, so every kit and preset is held to it; a skill change keeps
+  what still fits and takes the rest off (a slot names units of the inventory's stack: nothing is
+  lost).
+- The lobby: fed by the committed skills (`PlayerInfo.committedSkills`); a pocket draws its units
+  as cells, the traps in it and the units they use up in pale red last (5 units: 3 traps, 2 red).
+- A change of what a kit can carry into a match: the `next` row.
 
 ## Grenades: Blast Drill (404), Scavenger (443)
 

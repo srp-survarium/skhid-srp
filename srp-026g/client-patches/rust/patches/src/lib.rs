@@ -89,7 +89,10 @@ pub mod drug_interrupt;
 pub mod breath_hit;
 // patch 179: a shot ends the shooter's protection
 pub mod shot_protection;
+// patch 194: the grenade markers tell a smoke and a toxic smoke apart
+pub mod grenade_icons;
 pub mod footsteps;
+pub mod zone_guards;
 // patch 153: a step on a walker-only floor finds its ground
 pub mod step_ground;
 
@@ -133,6 +136,7 @@ pub mod ban_time;
 pub mod sign_in_cipher;
 pub mod controller_position;
 pub mod tick_parts;
+pub mod use_prompt;
 pub mod use_scan;
 pub mod unplayed_match;
 pub mod texture_streaming;
@@ -140,6 +144,8 @@ pub mod texture_streaming;
 pub mod texture_pool;
 // patch 190: the hi-Z occlusion no longer drops probes and ambient lights, nor lights for a frame
 pub mod light_occlusion;
+// patch 193: material_pair takes an id past its table as the default material
+pub mod material_bounds;
 pub mod animation_math;
 pub mod replay_keys;
 // patch 152: two keys save the game's picture as a PNG

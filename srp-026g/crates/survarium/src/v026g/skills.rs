@@ -83,6 +83,8 @@ pub const MODIFIER_NAMES: [&str; MODIFIERS] = [
 /// The modifiers that open or close a kit's slots, by index
 /// ([`MODIFIER_NAMES`]; `loadouts::KitLayout`).
 pub mod slot_modifier {
+    /// `artefact_slots`: the artefact containers, opened after the pockets (Artifact Container).
+    pub const ARTEFACT_SLOTS: usize = 14;
     pub const POCKET_SLOTS: usize = 15;
     pub const AMMO_BAGS: usize = 16;
     pub const POCKET_SLOT_SIZE: usize = 17;

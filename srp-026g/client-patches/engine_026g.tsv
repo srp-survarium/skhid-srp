@@ -350,3 +350,4 @@ engine_register_hunt_cook	0x102d10	EDI:cook	void engine_register_hunt_cook(struc
 engine_hunt_rule_base	0x313900	EAX:this ESP+4:game_match_rule_type	struct hunt_rule *engine_hunt_rule_base(void *rule, unsigned int type)	thunk	
 engine_player_remove	0x1f2870	ECX:player ESP+4:flag	void engine_player_remove(struct player *player, unsigned int flag)	thiscall	
 engine_spawn_player	0x316da0	ECX:rule ESP+4:place ESP+8:point ESP+12:time	void engine_spawn_player(struct player_respawn_rule_base *rule, unsigned int place, const unsigned int *point, unsigned int time)	thiscall	
+engine_set_hud_icon_type	0x23bea0	ESP+4:ui ESP+8:id ESP+12:type	void engine_set_hud_icon_type(struct game_world_ui *ui, unsigned int id, unsigned int type)	thunk	

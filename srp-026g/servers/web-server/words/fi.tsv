@@ -2,10 +2,10 @@
 Wiki	Wiki
 Maps	Kartat
 Skhid wiki	Skhid-wiki
+Kills/min	Tapot/min
 Modes	Pelimuodot
 Every mode: its rules, numbers and maps.	Jokainen pelimuoto: säännöt, luvut ja kartat.
 Versions	Muunnelmat
-Public and private rooms	Julkiset ja yksityiset huoneet
 Public rooms only	Vain julkiset huoneet
 Private rooms only	Vain yksityiset huoneet
 Not offered now	Ei tarjolla nyt
@@ -58,7 +58,6 @@ Level bands: {0}.	Tasoalueet: {0}.
 A room draws bands up to its level.	Huone arpoo alueita tasoonsa asti.
 Each kit a gun of another class, with random bonuses and attachments.	Jokaisessa varustuksessa eri luokan ase, satunnaisilla bonuksilla ja lisäosilla.
 {0} % of deals: pistols only.	{0} % jaoista: vain pistoolit.
-Nothing of yours is used or spent.	Mitään omaasi ei käytetä eikä kuluteta.
 Plain FFA: {0} % of FFA cards.	Tavallinen FFA: {0} % FFA-korteista.
 {0} % of FFA cards.	{0} % FFA-korteista.
 FFA: Roulette	FFA: Ruletti

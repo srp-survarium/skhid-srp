@@ -367,6 +367,8 @@ unsafe extern "C" {
     pub fn engine_register_hunt_cook(cook: *mut c_void);
     /// 0x313900 survarium::game_match_rule_base::game_match_rule_base: rule EAX, type ESP+4; pops 4; EAX
     pub fn engine_hunt_rule_base(rule: *mut c_void, r#type: u32) -> *mut c_void;
+    /// 0x23bea0 survarium::game_world_ui::set_hud_icon_type: ui ESP+4, id ESP+8, type ESP+12; pops 12
+    pub fn engine_set_hud_icon_type(ui: *mut c_void, id: u32, r#type: u32);
 }
 
 #[allow(dead_code)]

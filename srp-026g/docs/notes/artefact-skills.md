@@ -212,6 +212,215 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   layout of `loadouts::KitLayout`): the item of the pocket the skill takes away comes off every
   kit and preset, as for Deep Pockets.
 
+### The slot a pocket again, by kit
+
+The owner (2026-11-22): "if I use additional container skill, I should be able to click on that
+artifact slot to turn it back into equipment slot", and "it should have yelow contours".
+
+The same for the two skills that close the second weapon slot for a pocket (the owner,
+2026-11-22: "can we do that for another perk which blocks a weapon but gives you item slot, we
+have 2 of those", "essentially we already have red icon there"): Deep Pockets (stock 113) and
+Supply Pocket (medical 331), each `pocket_slots` +1 and `disable_second_weapon` 1 (Supply Pocket
+also its medical bit 16, which nothing reads). They exclude each other, so a kit has one at most;
+either is one perk here. Artifact Container and one of them may be held together: each kit
+chooses each.
+
+- **The choice is a kit's, a perk each** (`SlotPerk` of `survarium::v026g::loadouts`:
+  `ArtifactContainer`, `WeaponPocket`; `PerkSlot`: `Taken`, the default, or `Declined`;
+  `Kit::perks`, `KitPerks`). A kit that declines a perk carries the skills' modifiers without its
+  skill's (`Account::kit_modifiers`): its block is a kit's without the skill, so the game reads one pocket more and one container less, in the lobby and in a match
+  alike, with no exe change (the lobby's and the match's counts are apply_kit_parameter's of the
+  kit's own block, `MatchProfile` takes the account body's). Fixed when the kit is saved; nothing
+  changes in a match. Not a change of what a match computes (no `next` row: such a kit is a kit
+  without the skill), and the world format is as it was (the artefact slots' count is already the
+  kit's). Declining the weapon perk opens the second weapon slot the same way: the kit's
+  `disable_second_weapon` is 0, so the server's carry rule (`KitLayout`), the match's (patch 85)
+  and the lobby's slot all let a second weapon in; the lobby's own word on it
+  (`root.enable_second_weapon`, fill_char_info 0x2247D5) is the account's skills, not the kit's,
+  so the movie opens the slot itself for a kit that declines the perk.
+- **A preset's kit keeps its own** (the owner's pick of 2026-11-22: a preset is its kits;
+  `Preset::perks`, `g26_preset_declined`, a row a declined perk), put on with it. Kits:
+  `g26_kits.declined`, the declined perks as bits (bit `SlotPerk::index`; step 24 made it of step
+  23's `container`).
+- **Every kit of before takes every perk**, so nobody's kits change until he clicks. Without a
+  perk's skill every kit and preset kit takes it again (`change_skills`, and the repair at load), so
+  the skill learned again starts so.
+- **Each perk owns its place, in one order** (the owner, 2026-11-22: "two skills badly interact
+  with one another", "the additional pocket that we get should never be switchable to art
+  container", "[free pockets - 1] [additional pocket] [free pocket for switching with artis]", then
+  the added pocket declined stays in its place, blocked, and the container's slot stays last;
+  `KitPockets` and `PocketRole` of `survarium::v026g::loadouts`, `Account::kit_pockets`): the
+  quick places are the base pockets (the gear's and the other skills') but the last, then the
+  weapon perk's added pocket while the account has the skill (`Added(Taken)` open,
+  `Added(Declined)` blocked, never a container), then the last base pocket, Artifact Container's
+  (`Switched(Taken)` the container, `Switched(Declined)` a pocket).
+  - **The game** opens its first `pockets` quick slots as pockets and the containers after them,
+    with no place between, so `KitPockets::slots` is the same order without the blocked pocket:
+    a kit that declines the weapon perk has a pocket fewer in a match (the kit's modifiers without
+    the skill's), the container its first slot past the pockets, and no slot nobody may use
+    (`each_perk_switches_its_own_slot`). A match's inventory shows the container's pocket or the
+    container right after the base pockets (the stock HUD knows nothing of the blocked one; no exe
+    or HUD change).
+  - **The lobby** (`KitPockets::places`) shows the blocked pocket in its place: the first quick
+    slot past the pockets and containers, locked in red, is drawn before Artifact Container's slot
+    (`LocalPaperDoll.arrange` moves the slots' places, not their items; each keeps its profile
+    slot), while one of the six places is free.
+  - Each role keeps its item (`KitPockets::moved`, at a switch and at a skill learned or refunded):
+    the added pocket blocked loses its item; Artifact Container's slot keeps its own, last in the
+    lobby. Gear that changes the base pockets moves nothing (the pockets are places, as ever).
+- **What the slot held:** the container holds nothing in the lobby, so it opens as an empty
+  pocket. The pocket made the container again: its item comes off the kit and stays owned, as any
+  pocket that goes (`KitLayout::kept`); the server never saves an item in a container. The weapon
+  perk declined: the added pocket's item off the kit (owned); taken again: the second weapon comes
+  off the kit (owned), as when the skill is learned.
+- **Wire** (`lobby.md` §2.16.4): `2 090 000 020 + kit × 10 + perk × 2 + state` asks it (perk 0
+  Artifact Container: 1 the container, 2 the pocket; perk 1 the weapon perk: 3 the pocket, 4 the
+  second weapon), refused without the skill, in a match or on the way to one; answered with the
+  account (when the kit changed), then the presets list, whose header names the request it answers
+  (`done` 3 made, or so already, 4 refused; `preset` the request's `kit × 10 + perk × 2 + state`,
+  `PresetDone::PerkSet`, `PerkRefused`) and whose `K;<kit id>:<container>:<weapon>,...` row says
+  every kit's (each 0 without the skill, 1 taken, 2 declined). The movie asks for the list at every
+  account it is given, so learning, refunding or a preset chosen redraws it; such a list answers no
+  click.
+- **The lobby** (`PerkSlotMark`, `LocalPaperDoll`): with the skill, the slot has a soft edge
+  of the lobby's yellow (`RoomsLook.YELLOW`, 0xFFD23F; the owner, "it should have yelow
+  contours", then of the flat 2 px border: "can it be more beatiful not just yellow border"; he
+  picked the soft edge of three looks, 2026-11-22), over the slot's own look (the locked
+  "Artifact", or the pocket with or without its item), on the first container as the container
+  and on the last pocket as the pocket:
+  - a 1 px line all round at half strength (`RoomsLook.YELLOW_HALF`, 0.5);
+  - the yellow glowing into the slot from it (`RoomsLook.YELLOW_GLOW`, 0.16, to nothing): all
+    round, a ninth of the slot's short side deep, as the container; from the bottom up, half the
+    slot's height, as the pocket. So the two states tell apart at a glance: a glowing box, a
+    pocket lit from its bottom;
+  - on the hover the line goes to the full yellow and the glow doubles;
+  - the glow is drawn as gradients, not a GlowFilter (Scaleform renders a filtered object into a
+    bitmap of its own at every change of its alpha, each frame of a fade).
+- **The weapon perk in the lobby** (the owner, 2026-11-22: "when slot is added, it should be
+  yellow, clicking on it, unblocks the weapon slot (it becomes yellow) but blocks teh slot
+  (becomes red as in when item is blocked)"):
+  - taken (the default): the pocket it adds (before Artifact Container's, else the last) has the
+    yellow soft edge (glowing from the bottom, a pocket's); the second weapon slot shows the red
+    lock it always had
+    (`SlotLock`, the skills' `SkillLockSpriteRed`; its tip "Deep Pockets — Right-click: second
+    weapon", `st_srp_loadout_slot_to_weapon`);
+  - declined: the second weapon slot is open and has the yellow soft edge (all round); the pocket
+    is closed with the same red lock, in its place (before Artifact Container's slot; without
+    it, the next quick place after the pockets and containers), its tip "Deep Pockets — Right-click:
+    pocket";
+  - a right click on either red lock switches (its slot is empty); a right click on the yellow
+    pocket switches while it holds nothing (on an item it opens the item's menu, as on any slot);
+    a right click on the open second weapon slot takes the pocket again while it is empty (the
+    owner, 2026-11-22: "rmb on Deep pocket enabled weapon doesn't switch"; with the switch on the
+    right button the shop's left click is untouched); holding a weapon, a right click is the
+    weapon's menu, as in the stock game, and the red pocket switches (the weapon goes back, with
+    the sound and the shake).
+  - **The red lock is in the slot's centre**, where the stock game draws it, over the stock label
+    as there (the owner, 2026-11-23, after a build that moved it clear of "Weapon": "lock icon is
+    no longer centered now").
+  - **Each mark on its perk's own place**, by srp's order (`LocalPaperDoll.placeMarks`, the same
+    rule as `KitPockets`): Artifact Container's on the last pocket or the container after the
+    pockets, last; the weapon perk's yellow on the pocket before it (the last pocket without it),
+    its red pocket in the same place (with Artifact Container's slot, the red pocket is drawn
+    before it; without, it is the first free place after the pockets and containers). With both
+    perks each has its own place, and a switch closes its own slot only (the review of #2476 found
+    a mark on another pocket than the one srp closes; the owner then found the added pocket
+    switching to the container). The shake of a place goes with the place, whichever slot is
+    shown there once the slots are arranged again.
+  - **A switch that sends an item back** (a red lock pressed while the yellow slot holds one; the
+    owner, 2026-11-22: keep it so, "i wish there was some good sound design to say that, or maybe
+    some shaking"): the item comes off the kit (it stays owned), the lobby plays the game's own
+    sound of an item taken (`gameplay/ui_sounds` 14, `ammo_pick_up`, `UiSound.AMMO_PICK_UP`; the
+    movie plays nothing when an item is unequipped, and the stock list has no other sound of an
+    item moved) in place of the click, and the slot it left shakes: sideways, 4 px, three swings
+    fading out over 260 ms, on the movie's frames (`LocalPaperDoll.onShake`), then the slots are
+    drawn again where they rest. The sound and the shake follow the slot the switch closes (the
+    last pocket, or the second weapon slot: `PerkSlotMark.closing`), whichever mark was pressed:
+    a red lock pressed while the last pocket holds an item, whoever's mark is on it. A right click
+    on Artifact Container's own pocket switches only while it is empty, so it sends nothing back
+    (`PerkSlotMark.DISPLACED`).
+- **The switch is the right mouse button** (the owner, 2026-11-22: "lets make it so rmb switches
+  not lmb"), on every perk's slot and red lock: the left click does what the slot always did (the
+  shop's filter, an item chosen, a drag). The lobby takes a right click on a slot only for the
+  menu of the item in it (`LocalPaperDoll.onMouseItemClick`, Scaleform's `MouseEventEx.buttonIdx`
+  of the click the exe hands the movie), and a slot that holds an item never switches, so the two
+  never meet.
+- **A switch is drawn whole, in one frame** (the owner, 2026-11-23: "there is some middle state
+  where clicking removes an old slot and adds a new one", "the operation is not atomic is how i
+  see it"; `PerkSwitch`, the profile's, one transition function from the event to the new state
+  and what to draw). A click asks srp and changes nothing on screen but the sound (and the shake
+  of an item sent back). srp answers with the kit's account (its counts and items), then the list
+  naming the click; while a switch is asked the kit's account is held, and the answer draws both
+  at once, srp's states told and the paper doll validated in the same call, so every frame is the
+  old kit or the new one. A refused switch draws the account held, if any, and srp's word (the old
+  state). Any other list meanwhile (one asked before, or at an account) changes nothing; no answer
+  in 3 s draws what is held. An account for another kit shown meanwhile ends the switch (its kit
+  is no longer drawn). The marks show srp's word only, never a guess; only the hover fades
+  (about 130 ms, on the movie's frames). Before (#2476's first builds), a click showed its look
+  at once and guessed the counts until the answer, and the stock slots, drawn from the exe's
+  counts as they came, went out of step with the marks for a moment: a mark over an empty place,
+  a slot gone blank for the 3 s hold.
+- **One switch at a time** (the owner, 2026-11-22: "when I click too fast, 'fake' pocket on top
+  can appear for a moment", "there is data race there somewhere"): while a click is asked, a right
+  click on any perk's slot or red lock is not taken (nor while a slot shakes). srp itself handles a
+  client's requests in order and sends each switch's account before its list (lobby-server's
+  `a_kit_takes_or_declines_a_perks_slot`). The harness (`scripts/perk-slots`) records every frame
+  of each switch and fails on any frame that is neither the old drawing nor the new one (each
+  place's slot, its visibility and alpha, the marks and locks), with quick clicks, a list asked
+  before arriving between, a refused switch and another kit shown meanwhile.
+- **Its tip**, the game's tooltip above the slot, names the slot's skill (the owner, 2026-11-22:
+  "pop up helper messages even on items should say which skill this 'slot' corresponds to"), in
+  the game's own names (`st_srp_artefact_522_name`, `st_srp_deep_pockets_name`, the stock
+  `st_convert_weapon_slot_to_pocket_name`'s copy the lobby is handed, `st_srp_medical_331_name`):
+  on an empty slot and on a red lock, the skill and what a right click does ("Deep Pockets —
+  Right-click: second weapon", "Artifact Container — Right-click: pocket",
+  `st_srp_loadout_slot_to_pocket`, `_to_container`, `_to_weapon`); on a slot holding an item, the
+  item's own card beside it as ever and above the slot one line, "Slot: Deep Pockets"
+  (`st_srp_loadout_slot_skill`). A right click on the container makes it the
+  pocket; a right click on the empty pocket makes it the container; on the pocket holding an
+  item it is the item's, as any pocket's (the owner's pick of 2026-11-22: empty it first, so a stray
+  click never moves an item). One ask at a time. Checked in Ruffle:
+  `scripts/perk-slots/check.sh` (its zoom.png, Artifact Container's slot before and after; its
+  weapon.png, the weapon perk's slots before and after with their tips, a pocket holding an item
+  among them).
+
+```text
+ Container (default)              Pocket (after a click)
+ +-----------+ +-----------+      +-----------+ +-----------+
+ | medkit x2 | | RGD-5 x1  |      | medkit x2 | | RGD-5 x1  |
+ +-----------+ +-----------+      +-----------+ +-----------+
+ +-----------+ +-----------+      +-----------+ +-----------+
+ | bandage   | |:::::::::::|      | bandage   | |           |
+ |           | |: ARTIFACT:|      |           | |   ITEMS   |
+ |           | |:::::::::::|      |           | |:::::::::::|
+ +-----------+ +-----------+      +-----------+ +-----------+
+ the skill's slot: a thin yellow line, the glow (:) all round as the container, from the
+ bottom up as the pocket
+```
+
+```text
+ Both perks (the stock pockets, Deep Pockets, Artifact Container declined), then Deep Pockets
+ declined: the added pocket blocked in its place, the container's pocket last with its item
+ +------+ +------+ +------+        +------+ +------+ +------+
+ | base | |added | |contnr|        | base | |(lock)| |contnr|
+ |      | |::::::| |pocket|        |      | |      | |pocket|
+ +------+ +------+ +------+        +------+ +------+ +------+
+ in a match the same kit has two pockets: base, container's pocket
+```
+
+```text
+ Deep Pockets taken (default)     The second weapon (after a click)
+ +-----------+ +-----------+      +-----------+ +-----------+
+ | weapon    | |  (lock)   |      | weapon    | |:::::::::::|
+ |           | |  WEAPON   |      |           | |: WEAPON  :|
+ +-----------+ +-----------+      +-----------+ +-----------+
+ +-----------+ +-----------+      +-----------+ +-----------+
+ | medkit x2 | |   ITEMS   |      | medkit x2 | |  (lock)   |
+ |           | |:::::::::::|      |           | |   ITEMS   |
+ +-----------+ +-----------+      +-----------+ +-----------+
+ (lock) the red lock; (:) the yellow glow
+```
+
 ## Knowledge of Artifacts (512)
 
 - Modifier 39 `artefact_duration` +0.05 a rank: each active's time x max(0, 1 + sum): Spring

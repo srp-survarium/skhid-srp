@@ -407,6 +407,7 @@ Win rate	Частка перемог
 Kills	Вбивства
 Deaths	Смерті
 K/D	В/С
+Kills/min	Вбивств/хв
 Assists	Допомоги
 Score	Очки	stats
 Avg score	Сер. очки
@@ -469,7 +470,6 @@ Nobody yet.	Поки нікого.
 Modes	Режими
 Every mode: its rules, numbers and maps.	Усі режими: правила, числа й мапи.
 Versions	Версії
-Public and private rooms	Публічні й приватні кімнати
 Public rooms only	Лише публічні кімнати
 Private rooms only	Лише приватні кімнати
 Not offered now	Зараз не пропонується
@@ -522,7 +522,6 @@ Level bands: {0}.	Діапазони рівнів: {0}.
 A room draws bands up to its level.	Кімната отримує діапазони до свого рівня.
 Each kit a gun of another class, with random bonuses and attachments.	У кожному наборі зброя іншого класу з випадковими бонусами й модулями.
 {0} % of deals: pistols only.	{0} % роздач: лише пістолети.
-Nothing of yours is used or spent.	Нічого вашого не використовується й не витрачається.
 Plain FFA: {0} % of FFA cards.	Звичайний FFA: {0} % карток FFA.
 {0} % of FFA cards.	{0} % карток FFA.
 FFA: Roulette	FFA: Рулетка

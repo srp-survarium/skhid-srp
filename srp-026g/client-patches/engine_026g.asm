@@ -319,6 +319,7 @@ global engine_register_hunt_cook
 global engine_hunt_rule_base
 global engine_player_remove
 global engine_spawn_player
+global engine_set_hud_icon_type
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -3538,6 +3539,23 @@ engine_hunt_rule_base:
     push dword [esp + 24]   ; type -> 4
     mov eax, [esp + 24]   ; rule
     call 0x313900
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_set_hud_icon_type:
+    ; 0x23bea0 survarium::game_world_ui::set_hud_icon_type: ui ESP+4, id ESP+8, type ESP+12; pops 12
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; type -> 12
+    push dword [esp + 28]   ; id -> 8
+    push dword [esp + 28]   ; ui -> 4
+    call 0x23bea0
     pop edi
     pop esi
     pop ebx

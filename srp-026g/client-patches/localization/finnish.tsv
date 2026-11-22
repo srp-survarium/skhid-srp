@@ -2761,6 +2761,10 @@ st_srp_loadout_sell_and	 ja
 st_srp_loadout_sell_item	Varustesetti %1$s
 st_srp_loadout_sell_many	Käytössä: %1$s. Myydäänkö silti?
 st_srp_loadout_sell_one	Käytössä varustesetissä %1$s. Myydäänkö silti?
+st_srp_loadout_slot_skill	Paikka: %1$s
+st_srp_loadout_slot_to_container	Oikea napsautus: artefaktisäiliö
+st_srp_loadout_slot_to_pocket	Oikea napsautus: tasku
+st_srp_loadout_slot_to_weapon	Oikea napsautus: toinen ase
 st_srp_loadout_title	Varustesetti
 st_srp_loadout_unfit	ei pelikelpoinen
 st_srp_lobby_basement	Kellari
@@ -3084,15 +3088,17 @@ st_srp_technical_433_description	Ammuttujen ansojesi uudelleenavautumisaika:
 st_srp_technical_433_name	Viritys
 st_srp_technical_441_description	Savusi on hieman vihreää ja myrkyttää sen sisällä olevat viholliset; happipullo suojaa. Taskuun mahtuu puolet vähemmän savukranaatteja. Myrkkyvahinko:
 st_srp_technical_441_name	Myrkkysavu
-st_srp_technical_442_description	Kun happipullosi tyhjenee: +10% nopeutta 20 s ajan ja täysi energia.
-st_srp_technical_442_name	Viimeinen henkäys
+st_srp_technical_442_description	Joka 20 s yhtäjaksoisen happipullon käytön jälkeen ja kun pullo tyhjenee: +10% nopeutta 20 s ajan ja täysi energia.
+st_srp_technical_442_name	Happiryntäys
 st_srp_technical_443_description	Tappo kranaatillasi antaa yhden kranaatin takaisin.
 st_srp_technical_443_name	Haaskalintu
-st_srp_technical_444_description	Ansasi murtaa siihen jääneen jalat. Taskuun mahtuu puolet vähemmän ansoja.
+st_srp_technical_444_description	Ansasi murtaa siihen jääneen jalat. Ansa vie 1,5 taskupaikkaa.
 st_srp_technical_444_name	Karhunrauta
+st_srp_technical_445_description	Happipullo varusteissa: yksi artefaktisäiliö lisää.
+st_srp_technical_445_name	Pullosäiliö
 st_srp_technical_disarm_speed	Ansojen purkunopeus
 st_srp_technical_friendly_blast	Vahinko omista kranaateista
-st_srp_technical_last_gasp	Nopeus, kun pullo tyhjenee
+st_srp_technical_oxygen_rush	Nopeus 20 s pullon käytön jälkeen ja lopussa
 st_srp_technical_per_second	 sekunnissa
 st_srp_technical_pocket_size	 taskujen kokoon
 st_srp_technical_pockets	 taskua
