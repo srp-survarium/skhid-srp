@@ -52,6 +52,12 @@ python3 tools/actionscript/flash_tree.py original srp-026g/flash/<movie> <archiv
   every class a SymbolClass tag binds is defined, once.
 - `original` cuts the original movie (the one whose graphics the build keeps)
   from the archive `movie.json` names.
+- `graphics <movie dir> <original.swf> <out.swf>` is the movie `build` makes without its code
+  (one DoABC tag marks its place), and `code <drawn.swf> <built.swf> <out.swf>` puts the code of
+  `build`'s movie into it: `code` of `graphics` and `build`'s movie is `build`'s movie, byte for
+  byte. A content pack draws into a movie's graphics (vostok-port's lobby icons), so
+  release/build-content composes the packs over `graphics` and puts the code in after: a code
+  edit leaves the packs' runs as the cache has them.
 - Whether a movie works is checked in the game: the build proves that it
   compiles and defines its classes, not what Scaleform does with them.
 
