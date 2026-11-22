@@ -746,11 +746,11 @@ va	name	source	ret_cleanup	result
 0x001b74d0	vostok::render::stage_visibility::frustum_culling	manual	4	
 0x001b79a0	vostok::render::stage_visibility::occlusion_culling	manual	0	
 0x001b7a70	vostok::render::stage_visibility::get_results_and_prepare_bounds_models	manual	8	
-0x001b7bd0	vostok::render::stage_visibility::get_results_and_prepare_bounds_lights	manual	12	
+0x001b7bd0	vostok::render::stage_visibility::get_results_and_prepare_bounds_lights	manual	12	none; each light of the scene view's visible lights (+14CDCh) stores at +270h (0x1B7C2B) its hi-Z answer, 1 occluded: the byte at [stage+1Ch] + its index of the last query (+2ACh; -1 never queried: 0), then takes the next index ([ESP+12]) and adds its bound (the sphere around its box, 16 bytes) at [ESP+8]
 0x001b7d90	vostok::render::stage_visibility::get_results_and_prepare_bounds_grass	manual	12	
 0x001b7e50	vostok::render::stage_visibility::get_results_and_prepare_bounds_decals	manual	8	
-0x001b7ff0	vostok::render::stage_visibility::get_results_and_prepare_bounds_ambient_lights	manual	8	
-0x001b8190	vostok::render::stage_visibility::get_results_and_prepare_bounds_env_probes	manual	8	
+0x001b7ff0	vostok::render::stage_visibility::get_results_and_prepare_bounds_ambient_lights	manual	8	none; each ambient light of the visible ones (+1CD24h) stores at +A4h (0x1B8043) its hi-Z answer as get_results_and_prepare_bounds_lights (index +9Ch, the counter EDI)
+0x001b8190	vostok::render::stage_visibility::get_results_and_prepare_bounds_env_probes	manual	8	none; each environment probe of the visible ones (+16CF4h) stores at +384h (0x1B81E3) its hi-Z answer as get_results_and_prepare_bounds_lights (index +37Ch, the counter EDI; the bound the sphere around its box +340h)
 0x001b8330	vostok::render::stage_visibility::get_results_and_prepare_bounds_ambient_volumes	manual	8	
 0x001b84c0	vostok::render::stage_visibility::get_results_and_prepare_bounds_particles	manual	12	
 0x001b8640	vostok::render::stage_visibility::get_results_and_prepare_bounds_portals	manual	8	
