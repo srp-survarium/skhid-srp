@@ -136,7 +136,7 @@ const TOKEN_LOCKOUT: Duration = Duration::from_secs(60);
 const POLICY: &str =
     "default-src 'none'; style-src 'unsafe-inline'; font-src 'self'; form-action 'self'";
 
-/// The page's languages: the game's eleven, in its order. A page is asked
+/// The page's languages: the game's twelve, in its order. A page is asked
 /// for in one of them, names the game's things in it ([`Lang::game`]) and
 /// says its own words in it where its file has them ([`Lang::t`],
 /// `words`), in English where not.
@@ -153,6 +153,7 @@ enum Lang {
     Fi,
     Be,
     Hr,
+    Pt,
 }
 
 /// A language the pages built at a release are written in (the wiki's
@@ -164,7 +165,7 @@ enum Written {
 }
 
 impl Lang {
-    const ALL: [Self; 11] = [
+    const ALL: [Self; 12] = [
         Self::En,
         Self::Uk,
         Self::Ru,
@@ -176,6 +177,7 @@ impl Lang {
         Self::Fi,
         Self::Be,
         Self::Hr,
+        Self::Pt,
     ];
 
     /// `?lang=` or the form's `lang`, else the first of the browser's
@@ -216,6 +218,7 @@ impl Lang {
             Self::Fi => "fi",
             Self::Be => "be",
             Self::Hr => "hr",
+            Self::Pt => "pt",
         }
     }
 
@@ -233,6 +236,7 @@ impl Lang {
             Self::Fi => "Suomi",
             Self::Be => "Беларуская",
             Self::Hr => "Hrvatski",
+            Self::Pt => "Português",
         }
     }
 
@@ -251,6 +255,7 @@ impl Lang {
             Self::Fi => Language::Finnish,
             Self::Be => Language::Belarusian,
             Self::Hr => Language::Croatian,
+            Self::Pt => Language::Portuguese,
         }
     }
 
@@ -3023,12 +3028,13 @@ mod tests {
     }
 
     #[test]
-    fn the_language_is_one_of_the_games_eleven() {
+    fn the_language_is_one_of_the_games_twelve() {
         assert_eq!(Lang::pick("uk", "en"), Lang::Uk);
         assert_eq!(Lang::pick("ua", "en"), Lang::Uk, "the launcher's code");
         assert_eq!(Lang::pick("en", "uk"), Lang::En);
         assert_eq!(Lang::pick("de", "uk-UA,uk;q=0.9"), Lang::De);
         assert_eq!(Lang::pick("", "ru-RU,ru"), Lang::Ru);
+        assert_eq!(Lang::pick("", "pt-BR,pt;q=0.9,en;q=0.8"), Lang::Pt);
         // The first the site has, as the browser orders them; none: English.
         assert_eq!(Lang::pick("", "fr-FR,fr;q=0.9,pl;q=0.8,en;q=0.7"), Lang::Pl);
         assert_eq!(Lang::pick("xx", "ja,zh"), Lang::En);

@@ -1,8 +1,8 @@
 # Game localization (0.26g)
 
-All eleven native game dictionaries live here as UTF-8 TSVs: English, Ukrainian,
+All twelve native game dictionaries live here as UTF-8 TSVs: English, Ukrainian,
 Russian, German, Polish, Serbian Latin, Czech, Hungarian, Finnish, Belarusian
-(Cyrillic, standard orthography) and Croatian. Every file
+(Cyrillic, standard orthography), Croatian and Brazilian Portuguese. Every file
 has the same 3,054 keys, sorted by full key name. These are the build sources,
 including unchanged weapon names and key labels; there are no separate keep lists
 or per-language dictionary patches. The engine's `original` dictionary is built
@@ -116,6 +116,12 @@ and faction names and descriptions; Serbian-specific jokes and Easter eggs
 are not carried over. Model identifiers, keycaps and units stay as written in
 English. Native-speaker review and an in-game layout pass are still needed.
 
+Brazilian Portuguese is retail 0.69d0's own dictionary (`localization/portuguese`) for every key
+whose English or Russian text is the same there (about half of the keys, the stock game's), and
+translated from the English for the rest (the later keys and srp's own) with that dictionary's
+words. Both Portuguese Windows locales select it. Native-speaker review and an in-game layout
+pass are still needed.
+
 The migration preserves the existing translations and the reviewed Serbian wording.
 It fills the two missing Polish and two missing Ukrainian entries, repairs the
 German `st_reach_level` closing tag and English quest text's invalid encoding,
@@ -134,7 +140,7 @@ it applies at the next start (exe patch 79, `../../docs/notes/language-option.md
 and saves it as the choice. The overlay builder accepts `--localization=czech`
 and the other resource names (the scripts' default; none by default). The
 launcher's dropdown offers the same languages; its own UI has five translations
-and uses English for Croatian. Website and launcher UI translations are separate.
+and uses English for the others. Website and launcher UI translations are separate.
 
 To add a language, register its resource name, own name, Windows locale rule and two-letter
 code in `LANGUAGES` in `localization_026g.py` (and in `CYRILLIC` for a Cyrillic one), run

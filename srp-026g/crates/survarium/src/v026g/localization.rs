@@ -33,10 +33,11 @@ pub enum Language {
     Finnish,
     Belarusian,
     Croatian,
+    Portuguese,
 }
 
 impl Language {
-    pub const ALL: [Language; 11] = [
+    pub const ALL: [Language; 12] = [
         Language::English,
         Language::Ukrainian,
         Language::Russian,
@@ -48,6 +49,7 @@ impl Language {
         Language::Finnish,
         Language::Belarusian,
         Language::Croatian,
+        Language::Portuguese,
     ];
 
     /// Its file in the game's archive.
