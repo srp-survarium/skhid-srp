@@ -4,7 +4,7 @@ package survarium.watch
 
    // The lobby server's rows for the Watch window (WatchWindow), parsed: each a `91` row's name,
    // `;` between its fields (docs/notes/replay_watch.md). A row that is not one gives null.
-   // - Live: `L0;<n>[;<delay s>]`, then n `L1` rows, then `F1` rows;
+   // - Live: `L0;<n>`, then n `L1` rows, then `F1` rows;
    //   `L1;<match 8 hex>;<map id>;<mode>;<phase>;<players a>;<players b>;<score a|->;<score b|->;<played s>;<spectators>;<watch>`
    //   (phase 0 made, 1 countdown, 2 in play, 3 over; watch 1 may, 0 full, 2 not watchable live).
    // - Recent: `M0;<n>;<f>` (f the list it answers: 0 everyone's, 1 friends'), then n `M1` rows,
@@ -86,7 +86,7 @@ package survarium.watch
          return count(a) < 0 || count(b) < 0 ? null : a + " : " + b;
       }
 
-      // The head of a page: [its tag, n, the rest] ("L0;3;30" -> ["L0", 3, ["30"]]), null if not one.
+      // The head of a page: [its tag, n, the rest] ("M0;3;1" -> ["M0", 3, ["1"]]), null if not one.
       public static function head(text:String, tag:String) : Array
       {
          var f:Array = text.split(";");

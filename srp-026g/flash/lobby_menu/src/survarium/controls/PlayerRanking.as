@@ -151,10 +151,6 @@ package survarium.controls
          {
             return;
          }
-         if(BottomPanel.matchesTake(players))
-         {
-            return;
-         }
          trace("fillPlayers:: filled",players.length,"requested::",this._requestList.length);
          var i:uint = 0;
          var league:Array;

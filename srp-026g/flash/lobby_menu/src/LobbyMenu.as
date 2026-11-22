@@ -225,34 +225,10 @@ package
 
       private static var _playerInfoWait:Timer;
 
-      // The search by name sent (findPlayers) and not answered yet ({answered, at}), null none: the
-      // answer (fill_players_search) says nothing of its ask, so one is sent at a time and an
-      // answer is the one sent's. One unanswered for PLAYER_SEARCH_WAIT_MS lost its answer, and the
-      // one sent lost it when the lobby's connection is made anew (close_sync): it is dropped, its
-      // asker told null (no answer). An answer that comes while none is sent is a dropped one's,
-      // late: nobody's.
-      private static var _playerSearchSent:Object = null;
-
-      // The searches by name not sent yet, oldest first ({asker, name, answered}), one an asker:
-      // the lobby server finds nobody for searches faster than one a second (its SEARCH_EVERY), so
-      // one is sent at most every PLAYER_SEARCH_EVERY_MS, the next from _playerSearchNext on; and
-      // none for PLAYER_SEARCH_GRACE_MS after one was dropped unanswered or a late answer came
-      // (a dropped one's late answer would be taken for the next).
-      private static var _playerSearchesHeld:Array = [];
-
-      private static var _playerSearchNext:int = 0;
-
-      // ticks while a search waits to be sent or for its answer
-      private static var _playerSearchTimer:Timer;
-
-      // The searches' clock (getTimer; a harness's own).
-      public static var searchClock:Function = getTimer;
-
-      private static const PLAYER_SEARCH_WAIT_MS:int = 15000;
-
-      private static const PLAYER_SEARCH_EVERY_MS:int = 1100;
-
-      private static const PLAYER_SEARCH_GRACE_MS:int = 3000;
+      // The searches by name sent (findPlayers) and not answered yet, oldest first (each its
+      // asker's function): the lobby server answers every one, in order, and an answer
+      // (fill_players_search) says nothing of its ask, so it is the oldest's.
+      private static var _playerSearches:Array = [];
 
       public var item_control:SrvSelectedItemControl;
       
@@ -598,9 +574,6 @@ package
       {
          return id;
       }
-
-      // The results were closed by a top menu tab (closeVS): the window it chose stays.
-      private var vsClosedByTab:Boolean = false;
 
       // The results screen is up (after a match, modal till it closes).
       public function get resultsUp() : Boolean
@@ -1656,7 +1629,6 @@ package
       {
          ExternalInterface.call("show_match_result",e.match_id);
          var reportData:Object = e;
-         WatchWindow.reportOpened();
          this.show_victory_screen();
          this.victory_screen.setData(reportData);
          if((reportData) && (reportData.statistics_money))
@@ -3485,7 +3457,6 @@ package
          stage.focus = this.victory_screen;
          FocusManager.setModalClip(this.victory_screen);
          this.victory_screen.visible = true;
-         this.vsClosedByTab = false;
          this.victory_screen.addEventListener(Event.REMOVED_FROM_STAGE,this.onVsRemoved);
          this.victory_screen["prepare"]();
          MainScene.layout.reflow();
@@ -3495,8 +3466,6 @@ package
       
       private function closeVS(e:IndexEvent) : void
       {
-         // the player chose a window to go to: no view comes back over it (onVsRemoved)
-         this.vsClosedByTab = true;
          this.victory_screen.closeWindow();
       }
       
@@ -3912,122 +3881,41 @@ package
          LobbyMenu.playersFound(value);
       }
 
-      // A search by name (find_players) of `asker` (the Watch window, a friends', a squad's or a
-      // clan's search list) for `answered`, a function of the players found, or of null when the
-      // answer was lost. Sent now, or in its turn (_playerSearchesHeld): an unsent search of the
-      // same asker is replaced by this one, and is never answered.
-      public static function findPlayers(asker:Object, name:String, answered:Function) : void
+      // A search by name (find_players) for `answered` (the Watch window's, a friends', a squad's
+      // or a clan's search list), a function of the players found, or of null when the answer was
+      // lost (the lobby's connection made anew).
+      public static function findPlayers(name:String, answered:Function) : void
       {
-         for(var i:int = 0; i < _playerSearchesHeld.length; i++)
+         _playerSearches.push(answered);
+         try
          {
-            if(_playerSearchesHeld[i].asker === asker)
-            {
-               _playerSearchesHeld.splice(i,1);
-               break;
-            }
+            ExternalInterface.call("find_players",name);
          }
-         _playerSearchesHeld.push({"asker":asker,"name":name,"answered":answered});
-         playerSearchTick();
+         catch(err:Error)
+         {
+         }
       }
 
-      // fill_players_search's players, to the ask they answer: true when one waited for them.
-      // Taken before any held search is sent (a search sent now is not this answer's). One that
-      // comes while none waits (a dropped search's, late) is nobody's, and holds the next send
-      // for PLAYER_SEARCH_GRACE_MS (another may follow it).
+      // fill_players_search's players, to the oldest search sent: true when one waited for them.
       public static function playersFound(players:Array) : Boolean
       {
-         var lost:Object = playerSearchExpired();
-         var search:Object = _playerSearchSent;
-         _playerSearchSent = null;
-         if(search == null)
-         {
-            playerSearchGrace();
-         }
-         playerSearchTick();
-         if(lost != null)
-         {
-            lost.answered(null);
-         }
-         if(search == null)
+         if(_playerSearches.length == 0)
          {
             return false;
          }
-         search.answered(players != null ? players : []);
+         var answered:Function = _playerSearches.shift();
+         answered(players != null ? players : []);
          return true;
       }
 
-      // The search sent, dropped when it waited too long for its answer (else null): that answer
-      // may still come, so the next is not sent for PLAYER_SEARCH_GRACE_MS.
-      private static function playerSearchExpired() : Object
-      {
-         var lost:Object = _playerSearchSent;
-         if(lost == null || int(searchClock()) - int(lost.at) < PLAYER_SEARCH_WAIT_MS)
-         {
-            return null;
-         }
-         _playerSearchSent = null;
-         playerSearchGrace();
-         return lost;
-      }
-
-      // No search sent for PLAYER_SEARCH_GRACE_MS from now: a late answer may be on its way.
-      private static function playerSearchGrace() : void
-      {
-         var until:int = int(searchClock()) + PLAYER_SEARCH_GRACE_MS;
-         if(until - _playerSearchNext > 0)
-         {
-            _playerSearchNext = until;
-         }
-      }
-
-      // The lobby's connection made anew (close_sync): the search sent lost its answer.
+      // The lobby's connection made anew (close_sync): the searches sent lost their answers.
       public static function playerSearchesLost() : void
       {
-         var lost:Object = _playerSearchSent;
-         _playerSearchSent = null;
-         playerSearchTick();
-         if(lost != null)
+         var lost:Array = _playerSearches;
+         _playerSearches = [];
+         for each(var answered:Function in lost)
          {
-            lost.answered(null);
-         }
-      }
-
-      // The searches' tick: the one sent dropped (told null) when it waited too long for its
-      // answer, the next held one sent in its turn once none waits; the timer runs while any
-      // search is held or sent.
-      public static function playerSearchTick(e:TimerEvent = null) : void
-      {
-         var lost:Object = playerSearchExpired();
-         var now:int = int(searchClock());
-         if(_playerSearchSent == null && _playerSearchesHeld.length > 0 && now - _playerSearchNext >= 0)
-         {
-            var search:Object = _playerSearchesHeld.shift();
-            _playerSearchNext = now + PLAYER_SEARCH_EVERY_MS;
-            _playerSearchSent = {"answered":search.answered,"at":now};
-            try
-            {
-               ExternalInterface.call("find_players",search.name);
-            }
-            catch(err:Error)
-            {
-            }
-         }
-         var busy:Boolean = _playerSearchesHeld.length > 0 || _playerSearchSent != null;
-         if(busy && _playerSearchTimer == null)
-         {
-            _playerSearchTimer = new Timer(100);
-            _playerSearchTimer.addEventListener(TimerEvent.TIMER,playerSearchTick);
-            _playerSearchTimer.start();
-         }
-         else if(!busy && _playerSearchTimer != null)
-         {
-            _playerSearchTimer.stop();
-            _playerSearchTimer.removeEventListener(TimerEvent.TIMER,playerSearchTick);
-            _playerSearchTimer = null;
-         }
-         if(lost != null)
-         {
-            lost.answered(null);
+            answered(null);
          }
       }
       
@@ -4335,16 +4223,17 @@ package
 
       // The match loads (set_loading_level): the transient windows close (the loading screen is
       // under their layer), the message up as the load came goes (closed, not answered as Esc
-      // would), else the top modal closes. The Watch window's asks end first (WatchWindow.away; a
-      // watch asked from it loads: its tab again after, WatchWindow.back) and take their prompt
-      // with them: the modal under that prompt (the results whose Watch replay asked, a window
-      // under a History row's) stays. Not through close_active_window: that is an Esc press, and
-      // its _escapeHandled would outlive the match (the exe asks has_active_window only in the
-      // lobby) and answer the first Esc back in the lobby with false, opening the game's menu
-      // over the results.
+      // would), else the top modal closes. The Watch window closes and its asks end first
+      // (WatchWindow.away; a watch asked from it loads: its tab again after, WatchWindow.back),
+      // taking their prompt with them: the modal under that prompt (the results whose Watch
+      // replay asked, a window under a History row's) stays. Not through close_active_window:
+      // that is an Esc press, and its _escapeHandled would outlive the match (the exe asks
+      // has_active_window only in the lobby) and answer the first Esc back in the lobby with
+      // false, opening the game's menu over the results.
       public static function closeForLoad() : void
       {
          var messageUp:int = Message.isAnyMessage();
+         var watchUp:Boolean = WatchWindow.me != null && WatchWindow.me.shown;
          WatchWindow.away();
          Transient.closeAll();
          if(messageUp != -1)
@@ -4352,13 +4241,12 @@ package
             // nothing more when it was the Watch prompt, gone with its ask
             Message.close(messageUp);
          }
-         else
+         else if(!watchUp)
          {
             Modals.escape();
          }
          // a card window (the lobby's, the faces') under what was closed does not stay into the match
          CardWindow.closeOpen();
-         dispatchEvent(new MouseEvent(MouseEvent.MOUSE_UP,true));
       }
       
       public function switch_mm_to_loading() : void
@@ -4827,10 +4715,6 @@ package
          {
             this._top_container.visible = true;
          }
-         // the asker's matches again (History's rows of the match just played), and the Watch view
-         // of a watch the results came back over: once the results left the modals
-         WatchWindow.resultsClosed(this.vsClosedByTab);
-         this.vsClosedByTab = false;
          this.notificationListTemp.startTimer();
          Message.showMessages();
       }

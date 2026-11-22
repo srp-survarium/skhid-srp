@@ -77,9 +77,8 @@ package survarium.rooms
         internal var _shown:Boolean = false;
         internal var _view:String = "list";
         private var _timer:Timer;
-        // back from a watch, the state not yet in: {resume, at} (holdWatchReturn)
-        private var _watchReturn:Object = null;
-        private static const WATCH_RETURN_MS:int = 6000;
+        // back from a watch, the state not yet in: the Watch window given back (holdWatchReturn)
+        private var _watchReturn:Function = null;
         // Where the game is (AWAY: a match loading or played, WatchWindow.away .. back), and a
         // room's call back from a watch (srp's CALLED_BACK, said once) since it last left the
         // lobby: AWAY_CALLED, taken before the lobby is back (a state asked while the watch
@@ -766,11 +765,10 @@ package survarium.rooms
         }
 
         // The game is back from a watch (WatchWindow.back) while we are in a room or a room's
-        // queue: the next state decides (takeAnswer) between the room and `resume` (the Watch
-        // window again); asked at once, and `resume` if no state comes within WATCH_RETURN_MS.
-        // false: in no room and no queue, nothing held. A room that called us back since the game
-        // left the lobby (its one word may come while the watch unloads) shows itself instead,
-        // `resume` dropped.
+        // queue: the next state, asked at once, decides (takeAnswer) between the room and `resume`
+        // (the Watch window again). false: in no room and no queue, nothing held. A room that
+        // called us back since the game left the lobby (its one word may come while the watch
+        // unloads) shows itself instead, `resume` dropped.
         public function holdWatchReturn(resume:Function):Boolean
         {
             if (_room == null && _queueKey == 0)
@@ -785,7 +783,7 @@ package survarium.rooms
                     show(true);
                 return true;
             }
-            _watchReturn = {"resume": resume, "at": getTimer()};
+            _watchReturn = resume;
             if (_steps.length == 0)
                 ask(RoomsWire.STATE, 1);
             return true;
@@ -795,9 +793,9 @@ package survarium.rooms
         {
             if (_watchReturn != null)
             {
-                var back:Object = _watchReturn;
+                var back:Function = _watchReturn;
                 _watchReturn = null;
-                back.resume();
+                back();
             }
         }
 
@@ -885,8 +883,6 @@ package survarium.rooms
         private function onTimer(e:TimerEvent):void
         {
             _now = getTimer();
-            if (_watchReturn != null && _now - _watchReturn.at >= WATCH_RETURN_MS)
-                endWatchReturn();
             if (_calledBack != null && _calledBack.visible)
             {
                 if (_now >= _calledBackUntil)
@@ -1232,7 +1228,7 @@ package survarium.rooms
                     roomCode = RoomCode.NONE;
                 if (calledBack || _watchReturn != null)
                 {
-                    var back:Object = _watchReturn;
+                    var back:Function = _watchReturn;
                     _watchReturn = null;
                     if (calledBack || _room.phase == RoomPhase.VOTE)
                     {
@@ -1243,7 +1239,7 @@ package survarium.rooms
                         takeCallBack();
                     }
                     else
-                        back.resume();
+                        back();
                 }
                 if (roomCode == RoomCode.NONE && _code < RoomCode.NONE && was != null && was.key == _room.key)
                     roomCode = _code;

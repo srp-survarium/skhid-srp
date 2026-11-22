@@ -258,7 +258,7 @@ package survarium.controls
          }
          dispatchEvent(new Event(Event.CONNECT,true));
          // its answer, told apart from the Watch window's by the order asked
-         LobbyMenu.findPlayers(this,query,this.fillFoundPlayers);
+         LobbyMenu.findPlayers(query,this.fillFoundPlayers);
          this.loadingIndicator.gotoAndPlay(1);
          this.showSearch(false);
          this.btnCancelSearch.visible = false;

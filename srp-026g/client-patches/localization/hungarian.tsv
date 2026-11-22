@@ -3115,7 +3115,6 @@ st_srp_watch_badge_live	Élőben nézhető meccsek
 st_srp_watch_chip_everyone	Mindenki
 st_srp_watch_chip_friends	Barátok
 st_srp_watch_chip_mine	Saját
-st_srp_watch_delay	%1$s mp késleltetés
 st_srp_watch_friends	Barátok: %1$s
 st_srp_watch_live	Élő
 st_srp_watch_live_word	ÉLŐ

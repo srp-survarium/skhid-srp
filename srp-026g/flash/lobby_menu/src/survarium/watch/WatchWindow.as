@@ -106,15 +106,10 @@ package survarium.watch
       // played is written at the server's next save, and nothing says when
       private static const BACK_ASK_MS:int = 2000;
 
-      // a watch asked (or last said `preparing`) this long before the game loads a match: back on
-      // its view after. The game's
-      // show_match_making(false) is no sign of the watch's end (the lobby scene going away calls it
-      // too, before the load), and no event says the load is the watch's
-      private static const RESUME_MS:int = 120000;
+      // a watch asked from here (_watched): asked, then away in its load
+      private static const WATCH_ASKED:String = "asked";
 
-      // a friend's Spectate waits this many of the window's seconds for its match to be listed in
-      // play, then says so; counted anew from each list that has it gathering or counting down
-      private static const SPECTATE_S:int = 60;
+      private static const WATCH_AWAY:String = "away";
 
       private static const TOOL_Y:Number = 50;
 
@@ -137,22 +132,13 @@ package survarium.watch
 
       private var _shown:Boolean = false;
 
-      // the player's moves in this window (shown or closed, a tab, a chip, a search): a held
-      // return does not undo one made meanwhile (resume)
-      private var _moves:uint = 0;
-
-      // past matches' reports the player opened (History's rows, LobbyMenu.showFullReaport): one
-      // opened while a return is held is a window of its own, not the results it waits for
-      private var _reports:uint = 0;
-
       private var _tab:String = LIVE;
 
       private var _liveChip:String = EVERYONE;
 
       private var _replaysChip:String = MINE;
 
-      // the search by name ({name, state, asks, id; at: when its matches were asked; code: the match
-      // the name is the code of, 0 none: searchPlayer}), null none
+      // the search by name ({name, state, asks, id; at: when its matches were asked}), null none
       private var _search:Object = null;
 
       // a name typed shorter than this takes no other player's than its own, unless one is found
@@ -168,10 +154,8 @@ package survarium.watch
       // nothing (an M0 answer names its own: `M0;<n>;<RECENT_START offset>`)
       private var _playedAsked:String = MINE;
 
-      private var _delay:int = -1;
-
-      // a friend's Spectate waiting for the live list to say where it plays ({name lower case,
-      // shown, left: the seconds it still waits}), null none
+      // a friend's Spectate waiting for a live list asked after it ({name lower case, shown, skip:
+      // the answers still to come to asks sent before it, 0 or 1}), null none
       private var _spectate:Object = null;
 
       private var _asks:int = 0;
@@ -198,16 +182,12 @@ package survarium.watch
       private var _clocks:Array = [];
 
       // the head's tabs by name (LIVE, REPLAYS), the chips of the tab they were made for
-      // ([{id, tab, label, w}]) and where they end, and the delay's field
+      // ([{id, tab, label, w}])
       private var _tabs:Object = null;
 
       private var _chips:Array = [];
 
       private var _chipsTab:String = null;
-
-      private var _chipsEnd:Number = 0;
-
-      private var _delayField:TextField;
 
       // the list's cards by key (kind and match), the holder they scroll in, the text shown when
       // there are none
@@ -217,18 +197,13 @@ package survarium.watch
 
       private var _empty:TextField;
 
-      // the last watch asked from here (its match, view and time), and the view to come back to
-      // while the game is away in it
-      private var _pendingMatch:uint = 0;
-
       // Enter went down in the search box, and has not come up
       private var _boxEnter:Boolean = false;
 
-      private var _pendingView:Object = null;
-
-      private var _pendingAt:int = 0;
-
-      private var _resume:Object = null;
+      // the last watch asked from here and the view to come back to after it: {state WATCH_ASKED,
+      // match, view} until an answer ends it or a match loads, then {state WATCH_AWAY, view} until
+      // the return; null none
+      private var _watched:Object = null;
 
       public function WatchWindow(panel:BottomPanel)
       {
@@ -325,17 +300,8 @@ package survarium.watch
          return WatchWindow.me == null || WatchWindow.me._inLobby;
       }
 
-      // A past match's report opened (LobbyMenu.showFullReaport): a return held now is dropped.
-      public static function reportOpened() : void
-      {
-         if(WatchWindow.me != null)
-         {
-            WatchWindow.me._reports += 1;
-         }
-      }
-
       // A friend's Spectate (the friends list): Live, its friends' matches, and that friend's match
-      // watched from the friend's place once the list says where it plays.
+      // watched from the friend's place once a list asked from now on says it plays.
       public static function spectate(name:String) : void
       {
          var win:WatchWindow = WatchWindow.me;
@@ -343,32 +309,17 @@ package survarium.watch
          {
             return;
          }
-         win._spectate = {"name":name.toLowerCase(),"shown":name,"left":SPECTATE_S};
+         // a live list asked and not answered yet is on its way: its answer is from before
+         var onItsWay:Boolean = win._askedAt[LIVE] != null && int(win._askedAt[LIVE]) > win.answeredAt(LIVE);
+         win._spectate = {"name":name.toLowerCase(),"shown":name,"skip":(onItsWay ? 1 : 0)};
          win._liveChip = FRIENDS;
          win.showTab(LIVE);
-         // a move of its own (a held return does not undo it); the player's next one ends it
-         // (spectating)
-         win._moves += 1;
-         win._spectate.moves = win._moves;
       }
 
-      // The friend's Spectate still asked: none once the player moved in the window since.
-      private function spectating() : Object
-      {
-         if(this._spectate != null && this._spectate.moves != this._moves)
-         {
-            this._spectate = null;
-         }
-         return this._spectate;
-      }
-
-      // The game loads a match (LobbyMenu.set_loading_level): a watch asked from here playing?
-      // Its `watching` comes only once the game is in it, after the load began. The view to come
-      // back to is this load's alone: a view still kept from the last return (the results were up,
-      // and the game left the lobby before they closed) is dropped. The watch and save asked end
-      // (ReplayAsks.away), unsaid: the view is kept by the load's rule alone. A friend's Spectate
-      // waiting ends too (the window may outlive the load): the player's own match is not followed
-      // by the friend's. A room's call back from now on is the next return's (RoomsWindow.away).
+      // The game loads a match (LobbyMenu.closeForLoad): the window closes and everything pending
+      // ends (the watch and save asked, their prompt, a Spectate, a search); a watch asked from here
+      // keeps its view for the return (its `watching` comes only once the game is in it). A room's
+      // call back from now on is the next return's (RoomsWindow.away).
       public static function away() : void
       {
          ReplayAsks.away();
@@ -381,21 +332,21 @@ package survarium.watch
          {
             return;
          }
-         if(win._inLobby)
+         if(win._watched != null && win._watched.state == WATCH_ASKED)
          {
-            win._resume = win._pendingView != null && getTimer() - win._pendingAt < RESUME_MS ? win._pendingView : null;
+            win._watched = {"state":WATCH_AWAY,"view":win._watched.view};
          }
-         win._pendingView = null;
          win._inLobby = false;
          win._mineDue = 0;
-         win._spectate = null;
+         win.show(false);
       }
 
-      // Back in the lobby (each LobbyMenu.show_match_making(false), the results up or not): the
-      // asks run again, and the asker's matches are asked again soon (History's rows of the match
-      // just played); from a watch, its view again, unless the results are up (Watch opening
-      // would close them): then once they close (resultsClosed). A room's call back taken on the
-      // way is said first, and its room kept over that view (RoomsWindow.lobbyBack).
+      // Back in the lobby (each LobbyMenu.show_match_making(false): the lobby scene going away
+      // calls it too, before a load): the asks run again, the asker's matches soon (History's
+      // rows of the match just played). Back from a watch asked here, its view once, unless the
+      // results are up (Watch opening would close them) or the room has a use for us
+      // (RoomsWindow.holdWatchReturn: srp calls a member back for its vote or its match). A room's
+      // call back taken on the way is said first (RoomsWindow.lobbyBack).
       public static function back() : void
       {
          if(RoomsWindow.me != null)
@@ -409,73 +360,23 @@ package survarium.watch
          }
          win._inLobby = true;
          win._mineDue = getTimer() + BACK_ASK_MS;
-         if(LobbyMenu.id == null || !LobbyMenu.id.resultsUp)
-         {
-            win.resume();
-         }
-      }
-
-      // The results closed (LobbyMenu.onVsRemoved): the asker's matches asked again soon, as at a
-      // return, and the view of the watch the results came back over. Not while a match loads
-      // (its Esc may close them; the load chose its own view to come back to, WatchWindow.away).
-      // Closed by a top menu tab: the window it chose stays, the view is dropped.
-      public static function resultsClosed(byTab:Boolean = false) : void
-      {
-         var win:WatchWindow = WatchWindow.me;
-         if(win != null && win._inLobby)
-         {
-            win._mineDue = getTimer() + BACK_ASK_MS;
-            if(byTab)
-            {
-               win._resume = null;
-            }
-            win.resume();
-         }
-      }
-
-      // From a watch, its view again, once. In a room, or a room's queue: the room says first
-      // whether it has a use for us now (srp calls a member back from a watch for its vote or its
-      // match); it shows itself then, and this window comes back only when it has none. The room's
-      // word may come once the results are up: the view is kept for their close then (Watch opening
-      // would close them, resultsClosed); once a match loads, it is dropped (the load chose its own
-      // view, away).
-      private function resume() : void
-      {
-         var view:Object = this._resume;
-         if(view == null)
+         var watched:Object = win._watched;
+         if(watched == null || watched.state != WATCH_AWAY)
          {
             return;
          }
-         this._resume = null;
-         var win:WatchWindow = this;
-         // what the lobby shows now: a window the player opens, or a move made in this one, while
-         // the room's word is awaited stays, and the view is dropped (the results coming up open
-         // their own window and the room under them: kept for their close first, resultsClosed)
-         var opened:Object = MainScene.activeWindow;
-         var roomsShown:Boolean = RoomsWindow.me != null && RoomsWindow.me.shown;
-         var moves:uint = this._moves;
-         var reports:uint = this._reports;
-         var back:Function = function():void
+         win._watched = null;
+         if(LobbyMenu.id != null && LobbyMenu.id.resultsUp)
          {
-            if(!win._inLobby || win._reports != reports)
-            {
-               return;
-            }
-            if(LobbyMenu.id != null && LobbyMenu.id.resultsUp)
-            {
-               win._resume = view;
-               return;
-            }
-            if(MainScene.activeWindow !== opened || !roomsShown && RoomsWindow.me != null && RoomsWindow.me.shown
-               || win._moves != moves)
-            {
-               return;
-            }
-            win.restore(view);
+            return;
+         }
+         var restore:Function = function():void
+         {
+            win.restore(watched.view);
          };
-         if(RoomsWindow.me == null || !RoomsWindow.me.holdWatchReturn(back))
+         if(RoomsWindow.me == null || !RoomsWindow.me.holdWatchReturn(restore))
          {
-            back();
+            restore();
          }
       }
 
@@ -500,7 +401,7 @@ package survarium.watch
       {
          this._liveChip = view.liveChip;
          this._replaysChip = view.replaysChip;
-         // a searched player's list searched anew (the view's search is long over)
+         // a searched player's list searched anew
          this._search = null;
          this.setBox(view.search != null ? view.search.name : "");
          if(view.search != null)
@@ -577,7 +478,6 @@ package survarium.watch
             return;
          }
          this._shown = value;
-         this._moves += 1;
          visible = value;
          if(topMenu != null)
          {
@@ -587,6 +487,12 @@ package survarium.watch
          {
             this.releaseFocus();
             this._spectate = null;
+            // a search not answered yet ends with the window: its answer asks nothing
+            if(this._search != null && this._search.state == FINDING)
+            {
+               this._search = null;
+               this.setBox("");
+            }
             Modals.leave(this);
             return;
          }
@@ -708,11 +614,6 @@ package survarium.watch
             {
                this.askPlayer();
             }
-            else if(this._search.state == NO_ANSWER)
-            {
-               // its answer came while the window was closed, or was lost: searched again
-               this.searchPlayer(this._search.name,this._search.code);
-            }
             return;
          }
          this.ask(list);
@@ -745,17 +646,10 @@ package survarium.watch
       {
          var now:int = getTimer();
          ReplayAsks.second();
-         // nothing asked in a match (the lobby is not shown then), whatever the window was showing
-         // when the match loaded; a friend's Spectate waits for the lists, so its wait waits too
+         // nothing asked in a match (the lobby is not shown then)
          if(!this._inLobby)
          {
             return;
-         }
-         if(this.spectating() != null && --this._spectate.left <= 0)
-         {
-            var lost:String = this._spectate.shown;
-            this._spectate = null;
-            this.tell(LocalizationData.format("st_srp_watch_spectate_lost",lost));
          }
          if(this._mineDue != 0 && now >= this._mineDue)
          {
@@ -811,8 +705,6 @@ package survarium.watch
          var list:String = null;
          if(tag == "L0")
          {
-            var head:Array = WatchRows.head(names[0],"L0");
-            this._delay = head != null && head[2].length > 0 && WatchRows.count(head[2][0]) >= 0 ? WatchRows.count(head[2][0]) : -1;
             var live:Array = this.listed(names,WatchRows.live);
             // friends' matches first, each part in the server's order
             var friends:Array = [];
@@ -908,14 +800,20 @@ package survarium.watch
          return list;
       }
 
-      // A friend's Spectate, on each live list the server answers (never the list from before the
-      // Spectate: it may be stale): the match it names the friend in, watched from its place. A
-      // match found that cannot be watched says why; onTimer ends a wait that finds none.
+      // A friend's Spectate, on each live list asked since it (one on its way when it was pressed
+      // may be stale): the match it names the friend in, watched from its place once it plays
+      // (gathering or counting down: the next list decides); one that cannot be watched says why,
+      // and a friend in none of the listed matches is said lost.
       private function findSpectated() : void
       {
-         var spectate:Object = this.spectating();
+         var spectate:Object = this._spectate;
          if(spectate == null)
          {
+            return;
+         }
+         if(int(spectate.skip) > 0)
+         {
+            spectate.skip = int(spectate.skip) - 1;
             return;
          }
          for each(var row:Object in this.rowsOf(LIVE))
@@ -925,35 +823,25 @@ package survarium.watch
                if(String(friend.name).toLowerCase() == spectate.name)
                {
                   var reason:String = WatchWindow.reasonOf(row);
-                  // gathering or counting down: watched once it plays; its SPECTATE_S wait starts
-                  // anew from each list that still says so (it may gather a long time)
                   if(reason == "st_srp_watch_reason_starts")
                   {
-                     spectate.left = SPECTATE_S;
                      return;
                   }
+                  this._spectate = null;
                   if(reason == null)
                   {
-                     // kept while another ask is under way: tried again with the next list,
-                     // its wait anew (found, not lost)
-                     if(this.watch(uint(row.match),WatchRows.watchAsk(int(friend.place))))
-                     {
-                        this._spectate = null;
-                     }
-                     else
-                     {
-                        spectate.left = SPECTATE_S;
-                     }
+                     this.watch(uint(row.match),WatchRows.watchAsk(int(friend.place)));
                   }
                   else
                   {
-                     this._spectate = null;
                      this.tell(LocalizationData.getName(reason));
                   }
                   return;
                }
             }
          }
+         this._spectate = null;
+         this.tell(LocalizationData.format("st_srp_watch_spectate_lost",spectate.shown));
       }
 
       // A word for the player: the game's message box with OK.
@@ -975,7 +863,7 @@ package survarium.watch
             return;
          }
          RoomsLook.clickSound();
-         this._moves += 1;
+         this._spectate = null;
          this._tab = which;
          this.look._scrollPx = 0;
          this.askNow();
@@ -985,7 +873,7 @@ package survarium.watch
       private function pickChip(which:String) : void
       {
          RoomsLook.clickSound();
-         this._moves += 1;
+         this._spectate = null;
          if(this._tab == LIVE)
          {
             this._liveChip = which;
@@ -1001,41 +889,36 @@ package survarium.watch
          this.render();
       }
 
-      // The search box: a match's code with `#` watches it; else a player's name lists that
-      // player's matches. A code typed without `#` may be a name too ("deadbeef"): the name is
-      // searched first, and the code watched only when no player has that name (foundPlayers),
-      // so a name never asks a watch (whose `gone` would say so over the search, and count
-      // toward the server's limit of lookups that find no match).
+      // The search box: a match's code (`#` and 8 hex digits, as the cards show it) watches it;
+      // anything else is a player's name, whose matches it lists.
       private function typed() : void
       {
          var text:String = this._box.text.replace(/^\s+|\s+$/g,"");
          var match:uint = WatchWindow.codeOf(text);
-         if(match != 0 && text.charAt(0) == "#")
+         if(match != 0)
          {
             this.watch(match,NotificationListScrollContent.REPLAY_WATCH_ALL);
             return;
          }
          if(text.length > 0)
          {
-            this.searchPlayer(text,match);
+            this.searchPlayer(text);
          }
       }
 
-      // A match's code as the cards show it, `#` optional; 0 if `text` is not one.
+      // A match's code as the cards show it; 0 if `text` is not one.
       public static function codeOf(text:String) : uint
       {
-         var digits:String = text.replace(/^#/,"");
-         return /^[0-9a-fA-F]{8}$/.test(digits) ? uint(parseInt(digits,16)) : 0;
+         return /^#[0-9a-fA-F]{8}$/.test(text) ? uint(parseInt(text.substr(1),16)) : 0;
       }
 
       // Replays, `name`'s matches: the asker's own are Mine; another's account is found first
       // (LobbyMenu.findPlayers, answered in foundPlayers). The same name again while its search
       // finds the player or asks for its matches (Enter twice, Enter and the magnifier) keeps that
-      // search: a new one would drop the answer on its way. `code`: the match the name is the code
-      // of (typed without `#`), watched if no player has the name; 0 none.
-      private function searchPlayer(name:String, code:uint = 0) : void
+      // search: a new one would drop the answer on its way.
+      private function searchPlayer(name:String) : void
       {
-         this._moves += 1;
+         this._spectate = null;
          this._tab = REPLAYS;
          this.look._scrollPx = 0;
          var own:String = PlayerInfo.nickname;
@@ -1055,21 +938,19 @@ package survarium.watch
             return;
          }
          this.setBox(name);
-         var search:Object = {"name":name,"state":FINDING,"asks":1,"code":code};
+         var search:Object = {"name":name,"state":FINDING,"asks":1};
          this._search = search;
          this._lists[PLAYER] = null;
          // the answer to this ask only (LobbyMenu: in the order asked; a friends' search may ask
-         // meanwhile), while it still waits for it: a name typed anew or a chip ends it. None
-         // (null): its answer was lost (the lobby's connection made anew)
-         LobbyMenu.findPlayers(this,name,function(players:Array):void
+         // meanwhile), while it still waits for it: a name typed anew, a chip or the window's close
+         // ends it. None (null): its answer was lost (the lobby's connection made anew)
+         LobbyMenu.findPlayers(name,function(players:Array):void
          {
             if(_search !== search || search.state != FINDING)
             {
                return;
             }
-            // answered after a match's load, or the window closed meanwhile: nothing is asked
-            // (no player's matches, no watch of a code)
-            if(players == null || !_inLobby || !_shown)
+            if(players == null)
             {
                search.state = NO_ANSWER;
                render();
@@ -1083,12 +964,10 @@ package survarium.watch
       // find_players' answer, srp's best match first (a part of the name, its letters in order,
       // a typo or two: session's name_search): the player named so (any case), else the first
       // found, when the text typed is SEARCH_LOOSE letters or more or only one was found; its
-      // account's matches asked. A match's code typed without `#`: the player named so only, else
-      // the code's match watched, the search ended.
+      // account's matches asked.
       private function foundPlayers(players:Array) : void
       {
          var want:String = String(this._search.name).toLowerCase();
-         var code:uint = uint(this._search.code);
          var pick:Object = null;
          for each(var player:Object in players)
          {
@@ -1097,23 +976,11 @@ package survarium.watch
                pick = player;
             }
          }
-         if(pick == null && code == 0 && players.length > 0 && (players.length == 1 || want.length >= SEARCH_LOOSE))
+         if(pick == null && players.length > 0 && (players.length == 1 || want.length >= SEARCH_LOOSE))
          {
             pick = players[0];
          }
-         if(pick == null && code != 0)
-         {
-            // under another ask: searched again when its list is shown
-            if(this.watch(code,NotificationListScrollContent.REPLAY_WATCH_ALL))
-            {
-               this._search = null;
-            }
-            else
-            {
-               this._search.state = NO_ANSWER;
-            }
-         }
-         else if(pick == null)
+         if(pick == null)
          {
             this._search.state = NOT_FOUND;
          }
@@ -1148,8 +1015,7 @@ package survarium.watch
       }
 
       // A search's matches asked again, or given up. FINDING waits for LobbyMenu.findPlayers'
-      // answer alone: it may hold the search behind another's, and it answers null (no answer)
-      // once the search it sent waited too long.
+      // answer alone (the lobby server answers every search).
       private function searchTick(now:int) : void
       {
          var search:Object = this._search;
@@ -1166,25 +1032,23 @@ package survarium.watch
          }
       }
 
-      // Asks to watch `match` with `ask` (ReplayAsks); the view to come back to. Whether it was
-      // asked (not under another's).
-      private function watch(match:uint, ask:uint) : Boolean
+      // Asks to watch `match` with `ask` (ReplayAsks), and keeps the view to come back to: only for
+      // an ask that was taken (one under another's would never hear its end).
+      private function watch(match:uint, ask:uint) : void
       {
-         // only an ask that was taken: one under another's would never hear its end
-         if(!ReplayAsks.watch(match,ask))
+         if(ReplayAsks.watch(match,ask))
          {
-            return false;
+            this._watched = {
+               "state":WATCH_ASKED,
+               "match":match,
+               "view":{
+                  "tab":this._tab,
+                  "liveChip":this._liveChip,
+                  "replaysChip":this._replaysChip,
+                  "search":this._search
+               }
+            };
          }
-         this._pendingMatch = match;
-         this._pendingAt = getTimer();
-         this._pendingView = {
-            "tab":this._tab,
-            "liveChip":this._liveChip,
-            "replaysChip":this._replaysChip,
-            // a player's list only: a code typed without # was looked for as a name first
-            "search":(this._search != null && (this._search.state == ASKED || this._search.state == LISTED) ? this._search : null)
-         };
-         return true;
       }
 
       // A card's Watch: a recorded match from the player's place (a player's list) or anyone's;
@@ -1203,19 +1067,16 @@ package survarium.watch
          this.watch(uint(row.match),WatchRows.watchAsk(place));
       }
 
-      // An answer about a watch asked for (ReplayAsks): of the one asked from here, `preparing`
-      // keeps its view for RESUME_MS more (a replay may prepare longer), anything but `watching`
-      // (a refusal, or its end without an answer) plays nothing to come back from; the cards are
-      // refreshed.
+      // An answer about a watch asked for (ReplayAsks): of the one asked from here, anything but
+      // `preparing` and `watching` (a refusal, or its end without an answer) plays nothing to come
+      // back from; the cards are refreshed.
       private function answered(hex:String, status:String) : void
       {
-         if(hex == WatchWindow.hex(this._pendingMatch) && status == "preparing")
+         var watched:Object = this._watched;
+         if(watched != null && watched.state == WATCH_ASKED && hex == WatchWindow.hex(uint(watched.match))
+            && status != "preparing" && status != "watching")
          {
-            this._pendingAt = getTimer();
-         }
-         else if(hex == WatchWindow.hex(this._pendingMatch) && status != "watching")
-         {
-            this._pendingView = null;
+            this._watched = null;
          }
          if(this._shown)
          {
@@ -1399,9 +1260,6 @@ package survarium.watch
          this.drawTabs();
          this.look.closeButton(this.onClose);
          this.drawSearch();
-         this._delayField = this.look.text(this.look._content,"",0,TOOL_Y + 6,20,13,RoomsLook.DIM);
-         this._delayField.name = "srpWatchDelay";
-         this.look._content.removeChild(this._delayField);
          var w:Number = this.look._w - 28 - 10;
          this._inner = this.look.scrollBox(14,LIST_Y,w,this.look._h - LIST_Y - 10);
          this._empty = this.look.text(this._inner,"",0,14,w,15,RoomsLook.GREY);
@@ -1466,8 +1324,7 @@ package survarium.watch
          }
       }
 
-      // The chips at the toolbar's left, made for their tab and painted in place (Live: and how far
-      // behind a watch is).
+      // The chips at the toolbar's left, made for their tab and painted in place.
       private function drawChips() : void
       {
          if(this._chipsTab != this._tab)
@@ -1478,21 +1335,6 @@ package survarium.watch
          for each(var c:Object in this._chips)
          {
             this.paintChip(c,c.id == current);
-         }
-         var delay:TextField = this._delayField;
-         if(this._tab == LIVE && this._delay > 0)
-         {
-            if(delay.parent != this.look._content)
-            {
-               this.look._content.addChild(delay);
-            }
-            delay.x = this._chipsEnd + 8;
-            delay.width = Math.max(20,this._box.x - 20 - delay.x);
-            RoomsLook.fitName(delay,LocalizationData.format("st_srp_watch_delay",this._delay),"");
-         }
-         else if(delay.parent == this.look._content)
-         {
-            this.look._content.removeChild(delay);
          }
       }
 
@@ -1516,7 +1358,6 @@ package survarium.watch
          {
             x = this.chipAt(c[0],LocalizationData.getName(c[1]),x) + 8;
          }
-         this._chipsEnd = x;
       }
 
       // A chip: a rounded tag, filled gold when chosen (paintChip); its x end.

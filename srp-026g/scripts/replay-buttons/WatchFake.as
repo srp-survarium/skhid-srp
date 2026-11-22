@@ -15,10 +15,10 @@ package
 
       public static const POOL_START:uint = 2060000010;
 
-      // Live: 6 good matches, 30 s behind (Rudnya in play with the friends Petro (place 3) and Olha;
+      // Live: 6 good matches (Rudnya in play with the friends Petro (place 3) and Olha;
       // Vostok in play; Chemical plant counting down; one full, one closed to spectators, one over)
       // and a broken row.
-      public static const LIVE:Array = ["L0;7;30",
+      public static const LIVE:Array = ["L0;7",
          "L1;69f8c4bc;61;5;2;8;8;2;1;422;0;1",
          "L1;1ce45cbe;117;4;2;10;10;87;64;760;2;1",
          "L1;00000004;62;4;1;5;4;-;-;0;0;1",

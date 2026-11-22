@@ -3115,7 +3115,6 @@ st_srp_watch_badge_live	Suorana katsottavat ottelut
 st_srp_watch_chip_everyone	Kaikki
 st_srp_watch_chip_friends	Kaverit
 st_srp_watch_chip_mine	Omat
-st_srp_watch_delay	viive %1$s s
 st_srp_watch_friends	Kaverit: %1$s
 st_srp_watch_live	Suorana
 st_srp_watch_live_word	SUORANA

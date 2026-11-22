@@ -3115,7 +3115,6 @@ st_srp_watch_badge_live	Live matches you can watch
 st_srp_watch_chip_everyone	Everyone
 st_srp_watch_chip_friends	Friends
 st_srp_watch_chip_mine	Mine
-st_srp_watch_delay	%1$s s behind live
 st_srp_watch_friends	Friends: %1$s
 st_srp_watch_live	Live
 st_srp_watch_live_word	LIVE
