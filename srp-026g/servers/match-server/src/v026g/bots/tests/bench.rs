@@ -2809,6 +2809,8 @@ pub(crate) fn real_bot_cost() {
             }
             // [drop give-ups] Ticks the lip guard left to the route's own walk-off.
             eprintln!("walk-off guard so far: ticks left to the route's walk-off {}", crate::v026g::bots::drive::walk_off_guards::count());
+            // [fix-lip] Ticks the lip guard left to a route jump's flight after its carry.
+            eprintln!("jump air guard so far: ticks left in a route jump's flight after its carry {}", crate::v026g::bots::drive::jump_air_left::count());
             // [A416] The view schedule.
             let view = crate::v026g::bots::view_schedule::counts::counts();
             eprintln!("view schedule so far: glances begun {}, cut at their most {}, look ticks held on the course {}", view[0], view[1], view[2]);
