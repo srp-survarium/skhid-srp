@@ -6707,6 +6707,26 @@ pub extern "C" fn hook_map_names_on_key(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- material_bounds (patch 193) ----
+
+/// The named exits of material_bounds::on_material_pair (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum MaterialBoundsOnMaterialPairExit { Done }
+/// The entry `material_bounds_on_material_pair` (0x306d50, game_material_manager::material_pair's start (movzx eax,dx / mov eax,[ecx+eax*4+108h]): ECX the manager, DX and DI the two material ids, indexed into its 128 material slots (+108h) with no bound; done 0x306DF8, its ret (nothing pushed yet), EAX the pair or 0 (no pair: every caller tests it, 0x2481A6 0x2487F8 0x248A74 0x248B90 0x32E5A0 0x32E7FA 0x32EA20 0x32EC9F)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_material_bounds_on_material_pair(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `material_bounds_on_material_pair` calls this, from the game's jump at 0x306d50,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::material_bounds::on_material_pair(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- medical_skills (patch 94) ----
 
 /// The entry `medical_skills_on_duration_start` (0x33d41b, EBP medkit EBX player XMM0 duration) calls this with the saved machine.

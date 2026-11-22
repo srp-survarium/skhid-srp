@@ -1,0 +1,10 @@
+# Patch 193: material_pair takes an id past its 128 material slots as the
+# default material's, as it takes an empty slot, instead of reading past its
+# tables (vostok/material.rs). The site is sites_026g.tsv's; the logic is
+# material_bounds.rs.
+name = "material_bounds"
+patch = 193
+
+[[hook]]
+site = "material_pair.entry"
+handler = "on_material_pair"

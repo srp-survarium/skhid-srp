@@ -50,6 +50,8 @@ survarium::ammo_data	mass	0x14	f32	the ammo config's data.mass (ammo_data::load 
 survarium::bullet_manager	engine	0x90	ptr<survarium::bullet_manager_engine>	the game world's interface (the world's +0ECh; its slot +24h get_player, bullet::bullet 0x32BD3E); 0: no effects (play_particle 0x3223EB)
 survarium::bullet_manager	materials	0x94	ptr<survarium::game_material_manager>	the game material manager (check_collision 0x32D845)
 survarium::game_material	id	0x64	u16	its id (the material pair's index, 0x306D50)
+survarium::game_material_manager	default_id	0x1030C	u16	the default material's id, 11 (the constructor 0x306BBF; the manager is 10310h bytes, 0x2CD1F2): material_pair's master and second for an id whose slot is empty. The manager's tables: +108h 128 material slots by id (0x200 bytes zeroed at 0x306BC6; find by name 0x306E00 walks 128), +308h 128 x 128 pair slots, [master x 128 + second] (0x10000 bytes, 0x306BD8), +10308h the default material
+survarium::game_material	master	0x66	u16	its pair master's id, 0FFFFh itself (material_pair 0x306D5F)
 survarium::material_pair	sound	0x18	u32	its sound's resource slot (process_front_face_piercing 0x32E6BA)
 survarium::material_pair	particles	0x24	ptr<survarium::particle_slot>	its particles' slots, begin (0x32E6E9)
 survarium::material_pair	particles_end	0x28	ptr<survarium::particle_slot>	their end (0x32E6EC)

@@ -4811,8 +4811,8 @@ va	name	location	role	basis
 0x003b8d00	vostok::input::platform::keyboard::is_key_down	ECX	the keyboard (vtable 0xA25478 slot 0; the input world's vtable +24h gives it, as on_keyboard_action asks it for Tab, 0Fh)	observed
 0x003b8d00	vostok::input::platform::keyboard::is_key_down	entry ESP+4	the DIK	observed
 0x00306d50		ECX	the game material manager (the bullet manager's +94h)	observed
-0x00306d50		EDX	the first material id (u16 in DX; a bullet's material +64h)	observed
-0x00306d50		EDI	the second material id (u16 in DI; the hit object's material)	observed
+0x00306d50		EDX	the first material id (u16 in DX; a bullet's material +64h; not bounded: an id past 127 reads past the 128 slots at +108h, patch 193 takes it as the default)	observed
+0x00306d50		EDI	the second material id (u16 in DI; the hit object's material; not bounded: an id past 127 reads past the 128 slots at +108h, patch 193 takes it as the default)	observed
 0x003223e0	survarium::bullet_manager::play_particle	EAX	the position (float3*)	observed
 0x003223e0	survarium::bullet_manager::play_particle	entry ESP+4	the bullet manager (a bullet's +44h)	observed
 0x003223e0	survarium::bullet_manager::play_particle	entry ESP+8	the particle (a slot of the pair's +24h array: a resource pointer, its count +0D0h taken)	observed

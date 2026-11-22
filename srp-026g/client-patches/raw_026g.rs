@@ -3533,6 +3533,15 @@ impl GameMaterial {
         unsafe { self.0.byte_add(0x64).cast::<u16>().as_ptr() }
     }
 
+    /// +0x66 (u16): its pair master's id, 0FFFFh itself (material_pair 0x306D5F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn master(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x66).cast::<u16>().as_ptr() }
+    }
+
     /// +0x4c (f32): its physic armor (game.materials): try_pierce's A (0x32D980); 0 lets every bullet through for nothing (k = 1, 0x32D99E)
     ///
     /// # Safety
@@ -3540,6 +3549,30 @@ impl GameMaterial {
     #[inline(always)]
     pub unsafe fn armor(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x4c).cast::<f32>().as_ptr() }
+    }
+}
+
+/// A survarium::game_material_manager (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GameMaterialManager(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl GameMaterialManager {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x1030c (u16): the default material's id, 11 (the constructor 0x306BBF; the manager is 10310h bytes, 0x2CD1F2): material_pair's master and second for an id whose slot is empty. The manager's tables: +108h 128 material slots by id (0x200 bytes zeroed at 0x306BC6; find by name 0x306E00 walks 128), +308h 128 x 128 pair slots, [master x 128 + second] (0x10000 bytes, 0x306BD8), +10308h the default material
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn default_id(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x1030c).cast::<u16>().as_ptr() }
     }
 }
 
@@ -33508,21 +33541,6 @@ impl BulletManagerEngine {
     }
 }
 
-/// A survarium::game_material_manager (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
-/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct GameMaterialManager(NonNull<c_void>);
-
-#[allow(dead_code)]
-impl GameMaterialManager {
-    /// Its address as a value (an id, a compare): never read through.
-    #[inline(always)]
-    pub fn address(self) -> u32 {
-        self.0.as_ptr() as usize as u32
-    }
-}
-
 /// A survarium::particle_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -37020,6 +37038,39 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn movement(machine: &impl Machine) -> u32 {
             machine.register(Register::Ecx)
+        }
+    }
+
+    /// material_pair.entry (0x306d50): game_material_manager::material_pair's start (movzx eax,dx / mov eax,[ecx+eax*4+108h]): ECX the manager, DX and DI the two material ids, indexed into its 128 material slots (+108h) with no bound; done 0x306DF8, its ret (nothing pushed yet), EAX the pair or 0 (no pair: every caller tests it, 0x2481A6 0x2487F8 0x248A74 0x248B90 0x32E5A0 0x32E7FA 0x32EA20 0x32EC9F)
+    pub mod material_pair_entry {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::game_material_manager (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn manager(machine: &impl Machine) -> Option<GameMaterialManager> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(GameMaterialManager)
+        }
+
+        /// EDX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn first(machine: &impl Machine) -> u32 {
+            machine.register(Register::Edx)
+        }
+
+        /// EDI: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn second(machine: &impl Machine) -> u32 {
+            machine.register(Register::Edi)
         }
     }
 
