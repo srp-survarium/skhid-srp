@@ -1117,6 +1117,35 @@ fn respawns_come_in_waves_of_15_s_never_sooner_than_7_s() {
 }
 
 #[test]
+fn the_hud_counts_to_the_wave_a_death_now_would_wait_for() {
+    let mut game = Match::started(1);
+    let wave = |game: &Match, at: u32| game.rule.hud(&game.params, t(START + at)).wave;
+    let left = |game: &Match, at: u32| wave(game, at).map(|wave| (wave.left_ms, wave.total_ms));
+    assert_eq!(Rule::new(1).hud(&game.params, t(5)).wave, None, "before the start");
+    assert_eq!(left(&game, 0), Some((15_000, 15_000)));
+    assert_eq!(left(&game, 14_999), Some((1, 15_000)));
+    assert_eq!(left(&game, 15_000), Some((15_000, 15_000)), "this step's wave has come");
+    assert_eq!(left(&game, 21_500), Some((8_500, 15_000)));
+    // The shown wave is the one a death at least 7 s before it gets.
+    let death = 21_500 - 7_000;
+    let at = game.rule.respawn_at(&game.params, t(START + death), Shift::NONE).unwrap();
+    assert_eq!(at.ms() - START, 30_000);
+    // None in a round's restart (respawns held), back with the next hunt.
+    game.point_for(0);
+    assert_eq!(wave(&game, game.now - START), None, "the 3 s after a delivery");
+    game.next_round();
+    let passed = game.now - START;
+    assert_eq!(left(&game, passed), Some((15_000 - passed % 15_000, 15_000)));
+    // None in sudden death and once over.
+    let mut game = Match::at_time(1, 899_900, [2, 2]);
+    game.run_to(900_000);
+    assert_eq!(wave(&game, 900_000), None, "sudden death");
+    let mut game = Match::at_time(1, 899_900, [1, 0]);
+    game.run_to(900_000);
+    assert_eq!(wave(&game, 900_000), None, "over");
+}
+
+#[test]
 fn the_bring_award_is_shared_by_each_carriers_part_of_the_way() {
     let mut game = Match::started(0);
     // Wherever it appears, the carriers below walk the rest of the way to
