@@ -27,7 +27,13 @@ three). No artifact rescue in this version (owner, 2026-11-17).
   results' kills line (`rewards`: `SRP_KILL`); quests' kills are the kd
   rule's and do not count it.
 - Freezing the entire opposing team awards one round. Simultaneous wipes
-  award neither team a point and replay the round.
+  award neither team a point and replay the round. A place that left stays
+  frozen, so a team whose players all left counts as frozen.
+- A team frozen whole while the other team has nobody (a 1 v 0 private
+  room, or the other side all left) draws: no point, the round replayed, so
+  a player alone farms nothing and still gets a new round (the owner,
+  2026-11-22: alone in a room he stayed frozen, no round came). Nobody
+  entered on either side: nothing ends.
 - The final win ends the match: no pause, no countdown and no respawn after
   it, and the match server ends it 2 s after the snapshot that has it
   (`FREEZE_TAG_END_DELAY_MS`, the other modes' end delay is 3 s), so the last
@@ -83,7 +89,8 @@ Every other team map has it too (the owner, 2026-11-21: "make sure freeze tag
 is playable on all non FFA-only maps"): each level and weather maps_dict gives
 a battery, Team Deathmatch or Research config, 50 more, each config made as
 Rudnya's from the map's own Team Deathmatch config (`freeze/<its name>`), maps
-400-449 (`freeze-tag-maps-1.json`, made by `scripts/mode-maps/make.py`; the
+400-449 (`freeze-tag-maps-1.json`, made by `scripts/mode-maps/make.py`, which keeps each
+map's id in `ids.tsv` beside it: a new map's is the next free one, an id never moves; the
 list: `artefact_hunt.md` "Maps"). Free for All's maps alone (the STALKER maps)
 have none. Training Camp has its own (maps_dict 450, `training-camp-teams-1.json`,
 which `make.py` leaves to it), made the same way from its Team Deathmatch config,

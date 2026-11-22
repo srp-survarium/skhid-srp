@@ -67,6 +67,8 @@ pub mod hud_options;
 pub mod hit_marker_walls;
 // patch 169: the forward effects draw as 0.44a5's
 pub mod forward_effects;
+// patch 183: the g-buffer's parallax constants as 0.44a5 sets them
+pub mod parallax_uv;
 // patch 147: every run's logs in files of their own
 pub mod run_logs;
 pub mod tab_cursor;

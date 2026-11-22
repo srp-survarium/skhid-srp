@@ -4,4 +4,4 @@
 set -euo pipefail
 root=$(cd "$(dirname "$0")/../.." && pwd)
 last=$(sed -n 's/^resources\.db\.patch_\([0-9]*\)[[:space:]].*/\1/p' "$root/release/patches.tsv" | sort -n | tail -1)
-"$root/release/build-content" "$((last + 1))" --out "${CHECK_WORK:?run by tools/check}/content"
+"$root/release/build-content" "$((last + 1))" --slow --out "${CHECK_WORK:?run by tools/check}/content"

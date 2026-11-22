@@ -83,7 +83,7 @@ Each one a decision; the owner's are marked, the rest are the port's and open to
   collision as the battery project has them, on a copy of the map's Team Deathmatch project
   (its spawns; each base checked on its own team's side). Pack `artefact-hunt-maps` (the configs)
   and `artefact-hunt-maps-1.json` (projects, maps_dict 327-350), both made by
-  `scripts/mode-maps/make.py`. Rudnya v0.69 too: 0.46c2's Rudnya points are for 0.26's geometry,
+  `scripts/mode-maps/make.py` (each map's id kept in its `ids.tsv`: a new map's is the next free one). Rudnya v0.69 too: 0.46c2's Rudnya points are for 0.26's geometry,
   its bases where the battery containers stand anyway. London likewise since it plays 0.32a4's
   projects (`london-v032-1`): maps 324-326 keep their ids and play configs of v0.32's own battery
   mode on copies of its Team Deathmatch projects (`artefact_hunt/v032a_level_09_<weather>_ah`);

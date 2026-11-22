@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # usage: release/build-content <revision> [--out <folder>] [--tree <checkout>] [--site] [--manifest <file>]
-#                              [--no-cache] [--full | --delta-from <folder>]
+#                              [--no-cache] [--full | --slow [--delta-from <folder>]]
+#
+# For a test of a few changed files: tools/test-patch <setup> <inputs> (a minute) packs only them
+# into a local game. This builds the whole manifest (~20 min): the release's build (--full), or with
+# --slow a local one (without either it is refused, and says so).
 #
 # The next content patch, from the manifest of everything that should be
 # live in players' resources.db (release/content.tsv: the base patches, the
@@ -99,7 +103,7 @@
 #                       sha256, read once per archive (by its sha256) and
 #                       srp-game-data.
 #   --full              the release's build: every check and the item tables.
-#                       Without it, a quick build for a local test: the same
+#   --slow              without --full, a quick build for a local test: the same
 #                       patch, server game data and files.tsv, without the
 #                       check of players' files with the patch (step 4's
 #                       last) and without the item tables (step 5); --out
@@ -119,12 +123,9 @@
 #                       earlier patches, the game sees what a quick build of
 #                       this tree gives it (the earlier patch's files known by
 #                       its folder's digests.tsv, or read once and kept by its
-#                       sha256). The quick way to test a small edit: build
-#                       once, then each edit with --delta-from the last
-#                       folder (a lobby code edit: about a minute, mostly the
-#                       compiler and the cache's reads; without it, packing
-#                       every unreleased file into the patch takes minutes).
-#                       delta.tsv says each file and why;
+#                       sha256); it still builds the whole manifest (a
+#                       small edit's test is tools/test-patch's). delta.tsv
+#                       says each file and why;
 #                       the server game data (of the list, the earlier patches
 #                       and it) only when a file the server reads is in it,
 #                       else the earlier build's serves. QUICK-BUILD and
@@ -149,7 +150,7 @@ took() {
 }
 BUILD_SITE=${SKHID_TEST_BUILD_SITE:-$here/build-site}
 
-revision='' out='' tree=$ROOT site=0 manifest='' cached=1 full=0 delta_from=''
+revision='' out='' tree=$ROOT site=0 manifest='' cached=1 full=0 slow=0 delta_from=''
 while (($#)); do
     case $1 in
     -h | --help) usage ;;
@@ -159,12 +160,16 @@ while (($#)); do
     --manifest) (($# >= 2)) || usage 1; manifest=$2; shift 2 ;;
     --no-cache) cached=0; shift ;;
     --full) full=1; shift ;;
+    --slow) slow=1; shift ;;
     --delta-from) (($# >= 2)) || usage 1; delta_from=$2; shift 2 ;;
     -*) die "unknown option $1 (--help)" ;;
     *) [[ -z $revision ]] || usage 1; revision=$1; shift ;;
     esac
 done
 [[ -n $revision ]] || usage 1
+pointer="for a test of a few changed files: tools/test-patch <setup> <inputs> (a minute)"
+((full || slow)) || die "$pointer; to build the whole content anyway (~20 min): add --slow (a release: --full)"
+((full)) || say "build-content: $pointer; this build takes ~20 min"
 is_revision "$revision" || die "$revision: a revision is a number from 1 to 255"
 tree=$(cd "$tree" 2>/dev/null && pwd) || die "--tree: no such folder"
 manifest=${manifest:-$tree/release/content.tsv}
