@@ -155,7 +155,7 @@ st_ak74u_description	AK74:n lyhennetty versio, kaliiperi 5.45x39. Pienen koon vu
 st_ak74u_name	AKS-74U
 st_ak74u_premium_description	AK74:n lyhennetty versio, kaliiperi 5.45x39. Pienen koon vuoksi merijalkaväen, sisäministeriön ja turvallisuusviranomaisten käytössä. Kerta- ja sarjatuli. Premium-versio erikoismaastokuvioinnilla.
 st_ak74u_premium_name	AKS-74U Corsair
-st_ak_zenit_rk2_foregrip_desc	Rekyyli -4%. Tähtäysaika +1.5%.
+st_ak_zenit_rk2_foregrip_desc	Rekyyli -3%. Tähtäysaika +1%.
 st_ak_zenit_rk2_foregrip_name	Taktinen kahva Zenit RK-2
 st_akmn_description	7.62x39 mm:n patruunalle muokattu Kalašnikov-rynnäkkökivääri. Teho ja luotettavuus tekevät siitä yhä käyttökelpoisen. Kerta- ja sarjatuli.
 st_akmn_name	AKM
@@ -1141,9 +1141,9 @@ st_exp_reward_match	Ansaittu kokemus
 st_exp_reward_premium	Premium-bonus
 st_experience	Kokemus
 st_experience_modifier	Saatu kokemus
-st_fabdefence_miki_foregrip_desc	Rekyyli -4%.
+st_fabdefence_miki_foregrip_desc	Rekyyli -3%. Tähtäysaika +1%.
 st_fabdefence_miki_foregrip_name	Etukahva FAB-Defense MIKI
-st_fabdefence_ptk_foregrip_desc	Rekyyli -6%.
+st_fabdefence_ptk_foregrip_desc	Rekyyli -3.5%. Tähtäysaika +1.2%.
 st_fabdefence_ptk_foregrip_name	Etukahva FAB-Defense PTK
 st_face_069d_balaclava_3_hole_desc	Neulottu kypärähuppu silmä- ja suuaukoilla. Lämmittää ja peittää kasvot.
 st_face_069d_balaclava_3_hole_name	Kolmiaukkoinen kypärähuppu
@@ -1229,7 +1229,7 @@ st_fn_minimi_description	Belgialainen kevyt konekivääri, kaliiperi 5.56x45. FN
 st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Belgialainen lähisuojeluase, kaliiperi 5.7x28. FN Herstalin noin vuonna 1990 oman patruunansa kanssa kehittämä bullpup-ase. Päällä pitkittäin sijaitseva 50 patruunan lipas. Monien maiden erikoisjoukkojen ja poliisin käytössä. Kerta- ja sarjatuli.
 st_fn_p90_name	FN P90
-st_fort401_foregrip_desc	Rekyyli -6%.
+st_fort401_foregrip_desc	Rekyyli -3.5%. Tähtäysaika +1.2%.
 st_fort401_foregrip_name	Vakioetukahva Fort-401
 st_fort_17_description	Ukrainalainen itselataava pistooli, kaliiperi 9x18. Tuotanto alkoi vuonna 2004. Sisäisten joukkojen ja eräiden erikoisyksiköiden käytössä. 12 patruunan lipas. 
 st_fort_17_name	Fort 17
@@ -1254,7 +1254,7 @@ st_friendly_user_compliment	Ystävällinen
 st_friends_online	Kaverit paikalla
 st_friends_signin_notification_option	Ilmoita kavereiden saapumisesta
 st_fullscreen_option	Koko näyttö
-st_gandp_ris_foregrip_desc	Rekyyli -4%. Tähtäysaika +1.5%.
+st_gandp_ris_foregrip_desc	Rekyyli -3%. Tähtäysaika +1%.
 st_gandp_ris_foregrip_name	Etukahva G&P RIS
 st_general_volume_option	Yleinen
 st_generic_money_name	Ruplat
@@ -1302,7 +1302,7 @@ st_hud_tutorial_frame_6_text_1	Taisteluun!
 st_hud_tutorial_frame_6_text_2	Taistelun peruskoulutus suoritettu.\nOnnea matkaan!
 st_hud_tutorial_frame_6_text_3	Palkintosi:
 st_ignored	Estolista
-st_imi_fsg2_foregrip_desc	Rekyyli -2%.
+st_imi_fsg2_foregrip_desc	Rekyyli -2.5%. Tähtäysaika +0.8%.
 st_imi_fsg2_foregrip_name	Etukahva FSG2
 st_in_develepoment_hint	Kehitteillä
 st_ingame_volume_option	Peli
@@ -1478,7 +1478,7 @@ st_m4a1_description	Amerikkalainen karbiini, kaliiperi 5.56x45. M16:n lyhyempi j
 st_m4a1_name	M4A1
 st_magnum_description	Kuusilaukauksinen .357 Magnum -revolveri vuodelta 1955. Joidenkin mielestä luokkansa parhaimmistoa. Erottuu pehmeällä laukaisulla ja tarkkuudella.
 st_magnum_name	Colt Python
-st_magpul_afg1_foregrip_desc	Rekyyli -6%.
+st_magpul_afg1_foregrip_desc	Rekyyli -3.5%. Tähtäysaika +1.2%.
 st_magpul_afg1_foregrip_name	Etukahva AFG-1
 st_maintenance	Palvelimia huolletaan. Sovellus sulkeutuu.
 st_map	Kartta
@@ -1507,7 +1507,7 @@ st_match_settings_checkbox_training_match	Harjoitusottelu
 st_match_settings_checkbox_training_match_hint	Harjoitushuone
 st_match_settings_clan_match	Klaaniottelu
 st_match_time_is_up	Otteluaika päättyi!
-st_mauser_m712_foregrip_desc	Rekyyli -6%.
+st_mauser_m712_foregrip_desc	Rekyyli -3.5%. Tähtäysaika +1.2%.
 st_mauser_m712_foregrip_name	Kahva Mauser M.712
 st_max_carried_weight_description	Kantokyky:
 st_max_carried_weight_name	Urheilija
@@ -1620,47 +1620,47 @@ st_music_volume_option	Musiikki
 st_must_be_in_clan_team	Sinun on kuuluttava klaanijoukkueeseen.
 st_muzzle_aek919k_m12x1l_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
 st_muzzle_aek919k_m12x1l_muzzlebrake_name	AEK-919K suujarru, M12x1L
-st_muzzle_akmsu_m24x15_muzzlebrake_description	Vain ulkonäkö.
+st_muzzle_akmsu_m24x15_muzzlebrake_description	
 st_muzzle_akmsu_m24x15_muzzlebrake_name	AKMSU liekinvaimennin, M24x1.5
-st_muzzle_aks74u_m24x15_muzzlebrake_description	Vain ulkonäkö.
+st_muzzle_aks74u_m24x15_muzzlebrake_description	
 st_muzzle_aks74u_m24x15_muzzlebrake_name	AKS-74U liekinvaimennin, M24x1.5
 st_muzzle_aws_rapira_m24x15_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
 st_muzzle_aws_rapira_m24x15_muzzlebrake_name	Rapira suujarru, M24x1.5
-st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description	
 st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_name	ROFH liekinvaimennin, M14x1L
-st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	
 st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_name	ROFH liekinvaimennin, M16x1L
-st_muzzle_custom_01_doublevert_m22x075_choke_description	Hajonta -20 %. Tähtäysaika +3 %.
+st_muzzle_custom_01_doublevert_m22x075_choke_description	Hajonta -20 %. Tähtäysaika +2.5 %.
 st_muzzle_custom_01_doublevert_m22x075_choke_name	Custom 01 supistaja, M22x0.75 O/U
-st_muzzle_custom_01_duckbill_description	Hajonta -15 %.
+st_muzzle_custom_01_duckbill_description	Hajonta -15 %. Tähtäysaika +1.9 %.
 st_muzzle_custom_01_duckbill_name	Custom 01 ankannokka, M22x0.75
 st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
 st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_name	Custom 01 suujarru, M14x1L
-st_muzzle_custom_01_m22x075_choke_description	Hajonta -20 %. Tähtäysaika +3 %.
+st_muzzle_custom_01_m22x075_choke_description	Hajonta -20 %. Tähtäysaika +2.5 %.
 st_muzzle_custom_01_m22x075_choke_name	Custom 01 supistaja, M22x0.75
 st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
 st_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Custom 01 suujarru, M30x1
-st_muzzle_custom_02_duckbill_description	Hajonta -15 %.
+st_muzzle_custom_02_duckbill_description	Hajonta -15 %. Tähtäysaika +1.9 %.
 st_muzzle_custom_02_duckbill_name	Custom 02 ankannokka, M22x0.75
-st_muzzle_custom_02_m14x1l_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_custom_02_m14x1l_firearrestor_description	
 st_muzzle_custom_02_m14x1l_firearrestor_name	Custom 02 liekinvaimennin, M14x1L
-st_muzzle_custom_02_m24x15_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_custom_02_m24x15_firearrestor_description	
 st_muzzle_custom_02_m24x15_firearrestor_name	Custom 02 liekinvaimennin, M24x1.5
-st_muzzle_custom_03_duckbill_description	Hajonta -15 %.
+st_muzzle_custom_03_duckbill_description	Hajonta -15 %. Tähtäysaika +1.9 %.
 st_muzzle_custom_03_duckbill_name	Custom 03 ankannokka, M22x0.75
-st_muzzle_custom_03_m14x1l_clamp_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_description	
 st_muzzle_custom_03_m14x1l_clamp_firearrestor_name	Custom 03 liekinvaimennin, M14x1L
-st_muzzle_custom_04_i05x28_clamp_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_custom_04_i05x28_clamp_firearrestor_description	
 st_muzzle_custom_04_i05x28_clamp_firearrestor_name	Custom 04 liekinvaimennin, 1/2"x28
-st_muzzle_custom_04_i06x24_clamp_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_custom_04_i06x24_clamp_firearrestor_description	
 st_muzzle_custom_04_i06x24_clamp_firearrestor_name	Custom 04 liekinvaimennin, 5/8"x24
-st_muzzle_custom_04_m14x1l_clamp_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_description	
 st_muzzle_custom_04_m14x1l_clamp_firearrestor_name	Custom 04 liekinvaimennin, M14x1L
-st_muzzle_custom_doublevert_01_duckbill_description	Hajonta -15 %.
+st_muzzle_custom_doublevert_01_duckbill_description	Hajonta -15 %. Tähtäysaika +1.9 %.
 st_muzzle_custom_doublevert_01_duckbill_name	Custom 01 ankannokka, M22x0.75 O/U
-st_muzzle_custom_doublevert_02_duckbill_description	Hajonta -15 %.
+st_muzzle_custom_doublevert_02_duckbill_description	Hajonta -15 %. Tähtäysaika +1.9 %.
 st_muzzle_custom_doublevert_02_duckbill_name	Custom 02 ankannokka, M22x0.75 O/U
-st_muzzle_custom_doublhor_01_duckbill_description	Hajonta -15 %.
+st_muzzle_custom_doublhor_01_duckbill_description	Hajonta -15 %. Tähtäysaika +1.9 %.
 st_muzzle_custom_doublhor_01_duckbill_name	Custom 01 ankannokka, M22x0.75 SxS
 st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
 st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_name	T-Brake suujarru, 1/2"x28
@@ -1672,9 +1672,9 @@ st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_description	Rekyyli -
 st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_name	Defcon 1 suujarru, M16x1L
 st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
 st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_name	Defcon 1 suujarru, M30x1
-st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Hajonta -16 %.
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Hajonta -16 %. Tähtäysaika +2 %.
 st_muzzle_gunsru_custom_m22x075_muzzlebrake_name	Guns.ru suujarru, M22x0.75
-st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_description	Hajonta -16 %.
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_description	Hajonta -16 %. Tähtäysaika +2 %.
 st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_name	Kochevnik suujarru, M22x0.75
 st_muzzle_kkm_i05x28_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
 st_muzzle_kkm_i05x28_muzzlebrake_name	KKM suujarru, 1/2"x28
@@ -1684,37 +1684,37 @@ st_muzzle_lantac_dragon_i06x24_muzzlebrake_description	Rekyyli -4 %. Tähtäysai
 st_muzzle_lantac_dragon_i06x24_muzzlebrake_name	Dragon suujarru, 5/8"x24
 st_muzzle_lantac_drakon_m14x1l_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
 st_muzzle_lantac_drakon_m14x1l_muzzlebrake_name	Dragon suujarru, M14x1L
-st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_description	
 st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_name	NightBrake liekinvaimennin, 1/2"x28
-st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_description	
 st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_name	NightBrake liekinvaimennin, 5/8"x24
-st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description	
 st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_name	NightBrake liekinvaimennin, M12x1L
-st_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	
 st_muzzle_manticorearms_nightbrake_m141l_firearrestor_name	NightBrake liekinvaimennin, M14x1L
-st_muzzle_polychoke_ventedcollar_m22x075_choke_description	Hajonta -20 %. Tähtäysaika +3 %.
+st_muzzle_polychoke_ventedcollar_m22x075_choke_description	Hajonta -20 %. Tähtäysaika +2.5 %.
 st_muzzle_polychoke_ventedcollar_m22x075_choke_name	Polychoke supistaja, M22x0.75
-st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Hajonta -16 %.
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Hajonta -16 %. Tähtäysaika +2 %.
 st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_name	Ilgynag K01 suujarru, M22x0.75
-st_muzzle_redheat_krymske2_m24x15_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_redheat_krymske2_m24x15_firearrestor_description	
 st_muzzle_redheat_krymske2_m24x15_firearrestor_name	Krymsk-2 liekinvaimennin, M24x1.5
 st_muzzle_redheat_shturm_m14x1l_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
 st_muzzle_redheat_shturm_m14x1l_muzzlebrake_name	Shturm suujarru, M14x1L
 st_muzzle_redheat_shturm_m24x15_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
 st_muzzle_redheat_shturm_m24x15_muzzlebrake_name	Shturm suujarru, M24x1.5
-st_muzzle_remington_doublehor_m22x075_choke_description	Hajonta -20 %. Tähtäysaika +3 %.
+st_muzzle_remington_doublehor_m22x075_choke_description	Hajonta -20 %. Tähtäysaika +2.5 %.
 st_muzzle_remington_doublehor_m22x075_choke_name	Remington supistaja, M22x0.75 SxS
-st_muzzle_remington_doublevert_m22x075_choke_description	Hajonta -20 %. Tähtäysaika +3 %.
+st_muzzle_remington_doublevert_m22x075_choke_description	Hajonta -20 %. Tähtäysaika +2.5 %.
 st_muzzle_remington_doublevert_m22x075_choke_name	Remington supistaja, M22x0.75 O/U
-st_muzzle_remington_m22x075_choke_description	Hajonta -20 %. Tähtäysaika +3 %.
+st_muzzle_remington_m22x075_choke_description	Hajonta -20 %. Tähtäysaika +2.5 %.
 st_muzzle_remington_m22x075_choke_name	Remington supistaja, M22x0.75
-st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	
 st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_name	Dynacomp liekinvaimennin, M24x1.5
-st_muzzle_stone_shurhit_m22x075_choke_description	Hajonta -20 %. Tähtäysaika +3 %.
+st_muzzle_stone_shurhit_m22x075_choke_description	Hajonta -20 %. Tähtäysaika +2.5 %.
 st_muzzle_stone_shurhit_m22x075_choke_name	Sure-Hit supistaja, M22x0.75
-st_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	
 st_muzzle_taktikatula_saiga419_m22x075_firearrestor_name	TT-419 liekinvaimennin, M22x0.75
-st_muzzle_venometactical_antidote_m14x1l_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_description	
 st_muzzle_venometactical_antidote_m14x1l_firearrestor_name	Antidote liekinvaimennin, M14x1L
 st_muzzle_zenit_dtk2_m24x15_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
 st_muzzle_zenit_dtk2_m24x15_muzzlebrake_name	Zenit DTK-2 suujarru, M24x1.5
@@ -1724,7 +1724,7 @@ st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_description	Rekyyli -4 %. Tähtäy
 st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_name	Zenit DTK-4 suujarru, M24x1.5 clamp
 st_muzzle_zenit_dtk4_m24x15_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
 st_muzzle_zenit_dtk4_m24x15_muzzlebrake_name	Zenit DTK-4 suujarru, M24x1.5
-st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_description	
 st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_name	Zenit DTK-4 liekinvaimennin, M30x1
 st_my_place	Oma sijoitus
 st_neostead_description	Eteläafrikkalainen 12 kaliiperin pumppuhaulikko. Tony Neophytoun 1990-luvun bullpup-malli. Kaksi putkilipasta piipun päällä, lataus työntämällä etutukkia eteenpäin. 12 patruunaa. Vain kertatuli.
@@ -1847,7 +1847,7 @@ st_picatinny_scope_medium_name	Kiikarit / punapistetähtäimet
 st_pickup_item	Poimi ({USE})
 st_ping_postfix	ms
 st_pkp_pecheneg_description	Venäläinen yleiskonekivääri, kaliiperi 7.62x54R. TsNIITochMashin PKM-pohjainen kehitys, käyttöön 2001. Raskas piippu pakotetulla ilmajäähdytyksellä sallii pitkät sarjat ilman piipunvaihtoa. 100 patruunan vyö. Kerta- ja sarjatuli.
-st_pkp_pecheneg_foregrip_desc	Rekyyli -6%.
+st_pkp_pecheneg_foregrip_desc	Rekyyli -3.5%. Tähtäysaika +1.2%.
 st_pkp_pecheneg_foregrip_name	Vakioetukahva PKP
 st_pkp_pecheneg_name	PKP "Pecheneg"
 st_place	Sijoitus
@@ -2883,6 +2883,7 @@ st_srp_mode_team_deathmatch	Joukkuetaistelu
 st_srp_mouse_lock_option	Lukitse pystyherkkyys
 st_srp_mouse_vertical_option	Pystyherkkyys
 st_srp_muzzle_slot	Piipun suulaite
+st_srp_no_muzzle_flash	Ei suuliekkiä
 st_srp_optics	Optiikka
 st_srp_options_hud	HUD:
 st_srp_pierce_brick	Tiili, teräs
@@ -3297,7 +3298,7 @@ st_toz66_description	Kaksipiippuinen metsästyshaulikko, kaliiperi 12x70. Kaksi 
 st_toz66_name	TOZ-66
 st_trap_damage	Ansavahinko
 st_treasure_map_advert	Käytä kätkökarttaa löytääksesi lisää esineitä.
-st_troy_modular_foregrip_desc	Rekyyli -6%. Tähtäysaika +1.5%.
+st_troy_modular_foregrip_desc	Rekyyli -3.5%. Tähtäysaika +1.2%.
 st_troy_modular_foregrip_name	Etukahva Troy Modular
 st_tt_description	Tulan Tokarev otettiin käyttöön vuonna 1933, kaliiperi 7.62x25 mm. Suunniteltu 1930-luvulla Neuvostoliiton ensimmäiseksi itselataavaksi sotilaspistooliksi. 8 patruunan lipas.
 st_tt_name	TT-33

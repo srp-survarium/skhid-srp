@@ -11,6 +11,8 @@ package survarium.controls
    import survarium.Util;
    import survarium.constants.Colors;
    import survarium.item.ItemFactory;
+   import survarium.item.ModificationRolls;
+   import survarium.data.PropertiesDescriptor;
    import survarium.item.ItemDetailsView;
    import survarium.item.WeaponMovement;
    import survarium.player.LocalPlayerProfile;
@@ -80,6 +82,10 @@ package survarium.controls
       private var _details:Object;
       private var _detailsText:ItemDetailsView;
       private var _detailsMode:String = "none";
+
+      // A muzzle device's or a grip's card: its stats are bonus lines under the title, and the guns it
+      // fits (textFieldDescription) a section of their own under them.
+      private var _listBelow:Boolean = false;
       
       public function ItemInfoRenderer()
       {
@@ -200,6 +206,33 @@ package survarium.controls
          var modifier:Object;
          var modifierIcon:Icon;
          var entry:Object;
+         // a muzzle device's or a grip's stats: built-in lines as the game's weapon roll of each key shows
+         // them, its icon and its words (the owner, 2026-11-22: "exactly this one: 'Item slots: +1'")
+         if(!_data.isWeapon)
+         {
+            var properties:PropertiesDescriptor = PropertiesDescriptor.getPropertiesDescriptor("properties");
+            for each(var stat:Object in UpgradeWindow.attachmentStats(int(_data.dictId)))
+            {
+               if(Boolean(stat.label))
+               {
+                  // a line with no stat (a flash hider's): its icon and its words
+                  defaultModifiers.push({icon:icons.getIcon(stat.icon),label:LocalizationData.getName(stat.label)});
+                  continue;
+               }
+               // the roll's line gives the value and its colour, `words` the name of what it is a share of
+               var description:Object = properties.getPropertyDescription(stat.prop);
+               var words:Object = properties.getPropertyDescription(stat.words);
+               var share:Number = Number(stat.share);
+               if(!description || !words)
+               {
+                  continue;
+               }
+               defaultModifiers.push({
+                  icon:icons.getIcon(stat.icon),
+                  label:words.prop_name + ": " + Util.styledChar(ModificationRolls.format(description,share),ModificationRolls.style(description,stat.prop,share))
+               });
+            }
+         }
          while(i < allModifiers.length)
          {
             modifier = allModifiers[i];
@@ -270,7 +303,8 @@ package survarium.controls
          {
             return null;
          }
-         if(Boolean(item.itemDescription))
+         // a device's or a grip's stats are its bonus lines (sortModifiers), not its description's words
+         if(Boolean(item.itemDescription) && UpgradeWindow.attachmentStats(int(item.dictId)).length == 0)
          {
             hint = item.itemDescription;
          }
@@ -304,11 +338,13 @@ package survarium.controls
             }
             i = ++i;
          }
-         if(names.length > 0)
+         // not while the window is open for a weapon: what it lists fits that weapon (the owner, 2026-11-22)
+         var inWindow:Boolean = Boolean(UpgradeWindow.instance) && UpgradeWindow.instance.visible && UpgradeWindow.hostDictId >= 0;
+         if(names.length > 0 && !inWindow)
          {
             hint += (hint.length > 0 ? "\n" : "") + LocalizationData.getName("can_be_installed_on") + ": " + names.join(", ");
          }
-         if(Boolean(item.itemId) && Boolean(UpgradeWindow.instance) && item.descriptor != ItemPlace.SHOP)
+         if(Boolean(item.itemId) && Boolean(UpgradeWindow.instance) && item.descriptor != ItemPlace.SHOP && !inWindow)
          {
             names = UpgradeWindow.wearers(item);
             if(Boolean(names) && names.length > 0)
@@ -387,6 +423,11 @@ package survarium.controls
             this.itemAmmoName.visible = false;
          }
          var scopeText:String = this.scopeHintText(item);
+         _listBelow = !item.isWeapon && UpgradeWindow.attachmentStats(int(item.dictId)).length > 0;
+         if(!Boolean(scopeText) && _listBelow)
+         {
+            this.textFieldDescription.visible = false;
+         }
          if(Boolean(scopeText))
          {
             this.textFieldDescription.y = item.isWeapon ? 52 : 32;
@@ -455,7 +496,7 @@ package survarium.controls
 
       private function naturalHeaderHeight() : Number
       {
-         return textFieldDescription.visible ? textFieldDescription.y + textFieldDescription.height : (itemAmmoName.visible ? 55 : 37);
+         return textFieldDescription.visible && !_listBelow ? textFieldDescription.y + textFieldDescription.height : (itemAmmoName.visible ? 55 : 37);
       }
 
       private function layoutHeader(headerHeight:Number) : void
@@ -510,6 +551,13 @@ package survarium.controls
          this.bottomLine.y = this.bottomBackContainer.y + this.bottomBackContainer.height;
          this.bottomLine.visible = false;
          this.background.height = this.bottomLine.y + 5;
+         if(_listBelow && this.textFieldDescription.visible)
+         {
+            // the guns it fits under its lines, past the card's own line
+            this.bottomLine.visible = true;
+            this.textFieldDescription.y = this.bottomLine.y + 6;
+            this.background.height = this.textFieldDescription.y + this.textFieldDescription.height + 6;
+         }
          this.defaultModfiersBack.visible = this.defaultModifiersList.visible = hasDefaultModifiers;
          this.defaultModifiersList.y = this.propsBottomLine.y + 10;
          this.defaultModfiersBack.y = this.propsBottomLine.y + 2;

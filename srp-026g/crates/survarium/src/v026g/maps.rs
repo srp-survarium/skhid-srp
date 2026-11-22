@@ -1679,9 +1679,12 @@ mod tests {
             // MAX_POINTS): a map past them would leave its last points unused.
             assert!(map.solo_respawn_points <= 128, "{} {}", map.config, map.solo_respawn_points);
             // The STALKER maps' Team Deathmatch is not offered (no dictionary
-            // row: stalker-tdm-hold-1): nothing to compare with.
+            // row: stalker-tdm-hold-1) but Training Camp's, which plays a copy
+            // of Free for All's project (training-camp-teams-1): nothing to
+            // compare with.
             let Some(tdm) = table.iter().find(|other| {
                 other.mode == GameMode::TeamDeathmatch
+                    && !other.is_stalker()
                     && (other.level, other.weather) == (map.level, map.weather)
             }) else {
                 continue;

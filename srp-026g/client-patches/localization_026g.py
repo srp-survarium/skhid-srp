@@ -51,6 +51,12 @@ EMPTY_KEYS = frozenset('st_turn_' + direction + '_action'
                        for direction in ('down', 'left', 'up', 'right'))
 
 
+def may_be_empty(key):
+    """Whether a text may be empty: those above, and a muzzle device's description, which is empty
+    where the device changes no stat (scripts/muzzle-devices/texts.py: its card's lines say it all)."""
+    return key in EMPTY_KEYS or key.startswith('st_muzzle_') and key.endswith('_description')
+
+
 def unique_object(pairs):
     result = {}
     for key, value in pairs:

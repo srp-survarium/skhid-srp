@@ -131,7 +131,7 @@ pub fn check(message: u8, payload: &[u8]) -> Result<(), Refusal> {
         return Err(refuse(0, Reason::NeverSent));
     }
     // The other 0xF6: a replay's playback or events note to a spectator
-    // (patch 179, `replay-control`), taken whole by the patch's own parse.
+    // (patch 180, `replay-control`), taken whole by the patch's own parse.
     if message == id::UPLOAD_REQUEST && replay_control::ServerNote::parse(payload).is_some() {
         return Ok(());
     }
@@ -156,7 +156,7 @@ pub fn check(message: u8, payload: &[u8]) -> Result<(), Refusal> {
         // tests only the time (0x27C652..0x27C67C, 0x2D1489).
         id::PLAYER_ENTERED => place(1),
         // An 0xEA naming no place is the server's farewell to a spectator
-        // (patch 178 ends its match); a player's game passes it to
+        // (patch 179 ends its match); a player's game passes it to
         // `leave_match`, which returns 1 with nothing written
         // (`check_spectator_026g.py`).
         id::PLAYER_LEFT => match payload.get(1).copied().map(LeftPlace::of) {

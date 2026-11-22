@@ -15,7 +15,7 @@
 ; (the game's +53C8h, as the game world's mouse tests it at 0x25CFAA; the
 ; handler is the game world's +1F8h, its game the game world's +9Ch, so
 ; [handler-15Ch]): its controls are toggled as in the original. A network
-; game has the movie too since patch 179 (hidden unless it views a replay,
+; game has the movie too since patch 180 (hidden unless it views a replay,
 ; whose F11 that patch takes first), so the movie alone says nothing. In any
 ; other game the hud movie ([[hud+8]+108h]+4) is asked root.interface_hidden and
 ; both it and the player icons' movie ([[hud+10h]+108h]+4) get

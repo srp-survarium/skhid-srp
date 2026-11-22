@@ -10,6 +10,11 @@ from its game.options and turned by rules.tsv; nothing is typed a device:
 - its family (families.tsv: by its main modification's key and its group) and so its price;
 - its shot effect (attach_params' effects_to_override.particles.shoot; one a device);
 - its model (weapons/modules/<x> is our weapons/modules_069/<x>, pack weapon-modules).
+A shotgun device (one that narrows the spread) costs aim time, an eighth of the spread it takes off,
+to 0.1 % (SPREAD_COST), whatever 0.69d0 gives it: they compete on the same guns, and 0.69d0's costs
+are on keys 0.26g does not read, so the brakes and duckbills cost nothing and beat the chokes (the
+owner, 2026-11-22: "check muzzles are similar"). Duckbill -15 % +1.9 %, brake -16 % +2 %, choke
+-20 % +2.5 %.
 Without --write: says what differs from devices.tsv and fails if anything does.
 """
 import sys
@@ -28,6 +33,9 @@ MAIN_KEYS = {
     'parameters/dispersion_buck_shot_x_scale': 'brake',
 }
 GROUP_FAMILIES = {'choke': 'choke', 'duckbill': 'duckbill'}
+SPREAD, AIM_TIME = 'dispersion/base_dispersion', 'parameters/aim_time'
+# A shotgun device's aim time for each unit of spread it takes off, rounded to 0.001.
+SPREAD_COST = 1 / 8
 COLUMNS = ('dict id', 'item', 'module', 'family', 'price', 'shot effect', 'stats', "0.69d0's at grade 7", 'model',
            'slots')
 
@@ -154,6 +162,8 @@ def stats_of(game, module, rules, modules):
         ours[to] = sum(values) / 2
     if look:
         ours = {}
+    if SPREAD in ours:
+        ours[AIM_TIME] = round(-ours[SPREAD] * SPREAD_COST, 3)
     said = ' | '.join(f'{group}: ' + ', '.join(f'{key} {value:+.4g}' for key, value, _ in modifiers)
                       for group, modifiers in theirs)
     return main_key, [(key, round(value, 4)) for key, value in sorted(ours.items())], said, instead

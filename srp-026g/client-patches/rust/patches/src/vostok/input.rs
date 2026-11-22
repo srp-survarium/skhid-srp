@@ -16,7 +16,7 @@ pub struct Action(pub u32);
 
 impl Action {
     /// toggle_replay_ui, default key F9 since patch 152, F11 the original's (action table entry 0xA74CA8, kinds 5):
-    /// patch 62's hide-the-interface key, and a replay viewer's (patch 179).
+    /// patch 62's hide-the-interface key, and a replay viewer's (patch 180).
     pub const TOGGLE_REPLAY_UI: Action = Action(0x19);
     /// commit_suicide, default key K (action table entry 0xA74D20).
     pub const COMMIT_SUICIDE: Action = Action(0x1F);

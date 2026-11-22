@@ -56,7 +56,7 @@ const PREDICTION_EVERY: Duration = Duration::from_secs(60);
 
 /// How long the lobby takes the game of a player it freed (`queue_status`)
 /// to be still in that match. A spectator's game sends no word as it takes
-/// the server's farewell (patch 178: close_current_match(0), nothing sent),
+/// the server's farewell (patch 179: close_current_match(0), nothing sent),
 /// and its movie asks for its room meanwhile; a word of its own (`31 .. FF`)
 /// ends the wait at once.
 pub(super) const FREED_WORD: Duration = Duration::from_secs(10);

@@ -2068,6 +2068,29 @@ package survarium.controls
          this.openModifiersWindow();
       }
       
+      // The page the next window opens on (a weapon's Attachments or Appearance entry), -1 none; the
+      // lobby takes it when it opens the window (takeUpgradePage).
+      private var _upgradePage:int = -1;
+
+      public function takeUpgradePage() : int
+      {
+         var page:int = this._upgradePage;
+         this._upgradePage = -1;
+         return page;
+      }
+
+      protected function attachmentsElement(event:Event = null) : void
+      {
+         this._upgradePage = UpgradeWindow.PAGE_ATTACHMENTS;
+         this.upgradeElelemnt(event);
+      }
+
+      protected function appearanceElement(event:Event = null) : void
+      {
+         this._upgradePage = UpgradeWindow.PAGE_APPEARANCE;
+         this.upgradeElelemnt(event);
+      }
+
       private function openModifiersWindow() : void
       {
          dispatchEvent(new Event(Events.OPEN_MODIFIERS));
@@ -2781,8 +2804,32 @@ package survarium.controls
          {
             return 0;
          }
+         var best:int = this.nameScore(item.name == null ? "" : String(item.name));
+         var loose:Boolean = _searchLoose;
+         // a scope, muzzle device or grip is found by the name of a gun it fits too (the owner,
+         // 2026-11-22: "vikhr ... I should see all attachments that fit that weapon")
+         if(int(item.category) == ItemCategory.SCOPES)
+         {
+            for each(var gun:String in this.fitNames(int(item.dictId)))
+            {
+               var score:int = this.nameScore(gun);
+               if(score > best || score == best && score > 0 && loose && !_searchLoose)
+               {
+                  best = score;
+                  loose = _searchLoose;
+               }
+            }
+         }
+         _searchLoose = loose;
+         return best;
+      }
+
+      // The search's score of one name: 0 when a word of the search is not in it; _searchLoose set
+      // when a word matched only loosely.
+      private function nameScore(text:String) : int
+      {
+         _searchLoose = false;
          var words:Array = this._search.words;
-         var text:String = item.name == null ? "" : String(item.name);
          var form:Array = this._searchNames[text] as Array;
          if(form == null)
          {
@@ -2792,16 +2839,38 @@ package survarium.controls
          var total:int = 1;
          for(var i:int = 0; i < words.length; i++)
          {
-            var word:String = words[i];
-            var score:int = wordScore(word,form[0],form[1]);
+            var score:int = wordScore(words[i],form[0],form[1]);
             if(score == 0)
             {
+               _searchLoose = false;
                return 0;
             }
             _searchLoose ||= score < MATCH_PART;
             total += score;
          }
          return total;
+      }
+
+      // The names of the guns an attachment fits (its card's "Can be installed on"), by its dict id.
+      private var _fitNames:Object = {};
+
+      private function fitNames(dictId:int) : Array
+      {
+         var names:Array = this._fitNames[dictId] as Array;
+         if(names == null)
+         {
+            names = [];
+            for each(var weaponId:int in UpgradeWindow.weaponsFor(dictId))
+            {
+               var description:Object = Boolean(_itemDescriptor) ? _itemDescriptor.getItemDescription(weaponId) : null;
+               if(Boolean(description) && Boolean(description.name) && names.indexOf(String(description.name)) == -1)
+               {
+                  names.push(String(description.name));
+               }
+            }
+            this._fitNames[dictId] = names;
+         }
+         return names;
       }
       
       // The kinds a "+" word names (SEARCH_KINDS' indexes): a kind's word starts with it.
@@ -3556,10 +3625,31 @@ package survarium.controls
                   }
                   if(owned && this.isUpgradeable(itemData))
                   {
-                     options.push({
-                        name:LocalizationData.getName(this.upgradeLabelKey(itemData)),
-                        click_function:this.upgradeElelemnt
-                     });
+                     if(!UpgradeWindow.isWeaponCategory(int(itemData.category)))
+                     {
+                        options.push({
+                           name:LocalizationData.getName("btn_upgrade_label"),
+                           click_function:this.upgradeElelemnt
+                        });
+                     }
+                     else
+                     {
+                        // a weapon: its window's two pages, each its own entry (the owner, 2026-11-22)
+                        if(UpgradeWindow.hasAttachments(int(itemData.dictId)))
+                        {
+                           options.push({
+                              name:LocalizationData.getName("scope_window_title"),
+                              click_function:this.attachmentsElement
+                           });
+                        }
+                        if(UpgradeWindow.hasAppearance(itemData))
+                        {
+                           options.push({
+                              name:LocalizationData.getName("btn_upgrade_label"),
+                              click_function:this.appearanceElement
+                           });
+                        }
+                     }
                   }
                }
             }
@@ -3778,7 +3868,7 @@ package survarium.controls
          function checkBaseOptions(value:ItemData):Boolean
          {
             var isWeapon:Boolean = options.weapons == WeaponHands.ALL || ItemFactory.getCategory(value.category) != SuperCategory.WEAPONS || (value.oneHanded && options.weapons == WeaponHands.ONE_HANDED || value.oneHanded == false && options.weapons == WeaponHands.TWO_HANDED);
-            return (options.allTraders || isSeller(value,value.factionId)) && isWeapon && (isStacked(value)) && (!options.onlyEnabled || (isEnabled(value))) && !leftOutAsOwned(value);
+            return (options.allTraders || isSeller(value,value.factionId)) && isWeapon && (isStacked(value)) && (!options.onlyEnabled || (isEnabled(value))) && !leftOutAsOwned(value) && UpgradeWindow.listsItem(value);
          }
          var leftOutAsOwned:Function = this.hiddenAsOwned;
          if((this._filterItems))
@@ -3879,7 +3969,7 @@ package survarium.controls
                for(j = 0; j < categoryes.length; j++)
                {
                   cat = (categoryes[j]);
-                  if(cat == itemData.category && (checkBaseOptions(itemData)))
+                  if(cat == UpgradeWindow.filterCategory(itemData) && (checkBaseOptions(itemData)))
                   {
                      filteredItemsShop.push(itemData);
                      break;
@@ -3895,7 +3985,7 @@ package survarium.controls
                   for(j = 0; j < categoryes.length; j++)
                   {
                      cat = (categoryes[j]);
-                     if(cat == itemData.category && (checkBaseOptions(itemData)))
+                     if(cat == UpgradeWindow.filterCategory(itemData) && (checkBaseOptions(itemData)))
                      {
                         relativeItem = shopDict[itemData.dictId];
                         if((relativeItem))
@@ -3955,11 +4045,6 @@ package survarium.controls
          itemsTileList.dataProvider = new DataProvider(filteredItems);
          itemsTileList.validateNow();
          trace("items:Filled::");
-      }
-      
-      private function upgradeLabelKey(value:Object) : String
-      {
-         return UpgradeWindow.isWeaponCategory(int(value.category)) ? "scope_window_title" : "btn_upgrade_label";
       }
       
       // The craft window ("Upgrade": two items of a kind make a better one)

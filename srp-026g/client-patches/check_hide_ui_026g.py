@@ -17,7 +17,7 @@ answers root.interface_hidden with a bool:
   0x25CEDB (the replay's toggle) or 0x25CF0D (the key not taken). A replay
   (the movie and a reader) reaches 0x25CEDB in both builds with esi the
   handler and invokes nothing. Any other game, the movie there or not (a
-  network game's hud loads it too, patch 179), is the original's without the
+  network game's hud loads it too, patch 180), is the original's without the
   movie: it reaches 0x25CF0D and invokes nothing; the
   patch asks the hud movie root.interface_hidden and gives the hud movie and
   the icons' root.hide_interface(not that), whatever the cursor (the kits
@@ -400,7 +400,7 @@ def main():
         ([(ICONS_MOVIE, "root.hide_interface", (flag,))] if icons else [])
     print("the match (on_keyboard_action's case 19h, 0x25CED1, to 0x25CEDB or 0x25CF0D)")
     # (the replay's controls, the game's replay reader): a replay; a network game, whose hud
-    # has the controls too (patch 179); a match before; a reader with no controls
+    # has the controls too (patch 180); a match before; a reader with no controls
     for controls, reader in ((1, 1), (1, 0), (0, 0), (0, 1)):
         replay = controls and reader
         for movie in (0, 1):

@@ -152,9 +152,9 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/use_scan.rs`, `src/use_scan/rule.rs`, `src/use_scan.toml`, `src/vostok/use_scan.rs`, `check_use_scan_026g.py` | Patch 23 and the use scan it lives in: `base_player::detect_usable_object` (0x2D84C0) whole in Rust, a lohook at its start leaving by its `ret 8` (section 23); the rule (`rule.rs`) is pure, the game's calls `vostok`'s; patch 85 asks it whether Use is the game's |
 | `rust/patches/src/subtick_hits.rs`, `src/subtick_hits.toml`, `src/vostok/ray_test.rs`, `check_subtick_hits_026g.py` | Patch 103: a bullet meets a player where he stood at the ms it crossed him, not where the 50 ms step left him (`../docs/notes/subtick_bullet_hits.md`); one lohook first in `bullet.ray_traced`'s chain; its check runs the game's own ray test (ray_test, rayTest, rayTestSingle) in both exes on made-up bodies (needs Unicorn) |
 | `rust/patches/src/input_check.rs`, `src/input_check.toml`, `src/vostok/input.rs`, `check_input_check_026g.py` | Patch 99: a world takes no player input whose rotation no client makes (a NaN, an infinity, 1024 radians or more), as 0.27d's change_input refuses one: a lohook at change_input<player_input>'s start (0x1FAB50); its check runs that start on made-up inputs, the original beside (needs Unicorn) |
-| `rust/patches/src/spectator.rs`, `src/spectator.toml`, `src/vostok/spectate.rs`, `check_spectator_026g.py` | Patch 178: a game whose 0xE4 names no place of its own (the rooms' queue) watches the match: its camera follows a player of any team (F6/F5 the next/previous; F2 lets go and flies free) and stays with that player's place when it plays another kit (at a world, and each frame through patch 179's 0x23B200), it builds and sends no input, an 0xEA naming place 0xFF ends its match (no results), and the places the game asks for the missing local player go another way (seven lohooks: 0x27C116, 0x25CDBD, 0x208D77, 0x23B7B9, 0x27B92D, 0x27A7F3, and 0x27C690, where the 0xEA handler is ported whole in Rust); its check runs the first six sites (not 0x27A7F3) and patch 179's frame in both exes, players' and replays' unchanged (needs Unicorn) |
-| `rust/patches/src/replay_viewer.rs`, `src/replay_viewer.toml`, `src/vostok/replay_view.rs`, `../crates/replay-control`, `check_replay_viewer_026g.py` | Patch 179: a replay played in the running game as a spectated match: the match server's playback note (0xF6 `52 01`) pauses the game's clock (game::pause) and sets its speed (time_scale), its events note (`52 02`) gives the kills and objectives; Space, Left/Right, Shift+Left/Right (the moments the Moments switch lights), `[`/`]` and the controls' Back (op 4) ask the server (0xE0 `FF x6 52 00 ..`), M steps the Moments switch, Ctrl the cursor, H and the key bound to toggle_replay_ui (F9 unless rebound) hide the interface, Esc leaves, a spectator's 1 to 3 down are taken (lohooks at 0x27A4F4 and 0x27A7F3, a handler at 0x25CD00 after patch 86's, one at the static info's read); the replay controls (`replay_player.swf`) over a viewer's hud: every network game's first world loads them (0x1F8F9E, 0x1F88CC: a match's movies are queried once, before anyone knows if it will be a viewer, so its address space is spent in every match), hidden until the first playback note; a hud with them gives them the mouse only in a viewer's game (0x25CFF3, 0x25D1E6; the other games' mouse stays the hud's); a spectator's game skips the game's own kit feed (`hud.setup_profiles`, 0x2362C9) and fills the read-only chooser; a viewer's worlds load as the replay's own seek (`world_load.unpacked`, `world_load.raw_args`: 0x27C0D0, 0x27C10A); fed each frame (0x23B200), their calls the server's requests or patch 178's camera (0x233D30); its check runs the sites in both exes, players' and live spectators' unchanged (needs Unicorn) |
-| `rust/patches/src/match_reconnect.rs`, `src/match_reconnect.toml`, `src/vostok/match_link.rs`, `check_match_reconnect_026g.py` | Patch 180: a receive aborted (995) by the connect that closed the match link's old socket, with a send of it still outstanding, no longer counts as the link lost (lohook 0x3F21DE in handle_receive's error path): the send's completion runs the new connect, as the game meant; the check runs the failure's order and the others in both exes (client_patch.md section 3.100) |
+| `rust/patches/src/spectator.rs`, `src/spectator.toml`, `src/vostok/spectate.rs`, `check_spectator_026g.py` | Patch 179: a game whose 0xE4 names no place of its own (the rooms' queue) watches the match: its camera follows a player of any team (F6/F5 the next/previous; F2 lets go and flies free) and stays with that player's place when it plays another kit (at a world, and each frame through patch 180's 0x23B200), it builds and sends no input, an 0xEA naming place 0xFF ends its match (no results), and the places the game asks for the missing local player go another way (seven lohooks: 0x27C116, 0x25CDBD, 0x208D77, 0x23B7B9, 0x27B92D, 0x27A7F3, and 0x27C690, where the 0xEA handler is ported whole in Rust); its check runs the first six sites (not 0x27A7F3) and patch 180's frame in both exes, players' and replays' unchanged (needs Unicorn) |
+| `rust/patches/src/replay_viewer.rs`, `src/replay_viewer.toml`, `src/vostok/replay_view.rs`, `../crates/replay-control`, `check_replay_viewer_026g.py` | Patch 180: a replay played in the running game as a spectated match: the match server's playback note (0xF6 `52 01`) pauses the game's clock (game::pause) and sets its speed (time_scale), its events note (`52 02`) gives the kills and objectives; Space, Left/Right, Shift+Left/Right (the moments the Moments switch lights), `[`/`]` and the controls' Back (op 4) ask the server (0xE0 `FF x6 52 00 ..`), M steps the Moments switch, Ctrl the cursor, H and the key bound to toggle_replay_ui (F9 unless rebound) hide the interface, Esc leaves, a spectator's 1 to 3 down are taken (lohooks at 0x27A4F4 and 0x27A7F3, a handler at 0x25CD00 after patch 86's, one at the static info's read); the replay controls (`replay_player.swf`) over a viewer's hud: every network game's first world loads them (0x1F8F9E, 0x1F88CC: a match's movies are queried once, before anyone knows if it will be a viewer, so its address space is spent in every match), hidden until the first playback note; a hud with them gives them the mouse only in a viewer's game (0x25CFF3, 0x25D1E6; the other games' mouse stays the hud's); a spectator's game skips the game's own kit feed (`hud.setup_profiles`, 0x2362C9) and fills the read-only chooser; a viewer's worlds load as the replay's own seek (`world_load.unpacked`, `world_load.raw_args`: 0x27C0D0, 0x27C10A); fed each frame (0x23B200), their calls the server's requests or patch 179's camera (0x233D30); its check runs the sites in both exes, players' and live spectators' unchanged (needs Unicorn) |
+| `rust/patches/src/match_reconnect.rs`, `src/match_reconnect.toml`, `src/vostok/match_link.rs`, `check_match_reconnect_026g.py` | Patch 181: a receive aborted (995) by the connect that closed the match link's old socket, with a send of it still outstanding, no longer counts as the link lost (lohook 0x3F21DE in handle_receive's error path): the send's completion runs the new connect, as the game meant; the check runs the failure's order and the others in both exes (client_patch.md section 3.101) |
 | `check_mouse_buttons_026g.py` | Patch 102 (`MOUSE_BUTTONS` in `patch_026g.py`): a side mouse button (mouse4..mouse8) is no left click in the lobby, login, options and match menus; its check runs the five handlers in both exes (needs Unicorn) |
 | `rust/patches/src/mouse_pitch.rs`, `src/mouse_pitch.toml`, `src/vostok/mouse.rs`, `check_mouse_pitch_026g.py` | Patch 112: the mouse look's pitch with 16:9's h/w at every window while "Lock vertical sensitivity" is ticked, 1:1 at the vertical slider's value when unticked (user.cfg's `srp_mouse_vertical_locked`, `srp_mouse_vertical`); a lohook at on_mouse_move's pitch step, the two variables, the Settings' calls and the death camera's entry; its check runs on_mouse_move in both exes at 4:3 to 32:9, off and on, and the Settings' calls (needs Unicorn) |
 | `rust/patches/src/footsteps.rs`, `src/footsteps.toml`, `src/vostok/footstep.rs`, `check_footsteps_026g.py` | Patch 101: a footstep that only a re-simulation makes (another player's late input) is heard instead of dropped; one lohook in on_player_sound_event's time test; its check runs the handler in both exes (needs Unicorn) |
@@ -5936,10 +5936,10 @@ snapshot, nothing called and no lock taken: the resources (managed) allocator's 
 and Scaleform's heaps (the Flash UI) by name, with what each holds and uses. Nothing a match computes. Details: `../docs/notes/memory-profile.md`. Checked with
 `check_memory_profile_026g.py` (Unicorn) and the patch crate's tests.
 
-## A replay played in the running game: pause, speed and keys (patch 179, unreleased)
+## A replay played in the running game: pause, speed and keys (patch 180, unreleased)
 
 Path A of the replay plan (`../docs/notes/replay-stream.md`): the match
-server streams a recording to a game with no place of its own (patch 178)
+server streams a recording to a game with no place of its own (patch 179)
 and runs its playback. A stock game cannot pause or change its pace in a
 match: its clock is the game's floating_timer, steered only by 0xE7 at 1 +-
 time_floating_factor, and toggle_pause refuses a network client
@@ -5968,7 +5968,7 @@ replay reader; a game queries its world's movies once, so a game that
 played before it watches has them), hidden; a viewer's are shown with the interface and fed each
 frame (the bar's length, its position, the play button, the kills as
 markers); their play button, bar and speed ask the server as the keys do,
-their player list and free view move patch 178's camera. A viewer's
+their player list and free view move patch 179's camera. A viewer's
 worlds (each a start again from the recording, often older than its
 clock) load as the replay's own seek loads them (game_world_core::
 deserialize's mode 0, its pending inputs cleared): loaded as network
@@ -5981,10 +5981,10 @@ A player's game and a live match's spectator (no playback note) run the
 game's code at every site; a live spectator's controls stay hidden and
 their calls do nothing. Nothing a match computes: the clock's pace is
 the server's to keep (it paces the relays and 0xE5 by the same speed).
-Addresses: `client_patch.md` 3.99; checked with
+Addresses: `client_patch.md` 3.100; checked with
 `check_replay_viewer_026g.py`; **not run in a game.**
 
-## A game with no place of its own watches the match (patch 178, unreleased)
+## A game with no place of its own watches the match (patch 179, unreleased)
 
 The rooms' queue sends a waiting player into its room's running match as a
 spectator (`../docs/notes/queue-spectate.md`): the match server's 0xE4 names
@@ -6019,7 +6019,7 @@ an 0xEA of the player it follows moves the camera to the next. A game with
 a place of its own, and a replay, run the game's code at the sites
 (+0Ch kept 0; at 0x27C690 the Rust port of process_player_left_match, the same for every player); leave_match of place 0xFF, which every game runs first, tests
 a bit no entered mask has and writes nothing. Nothing a match computes: the camera and the hud alone.
-Addresses: `client_patch.md` 3.98; checked with `check_spectator_026g.py`;
+Addresses: `client_patch.md` 3.99; checked with `check_spectator_026g.py`;
 **not run in a game.**
 ## Texture streaming's bookkeeping in Rust (patch 137, unreleased)
 
@@ -6683,3 +6683,18 @@ Rust `breath_hit` hook shares patch 84's site in `base_player::hit_impl` (`playe
 reserve. The gun's next tick then goes to short breathing through the game's own transition, as running
 out of breath does, except that the stamina is kept. A simulation change. Checked with
 `check_breath_hit_026g.py` (Unicorn; `tools/check breath-hit`). Not run in a game.
+## The ported Londons' composition (patch 178, unreleased)
+
+On the two ported Londons the sun lights foliage through as in their donors (0.44a5, 0.32a4), and
+the grass is no longer darker than theirs. Their deferred composition pass has a translucency term
+0.26g's has not, made of four settings of the environment: direct_translucency_color (times its
+intensity), sun_dir_vs_normal_factor, translucency_power and rain_shadow_diffuse_multiplier.
+
+The Rust `composition_v044a` hooks each of stage_composition's eight effects. Each compiles a twin
+of its technique with 0.44a5's program (`composition_v044a.ps`, content pack `composition-v044a`)
+and its sun shadow named as 0.44a5's programs read it. The twin is drawn only on a frame of a
+project whose config has `srp_composition_v044a` (edit list `composition-v044a-1.json`), and the
+four values are then sent from that table: one set per project, its donor environment's. The lobby
+and every native map draw as before. The game's post-process effects do not touch the four
+(`../docs/notes/client_patch.md` section 3.98). Rendering only: nothing a match computes or a world
+holds changes. Not run in a game.

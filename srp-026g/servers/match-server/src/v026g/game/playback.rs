@@ -710,7 +710,7 @@ impl Playback {
             // Taken at its next turn, or once the world on its way is in.
             Op::Seek(time) => self.sought = Some(time.0),
             // As at the recording's end: its game goes back to the lobby
-            // on the farewell (patch 178), then the session is over.
+            // on the farewell (patch 179), then the session is over.
             Op::Leave => self.spectator.farewell(at, now),
         }
     }

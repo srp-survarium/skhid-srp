@@ -155,7 +155,7 @@ st_ak74u_description	Az AK74 rövidített változata, 5.45x39 lőszerrel. Kis m�
 st_ak74u_name	AKS-74U
 st_ak74u_premium_description	Az AK74 rövidített változata, 5.45x39 lőszerrel. Kis mérete miatt széles körben használták az ejtőernyősök, a belügyminisztérium és biztonsági szolgálatok. Egyes és sorozatlövésre képes. Prémium változat különleges álcafestéssel.
 st_ak74u_premium_name	AKS-74U Corsair
-st_ak_zenit_rk2_foregrip_desc	Visszarúgás -4%. Célzási idő +1.5%.
+st_ak_zenit_rk2_foregrip_desc	Visszarúgás -3%. Célzási idő +1%.
 st_ak_zenit_rk2_foregrip_name	Zenit RK-2 taktikai markolat
 st_akmn_description	7.62x39 mm-es lőszerhez módosított Kalasnyikov gépkarabély. Ereje és megbízhatósága ma is hasznos fegyverré teszi. Egyes és sorozatlövésre képes.
 st_akmn_name	AKM
@@ -1141,9 +1141,9 @@ st_exp_reward_match	Szerzett tapasztalat
 st_exp_reward_premium	Prémium bónusz
 st_experience	Tapasztalat
 st_experience_modifier	Kapott tapasztalat
-st_fabdefence_miki_foregrip_desc	Visszarúgás -4%.
+st_fabdefence_miki_foregrip_desc	Visszarúgás -3%. Célzási idő +1%.
 st_fabdefence_miki_foregrip_name	FAB-Defense MIKI előmarkolat
-st_fabdefence_ptk_foregrip_desc	Visszarúgás -6%.
+st_fabdefence_ptk_foregrip_desc	Visszarúgás -3.5%. Célzási idő +1.2%.
 st_fabdefence_ptk_foregrip_name	FAB-Defense PTK előmarkolat
 st_face_069d_balaclava_3_hole_desc	Kötött maszk szem- és szájnyílásokkal. Melegen tart és elrejti az arcot.
 st_face_069d_balaclava_3_hole_name	Háromlyukú maszk
@@ -1229,7 +1229,7 @@ st_fn_minimi_description	Belga golyószóró, 5.56x45 lőszerrel. Az FN Herstal 
 st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Belga önvédelmi fegyver, 5.7x28 lőszerrel. Az FN Herstal 1990 körül fejlesztette saját lőszerével együtt. Bullpup kialakítás, felül hosszirányban fekvő 50 lőszeres tár. Sok ország rendőrsége és különleges egysége használja. Egyes és sorozatlövés.
 st_fn_p90_name	FN P90
-st_fort401_foregrip_desc	Visszarúgás -6%.
+st_fort401_foregrip_desc	Visszarúgás -3.5%. Célzási idő +1.2%.
 st_fort401_foregrip_name	Fort-401 gyári előmarkolat
 st_fort_17_description	Ukrán öntöltő pisztoly, 9x18 lőszerrel. Gyártása 2004-ben indult. A belügyi csapatok és egyes különleges egységek használták. 12 lőszeres tár. 
 st_fort_17_name	Fort 17
@@ -1254,7 +1254,7 @@ st_friendly_user_compliment	Barátságos
 st_friends_online	Online barátok
 st_friends_signin_notification_option	Értesítés a barátok belépéséről
 st_fullscreen_option	Teljes képernyő
-st_gandp_ris_foregrip_desc	Visszarúgás -4%. Célzási idő +1.5%.
+st_gandp_ris_foregrip_desc	Visszarúgás -3%. Célzási idő +1%.
 st_gandp_ris_foregrip_name	G&P RIS előmarkolat
 st_general_volume_option	Fő hangerő
 st_generic_money_name	Rubel
@@ -1302,7 +1302,7 @@ st_hud_tutorial_frame_6_text_1	Harcra fel!
 st_hud_tutorial_frame_6_text_2	Elvégezted a harci alapkiképzést.\nSok szerencsét!
 st_hud_tutorial_frame_6_text_3	A jutalmad:
 st_ignored	Tiltólista
-st_imi_fsg2_foregrip_desc	Visszarúgás -2%.
+st_imi_fsg2_foregrip_desc	Visszarúgás -2.5%. Célzási idő +0.8%.
 st_imi_fsg2_foregrip_name	FSG2 előmarkolat
 st_in_develepoment_hint	Fejlesztés alatt
 st_ingame_volume_option	Játék
@@ -1478,7 +1478,7 @@ st_m4a1_description	Amerikai karabély, 5.56x45 lőszerrel. Az M16 rövidebb, k�
 st_m4a1_name	M4A1
 st_magnum_description	Hatlövetű .357 Magnum revolver, 1955-ben mutatták be. Sokan kategóriája egyik legjobbjának tartják. Finom elsütésével és nagy pontosságával tűnik ki.
 st_magnum_name	Colt Python
-st_magpul_afg1_foregrip_desc	Visszarúgás -6%.
+st_magpul_afg1_foregrip_desc	Visszarúgás -3.5%. Célzási idő +1.2%.
 st_magpul_afg1_foregrip_name	AFG-1 előmarkolat
 st_maintenance	Szerverkarbantartás folyik. Az alkalmazás bezárul.
 st_map	Pálya
@@ -1507,7 +1507,7 @@ st_match_settings_checkbox_training_match	Gyakorlómeccs
 st_match_settings_checkbox_training_match_hint	Gyakorlószoba mód
 st_match_settings_clan_match	Klánmeccs
 st_match_time_is_up	Lejárt a meccsidő!
-st_mauser_m712_foregrip_desc	Visszarúgás -6%.
+st_mauser_m712_foregrip_desc	Visszarúgás -3.5%. Célzási idő +1.2%.
 st_mauser_m712_foregrip_name	Mauser M.712 markolat
 st_max_carried_weight_description	Teherbírás:
 st_max_carried_weight_name	Erőember
@@ -1620,47 +1620,47 @@ st_music_volume_option	Zene
 st_must_be_in_clan_team	Kláncsapatban kell lenned.
 st_muzzle_aek919k_m12x1l_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
 st_muzzle_aek919k_m12x1l_muzzlebrake_name	AEK-919K csőszájfék, M12x1L
-st_muzzle_akmsu_m24x15_muzzlebrake_description	Csak megjelenés.
+st_muzzle_akmsu_m24x15_muzzlebrake_description	
 st_muzzle_akmsu_m24x15_muzzlebrake_name	AKMSU lángrejtő, M24x1.5
-st_muzzle_aks74u_m24x15_muzzlebrake_description	Csak megjelenés.
+st_muzzle_aks74u_m24x15_muzzlebrake_description	
 st_muzzle_aks74u_m24x15_muzzlebrake_name	AKS-74U lángrejtő, M24x1.5
 st_muzzle_aws_rapira_m24x15_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
 st_muzzle_aws_rapira_m24x15_muzzlebrake_name	Rapira csőszájfék, M24x1.5
-st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description	
 st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_name	ROFH lángrejtő, M14x1L
-st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	
 st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_name	ROFH lángrejtő, M16x1L
-st_muzzle_custom_01_doublevert_m22x075_choke_description	Szórás -20 %. Célzási idő +3 %.
+st_muzzle_custom_01_doublevert_m22x075_choke_description	Szórás -20 %. Célzási idő +2.5 %.
 st_muzzle_custom_01_doublevert_m22x075_choke_name	Custom 01 szűkítő, M22x0.75 O/U
-st_muzzle_custom_01_duckbill_description	Szórás -15 %.
+st_muzzle_custom_01_duckbill_description	Szórás -15 %. Célzási idő +1.9 %.
 st_muzzle_custom_01_duckbill_name	Custom 01 kacsacsőr, M22x0.75
 st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
 st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_name	Custom 01 csőszájfék, M14x1L
-st_muzzle_custom_01_m22x075_choke_description	Szórás -20 %. Célzási idő +3 %.
+st_muzzle_custom_01_m22x075_choke_description	Szórás -20 %. Célzási idő +2.5 %.
 st_muzzle_custom_01_m22x075_choke_name	Custom 01 szűkítő, M22x0.75
 st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
 st_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Custom 01 csőszájfék, M30x1
-st_muzzle_custom_02_duckbill_description	Szórás -15 %.
+st_muzzle_custom_02_duckbill_description	Szórás -15 %. Célzási idő +1.9 %.
 st_muzzle_custom_02_duckbill_name	Custom 02 kacsacsőr, M22x0.75
-st_muzzle_custom_02_m14x1l_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_custom_02_m14x1l_firearrestor_description	
 st_muzzle_custom_02_m14x1l_firearrestor_name	Custom 02 lángrejtő, M14x1L
-st_muzzle_custom_02_m24x15_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_custom_02_m24x15_firearrestor_description	
 st_muzzle_custom_02_m24x15_firearrestor_name	Custom 02 lángrejtő, M24x1.5
-st_muzzle_custom_03_duckbill_description	Szórás -15 %.
+st_muzzle_custom_03_duckbill_description	Szórás -15 %. Célzási idő +1.9 %.
 st_muzzle_custom_03_duckbill_name	Custom 03 kacsacsőr, M22x0.75
-st_muzzle_custom_03_m14x1l_clamp_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_description	
 st_muzzle_custom_03_m14x1l_clamp_firearrestor_name	Custom 03 lángrejtő, M14x1L
-st_muzzle_custom_04_i05x28_clamp_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_custom_04_i05x28_clamp_firearrestor_description	
 st_muzzle_custom_04_i05x28_clamp_firearrestor_name	Custom 04 lángrejtő, 1/2"x28
-st_muzzle_custom_04_i06x24_clamp_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_custom_04_i06x24_clamp_firearrestor_description	
 st_muzzle_custom_04_i06x24_clamp_firearrestor_name	Custom 04 lángrejtő, 5/8"x24
-st_muzzle_custom_04_m14x1l_clamp_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_description	
 st_muzzle_custom_04_m14x1l_clamp_firearrestor_name	Custom 04 lángrejtő, M14x1L
-st_muzzle_custom_doublevert_01_duckbill_description	Szórás -15 %.
+st_muzzle_custom_doublevert_01_duckbill_description	Szórás -15 %. Célzási idő +1.9 %.
 st_muzzle_custom_doublevert_01_duckbill_name	Custom 01 kacsacsőr, M22x0.75 O/U
-st_muzzle_custom_doublevert_02_duckbill_description	Szórás -15 %.
+st_muzzle_custom_doublevert_02_duckbill_description	Szórás -15 %. Célzási idő +1.9 %.
 st_muzzle_custom_doublevert_02_duckbill_name	Custom 02 kacsacsőr, M22x0.75 O/U
-st_muzzle_custom_doublhor_01_duckbill_description	Szórás -15 %.
+st_muzzle_custom_doublhor_01_duckbill_description	Szórás -15 %. Célzási idő +1.9 %.
 st_muzzle_custom_doublhor_01_duckbill_name	Custom 01 kacsacsőr, M22x0.75 SxS
 st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
 st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_name	T-Brake csőszájfék, 1/2"x28
@@ -1672,9 +1672,9 @@ st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_description	Visszarú
 st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_name	Defcon 1 csőszájfék, M16x1L
 st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
 st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_name	Defcon 1 csőszájfék, M30x1
-st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Szórás -16 %.
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Szórás -16 %. Célzási idő +2 %.
 st_muzzle_gunsru_custom_m22x075_muzzlebrake_name	Guns.ru csőszájfék, M22x0.75
-st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_description	Szórás -16 %.
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_description	Szórás -16 %. Célzási idő +2 %.
 st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_name	Kochevnik csőszájfék, M22x0.75
 st_muzzle_kkm_i05x28_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
 st_muzzle_kkm_i05x28_muzzlebrake_name	KKM csőszájfék, 1/2"x28
@@ -1684,37 +1684,37 @@ st_muzzle_lantac_dragon_i06x24_muzzlebrake_description	Visszarúgás -4 %. Célz
 st_muzzle_lantac_dragon_i06x24_muzzlebrake_name	Dragon csőszájfék, 5/8"x24
 st_muzzle_lantac_drakon_m14x1l_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
 st_muzzle_lantac_drakon_m14x1l_muzzlebrake_name	Dragon csőszájfék, M14x1L
-st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_description	
 st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_name	NightBrake lángrejtő, 1/2"x28
-st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_description	
 st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_name	NightBrake lángrejtő, 5/8"x24
-st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description	
 st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_name	NightBrake lángrejtő, M12x1L
-st_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	
 st_muzzle_manticorearms_nightbrake_m141l_firearrestor_name	NightBrake lángrejtő, M14x1L
-st_muzzle_polychoke_ventedcollar_m22x075_choke_description	Szórás -20 %. Célzási idő +3 %.
+st_muzzle_polychoke_ventedcollar_m22x075_choke_description	Szórás -20 %. Célzási idő +2.5 %.
 st_muzzle_polychoke_ventedcollar_m22x075_choke_name	Polychoke szűkítő, M22x0.75
-st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Szórás -16 %.
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Szórás -16 %. Célzási idő +2 %.
 st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_name	Ilgynag K01 csőszájfék, M22x0.75
-st_muzzle_redheat_krymske2_m24x15_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_redheat_krymske2_m24x15_firearrestor_description	
 st_muzzle_redheat_krymske2_m24x15_firearrestor_name	Krymsk-2 lángrejtő, M24x1.5
 st_muzzle_redheat_shturm_m14x1l_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
 st_muzzle_redheat_shturm_m14x1l_muzzlebrake_name	Shturm csőszájfék, M14x1L
 st_muzzle_redheat_shturm_m24x15_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
 st_muzzle_redheat_shturm_m24x15_muzzlebrake_name	Shturm csőszájfék, M24x1.5
-st_muzzle_remington_doublehor_m22x075_choke_description	Szórás -20 %. Célzási idő +3 %.
+st_muzzle_remington_doublehor_m22x075_choke_description	Szórás -20 %. Célzási idő +2.5 %.
 st_muzzle_remington_doublehor_m22x075_choke_name	Remington szűkítő, M22x0.75 SxS
-st_muzzle_remington_doublevert_m22x075_choke_description	Szórás -20 %. Célzási idő +3 %.
+st_muzzle_remington_doublevert_m22x075_choke_description	Szórás -20 %. Célzási idő +2.5 %.
 st_muzzle_remington_doublevert_m22x075_choke_name	Remington szűkítő, M22x0.75 O/U
-st_muzzle_remington_m22x075_choke_description	Szórás -20 %. Célzási idő +3 %.
+st_muzzle_remington_m22x075_choke_description	Szórás -20 %. Célzási idő +2.5 %.
 st_muzzle_remington_m22x075_choke_name	Remington szűkítő, M22x0.75
-st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	
 st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_name	Dynacomp lángrejtő, M24x1.5
-st_muzzle_stone_shurhit_m22x075_choke_description	Szórás -20 %. Célzási idő +3 %.
+st_muzzle_stone_shurhit_m22x075_choke_description	Szórás -20 %. Célzási idő +2.5 %.
 st_muzzle_stone_shurhit_m22x075_choke_name	Sure-Hit szűkítő, M22x0.75
-st_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	
 st_muzzle_taktikatula_saiga419_m22x075_firearrestor_name	TT-419 lángrejtő, M22x0.75
-st_muzzle_venometactical_antidote_m14x1l_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_description	
 st_muzzle_venometactical_antidote_m14x1l_firearrestor_name	Antidote lángrejtő, M14x1L
 st_muzzle_zenit_dtk2_m24x15_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
 st_muzzle_zenit_dtk2_m24x15_muzzlebrake_name	Zenit DTK-2 csőszájfék, M24x1.5
@@ -1724,7 +1724,7 @@ st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_description	Visszarúgás -4 %. C�
 st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_name	Zenit DTK-4 csőszájfék, M24x1.5 clamp
 st_muzzle_zenit_dtk4_m24x15_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
 st_muzzle_zenit_dtk4_m24x15_muzzlebrake_name	Zenit DTK-4 csőszájfék, M24x1.5
-st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_description	
 st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_name	Zenit DTK-4 lángrejtő, M30x1
 st_my_place	Saját helyezés
 st_neostead_description	Dél-afrikai pumpás sörétes puska, 12-es kaliberrel. Tony Neophytou tervezte az 1990-es években, bullpup elrendezéssel. Két csőtár a cső felett, az előagy előretolásával tölthető újra. 12 lőszer, csak egyes lövés.
@@ -1847,7 +1847,7 @@ st_picatinny_scope_medium_name	Távcsövek / irányzékok
 st_pickup_item	Felvétel ({USE})
 st_ping_postfix	ms
 st_pkp_pecheneg_description	Orosz általános célú géppuska, 7.62x54R lőszerrel. A CNIITOCSMAS fejlesztette a PKM alapján, 2001-ben rendszeresítették. Kényszerléghűtéses nehéz csöve hosszú sorozatokat enged csőcsere nélkül. 100 lőszeres heveder, egyes és sorozatlövés.
-st_pkp_pecheneg_foregrip_desc	Visszarúgás -6%.
+st_pkp_pecheneg_foregrip_desc	Visszarúgás -3.5%. Célzási idő +1.2%.
 st_pkp_pecheneg_foregrip_name	PKP gyári előmarkolat
 st_pkp_pecheneg_name	PKP "Pecheneg"
 st_place	Hely
@@ -2883,6 +2883,7 @@ st_srp_mode_team_deathmatch	Csapatos deathmatch
 st_srp_mouse_lock_option	Függőleges érzékenység rögzítése
 st_srp_mouse_vertical_option	Függőleges érzékenység
 st_srp_muzzle_slot	Csőszájeszköz
+st_srp_no_muzzle_flash	Nincs torkolattűz
 st_srp_optics	Távcsövek
 st_srp_options_hud	HUD:
 st_srp_pierce_brick	Tégla, acél
@@ -3297,7 +3298,7 @@ st_toz66_description	Lefűrészelt csövű vadászduplapuska, 12x70 lőszerrel. 
 st_toz66_name	TOZ-66
 st_trap_damage	Csapdasebzés
 st_treasure_map_advert	Használd a rejtekhelytérképet további tárgyakért.
-st_troy_modular_foregrip_desc	Visszarúgás -6%. Célzási idő +1.5%.
+st_troy_modular_foregrip_desc	Visszarúgás -3.5%. Célzási idő +1.2%.
 st_troy_modular_foregrip_name	Troy Modular előmarkolat
 st_tt_description	Az 1933-ban bevezetett Tulai Tokarev 7.62x25 mm lőszert használ. Az 1930-as években tervezték az első szovjet öntöltő katonai pisztolynak. 8 lőszeres tárral.
 st_tt_name	TT-33

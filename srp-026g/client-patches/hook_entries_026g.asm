@@ -2338,7 +2338,7 @@ artefact_skills_on_own_lifebone_replay:
     db 0x8b, 0x4c, 0x24, 0x08, 0x8b, 0x54, 0x24, 0x04
     jmp 0x312598
 
-; 0x27c116 process_dynamic_match_info after either core deserialize returns, before mov eax,[edi+4] / test eax,eax; a load receipt is emitted only here; then the camera back to the local place (get_player(+1F1C44h), set_followed_player, the warmup or player camera), patch 178 its exit done, the join 0x27C1B9 after it (a skip, 0x27C0E3, 0x27C0E7, 0x27C0FD, jumps here too): lohook -> packet_recovery_on_loaded
+; 0x27c116 process_dynamic_match_info after either core deserialize returns, before mov eax,[edi+4] / test eax,eax; a load receipt is emitted only here; then the camera back to the local place (get_player(+1F1C44h), set_followed_player, the warmup or player camera), patch 179 its exit done, the join 0x27C1B9 after it (a skip, 0x27C0E3, 0x27C0E7, 0x27C0FD, jumps here too): lohook -> packet_recovery_on_loaded
 global packet_recovery_on_loaded
 extern hook_packet_recovery_on_loaded_chain
 packet_recovery_on_loaded:
@@ -4618,6 +4618,1227 @@ collision_view_on_debug_lines_replay:
 
 ; 0x9e4f94 btConvexTriangleCallback's vtable slot 1 (+4): processTriangle(triangle, part, index), thiscall, ret 0Ch; btBvhTriangleMeshShape::processAllTriangles 0xA8660's node callback (processNode 0xA86A0, at 0xA8969) calls it for each triangle the BVH finds in the box: vtable -> collision_view_on_triangle (wraps engine_triangle_process 0xc5600)
     RUST_THISCALL collision_view_on_triangle, hook_collision_view_on_triangle, 3
+
+; 0x285750 before insert_static, ECX project and ESP+4 physics: lohook -> lamps_on_bind
+global lamps_on_bind
+extern hook_lamps_on_bind_chain
+lamps_on_bind:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lamps_on_bind_chain
+    mov edx, lamps_on_bind_replay
+    cmp eax, 0
+    je lamps_on_bind_go
+    mov edx, 0x285756
+    cmp eax, 1
+    je lamps_on_bind_go
+    ud2
+lamps_on_bind_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lamps_on_bind_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x285756
+
+; 0x285614 remove_static epilogue, after native object removals: lohook -> lamps_on_remove
+global lamps_on_remove
+extern hook_lamps_on_remove_chain
+lamps_on_remove:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lamps_on_remove_chain
+    mov edx, lamps_on_remove_replay
+    cmp eax, 0
+    je lamps_on_remove_go
+    mov edx, 0x285619
+    cmp eax, 1
+    je lamps_on_remove_go
+    ud2
+lamps_on_remove_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lamps_on_remove_replay:
+    db 0x5f, 0x5b, 0xc3, 0xcc, 0xcc
+    jmp 0x285619
+
+; 0x285330 destructor before any member is released: lohook -> lamps_on_destroy
+global lamps_on_destroy
+extern hook_lamps_on_destroy_chain
+lamps_on_destroy:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lamps_on_destroy_chain
+    mov edx, lamps_on_destroy_replay
+    cmp eax, 0
+    je lamps_on_destroy_go
+    mov edx, 0x28533a
+    cmp eax, 1
+    je lamps_on_destroy_go
+    ud2
+lamps_on_destroy_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lamps_on_destroy_replay:
+    db 0x56, 0x8b, 0xf1, 0x83, 0xbe, 0xe8, 0x01, 0x00, 0x00, 0x00
+    jmp 0x28533a
+
+; 0x1a93a2 effect_composition<0,0,0>::compile (0x1A9330), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1A93AE): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1A939D), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span: lohook -> composition_v044a_on_begin_pass_000
+global composition_v044a_on_begin_pass_000
+extern hook_composition_v044a_on_begin_pass_000
+composition_v044a_on_begin_pass_000:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_begin_pass_000
+    mov edx, composition_v044a_on_begin_pass_000_replay
+    cmp eax, 0
+    je composition_v044a_on_begin_pass_000_go
+    mov edx, 0x1a93a9
+    cmp eax, 1
+    je composition_v044a_on_begin_pass_000_go
+    ud2
+composition_v044a_on_begin_pass_000_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_begin_pass_000_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1a93a9
+
+; 0x1a94c1 effect_composition<0,0,0>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1A94D7) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1A94DC), the stack and the x87 as here: lohook -> composition_v044a_on_sun_shadow_000
+global composition_v044a_on_sun_shadow_000
+extern hook_composition_v044a_on_sun_shadow_000
+composition_v044a_on_sun_shadow_000:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_sun_shadow_000
+    mov edx, composition_v044a_on_sun_shadow_000_replay
+    cmp eax, 0
+    je composition_v044a_on_sun_shadow_000_go
+    mov edx, 0x1a94c8
+    cmp eax, 1
+    je composition_v044a_on_sun_shadow_000_go
+    mov edx, 0x1a94dc
+    cmp eax, 2
+    je composition_v044a_on_sun_shadow_000_go
+    ud2
+composition_v044a_on_sun_shadow_000_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_sun_shadow_000_replay:
+    db 0xd9, 0xe8, 0x56, 0x51, 0xd9, 0x1c, 0x24
+    jmp 0x1a94c8
+
+; 0x1a95c8 effect_composition<0,0,0>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1A95CD), its technique ended (end_technique 0x3DA6B0 at 0x1A95C2); technique is the technique's start (0x1A933E: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1A9354): lohook -> composition_v044a_on_compiled_000
+global composition_v044a_on_compiled_000
+extern hook_composition_v044a_on_compiled_000
+composition_v044a_on_compiled_000:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_compiled_000
+    mov edx, composition_v044a_on_compiled_000_replay
+    cmp eax, 0
+    je composition_v044a_on_compiled_000_go
+    mov edx, 0x1a95cd
+    cmp eax, 1
+    je composition_v044a_on_compiled_000_go
+    mov edx, 0x1a933e
+    cmp eax, 2
+    je composition_v044a_on_compiled_000_go
+    ud2
+composition_v044a_on_compiled_000_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_compiled_000_replay:
+    db 0x5e, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x1a95cd
+
+; 0x1a9642 effect_composition<1,0,0>::compile (0x1A95D0), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1A964E): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1A963D), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span: lohook -> composition_v044a_on_begin_pass_100
+global composition_v044a_on_begin_pass_100
+extern hook_composition_v044a_on_begin_pass_100
+composition_v044a_on_begin_pass_100:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_begin_pass_100
+    mov edx, composition_v044a_on_begin_pass_100_replay
+    cmp eax, 0
+    je composition_v044a_on_begin_pass_100_go
+    mov edx, 0x1a9649
+    cmp eax, 1
+    je composition_v044a_on_begin_pass_100_go
+    ud2
+composition_v044a_on_begin_pass_100_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_begin_pass_100_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1a9649
+
+; 0x1a9761 effect_composition<1,0,0>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1A9777) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1A977C), the stack and the x87 as here: lohook -> composition_v044a_on_sun_shadow_100
+global composition_v044a_on_sun_shadow_100
+extern hook_composition_v044a_on_sun_shadow_100
+composition_v044a_on_sun_shadow_100:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_sun_shadow_100
+    mov edx, composition_v044a_on_sun_shadow_100_replay
+    cmp eax, 0
+    je composition_v044a_on_sun_shadow_100_go
+    mov edx, 0x1a9768
+    cmp eax, 1
+    je composition_v044a_on_sun_shadow_100_go
+    mov edx, 0x1a977c
+    cmp eax, 2
+    je composition_v044a_on_sun_shadow_100_go
+    ud2
+composition_v044a_on_sun_shadow_100_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_sun_shadow_100_replay:
+    db 0xd9, 0xe8, 0x56, 0x51, 0xd9, 0x1c, 0x24
+    jmp 0x1a9768
+
+; 0x1a9868 effect_composition<1,0,0>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1A986D), its technique ended (end_technique 0x3DA6B0 at 0x1A9862); technique is the technique's start (0x1A95DE: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1A95F4): lohook -> composition_v044a_on_compiled_100
+global composition_v044a_on_compiled_100
+extern hook_composition_v044a_on_compiled_100
+composition_v044a_on_compiled_100:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_compiled_100
+    mov edx, composition_v044a_on_compiled_100_replay
+    cmp eax, 0
+    je composition_v044a_on_compiled_100_go
+    mov edx, 0x1a986d
+    cmp eax, 1
+    je composition_v044a_on_compiled_100_go
+    mov edx, 0x1a95de
+    cmp eax, 2
+    je composition_v044a_on_compiled_100_go
+    ud2
+composition_v044a_on_compiled_100_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_compiled_100_replay:
+    db 0x5e, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x1a986d
+
+; 0x1a98e2 effect_composition<0,1,0>::compile (0x1A9870), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1A98EE): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1A98DD), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span: lohook -> composition_v044a_on_begin_pass_010
+global composition_v044a_on_begin_pass_010
+extern hook_composition_v044a_on_begin_pass_010
+composition_v044a_on_begin_pass_010:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_begin_pass_010
+    mov edx, composition_v044a_on_begin_pass_010_replay
+    cmp eax, 0
+    je composition_v044a_on_begin_pass_010_go
+    mov edx, 0x1a98e9
+    cmp eax, 1
+    je composition_v044a_on_begin_pass_010_go
+    ud2
+composition_v044a_on_begin_pass_010_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_begin_pass_010_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1a98e9
+
+; 0x1a9a01 effect_composition<0,1,0>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1A9A17) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1A9A1C), the stack and the x87 as here: lohook -> composition_v044a_on_sun_shadow_010
+global composition_v044a_on_sun_shadow_010
+extern hook_composition_v044a_on_sun_shadow_010
+composition_v044a_on_sun_shadow_010:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_sun_shadow_010
+    mov edx, composition_v044a_on_sun_shadow_010_replay
+    cmp eax, 0
+    je composition_v044a_on_sun_shadow_010_go
+    mov edx, 0x1a9a08
+    cmp eax, 1
+    je composition_v044a_on_sun_shadow_010_go
+    mov edx, 0x1a9a1c
+    cmp eax, 2
+    je composition_v044a_on_sun_shadow_010_go
+    ud2
+composition_v044a_on_sun_shadow_010_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_sun_shadow_010_replay:
+    db 0xd9, 0xe8, 0x56, 0x51, 0xd9, 0x1c, 0x24
+    jmp 0x1a9a08
+
+; 0x1a9b08 effect_composition<0,1,0>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1A9B0D), its technique ended (end_technique 0x3DA6B0 at 0x1A9B02); technique is the technique's start (0x1A987E: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1A9894): lohook -> composition_v044a_on_compiled_010
+global composition_v044a_on_compiled_010
+extern hook_composition_v044a_on_compiled_010
+composition_v044a_on_compiled_010:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_compiled_010
+    mov edx, composition_v044a_on_compiled_010_replay
+    cmp eax, 0
+    je composition_v044a_on_compiled_010_go
+    mov edx, 0x1a9b0d
+    cmp eax, 1
+    je composition_v044a_on_compiled_010_go
+    mov edx, 0x1a987e
+    cmp eax, 2
+    je composition_v044a_on_compiled_010_go
+    ud2
+composition_v044a_on_compiled_010_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_compiled_010_replay:
+    db 0x5e, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x1a9b0d
+
+; 0x1a9b82 effect_composition<1,1,0>::compile (0x1A9B10), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1A9B8E): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1A9B7D), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span: lohook -> composition_v044a_on_begin_pass_110
+global composition_v044a_on_begin_pass_110
+extern hook_composition_v044a_on_begin_pass_110
+composition_v044a_on_begin_pass_110:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_begin_pass_110
+    mov edx, composition_v044a_on_begin_pass_110_replay
+    cmp eax, 0
+    je composition_v044a_on_begin_pass_110_go
+    mov edx, 0x1a9b89
+    cmp eax, 1
+    je composition_v044a_on_begin_pass_110_go
+    ud2
+composition_v044a_on_begin_pass_110_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_begin_pass_110_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1a9b89
+
+; 0x1a9ca1 effect_composition<1,1,0>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1A9CB7) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1A9CBC), the stack and the x87 as here: lohook -> composition_v044a_on_sun_shadow_110
+global composition_v044a_on_sun_shadow_110
+extern hook_composition_v044a_on_sun_shadow_110
+composition_v044a_on_sun_shadow_110:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_sun_shadow_110
+    mov edx, composition_v044a_on_sun_shadow_110_replay
+    cmp eax, 0
+    je composition_v044a_on_sun_shadow_110_go
+    mov edx, 0x1a9ca8
+    cmp eax, 1
+    je composition_v044a_on_sun_shadow_110_go
+    mov edx, 0x1a9cbc
+    cmp eax, 2
+    je composition_v044a_on_sun_shadow_110_go
+    ud2
+composition_v044a_on_sun_shadow_110_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_sun_shadow_110_replay:
+    db 0xd9, 0xe8, 0x56, 0x51, 0xd9, 0x1c, 0x24
+    jmp 0x1a9ca8
+
+; 0x1a9da8 effect_composition<1,1,0>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1A9DAD), its technique ended (end_technique 0x3DA6B0 at 0x1A9DA2); technique is the technique's start (0x1A9B1E: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1A9B34): lohook -> composition_v044a_on_compiled_110
+global composition_v044a_on_compiled_110
+extern hook_composition_v044a_on_compiled_110
+composition_v044a_on_compiled_110:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_compiled_110
+    mov edx, composition_v044a_on_compiled_110_replay
+    cmp eax, 0
+    je composition_v044a_on_compiled_110_go
+    mov edx, 0x1a9dad
+    cmp eax, 1
+    je composition_v044a_on_compiled_110_go
+    mov edx, 0x1a9b1e
+    cmp eax, 2
+    je composition_v044a_on_compiled_110_go
+    ud2
+composition_v044a_on_compiled_110_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_compiled_110_replay:
+    db 0x5e, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x1a9dad
+
+; 0x1a9e22 effect_composition<0,0,1>::compile (0x1A9DB0), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1A9E2E): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1A9E1D), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span: lohook -> composition_v044a_on_begin_pass_001
+global composition_v044a_on_begin_pass_001
+extern hook_composition_v044a_on_begin_pass_001
+composition_v044a_on_begin_pass_001:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_begin_pass_001
+    mov edx, composition_v044a_on_begin_pass_001_replay
+    cmp eax, 0
+    je composition_v044a_on_begin_pass_001_go
+    mov edx, 0x1a9e29
+    cmp eax, 1
+    je composition_v044a_on_begin_pass_001_go
+    ud2
+composition_v044a_on_begin_pass_001_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_begin_pass_001_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1a9e29
+
+; 0x1a9f41 effect_composition<0,0,1>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1A9F57) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1A9F5C), the stack and the x87 as here: lohook -> composition_v044a_on_sun_shadow_001
+global composition_v044a_on_sun_shadow_001
+extern hook_composition_v044a_on_sun_shadow_001
+composition_v044a_on_sun_shadow_001:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_sun_shadow_001
+    mov edx, composition_v044a_on_sun_shadow_001_replay
+    cmp eax, 0
+    je composition_v044a_on_sun_shadow_001_go
+    mov edx, 0x1a9f48
+    cmp eax, 1
+    je composition_v044a_on_sun_shadow_001_go
+    mov edx, 0x1a9f5c
+    cmp eax, 2
+    je composition_v044a_on_sun_shadow_001_go
+    ud2
+composition_v044a_on_sun_shadow_001_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_sun_shadow_001_replay:
+    db 0xd9, 0xe8, 0x56, 0x51, 0xd9, 0x1c, 0x24
+    jmp 0x1a9f48
+
+; 0x1aa048 effect_composition<0,0,1>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1AA04D), its technique ended (end_technique 0x3DA6B0 at 0x1AA042); technique is the technique's start (0x1A9DBE: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1A9DD4): lohook -> composition_v044a_on_compiled_001
+global composition_v044a_on_compiled_001
+extern hook_composition_v044a_on_compiled_001
+composition_v044a_on_compiled_001:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_compiled_001
+    mov edx, composition_v044a_on_compiled_001_replay
+    cmp eax, 0
+    je composition_v044a_on_compiled_001_go
+    mov edx, 0x1aa04d
+    cmp eax, 1
+    je composition_v044a_on_compiled_001_go
+    mov edx, 0x1a9dbe
+    cmp eax, 2
+    je composition_v044a_on_compiled_001_go
+    ud2
+composition_v044a_on_compiled_001_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_compiled_001_replay:
+    db 0x5e, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x1aa04d
+
+; 0x1aa0c2 effect_composition<1,0,1>::compile (0x1AA050), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1AA0CE): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1AA0BD), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span: lohook -> composition_v044a_on_begin_pass_101
+global composition_v044a_on_begin_pass_101
+extern hook_composition_v044a_on_begin_pass_101
+composition_v044a_on_begin_pass_101:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_begin_pass_101
+    mov edx, composition_v044a_on_begin_pass_101_replay
+    cmp eax, 0
+    je composition_v044a_on_begin_pass_101_go
+    mov edx, 0x1aa0c9
+    cmp eax, 1
+    je composition_v044a_on_begin_pass_101_go
+    ud2
+composition_v044a_on_begin_pass_101_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_begin_pass_101_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1aa0c9
+
+; 0x1aa1e1 effect_composition<1,0,1>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1AA1F7) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1AA1FC), the stack and the x87 as here: lohook -> composition_v044a_on_sun_shadow_101
+global composition_v044a_on_sun_shadow_101
+extern hook_composition_v044a_on_sun_shadow_101
+composition_v044a_on_sun_shadow_101:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_sun_shadow_101
+    mov edx, composition_v044a_on_sun_shadow_101_replay
+    cmp eax, 0
+    je composition_v044a_on_sun_shadow_101_go
+    mov edx, 0x1aa1e8
+    cmp eax, 1
+    je composition_v044a_on_sun_shadow_101_go
+    mov edx, 0x1aa1fc
+    cmp eax, 2
+    je composition_v044a_on_sun_shadow_101_go
+    ud2
+composition_v044a_on_sun_shadow_101_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_sun_shadow_101_replay:
+    db 0xd9, 0xe8, 0x56, 0x51, 0xd9, 0x1c, 0x24
+    jmp 0x1aa1e8
+
+; 0x1aa2e8 effect_composition<1,0,1>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1AA2ED), its technique ended (end_technique 0x3DA6B0 at 0x1AA2E2); technique is the technique's start (0x1AA05E: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1AA074): lohook -> composition_v044a_on_compiled_101
+global composition_v044a_on_compiled_101
+extern hook_composition_v044a_on_compiled_101
+composition_v044a_on_compiled_101:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_compiled_101
+    mov edx, composition_v044a_on_compiled_101_replay
+    cmp eax, 0
+    je composition_v044a_on_compiled_101_go
+    mov edx, 0x1aa2ed
+    cmp eax, 1
+    je composition_v044a_on_compiled_101_go
+    mov edx, 0x1aa05e
+    cmp eax, 2
+    je composition_v044a_on_compiled_101_go
+    ud2
+composition_v044a_on_compiled_101_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_compiled_101_replay:
+    db 0x5e, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x1aa2ed
+
+; 0x1aa362 effect_composition<0,1,1>::compile (0x1AA2F0), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1AA36E): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1AA35D), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span: lohook -> composition_v044a_on_begin_pass_011
+global composition_v044a_on_begin_pass_011
+extern hook_composition_v044a_on_begin_pass_011
+composition_v044a_on_begin_pass_011:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_begin_pass_011
+    mov edx, composition_v044a_on_begin_pass_011_replay
+    cmp eax, 0
+    je composition_v044a_on_begin_pass_011_go
+    mov edx, 0x1aa369
+    cmp eax, 1
+    je composition_v044a_on_begin_pass_011_go
+    ud2
+composition_v044a_on_begin_pass_011_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_begin_pass_011_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1aa369
+
+; 0x1aa481 effect_composition<0,1,1>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1AA497) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1AA49C), the stack and the x87 as here: lohook -> composition_v044a_on_sun_shadow_011
+global composition_v044a_on_sun_shadow_011
+extern hook_composition_v044a_on_sun_shadow_011
+composition_v044a_on_sun_shadow_011:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_sun_shadow_011
+    mov edx, composition_v044a_on_sun_shadow_011_replay
+    cmp eax, 0
+    je composition_v044a_on_sun_shadow_011_go
+    mov edx, 0x1aa488
+    cmp eax, 1
+    je composition_v044a_on_sun_shadow_011_go
+    mov edx, 0x1aa49c
+    cmp eax, 2
+    je composition_v044a_on_sun_shadow_011_go
+    ud2
+composition_v044a_on_sun_shadow_011_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_sun_shadow_011_replay:
+    db 0xd9, 0xe8, 0x56, 0x51, 0xd9, 0x1c, 0x24
+    jmp 0x1aa488
+
+; 0x1aa588 effect_composition<0,1,1>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1AA58D), its technique ended (end_technique 0x3DA6B0 at 0x1AA582); technique is the technique's start (0x1AA2FE: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1AA314): lohook -> composition_v044a_on_compiled_011
+global composition_v044a_on_compiled_011
+extern hook_composition_v044a_on_compiled_011
+composition_v044a_on_compiled_011:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_compiled_011
+    mov edx, composition_v044a_on_compiled_011_replay
+    cmp eax, 0
+    je composition_v044a_on_compiled_011_go
+    mov edx, 0x1aa58d
+    cmp eax, 1
+    je composition_v044a_on_compiled_011_go
+    mov edx, 0x1aa2fe
+    cmp eax, 2
+    je composition_v044a_on_compiled_011_go
+    ud2
+composition_v044a_on_compiled_011_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_compiled_011_replay:
+    db 0x5e, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x1aa58d
+
+; 0x1aa602 effect_composition<1,1,1>::compile (0x1AA590), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1AA60E): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1AA5FD), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span: lohook -> composition_v044a_on_begin_pass_111
+global composition_v044a_on_begin_pass_111
+extern hook_composition_v044a_on_begin_pass_111
+composition_v044a_on_begin_pass_111:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_begin_pass_111
+    mov edx, composition_v044a_on_begin_pass_111_replay
+    cmp eax, 0
+    je composition_v044a_on_begin_pass_111_go
+    mov edx, 0x1aa609
+    cmp eax, 1
+    je composition_v044a_on_begin_pass_111_go
+    ud2
+composition_v044a_on_begin_pass_111_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_begin_pass_111_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1aa609
+
+; 0x1aa721 effect_composition<1,1,1>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1AA737) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1AA73C), the stack and the x87 as here: lohook -> composition_v044a_on_sun_shadow_111
+global composition_v044a_on_sun_shadow_111
+extern hook_composition_v044a_on_sun_shadow_111
+composition_v044a_on_sun_shadow_111:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_sun_shadow_111
+    mov edx, composition_v044a_on_sun_shadow_111_replay
+    cmp eax, 0
+    je composition_v044a_on_sun_shadow_111_go
+    mov edx, 0x1aa728
+    cmp eax, 1
+    je composition_v044a_on_sun_shadow_111_go
+    mov edx, 0x1aa73c
+    cmp eax, 2
+    je composition_v044a_on_sun_shadow_111_go
+    ud2
+composition_v044a_on_sun_shadow_111_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_sun_shadow_111_replay:
+    db 0xd9, 0xe8, 0x56, 0x51, 0xd9, 0x1c, 0x24
+    jmp 0x1aa728
+
+; 0x1aa828 effect_composition<1,1,1>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1AA82D), its technique ended (end_technique 0x3DA6B0 at 0x1AA822); technique is the technique's start (0x1AA59E: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1AA5B4): lohook -> composition_v044a_on_compiled_111
+global composition_v044a_on_compiled_111
+extern hook_composition_v044a_on_compiled_111
+composition_v044a_on_compiled_111:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_compiled_111
+    mov edx, composition_v044a_on_compiled_111_replay
+    cmp eax, 0
+    je composition_v044a_on_compiled_111_go
+    mov edx, 0x1aa82d
+    cmp eax, 1
+    je composition_v044a_on_compiled_111_go
+    mov edx, 0x1aa59e
+    cmp eax, 2
+    je composition_v044a_on_compiled_111_go
+    ud2
+composition_v044a_on_compiled_111_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_compiled_111_replay:
+    db 0x5e, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x1aa82d
+
+; 0x1a77b7 stage_composition::stage_composition (0x1A7280) after its last constant host's registration (rain_density's, +70h, whose name holder it lets go by 0x1A77B2): pop edi / pop ebp / mov byte [esi+0Ch],1, the one place both of the release's branches (0x1A77A4, 0x1A77AF) land on; ESI the stage. Its hosts: wind_info_parameters +38h, sun_light_parameters +3Ch, s_eye_ray_corner +40h, ... rain_density +70h (shared_string::create 0xE0B50, register_constant_host 0x3C8BC0 with the backend [2260490h]): lohook -> composition_v044a_on_constructed
+global composition_v044a_on_constructed
+extern hook_composition_v044a_on_constructed
+composition_v044a_on_constructed:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_constructed
+    mov edx, composition_v044a_on_constructed_replay
+    cmp eax, 0
+    je composition_v044a_on_constructed_go
+    mov edx, 0x1a77bd
+    cmp eax, 1
+    je composition_v044a_on_constructed_go
+    ud2
+composition_v044a_on_constructed_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_constructed_replay:
+    db 0x5f, 0x5d, 0xc6, 0x46, 0x0c, 0x01
+    jmp 0x1a77bd
+
+; 0x1a85b4 stage_composition::execute (0x1A8170) with its composition effect chosen (0x1A85B0: [ebp+edx*4], one of the eight effect_composition<a,b,c> of +10h..+2Ch by the environment's use_sun ([ebx+3Ch]) and two render options), at mov dword [eax+5620h],0, its technique, before res_effect::apply_pass (0x3D7230) at 0x1A85BE; apply is that call; EAX the effect, EBP the stage: lohook -> composition_v044a_on_technique
+global composition_v044a_on_technique
+extern hook_composition_v044a_on_technique
+composition_v044a_on_technique:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_technique
+    mov edx, composition_v044a_on_technique_replay
+    cmp eax, 0
+    je composition_v044a_on_technique_go
+    mov edx, 0x1a85be
+    cmp eax, 1
+    je composition_v044a_on_technique_go
+    mov edx, 0x1a85be
+    cmp eax, 2
+    je composition_v044a_on_technique_go
+    ud2
+composition_v044a_on_technique_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_technique_replay:
+    db 0xc7, 0x80, 0x20, 0x56, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    jmp 0x1a85be
+
+; 0x1a85d6 stage_composition::execute after apply_pass (0x1A85BE) and its first set_ps_constant (0x132A90 at 0x1A85D1, s_eye_ray_corner +40h), before the next (movss xmm0,[esp+28h]): the pass's program bound, EDI the backend ([2260490h], 0x1A85C7), EBP the stage; the game's own sets follow (sun_light_parameters +48h at 0x1A860B, ...): lohook -> composition_v044a_on_constants
+global composition_v044a_on_constants
+extern hook_composition_v044a_on_constants
+composition_v044a_on_constants:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_constants
+    mov edx, composition_v044a_on_constants_replay
+    cmp eax, 0
+    je composition_v044a_on_constants_go
+    mov edx, 0x1a85dc
+    cmp eax, 1
+    je composition_v044a_on_constants_go
+    ud2
+composition_v044a_on_constants_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_constants_replay:
+    db 0xf3, 0x0f, 0x10, 0x44, 0x24, 0x28
+    jmp 0x1a85dc
 
 ; 0x3482c0 ui_text_edit::paste_from_clipboard's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,28h), the engine's stub that logs "not implemented": ECX the text edit (thiscall, no argument; Ctrl+V's and Shift+Insert's key binding, init_internals 0x34AA5C, calls it through 0x34B4C0, on the game's thread); pasted is its `ret` (0x34838F), the stack as at the site: lohook -> console_paste_on_paste
 global console_paste_on_paste
@@ -7693,123 +8914,6 @@ keyboard_layout_on_console_char_go:
 keyboard_layout_on_console_char_replay:
     db 0x8b, 0x47, 0x04, 0xf6, 0x80, 0xac, 0x02, 0x00, 0x00, 0x30
     jmp 0x34b4e4
-
-; 0x285750 before insert_static, ECX project and ESP+4 physics: lohook -> lamps_on_bind
-global lamps_on_bind
-extern hook_lamps_on_bind_chain
-lamps_on_bind:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_lamps_on_bind_chain
-    mov edx, lamps_on_bind_replay
-    cmp eax, 0
-    je lamps_on_bind_go
-    mov edx, 0x285756
-    cmp eax, 1
-    je lamps_on_bind_go
-    ud2
-lamps_on_bind_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-lamps_on_bind_replay:
-    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
-    jmp 0x285756
-
-; 0x285614 remove_static epilogue, after native object removals: lohook -> lamps_on_remove
-global lamps_on_remove
-extern hook_lamps_on_remove_chain
-lamps_on_remove:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_lamps_on_remove_chain
-    mov edx, lamps_on_remove_replay
-    cmp eax, 0
-    je lamps_on_remove_go
-    mov edx, 0x285619
-    cmp eax, 1
-    je lamps_on_remove_go
-    ud2
-lamps_on_remove_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-lamps_on_remove_replay:
-    db 0x5f, 0x5b, 0xc3, 0xcc, 0xcc
-    jmp 0x285619
-
-; 0x285330 destructor before any member is released: lohook -> lamps_on_destroy
-global lamps_on_destroy
-extern hook_lamps_on_destroy_chain
-lamps_on_destroy:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_lamps_on_destroy_chain
-    mov edx, lamps_on_destroy_replay
-    cmp eax, 0
-    je lamps_on_destroy_go
-    mov edx, 0x28533a
-    cmp eax, 1
-    je lamps_on_destroy_go
-    ud2
-lamps_on_destroy_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-lamps_on_destroy_replay:
-    db 0x56, 0x8b, 0xf1, 0x83, 0xbe, 0xe8, 0x01, 0x00, 0x00, 0x00
-    jmp 0x28533a
 
 ; 0x32d627 check_collision after the bullet's ray_test (movq of its result; EAX the result, EDI the bullet): lohook -> subtick_hits_on_ray
 global subtick_hits_on_ray
@@ -11434,7 +12538,7 @@ spectator_on_followed_alive_replay:
     db 0x8a, 0x85, 0x3c, 0x03, 0x00, 0x00
     jmp 0x23b7bf
 
-; 0x27c690 process_player_left_match's start (mov ecx,[esi+1F1C40h]; called from the dispatch's table with ESI the network client, [esp+4] the reader, ret 4): patch 178's whole-function replacement in Rust (same behaviour for every player, the spectator's branch in Rust); done is its `ret 4` at 0x27C7A5 with nothing pushed: lohook -> spectator_on_player_left
+; 0x27c690 process_player_left_match's start (mov ecx,[esi+1F1C40h]; called from the dispatch's table with ESI the network client, [esp+4] the reader, ret 4): patch 179's whole-function replacement in Rust (same behaviour for every player, the spectator's branch in Rust); done is its `ret 4` at 0x27C7A5 with nothing pushed: lohook -> spectator_on_player_left
 global spectator_on_player_left
 extern hook_spectator_on_player_left
 spectator_on_player_left:

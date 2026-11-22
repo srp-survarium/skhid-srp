@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Run patch 178 (the Rust patch `spectator`: a game with no place of its own
+"""Run patch 179 (the Rust patch `spectator`: a game with no place of its own
 watches its match) in the default build beside the original, at its sites
-and patch 179's frame of the hud, on made-up objects.
+and patch 180's frame of the hud, on made-up objects.
 
     python check_spectator_026g.py <original survarium.exe>
 
@@ -30,7 +30,7 @@ and switch_to_spectator_camera (0x1F8360, EDX).
     player of the kit its place played before (out of the world), that
     place's current player (alive or dead), or the first when that place has
     nobody in the match;
-  - a frame of the hud (0x23B200, patch 179's hud.update): following the old
+  - a frame of the hud (0x23B200, patch 180's hud.update): following the old
     kit's player of a place that respawned in another kit, that place's
     current player, on at 0x23B206 with the original's registers; nothing
     when that place has nobody in the match, when the one followed is its
@@ -82,7 +82,7 @@ SITES = {
     "key": (0x25CDBD, bytes.fromhex("8bb3ac530000"), 0x25CDC3, 0x25CEAE),
     "chat": (0x208D77, bytes.fromhex("0fb686441c1f00"), 0x208D7E, 0x208DE2),
     "hud": (0x23B7B9, bytes.fromhex("8a853c030000"), 0x23B7BF, 0x23B802),
-    "frame": (0x23B200, bytes.fromhex("535556578bf8"), 0x23B206, None),   # hud.update (patch 179's on_frame)
+    "frame": (0x23B200, bytes.fromhex("535556578bf8"), 0x23B206, None),   # hud.update (patch 180's on_frame)
 }
 # process_player_left_match (0xEA): replaced whole at its start (mov ecx,[esi+1F1C40h]); its `ret 4` the exit.
 LEFT = (0x27C690, bytes.fromhex("8b8e401c1f00"), 0x27C7A5)
@@ -513,7 +513,7 @@ def main():
               and all(r == 1 for r in refs),
               f"world, a spectator, the old kit's player followed, {case}: at 0x27C1B9, references as they were")
 
-    # A respawn in another kit with no world: hud.update's frame (patch 179's on_frame) moves it.
+    # A respawn in another kit with no world: hud.update's frame (patch 180's on_frame) moves it.
     stock.setup(vtable=NC_VTABLE, local=0xFF, followed=None, players=MATCH)
     old_kit(stock, 3)
     s = stock.run("frame", site_regs("frame"))

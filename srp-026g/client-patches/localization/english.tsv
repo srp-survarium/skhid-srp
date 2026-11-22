@@ -155,7 +155,7 @@ st_ak74u_description	A shortened version of AK74 submachine gun, ammo: 5.45х39.
 st_ak74u_name	AKS-74U
 st_ak74u_premium_description	A shortened version of AK74 submachine gun, ammo: 5.45x39. Thanks to its size, it was used by marines, MIA and security organizations. Supports single and burst shooting. Premium version in a special camouflage finish.
 st_ak74u_premium_name	AKS-74U Corsair
-st_ak_zenit_rk2_foregrip_desc	Recoil -4%. Aim time +1.5%.
+st_ak_zenit_rk2_foregrip_desc	Recoil -3%. Aim time +1%.
 st_ak_zenit_rk2_foregrip_name	Zenit RK-2 tactical grip
 st_akmn_description	Kalshnikov assault rifle modified to use 7.62x39mm ammunition. Its power and reliability make it a weapon that is still useful today. Supports single shot and automatic fire modes.
 st_akmn_name	AKM
@@ -1141,9 +1141,9 @@ st_exp_reward_match	Experience gained
 st_exp_reward_premium	Premium bonus
 st_experience	Experience
 st_experience_modifier	Experience received
-st_fabdefence_miki_foregrip_desc	Recoil -4%.
+st_fabdefence_miki_foregrip_desc	Recoil -3%. Aim time +1%.
 st_fabdefence_miki_foregrip_name	FAB-Defense MIKI foregrip
-st_fabdefence_ptk_foregrip_desc	Recoil -6%.
+st_fabdefence_ptk_foregrip_desc	Recoil -3.5%. Aim time +1.2%.
 st_fabdefence_ptk_foregrip_name	FAB-Defense PTK foregrip
 st_face_069d_balaclava_3_hole_desc	A knitted balaclava with holes for the eyes and the mouth. Warm, and it hides the face.
 st_face_069d_balaclava_3_hole_name	3-Hole Balaclava
@@ -1229,7 +1229,7 @@ st_fn_minimi_description	Belgian light machine gun, ammo: 5.56x45. FN Herstal's 
 st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Belgian personal defence weapon, ammo: 5.7x28. Developed by FN Herstal around 1990 together with its own cartridge; a bullpup with a 50-round magazine lying along the top of the weapon. Used by special forces and police in many countries. Supports single and automatic fire.
 st_fn_p90_name	FN P90
-st_fort401_foregrip_desc	Recoil -6%.
+st_fort401_foregrip_desc	Recoil -3.5%. Aim time +1.2%.
 st_fort401_foregrip_name	Fort-401 standard foregrip
 st_fort_17_description	A Ukrainian self-loading pistol, ammo: 9х18. Manufacturing started in 2004. It was used by internal army and some special forces units. Ammo supply: 12 rounds. 
 st_fort_17_name	Fort 17
@@ -1254,7 +1254,7 @@ st_friendly_user_compliment	Friendly
 st_friends_online	Friends online
 st_friends_signin_notification_option	Notify when friends are online
 st_fullscreen_option	Full screen mode
-st_gandp_ris_foregrip_desc	Recoil -4%. Aim time +1.5%.
+st_gandp_ris_foregrip_desc	Recoil -3%. Aim time +1%.
 st_gandp_ris_foregrip_name	G&P RIS foregrip
 st_general_volume_option	Master
 st_generic_money_name	Rubles
@@ -1302,7 +1302,7 @@ st_hud_tutorial_frame_6_text_1	To battle!
 st_hud_tutorial_frame_6_text_2	You've completed the basic course\nof combat training. Good luck!
 st_hud_tutorial_frame_6_text_3	Your reward:
 st_ignored	Black list
-st_imi_fsg2_foregrip_desc	Recoil -2%.
+st_imi_fsg2_foregrip_desc	Recoil -2.5%. Aim time +0.8%.
 st_imi_fsg2_foregrip_name	FSG2 foregrip
 st_in_develepoment_hint	In development
 st_ingame_volume_option	Game
@@ -1478,7 +1478,7 @@ st_m4a1_description	American carbine, ammo: 5.56x45. A shortened, lighter develo
 st_m4a1_name	M4A1
 st_magnum_description	A six-round revolver of .357 Magnum caliber. It was introduced in 1955. Some believe it is one of the best in its class. Stands out with its smooth release and high precision.
 st_magnum_name	Colt Python
-st_magpul_afg1_foregrip_desc	Recoil -6%.
+st_magpul_afg1_foregrip_desc	Recoil -3.5%. Aim time +1.2%.
 st_magpul_afg1_foregrip_name	AFG-1 foregrip
 st_maintenance	Servers technical maintenance is in progress. The application will close.
 st_map	Map
@@ -1507,7 +1507,7 @@ st_match_settings_checkbox_training_match	Training match
 st_match_settings_checkbox_training_match_hint	Training room mode
 st_match_settings_clan_match	Clan match
 st_match_time_is_up	Match time is over!
-st_mauser_m712_foregrip_desc	Recoil -6%.
+st_mauser_m712_foregrip_desc	Recoil -3.5%. Aim time +1.2%.
 st_mauser_m712_foregrip_name	Mauser M.712 grip
 st_max_carried_weight_description	Portable weight:
 st_max_carried_weight_name	Athlete
@@ -1620,47 +1620,47 @@ st_music_volume_option	Music
 st_must_be_in_clan_team	You must be in a clan team.
 st_muzzle_aek919k_m12x1l_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
 st_muzzle_aek919k_m12x1l_muzzlebrake_name	AEK-919K muzzle brake, M12x1L
-st_muzzle_akmsu_m24x15_muzzlebrake_description	Looks only.
+st_muzzle_akmsu_m24x15_muzzlebrake_description	
 st_muzzle_akmsu_m24x15_muzzlebrake_name	AKMSU flash hider, M24x1.5
-st_muzzle_aks74u_m24x15_muzzlebrake_description	Looks only.
+st_muzzle_aks74u_m24x15_muzzlebrake_description	
 st_muzzle_aks74u_m24x15_muzzlebrake_name	AKS-74U flash hider, M24x1.5
 st_muzzle_aws_rapira_m24x15_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
 st_muzzle_aws_rapira_m24x15_muzzlebrake_name	Rapira muzzle brake, M24x1.5
-st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description	
 st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_name	ROFH flash hider, M14x1L
-st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	
 st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_name	ROFH flash hider, M16x1L
-st_muzzle_custom_01_doublevert_m22x075_choke_description	Dispersion -20 %. Aim time +3 %.
+st_muzzle_custom_01_doublevert_m22x075_choke_description	Dispersion -20 %. Aim time +2.5 %.
 st_muzzle_custom_01_doublevert_m22x075_choke_name	Custom 01 choke, M22x0.75 O/U
-st_muzzle_custom_01_duckbill_description	Dispersion -15 %.
+st_muzzle_custom_01_duckbill_description	Dispersion -15 %. Aim time +1.9 %.
 st_muzzle_custom_01_duckbill_name	Custom 01 duckbill, M22x0.75
 st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
 st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_name	Custom 01 muzzle brake, M14x1L
-st_muzzle_custom_01_m22x075_choke_description	Dispersion -20 %. Aim time +3 %.
+st_muzzle_custom_01_m22x075_choke_description	Dispersion -20 %. Aim time +2.5 %.
 st_muzzle_custom_01_m22x075_choke_name	Custom 01 choke, M22x0.75
 st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
 st_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Custom 01 muzzle brake, M30x1
-st_muzzle_custom_02_duckbill_description	Dispersion -15 %.
+st_muzzle_custom_02_duckbill_description	Dispersion -15 %. Aim time +1.9 %.
 st_muzzle_custom_02_duckbill_name	Custom 02 duckbill, M22x0.75
-st_muzzle_custom_02_m14x1l_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_custom_02_m14x1l_firearrestor_description	
 st_muzzle_custom_02_m14x1l_firearrestor_name	Custom 02 flash hider, M14x1L
-st_muzzle_custom_02_m24x15_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_custom_02_m24x15_firearrestor_description	
 st_muzzle_custom_02_m24x15_firearrestor_name	Custom 02 flash hider, M24x1.5
-st_muzzle_custom_03_duckbill_description	Dispersion -15 %.
+st_muzzle_custom_03_duckbill_description	Dispersion -15 %. Aim time +1.9 %.
 st_muzzle_custom_03_duckbill_name	Custom 03 duckbill, M22x0.75
-st_muzzle_custom_03_m14x1l_clamp_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_description	
 st_muzzle_custom_03_m14x1l_clamp_firearrestor_name	Custom 03 flash hider, M14x1L
-st_muzzle_custom_04_i05x28_clamp_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_custom_04_i05x28_clamp_firearrestor_description	
 st_muzzle_custom_04_i05x28_clamp_firearrestor_name	Custom 04 flash hider, 1/2"x28
-st_muzzle_custom_04_i06x24_clamp_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_custom_04_i06x24_clamp_firearrestor_description	
 st_muzzle_custom_04_i06x24_clamp_firearrestor_name	Custom 04 flash hider, 5/8"x24
-st_muzzle_custom_04_m14x1l_clamp_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_description	
 st_muzzle_custom_04_m14x1l_clamp_firearrestor_name	Custom 04 flash hider, M14x1L
-st_muzzle_custom_doublevert_01_duckbill_description	Dispersion -15 %.
+st_muzzle_custom_doublevert_01_duckbill_description	Dispersion -15 %. Aim time +1.9 %.
 st_muzzle_custom_doublevert_01_duckbill_name	Custom 01 duckbill, M22x0.75 O/U
-st_muzzle_custom_doublevert_02_duckbill_description	Dispersion -15 %.
+st_muzzle_custom_doublevert_02_duckbill_description	Dispersion -15 %. Aim time +1.9 %.
 st_muzzle_custom_doublevert_02_duckbill_name	Custom 02 duckbill, M22x0.75 O/U
-st_muzzle_custom_doublhor_01_duckbill_description	Dispersion -15 %.
+st_muzzle_custom_doublhor_01_duckbill_description	Dispersion -15 %. Aim time +1.9 %.
 st_muzzle_custom_doublhor_01_duckbill_name	Custom 01 duckbill, M22x0.75 SxS
 st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
 st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_name	T-Brake muzzle brake, 1/2"x28
@@ -1672,9 +1672,9 @@ st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_description	Weapon re
 st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_name	Defcon 1 muzzle brake, M16x1L
 st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
 st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_name	Defcon 1 muzzle brake, M30x1
-st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Dispersion -16 %.
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Dispersion -16 %. Aim time +2 %.
 st_muzzle_gunsru_custom_m22x075_muzzlebrake_name	Guns.ru muzzle brake, M22x0.75
-st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_description	Dispersion -16 %.
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_description	Dispersion -16 %. Aim time +2 %.
 st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_name	Kochevnik muzzle brake, M22x0.75
 st_muzzle_kkm_i05x28_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
 st_muzzle_kkm_i05x28_muzzlebrake_name	KKM muzzle brake, 1/2"x28
@@ -1684,37 +1684,37 @@ st_muzzle_lantac_dragon_i06x24_muzzlebrake_description	Weapon recoil -4 %. Aim t
 st_muzzle_lantac_dragon_i06x24_muzzlebrake_name	Dragon muzzle brake, 5/8"x24
 st_muzzle_lantac_drakon_m14x1l_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
 st_muzzle_lantac_drakon_m14x1l_muzzlebrake_name	Dragon muzzle brake, M14x1L
-st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_description	
 st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_name	NightBrake flash hider, 1/2"x28
-st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_description	
 st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_name	NightBrake flash hider, 5/8"x24
-st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description	
 st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_name	NightBrake flash hider, M12x1L
-st_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	
 st_muzzle_manticorearms_nightbrake_m141l_firearrestor_name	NightBrake flash hider, M14x1L
-st_muzzle_polychoke_ventedcollar_m22x075_choke_description	Dispersion -20 %. Aim time +3 %.
+st_muzzle_polychoke_ventedcollar_m22x075_choke_description	Dispersion -20 %. Aim time +2.5 %.
 st_muzzle_polychoke_ventedcollar_m22x075_choke_name	Polychoke choke, M22x0.75
-st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Dispersion -16 %.
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Dispersion -16 %. Aim time +2 %.
 st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_name	Ilgynag K01 muzzle brake, M22x0.75
-st_muzzle_redheat_krymske2_m24x15_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_redheat_krymske2_m24x15_firearrestor_description	
 st_muzzle_redheat_krymske2_m24x15_firearrestor_name	Krymsk-2 flash hider, M24x1.5
 st_muzzle_redheat_shturm_m14x1l_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
 st_muzzle_redheat_shturm_m14x1l_muzzlebrake_name	Shturm muzzle brake, M14x1L
 st_muzzle_redheat_shturm_m24x15_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
 st_muzzle_redheat_shturm_m24x15_muzzlebrake_name	Shturm muzzle brake, M24x1.5
-st_muzzle_remington_doublehor_m22x075_choke_description	Dispersion -20 %. Aim time +3 %.
+st_muzzle_remington_doublehor_m22x075_choke_description	Dispersion -20 %. Aim time +2.5 %.
 st_muzzle_remington_doublehor_m22x075_choke_name	Remington choke, M22x0.75 SxS
-st_muzzle_remington_doublevert_m22x075_choke_description	Dispersion -20 %. Aim time +3 %.
+st_muzzle_remington_doublevert_m22x075_choke_description	Dispersion -20 %. Aim time +2.5 %.
 st_muzzle_remington_doublevert_m22x075_choke_name	Remington choke, M22x0.75 O/U
-st_muzzle_remington_m22x075_choke_description	Dispersion -20 %. Aim time +3 %.
+st_muzzle_remington_m22x075_choke_description	Dispersion -20 %. Aim time +2.5 %.
 st_muzzle_remington_m22x075_choke_name	Remington choke, M22x0.75
-st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	
 st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_name	Dynacomp flash hider, M24x1.5
-st_muzzle_stone_shurhit_m22x075_choke_description	Dispersion -20 %. Aim time +3 %.
+st_muzzle_stone_shurhit_m22x075_choke_description	Dispersion -20 %. Aim time +2.5 %.
 st_muzzle_stone_shurhit_m22x075_choke_name	Sure-Hit choke, M22x0.75
-st_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	
 st_muzzle_taktikatula_saiga419_m22x075_firearrestor_name	TT-419 flash hider, M22x0.75
-st_muzzle_venometactical_antidote_m14x1l_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_description	
 st_muzzle_venometactical_antidote_m14x1l_firearrestor_name	Antidote flash hider, M14x1L
 st_muzzle_zenit_dtk2_m24x15_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
 st_muzzle_zenit_dtk2_m24x15_muzzlebrake_name	Zenit DTK-2 muzzle brake, M24x1.5
@@ -1724,7 +1724,7 @@ st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_description	Weapon recoil -4 %. Ai
 st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_name	Zenit DTK-4 muzzle brake, M24x1.5 clamp
 st_muzzle_zenit_dtk4_m24x15_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
 st_muzzle_zenit_dtk4_m24x15_muzzlebrake_name	Zenit DTK-4 muzzle brake, M24x1.5
-st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_description	
 st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_name	Zenit DTK-4 flash hider, M30x1
 st_my_place	My rank
 st_neostead_description	South African pump-action shotgun, 12 gauge. Designed in the 1990s by Tony Neophytou in the bullpup layout; it has two tube magazines above the barrel, and the slide is pushed forward to work the action. Holds 12 rounds. Single shots only.
@@ -1847,7 +1847,7 @@ st_picatinny_scope_medium_name	Optics / collimators
 st_pickup_item	Pick up ({USE})
 st_ping_postfix	ms
 st_pkp_pecheneg_description	Russian general-purpose machine gun, ammo: 7.62x54R. Developed by TsNIITochMash on the basis of the PKM and adopted in 2001; its heavy barrel with a forced-air cooling jacket allows long bursts without a barrel change. Fed from a 100-round belt. Supports single and automatic fire.
-st_pkp_pecheneg_foregrip_desc	Recoil -6%.
+st_pkp_pecheneg_foregrip_desc	Recoil -3.5%. Aim time +1.2%.
 st_pkp_pecheneg_foregrip_name	PKP standard foregrip
 st_pkp_pecheneg_name	PKP "Pecheneg"
 st_place	Place
@@ -2883,6 +2883,7 @@ st_srp_mode_team_deathmatch	Team Deathmatch
 st_srp_mouse_lock_option	Lock vertical sensitivity
 st_srp_mouse_vertical_option	Vertical sensitivity
 st_srp_muzzle_slot	Muzzle device
+st_srp_no_muzzle_flash	No muzzle flash
 st_srp_optics	Optics
 st_srp_options_hud	HUD:
 st_srp_pierce_brick	Brick, steel
@@ -3297,7 +3298,7 @@ st_toz66_description	A hunter's double-barrel rifle shotgun, ammo: 12x70. Its ab
 st_toz66_name	TOZ-66
 st_trap_damage	Trap damage
 st_treasure_map_advert	Use the stash map to find more items.
-st_troy_modular_foregrip_desc	Recoil -6%. Aim time +1.5%.
+st_troy_modular_foregrip_desc	Recoil -3.5%. Aim time +1.2%.
 st_troy_modular_foregrip_name	Troy Modular foregrip
 st_tt_description	Tulsky Tokarev was introduced in 1933, ammo: 7.62х25mm. Designed in the 1930s to become the first self-loading army pistol in USSR. Clip capacity: 8 rounds.
 st_tt_name	TT-33

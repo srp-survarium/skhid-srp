@@ -1489,7 +1489,7 @@ impl NetworkClient {
         self.0.as_ptr() as usize as u32
     }
 
-    /// +0x4 (ptr<survarium::player>): the player the camera follows: the local player from its first world on (process_dynamic_match_info 0x27C13E), another only by set_followed_player 0x242B90 (patch 46's LOCAL; death-camera.md; a spectator's choice, patch 178)
+    /// +0x4 (ptr<survarium::player>): the player the camera follows: the local player from its first world on (process_dynamic_match_info 0x27C13E), another only by set_followed_player 0x242B90 (patch 46's LOCAL; death-camera.md; a spectator's choice, patch 179)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
@@ -1498,7 +1498,7 @@ impl NetworkClient {
         unsafe { self.0.byte_add(0x4).cast::<Option<Player>>().read_volatile() }
     }
 
-    /// +0x4 (ptr<survarium::player>): the player the camera follows: the local player from its first world on (process_dynamic_match_info 0x27C13E), another only by set_followed_player 0x242B90 (patch 46's LOCAL; death-camera.md; a spectator's choice, patch 178)
+    /// +0x4 (ptr<survarium::player>): the player the camera follows: the local player from its first world on (process_dynamic_match_info 0x27C13E), another only by set_followed_player 0x242B90 (patch 46's LOCAL; death-camera.md; a spectator's choice, patch 179)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
@@ -1597,7 +1597,7 @@ impl NetworkClient {
         unsafe { self.0.byte_add(0x1f1c60).cast::<u32>().as_ptr() }
     }
 
-    /// +0xc (u8): no input is built or sent for the followed player (game_world::tick 0x1F7848): 0 in a network client (base constructor 0x24296B), 1 in a replay client (0x21930C); patch 178 sets it for a spectator
+    /// +0xc (u8): no input is built or sent for the followed player (game_world::tick 0x1F7848): 0 in a network client (base constructor 0x24296B), 1 in a replay client (0x21930C); patch 179 sets it for a spectator
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
@@ -1606,7 +1606,7 @@ impl NetworkClient {
         unsafe { self.0.byte_add(0xc).cast::<u8>().as_ptr() }
     }
 
-    /// +0x1f1c44 (u8): the game's own place: 0xFF none (the constructor 0x219AE2, unload 0x27B4F0), set by on_match_ready (0x27AD89) for the place the 0xE4 names local; 0xFF in a match: a spectator (patch 178)
+    /// +0x1f1c44 (u8): the game's own place: 0xFF none (the constructor 0x219AE2, unload 0x27B4F0), set by on_match_ready (0x27AD89) for the place the 0xE4 names local; 0xFF in a match: a spectator (patch 179)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
@@ -1615,7 +1615,7 @@ impl NetworkClient {
         unsafe { self.0.byte_add(0x1f1c44).cast::<u8>().as_ptr() }
     }
 
-    /// +0x8 (ptr<survarium::player>): the last player the camera followed (set_followed_player 0x242C1A, with a reference), kept when detach_from_player 0x242CC0 lets +4 go: where a spectator's F6/F5 step from after a free flight (patch 178)
+    /// +0x8 (ptr<survarium::player>): the last player the camera followed (set_followed_player 0x242C1A, with a reference), kept when detach_from_player 0x242CC0 lets +4 go: where a spectator's F6/F5 step from after a free flight (patch 179)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
@@ -1624,7 +1624,7 @@ impl NetworkClient {
         unsafe { self.0.byte_add(0x8).cast::<Option<Player>>().read_volatile() }
     }
 
-    /// +0x8 (ptr<survarium::player>): the last player the camera followed (set_followed_player 0x242C1A, with a reference), kept when detach_from_player 0x242CC0 lets +4 go: where a spectator's F6/F5 step from after a free flight (patch 178)
+    /// +0x8 (ptr<survarium::player>): the last player the camera followed (set_followed_player 0x242C1A, with a reference), kept when detach_from_player 0x242CC0 lets +4 go: where a spectator's F6/F5 step from after a free flight (patch 179)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
@@ -4470,7 +4470,7 @@ impl GameWorldUi {
         MovieSlot(unsafe { self.0.byte_add(0xc) })
     }
 
-    /// +0x14 (ptr<vostok::ui::movie_holder>): the replay controls' holder (replay_player.swf): set by initialize_resources only when the game world's load queried it (0x1F8F9E, 0x1F88CC: a replay reader, or patch 179's spectator); initialize_resources sets it up when not 0 (0x23411D), on_keyboard_action's toggle_replay_ui tests it (0x25CED5, as the input's +18h)
+    /// +0x14 (ptr<vostok::ui::movie_holder>): the replay controls' holder (replay_player.swf): set by initialize_resources only when the game world's load queried it (0x1F8F9E, 0x1F88CC: a replay reader, or patch 180's spectator); initialize_resources sets it up when not 0 (0x23411D), on_keyboard_action's toggle_replay_ui tests it (0x25CED5, as the input's +18h)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
@@ -4479,7 +4479,7 @@ impl GameWorldUi {
         unsafe { self.0.byte_add(0x14).cast::<Option<MovieHolder>>().read_volatile() }
     }
 
-    /// +0x14 (ptr<vostok::ui::movie_holder>): the replay controls' holder (replay_player.swf): set by initialize_resources only when the game world's load queried it (0x1F8F9E, 0x1F88CC: a replay reader, or patch 179's spectator); initialize_resources sets it up when not 0 (0x23411D), on_keyboard_action's toggle_replay_ui tests it (0x25CED5, as the input's +18h)
+    /// +0x14 (ptr<vostok::ui::movie_holder>): the replay controls' holder (replay_player.swf): set by initialize_resources only when the game world's load queried it (0x1F8F9E, 0x1F88CC: a replay reader, or patch 180's spectator); initialize_resources sets it up when not 0 (0x23411D), on_keyboard_action's toggle_replay_ui tests it (0x25CED5, as the input's +18h)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
@@ -29411,6 +29411,63 @@ impl StageAtmosphere {
     }
 }
 
+/// A vostok::render::stage_composition (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StageComposition(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl StageComposition {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<vostok::render::renderer_context>): the renderer context (its constructor 0x1A7280 stores EAX there first, 0x1A7293; execute reads +5098h of it, 0x1A866E)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn context(self) -> Option<RendererContext> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<RendererContext>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::render::renderer_context>): the renderer context (its constructor 0x1A7280 stores EAX there first, 0x1A7293; execute reads +5098h of it, 0x1A866E)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_context(self, value: Option<RendererContext>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<RendererContext>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::res_effect (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ResEffect(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ResEffect {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x5620 (u32): the technique res_effect::apply_pass (0x3D7230) applies: stage_composition::execute writes 0 into its composition effect's (0x1A85B4) and 2 into its +30h effect's (0x1A838E) before each call; the techniques are in the order the effect's compile ends them (end_technique 0x3DA6B0; patch 130's twins 3 and 2, patch 178's 1)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn technique(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x5620).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A survarium::skin_cook_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -36088,7 +36145,7 @@ pub mod site {
         }
     }
 
-    /// world_load.loaded (0x27c116): process_dynamic_match_info after either core deserialize returns, before mov eax,[edi+4] / test eax,eax; a load receipt is emitted only here; then the camera back to the local place (get_player(+1F1C44h), set_followed_player, the warmup or player camera), patch 178 its exit done, the join 0x27C1B9 after it (a skip, 0x27C0E3, 0x27C0E7, 0x27C0FD, jumps here too)
+    /// world_load.loaded (0x27c116): process_dynamic_match_info after either core deserialize returns, before mov eax,[edi+4] / test eax,eax; a load receipt is emitted only here; then the camera back to the local place (get_player(+1F1C44h), set_followed_player, the warmup or player camera), patch 179 its exit done, the join 0x27C1B9 after it (a skip, 0x27C0E3, 0x27C0E7, 0x27C0FD, jumps here too)
     pub mod world_load_loaded {
         #[allow(unused_imports)]
         use super::*;
@@ -36856,7 +36913,7 @@ pub mod site {
         }
     }
 
-    /// player_left.entry (0x27c690): process_player_left_match's start (mov ecx,[esi+1F1C40h]; called from the dispatch's table with ESI the network client, [esp+4] the reader, ret 4): patch 178's whole-function replacement in Rust (same behaviour for every player, the spectator's branch in Rust); done is its `ret 4` at 0x27C7A5 with nothing pushed
+    /// player_left.entry (0x27c690): process_player_left_match's start (mov ecx,[esi+1F1C40h]; called from the dispatch's table with ESI the network client, [esp+4] the reader, ret 4): patch 179's whole-function replacement in Rust (same behaviour for every player, the spectator's branch in Rust); done is its `ret 4` at 0x27C7A5 with nothing pushed
     pub mod player_left_entry {
         #[allow(unused_imports)]
         use super::*;
@@ -38263,6 +38320,501 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<GodRaysEntryFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(GodRaysEntryFrame)
+        }
+    }
+
+    /// composition_000.begin_pass (0x1a93a2): effect_composition<0,0,0>::compile (0x1A9330), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1A93AE): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1A939D), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span
+    pub mod composition_000_begin_pass {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+
+        /// the site's ESP: a vostok::render::begin_pass_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<BeginPassFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(BeginPassFrame)
+        }
+    }
+
+    /// composition_000.sun_shadow (0x1a94c1): effect_composition<0,0,0>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1A94D7) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1A94DC), the stack and the x87 as here
+    pub mod composition_000_sun_shadow {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// composition_000.compiled (0x1a95c8): effect_composition<0,0,0>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1A95CD), its technique ended (end_technique 0x3DA6B0 at 0x1A95C2); technique is the technique's start (0x1A933E: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1A9354)
+    pub mod composition_000_compiled {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// composition_100.begin_pass (0x1a9642): effect_composition<1,0,0>::compile (0x1A95D0), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1A964E): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1A963D), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span
+    pub mod composition_100_begin_pass {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+
+        /// the site's ESP: a vostok::render::begin_pass_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<BeginPassFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(BeginPassFrame)
+        }
+    }
+
+    /// composition_100.sun_shadow (0x1a9761): effect_composition<1,0,0>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1A9777) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1A977C), the stack and the x87 as here
+    pub mod composition_100_sun_shadow {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// composition_100.compiled (0x1a9868): effect_composition<1,0,0>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1A986D), its technique ended (end_technique 0x3DA6B0 at 0x1A9862); technique is the technique's start (0x1A95DE: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1A95F4)
+    pub mod composition_100_compiled {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// composition_010.begin_pass (0x1a98e2): effect_composition<0,1,0>::compile (0x1A9870), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1A98EE): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1A98DD), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span
+    pub mod composition_010_begin_pass {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+
+        /// the site's ESP: a vostok::render::begin_pass_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<BeginPassFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(BeginPassFrame)
+        }
+    }
+
+    /// composition_010.sun_shadow (0x1a9a01): effect_composition<0,1,0>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1A9A17) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1A9A1C), the stack and the x87 as here
+    pub mod composition_010_sun_shadow {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// composition_010.compiled (0x1a9b08): effect_composition<0,1,0>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1A9B0D), its technique ended (end_technique 0x3DA6B0 at 0x1A9B02); technique is the technique's start (0x1A987E: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1A9894)
+    pub mod composition_010_compiled {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// composition_110.begin_pass (0x1a9b82): effect_composition<1,1,0>::compile (0x1A9B10), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1A9B8E): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1A9B7D), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span
+    pub mod composition_110_begin_pass {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+
+        /// the site's ESP: a vostok::render::begin_pass_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<BeginPassFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(BeginPassFrame)
+        }
+    }
+
+    /// composition_110.sun_shadow (0x1a9ca1): effect_composition<1,1,0>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1A9CB7) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1A9CBC), the stack and the x87 as here
+    pub mod composition_110_sun_shadow {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// composition_110.compiled (0x1a9da8): effect_composition<1,1,0>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1A9DAD), its technique ended (end_technique 0x3DA6B0 at 0x1A9DA2); technique is the technique's start (0x1A9B1E: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1A9B34)
+    pub mod composition_110_compiled {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// composition_001.begin_pass (0x1a9e22): effect_composition<0,0,1>::compile (0x1A9DB0), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1A9E2E): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1A9E1D), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span
+    pub mod composition_001_begin_pass {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+
+        /// the site's ESP: a vostok::render::begin_pass_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<BeginPassFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(BeginPassFrame)
+        }
+    }
+
+    /// composition_001.sun_shadow (0x1a9f41): effect_composition<0,0,1>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1A9F57) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1A9F5C), the stack and the x87 as here
+    pub mod composition_001_sun_shadow {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// composition_001.compiled (0x1aa048): effect_composition<0,0,1>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1AA04D), its technique ended (end_technique 0x3DA6B0 at 0x1AA042); technique is the technique's start (0x1A9DBE: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1A9DD4)
+    pub mod composition_001_compiled {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// composition_101.begin_pass (0x1aa0c2): effect_composition<1,0,1>::compile (0x1AA050), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1AA0CE): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1AA0BD), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span
+    pub mod composition_101_begin_pass {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+
+        /// the site's ESP: a vostok::render::begin_pass_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<BeginPassFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(BeginPassFrame)
+        }
+    }
+
+    /// composition_101.sun_shadow (0x1aa1e1): effect_composition<1,0,1>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1AA1F7) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1AA1FC), the stack and the x87 as here
+    pub mod composition_101_sun_shadow {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// composition_101.compiled (0x1aa2e8): effect_composition<1,0,1>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1AA2ED), its technique ended (end_technique 0x3DA6B0 at 0x1AA2E2); technique is the technique's start (0x1AA05E: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1AA074)
+    pub mod composition_101_compiled {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// composition_011.begin_pass (0x1aa362): effect_composition<0,1,1>::compile (0x1AA2F0), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1AA36E): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1AA35D), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span
+    pub mod composition_011_begin_pass {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+
+        /// the site's ESP: a vostok::render::begin_pass_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<BeginPassFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(BeginPassFrame)
+        }
+    }
+
+    /// composition_011.sun_shadow (0x1aa481): effect_composition<0,1,1>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1AA497) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1AA49C), the stack and the x87 as here
+    pub mod composition_011_sun_shadow {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// composition_011.compiled (0x1aa588): effect_composition<0,1,1>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1AA58D), its technique ended (end_technique 0x3DA6B0 at 0x1AA582); technique is the technique's start (0x1AA2FE: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1AA314)
+    pub mod composition_011_compiled {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// composition_111.begin_pass (0x1aa602): effect_composition<1,1,1>::compile (0x1AA590), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1AA60E): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1AA5FD), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span
+    pub mod composition_111_begin_pass {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+
+        /// the site's ESP: a vostok::render::begin_pass_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<BeginPassFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(BeginPassFrame)
+        }
+    }
+
+    /// composition_111.sun_shadow (0x1aa721): effect_composition<1,1,1>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1AA737) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1AA73C), the stack and the x87 as here
+    pub mod composition_111_sun_shadow {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// composition_111.compiled (0x1aa828): effect_composition<1,1,1>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1AA82D), its technique ended (end_technique 0x3DA6B0 at 0x1AA822); technique is the technique's start (0x1AA59E: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1AA5B4)
+    pub mod composition_111_compiled {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// composition.constructed (0x1a77b7): stage_composition::stage_composition (0x1A7280) after its last constant host's registration (rain_density's, +70h, whose name holder it lets go by 0x1A77B2): pop edi / pop ebp / mov byte [esi+0Ch],1, the one place both of the release's branches (0x1A77A4, 0x1A77AF) land on; ESI the stage. Its hosts: wind_info_parameters +38h, sun_light_parameters +3Ch, s_eye_ray_corner +40h, ... rain_density +70h (shared_string::create 0xE0B50, register_constant_host 0x3C8BC0 with the backend [2260490h])
+    pub mod composition_constructed {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::render::stage_composition (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn stage(machine: &impl Machine) -> Option<StageComposition> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(StageComposition)
+        }
+    }
+
+    /// composition.technique (0x1a85b4): stage_composition::execute (0x1A8170) with its composition effect chosen (0x1A85B0: [ebp+edx*4], one of the eight effect_composition<a,b,c> of +10h..+2Ch by the environment's use_sun ([ebx+3Ch]) and two render options), at mov dword [eax+5620h],0, its technique, before res_effect::apply_pass (0x3D7230) at 0x1A85BE; apply is that call; EAX the effect, EBP the stage
+    pub mod composition_technique {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a vostok::render::stage_composition (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn stage(machine: &impl Machine) -> Option<StageComposition> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(StageComposition)
+        }
+
+        /// EAX: a vostok::render::res_effect (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn effect(machine: &impl Machine) -> Option<ResEffect> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(ResEffect)
+        }
+    }
+
+    /// composition.constants (0x1a85d6): stage_composition::execute after apply_pass (0x1A85BE) and its first set_ps_constant (0x132A90 at 0x1A85D1, s_eye_ray_corner +40h), before the next (movss xmm0,[esp+28h]): the pass's program bound, EDI the backend ([2260490h], 0x1A85C7), EBP the stage; the game's own sets follow (sun_light_parameters +48h at 0x1A860B, ...)
+    pub mod composition_constants {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a vostok::render::stage_composition (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn stage(machine: &impl Machine) -> Option<StageComposition> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(StageComposition)
+        }
+
+        /// EDI: a vostok::render::backend (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn backend(machine: &impl Machine) -> Option<Backend> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(Backend)
         }
     }
 

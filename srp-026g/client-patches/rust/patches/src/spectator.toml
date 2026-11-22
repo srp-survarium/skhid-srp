@@ -1,8 +1,8 @@
-# Patch 178: a game sent to a match with no place of its own (the 0xE4 names
+# Patch 179: a game sent to a match with no place of its own (the 0xE4 names
 # none: the rooms' queue) watches it (spectator.rs; docs/notes/queue-spectate.md).
 # Only the decisions: the sites are sites_026g.tsv's, the logic spectator.rs.
 name = "spectator"
-patch = 178
+patch = 179
 
 # After a world (last of the site's hooks, after patches 97, 109, 125, 126 and 127:
 # a spectator's ends the chain): the camera to the local place, or a
@@ -40,7 +40,7 @@ site = "static_info.options_read"
 handler = "on_static_info"
 order = 3
 
-# A match's end, after patch 179's (which reads the role): the role over and a
+# A match's end, after patch 180's (which reads the role): the role over and a
 # spectator's input off for the next match.
 [[hook]]
 site = "close_match.reason"

@@ -694,7 +694,7 @@ package
       // with the interface hidden (the replay's F11) as well
       private var _calledBack:CalledBackNotice;
 
-      // srp's (exe patch 179, replay_control's Recall note): the words of the call back, the
+      // srp's (exe patch 180, replay_control's Recall note): the words of the call back, the
       // running language's, with CalledBackNotice.SECONDS where the seconds go.
       public function srp_called_back_words(words:String) : void
       {

@@ -155,7 +155,7 @@ st_ak74u_description	Укорочена модифікація автомата 
 st_ak74u_name	АКC-74У
 st_ak74u_premium_description	Укорочена модифікація автомата АК74 під набій 5.45х39. Завдяки своїм розмірам широко використовувався десантниками, МВС й охоронними структурами. Підтримує одиничний і автоматичний режими стрільби. Преміум-версія в особливому камуфляжі.
 st_ak74u_premium_name	АКС-74У "Корсар"
-st_ak_zenit_rk2_foregrip_desc	Віддача -4%. Час прицілювання +1.5%.
+st_ak_zenit_rk2_foregrip_desc	Віддача -3%. Час прицілювання +1%.
 st_ak_zenit_rk2_foregrip_name	Тактичне рукiв'я Зеніт РК-2
 st_akmn_description	Автомат Калашникова, модернізований під патрон 7.62 мм. Завдяки потужному набою не втрачає актуальності й у наш час. Підтримує одиничний і автоматичний режими стрільби.
 st_akmn_name	АКМ
@@ -1141,9 +1141,9 @@ st_exp_reward_match	Отримано досвіду за матч
 st_exp_reward_premium	Бонус за преміум
 st_experience	Досвід
 st_experience_modifier	Одержуваний досвід
-st_fabdefence_miki_foregrip_desc	Віддача -4%.
+st_fabdefence_miki_foregrip_desc	Віддача -3%. Час прицілювання +1%.
 st_fabdefence_miki_foregrip_name	Руків'я FAB-Defense MIKI
-st_fabdefence_ptk_foregrip_desc	Віддача -6%.
+st_fabdefence_ptk_foregrip_desc	Віддача -3.5%. Час прицілювання +1.2%.
 st_fabdefence_ptk_foregrip_name	Руків'я FAB-Defense PTK
 st_face_069d_balaclava_3_hole_desc	В'язана балаклава з прорізами для очей і рота. Тепла й приховує обличчя.
 st_face_069d_balaclava_3_hole_name	Трьохдіркова балаклава
@@ -1229,7 +1229,7 @@ st_fn_minimi_description	Бельгійський ручний кулемет п
 st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Бельгійська зброя самооборони під боєприпас 5.7х28. Створена FN Herstal близько 1990 року разом із власним патроном; «булпап» з магазином на 50 набоїв уздовж верху зброї. Служить у спецназі й поліції багатьох країн. Вогонь: одиничний і автоматичний.
 st_fn_p90_name	FN P90
-st_fort401_foregrip_desc	Віддача -6%.
+st_fort401_foregrip_desc	Віддача -3.5%. Час прицілювання +1.2%.
 st_fort401_foregrip_name	Штатне Руків'я Форт-401
 st_fort_17_description	Український самозарядний пістолет під калібр 9х18. В серійне виробництво запущений у 2004 році. Використовувався внутрішніми військами і деякими спецпідрозілами. Обладнаний магазином на 12 набоїв.
 st_fort_17_name	Форт 17
@@ -1254,7 +1254,7 @@ st_friendly_user_compliment	Доброзичливий
 st_friends_online	Друзі в мережі
 st_friends_signin_notification_option	Повідомляти про появу друзів у мережі
 st_fullscreen_option	Повноекранний режим
-st_gandp_ris_foregrip_desc	Віддача -4%. Час прицілювання +1.5%.
+st_gandp_ris_foregrip_desc	Віддача -3%. Час прицілювання +1%.
 st_gandp_ris_foregrip_name	Руків'я G&P RIS
 st_general_volume_option	Загальний
 st_generic_money_name	Рублі
@@ -1302,7 +1302,7 @@ st_hud_tutorial_frame_6_text_1	До бою!
 st_hud_tutorial_frame_6_text_2	Ви закінчили базовий курс\nбойової підготовки. Удачі!
 st_hud_tutorial_frame_6_text_3	Ваша винагорода:
 st_ignored	Чорний список
-st_imi_fsg2_foregrip_desc	Віддача -2%.
+st_imi_fsg2_foregrip_desc	Віддача -2.5%. Час прицілювання +0.8%.
 st_imi_fsg2_foregrip_name	Руків'я FSG2
 st_in_develepoment_hint	У процесі розробки
 st_ingame_volume_option	Гра
@@ -1478,7 +1478,7 @@ st_m4a1_description	Американський карабін під боєпр�
 st_m4a1_name	М4А1
 st_magnum_description	Шестизарядний револьвер калібру .357 Магнум. Уперше був представлений у 1955 році. Дехто вважає його одним із найкращих представників свого класу. Вирізняється м'яким спуском та високою точністю.
 st_magnum_name	Кольт Пітон
-st_magpul_afg1_foregrip_desc	Віддача -6%.
+st_magpul_afg1_foregrip_desc	Віддача -3.5%. Час прицілювання +1.2%.
 st_magpul_afg1_foregrip_name	Руків'я AFG-1
 st_maintenance	Почалося технічне обслуговування серверів. Програму буде закрито.
 st_map	Мапа
@@ -1507,7 +1507,7 @@ st_match_settings_checkbox_training_match	Тренувальний бій
 st_match_settings_checkbox_training_match_hint	Режим тренувальної кімнати
 st_match_settings_clan_match	Клановий бій
 st_match_time_is_up	Час матчу вичерпано!
-st_mauser_m712_foregrip_desc	Віддача -6%.
+st_mauser_m712_foregrip_desc	Віддача -3.5%. Час прицілювання +1.2%.
 st_mauser_m712_foregrip_name	Руків'я Mauser M.712
 st_max_carried_weight_description	Переносима вага:
 st_max_carried_weight_name	Силач
@@ -1620,47 +1620,47 @@ st_music_volume_option	Музика
 st_must_be_in_clan_team	Ви повинні бути активним членом кланової команди.
 st_muzzle_aek919k_m12x1l_muzzlebrake_description	Віддача зброї -4 %. Час прицілювання +3 %.
 st_muzzle_aek919k_m12x1l_muzzlebrake_name	Дульне гальмо AEK-919K, M12x1L
-st_muzzle_akmsu_m24x15_muzzlebrake_description	Лише зовнішній вигляд.
+st_muzzle_akmsu_m24x15_muzzlebrake_description	
 st_muzzle_akmsu_m24x15_muzzlebrake_name	Полум'ягасник AKMSU, M24x1.5
-st_muzzle_aks74u_m24x15_muzzlebrake_description	Лише зовнішній вигляд.
+st_muzzle_aks74u_m24x15_muzzlebrake_description	
 st_muzzle_aks74u_m24x15_muzzlebrake_name	Полум'ягасник AKS-74U, M24x1.5
 st_muzzle_aws_rapira_m24x15_muzzlebrake_description	Віддача зброї -4 %. Час прицілювання +3 %.
 st_muzzle_aws_rapira_m24x15_muzzlebrake_name	Дульне гальмо Rapira, M24x1.5
-st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description	Приховує спалах пострілу. Лише зовнішній вигляд.
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description	
 st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_name	Полум'ягасник ROFH, M14x1L
-st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	Приховує спалах пострілу. Лише зовнішній вигляд.
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	
 st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_name	Полум'ягасник ROFH, M16x1L
-st_muzzle_custom_01_doublevert_m22x075_choke_description	Дисперсія -20 %. Час прицілювання +3 %.
+st_muzzle_custom_01_doublevert_m22x075_choke_description	Дисперсія -20 %. Час прицілювання +2.5 %.
 st_muzzle_custom_01_doublevert_m22x075_choke_name	Чок Custom 01, M22x0.75 O/U
-st_muzzle_custom_01_duckbill_description	Дисперсія -15 %.
+st_muzzle_custom_01_duckbill_description	Дисперсія -15 %. Час прицілювання +1.9 %.
 st_muzzle_custom_01_duckbill_name	Качиний дзьоб Custom 01, M22x0.75
 st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_description	Віддача зброї -4 %. Час прицілювання +3 %.
 st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_name	Дульне гальмо Custom 01, M14x1L
-st_muzzle_custom_01_m22x075_choke_description	Дисперсія -20 %. Час прицілювання +3 %.
+st_muzzle_custom_01_m22x075_choke_description	Дисперсія -20 %. Час прицілювання +2.5 %.
 st_muzzle_custom_01_m22x075_choke_name	Чок Custom 01, M22x0.75
 st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Віддача зброї -4 %. Час прицілювання +3 %.
 st_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Дульне гальмо Custom 01, M30x1
-st_muzzle_custom_02_duckbill_description	Дисперсія -15 %.
+st_muzzle_custom_02_duckbill_description	Дисперсія -15 %. Час прицілювання +1.9 %.
 st_muzzle_custom_02_duckbill_name	Качиний дзьоб Custom 02, M22x0.75
-st_muzzle_custom_02_m14x1l_firearrestor_description	Приховує спалах пострілу. Лише зовнішній вигляд.
+st_muzzle_custom_02_m14x1l_firearrestor_description	
 st_muzzle_custom_02_m14x1l_firearrestor_name	Полум'ягасник Custom 02, M14x1L
-st_muzzle_custom_02_m24x15_firearrestor_description	Приховує спалах пострілу. Лише зовнішній вигляд.
+st_muzzle_custom_02_m24x15_firearrestor_description	
 st_muzzle_custom_02_m24x15_firearrestor_name	Полум'ягасник Custom 02, M24x1.5
-st_muzzle_custom_03_duckbill_description	Дисперсія -15 %.
+st_muzzle_custom_03_duckbill_description	Дисперсія -15 %. Час прицілювання +1.9 %.
 st_muzzle_custom_03_duckbill_name	Качиний дзьоб Custom 03, M22x0.75
-st_muzzle_custom_03_m14x1l_clamp_firearrestor_description	Приховує спалах пострілу. Лише зовнішній вигляд.
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_description	
 st_muzzle_custom_03_m14x1l_clamp_firearrestor_name	Полум'ягасник Custom 03, M14x1L
-st_muzzle_custom_04_i05x28_clamp_firearrestor_description	Приховує спалах пострілу. Лише зовнішній вигляд.
+st_muzzle_custom_04_i05x28_clamp_firearrestor_description	
 st_muzzle_custom_04_i05x28_clamp_firearrestor_name	Полум'ягасник Custom 04, 1/2"x28
-st_muzzle_custom_04_i06x24_clamp_firearrestor_description	Приховує спалах пострілу. Лише зовнішній вигляд.
+st_muzzle_custom_04_i06x24_clamp_firearrestor_description	
 st_muzzle_custom_04_i06x24_clamp_firearrestor_name	Полум'ягасник Custom 04, 5/8"x24
-st_muzzle_custom_04_m14x1l_clamp_firearrestor_description	Приховує спалах пострілу. Лише зовнішній вигляд.
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_description	
 st_muzzle_custom_04_m14x1l_clamp_firearrestor_name	Полум'ягасник Custom 04, M14x1L
-st_muzzle_custom_doublevert_01_duckbill_description	Дисперсія -15 %.
+st_muzzle_custom_doublevert_01_duckbill_description	Дисперсія -15 %. Час прицілювання +1.9 %.
 st_muzzle_custom_doublevert_01_duckbill_name	Качиний дзьоб Custom 01, M22x0.75 O/U
-st_muzzle_custom_doublevert_02_duckbill_description	Дисперсія -15 %.
+st_muzzle_custom_doublevert_02_duckbill_description	Дисперсія -15 %. Час прицілювання +1.9 %.
 st_muzzle_custom_doublevert_02_duckbill_name	Качиний дзьоб Custom 02, M22x0.75 O/U
-st_muzzle_custom_doublhor_01_duckbill_description	Дисперсія -15 %.
+st_muzzle_custom_doublhor_01_duckbill_description	Дисперсія -15 %. Час прицілювання +1.9 %.
 st_muzzle_custom_doublhor_01_duckbill_name	Качиний дзьоб Custom 01, M22x0.75 SxS
 st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_description	Віддача зброї -4 %. Час прицілювання +3 %.
 st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_name	Дульне гальмо T-Brake, 1/2"x28
@@ -1672,9 +1672,9 @@ st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_description	Відд�
 st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_name	Дульне гальмо Defcon 1, M16x1L
 st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Віддача зброї -4 %. Час прицілювання +3 %.
 st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_name	Дульне гальмо Defcon 1, M30x1
-st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Дисперсія -16 %.
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Дисперсія -16 %. Час прицілювання +2 %.
 st_muzzle_gunsru_custom_m22x075_muzzlebrake_name	Дульне гальмо Guns.ru, M22x0.75
-st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_description	Дисперсія -16 %.
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_description	Дисперсія -16 %. Час прицілювання +2 %.
 st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_name	Дульне гальмо Kochevnik, M22x0.75
 st_muzzle_kkm_i05x28_muzzlebrake_description	Віддача зброї -4 %. Час прицілювання +3 %.
 st_muzzle_kkm_i05x28_muzzlebrake_name	Дульне гальмо KKM, 1/2"x28
@@ -1684,37 +1684,37 @@ st_muzzle_lantac_dragon_i06x24_muzzlebrake_description	Віддача зброї
 st_muzzle_lantac_dragon_i06x24_muzzlebrake_name	Дульне гальмо Dragon, 5/8"x24
 st_muzzle_lantac_drakon_m14x1l_muzzlebrake_description	Віддача зброї -4 %. Час прицілювання +3 %.
 st_muzzle_lantac_drakon_m14x1l_muzzlebrake_name	Дульне гальмо Dragon, M14x1L
-st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_description	Приховує спалах пострілу. Лише зовнішній вигляд.
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_description	
 st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_name	Полум'ягасник NightBrake, 1/2"x28
-st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_description	Приховує спалах пострілу. Лише зовнішній вигляд.
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_description	
 st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_name	Полум'ягасник NightBrake, 5/8"x24
-st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description	Приховує спалах пострілу. Лише зовнішній вигляд.
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description	
 st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_name	Полум'ягасник NightBrake, M12x1L
-st_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	Приховує спалах пострілу. Лише зовнішній вигляд.
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	
 st_muzzle_manticorearms_nightbrake_m141l_firearrestor_name	Полум'ягасник NightBrake, M14x1L
-st_muzzle_polychoke_ventedcollar_m22x075_choke_description	Дисперсія -20 %. Час прицілювання +3 %.
+st_muzzle_polychoke_ventedcollar_m22x075_choke_description	Дисперсія -20 %. Час прицілювання +2.5 %.
 st_muzzle_polychoke_ventedcollar_m22x075_choke_name	Чок Polychoke, M22x0.75
-st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Дисперсія -16 %.
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Дисперсія -16 %. Час прицілювання +2 %.
 st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_name	Дульне гальмо Ilgynag K01, M22x0.75
-st_muzzle_redheat_krymske2_m24x15_firearrestor_description	Приховує спалах пострілу. Лише зовнішній вигляд.
+st_muzzle_redheat_krymske2_m24x15_firearrestor_description	
 st_muzzle_redheat_krymske2_m24x15_firearrestor_name	Полум'ягасник Krymsk-2, M24x1.5
 st_muzzle_redheat_shturm_m14x1l_muzzlebrake_description	Віддача зброї -4 %. Час прицілювання +3 %.
 st_muzzle_redheat_shturm_m14x1l_muzzlebrake_name	Дульне гальмо Shturm, M14x1L
 st_muzzle_redheat_shturm_m24x15_muzzlebrake_description	Віддача зброї -4 %. Час прицілювання +3 %.
 st_muzzle_redheat_shturm_m24x15_muzzlebrake_name	Дульне гальмо Shturm, M24x1.5
-st_muzzle_remington_doublehor_m22x075_choke_description	Дисперсія -20 %. Час прицілювання +3 %.
+st_muzzle_remington_doublehor_m22x075_choke_description	Дисперсія -20 %. Час прицілювання +2.5 %.
 st_muzzle_remington_doublehor_m22x075_choke_name	Чок Remington, M22x0.75 SxS
-st_muzzle_remington_doublevert_m22x075_choke_description	Дисперсія -20 %. Час прицілювання +3 %.
+st_muzzle_remington_doublevert_m22x075_choke_description	Дисперсія -20 %. Час прицілювання +2.5 %.
 st_muzzle_remington_doublevert_m22x075_choke_name	Чок Remington, M22x0.75 O/U
-st_muzzle_remington_m22x075_choke_description	Дисперсія -20 %. Час прицілювання +3 %.
+st_muzzle_remington_m22x075_choke_description	Дисперсія -20 %. Час прицілювання +2.5 %.
 st_muzzle_remington_m22x075_choke_name	Чок Remington, M22x0.75
-st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	Приховує спалах пострілу. Лише зовнішній вигляд.
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	
 st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_name	Полум'ягасник Dynacomp, M24x1.5
-st_muzzle_stone_shurhit_m22x075_choke_description	Дисперсія -20 %. Час прицілювання +3 %.
+st_muzzle_stone_shurhit_m22x075_choke_description	Дисперсія -20 %. Час прицілювання +2.5 %.
 st_muzzle_stone_shurhit_m22x075_choke_name	Чок Sure-Hit, M22x0.75
-st_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	Приховує спалах пострілу. Лише зовнішній вигляд.
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	
 st_muzzle_taktikatula_saiga419_m22x075_firearrestor_name	Полум'ягасник TT-419, M22x0.75
-st_muzzle_venometactical_antidote_m14x1l_firearrestor_description	Приховує спалах пострілу. Лише зовнішній вигляд.
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_description	
 st_muzzle_venometactical_antidote_m14x1l_firearrestor_name	Полум'ягасник Antidote, M14x1L
 st_muzzle_zenit_dtk2_m24x15_muzzlebrake_description	Віддача зброї -4 %. Час прицілювання +3 %.
 st_muzzle_zenit_dtk2_m24x15_muzzlebrake_name	Дульне гальмо Zenit DTK-2, M24x1.5
@@ -1724,7 +1724,7 @@ st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_description	Віддача збр�
 st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_name	Дульне гальмо Zenit DTK-4, M24x1.5 clamp
 st_muzzle_zenit_dtk4_m24x15_muzzlebrake_description	Віддача зброї -4 %. Час прицілювання +3 %.
 st_muzzle_zenit_dtk4_m24x15_muzzlebrake_name	Дульне гальмо Zenit DTK-4, M24x1.5
-st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_description	Приховує спалах пострілу. Лише зовнішній вигляд.
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_description	
 st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_name	Полум'ягасник Zenit DTK-4, M30x1
 st_my_place	Мій рейтинг
 st_neostead_description	Південноафриканська помпова рушниця 12 калібру. Створена в 90-х Тоні Неофіту за схемою «булпап»; два трубчасті магазини над стволом, для перезаряджання цівку подають уперед. 12 набоїв. Лише одиничний вогонь.
@@ -1847,7 +1847,7 @@ st_picatinny_scope_medium_name	Оптика / коліматори
 st_pickup_item	Підняти ({USE})
 st_ping_postfix	мс.
 st_pkp_pecheneg_description	Російський єдиний кулемет під боєприпас 7.62х54R. Створений у ЦНДІТочМаш на основі ПКМ, на озброєнні з 2001 року; важкий ствол із примусовим охолодженням дозволяє вести довгі черги без заміни. Стрічка на 100 набоїв. Вогонь: одиничний і автоматичний.
-st_pkp_pecheneg_foregrip_desc	Віддача -6%.
+st_pkp_pecheneg_foregrip_desc	Віддача -3.5%. Час прицілювання +1.2%.
 st_pkp_pecheneg_foregrip_name	Штатне Руків'я ПКП
 st_pkp_pecheneg_name	ПКП "Печеніг"
 st_place	Місце
@@ -2883,6 +2883,7 @@ st_srp_mode_team_deathmatch	Командний бій
 st_srp_mouse_lock_option	Зафіксувати вертикальну чутливість
 st_srp_mouse_vertical_option	Вертикальна чутливість
 st_srp_muzzle_slot	Дульний пристрій
+st_srp_no_muzzle_flash	Без спалаху
 st_srp_optics	Оптика
 st_srp_options_hud	Інтерфейс бою:
 st_srp_pierce_brick	Цегла, сталь
@@ -3297,7 +3298,7 @@ st_toz66_description	Обріз мисливської двостволки пі
 st_toz66_name	ТОЗ-66
 st_trap_damage	Ушкодження від пастки
 st_treasure_map_advert	Використовуйте мапу схрону після бою, щоб знайти більше предметів.
-st_troy_modular_foregrip_desc	Віддача -6%. Час прицілювання +1.5%.
+st_troy_modular_foregrip_desc	Віддача -3.5%. Час прицілювання +1.2%.
 st_troy_modular_foregrip_name	Руків'я Troy Modular
 st_tt_description	Тульський Токарева зразка 1933 року під боєприпас 7.62х25 мм. Розроблений у 30-х роках двадцятого століття. Перший самозарядний пістолет на озброєнні армії СРСР. Магазин уміщує 8 набоїв.
 st_tt_name	TT-33

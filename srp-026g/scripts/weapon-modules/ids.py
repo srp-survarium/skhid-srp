@@ -19,9 +19,10 @@ Without --write it only says what it would add.
 usage: python3 -I ids.py --movie [--check]
 
 The lobby movie knows a muzzle device's and a grip's slot by a table made of ids.tsv,
-../../flash/lobby_menu/tables/survarium/data/ModuleKinds.tsv (the class survarium.data.ModuleKinds):
-written at every --write and by --movie; --movie --check only says whether it is current (exit
-status 1 if not).
+../../flash/lobby_menu/tables/survarium/data/ModuleKinds.tsv (the class survarium.data.ModuleKinds),
+and what each device and grip changes on its weapon by AttachmentStats.tsv beside it, made of
+../muzzle-devices/devices.tsv and ../weapon-grips/grips.tsv: written at every --write and by
+--movie; --movie --check only says whether they are current (exit status 1 if not).
 """
 import sys
 from pathlib import Path
@@ -37,6 +38,24 @@ HEAD = ('# The fitted modules\' dict ids (ids.py; append-only): 0.69d0 module, o
 
 TABLE = HERE / 'ids.tsv'
 MOVIE = HERE.parent.parent / 'flash/lobby_menu/tables/survarium/data/ModuleKinds.tsv'
+STATS = MOVIE.with_name('AttachmentStats.tsv')
+DEVICES = HERE.parent / 'muzzle-devices/devices.tsv'
+GRIPS = HERE.parent / 'weapon-grips/grips.tsv'
+EFFECTS = HERE.parent / 'muzzle-devices/effect_scale.tsv'
+# A device whose shot effect has no light and no fire (effect_scale.tsv: no light's peak) hides the
+# shot's flash: a line of its own, the barrel length roll's icon (2010..) and these words.
+NO_FLASH = {'icon': 33, 'label': 'st_srp_no_muzzle_flash'}
+# A stat a device or a grip changes (a share of the weapon's own value: modifier type 2), as the
+# card shows the game's own weapon roll of the same key: that roll's line (its ui_desc prop_id: the
+# value and its colour; Alt counts it as such a roll, UpgradeWindow.withFitted) and icon
+# (gameplay/items/modifications: 2070.. aim time, 2080.. the six kick bounds, 2020.. barrel
+# rifling); `words`, the line whose name says what the share is of: the weapon card's own "Aim
+# time" (133) for aim time, as the roll's "Aiming speed" would read a longer aim as faster.
+STAT_UI = {
+    'parameters/aim_time': {'prop': 102, 'icon': 39, 'words': 133},
+    'recoil': {'prop': 115, 'icon': 40, 'words': 115},
+    'dispersion/base_dispersion': {'prop': 2, 'icon': 34, 'words': 2},
+}
 
 
 def read_rows():
@@ -54,12 +73,51 @@ def movie_table(rows):
     return head + ''.join(f'{kind}\t{row[1]}\n' for kind in ('muzzle', 'grip') for row in rows if row[2] == kind)
 
 
+def table_rows(path):
+    return [line.split('\t') for line in path.read_text().splitlines() if line and not line.startswith('#')]
+
+
+def stats_table():
+    """The lobby's AttachmentStats: a row a stat of a device (devices.tsv's stats, `key share; ...`)
+    or a grip (grips.tsv's recoil and aim_time), in dict id order."""
+    found = []
+    flashless = {row[1] for row in table_rows(EFFECTS) if row[0] == 'effect' and row[4] == row[5] == '-'}
+    for row in table_rows(DEVICES):
+        if row[5] in flashless:
+            found.append((int(row[0]), None, 0.0))
+        for stat in filter(None, (part.strip() for part in row[6].split(';'))):
+            if stat == '-':
+                continue
+            key, share = stat.rsplit(' ', 1)
+            found.append((int(row[0]), key, float(share)))
+    for row in table_rows(GRIPS):
+        for key, share in (('recoil', row[5]), ('parameters/aim_time', row[6])):
+            if float(share):
+                found.append((int(row[0]), key, float(share)))
+    head = ('# What a muzzle device or a grip changes on its weapon: a row a stat, its share of the weapon\'s\n'
+            '# own value (modifier type 2), the card line and icon of the game\'s weapon roll of that key; a\n'
+            '# line with no stat (prop 0) its icon and its words (label). Written by srp-026g/scripts/\n'
+            '# weapon-modules/ids.py from devices.tsv, effect_scale.tsv and grips.tsv: do not edit. The\n'
+            '# lobby build makes it the class survarium.data.AttachmentStats.\n'
+            'list\tdict:int\tshare:String\tprop:int\ticon:int\twords:int\tlabel:String\n')
+    out = []
+    for dict_id, key, share in sorted(found, key=lambda f: f[0]):
+        if key is None:
+            out.append(f"stats\t{dict_id}\t\t0\t{NO_FLASH['icon']}\t0\t{NO_FLASH['label']}\n")
+            continue
+        if key not in STAT_UI:
+            sys.exit(f'{dict_id}: no card line for the stat {key} (ids.py STAT_UI)')
+        ui = STAT_UI[key]
+        out.append(f"stats\t{dict_id}\t{share:g}\t{ui['prop']}\t{ui['icon']}\t{ui['words']}\t\n")
+    return head + ''.join(out)
+
+
 def movie(check):
-    text = movie_table(read_rows())
-    if not check:
-        MOVIE.write_text(text)
-    elif not MOVIE.is_file() or MOVIE.read_text() != text:
-        sys.exit(f'{MOVIE} is not what ids.tsv gives: python3 -I {Path(__file__).name} --movie')
+    for path, text in ((MOVIE, movie_table(read_rows())), (STATS, stats_table())):
+        if not check:
+            path.write_text(text)
+        elif not path.is_file() or path.read_text() != text:
+            sys.exit(f'{path} is not what its sources give: python3 -I {Path(__file__).name} --movie')
 
 
 def main():

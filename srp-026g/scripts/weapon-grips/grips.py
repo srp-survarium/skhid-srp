@@ -8,9 +8,14 @@ texts.py their texts (docs/notes/attachments-grips.md).
 an exe reader is simplified). 0.69d0 rolls two modifier groups on a module, an effect and a
 penalty, and a bought module has both at grade 7. A 0.26g weapon reads neither aimed, hip nor
 first-shots recoil, nor an aimed movement speed, so:
-- the effect, a conditional recoil, is plain recoil at a share (SHARE);
-- a penalty on the aim time is kept as it is;
-- a penalty on a key the weapon does not read is dropped.
+- the effect, a conditional recoil, is plain recoil at a share (SHARE), then drawn towards the
+  middle (MIDDLE, KEEP): 0.26g has one recoil, so 0.69d0's different recoil cuts flatten into
+  near equals; the grips are about equal in strength and differ in look and fit, a little in
+  number (the owner, 2026-11-22: "they should be toned down to be in more equilibrium", "they can
+  be slightly different in numbers"): -2 % -> -2.5 %, -4 % -> -3 %, -6 % -> -3.5 %;
+- the cost is aim time, a third of the recoil it takes off, to 0.1 % (AIM_PER_RECOIL): +0.8 %,
+  +1.0 %, +1.2 %. A stronger grip costs more, so none is better than another. 0.69d0's penalty
+  no longer decides it: most are on keys the weapon does not read, and those grips cost nothing.
 A modifier the rule does not know stops the build.
 """
 from dataclasses import dataclass
@@ -26,6 +31,11 @@ GRADE = 7
 # A conditional recoil's share of plain recoil: aimed fire is most of a fight's shots.
 SHARE = {'recoil_aim_modifier': 0.75, 'recoil_hip_modifier': 0.25, 'recoil_shot_first_three_modifier': 0.25}
 AIM_TIME = 'aim_time_modifier'
+# The recoil a grip takes off, drawn towards MIDDLE: a derived recoil of CENTER becomes MIDDLE, and
+# what it has beyond CENTER is kept at KEEP.
+MIDDLE, CENTER, KEEP = -0.03, -0.04, 0.25
+# A grip's aim time for each unit of recoil it takes off, rounded to 0.001.
+AIM_PER_RECOIL = 1 / 3
 # Penalties on keys a 0.26g weapon does not read.
 DROPPED = {'recoil_aim_modifier', 'recoil_hip_modifier', 'aimed_movement_speed_factor'}
 # Silver: one price a family (attachments.md; 0.69d0 prices every module the same, 200).
@@ -139,14 +149,12 @@ def simple(module, effect, penalty):
     """(recoil, aim time) of the rule above."""
     if effect.key not in SHARE or effect.value >= 0:
         raise SystemExit(f'{module}: its effect is {effect}, which the rule does not know')
-    recoil = round(effect.value * SHARE[effect.key], 4)
-    if penalty.key == AIM_TIME:
-        if penalty.value <= 0:
-            raise SystemExit(f'{module}: its aim time {penalty} is no penalty')
-        return recoil, round(penalty.value, 4)
-    if penalty.key not in DROPPED:
+    recoil = round(MIDDLE + (effect.value * SHARE[effect.key] - CENTER) * KEEP, 4)
+    if penalty.key == AIM_TIME and penalty.value <= 0:
+        raise SystemExit(f'{module}: its aim time {penalty} is no penalty')
+    if penalty.key != AIM_TIME and penalty.key not in DROPPED:
         raise SystemExit(f'{module}: its penalty is {penalty}, which the rule does not know')
-    return recoil, 0.0
+    return recoil, round(-recoil * AIM_PER_RECOIL, 3)
 
 
 def modules():

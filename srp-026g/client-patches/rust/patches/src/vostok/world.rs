@@ -411,7 +411,7 @@ impl<'t> NetworkClient<'t> {
 
 impl NetworkClient<'_> {
     /// A spectator's camera to the player of `place` (the replay controls'
-    /// player list, patch 179), alive or not, as [`Self::follow`] moves it:
+    /// player list, patch 180), alive or not, as [`Self::follow`] moves it:
     /// set_followed_player and the attached spectator's camera. Whether it
     /// follows that player now (not a spectator, no match yet, no such
     /// player, or one not in the match: nothing).

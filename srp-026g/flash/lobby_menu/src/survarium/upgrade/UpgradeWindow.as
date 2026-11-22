@@ -19,6 +19,7 @@ package survarium.upgrade
    import survarium.data.IconContainer;
    import survarium.data.ItemData;
    import survarium.data.LocalizationData;
+   import survarium.data.AttachmentStats;
    import survarium.data.ModuleKinds;
    import survarium.constants.CosmeticSlot;
    import survarium.constants.ItemCategory;
@@ -102,6 +103,15 @@ package survarium.upgrade
 
       // A weapon's window has two pages, its attachments (the scope) and its appearance (the decals and
       // the camouflage), turned by the arrows either side of the title.
+      // A slot's item hovered (cardItem, cardSlot): the lobby shows its card beside the slot; left: hidden.
+      public static const SHOW_CARD:String = "upgradeShowCard";
+
+      public static const HIDE_CARD:String = "upgradeHideCard";
+
+      public var cardItem:Object = null;
+
+      public var cardSlot:UpgradeSlot = null;
+
       public static const PAGE_ATTACHMENTS:int = 0;
 
       public static const PAGE_APPEARANCE:int = 1;
@@ -137,6 +147,9 @@ package survarium.upgrade
       protected var _attachmentSlots:Array = [];
 
       protected var _hasAppearance:Boolean = false;
+
+      // the page setData was asked to open on, or -1
+      protected var _openOn:int = -1;
 
       protected var _pagePrev:PageArrow;
 
@@ -207,6 +220,14 @@ package survarium.upgrade
          return dictId in _moduleSlots ? int(_moduleSlots[dictId]) : -1;
       }
 
+      // The filter an item is listed under: a muzzle device's and a grip's own (their category is the
+      // scopes'), any other item's its category.
+      public static function filterCategory(item:Object) : int
+      {
+         var slot:int = int(item.category) == ItemCategory.SCOPES ? attachmentSlot(int(item.dictId)) : -1;
+         return slot == CosmeticSlot.MUZZLE ? ItemCategory.MUZZLE_DEVICES : (slot == CosmeticSlot.GRIP ? ItemCategory.GRIPS : int(item.category));
+      }
+
       public static function hasAttachments(weaponDictId:int) : Boolean
       {
          return Boolean(attachmentPairs[weaponDictId]);
@@ -230,6 +251,20 @@ package survarium.upgrade
       public static function isUpgradeableWeapon(item:Object) : Boolean
       {
          return isWeaponCategory(int(item.category)) && (hasAttachments(int(item.dictId)) || Boolean(item.camoAvailable) || Boolean(item.decalAvailable));
+      }
+
+      // A weapon whose window has an appearance page: it takes a camouflage or decals.
+      public static function hasAppearance(item:Object) : Boolean
+      {
+         return int(item.camoAvailable) > 0 || int(item.decalAvailable) > 0;
+      }
+
+      // Whether the inventory lists an item: while the window is open for a weapon, a scope, muzzle
+      // device or grip only where it fits that weapon (the owner, 2026-11-22: "you don't even see
+      // attachments you cannot put on the weapon"); anything else as always.
+      public static function listsItem(item:Object) : Boolean
+      {
+         return !(Boolean(instance) && instance.visible && hostDictId >= 0 && int(item.category) == ItemCategory.SCOPES) || fits(hostDictId,int(item.dictId));
       }
 
       public static function fits(weaponDictId:int, attachmentDictId:int) : Boolean
@@ -390,6 +425,53 @@ package survarium.upgrade
          return null;
       }
 
+      // What a muzzle device or a grip changes on its weapon (AttachmentStats): its rows, each a share of
+      // the weapon's own value (share), the card line (prop) and icon of the weapon roll of that key.
+      private static var _stats:Dictionary;
+
+      public static function attachmentStats(dictId:int) : Array
+      {
+         var row:Object = null;
+         if(!_stats)
+         {
+            _stats = new Dictionary();
+            for each(row in AttachmentStats.stats)
+            {
+               if(!_stats[row.dict])
+               {
+                  _stats[row.dict] = [];
+               }
+               _stats[row.dict].push(row);
+            }
+         }
+         return _stats[dictId] is Array ? _stats[dictId] as Array : [];
+      }
+
+      // A weapon's own modifications and its fitted device's and grip's stats, each as a roll of the
+      // same key: the cook sums them all on the weapon's value (base x max(0, 1 + sum)), as a match has it.
+      public static function withFitted(item:Object) : Array
+      {
+         var all:Array = item.modifiers is Array ? (item.modifiers as Array).concat() : [];
+         var module:Object = null;
+         var row:Object = null;
+         for each(var slot:int in [CosmeticSlot.MUZZLE,CosmeticSlot.GRIP])
+         {
+            module = attachedIn(item,slot);
+            if(!module)
+            {
+               continue;
+            }
+            for each(row in attachmentStats(int(module.dictId)))
+            {
+               if(row.prop > 0)
+               {
+                  all.push({props:[{prop_id:row.prop,prop_value:row.share}]});
+               }
+            }
+         }
+         return all;
+      }
+
       public static function attachedScope(item:Object) : Object
       {
          var scope:Object = attachedIn(item,CosmeticSlot.CAMOUFLAGE);
@@ -481,9 +563,12 @@ package survarium.upgrade
          return this._data ? this._data.itemId : 0;
       }
       
-      public function setData(itemData:ItemData, resetSlots:Boolean = true) : void
+      // page: the page a new window opens on (a weapon's right-click Attachments or Appearance); -1 the
+      // window's own choice (the attachments when the weapon takes any)
+      public function setData(itemData:ItemData, resetSlots:Boolean = true, page:int = -1) : void
       {
          this._data = itemData;
+         this._openOn = page;
          this._hasChanges = false;
          this.container.x = parent["inventory_list"].x - x - 190;
          this.container.y = parent["inventory_list"].y - y + 40;
@@ -536,7 +621,7 @@ package survarium.upgrade
                // update keeps the page
                if(resetSlots || !(this._page == PAGE_ATTACHMENTS ? this._attachmentSlots.length > 0 : this._hasAppearance))
                {
-                  this._page = this._attachmentSlots.length > 0 ? PAGE_ATTACHMENTS : PAGE_APPEARANCE;
+                  this._page = this._attachmentSlots.length > 0 && !(this._openOn == PAGE_APPEARANCE && this._hasAppearance) ? PAGE_ATTACHMENTS : PAGE_APPEARANCE;
                }
                this.placeWeaponSlots();
                if(!resetSlots)
@@ -735,7 +820,7 @@ package survarium.upgrade
          this.infoContainer.y = MainScene.stageHeight - this.infoContainer.height - 100;
          if(selectFilter && Boolean(this._inventory))
          {
-            this._inventory.selectCategory(attachments ? [ItemCategory.SCOPES] : [ItemCategory.CAMOUFLAGES,ItemCategory.DECALS],false,true);
+            this._inventory.selectCategory(attachments ? [ItemCategory.SCOPES,ItemCategory.MUZZLE_DEVICES,ItemCategory.GRIPS] : [ItemCategory.CAMOUFLAGES,ItemCategory.DECALS],false,true);
          }
       }
 
@@ -1030,11 +1115,28 @@ package survarium.upgrade
          var category:int = 0;
          trace("onItemMouseClicked",event.target,event.currentTarget);
          var slot:UpgradeSlot = event.currentTarget as UpgradeSlot;
-         if(Boolean(slot) && !slot.data)
+         if(!slot)
+         {
+            return;
+         }
+         // a weapon's scope, muzzle device or grip slot, empty or not: the list of its own kind (the
+         // owner, 2026-11-22: "it should open those ones in a list", "not scopes")
+         var kind:int = hostDictId >= 0 ? attachmentFilter(slot) : -1;
+         if(kind >= 0 && event.target.name != "btnDrop")
+         {
+            this._inventory.selectCategory([kind]);
+         }
+         else if(!slot.data)
          {
             category = hostDictId >= 0 ? this.weaponSlotCategory(slot) : int(this._slotAgreements[slot.index]);
             this._inventory.selectCategory([category]);
          }
+      }
+
+      // The Upgrades filter of a weapon's attachment slot (ShopFilters), -1 for any other slot.
+      private function attachmentFilter(slot:UpgradeSlot) : int
+      {
+         return slot == this.camoSlot ? ItemCategory.SCOPES : (slot == this.muzzleSlot ? ItemCategory.MUZZLE_DEVICES : (slot == this.gripSlot ? ItemCategory.GRIPS : -1));
       }
       
       // What goes in a weapon's slot: its camouflage, its scope or a decal.
@@ -1208,14 +1310,23 @@ package survarium.upgrade
       
       private function onItemOut(event:Event) : void
       {
+         this.cardItem = null;
+         this.cardSlot = null;
+         dispatchEvent(new Event(HIDE_CARD));
       }
       
+      // the item a slot holds: its card, as the inventory's (the owner, 2026-11-22: "I hover over grip")
       private function onItemOver(event:Event) : void
       {
-         var slot:UpgradeSlot = event.target as UpgradeSlot;
-         if(slot && slot.data && slot.data.modifiers)
+         var slot:UpgradeSlot = event.currentTarget as UpgradeSlot;
+         var item:Object = Boolean(slot) && Boolean(slot.data) ? inventoryItem(uint(slot.data.itemId)) : null;
+         if(!item)
          {
+            return;
          }
+         this.cardItem = item;
+         this.cardSlot = slot;
+         dispatchEvent(new Event(SHOW_CARD));
       }
       
       private function onItemUpdated(event:Event) : void

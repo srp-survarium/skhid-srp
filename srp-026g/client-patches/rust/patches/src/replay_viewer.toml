@@ -1,8 +1,8 @@
-# Patch 179: a replay played in the running game as a spectated match
+# Patch 180: a replay played in the running game as a spectated match
 # (replay_viewer.rs; docs/notes/replay-stream.md). Only the decisions: the
 # sites are sites_026g.tsv's, the logic replay_viewer.rs.
 name = "replay_viewer"
-patch = 179
+patch = 180
 uses = ["spectator"]
 
 # An 0xF6: the server's playback and events notes (payload 'R'); the
