@@ -2802,3 +2802,4 @@ va	name	source	ret_cleanup	result
 0x0031d400	survarium::breath_vibration_calculator::not_holding_breath	manual	0	EAX 1 when the delay (+5Ch) is 0.0 or the gun (+38h) is not aimed (+5E8h): holding -> normal, tried before insufficient_breath
 0x0031d430	survarium::breath_vibration_calculator::insufficient_breath	manual	0	EAX 1 when the reserve (+50h) is 0.0 or less: holding -> short breathing
 0x0023ddd0	survarium::base_game_scene::apply_camera	manual	4	none; the scene (+0Ch the camera's transform, +4Ch the projection) set from the director for the frame's draw
+0x0031aca0	survarium::effect_zone_core::protect_players [descriptive]	manual	4	none; each own-team player of the list gets the damage model's +32Ch = the time + the zone's +48h and +330h = the zone's +4Ch (0x31AD0F, 0x31AD15)

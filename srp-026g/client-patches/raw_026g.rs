@@ -38457,4 +38457,19 @@ pub mod site {
             NonNull::new(machine.register(Register::Edx) as usize as *mut c_void).map(CameraDirector)
         }
     }
+
+    /// effect_zone.protect (0x31ad0f): the effect zone protecting an own-team player inside it (0x31ACA0, each player of its list whose team is the zone's +50h): about to store the fade (mov [eax+330h],ecx, the zone's +4Ch) and the end (mov [eax+32Ch],edx at 0x31AD15: the time + the zone's +48h) into the player's damage model, EAX; skip is past both stores, the player's reference released as on the other team's path (the jne at 0x31ACF4)
+    pub mod effect_zone_protect {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a survarium::medical_damage (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn model(machine: &impl Machine) -> Option<MedicalDamage> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(MedicalDamage)
+        }
+    }
 }

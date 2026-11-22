@@ -203,6 +203,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/animation_id_log.rs`, `src/animation_id_log.toml`, `src/vostok/animation_id.rs`, `check_animation_id_log_026g.py` | Patch 95: a diagnostic (`../docs/notes/animation-ids.md`): an animation pair the registry has no id for (the lookup 0x2D6590 returns 0FFFFh, the rev47 crashes at 0x1F18C8) is logged to srp_patches.log once, with the clips' names, the registry's size and who asked; one lohook (`sites_026g.tsv` `animations.id_missing`); its check runs the lookup in the original and the patched exe (needs Unicorn) |
 | `rust/patches/src/drug_interrupt.rs`, `src/drug_interrupt.toml`, `src/vostok/drug.rs`, `check_drug_interrupt_026g.py` | Patch 84: a bullet that hits a player stops the healing drug he is using (`../docs/notes/drug-interrupt.md`): one lohook (`sites_026g.tsv` `player.hit_applied`), the game's own `medkit::set_active(0)` through the engine library; its check runs the hook in the patched exe and the game's set_active(0) in the original (needs Unicorn) |
 | `rust/patches/src/breath_hit.rs`, `src/breath_hit.toml`, `src/vostok/breath.rs`, `check_breath_hit_026g.py` | Patch 177: a hit that takes health breaks the victim's breath hold (`../docs/notes/breath-hit.md`): one lohook sharing `sites_026g.tsv` `player.hit_applied` with patch 84 (order 1), which spends the held gun's breath reserve while the gun is holding; the game's own machine goes to short breathing at the gun's next tick. Its check runs the hook and that machine in the patched exe (needs Unicorn) |
+| `rust/patches/src/shot_protection.rs`, `src/shot_protection.toml`, `src/vostok/protection.rs`, `check_shot_protection_026g.py` | Patch 179: a shot ends the shooter's protection (`../docs/notes/shot-protection.md`): one lohook sharing `sites_026g.tsv` `weapon_stats.fired` with patch 165 (order 1), which makes the shooter's damage model's protection time -1, and one at the effect zone's stores (`effect_zone.protect`), which leaves an ended protection ended. Its check runs both hooks in the patched exe beside the original (needs Unicorn) |
 | `rust/patches/src/hand_kill.rs`, `src/hand_kill.toml`, `src/vostok/melee.rs`, `check_hand_kill_026g.py` | Patch 108: a gun-stock hit kills, wherever it lands (`../docs/notes/hand-kill.md`): one lohook on patch 94's `medical.hit` site (ours first in the chain); its check runs the chain in the patched exe (needs Unicorn) |
 | `rust/patches/src/trap_stock_hit.rs`, `src/trap_stock_hit.toml`, `src/vostok/trap.rs`, `check_trap_stock_hit_026g.py` | Patch 151: a gun-stock hit disarms a trap (`../docs/notes/trap-stock-hit.md`): one lohook at `booby_trap_core::hit`'s entry (`trap.hit`); its check runs the hit in the original and the patched exe (needs Unicorn) |
 | `rust/patches/src/text_input.rs`, `check_text_input_026g.py` | Patch 52: ignore a character event whose Scaleform text field has lost its AS3 receiver; reproduces the PIN-entry crash and checks native register/stack behavior (needs Unicorn) |
@@ -6606,3 +6607,15 @@ four values are then sent from that table: one set per project, its donor enviro
 and every native map draw as before. The game's post-process effects do not touch the four
 (`../docs/notes/client_patch.md` section 3.98). Rendering only: nothing a match computes or a world
 holds changes. Not run in a game.
+
+## A shot ends the shooter's protection (patch 179, unreleased)
+
+A gun fired ends its shooter's protection at once, in every mode (the owner, 2026-11-22: "when you
+start shooting your invulnerability should be removed"; `../docs/notes/shot-protection.md`). The Rust
+`shot_protection` hook shares patch 165's site in `base_player::on_fire` (`weapon_stats.fired`,
+0x2D7843, after patch 165) and writes -1, no protection, into the shooter's damage model's
+`m_invulnerability_time_in_ms`. A second hook at the effect zone's stores (`effect_zone.protect`,
+0x31AD0F) leaves through `skip` when that time is -1, so a base's zone moves on a protection that
+runs or has run out and never starts an ended one: a player who fired has none until the next spawn.
+A simulation change; the world format is unchanged. Checked with `check_shot_protection_026g.py`
+(Unicorn; `tools/check shot-protection`). Not run in a game.

@@ -11668,6 +11668,87 @@ scaleform_capture_on_queue_destroy_replay:
     db 0x56, 0x8b, 0xf1, 0x8b, 0x4e, 0x34
     jmp 0x5ed1e6
 
+; 0x2d7843 base_player::on_fire 0x2D7800 after its fire listeners, before the handler's on_player_weapon_firing (slot +8, the only call, 0x2D78A5; mov ecx,[esi+10h] / mov ebx,[ecx+18FA8h]): ESI the player + 110h, the site's ESP+14h the bullets fired: lohook -> weapon_stats_on_fired
+global weapon_stats_on_fired
+extern hook_weapon_stats_on_fired_chain
+weapon_stats_on_fired:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_stats_on_fired_chain
+    mov edx, weapon_stats_on_fired_replay
+    cmp eax, 0
+    je weapon_stats_on_fired_go
+    mov edx, 0x2d784c
+    cmp eax, 1
+    je weapon_stats_on_fired_go
+    ud2
+weapon_stats_on_fired_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_stats_on_fired_replay:
+    db 0x8b, 0x4e, 0x10, 0x8b, 0x99, 0xa8, 0x8f, 0x01, 0x00
+    jmp 0x2d784c
+
+; 0x31ad0f the effect zone protecting an own-team player inside it (0x31ACA0, each player of its list whose team is the zone's +50h): about to store the fade (mov [eax+330h],ecx, the zone's +4Ch) and the end (mov [eax+32Ch],edx at 0x31AD15: the time + the zone's +48h) into the player's damage model, EAX; skip is past both stores, the player's reference released as on the other team's path (the jne at 0x31ACF4): lohook -> shot_protection_on_zone_protect
+global shot_protection_on_zone_protect
+extern hook_shot_protection_on_zone_protect
+shot_protection_on_zone_protect:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_shot_protection_on_zone_protect
+    mov edx, shot_protection_on_zone_protect_replay
+    cmp eax, 0
+    je shot_protection_on_zone_protect_go
+    mov edx, 0x31ad15
+    cmp eax, 1
+    je shot_protection_on_zone_protect_go
+    mov edx, 0x31ad1b
+    cmp eax, 2
+    je shot_protection_on_zone_protect_go
+    ud2
+shot_protection_on_zone_protect_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+shot_protection_on_zone_protect_replay:
+    db 0x89, 0x88, 0x30, 0x03, 0x00, 0x00
+    jmp 0x31ad15
+
 ; 0x380504 on_user_name_answer_received (0x380340) for the answer 0Bh, the user name taken (mov ecx,[ebp+8] / sub esp,30h, past the jne at 0x380502): before it starts the stream's handshake (0x38B840), once a sign-in: lohook -> sign_in_cipher_on_begin
 global sign_in_cipher_on_begin
 extern hook_sign_in_cipher_on_begin
@@ -14124,45 +14205,6 @@ weapon_stats_on_hit_go:
 weapon_stats_on_hit_replay:
     db 0x8b, 0x8e, 0x20, 0x01, 0x00, 0x00
     jmp 0x2da112
-
-; 0x2d7843 base_player::on_fire 0x2D7800 after its fire listeners, before the handler's on_player_weapon_firing (slot +8, the only call, 0x2D78A5; mov ecx,[esi+10h] / mov ebx,[ecx+18FA8h]): ESI the player + 110h, the site's ESP+14h the bullets fired: lohook -> weapon_stats_on_fired
-global weapon_stats_on_fired
-extern hook_weapon_stats_on_fired
-weapon_stats_on_fired:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_weapon_stats_on_fired
-    mov edx, weapon_stats_on_fired_replay
-    cmp eax, 0
-    je weapon_stats_on_fired_go
-    mov edx, 0x2d784c
-    cmp eax, 1
-    je weapon_stats_on_fired_go
-    ud2
-weapon_stats_on_fired_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-weapon_stats_on_fired_replay:
-    db 0x8b, 0x4e, 0x10, 0x8b, 0x99, 0xa8, 0x8f, 0x01, 0x00
-    jmp 0x2d784c
 
 ; 0x2f5bd0 shared_statistics::serialize 0x2F5AC0 after its tail's last write (m_active_in_match_players_mask, 0x2F5BCB), at its epilogue (pop edi / pop ebx / mov esp,ebp / pop ebp): ESI the statistics, EDI the writer: lohook -> weapon_stats_on_save
 global weapon_stats_on_save
