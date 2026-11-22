@@ -2359,7 +2359,7 @@ pub(super) fn guard_own_traps(
     let jumping = keys & super::key::JUMP != 0 || airborne;
     // The body's own stop forecast, as the lip guard's (its kept controller, at speed level 1: the fastest a kit moves).
     let at = super::body::Estimate { kept: bot.reckoned_kept, ..super::body::Estimate::of_view(me, grid.locate(me.feet, 1.5)) };
-    let stop = super::body::Stop { kin, level: 1.0, grid, planned: &[], hold: GUARD_HOLD_TICKS };
+    let stop = super::body::Stop { kin, level: 1.0, grid, planned: &[], hold: GUARD_HOLD_TICKS, margin: super::body::RECKONING_M };
     let path_of = |k: u32| super::body::stop_path(&at, k, turn, &stop);
     let guard = own_trap_guard(path_of, allowed, me.feet, me.velocity, me.yaw, turn, keys, &discs, jumping);
     // A route the guard holds at rest (no move key, the body slower than the lip guard's glide) past the longest think gap is one

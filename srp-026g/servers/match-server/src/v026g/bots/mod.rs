@@ -517,6 +517,8 @@ pub struct Bot {
     /// [F42] Its own reckoned body's crouch selector state at its last decided tick ([`body::Creep`]), for the steady creep
     /// ([`drive::steady_creep`]); set before each drive.
     reckoned_creep: body::Creep,
+    /// [fix-lip] The reckoning's error measured at its last worlds: the lip guard's margin ([`body::MeasuredError`]).
+    reckon_error: body::MeasuredError,
     /// Its falls and route jumps for the log (A285, `nav_log.rs`): written, never read back.
     nav_log: nav_log::NavLog,
     /// [A416] Where its walking view is: on the course, in a glance, or free ([`view_schedule::View`]).
@@ -757,6 +759,7 @@ impl Bot {
             reckoned_kept: None,
             reckoned: None,
             reckoned_creep: body::Creep::Unknown,
+            reckon_error: body::MeasuredError::default(),
             nav_log: nav_log::NavLog::default(),
             view: view_schedule::View::default(),
             offers: threat::LastOffers::default(),
@@ -2218,6 +2221,7 @@ impl Bots {
             if new_life {
                 bot.stuck.forget_heights();
                 bot.drift.new_life();
+                bot.reckon_error.new_life();
             }
             // A294: the drift of the reckoning against this world, with its likely cause.
             if let (false, Some(reckoned), Some((gap_ms, meant_m, ticks, body_m))) = (new_life, reckoned, drift_view) {
@@ -2257,6 +2261,8 @@ impl Bots {
                     bot.drift.prior = Some(prior);
                     nav_drift::cross_track::count_by(kind, &step, reckoned, gap_ms, keys & key::FIRE != 0);
                 }
+                // [fix-lip] The lip guard's margin from the measured error.
+                bot.reckon_error.world(facts.error().0);
                 if facts.drifts() {
                     let cause = nav_drift::Cause::of(&facts);
                     bot.drift.world(Some((&facts, cause)));
