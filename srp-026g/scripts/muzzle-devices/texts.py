@@ -61,7 +61,7 @@ NO_FLASH = {'english': 'No muzzle flash', 'german': 'Kein Mündungsfeuer', 'poli
 
 
 def percent(value):
-    return f'{"+" if value > 0 else "-"}{round(abs(value) * 100)} %'
+    return f'{"+" if value > 0 else "-"}{round(abs(value) * 100, 1):g} %'
 
 
 def read(path):

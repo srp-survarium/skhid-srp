@@ -155,7 +155,7 @@ st_ak74u_description	Skraćena inačica puške AK74, streljivo: 5.45x39. Zbog sv
 st_ak74u_name	AKS-74U
 st_ak74u_premium_description	Skraćena inačica puške AK74, streljivo: 5.45x39. Zbog svojih dimenzija koristili su je marinci, Ministarstvo unutarnjih poslova i sigurnosne službe. Omogućuje pojedinačnu i rafalnu paljbu. Premium inačica s posebnim maskirnim uzorkom.
 st_ak74u_premium_name	AKS-74U Corsair
-st_ak_zenit_rk2_foregrip_desc	Trzaj -4%. Vrijeme ciljanja +1.5%.
+st_ak_zenit_rk2_foregrip_desc	Trzaj -3%. Vrijeme ciljanja +1%.
 st_ak_zenit_rk2_foregrip_name	Taktički rukohvat Zenit RK-2
 st_akmn_description	Jurišna puška Kalašnjikov prilagođena streljivu 7.62x39 mm. Snaga i pouzdanost čine je korisnim oružjem i danas. Omogućuje pojedinačnu i automatsku paljbu.
 st_akmn_name	AKM
@@ -1131,9 +1131,9 @@ st_exp_reward_match	Stečeno iskustvo
 st_exp_reward_premium	Premium bonus
 st_experience	Iskustvo
 st_experience_modifier	Dobiveno iskustvo
-st_fabdefence_miki_foregrip_desc	Trzaj -4%.
+st_fabdefence_miki_foregrip_desc	Trzaj -3%. Vrijeme ciljanja +1%.
 st_fabdefence_miki_foregrip_name	Prednji rukohvat FAB-Defense MIKI
-st_fabdefence_ptk_foregrip_desc	Trzaj -6%.
+st_fabdefence_ptk_foregrip_desc	Trzaj -3.5%. Vrijeme ciljanja +1.2%.
 st_fabdefence_ptk_foregrip_name	Prednji rukohvat FAB-Defense PTK
 st_face_069d_balaclava_3_hole_desc	Pletena potkapa s otvorima za oči i usta. Grije i skriva lice.
 st_face_069d_balaclava_3_hole_name	Potkapa s tri otvora
@@ -1219,7 +1219,7 @@ st_fn_minimi_description	Belgijska laka strojnica, streljivo: 5.56x45. Automatsk
 st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Belgijsko oružje za osobnu obranu, streljivo: 5.7x28. Razvio ga je FN Herstal oko 1990. zajedno s vlastitim streljivom. Ima bullpup raspored i spremnik za 50 metaka položen uz vrh oružja. Koriste ga specijalne snage i policija brojnih zemalja. Omogućuje pojedinačnu i automatsku paljbu.
 st_fn_p90_name	FN P90
-st_fort401_foregrip_desc	Trzaj -6%.
+st_fort401_foregrip_desc	Trzaj -3.5%. Vrijeme ciljanja +1.2%.
 st_fort401_foregrip_name	Standardni prednji rukohvat Fort-401
 st_fort_17_description	Ukrajinski poluautomatski pištolj, streljivo: 9x18. Proizvodnja je počela 2004. Koristile su ga unutarnje snage i neke specijalne jedinice. Kapacitet: 12 metaka. 
 st_fort_17_name	Fort 17
@@ -1244,7 +1244,7 @@ st_friendly_user_compliment	Prijateljski
 st_friends_online	Prijatelji na mreži
 st_friends_signin_notification_option	Obavijesti kad se prijatelji povežu
 st_fullscreen_option	Prikaz preko cijelog zaslona
-st_gandp_ris_foregrip_desc	Trzaj -4%. Vrijeme ciljanja +1.5%.
+st_gandp_ris_foregrip_desc	Trzaj -3%. Vrijeme ciljanja +1%.
 st_gandp_ris_foregrip_name	Prednji rukohvat G&P RIS
 st_general_volume_option	Majstor
 st_generic_money_name	Rublji
@@ -1292,7 +1292,7 @@ st_hud_tutorial_frame_6_text_1	U borbu!
 st_hud_tutorial_frame_6_text_2	Završili ste osnovnu\nborbenu obuku. Sretno!
 st_hud_tutorial_frame_6_text_3	Vaša nagrada:
 st_ignored	Popis blokiranih
-st_imi_fsg2_foregrip_desc	Trzaj -2%.
+st_imi_fsg2_foregrip_desc	Trzaj -2.5%. Vrijeme ciljanja +0.8%.
 st_imi_fsg2_foregrip_name	Prednji rukohvat FSG2
 st_in_develepoment_hint	U razvoju
 st_ingame_volume_option	Igra
@@ -1467,7 +1467,7 @@ st_m4a1_description	Američki karabin, streljivo: 5.56x45. Skraćena i lakša in
 st_m4a1_name	M4A1
 st_magnum_description	Revolver sa šest metaka kalibra .357 Magnum. Predstavljen je 1955. Neki ga smatraju jednim od najboljih u svojoj klasi. Ističe se glatkim okidanjem i visokom preciznošću.
 st_magnum_name	Colt Python
-st_magpul_afg1_foregrip_desc	Trzaj -6%.
+st_magpul_afg1_foregrip_desc	Trzaj -3.5%. Vrijeme ciljanja +1.2%.
 st_magpul_afg1_foregrip_name	Prednji rukohvat AFG-1
 st_maintenance	U tijeku je tehničko održavanje poslužitelja. Aplikacija će se zatvoriti.
 st_map	Karta
@@ -1493,7 +1493,7 @@ st_match_settings_checkbox_training_match	Trening borba
 st_match_settings_checkbox_training_match_hint	Način sobe za trening
 st_match_settings_clan_match	Borba klanova
 st_match_time_is_up	Vrijeme borbe je isteklo!
-st_mauser_m712_foregrip_desc	Trzaj -6%.
+st_mauser_m712_foregrip_desc	Trzaj -3.5%. Vrijeme ciljanja +1.2%.
 st_mauser_m712_foregrip_name	Rukohvat Mauser M.712
 st_max_carried_weight_description	Nosivost:
 st_max_carried_weight_name	Atlet
@@ -1612,23 +1612,23 @@ st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description
 st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_name	Skrivač plamena ROFH, M14x1L
 st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	
 st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_name	Skrivač plamena ROFH, M16x1L
-st_muzzle_custom_01_doublevert_m22x075_choke_description	Rasipanje -20 %. Vrijeme ciljanja +3 %.
+st_muzzle_custom_01_doublevert_m22x075_choke_description	Rasipanje -20 %. Vrijeme ciljanja +2.5 %.
 st_muzzle_custom_01_doublevert_m22x075_choke_name	Čok Custom 01, M22x0.75 O/U
-st_muzzle_custom_01_duckbill_description	Rasipanje -15 %.
+st_muzzle_custom_01_duckbill_description	Rasipanje -15 %. Vrijeme ciljanja +1.9 %.
 st_muzzle_custom_01_duckbill_name	Pačji kljun Custom 01, M22x0.75
 st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_description	Trzaj oružja -4 %. Vrijeme ciljanja +3 %.
 st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_name	Plinska kočnica Custom 01, M14x1L
-st_muzzle_custom_01_m22x075_choke_description	Rasipanje -20 %. Vrijeme ciljanja +3 %.
+st_muzzle_custom_01_m22x075_choke_description	Rasipanje -20 %. Vrijeme ciljanja +2.5 %.
 st_muzzle_custom_01_m22x075_choke_name	Čok Custom 01, M22x0.75
 st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Trzaj oružja -4 %. Vrijeme ciljanja +3 %.
 st_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Plinska kočnica Custom 01, M30x1
-st_muzzle_custom_02_duckbill_description	Rasipanje -15 %.
+st_muzzle_custom_02_duckbill_description	Rasipanje -15 %. Vrijeme ciljanja +1.9 %.
 st_muzzle_custom_02_duckbill_name	Pačji kljun Custom 02, M22x0.75
 st_muzzle_custom_02_m14x1l_firearrestor_description	
 st_muzzle_custom_02_m14x1l_firearrestor_name	Skrivač plamena Custom 02, M14x1L
 st_muzzle_custom_02_m24x15_firearrestor_description	
 st_muzzle_custom_02_m24x15_firearrestor_name	Skrivač plamena Custom 02, M24x1.5
-st_muzzle_custom_03_duckbill_description	Rasipanje -15 %.
+st_muzzle_custom_03_duckbill_description	Rasipanje -15 %. Vrijeme ciljanja +1.9 %.
 st_muzzle_custom_03_duckbill_name	Pačji kljun Custom 03, M22x0.75
 st_muzzle_custom_03_m14x1l_clamp_firearrestor_description	
 st_muzzle_custom_03_m14x1l_clamp_firearrestor_name	Skrivač plamena Custom 03, M14x1L
@@ -1638,11 +1638,11 @@ st_muzzle_custom_04_i06x24_clamp_firearrestor_description
 st_muzzle_custom_04_i06x24_clamp_firearrestor_name	Skrivač plamena Custom 04, 5/8"x24
 st_muzzle_custom_04_m14x1l_clamp_firearrestor_description	
 st_muzzle_custom_04_m14x1l_clamp_firearrestor_name	Skrivač plamena Custom 04, M14x1L
-st_muzzle_custom_doublevert_01_duckbill_description	Rasipanje -15 %.
+st_muzzle_custom_doublevert_01_duckbill_description	Rasipanje -15 %. Vrijeme ciljanja +1.9 %.
 st_muzzle_custom_doublevert_01_duckbill_name	Pačji kljun Custom 01, M22x0.75 O/U
-st_muzzle_custom_doublevert_02_duckbill_description	Rasipanje -15 %.
+st_muzzle_custom_doublevert_02_duckbill_description	Rasipanje -15 %. Vrijeme ciljanja +1.9 %.
 st_muzzle_custom_doublevert_02_duckbill_name	Pačji kljun Custom 02, M22x0.75 O/U
-st_muzzle_custom_doublhor_01_duckbill_description	Rasipanje -15 %.
+st_muzzle_custom_doublhor_01_duckbill_description	Rasipanje -15 %. Vrijeme ciljanja +1.9 %.
 st_muzzle_custom_doublhor_01_duckbill_name	Pačji kljun Custom 01, M22x0.75 SxS
 st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_description	Trzaj oružja -4 %. Vrijeme ciljanja +3 %.
 st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_name	Plinska kočnica T-Brake, 1/2"x28
@@ -1654,9 +1654,9 @@ st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_description	Trzaj oru
 st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_name	Plinska kočnica Defcon 1, M16x1L
 st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Trzaj oružja -4 %. Vrijeme ciljanja +3 %.
 st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_name	Plinska kočnica Defcon 1, M30x1
-st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Rasipanje -16 %.
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Rasipanje -16 %. Vrijeme ciljanja +2 %.
 st_muzzle_gunsru_custom_m22x075_muzzlebrake_name	Plinska kočnica Guns.ru, M22x0.75
-st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_description	Rasipanje -16 %.
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_description	Rasipanje -16 %. Vrijeme ciljanja +2 %.
 st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_name	Plinska kočnica Kochevnik, M22x0.75
 st_muzzle_kkm_i05x28_muzzlebrake_description	Trzaj oružja -4 %. Vrijeme ciljanja +3 %.
 st_muzzle_kkm_i05x28_muzzlebrake_name	Plinska kočnica KKM, 1/2"x28
@@ -1674,9 +1674,9 @@ st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description
 st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_name	Skrivač plamena NightBrake, M12x1L
 st_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	
 st_muzzle_manticorearms_nightbrake_m141l_firearrestor_name	Skrivač plamena NightBrake, M14x1L
-st_muzzle_polychoke_ventedcollar_m22x075_choke_description	Rasipanje -20 %. Vrijeme ciljanja +3 %.
+st_muzzle_polychoke_ventedcollar_m22x075_choke_description	Rasipanje -20 %. Vrijeme ciljanja +2.5 %.
 st_muzzle_polychoke_ventedcollar_m22x075_choke_name	Čok Polychoke, M22x0.75
-st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Rasipanje -16 %.
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Rasipanje -16 %. Vrijeme ciljanja +2 %.
 st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_name	Plinska kočnica Ilgynag K01, M22x0.75
 st_muzzle_redheat_krymske2_m24x15_firearrestor_description	
 st_muzzle_redheat_krymske2_m24x15_firearrestor_name	Skrivač plamena Krymsk-2, M24x1.5
@@ -1684,15 +1684,15 @@ st_muzzle_redheat_shturm_m14x1l_muzzlebrake_description	Trzaj oružja -4 %. Vrij
 st_muzzle_redheat_shturm_m14x1l_muzzlebrake_name	Plinska kočnica Shturm, M14x1L
 st_muzzle_redheat_shturm_m24x15_muzzlebrake_description	Trzaj oružja -4 %. Vrijeme ciljanja +3 %.
 st_muzzle_redheat_shturm_m24x15_muzzlebrake_name	Plinska kočnica Shturm, M24x1.5
-st_muzzle_remington_doublehor_m22x075_choke_description	Rasipanje -20 %. Vrijeme ciljanja +3 %.
+st_muzzle_remington_doublehor_m22x075_choke_description	Rasipanje -20 %. Vrijeme ciljanja +2.5 %.
 st_muzzle_remington_doublehor_m22x075_choke_name	Čok Remington, M22x0.75 SxS
-st_muzzle_remington_doublevert_m22x075_choke_description	Rasipanje -20 %. Vrijeme ciljanja +3 %.
+st_muzzle_remington_doublevert_m22x075_choke_description	Rasipanje -20 %. Vrijeme ciljanja +2.5 %.
 st_muzzle_remington_doublevert_m22x075_choke_name	Čok Remington, M22x0.75 O/U
-st_muzzle_remington_m22x075_choke_description	Rasipanje -20 %. Vrijeme ciljanja +3 %.
+st_muzzle_remington_m22x075_choke_description	Rasipanje -20 %. Vrijeme ciljanja +2.5 %.
 st_muzzle_remington_m22x075_choke_name	Čok Remington, M22x0.75
 st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	
 st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_name	Skrivač plamena Dynacomp, M24x1.5
-st_muzzle_stone_shurhit_m22x075_choke_description	Rasipanje -20 %. Vrijeme ciljanja +3 %.
+st_muzzle_stone_shurhit_m22x075_choke_description	Rasipanje -20 %. Vrijeme ciljanja +2.5 %.
 st_muzzle_stone_shurhit_m22x075_choke_name	Čok Sure-Hit, M22x0.75
 st_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	
 st_muzzle_taktikatula_saiga419_m22x075_firearrestor_name	Skrivač plamena TT-419, M22x0.75
@@ -1827,7 +1827,7 @@ st_picatinny_scope_medium_name	Optika / kolimatori
 st_pickup_item	Podigni ({USE})
 st_ping_postfix	ms
 st_pkp_pecheneg_description	Ruska višenamjenska strojnica, streljivo: 7.62x54R. Razvio ju je TsNIITochMash na temelju PKM-a, a uvedena je 2001. Teška cijev s plaštem za prisilno zračno hlađenje omogućuje duge rafale bez zamjene cijevi. Redenik sa 100 metaka. Pojedinačna i automatska paljba.
-st_pkp_pecheneg_foregrip_desc	Trzaj -6%.
+st_pkp_pecheneg_foregrip_desc	Trzaj -3.5%. Vrijeme ciljanja +1.2%.
 st_pkp_pecheneg_foregrip_name	Standardni prednji rukohvat PKP
 st_pkp_pecheneg_name	PKP "Pecheneg"
 st_place	Mjesto
@@ -3199,7 +3199,7 @@ st_toz66_description	Lovačka dvocijevna sačmarica, streljivo: 12x70. Mogućnos
 st_toz66_name	TOZ-66
 st_trap_damage	Šteta zamke
 st_treasure_map_advert	Upotrijebite kartu skrovišta kako biste pronašli više predmeta.
-st_troy_modular_foregrip_desc	Trzaj -6%. Vrijeme ciljanja +1.5%.
+st_troy_modular_foregrip_desc	Trzaj -3.5%. Vrijeme ciljanja +1.2%.
 st_troy_modular_foregrip_name	Prednji rukohvat Troy Modular
 st_tt_description	Tulski Tokarev predstavljen je 1933., streljivo: 7.62x25 mm. Razvijen 1930-ih kao prvi poluautomatski vojni pištolj SSSR-a. Kapacitet spremnika: 8 metaka.
 st_tt_name	TT-33

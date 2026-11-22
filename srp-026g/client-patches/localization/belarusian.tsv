@@ -155,7 +155,7 @@ st_ak74u_description	Укарочаная мадыфікацыя аўтамат�
 st_ak74u_name	АКС-74У
 st_ak74u_premium_description	Укарочаная мадыфікацыя аўтамата АК74 пад боепрыпас 5.45х39. Дзякуючы сваім памерам, шырока выкарыстоўвалася дэсантнікамі, МУС і ахоўнымі структурамі. Падтрымлівае адзіночны і аўтаматычны рэжымы стральбы. Прэміум-версія ў асаблівым камуфляжы.
 st_ak74u_premium_name	АКС-74У "Карсар"
-st_ak_zenit_rk2_foregrip_desc	Аддача -4%. Час прыцэльвання +1.5%.
+st_ak_zenit_rk2_foregrip_desc	Аддача -3%. Час прыцэльвання +1%.
 st_ak_zenit_rk2_foregrip_name	Тактычная рукаятка Зеніт РК-2
 st_akmn_description	Аўтамат Калашнікава, мадэрнізаваны пад патрон 7.62×39 мм. Дзякуючы магутнаму патрону не губляе актуальнасці і ў наш час. Падтрымлівае адзіночны і аўтаматычны рэжымы стральбы.
 st_akmn_name	АКМ
@@ -1131,9 +1131,9 @@ st_exp_reward_match	Атрымана досведу за матч
 st_exp_reward_premium	Бонус за прэміум
 st_experience	Досвед
 st_experience_modifier	Атрыманне досведу
-st_fabdefence_miki_foregrip_desc	Аддача -4%.
+st_fabdefence_miki_foregrip_desc	Аддача -3%. Час прыцэльвання +1%.
 st_fabdefence_miki_foregrip_name	Рукаятка FAB-Defense MIKI
-st_fabdefence_ptk_foregrip_desc	Аддача -6%.
+st_fabdefence_ptk_foregrip_desc	Аддача -3.5%. Час прыцэльвання +1.2%.
 st_fabdefence_ptk_foregrip_name	Рукаятка FAB-Defense PTK
 st_face_069d_balaclava_3_hole_desc	Вязаная балаклава з прарэзамі для вачэй і рота. Цёплая і хавае твар.
 st_face_069d_balaclava_3_hole_name	Трохдзірачная балаклава
@@ -1219,7 +1219,7 @@ st_fn_minimi_description	Бельгійскі ручны кулямёт пад �
 st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Бельгійская зброя самаабароны пад боепрыпас 5.7х28. Створана FN Herstal каля 1990 года разам з уласным патронам; «булпап» з магазінам на 50 патронаў уздоўж верху зброі. Служыць у спецназе і паліцыі многіх краін. Агонь: адзіночны і аўтаматычны.
 st_fn_p90_name	FN P90
-st_fort401_foregrip_desc	Аддача -6%.
+st_fort401_foregrip_desc	Аддача -3.5%. Час прыцэльвання +1.2%.
 st_fort401_foregrip_name	Штатная рукаятка Форт-401
 st_fort_17_description	Украінскі самазарадны пісталет пад калібр 9х18. У серыйную вытворчасць запушчаны ў 2004 годзе. Выкарыстоўваўся ўнутранымі войскамі і некаторымі спецпадраздзяленнямі. Абсталяваны магазінам на 12 патронаў.
 st_fort_17_name	Форт 17
@@ -1244,7 +1244,7 @@ st_friendly_user_compliment	Прыязны
 st_friends_online	Сябры ў сетцы
 st_friends_signin_notification_option	Апавяшчаць пра з'яўленне сяброў у сетцы
 st_fullscreen_option	Поўнаэкранны рэжым
-st_gandp_ris_foregrip_desc	Аддача -4%. Час прыцэльвання +1.5%.
+st_gandp_ris_foregrip_desc	Аддача -3%. Час прыцэльвання +1%.
 st_gandp_ris_foregrip_name	Рукаятка G&P RIS
 st_general_volume_option	Агульны
 st_generic_money_name	Рублі
@@ -1292,7 +1292,7 @@ st_hud_tutorial_frame_6_text_1	У бой!
 st_hud_tutorial_frame_6_text_2	Вы завяршылі базавы курс\nбаявой падрыхтоўкі. Поспехаў!
 st_hud_tutorial_frame_6_text_3	Ваша ўзнагарода:
 st_ignored	Чорны спіс
-st_imi_fsg2_foregrip_desc	Аддача -2%.
+st_imi_fsg2_foregrip_desc	Аддача -2.5%. Час прыцэльвання +0.8%.
 st_imi_fsg2_foregrip_name	Рукаятка FSG2
 st_in_develepoment_hint	У працэсе распрацоўкі
 st_ingame_volume_option	Гульня
@@ -1467,7 +1467,7 @@ st_m4a1_description	Амерыканскі карабін пад боепрып�
 st_m4a1_name	М4А1
 st_magnum_description	Шасцізарадны рэвальвер калібра .357 Магнум. Упершыню быў прадстаўлены ў 1955 годзе. Некаторыя лічаць яго адным з лепшых прадстаўнікоў свайго класа. Вылучаецца мяккім спускам і высокай дакладнасцю.
 st_magnum_name	Кольт Пітон
-st_magpul_afg1_foregrip_desc	Аддача -6%.
+st_magpul_afg1_foregrip_desc	Аддача -3.5%. Час прыцэльвання +1.2%.
 st_magpul_afg1_foregrip_name	Рукаятка AFG-1
 st_maintenance	Пачалося тэхнічнае абслугоўванне сервераў. Праграма будзе закрыта.
 st_map	Карта
@@ -1493,7 +1493,7 @@ st_match_settings_checkbox_training_match	Трэніровачны бой
 st_match_settings_checkbox_training_match_hint	Рэжым трэніровачнага пакоя
 st_match_settings_clan_match	Кланавы бой
 st_match_time_is_up	Час матча скончыўся!
-st_mauser_m712_foregrip_desc	Аддача -6%.
+st_mauser_m712_foregrip_desc	Аддача -3.5%. Час прыцэльвання +1.2%.
 st_mauser_m712_foregrip_name	Рукаятка Маўзер M.712
 st_max_carried_weight_description	Пераносная вага:
 st_max_carried_weight_name	Сілач
@@ -1612,23 +1612,23 @@ st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description
 st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_name	Полымягасільнік ROFH, M14x1L
 st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	
 st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_name	Полымягасільнік ROFH, M16x1L
-st_muzzle_custom_01_doublevert_m22x075_choke_description	Дысперсія -20 %. Час прыцэльвання +3 %.
+st_muzzle_custom_01_doublevert_m22x075_choke_description	Дысперсія -20 %. Час прыцэльвання +2.5 %.
 st_muzzle_custom_01_doublevert_m22x075_choke_name	Чок Custom 01, M22x0.75 O/U
-st_muzzle_custom_01_duckbill_description	Дысперсія -15 %.
+st_muzzle_custom_01_duckbill_description	Дысперсія -15 %. Час прыцэльвання +1.9 %.
 st_muzzle_custom_01_duckbill_name	Качыная дзюба Custom 01, M22x0.75
 st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_description	Аддача зброі -4 %. Час прыцэльвання +3 %.
 st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_name	Дульны тормаз Custom 01, M14x1L
-st_muzzle_custom_01_m22x075_choke_description	Дысперсія -20 %. Час прыцэльвання +3 %.
+st_muzzle_custom_01_m22x075_choke_description	Дысперсія -20 %. Час прыцэльвання +2.5 %.
 st_muzzle_custom_01_m22x075_choke_name	Чок Custom 01, M22x0.75
 st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Аддача зброі -4 %. Час прыцэльвання +3 %.
 st_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Дульны тормаз Custom 01, M30x1
-st_muzzle_custom_02_duckbill_description	Дысперсія -15 %.
+st_muzzle_custom_02_duckbill_description	Дысперсія -15 %. Час прыцэльвання +1.9 %.
 st_muzzle_custom_02_duckbill_name	Качыная дзюба Custom 02, M22x0.75
 st_muzzle_custom_02_m14x1l_firearrestor_description	
 st_muzzle_custom_02_m14x1l_firearrestor_name	Полымягасільнік Custom 02, M14x1L
 st_muzzle_custom_02_m24x15_firearrestor_description	
 st_muzzle_custom_02_m24x15_firearrestor_name	Полымягасільнік Custom 02, M24x1.5
-st_muzzle_custom_03_duckbill_description	Дысперсія -15 %.
+st_muzzle_custom_03_duckbill_description	Дысперсія -15 %. Час прыцэльвання +1.9 %.
 st_muzzle_custom_03_duckbill_name	Качыная дзюба Custom 03, M22x0.75
 st_muzzle_custom_03_m14x1l_clamp_firearrestor_description	
 st_muzzle_custom_03_m14x1l_clamp_firearrestor_name	Полымягасільнік Custom 03, M14x1L
@@ -1638,11 +1638,11 @@ st_muzzle_custom_04_i06x24_clamp_firearrestor_description
 st_muzzle_custom_04_i06x24_clamp_firearrestor_name	Полымягасільнік Custom 04, 5/8"x24
 st_muzzle_custom_04_m14x1l_clamp_firearrestor_description	
 st_muzzle_custom_04_m14x1l_clamp_firearrestor_name	Полымягасільнік Custom 04, M14x1L
-st_muzzle_custom_doublevert_01_duckbill_description	Дысперсія -15 %.
+st_muzzle_custom_doublevert_01_duckbill_description	Дысперсія -15 %. Час прыцэльвання +1.9 %.
 st_muzzle_custom_doublevert_01_duckbill_name	Качыная дзюба Custom 01, M22x0.75 O/U
-st_muzzle_custom_doublevert_02_duckbill_description	Дысперсія -15 %.
+st_muzzle_custom_doublevert_02_duckbill_description	Дысперсія -15 %. Час прыцэльвання +1.9 %.
 st_muzzle_custom_doublevert_02_duckbill_name	Качыная дзюба Custom 02, M22x0.75 O/U
-st_muzzle_custom_doublhor_01_duckbill_description	Дысперсія -15 %.
+st_muzzle_custom_doublhor_01_duckbill_description	Дысперсія -15 %. Час прыцэльвання +1.9 %.
 st_muzzle_custom_doublhor_01_duckbill_name	Качыная дзюба Custom 01, M22x0.75 SxS
 st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_description	Аддача зброі -4 %. Час прыцэльвання +3 %.
 st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_name	Дульны тормаз T-Brake, 1/2"x28
@@ -1654,9 +1654,9 @@ st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_description	Адда�
 st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_name	Дульны тормаз Defcon 1, M16x1L
 st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Аддача зброі -4 %. Час прыцэльвання +3 %.
 st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_name	Дульны тормаз Defcon 1, M30x1
-st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Дысперсія -16 %.
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Дысперсія -16 %. Час прыцэльвання +2 %.
 st_muzzle_gunsru_custom_m22x075_muzzlebrake_name	Дульны тормаз Guns.ru, M22x0.75
-st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_description	Дысперсія -16 %.
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_description	Дысперсія -16 %. Час прыцэльвання +2 %.
 st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_name	Дульны тормаз Kochevnik, M22x0.75
 st_muzzle_kkm_i05x28_muzzlebrake_description	Аддача зброі -4 %. Час прыцэльвання +3 %.
 st_muzzle_kkm_i05x28_muzzlebrake_name	Дульны тормаз KKM, 1/2"x28
@@ -1674,9 +1674,9 @@ st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description
 st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_name	Полымягасільнік NightBrake, M12x1L
 st_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	
 st_muzzle_manticorearms_nightbrake_m141l_firearrestor_name	Полымягасільнік NightBrake, M14x1L
-st_muzzle_polychoke_ventedcollar_m22x075_choke_description	Дысперсія -20 %. Час прыцэльвання +3 %.
+st_muzzle_polychoke_ventedcollar_m22x075_choke_description	Дысперсія -20 %. Час прыцэльвання +2.5 %.
 st_muzzle_polychoke_ventedcollar_m22x075_choke_name	Чок Polychoke, M22x0.75
-st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Дысперсія -16 %.
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Дысперсія -16 %. Час прыцэльвання +2 %.
 st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_name	Дульны тормаз Ilgynag K01, M22x0.75
 st_muzzle_redheat_krymske2_m24x15_firearrestor_description	
 st_muzzle_redheat_krymske2_m24x15_firearrestor_name	Полымягасільнік Krymsk-2, M24x1.5
@@ -1684,15 +1684,15 @@ st_muzzle_redheat_shturm_m14x1l_muzzlebrake_description	Аддача зброі 
 st_muzzle_redheat_shturm_m14x1l_muzzlebrake_name	Дульны тормаз Shturm, M14x1L
 st_muzzle_redheat_shturm_m24x15_muzzlebrake_description	Аддача зброі -4 %. Час прыцэльвання +3 %.
 st_muzzle_redheat_shturm_m24x15_muzzlebrake_name	Дульны тормаз Shturm, M24x1.5
-st_muzzle_remington_doublehor_m22x075_choke_description	Дысперсія -20 %. Час прыцэльвання +3 %.
+st_muzzle_remington_doublehor_m22x075_choke_description	Дысперсія -20 %. Час прыцэльвання +2.5 %.
 st_muzzle_remington_doublehor_m22x075_choke_name	Чок Remington, M22x0.75 SxS
-st_muzzle_remington_doublevert_m22x075_choke_description	Дысперсія -20 %. Час прыцэльвання +3 %.
+st_muzzle_remington_doublevert_m22x075_choke_description	Дысперсія -20 %. Час прыцэльвання +2.5 %.
 st_muzzle_remington_doublevert_m22x075_choke_name	Чок Remington, M22x0.75 O/U
-st_muzzle_remington_m22x075_choke_description	Дысперсія -20 %. Час прыцэльвання +3 %.
+st_muzzle_remington_m22x075_choke_description	Дысперсія -20 %. Час прыцэльвання +2.5 %.
 st_muzzle_remington_m22x075_choke_name	Чок Remington, M22x0.75
 st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	
 st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_name	Полымягасільнік Dynacomp, M24x1.5
-st_muzzle_stone_shurhit_m22x075_choke_description	Дысперсія -20 %. Час прыцэльвання +3 %.
+st_muzzle_stone_shurhit_m22x075_choke_description	Дысперсія -20 %. Час прыцэльвання +2.5 %.
 st_muzzle_stone_shurhit_m22x075_choke_name	Чок Sure-Hit, M22x0.75
 st_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	
 st_muzzle_taktikatula_saiga419_m22x075_firearrestor_name	Полымягасільнік TT-419, M22x0.75
@@ -1827,7 +1827,7 @@ st_picatinny_scope_medium_name	Оптыка / каліматары
 st_pickup_item	Падняць ({USE})
 st_ping_postfix	мс.
 st_pkp_pecheneg_description	Расійскі адзіны кулямёт пад боепрыпас 7.62х54R. Створаны ў ЦНДІТочМаш на аснове ПКМ, на ўзбраенні з 2001 года; цяжкі ствол з прымусовым ахаладжэннем дазваляе весці доўгія чэргі без замены. Стужка на 100 патронаў. Агонь: адзіночны і аўтаматычны.
-st_pkp_pecheneg_foregrip_desc	Аддача -6%.
+st_pkp_pecheneg_foregrip_desc	Аддача -3.5%. Час прыцэльвання +1.2%.
 st_pkp_pecheneg_foregrip_name	Штатная рукаятка ПКП
 st_pkp_pecheneg_name	ПКП "Печанег"
 st_place	Месца
@@ -3199,7 +3199,7 @@ st_toz66_description	Абрэз паляўнічай двухстволкі па
 st_toz66_name	ТОЗ-66
 st_trap_damage	Шкода ад пасткі
 st_treasure_map_advert	Выкарыстоўвайце карту схованкі, каб знайсці больш прадметаў
-st_troy_modular_foregrip_desc	Аддача -6%. Час прыцэльвання +1.5%.
+st_troy_modular_foregrip_desc	Аддача -3.5%. Час прыцэльвання +1.2%.
 st_troy_modular_foregrip_name	Рукаятка Troy Modular
 st_tt_description	Тульскі Токарава ўзору 1933 года пад боепрыпас 7.62х25мм. Распрацаваны ў 30-х гадах дваццатага стагоддзя і з'яўляецца першым самазарадным армейскім пісталетам СССР. Магазін змяшчае 8 патронаў. 
 st_tt_name	ТТ-33
