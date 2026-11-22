@@ -173,6 +173,25 @@ TYPES["BatteryState"] = {
     "orig_type": "&mut BatteryState", "orig_raw": "Some({n}.raw())",
     "pass": "&mut {n}", "null": "{a}",
 }
+# Patch 171's rule and cook (vostok::artefact_hunt): the objects the slots
+# of our vtable copies are called on (made only by us: fallible, the null
+# path never taken), and what the game passes them: a query, a kill's data
+# (none for a match's start), the core, the world's writer and reader, the
+# hud state.
+for _view in ("HuntCook", "HuntRule"):
+    TYPES[_view] = {
+        "raw": f"Option<{_view}>", "fallible": True,
+        "build": f"{_view}::from_raw(&thread, {{a}})",
+        "orig_type": f"&mut {_view}", "orig_raw": "Some({n}.raw())",
+        "pass": "&mut {n}", "null": "{a}",
+    }
+for _view, _kind in (("RuleQuery", "RuleQuery"), ("TickRule", "HuntRule"), ("RuleEvent", "KillEvent"), ("RuleCore", "CoreWorld"),
+                     ("RuleWriter", "BufferWriter"), ("RuleReader", "BufferReader"), ("HudState", "MatchHudState")):
+    TYPES[_view] = {
+        "raw": f"Option<{_kind}>",
+        "binding": f"let {{n}} = unsafe {{{{ {_view}::from_raw(&thread, {{a}}) }}}};",
+        "orig_type": f"&{_view}", "orig_raw": "{n}.raw()", "pass": "&{n}", "null": "{a}",
+    }
 # Patch 161's refill of a weapon's finger corrector (vostok::attachments).
 TYPES["FingerCorrector"] = {
     "raw": "Option<FingersCorrector>", "fallible": True,

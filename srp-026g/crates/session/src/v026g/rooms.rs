@@ -172,8 +172,15 @@ pub enum Stage {
     /// of 2026-10-19: the vote goes on until the match starts, its time
     /// added to the wait).
     Vote { until: Instant },
-    /// Its match (the queue's id) is being played since `since`.
-    InMatch { match_id: u32, since: Instant },
+    /// Its match (the queue's id) is being played since `since`. `roster`:
+    /// the roster places its players have taken, never given twice
+    /// ([`crate::MAX_PLAYERS_PER_MATCH`] at most): one more with each late
+    /// joiner, none back when one leaves.
+    InMatch {
+        match_id: u32,
+        since: Instant,
+        roster: usize,
+    },
 }
 
 /// Why a request about rooms was not done.
@@ -279,9 +286,24 @@ impl Room {
         [on(0), on(1)]
     }
 
-    /// The places not taken.
+    /// The places not taken. An open room whose match is played has no
+    /// more than its match has left (the owner's of 2026-11-22: a room whose
+    /// match takes nobody is not entered; its newcomers queue, and a room is
+    /// opened for them): each member not in the match holds one of them, so
+    /// who is let in has a place in the match.
     pub fn free_places(&self) -> usize {
-        self.capacity().saturating_sub(self.members.len())
+        let seats = self.capacity().saturating_sub(self.members.len());
+        match self.stage {
+            Stage::InMatch { roster, .. } if self.is_open() => {
+                let held = self
+                    .members
+                    .iter()
+                    .filter(|member| !self.in_match.contains(member))
+                    .count();
+                seats.min(crate::MAX_PLAYERS_PER_MATCH.saturating_sub(roster + held))
+            }
+            _ => seats,
+        }
     }
 
     /// Whether `comers` (one, or a squad of two) find places on one side:
@@ -344,7 +366,7 @@ impl Room {
     }
 
     pub fn is_full(&self) -> bool {
-        self.members.len() >= self.capacity()
+        self.free_places() == 0
     }
 
     pub fn is_open(&self) -> bool {
@@ -1452,6 +1474,7 @@ impl Rooms {
             room.stage = Stage::InMatch {
                 match_id,
                 since: now,
+                roster: seated.len(),
             };
             room.last = Some(played);
             room.in_match = seated.iter().copied().collect();
@@ -1492,6 +1515,9 @@ impl Rooms {
     pub fn seated_late(&mut self, key: u32, account_id: u32, team: u8) {
         if let Some(room) = self.rooms.get_mut(&key) {
             room.in_match.insert(account_id);
+            if let Stage::InMatch { roster, .. } = &mut room.stage {
+                *roster += 1;
+            }
             let team = team.min(1);
             if room
                 .sides
@@ -2308,6 +2334,44 @@ mod tests {
             (rooms.key_of(10), rooms.key_of(11)),
             (Some(pair), Some(pair))
         );
+    }
+
+    #[test]
+    fn an_open_room_has_no_more_places_than_its_match_has_left() {
+        let now = Instant::now();
+        let mut rooms = Rooms::default();
+        let key = room_of(&mut rooms, 1, 10, None, now);
+        for account in 2..=16 {
+            rooms.join(account, 0, key, now).unwrap();
+        }
+        let seated: Vec<u32> = (1..=16).collect();
+        rooms.started(key, 7, plain_map(POOL[0]), &seated, now);
+        let free = |rooms: &Rooms| rooms.get(key).unwrap().free_places();
+        assert_eq!(free(&rooms), 4);
+        // Two leave: their seats in the room are free, their places in the
+        // match are not.
+        rooms.leave(15);
+        rooms.leave(16);
+        assert_eq!(free(&rooms), 4);
+        // A newcomer holds a place from the door on; going in changes
+        // nothing, a join that failed costs the place it had.
+        rooms.join(20, 0, key, now).unwrap();
+        assert_eq!(free(&rooms), 3);
+        rooms.seated_late(key, 20, 0);
+        assert_eq!(free(&rooms), 3);
+        rooms.join_failed(key, 20);
+        assert_eq!(free(&rooms), 2);
+        // The last two places: the next one queues, 17 of 20 in the room.
+        rooms.join(21, 0, key, now).unwrap();
+        rooms.join(22, 0, key, now).unwrap();
+        assert!(rooms.get(key).unwrap().is_full());
+        assert_eq!(rooms.join(23, 0, key, now), Err(Refused::Full));
+        assert_eq!(rooms.enqueue(23, 0, key, now), Ok(1));
+        assert_eq!(rooms.next_in_queue(key), None);
+        // The match over: the room's size again.
+        rooms.match_over(7);
+        assert_eq!(free(&rooms), 3);
+        assert_eq!(rooms.next_in_queue(key), Some(23));
     }
 
     #[test]

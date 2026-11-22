@@ -179,7 +179,7 @@ package
          count = 200;
          var rows:Array = ["S1;M;" + count + ";0"];
          for(i = 0; i < count; i++)
-            rows.push(i + ";" + (61 + i % 30) + ";" + (1 + i % 8) + ";" + (1 + i % 3) + ";" + [2, 3, 4, 5, 6, 8][i % 6] + ";0");
+            rows.push(i + ";" + (61 + i % 30) + ";" + (1 + i % 8) + ";" + (1 + i % 3) + ";" + [2, 3, 4, 5, 6, 8, 13][i % 7] + ";0");
          if(!tell(rows))
             return;
          tellRoom(1003, false, false, 3, null, 0, []);
@@ -206,8 +206,8 @@ package
             Loc.setData(say);
             // The pool the cards and rows name: long map names, the longest weather, every mode (the
             // create window's ticks).
-            tell(["S1;M;6;0","0;61;5;5;2;0","1;62;13;5;3;1","2;63;12;3;6;0","3;117;1;1;4;0","4;184;8;1;5;0",
-               "5;12;7;1;8;0"]);
+            tell(["S1;M;7;0","0;61;5;5;2;0","1;62;13;5;3;1","2;63;12;3;6;0","3;117;1;1;4;0","4;184;8;1;5;0",
+               "5;12;7;1;8;0","6;300;1;1;13;0"]);
             var states:Array = [
                ["private, owner", 1001, true, true, 0, "01010", 0, []],
                ["private, member", 1002, true, false, 0, "01010", 0, []],
@@ -275,15 +275,15 @@ package
                   var modes:Array = [];
                   for each(var tick:* in ticks)
                      modes.push(tick.name);
-                  if(modes.slice(0, 6).join() != "2,3,6,4,5,8")
+                  if(modes.slice(0, 7).join() != "2,3,6,4,5,8,13")
                      failures.push(language + ": the create window's mode ticks " + modes.join());
-                  // the six of them above the window's foot (its Create button, in the same box; the
+                  // the seven of them above the window's foot (its Create button, in the same box; the
                   // window here is as low as it gets, RoomsWindow.MIN_H)
                   var formButtons:Array = [];
                   walk(win,[],[],0,0,formButtons);
                   for each(var foot:* in formButtons)
-                     if(foot.label == say.st_srp_rooms_create && ticks.length >= 6 && (foot.parent != ticks[5].parent
-                        || ticks[5].y + ticks[5].getBounds(ticks[5]).bottom > foot.y))
+                     if(foot.label == say.st_srp_rooms_create && ticks.length >= 7 && (foot.parent != ticks[6].parent
+                        || ticks[6].y + ticks[6].getBounds(ticks[6]).bottom > foot.y))
                         failures.push(language + ": the create window's last mode tick reaches its foot");
                }
          }
@@ -1044,12 +1044,18 @@ package
          tell(["S1;M;3;0","0;61;5;5;3;0","1;62;13;5;2;0","2;63;12;3;8;0"]);
          tellRoom(1003, false, false, 3, null, 0, []);
          var ffa:Object = tagOf("FREE FOR ALL");
+         // Artifact Hunt (mode 13, artefact_hunt.md): the same card names it.
+         tell(["S1;M;3;0","0;61;5;5;3;0","1;62;13;5;2;0","2;63;12;3;13;0"]);
+         tellRoom(1003, false, false, 3, null, 0, []);
+         var hunt:Object = tagOf("ARTIFACT HUNT");
          trace("ROOMS vote card tag: long " + (long != null ? long.tag + " for " + long.text : "none")
             + ", then short " + (short != null ? short.tag + " for " + short.text : "none")
-            + ", free for all " + (ffa != null ? ffa.tag + " for " + ffa.text : "none"));
-         if(long == null || short == null || ffa == null)
+            + ", free for all " + (ffa != null ? ffa.tag + " for " + ffa.text : "none")
+            + ", artifact hunt " + (hunt != null ? hunt.tag + " for " + hunt.text : "none"));
+         if(long == null || short == null || ffa == null || hunt == null)
             failures.push("vote card tags not found");
-         else if(short.tag > short.text + 20 || long.tag > long.text + 20 || ffa.tag > ffa.text + 20)
+         else if(short.tag > short.text + 20 || long.tag > long.text + 20 || ffa.tag > ffa.text + 20
+            || hunt.tag > hunt.text + 20)
             failures.push("a vote card's mode tag is wider than its name (" + short.tag + " for " + short.text + ")");
          var texts:Array = [];
          walk(win,[],texts,0,0,[]);

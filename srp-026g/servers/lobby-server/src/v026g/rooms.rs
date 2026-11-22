@@ -252,6 +252,19 @@ struct Ready {
     gear: u8,
 }
 
+/// The room list's entries ordered by their maps' builds (0.26, 0.11, 0.21,
+/// 0.32, 0.42, 0.69, STALKER: the owner's of 2026-11-19 and, for the Londons, of
+/// 2026-11-20), each map where its first entry came, its weathers in the
+/// list's order. Stable.
+pub(super) fn by_build(mut entries: Vec<(maps::Build, PoolEntry)>) -> Vec<PoolEntry> {
+    let levels: Vec<u8> = entries.iter().map(|(_, entry)| entry.level).collect();
+    entries.sort_by_key(|&(build, entry)| {
+        let map = levels.iter().position(|&level| level == entry.level);
+        (build, map, maps::weather::list_place(entry.weather))
+    });
+    entries.into_iter().map(|(_, entry)| entry).collect()
+}
+
 impl Core<'_> {
     /// The maps a pool may hold, in the order their bits name them and the
     /// create window lists them: the match pool (Blackout's maps too, mode
@@ -269,7 +282,7 @@ impl Core<'_> {
             .extra_maps
             .iter()
             .filter(|id| !pool.contains(id));
-        let mut entries: Vec<(maps::Build, PoolEntry)> = pool
+        let entries: Vec<(maps::Build, PoolEntry)> = pool
             .iter()
             .map(|id| (*id, false))
             .chain(extra.map(|id| (*id, true)))
@@ -283,19 +296,11 @@ impl Core<'_> {
                     extra,
                     bots: self.settings.pvb.bot_maps.contains(&id),
                 };
-                Some((map.build(), entry))
+                Some((map.build, entry))
             })
             .collect();
-        // Stable: by build (0.26, 0.11, 0.21, 0.69, STALKER), each map where
-        // its first id came, its weathers in the list's order.
-        let levels: Vec<u8> = entries.iter().map(|(_, entry)| entry.level).collect();
-        entries.sort_by_key(|&(build, entry)| {
-            let map = levels.iter().position(|&level| level == entry.level);
-            (build, map, maps::weather::list_place(entry.weather))
-        });
-        entries
+        by_build(entries)
             .into_iter()
-            .map(|(_, entry)| entry)
             // A create names its entries by bit: no more than the bits.
             .take(wire::POOL_BITS)
             .collect()
@@ -725,9 +730,9 @@ impl Core<'_> {
     }
 
     /// Join the room with that key, a commander's mate along (`room_mate`);
-    /// a commander in no room whose squad finds too few places on one side
-    /// (two for the pair, or one on its mate's team with the mate in it)
-    /// waits in its queue, with its mate. The state answers it.
+    /// one in no room that finds no place (the room full, its match with
+    /// none left, or a squad's two not on one side) waits in its queue, its
+    /// mate with it. The state answers it.
     fn room_join(&mut self, who: &Who, key: u32, now: Instant) {
         let gear = matchmaking::gear_level(&who.account.locked(), quests::now());
         let mate = self.room_mate(who.account_id);
@@ -738,15 +743,12 @@ impl Core<'_> {
                     log::info!("{}: joined room {key}", who.name);
                     RoomCode::None
                 }
-                Err(Refused::Full)
-                    if self.rooms.key_of(who.account_id).is_none()
-                        && self.store.squads().of(who.account_id).is_some() =>
-                {
+                Err(Refused::Full) if self.rooms.key_of(who.account_id).is_none() => {
                     match self.room_enqueue_party(who, gear, mate, key, QueueChoice::Chosen, now) {
                         Ok(place) => {
                             log::info!(
-                                "{}: room {key} has no places for its squad: both wait in its \
-                                 queue, place {place}",
+                                "{}: room {key} has no place for it: it waits in its queue, \
+                                 place {place}",
                                 who.name
                             );
                             RoomCode::None

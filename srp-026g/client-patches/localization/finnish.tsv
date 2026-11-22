@@ -267,6 +267,16 @@ st_artcontainer_time_corr_perc_name	Keräysaika
 st_artefact_activated_message	Artefakti aktivoitu
 st_artefact_booster_description	Artefaktien keräämiseen nikkaroidun laitteen toinen versio. Sisäinen vaimennin hillitsee artefaktin anomaliaa ja nopeuttaa keräystä.
 st_artefact_booster_name	Artefaktimestari
+st_artefact_hunt_draw	Tasapeli. Aika loppui
+st_artefact_hunt_enemy_delivered	Vastustajan joukkue toimitti artefaktin
+st_artefact_hunt_lost_collected	Tappio. Kaikki artefaktit kerätty
+st_artefact_hunt_lost_time_out	Tappio. Aika loppui
+st_artefact_hunt_lost_wiped	Tappio. Joukkueesi putosi
+st_artefact_hunt_team_delivered	Joukkueesi toimitti artefaktin
+st_artefact_hunt_won_collected	Voitto! Kaikki artefaktit kerätty
+st_artefact_hunt_won_time_out	Voitto! Aika loppui
+st_artefact_hunt_won_wiped	Voitto! Vastustajan joukkue putosi
+st_artefact_hunt_you_picked	Poimit artefaktin
 st_artefact_no_free_slots	Artefaktille ei ole vapaata paikkaa!
 st_artefact_search_failed	Artefaktia ei löytynyt
 st_artefact_search_success	Sait artefaktin! 
@@ -1433,7 +1443,7 @@ st_level_05_name	Tarakanovin linnoitus
 st_level_06_name	Mamajevin kurgaani
 st_level_07_name	Vektor-laboratorio
 st_level_08_name	Köln
-st_level_09_name	Lontoo
+st_level_09_name	Lontoo (v0.32)
 st_level_10_name	Vostokin tutka-asema (v0.21)
 st_level_11_name	Mamajevin kurgaani (v0.21)
 st_level_12_name	Kemiantehdas (v0.11)
@@ -1443,6 +1453,7 @@ st_level_25_name	Koulu (v0.21)
 st_level_26_name	Tarakanovin linnoitus (v0.21)
 st_level_29_name	Rudnja (v0.21)
 st_level_31_name	Kemiantehdas (v0.21)
+st_level_32_name	Lontoo (v0.42)
 st_lifebone_activation_hint	Ritarinkannus aktivoitu! Kaikki vakavat vammat parannettu! Terveys palautettu!
 st_lifebone_pickup_hint	Ritarinkannus-artefakti. Nopeuttaa terveyden palautumista. 
 st_lightning_quality_option	Valaistuksen laatu
@@ -1471,6 +1482,9 @@ st_magpul_afg1_foregrip_desc	Rekyyli -3.5%. Tähtäysaika +1.2%.
 st_magpul_afg1_foregrip_name	Etukahva AFG-1
 st_maintenance	Palvelimia huolletaan. Sovellus sulkeutuu.
 st_map	Kartta
+st_map_hint_13_1	Etsi Metsän Hohde -artefakti
+st_map_hint_13_2	Vie Metsän Hohde tukikohtaasi
+st_map_hint_13_3	Kerää 5 artefaktia voittaaksesi
 st_match_items_found	Löytynyt
 st_match_making_level	Ottelun taso
 st_match_rewards	Tehtäväpalkinto
@@ -1551,6 +1565,10 @@ st_mode_05_description	Tehtäväsi on vallata liikkuvat tutkimusyksiköt. Jokain
 st_mode_05_name	Tutkimus
 st_mode_08_description	Jokainen taistelee itsensä puolesta. Ottelu päättyy, kun joku saavuttaa vaaditun tappomäärän tai aika loppuu. Eniten tappoja saanut taistelija voittaa.
 st_mode_08_name	Kaikki kaikkia vastaan
+st_mode_12_description	Jäädytä kaikki vastustajat. Ensimmäinen 5 erää voittanut joukkue voittaa. Seiso 3 sekuntia enintään 2 metrin päässä jäätyneestä joukkuetoverista sulattaaksesi hänet.
+st_mode_12_name	Jäädytys
+st_mode_13_description	Etsi Metsän Hohde -artefakti ja vie se tukikohtaasi. Kerää 5 artefaktia voittaaksesi.
+st_mode_13_name	Artefaktijahti
 st_modification_screen_edit_decal_hint	Muuta merkin kokoa ja sijaintia klikkaamalla sen paikkaa
 st_modification_screen_hint	Vedä maastokuvio tai merkki tavaroistasi esineen muokkauspaikkaan
 st_modified	Muokattu
@@ -1739,7 +1757,9 @@ st_novice_026_helmet_desc	Aloittelevan stalkerin pipo perutusta S.T.A.L.K.E.R. 2
 st_novice_026_helmet_name	Tulokkaan pipo
 st_of	/
 st_ok	OK
+st_on_destroyed_victory_artefact	Artefakti tuhoutui
 st_on_enemy_theft_item	Vihollinen varasti akun tukikohdastanne. Pysäytä hänet!
+st_on_spawn_victory_artefact	Artefakti on ilmestynyt
 st_on_spawn_victory_item	Akku on ladattu! Vie se tukikohtaasi.
 st_one_handed	Toissijainen
 st_online_store	Osta kultaa
@@ -2123,6 +2143,7 @@ st_rgd5_name	RGD-5-kranaatti
 st_rgo_descr	Kuvausta ei vielä ole.
 st_rgo_name	RGO
 st_right_strafe_action	Liiku oikealle
+st_round_restart_in	Erä alkaa uudelleen:
 st_rpd_description	Kuvausta ei vielä ole.
 st_rpd_name	RPD
 st_rpk_description	Kuvausta ei vielä ole.
@@ -2676,8 +2697,20 @@ st_srp_hit_markers_all	Kaikki osumamerkit
 st_srp_hit_markers_hidden	Piilotetut osumamerkit
 st_srp_hit_markers_kill	Vain tappomerkki
 st_srp_hud_add_friend	Lisää kaveriksi
+st_srp_hud_artefact_hunt_carrying	Kannat artefaktia
+st_srp_hud_artefact_hunt_sudden_death	Äkkikuolema
 st_srp_hud_blackout_intro	Blackout: tuo akkuja joukkueesi laitteelle. Käyttöliittymä ja osumamerkit on piilotettu eläytymisen vuoksi. Pidä Tab pohjassa: ammukset, terveys, chat; kuolleena varustesarjan valinta.
 st_srp_hud_blackout_start	Blackout\nTuo akkuja joukkueesi laitteelle.\nKäyttöliittymä ja osumamerkit on piilotettu. Pidä Tab pohjassa nähdäksesi ammukset ja terveyden.
+st_srp_hud_freeze_draw	Tasapeli
+st_srp_hud_freeze_frozen	Jäässä
+st_srp_hud_freeze_help	Jäädytä kaikki vastustajat. Ensimmäinen 5 erää voittanut joukkue voittaa. Seiso 3 sekuntia enintään 2 metrin päässä jäätyneestä joukkuetoverista sulattaaksesi hänet.
+st_srp_hud_freeze_lose	Tappio — vastustajat voittivat viisi erää.
+st_srp_hud_freeze_round_draw	Tasapeli. Uusi erä %1$s s kuluttua.
+st_srp_hud_freeze_round_lose	Erä hävitty. Seuraava %1$s s kuluttua.
+st_srp_hud_freeze_round_win	Erä voitettu. Seuraava %1$s s kuluttua.
+st_srp_hud_freeze_standing	Taistelussa: oma joukkue %1$s — vastustajat %2$s
+st_srp_hud_freeze_thawing	Joukkuetoveria sulatetaan…
+st_srp_hud_freeze_win	Voitto — viisi erävoittoa.
 st_srp_hud_friend_not_sent	Kaveripyyntöä ei lähetetty
 st_srp_hud_friend_sent	Kaveripyyntö lähetetty
 st_srp_hud_mute_hide	Piilota chat
@@ -2750,7 +2783,8 @@ st_srp_map_cs_mp_military_1	Military Warehouses
 st_srp_map_cs_mp_rembasa	Repair Depot
 st_srp_map_cs_mp_sport_center	Sports Center
 st_srp_map_cs_training_camp	Training Camp
-st_srp_map_london	Lontoo
+st_srp_map_london	Lontoo (v0.32)
+st_srp_map_london_v042	Lontoo (v0.42)
 st_srp_map_mamayev_kurgan	Mamajevin kurgaani
 st_srp_map_mamayev_kurgan_v021	Mamajevin kurgaani (v0.21)
 st_srp_map_names_option	Nimet kartalla
@@ -2833,11 +2867,13 @@ st_srp_mic_test_playing	Toisto %1$s
 st_srp_mic_test_recording	Äänitys %1$s
 st_srp_microphone	Mikrofoni
 st_srp_microphone_default	Oletus
+st_srp_mode_artefact_hunt	Artefaktijahti
 st_srp_mode_blackout	Suojalaite: sähkökatko
 st_srp_mode_chargers	Suojalaite: laturit
 st_srp_mode_cowboy	FFA: Saluuna
 st_srp_mode_cowboy_winchester	FFA: Saluuna (Winchester)
 st_srp_mode_free_for_all	Kaikki kaikkia vastaan
+st_srp_mode_freeze_tag	Jäädytys
 st_srp_mode_protective_device	Suojalaite
 st_srp_mode_racket	FFA: Meteli
 st_srp_mode_research	Tutkimus
@@ -3105,6 +3141,7 @@ st_stamina_spending_speed_description	Energiankulutus:
 st_stamina_spending_speed_name	Kestävyys
 st_start_chat_action	Chat
 st_start_match_welcome_message	Etsi akkuja ja vie ne tukikohtaasi!
+st_start_match_welcome_message_13	Artefaktijahti. Vie artefakti joukkueesi tukikohtaan
 st_start_match_welcome_message_2	Etsi ja suojaa akkujen latausasemat!
 st_start_match_welcome_message_3	Eliminoi mahdollisimman monta vihollista!
 st_start_match_welcome_message_5	Etsi ja valtaa tutkimusyksiköt!

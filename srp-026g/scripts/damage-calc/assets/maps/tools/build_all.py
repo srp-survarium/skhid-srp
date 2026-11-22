@@ -41,6 +41,8 @@ PACK = Path('/mnt/hdd/Projects/release-20/packs/maps-021d-7/files')
 PACK_RUDNYA = Path('/home/sheep/Projects/survarium/work-rudnya-v021/probe-modes-build/maps-021d-rudnya-4/files')
 PACK_SCHOOL_FORT = Path('/home/sheep/Projects/survarium/v021d-rig-data/school-fort-work/probe-modes-build/maps-021d-school-fort-4/files')
 PACK_CHEMICAL = Path('/home/sheep/Projects/survarium/skhid-srp/private/content-packs/maps-021d-chemical-1/files')
+PACK_LONDON_V032 = Path('/home/sheep/Projects/survarium/work-london-032-042/packs/london-v032-1/files')
+PACK_LONDON_V042 = Path('/home/sheep/Projects/survarium/work-london-032-042/packs/london-v042-1/files')
 PORTED = {
     'v021d_level_03': dict(size=100, posX=14, posY=-42.196, bitmap=None, name='Vostok Radar Station (v0.21)',
                            name_key='st_level_10_name', project_name='level_03', map_ids={166: 2, 152: 4}),
@@ -67,6 +69,18 @@ PORTED = {
     'v021d_level_04': dict(size=115, posX=15, posY=43, bitmap=None, name='Chemical Plant (v0.21)',
                            name_key='st_level_31_name', project_name='level_04', map_ids={266: 2, 267: 4},
                            pack=PACK_CHEMICAL, pack_name='maps-021d-chemical@1'),
+    # London (v0.32) (pack london-v032@1, 0.32a4's London in place of patch 14's: London's map ids): project_name
+    # v032a_level_09, its HUD row London's minimap and frame (0.32a4's map_09.png is the same picture).
+    'v032a_level_09': dict(size=140, posX=0, posY=-5, bitmap='971_Map_09_Map_09.png', area='alpha:0.4',
+                           name='London (v0.32)', name_key='st_level_09_name', project_name='v032a_level_09',
+                           map_ids={181: 2, 182: 3, 183: 4, 276: 2, 277: 3, 278: 4, 279: 2, 280: 3, 281: 4},
+                           pack=PACK_LONDON_V032, pack_name='london-v032@1'),
+    # London (v0.42) (pack london-v042@1, 0.44a5's reworked London): project_name v044a_level_09, its own HUD
+    # row: 0.44a5's minimap (bitmap minimap_v044a_level_09 of the hud movie's source) in London's frame.
+    'v044a_level_09': dict(size=140, posX=0, posY=-5, bitmap='minimap_v044a_level_09.png', area='alpha:0.4',
+                           name='London (v0.42)', name_key='st_level_32_name', project_name='v044a_level_09',
+                           map_ids={290: 2, 291: 3, 292: 4, 293: 2, 294: 3, 295: 4, 296: 2, 297: 3, 298: 4},
+                           pack=PACK_LONDON_V042, pack_name='london-v042@1'),
 }
 
 
@@ -77,7 +91,7 @@ PORTED = {
 # the game overlays them) put in WORK_DIR/db like the stock ones. `project`:
 # the project the render is of, where the map has no day_2.
 PATCHED = {
-    'level_09': dict(size=140, posX=0, posY=-5, bitmap='971_Map_09_Map_09.png', area='alpha:0.4', name='London', origin='London, patch 14',
+    'level_09': dict(size=140, posX=0, posY=-5, bitmap='971_Map_09_Map_09.png', area='alpha:0.4', name='London (v0.32)', origin='London, patch 14',
                      name_key='st_level_09_name', modes=(2, 3, 4), map_ids={181: 2, 182: 3, 183: 4}),
     'v011e_level_03': dict(size=100, posX=14.23, posY=-42.196, bitmap='985_minimap_bv11.png', area='line', origin='0.11e port, patch 22',
                            name='Vostok Radar Station (v0.11)', name_key='st_level_13_name', modes=(2, 4),
@@ -112,6 +126,11 @@ PATCHED = {
                       origin='Clear Sky port, pack stalker-maps-2@2', name='Fire Station',
                       name_key='st_cs_mp_firestation_name', project_name='cs_mp_firestation', project='day_8', modes=(8,),
                       map_ids={39: 8}),
+    # Station (pack stalker-maps@7), in Free for All since 2026-11-21 (ffa-stalker-3); Depository held.
+    'v010b_soc_ug_station': dict(size=139.055, posX=170.25, posY=-53.8, bitmap='1037_minimap_soc_ug_station.png',
+                                 origin='SoC community map port, pack stalker-maps@7', name='Station',
+                                 name_key='st_soc_ug_station_name', project_name='soc_ug_station', project='day_8',
+                                 modes=(8,), map_ids={31: 8}),
 }
 
 

@@ -4,7 +4,7 @@ their modes, and each project's HUD minimap. Shared by the Maps tab
 (srp-026g/scripts/maps-tab/build.py) and the top-down renders
 (srp-026g/scripts/damage-calc/assets/maps/tools/build_maps.py).
 
-    maps = playable(raw)                      # {folder: {"map_name", "modes": {mode: {...}}}}
+    maps = playable(raw)                      # {folder: {"map_name", "build", "modes": {mode: {...}}}}
     minimaps = hud_minimaps(ffdec, raw, work)  # {project_name: (frame, bitmap png)}
 """
 import os
@@ -26,6 +26,10 @@ MODES = (2, 3, 4, 5, FREE_FOR_ALL)
 # What a build must extract for these.
 WANTED = ["client_project", "gameplay/game_modes/", "gameplay/db_static_dictionaries",
           "localization/english/localization", "localization/ukrainian/localization", "flash_movies/hud.swf"]
+# The builds a map's scene comes from, in the order lists show them (crates/survarium/src/v026g/maps.rs,
+# `Build`): its configs' `mode.srp_build` where they have one (v032, v042: the two Londons, whatever
+# their projects are called), else a ported project's prefix; a project with neither is 0.26g's.
+BUILDS = ("v026g", "v011e", "v021d", "v032", "v042", "v069d", "v010b")
 
 
 def load(raw, path):
@@ -58,6 +62,7 @@ def playable(raw):
         folder = project_path.split("/")[0]
         m = maps[folder]
         m["map_name"] = mode["ui"]["map_name"]
+        m["build"] = build_of(mode, folder)
         entry_mode = m["modes"][mode["mode"]]
         entry_mode["ids"].append(entry["id"])
         entry_mode["projects"].append(project_path)
@@ -70,6 +75,17 @@ def playable(raw):
     if not maps:
         die("no playable map in the data")
     return maps
+
+
+def build_of(mode, folder):
+    """A config's build, one of BUILDS (maps.rs `Build::of`)."""
+    tag = mode.get("srp_build")
+    prefix = folder.split("_")[0]
+    if not tag and not re.match(r"v\d", prefix):
+        return "v026g"
+    if (tag or prefix) not in BUILDS[1:]:
+        die(f"{folder}: {'srp_build' if tag else 'without an srp_build, the prefix'} {tag or prefix} is none of srp's builds")
+    return tag or prefix
 
 
 def _number(text):

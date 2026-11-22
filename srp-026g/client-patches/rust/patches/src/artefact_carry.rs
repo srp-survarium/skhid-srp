@@ -5,7 +5,10 @@
 use artefact_carry::{ArtefactId, Place, Refused};
 use artefact_carry::carry::{self, Carry, CarryKey, Event, KeyPress, QuickSlot, Token};
 use ragdoll::math::Vec3;
-use crate::vostok::{Action, KeyboardAction, Context, Flow, InputHandler, Lock, GameCell, NoExit, ActionMask, Thread};
+use crate::vostok::{Action, ArtefactCarryOnInputExit, KeyboardAction, Context, Flow, InputHandler, Lock, GameCell, NoExit, ActionMask, Thread};
+
+/// The Drop key's bit (action 36h, the input builder 0x242118).
+const DROP: u32 = 1 << 22;
 use crate::vostok::carry_runtime::{self as native, ArtefactClass, ArtefactDraw, HiddenWeapons, Key};
 use crate::vostok::inventory::ContainerSpace;
 use crate::vostok::draw::{self, DrawnBones};
@@ -57,10 +60,13 @@ fn event(player: &Player<'_>, ctx: &Context<'_>, event: Event) {
 
 /// Called on every set_input, including inputs for which native early-out
 /// skips its copy. Command and Use edge detection therefore sees releases.
-pub fn on_input(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_input(ctx: &mut Context<'_>) -> Flow<ArtefactCarryOnInputExit> {
     let Some(player) = native::player(ctx, native::PlayerSite::Input) else { return Flow::Continue };
     let Some((now, actions)) = native::incoming(ctx) else { return Flow::Continue };
     let before = machine(&player, ctx);
+    // Artifact Hunt (patch 171) first: its take or delivery has the use key's press.
+    let hunt = crate::artefact_hunt::input(&player, now.0, before.use_pressed(actions),
+                                           before.pressed(actions, DROP));
     let allowed = player.carry_allowed();
     if !allowed {
         event(&player, ctx, Event::Gone);
@@ -68,6 +74,10 @@ pub fn on_input(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let artefact = QuickSlot::from_actions(actions).filter(|_| allowed)
         .and_then(|slot| player.inventory()?.quick_artefact(slot.get()));
     event(&player, ctx, Event::Input { now, actions, artefact });
+    if hunt == crate::artefact_hunt::Input::Used {
+        consume_use(&player, ctx);
+        return Flow::Continue;
+    }
     // Use is ours only when a take happens; otherwise the game has it
     // (a battery, a trap, a native pickup).
     if before.use_pressed(actions) {
@@ -220,8 +230,17 @@ pub fn on_input_end(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 pub fn on_hud(ctx: &Context<'_>) {
     // Patch 78's: shown only when Use would take (otherwise the native hint stays).
-    // Patch 78's own targets first, then patch 85's dropped gun.
+    // Artifact Hunt's artefact first (the owner: "picking up arti should take
+    // a priority over weapon"): while Use would take it or put it in, nothing
+    // here is aimed or shown, so no gun pickup goes into the input (Use stays
+    // Use, which the hunt takes at carry.input in every game) and the hunt's
+    // prompt is the one shown. Then patch 78's own targets, then patch 85's gun.
     let local = native::local_player(ctx);
+    if local.as_ref().is_some_and(crate::artefact_hunt::offers) {
+        crate::weapon_pickup::aim(ctx, None);
+        HINT.set(ctx.thread(), None);
+        return;
+    }
     let carry = local.as_ref().is_some_and(|p| target(p, ctx).is_some() || ground_target(p).is_some());
     let gun = crate::weapon_pickup::aim(ctx, local.as_ref().filter(|_| !carry));
     let visible = carry || gun.is_some();

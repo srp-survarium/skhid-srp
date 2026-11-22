@@ -349,6 +349,18 @@ unsafe extern "C" {
     pub fn engine_register_constant_host(backend: Option<Backend>, name: *mut Option<SharedString>, auxiliary: u32) -> Option<ConstantHost>;
     /// 0x132a90 vostok::render::backend::set_ps_constant: host EAX, backend EDI, value ESP+4; pops 4
     pub fn engine_set_ps_constant(host: Option<ConstantHost>, backend: Option<Backend>, value: *const f32);
+    /// 0x2e5290 survarium::damage_model::reset: receiver EDI, time ESP+4; pops 4
+    pub fn engine_freeze_reset_health(receiver: Option<MedicalDamage>, time: u32);
+    /// 0x1f8190 survarium::game_world::switch_to_warmup_camera: world EDX; pops 0
+    pub fn engine_switch_to_warmup_camera(world: Option<GameWorld>);
+    /// 0x1f8200 survarium::game_world::switch_to_player_camera: world EAX, first_person ESP+4; pops 4
+    pub fn engine_switch_to_player_camera(world: Option<GameWorld>, first_person: u8);
+    /// 0x316630 survarium::blackboard::set<bool> [descriptive]: index EAX, blackboard ESP+4, value ESP+8; pops 8
+    pub fn engine_blackboard_set_bool(index: u32, blackboard: Option<Blackboard>, value: *const u8);
+    /// 0x102d10 vostok::resources::register_cook: cook EDI; pops 0
+    pub fn engine_register_hunt_cook(cook: Option<HuntCook>);
+    /// 0x313900 survarium::game_match_rule_base::game_match_rule_base: rule EAX, type ESP+4; pops 4; EAX
+    pub fn engine_hunt_rule_base(rule: *mut c_void, r#type: u32) -> Option<HuntRule>;
 }
 
 #[allow(dead_code)]
@@ -377,6 +389,12 @@ unsafe extern "stdcall" {
     pub fn engine_shared_string_create(text: *const u8) -> Option<SharedString>;
     /// 0xe0ae0 vostok::shared_string::destroy: string ESP+4; pops 4; stdcall, called directly
     pub fn engine_shared_string_destroy(string: Option<SharedString>);
+    /// 0x22660 vostok::render::scene_renderer::play_particle_system: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20, first_attachment ESP+24, second_attachment ESP+28; pops 28; stdcall, called directly
+    pub fn engine_play_particle_system(renderer: Option<SceneRenderer>, scene: Option<SceneReference>, particle: Option<ParticleSystem>, first_matrix: *const f32, second_matrix: *const f32, first_attachment: *const u32, second_attachment: *const u32);
+    /// 0x229d0 vostok::render::scene_renderer::remove_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12; pops 12; stdcall, called directly
+    pub fn engine_remove_particle_system(renderer: Option<SceneRenderer>, scene: Option<SceneReference>, particle: *mut Option<ParticleSystem>);
+    /// 0x22b30 vostok::render::scene_renderer::update_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20; pops 20; stdcall, called directly
+    pub fn engine_update_particle_system(renderer: Option<SceneRenderer>, scene: Option<SceneReference>, particle: *mut Option<ParticleSystem>, first_matrix: *const f32, second_matrix: *const f32);
 }
 
 #[allow(dead_code)]
@@ -487,6 +505,32 @@ unsafe extern "thiscall" {
     pub fn engine_text_edit_set_caret(edit: Option<UiTextEdit>, position: u32, select: u32);
     /// 0x1a8900 vostok::render::effect_compiler::set_constant_float4: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
     pub fn engine_set_constant_float4(value: *const f32, compiler: Option<EffectCompiler>, name: *const u8);
+    /// 0x2063f0 survarium::tdm_rule_cook::create_resource: cook ECX, query ESP+4; pops 4; EAX; thiscall, called directly
+    pub fn engine_tdm_cook_create(cook: Option<HuntCook>, query: Option<RuleQuery>) -> u32;
+    /// 0x2063e0 survarium::tdm_rule_cook::resource_size: cook ECX; pops 0; EAX; thiscall, called directly
+    pub fn engine_tdm_cook_size(cook: Option<HuntCook>) -> u32;
+    /// 0x316090 survarium::tdm_rule_core::on_event: rule ECX, type ESP+4, data ESP+8, time ESP+12; pops 12; thiscall, called directly
+    pub fn engine_tdm_rule_on_event(rule: Option<HuntRule>, r#type: u32, data: Option<KillEvent>, time: u32);
+    /// 0x316590 survarium::tdm_rule_core::on_player_entered_match: rule ECX, place ESP+4, time ESP+8; pops 8; thiscall, called directly
+    pub fn engine_tdm_rule_entered(rule: Option<HuntRule>, place: u32, time: u32);
+    /// 0x3165d0 survarium::tdm_rule_core::on_player_left_match: rule ECX, place ESP+4, time ESP+8; pops 8; thiscall, called directly
+    pub fn engine_tdm_rule_left(rule: Option<HuntRule>, place: u32, time: u32);
+    /// 0x267810 survarium::tdm_rule::set_game_world_core [descriptive]: rule ECX, core ESP+4; pops 4; thiscall, called directly
+    pub fn engine_tdm_rule_set_core(rule: Option<HuntRule>, core: Option<CoreWorld>);
+    /// 0x316340 survarium::tdm_rule_core::serialize: rule ECX, writer ESP+4; pops 4; thiscall, called directly
+    pub fn engine_tdm_rule_serialize(rule: Option<HuntRule>, writer: Option<BufferWriter>);
+    /// 0x3163d0 survarium::tdm_rule_core::deserialize: rule ECX, reader ESP+4, unused ESP+8; pops 8; thiscall, called directly
+    pub fn engine_tdm_rule_deserialize(rule: Option<HuntRule>, reader: Option<BufferReader>, unused: u32);
+    /// 0x316430 survarium::tdm_rule_core::fill_match_hud_state: rule ECX, hud ESP+4, time ESP+8; pops 8; thiscall, called directly
+    pub fn engine_tdm_rule_fill_hud(rule: Option<HuntRule>, hud: Option<MatchHudState>, time: u32);
+    /// 0x316520 survarium::tdm_rule_core::rule_completed: rule ECX, time ESP+4; pops 4; AL; thiscall, called directly
+    pub fn engine_tdm_rule_completed(rule: Option<HuntRule>, time: u32) -> u8;
+    /// 0x317f10 survarium::timelimit_rule_core::tick: rule ECX, dt ESP+4, time ESP+8, step ESP+12; pops 12; thiscall, called directly
+    pub fn engine_timelimit_tick(rule: Option<HuntRule>, dt: u32, time: u32, step: u32);
+    /// 0x1f2870 survarium::player::remove: player ECX, flag ESP+4; pops 4; thiscall, called directly
+    pub fn engine_player_remove(player: Option<Player>, flag: u32);
+    /// 0x316da0 survarium::player_respawn_rule_base::spawn_player: rule ECX, place ESP+4, point ESP+8, time ESP+12; pops 12; thiscall, called directly
+    pub fn engine_spawn_player(rule: Option<PlayerRespawnRuleBase>, place: u32, point: *const u32, time: u32);
 }
 
 /// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_create_instance(const void *info, const void *allocator, void **instance)
@@ -1058,6 +1102,24 @@ impl PlayerInputHandler {
     pub unsafe fn view(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x48).cast::<f32>().as_ptr() }
     }
+
+    /// +0x338 (u32): packed half-float yaw/pitch input; process_warmup_mode 242211/242238 consumes it and 24229D clears it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn turn(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x338).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x348 (f32): the mouse wheel's distance change, process_warmup_mode 242201 adds it to the native orbit distance
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn wheel(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x348).cast::<f32>().as_ptr() }
+    }
 }
 
 /// A survarium::game_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -1189,6 +1251,24 @@ impl GameWorld {
     #[inline(always)]
     pub unsafe fn set_sound_scene(self, value: Option<SoundScene>) {
         unsafe { self.0.byte_add(0x94).cast::<Option<SoundScene>>().write_volatile(value) }
+    }
+
+    /// +0x4d58 (ptr<survarium::player_input_handler>): the camera/input handler, switch_to_warmup_camera 1F8190 and switch_to_player_camera 1F8200
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn player_input(self) -> Option<PlayerInputHandler> {
+        unsafe { self.0.byte_add(0x4d58).cast::<Option<PlayerInputHandler>>().read_volatile() }
+    }
+
+    /// +0x4d58 (ptr<survarium::player_input_handler>): the camera/input handler, switch_to_warmup_camera 1F8190 and switch_to_player_camera 1F8200
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_player_input(self, value: Option<PlayerInputHandler>) {
+        unsafe { self.0.byte_add(0x4d58).cast::<Option<PlayerInputHandler>>().write_volatile(value) }
     }
 }
 
@@ -2070,6 +2150,15 @@ impl Player {
         unsafe { self.0.byte_add(0xf2ce).cast::<u16>().as_ptr() }
     }
 
+    /// +0x33d (u8): lethal hit latched by hit_impl; base_player::tick 2DAA88 invokes on_player_death before clearing it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn pending_death(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x33d).cast::<u8>().as_ptr() }
+    }
+
     /// +0xe850 (ptr<vostok::animation::n_ary_tree>): its animation player's (+750h) mixing tree (+E100h: animation_player::compute_bones_matrices 0x391AF0, update_bones_matrices 0x2FF60F); 0 with nothing playing
     ///
     /// # Safety
@@ -2086,6 +2175,24 @@ impl Player {
     #[inline(always)]
     pub unsafe fn set_animation_tree(self, value: Option<NAryTree>) {
         unsafe { self.0.byte_add(0xe850).cast::<Option<NAryTree>>().write_volatile(value) }
+    }
+
+    /// +0x32c (u32): packed half2 input delta, cleared by spawn 2DAC8D
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn input_rotation(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x32c).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x490 (f32): m_rotation_y: the yaw a spawn stores (0x2DAB70) and patch 31's switch keeps (kit_change_026g.asm YAW)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn yaw(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x490).cast::<f32>().as_ptr() }
     }
 }
 
@@ -5034,6 +5141,15 @@ impl GfxValue {
         unsafe { self.0.byte_add(0x8).cast::<Option<GfxObject>>().write_volatile(value) }
     }
 
+    /// +0xc (u32): a Number's (type 5) f64: its high word (+8 the low; Research's sender, patch 53)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn value_high(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xc).cast::<u32>().as_ptr() }
+    }
+
     /// 0x18 bytes: 24 bytes (Scaleform::GFx::Value): the callback's arguments are an array of them
     pub const SIZE: usize = 0x18;
 
@@ -6491,6 +6607,24 @@ impl EngineCfg {
         unsafe { self.0.byte_add(0x0).cast::<*mut u8>().write_volatile(value) }
     }
 
+    /// +0x0 (ptr<f32>): a float3 node's (type 7) three floats, its offset relocated to an address by the loader (a respawn point's position, 0x2F4580's movq)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vector(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x0).cast::<*mut f32>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<f32>): a float3 node's (type 7) three floats, its offset relocated to an address by the loader (a respawn point's position, 0x2F4580's movq)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_vector(self, value: *mut f32) {
+        unsafe { self.0.byte_add(0x0).cast::<*mut f32>().write_volatile(value) }
+    }
+
     /// 0x18 bytes: binary config record stride, cfg_child 0xF6B10
     pub const SIZE: usize = 0x18;
 
@@ -7922,6 +8056,15 @@ impl Weapon {
     pub unsafe fn set_state(self, value: Option<WeaponState>) {
         unsafe { self.0.byte_add(0x330).cast::<Option<WeaponState>>().write_volatile(value) }
     }
+
+    /// +0x288 (obj<survarium::breath_vibration_calculator>): its breath_vibration_calculator (weapon_core::tick 0x2E0A23 ticks it only while aimed, +5E8h; serialized only then, 0x31DA30)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn breath(self) -> BreathVibrationCalculator {
+        BreathVibrationCalculator(unsafe { self.0.byte_add(0x288) })
+    }
 }
 
 /// A survarium::weapon_hide_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -8553,6 +8696,42 @@ impl CoreWorld {
     pub unsafe fn set_rules_end(self, value: Option<RuleEntry>) {
         unsafe { self.0.byte_add(0x18828).cast::<Option<RuleEntry>>().write_volatile(value) }
     }
+
+    /// +0x18850 (obj<survarium::tick_list>): atomic_tick's second list (core+18840h + 10h; the time rule's tick, 0x318070)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn logic_ticks(self) -> TickList {
+        TickList(unsafe { self.0.byte_add(0x18850) })
+    }
+
+    /// +0x18fb0 (ptr<survarium::tick_counter>): the registrations' counter
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn tick_counter(self) -> Option<TickCounter> {
+        unsafe { self.0.byte_add(0x18fb0).cast::<Option<TickCounter>>().read_volatile() }
+    }
+
+    /// +0x18fb0 (ptr<survarium::tick_counter>): the registrations' counter
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_tick_counter(self, value: Option<TickCounter>) {
+        unsafe { self.0.byte_add(0x18fb0).cast::<Option<TickCounter>>().write_volatile(value) }
+    }
+
+    /// +0x188b0 (obj<survarium::blackboard>): the rules' blackboard (0x2D58F0 gives it to slot 12)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn blackboard(self) -> Blackboard {
+        Blackboard(unsafe { self.0.byte_add(0x188b0) })
+    }
 }
 
 /// A vostok::scene_reference (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -9076,6 +9255,33 @@ impl BaseGameStatisticsHandler {
     #[inline(always)]
     pub unsafe fn set_core(self, value: Option<CoreWorld>) {
         unsafe { self.0.byte_add(0x3238).cast::<Option<CoreWorld>>().write_volatile(value) }
+    }
+
+    /// +0x31d4 (u16): team score, tdm rule writes at 316257; Research uses the same field
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn team_zero_points(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x31d4).cast::<u16>().as_ptr() }
+    }
+
+    /// +0x31d6 (u16): second team score, tdm rule 316257
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn team_one_points(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x31d6).cast::<u16>().as_ptr() }
+    }
+
+    /// +0x31e4 (u8): winning team 0 or 1, 2 for no winner; tdm rule and Research publish here
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn winner(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x31e4).cast::<u8>().as_ptr() }
     }
 }
 
@@ -12251,6 +12457,24 @@ impl QueriesResult {
     pub unsafe fn loaded(self) -> LoadedResource {
         LoadedResource(unsafe { self.0.byte_add(0x128) })
     }
+
+    /// +0x12c (ptr<vostok::sound::sound_emitter>): a class-258 request's (sound_collection_cook, its class 102h at 0x5F4A3) result: the collection, a sound emitter
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn sound(self) -> Option<SoundEmitter> {
+        unsafe { self.0.byte_add(0x12c).cast::<Option<SoundEmitter>>().read_volatile() }
+    }
+
+    /// +0x12c (ptr<vostok::sound::sound_emitter>): a class-258 request's (sound_collection_cook, its class 102h at 0x5F4A3) result: the collection, a sound emitter
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_sound(self, value: Option<SoundEmitter>) {
+        unsafe { self.0.byte_add(0x12c).cast::<Option<SoundEmitter>>().write_volatile(value) }
+    }
 }
 
 /// A survarium::allocator_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -12833,6 +13057,24 @@ impl QueryResult {
     #[inline(always)]
     pub unsafe fn set_model(self, value: Option<SceneModel>) {
         unsafe { self.0.byte_add(0x0).cast::<Option<SceneModel>>().write_volatile(value) }
+    }
+
+    /// +0x0 (ptr<vostok::render::particle_system>): a class-61 request's result: a particle system (the artefact cooks' second, 0x25E862; Lifebone keeps it at item+4B0h, 0x26037F, and its client passes that word by value to play_particle_system, ebx+18h = item+4B0h, 0x25F34E..0x25F387)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn particle(self) -> Option<ParticleSystem> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ParticleSystem>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::render::particle_system>): a class-61 request's result: a particle system (the artefact cooks' second, 0x25E862; Lifebone keeps it at item+4B0h, 0x26037F, and its client passes that word by value to play_particle_system, ebx+18h = item+4B0h, 0x25F34E..0x25F387)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_particle(self, value: Option<ParticleSystem>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ParticleSystem>>().write_volatile(value) }
     }
 
     /// 0x2e0 bytes: 2E0h bytes a result
@@ -14271,6 +14513,15 @@ impl MedicalDamage {
     #[inline(always)]
     pub unsafe fn pools(self) -> MedicalPools {
         MedicalPools(unsafe { self.0.byte_add(0x108) })
+    }
+
+    /// +0x32c (u32): m_invulnerability_time_in_ms: the time until the player is invulnerable, -1 none (get_invulnerability 0x2E5550; the spawn writes time + its point's +20h, 0x316E78)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn invulnerable_until(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x32c).cast::<u32>().as_ptr() }
     }
 }
 
@@ -19679,6 +19930,24 @@ impl MatchRule {
     #[inline(always)]
     pub unsafe fn time_state(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x148).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x128 (ptr<survarium::core_world>): the client time rule's core (its node 0x267ACC reads [rule+128h]+18FC4h, the newest tick played)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn timelimit_core(self) -> Option<CoreWorld> {
+        unsafe { self.0.byte_add(0x128).cast::<Option<CoreWorld>>().read_volatile() }
+    }
+
+    /// +0x128 (ptr<survarium::core_world>): the client time rule's core (its node 0x267ACC reads [rule+128h]+18FC4h, the newest tick played)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_timelimit_core(self, value: Option<CoreWorld>) {
+        unsafe { self.0.byte_add(0x128).cast::<Option<CoreWorld>>().write_volatile(value) }
     }
 }
 
@@ -25220,6 +25489,42 @@ impl PlayerRespawnRuleBase {
     pub unsafe fn team_2_count(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x19c).cast::<u32>().as_ptr() }
     }
+
+    /// +0x134 (ptr<survarium::core_world>): respawn tick 31689F reads the owning world
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn core(self) -> Option<CoreWorld> {
+        unsafe { self.0.byte_add(0x134).cast::<Option<CoreWorld>>().read_volatile() }
+    }
+
+    /// +0x134 (ptr<survarium::core_world>): respawn tick 31689F reads the owning world
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_core(self, value: Option<CoreWorld>) {
+        unsafe { self.0.byte_add(0x134).cast::<Option<CoreWorld>>().write_volatile(value) }
+    }
+
+    /// +0x138 (u32): twenty scheduled respawn times; u32::MAX means unscheduled; tick 3168B4 compares against its time
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn times(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x138).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x114 (u32): the config's respawn_time x 1000 (constructor 0x316783)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn respawn_time(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x114).cast::<u32>().as_ptr() }
+    }
 }
 
 /// A survarium::respawn_point_core (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -29379,6 +29684,990 @@ impl FireUser {
     }
 }
 
+/// A survarium::hunt_cook (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HuntCook(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl HuntCook {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): patch 171's rule cook (a static of ours, as the client cooks the game's constructor makes: tdm_rule_cook 0x2F41E0): its vtable, a copy of the client tdm cook's (0x9FD8AC) with create and size ours
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x8 (u32): the resource class it cooks: 481 (1E1h), its slot in register_cook's table (0x102D10)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn class(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x10 (u32): -1, as the game's cooks have it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn unused(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x10).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x14 (u32): the thread that made it (GetCurrentThreadId)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn thread(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x14).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x18 (u32): 8, as the game's rule cooks have it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn flags(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x18).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x20 (ptr<survarium::game>): the client's game (tdm's create reads it at 0x206419)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn game(self) -> Option<Game> {
+        unsafe { self.0.byte_add(0x20).cast::<Option<Game>>().read_volatile() }
+    }
+
+    /// +0x20 (ptr<survarium::game>): the client's game (tdm's create reads it at 0x206419)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_game(self, value: Option<Game>) {
+        unsafe { self.0.byte_add(0x20).cast::<Option<Game>>().write_volatile(value) }
+    }
+
+    /// 0x24 bytes: the cook object
+    pub const SIZE: usize = 0x24;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::hunt_cooks (0x24 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct HuntCookStorage([u8; 0x24]);
+
+#[allow(dead_code)]
+impl HuntCookStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x24])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> HuntCook {
+        HuntCook(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<HuntCook> {
+        (!rooms.is_empty()).then(|| HuntCook(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::rule_query (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RuleQuery(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl RuleQuery {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<survarium::match_options>): a rule cook's query: the match options
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn options(self) -> Option<MatchOptions> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<MatchOptions>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<survarium::match_options>): a rule cook's query: the match options
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_options(self, value: Option<MatchOptions>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<MatchOptions>>().write_volatile(value) }
+    }
+
+    /// +0xc (ptr<vostok::engine_cfg>): the mode config's root (tdm_rule_core's constructor 0x316027)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn config(self) -> Option<EngineCfg> {
+        unsafe { self.0.byte_add(0xc).cast::<Option<EngineCfg>>().read_volatile() }
+    }
+
+    /// +0xc (ptr<vostok::engine_cfg>): the mode config's root (tdm_rule_core's constructor 0x316027)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_config(self, value: Option<EngineCfg>) {
+        unsafe { self.0.byte_add(0xc).cast::<Option<EngineCfg>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::hunt_rule (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HuntRule(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl HuntRule {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): patch 171's rule: game_match_rule_base (0x313900, type 6) and these; its vtable a copy of tdm_rule_core's (0xA15DA4) with its slots ours
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x108 (u32): the link resolver's vtable: tdm's (0xA06D10, its slot 0x316540 ret 1Ch), as tdm's create writes it (0x20642F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn resolver(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x108).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x118 (ptr<survarium::blackboard>): tdm's set_blackboard (slot 12, 0x267820, kept) writes it here
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn blackboard(self) -> Option<Blackboard> {
+        unsafe { self.0.byte_add(0x118).cast::<Option<Blackboard>>().read_volatile() }
+    }
+
+    /// +0x118 (ptr<survarium::blackboard>): tdm's set_blackboard (slot 12, 0x267820, kept) writes it here
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_blackboard(self, value: Option<Blackboard>) {
+        unsafe { self.0.byte_add(0x118).cast::<Option<Blackboard>>().write_volatile(value) }
+    }
+
+    /// +0x120 (obj<survarium::tick_delegate>): its tick in the world's second list, as the time rule's at +110h (0x318050)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn tick(self) -> TickDelegate {
+        TickDelegate(unsafe { self.0.byte_add(0x120) })
+    }
+
+    /// +0x138 (ptr<survarium::core_world>): the world core its slot 11 got
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn core(self) -> Option<CoreWorld> {
+        unsafe { self.0.byte_add(0x138).cast::<Option<CoreWorld>>().read_volatile() }
+    }
+
+    /// +0x138 (ptr<survarium::core_world>): the world core its slot 11 got
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_core(self, value: Option<CoreWorld>) {
+        unsafe { self.0.byte_add(0x138).cast::<Option<CoreWorld>>().write_volatile(value) }
+    }
+
+    /// +0x13c (ptr<survarium::game>): the client's game, the cook's +20h
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn game(self) -> Option<Game> {
+        unsafe { self.0.byte_add(0x13c).cast::<Option<Game>>().read_volatile() }
+    }
+
+    /// +0x13c (ptr<survarium::game>): the client's game, the cook's +20h
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_game(self, value: Option<Game>) {
+        unsafe { self.0.byte_add(0x13c).cast::<Option<Game>>().write_volatile(value) }
+    }
+
+    /// 0x140 bytes: the rule object (its state is patch 171's, by the object's address)
+    pub const SIZE: usize = 0x140;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::hunt_rules (0x140 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct HuntRuleStorage([u8; 0x140]);
+
+#[allow(dead_code)]
+impl HuntRuleStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x140])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> HuntRule {
+        HuntRule(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<HuntRule> {
+        (!rooms.is_empty()).then(|| HuntRule(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::tick_delegate (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TickDelegate(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl TickDelegate {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): the delegate's object (ECX of its function)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn object(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x4 (u32): its function: thiscall (dt, time, step), ret 0Ch (the time rule's 0x317F10)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn function(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x8 (ptr<survarium::tick_delegate>): the list's previous
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn previous(self) -> Option<TickDelegate> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<TickDelegate>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<survarium::tick_delegate>): the list's previous
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_previous(self, value: Option<TickDelegate>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<TickDelegate>>().write_volatile(value) }
+    }
+
+    /// +0xc (ptr<survarium::tick_delegate>): the list's next
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn next(self) -> Option<TickDelegate> {
+        unsafe { self.0.byte_add(0xc).cast::<Option<TickDelegate>>().read_volatile() }
+    }
+
+    /// +0xc (ptr<survarium::tick_delegate>): the list's next
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_next(self, value: Option<TickDelegate>) {
+        unsafe { self.0.byte_add(0xc).cast::<Option<TickDelegate>>().write_volatile(value) }
+    }
+
+    /// +0x10 (u32): its key: the core's counter at registration (0x318070; atomic_tick's sort 0x2D1D20)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn order(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x10).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x14 (u8): 1: called
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn enabled(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x14).cast::<u8>().as_ptr() }
+    }
+
+    /// 0x18 bytes: a delegate
+    pub const SIZE: usize = 0x18;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::tick_delegates (0x18 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct TickDelegateStorage([u8; 0x18]);
+
+#[allow(dead_code)]
+impl TickDelegateStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x18])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> TickDelegate {
+        TickDelegate(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<TickDelegate> {
+        (!rooms.is_empty()).then(|| TickDelegate(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::tick_list (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TickList(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl TickList {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): a tick list's delegates
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn count(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x4 (ptr<survarium::tick_delegate>): its first
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn head(self) -> Option<TickDelegate> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<TickDelegate>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<survarium::tick_delegate>): its first
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_head(self, value: Option<TickDelegate>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<TickDelegate>>().write_volatile(value) }
+    }
+
+    /// +0x8 (ptr<survarium::tick_delegate>): its last
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn tail(self) -> Option<TickDelegate> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<TickDelegate>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<survarium::tick_delegate>): its last
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_tail(self, value: Option<TickDelegate>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<TickDelegate>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::tick_counter (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TickCounter(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl TickCounter {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): the next registration's order (timelimit's set_game_world_core 0x318066 reads and increments it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn value(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::blackboard (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Blackboard(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl Blackboard {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (u8): entry 0's bool: team 0 may respawn (0xFF from the constructor; the death handler 0x316AFA)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn team_1_respawn(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x8).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x38 (u8): entry 1's bool: any other team may respawn
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn team_2_respawn(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x38).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A survarium::kill_event (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KillEvent(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl KillEvent {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u8): a kill's data (hit_impl 0x2D9EF1): the killer's place
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn killer(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x0).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x1 (u8): the victim's place (0x2D9EF4)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn victim(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x1).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A survarium::match_hud_state (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MatchHudState(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl MatchHudState {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (u32): the match's whole seconds left (the time rule's fill 0x267B10), shown by update_ui as root.set_match_time
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn seconds_left(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x90 (u16): team 0's points (tdm 0x316430; root.set_game_progress 0x2364C0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn team_zero_points(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x90).cast::<u16>().as_ptr() }
+    }
+
+    /// +0x92 (u16): team 1's points
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn team_one_points(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x92).cast::<u16>().as_ptr() }
+    }
+}
+
+/// A survarium::tdm_rule_methods (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TdmRuleMethods(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl TdmRuleMethods {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// -0x4 (u32): native complete object locator (0xA532C0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn rtti(self) -> *mut u32 {
+        unsafe { self.0.byte_sub(0x4).cast::<u32>().as_ptr() }
+    }
+
+    /// 0x50 bytes: twenty slots of game_match_rule_base (client_patch.md 3.50)
+    pub const SIZE: usize = 0x50;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::tdm_rule_methodss (0x50 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct TdmRuleMethodsStorage([u8; 0x50]);
+
+#[allow(dead_code)]
+impl TdmRuleMethodsStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x50])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> TdmRuleMethods {
+        TdmRuleMethods(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<TdmRuleMethods> {
+        (!rooms.is_empty()).then(|| TdmRuleMethods(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::tdm_cook_methods (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TdmCookMethods(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl TdmCookMethods {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// -0x4 (u32): native complete object locator (0xA47134)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn rtti(self) -> *mut u32 {
+        unsafe { self.0.byte_sub(0x4).cast::<u32>().as_ptr() }
+    }
+
+    /// 0x2c bytes: eleven slots: 9 create (0x2063F0), 10 size (0x2063E0)
+    pub const SIZE: usize = 0x2c;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::tdm_cook_methodss (0x2c bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct TdmCookMethodsStorage([u8; 0x2c]);
+
+#[allow(dead_code)]
+impl TdmCookMethodsStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x2c])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> TdmCookMethods {
+        TdmCookMethods(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<TdmCookMethods> {
+        (!rooms.is_empty()).then(|| TdmCookMethods(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::resources::cook_table (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CookTable(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl CookTable {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::resources::cook_entry>): its first place
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn first(self) -> Option<CookEntry> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<CookEntry>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::resources::cook_entry>): its first place
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_first(self, value: Option<CookEntry>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<CookEntry>>().write_volatile(value) }
+    }
+
+    /// +0x4 (ptr<vostok::resources::cook_entry>): past its last
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn end(self) -> Option<CookEntry> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<CookEntry>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::resources::cook_entry>): past its last
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_end(self, value: Option<CookEntry>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<CookEntry>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::resources::cook_entry (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CookEntry(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl CookEntry {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): a class's cook, 0 none
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn cook(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// 0x4 bytes: a place
+    pub const SIZE: usize = 0x4;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::resources::cook_entrys (0x4 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct CookEntryStorage([u8; 0x4]);
+
+#[allow(dead_code)]
+impl CookEntryStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x4])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> CookEntry {
+        CookEntry(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<CookEntry> {
+        (!rooms.is_empty()).then(|| CookEntry(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::respawn_tick_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RespawnTickFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl RespawnTickFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (u32): player_respawn_rule_base::tick's first argument, the step's milliseconds
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn elapsed(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+
+    /// +0xc (u32): its second argument, the step's simulation time (0x3168B4 compares each place's time with it; 0x3169A2 passes it to the spawn)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn time(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xc).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::death_delay_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DeathDelayFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl DeathDelayFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x1c (ptr<survarium::kill_event>): the death handler's data at 0x316B6B (its argument: ESP+1Ch there)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn data(self) -> Option<KillEvent> {
+        unsafe { self.0.byte_add(0x1c).cast::<Option<KillEvent>>().read_volatile() }
+    }
+
+    /// +0x1c (ptr<survarium::kill_event>): the death handler's data at 0x316B6B (its argument: ESP+1Ch there)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_data(self, value: Option<KillEvent>) {
+        unsafe { self.0.byte_add(0x1c).cast::<Option<KillEvent>>().write_volatile(value) }
+    }
+
+    /// +0x20 (u32): the death's time at 0x316B6B (ESP+20h; read at 0x316B71)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn time(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x20).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::render::particle_system (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ParticleSystem(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ParticleSystem {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xd0 (u32): its reference count (the play's by-value copy adds one, 0x25F369)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn references(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xd0).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A survarium::damage_collector (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -29632,6 +30921,96 @@ impl AnimationNode {
     #[inline(always)]
     pub unsafe fn animated_object(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x30).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::freeze_tick_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FreezeTickFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl FreezeTickFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (u32): base_player::tick entry argument, simulation milliseconds (0x2DAA6C after four pushes)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn time(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::breath_vibration_calculator (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BreathVibrationCalculator(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BreathVibrationCalculator {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x10 (ptr<survarium::breath_state>): m_logic's current state (the vostok::ai::fsm at +0: fsm::tick 0x38CA20 ticks it and sets it at 0x38CAC9); one of the three states initialize_logic 0x31D450 makes
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn state(self) -> Option<BreathState> {
+        unsafe { self.0.byte_add(0x10).cast::<Option<BreathState>>().read_volatile() }
+    }
+
+    /// +0x10 (ptr<survarium::breath_state>): m_logic's current state (the vostok::ai::fsm at +0: fsm::tick 0x38CA20 ticks it and sets it at 0x38CAC9); one of the three states initialize_logic 0x31D450 makes
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_state(self, value: Option<BreathState>) {
+        unsafe { self.0.byte_add(0x10).cast::<Option<BreathState>>().write_volatile(value) }
+    }
+
+    /// +0x50 (f32): m_breath_holding_reserve, seconds of hold left: the holding state's tick takes dt off it (0x31D213, at least 0), insufficient_breath 0x31D430 ends the hold in short breathing at 0 or less, holding's finalize 0x31D1D0 refills it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn breath_holding_reserve(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x50).cast::<f32>().as_ptr() }
+    }
+}
+
+/// A survarium::breath_state (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BreathState(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BreathState {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): its vtable: normal 0xA16F64, holding 0xA16FAC, short breathing 0xA16F88 (initialize_logic 0x31D48B, 0x31D4CF, 0x31D51C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
     }
 }
 
@@ -30495,6 +31874,36 @@ pub mod image {
 
     /// 0x9f0f24 (u32, survarium::image): skeleton_render_model_instance's vtable (written at 0x15A111, 0x15A220): +24h get_locator 0x15A9C0, a tail jump through the original model (+62B4h)'s vtable +28h
     pub const SKELETON_INSTANCE_VTABLE: u32 = 0x9f0f24;
+
+    /// 0xa15da4 (obj<survarium::tdm_rule_methods>, survarium::image): tdm_rule_core's vtable including RTTI at -4 (its constructor 0x316001)
+    #[inline(always)]
+    pub fn tdm_rule_methods() -> TdmRuleMethods {
+        // SAFETY: an image VA, not 0.
+        TdmRuleMethods(unsafe { NonNull::new_unchecked(0xa15da4 as *mut c_void) })
+    }
+
+    /// 0x9fd8ac (obj<survarium::tdm_cook_methods>, survarium::image): the client tdm rule cook's vtable including RTTI at -4 (the game's constructor 0x1E99C0..)
+    #[inline(always)]
+    pub fn tdm_cook_methods() -> TdmCookMethods {
+        // SAFETY: an image VA, not 0.
+        TdmCookMethods(unsafe { NonNull::new_unchecked(0x9fd8ac as *mut c_void) })
+    }
+
+    /// 0xa06d10 (u32, survarium::image): tdm_rule's link resolver vtable (create 0x20642F)
+    pub const TDM_RULE_RESOLVER_METHODS: u32 = 0xa06d10;
+
+    /// 0xaccc60 (u32, survarium::image): tdm_rule's type descriptor: its cook's allocation name (create 0x2063FA)
+    pub const TDM_RULE_NAME: u32 = 0xaccc60;
+
+    /// 0xa86e00 (obj<vostok::resources::cook_table>, survarium::image): register_cook's table (0x102D10): grown to 206h places at the first call
+    #[inline(always)]
+    pub fn cooks() -> CookTable {
+        // SAFETY: an image VA, not 0.
+        CookTable(unsafe { NonNull::new_unchecked(0xa86e00 as *mut c_void) })
+    }
+
+    /// 0xa16fac (u32, survarium::image): breath_state_holding's vtable (initialize_logic 0x31D4CF): +4h initialize 0x31D140, +0Ch finalize 0x31D190, +1Ch tick 0x31D200
+    pub const BREATH_HOLDING_VTABLE: u32 = 0xa16fac;
 }
 
 /// A general-purpose register at a hook's site.
@@ -36245,6 +37654,108 @@ pub mod site {
         }
     }
 
+    /// game.query_base_resources (0x1ec170): game::query_base_resources' start (push ebp / mov ebp,esp / and esp,-8), its one caller the game's constructor 0x1E9B4E after its own client cooks (EAX the game); Research's registration tail-jumps here (0x1E9B4C)
+    pub mod game_query_base_resources {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a survarium::game (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn game(machine: &impl Machine) -> Option<Game> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(Game)
+        }
+    }
+
+    /// respawn.death_delay (0x316b6b): player_respawn_rule_base::on_event after the floor of a death's delay (mov ecx,[edi+134h], the floor call's return): EAX the delay ms, EDI the rule, EBX the victim's player, ESP+20h the time; then time + EAX is put on the grid and stored at +138h + 4 x victim (0x316BA3)
+    pub mod respawn_death_delay {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::player_respawn_rule_base (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn rule(machine: &impl Machine) -> Option<PlayerRespawnRuleBase> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(PlayerRespawnRuleBase)
+        }
+
+        /// EBX: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Player)
+        }
+
+        /// the site's ESP: a survarium::death_delay_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<DeathDelayFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(DeathDelayFrame)
+        }
+    }
+
+    /// respawn.tick (0x316826): player_respawn_rule_base::tick after patch 31's kit-change jump at 0x316820 and its prologue (push ebp / mov ebp,esp / sub esp,34h), before it reads a place's time (push ebx / push esi / mov ebx,ecx / push edi): ECX the rule, EBP its frame; the modes that hold the places' times or make them due (Freeze Tag, Artifact Hunt) chain here by order
+    pub mod respawn_tick {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::player_respawn_rule_base (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn rule(machine: &impl Machine) -> Option<PlayerRespawnRuleBase> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(PlayerRespawnRuleBase)
+        }
+
+        /// EBP: a survarium::respawn_tick_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<RespawnTickFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(RespawnTickFrame)
+        }
+    }
+
+    /// hunt.can_sprint (0x2dbf45): base_player::can_sprint after its push ebx / mov ebx,[esp+8] (mov eax,[ebx+108h]): EBX the player; refused is its every refusal's end (xor eax,eax / pop ebx / ret 4)
+    pub mod hunt_can_sprint {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Player)
+        }
+    }
+
+    /// player_icons.carrier_mark (0x1f2d8b): the icon record's carry test (cmp dword [edx+178h],0, the inventory's carried item; then lea eax,[eax+eax*2] / setnz cl and the record's +388h, modifier_visible): ESI the player, EAX its place; carrier: EAX place x 3, CL 1 (the setnz's), at the compare of the record's byte
+    pub mod player_icons_carrier_mark {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(Player)
+        }
+    }
+
     /// bullet.pierced (0x32d88a): check_collision once try_pierce (0x32D881) let the bullet through (mov ebp,2; AL 0 jumps past it to 0x32D891): EDI the bullet, its +4Ch the struck triangle's material (0x32D87B), ESI the hit receiver the ray met (a player's body, a trap, a lamp) or 0: the level's collision (a static surface, a prop with no receiver), whose back faces never come here (0x32D72F)
     pub mod bullet_pierced {
         #[allow(unused_imports)]
@@ -36338,6 +37849,45 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn bones(machine: &impl Machine) -> Option<Float4x4> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(Float4x4)
+        }
+    }
+
+    /// freeze.player_tick (0x2daa60): base_player::tick before deferred death: push ecx/ebx/ebp; mov ebx,ecx. Frozen exits through ret 4 without entering the prologue
+    pub mod freeze_player_tick {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(Player)
+        }
+
+        /// the site's ESP: a survarium::freeze_tick_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<FreezeTickFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(FreezeTickFrame)
+        }
+    }
+
+    /// time_rule.camera_state (0x267ae6): the client time rule node's camera test (0x267AA0, for a tick first played): mov edi,[edi+148h] (its own state) before the compare with the network client's +1F1C60h and the camera switch 0x27B1A0; state: EDI given, on at the compare
+    pub mod time_rule_camera_state {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::match_rule (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn rule(machine: &impl Machine) -> Option<MatchRule> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(MatchRule)
         }
     }
 

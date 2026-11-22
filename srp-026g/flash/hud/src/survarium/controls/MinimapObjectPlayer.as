@@ -34,6 +34,17 @@ package survarium.controls
          _type = value;
       }
 
+      // Artifact Hunt: the carrier's dot in the artefact's light (CarryRing).
+      public function set carrying(value:Boolean) : void
+      {
+         CarryRing.mark(this,value);
+      }
+
+      public function get carrying() : Boolean
+      {
+         return CarryRing.marked(this);
+      }
+
       // The player's name centred over the icon; null shows none. Its text and place change only
       // when the name does.
       public function showName(name:String) : void

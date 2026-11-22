@@ -353,6 +353,10 @@ pub struct MatchResult {
     /// Batteries home (modes 2, 3), tickets left (mode 4) or Research's
     /// points (mode 5).
     pub team_points: [u16; 2],
+    /// How often a round started again, respawning everyone with the kit's
+    /// load (Artifact Hunt, `artefact_hunt.md`, "Respawns"); 0 in the modes
+    /// without rounds.
+    pub round_starts: u16,
     pub duration_ms: u32,
     /// `None` if play never began.
     pub played_ms: Option<u32>,
@@ -2129,7 +2133,9 @@ impl<'a> Shared<'a> {
         let factor = self.points_factor();
         let mut lines = [[(0.0, Pay::NONE); KITS]; 3];
         for (event, counts) in events.iter().enumerate() {
-            let line = EVENT_LINES[event];
+            // Freeze Tag's thaw is in the kills' line and pays as a kill.
+            let thaw = self.result.mode == GameMode::FreezeTag && event == event::THAW;
+            let line = if thaw { EVENT_LINES[event::KILL] } else { EVENT_LINES[event] };
             // What one of the event pays. A kill and a help pay by the
             // event; an event of the activity line by its score, with the
             // weight the scoreboard counted it with. An event that scores
@@ -2138,6 +2144,7 @@ impl<'a> Shared<'a> {
             // events are the fixed part, added below.
             let each = match event {
                 event::KILL => self.terms.kill,
+                _ if thaw => self.terms.kill,
                 event::ASSIST | event::TEAMMATE_CURE | event::TEAMMATE_RESCUE => pay::HELP,
                 event::PARTICIPATING | event::WON => continue,
                 _ if line == ACTIVITY_LINE && weights[event] > 0.0 => {
@@ -2274,8 +2281,9 @@ impl<'a> Shared<'a> {
             let shots: Vec<u32> = (0..KITS)
                 .map(|kit| u32::from(events[event::BULLET_FIRE][kit]))
                 .collect();
-            let respawns =
-                total(&events, event::DEATH).saturating_add(u32::from(player.kit_changes));
+            let respawns = total(&events, event::DEATH)
+                .saturating_add(u32::from(player.kit_changes))
+                .saturating_add(u32::from(self.result.round_starts));
             reward.supplies_used =
                 super::autobuy::used(
                     account,

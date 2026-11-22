@@ -267,6 +267,16 @@ st_artcontainer_time_corr_perc_name	Время поиска
 st_artefact_activated_message	Артефакт активирован
 st_artefact_booster_description	Вторая версия прибора, изобретенного умельцами для извлечения артефактов. Благодаря встроенному погасителю аномальной активности артефакта позволяет ускорить процесс экстракции.
 st_artefact_booster_name	Артефакт-мастер
+st_artefact_hunt_draw	Ничья. Время вышло
+st_artefact_hunt_enemy_delivered	Команда противника доставила артефакт
+st_artefact_hunt_lost_collected	Поражение. Все артефакты собраны
+st_artefact_hunt_lost_time_out	Поражение. Время вышло
+st_artefact_hunt_lost_wiped	Поражение. Ваша команда выбыла
+st_artefact_hunt_team_delivered	Ваша команда доставила артефакт
+st_artefact_hunt_won_collected	Победа! Все артефакты собраны
+st_artefact_hunt_won_time_out	Победа! Время вышло
+st_artefact_hunt_won_wiped	Победа! Команда противника выбыла
+st_artefact_hunt_you_picked	Вы подобрали артефакт
 st_artefact_no_free_slots	Нет свободных слотов, чтобы взять артефакт!
 st_artefact_search_failed	Артефакт не найден
 st_artefact_search_success	Вы достали артефакт!
@@ -1433,7 +1443,7 @@ st_level_05_name	Таракановский форт
 st_level_06_name	Мамаев курган
 st_level_07_name	Лаборатория "Вектор"
 st_level_08_name	Кельн
-st_level_09_name	Лондон
+st_level_09_name	Лондон (v0.32)
 st_level_10_name	РЛС "Восток" (v0.21)
 st_level_11_name	Мамаев курган (v0.21)
 st_level_12_name	Химзавод (v0.11)
@@ -1443,6 +1453,7 @@ st_level_25_name	Школа (v0.21)
 st_level_26_name	Таракановский форт (v0.21)
 st_level_29_name	Рудня (v0.21)
 st_level_31_name	Химзавод (v0.21)
+st_level_32_name	Лондон (v0.42)
 st_lifebone_activation_hint	Живокост активирован! Все критические повреждения вылечены! Здоровье восстановлено!
 st_lifebone_pickup_hint	Артефакт Живокост. Повышает регенерацию здоровья.
 st_lightning_quality_option	Качество освещения
@@ -1471,6 +1482,9 @@ st_magpul_afg1_foregrip_desc	Отдача -3.5%. Время прицеливан
 st_magpul_afg1_foregrip_name	Рукоять AFG-1
 st_maintenance	Началось техническое обслуживание серверов. Приложение будет закрыто.
 st_map	Карта
+st_map_hint_13_1	Найдите артефакт "Сияние Леса"
+st_map_hint_13_2	Принесите "Сияние Леса" на базу
+st_map_hint_13_3	Соберите 5 артефактов, чтобы победить
 st_match_items_found	Найдено
 st_match_making_level	Уровень матча
 st_match_rewards	Награда за бой
@@ -1551,6 +1565,10 @@ st_mode_05_description	Ваша задача - захватить контрол
 st_mode_05_name	Исследование
 st_mode_08_description	Каждый сам за себя. Матч заканчивается, когда кто-то наберёт нужное число убийств или истечёт время. Побеждает боец с наибольшим числом убийств.
 st_mode_08_name	Все против всех
+st_mode_12_description	Заморозьте всех противников. Побеждает команда, выигравшая 5 раундов. Стойте в пределах 2 м от замороженного союзника 3 секунды, чтобы разморозить его.
+st_mode_12_name	Заморозка
+st_mode_13_description	Найдите артефакт "Сияние Леса" и принесите его на базу. Соберите 5 артефактов, чтобы победить.
+st_mode_13_name	Охота за артефактом
 st_modification_screen_edit_decal_hint	Чтобы изменить размер и положение нашивки, кликните на ее слот
 st_modification_screen_hint	Перетяните камуфляж или нашивку из вашего инвентаря в соответствующий слот модификации предмета
 st_modified	Модифицировано
@@ -1739,7 +1757,9 @@ st_novice_026_helmet_desc	Вязаная шапка сталкера-нович�
 st_novice_026_helmet_name	Вязаная шапка новичка
 st_of	из
 st_ok	Ок
+st_on_destroyed_victory_artefact	Артефакт уничтожен
 st_on_enemy_theft_item	Противник украл батарею с вашей базы, остановите его!
+st_on_spawn_victory_artefact	Артефакт появился
 st_on_spawn_victory_item	Батарея заряжена! Принесите ее на базу.
 st_one_handed	Вспомогательное
 st_online_store	Купить золото
@@ -2123,6 +2143,7 @@ st_rgd5_name	Граната РГД-5
 st_rgo_descr	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_rgo_name	РГО
 st_right_strafe_action	Шаг вправо
+st_round_restart_in	До рестарта раунда осталось
 st_rpd_description	ОПИСАНИЕ НЕ ГОТОВО
 st_rpd_name	РПД
 st_rpk_description	ОПИСАНИЕ НЕ ГОТОВО
@@ -2676,8 +2697,20 @@ st_srp_hit_markers_all	Все хитмаркеры
 st_srp_hit_markers_hidden	Скрытые хитмаркеры
 st_srp_hit_markers_kill	Только при убийстве
 st_srp_hud_add_friend	Добавить в друзья
+st_srp_hud_artefact_hunt_carrying	Вы несёте артефакт
+st_srp_hud_artefact_hunt_sudden_death	Внезапная смерть
 st_srp_hud_blackout_intro	Блэкаут: несите батареи к устройству своей команды. Интерфейс и маркеры попаданий скрыты для погружения. Удерживайте Tab: боезапас, здоровье, чат; после смерти — выбор комплекта.
 st_srp_hud_blackout_start	Блэкаут\nНесите батареи к устройству своей команды.\nИнтерфейс и маркеры попаданий скрыты. Удерживайте Tab, чтобы увидеть боезапас и здоровье.
+st_srp_hud_freeze_draw	Ничья
+st_srp_hud_freeze_frozen	Заморожен
+st_srp_hud_freeze_help	Заморозьте всех противников. Побеждает команда, выигравшая 5 раундов. Стойте в пределах 2 м от замороженного союзника 3 секунды, чтобы разморозить его.
+st_srp_hud_freeze_lose	Поражение — противники выиграли пять раундов.
+st_srp_hud_freeze_round_draw	Ничья в раунде. Повтор через %1$s с.
+st_srp_hud_freeze_round_lose	Раунд проигран. Следующий через %1$s с.
+st_srp_hud_freeze_round_win	Раунд выигран. Следующий через %1$s с.
+st_srp_hud_freeze_standing	В бою: ваша команда %1$s — противники %2$s
+st_srp_hud_freeze_thawing	Размораживание союзника…
+st_srp_hud_freeze_win	Победа — выиграно пять раундов.
 st_srp_hud_friend_not_sent	Заявка в друзья не отправлена
 st_srp_hud_friend_sent	Заявка в друзья отправлена
 st_srp_hud_mute_hide	Скрыть чат
@@ -2750,7 +2783,8 @@ st_srp_map_cs_mp_military_1	Армейские склады
 st_srp_map_cs_mp_rembasa	Ремонтная база
 st_srp_map_cs_mp_sport_center	Спортивный центр
 st_srp_map_cs_training_camp	Тренировочный лагерь
-st_srp_map_london	Лондон
+st_srp_map_london	Лондон (v0.32)
+st_srp_map_london_v042	Лондон (v0.42)
 st_srp_map_mamayev_kurgan	Мамаев курган
 st_srp_map_mamayev_kurgan_v021	Мамаев курган (v0.21)
 st_srp_map_names_option	Имена на карте
@@ -2833,11 +2867,13 @@ st_srp_mic_test_playing	Воспроизведение %1$s
 st_srp_mic_test_recording	Запись %1$s
 st_srp_microphone	Микрофон
 st_srp_microphone_default	По умолчанию
+st_srp_mode_artefact_hunt	Охота за артефактом
 st_srp_mode_blackout	Защитное устройство: блэкаут
 st_srp_mode_chargers	Защитное устройство: зарядники
 st_srp_mode_cowboy	FFA: Салун
 st_srp_mode_cowboy_winchester	FFA: Салун (Винчестер)
 st_srp_mode_free_for_all	Все против всех
+st_srp_mode_freeze_tag	Заморозка
 st_srp_mode_protective_device	Защитное устройство
 st_srp_mode_racket	FFA: Движ
 st_srp_mode_research	Исследование
@@ -3105,6 +3141,7 @@ st_stamina_spending_speed_description	Потребление энергии:
 st_stamina_spending_speed_name	Выносливость
 st_start_chat_action	Чат
 st_start_match_welcome_message	Найдите батареи и доставьте их на базу!
+st_start_match_welcome_message_13	Охота за артефактом. Доставьте артефакт на базу своей команды
 st_start_match_welcome_message_2	Найдите и защитите места зарядки батарей!
 st_start_match_welcome_message_3	Уничтожьте как можно больше противников!
 st_start_match_welcome_message_5	Найдите и захватите исследовательские установки!

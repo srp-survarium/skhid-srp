@@ -85,7 +85,7 @@ impl<'t> WorldLoad<'t> {
 
     /// Match parameters read from the live core's owned rule list.
     pub fn match_context(&self) -> Option<crate::world_check::Match> {
-        super::world_context::from_client(self.client)
+        super::world_context::from_client(self.client, crate::freeze_tag::active(self.thread))
     }
 
     /// The hook's thread.
