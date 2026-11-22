@@ -1257,8 +1257,22 @@ impl Bots {
         self.teams[usize::from(team)]
             .knowledge
             .learn_humans_as(team, view, tracks, now, self.bench_enemy_human_lanes(team));
+        // [fix-team PvB traps] Whether an enemy human is in the match: `traps.lanes = facing` reads the humans' lanes then, every
+        // enemy's otherwise. A line when it is first known (the match's start) and when it changes.
+        let faces_humans = view.places.iter().any(|p| p.present && (p.team & 1) != (team & 1) && !p.bot);
+        let traps = &mut self.teams[usize::from(team)].features.traps;
+        if traps.faces_humans != Some(faces_humans) {
+            let source = tuning.traps.lanes.source(faces_humans);
+            let why = if faces_humans { "an enemy human in the match" } else { "enemy bots only" };
+            notes.push(Note {
+                place: usize::MAX,
+                time: now,
+                text: format!("team {team}: trap lanes {source:?} ({why}; traps.lanes {:?})", tuning.traps.lanes),
+            });
+            traps.faces_humans = Some(faces_humans);
+        }
         // [A292 S1] The trap habit's own lanes of every sensed enemy.
-        if tuning.traps.lanes == super::tuning::TrapLanes::Enemies {
+        if tuning.traps.lanes.source(faces_humans) == super::tuning::LaneSource::Enemies {
             let tracks = self.bots.iter().flatten().filter(|b| b.team == team).flat_map(|b| b.memory.tracks());
             traps::learn_enemy_lanes(&mut self.teams[usize::from(team)].features.traps.lanes, team, view, tracks);
         }

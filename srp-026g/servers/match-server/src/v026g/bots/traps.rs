@@ -46,7 +46,7 @@ use super::route_end::RouteEnd;
 use super::route_filter::RouteFilter;
 use super::think::Due;
 use super::trap_know::TrapField;
-use super::tuning::{PressClear, Stayer, TrapLanes, TrapRelease, TrapTuning};
+use super::tuning::{LaneSource, PressClear, Stayer, TrapLanes, TrapRelease, TrapTuning};
 use super::view::PlaceView;
 use super::{Bot, TeamState};
 
@@ -1462,11 +1462,12 @@ pub(super) fn learn_enemy_lanes<'a>(lanes: &mut HumanLanes, team: u8, view: &sup
     }
 }
 
-/// The lanes the spot score reads (`TrapTuning::lanes`).
+/// The lanes the spot score reads (`TrapTuning::lanes`; [fix-team PvB traps] `facing` by whether the team faces an enemy human, the
+/// humans' lanes before the commander's first tick).
 fn lanes_of<'a>(t: &TrapTuning, state: &'a TeamState) -> &'a HumanLanes {
-    match t.lanes {
-        TrapLanes::Humans => &state.knowledge.humans,
-        TrapLanes::Enemies => &state.features.traps.lanes,
+    match t.lanes.source(state.features.traps.faces_humans.unwrap_or(true)) {
+        LaneSource::Humans => &state.knowledge.humans,
+        LaneSource::Enemies => &state.features.traps.lanes,
     }
 }
 
@@ -5589,9 +5590,13 @@ mod tests {
         assert!(lanes.humans.iter().all(|h| h.cells.len() == 1), "{lanes:?}");
         assert!(presence(&lanes, Vec3::new(21.0, 0.0, 10.0), 1_000) > 0.5);
         assert_eq!(presence(&lanes, Vec3::new(90.0, 0.0, 10.0), 1_000), 0.0);
-        // The default reads the humans' lanes (empty here), the switch the trap map.
+        // [fix-team PvB traps] The default reads the humans' lanes for a team facing a human, the trap map for one facing bots
+        // only; `humans` and `enemies` read theirs whatever it faces.
         let mut tuning = crate::v026g::bots::tuning::Tuning::default().traps;
-        assert_eq!(tuning.lanes, TrapLanes::Humans);
+        assert_eq!(tuning.lanes, TrapLanes::Facing);
+        assert_eq!((tuning.lanes.source(true), tuning.lanes.source(false)), (LaneSource::Humans, LaneSource::Enemies));
+        assert_eq!(TrapLanes::Humans.source(false), LaneSource::Humans);
+        assert_eq!(TrapLanes::Enemies.source(true), LaneSource::Enemies);
         tuning.lanes = TrapLanes::Enemies;
         assert!(tuning.check().is_ok());
     }
