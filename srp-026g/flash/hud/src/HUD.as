@@ -443,7 +443,8 @@ package
          researchUnits = new ResearchUnits();
          this.researchUnits.visible = false;
          addChild(this.researchUnits);
-         huntRow = new ArtefactHuntRow(new DefaultLabel3().textField,new SrvContextInfoPregame().contextText);
+         huntRow = new ArtefactHuntRow(new DefaultLabel3().textField,new SrvContextInfoPregame().contextText,
+            function():DisplayObject { return progress_indicator.match_time_2_tdm; });
          addChild(this.huntRow);
          voiceSpeakers = new VoiceSpeakers();
          addChild(this.voiceSpeakers);
@@ -2265,7 +2266,7 @@ package
       }
       
       // Artifact Hunt (mode 13), at a change and every 60 frames (the exe patch's artefact_hunt
-      // module; docs/notes/artefact_hunt.md "HUD calls"): 28 numbers, the whole state
+      // module; docs/notes/artefact_hunt.md "HUD calls"): 30 numbers, the whole state
       // (ArtefactHuntState). A call outside the contract's domains is refused and changes nothing.
       public function artefact_hunt_update(... values) : void
       {
@@ -2291,6 +2292,7 @@ package
             return;
          }
          this.drawHuntBars();
+         this.spreadHuntBars(state.waveComing ? this.huntRow.wave.room : null);
          this.huntRow.draw(state,this.player_list.players.nameOf(state.carrier),getTimer());
          this.roundFade.update(state,getTimer());
          this.minimap.setArtefactHunt(state);
@@ -2307,6 +2309,7 @@ package
             return;
          }
          this._hunt = null;
+         this.spreadHuntBars(null);
          this.huntRow.clear();
          this.roundFade.update(null,0);
          this.minimap.setArtefactHunt(null);
@@ -2340,6 +2343,52 @@ package
             bar.team1LastPlayers.value = state.ownAlive;
             bar.team2LastPlayers.maximum = state.enemyTotal;
             bar.team2LastPlayers.value = state.enemyAlive;
+         }
+      }
+
+      // The indicator's parts as the timeline placed them, before spreadHuntBars moved them.
+      private var _huntBarsAt:Array = null;
+
+      // Room beside the match time for the wave ({before, after} in the row's units, null none):
+      // each team's bar and its texts move apart, the time between them shifts so that it and the
+      // wave stay centred.
+      private function spreadHuntBars(room:Object) : void
+      {
+         var bar:SrvMatchProgress = this.progress_indicator;
+         if(bar == null || bar.match_time_2_tdm == null || bar.team_1_score == null)
+         {
+            return;
+         }
+         var parts:Array = [[bar.team_1_score,-1],[bar.team1Progress,-1],[bar.team1LastPlayers,-1],
+            [bar.team_2_score,1],[bar.team2Progress,1],[bar.team2LastPlayers,1],[bar.match_time_2_tdm,0]];
+         if(this._huntBarsAt == null)
+         {
+            if(room == null)
+            {
+               return;
+            }
+            this._huntBarsAt = [];
+            for each(var p:Array in parts)
+            {
+               this._huntBarsAt.push(p[0] == null ? 0 : p[0].x);
+            }
+         }
+         // the row's units in the indicator's
+         var k:Number = this.huntRow.transform.concatenatedMatrix.a / bar.transform.concatenatedMatrix.a;
+         var before:Number = room == null ? 0 : room.before * k;
+         var after:Number = room == null ? 0 : room.after * k;
+         for(var i:int = 0; i < parts.length; i++)
+         {
+            var part:* = parts[i][0];
+            if(part != null)
+            {
+               var side:int = parts[i][1];
+               part.x = this._huntBarsAt[i] + (side == 0 ? (before - after) / 2 : side * (before + after) / 2);
+            }
+         }
+         if(room == null)
+         {
+            this._huntBarsAt = null;
          }
       }
 
@@ -2442,6 +2491,7 @@ package
       
       public function set_respawn_time(time:String) : void
       {
+         this.huntRow.wave.respawning = time != null && time.length > 0;
          this.deathEyes.countdown(time);
          this.progress_indicator.respawn_time.text = time;
          this.placeResearchCountdowns();

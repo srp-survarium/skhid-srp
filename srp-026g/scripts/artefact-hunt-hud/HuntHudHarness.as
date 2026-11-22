@@ -73,15 +73,19 @@ package
          if(!ok) failures.push(what);
       }
 
-      // The 28 numbers of a state: TDM-like defaults, `o` overriding by name.
+      // The 30 numbers of a state: TDM-like defaults, `o` overriding by name. A hunt out of sudden
+      // death has a wave 9 s away unless `o` says otherwise, as the exe sends.
       private static function values(o:Object) : Array
       {
          var d:Object = {own:0,s0:1,s1:2,goal:5,phase:2,left:0,whole:0,after:0,clock:512000,clockWhole:900000,
             sudden:0,ownAlive:0,ownTotal:5,enemyAlive:0,enemyTotal:5,art:0,x:0,y:0,carrier:255,carrierTeam:2,me:0};
          for(var k:String in o) d[k] = o[k];
+         var hunt:Boolean = d.phase >= 2 && d.phase <= 5 && d.sudden != 2;
+         if(!("wave" in o)) d.wave = hunt ? 8600 : 0;
+         if(!("waveWhole" in o)) d.waveWhole = d.wave > 0 ? 15000 : 0;
          return [d.own,d.s0,d.s1,d.goal,d.phase,d.left,d.whole,d.after,d.clock,d.clockWhole,d.sudden,
             d.ownAlive,d.ownTotal,d.enemyAlive,d.enemyTotal,d.art,d.x,d.y,d.carrier,d.carrierTeam,d.me,
-            2,0,BASE_0[0],BASE_0[1],1,BASE_1[0],BASE_1[1]];
+            d.wave,d.waveWhole,2,0,BASE_0[0],BASE_0[1],1,BASE_1[0],BASE_1[1]];
       }
 
       private function send(o:Object) : void
@@ -208,10 +212,12 @@ package
       private function plan() : void
       {
          var english:Object = HuntText.DATA.english;
-         shot("waiting",{phase:2},function():void
+         shot("waiting",{phase:2,wave:11600},function():void
          {
             check(bars() == "1:2","own team (0) first in the bars, its points 1 against 2: " + bars());
             check(rowTexts().caption == "" && rowTexts().banner == "" && hud.huntRow.visible,"waiting: the row's grey orb, no text");
+            check(rowTexts().wave == "12","waiting: the next wave 12 s away beside the match time: " + rowTexts().wave);
+            checkWaveBesideClock("waiting");
             var m:Object = minimapState(hud.minimap);
             check(m.objects == "Base,BaseEnemy" && m.rings == "","waiting: both bases on the minimap, nothing else: " + m.objects);
             check(fade() == 0,"no fade in play");
@@ -248,6 +254,7 @@ package
          shot("restart",{phase:6,left:2400,whole:3000,after:2,s0:2},function():void
          {
             check(rowTexts().banner == english.st_round_restart_in + " 00:03","round restarts: " + rowTexts().banner);
+            check(rowTexts().wave == "","no wave in a round's restart: " + rowTexts().wave);
             check(bars() == "2:2","the delivery's point: " + bars());
             check(minimapState(hud.minimap).objects == "Base,BaseEnemy" && minimapState(hud.minimap).local == false,
                "nothing carried: the own base plain again");
@@ -281,20 +288,22 @@ package
          {
             check(bars() == "-:- heads 3/5 2/5","sudden death: the players still in, in the bars' place: " + bars());
             check(rowTexts().sudden == english.st_srp_hud_artefact_hunt_sudden_death,"\"Sudden death\" under the orb");
+            check(rowTexts().wave == "","no wave in sudden death: " + rowTexts().wave);
          },function():void
          {
             hud.set_match_time("02:23");
             hud.set_respawn_time("");
          });
-         shot("respawn",{phase:3,left:70000,whole:120000,art:1,x:ARTEFACT[0],y:ARTEFACT[1]},function():void
+         shot("respawn",{phase:3,left:70000,whole:120000,art:1,x:ARTEFACT[0],y:ARTEFACT[1],wave:2400},function():void
          {
             var orb:Rectangle = hud.huntRow.getBounds(hud);
             check(bars() == "1:2","out of sudden death: the bars again: " + bars());
+            check(rowTexts().wave == "3","dead: the wave 3 s away beside the match time, his own line the game's: " + rowTexts().wave);
             check(true,"the respawn countdown under the row: " + orb.bottom);
          },function():void
          {
             hud.set_match_time("06:40");
-            hud.set_respawn_time("Respawn in 00:09");
+            hud.set_respawn_time("Respawn in 00:03");
          });
          steps.push(lateJoinAndRefusals);
          shot("other-languages",{phase:6,left:2000,whole:3000,after:2,sudden:1,s0:2,s1:2},function():void
@@ -327,7 +336,9 @@ package
          var before:String = describe();
          var bad:Array = values({phase:9});
          hud.artefact_hunt_update.apply(null,bad);
-         hud.artefact_hunt_update.apply(null,values({}).slice(0,21));
+         hud.artefact_hunt_update.apply(null,values({}).slice(0,23));
+         hud.artefact_hunt_update.apply(null,values({wave:16000,waveWhole:15000}));
+         hud.artefact_hunt_update.apply(null,values({wave:3000,waveWhole:0}));
          hud.artefact_hunt_update.apply(null,values({art:2,carrier:255}));
          hud.artefact_hunt_update.apply(null,values({phase:4,art:2,carrier:3,carrierTeam:0,me:1,s0:6}));
          check(describe() == before,"calls outside the contract refused, nothing changed");
@@ -337,7 +348,27 @@ package
       {
          var m:Object = minimapState(hud.minimap);
          var t:Object = rowTexts();
-         return [bars(),hud.huntRow.visible,t.caption,t.sudden,t.banner,m.objects,m.rings,markedRows(),fade()].join("|");
+         return [bars(),hud.huntRow.visible,t.wave,t.caption,t.sudden,t.banner,m.objects,m.rings,markedRows(),fade()].join("|");
+      }
+
+      // The wave right after the match time, on its line, clear of both bars.
+      private function checkWaveBesideClock(name:String) : void
+      {
+         var p:* = hud.progress_indicator;
+         var clock:Rectangle = p.match_time_2_tdm.textField.getBounds(stage);
+         clock.inflate(-(clock.width - p.match_time_2_tdm.textField.textWidth * clock.width / p.match_time_2_tdm.textField.width) / 2 + 2,0);
+         // the glyphs, without the text field's 2 px gutters (the hud's scale)
+         var wave:Rectangle = hud.huntRow.wave.shownBounds(stage);
+         wave.inflate(-2 * hud.scaleX,0);
+         var right:Rectangle = p.team_2_score.getBounds(stage);
+         var left:Rectangle = p.team_1_score.getBounds(stage);
+         check(wave.left >= clock.right - 2 && wave.right <= right.left && clock.left >= left.right - 1
+            && wave.top >= clock.top && wave.top < clock.bottom,
+            name + ": the wave after the match time, between the bars (clock " + clock + ", wave " + wave
+            + ", bars to " + left.right + " and from " + right.left + ")");
+         var bars:Number = (left.left + right.right) / 2;
+         var group:Number = (clock.left + wave.right) / 2;
+         check(Math.abs(bars - group) <= 3,name + ": the time and the wave centred between the bars: " + group + " / " + bars);
       }
 
       // The crosshair's top line is on the row's centre line: as Research's units and the native
