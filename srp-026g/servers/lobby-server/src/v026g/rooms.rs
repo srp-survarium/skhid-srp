@@ -749,9 +749,9 @@ impl Core<'_> {
     }
 
     /// Join the room with that key, a commander's mate along (`room_mate`);
-    /// a commander in no room whose squad finds too few places on one side
-    /// (two for the pair, or one on its mate's team with the mate in it)
-    /// waits in its queue, with its mate. The state answers it.
+    /// one in no room that finds no place (the room full, its match with
+    /// none left, or a squad's two not on one side) waits in its queue, its
+    /// mate with it. The state answers it.
     fn room_join(&mut self, who: &Who, key: u32, now: Instant) {
         let gear = matchmaking::gear_level(&who.account.locked(), quests::now());
         let mate = self.room_mate(who.account_id);
@@ -762,15 +762,12 @@ impl Core<'_> {
                     log::info!("{}: joined room {key}", who.name);
                     RoomCode::None
                 }
-                Err(Refused::Full)
-                    if self.rooms.key_of(who.account_id).is_none()
-                        && self.store.squads().of(who.account_id).is_some() =>
-                {
+                Err(Refused::Full) if self.rooms.key_of(who.account_id).is_none() => {
                     match self.room_enqueue_party(who, gear, mate, key, QueueChoice::Chosen, now) {
                         Ok(place) => {
                             log::info!(
-                                "{}: room {key} has no places for its squad: both wait in its \
-                                 queue, place {place}",
+                                "{}: room {key} has no place for it: it waits in its queue, \
+                                 place {place}",
                                 who.name
                             );
                             RoomCode::None

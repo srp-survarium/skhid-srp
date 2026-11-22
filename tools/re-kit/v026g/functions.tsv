@@ -2259,7 +2259,6 @@ va	status	ref_021d	name
 0x00356d50	observed		vostok::physics::bt_dynamic_rigid_body::get_collision_group
 0x00357a90	observed		vostok::physics::bt_ghost_object::get_collision_group
 0x00246ed0	observed		[thunk]:survarium::victory_item_core::get_transform`adjustor{20}'
-0x0021beb0	observed		survarium::network_client::connect_to_match
 0x0027b880	observed		survarium::network_client::process_static_match_info
 0x0027aa20	verified	0x001a25cc	survarium::network_client::on_match_ready
 0x0027aed0	verified	0x001a27c4	survarium::network_client::query_players
@@ -2496,6 +2495,7 @@ va	status	ref_021d	name
 0x001f3c70	reviewed	0x00157ab8	survarium::player::generate_hit_event
 0x00238230	reviewed	0x0018257b	survarium::game_world_ui::draw_damage_collector
 0x00246f10	observed		survarium::player::tick
+0x00316820	observed		survarium::player_respawn_rule_base::tick
 0x0031d040	reviewed	0x001f7dbf	survarium::breath_state_normal::tick
 0x0031d0a0	reviewed	0x001f7e12	survarium::breath_state_shortbreathing::tick
 0x0031d0d0	reviewed	0x001f7e41	survarium::breath_state_shortbreathing::is_ready_for_transition

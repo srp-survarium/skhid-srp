@@ -1776,6 +1776,7 @@ mod tests {
             artefacts: None,
             inventory: None,
             dict_ids: None,
+            artefact_hunt: None,
         }
     }
 

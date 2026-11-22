@@ -1,0 +1,151 @@
+# Patch 171: Artifact Hunt, mode 13 (docs/notes/artefact_hunt.md, "The exe";
+# client_patch.md 3.90). The sites are sites_026g.tsv's; the logic is
+# artefact_hunt.rs over crates/artefact-hunt-rule. The input is patch 78's
+# carry.input (artefact_carry's on_input asks artefact_hunt::input first),
+# the carrier's modifiers patch 109's getter sites (artefact_skills'
+# handlers call shared_modifier / shared_modifiers): one detour an address.
+name = "artefact_hunt"
+patch = 171
+uses = ["artefact_carry"]
+
+# the game's constructor after its own client cooks: the cook registered
+[[hook]]
+site = "game.query_base_resources"
+handler = "on_register"
+
+# the cook: a copy of the client tdm cook's vtable, create and size ours
+[[vtable]]
+name = "cook"
+source = "tdm_cook_methods"
+check = "check_artefact_hunt_026g.py"
+
+[[hook]]
+site = "hunt_cook.create"
+handler = "on_cook_create"
+proof = "create through the rule cooks' translate 0x2F42C2"
+
+[[hook]]
+site = "hunt_cook.size"
+handler = "on_cook_size"
+proof = "size through the rule cooks' translate 0x2F42CD"
+
+# the rule: a copy of tdm_rule_core's vtable, these slots ours
+[[vtable]]
+name = "rule"
+source = "tdm_rule_methods"
+check = "check_artefact_hunt_026g.py"
+
+[[hook]]
+site = "hunt_rule.on_event"
+handler = "on_event"
+proof = "event through rules_on_event 0x2D1EA0"
+
+[[hook]]
+site = "hunt_rule.entered"
+handler = "on_entered"
+proof = "entered through on_player_entered_match 0x2D2021"
+
+[[hook]]
+site = "hunt_rule.left"
+handler = "on_left"
+proof = "left through on_player_left_match 0x2D2040"
+
+[[hook]]
+site = "hunt_rule.set_core"
+handler = "on_set_core"
+proof = "set_core through the core's rules loop"
+
+[[hook]]
+site = "hunt_rule.serialize"
+handler = "on_serialize"
+proof = "serialize through the snapshot's rules loop"
+
+[[hook]]
+site = "hunt_rule.deserialize"
+handler = "on_deserialize"
+proof = "deserialize through the snapshot's rules loop 0x2D2B5D"
+
+[[hook]]
+site = "hunt_rule.fill_hud"
+handler = "on_fill_hud"
+proof = "fill through fill_match_hud_state 0x2D36D9"
+
+[[hook]]
+site = "hunt_rule.completed"
+handler = "on_completed"
+proof = "completed through its callers"
+
+# the tick: a delegate of the world's second list
+[[hook]]
+site = "hunt_rule.tick"
+handler = "on_tick"
+
+# the respawn rule: a death's delay (the waves); the places due at its tick
+[[hook]]
+site = "respawn.death_delay"
+handler = "on_death_delay"
+
+[[hook]]
+site = "respawn.tick"
+handler = "on_respawn_tick"
+order = 1
+
+# the carrier: no sprint; his marker and dot for both teams
+[[hook]]
+site = "hunt.can_sprint"
+handler = "on_can_sprint"
+
+[[hook]]
+site = "player_names.enemy_spotted"
+handler = "on_name"
+order = 2
+
+[[hook]]
+site = "minimap.enemy_spotted"
+handler = "on_enemy"
+order = 2
+
+[[hook]]
+site = "player_icons.enemy_ids"
+handler = "on_enemy_ids"
+order = 2
+
+# the hud: the update call, the messages, the prompt; told again at a
+# match's start; the welcome
+[[hook]]
+site = "player_icons.update_start"
+handler = "on_update_icons"
+order = 5
+
+[[hook]]
+site = "hud.initialize_match"
+handler = "on_initialize_match"
+order = 2
+
+[[hook]]
+site = "game_world_ui.welcome"
+handler = "on_welcome"
+order = 2
+
+# the patch's queries (the artefact's model and particles, the glow, the
+# announcer's lines) come back here
+[[hook]]
+site = "resources.query_done"
+handler = "on_loaded"
+
+# the artefact in the world, reconciled each frame; out of the scene when
+# the match's scene is left
+[[hook]]
+site = "game_world.after_move"
+handler = "on_after_move"
+order = 5
+
+[[hook]]
+site = "game_world.deactivate"
+handler = "on_deactivate"
+order = 3
+
+# the icon's native carrier mark (its modifier_visible), of either team
+[[hook]]
+site = "player_icons.carrier_mark"
+handler = "on_mark"

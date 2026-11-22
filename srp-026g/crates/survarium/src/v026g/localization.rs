@@ -159,13 +159,16 @@ mod tests {
         assert_eq!(Language::Croatian.path(), "localization/croatian/localization");
         assert_eq!(text(Language::Finnish, "st_level_01_name"), Some("Rudnya"));
         // Every playable map's and mode's key is in both of the test data's
-        // languages; Blackout's and the free-for-all's mode names are srp's
-        // own (`client-patches/localization`), which the test data's stock
-        // localizations lack.
+        // languages; Blackout's, the free-for-all's and Artifact Hunt's mode
+        // names are srp's own (`client-patches/localization`), which the test
+        // data's stock localizations lack.
         use super::super::maps::GameMode;
-        for map in super::super::maps::playable()
-            .filter(|map| !matches!(map.mode, GameMode::Blackout | GameMode::FreeForAll))
-        {
+        for map in super::super::maps::playable().filter(|map| {
+            !matches!(
+                map.mode,
+                GameMode::Blackout | GameMode::FreeForAll | GameMode::ArtefactHunt
+            )
+        }) {
             for language in [Language::English, Language::Ukrainian] {
                 assert!(
                     shared(language).get(map.map_name_key).is_some(),

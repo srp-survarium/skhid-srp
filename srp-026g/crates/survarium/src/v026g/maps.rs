@@ -61,16 +61,25 @@ pub enum RuleMode {
     /// respawn points (content edit ffa-1) the free-for-all exe patch spawns
     /// each player at.
     FreeForAll = 8,
+    /// Team Freeze Tag; state follows the native respawn rule.
+    FreezeTag = 12,
+    /// Artifact Hunt: one artefact at a time brought to one's own base, in
+    /// rounds, the first team to the goal wins; rule 481
+    /// (`crates/artefact-hunt-rule`, `docs/notes/artefact_hunt.md`). The
+    /// match ends at the rule's end, never at the time rule's.
+    ArtefactHunt = 13,
 }
 
 impl RuleMode {
     /// The modes a match can be.
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 7] = [
         Self::Batteries,
         Self::TimedBatteries,
         Self::TeamDeathmatch,
         Self::Research,
         Self::FreeForAll,
+        Self::FreezeTag,
+        Self::ArtefactHunt,
     ];
 
     /// The mode of a config's `mode.mode`, if srp plays it.
@@ -99,7 +108,8 @@ impl RuleMode {
             Self::TimedBatteries => &[93, 91, 89, 94],
             Self::TeamDeathmatch => &[93, 91, 90, 94],
             Self::Research => &[93, 91, 480, 94],
-            Self::FreeForAll => &[93, 91, 94],
+            Self::FreeForAll | Self::FreezeTag => &[93, 91, 94],
+            Self::ArtefactHunt => &[93, 91, 481, 94],
         }
     }
 
@@ -138,10 +148,12 @@ pub enum GameMode {
     TeamDeathmatch,
     Research,
     FreeForAll,
+    FreezeTag,
     /// "Protective device: blackout" (`docs/notes/blackout.md`): the rules
     /// of [`BLACKOUT_RULES`], the static info's Blackout entry (exe patch
     /// 65) and its own pay.
     Blackout,
+    ArtefactHunt,
 }
 
 /// srp's variants of a config's rules, by `mode.srp_variant`, and the
@@ -173,7 +185,9 @@ impl GameMode {
             Self::TeamDeathmatch => RuleMode::TeamDeathmatch,
             Self::Research => RuleMode::Research,
             Self::FreeForAll => RuleMode::FreeForAll,
+            Self::FreezeTag => RuleMode::FreezeTag,
             Self::Blackout => BLACKOUT_RULES,
+            Self::ArtefactHunt => RuleMode::ArtefactHunt,
         }
     }
 
@@ -193,13 +207,15 @@ impl GameMode {
     }
 
     /// Every mode.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 8] = [
         Self::Batteries,
         Self::TimedBatteries,
         Self::TeamDeathmatch,
         Self::Research,
         Self::FreeForAll,
+        Self::FreezeTag,
         Self::Blackout,
+        Self::ArtefactHunt,
     ];
 }
 
@@ -212,6 +228,8 @@ impl From<RuleMode> for GameMode {
             RuleMode::TeamDeathmatch => Self::TeamDeathmatch,
             RuleMode::Research => Self::Research,
             RuleMode::FreeForAll => Self::FreeForAll,
+            RuleMode::FreezeTag => Self::FreezeTag,
+            RuleMode::ArtefactHunt => Self::ArtefactHunt,
         }
     }
 }
@@ -313,6 +331,10 @@ pub struct MapMode {
     pub resources_count: u32,
     /// A free-for-all: the kills that win (`kills_to_win`, 30).
     pub kills_to_win: u32,
+    /// Artifact Hunt: its rule's parameters, as the game's rule reads them
+    /// from the same config ([`artefact_hunt_params`]). Some exactly when
+    /// `mode` is [`GameMode::ArtefactHunt`].
+    pub artefact_hunt: Option<&'static artefact_hunt_rule::Params>,
     /// How many respawn points the project has: every entry of its
     /// `server_objects.respawn_points`, whatever its team or layer, is
     /// loaded (`player_respawn_rule_cook` 0x2C6910), so this is how many
@@ -418,6 +440,125 @@ fn int<T: TryFrom<i32>>(table: Option<&ConfigValue>, key: &str) -> Result<T, Con
             .ok_or_else(|| ConfigError(format!("`{key}` is not a number")))?,
     };
     T::try_from(number).map_err(|_| ConfigError(format!("`{key}` = {number} is out of range")))
+}
+
+/// Artifact Hunt's rule parameters from its mode config (`mode`), as the
+/// game's rule reads them (`artefact_hunt.md`, "Data"): `parameters`' whole
+/// seconds and `score` as ints; `artefact_hunt.spawners[].position`,
+/// `artefact_hunt.bases[] {team, position, shapes[] {type, position, axis_x,
+/// axis_y, axis_z, half}}` and `artefact_hunt.item`'s `drop_lift` and
+/// `usable_radius` in their own types (ints, float3s, floats). A key of
+/// another type, or values [`artefact_hunt_rule::Params::parse`] refuses,
+/// stop the data: the game would stop on the same config, or read another
+/// number from it.
+pub fn artefact_hunt_params(
+    mode: &ConfigValue,
+) -> Result<artefact_hunt_rule::Params, ConfigError> {
+    use artefact_hunt_rule::{BaseDef, ParamError, Params, RawParams, RawShape, Spawner};
+    let parameters = mode.req("parameters")?;
+    let seconds = |key: &str| -> Result<u32, ConfigError> {
+        match parameters.get(key) {
+            Some(ConfigValue::Integer(value)) => u32::try_from(*value)
+                .map_err(|_| ConfigError(format!("`parameters.{key}` = {value} is below 0"))),
+            Some(_) => Err(ConfigError(format!("`parameters.{key}` is not an int"))),
+            None => Err(ConfigError(format!("missing key `parameters.{key}`"))),
+        }
+    };
+    let hunt = mode.req("artefact_hunt")?;
+    let float3 = |table: &ConfigValue, key: &str, what: &str| match table.get(key) {
+        Some(ConfigValue::Float3(value)) => Ok(*value),
+        _ => Err(ConfigError(format!("{what}'s `{key}` is not a float3"))),
+    };
+    let item = hunt.req("item")?;
+    let float = |key: &str| match item.get(key) {
+        Some(ConfigValue::Float(value)) => Ok(*value),
+        _ => Err(ConfigError(format!("`artefact_hunt.item.{key}` is not a float"))),
+    };
+    let (drop_lift, usable_radius) = (float("drop_lift")?, float("usable_radius")?);
+    let raw = RawParams {
+        match_time: seconds("match_time")?,
+        time_needed_to_continue_match: seconds("time_needed_to_continue_match")?,
+        draw_additional_time: seconds("draw_additional_time")?,
+        time_before_new_round: seconds("time_before_new_round")?,
+        round_countdown_time: seconds("round_countdown_time")?,
+        score: seconds("score")?,
+        respawn_time: seconds("respawn_time")?,
+        time_needed_to_respawn: seconds("time_needed_to_respawn")?,
+        vi_spawn_time: seconds("vi_spawn_time")?,
+        vi_spawn_variation: seconds("vi_spawn_variation")?,
+        vi_not_picked_ttl: seconds("vi_not_picked_ttl")?,
+        vi_dropped_ttl: seconds("vi_dropped_ttl")?,
+        drop_lift,
+        usable_radius,
+    };
+    let int = |table: &ConfigValue, key: &str, what: &str| match table.get(key) {
+        Some(ConfigValue::Integer(value)) => u32::try_from(*value)
+            .map_err(|_| ConfigError(format!("{what}'s `{key}` is {value}"))),
+        _ => Err(ConfigError(format!("{what}'s `{key}` is not an int"))),
+    };
+    let spawners = hunt
+        .req("spawners")?
+        .children()
+        .into_iter()
+        .map(|spawner| Ok(Spawner { position: float3(spawner, "position", "a spawner")? }))
+        .collect::<Result<Vec<_>, ConfigError>>()?;
+    let shapes = hunt
+        .req("bases")?
+        .children()
+        .into_iter()
+        .map(|base| {
+            base.req("shapes")?
+                .children()
+                .into_iter()
+                .map(|shape| {
+                    let what = "a base's shape";
+                    Ok(RawShape {
+                        kind: int(shape, "type", what)?,
+                        position: float3(shape, "position", what)?,
+                        axes: [
+                            float3(shape, "axis_x", what)?,
+                            float3(shape, "axis_y", what)?,
+                            float3(shape, "axis_z", what)?,
+                        ],
+                        half: float3(shape, "half", what)?,
+                    })
+                })
+                .collect::<Result<Vec<_>, ConfigError>>()
+        })
+        .collect::<Result<Vec<_>, ConfigError>>()?;
+    let bases = hunt
+        .req("bases")?
+        .children()
+        .into_iter()
+        .zip(&shapes)
+        .map(|(base, shapes)| {
+            Ok(BaseDef {
+                team: int(base, "team", "a base")?,
+                position: float3(base, "position", "a base")?,
+                shapes,
+            })
+        })
+        .collect::<Result<Vec<_>, ConfigError>>()?;
+    Params::parse(&raw, &spawners, &bases).map_err(|error| {
+        let key = match error {
+            ParamError::MatchTime => "parameters.match_time",
+            ParamError::TimeNeededToContinueMatch => "parameters.time_needed_to_continue_match",
+            ParamError::DrawAdditionalTime => "parameters.draw_additional_time",
+            ParamError::TimeBeforeNewRound => "parameters.time_before_new_round",
+            ParamError::RoundCountdownTime => "parameters.round_countdown_time",
+            ParamError::Score => "parameters.score",
+            ParamError::RespawnTime => "parameters.respawn_time",
+            ParamError::TimeNeededToRespawn => "parameters.time_needed_to_respawn",
+            ParamError::ViSpawnTime => "parameters.vi_spawn_time",
+            ParamError::ViNotPickedTtl => "parameters.vi_not_picked_ttl",
+            ParamError::ViDroppedTtl => "parameters.vi_dropped_ttl",
+            ParamError::DropLift => "artefact_hunt.item.drop_lift",
+            ParamError::UsableRadius => "artefact_hunt.item.usable_radius",
+            ParamError::Spawners => "artefact_hunt.spawners",
+            ParamError::Bases => "artefact_hunt.bases",
+        };
+        ConfigError(format!("Artifact Hunt's rule refuses its `{key}`"))
+    })
 }
 
 fn leak_str(text: &str) -> &'static str {
@@ -787,6 +928,10 @@ impl MapMode {
             return Ok(None);
         };
         let rule_mode = game_mode.rules();
+        let artefact_hunt = match rule_mode {
+            RuleMode::ArtefactHunt => Some(&*Box::leak(Box::new(artefact_hunt_params(mode)?))),
+            _ => None,
+        };
         let objects = project
             .map(|project| {
                 ProjectObjects::from_project(project, rule_mode.has_batteries(), data, dictionary)
@@ -831,6 +976,7 @@ impl MapMode {
             tickets_count: int(p, "tickets_count")?,
             resources_count: int(p, "resources_count")?,
             kills_to_win: int(p, "kills_to_win")?,
+            artefact_hunt,
             respawn_points: objects.respawn_points,
             solo_respawn_points: objects.solo_respawn_points,
             container_teams: objects
@@ -1128,7 +1274,8 @@ mod tests {
                 RuleMode::TimedBatteries => (&[93, 91, 89, 94], 0),
                 RuleMode::TeamDeathmatch => (&[93, 91, 90, 94], 2),
                 RuleMode::FreeForAll => (&[93, 91, 94], 2),
-                RuleMode::Research => panic!("the test data has no Research"),
+                RuleMode::Research | RuleMode::FreezeTag => panic!("the test data has no Research or Freeze Tag"),
+                RuleMode::ArtefactHunt => panic!("the test data has no Artifact Hunt"),
             };
             assert_eq!(map.rules, rules, "{}", map.id);
             assert_eq!(map.icon, icon, "{}", map.id);
@@ -1341,6 +1488,81 @@ mod tests {
             .unwrap_err()
             .to_string();
         assert!(message.contains("no respawn points"), "{message}");
+    }
+
+    #[test]
+    fn freeze_tag_uses_two_team_spawns_without_tickets_or_ffa_twists() {
+        let added = fixtures::AddedMap {
+            mode: RuleMode::FreezeTag.number(),
+            ..fixtures::AddedMap::level_12_tdm()
+        };
+        let table = fixtures::table_of(&fixtures::with_map(&added)).unwrap();
+        let map = table.iter().find(|map| map.id == added.id).unwrap();
+        assert!(map.is_playable());
+        assert_eq!(map.mode, GameMode::FreezeTag);
+        assert_eq!(map.rules, [93, 91, 94]);
+        assert_eq!(map.respawn_points, added.respawn_points);
+        assert_eq!(GameMode::FreezeTag.lobby_number(), 12);
+        for twist in [9, 10, 11] {
+            assert_eq!(GameMode::of_lobby_number(twist), None);
+        }
+    }
+
+    #[test]
+    fn an_artefact_hunt_map_is_played_from_its_data() {
+        // As the pack adds its maps: rule 481, an id over a byte, the rule's
+        // parameters read from the config, nothing of the map kept in code.
+        let added = fixtures::AddedMap::level_12_artefact_hunt();
+        let table = fixtures::table_of(&fixtures::with_map(&added)).unwrap();
+        let map = *table.iter().find(|map| map.id == added.id).unwrap();
+        assert!(map.is_playable());
+        assert_eq!(
+            (map.level, map.mode, map.project, map.mode.lobby_number()),
+            (12, GameMode::ArtefactHunt, "level_12/day_ah", 13)
+        );
+        assert_eq!(map.rules, [93, 91, 481, 94]);
+        assert_eq!((map.respawn_points, map.container_teams), (16, None));
+        let params = map.artefact_hunt.expect("its rule's parameters");
+        assert_eq!((params.goal(), params.match_time().get()), (5, 900_000));
+        assert_eq!(params.spawner_count(), 2);
+        // Every other map has none.
+        assert!(table.iter().filter(|row| row.id != added.id).all(|row| row.artefact_hunt.is_none()));
+        assert_eq!(GameMode::of_config(13, None), Ok(Some(GameMode::ArtefactHunt)));
+    }
+
+    #[test]
+    fn an_artefact_hunt_config_the_rule_refuses_stops_the_data() {
+        let mode = || ConfigValue::Named(fixtures::artefact_hunt_mode());
+        assert!(artefact_hunt_params(&mode()).is_ok());
+        let changed = |path: &[&str], value: Option<ConfigValue>| {
+            let mut config = mode();
+            let mut table = &mut config;
+            for key in &path[..path.len() - 1] {
+                let ConfigValue::Named(entries) = table else { panic!() };
+                table = &mut entries.iter_mut().find(|(name, _)| name == key).unwrap().1;
+            }
+            let ConfigValue::Named(entries) = table else { panic!() };
+            let last = path[path.len() - 1];
+            entries.retain(|(name, _)| name != last);
+            entries.extend(value.map(|value| (last.to_owned(), value)));
+            artefact_hunt_params(&config).unwrap_err().0
+        };
+        // The game reads the seconds as ints: a float is another number.
+        let float = changed(&["parameters", "respawn_time"], Some(ConfigValue::Float(15.0)));
+        assert!(float.contains("`parameters.respawn_time` is not an int"), "{float}");
+        let negative = changed(&["parameters", "score"], Some(ConfigValue::Integer(-1)));
+        assert!(negative.contains("below 0"), "{negative}");
+        let missing = changed(&["parameters", "vi_dropped_ttl"], None);
+        assert!(missing.contains("parameters.vi_dropped_ttl"), "{missing}");
+        // The rule's own refusals name the key.
+        let goal = changed(&["parameters", "score"], Some(ConfigValue::Integer(256)));
+        assert!(goal.contains("refuses its `parameters.score`"), "{goal}");
+        let none = changed(&["artefact_hunt", "spawners"], Some(ConfigValue::Indexed(Vec::new())));
+        assert!(none.contains("`artefact_hunt.spawners`"), "{none}");
+        let one = changed(&["artefact_hunt", "bases"], Some(ConfigValue::Indexed(Vec::new())));
+        assert!(one.contains("`artefact_hunt.bases`"), "{one}");
+        let lift = changed(&["artefact_hunt", "item", "drop_lift"], Some(ConfigValue::Integer(0)));
+        assert!(lift.contains("drop_lift` is not a float"), "{lift}");
     }
 
     #[test]
@@ -1597,6 +1819,7 @@ mod tests {
                 objects: Some(&objects),
                 inventory: None,
                 dict_ids: None,
+                artefact_hunt: None,
             };
             let section = srp_validate::world::Section { at: 0, bytes: &bytes };
             assert_eq!(srp_validate::world::objects(&section, &context), Ok(()), "{}", map.project);

@@ -105,6 +105,9 @@
 
 /// Anti-AFK: a player without input for three minutes of play is removed.
 mod afk;
+/// A player's Artifact Hunt deliveries pay within a match's own and a
+/// combat-adjusted allowance (`artefact_hunt.md`, "srp").
+mod artefact_hunt_cap;
 /// A player's battery events pay at most N times per kind, N the map's
 /// batteries (the owner's rule against farming them).
 mod battery_cap;

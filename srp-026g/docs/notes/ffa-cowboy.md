@@ -7,8 +7,9 @@ a late joiner and a replay see the same kits.
 
 ## Rules
 
-- **Two variations** (`cowboy::Variation`), drawn with the card, the Winchester and Colt 15 % of the
-  free-for-all cards and the Colt alone 5 % (`twist::shares`; the owner, 2026-11-15: "and now
+- **Two variations** (`cowboy::Variation`), drawn with the card, the Winchester and Colt 5 % of the
+  free-for-all cards and the Colt alone 5 % (`twist::shares`; the owner, 2026-11-22: "winchester
+  should become 5% again on FFA", the plain mode taking the 10 freed; 15 from 2026-11-15: "and now
   since those are two modes, simple saloon can stay at 5, and new one get 15"; half and half
   before, my pick), each its own name and lobby mode number
   (`twist::Armed::lobby_number`, `ffa.md` "Names"), the tag's colour the same. A match plays one

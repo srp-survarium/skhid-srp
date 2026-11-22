@@ -14,6 +14,8 @@ weapon-pickup = { path = "../weapon-pickup" }
 artefact-carry = { path = "../artefact-carry" }
 # Patch 179's replay notes, the other 0xF6 srp sends a spectator.
 replay-control = { path = "../replay-control" }
+# Artifact Hunt's rule (mode 13): the one definition of its bytes (`Rule::read_back`).
+artefact-hunt-rule = { path = "../artefact-hunt-rule" }
 
 [dev-dependencies]
 survarium = { workspace = true }

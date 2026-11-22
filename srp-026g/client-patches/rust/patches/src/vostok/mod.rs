@@ -32,6 +32,7 @@ pub mod bullet;
 pub mod explosion;
 pub mod files;
 pub mod footstep;
+pub mod freeze;
 pub mod camera;
 pub mod carry_runtime;
 pub mod carry_ground;
@@ -69,6 +70,8 @@ pub mod log;
 pub mod run_log;
 pub mod melee;
 pub mod battery;
+pub mod artefact_hunt;
+pub mod round_countdown;
 pub mod memory;
 pub mod memory_profile;
 mod options;
@@ -131,6 +134,7 @@ mod generated {
     #[allow(unused_imports)]
     use super::shape::{Triangle, TriangleSink};
     #[allow(unused_imports)]
+    use super::artefact_hunt::{HudState, HuntCook, HuntRule, RuleCore, RuleEvent, RuleQuery, RuleReader, RuleWriter, TickRule};
     use super::attachments::FingerCorrector;
     #[allow(unused_imports)]
     use core::ffi::c_void;

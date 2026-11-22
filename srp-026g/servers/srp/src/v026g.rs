@@ -260,6 +260,7 @@ pub fn match_result(result: matches::MatchResult) -> rewards::MatchResult {
         },
         winner: result.winner,
         team_points: result.team_points,
+        round_starts: result.round_starts,
         duration_ms: result.duration_ms,
         played_ms: result.played_ms,
         trusted_snapshot_ms: result.trusted_snapshot_ms,

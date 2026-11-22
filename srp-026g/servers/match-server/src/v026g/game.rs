@@ -145,6 +145,9 @@ pub(crate) use playback::ReplayWatch;
 pub(crate) use playback::Recording as ReplayRecording;
 pub(crate) use spectate::SpectatorAt;
 
+/// Freeze Tag's match ends this long after the snapshot of its final win at most.
+const FREEZE_TAG_END_DELAY_MS: u32 = 2_000;
+
 /// A tick is final this long after it: the server's event horizon.
 const HORIZON_MS: u32 = 250;
 /// The relayed list (`Game::inputs`, a replay's inputs) is in time order but
@@ -4456,6 +4459,13 @@ impl Game {
                 rules::research_finished(research.points, self.formed.played.map().resources_count)
             })
             .and_then(|research| research.end);
+        // Artifact Hunt's end is its rule's Over, at its own time
+        // (`artefact_hunt.md`, "The end is the server's"); its bytes passed
+        // the world check with the same parameters.
+        let hunt_end = self.formed.played.map().artefact_hunt.and_then(|params| {
+            let rule = decoded.rules.as_ref()?.artefact_hunt.as_ref()?.rule(params)?;
+            rule.result().map(|(_, over)| over.at().ms())
+        });
         let over = playing
             && match self.game_mode() {
                 RuleMode::TeamDeathmatch => decoded
@@ -4469,6 +4479,8 @@ impl Game {
                         )
                     }),
                 RuleMode::Research => research_end.is_some(),
+                RuleMode::FreezeTag => decoded.rules.as_ref().and_then(|read| read.freeze_tag).is_some_and(|rule| rule.complete()),
+                RuleMode::ArtefactHunt => hunt_end.is_some(),
                 RuleMode::FreeForAll => decoded.rules.as_ref().is_some_and(|read| {
                     rules::ffa_finished(
                         read.kills_deaths.iter().map(|record| record.kills),
@@ -4487,8 +4499,14 @@ impl Game {
         if over && self.mode_end_at.is_none() {
             // The rule's own end is at most the delay after the tick that
             // reached the goal, which is this snapshot's or an earlier one.
-            let delayed = snapshot.time + self.settings.timing.end_delay_ms;
-            let at = research_end.map_or(delayed, |end| end.min(delayed));
+            // Freeze Tag's last freeze is seen a moment, not the end delay's 3 s (the owner,
+            // 2026-11-22: "after a second or two").
+            let delay = match self.game_mode() {
+                RuleMode::FreezeTag => self.settings.timing.end_delay_ms.min(FREEZE_TAG_END_DELAY_MS),
+                _ => self.settings.timing.end_delay_ms,
+            };
+            let delayed = snapshot.time + delay;
+            let at = research_end.or(hunt_end).map_or(delayed, |end| end.min(delayed));
             log::info!(
                 "Match {:#x}: the mode's rule has its end at {} ms (standing {standing:?}); the \
                  match is over at {at} ms",
@@ -4543,6 +4561,13 @@ impl Game {
                 {
                     return Err(format!("tickets {:?} of {tickets}", standing.points));
                 }
+            } else if let Some(params) = self.formed.played.map().artefact_hunt {
+                // A delivery each, the goal at most (the rule holds its scores
+                // there, and the world check the statistics to them).
+                let goal = u16::from(params.goal());
+                if standing.points.iter().any(|team| *team > goal) {
+                    return Err(format!("artefacts {:?} of {goal}", standing.points));
+                }
             } else if self.game_mode() == RuleMode::Research {
                 let goal = self.formed.played.map().resources_count;
                 let most = goal.min(1 + played / MIN_MS_PER_RESEARCH_POINT);
@@ -4551,6 +4576,11 @@ impl Game {
                         "research points {:?} of {goal} after {played} ms",
                         standing.points
                     ));
+                }
+            } else if self.game_mode() == RuleMode::FreezeTag {
+                let wins = srp_validate::world::freeze::WINS;
+                if standing.points.iter().any(|team| *team > u16::from(wins)) {
+                    return Err(format!("round wins {:?} of {wins}", standing.points));
                 }
             } else {
                 let batteries = self.batteries() as u32;
@@ -5414,14 +5444,15 @@ impl Game {
             let payment = super::reward_caps::Payment::of(
                 played,
                 &self.kill_pairs,
-                self.game_mode(),
+                super::reward_caps::Objectives::of(self.formed.played.map()),
                 self.formed.vs_bots,
             );
             for cut in &payment.objectives {
                 log::info!(
-                    "Match {:#x}: place {}'s Research capture/neutralisation score {}, paid {}",
+                    "Match {:#x}: place {}'s objective score (mode {}) {}, paid {}",
                     self.id,
                     cut.place,
+                    self.game_mode(),
                     cut.scored,
                     cut.paid
                 );
@@ -5501,7 +5532,7 @@ impl Game {
                     kills: record.map_or(counted(event::KILL), |record| record.kills),
                     deaths: record.map_or(counted(event::DEATH), |record| record.deaths),
                     longest_killstreak: self.best_streaks[index],
-                    kit_changes: self.kit_changes[index],
+                    kit_changes: self.kit_changes[index].saturating_add(self.round_kit_switches(index)),
                     supplies: state.and_then(|state| state.supplies.get(index).cloned().flatten()),
                     weapons: statistics
                         .and_then(|statistics| statistics.weapons.as_ref()?.get(index))
@@ -5521,6 +5552,7 @@ impl Game {
             end,
             winner: standing.map(|standing| standing.winner),
             team_points,
+            round_starts: self.round_starts(),
             duration_ms: clock,
             played_ms: self
                 .rule
@@ -5533,6 +5565,37 @@ impl Game {
             private: self.formed.private,
             events: self.match_events.finish(clock, team_points),
         }
+    }
+
+    /// The round starts of the match's rule with rounds as it counts them in
+    /// the last trusted snapshot: Artifact Hunt's (with its map's
+    /// parameters), Freeze Tag's (every restart, a double wipe's replay too);
+    /// 0 before one, and in the modes without rounds.
+    fn round_starts(&self) -> u16 {
+        let rules = self.state.as_ref().and_then(|state| state.rules.as_ref());
+        if let Some(params) = self.formed.played.map().artefact_hunt {
+            return rules
+                .and_then(|rules| rules.artefact_hunt.as_ref()?.rule(params))
+                .map_or(0, |rule| rule.round_starts());
+        }
+        rules.and_then(|rules| rules.freeze_tag.as_ref()).map_or(0, |rule| rule.round_starts())
+    }
+
+    /// Artifact Hunt's kit switches of the player at `index` in its rounds'
+    /// countdowns (patch 31's switch, a life for supplies each, as a kit
+    /// choice before play is), as its rule counts them in the last trusted
+    /// snapshot; 0 in the modes without rounds.
+    fn round_kit_switches(&self, index: usize) -> u16 {
+        let Some(params) = self.formed.played.map().artefact_hunt else {
+            return 0;
+        };
+        let Some(place) = u8::try_from(index).ok().and_then(artefact_hunt_rule::Place::new) else {
+            return 0;
+        };
+        self.state
+            .as_ref()
+            .and_then(|state| state.rules.as_ref()?.artefact_hunt.as_ref()?.rule(params))
+            .map_or(0, |rule| rule.kit_switches(place))
     }
 
     /// End the match: the result is kept for the lobby, and every client
@@ -6043,10 +6106,20 @@ impl Game {
             return;
         }
         // The rule's own arithmetic wraps before its state began.
-        let limit_reached = clock
+        let late = clock
             .checked_sub(END_GRACE_MS)
-            .filter(|time| self.rule.start.is_some_and(|start| *time >= start))
-            .is_some_and(|time| self.rule.completed(time));
+            .filter(|time| self.rule.start.is_some_and(|start| *time >= start));
+        let limit_reached = late.is_some_and(|time| match self.formed.played.map().artefact_hunt {
+            // Artifact Hunt plays past the time rule's end (rounds, sudden
+            // death): its end is the rule's. Only a match whose worlds never
+            // showed it by the latest end the rule can have (its horizon
+            // from the start) is stopped here.
+            Some(params) if self.rule.state == rules::state::IN_PROCESS => self
+                .rule
+                .start
+                .is_some_and(|start| time - start >= params.horizon()),
+            _ => self.rule.completed(time),
+        });
         if self.ending.is_none() && limit_reached {
             log::info!("Match {:#x}: time is up at {clock} ms", self.id);
             self.ending = Some((now, MatchEnd::TimeLimit));

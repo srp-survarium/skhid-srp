@@ -137,7 +137,9 @@ impl Sides {
             RuleMode::Batteries
             | RuleMode::TimedBatteries
             | RuleMode::TeamDeathmatch
-            | RuleMode::Research => Self::Teams,
+            | RuleMode::Research
+            | RuleMode::FreezeTag => Self::Teams,
+            | RuleMode::ArtefactHunt => Self::Teams,
         }
     }
 
@@ -180,8 +182,8 @@ impl Mode {
         match mode {
             RuleMode::TimedBatteries => Self::TimedBatteries,
             // A free-for-all plays as Team Deathmatch with no teammates.
-            RuleMode::TeamDeathmatch | RuleMode::FreeForAll => Self::TeamDeathmatch,
-            RuleMode::Batteries | RuleMode::Research => Self::Batteries,
+            RuleMode::TeamDeathmatch | RuleMode::FreeForAll | RuleMode::FreezeTag => Self::TeamDeathmatch,
+            RuleMode::Batteries | RuleMode::Research | RuleMode::ArtefactHunt => Self::Batteries,
         }
     }
 

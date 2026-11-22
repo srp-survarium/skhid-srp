@@ -11,7 +11,7 @@
 //!   Right 10 s back and on, Shift+Left and Shift+Right the previous and
 //!   the next moment the Moments switch lights (4 s before it, from the
 //!   server's events), `[` and `]` slower and faster; M the switch's next
-//!   choice (All, Mine, Followed); H and the key of toggle_replay_ui (F11) hide the interface; Ctrl shows or
+//!   choice (All, Mine, Followed); H and the key of toggle_replay_ui (F9) hide the interface; Ctrl shows or
 //!   hides the hud's cursor (the controls' bar and buttons take the mouse,
 //!   the camera stands); Esc leaves, as the game's own leave does (an empty
 //!   0xE0, back to the lobby); the controls' Back asks the server to let the
@@ -74,7 +74,7 @@ enum Command {
 }
 
 impl Command {
-    /// A key's command: the viewer's own keys, then the key bound to toggle_replay_ui (F11 unless
+    /// A key's command: the viewer's own keys, then the key bound to toggle_replay_ui (F9 unless
     /// rebound; `action`, the key's game world action), whose own case (patch 62's) would hide the
     /// hud and keep the replay controls of a viewer, a network game with no replay reader.
     fn of(key: Dik, shift: bool, action: Option<Action>) -> Option<Command> {
@@ -645,7 +645,7 @@ fn restore(client: &NetworkClient<'_>, act: Act) {
     }
 }
 
-/// `static_info.options_read` (after patches 65, 86, 83, 178, 142 and 123's): a new match starts as
+/// `static_info.options_read` (after patches 65, 86, 83, 178, 142, 123 and 160's): a new match starts as
 /// no replay, with no events. A viewing still on (close_current_match's guard skips the close before
 /// the first tick after the first world, docs/notes/match.md) ends here, whatever the new match
 /// makes the game: its clock would otherwise stay paused or fast in the next real match.
@@ -1431,11 +1431,12 @@ mod tests {
     #[test]
     fn the_interface_follows_its_binding() {
         let toggle = Some(Action::TOGGLE_REPLAY_UI);
-        // F11 by default, or the key it was bound to; F11 rebound away is no viewer's key.
-        assert_eq!(Command::of(Dik::F11, false, toggle), Some(Command::ToggleUi));
-        assert_eq!(Command::of(Dik::new(0x43), false, toggle), Some(Command::ToggleUi));
-        assert_eq!(Command::of(Dik::F11, false, Some(Action(0x49))), None);
-        assert_eq!(Command::of(Dik::F11, false, None), None);
+        // F9 by default (patch 152), or the key it was bound to (F8 here); F9 rebound away is no viewer's key.
+        let (f9, f8) = (Dik::new(0x43), Dik::new(0x42));
+        assert_eq!(Command::of(f9, false, toggle), Some(Command::ToggleUi));
+        assert_eq!(Command::of(f8, false, toggle), Some(Command::ToggleUi));
+        assert_eq!(Command::of(f9, false, Some(Action(0x49))), None);
+        assert_eq!(Command::of(f9, false, None), None);
         // The viewer's own keys stay theirs whatever they are bound to.
         assert_eq!(Command::of(Dik::SPACE, false, toggle), Some(Command::TogglePause));
     }

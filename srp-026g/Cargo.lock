@@ -84,6 +84,10 @@ name = "artefact-carry"
 version = "0.1.0"
 
 [[package]]
+name = "artefact-hunt-rule"
+version = "0.1.0"
+
+[[package]]
 name = "autocfg"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -514,6 +518,7 @@ dependencies = [
 name = "match-server"
 version = "0.1.0"
 dependencies = [
+ "artefact-hunt-rule",
  "crc32fast",
  "libc",
  "log",
@@ -874,6 +879,7 @@ name = "srp-validate"
 version = "0.1.0"
 dependencies = [
  "artefact-carry",
+ "artefact-hunt-rule",
  "replay-control",
  "survarium",
  "weapon-pickup",
@@ -897,6 +903,7 @@ name = "survarium"
 version = "0.1.0"
 dependencies = [
  "artefact-carry",
+ "artefact-hunt-rule",
  "binary-config-parser",
  "encoding_rs",
  "log",

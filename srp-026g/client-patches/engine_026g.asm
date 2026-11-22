@@ -297,6 +297,28 @@ global engine_shared_string_destroy
 global engine_shared_string_assign
 global engine_register_constant_host
 global engine_set_ps_constant
+global engine_freeze_reset_health
+global engine_switch_to_warmup_camera
+global engine_switch_to_player_camera
+global engine_play_particle_system
+global engine_remove_particle_system
+global engine_update_particle_system
+global engine_tdm_cook_create
+global engine_tdm_cook_size
+global engine_tdm_rule_on_event
+global engine_tdm_rule_entered
+global engine_tdm_rule_left
+global engine_tdm_rule_set_core
+global engine_tdm_rule_serialize
+global engine_tdm_rule_deserialize
+global engine_tdm_rule_fill_hud
+global engine_tdm_rule_completed
+global engine_timelimit_tick
+global engine_blackboard_set_bool
+global engine_register_hunt_cook
+global engine_hunt_rule_base
+global engine_player_remove
+global engine_spawn_player
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -418,6 +440,22 @@ engine_fingers_set_weapon_model equ 0x390620   ; 0x390620 vostok::animation::fin
 engine_set_constant_float4 equ 0x1a8900   ; 0x1a8900 vostok::render::effect_compiler::set_constant_float4: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
 engine_shared_string_create equ 0xe0b50   ; 0xe0b50 vostok::shared_string::create: text ESP+4; pops 4; EAX; stdcall, called directly
 engine_shared_string_destroy equ 0xe0ae0   ; 0xe0ae0 vostok::shared_string::destroy: string ESP+4; pops 4; stdcall, called directly
+engine_play_particle_system equ 0x22660   ; 0x22660 vostok::render::scene_renderer::play_particle_system: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20, first_attachment ESP+24, second_attachment ESP+28; pops 28; stdcall, called directly
+engine_remove_particle_system equ 0x229d0   ; 0x229d0 vostok::render::scene_renderer::remove_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12; pops 12; stdcall, called directly
+engine_update_particle_system equ 0x22b30   ; 0x22b30 vostok::render::scene_renderer::update_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20; pops 20; stdcall, called directly
+engine_tdm_cook_create equ 0x2063f0   ; 0x2063f0 survarium::tdm_rule_cook::create_resource: cook ECX, query ESP+4; pops 4; EAX; thiscall, called directly
+engine_tdm_cook_size equ 0x2063e0   ; 0x2063e0 survarium::tdm_rule_cook::resource_size: cook ECX; pops 0; EAX; thiscall, called directly
+engine_tdm_rule_on_event equ 0x316090   ; 0x316090 survarium::tdm_rule_core::on_event: rule ECX, type ESP+4, data ESP+8, time ESP+12; pops 12; thiscall, called directly
+engine_tdm_rule_entered equ 0x316590   ; 0x316590 survarium::tdm_rule_core::on_player_entered_match: rule ECX, place ESP+4, time ESP+8; pops 8; thiscall, called directly
+engine_tdm_rule_left equ 0x3165d0   ; 0x3165d0 survarium::tdm_rule_core::on_player_left_match: rule ECX, place ESP+4, time ESP+8; pops 8; thiscall, called directly
+engine_tdm_rule_set_core equ 0x267810   ; 0x267810 survarium::tdm_rule::set_game_world_core [descriptive]: rule ECX, core ESP+4; pops 4; thiscall, called directly
+engine_tdm_rule_serialize equ 0x316340   ; 0x316340 survarium::tdm_rule_core::serialize: rule ECX, writer ESP+4; pops 4; thiscall, called directly
+engine_tdm_rule_deserialize equ 0x3163d0   ; 0x3163d0 survarium::tdm_rule_core::deserialize: rule ECX, reader ESP+4, unused ESP+8; pops 8; thiscall, called directly
+engine_tdm_rule_fill_hud equ 0x316430   ; 0x316430 survarium::tdm_rule_core::fill_match_hud_state: rule ECX, hud ESP+4, time ESP+8; pops 8; thiscall, called directly
+engine_tdm_rule_completed equ 0x316520   ; 0x316520 survarium::tdm_rule_core::rule_completed: rule ECX, time ESP+4; pops 4; AL; thiscall, called directly
+engine_timelimit_tick equ 0x317f10   ; 0x317f10 survarium::timelimit_rule_core::tick: rule ECX, dt ESP+4, time ESP+8, step ESP+12; pops 12; thiscall, called directly
+engine_player_remove equ 0x1f2870   ; 0x1f2870 survarium::player::remove: player ECX, flag ESP+4; pops 4; thiscall, called directly
+engine_spawn_player equ 0x316da0   ; 0x316da0 survarium::player_respawn_rule_base::spawn_player: rule ECX, place ESP+4, point ESP+8, time ESP+12; pops 12; thiscall, called directly
 
 engine_options_int:
     ; 0x261100 survarium::options_item_int::options_item_int: parent ECX, id EAX, receiver ESP+4, command ESP+8, values ESP+12, count ESP+16; pops 16; EAX
@@ -3408,6 +3446,101 @@ engine_set_ps_constant:
     mov eax, [esp + 24]   ; host
     mov edi, [esp + 28]   ; backend
     call 0x132a90
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_freeze_reset_health:
+    ; 0x2e5290 survarium::damage_model::reset: receiver EDI, time ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; time -> 4
+    mov edi, [esp + 24]   ; receiver
+    call 0x2e5290
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_switch_to_warmup_camera:
+    ; 0x1f8190 survarium::game_world::switch_to_warmup_camera: world EDX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov edx, [esp + 20]   ; world
+    call 0x1f8190
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_switch_to_player_camera:
+    ; 0x1f8200 survarium::game_world::switch_to_player_camera: world EAX, first_person ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; first_person -> 4
+    mov eax, [esp + 24]   ; world
+    call 0x1f8200
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_blackboard_set_bool:
+    ; 0x316630 survarium::blackboard::set<bool> [descriptive]: index EAX, blackboard ESP+4, value ESP+8; pops 8
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; value -> 8
+    push dword [esp + 28]   ; blackboard -> 4
+    mov eax, [esp + 28]   ; index
+    call 0x316630
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_register_hunt_cook:
+    ; 0x102d10 vostok::resources::register_cook: cook EDI; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov edi, [esp + 20]   ; cook
+    call 0x102d10
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_hunt_rule_base:
+    ; 0x313900 survarium::game_match_rule_base::game_match_rule_base: rule EAX, type ESP+4; pops 4; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; type -> 4
+    mov eax, [esp + 24]   ; rule
+    call 0x313900
     pop edi
     pop esi
     pop ebx

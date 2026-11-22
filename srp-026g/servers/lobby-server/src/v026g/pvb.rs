@@ -75,9 +75,9 @@ pub(super) const PLAY_REFUSED: &str = "st_cant_change_ready_state";
 /// The maps offered, by `maps_dict` id (the owner's list of 2026-10-16):
 /// the day of each of the eight levels in batteries (mode 2: 61 Rudnya to
 /// 103) and in Team Deathmatch (mode 4: 117 to 138). No timed batteries
-/// (mode 3), no Research (mode 5: the server's bots play modes 2 to 4), no
-/// London (level 9, maps 181 to 183) and no level 88. The movie shows only
-/// the maps the status lists.
+/// (mode 3), no Research (mode 5: the server's bots play modes 2 to 4) or
+/// Artifact Hunt (mode 13), no London (level 9, maps 181 to 183) and no
+/// level 88. The movie shows only the maps the status lists.
 pub const MAPS: [MapId; 16] = [
     MapId::new(61),
     MapId::new(67),
@@ -165,9 +165,10 @@ impl Config {
 /// The maps of `maps` the server's bots play: in the modes they play
 /// (batteries, timed batteries, Team Deathmatch, and a free-for-all, which
 /// they play as a Team Deathmatch with no teammates: not Research, which
-/// the match server refuses them, nor Blackout, which Play vs Bots never
-/// offered) and with a bots' map in `dir` (`SRP_MAPDATA_DIR`, the match
-/// server's: without one its bots only run their script).
+/// the match server refuses them, nor Artifact Hunt, whose rule they do not
+/// know, nor Blackout, which Play vs Bots never offered) and with a bots'
+/// map in `dir` (`SRP_MAPDATA_DIR`, the match server's: without one its
+/// bots only run their script).
 pub fn bot_maps<'a>(maps: impl Iterator<Item = &'a MapMode>, dir: &std::path::Path) -> Vec<MapId> {
     maps.filter(|map| {
         matches!(
@@ -505,7 +506,12 @@ mod tests {
         for map in maps::all() {
             if map.level == 9
                 || map.level == 88
-                || matches!(map.mode, maps::GameMode::TimedBatteries | maps::GameMode::Research)
+                || matches!(
+                    map.mode,
+                    maps::GameMode::TimedBatteries
+                        | maps::GameMode::Research
+                        | maps::GameMode::ArtefactHunt
+                )
             {
                 assert!(!MAPS.contains(&map.id), "{} is offered", map.id);
             }
@@ -557,5 +563,22 @@ mod tests {
         assert!(!free_for_all.is_empty());
         assert!(free_for_all.iter().all(|id| found.contains(id)));
         assert!(of(maps::GameMode::Blackout).iter().all(|id| !found.contains(id)));
+    }
+
+    /// Artifact Hunt is none of the bots' modes, as Research: a map of it
+    /// with a bots' map file is still not theirs.
+    #[test]
+    fn the_bots_play_no_artefact_hunt() {
+        let dir = std::env::temp_dir().join(format!("srp-bot-maps-hunt-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let tdm = maps::playable_in(maps::GameMode::TeamDeathmatch).next().unwrap();
+        std::fs::write(dir.join(mapdata::format::file_name(tdm.project)), b"").unwrap();
+        let hunt = MapMode {
+            mode: maps::GameMode::ArtefactHunt,
+            ..*tdm
+        };
+        let found = bot_maps([tdm, &hunt].into_iter(), &dir);
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(found, [tdm.id]);
     }
 }

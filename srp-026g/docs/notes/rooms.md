@@ -153,7 +153,7 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     its three as before (`ffa.md`, "Where it is played"; `rooms::THIRD_CARD` names the mode).
   - **A free-for-all card's twist** (`ffa.md`, "Twists"): an open room's (the server's) card
     draws "FFA: Racket", "FFA: Saloon (Winchester)", "FFA: Saloon" (the Colt alone) or none by the
-    owner's shares (40 / 15 / 5 / 40; the two Saloons by their own names since 2026-11-15, "so
+    owner's shares (40 / 5 / 5 / 50 since 2026-11-22; the two Saloons by their own names since 2026-11-15, "so
     people know what they get and can vote based on this"); a private
     room's is always plain Free for all, and the create window has no twist tick (the owner's of
     2026-11-15: "we can also remove from private lobbies FFA: Saloon and FFA: Racket"; ticks from
@@ -299,6 +299,16 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   ("The match is full."). The roster's 20 places, never used twice, are the match server's
   own limit ("player limit"). Until then a joiner could fill a side a player came back to,
   past the room's size.
+- **An open room whose match has no place left** (the owner's of 2026-11-22: "people shouldn't
+  be able to enter such rooms", "instead they should be in queue", "so that other one can be
+  created for them"): while its match is played an open room has no more free places than its
+  match's roster has left (20 less the places given, less its members not in the match, who
+  each hold one). With none it is full to Play, Join, Switch and its queue's turn: Play takes
+  another room or queues, Join puts the player in its queue, and three waiting open a room
+  (**Play**, above). The match over, its places are the room's size again and its queue
+  comes in. A private room is entered as before (nobody opens another one for its players).
+  - Not yet: the list still shows such a room with its members' count and "Join" (the movie
+    reads full from the count); the press queues.
 - **A late join that fails** (its game did not come, left, or did not catch up; the match
   server lets it go, `Matchmaking::join_failed`): the member waits in its room again, with
   its `J` row, and goes in 15 s later as a new place (live, 2026-10-19, room 2168: it stayed
@@ -314,7 +324,9 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   - the side it would go to full (the room's size): "The match is full." (4)
   - all 20 lifetime roster places used, even if players have left: "This match has reached its
     player limit. You'll join the next match." (7). The newcomer remains a room member and
-    plays its next match; the public room's separate capacity is still 16 members.
+    plays its next match; the public room's separate capacity is still 16 members. Since
+    2026-11-22 only in a private room, or in an open one after a late join that failed took
+    its member's place (an open room with no place left is not entered, above).
   - a maintenance within 30 min: "Server maintenance soon: no new joins." (5)
   - the match ending (its mode's rule, its result): "The match is ending: you'll play the next one." (6)
   - no game of the match can give a joiner a world now: their last worlds were refused by the

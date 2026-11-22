@@ -303,6 +303,9 @@ impl Room {
 /// time 49, stamina regeneration 3 and spending 19, stopping power 42, reload 13. The getters'
 /// other indices have nothing shared.
 pub const SPRING_LISTS: [u32; 6] = [4, 49, 3, 19, 42, 13];
+/// The lists the getter sites call their handlers for: the Springs', and
+/// Artifact Hunt's carrier's (patch 171: 2 health regeneration, 4 movement).
+pub const HOOKED_LISTS: [u32; 7] = [4, 49, 3, 19, 42, 13, 2];
 
 /// What an Onyx does to a hit it protects against (its protect 0x312BF0), read once from a
 /// carried Onyx: its passive's or its active's numbers.
@@ -461,12 +464,14 @@ pub fn on_world_loaded(ctx: &mut Context<'_>) -> Flow<crate::vostok::ArtefactSki
 /// to which the shared Springs' nodes of that list are added.
 pub fn on_shared_modifier(ctx: &mut Context<'_>) -> Flow<NoExit> {
     artefact_skills::shared_modifier(ctx);
+    crate::artefact_hunt::shared_modifier(ctx);
     Flow::Continue
 }
 
 /// The same in apply_modifiers' loop (0x2D5C18), for each of its indices.
 pub fn on_shared_modifiers(ctx: &mut Context<'_>) -> Flow<NoExit> {
     artefact_skills::shared_modifiers(ctx);
+    crate::artefact_hunt::shared_modifiers(ctx);
     Flow::Continue
 }
 

@@ -771,6 +771,7 @@ impl Server {
                     },
                     winner: None,
                     team_points: [0, 0],
+                    round_starts: 0,
                     duration_ms: 0,
                     played_ms: None,
                     trusted_snapshot_ms: None,

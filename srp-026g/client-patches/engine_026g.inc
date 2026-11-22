@@ -1002,3 +1002,85 @@ extern engine_register_constant_host
 ; void engine_set_ps_constant(struct constant_host *host, struct backend *backend, const float *value)
 ; 0x132a90 vostok::render::backend::set_ps_constant: host EAX, backend EDI, value ESP+4; pops 4
 extern engine_set_ps_constant
+; void engine_freeze_reset_health(struct medical_damage *receiver, unsigned int time)
+; 0x2e5290 survarium::damage_model::reset: receiver EDI, time ESP+4; pops 4
+extern engine_freeze_reset_health
+; void engine_switch_to_warmup_camera(struct game_world *world)
+; 0x1f8190 survarium::game_world::switch_to_warmup_camera: world EDX; pops 0
+extern engine_switch_to_warmup_camera
+; void engine_switch_to_player_camera(struct game_world *world, unsigned char first_person)
+; 0x1f8200 survarium::game_world::switch_to_player_camera: world EAX, first_person ESP+4; pops 4
+extern engine_switch_to_player_camera
+; void engine_play_particle_system(struct scene_renderer *renderer, struct scene_reference *scene, struct particle_system *particle, const float *first_matrix, const float *second_matrix, const unsigned int *first_attachment, const unsigned int *second_attachment)
+; 0x22660 vostok::render::scene_renderer::play_particle_system: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20, first_attachment ESP+24, second_attachment ESP+28; pops 28; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_play_particle_system
+; void engine_remove_particle_system(struct scene_renderer *renderer, struct scene_reference *scene, struct particle_system *const *particle)
+; 0x229d0 vostok::render::scene_renderer::remove_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12; pops 12; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_remove_particle_system
+; void engine_update_particle_system(struct scene_renderer *renderer, struct scene_reference *scene, struct particle_system *const *particle, const float *first_matrix, const float *second_matrix)
+; 0x22b30 vostok::render::scene_renderer::update_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20; pops 20; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_update_particle_system
+; unsigned int engine_tdm_cook_create(struct hunt_cook *cook, struct rule_query *query)
+; 0x2063f0 survarium::tdm_rule_cook::create_resource: cook ECX, query ESP+4; pops 4; EAX; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_tdm_cook_create
+; unsigned int engine_tdm_cook_size(struct hunt_cook *cook)
+; 0x2063e0 survarium::tdm_rule_cook::resource_size: cook ECX; pops 0; EAX; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_tdm_cook_size
+; void engine_tdm_rule_on_event(struct hunt_rule *rule, unsigned int type, const struct kill_event *data, unsigned int time)
+; 0x316090 survarium::tdm_rule_core::on_event: rule ECX, type ESP+4, data ESP+8, time ESP+12; pops 12; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_tdm_rule_on_event
+; void engine_tdm_rule_entered(struct hunt_rule *rule, unsigned int place, unsigned int time)
+; 0x316590 survarium::tdm_rule_core::on_player_entered_match: rule ECX, place ESP+4, time ESP+8; pops 8; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_tdm_rule_entered
+; void engine_tdm_rule_left(struct hunt_rule *rule, unsigned int place, unsigned int time)
+; 0x3165d0 survarium::tdm_rule_core::on_player_left_match: rule ECX, place ESP+4, time ESP+8; pops 8; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_tdm_rule_left
+; void engine_tdm_rule_set_core(struct hunt_rule *rule, struct core_world *core)
+; 0x267810 survarium::tdm_rule::set_game_world_core [descriptive]: rule ECX, core ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_tdm_rule_set_core
+; void engine_tdm_rule_serialize(struct hunt_rule *rule, struct buffer_writer *writer)
+; 0x316340 survarium::tdm_rule_core::serialize: rule ECX, writer ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_tdm_rule_serialize
+; void engine_tdm_rule_deserialize(struct hunt_rule *rule, struct buffer_reader *reader, unsigned int unused)
+; 0x3163d0 survarium::tdm_rule_core::deserialize: rule ECX, reader ESP+4, unused ESP+8; pops 8; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_tdm_rule_deserialize
+; void engine_tdm_rule_fill_hud(struct hunt_rule *rule, struct match_hud_state *hud, unsigned int time)
+; 0x316430 survarium::tdm_rule_core::fill_match_hud_state: rule ECX, hud ESP+4, time ESP+8; pops 8; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_tdm_rule_fill_hud
+; unsigned char engine_tdm_rule_completed(struct hunt_rule *rule, unsigned int time)
+; 0x316520 survarium::tdm_rule_core::rule_completed: rule ECX, time ESP+4; pops 4; AL; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_tdm_rule_completed
+; void engine_timelimit_tick(struct hunt_rule *rule, unsigned int dt, unsigned int time, unsigned int step)
+; 0x317f10 survarium::timelimit_rule_core::tick: rule ECX, dt ESP+4, time ESP+8, step ESP+12; pops 12; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_timelimit_tick
+; void engine_blackboard_set_bool(unsigned int index, struct blackboard *blackboard, const unsigned char *value)
+; 0x316630 survarium::blackboard::set<bool> [descriptive]: index EAX, blackboard ESP+4, value ESP+8; pops 8
+extern engine_blackboard_set_bool
+; void engine_register_hunt_cook(struct hunt_cook *cook)
+; 0x102d10 vostok::resources::register_cook: cook EDI; pops 0
+extern engine_register_hunt_cook
+; struct hunt_rule *engine_hunt_rule_base(void *rule, unsigned int type)
+; 0x313900 survarium::game_match_rule_base::game_match_rule_base: rule EAX, type ESP+4; pops 4; EAX
+extern engine_hunt_rule_base
+; void engine_player_remove(struct player *player, unsigned int flag)
+; 0x1f2870 survarium::player::remove: player ECX, flag ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_player_remove
+; void engine_spawn_player(struct player_respawn_rule_base *rule, unsigned int place, const unsigned int *point, unsigned int time)
+; 0x316da0 survarium::player_respawn_rule_base::spawn_player: rule ECX, place ESP+4, point ESP+8, time ESP+12; pops 12; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_spawn_player

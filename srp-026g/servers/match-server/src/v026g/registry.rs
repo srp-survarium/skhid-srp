@@ -496,8 +496,10 @@ impl MatchRegistry {
         }
         let played = setup.played;
         let map = played.map();
-        // The server's bots play modes 2 to 4 (`bots`): none in Research.
-        if map.mode.rules() == maps::RuleMode::Research && setup.players.iter().any(|player| player.driven) {
+        // The server's bots play modes 2 to 4 (`bots`): none in Research or
+        // Artifact Hunt.
+        let unplayed = matches!(map.mode.rules(), maps::RuleMode::Research | maps::RuleMode::ArtefactHunt);
+        if unplayed && setup.players.iter().any(|player| player.driven) {
             return Err(CreateError::Map(map.id));
         }
         let mut setup = setup;
@@ -1142,6 +1144,10 @@ pub struct MatchResult {
     /// Batteries home (modes 2, 3), tickets left (mode 4) or Research's
     /// points (mode 5), from the last trusted snapshot.
     pub team_points: [u16; 2],
+    /// How often a round started again, respawning everyone (Artifact
+    /// Hunt's `Rule::round_starts` in the last trusted snapshot); 0 in the
+    /// modes without rounds.
+    pub round_starts: u16,
     /// The match clock when it ended, in ms.
     pub duration_ms: u32,
     /// How long it was played after the countdown; `None` if play never

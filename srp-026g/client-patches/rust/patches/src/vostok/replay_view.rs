@@ -483,7 +483,7 @@ impl<'t> Overlay<'t> {
     /// Shows or hides the controls (show_replay_controls: the movie into or
     /// out of the scene; nothing when it already is so).
     pub fn show(&self, shown: bool) {
-        // SAFETY: the hud's own call, on its thread (the replay client's F11 makes it).
+        // SAFETY: the hud's own call, on its thread (the replay client's toggle_replay_ui key, F9, makes it).
         unsafe { raw::engine_show_replay_controls(Some(self.ui), u32::from(shown)) }
     }
 

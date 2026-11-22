@@ -317,6 +317,20 @@ impl Sim {
                 units: vec![ResearchUnit::default(); 3],
             }
         });
+        // Mode 13: Artifact Hunt's rule from the match's start, nothing
+        // played (its scores 0, as `points` must be then).
+        let hunt = maps::map_mode(self.map_id)
+            .and_then(|map| map.artefact_hunt)
+            .map(|params| {
+                let idle = artefact_hunt_rule::Rule::new(1);
+                match rule.match_started_at() {
+                    Some(start) => {
+                        let now = artefact_hunt_rule::Time::from_ms(start);
+                        idle.step(params, artefact_hunt_rule::Event::Start { now }).0
+                    }
+                    None => idle,
+                }
+            });
         // A free-for-all (mode 8) has no rule of its own: none of `gather`,
         // `tdm` and `research` is written; exe patch 142's spawn history
         // (nobody spawned) follows the respawn rule, then the kd stats
@@ -340,8 +354,10 @@ impl Sim {
             gather,
             tdm,
             research,
+            freeze_tag: None,
             free_for_all: (self.game_mode() == RuleMode::FreeForAll)
                 .then_some(srp_validate::world::SpawnHistory::EMPTY),
+            artefact_hunt: hunt.as_ref().map(snapshot::ArtefactHunt::of),
             kills_deaths,
             team_respawn: self
                 .team_respawn_from

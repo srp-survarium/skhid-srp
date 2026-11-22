@@ -456,9 +456,11 @@ pub(crate) fn lobby_mode_name(lang: Lang, mode: LobbyMode) -> String {
 /// - Started: how long ago play began; before that, what the match waits for.
 /// - Time left: to the time limit, in whole minutes rounded up. A match can
 ///   end sooner (the tickets, the batteries, Research's points, or everyone
-///   leaving), so it is "at most".
-/// - Score: tickets left in a Team Deathmatch, points in Research, batteries
-///   brought otherwise, the leader's in bold; only of a match in play, and
+///   leaving), so it is "at most"; Artifact Hunt's sudden death and last
+///   round's restart can run past it.
+/// - Score: tickets left in a Team Deathmatch, points in Research, artefacts
+///   delivered in Artifact Hunt, batteries brought otherwise, the leader's in
+///   bold; only of a match in play, and
 ///   only as fresh as [`session::v026g::matches_now::SCORE_AGE`].
 ///
 /// Which match is listed and which score is told are the rules the lobby's
@@ -935,11 +937,15 @@ mod tests {
         assert_eq!(map_name(Lang::En, &twelve), "level_12");
         assert_eq!(map_name(Lang::Uk, &twelve), "level_12");
         assert_eq!(mode_name(Lang::Uk, &twelve), "режим 5");
-        // Every playable map and mode has a name of the game's (Blackout's and
-        // the free-for-all's are srp's own, `client-patches/localization`,
-        // which the test data's stock localizations lack).
+        // Every playable map and mode has a name of the game's (Blackout's, the
+        // free-for-all's and Artifact Hunt's are srp's own,
+        // `client-patches/localization`, which the test data's stock
+        // localizations lack).
         for map in maps::playable().filter(|map| {
-            !matches!(map.mode, maps::GameMode::Blackout | maps::GameMode::FreeForAll)
+            !matches!(
+                map.mode,
+                maps::GameMode::Blackout | maps::GameMode::FreeForAll | maps::GameMode::ArtefactHunt
+            )
         }) {
             for lang in [Lang::En, Lang::Uk] {
                 let game = |key| localization::text(game_language(lang), key).map(str::to_owned);

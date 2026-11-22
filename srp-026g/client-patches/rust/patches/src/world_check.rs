@@ -49,7 +49,10 @@ impl Match {
         Some(Self { game_mode, batteries, respawn_points, team_2_points })
     }
 
-    fn context(self, time: u32) -> world::Context<'static> {
+    /// The world check's context: a mode-13 world takes the hunt's own
+    /// parameters (none: refused as `NoArtefactHuntParams`).
+    fn context(self, time: u32, artefact_hunt: Option<&artefact_hunt_rule::Params>) -> world::Context<'_> {
+        let artefact_hunt = artefact_hunt.filter(|_| self.game_mode == srp_validate::mode::ARTEFACT_HUNT);
         world::Context {
             time, places: MAX_PLAYERS, game_mode: self.game_mode,
             batteries: self.batteries, respawn_points: Some(self.respawn_points),
@@ -57,6 +60,7 @@ impl Match {
             // The native per-item bounds remain at their readers (patch 115).
             // Do not guess profile, swapped inventory or authored map objects.
             profiles: None, artefacts: None, objects: None, inventory: None, dict_ids: None,
+            artefact_hunt,
         }
     }
 }
@@ -64,16 +68,17 @@ impl Match {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Failure { NoTime, NoMatch, Invalid(Refusal) }
 
-fn parse(state: &[u8], game: Option<Match>) -> Result<world::Frame<'_>, Failure> {
+fn parse<'s>(state: &'s [u8], game: Option<Match>, hunt: Option<&artefact_hunt_rule::Params>)
+    -> Result<world::Frame<'s>, Failure> {
     let (time, body) = state.split_first_chunk::<4>().ok_or(Failure::NoTime)?;
-    let context = game.ok_or(Failure::NoMatch)?.context(u32::from_le_bytes(*time));
+    let context = game.ok_or(Failure::NoMatch)?.context(u32::from_le_bytes(*time), hunt);
     let frame = world::frame(body, context.places).map_err(Failure::Invalid)?;
     world::validate_frame(&frame, &context).map_err(Failure::Invalid)?;
     Ok(frame)
 }
 
-pub fn verdict(state: &[u8], game: Option<Match>) -> Result<(), Failure> {
-    parse(state, game).map(|_| ())
+pub fn verdict(state: &[u8], game: Option<Match>, hunt: Option<&artefact_hunt_rule::Params>) -> Result<(), Failure> {
+    parse(state, game, hunt).map(|_| ())
 }
 
 pub fn on_unpacked(ctx: &mut Context<'_>) -> Flow<WorldCheckOnUnpackedExit> {
@@ -93,7 +98,9 @@ fn check(thread: &Thread, load: Option<WorldLoad<'_>>) -> bool {
         log_refusal(thread, &[Piece::Text("world_check: a world at a load with no readable state; not loaded")]);
         return false;
     };
-    let parsed = parse(load.state(), load.match_context());
+    // Patch 171: a hunt's world is read with the rule's own parameters.
+    let hunt = crate::artefact_hunt::params(thread);
+    let parsed = parse(load.state(), load.match_context(), hunt.as_ref());
     let state = load.state();
     breadcrumbs::record(load.thread(), Crumb::World {
         time: state.get(..4).map_or(0, |t| u32::from_le_bytes([t[0], t[1], t[2], t[3]])),
@@ -152,8 +159,8 @@ mod tests {
     #[test]
     fn missing_time_match_and_incomplete_sections_are_refused() {
         let game = Some(Match { game_mode: 4, batteries: 0, respawn_points: 3, team_2_points: 0 });
-        assert_eq!(verdict(&[1,2,3], game), Err(Failure::NoTime));
-        assert_eq!(verdict(&[0;20], None), Err(Failure::NoMatch));
-        assert!(matches!(verdict(&[0;20], game), Err(Failure::Invalid(_))));
+        assert_eq!(verdict(&[1,2,3], game, None), Err(Failure::NoTime));
+        assert_eq!(verdict(&[0;20], None, None), Err(Failure::NoMatch));
+        assert!(matches!(verdict(&[0;20], game, None), Err(Failure::Invalid(_))));
     }
 }

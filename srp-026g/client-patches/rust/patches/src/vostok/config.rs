@@ -16,6 +16,8 @@ pub enum ConfigValue<'t> {
     Array(ConfigEntries<'t>),
     /// A text (type 5): its bytes, without the zero.
     Text(&'t CStr),
+    /// A float3 (type 7): its three floats.
+    Vector([f32; 3]),
     Unsupported,
 }
 
@@ -44,6 +46,10 @@ impl<'t> ConfigValue<'t> {
                 // read no further than that.
                 5 => super::ui::c_string(node.text(), usize::from(node.count().read()))
                     .map_or(Self::Unsupported, Self::Text),
+                7 => match node.vector() {
+                    at if at.is_null() => Self::Unsupported,
+                    at => Self::Vector(super::world::floats(at)),
+                },
                 _ => Self::Unsupported,
             })
         }
@@ -62,6 +68,9 @@ impl<'t> ConfigValue<'t> {
     }
     pub fn text(self) -> Result<&'t CStr, ConfigError> {
         match self { Self::Text(text) => Ok(text), _ => Err(ConfigError::WrongType) }
+    }
+    pub fn vector(self) -> Result<[f32; 3], ConfigError> {
+        match self { Self::Vector(v) => Ok(v), _ => Err(ConfigError::WrongType) }
     }
     pub fn table(self) -> Result<ConfigTable<'t>, ConfigError> {
         match self { Self::Table(table) => Ok(table), _ => Err(ConfigError::WrongType) }

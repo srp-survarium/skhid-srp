@@ -31,6 +31,8 @@ vostok = { workspace = true }
 # check the game itself runs (exe patch 87), one crate for both.
 world-frame = { workspace = true }
 srp-validate = { workspace = true }
+# Artifact Hunt's rule: its end in a trusted world (`game.rs::observe`).
+artefact-hunt-rule = { workspace = true }
 # Client patch 85's pickup command, checked as the clients check it.
 weapon-pickup = { path = "../../crates/weapon-pickup" }
 
