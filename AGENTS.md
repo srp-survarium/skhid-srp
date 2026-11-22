@@ -150,8 +150,16 @@ receiving game itself (patch 87), with the same code (`srp-validate`'s typed vie
 
 ## Local test builds
 
-- `tools/test-build <revision> <folder> [exe] [server] [content]` builds what a local test runs (the
-  exe, the debug server, the quick content) at the same time, each as you would by hand; a part
+- To put a change in front of the owner: `tools/test-patch <setup> <inputs...> [--exe <name>]`, in
+  about a minute. The inputs are the pack folders, movie trees (`srp-026g/flash/<movie>`) and
+  `<file>=<resources.db path>` files that changed; it packs only what differs from what the setup's
+  game mounts as its next `resources.db.patch_<n>`, links it, builds new server game data only when
+  the server reads a changed file (and says what the setup's config needs then), with `--exe` the
+  exe of this tree in seconds, and prints the `run.py` command that starts it. Never a full or
+  `--delta-from` content build for that (`release/build-content` and `tools/test-build`'s content
+  take `--slow` for one, ~20 min), and no pictures unless asked.
+- `tools/test-build <revision> <folder> [exe] [server] [--slow content]` builds what a local test runs
+  (the exe, the debug server, the quick content) at the same time, each as you would by hand; a part
   nothing changed for costs seconds. Use it instead of a build script of your own. With `--shared`
   it builds the checkout's commit in one test tree whose cargo target stays warm from test to test:
   the server compiles only what differs from the commit tested before, and a worktree needs no
@@ -163,9 +171,6 @@ receiving game itself (patch 87), with the same code (`srp-validate`'s typed vie
   5 s, a new worktree's first build too. `SRP_ARENA_CACHE=off` builds from source, as the release does.
 - Each worktree has its own cargo target folder; never share one.
 - Content builds are cached per step by the exact bytes each step reads (the header of
-  `release/build-content` lists every key): a quick build of an unchanged tree takes about a minute.
-- For a test of a small content change, build a micro-patch over the test's earlier content:
-  `release/build-content <a revision above it> --delta-from <earlier build folder> --out <folder>`
-  holds only the files that differ; link it as `resources.db.patch_<that revision>` beside the earlier
-  one. Deltas chain; a change a patch cannot make (removing a file the earlier one added) is refused:
-  build it whole. Local tests only: a release builds the whole patch with `--full`.
+  `release/build-content` lists every key). A local one (`--slow`, `--delta-from`) is for what
+  `tools/test-patch` cannot make (a pack's composed operations: tables, `config_set`, icons); a
+  release builds the whole patch with `--full`.
