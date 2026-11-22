@@ -51,32 +51,33 @@
       ],
       "props": [
         {
-          "what": "lockers at the corridor's edge, a furniture barricade west, a couch towards the courtyard",
+          "what": "lockers with their backs to the east wall, a couch against the west one, both facing the room",
           "model": "props/furniture/logjam_03",
           "at": [
-            22.6,
-            20.72,
-            133.4
-          ],
-          "yaw": 12
-        },
-        {
-          "model": "props/furniture/barricade01",
-          "at": [
-            17.0,
+            24.7,
             20.72,
             130.6
           ],
-          "yaw": 10
+          "yaw": 270
         },
         {
           "model": "props/furniture/coach_05",
           "at": [
-            23.2,
+            17.3,
             20.72,
-            129.0
+            132.4
           ],
-          "yaw": 200
+          "yaw": 270
+        },
+        {
+          "what": "a furniture barricade at the breach towards the courtyard",
+          "model": "props/furniture/barricade01",
+          "at": [
+            18.0,
+            20.72,
+            128.9
+          ],
+          "yaw": 100
         }
       ]
     },
@@ -104,7 +105,7 @@
       },
       "cover": [
         {
-          "what": "the crates north of the station",
+          "what": "the crates north of the station: by the bush towards the north stairs, the first cover of who comes up them",
           "from": [
             42.0,
             110.5,
@@ -112,13 +113,13 @@
             112.5
           ],
           "shift": [
+            -2.2,
             0.0,
-            0.0,
-            -2.0
+            2.8
           ]
         },
         {
-          "what": "the crates south of it",
+          "what": "the crates south of it: past the big tree, the first cover from the south stairs",
           "from": [
             42.8,
             97.0,
@@ -126,83 +127,18 @@
             98.6
           ],
           "shift": [
-            0.5,
+            1.1,
             0.0,
-            1.6
+            -2.5
           ]
         }
       ],
       "props": [
         {
-          "what": "towards the school: a full cover north, a sandbag wall south, a half cover between",
-          "model": "props/box/full_cover",
-          "at": [
-            78.1,
-            19.58,
-            108.3
-          ],
-          "yaw": 90
-        },
-        {
-          "model": "props/bag/sandbag_tile",
-          "at": [
-            77.7,
-            19.58,
-            101.4
-          ],
-          "yaw": 90
-        },
-        {
-          "model": "props/bag/sandbag_tile_end_1",
-          "at": [
-            77.7,
-            19.58,
-            100.14
-          ],
-          "yaw": 90
-        },
-        {
-          "model": "props/bag/sandbag_tile_end_2",
-          "at": [
-            77.7,
-            19.58,
-            103.15
-          ],
-          "yaw": 90
-        },
-        {
-          "model": "props/box/half_cover_square",
-          "at": [
-            78.4,
-            19.58,
-            105.2
-          ],
-          "yaw": 60
-        },
-        {
-          "what": "north-east: a corner half cover",
-          "model": "props/box/half_cover_corner",
-          "at": [
-            86.3,
-            19.58,
-            110.4
-          ],
-          "yaw": 0
-        },
-        {
-          "what": "before the gate: a cargo crate and barrels",
-          "model": "props/box/woodbox_cargo_big_02",
-          "at": [
-            86.3,
-            19.58,
-            105.6
-          ],
-          "yaw": 80
-        },
-        {
+          "what": "the generator's fuel barrels beside it",
           "model": "props/barrel/barrel_metal01",
           "at": [
-            86.9,
+            80.2,
             19.58,
             103.6
           ],
@@ -211,39 +147,134 @@
         {
           "model": "props/barrel/barrel_metal01",
           "at": [
-            86.3,
+            79.8,
             19.58,
-            103.2
+            104.3
           ],
           "yaw": 40
         },
         {
           "model": "props/barrel/barrel_metal02",
           "at": [
-            87.0,
+            80.4,
             19.58,
-            102.9
+            105.0
           ],
           "yaw": 0
         },
         {
-          "what": "south: tyres by the tree and a low cover",
-          "model": "props/cover/tyres_cover_c",
+          "what": "the parapet towards the school sandbagged: two lengths and their ends",
+          "model": "props/bag/sandbag_tile",
           "at": [
-            79.6,
+            77.2,
             19.58,
-            99.6
+            102.6
           ],
-          "yaw": 20
+          "yaw": 90
+        },
+        {
+          "model": "props/bag/sandbag_tile",
+          "at": [
+            77.2,
+            19.58,
+            105.25
+          ],
+          "yaw": 90
+        },
+        {
+          "model": "props/bag/sandbag_tile_end_1",
+          "at": [
+            77.2,
+            19.58,
+            101.34
+          ],
+          "yaw": 90
+        },
+        {
+          "model": "props/bag/sandbag_tile_end_2",
+          "at": [
+            77.2,
+            19.58,
+            107.0
+          ],
+          "yaw": 90
+        },
+        {
+          "what": "north, as Rudnya's bus stop unit has its east: a full cover along the zone's edge, a low cover inside it, a half cover carrying the line on",
+          "model": "props/box/full_cover",
+          "at": [
+            84.0,
+            19.58,
+            109.6
+          ],
+          "yaw": -20
         },
         {
           "model": "props/box/low_cover_rect",
           "at": [
+            83.4,
+            19.58,
+            108.1
+          ],
+          "yaw": -20
+        },
+        {
+          "model": "props/box/half_cover_square",
+          "at": [
             86.6,
             19.58,
-            100.9
+            107.4
           ],
-          "yaw": 70
+          "yaw": -70
+        },
+        {
+          "what": "north-west: a corner half cover open towards the north stairs, as Rudnya's by the car is open outwards",
+          "model": "props/box/half_cover_corner",
+          "at": [
+            79.5,
+            19.58,
+            110.1
+          ],
+          "yaw": 262
+        },
+        {
+          "what": "south, as Rudnya's south: a full cover along the zone's edge and a corner half cover open towards the station, against the big tree",
+          "model": "props/box/full_cover",
+          "at": [
+            84.3,
+            19.58,
+            98.9
+          ],
+          "yaw": 16
+        },
+        {
+          "model": "props/box/half_cover_corner",
+          "at": [
+            79.0,
+            19.58,
+            100.2
+          ],
+          "yaw": 192
+        },
+        {
+          "what": "east, by the gate: a cargo crate",
+          "model": "props/box/woodbox_cargo_big_02",
+          "at": [
+            86.7,
+            19.58,
+            103.3
+          ],
+          "yaw": 85
+        },
+        {
+          "what": "tyres under the north tree",
+          "model": "props/cover/tyres_cover_c",
+          "at": [
+            86.2,
+            19.58,
+            113.2
+          ],
+          "yaw": -30
         }
       ]
     },
@@ -276,48 +307,49 @@
       ],
       "props": [
         {
-          "what": "shelving along the corridor's edge, cartons towards the courtyard, a cargo crate west",
+          "what": "shelving at the west wall, one unit dragged to the breach",
           "model": "props/furniture/shelv_stend_big_01_02",
           "at": [
-            16.9,
+            16.4,
             20.72,
-            77.2
+            78.6
           ],
-          "yaw": 0
+          "yaw": 90
+        },
+        {
+          "model": "props/furniture/shelv_stend_big_01_02",
+          "at": [
+            16.4,
+            20.72,
+            79.9
+          ],
+          "yaw": 90
         },
         {
           "model": "props/furniture/shelv_stend_big_02_01",
           "at": [
-            18.2,
+            23.2,
             20.72,
-            77.3
+            81.8
           ],
-          "yaw": 180
+          "yaw": 25
         },
         {
-          "model": "props/furniture/shelv_stend_big_01_02",
-          "at": [
-            19.5,
-            20.72,
-            77.1
-          ],
-          "yaw": 0
-        },
-        {
+          "what": "cartons spilled towards the courtyard, a cargo crate at the east wall",
           "model": "props/box/box_group_03",
           "at": [
-            22.9,
+            17.9,
             20.72,
             81.6
           ],
-          "yaw": 170
+          "yaw": 30
         },
         {
           "model": "props/box/woodbox_cargo_big_01",
           "at": [
-            17.0,
+            23.6,
             20.72,
-            80.9
+            78.6
           ],
           "yaw": 80
         }
