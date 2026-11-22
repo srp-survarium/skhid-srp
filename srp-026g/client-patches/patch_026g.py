@@ -3106,6 +3106,11 @@ DETAIL_HOOKS = (
     (0x158D26, bytes.fromhex("8b81e8000000"), "detail_shader", 0xE9),
     (0x1605E0, bytes.fromhex("f30f105150"), "detail_grass", 0xE9),
     (0x3D9C43, bytes.fromhex("8b9194810800"), "detail_texture", 0xE9),
+    # The sun's shadow cascades: per-cascade caster cull, grass shadow LOD and distance.
+    (0x175212, bytes.fromhex("0f84f6000000"), "detail_shadow_cull", 0xE9),
+    (0x17528E, bytes.fromhex("f30f11442410"), "detail_shadow_threshold", 0xE9),
+    (0x1CCB4C, bytes.fromhex("83fe1a750140"), "detail_grass_shadow_lod", 0xE9),
+    (0x175724, bytes.fromhex("8b5424586a01"), "detail_grass_shadow_distance", 0xE9),
 )
 DETAIL_PATCHES = (
     (0x261373, bytes.fromhex("80f90a"), bytes.fromhex("80f90b")),

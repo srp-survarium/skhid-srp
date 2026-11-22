@@ -7,6 +7,7 @@ global detail_options, detail_label, detail_model, detail_shader, detail_texture
 global detail_command_vtable, detail_register, detail_execute, detail_state, detail_previous
 global detail_model_screen, detail_model_distance, detail_grass_screen, detail_grass_metric, detail_shader_threshold
 global detail_grass_model, detail_grass_distance, detail_commit
+global detail_shadow_cull, detail_shadow_threshold, detail_grass_shadow_lod, detail_grass_shadow_distance
 global detail_preset_compare, detail_preset_address, detail_default_next
 section .text
 
@@ -196,7 +197,7 @@ detail_grass_model:
 
 ; After the frustum query, the stock code rejects patch centers over 100 m.
 ; Maximum keeps those candidates. Normal retains the original comparison.
-; Occlusion and frustum culling, and shadow-pass limits, are untouched.
+; Occlusion and frustum culling are untouched (the sun's grass shadows: below).
 detail_grass_distance:
     pushfd
     push ecx
@@ -286,6 +287,58 @@ detail_grass_metric:
     fld dword [ebx]
     jmp 0x1cc922
 
+; The sun's shadow cascades (stage_shadow_direct). Models already take the
+; camera's LOD there (select_models gets the camera's view-projection), so
+; Maximum's model LOD0 reaches their shadows. What the cascades add of their own:
+
+; prepare_visibile_objects drops a caster from cascade N when its screen factor
+; is under r_shadow_cascade_N_max_screen_factor (3/5/7/9, times 0.85..0.5 by
+; shading quality): small or far models lose their shadow in the outer
+; cascades. Maximum keeps every caster (as r_csm_cull_min_screen_factor 0);
+; High lowers the thresholds by 2/3 (the screen factor is linear in 1/distance).
+detail_shadow_cull:
+    je 0x17530e
+    cmp dword [detail_state], 2
+    je 0x17530e
+    jmp 0x175218
+
+detail_shadow_threshold:
+    cmp dword [detail_state], 1
+    jne .done
+    mulss xmm0, [detail_high_inverse]
+.done:
+    movss [esp+0x10], xmm0
+    jmp 0x175294
+
+; grass_patch::render draws the shadow pass (0x1A) one LOD coarser than the
+; selector's (the last LOD's patches then cast none). Maximum draws the LOD the
+; camera draws.
+detail_grass_shadow_lod:
+    cmp esi, 0x1a
+    jne .done
+    cmp dword [detail_state], 2
+    je .done
+    inc eax
+.done:
+    jmp 0x1ccb52
+
+; render_grass gives grass_world::render 25 m: grass casts sun shadows only
+; within 25 m of the eye, a ring that moves with the camera. High: 37.5 m;
+; Maximum: the camera pass's limit (every patch in the cascade's frustum).
+detail_grass_shadow_distance:
+    cmp dword [detail_state], 1
+    jb .done
+    ja .full
+    fmul dword [detail_high_scale]
+    jmp .done
+.full:
+    fstp st0
+    fld dword [detail_grass_shadow_full]
+.done:
+    mov edx, [esp+0x58]
+    push 1
+    jmp 0x17572a
+
 detail_shader_threshold:
     mov eax, [esp+4]
     cmp dword [detail_state], 1
@@ -308,6 +361,7 @@ detail_preset_maximum: dd 19, 2
 detail_high_scale: dd 1.5
 detail_high_inverse: dd 0.6666666666666667
 detail_grass_limit: dd 22500.0
+detail_grass_shadow_full: dd 1000000.0
 detail_command_name: db "r_distance_detail", 0
 detail_normal_key: db "st_distance_detail_normal", 0
 detail_high_key: db "st_distance_detail_high", 0

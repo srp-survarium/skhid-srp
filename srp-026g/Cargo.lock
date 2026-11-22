@@ -530,6 +530,7 @@ dependencies = [
  "skhid-voice",
  "srp-validate",
  "survarium",
+ "technical-skills",
  "udp-transport",
  "voice-abi",
  "vostok",
@@ -876,6 +877,7 @@ dependencies = [
  "artefact-carry",
  "artefact-hunt-rule",
  "survarium",
+ "technical-skills",
  "weapon-pickup",
  "world-frame",
 ]
@@ -906,6 +908,7 @@ dependencies = [
  "serde",
  "serde_json",
  "srp-validate",
+ "technical-skills",
  "udp-transport",
  "weapon-kit",
  "weapon-modules",
@@ -921,6 +924,13 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "technical-skills"
+version = "0.1.0"
+dependencies = [
+ "weapon-pickup",
 ]
 
 [[package]]

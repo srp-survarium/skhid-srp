@@ -838,6 +838,14 @@ impl Account {
         }
     }
 
+    /// The pockets the kit `kit_id` opens with the skills' `modifiers` (none
+    /// for a kit the account lacks).
+    pub fn open_pockets(&self, kit_id: u32, modifiers: &[f32; skills::MODIFIERS]) -> u32 {
+        self.kits.iter().find(|kit| kit.id == kit_id).map_or(0, |kit| {
+            self.layout_of(kit.slots.iter().flatten().map(|held| held.item_id), modifiers).pockets()
+        })
+    }
+
     /// The layout of a kit wearing the owned items of `item_ids`, with the
     /// skills' `modifiers`.
     fn layout_of(
@@ -845,7 +853,12 @@ impl Account {
         item_ids: impl IntoIterator<Item = u32>,
         modifiers: &[f32; skills::MODIFIERS],
     ) -> KitLayout {
-        KitLayout::new(&self.worn_modifications(item_ids), modifiers)
+        let item_ids: Vec<u32> = item_ids.into_iter().collect();
+        let oxygen_tank = item_ids
+            .iter()
+            .filter_map(|&item_id| self.item(item_id))
+            .any(|item| loadouts::is_oxygen_tank(item.dict_id));
+        KitLayout::new(&self.worn_modifications(item_ids), modifiers, oxygen_tank)
     }
 
     /// The modifications of the owned items of `item_ids`: their defaults

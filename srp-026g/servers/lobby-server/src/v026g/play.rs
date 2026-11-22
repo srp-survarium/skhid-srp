@@ -34,7 +34,7 @@ use session::v026g::level_stats;
 use session::v026g::{Account, matchmaking, quests, rules, wire};
 use session::{Level, LockExt, MAX_PLAYERS_PER_MATCH, QueuePool, QueueState, Strength};
 use survarium::v026g::faces::{Face, Faces};
-use survarium::v026g::loadouts::BotRole;
+use survarium::v026g::loadouts::{self, BotRole};
 use survarium::v026g::lobby::requests::id;
 use survarium::v026g::lobby::{self, ClientState, limits};
 use survarium::v026g::maps;
@@ -365,6 +365,10 @@ pub(super) fn strength_in(account: &Account, gear: u8, squad: bool) -> Strength 
     }
 }
 
+/// The instance id of Trophy Trap's slot's trap stack: the match's own, no account's (an
+/// account's items are numbered from 1).
+const TROPHY_INSTANCE: u32 = 0;
+
 /// The account as a match shows it: every kit with what it wears, the
 /// items once, and the modifiers its skills give
 /// (`survarium::v026g::skills`), on `team` and in `squad`.
@@ -390,55 +394,80 @@ pub(super) fn strength_in(account: &Account, gear: u8, squad: bool) -> Strength 
 /// read of that player's state ended the game (match 0x55809714).
 pub fn match_profile(account: &Account, team: u8, squad: u8, now: u64) -> MatchProfile {
     let body = wire::account_body(account);
+    let dicts: Vec<u16> = body.items.iter().map(|item| item.dict_id).collect();
+    let mut items: Vec<MatchItem> = body
+        .items
+        .into_iter()
+        .map(|item| MatchItem {
+            instance_id: item.item_id,
+            dict_id: item.dict_id,
+            condition_or_stack: item.condition_or_stack,
+            // No repair (the owner, 2026-11-08).
+            repair_time: 0,
+            reroll_time: item.reroll_time,
+            modifications: item
+                .modifications
+                .iter()
+                .map(|modification| (modification.id, modification.state))
+                .collect(),
+            upgrades: item
+                .upgrades
+                .iter()
+                .map(|upgrade| Upgrade {
+                    id: upgrade.id,
+                    unknown_4: upgrade.a,
+                    unknown_8: upgrade.value,
+                    param: upgrade.param,
+                })
+                .collect(),
+        })
+        .collect();
+    // Trophy Trap's empty slot: one trap stack of the match's own, with a stock of 0
+    // (loadouts::trophy_pocket), made once for every kit that gets the slot.
+    let mut trophy_item: Option<u16> = None;
+    let kits = body
+        .kits
+        .into_iter()
+        .map(|kit| {
+            let state = if rules::check_play(account, kit.id, now).is_ok() {
+                kit.state
+            } else {
+                KIT_NOT_LOADED
+            };
+            let mut slots = kit
+                .slots
+                .map(|slot| slot.map(|slot| (slot.item_index, slot.count)));
+            let open = account.open_pockets(kit.id, &kit.modifiers);
+            let pocket = loadouts::trophy_pocket(&slots, &kit.modifiers, open, |index| {
+                dicts.get(usize::from(index)).copied()
+            });
+            if let (Some(pocket), Some(trap)) = (pocket, loadouts::trap_set_dict()) {
+                let index = *trophy_item.get_or_insert_with(|| {
+                    items.push(MatchItem {
+                        instance_id: TROPHY_INSTANCE,
+                        dict_id: trap,
+                        condition_or_stack: 0,
+                        repair_time: 0,
+                        reroll_time: 0,
+                        modifications: Vec::new(),
+                        upgrades: Vec::new(),
+                    });
+                    (items.len() - 1) as u16
+                });
+                slots[pocket] = Some((index, 1));
+            }
+            // An empty pocket before a held one is the lobby's to show,
+            // never the match's: its pockets go packed.
+            MatchKit::new(state, kit.id, kit.name, slots, kit.modifiers)
+        })
+        .collect();
     MatchProfile {
         team,
         name: body.name,
         clan_tag: body.clan_tag,
         protection: body.protection,
-        kits: body
-            .kits
-            .into_iter()
-            .map(|kit| {
-                let state = if rules::check_play(account, kit.id, now).is_ok() {
-                    kit.state
-                } else {
-                    KIT_NOT_LOADED
-                };
-                let slots = kit
-                    .slots
-                    .map(|slot| slot.map(|slot| (slot.item_index, slot.count)));
-                // An empty pocket before a held one is the lobby's to show,
-                // never the match's: its pockets go packed.
-                MatchKit::new(state, kit.id, kit.name, slots, kit.modifiers)
-            })
-            .collect(),
-        items: body
-            .items
-            .into_iter()
-            .map(|item| MatchItem {
-                instance_id: item.item_id,
-                dict_id: item.dict_id,
-                condition_or_stack: item.condition_or_stack,
-                // No repair (the owner, 2026-11-08).
-                repair_time: 0,
-                reroll_time: item.reroll_time,
-                modifications: item
-                    .modifications
-                    .iter()
-                    .map(|modification| (modification.id, modification.state))
-                    .collect(),
-                upgrades: item
-                    .upgrades
-                    .iter()
-                    .map(|upgrade| Upgrade {
-                        id: upgrade.id,
-                        unknown_4: upgrade.a,
-                        unknown_8: upgrade.value,
-                        param: upgrade.param,
-                    })
-                    .collect(),
-            })
-            .collect(),
+        kits,
+        items,
         squad,
         face: account.face,
     }
