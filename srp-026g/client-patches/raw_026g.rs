@@ -41619,7 +41619,7 @@ pub mod site {
         }
     }
 
-    /// hiz.light_answer (0x1b7c2b): get_results_and_prepare_bounds_lights (0x1B7BD0) storing a point or spot light's hi-Z answer (mov [ecx+270h],al): ECX the light, AL 1 occluded / 0 visible, its result in the last query (0 at [stage+1Ch] + the index it had then, +2ACh; 0 when it never had one, -1), read when that query's results came in (quary_and_get_results_if_ready 0x1D7E30); the index of the query sent now is written next. Joined by the never-queried path (jmp at 0x1B7C1B)
+    /// hiz.light_answer (0x1b7c2b): get_results_and_prepare_bounds_lights (0x1B7BD0) storing a point or spot light's hi-Z answer (mov [ecx+270h],al): ECX the light, AL 1 occluded / 0 visible, its result in the last query (0 at [stage+1Ch] + the index it had then, +2ACh; 0 when it never had one, -1), read when that query's results came in (quary_and_get_results_if_ready 0x1D7E30); EDI the index it takes in the query sent now (written next, 0x1B7C33): it grows within a pass, all kinds sharing one counter from 0. Joined by the never-queried path (jmp at 0x1B7C1B)
     pub mod hiz_light_answer {
         #[allow(unused_imports)]
         use super::*;
@@ -41640,6 +41640,15 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn answer(machine: &impl Machine) -> u32 {
             machine.register(Register::Eax)
+        }
+
+        /// EDI: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn index(machine: &impl Machine) -> u32 {
+            machine.register(Register::Edi)
         }
     }
 

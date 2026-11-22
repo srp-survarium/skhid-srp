@@ -9383,7 +9383,7 @@ light_occlusion_on_ambient_light_answer_replay:
     db 0x88, 0x81, 0xa4, 0x00, 0x00, 0x00
     jmp 0x1b8049
 
-; 0x1b7c2b get_results_and_prepare_bounds_lights (0x1B7BD0) storing a point or spot light's hi-Z answer (mov [ecx+270h],al): ECX the light, AL 1 occluded / 0 visible, its result in the last query (0 at [stage+1Ch] + the index it had then, +2ACh; 0 when it never had one, -1), read when that query's results came in (quary_and_get_results_if_ready 0x1D7E30); the index of the query sent now is written next. Joined by the never-queried path (jmp at 0x1B7C1B): lohook -> light_occlusion_on_light_answer
+; 0x1b7c2b get_results_and_prepare_bounds_lights (0x1B7BD0) storing a point or spot light's hi-Z answer (mov [ecx+270h],al): ECX the light, AL 1 occluded / 0 visible, its result in the last query (0 at [stage+1Ch] + the index it had then, +2ACh; 0 when it never had one, -1), read when that query's results came in (quary_and_get_results_if_ready 0x1D7E30); EDI the index it takes in the query sent now (written next, 0x1B7C33): it grows within a pass, all kinds sharing one counter from 0. Joined by the never-queried path (jmp at 0x1B7C1B): lohook -> light_occlusion_on_light_answer
 global light_occlusion_on_light_answer
 extern hook_light_occlusion_on_light_answer
 light_occlusion_on_light_answer:

@@ -43,10 +43,16 @@ impl LightId {
     }
 }
 
+/// An object's index in the query being sent: it grows within a pass of
+/// occlusion_culling, from 0 at each (one counter for every kind).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct QueryIndex(pub u32);
+
 /// `hiz.light_answer`: a point or spot light's answer, about to be stored.
 pub struct LightAnswer {
     pub light: LightId,
     pub answer: Answer,
+    pub index: QueryIndex,
 }
 
 impl LightAnswer {
@@ -57,6 +63,7 @@ impl LightAnswer {
             Some(LightAnswer {
                 light: LightId(light.address()),
                 answer: Answer::of(raw::site::hiz_light_answer::answer(ctx)),
+                index: QueryIndex(raw::site::hiz_light_answer::index(ctx)),
             })
         }
     }
