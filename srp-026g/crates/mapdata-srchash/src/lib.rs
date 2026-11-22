@@ -33,6 +33,13 @@ use quote::ToTokens;
 /// [`SIGHT_ROOTS`] do.
 pub const GRID_ROOTS: &[&str] = &["World::map_grid_with_stats", "WalkGrid::write_body", "WalkGrid::digest"];
 pub const SIGHT_ROOTS: &[&str] = &["BulletMesh::build_tree", "RayTree::write", "RayTree::digest"];
+/// [incremental grids PR 5] The job memo's digests ([`Digests::sites`]): each site's job, its key and its result (with their
+/// codecs), and the memo's own reading and storing, so a stored result is taken only by the code that made it; `world`: the
+/// game's shapes' build, whose output the flights fly on (a memo key's global part, `World::memo_global`).
+pub const MEMO_SITES: &[(&str, &[&str])] = &[
+    ("world", &["Collision::build_exe"]),
+    ("rim.line", &["rim_line_job", "rim_line_key", "RimLineOut", "RimLineItem", "RimLineCtx", "Windows::of_floors", "Memo::run"]),
+];
 
 /// A 128-bit digest of bytes, eight a word whatever the writes' sizes, the count last. Two lanes of the word mixer
 /// `mapdata::digest::Digest` uses (xor, an odd multiply, the high bits folded down), from other starts.
@@ -1033,6 +1040,8 @@ pub struct Digests {
     pub all: u128,
     pub grid: u128,
     pub sight: u128,
+    /// [incremental grids PR 5] Each memo site's digest ([`MEMO_SITES`]), in its order.
+    pub sites: Vec<(String, u128)>,
     /// Each root's reach and the fallback's reason, for a log.
     pub report: String,
     /// The files and folders read (a build script's rerun list).
@@ -1056,7 +1065,8 @@ impl Digests {
         hash.u128(outside);
         inputs.extend(files);
         let all = hash.finish();
-        Ok(Digests { all, grid: all, sight: all, report: format!("FALLBACK (every byte): {why}\n"), inputs })
+        let sites = MEMO_SITES.iter().map(|(id, _)| ((*id).to_owned(), all)).collect();
+        Ok(Digests { all, grid: all, sight: all, sites, report: format!("FALLBACK (every byte): {why}\n"), inputs })
     }
 }
 
@@ -1090,10 +1100,14 @@ pub fn mapdata_digests(workspace: &Path, cfgs: &[String]) -> Result<Digests, Str
     };
     let grid = digest_of("grid", GRID_ROOTS)?;
     let sight = digest_of("sight", SIGHT_ROOTS)?;
+    let mut sites = Vec::new();
+    for (id, roots) in MEMO_SITES {
+        sites.push(((*id).to_owned(), digest_of(id, roots)?));
+    }
     let all = source.digest(&source.everything(), outside_digest);
     let mut inputs: Vec<String> = dirs.iter().flat_map(|d| [format!("{d}/src"), format!("{d}/Cargo.toml")]).collect();
     inputs.extend(files);
-    Ok(Digests { all, grid, sight, report, inputs })
+    Ok(Digests { all, grid, sight, sites, report, inputs })
 }
 
 #[cfg(test)]

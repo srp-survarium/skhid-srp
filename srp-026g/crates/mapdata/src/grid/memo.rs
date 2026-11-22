@@ -127,6 +127,7 @@ plain_input! {
     bool => |v, d| d.u32(u32::from(v));
     f32 => |v, d| d.u32(v.to_bits());
     i32 => |v, d| d.u32(v as u32);
+    i64 => |v, d| d.u64(v as u64);
 }
 
 impl<T: MemoInput> MemoInput for [T] {
@@ -164,6 +165,14 @@ impl<A: MemoInput, B: MemoInput> MemoInput for (A, B) {
     fn feed(&self, digest: &mut Digest128) {
         self.0.feed(digest);
         self.1.feed(digest);
+    }
+}
+
+/// [incremental grids PR 5] The flights' walk caps ([`crate::controller::jump::Kits`]): both, whole.
+impl MemoInput for crate::controller::jump::Kits {
+    fn feed(&self, digest: &mut Digest128) {
+        digest.u32(self.body.to_bits());
+        digest.u32(self.fastest.to_bits());
     }
 }
 
@@ -328,17 +337,28 @@ pub trait MemoCtx: Sync {
 /// A context struct and its [`MemoCtx`]: `memo_ctx! { pub struct RimCtx<'a> { kits: &'a Kits, leads: u32 } }`. Every field's
 /// type implements [`MemoInput`] (it does not compile otherwise). The grid state a job reads near its item is not a field: it is
 /// the item's window ([`Windows`]), in the key the site's `key` function gives.
+///
+/// [incremental grids PR 5] A second block, `through { grid: &'a WalkGrid, world: &'a Collision }`, declares the fields a job
+/// reads only through what the key already holds, never hashed whole: the grid (read in the item's window), the world, the
+/// body and the tick's settings (the memo's global inputs, [`Memo::new`]). Each such field is named in the struct's
+/// declaration, so a reader sees what the key leaves to the window and the global part.
 #[macro_export]
 macro_rules! memo_ctx {
     ($(#[$meta:meta])* $vis:vis struct $name:ident $(<$lt:lifetime>)? { $($fvis:vis $field:ident : $ty:ty),* $(,)? }) => {
+        $crate::memo_ctx! { $(#[$meta])* $vis struct $name $(<$lt>)? { $($fvis $field: $ty),* } through {} }
+    };
+    ($(#[$meta:meta])* $vis:vis struct $name:ident $(<$lt:lifetime>)? { $($fvis:vis $field:ident : $ty:ty),* $(,)? }
+        through { $($tvis:vis $through:ident : $tty:ty),* $(,)? }) => {
         $(#[$meta])*
-        $vis struct $name $(<$lt>)? { $($fvis $field: $ty),* }
+        $vis struct $name $(<$lt>)? { $($fvis $field: $ty,)* $($tvis $through: $tty,)* }
         impl $(<$lt>)? $crate::grid::memo::MemoCtx for $name $(<$lt>)? {
             fn feed(&self, digest: &mut $crate::digest::Digest128) {
                 $(
                     digest.str(stringify!($field).as_bytes());
                     $crate::grid::memo::MemoInput::feed(&self.$field, digest);
                 )*
+                // The fields read through the window and the global inputs: their names only.
+                $(digest.str(stringify!($through).as_bytes());)*
             }
         }
     };
@@ -361,11 +381,11 @@ pub struct Codec<'a> {
 }
 
 impl<'a> Codec<'a> {
-    fn writer(ids: &'a StableIds) -> Self {
+    pub(in crate::grid) fn writer(ids: &'a StableIds) -> Self {
         Self { ids, bytes: Vec::new(), at: 0 }
     }
 
-    fn reader(ids: &'a StableIds, bytes: &[u8]) -> Self {
+    pub(in crate::grid) fn reader(ids: &'a StableIds, bytes: &[u8]) -> Self {
         Self { ids, bytes: bytes.to_vec(), at: 0 }
     }
 
@@ -411,7 +431,13 @@ impl<'a> Codec<'a> {
         self.ids.node(StableId { cell, height })
     }
 
-    fn done(&self) -> bool {
+    /// [incremental grids PR 5] The bytes written (a site's tests).
+    #[cfg(test)]
+    pub(in crate::grid) fn into_bytes(self) -> Vec<u8> {
+        self.bytes
+    }
+
+    pub(in crate::grid) fn done(&self) -> bool {
         self.at == self.bytes.len()
     }
 }
@@ -515,6 +541,27 @@ impl Windows {
         d.finish()
     }
 
+    /// [incremental grids PR 5] The windows of the floors themselves: per cell, its floors in order (their count, and each one's
+    /// height, the lowest point of its `walk` faces and its ceiling, as bits): what [`WalkGrid::floor_under`],
+    /// [`WalkGrid::can_stand`], [`WalkGrid::own_top`] and [`WalkGrid::position`] read. Links and side tables are not in it: a
+    /// site whose job reads them puts them in its item or in windows of its own.
+    pub fn of_floors(grid: &WalkGrid) -> Self {
+        Self::new(grid.nx, grid.nz, |cell| {
+            let floors = grid.start[cell] as usize..grid.start[cell + 1] as usize;
+            if floors.is_empty() {
+                return 0;
+            }
+            let mut d = Digest128::default();
+            d.u64(floors.len() as u64);
+            for f in floors {
+                d.u32(grid.height[f].to_bits());
+                d.u32(grid.walk_low.get(f).copied().unwrap_or(grid.height[f]).to_bits());
+                d.u32(grid.ceiling[f].to_bits());
+            }
+            d.finish()
+        })
+    }
+
     /// The box of `radius` cells around a cell index.
     pub fn around(&self, cell: usize, radius: i64) -> u128 {
         let (i, k) = ((cell % self.nx.max(1)) as i64, (cell / self.nx.max(1)) as i64);
@@ -563,6 +610,11 @@ impl Memo {
     /// (the world, the body, the tick's settings).
     pub fn new(mode: Mode, dir: PathBuf, global: u128) -> Self {
         Self { mode, dir, global, stats: Vec::new() }
+    }
+
+    /// No memo: every site runs `parallel` itself ([`Mode::Off`]), a build as it was.
+    pub fn off() -> Self {
+        Self::new(Mode::Off, PathBuf::new(), 0)
     }
 
     pub fn mode(&self) -> Mode {

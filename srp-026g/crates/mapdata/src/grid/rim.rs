@@ -26,6 +26,8 @@ use crate::controller::jump::{self, FlightStep, Kind, Kits, Neighbour};
 use crate::controller::tick::Settings;
 use crate::controller::Collision;
 use crate::math::Vec3;
+use crate::digest::Digest128;
+use super::memo::{Codec, Memo, MemoCodec, MemoInput, Mode, Site, StableIds, Windows};
 
 /// A flight lands when the feet end within this of the landing floor's height, metres (the walk check's [`super::controlled`]
 /// arrival band, `AT_HEIGHT_M`).
@@ -753,11 +755,12 @@ impl WalkGrid {
         world: &Collision,
         s: &Settings,
         solids: &super::Solids,
+        memo: &mut Memo,
     ) -> RimFlown {
         // [S1] From a step up: a sprinting body climbs an edge from 0.80 to 1.15 m with no jump ([`Kind::Climb`]), and an
         // edge there whose side has no link (no Jump link) is the builder's to fly.
         let todo = self.edges_up(wide, solids, self.body.step, RIM_REACH_M);
-        self.fly_rim_todo(wide, world, s, todo)
+        self.fly_rim_todo(wide, world, s, todo, memo)
     }
 
     /// [`Self::fly_rim_jumps`] over the jumps `todo` (take-off, top, way): each flown over the presses and made a GapJump with
@@ -769,6 +772,7 @@ impl WalkGrid {
         world: &Collision,
         s: &Settings,
         todo: Vec<(u32, u32, usize)>,
+        memo: &mut Memo,
     ) -> RimFlown {
         let body = &self.body;
         let leads = gap_leads();
@@ -780,22 +784,14 @@ impl WalkGrid {
             linked.extend(wide.off[off..].iter().take_while(|o| o.from == a).map(|o| o.to));
             linked
         };
-        let way = |d: usize| {
-            let (di, dk) = DIRS[d];
-            let l = ((di * di + dk * dk) as f32).sqrt();
-            (di as f32 / l, dk as f32 / l)
-        };
+        let way = rim_way;
         // [C2 rows 11/12] A plain Jump link's own top is no link yet for its flight: the flown link may replace it.
         let plain: Vec<bool> =
             todo.iter().map(|&(a, b, d)| self.flown_jump(wide, a as usize, d) && wide.links[a as usize][d] == b).collect();
-        let jobs: Vec<((u32, u32, usize), bool)> = todo.iter().copied().zip(plain.iter().copied()).collect();
-        let flown = super::controlled::parallel(&jobs, |&((a, b, d), plain)| {
-            let mut linked = linked(a);
-            if plain {
-                linked.retain(|&n| n != b);
-            }
-            self.best_press(world, s, a, b, way(d), &leads, |st| self.rim_lands_on(st, a, &linked), kits)
-        });
+        // [incremental grids PR 5] The line's flights through the job memo (site `rim.line`, [`rim_line_job`]): each jump's item
+        // carries what the job reads of the links (the floors `a` links to, less a plain Jump link's own top) and the digest of
+        // the floors in its window; with the memo off (the default), `parallel` over the same job.
+        let flown = self.fly_rim_line(world, s, &todo, &plain, &leads, kits, &linked, memo);
         // [R83] The aimed presses (`R83-FORMAT.md`, the bounded sweep): at the jumps no press on the line made, one of whose
         // flights came near the top, the walk and the sprint at [`AIMED_LEADS`] at each of [`AIMS`]; the best share wins.
         // [item 10] With whether a let-go sprint of the line's presses came to rest under the top (the held sweep's bound with
@@ -1024,6 +1020,215 @@ impl WalkGrid {
         }
         wide.riser.sort_by_key(|&(a, b, _)| (a, b));
         wide.riser.dedup_by_key(|&mut (a, b, _)| (a, b));
+    }
+}
+
+/// [incremental grids PR 5] How far from its take-off a rim line job may read the ground, m: its press points (the last lead,
+/// and the neighbours' lead and side about it) and every step of its flights. With the memo on, a job past it stops the build
+/// ([`WalkGrid::fly_rim_line`]): its window would not hold every floor it read. The flights' own lengths bound it (18 steps in
+/// the air for a sprint jump and [`jump::STAY_STEPS`] on the ground, 50 ms each); each memo build logs the farthest flight,
+/// so the bound can be brought nearer from data.
+pub const RIM_LINE_REACH_M: f32 = 10.0;
+
+/// [incremental grids PR 5] One job of the rim line site: the jump (take-off `a`, top `b`, way `d`), whether it is a plain
+/// Jump link's own top ([C2 rows 11/12]), the floors `a` has a link to already (a landing there makes no link; less `b` for a
+/// plain Jump link), and the digest of the floors in its window ([`Windows::of_floors`]).
+#[derive(Clone, Debug)]
+pub(super) struct RimLineItem {
+    a: NodeId,
+    b: NodeId,
+    d: usize,
+    plain: bool,
+    linked: Vec<NodeId>,
+    window: u128,
+}
+
+crate::memo_ctx! {
+    /// [incremental grids PR 5] The rim line site's context: the leads, the walk caps, the reach and the window (hashed), and
+    /// the grid, the world and the tick's settings, read through the items' windows and the memo's global inputs.
+    pub(super) struct RimLineCtx<'a> {
+        leads: Vec<f32>,
+        kits: Kits,
+        reach_m: f32,
+        window_cells: i64,
+    } through {
+        grid: &'a WalkGrid,
+        world: &'a Collision,
+        s: &'a Settings,
+    }
+}
+
+/// [incremental grids PR 5] A rim line job's result: the press ([`WalkGrid::best_press`]) and how far from the take-off its
+/// flights went (the window's check).
+#[derive(Clone, Debug, Default)]
+pub(super) struct RimLineOut {
+    press: RimPress,
+    reach_m: f32,
+}
+
+/// [incremental grids PR 5] The rim line site's key of a job: its floors by their stable ids, its way, whether it is a plain
+/// Jump link's own top, the floors it has links to, and its window.
+fn rim_line_key(_: &RimLineCtx<'_>, ids: &StableIds, item: &RimLineItem) -> u128 {
+    let mut d = Digest128::default();
+    ids.id(item.a).feed(&mut d);
+    ids.id(item.b).feed(&mut d);
+    d.u64(item.d as u64);
+    item.plain.feed(&mut d);
+    d.u64(item.linked.len() as u64);
+    for &n in &item.linked {
+        ids.id(n).feed(&mut d);
+    }
+    d.u128(item.window);
+    d.finish()
+}
+
+/// [incremental grids PR 5] The rim line site's job: the line's presses from `a` toward `b` ([`WalkGrid::best_press`] at the
+/// gap leads), as `fly_rim_todo` flew them, and the farthest any step of its flights went from the take-off.
+fn rim_line_job(ctx: &RimLineCtx<'_>, item: &RimLineItem) -> RimLineOut {
+    let grid = ctx.grid;
+    let takeoff = grid.position(item.a);
+    let reach = std::cell::Cell::new(0.0f32);
+    let lands = |st: &[FlightStep]| {
+        for f in st {
+            reach.set(reach.get().max(f.feet.distance_xz(takeoff)));
+        }
+        grid.rim_lands_on(st, item.a, &item.linked)
+    };
+    let press = grid.best_press(ctx.world, ctx.s, item.a, item.b, rim_way(item.d), &ctx.leads, lands, ctx.kits);
+    RimLineOut { press, reach_m: reach.get() }
+}
+
+/// The unit vector of direction `d` ([`DIRS`]) on the ground, as `fly_rim_todo`'s `way`.
+fn rim_way(d: usize) -> (f32, f32) {
+    let (di, dk) = DIRS[d];
+    let l = ((di * di + dk * dk) as f32).sqrt();
+    (di as f32 / l, dk as f32 / l)
+}
+
+impl WalkGrid {
+    /// [incremental grids PR 5] `fly_rim_todo`'s line flights through the memo's site `rim.line` ([`rim_line_job`]), each
+    /// result at its jump's place. With the memo on, a press point or a flight past [`RIM_LINE_REACH_M`] stops the build: its
+    /// window would not hold every floor its job read, and a stored result could outlive a change there.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn fly_rim_line(
+        &self,
+        world: &Collision,
+        s: &Settings,
+        todo: &[(u32, u32, usize)],
+        plain: &[bool],
+        leads: &[f32],
+        kits: Kits,
+        linked: &impl Fn(NodeId) -> Vec<NodeId>,
+        memo: &mut Memo,
+    ) -> Vec<RimPress> {
+        let on = memo.mode() != Mode::Off;
+        // The window: the reach, then a landing's floor ([`Self::floor_under`]: the body's radius about the feet) and its own
+        // top ([`OWN_TOP_FLAT_M`] about it), and a cell for the feet's place in theirs.
+        let reach_m = RIM_LINE_REACH_M;
+        let window_cells = ((reach_m + self.body.radius + OWN_TOP_FLAT_M + self.cell) / self.cell).ceil() as i64;
+        let windows = on.then(|| Windows::of_floors(self));
+        let items: Vec<RimLineItem> = todo
+            .iter()
+            .zip(plain)
+            .map(|(&(a, b, d), &plain)| {
+                let mut linked = linked(a);
+                if plain {
+                    linked.retain(|&n| n != b);
+                }
+                let window = windows.as_ref().map_or(0, |w| w.around(self.cell_of[a as usize] as usize, window_cells));
+                RimLineItem { a, b, d, plain, linked, window }
+            })
+            .collect();
+        if on {
+            // The press points: the last lead, and the neighbours' lead and side about it.
+            let n = jump::neighbourhood();
+            let press_m = leads.iter().copied().fold(0.0f32, f32::max)
+                + n.iter().map(|n| n.lead.abs()).fold(0.0f32, f32::max)
+                + n.iter().map(|n| n.side.abs()).fold(0.0f32, f32::max);
+            assert!(
+                press_m <= reach_m,
+                "memo: ERROR site rim.line: a press point {press_m} m from its take-off, past the window's {reach_m} m"
+            );
+        }
+        let ctx = RimLineCtx { leads: leads.to_vec(), kits, reach_m, window_cells, grid: self, world, s };
+        let site = Site { id: "rim.line", source: crate::source::site("rim.line") };
+        let out = memo.run(site, self, &ctx, &items, rim_line_key, rim_line_job);
+        if on {
+            let farthest = out.iter().map(|o| o.reach_m).fold(0.0f32, f32::max);
+            eprintln!(
+                "memo: rim.line: {} jumps, the farthest flight {farthest:.2} m from its take-off (window {reach_m} m, \
+                 {window_cells} cells)",
+                out.len()
+            );
+            assert!(
+                farthest <= reach_m,
+                "memo: ERROR site rim.line: a flight went {farthest} m from its take-off, past the window's {reach_m} m \
+                 (RIM_LINE_REACH_M)"
+            );
+        }
+        out.into_iter().map(|o| o.press).collect()
+    }
+}
+
+/// [incremental grids PR 5] The memo's codecs of the rim line site's results: every field, the floors by their stable ids.
+impl MemoCodec for Made {
+    const TAG: u32 = 0x4d41_4401;
+    fn encode(&self, out: &mut Codec<'_>) {
+        out.put_node(self.to);
+        self.press.encode(out);
+        self.share.encode(out);
+        match self.walk {
+            None => out.put_u8(0),
+            Some((lead, share)) => {
+                out.put_u8(1);
+                lead.encode(out);
+                share.encode(out);
+            }
+        }
+        self.aim.encode(out);
+        self.walker_lands.encode(out);
+    }
+    fn decode(input: &mut Codec<'_>) -> Option<Self> {
+        let to = input.node()?;
+        let press = Takeoff::decode(input)?;
+        let share = Share::decode(input)?;
+        let walk = match input.u8()? {
+            0 => None,
+            1 => Some((PressLead::decode(input)?, Share::decode(input)?)),
+            _ => return None,
+        };
+        let aim = Aim::decode(input)?;
+        let walker_lands = bool::decode(input)?;
+        Some(Made { to, press, share, walk, aim, walker_lands })
+    }
+}
+
+impl MemoCodec for RimPress {
+    const TAG: u32 = 0x5250_5201;
+    fn encode(&self, out: &mut Codec<'_>) {
+        self.made.encode(out);
+        out.put_u32(u32::try_from(self.flights).expect("a press's flights fit 32 bits"));
+        self.near.encode(out);
+        self.under.encode(out);
+    }
+    fn decode(input: &mut Codec<'_>) -> Option<Self> {
+        Some(RimPress {
+            made: Vec::<Made>::decode(input)?,
+            flights: input.u32()? as usize,
+            near: bool::decode(input)?,
+            under: bool::decode(input)?,
+        })
+    }
+}
+
+impl MemoCodec for RimLineOut {
+    const TAG: u32 = 0x524c_4f01;
+    fn encode(&self, out: &mut Codec<'_>) {
+        self.press.encode(out);
+        out.put_f32(self.reach_m);
+    }
+    fn decode(input: &mut Codec<'_>) -> Option<Self> {
+        Some(RimLineOut { press: RimPress::decode(input)?, reach_m: input.f32()? })
     }
 }
 
@@ -1415,5 +1620,79 @@ mod tests {
         assert!(rim.walked + rim.slowed + rim.sprinted + rim.climbed > 0 && up, "{rim:?}");
         let (_, up_off) = over_a_gap(1.25, false);
         assert!(!up_off, "no rim jumps: no gap link reaches 1.10 m");
+    }
+
+    /// [incremental grids PR 5] The rim line site through the memo builds the full build's grid, byte for byte
+    /// ([`WalkGrid::digest_full`]): a memo written by one build (`write-only`), taken whole by the next (`use`: every job a hit),
+    /// and run again and compared at every hit (`verify=1`), on the 1.30 m top the rim jumps get onto.
+    #[test]
+    fn a_rim_line_memo_build_is_the_full_build() {
+        let b = body(true);
+        let top = 1.30;
+        let mut tris = Vec::new();
+        quad(&mut tris, Vec3::new(-2.0, 0.0, 0.0), Vec3::new(-2.0, 0.0, 6.0), Vec3::new(5.0, 0.0, 6.0), Vec3::new(5.0, 0.0, 0.0));
+        quad(&mut tris, Vec3::new(5.0, top, 0.0), Vec3::new(5.0, top, 6.0), Vec3::new(12.0, top, 6.0), Vec3::new(12.0, top, 0.0));
+        quad(&mut tris, Vec3::new(5.0, 0.0, 0.0), Vec3::new(5.0, top, 0.0), Vec3::new(5.0, top, 6.0), Vec3::new(5.0, 0.0, 6.0));
+        let start = [Vec3::new(1.0, 0.0, 3.0)];
+        let dir = std::env::temp_dir().join(format!("srp-memo-rim-line-{}", std::process::id()));
+        let build = |memo: &mut Memo| {
+            WalkGrid::build_kept_memo(&tris, None, [-2.0, 0.0, 12.0, 6.0], 0.25, b, &start, &start, OffMeshLinks::Gaps, memo).0
+        };
+        let full = build(&mut Memo::off()).digest_full();
+        let site = |memo: &Memo| memo.stats.iter().find(|s| s.site == "rim.line").cloned().expect("the rim line site ran");
+        let mut written = Memo::new(Mode::WriteOnly, dir.clone(), 7);
+        assert_eq!(build(&mut written).digest_full(), full, "write-only");
+        let w = site(&written);
+        assert!(w.items > 0 && w.written == w.items, "{w:?}");
+        let mut used = Memo::new(Mode::Use, dir.clone(), 7);
+        assert_eq!(build(&mut used).digest_full(), full, "use");
+        let u = site(&used);
+        assert!(u.hits == u.items && u.misses == 0 && u.errors == 0, "{u:?}");
+        let mut verified = Memo::new(Mode::Verify { per_million: 1_000_000 }, dir.clone(), 7);
+        assert_eq!(build(&mut verified).digest_full(), full, "verify=1");
+        assert_eq!(site(&verified).verified, u.items);
+        let mut other_world = Memo::new(Mode::Use, dir.clone(), 8);
+        assert_eq!(build(&mut other_world).digest_full(), full, "another world's global inputs");
+        assert_eq!(site(&other_world).hits, 0, "a key of another world takes nothing");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// [incremental grids PR 5] A rim line result reads back as it was written: every press kind, a sprint link's walking
+    /// press, an aim, the flags and the reach.
+    #[test]
+    fn a_rim_line_result_reads_back() {
+        let (grid, _, _) = onto(1.30, true);
+        let ids = StableIds::of(&grid).expect("stable floor names");
+        let lead = PressLead::from_metres(1.2);
+        let presses = [
+            Takeoff::Press(lead),
+            Takeoff::WalkOff,
+            Takeoff::WalkOffCrouched,
+            Takeoff::Sprint(lead),
+            Takeoff::Slow { lead, steps: 2 },
+            Takeoff::Climb,
+            Takeoff::Release { at: PressLead::from_metres(0.4), crouched: true },
+            Takeoff::SprintHeld(lead),
+        ];
+        let made: Vec<Made> = presses
+            .iter()
+            .enumerate()
+            .map(|(i, &press)| Made {
+                to: (i * 7 % grid.len()) as NodeId,
+                press,
+                share: if i % 2 == 0 { Share::landed(i as u8) } else { Share::UNFLOWN },
+                walk: (i % 3 == 0).then_some((PressLead::from_metres(0.6), Share::FULL)),
+                aim: Aim::new(-3, 2).expect("an aim in range"),
+                walker_lands: i % 2 == 1,
+            })
+            .collect();
+        let out = RimLineOut { press: RimPress { made, flights: 123_456, near: true, under: false }, reach_m: 6.25 };
+        let mut w = Codec::writer(&ids);
+        out.encode(&mut w);
+        let bytes = w.into_bytes();
+        let mut r = Codec::reader(&ids, &bytes);
+        let back = RimLineOut::decode(&mut r).expect("reads back");
+        assert!(r.done());
+        assert_eq!(format!("{back:?}"), format!("{out:?}"));
     }
 }

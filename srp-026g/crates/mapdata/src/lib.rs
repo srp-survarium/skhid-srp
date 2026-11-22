@@ -51,6 +51,16 @@ pub mod source {
     pub fn short(digest: u128) -> String {
         format!("{:016x}", (digest >> 64) as u64)
     }
+
+    /// [incremental grids PR 5] The digest of the memo site `id`'s source ([`SITES`]). A site no digest names is a builder
+    /// error: the site would be keyed by no source.
+    pub fn site(id: &str) -> u128 {
+        SITES
+            .iter()
+            .find(|(site, _)| *site == id)
+            .map(|&(_, digest)| digest)
+            .unwrap_or_else(|| panic!("the memo site `{id}` has no source digest (mapdata-srchash MEMO_SITES)"))
+    }
 }
 pub mod format;
 pub mod grid;
@@ -452,6 +462,19 @@ impl World {
 
     /// [`Self::map_grid`] with the build's counts ([`BuildStats`]), for a log.
     pub fn map_grid_with_stats(map: &MapData, walker: &[Triangle], cell: f32, body: Body, links: OffMeshLinks) -> (WalkGrid, BuildStats) {
+        Self::map_grid_memo(map, walker, cell, body, links, &mut grid::memo::Memo::off())
+    }
+
+    /// [incremental grids PR 5] [`Self::map_grid_with_stats`] with the job memo `memo` ([`WalkGrid::build_kept_memo`]). Its
+    /// global inputs ([`grid::memo::Memo::new`]) are [`Self::memo_global`]'s of the same map, body and links.
+    pub fn map_grid_memo(
+        map: &MapData,
+        walker: &[Triangle],
+        cell: f32,
+        body: Body,
+        links: OffMeshLinks,
+        memo: &mut grid::memo::Memo,
+    ) -> (WalkGrid, BuildStats) {
         // [A389] Every pass that walks or flies the client's body takes the shapes: the rim jumps, the gap flights, the Drop links'
         // walk, the rest and held floors, [row 6] the walk check.
         let started = std::time::Instant::now();
@@ -459,7 +482,8 @@ impl World {
         let shapes_s = started.elapsed().as_secs_f64();
         let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
         let area = map.play_area(AREA_MARGIN);
-        let (grid, mut stats) = WalkGrid::build_kept_with_shapes(walker, shapes.as_ref(), area, cell, body, &map.grid_seeds(), &spawns, links);
+        let (grid, mut stats) =
+            WalkGrid::build_kept_memo(walker, shapes.as_ref(), area, cell, body, &map.grid_seeds(), &spawns, links, memo);
         // [incremental grids] The shapes' build is the grid's first pass in its timing.
         stats.timing.passes.insert(0, grid::timing::PassTime { pass: "shapes (build_exe)", wall_s: shapes_s });
         stats.timing.total_s += shapes_s;
@@ -491,6 +515,50 @@ impl World {
             digest.u32(SHAPES_TIE_ORDER_ALGO);
         }
         digest.finish()
+    }
+
+    /// [incremental grids PR 5] The job memo's global inputs of [`Self::map_grid_memo`]'s build: what every site's jobs read
+    /// whole. The world (the walker triangles, the play area, the cell, the seeds, the spawns, the links' kind; for a build on
+    /// the game's shapes, `map_file`, the digest of the map file's bytes, with [`SHAPES_TIE_ORDER_ALGO`] and the source of
+    /// [`controller::Collision::build_exe`] that makes them), and the body, every field ([`grid::memo::MemoInput`]). Not the
+    /// algorithm numbers or the builder's source: each site's key carries its own job's source ([`source::site`]), so a rule
+    /// change misses only the sites that reach it.
+    pub fn memo_global(map: &MapData, walker: &[Triangle], map_file: u64, cell: f32, body: Body, links: OffMeshLinks) -> u128 {
+        use grid::memo::MemoInput;
+        let mut walkers = digest::Digest::new();
+        triangles_into(&mut walkers, walker, true);
+        let mut d = digest::Digest128::default();
+        d.str(b"walker");
+        d.u64(walkers.finish());
+        d.str(b"area");
+        map.play_area(AREA_MARGIN).iter().for_each(|v| v.feed(&mut d));
+        d.str(b"cell");
+        cell.feed(&mut d);
+        d.str(b"seeds");
+        let seeds = map.grid_seeds();
+        d.u64(seeds.len() as u64);
+        for v in &seeds {
+            [v.x, v.y, v.z].iter().for_each(|c| c.feed(&mut d));
+        }
+        d.str(b"spawns");
+        d.u64(map.spawns.len() as u64);
+        for spawn in &map.spawns {
+            [spawn.position.x, spawn.position.y, spawn.position.z].iter().for_each(|c| c.feed(&mut d));
+        }
+        d.str(b"links");
+        d.u32(match links {
+            OffMeshLinks::None => 0,
+            OffMeshLinks::Gaps => 1,
+        });
+        if Self::takes_shapes(body) && map.bullet.is_some() {
+            d.str(b"shapes");
+            d.u64(map_file);
+            d.u32(SHAPES_TIE_ORDER_ALGO);
+            d.u128(source::site("world"));
+        }
+        d.str(b"body");
+        body.feed(&mut d);
+        d.finish()
     }
 
     /// Whether `body`'s grid build steps the client's body on the game's shapes ([`Self::map_grid`]): the rim jumps, [A389] the gap

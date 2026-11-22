@@ -1752,6 +1752,24 @@ impl WalkGrid {
         spawns: &[Vec3],
         links: OffMeshLinks,
     ) -> (Self, BuildStats) {
+        Self::build_kept_memo(triangles, shapes, area, cell, body, seeds, spawns, links, &mut memo::Memo::off())
+    }
+
+    /// [incremental grids PR 5] [`Self::build_kept_with_shapes`] with the job memo `memo` ([`memo::Memo`]): its sites take
+    /// their jobs' results from it where their keys are there (`rim.line`, the rim jumps' line flights). With
+    /// [`memo::Mode::Off`], the build itself. Its sites' counts are in `memo.stats` ([`memo::Memo::table`]).
+    #[allow(clippy::too_many_arguments)]
+    pub fn build_kept_memo(
+        triangles: &[Triangle],
+        shapes: Option<&crate::controller::Collision>,
+        area: [f32; 4],
+        cell: f32,
+        body: Body,
+        seeds: &[Vec3],
+        spawns: &[Vec3],
+        links: OffMeshLinks,
+        memo: &mut memo::Memo,
+    ) -> (Self, BuildStats) {
         assert!(cell > 0.0, "cell size must be positive");
         let (x0, z0) = (area[0], area[1]);
         let nx = (((area[2] - x0) / cell).max(0.0) as usize) + 1;
@@ -1988,7 +2006,7 @@ impl WalkGrid {
         if body.rim_jumps && gaps {
             let world = world.expect("a world");
             let (unmade, cut);
-            (stats.rim, unmade, cut) = grid.fly_rim_jumps(&mut wide, world, &s, &solids);
+            (stats.rim, unmade, cut) = grid.fly_rim_jumps(&mut wide, world, &s, &solids, memo);
             clock.lap("rim jumps");
             // [C2 rows 11/12/14] The plain jumps no press lands on go, but none that is a floor's only way in or back.
             (stats.rim.jumps_cut, stats.rim.jumps_kept) = grid.cut_keeping_reach(&mut wide, cut, seeds, spawns, body.keep_last_resorts, false);
@@ -2052,7 +2070,7 @@ impl WalkGrid {
             if body.rim_jumps && gaps && !gone.is_empty() {
                 let world = world.expect("a world");
                 // Its links are gone already: no plain Jump link is left to cut there (its cut list is empty).
-                (stats.carry_flown, _, _) = grid.fly_rim_todo(&mut wide, world, &s, gone);
+                (stats.carry_flown, _, _) = grid.fly_rim_todo(&mut wide, world, &s, gone, memo);
             }
         }
         clock.lap("landing carry flown");
