@@ -338,39 +338,21 @@ package survarium.player
       {
          this._ammoControl.openSlots(slotsN,slotsA);
          super.openSlots(slotsN,slotsA);
-         // The marks count from srp's pockets as they come, not from the last drawing.
-         for each(var mark:PerkSlotMark in this._marks)
-         {
-            mark.counted(_slotsN);
-         }
       }
 
-      // One switch at a time a kit (the owner, 2026-11-22: "when I click too fast, 'fake' pocket
-      // on top can appear for a moment"): none while another is asked, nor while a slot shakes.
+      // No switch while a slot shakes (one switch at a time is the profile's, PerkSwitch).
       private function mayClick() : Boolean
       {
-         if(this.shaking)
-         {
-            return false;
-         }
-         for each(var mark:PerkSlotMark in this._marks)
-         {
-            if(mark.busy)
-            {
-               return false;
-            }
-         }
-         return true;
+         return !this.shaking;
       }
 
       // The perks' slots of the kit shown, as srp says them (PerkSlotMark's states, a perk each),
       // and how to ask for others (LocalPlayerProfile).
-      // `answered`: the perk whose click this word answers (-1: none).
-      public function perkSlots(kit:uint, states:Array, ask:Function, answered:int = -1) : void
+      public function perkSlots(kit:uint, states:Array, ask:Function) : void
       {
          for(var perk:int = 0; perk < this._marks.length; perk++)
          {
-            this._marks[perk].told(kit,int(states[perk]),ask,perk == answered);
+            this._marks[perk].told(kit,int(states[perk]),ask);
          }
          invalidate(InvalidationType.DATA);
       }
@@ -461,19 +443,17 @@ package survarium.player
          this.placeMarks();
       }
 
-      // Where each perk's slot is, the pockets and containers counted as srp's answer to a click
-      // will make them (PerkSlotMark.pocketShift), by srp's order of the quick places (`KitPockets`,
-      // loadouts.rs): the base pockets but the last, the weapon perk's added pocket, then the last
+      // Where each perk's slot is, from the kit's counts as the exe gives them and srp's word on
+      // the perks (both of one answer: PerkSwitch), by srp's order of the quick places
+      // (`KitPockets`, loadouts.rs): the base pockets but the last, the weapon perk's added pocket, then the last
       // base pocket, which Artifact Container switches: a pocket, or the container after the
       // pockets. Each perk's place is its own. The game opens its first pockets and the containers
       // after them, so a declined added pocket is no slot of the game's: the first slot past them
       // is shown in its place, locked in red, and Artifact Container's slot one place on, last.
       private function placeMarks() : void
       {
-         var cs:int = this.containerMark.pocketShift(_slotsN);
-         var ws:int = this.weaponMark.pocketShift(_slotsN);
-         var pockets:int = _slotsN + cs + ws;
-         var containers:int = _slotsA - cs;
+         var pockets:int = _slotsN;
+         var containers:int = _slotsA;
          var container:int = this.containerMark.shown;
          var weapon:int = this.weaponMark.shown;
          // The game's slots (0 the first quick slot): Artifact Container's, the added pocket's, and
@@ -521,12 +501,7 @@ package survarium.player
          var i:int;
          if(this._places == null)
          {
-            this._places = [];
-            for(i = 0; i < ProfileSlot.QUICK_POSITIONS; i++)
-            {
-               var at:DisplayObject = _slots[ProfileSlot.QUICK_1 + i] as DisplayObject;
-               this._places.push(new Point(at.x,at.y));
-            }
+            this.takePlaces();
          }
          var order:Array = [];
          for(i = 0; i < ProfileSlot.QUICK_POSITIONS; i++)
@@ -548,6 +523,17 @@ package survarium.player
             }
             slot.y = place.y;
             this._atPlace[i] = slot;
+         }
+      }
+
+      // The quick places: where the timeline puts the six quick slots, before any is moved.
+      private function takePlaces() : void
+      {
+         this._places = [];
+         for(var i:int = 0; i < ProfileSlot.QUICK_POSITIONS; i++)
+         {
+            var at:DisplayObject = _slots[ProfileSlot.QUICK_1 + i] as DisplayObject;
+            this._places.push(new Point(at.x,at.y));
          }
       }
 
@@ -767,6 +753,7 @@ package survarium.player
             mark.addEventListener(PerkSlotMark.DISPLACED,this.onMarkDisplaced);
             mark.mayClick = this.mayClick;
          }
+         this.takePlaces();
          var ammoSlots:Array = [_slotNames.indexOf("slotWpn1A1"),_slotNames.indexOf("slotWpn1A2"),_slotNames.indexOf("slotWpn2A1"),_slotNames.indexOf("slotWpn2A2"),_slotNames.indexOf("slotWpn5"),_slotNames.indexOf("slotWpn6"),_slotNames.indexOf("slotWpn7"),_slotNames.indexOf("slotWpn8")];
          trace("LPD::configUI");
          this._ammoControl.setSlotTarget(_slotNames.indexOf("slotWpn1"),ammoSlots);

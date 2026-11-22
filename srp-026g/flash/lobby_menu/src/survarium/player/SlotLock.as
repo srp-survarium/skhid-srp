@@ -5,6 +5,7 @@ package survarium.player
    import flash.display.Sprite;
    import flash.events.MouseEvent;
    import flash.geom.Rectangle;
+   import flash.text.TextField;
 
    // A slot a skill closes shows the skills' red lock in its middle (the lock of a skill another
    // excludes, without the circle around it: the symbol's first child), with a tip over the slot:
@@ -51,8 +52,54 @@ package survarium.player
          this._area.buttonMode = pressed != null;
          doll.addChild(this._lock);
          var own:Rectangle = this._mark.getBounds(this._lock);
-         this._lock.x = bounds.x + (bounds.width - own.width) / 2 - own.x;
-         this._lock.y = bounds.y + (bounds.height - own.height) / 2 - own.y;
+         // Clear of the slot's label (the owner, 2026-11-23: the lock over "Weapon"): in the
+         // middle of the room above it, else beside it.
+         var label:Rectangle = labelOf(slot,doll);
+         var x:Number = bounds.x + (bounds.width - own.width) / 2;
+         var y:Number = bounds.y + (bounds.height - own.height) / 2;
+         if(label != null && label.intersects(new Rectangle(x,y,own.width,own.height)))
+         {
+            if(label.y - bounds.y >= own.height + 4)
+            {
+               y = bounds.y + (label.y - bounds.y - own.height) / 2;
+            }
+            else
+            {
+               x = label.x - own.width - 4;
+               y = label.y + (label.height - own.height) / 2;
+            }
+         }
+         this._lock.x = Math.round(x - own.x);
+         this._lock.y = Math.round(y - own.y);
+      }
+
+      // The bounds of the slot's shown text (its label), in `doll`'s units; null: none.
+      private static function labelOf(slot:DisplayObject, doll:DisplayObject) : Rectangle
+      {
+         var found:Rectangle = null;
+         if(slot is TextField && slot.visible && TextField(slot).text.length > 0)
+         {
+            // The text itself, not its field (centred in it across, from its top down).
+            var field:TextField = TextField(slot);
+            var own:Rectangle = field.getBounds(doll);
+            var kx:Number = field.width > 0 ? own.width / field.width : 1;
+            var ky:Number = field.height > 0 ? own.height / field.height : 1;
+            var w:Number = Math.min(own.width,(field.textWidth + 4) * kx);
+            found = new Rectangle(own.x + (own.width - w) / 2,own.y,w,Math.min(own.height,(field.textHeight + 4) * ky));
+         }
+         var box:DisplayObjectContainer = slot as DisplayObjectContainer;
+         if(box != null && slot.visible)
+         {
+            for(var i:int = 0; i < box.numChildren; i++)
+            {
+               var inner:Rectangle = labelOf(box.getChildAt(i),doll);
+               if(inner != null)
+               {
+                  found = found == null ? inner : found.union(inner);
+               }
+            }
+         }
+         return found;
       }
 
       public function hide() : void

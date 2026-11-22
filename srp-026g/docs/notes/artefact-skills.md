@@ -315,6 +315,8 @@ chooses each.
     right button the shop's left click is untouched); holding a weapon, a right click is the
     weapon's menu, as in the stock game, and the red pocket switches (the weapon goes back, with
     the sound and the shake).
+  - **The red lock is clear of the slot's label** (the owner, 2026-11-23: it covered "Weapon"):
+    in the middle of the room above the label, else beside it (`SlotLock`).
   - **Each mark on its perk's own place**, by srp's order (`LocalPaperDoll.placeMarks`, the same
     rule as `KitPockets`): Artifact Container's on the last pocket or the container after the
     pockets, last; the weapon perk's yellow on the pocket before it (the last pocket without it),
@@ -336,33 +338,35 @@ chooses each.
     a red lock pressed while the last pocket holds an item, whoever's mark is on it. A right click
     on Artifact Container's own pocket switches only while it is empty, so it sends nothing back
     (`PerkSlotMark.DISPLACED`).
-  - The movie reads the counts as srp's answer will make them while a click is asked
-    (`PerkSlotMark.pocketShift`), so neither the yellow nor the red moves when the account
-    comes.
 - **The switch is the right mouse button** (the owner, 2026-11-22: "lets make it so rmb switches
   not lmb"), on every perk's slot and red lock: the left click does what the slot always did (the
   shop's filter, an item chosen, a drag). The lobby takes a right click on a slot only for the
   menu of the item in it (`LocalPaperDoll.onMouseItemClick`, Scaleform's `MouseEventEx.buttonIdx`
   of the click the exe hands the movie), and a slot that holds an item never switches, so the two
   never meet.
-- **A switch is a cross-fade**, about 130 ms eased, the hover's too, run on the movie's frames.
-  A click shows the other state's look at once and asks srp; the marks stay where the click puts
-  them until srp's answer: the account first (its new pocket count, which the movie reads as the
-  click's outcome: `PerkSlotMark.pocketShift` counts from the pockets at the click and the change
-  asked, whatever account comes meanwhile), then the list that names the click. Only that list
-  ends the hold, whatever it says (refused: srp's state again at once); any other list, one
-  asked before or at an account, changes nothing meanwhile; no answer in 3 s shows srp's last word
-  again. The slot's own stock frame and label change when the account comes.
-- **One switch at a time a kit** (the owner, 2026-11-22: "when I click too fast, 'fake' pocket on
-  top can appear for a moment", "there is data race there somewhere"): while a click is asked, a
-  right click on the other perk's slot or red lock is not taken (nor while a slot shakes). Before,
-  each mark held only its own clicks, and the movie took the first list matching the state shown
-  as the answer: two quick clicks on the two perks each moved the counts by their own guess
-  against accounts answering the other, and showed for a moment a layout neither before nor after
-  (a pocket too many, or the container's mark gone). srp itself handles a client's requests in
-  order and sends each switch's account before its list (lobby-server's
-  `a_kit_takes_or_declines_a_perks_slot`); the harness replays the quick clicks with a list asked
-  before arriving between.
+- **A switch is drawn whole, in one frame** (the owner, 2026-11-23: "there is some middle state
+  where clicking removes an old slot and adds a new one", "the operation is not atomic is how i
+  see it"; `PerkSwitch`, the profile's, one transition function from the event to the new state
+  and what to draw). A click asks srp and changes nothing on screen but the sound (and the shake
+  of an item sent back). srp answers with the kit's account (its counts and items), then the list
+  naming the click; while a switch is asked the kit's account is held, and the answer draws both
+  at once, srp's states told and the paper doll validated in the same call, so every frame is the
+  old kit or the new one. A refused switch draws the account held, if any, and srp's word (the old
+  state). Any other list meanwhile (one asked before, or at an account) changes nothing; no answer
+  in 3 s draws what is held. An account for another kit shown meanwhile ends the switch (its kit
+  is no longer drawn). The marks show srp's word only, never a guess; only the hover fades
+  (about 130 ms, on the movie's frames). Before (#2476's first builds), a click showed its look
+  at once and guessed the counts until the answer, and the stock slots, drawn from the exe's
+  counts as they came, went out of step with the marks for a moment: a mark over an empty place,
+  a slot gone blank for the 3 s hold.
+- **One switch at a time** (the owner, 2026-11-22: "when I click too fast, 'fake' pocket on top
+  can appear for a moment", "there is data race there somewhere"): while a click is asked, a right
+  click on any perk's slot or red lock is not taken (nor while a slot shakes). srp itself handles a
+  client's requests in order and sends each switch's account before its list (lobby-server's
+  `a_kit_takes_or_declines_a_perks_slot`). The harness (`scripts/perk-slots`) records every frame
+  of each switch and fails on any frame that is neither the old drawing nor the new one (each
+  place's slot, its visibility and alpha, the marks and locks), with quick clicks, a list asked
+  before arriving between, a refused switch and another kit shown meanwhile.
 - **Its tip**, the game's tooltip above the slot, names the slot's skill (the owner, 2026-11-22:
   "pop up helper messages even on items should say which skill this 'slot' corresponds to"), in
   the game's own names (`st_srp_artefact_522_name`, `st_srp_deep_pockets_name`, the stock

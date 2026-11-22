@@ -22,7 +22,7 @@ package survarium.player
    // slot of a kit into another, which each kit takes or declines by a click. srp's word, the
    // presets list's `K` row, says which (LocalPlayerProfile.takePerks); the one owner of that state
    // for the kit shown. The paper doll places it on the perk's slot (LocalPaperDoll.placeMarks),
-   // hands it the slot's own hover and clicks, and asks it how its pockets will change.
+   // hands it the slot's own hover and clicks.
    //
    // - Artifact Container (CONTAINER): taken, the container (a locked slot: the mark takes the
    //   mouse itself); declined, the pocket it was.
@@ -41,9 +41,9 @@ package survarium.player
    //   not lmb"): the left one does what the slot always did (the shop, an item chosen, a drag).
    //   A right click on a slot holding an item is its menu (LocalPaperDoll.onMouseItemClick),
    //   where no switch is made either.
-   // - A click shows the other look at once (a cross-fade) and asks srp. Until srp's answer (the
-   //   account, whose counts come first, then the `K` row) the paper doll counts the pockets as they
-   //   will be (pocketShift), so nothing jumps.
+   // - A click asks srp (one switch at a time, LocalPlayerProfile's PerkSwitch); its answer, the
+   //   kit's account and srp's word together, is drawn at once, the mark's look cross-faded. The
+   //   mark shows srp's word only, never a guess, so the kit is drawn old or new, never half.
    public class PerkSlotMark extends Sprite
    {
 
@@ -62,31 +62,14 @@ package survarium.player
       // The event of a switch that sends the yellow slot's item back to the inventory.
       public static const DISPLACED:String = "perkSlotDisplaced";
 
-      // The cross-fade between the two states' looks, and the hover's.
+      // The hover's fade.
       private static const FADE_MS:Number = 130;
-
-      // A click's answer is the account and the list with the `K` row; none in this long: srp's
-      // last word is shown again.
-      private static const PENDING_MS:int = 3000;
 
       private var _perk:int;
 
-      // srp's word, the look shown (the click's while it is asked), and since when it is asked.
-      private var _state:int = NONE;
-
+      // srp's word, the look shown.
       private var _shown:int = NONE;
 
-      private var _pendingAt:int = -1;
-
-      // The kit the state is of (a kit shown anew starts from srp's word).
-      private var _kit:uint = 0;
-
-      // The pockets the paper doll counted last and at the click, and how the click changes them.
-      private var _pockets:int = 0;
-
-      private var _clickPockets:int = 0;
-
-      private var _pocketDelta:int = 0;
 
       // The slot it is on, null: none, its size drawn, and whether it holds an item.
       private var _slot:DisplayObject;
@@ -164,73 +147,24 @@ package survarium.player
          this._closingHolds = slot != null && holds;
       }
 
-      // The look shown (the click's while it is asked).
+      // The look shown: srp's word.
       public function get shown() : int
       {
          return this._shown;
       }
 
-      // srp's word for the kit `kit` shown, and how to ask it for another. `answered`: this word
-      // is srp's answer to this mark's click (the list's header names the request it answers,
-      // set or refused). While a click is asked only its answer is taken, whatever it says (a list
-      // asked before, or for another reason, changes nothing shown); the answer shows srp's state,
-      // the one asked or, refused, the one before, at once.
-      public function told(kit:uint, state:int, ask:Function, answered:Boolean) : void
+      // srp's word for the kit `kit` shown, and how to ask it for another (ask(perk, state):
+      // whether it was asked). Shown at once, in the same frame as the slots it goes with (a
+      // switch is drawn whole: only the hover fades).
+      public function told(kit:uint, state:int, ask:Function) : void
       {
-         this._state = state == TAKEN || state == DECLINED ? state : NONE;
          this._ask = ask;
-         if(kit != this._kit)
-         {
-            this._kit = kit;
-            this._pendingAt = -1;
-            this.show(this._state,true);
-            return;
-         }
-         if(this.pending() && !answered)
-         {
-            return;
-         }
-         var changed:Boolean = this._pendingAt >= 0 && this._state != this._shown;
-         this._pendingAt = -1;
-         this.show(this._state,false);
-         if(changed)
-         {
-            dispatchEvent(new Event(Event.CHANGE));
-         }
+         this.show(state == TAKEN || state == DECLINED ? state : NONE,true);
       }
 
-      // The paper doll's pockets now (srp's count, as the exe gives it).
-      public function counted(pockets:int) : void
-      {
-         if(!this.pending())
-         {
-            this._pockets = pockets;
-         }
-      }
-
-      // A click asked and not answered yet: no other switch of the kit is taken meanwhile
-      // (LocalPaperDoll's gate).
-      public function get busy() : Boolean
-      {
-         return this.pending();
-      }
-
-      // The paper doll's word whether a switch may start now (one at a time a kit, none while a
-      // slot shakes); none: always.
+      // The paper doll's word whether a switch may start now (none while a slot shakes); none:
+      // always.
       public var mayClick:Function;
-
-      // How far the kit's `pockets` (the paper doll's count, srp's) are from what the click asked
-      // will make them, until srp answers it: the pockets at the click and the change, whatever
-      // account comes meanwhile (srp sends a click's account before its answer).
-      public function pocketShift(pockets:int) : int
-      {
-         if(!this.pending())
-         {
-            this._pockets = pockets;
-            return 0;
-         }
-         return this._clickPockets + this._pocketDelta - pockets;
-      }
 
       // On `slot` (null: hidden), which holds an item or not; its bounds in the paper doll's
       // units.
@@ -344,11 +278,6 @@ package survarium.player
          this.hover(false);
       }
 
-      private function pending() : Boolean
-      {
-         return this._pendingAt >= 0 && getTimer() - this._pendingAt < PENDING_MS;
-      }
-
       // Where the mark itself takes the mouse: on Artifact Container's container, a locked slot.
       private function takesMouse(state:int) : Boolean
       {
@@ -362,13 +291,13 @@ package survarium.player
          return (this._perk == CONTAINER) == (state == TAKEN);
       }
 
-      // What a click asks: the other state; on the yellow slot only while it holds nothing. Shown
-      // at once; one ask at a time.
+      // What a click asks: the other state; on the yellow slot only while it holds nothing. Nothing
+      // changes until srp's answer (LocalPlayerProfile draws it whole); one ask at a time.
       private function clicked(blocked:Boolean) : void
       {
          // The paper doll greyed (the kits locked: in a match, on the way to one): no change.
          var doll:UIComponent = parent as UIComponent;
-         if(this._shown == NONE || this._ask == null || doll != null && !doll.enabled || this.pending() || this.mayClick != null && !this.mayClick())
+         if(this._shown == NONE || this._ask == null || doll != null && !doll.enabled || this.mayClick != null && !this.mayClick())
          {
             return;
          }
@@ -376,16 +305,14 @@ package survarium.player
          {
             return;
          }
-         // A switch that closes a slot holding an item: that item goes back (srp's word: the slot
-         // it closes is the last pocket, or the second weapon slot).
-         var displaced:Boolean = this._closingHolds;
          var wanted:int = this._shown == TAKEN ? DECLINED : TAKEN;
-         // Artifact Container declined is a pocket more; Deep Pockets or Supply Pocket declined
-         // a pocket less.
-         var more:Boolean = (this._perk == CONTAINER) == (wanted == DECLINED);
-         this._pocketDelta = more ? 1 : -1;
-         this._clickPockets = this._pockets;
-         this._pendingAt = getTimer();
+         if(!this._ask(this._perk,wanted))
+         {
+            return;
+         }
+         // A switch that closes a slot holding an item: that item goes back (the slot it closes is
+         // the perk's own: its pocket, or the second weapon slot).
+         var displaced:Boolean = this._closingHolds;
          this._tip.hideNow();
          try
          {
@@ -396,16 +323,10 @@ package survarium.player
          catch(err:Error)
          {
          }
-         this.show(wanted,false);
-         mouseEnabled = mouseChildren = this.takesMouse(wanted);
-         this._tip.tipData = {"name":this.label()};
-         // The paper doll draws its slots again (the second weapon slot open or closed).
-         dispatchEvent(new Event(Event.CHANGE));
          if(displaced)
          {
             dispatchEvent(new Event(DISPLACED));
          }
-         this._ask(this._perk,wanted);
       }
 
       // `state`'s look shown: at once, or cross-faded from the one before.
@@ -449,15 +370,7 @@ package survarium.player
          this._over = toward(this._over,over,step);
          settled = settled && this._over == over;
          this.apply();
-         // A click asked and never answered: srp's last word again.
-         if(this._pendingAt >= 0 && !this.pending())
-         {
-            this._pendingAt = -1;
-            this._shown = this._state;
-            settled = false;
-            dispatchEvent(new Event(Event.CHANGE));
-         }
-         if(settled && this._pendingAt < 0)
+         if(settled)
          {
             removeEventListener(Event.ENTER_FRAME,this.onFrame);
          }

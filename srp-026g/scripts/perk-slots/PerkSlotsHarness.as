@@ -80,6 +80,8 @@ package {
     profile=new (C("SrvLocalPlayerProfile"))();
     profile.setAmmoShare(domain.getDefinition("survarium.ammo.AmmoShareLite").getInstance());
     lobby.player_profile=profile;
+    // The requests the profile's perk switch sends (kit x 10 + perk x 2 + state), as perk:state.
+    profile.perkSwitch.send=function(r:int):void {var perk:int=int((r%10-1)/2);asked.push(perk+":"+(r%10-perk*2));};
     lobby.addChild(profile);
     var inventory:*=new (C("SrvInventoryReskin"))();
     inventory.name="inventory_list";
@@ -126,7 +128,7 @@ package {
   // container's mark (c) or a red lock (r) on it; then the weapon slot's yellow (wW) or red (wR).
   // The quick slot shown at place `p` (1 the first), if one is visible there.
   private function atPlace(p:int):DisplayObject {
-   for(var q:int=1;q<=6;q++) if(slot(q).visible && slot(q).x==places[p-1].x && slot(q).y==places[p-1].y) return slot(q);
+   for(var q:int=1;q<=6;q++) if(slot(q).visible && Math.abs(slot(q).x-places[p-1].x)<12 && slot(q).y==places[p-1].y) return slot(q);
    return null;
   }
   // Every quick slot at a place: none shaken off it.
@@ -144,13 +146,38 @@ package {
     var s:DisplayObject=atPlace(p);
     if(s==null) continue;
     var t:String=String(p);
-    if(ms[0].visible && ms[0].slot==s) t+="c";
+    if(ms[0].visible && ms[0].slot==s) t+=ms[0].shown==Mark.TAKEN?"c":"k";
     if(ms[1].visible && ms[1].slot==s) t+="p";
     if(lockOn(s)!=null) t+="r";
     out.push(t);
    }
    out.push(ms[1].visible && ms[1].slot==weaponSlot() ? "wW" : (lockOn(weaponSlot())!=null ? "wR" : "w"));
    return out.join(" ");
+  }
+  // The red lock over `s` is clear of the slot's label (its text field's bounds).
+  private function lockClear(s:DisplayObject):Boolean {
+   var d:DisplayObjectContainer=doll as DisplayObjectContainer, at:Rectangle=s.getBounds(d), Lock:Class=C("SkillLockSpriteRed");
+   var text:Rectangle=null;
+   var walk:Function=function(o:DisplayObject):void {
+    if(!o.visible) return;
+    if(o is TextField && TextField(o).text.length>0 && o.visible) {
+     // the text itself: centred across its field, from its top
+     var f:TextField=TextField(o), r:Rectangle=f.getBounds(d), kx:Number=r.width/f.width, ky:Number=r.height/f.height, tw:Number=Math.min(r.width,(f.textWidth+4)*kx);
+     r=new Rectangle(r.x+(r.width-tw)/2,r.y,tw,Math.min(r.height,(f.textHeight+4)*ky));
+     text=text==null?r:text.union(r);
+    }
+    if(o is DisplayObjectContainer) for(var k:int=0;k<DisplayObjectContainer(o).numChildren;k++) walk(DisplayObjectContainer(o).getChildAt(k));
+   };
+   walk(s);
+   for(var i:int=0;i<d.numChildren;i++) {
+    var c:DisplayObject=d.getChildAt(i);
+    if(c is Lock && c.visible) {
+     // the lock drawn: the symbol's second child (its circle hidden), else the symbol
+     var shown:DisplayObject=Sprite(c).numChildren==2?Sprite(c).getChildAt(1):c, lb:Rectangle=shown.getBounds(d);
+     if(at.containsPoint(new Point(lb.x+lb.width/2,lb.y+lb.height/2))) return text==null || !lb.intersects(text);
+    }
+   }
+   return false;
   }
   private function on(m:Object,s:DisplayObject):Boolean {
    var a:Rectangle=s.getBounds(doll as DisplayObject);
@@ -164,12 +191,34 @@ package {
    var area:Object=null, red:Boolean=false;
    for(var i:int=0;i<d.numChildren;i++) {
     var c:DisplayObject=d.getChildAt(i);
-    if(c is Sprite && Sprite(c).numChildren==1 && Sprite(c).getChildAt(0) is Tip && Math.abs(c.x-at.x)<=1 && Math.abs(c.y-at.y)<=1) area=Sprite(c).getChildAt(0);
+    if(c is Sprite && Sprite(c).numChildren==1 && Sprite(c).getChildAt(0) is Tip && Math.abs(c.x-at.x)<=8 && Math.abs(c.y-at.y)<=1) area=Sprite(c).getChildAt(0);
     if(c is Lock && c.visible) { var lb:Rectangle=c.getBounds(d); if(at.containsPoint(new Point(lb.x+lb.width/2,lb.y+lb.height/2))) red=true; }
    }
    return red?area:null;
   }
-  private function ask(perk:int,state:int):void {asked.push(perk+":"+state);}
+  // Kit 2's perks as srp lists them (no switch asked).
+  private function states(container:int,weapon:int):void {list("K;1:0:0,2:"+container+":"+weapon+",3:0:0");}
+  // What the paper doll draws, a frame: the layout, and each quick slot's place (the nearest, a
+  // shake aside), visibility and alpha. A switch's frames are its old one, then its new one.
+  private function drawn():String {
+   var out:Array=[layout()];
+   for(var q:int=1;q<=6;q++) {
+    var at:int=-1;
+    for(var i:int=0;i<places.length;i++) if(slot(q).y==places[i].y && Math.abs(slot(q).x-places[i].x)<12) at=i;
+    out.push(q+"@"+at+(slot(q).visible?"v":"h")+slot(q).alpha.toFixed(2));
+   }
+   return out.join(" ");
+  }
+  private var watched:Array=null;
+  private function watch():void {watched=[drawn()];}
+  // The frames since watch(): the old drawing, then `after`'s layout, nothing between.
+  private function watchedOnly(after:String,what:String):void {
+   var seen:Array=[];
+   for each(var d:String in watched) if(seen.length==0 || seen[seen.length-1]!=d) seen.push(d);
+   var last:String=seen[seen.length-1];
+   check(seen.length<=2 && last.indexOf(after+" ")==0,what+": the frames: "+seen.join(" / "));
+   watched=null;
+  }
   // A click as Scaleform gives it, of the left button (0) or the right one (1): the switch is
   // the right one's (the owner, 2026-11-22: "lets make it so rmb switches not lmb").
   private function clickOn(s:Object,button:int=1):void {var e:*=new (C("scaleform.gfx.MouseEventEx"))("click");e.buttonIdx=button;s.dispatchEvent(e);}
@@ -207,7 +256,7 @@ package {
    zoom=sheet(CONTAINER_CELLS,z,3);
    for(var r:int=0;r<2;r++) for(var c:int=0;c<4;c++) {
     var pocket:Boolean=c>=2, over:Boolean=c%2==1, before:Boolean=r==0, rr:int=r, cc:int=c;
-    sheetSteps.push(function(pocket:Boolean,over:Boolean):Function {return function():void {cm.hover(false);kit(2,pocket?4:3,pocket?0:1);doll.perkSlots(2,[pocket?2:1,0],ask);cm.hover(over);};}(pocket,over && !before));
+    sheetSteps.push(function(pocket:Boolean,over:Boolean):Function {return function():void {cm.hover(false);kit(2,pocket?4:3,pocket?0:1);states(pocket?2:1,0);cm.hover(over);};}(pocket,over && !before));
     sheetSteps.push(function(before:Boolean,rr:int,cc:int):Function {return function():void {
      cm.visible=!before;cell(zoom,z,3,rr,cc);if(before) frame(zoom,z,3,rr,cc,slot(4));cm.visible=true;};}(before,rr,cc));
    }
@@ -221,7 +270,7 @@ package {
     var declined:Boolean=c==2 || c==3, held:Boolean=c==4;
     over=c%2==1 || held;before=r==0;rr=r;cc=c;
     sheetSteps.push(function(declined:Boolean,over:Boolean):Function {return function():void {
-     wm.hover(false);profile.enableSecondWeapon(false);kit(2,declined?1:2,0);doll.perkSlots(2,[0,declined?2:1],ask);wm.hover(over);};}(declined,over && !before && !held));
+     wm.hover(false);profile.enableSecondWeapon(false);kit(2,declined?1:2,0);states(0,declined?2:1);wm.hover(over);};}(declined,over && !before && !held));
     sheetSteps.push(function(before:Boolean,held:Boolean,rr:int,cc:int):Function {return function():void {
      // an item in the yellow pocket: its own card (the lobby's, not drawn here) and the slot's skill above it
      if(held) {wm.place(slot(2),true);wm.hover(true);}
@@ -235,6 +284,7 @@ package {
     var sp:Point=places[shakePlace], sd:Number=Math.abs(slot(sq).x-sp.x);
     if(slot(sq).y==sp.y && sd<12) shakenMost=Math.max(shakenMost,sd);
    }
+   if(watched!=null) watched.push(drawn());
    if(++frames<10 || --wait>0) return;
    wait=5;
    try {
@@ -252,34 +302,33 @@ package {
       check(m.shown==Mark.TAKEN && m.mouseEnabled,"as the container the mark takes the mouse (the slot is locked)");
       check(hint(m)=="Artifact Container — Right-click: pocket","the tip as the container: its skill, what a right click does: "+hint(m));
       check(!wm.visible,"no weapon perk: no mark");
-      // A left click does nothing here; a right click: the pocket shown at once and asked for,
-      // once while it waits.
-      doll.perkSlots(2,[1,0],ask);
+      // A left click does nothing here; a right click asks for the pocket, once while it waits, and
+      // changes nothing until srp answers (the owner, 2026-11-23: "the operation is not atomic").
       clickOn(m,0);
       check(asked.length==0,"the container's left click asks nothing: "+asked);
+      watch();
       clickOn(m);
       clickOn(m);
       check(asked.join()=="0:2","a click asks for the pocket, once while it waits: "+asked);
-      check(m.shown==Mark.DECLINED,"the pocket shown at once");
-      // An older list on its way says the container still: nothing changes.
+      check(m.shown==Mark.TAKEN,"nothing changes until srp answers");
+      // An older list on its way says the container still; then srp's account (four pockets),
+      // held until its answer.
       list("K;1:1:0,2:1:0,3:0:0");
-      check(m.shown==Mark.DECLINED,"an older word changes nothing while the click is asked");
-      // srp's answer: the account first (four pockets), the slot kept where it is.
       kit(2,4,0);
       break;
      case 2:
-      check(on(m,slot(4)),"the account before the `K` row: the mark stays on slot 4");
-      // The answer names its request (kit 2 is the second: 10, perk 0, declined 2).
+      check(layout()=="1 2 3 4c w","the account before its answer: held, the kit as it was: "+layout());
       answer("K;1:1:0,2:2:0,3:0:0",12);
       break;
      case 3:
+      watchedOnly("1 2 3 4k w","the container to the pocket");
       trace("PERK pocket: "+m.visible+" on "+(m.slot?m.slot.name:null));
       check(on(m,slot(4)),"as the pocket: on the last pocket, slot 4");
       check(!m.mouseEnabled,"as the pocket the slot keeps the mouse (drops, its item)");
       slot(4).dispatchEvent(new MouseEvent(MouseEvent.ROLL_OVER));
       check(hint(m)=="Artifact Container — Right-click: artifact container","the tip as the pocket: "+hint(m));
       slot(4).dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
-      doll.perkSlots(2,[2,0],ask);asked.length=0;
+      asked.length=0;
       clickOn(slot(3));
       check(asked.length==0,"another pocket's click asks nothing");
       // Holding an item, a click is the item's: nothing asked.
@@ -289,11 +338,13 @@ package {
       m.place(slot(4),false);
       clickOn(slot(4),0);
       check(asked.length==0,"the empty pocket's left click is the slot's own: "+asked);
+      watch();
       clickOn(slot(4));
       check(asked.join()=="0:1","the empty pocket's right click asks for the container: "+asked);
       kit(2,3,1);answer("K;1:1:0,2:1:0,3:0:0",11);
       break;
      case 4:
+      watchedOnly("1 2 3 4c w","the pocket to the container");
       check(on(m,slot(4)) && m.shown==Mark.TAKEN,"the container again, on slot 4");
       // The `K` row for another kit: kit 3 without the skill's slot.
       list("K;1:1:0,2:2:0,3:0:0");kit(3,1,0);
@@ -310,7 +361,7 @@ package {
       check(!m.visible,"without the skill: no mark");
       // Deep Pockets: two pockets (the stock one and the perk's), the second weapon slot closed.
       profile.enableSecondWeapon(false);
-      kit(2,2,0);list("K;1:0:1,2:0:1,3:0:1");doll.perkSlots(2,[0,1],ask);asked.length=0;
+      kit(2,2,0);list("K;1:0:1,2:0:1,3:0:1");asked.length=0;
       break;
      case 8:
       trace("PERK weapon perk taken: "+wm.visible+" on "+(wm.slot?wm.slot.name:null));
@@ -318,41 +369,36 @@ package {
       check(!doll.getSlotAt(WEAPON_2).enabled,"taken: the second weapon slot closed");
       var lock:Object=lockOn(weaponSlot());
       check(lock!=null && String(lock.tipData.name)=="Deep Pockets — Right-click: second weapon","taken: the red lock on the second weapon slot, its hint: "+(lock?lock.tipData.name:null));
-      // A press on the red lock, a medkit in the yellow pocket: the second weapon at once, asked
-      // for once; the medkit goes back, its slot shaken.
+      check(lockClear(weaponSlot()),"taken: the red lock clear of the weapon slot's label");
+      // A press on the red lock, a medkit in the yellow pocket: asked once; the medkit goes back,
+      // its place shaken; nothing else changes until srp answers.
       wm.place(slot(2),true);wm.closing(slot(2),true);
       shakePlace=1;shakenMost=0;
       clickOn(lock,0);
       check(asked.length==0,"the red lock's left click asks nothing: "+asked);
+      watch();
       clickOn(lock);
       clickOn(lock);
       check(asked.join()=="1:2","the red lock's click asks for the second weapon, once: "+asked);
-      check(wm.shown==Mark.DECLINED,"the second weapon shown at once");
+      check(wm.shown==Mark.TAKEN,"nothing changes until srp answers");
+      kit(2,1,0);
       break;
      case 9:
       check(shakenMost>=1,"the pocket the medkit left shakes: "+shakenMost);
-      check(doll.getSlotAt(WEAPON_2).enabled,"declined: the second weapon slot open at once");
-      check(on(wm,weaponSlot()),"declined: the yellow on the second weapon slot");
-      check(lockOn(weaponSlot())==null,"declined: no red lock on the weapon slot");
-      // The shake over (a quarter of a second), the slots are where they rest.
+      check(layout()=="1 2p wR","the account before its answer: held: "+layout());
+      answer("K;1:0:1,2:0:2,3:0:1",14);
       wait=40;
       break;
      case 10:
-      check(atRest() && lockOn(slot(2))!=null,"declined: the pocket closed red where it was, slot 2");
-      // srp's answer: the account first (one pocket), nothing moves.
-      kit(2,1,0);
-      step=101;
-      break;
-     case 101:
-      check(lockOn(slot(2))!=null && on(wm,weaponSlot()),"the account before the `K` row: nothing moves");
-      step=11;
-      answer("K;1:0:1,2:0:2,3:0:1",14);doll.perkSlots(2,[0,2],ask);asked.length=0;
-      break;
-     case 11:
-      check(lockOn(slot(2))!=null && slot(2).visible,"the closed pocket shown, red, after the pockets");
-      check(atRest(),"the shaken slot back where it rests");
+      watchedOnly("1 2r wW","the pocket to the second weapon");
+      check(doll.getSlotAt(WEAPON_2).enabled,"declined: the second weapon slot open");
+      check(on(wm,weaponSlot()),"declined: the yellow on the second weapon slot");
+      check(lockOn(weaponSlot())==null,"declined: no red lock on the weapon slot");
+      check(atRest() && lockOn(slot(2))!=null && slot(2).visible,"declined: the pocket closed red where it was, slot 2");
+      check(lockClear(slot(2)),"declined: the red lock clear of the pocket's label");
       // The open second weapon slot: its tip; a left click is its own; holding a weapon, the
       // weapon's tip line and menu (nothing asked); empty, a right click takes the pocket again.
+      asked.length=0;
       weaponSlot().dispatchEvent(new MouseEvent(MouseEvent.ROLL_OVER));
       check(hint(wm)=="Deep Pockets — Right-click: pocket","the open weapon slot's tip: "+hint(wm));
       weaponSlot().dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
@@ -365,11 +411,13 @@ package {
       clickOn(weaponSlot());
       check(asked.length==0,"a weapon slot holding a weapon keeps it: "+asked);
       wm.place(weaponSlot(),false);
+      watch();
       clickOn(weaponSlot());
       check(asked.join()=="1:1","the empty second weapon slot's right click asks for the pocket: "+asked);
       kit(2,2,0);answer("K;1:0:1,2:0:1,3:0:1",13);
       break;
-     case 12:
+     case 11:
+      watchedOnly("1 2p wR","the second weapon to the pocket");
       check(on(wm,slot(2)) && !doll.getSlotAt(WEAPON_2).enabled && lockOn(weaponSlot())!=null,"taken again: the pocket yellow, the weapon slot red");
       check(lockOn(slot(3))==null,"no red pocket once taken");
       for each(var lang:String in HarnessText.LANGUAGES) {
@@ -378,81 +426,95 @@ package {
         check(t[key]!=null && String(t[key]).length>0 && String(t[key]).length<=40,lang+": "+key);
        }
       }
-      // The perk declined again, to try its red pocket.
-      kit(2,1,0);list("K;1:0:1,2:0:2,3:0:1");doll.perkSlots(2,[0,2],ask);asked.length=0;
+      // The perk declined again (srp's word, no click), to try its red pocket.
+      kit(2,1,0);states(0,2);asked.length=0;
       break;
-     case 13:
+     case 12:
       check(lockOn(slot(2))!=null && String(lockOn(slot(2)).tipData.name)=="Deep Pockets — Right-click: pocket","the red pocket's tip: "+(lockOn(slot(2))?lockOn(slot(2)).tipData.name:null));
       clickOn(lockOn(slot(2)),0);
       check(asked.length==0,"the red pocket's left click asks nothing: "+asked);
+      watch();
       clickOn(lockOn(slot(2)));
       check(asked.join()=="1:1","the red pocket's right click asks for the pocket: "+asked);
       kit(2,2,0);answer("K;1:0:1,2:0:1,3:0:1",13);
       break;
-     case 14:
+     case 13:
+      watchedOnly("1 2p wR","the red pocket to the pocket");
       // Both perks, Artifact Container declined and Deep Pockets taken: three pockets, by srp's
       // order (the owner, 2026-11-22: "[free pockets - 1] [additional pocket] [free pocket for
       // switching with artis]") the stock one, the added one, then the container's.
-      kit(2,3,0);list("K;1:0:1,2:2:1,3:0:1");doll.perkSlots(2,[2,1],ask);asked.length=0;
+      kit(2,3,0);states(2,1);asked.length=0;
       break;
-     case 15:
-      // Each perk's slot its own: the container's pocket the last, slot 3; the added pocket
-      // before it, slot 2, never the container.
+     case 14:
       trace("PERK both: "+layout());
-      check(layout()=="1 2p 3c wR","both: the added pocket, then the container's: "+layout());
+      check(layout()=="1 2p 3k wR","both: the added pocket, then the container's: "+layout());
       // A medkit in the container's pocket: its right click is its menu (nothing asked). One in the
-      // added pocket: the red lock's sends it back, the added pocket shaken.
+      // added pocket: the red lock's sends it back, the added pocket's place shaken.
       m.place(slot(3),true);
       clickOn(slot(3));
       check(asked.length==0,"both: the container's pocket holding an item keeps it: "+asked);
       wm.closing(slot(2),true);
       shakePlace=1;shakenMost=0;
+      watch();
       clickOn(lockOn(weaponSlot()));
       check(asked.join()=="1:2","both: the red lock asks for the second weapon: "+asked);
+      kit(2,2,0);
       wait=40;
       break;
-     case 16:
+     case 15:
       check(shakenMost>=1 && atRest(),"both: the added pocket's place shakes: "+shakenMost);
-      // srp answers that switch: two pockets.
-      kit(2,2,0);answer("K;1:0:1,2:2:2,3:0:1",14);
-      wait=10;
+      check(layout()=="1 2p 3k wR","both: the account before its answer: held: "+layout());
+      answer("K;1:0:1,2:2:2,3:0:1",14);
       break;
-     case 17:
-      // The added pocket blocked in its place (the owner, 2026-11-22), the container's last.
+     case 16:
+      // The added pocket blocked in its place (the owner, 2026-11-22), the container's last; the
+      // drawing goes from the one to the other in one frame.
       trace("PERK both declined: "+layout());
-      check(layout()=="1 2r 3c wW","both: the added pocket red where it was, the container's pocket last: "+layout());
+      watchedOnly("1 2r 3k wW","both: the added pocket to the second weapon");
       // Rapid clicks (the owner, 2026-11-22: "when I click too fast, 'fake' pocket on top can
       // appear for a moment", "there is data race there somewhere"): both perks taken, one
       // pocket and Artifact Container's container.
-      kit(2,1,1);list("K;1:0:1,2:1:1,3:0:1");doll.perkSlots(2,[1,1],ask);asked.length=0;
+      kit(2,1,1);states(1,1);asked.length=0;
       break;
-     case 18:
+     case 17:
       trace("PERK race before: "+layout());
-      // The red weapon lock and, at once, the container: one switch at a time per kit.
+      check(layout()=="1p 2c wR","race: before: "+layout());
+      // The red weapon lock and, at once, the container: one switch at a time a kit.
+      watch();
       clickOn(lockOn(weaponSlot()));
       clickOn(m);
       check(asked.join()=="1:2","race: a second switch while the first is asked is not sent: "+asked);
-      // A list asked before (the movie asks one at every account) comes first, the old state.
+      // A list asked before (the movie asks one at every account) comes first, the old state;
+      // then srp's account for the weapon switch, held.
       list("K;1:0:1,2:1:1,3:0:1");
-      // srp's answer to the weapon switch: its account, then the list answering it.
       kit(2,0,1);
       break;
-     case 19:
+     case 18:
       trace("PERK race account: "+layout());
-      check(layout()=="1r 2c wW","race: the account before its answer: the new state, nothing more: "+layout());
-      answer("K;1:0:1,2:1:2,3:0:1",14);doll.perkSlots(2,[1,2],ask);
+      check(layout()=="1p 2c wR","race: the account before its answer: held: "+layout());
+      answer("K;1:0:1,2:1:2,3:0:1",14);
       break;
-     case 20:
+     case 19:
       trace("PERK race answered: "+layout());
-      check(layout()=="1r 2c wW","race: answered: "+layout());
-      // Now the container switch is taken; its answer refused (srp's word: nothing changed).
-      asked.length=0;clickOn(m);
+      watchedOnly("1r 2c wW","race: answered");
+      // Now the container switch is taken; refused (srp's word: nothing changed).
+      asked.length=0;watch();clickOn(m);
       check(asked.join()=="0:2","race: the next switch once answered: "+asked);
       answer("K;1:0:1,2:1:2,3:0:1",12,true);
       break;
-     case 21:
+     case 20:
       trace("PERK race refused: "+layout());
-      check(m.shown==Mark.TAKEN && layout()=="1r 2c wW","race: a refused switch shows srp's state again at once: "+layout());
+      check(m.shown==Mark.TAKEN,"race: a refused switch changes nothing");
+      watchedOnly("1r 2c wW","race: refused");
+      // The account a switch asked for another kit shown meanwhile is no longer held.
+      asked.length=0;clickOn(m);
+      check(asked.join()=="0:2","another kit: the switch asked: "+asked);
+      kit(1,2,1);list("K;1:1:0,2:1:2,3:0:1");
+      break;
+     case 21:
+      check(on(m,slot(3)),"another kit shown while a switch is asked: drawn at once: "+layout());
+      answer("K;1:1:0,2:1:2,3:0:1",12,true);
+      kit(2,0,1);
       planSheets();
       break;
      case 200:
