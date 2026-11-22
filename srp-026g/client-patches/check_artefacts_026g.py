@@ -393,7 +393,7 @@ def run(data, patched):
     expect(g.read(onyx + 0x280) == 3 and g.read(cooling + 0x280) == 3, "the Onyx and the cooling Spring stay")
     # The press starts the cooling Spring's cooldown again (the whole 40 s); the Onyx, another
     # kind, and a ready one keep theirs.
-    expect(g.read(cooling + 0x28C) == (40000 if patched else 500) and g.read(onyx + 0x28C) == 0,
+    expect(g.read(cooling + 0x28C) == (40000 if patched else 500),
            "the cooling Spring's cooldown " + ("starts again" if patched else "goes on"))
     # The Onyx pressed: it alone (no other Onyx).
     g.pressed = []
@@ -411,9 +411,12 @@ def run(data, patched):
     # A press of a cooling Spring's key, a ready one beside it: the ready one
     # fires in the build, nothing in the original.
     g.word(cooling + 0x28C, 500)
+    g.word(onyx + 0x280, 3)                    # another kind on its cooldown: left as it is
+    g.word(onyx + 0x28C, 700)
     ready = artefact(13, spring_vt)
     g.pressed = []
     g.call(ACTION, (1, 1500), ecx=cooling)
+    expect(g.read(onyx + 0x28C) == 700, "a cooling Onyx's cooldown goes on at a Spring's press")
     expect(g.pressed == ([ready] if patched else []) and g.read(ready + 0x280) == (4 if patched else 3)
            and g.read(cooling + 0x280) == 3, "a cooling one's key fires the ready one of its kind")
     expect(g.read(cooling + 0x28C) == (40000 if patched else 500),
