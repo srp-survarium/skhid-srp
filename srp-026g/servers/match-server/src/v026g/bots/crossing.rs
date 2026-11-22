@@ -705,14 +705,16 @@ pub(crate) mod tests {
         assert!(crossed.is_some(), "from the zone floor the crossing's search finds the way");
     }
 
-    /// A goal on a zone's floor (a battery lying in a zone on all match) from the dry floor by the zone: the plain search
-    /// refuses the goal's floor, so the crossing's search is asked and finds the way in; too hurt to bear the zone's
-    /// floor, no search, as before. Chemical Plant's battery 0 (match 1f52a49c): every take ended "no way to its goal" there.
+    /// A goal on a zone's floor (a battery lying in a zone on all match) from the dry floor by the zone, both in one 8 m
+    /// block of the regions (x 32-40): the regions' walk with the zones shut reached the goal's region next door, so no
+    /// crossing's search was asked and the plain search refused the goal's floor ("no way"); now the crossing's search is
+    /// asked and finds the way in. Too hurt to bear the zone's floor: no search, as before. Chemical Plant's battery 0
+    /// (match 1f52a49c): every take of the team ended "no way to its goal" from the dry edge 5 m off.
     #[test]
     fn a_goal_on_a_zone_floor_asks_the_crossings_search_from_the_dry_floor_by_it() {
         let weak = tactics(0.04, 0.0);
         let grid = &weak.world.grid;
-        let (edge, goal) = (Vec3::new(35.5, 0.0, 32.5), Vec3::new(40.0, 0.0, 32.5));
+        let (edge, goal) = (Vec3::new(36.25, 0.0, 32.5), Vec3::new(38.75, 0.0, 32.5));
         let (from, to) = (grid.locate(edge, 1.5).unwrap(), grid.locate(goal, 1.5).unwrap());
         assert!(weak.hazards.only_fixed_at(to) && !weak.hazards.fixed_at(from), "a dry edge, the goal on the zone's floor");
         let plain = weak.route_nodes(from, to, 0, Some(0), false, &RouteFilter::open());
