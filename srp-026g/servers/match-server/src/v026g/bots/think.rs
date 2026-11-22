@@ -1372,6 +1372,34 @@ pub(super) fn self_kill(due: &Due, bot: &mut Bot, state: &mut TeamState, notes: 
         team_last_minute: state.features.stuck.self_kills.len() as u32,
     };
     let (next, act) = stuck::self_kill_step(bot.self_kill, &facts, &tuning.unstick);
+    // [self-kill facts] At each GiveUp of the stuck ladder: every fact the self-kill reads and the first rule that holds it back
+    // (log only; a bot pinned 220 s at one spot never killed itself, and no line said why).
+    if let Some((give_up_ms, give_up_at)) = bot.stuck.take_give_up() {
+        let ms = |v: u32| if v == u32::MAX { "never".to_owned() } else { format!("{:.1} s", f64::from(v) / 1_000.0) };
+        let spot = bot.stuck.spot_at(give_up_at).map_or("none".to_owned(), |s| {
+            format!("{} times since {} ms{}", s.times, s.first, if s.fell { ", marked by a fall or a failed jump or drop" } else { "" })
+        });
+        let hopeless = facts.hopeless.map_or("no".to_owned(), |h| format!("{:?} for {}", h.why, ms(now.saturating_sub(h.since))));
+        bot.note(
+            notes,
+            now,
+            format!(
+                "self_kill facts at GiveUp ({give_up_ms} ms at {:?}): {}; hopeless {hopeless}; spot {spot}; no enemy {}, no hit {}, life {}, \
+                 match {}, carrying {}, tickets {:?}, since its last {}, team's last minute {}, state {:?}",
+                give_up_at.to_array(),
+                facts.refusal(&tuning.unstick, false).map_or("allowed".to_owned(), |r| format!("held back: {r:?}")),
+                ms(facts.quiet_ms),
+                ms(facts.hit_quiet_ms),
+                ms(facts.life_ms),
+                ms(facts.match_ms),
+                facts.carrying,
+                facts.tickets,
+                facts.since_last_ms.map_or("none".to_owned(), ms),
+                facts.team_last_minute,
+                bot.self_kill,
+            ),
+        );
+    }
     #[cfg(test)]
     {
         if matches!((bot.self_kill, next), (stuck::SelfKill::Sent { .. }, stuck::SelfKill::Barred)) {
