@@ -7,12 +7,17 @@
 //! material's own fields. Its parallax programs at the highest shading
 //! quality read both. The patch sets them at the same place of 0.26g's
 //! parallax block, for every material with parallax, as 0.44a5 does: no
-//! program players have reads them.
+//! program players have reads them. `SKHID_PARALLAX_UV_LOG=on` logs each
+//! compile's values.
 
 #![forbid(unsafe_code)]
 
+use core::sync::atomic::{AtomicU8, Ordering};
+
 use crate::vostok::effect_compile::{GstageParallax, MaterialFields};
-use crate::vostok::{Context, Flow, NoExit};
+use crate::vostok::log::{Piece::*, line};
+use crate::vostok::renderer::get_environment;
+use crate::vostok::{Context, Flow, NoExit, Thread};
 
 /// A parallax material's uv factors.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -41,8 +46,35 @@ pub fn on_parallax(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(uv) = block.tree().map(ParallaxUv::read) {
         block.send_float2(c"parallax_uv_scrolling_factors", uv.scrolling);
         block.send_float2(c"parallax_uv_scale_factors", uv.scale);
+        if log_on(ctx.thread()) {
+            let [su, sv] = uv.scrolling.map(f32::to_bits);
+            let [u, v] = uv.scale.map(f32::to_bits);
+            line(&[Text("parallax_uv: scrolling "), Hex(su), Text(" "), Hex(sv), Text(" scale "), Hex(u), Text(" "), Hex(v)]);
+        }
     }
     Flow::Continue
+}
+
+/// SKHID_PARALLAX_UV_LOG=on: each parallax compile's values (float bits) in
+/// srp_patches.log. Read at the first compile, on whichever resource thread.
+static LOG: AtomicU8 = AtomicU8::new(UNREAD);
+const UNREAD: u8 = 0;
+const OFF: u8 = 1;
+const ON: u8 = 2;
+
+fn log_on(thread: &Thread) -> bool {
+    let known = match LOG.load(Ordering::Relaxed) {
+        UNREAD => {
+            let mut room = [0u8; 8];
+            let len = get_environment(thread, c"SKHID_PARALLAX_UV_LOG", &mut room);
+            let value = room.get(..len).unwrap_or(&[]);
+            let read = if value.eq_ignore_ascii_case(b"on") || value == b"1" { ON } else { OFF };
+            LOG.store(read, Ordering::Relaxed);
+            read
+        }
+        known => known,
+    };
+    known == ON
 }
 
 #[cfg(test)]
