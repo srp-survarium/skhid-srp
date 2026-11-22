@@ -5,7 +5,7 @@
 //! ```text
 //! picks --db <resources.db> --patch <resources.db.patch_12> ... \
 //!     --points <tsv> [--roofs 49,8,10,42] [--stranded-ok 13] [--harmful-ok 45] [--as-stood 12] \
-//!     [--shift 1.5] [--roof-at 24.563,0.912,30.789] \
+//!     [--shift 1.5] [--roof-at 24.563,0.912,30.789] [--team 1] \
 //!     --project level_01/day_8 [--project level_01/evening_8 ...]
 //! ```
 //!
@@ -25,7 +25,8 @@
 //! +x; the engine's rotation_y the other way: `mapdata::math::heading`).
 //!
 //! The kept picks, in their numbers' order, take the project's solo spawns'
-//! point ids in order (only position and rotation change, as
+//! (team 2's; `--team <n>` another team's: London (v0.32)'s red team at the
+//! owner's picks, 2026-11-23) point ids in order (only position and rotation change, as
 //! `ffa-center-1`); picks past those get new points with the ids after the
 //! project's last; solo spawns left over (the highest ids, the project's last
 //! entries) go. `--roofs`: after them, a new point on the roof of the
@@ -359,6 +360,7 @@ fn run() -> Result<(), String> {
     let mut stranded_ok = Vec::<u32>::new();
     let mut roof_at = Vec::<Vec3>::new();
     let mut shift = 0f32;
+    let mut team = 2i32;
     let numbers = |value: &str, flag: &str| -> Result<Vec<u32>, String> {
         value
             .split(',')
@@ -379,6 +381,7 @@ fn run() -> Result<(), String> {
                 Ok(&[x, y, z]) if x.is_finite() && y.is_finite() && z.is_finite() => roof_at.push(Vec3::new(x, y, z)),
                 _ => return Err(format!("bad --roof-at {value}")),
             },
+            "--team" => team = value.parse().map_err(|_| format!("bad --team {value}"))?,
             "--shift" => {
                 shift = value
                     .parse()
@@ -407,7 +410,7 @@ fn run() -> Result<(), String> {
             .data
             .spawns
             .iter()
-            .filter(|s| s.team == 2)
+            .filter(|s| s.team == team)
             .map(|s| s.point_id)
             .collect();
         ids.sort_unstable();
@@ -499,8 +502,11 @@ fn run() -> Result<(), String> {
                 ),
                 (false, false) => "no cover and in the perimeter band (fails the spawn rule)".to_owned(),
             };
+            // A solo spawn's radius and protection; a team's points keep their own (the edit
+            // list copies them).
+            let radii = if team == 2 { "20\t0" } else { "-\t-" };
             println!(
-                "{project}\t{id}\t{}\t{}\t{}\t0\t{}\t0\t20\t0\t{verdict}\t\tthe owner's pick {} (where yaw {:.1}, {}); {}; {}; cover {}; {rule}; {ahead} m clear ahead",
+                "{project}\t{id}\t{}\t{}\t{}\t0\t{}\t0\t{radii}\t{verdict}\t\tthe owner's pick {} (where yaw {:.1}, {}); {}; {}; cover {}; {rule}; {ahead} m clear ahead",
                 p.feet.x,
                 p.feet.y,
                 p.feet.z,
@@ -514,10 +520,10 @@ fn run() -> Result<(), String> {
             );
         }
         for id in ids.iter().skip(kept.len()) {
-            let s = map.data.spawns.iter().find(|s| s.team == 2 && s.point_id == *id).ok_or("lost a spawn")?;
+            let s = map.data.spawns.iter().find(|s| s.team == team && s.point_id == *id).ok_or("lost a spawn")?;
             let p = s.position;
             println!(
-                "{project}\t{id}\t{}\t{}\t{}\t{}\t{}\t{}\t20\t0\tremoved\t\tone solo spawn more than the picks kept",
+                "{project}\t{id}\t{}\t{}\t{}\t{}\t{}\t{}\t20\t0\tremoved\t\tone spawn of the team more than the picks kept",
                 p.x, p.y, p.z, s.rotation.x, s.rotation.y, s.rotation.z
             );
         }

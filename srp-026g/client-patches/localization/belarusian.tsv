@@ -3088,15 +3088,17 @@ st_srp_technical_433_description	Вашы капканы, у якія страл
 st_srp_technical_433_name	Перазвод
 st_srp_technical_441_description	Ваш дым крыху зялёны і атручвае ворагаў унутры; кіслародны балон абараняе. У кішэню змяшчаецца ўдвая менш дымавых гранат. Таксічныя страты:
 st_srp_technical_441_name	Атрутны дым
-st_srp_technical_442_description	Калі кіслародны балон пусцее: +10% да хуткасці на 20 с і поўная энергія.
-st_srp_technical_442_name	Апошні ўдых
+st_srp_technical_442_description	Пасля кожных 20 с бесперапыннай працы кіслароднага балона і калі ён пусцее: +10% да хуткасці на 20 с і поўная энергія.
+st_srp_technical_442_name	Кіслародны рывок
 st_srp_technical_443_description	Забойства вашай гранатай вяртае адну гранату.
 st_srp_technical_443_name	Марадзёр
-st_srp_technical_444_description	Ваш капкан ламае ногі таму, хто ў яго трапіў. У кішэню змяшчаецца ўдвая менш капканаў.
+st_srp_technical_444_description	Ваш капкан ламае ногі таму, хто ў яго трапіў. Капкан займае 1,5 месца ў кішэні.
 st_srp_technical_444_name	Мядзведжы капкан
+st_srp_technical_445_description	З кіслародным балонам у камплекце: яшчэ адзін кантэйнер для артэфакта.
+st_srp_technical_445_name	Кантэйнер у балоне
 st_srp_technical_disarm_speed	Хуткасць размініравання
 st_srp_technical_friendly_blast	Страты ад сваіх гранат
-st_srp_technical_last_gasp	Хуткасць, калі балон пусты
+st_srp_technical_oxygen_rush	Хуткасць пасля 20 с балона і ў канцы
 st_srp_technical_per_second	 за секунду
 st_srp_technical_pocket_size	 да памеру кішэняў
 st_srp_technical_pockets	 кіш.

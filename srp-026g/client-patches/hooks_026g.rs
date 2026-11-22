@@ -1212,6 +1212,21 @@ pub extern "C" fn hook_artefact_hunt_on_enemy_ids(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- grenade_icons (patch 194) ----
+
+/// The entry `grenade_icons_on_markers_made` (0x235709, game_world_ui::initialize_match (0x234880) about to send the player icons movie its enemy list (root.set_enemy_icon_ids, the Invoke at 0x235726; the icons movie [[ui+10h]+108h]+4), before any marker of the match is sent: mov ecx,[esi+10h] / mov edx,[ecx+108h]; ESI the ui (0x235702). the late join's lists_hook is on the bytes after the Invoke (0x23572B)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_grenade_icons_on_markers_made(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `grenade_icons_on_markers_made` calls this, from the game's jump at 0x235709,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::grenade_icons::on_markers_made(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- blackout (patch 65) ----
 
 /// The entry `blackout_on_update_icons` (0x23aa10, game_world_ui::update_player_icons' start, every frame of a match ([esp+4] the ui)) calls this with the saved machine.
@@ -5414,6 +5429,21 @@ pub extern "C" fn hook_geometry_share_on_deallocate(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- grenade_icons (patch 194) ----
+
+/// The entry `grenade_icons_on_sensed` (0x2471a4, player::st_draw's grenade sensor (0x246F50) once a grenade near the followed player is his team's (the team test 0x24719C passed; mov edx,[esi] / mov edx,[edx+1Ch] reads its position next): ESI the grenade's body (its user the grenade +1Ch), EBP the followed player, BL the marker it takes (0..5, icon 2Fh + BL; show_grenade_icons 0x2471FC shows that many)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_grenade_icons_on_sensed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `grenade_icons_on_sensed` calls this, from the game's jump at 0x2471a4,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::grenade_icons::on_sensed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- hand_kill (patch 108) ----
 
 /// The entry `hand_kill_on_hit` (0x2e50c7, EDI damage model ESI hit_info; invulnerability applied) calls this with the saved machine.
@@ -8162,13 +8192,28 @@ pub extern "C" fn hook_technical_skills_on_dispersion(frame: &mut Frame) -> u32 
 
 // ---- technical_skills (patch 180) ----
 
-/// The entry `technical_skills_on_tank_empty` (0x33e661, oxygen_tank::tick after the air is spent, a living holder's only (the dead path jumps past it): ECX m_amount_ms left, 0 when it ran out this tick (set_active(0) follows at 0x33E66D)) calls this with the saved machine.
+/// The entry `technical_skills_on_tank_spent` (0x33e661, oxygen_tank::tick after the air is spent, a living holder's only (the dead path jumps past it; the tick runs only while the tank is on, set_active 0x33E400 lists it): ECX m_amount_ms left, 0 when it ran out this tick (set_active(0) follows at 0x33E66D), EAX the ms this tick spent (min(m_amount_ms, the elapsed ms), 0x33E5F3..0x33E607)) calls this with the saved machine.
 #[unsafe(no_mangle)]
-pub extern "C" fn hook_technical_skills_on_tank_empty(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `technical_skills_on_tank_empty` calls this, from the game's jump at 0x33e661,
+pub extern "C" fn hook_technical_skills_on_tank_spent(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_skills_on_tank_spent` calls this, from the game's jump at 0x33e661,
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
-    match crate::technical_skills::on_tank_empty(&mut ctx) {
+    match crate::technical_skills::on_tank_spent(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_skills (patch 180) ----
+
+/// The entry `technical_skills_on_tank_switch` (0x33e403, oxygen_tank::set_active's store of m_active (mov [edi+268h],al): AL the new state, EDI the tank; called by action 0x33E3BD (the player's switch) and the tick's off 0x33E66F (run-out or a dead holder); deserialize lists a loaded tank itself, without it) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_skills_on_tank_switch(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_skills_on_tank_switch` calls this, from the game's jump at 0x33e403,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_skills::on_tank_switch(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -9621,6 +9666,8 @@ pub extern "C" fn hook_replay_map_on_enemy_ids_chain(frame: &mut Frame) -> u32 {
     let flow = hook_replay_map_on_enemy_ids(frame);
     if flow != 0 { return flow; }
     let flow = hook_artefact_hunt_on_enemy_ids(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_grenade_icons_on_markers_made(frame);
     if flow != 0 { return flow; }
     0
 }

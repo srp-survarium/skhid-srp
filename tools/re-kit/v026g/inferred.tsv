@@ -3618,6 +3618,8 @@ va	status	ref_021d	name
 0x0031d970	inferred-medium		survarium::breath_vibration_calculator::start
 0x0033e3d0	inferred-medium		survarium::oxygen_tank::register_in_game_world
 0x0033e590	inferred-medium		survarium::oxygen_tank::refill
+0x0033e5a0	inferred-medium		survarium::oxygen_tank::resupply_from_profile_slot
+0x0033e5b0	inferred-medium		survarium::oxygen_tank::resupply_state
 0x003295a0	inferred-medium		survarium::player_stamina::reset
 0x003296c0	inferred-medium		survarium::player_stamina::decrease
 0x00329960	inferred-medium		survarium::player_stamina::boost
@@ -3724,3 +3726,7 @@ va	status	ref_021d	name
 0x002dbe90	inferred-high		survarium::base_player::unsubscribe_from_actions
 0x00306b60	inferred-medium		survarium::game_material_manager::game_material_manager [descriptive]
 0x00306e00	inferred-medium		survarium::game_material_manager::find_material_id [descriptive]
+0x0023c3d0	inferred-medium		survarium::game_world_ui::show_grenade_icons [descriptive]
+0x0023c430	inferred-medium		survarium::game_world_ui::hide_grenade_icons [descriptive]
+0x0023c470	inferred-medium		survarium::game_world_ui::show_trap_icons [descriptive]
+0x0023c750	inferred-medium		survarium::game_world_ui::place_object_icon [descriptive]

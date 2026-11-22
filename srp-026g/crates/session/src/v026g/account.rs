@@ -808,10 +808,21 @@ impl Account {
     }
 
     /// The skills' modifiers the kit at `kit_index` carries (the lobby's and the match's kit
-    /// block): every skill's, but those of the perks it declines ([`KitPerks`]).
+    /// block): every skill's, but those of the perks it declines ([`KitPerks`]) and Tank
+    /// Container's in a kit that wears no oxygen tank ([`loadouts::kit_skills`]). The block goes
+    /// with the account after every change of a kit, so a tank put on or taken off in the lobby
+    /// brings or takes its container at once.
     pub fn kit_modifiers(&self, kit_index: usize) -> [f32; skills::MODIFIERS] {
-        let perks = self.kits.get(kit_index).map_or(KitPerks::default(), |kit| kit.perks);
-        SkillsTree::shared().modifiers(&perks.skills_taken(&self.skills))
+        SkillsTree::shared().modifiers(&self.kit_skills(kit_index))
+    }
+
+    /// The skills of [`Self::kit_modifiers`].
+    fn kit_skills(&self, kit_index: usize) -> Vec<(u16, u8)> {
+        let Some(kit) = self.kits.get(kit_index) else {
+            return loadouts::kit_skills(&self.skills, KitPerks::ALL_TAKEN, false);
+        };
+        let worn = kit.slots.iter().flatten().map(|held| held.item_id);
+        loadouts::kit_skills(&self.skills, kit.perks, self.wears_oxygen_tank(worn))
     }
 
     /// The kit at `kit_index` takes or declines `perk`'s slot (the lobby's click, `presets.md`):
@@ -1001,11 +1012,17 @@ impl Account {
         modifiers: &[f32; skills::MODIFIERS],
     ) -> KitLayout {
         let item_ids: Vec<u32> = item_ids.into_iter().collect();
-        let oxygen_tank = item_ids
-            .iter()
-            .filter_map(|&item_id| self.item(item_id))
-            .any(|item| loadouts::is_oxygen_tank(item.dict_id));
+        let oxygen_tank = self.wears_oxygen_tank(item_ids.iter().copied());
         KitLayout::new(&self.worn_modifications(item_ids), modifiers, oxygen_tank)
+    }
+
+    /// Whether one of the owned items of `item_ids` is an oxygen tank: what Tank Pocket, Tank
+    /// Depth and Tank Container need worn.
+    fn wears_oxygen_tank(&self, item_ids: impl IntoIterator<Item = u32>) -> bool {
+        item_ids
+            .into_iter()
+            .filter_map(|item_id| self.item(item_id))
+            .any(|item| loadouts::is_oxygen_tank(item.dict_id))
     }
 
     /// The modifications of the owned items of `item_ids`: their defaults
@@ -1787,6 +1804,30 @@ mod tests {
         assert_eq!(pocket(&account, 13), None);
         matched(&account);
         assert_eq!(account.inventory, inventory);
+    }
+
+    /// Tank Container (445): the block of a kit that wears an oxygen tank carries it, the others
+    /// not; Artifact Container's pocket choice is the kit's as before.
+    #[test]
+    fn tank_container_goes_with_the_tank() {
+        use survarium::v026g::loadouts::{TANK_CONTAINER, is_oxygen_tank};
+        let tank = Dictionary::shared()
+            .items
+            .iter()
+            .find(|item| is_oxygen_tank(item.dict_id))
+            .unwrap()
+            .dict_id;
+        let mut account = Account::new("Alice");
+        account.skills = vec![(ARTIFACT_CONTAINER, 1), (TANK_CONTAINER, 1)];
+        let worn = account.add_item(tank, FULL_CONDITION);
+        account.kits[0].slots[3] = Some(KitSlot { item_id: worn, count: 1 });
+        assert_eq!(account.kit_skills(0), [(ARTIFACT_CONTAINER, 1), (TANK_CONTAINER, 1)]);
+        assert_eq!(account.kit_skills(1), [(ARTIFACT_CONTAINER, 1)]);
+        account.kits[0].perks = KitPerks::ALL_TAKEN.with(SlotPerk::ArtifactContainer, PerkSlot::Declined);
+        assert_eq!(account.kit_skills(0), [(TANK_CONTAINER, 1)]);
+        // Taken off: the container goes with it; nothing of the kit's slots moves.
+        account.kits[0].slots[3] = None;
+        assert_eq!(account.kit_skills(0), []);
     }
 
     /// The skill refunded: every kit and preset kit has the container again, so the skill

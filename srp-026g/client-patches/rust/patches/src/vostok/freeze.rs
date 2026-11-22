@@ -219,9 +219,18 @@ impl<'t> Player<'t> {
     }
     pub fn hold(&mut self, time: u32, phase: Phase) {
         // SAFETY: this hook owns and skips the tick. Advance its clock so
-        // thaw never gives weapons/movement several seconds of elapsed time.
+        // thaw never gives weapons/movement several seconds of elapsed time,
+        // and the gun in hand's too (its own +5A4h, the tick 0x2E09EF): its
+        // first tick after a thaw stepped the whole freeze at once, and the
+        // recoil's spring (0x331A50) pinned a shot's kick at -1 for seconds,
+        // the view moving by itself after it (the owner, 2026-11-22).
         unsafe {
             self.native.time().write(time);
+            if let Some(item) = self.native.held_item()
+                && read(item.vtable()) == raw::image::WEAPON_VTABLE
+            {
+                item.weapon().last_tick().write(time);
+            }
             // A fresh spawn must remain non-lethal so the rule can see
             // every spawn completed. Its input/tick stay held meanwhile.
             if phase != Phase::Restarting {

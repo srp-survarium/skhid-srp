@@ -3088,15 +3088,17 @@ st_srp_technical_433_description	Tvé pasti, do kterých se střílelo, se znovu
 st_srp_technical_433_name	Natažení
 st_srp_technical_441_description	Tvůj kouř je lehce zelený a otravuje nepřátele uvnitř; kyslíková láhev chrání. Do kapsy se vejde polovina kouřových granátů. Toxické poškození:
 st_srp_technical_441_name	Jedovatý kouř
-st_srp_technical_442_description	Když se kyslíková láhev vyprázdní: +10% rychlosti na 20 s a plná energie.
-st_srp_technical_442_name	Poslední nádech
+st_srp_technical_442_description	Po každých 20 s nepřetržitého používání kyslíkové láhve a když se vyprázdní: +10% rychlosti na 20 s a plná energie.
+st_srp_technical_442_name	Kyslíkový nápor
 st_srp_technical_443_description	Zabití tvým granátem vrátí jeden granát.
 st_srp_technical_443_name	Mrchožrout
-st_srp_technical_444_description	Tvá past láme nohy tomu, koho chytí. Do kapsy se vejde polovina pastí.
+st_srp_technical_444_description	Tvá past láme nohy tomu, koho chytí. Past zabere 1,5 místa v kapse.
 st_srp_technical_444_name	Medvědí past
+st_srp_technical_445_description	S kyslíkovou láhví v sadě: o jeden kontejner na artefakt víc.
+st_srp_technical_445_name	Kontejner v láhvi
 st_srp_technical_disarm_speed	Rychlost zneškodnění pastí
 st_srp_technical_friendly_blast	Poškození od vlastních granátů
-st_srp_technical_last_gasp	Rychlost, když se láhev vyprázdní
+st_srp_technical_oxygen_rush	Rychlost po 20 s láhve a na konci
 st_srp_technical_per_second	 za sekundu
 st_srp_technical_pocket_size	 k velikosti kapes
 st_srp_technical_pockets	 kaps.

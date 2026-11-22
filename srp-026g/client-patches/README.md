@@ -211,6 +211,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/animation_id_log.rs`, `src/animation_id_log.toml`, `src/vostok/animation_id.rs`, `check_animation_id_log_026g.py` | Patch 95: a diagnostic (`../docs/notes/animation-ids.md`): an animation pair the registry has no id for (the lookup 0x2D6590 returns 0FFFFh, the rev47 crashes at 0x1F18C8) is logged to srp_patches.log once, with the clips' names, the registry's size and who asked; one lohook (`sites_026g.tsv` `animations.id_missing`); its check runs the lookup in the original and the patched exe (needs Unicorn) |
 | `rust/patches/src/drug_interrupt.rs`, `src/drug_interrupt.toml`, `src/vostok/drug.rs`, `check_drug_interrupt_026g.py` | Patch 84: a bullet that hits a player stops the healing drug he is using (`../docs/notes/drug-interrupt.md`): one lohook (`sites_026g.tsv` `player.hit_applied`), the game's own `medkit::set_active(0)` through the engine library; its check runs the hook in the patched exe and the game's set_active(0) in the original (needs Unicorn) |
 | `rust/patches/src/breath_hit.rs`, `src/breath_hit.toml`, `src/vostok/breath.rs`, `check_breath_hit_026g.py` | Patch 177: a hit that takes health breaks the victim's breath hold (`../docs/notes/breath-hit.md`): one lohook sharing `sites_026g.tsv` `player.hit_applied` with patch 84 (order 1), which spends the held gun's breath reserve while the gun is holding; the game's own machine goes to short breathing at the gun's next tick. Its check runs the hook and that machine in the patched exe (needs Unicorn) |
+| `rust/patches/src/grenade_icons.rs`, `src/grenade_icons.toml`, `src/vostok/grenade_icons.rs`, `check_grenade_icons_026g.py` | Patch 194: the markers over thrown grenades tell a smoke and a toxic smoke apart (`../docs/notes/grenade-icons.md`): a lohook at `grenade_icons.sensed` (player::st_draw once a teammate's grenade takes marker BL) reads the grenade's kind (frag; smoke, its stack's splash_max_damage 0; toxic smoke, its thrower's kit with Toxic Smoke 441) and, when the marker last showed another kind, calls set_hud_icon_type (0x23BEA0) with the player icons movie's MarkerType; a handler at `player_icons.enemy_ids` (order 3) forgets what the markers were told when initialize_match makes them anew. Presentation only. Its check runs both hooks and the game's own set_hud_icon_type in the patched exe (needs Unicorn) |
 | `rust/patches/src/shot_protection.rs`, `src/shot_protection.toml`, `src/vostok/protection.rs`, `check_shot_protection_026g.py` | Patch 179: a shot ends the shooter's protection (`../docs/notes/shot-protection.md`): one lohook sharing `sites_026g.tsv` `weapon_stats.fired` with patch 165 (order 1), which makes the shooter's damage model's protection time -1, and one at the effect zone's stores (`effect_zone.protect`), which leaves an ended protection ended. Its check runs both hooks in the patched exe beside the original (needs Unicorn) |
 | `rust/patches/src/hand_kill.rs`, `src/hand_kill.toml`, `src/vostok/melee.rs`, `check_hand_kill_026g.py` | Patch 108: a gun-stock hit kills, wherever it lands (`../docs/notes/hand-kill.md`): one lohook on patch 94's `medical.hit` site (ours first in the chain); its check runs the chain in the patched exe (needs Unicorn) |
 | `rust/patches/src/trap_stock_hit.rs`, `src/trap_stock_hit.toml`, `src/vostok/trap.rs`, `check_trap_stock_hit_026g.py` | Patch 151: a gun-stock hit disarms a trap (`../docs/notes/trap-stock-hit.md`): one lohook at `booby_trap_core::hit`'s entry (`trap.hit`); its check runs the hit in the original and the patched exe (needs Unicorn) |
@@ -6467,10 +6468,14 @@ crate, which srp shares. Rust modules `technical_skills` and its siblings (`tech
 - Steady Breath (403) at `technical.breath_vibration` (0x31D95B) and `technical.dispersion`
   (0x2E1DBE), Deep Breaths (431) at `medical.sprint` (order 2), while the player's oxygen tank
   (vtable 0xA1C874) is on.
-- Last Gasp (442): `technical.tank_empty` (0x33E661) starts it (stamina full, the boost's end in the
-  tank's tail padding +294h, saved after m_amount_ms: `technical.tank_save` / `tank_load`, cleared by
-  `tank_construct` and both refills); x1.1 at `medical.movement` (order 2); its end at
-  `battery.carrier_tick` (order 6). srp-validate's `OxygenTank` reads the word.
+- Oxygen Rush (442, Last Gasp until 2026-11-22): `technical.tank_spent` (0x33E661, ECX the air
+  left, EAX the ms the tick spent) counts the tank's use without a break (`technical_skills::TankUse`,
+  +292h u16, 0 again when switched on at `technical.tank_switch` 0x33E403 and at both refills) and
+  starts the boost after every 20 s of it and when the tank runs out (one start when both): stamina
+  full, the boost's end in the tank's tail padding +294h (a running one's end moved to now + 20 s),
+  both saved after m_amount_ms: `technical.tank_save` / `tank_load` (6 bytes: a world-format
+  change), cleared by `tank_construct` and both refills; x1.1 at `medical.movement` (order 2); its
+  end at `battery.carrier_tick` (order 6). srp-validate's `OxygenTank` reads both.
 - Dexterous Hands (401) at `technical.battery_take` (0x338B61) and `technical.resupply_time`
   (0x2F8147, the ms passed at an ammo crate), Sapper (411) at `technical.defuse_time`
   (0x304F92), Rearm (433) at `technical.trap_shot` (0x305552, exit to its `ret 28h`) and
@@ -6483,7 +6488,7 @@ crate, which srp shares. Rust modules `technical_skills` and its siblings (`tech
   its frame: time, killer, source).
 - Bear Trap (444) at `medical.wound` (0x32A28B, order 2; the site's ESI is the hit): a leg's pool
   hit by a trap set of a skilled holder is stored as 0.
-- Toxic Smoke's and Bear Trap's halved pockets are srp's (`KitLayout::share`) and the lobby's
+- Toxic Smoke's halved pockets and Bear Trap's 1.5-unit traps are srp's (`KitLayout::share`) and the lobby's
   (`PlayerInfo.pocketUnits`); nothing of them in the exe.
 - Sharp Ears (412, `technical_sharp_ears`): at `weapon_sound.made` (order 2) an enemy's pin pull also
   plays a long-range copy of its sound (content edit technical-sharp-ears-1) through

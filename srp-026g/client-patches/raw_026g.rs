@@ -373,6 +373,8 @@ unsafe extern "C" {
     pub fn engine_register_hunt_cook(cook: Option<HuntCook>);
     /// 0x313900 survarium::game_match_rule_base::game_match_rule_base: rule EAX, type ESP+4; pops 4; EAX
     pub fn engine_hunt_rule_base(rule: *mut c_void, r#type: u32) -> Option<HuntRule>;
+    /// 0x23bea0 survarium::game_world_ui::set_hud_icon_type: ui ESP+4, id ESP+8, type ESP+12; pops 12
+    pub fn engine_set_hud_icon_type(ui: Option<GameWorldUi>, id: u32, r#type: u32);
 }
 
 #[allow(dead_code)]
@@ -2246,6 +2248,24 @@ impl Player {
     #[inline(always)]
     pub unsafe fn yaw(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x490).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xf480 (ptr<survarium::game_world_ui>): the hud (player::st_draw reads it for the followed player: set_stamina 0x247000, show_grenade_icons 0x2471F2)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn ui(self) -> Option<GameWorldUi> {
+        unsafe { self.0.byte_add(0xf480).cast::<Option<GameWorldUi>>().read_volatile() }
+    }
+
+    /// +0xf480 (ptr<survarium::game_world_ui>): the hud (player::st_draw reads it for the followed player: set_stamina 0x247000, show_grenade_icons 0x2471F2)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_ui(self, value: Option<GameWorldUi>) {
+        unsafe { self.0.byte_add(0xf480).cast::<Option<GameWorldUi>>().write_volatile(value) }
     }
 }
 
@@ -20897,6 +20917,15 @@ impl GameObject {
     pub unsafe fn vtable(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
     }
+
+    /// -0x1c (obj<survarium::grenade_core>): a thrown grenade's body user is its +1Ch (throw_grenade 0x303C5C: lea eax,[esi+1Ch] into the body +0Ch; its vtable 0xA046E0 +0Ch, as_grenade 0x248AC0, is sub ecx,1Ch / mov eax,ecx): the grenade 1Ch before it, only for a user whose as_grenade (vtable +0Ch) answered it, as player::st_draw's sensor asks (0x2470F1)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn grenade(self) -> GrenadeCore {
+        GrenadeCore(unsafe { self.0.byte_sub(0x1c) })
+    }
 }
 
 /// A survarium::collision_geometry (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -31441,12 +31470,21 @@ impl OxygenTank {
         unsafe { self.0.byte_add(0x26c).cast::<u32>().as_ptr() }
     }
 
-    /// +0x294 (u32): patch 180's Last Gasp: the stamina clock's ms its boost lasts until, 0 none; in the tail padding no native code touches (the object is 298h bytes, its last native field +290h); saved after m_amount_ms
+    /// +0x292 (u16): patch 180's Oxygen Rush: the ms of air spent since the tank was switched on, filled or last started it (technical_skills::TankUse, 0..20000); in the tail padding after the influences' count byte +290h, no native code touches it; saved after the boost's word
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
-    pub unsafe fn gasp_until(self) -> *mut u32 {
+    pub unsafe fn oxygen_rush_use(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x292).cast::<u16>().as_ptr() }
+    }
+
+    /// +0x294 (u32): patch 180's Oxygen Rush: the stamina clock's ms its boost lasts until, 0 none; in the tail padding no native code touches (the object is 298h bytes, its last native field +290h); saved after m_amount_ms
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn oxygen_rush_until(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x294).cast::<u32>().as_ptr() }
     }
 }
@@ -41386,8 +41424,8 @@ pub mod site {
         }
     }
 
-    /// technical.tank_empty (0x33e661): oxygen_tank::tick after the air is spent, a living holder's only (the dead path jumps past it): ECX m_amount_ms left, 0 when it ran out this tick (set_active(0) follows at 0x33E66D)
-    pub mod technical_tank_empty {
+    /// technical.tank_spent (0x33e661): oxygen_tank::tick after the air is spent, a living holder's only (the dead path jumps past it; the tick runs only while the tank is on, set_active 0x33E400 lists it): ECX m_amount_ms left, 0 when it ran out this tick (set_active(0) follows at 0x33E66D), EAX the ms this tick spent (min(m_amount_ms, the elapsed ms), 0x33E5F3..0x33E607)
+    pub mod technical_tank_spent {
         #[allow(unused_imports)]
         use super::*;
 
@@ -41398,6 +41436,48 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn tank(machine: &impl Machine) -> Option<OxygenTank> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(OxygenTank)
+        }
+
+        /// ECX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn left(machine: &impl Machine) -> u32 {
+            machine.register(Register::Ecx)
+        }
+
+        /// EAX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn spent(machine: &impl Machine) -> u32 {
+            machine.register(Register::Eax)
+        }
+    }
+
+    /// technical.tank_switch (0x33e403): oxygen_tank::set_active's store of m_active (mov [edi+268h],al): AL the new state, EDI the tank; called by action 0x33E3BD (the player's switch) and the tick's off 0x33E66F (run-out or a dead holder); deserialize lists a loaded tank itself, without it
+    pub mod technical_tank_switch {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::oxygen_tank (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn tank(machine: &impl Machine) -> Option<OxygenTank> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(OxygenTank)
+        }
+
+        /// EAX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn active(machine: &impl Machine) -> u32 {
+            machine.register(Register::Eax)
         }
     }
 
@@ -42259,6 +42339,39 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<UseProgressFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(UseProgressFrame)
+        }
+    }
+
+    /// grenade_icons.sensed (0x2471a4): player::st_draw's grenade sensor (0x246F50) once a grenade near the followed player is his team's (the team test 0x24719C passed; mov edx,[esi] / mov edx,[edx+1Ch] reads its position next): ESI the grenade's body (its user the grenade +1Ch), EBP the followed player, BL the marker it takes (0..5, icon 2Fh + BL; show_grenade_icons 0x2471FC shows that many)
+    pub mod grenade_icons_sensed {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::physics::hit_object (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn body(machine: &impl Machine) -> Option<HitObject> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(HitObject)
+        }
+
+        /// EBP: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(Player)
+        }
+
+        /// EBX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn slot(machine: &impl Machine) -> u32 {
+            machine.register(Register::Ebx)
         }
     }
 }

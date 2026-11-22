@@ -3088,15 +3088,17 @@ st_srp_technical_433_description	Ваші капкани, в які стріля
 st_srp_technical_433_name	Перезвід
 st_srp_technical_441_description	Ваш дим трохи зелений і отруює ворогів усередині; кисневий балон захищає. У кишеню вміщується вдвічі менше димових гранат. Токсична шкода:
 st_srp_technical_441_name	Отруйний дим
-st_srp_technical_442_description	Коли кисневий балон порожніє: +10% до швидкості на 20 с і повна енергія.
-st_srp_technical_442_name	Останній вдих
+st_srp_technical_442_description	Після кожних 20 с безперервної роботи кисневого балона і коли він порожніє: +10% до швидкості на 20 с і повна енергія.
+st_srp_technical_442_name	Кисневий ривок
 st_srp_technical_443_description	Вбивство вашою гранатою повертає одну гранату.
 st_srp_technical_443_name	Мародер
-st_srp_technical_444_description	Ваш капкан ламає ноги тому, хто в нього потрапив. У кишеню вміщується вдвічі менше капканів.
+st_srp_technical_444_description	Ваш капкан ламає ноги тому, хто в нього потрапив. Капкан займає 1,5 місця в кишені.
 st_srp_technical_444_name	Ведмежий капкан
+st_srp_technical_445_description	З кисневим балоном у комплекті: ще один контейнер для артефакту.
+st_srp_technical_445_name	Контейнер у балоні
 st_srp_technical_disarm_speed	Швидкість розмінування
 st_srp_technical_friendly_blast	Шкода від своїх гранат
-st_srp_technical_last_gasp	Швидкість, коли балон порожній
+st_srp_technical_oxygen_rush	Швидкість після 20 с балона і в кінці
 st_srp_technical_per_second	 за секунду
 st_srp_technical_pocket_size	 до розміру кишень
 st_srp_technical_pockets	 киш.

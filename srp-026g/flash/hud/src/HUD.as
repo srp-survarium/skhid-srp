@@ -153,7 +153,11 @@ package
          var freeze:Boolean = this._gameType == 12 && this._freezeContext != null;
          var context:Object = freeze ? this._freezeContext : this._nativeContext;
          var offer:Boolean = !freeze && this._artefactOfferKey.length != 0;
-         this.contextInfo.visible = (offer || freeze) ? !this._chatTyping && !this._profilePanel.visible : context.visible;
+         // An artefact offer waits under the kits; Freeze Tag's line does not: the pause shows its
+         // kits and its countdown at once (the owner, 2026-11-22: "timer in freeze tag disappeared
+         // when round is finished").
+         this.contextInfo.visible = offer ? !this._chatTyping && !this._profilePanel.visible
+            : freeze ? !this._chatTyping : context.visible;
          if(!this.contextInfo.visible) return;
          var value:int = offer ? 0 : context.value;
          var frame:int = value == 0 ? 1 : 2;
