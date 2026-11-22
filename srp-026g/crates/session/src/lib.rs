@@ -36,6 +36,7 @@ pub mod chat_mutes;
 pub mod limits;
 mod matchmaking;
 pub mod matchmaking_policy;
+pub mod name_search;
 pub mod password;
 pub mod persist;
 mod reports;
@@ -45,8 +46,9 @@ pub mod utc;
 pub mod v026g;
 pub use bans::{Ban, IpBan, Net};
 pub use matchmaking::{
-    DEFAULT_GATHER_WINDOW, FormedMatch, Level, MAX_PLAYERS_PER_MATCH, Matchmaking, Player,
-    QueuePool, QueueState, Seat, Strength, fill_from_env, gather_window_from_env, quiet_from_env,
+    DEFAULT_GATHER_WINDOW, FormedMatch, Level, LiveDelay, MAX_PLAYERS_PER_MATCH, Matchmaking,
+    Player, QueuePool, QueueState, Seat, Strength, WATCH_CONNECT_WITHIN, WATCH_COOLDOWN, WatchKind,
+    Watcher, fill_from_env, gather_window_from_env, quiet_from_env,
 };
 use persist::{AccountRecord, AccountRepository, PersistError, StoredSession};
 pub use reports::{MatchReport, Reports};
@@ -93,6 +95,17 @@ impl<T> LockExt<T> for Mutex<T> {
 fn random_session_id() -> u32 {
     use password_hash::rand_core::{OsRng, RngCore};
     OsRng.next_u32() % 0x7FFE_0000 + 0x1_0000
+}
+
+/// A new match id: random, from the operating system's secure generator,
+/// from 1 to 0x7FFF_FFFF (the top bit is the static info's, `static_id` in
+/// the match server). A match's id is also the code its replay is watched
+/// and saved by, a private room's too, so one id must say nothing of any
+/// other (they used to be steps of one sequence, so that any public match's
+/// id gave its neighbours').
+pub fn random_match_id() -> u32 {
+    use password_hash::rand_core::{OsRng, RngCore};
+    OsRng.next_u32() % 0x7FFF_FFFF + 1
 }
 
 /// The wall clock, Unix seconds.
@@ -1118,6 +1131,29 @@ impl SessionStore {
         found
     }
 
+    /// The accounts whose name `typed` matches loosely ([`name_search::Typed::score`]: a part of
+    /// the name, its letters in order, a typo or two), the best match first, then by name: at
+    /// most `limit`, `except` left out.
+    pub fn find_accounts_like(
+        &self,
+        typed: &name_search::Typed,
+        except: u32,
+        limit: usize,
+    ) -> Vec<(u32, String)> {
+        let accounts: Vec<_> = self.accounts.locked().values().cloned().collect();
+        let mut found: Vec<(u32, u32, String)> = accounts
+            .iter()
+            .filter_map(|account| {
+                let account = account.locked();
+                let score = typed.score(&account.name);
+                (account.id != except && score != 0).then(|| (score, account.id, account.name.clone()))
+            })
+            .collect();
+        found.sort_by(|lhs, rhs| rhs.0.cmp(&lhs.0).then_with(|| lhs.2.cmp(&rhs.2)).then(lhs.1.cmp(&rhs.1)));
+        found.truncate(limit);
+        found.into_iter().map(|(_, id, name)| (id, name)).collect()
+    }
+
     /// Every account by rating, best first (then by name): the ranking.
     /// Locks each account in turn, so the caller must hold none.
     pub fn ranking(&self) -> Vec<survarium::v021d::lobby::Ranked> {
@@ -1236,6 +1272,7 @@ impl SessionStore {
             .collect();
         for other in before {
             self.matchmaking.leave_queue(other);
+            self.matchmaking.stop_watching(other);
         }
         self.sessions_made(&[session_id]);
         Some(session_id)
@@ -1332,6 +1369,7 @@ impl SessionStore {
         };
         self.sessions_ended(&[(session_id, account_id)]);
         self.matchmaking.leave_queue(session_id);
+        self.matchmaking.stop_watching(session_id);
         if !self.plays_on_elsewhere(account_id, session_id, Instant::now()) {
             self.leave_squad(account_id, "its session ended (signed out)");
         }
@@ -2095,6 +2133,40 @@ mod tests {
         assert_eq!(account.locked().name, format!("player_{id:08x}"));
     }
 
+    /// A new sign-in is a new game: what the game before it watched is over,
+    /// or its place among a match's few spectators would stay taken.
+    #[test]
+    fn a_new_sign_in_ends_what_the_game_before_it_watched() {
+        let store = SessionStore::new();
+        let player = |n: u32| Player {
+            session_id: n,
+            account_id: 1000 + n,
+            profile_id: 1,
+        };
+        let id = store
+            .matchmaking()
+            .seat_sides_in_pool(
+                [&[player(1)], &[player(2)]],
+                Instant::now(),
+                QueuePool::GrowingRoster,
+                &|_| 0,
+            )
+            .expect("1 v 1");
+        let account = 7;
+        let old = store.create_session_with_revision(account, 40);
+        let watcher = Watcher {
+            match_id: id,
+            ticket: 0xA000,
+            account_id: account,
+            kind: WatchKind::Queued {
+                delay: crate::matchmaking::LiveDelay::DEFAULT,
+            },
+        };
+        assert!(store.matchmaking().watch(old, watcher, Instant::now()));
+        let _new = store.create_session_with_revision(account, 40);
+        assert_eq!(store.matchmaking().watched(old), None);
+    }
+
     #[test]
     fn sessions_are_random_distinct_and_resolve() {
         let store = SessionStore::new();
@@ -2636,6 +2708,19 @@ mod tests {
             [(ivan, "Ivanov".to_string())]
         );
         assert!(store.find_accounts(b"", 0, 10).is_empty());
+        // loosely: the best match first (a name's start, then a typo), no other
+        let like = |typed: &str, except, limit| {
+            store.find_accounts_like(&name_search::Typed::parse(typed).expect("letters"), except, limit)
+        };
+        assert_eq!(
+            like("ivo", 0, 10),
+            [(ivo, "ivo".to_string()), (ivan, "Ivanov".to_string())]
+        );
+        assert_eq!(like("petovich", 0, 10), [(petr, "petrovich".to_string())]);
+        assert_eq!(like("iv", ivo, 10), [(ivan, "Ivanov".to_string())]);
+        // a name of letters of another script, found as the substring search found it
+        let vasya = store.get_or_create_account(ip(127, 0, 0, 3), "Вася");
+        assert_eq!(like("вас", 0, 10), [(vasya, "Вася".to_string())]);
         assert!(store.account(petr).is_some());
         assert!(store.account(0xBAD).is_none());
     }

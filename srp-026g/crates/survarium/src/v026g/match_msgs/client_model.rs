@@ -475,7 +475,8 @@ impl ClientModel {
             ServerMessage::StaticInfo { .. } => {
                 let (index, options) = static_info::parse_payload(payload, dictionary)
                     .map_err(ModelError::StaticInfo)?;
-                self.local_index = Some(index);
+                // A spectator's game: no place is its own.
+                self.local_index = (index != static_info::NO_LOCAL_PLACE).then_some(index);
                 self.options = Some(options);
                 self.state = State::StaticInfoReceived;
             }

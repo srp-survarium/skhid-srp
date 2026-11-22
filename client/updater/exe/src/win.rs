@@ -693,6 +693,28 @@ pub fn game_language(documents: &str) -> Option<u32> {
     updater_logic::replay::language_of_user_cfg(&user_cfg(documents)?)
 }
 
+/// A moment in Unix seconds (UTC) as this computer's local date and time,
+/// with the time zone's daylight saving of that day.
+pub fn local_stamp(unix: u64) -> Option<updater_logic::replay::Stamp> {
+    use windows_sys::Win32::System::Time::{FileTimeToSystemTime, SystemTimeToTzSpecificLocalTime};
+    // 100 ns since 1601.
+    let ticks = unix.checked_add(11_644_473_600)?.checked_mul(10_000_000)?;
+    let file_time = FILETIME { dwLowDateTime: ticks as u32, dwHighDateTime: (ticks >> 32) as u32 };
+    let mut utc: SYSTEMTIME = unsafe { core::mem::zeroed() };
+    let mut local: SYSTEMTIME = unsafe { core::mem::zeroed() };
+    let ok = unsafe {
+        FileTimeToSystemTime(&file_time, &mut utc) != 0
+            && SystemTimeToTzSpecificLocalTime(null(), &utc, &mut local) != 0
+    };
+    ok.then_some(updater_logic::replay::Stamp {
+        year: local.wYear,
+        month: local.wMonth,
+        day: local.wDay,
+        hour: local.wHour,
+        minute: local.wMinute,
+    })
+}
+
 /// Whether the game, which reads its command line as ANSI text
 /// (`GetCommandLineA`), gets `text` back as it is, and in how many bytes.
 fn ansi_length(text: &str) -> Option<usize> {

@@ -6,7 +6,6 @@ package survarium.friends
    import flash.events.FocusEvent;
    import flash.events.KeyboardEvent;
    import flash.events.MouseEvent;
-   import flash.external.ExternalInterface;
    import flash.text.TextField;
    import flash.text.TextFormat;
    import flash.ui.Keyboard;
@@ -364,6 +363,8 @@ package survarium.friends
          friendsById = null;
       }
       
+      // The players found, or null when the answer was lost (LobbyMenu.findPlayers): an empty
+      // list, the spinner stopped.
       public function fillFoundPlayers(foundPlayers:Array) : void
       {
          this.loadingIndicator.gotoAndStop(1);
@@ -642,7 +643,8 @@ package survarium.friends
             return;
          }
          dispatchEvent(new Event(Event.CONNECT,true));
-         ExternalInterface.call("find_players",searchText);
+         // its answer, told apart from the Watch window's by the order asked
+         LobbyMenu.findPlayers(this,searchText,this.fillFoundPlayers);
          this.loadingIndicator.gotoAndPlay(1);
          this.showSearch(false);
       }

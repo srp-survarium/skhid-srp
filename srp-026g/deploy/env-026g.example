@@ -59,16 +59,27 @@ SRP_WEB_TRUST_PROXY=off
 # SRP_DOWNLOAD_URL=
 # SRP_DOWNLOAD_SHA256=
 
-# "Watch replay" (docs/notes/replay_watch.md): on with the compose
-# default; the replays go to SRP_REPLAY_DIR (compose default
-# /srv/srp/data/replays), `off` switches it off.
-# SRP_REPLAY_DIR=/srv/srp/data/replays
-# A larger recording is not converted (the conversion's memory grows with
-# it; 24 MB fits the 512 MB container).
+# A replay session (docs/notes/replay-stream.md) or a Save does not read a
+# larger recording (it is kept in memory while watched; 24 MB fits the
+# 512 MB container).
 # SRP_REPLAY_MAX_RECORDING_MB=24
-# The replays (.sur and .json in SRP_REPLAY_DIR) over this many MB
-# together: the oldest are deleted (made again when asked for). Apart from
-# SRP_RECORD_MAX_MB.
+# Who may watch a match's replay in the game or save it: `all` (default)
+# or `match` (the match's players and SRP_REPLAY_MODERATORS, account ids,
+# comma-separated).
+# Replay sessions at once (default 4).
+# SRP_REPLAY_WATCH=all
+# SRP_REPLAY_MODERATORS=
+# SRP_REPLAY_WATCH_MAX=4
+# The Live window's spectators: seconds behind the match (0 to 58), at most
+# so many of one match, and in all (Queue and spectate counts too).
+# SRP_LIVE_WATCH_DELAY_S=30
+# SRP_LIVE_WATCH_PER_MATCH=4
+# SRP_LIVE_WATCH_MAX=8
+# Save: the .srpreplay files players save go to SRP_REPLAY_DIR (compose
+# default /srv/srp/data/replays; `off` switches Save off). Over this many
+# MB together the oldest are deleted (made again when asked for); apart
+# from SRP_RECORD_MAX_MB.
+# SRP_REPLAY_DIR=/srv/srp/data/replays
 # SRP_REPLAY_MAX_MB=1000
 
 # Resources. Beside another server on a small host, check `free -m` first.

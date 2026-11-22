@@ -2,7 +2,7 @@
 
 **Version scope:** client **0.26g** (build 2777, patch revisions 7 to 10 on the players' server). Every address is a VA in the original 0.26g exe, read with `tools/re-kit/common/scripts/dis.py 026g` and `xref.py`. Written 2026-10-15.
 
-**Status: the format was read from the exe; no file made here has been played by a client yet.** The server makes these files itself for the lobby's "Watch replay" (`replay_watch.md`). The code (`servers/match-server/src/v026g/sur.rs`, `sur_convert.rs`, the binary `srp-recording-to-sur`) makes files that pass their own checks and parse back with a reader written from the client's. Whether the game plays them is the first thing to find out (section 6).
+**Status: the format was read from the exe; no file made here has been played by a client yet.** The server makes these files itself (`game::playback::sur_of`): a replay session plays one in the running game (`replay-stream.md`), and Save's `.srpreplay` holds one. The game plays a local `.sur` with `-match_replay`, started by the updater's `open-replay` (`client/updater/README.md`, "Opening local .sur files"). The code (`servers/match-server/src/v026g/sur.rs`, `sur_convert.rs`, the binary `srp-recording-to-sur`) makes files that pass their own checks and parse back with a reader written from the client's. Whether the game plays them is the first thing to find out (section 6).
 
 Tags: **PROVEN** = read in the 0.26g code at the address given. **LIKELY** = strong inference. **GUESS** = weak.
 
@@ -15,6 +15,38 @@ The 0.26g exe has a replay player the 0.21d exe only began (0.21d: `replay_match
 - the command-line key `-match_replay=<name>` (description "replay match"; key object 0xA9C9B0, read with `is_set_as_string` in `game::on_base_resources_created` at 0x1EB099, after `-spectator`);
 - a file reader, `replay_match_reader` (0x694 bytes, constructor 0x1F03D0), with **key frames** (`key_frame_type`, at most 128), seeking (`game::enqueue_replay_seek_to` 0x1EE3C0 -> 0x1EE2E0) and the check "Replay of other engine version is used" (0x1F067A);
 - a replay UI, `resources/flash_movies/replay_player.swf`: play/pause, speed 0.01 to 10, a seek bar over the match's length, one-frame steps, a player list (`select_player(id, 0|1)`, first or third person), a free view, `smooth_replay_camera`, `toggle_replay_ui`;
+  - since 2026-11-08 its root also takes the markers and the players as one string each, which GFx's
+    Invoke passes more easily than an Array of objects (`survarium.replay.ReplayText`):
+    `set_markers_text("time_ms:kind:whose:actor:victim;...")` (kind 1 a kill, 2 an objective, 3 a death
+    of the player in view; actor and victim place numbers, either may be empty; sorted by time, into
+    `set_markers_list`, whose previous/next buttons then step from one to the next), their names by
+    `set_marker_names("place:name;...")`, sent first (the movie makes each label `actor > victim`, or
+    the one there is), and
+    `set_players_text("place:team:name;...")` (place 0..19, team the match's 0 or 1 shown as ally or
+    enemy, into `set_players_list`). The last field may hold `:`, no field `;`; a malformed entry is
+    left out; an empty string empties the bar. Since 2026-11-08 the markers are ticks on the seek
+    bar (`survarium.replay.MarkerTicks`) at their times, coloured by kind (1 kill red, 2 objective
+    gold, 3 a death white, any other grey); over one, a label above it: its time (m'ss), its kind's
+    word and its label when that says more than the time (so the label may carry names, `Ada > Bob`);
+    a press seeks to 4 s before it, as a press on the bar seeks (the slider's value, sent as
+    `update_position`). The left column of markers is kept hidden: the previous/next label buttons
+    still step through it. `scripts/replay-markers/check.sh <replay_player.swf>` checks both in Ruffle.
+  - `set_replay_speed(percent:int)` (25 to 800, the nearest end outside) shows the playback's speed in
+    the speed stepper as 0.25x, 0.5x, 1x, 2x, 4x, 8x, sending nothing back (`update_play_speed` is
+    the stepper's own steps); the bottom panel's frames reset the stepper's art values, and the speed
+    is shown again over them. A player's name is shrunk (to size 8 at least) until it fits its row:
+    16 characters do; one too wide even then ends with "…". Free view sits under the last player
+    (it was over it). The same check covers them;
+    `scripts/replay-markers/shot.sh <replay_player.swf> <out.png>` takes a screenshot.
+  - a replay viewer's own controls (`survarium.replay.ViewerControls`, `KeyHint`), made once by the exe's
+    `start_viewer(back, moments, all, mine, followed, cursor, pause, filter, hide, ctrl, space, kill, objective, death, event)` (15 texts of the dictionaries; the last four are the marker kind words,
+    MarkerTicks.setKindWords): a Back button (`back_clicked`), the Moments switch right of the bottom panel
+    (`moments_clicked(0|1|2)`, shown by `set_moments(choice, mine)`; Mine only when `mine` is not 0) and the
+    key hint above the bar (key caps and their actions on a panel, the arrows drawn, wrapped onto more rows
+    rather than leave the stage), shown its first 10 s and while `set_cursor_shown(true)`, fading in and out.
+    A marker's `whose` is the switch's: a mask, 1 the viewer's own, 2 the player in view's, 3 both,
+    0 neither; the ticks the switch does not light are drawn at 30 %. A `.sur` played by the replay client gets
+    none of it.
 - no lobby list of replays, and **no writer**: the strings "replays" and ".sur" each have one reader, nothing in the exe opens a `.sur` for writing, and `key_frame_type::push_back` is called only by the reader (LIKELY: no writer path found). The game's own recorder is the journal (`-record_journal`), which is off since patch revision 4 and is another thing (it holds the packets one client got and its device input, and plays only with `-replay_journal`).
 
 ## 2. Where the file is

@@ -54,7 +54,7 @@ fn admission_closes_at_the_end_of_the_match_and_stale_publications_expire() {
     );
 }
 
-fn player(place: usize) -> MatchPlayer {
+pub(super) fn player(place: usize) -> MatchPlayer {
     MatchPlayer {
         session_id: session_of(place),
         account_id: 100 + place as u32,
@@ -66,7 +66,7 @@ fn player(place: usize) -> MatchPlayer {
 
 /// A newcomer whose kit holds six grenades: a game's world's game objects
 /// have one for each once that game has its place.
-fn grenadier(place: usize) -> MatchPlayer {
+pub(super) fn grenadier(place: usize) -> MatchPlayer {
     let mut player = player(place);
     let grenade = Dictionary::shared()
         .item_named("rgd-5")

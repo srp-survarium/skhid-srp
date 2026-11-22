@@ -15,6 +15,12 @@ game resolves): Ruffle does not find it and lays the text out in a wider
 fallback font, so such text measures and wraps wrongly. The copy names the
 font's character id instead.
 
+--exe: the COPY's flash.external package named harness.extern instead (the same
+length): its ExternalInterface.call lands in a harness's stand-in
+(scripts/exe-stand-in), Ruffle having no exe. The movie's code is otherwise as
+it ships, with no hook in it; the harness loads it in a child domain of its own
+so the stand-in resolves.
+
 --slider-labels: the lobby's ammo sliders (one frame, no labels) also get the
 labels AmmoSlider.draw goes to (default, disabled, focused). Scaleform goes on
 past a label a clip lacks, Ruffle throws, and the lobby's own root stops there
@@ -62,5 +68,16 @@ def labelled(tags,symbols):
    b=swf.payload(r);r=swf.tag(k,b[:4]+b''.join(swf.tag(43,l+b'\0') for l in (b'default',b'disabled',b'focused'))+b[4:])
   out.append((k,r))
  return out
+def exe_stand_in(tags):
+ frm,to=b'\x0eflash.external',b'\x0eharness.extern'
+ out=[];n=0
+ for k,r in tags:
+  if k in (swf.DO_ABC,swf.DO_ABC_OLD):
+   b=swf.payload(r);n+=b.count(frm);r=swf.tag(k,b.replace(frm,to))
+  out.append((k,r))
+ assert n>0,'no flash.external in the movie'
+ return out
 h,t=swf.split(src.read_bytes());symbols={n:c for c,n in swf.symbol_classes(t)}
-out.write_bytes(swf.join(h,labelled(rewrite(t,symbols),symbols)));print('Adapted native Scaleform image placements for Ruffle:',count)
+t=labelled(rewrite(t,symbols),symbols)
+if '--exe' in sys.argv[3:]: t=exe_stand_in(t)
+out.write_bytes(swf.join(h,t));print('Adapted native Scaleform image placements for Ruffle:',count)

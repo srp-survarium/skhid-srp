@@ -2,10 +2,11 @@
 //! every finished match ([`MatchRecord`], made by
 //! [`crate::v026g::rewards::Results::settle`]) and its players, with the
 //! counted public matches' totals by player and by clan added up as each is
-//! written. [`MatchHistory`] reads them for the site, on read-only
-//! connections of its own: only public matches are ever served.
+//! written. [`MatchHistory`] reads them for the site and the lobby, on
+//! read-only connections of its own: only public matches are served to the
+//! site, but a player's own list and a match's events read every kind.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, MutexGuard, TryLockError};
@@ -19,6 +20,8 @@ use crate::persist::PersistError;
 use crate::v026g::account::level_at;
 use crate::v026g::clans::{self, status};
 use crate::v026g::replays::ReplayId;
+
+use super::match_events::{self, MatchEvent, MatchEvents};
 
 /// The schema step that adds the history. A database of before has no
 /// matches: the history starts with the first match after it.
@@ -735,6 +738,8 @@ pub struct MatchRecord {
     pub kind: MatchKind,
     pub info: MatchInfo,
     pub players: Vec<PlayerRecord>,
+    /// What happened in it ([`match_events`]).
+    pub events: Vec<MatchEvent>,
 }
 
 /// Public matches added up.
@@ -861,6 +866,16 @@ pub struct MatchPlayer {
     pub kits: Vec<KitLine>,
 }
 
+/// What a line of a player's own list is of ([`HistoryReaders::own_matches`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OwnKind {
+    Public,
+    /// A room with a PIN.
+    Private,
+    /// Against the server's bots.
+    VsBots,
+}
+
 /// A public match of a player's: the match, its line and its kits.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PlayerMatch {
@@ -950,9 +965,9 @@ pub enum ClanKey<'a> {
     Tag(&'a str),
 }
 
-/// Writes a match and adds a counted public one to the totals, in one
-/// transaction. A match of a replay id kept already is not written again:
-/// a failed write is retried.
+/// Writes a match with its events and adds a counted public one to the
+/// totals, in one transaction. A match of a replay id kept already is not
+/// written again: a failed write is retried.
 pub(super) fn record(
     connection: &mut Connection,
     record: &MatchRecord,
@@ -1078,6 +1093,7 @@ pub(super) fn record(
         }
         add_totals(&transaction, "g26_clan_totals", "clan_id", clan_id, &totals)?;
     }
+    match_events::record(&transaction, &record.replay_id, &record.events)?;
     transaction.commit()?;
     Ok(())
 }
@@ -1341,6 +1357,22 @@ const FAVOURITES: &str = "SELECT dict_id, matches
      FROM g26_player_items WHERE account_id = ?1 AND gear = ?2
      ORDER BY matches DESC, dict_id DESC LIMIT ?3";
 
+/// An account's newest public matches after `?2`, at most `?3`: along its
+/// by-account index, newest first, among its newest
+/// [`MatchHistory::MAX_READ`] (its private ones and those against bots are
+/// read past) ([`HistoryReaders::matches_with`]).
+const NEWEST_PUBLIC_OF: &str = "SELECT p.match_id
+     FROM (SELECT match_id FROM g26_match_players
+           WHERE account_id = ?1 AND match_id > ?2
+           ORDER BY match_id DESC LIMIT 500) p
+     JOIN g26_matches m ON m.id = p.match_id
+     WHERE m.kind = 'public'
+     ORDER BY p.match_id DESC LIMIT ?3";
+const _: () = assert!(MatchHistory::MAX_READ == 500, "NEWEST_PUBLIC_OF and player_matches read as many");
+/// The matches `?1` (a JSON list of ids), newest first.
+const MATCHES_BY_ID: &str =
+    "FROM g26_matches m WHERE m.id IN (SELECT value FROM json_each(?1)) ORDER BY m.id DESC";
+
 /// The rows of [`kits_query`], by account.
 fn kits_of(
     statement: &mut rusqlite::CachedStatement,
@@ -1383,7 +1415,7 @@ fn counts_at(row: &Row, at: usize) -> rusqlite::Result<KitCounts> {
     })
 }
 
-fn bad(what: &str, text: &str) -> rusqlite::Error {
+pub(super) fn bad(what: &str, text: &str) -> rusqlite::Error {
     rusqlite::Error::FromSqlConversionFailure(
         0,
         rusqlite::types::Type::Text,
@@ -1495,18 +1527,22 @@ fn level_of(experience: u32) -> u8 {
     level_at(experience).0
 }
 
-/// The history as the site reads it: public matches only, on read-only
-/// connections of its own. The file is in WAL mode
-/// ([`super::SqliteGameRepository::open`]), so a read never waits for the
-/// writer nor the writer for a read. Every query is an indexed lookup of at
-/// most [`MatchHistory::MAX_ROWS`] rows (a clan card's members: up to
-/// `clans::MAX_MEMBERS`; a list a `keep` filters reads up to
+/// The history as the site and the lobby read it: public matches only
+/// (and a player's own list), on read-only connections of its own. The file
+/// is in WAL mode ([`super::SqliteGameRepository::open`]), so a read never
+/// waits for the writer nor the writer for a read. Every query is an
+/// indexed lookup of at most [`MatchHistory::MAX_ROWS`] rows (a clan card's
+/// members: up to `clans::MAX_MEMBERS`; a list a `keep` filters reads up to
 /// [`MatchHistory::MAX_READ`]).
+///
+/// The site reads on [`MatchHistory::READERS`] connections
+/// ([`MatchHistory::site`]): a slow request holds one of them, and when all
+/// are busy the next waits. The lobby reads on [`MatchHistory::lobby`], a
+/// connection the site never takes, so no number of requests to the site
+/// ever makes a lobby player wait.
 pub struct MatchHistory {
-    /// A slow request holds one; when all are busy the next waits.
-    connections: Vec<Mutex<Connection>>,
-    /// The connection a read waits for when all are busy, in turn.
-    next: AtomicUsize,
+    site: HistoryReaders,
+    lobby: HistoryReaders,
 }
 
 impl MatchHistory {
@@ -1518,13 +1554,45 @@ impl MatchHistory {
     /// find its [`Self::MAX_ROWS`]: the ones `keep` leaves out (the banned,
     /// which the accounts' store knows) are read past.
     pub const MAX_READ: usize = 500;
-    /// How many requests read at once: the host has one CPU, the rest wait.
+    /// How many requests to the site read at once: the host has one CPU,
+    /// the rest wait.
     pub const READERS: usize = 4;
 
     /// Opens the file at `path`, which [`super::SqliteGameRepository`]
     /// made, put in WAL mode and brought to this schema.
     pub(super) fn open(path: &Path) -> Result<Self, PersistError> {
-        let connections = (0..Self::READERS)
+        Ok(Self {
+            site: HistoryReaders::open(path, Self::READERS)?,
+            // The lobby reads on its one thread.
+            lobby: HistoryReaders::open(path, 1)?,
+        })
+    }
+
+    /// The lobby's reads: on a connection of its own, which waits for no
+    /// read of the site's.
+    pub fn lobby(&self) -> &HistoryReaders {
+        &self.lobby
+    }
+
+    /// Every other reader's reads (the site, the match server's threads):
+    /// the shared pool.
+    pub fn site(&self) -> &HistoryReaders {
+        &self.site
+    }
+}
+
+/// The history's queries, on read-only connections: the site's
+/// ([`MatchHistory::site`]) or the lobby's ([`MatchHistory::lobby`]).
+pub struct HistoryReaders {
+    /// A slow request holds one; when all are busy the next waits.
+    connections: Vec<Mutex<Connection>>,
+    /// The connection a read waits for when all are busy, in turn.
+    next: AtomicUsize,
+}
+
+impl HistoryReaders {
+    fn open(path: &Path, count: usize) -> Result<Self, PersistError> {
+        let connections = (0..count)
             .map(|_| {
                 let connection = Connection::open_with_flags(
                     path,
@@ -1551,6 +1619,22 @@ impl MatchHistory {
         }
         let turn = self.next.fetch_add(1, Ordering::Relaxed) % self.connections.len();
         self.connections[turn].locked()
+    }
+
+    /// The events of the newest match the match server numbered
+    /// `game_match_id` (`None`: none kept), of any kind of match: who may
+    /// see them is the caller's to say.
+    pub fn events(&self, game_match_id: u32) -> Result<Option<MatchEvents>, PersistError> {
+        Ok(match_events::of_game_match(&self.reader(), game_match_id)?)
+    }
+
+    /// The events of the match `replay_id` (its recording's file stem):
+    /// `None` for no such match kept. Of any kind, as [`Self::events`].
+    pub fn events_of_replay(
+        &self,
+        replay_id: &ReplayId,
+    ) -> Result<Option<MatchEvents>, PersistError> {
+        Ok(match_events::of_replay(&self.reader(), replay_id)?)
     }
 
     /// The account with this in-game name (Latin letters in any case), of
@@ -1681,6 +1765,45 @@ impl MatchHistory {
         Ok(matches)
     }
 
+    /// The account's own matches of every kind, newest first, at most
+    /// `limit`, each with its kind: a PIN room's and those against the
+    /// server's bots too, which only the player itself is ever shown (its
+    /// own list in the game; they stay out of every other list, the site
+    /// and the totals). No kits are read. A match that is not public counts
+    /// nowhere: its summary's eligibility reads [`Eligibility::Short`].
+    pub fn own_matches(
+        &self,
+        account_id: u32,
+        limit: usize,
+    ) -> Result<Vec<(PlayerMatch, OwnKind)>, PersistError> {
+        let connection = self.reader();
+        let summary = SUMMARY.replace("m.eligibility", "COALESCE(m.eligibility, 'short')");
+        let mut statement = connection.prepare_cached(&format!(
+            "SELECT m.kind, {summary}, {LINE}
+             FROM g26_match_players p JOIN g26_matches m ON m.id = p.match_id
+             WHERE p.account_id = ?1
+             ORDER BY p.match_id DESC LIMIT ?2"
+        ))?;
+        let rows = statement
+            .query_map(params![account_id, bounded(limit)], |row| {
+                let kind: String = row.get(0)?;
+                let kind = match kind.as_str() {
+                    "public" => OwnKind::Public,
+                    "private" => OwnKind::Private,
+                    "vs_bots" => OwnKind::VsBots,
+                    _ => return Err(bad("match kind", &kind)),
+                };
+                let played = PlayerMatch {
+                    summary: summary_at(row, 1)?,
+                    line: line_at(row, 1 + SUMMARY_COLUMNS)?,
+                    kits: Vec::new(),
+                };
+                Ok((played, kind))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
     /// The account's most used weapons and armour of its public matches,
     /// at most `limit` of each.
     pub fn favourites(&self, account_id: u32, limit: usize) -> Result<Favourites, PersistError> {
@@ -1799,6 +1922,68 @@ impl MatchHistory {
             }
         };
         Ok(rows)
+    }
+
+    /// The newest public matches one of `accounts` played in, at most
+    /// `limit`.
+    pub fn matches_with(
+        &self,
+        accounts: &[u32],
+        limit: usize,
+    ) -> Result<Vec<MatchSummary>, PersistError> {
+        if accounts.is_empty() {
+            return Ok(Vec::new());
+        }
+        let limit = bounded(limit);
+        let connection = self.reader();
+        // Each account's newest, newer than the oldest of the newest found
+        // so far once there are `limit`: at most `limit` rows an account.
+        let mut newest = connection.prepare_cached(NEWEST_PUBLIC_OF)?;
+        let mut ids = BTreeSet::<i64>::new();
+        for &account_id in accounts {
+            let after = match ids.first() {
+                Some(&oldest) if ids.len() as i64 == limit => oldest,
+                _ => 0,
+            };
+            let found = newest.query_map(params![account_id, after, limit], |row| row.get(0))?;
+            for id in found {
+                ids.insert(id?);
+            }
+            while ids.len() as i64 > limit {
+                ids.pop_first();
+            }
+        }
+        let ids = serde_json::to_string(&ids).expect("ids serialize");
+        let mut statement =
+            connection.prepare_cached(&format!("SELECT {SUMMARY} {MATCHES_BY_ID}"))?;
+        let rows = statement.query_map([ids], |row| summary_at(row, 0))?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// Who of `accounts` played in the matches `ids` (the history's
+    /// numbers), and on which team: `(match, account, team)`, by match,
+    /// then team and place.
+    pub fn players_among(
+        &self,
+        ids: &[u64],
+        accounts: &[u32],
+    ) -> Result<Vec<(u64, u32, u8)>, PersistError> {
+        if ids.is_empty() || accounts.is_empty() {
+            return Ok(Vec::new());
+        }
+        let ids = serde_json::to_string(ids).expect("ids serialize");
+        let accounts = serde_json::to_string(accounts).expect("ids serialize");
+        let connection = self.reader();
+        let mut statement = connection.prepare_cached(
+            "SELECT p.match_id, p.account_id, p.team FROM g26_match_players p
+             WHERE p.match_id IN (SELECT value FROM json_each(?1))
+               AND p.account_id IN (SELECT value FROM json_each(?2))
+             ORDER BY p.match_id, p.team, p.place",
+        )?;
+        let rows = statement.query_map(params![ids, accounts], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })?;
+        Ok(rows.collect::<Result<_, _>>()?)
     }
 
     /// A public match and its players, by team, then place (a
@@ -2071,7 +2256,7 @@ fn clan_line(row: &Row) -> rusqlite::Result<ClanLine> {
     })
 }
 
-/// [`MatchHistory::top`]'s query by `by`. Accuracy and the average score
+/// [`HistoryReaders::top`]'s query by `by`. Accuracy and the average score
 /// read their partial indexes (`g26_player_totals_accuracy`,
 /// `g26_player_totals_score_avg`): the expressions and the bounds are the
 /// migration's, word for word. The other ratios sort the players with
@@ -2119,7 +2304,7 @@ fn top_query(by: PlayerRanking, order: Order) -> String {
     )
 }
 
-/// [`MatchHistory::best`]'s query: from the matches that ended in the
+/// [`HistoryReaders::best`]'s query: from the matches that ended in the
 /// period (`g26_matches_by_end`) to their players, never the other way
 /// round, which reads every player row (`CROSS JOIN` keeps the order).
 fn best_query() -> String {
@@ -2321,6 +2506,7 @@ mod tests {
                     weapons: BTreeMap::new(),
                 },
             ],
+            events: Vec::new(),
         }
     }
 
@@ -2393,18 +2579,18 @@ mod tests {
         assert_eq!(repository.load_all().unwrap().len(), 1);
         repository.record_match(&record(PUBLIC, 1000)).unwrap();
         let history = repository.history().unwrap().unwrap();
-        let card = history.player(10).unwrap().unwrap();
+        let card = history.site().player(10).unwrap().unwrap();
         assert_eq!(card.totals.matches, 1);
         assert_eq!(
             (card.totals.counters.shots, card.totals.counters.hits),
             (100, 40)
         );
         assert_eq!(
-            history.player_matches(10, None, 1).unwrap()[0].kits.len(),
+            history.site().player_matches(10, None, 1).unwrap()[0].kits.len(),
             2
         );
-        assert_eq!(history.favourites(10, 10).unwrap().weapons.len(), 2);
-        assert_eq!(history.player_weapons(10, WeaponRanking::Kills, Order::Descending, 10).unwrap().len(), 2);
+        assert_eq!(history.site().favourites(10, 10).unwrap().weapons.len(), 2);
+        assert_eq!(history.site().player_weapons(10, WeaponRanking::Kills, Order::Descending, 10).unwrap().len(), 2);
     }
 
     #[test]
@@ -2443,7 +2629,7 @@ mod tests {
         }
         let first = weapons(10, 80);
         assert_eq!(
-            history.player_weapons(10, WeaponRanking::Kills, Order::Descending, 10).unwrap(),
+            history.site().player_weapons(10, WeaponRanking::Kills, Order::Descending, 10).unwrap(),
             [
                 WeaponTotals {
                     dict_id: AK,
@@ -2479,14 +2665,14 @@ mod tests {
         );
         assert_eq!(
             history
-                .player_weapons(10, WeaponRanking::Kills, Order::Descending, 1)
+                .site().player_weapons(10, WeaponRanking::Kills, Order::Descending, 1)
                 .unwrap()
                 .len(),
             1
         );
         assert!(
             history
-                .player_weapons(99, WeaponRanking::Kills, Order::Descending, 10)
+                .site().player_weapons(99, WeaponRanking::Kills, Order::Descending, 10)
                 .unwrap()
                 .is_empty()
         );
@@ -2521,10 +2707,10 @@ mod tests {
             WeaponRanking::Held,
         ] {
             let listed = history
-                .player_weapons(10, by, Order::Descending, 10)
+                .site().player_weapons(10, by, Order::Descending, 10)
                 .unwrap();
             let turned = history
-                .player_weapons(10, by, Order::Ascending, 10)
+                .site().player_weapons(10, by, Order::Ascending, 10)
                 .unwrap();
             assert_eq!(turned.len(), listed.len());
             assert!(
@@ -2543,7 +2729,7 @@ mod tests {
         }
         let rows = |table: &str, account_id: u32| -> i64 {
             history
-                .reader()
+                .site().reader()
                 .query_row(
                     &format!("SELECT COUNT(*) FROM {table} WHERE account_id = ?1"),
                     [account_id],
@@ -2567,11 +2753,11 @@ mod tests {
                 .query_row("SELECT COUNT(*) FROM g26_matches", [], |row| row.get(0))
                 .unwrap()
         };
-        let slow = history.reader();
+        let slow = history.site().reader();
         slow.execute_batch("BEGIN").unwrap();
         assert_eq!(count(&slow), 1);
         repository.record_match(&record(PUBLIC, 200)).unwrap();
-        assert_eq!(history.player(10).unwrap().unwrap().totals.matches, 2);
+        assert_eq!(history.site().player(10).unwrap().unwrap().totals.matches, 2);
         // The slow one still reads what it began with.
         assert_eq!(count(&slow), 1);
         slow.execute_batch("COMMIT").unwrap();
@@ -2583,35 +2769,58 @@ mod tests {
         let (mut repository, history) = repository(&dir);
         let short = MatchKind::Public(Eligibility::Short);
         repository.record_match(&record(short, 100)).unwrap();
-        let (summary, players) = history.game_match(1).unwrap().unwrap();
+        let (summary, players) = history.site().game_match(1).unwrap().unwrap();
         assert_eq!(summary.eligibility, Eligibility::Short);
         assert_eq!(players.len(), 2);
-        assert_eq!(history.player_matches(10, None, 10).unwrap().len(), 1);
-        assert_eq!(history.account_by_name("Alice").unwrap(), Some(10));
+        assert_eq!(history.site().player_matches(10, None, 10).unwrap().len(), 1);
+        // The player's own list has its private room's match and the one
+        // against bots too, newest first, each with its kind; no other list
+        // and no total has them.
+        repository
+            .record_match(&record(MatchKind::Private, 200))
+            .unwrap();
+        repository
+            .record_match(&record(MatchKind::VsBots, 300))
+            .unwrap();
+        let own: Vec<OwnKind> = history
+            .lobby()
+            .own_matches(10, 10)
+            .unwrap()
+            .into_iter()
+            .map(|(_, kind)| kind)
+            .collect();
+        assert_eq!(own, [OwnKind::VsBots, OwnKind::Private, OwnKind::Public]);
+        assert_eq!(history.lobby().own_matches(10, 2).unwrap().len(), 2);
         assert_eq!(
-            history.player(10).unwrap().unwrap().totals,
+            history.site().player_matches(10, None, 10).unwrap().len(),
+            1,
+            "public only"
+        );
+        assert_eq!(history.site().account_by_name("Alice").unwrap(), Some(10));
+        assert_eq!(
+            history.site().player(10).unwrap().unwrap().totals,
             Totals::default()
         );
         let everything = |_| true;
         assert!(
             history
-                .top(PlayerRanking::Totals(TotalsKey::Kills), Order::Descending, 0, 10, &everything)
+                .site().top(PlayerRanking::Totals(TotalsKey::Kills), Order::Descending, 0, 10, &everything)
                 .unwrap().players
                 .is_empty()
         );
         assert!(
             history
-                .top(PlayerRanking::Rating, Order::Descending, 0, 10, &everything)
+                .site().top(PlayerRanking::Rating, Order::Descending, 0, 10, &everything)
                 .unwrap().players
                 .is_empty()
         );
-        assert!(history.best(0, 10, &everything).unwrap().is_empty());
-        assert!(history.player_days(10, 0).unwrap().is_empty());
-        assert!(history.clans(TotalsKey::Matches, Order::Descending, 10).unwrap().is_empty());
-        assert_eq!(history.favourites(10, 10).unwrap(), Favourites::default());
+        assert!(history.site().best(0, 10, &everything).unwrap().is_empty());
+        assert!(history.site().player_days(10, 0).unwrap().is_empty());
+        assert!(history.site().clans(TotalsKey::Matches, Order::Descending, 10).unwrap().is_empty());
+        assert_eq!(history.site().favourites(10, 10).unwrap(), Favourites::default());
         // The next one counts.
         repository.record_match(&record(PUBLIC, 200)).unwrap();
-        assert_eq!(history.player(10).unwrap().unwrap().totals.matches, 1);
+        assert_eq!(history.site().player(10).unwrap().unwrap().totals.matches, 1);
     }
 
     #[test]
@@ -2623,7 +2832,7 @@ mod tests {
             kit(0, 10, &[(0, HELMET), (7, AK), (10, PISTOL)]),
             kit(2, 4, &[(7, PISTOL)]),
         ];
-        let matches = history.player_matches(10, None, 10).unwrap();
+        let matches = history.site().player_matches(10, None, 10).unwrap();
         assert_eq!(matches[0].kits, alice_kits);
         assert_eq!(
             (
@@ -2632,14 +2841,14 @@ mod tests {
             ),
             (100, 40)
         );
-        let (_, players) = history.game_match(1).unwrap().unwrap();
+        let (_, players) = history.site().game_match(1).unwrap().unwrap();
         assert_eq!(players[0].kits, alice_kits);
         assert_eq!(players[1].kits, [kit(1, 6, &[(7, AK)])]);
         // No kit kept: an empty list, the line still there.
         let mut bare = record(PUBLIC, 200);
         bare.players[1].kits.clear();
         repository.record_match(&bare).unwrap();
-        let (_, players) = history.game_match(2).unwrap().unwrap();
+        let (_, players) = history.site().game_match(2).unwrap().unwrap();
         assert!(players[1].kits.is_empty());
         assert_eq!(players[1].line.kills, 6);
     }
@@ -2656,7 +2865,7 @@ mod tests {
         ] {
             repository.record_match(&record(kind, at)).unwrap();
         }
-        let favourites = history.favourites(10, 10).unwrap();
+        let favourites = history.site().favourites(10, 10).unwrap();
         // The pistol is in both of Alice's kits: one match each time.
         let item = |dict_id| ItemTotals {
             dict_id,
@@ -2668,10 +2877,105 @@ mod tests {
             (favourites.armour[0].dict_id, favourites.armour[0].matches),
             (HELMET, 2)
         );
-        assert_eq!(history.favourites(10, 1).unwrap().weapons.len(), 1);
-        assert_eq!(history.favourites(11, 10).unwrap().weapons[0].matches, 2);
-        assert_eq!(history.favourites(99, 10).unwrap(), Favourites::default());
+        assert_eq!(history.site().favourites(10, 1).unwrap().weapons.len(), 1);
+        assert_eq!(history.site().favourites(11, 10).unwrap().weapons[0].matches, 2);
+        assert_eq!(history.site().favourites(99, 10).unwrap(), Favourites::default());
     }
+
+    #[test]
+    fn a_matchs_events_are_kept_with_it_in_time_order() {
+        use super::super::match_events::{EventKind, Player, Timing};
+        let dir = TempDir::new("events");
+        let (mut repository, history) = repository(&dir);
+        let alice = Player {
+            place: 0,
+            account_id: 10,
+        };
+        let bob = Player {
+            place: 3,
+            account_id: 11,
+        };
+        let between = |after, by| Timing::Between { after, by };
+        let mut played = record(MatchKind::Private, 100);
+        // As the extractor gives them: a world's events, an exact kill
+        // before the window read with it.
+        played.events = vec![
+            MatchEvent {
+                timing: between(5_000, 10_000),
+                kind: EventKind::BatteryFound { by: bob },
+            },
+            MatchEvent {
+                timing: Timing::Exact(7_250),
+                kind: EventKind::Kill {
+                    killer: alice,
+                    victim: Some(bob),
+                },
+            },
+            MatchEvent {
+                timing: between(10_000, 15_000),
+                kind: EventKind::Kill {
+                    killer: bob,
+                    victim: None,
+                },
+            },
+            MatchEvent {
+                timing: between(10_000, 15_000),
+                kind: EventKind::Death { victim: alice },
+            },
+            MatchEvent {
+                timing: between(15_000, 20_000),
+                kind: EventKind::Capture { team: 1, unit: 2 },
+            },
+            MatchEvent {
+                timing: between(15_000, 20_000),
+                kind: EventKind::Score { points: [0, 1] },
+            },
+            MatchEvent {
+                timing: Timing::Exact(845_000),
+                kind: EventKind::End { points: [5, 3] },
+            },
+        ];
+        repository.record_match(&played).unwrap();
+        let kept = history
+            .site().events(played.replay_id.match_id())
+            .unwrap()
+            .unwrap();
+        assert_eq!(kept.replay_id, played.replay_id);
+        let mut expected = played.events.clone();
+        expected.swap(0, 1);
+        assert_eq!(kept.events, expected);
+        assert_eq!(history.site().events(0x5EED).unwrap(), None);
+        assert_eq!(
+            history.site().events_of_replay(&played.replay_id).unwrap(),
+            Some(kept.clone())
+        );
+        assert_eq!(
+            history
+                .site().events_of_replay(&ReplayId::new(0x5EED, std::time::UNIX_EPOCH))
+                .unwrap(),
+            None
+        );
+        // The same match server id after a restart: the newest match.
+        let again = MatchRecord {
+            replay_id: ReplayId::new(
+                played.replay_id.match_id(),
+                std::time::UNIX_EPOCH + std::time::Duration::from_secs(5_000),
+            ),
+            events: Vec::new(),
+            ..played.clone()
+        };
+        repository.record_match(&again).unwrap();
+        let newest = history
+            .site().events(played.replay_id.match_id())
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            (newest.replay_id, newest.events.len()),
+            (again.replay_id, 0)
+        );
+    }
+
+    /// More banned players than a list holds above the others: the lists read past them.
 
     #[test]
     fn the_lists_read_past_more_banned_than_they_hold() {
@@ -2701,13 +3005,13 @@ mod tests {
             top.into_iter().map(|top| top.player.name).collect()
         };
         let by_score = PlayerRanking::Totals(TotalsKey::Kills);
-        let top = |limit| names(history.top(by_score, Order::Descending, 0, limit, &keep).unwrap().players);
+        let top = |limit| names(history.site().top(by_score, Order::Descending, 0, limit, &keep).unwrap().players);
         assert_eq!(top(10), ["Alice", "Bob"]);
         assert_eq!(top(1), ["Alice"]);
         // A page says whether the list goes on; the next one starts after it.
         let page = |after| {
             let page = history
-                .top(by_score, Order::Descending, after, 1, &keep)
+                .site().top(by_score, Order::Descending, after, 1, &keep)
                 .unwrap();
             (names(page.players), page.more)
         };
@@ -2715,7 +3019,7 @@ mod tests {
         assert_eq!(page(1), (vec!["Bob".to_owned()], false));
         assert_eq!(page(2), (Vec::new(), false));
         let best: Vec<String> = history
-            .best(0, 10, &keep)
+            .site().best(0, 10, &keep)
             .unwrap()
             .into_iter()
             .map(|best| best.player.name)
@@ -2723,7 +3027,7 @@ mod tests {
         assert_eq!(best, ["Alice", "Bob"]);
         // Unfiltered, the banned fill the list.
         assert_eq!(
-            history.top(by_score, Order::Descending, 0, 100, &|_| true).unwrap().players.len(),
+            history.site().top(by_score, Order::Descending, 0, 100, &|_| true).unwrap().players.len(),
             MatchHistory::MAX_ROWS
         );
     }
@@ -2745,7 +3049,7 @@ mod tests {
         }
         let top = |history: &MatchHistory| -> Vec<String> {
             history
-                .top(PlayerRanking::Accuracy, Order::Descending, 0, 10, &|_| true)
+                .site().top(PlayerRanking::Accuracy, Order::Descending, 0, 10, &|_| true)
                 .unwrap().players
                 .into_iter()
                 .map(|top| top.player.name)
@@ -2755,7 +3059,7 @@ mod tests {
         repository.record_match(&played).unwrap();
         repository.record_match(&played).unwrap();
         assert_eq!(top(&history), ["Alice", "Bob"]);
-        let accurate = history.top(PlayerRanking::Accuracy, Order::Descending, 0, 1, &|id| id != 10)
+        let accurate = history.site().top(PlayerRanking::Accuracy, Order::Descending, 0, 1, &|id| id != 10)
             .unwrap().players;
         assert_eq!(accurate[0].player.name, "Bob");
         assert_eq!(accurate[0].totals.matches, 10, "a match is kept once");
@@ -2780,7 +3084,7 @@ mod tests {
             .unwrap();
         assert_eq!(kept, 4, "every match is kept");
 
-        let card = history.player(10).unwrap().unwrap();
+        let card = history.site().player(10).unwrap().unwrap();
         assert_eq!(card.player.name, "Alice");
         assert_eq!(
             card.player.clan,
@@ -2813,29 +3117,127 @@ mod tests {
                 played_ms: 1_200_000,
             }
         );
-        let bob = history.player(11).unwrap().unwrap();
+        let bob = history.site().player(11).unwrap().unwrap();
         assert_eq!(
             (bob.totals.matches, bob.totals.wins, bob.totals.losses),
             (2, 0, 2)
         );
         assert_eq!(bob.player.clan, None);
 
-        let ids: Vec<u64> = history.matches(None, 50, None)
+        let ids: Vec<u64> = history.site().matches(None, 50, None)
             .unwrap()
             .iter()
             .map(|summary| summary.id)
             .collect();
         assert_eq!(ids, [4, 1]);
-        assert!(history.game_match(2).unwrap().is_none());
-        assert!(history.game_match(3).unwrap().is_none());
-        let (summary, players) = history.game_match(4).unwrap().unwrap();
+        assert!(history.site().game_match(2).unwrap().is_none());
+        assert!(history.site().game_match(3).unwrap().is_none());
+        let (summary, players) = history.site().game_match(4).unwrap().unwrap();
         assert_eq!(summary.players, 2);
         assert_eq!(summary.info.winner, Winner::FirstTeam);
         assert_eq!(summary.info.team_points, [5, 3]);
         assert_eq!(players[0].player.name, "Alice");
         assert_eq!(players[0].line, line(0, 1, 300, 14, 6));
         assert_eq!(players[1].line.team, 1);
-        assert!(history.player(99).unwrap().is_none());
+        assert!(history.site().player(99).unwrap().is_none());
+    }
+
+    #[test]
+    fn the_public_matches_some_accounts_played_in_newest_first() {
+        let dir = TempDir::new("with");
+        let (mut repository, history) = repository(&dir);
+        repository.record_match(&record(PUBLIC, 100)).unwrap();
+        repository
+            .record_match(&record(MatchKind::Private, 200))
+            .unwrap();
+        repository
+            .record_match(&record(MatchKind::VsBots, 300))
+            .unwrap();
+        repository.record_match(&record(PUBLIC, 400)).unwrap();
+        let ids = |accounts: &[u32]| -> Vec<u64> {
+            history
+                .site().matches_with(accounts, 10)
+                .unwrap()
+                .iter()
+                .map(|summary| summary.id)
+                .collect()
+        };
+        // Both Alice and Bob played: each match once.
+        assert_eq!(ids(&[10, 11, 99]), [4, 1]);
+        assert_eq!(ids(&[11]), [4, 1]);
+        assert!(ids(&[99]).is_empty());
+        assert!(ids(&[]).is_empty());
+        assert_eq!(history.site().matches_with(&[10], 1).unwrap()[0].id, 4);
+    }
+
+    #[test]
+    fn the_newest_matches_of_some_accounts_are_merged_across_them() {
+        let dir = TempDir::new("with-merged");
+        let (mut repository, history) = repository(&dir);
+        let only = |kind: MatchKind, ended_at: u64, account_id: u32| {
+            let mut alone = record(kind, ended_at);
+            alone
+                .players
+                .retain(|player| player.account_id == account_id);
+            alone
+        };
+        // 1 both, 2 Alice, 3 private, 4 Bob, 5 Bob against bots, 6 Alice, 7 Bob, 8 both.
+        for played in [
+            record(PUBLIC, 100),
+            only(PUBLIC, 200, 10),
+            record(MatchKind::Private, 300),
+            only(PUBLIC, 400, 11),
+            only(MatchKind::VsBots, 500, 11),
+            only(PUBLIC, 600, 10),
+            only(PUBLIC, 700, 11),
+            record(PUBLIC, 800),
+        ] {
+            repository.record_match(&played).unwrap();
+        }
+        let ids = |accounts: &[u32], limit: usize| -> Vec<u64> {
+            history
+                .lobby()
+                .matches_with(accounts, limit)
+                .unwrap()
+                .iter()
+                .map(|summary| summary.id)
+                .collect()
+        };
+        assert_eq!(ids(&[10, 11], 3), [8, 7, 6]);
+        assert_eq!(ids(&[11, 10], 3), [8, 7, 6]);
+        assert_eq!(ids(&[10, 10, 11], 4), [8, 7, 6, 4]);
+        assert_eq!(ids(&[10, 11], 10), [8, 7, 6, 4, 2, 1]);
+        assert_eq!(ids(&[11], 10), [8, 7, 4, 1]);
+        assert_eq!(ids(&[10], 2), [8, 6]);
+        assert_eq!(ids(&[99, 11], 1), [8]);
+    }
+
+    #[test]
+    fn the_lobby_reads_while_the_site_holds_every_reader() {
+        let dir = TempDir::new("lobby-reader");
+        let (mut repository, history) = repository(&dir);
+        repository.record_match(&record(PUBLIC, 100)).unwrap();
+        let busy: Vec<_> = history
+            .site
+            .connections
+            .iter()
+            .map(|reader| reader.locked())
+            .collect();
+        assert_eq!(busy.len(), MatchHistory::READERS);
+        let (sender, answer) = std::sync::mpsc::channel();
+        std::thread::scope(|scope| {
+            scope.spawn(|| {
+                let lobby = history.lobby();
+                let read = lobby.matches(None, 10, None).unwrap().len()
+                    + lobby.matches_with(&[10], 10).unwrap().len()
+                    + lobby.own_matches(10, 10).unwrap().len();
+                sender.send(read).unwrap();
+            });
+            let read = answer.recv_timeout(std::time::Duration::from_secs(10));
+            // Let a lobby that waited for the site go before failing.
+            drop(busy);
+            assert_eq!(read, Ok(3));
+        });
     }
 
     #[test]
@@ -2848,24 +3250,24 @@ mod tests {
         repository
             .record_match(&record(MatchKind::Private, 600))
             .unwrap();
-        let page: Vec<u64> = history.player_matches(10, None, 2)
+        let page: Vec<u64> = history.site().player_matches(10, None, 2)
             .unwrap()
             .iter()
             .map(|played| played.summary.id)
             .collect();
         assert_eq!(page, [5, 4]);
-        let next: Vec<u64> = history.player_matches(10, Some(4), 2)
+        let next: Vec<u64> = history.site().player_matches(10, Some(4), 2)
             .unwrap()
             .iter()
             .map(|played| played.summary.id)
             .collect();
         assert_eq!(next, [3, 2]);
         // A limit is 1 to 50.
-        assert_eq!(history.player_matches(10, None, 0).unwrap().len(), 1);
-        assert_eq!(history.matches(Some(3), 50, None).unwrap().len(), 2);
+        assert_eq!(history.site().player_matches(10, None, 0).unwrap().len(), 1);
+        assert_eq!(history.site().matches(Some(3), 50, None).unwrap().len(), 2);
         // The clan's: Alice's matches, not Bob's alone.
-        assert_eq!(history.matches(None, 50, Some(7)).unwrap().len(), 5);
-        assert!(history.matches(None, 50, Some(8)).unwrap().is_empty());
+        assert_eq!(history.site().matches(None, 50, Some(7)).unwrap().len(), 5);
+        assert!(history.site().matches(None, 50, Some(8)).unwrap().is_empty());
     }
 
     #[test]
@@ -2876,7 +3278,7 @@ mod tests {
         for at in [DAY + 10, DAY + 20, 3 * DAY + 5] {
             repository.record_match(&record(PUBLIC, at)).unwrap();
         }
-        let days = history.player_days(10, 0).unwrap();
+        let days = history.site().player_days(10, 0).unwrap();
         assert_eq!(days.len(), 2);
         assert_eq!(days[0].0, "1970-01-02");
         assert_eq!(
@@ -2884,9 +3286,9 @@ mod tests {
             (2, 2, 28)
         );
         assert_eq!(days[1].0, "1970-01-04");
-        let since = history.player_days(10, 2 * DAY).unwrap();
+        let since = history.site().player_days(10, 2 * DAY).unwrap();
         assert_eq!(since.len(), 1);
-        let bob = history.player_days(11, 0).unwrap()[0].1;
+        let bob = history.site().player_days(11, 0).unwrap()[0].1;
         assert_eq!((bob.wins, bob.losses), (0, 2));
     }
 
@@ -2916,14 +3318,14 @@ mod tests {
         ffa.players[1].line.outcome = Outcome::Won;
         repository.record_match(&ffa).unwrap();
         let of = |id| {
-            let totals = history.player(id).unwrap().unwrap().totals;
+            let totals = history.site().player(id).unwrap().unwrap().totals;
             (totals.matches, totals.wins, totals.losses)
         };
         assert_eq!(of(10), (3, 0, 2));
         assert_eq!(of(11), (3, 1, 1));
-        let day = history.player_days(10, 0).unwrap()[0].1;
+        let day = history.site().player_days(10, 0).unwrap()[0].1;
         assert_eq!((day.matches, day.wins, day.losses), (3, 0, 2));
-        let (summary, players) = history.game_match(3).unwrap().unwrap();
+        let (summary, players) = history.site().game_match(3).unwrap().unwrap();
         assert_eq!(summary.info.winner, Winner::MostKills);
         assert_eq!(summary.info.mode, LobbyMode::Racket);
         assert_eq!(players[1].line.outcome, Outcome::Won);
@@ -2945,7 +3347,7 @@ mod tests {
         }
         let since = |from, keep: &dyn Fn(u32) -> bool| -> Vec<(String, u64, u64)> {
             let mut rows: Vec<_> = history
-                .totals_since(from, keep)
+                .site().totals_since(from, keep)
                 .unwrap()
                 .into_iter()
                 .map(|(player, totals)| (player.name, totals.matches, totals.kills))
@@ -2959,7 +3361,7 @@ mod tests {
         );
         assert_eq!(since(5_000, &|id| id != 10), [("Bob".to_owned(), 2, 12)]);
         assert!(since(9_000, &|_| true).is_empty());
-        let all = history.all_time().unwrap();
+        let all = history.site().all_time().unwrap();
         assert_eq!((all.players, all.matches), (2, 3));
         assert_eq!(
             (all.totals.matches, all.totals.kills, all.totals.deaths),
@@ -2973,30 +3375,30 @@ mod tests {
         let dir = TempDir::new("top");
         let (mut repository, history) = repository(&dir);
         repository.record_match(&record(PUBLIC, 100)).unwrap();
-        let by_kills = history.top(PlayerRanking::Totals(TotalsKey::Kills), Order::Descending, 0, 10, &|_| true)
+        let by_kills = history.site().top(PlayerRanking::Totals(TotalsKey::Kills), Order::Descending, 0, 10, &|_| true)
             .unwrap().players;
         let names: Vec<&str> = by_kills
             .iter()
             .map(|top| top.player.name.as_str())
             .collect();
         assert_eq!(names, ["Alice", "Bob"]);
-        let by_rating = history.top(PlayerRanking::Rating, Order::Descending, 0, 10, &|id| id != 10)
+        let by_rating = history.site().top(PlayerRanking::Rating, Order::Descending, 0, 10, &|id| id != 10)
             .unwrap().players;
         assert_eq!(by_rating.len(), 1);
         assert_eq!(by_rating[0].player.name, "Bob");
         assert_eq!(
             history
-                .top(PlayerRanking::Rating, Order::Descending, 0, 1, &|_| true)
+                .site().top(PlayerRanking::Rating, Order::Descending, 0, 1, &|_| true)
                 .unwrap().players
                 .len(),
             1
         );
 
-        let best = history.best(0, 20, &|_| true).unwrap();
+        let best = history.site().best(0, 20, &|_| true).unwrap();
         assert_eq!(best[0].player.name, "Alice");
         assert_eq!(best[0].line.score, 300);
-        assert!(history.best(101, 20, &|_| true).unwrap().is_empty());
-        let without_alice = history.best(0, 1, &|id| id != 10).unwrap();
+        assert!(history.site().best(101, 20, &|_| true).unwrap().is_empty());
+        let without_alice = history.site().best(0, 1, &|id| id != 10).unwrap();
         assert_eq!(without_alice.len(), 1);
         assert_eq!(without_alice[0].player.name, "Bob");
     }
@@ -3009,7 +3411,7 @@ mod tests {
         repository
             .record_match(&record(MatchKind::Private, 200))
             .unwrap();
-        let clans = history.clans(TotalsKey::Matches, Order::Descending, 10).unwrap();
+        let clans = history.site().clans(TotalsKey::Matches, Order::Descending, 10).unwrap();
         assert_eq!(clans.len(), 1);
         assert_eq!(
             (clans[0].tag.as_str(), clans[0].level, clans[0].members),
@@ -3018,14 +3420,14 @@ mod tests {
         assert_eq!((clans[0].totals.matches, clans[0].totals.score), (1, 300));
 
         for key in [ClanKey::Id(7), ClanKey::Tag("skh")] {
-            let card = history.clan(key).unwrap().unwrap();
+            let card = history.site().clan(key).unwrap().unwrap();
             assert_eq!(card.clan.name, "Skhid");
             assert_eq!(card.leader.unwrap().name, "Alice");
             assert_eq!(card.members.len(), 1);
             assert!(card.members[0].commander);
             assert_eq!(card.members[0].totals.kills, 14);
         }
-        assert!(history.clan(ClanKey::Id(8)).unwrap().is_none());
+        assert!(history.site().clan(ClanKey::Id(8)).unwrap().is_none());
 
         // Carol (12), its commander now, has no public match: counted, but
         // neither named nor listed.
@@ -3049,7 +3451,7 @@ mod tests {
                 money: 0,
             })
             .unwrap();
-        let card = history.clan(ClanKey::Id(7)).unwrap().unwrap();
+        let card = history.site().clan(ClanKey::Id(7)).unwrap().unwrap();
         assert_eq!(card.clan.members, 2);
         assert_eq!(card.leader, None);
         let names: Vec<&str> = card
@@ -3155,7 +3557,7 @@ mod tests {
             repository.record_match(&played).unwrap();
         }
 
-        let totals = history.clan(ClanKey::Id(7)).unwrap().unwrap().clan.totals;
+        let totals = history.site().clan(ClanKey::Id(7)).unwrap().unwrap().clan.totals;
         assert_eq!(
             totals,
             Totals {
@@ -3181,15 +3583,15 @@ mod tests {
         );
         // The list of clans and the clan's matches agree with the card.
         assert_eq!(
-            history.clans(TotalsKey::Matches, Order::Descending, 10).unwrap()[0].totals,
+            history.site().clans(TotalsKey::Matches, Order::Descending, 10).unwrap()[0].totals,
             totals
         );
-        let listed = history.matches(None, 50, Some(7)).unwrap();
+        let listed = history.site().matches(None, 50, Some(7)).unwrap();
         assert_eq!(listed.len() as u64, totals.matches);
         let ids: Vec<u64> = listed.iter().map(|summary| summary.id).collect();
         assert_eq!(ids, [4, 3, 2, 1]);
         // Each member keeps its own matches.
-        let matches_of = |id| history.player(id).unwrap().unwrap().totals;
+        let matches_of = |id| history.site().player(id).unwrap().unwrap().totals;
         assert_eq!((matches_of(10).matches, matches_of(10).wins), (3, 2));
         assert_eq!((matches_of(12).matches, matches_of(12).wins), (3, 1));
         assert_eq!((matches_of(13).matches, matches_of(13).wins), (2, 1));
@@ -3200,21 +3602,21 @@ mod tests {
         let dir = TempDir::new("name");
         let (mut repository, history) = repository(&dir);
         // No public match yet: names are most often logins, none is found.
-        assert_eq!(history.account_by_name("alice").unwrap(), None);
-        assert!(history.player(10).unwrap().is_none());
+        assert_eq!(history.site().account_by_name("alice").unwrap(), None);
+        assert!(history.site().player(10).unwrap().is_none());
         repository
             .record_match(&record(MatchKind::Private, 100))
             .unwrap();
-        assert_eq!(history.account_by_name("alice").unwrap(), None);
-        assert!(history.player(10).unwrap().is_none());
+        assert_eq!(history.site().account_by_name("alice").unwrap(), None);
+        assert!(history.site().player(10).unwrap().is_none());
         repository.record_match(&record(PUBLIC, 200)).unwrap();
-        assert_eq!(history.account_by_name("alice").unwrap(), Some(10));
-        assert_eq!(history.account_by_name("Bob").unwrap(), Some(11));
-        assert_eq!(history.account_by_name("Carol").unwrap(), None);
+        assert_eq!(history.site().account_by_name("alice").unwrap(), Some(10));
+        assert_eq!(history.site().account_by_name("Bob").unwrap(), Some(11));
+        assert_eq!(history.site().account_by_name("Carol").unwrap(), None);
         // Carol is an account, but has played no public match.
         repository.save(12, &Account::new("Carol")).unwrap();
-        assert_eq!(history.account_by_name("Carol").unwrap(), None);
-        assert!(history.player(12).unwrap().is_none());
+        assert_eq!(history.site().account_by_name("Carol").unwrap(), None);
+        assert!(history.site().player(12).unwrap().is_none());
     }
 
     #[test]
@@ -3292,6 +3694,38 @@ mod tests {
         assert!(plan.contains("SEARCH p USING PRIMARY KEY"), "{plan}");
     }
 
+    /// The matches of some accounts: each account's newest along its
+    /// index, never every match of all of them.
+    #[test]
+    fn the_matches_of_some_accounts_walk_each_ones_newest() {
+        let dir = TempDir::new("with-plan");
+        let (_repository, _history) = repository(&dir);
+        let plan = plan_of(&dir, NEWEST_PUBLIC_OF, params![10, 0, 20]);
+        assert!(
+            plan.contains(
+                "SEARCH g26_match_players USING COVERING INDEX g26_match_players_by_account (account_id=? AND match_id>?)"
+            ),
+            "{plan}"
+        );
+        assert!(
+            plan.contains("SEARCH m USING INTEGER PRIMARY KEY (rowid=?)"),
+            "{plan}"
+        );
+        // Only its own bounded read is gone through (`SCAN p`), no table.
+        assert!(!plan.contains("SCAN g26_"), "{plan}");
+        assert!(!plan.contains("TEMP B-TREE"), "{plan}");
+        let plan = plan_of(
+            &dir,
+            &format!("SELECT {SUMMARY} {MATCHES_BY_ID}"),
+            ["[1,2]"],
+        );
+        assert!(
+            plan.contains("SEARCH m USING INTEGER PRIMARY KEY (rowid=?)"),
+            "{plan}"
+        );
+        assert!(!plan.contains("SCAN m"), "{plan}");
+    }
+
     fn plan_of(dir: &TempDir, sql: &str, values: impl rusqlite::Params) -> String {
         let connection = Connection::open(dir.db()).unwrap();
         let mut statement = connection
@@ -3355,7 +3789,7 @@ mod tests {
         repository.record_match(&record(PUBLIC, 1_000)).unwrap();
         let names = |history: &MatchHistory| -> Vec<String> {
             history
-                .former_names(10, 10)
+                .site().former_names(10, 10)
                 .unwrap()
                 .into_iter()
                 .map(|former| former.name)
@@ -3365,7 +3799,7 @@ mod tests {
         repository.save(10, &Account::new("Alice")).unwrap();
         assert!(names(&history).is_empty());
         repository.save(10, &Account::new("Alisa")).unwrap();
-        let left = history.former_names(10, 10).unwrap();
+        let left = history.site().former_names(10, 10).unwrap();
         assert_eq!(names(&history), ["Alice"]);
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -3373,13 +3807,13 @@ mod tests {
             .as_secs();
         assert!(left[0].until <= now && left[0].until + 60 > now, "{left:?}");
         // Found by the name it left, while nobody has it now.
-        assert_eq!(history.account_by_name("alice").unwrap(), Some(10));
-        assert_eq!(history.account_by_name("Alisa").unwrap(), Some(10));
+        assert_eq!(history.site().account_by_name("alice").unwrap(), Some(10));
+        assert_eq!(history.site().account_by_name("Alisa").unwrap(), Some(10));
         repository.save(11, &Account::new("Alice")).unwrap();
-        assert_eq!(history.account_by_name("Alice").unwrap(), Some(11));
+        assert_eq!(history.site().account_by_name("Alice").unwrap(), Some(11));
         assert_eq!(names(&history), ["Alice"]);
         assert_eq!(
-            history.former_names(11, 10).unwrap()[0].name,
+            history.site().former_names(11, 10).unwrap()[0].name,
             "Bob",
             "each account its own"
         );
@@ -3404,12 +3838,12 @@ mod tests {
             )
             .unwrap();
         assert_eq!(names(&history), ["Alice"]);
-        assert_eq!(history.account_by_name("Alisa").unwrap(), None);
-        assert_eq!(history.former_names(99, 10).unwrap(), []);
+        assert_eq!(history.site().account_by_name("Alisa").unwrap(), None);
+        assert_eq!(history.site().former_names(99, 10).unwrap(), []);
         // A name taken again is the name now, not one left.
         repository.save(11, &Account::new("Bob")).unwrap();
         let left: Vec<String> = history
-            .former_names(11, 10)
+            .site().former_names(11, 10)
             .unwrap()
             .into_iter()
             .map(|former| former.name)
@@ -3423,7 +3857,7 @@ mod tests {
         let (mut repository, history) = repository(&dir);
         let top = |history: &MatchHistory| -> Vec<String> {
             history
-                .top(PlayerRanking::ScoreAvg, Order::Descending, 0, 10, &|_| true)
+                .site().top(PlayerRanking::ScoreAvg, Order::Descending, 0, 10, &|_| true)
                 .unwrap().players
                 .into_iter()
                 .map(|top| top.player.name)
@@ -3441,12 +3875,12 @@ mod tests {
             PlayerRanking::Kd,
             PlayerRanking::HeadshotRate,
         ] {
-            let listed = history.top(by, Order::Descending, 0, 10, &|_| true).unwrap().players;
+            let listed = history.site().top(by, Order::Descending, 0, 10, &|_| true).unwrap().players;
             assert_eq!(listed.len(), 2, "{by:?}");
             let names = |listed: &[TopPlayer]| -> Vec<String> {
                 listed.iter().map(|top| top.player.name.clone()).collect()
             };
-            let mut turned = history.top(by, Order::Ascending, 0, 10, &|_| true).unwrap().players;
+            let mut turned = history.site().top(by, Order::Ascending, 0, 10, &|_| true).unwrap().players;
             turned.reverse();
             assert_eq!(names(&turned), names(&listed), "{by:?} from the other end");
             let of = |totals: &Totals| match by {

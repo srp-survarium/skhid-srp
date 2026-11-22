@@ -79,7 +79,7 @@ package
                         require(font.hasGlyphs(filled.replace(/\s/g, "")), "Calibri lacks glyphs of " + key + " (" + language + "): " + filled);
                         keys++;
                     }
-                    require(data.format("st_srp_replay_place_in_line", 3, 12).indexOf("%") < 0, "replay line " + language);
+                    require(data.format("st_srp_replay_waiting", 12).indexOf("%") < 0, "replay line " + language);
                     label.text = data.getName("st_srp_rooms_room_chat");
                     require(label.textWidth <= 104, "room chat tab exceeds 108 px including padding: " + language);
                 }

@@ -1,78 +1,135 @@
-# "Watch replay" from the lobby's History: the server side (0.26g)
+# Watching replays from the lobby: the movie's asks, the `R1` answers, who may watch what (0.26g)
 
-**Version scope:** srp for client **0.26g** (build 2777) with patch revision 14 (the replay link starts the updater; revisions 12 and 13 have none) and srp's changed lobby movie (History's "Watch replay" button). Written 2026-10-15.
-
-**Status: built and tested here (unit and socket tests); not run against a game, not deployed.** The game side (the exe patch, the movie, the updater) is in `client-patches/` and `client/updater/`; the file format is `replay_sur.md`.
+**Version scope:** srp for client **0.26g** (build 2777) and srp's changed lobby movie. Written 2026-10-15; the replay file download (History's "Watch replay" until 2026-11-08: a `3D 00 FFFFFF01` ask, a `9E` link, the updater fetching `/replays/<token>`) was removed from the movie and the server on 2026-11-08: every replay plays in the running game (a replay session, `replay-stream.md`). The exe's link patch (revision 14, `replay_link_026g.asm`) and the updater's `replay` command are Save's now (section 2.1): the server sends the link for a saved replay.
 
 ## 1. Flow
 
-1. A History row's "Watch replay" sends `3D 00 <REPLAY_ASK> <match id>` (`victory_screen_request_player_data`; `REPLAY_ASK = 0xFFFF_FF01`, no account id is that high). The lobby looks the replay up and keeps the answer as the asker's latest (`lobby-server/src/v026g/replay.rs`). The ask is not answered by itself.
-2. The movie polls with `3B 00 <REPLAY_START> 01` (`REPLAY_START = 2_200_000_000`, above the JOIN starts) every second (30 times at most, up to 180 s while the answer is `preparing`). Each poll is answered with one `91` row (the asker's own answer, never anyone else's). A `preparing` answer is looked at again once a second at most per account (`RECHECK_EVERY`), or at once after news of its match (the writer kept, dropped or deleted its recording, or its conversion ended); polls in between, however many a datagram carries, get the same answer with the place in line made anew. The recordings' folder is listed once in 5 s at most for all the asks (and again after the writer's news), not at each look.
-3. When the answer is `ready`, a `9E` goes just before that `91`: `video_link(false, "replay <id> <token> <sha256> <size>")`. The game keeps it hidden; "Download and watch" calls `video_tutorial_link_clicked`, which patch revision 14 turns into `updater_skhid.exe replay <id> <token> <sha256> <size>`.
-4. The updater downloads `GET /replays/<token>` from the server's web page, checks the size and the SHA-256, and starts the game with `-match_replay`.
+1. The movie asks to watch a match's replay in this game: `3D 00 <REPLAY_WATCH_BASE | place << 16 | seconds> <match id>` (`victory_screen_request_player_data`). The lobby answers at once with one `91` row (`lobby-server/src/v026g/replay.rs`).
+2. The movie polls with `3B 00 <REPLAY_START> 01` (`REPLAY_START = 2_200_000_000`) every second (30 times at most, up to 180 s while the answer is `preparing`). Each poll is answered with one `91` row: the asker's own session's answer, never anyone else's (`none` with match 0 when it has none, `off` with replays off).
+3. A watch the movie ends without an answer that ends it (the prompt's Close, or no answer in time) is withdrawn: `3D 00 <REPLAY_WITHDRAW = 0xFFFFFF05> <match id>`, not answered. The asker's session of that match is over unless its game was sent already (`Watches::withdraw`): otherwise the lobby would send the game into that replay when it is read, up to 2 minutes later, and every other Watch would get `busy` meanwhile. A `none` after the ask's own `preparing` (its session ended at the server without a word for the movie) ends the ask too: its prompt goes, and nothing is withdrawn.
+
+### In the movie, since 2026-11-08 (watching in the running game)
+
+The Watch redesign: one home for watching, in the top menu, and a
+Watch button wherever a match is mentioned.
+
+- **Where.** The top menu's **Watch** tab, between Rooms and Ranking (`TopMenu.WATCH_INDEX`; the bar's
+  four right tabs share Ranking's old width, `TopMenuBar.RIGHT_TABS`), with our eye on it and a red
+  badge counting the live matches that can be watched now (the `L0` list's rows whose card's Watch
+  would be lit: in play, with a spectator's place, open to spectators; `WatchWindow.paintBadge`):
+  none for 0, a plus after the number when the list is at its most (20 rows: more may be played).
+  It reads as live, not as unread (the owner's of 2026-11-10): a dark plate with a red dot, as the
+  Live tab's, and the count in white; a yellow person after it when a friend plays in one of them
+  (`RoomsLook.person`, the same mark before the friends' names on that match's card). With the
+  arrow on the tab a small box under it says "Live matches you can watch", and on a second line "A
+  friend is playing now" when one is (`TopMenu.showWatchTip`). It opens the Watch window in the rooms
+  window's frame and look (`survarium/watch/`, `RoomsLook`); opening one closes the other, and the tab
+  follows the window (`selectWatchTab`). The badge's list is asked every 30 s while Live is not shown,
+  never during a match (`MainScene.activeMatchMaking`).
+- **Context entries.** The results screen's red **Watch replay**, Save replay and the close button
+  as one row centred where the close button alone is, the match's number left of the row, copied as
+  a card's code is (a press selects it, Ctrl+C); the movie's own Share and Save buttons, with
+  nothing behind them in this game, are hidden (`VictoryScreen.as`); each History row's **Watch** with the number under
+  it; a friend's right-click **Spectate** (a friend in a match): the friend's live match watched from
+  the friend's place once the live list names it (it waits through a countdown, 60 s at most); the
+  player pop-up's **Matches**, and **Matches** in a player's right-click menu (a Ranking row, a
+  room's member; `LobbyMenu.showPlayerInfoMenu`): Watch, Replays, that player's name searched.
+- **The window.** Tabs **Live** (its count, a red dot) and **Replays**. Chips under them: Live
+  Everyone (the default) or Friends (the matches with a friend in them); Replays Mine (the default:
+  the asker's own `P1` rows, its private rooms' matches and those against bots among them, marked: no other list has those), Friends (`M1` with `f` 1) or Everyone (`M1`). A search box: a match's code
+  (`#` and 8 hex digits) watches it; anything else is a player's name (8 hex digits without `#` are searched as an exact name first, and watched as a code only when no player has that name; `WatchWindow.as`): the game's own player
+  search (`find_players`, answered in `LobbyMenu.fill_players_search`, handed by `LobbyMenu.playersFound` to the search waiting for it: one is sent at a time, a second at most, none for 3 s after one dropped unanswered after 15 s or a stray answer, so a late answer is never taken for the next search; srp answers two at once, then one a second, `social.rs` `SEARCH_BURST`)
+  finds the account: srp answers the players whose name the text matches loosely, the best first
+  (`session::name_search`, the item search's rules: a part of the name, its letters in order, a typo
+  or two), and the window takes the name itself (any case), else the first found when three letters
+  or more were typed or one player was found; `3D 00 <PLAYER_MATCHES_ASK> <account>`
+  chooses it, and its `P1` rows list its matches (no chip chosen meanwhile; a chip ends the search;
+  the asker's own name is Mine). After a watch asked from the window plays (the game loads a match within
+  2 min of the ask) the lobby's return opens it on that view again; a refusal drops the view. It is a
+  time limit because `show_match_making(false)` also comes before the load and nothing names the
+  load's match. A friend's Spectate whose 60 s end, or that finds a
+  match it can't watch, says so in a message box.
+- **Cards** (`MatchCard`): the map's render and name by the rooms' pool (`RoomsWindow.entry`: the
+  map id's level and weather; a map the pool lacks: its History row's name, else "Retired map", its
+  mode's colour), mode and teams or players; the score or the player's result and K/D; the age, the
+  code, selectable (a press selects it for Ctrl+C: the game's `System.setClipboard` takes nothing, run
+  in a game on 2026-11-08, while a field's own Ctrl+C reaches the system's clipboard), and the friends
+  in it; then one **Watch**, or why it cannot be
+  watched: "Recorded before a game update" (replay 4, or an `incompatible` answer), "Replay not
+  kept" (0, 3, or a `gone` answer); live: "Opens when the match starts" (made or counting down),
+  "Match just ended", "No spectator places left" (full), "Not open to spectators". A History row and
+  the results screen show the same reason in place of their Watch once a row or an answer said it
+  (`NotificationListScrollContent.replayReason`); the asker's own matches are asked again 2 s after
+  each return to the lobby (the history row is written at the server's next save, and no event says
+  when), when the tab opens and once as it comes up, so History's rows know theirs.
+  Cards and the toolbar are updated in place, keyed by match, so a press outlives the refreshes.
+- **Watch asks** a replay session through the Watch window's one ask-and-poll loop
+  (`survarium/watch/ReplayAsks.as`, the prompt `WatchPrompt.as`, `replay-stream.md`): `3D 00 <0xC0000000 | place << 16> <match id>`,
+  place 0xFF (anyone) for a recent match, the player's own place for a player's match, the place of
+  a friend in a live match (`F1`), else 0xFF. "Watch my deaths" (`0xC1000000`) is gone
+  from the movie and the server: a watch ask is `0xC0000000..=0xC0FFFFFF` only
+  (`REPLAY_WATCH_BASE..=REPLAY_WATCH_LAST`).
+- **The rows** (`survarium/watch/WatchRows.as`; `91` rows at the request's start plus their index):
+  - Live, `3B 00 <2 240 000 000> <20>`, every 5 s while shown (30 s otherwise, for the badge):
+    `L0;<n>;<delay s>`, then n of
+    `L1;<match 8 hex>;<map id>;<mode>;<phase>;<players a>;<players b>;<score a|->;<score b|->;<played s>;<spectators>;<watch 1 may|0 full|2 not public (fixed rosters, or over)>`,
+    then the asker's friends in them, `F1;<match 8 hex>;<place>;<team 0|1>;<name>` (their matches first);
+  - Recent, `3B 00 <2 250 000 000 + f> <20>` (`f` 0 all, 1 with a friend of the asker; no bot-only
+    matches), asked on showing and every 30 s: `M0;<n>;<f>` (`f` the list it answers), then n of
+    `M1;<match 8 hex>;<map id>;<mode>;<score a|->;<score b|->;<players>;<length s>;<minutes since its end>;<replay>`,
+    then `F1` rows as Live's (place 255: a recorded match keeps none);
+  - a player's matches, `3B 00 <2 230 000 000> <10>` about the player of the asker's last `93` or
+    `PLAYER_MATCHES_ASK` (`+ 1`: the asker's own, Mine): `P1;<n>;<nickname>` then n of
+    `P2;<match 8 hex>;<place>;<map id>;<mode>;<result 0 defeat|1 victory|2 draw>;<kills>;<deaths>;<minutes since its end>;<replay>[;<1 private|2 with bots>]`
+    (the last field on the asker's own list only);
+    rows for another nickname than the one searched are left;
+  - `<replay>`: 0 not recorded, 1 kept, 3 gone, 4 old version (the asker's game is below
+    patch revision 14, `MIN_REVISION`). 2 (a replay file made for the download) is no longer sent.
+- `srp-026g/scripts/replay-buttons/check.sh <lobby_menu.swf>` checks all of it in Ruffle, every
+  language, at 1280x720 and 1920x1080; `shots.sh <lobby_menu.swf> <out>` takes the screenshots.
 
 ## 2. Wire
 
 | message | bytes |
 |---|---|
-| ask (C->S) | `3D 00 <u32 0xFFFFFF01> <u32 match id>` |
+| ask (C->S) | `3D 00 <u32 0xC0000000 \| place << 16 \| seconds> <u32 match id>` (`lobby::ReplayWatchAsk`) |
 | poll (C->S) | `3B 00 <u32 2200000000> <u8 count>` |
-| answer (S->C) | `91 01 <str "R1;<status>;<match id 8 lower hex>;<n>"> <u32 2200000000> <u16 0> <u16 0>` (`lobby::replay_answer`); `<n>` is the file's size with `ready`, the replay's place in the conversion line with `preparing` (1 being made now, 2 with one before it, ...; 0 not known: its recording is still being written), else 0 |
-| link (S->C, before a `ready` answer) | `9E 00 <wide "replay <8 hex> <32 hex> <64 hex> <size>">` (`lobby::video_link`) |
+| withdraw (C->S) | `3D 00 <u32 0xFFFFFF05> <u32 match id>` (`lobby::REPLAY_WITHDRAW`), no answer |
+| answer (S->C) | `91 01 <str "R1;<status>;<match id 8 lower hex>;<n>"> <u32 2200000000> <u16 0> <u16 0>` (`lobby::replay_answer`); `<n>` is the match time it starts at (ms) with `watching` (its game sent; 0 for a live match), 1 being read, 2 waiting or 0 read and its game not sent yet with `preparing`, else 0 |
 
-The row's name is 45 bytes at the most (63 is the client's limit). The link is 114 characters plus the size's digits (the contract said 113: "replay " is 7, the three hex fields 104, three spaces), under the client's 245.
+The row's name is 45 bytes at the most (63 is the client's limit).
 
-Status words (`session::v026g::replays::Status`): `preparing` (being converted or looked up), `ready`, `none` (no ask yet; match id 0), `not_recorded` (the recording was dropped under `SRP_RECORD_MIN_PLAYERS`, or the lobby's report of the match has fewer places), `gone` (deleted by the storage cap, or not found), `not_yours` (the lobby's report or the sidecar does not have the asker), `old_game` (the asker's patch revision is below 13, or unknown), `incompatible` (the recording's games are of revisions this game does not play, or of none known, below), `busy` (a second ask within 2 s for another match, 20 conversions waiting, or 3 live tokens; asked again later, it is looked up anew and queued if there is room), `failed` (the conversion failed, or the recording is over `SRP_REPLAY_MAX_RECORDING_MB`; see §3 for when it is tried again), `off` (replays are not set up).
+Status words (`session::v026g::replays::Status`): `preparing`, `watching`, `none` (no session; match id 0), `gone` (no kept recording), `not_yours` (`SRP_REPLAY_WATCH=match` and the asker is neither a player of the match nor a moderator; a live match that cannot be watched: a private room's, fixed rosters), `old_game` (the asker's patch revision is below 14, or unknown), `incompatible` (the recording's games are of revisions this game does not play, or of none known, below), `busy` (the player is in a match or queued, has a session already, asked again within 2 s of its last start (`START_EVERY`), has looked up 12 matches with no recording in an hour (`MISSES_ALLOWED`), or `SRP_REPLAY_WATCH_MAX` sessions run; a live match: full, not begun, or over; a match just ended whose recording is still being written, `Replays::writing`), `in_room` (the player's room has a use for it now: its vote, a place in its match; also the answer to the next poll of a session its room called back before its game was sent, `Watches::recall`; `st_srp_replay_in_room`), `failed` (unreadable, over `SRP_REPLAY_MAX_RECORDING_MB`, not read within 2 minutes), `off` (no recordings).
 
-**Compatibility rule.** A recording made from 2026-10-15 on has each place's patch revision (a `revision` note at every connection, the highest kept). A game of revision R plays it when every known revision (0 and places that never connected are not counted) is from the oldest replayable revision to R: a newer game's match may play out otherwise in an older one, and an older game's in a newer one once what a match computes changed. The oldest replayable revision is the last row of `crates/session/src/v026g/simulation_changes.tsv` (11 now: the TDM end and the battery under the floor; so a game of 13 plays recordings of 11, 12 and 13: 12 changed nothing a match computes). Recordings made before 2026-10-15 have no revision and are refused (the owner, 2026-10-17: not guessed).
+**Compatibility rule.** A recording made from 2026-10-15 on has each place's patch revision (a `revision` note at every connection, the highest kept). A game of revision R plays it when every known revision (0 and places that never connected are not counted) is from the oldest replayable revision to R: a newer game's match may play out otherwise in an older one, and an older game's in a newer one once what a match computes changed. The oldest replayable revision is the last row of `crates/session/src/v026g/simulation_changes.tsv` (a game of revision R plays the recordings from that revision to R, revisions that changed nothing a match computes included). Recordings made before 2026-10-15 have no revision and are refused (the owner, 2026-10-17: not guessed).
 
 **A change of what a match computes.** A PR that makes a match play out otherwise cannot know its revision (the release sets it): it adds the row `next<TAB><what>` at the end of that list. The server takes `next` for its `SRP_MIN_PATCH_REVISION`, which the release sets to its own revision at its swap, so from that release on the recordings of older games are refused; `release/release.sh` writes the number in place of `next` in its record (`.claude/skills/skhid-release/SKILL.md`). The match server logs the oldest revision it gives at start.
 
-**What the player sees of a refusal** (`incompatible`): no link, so nothing starts; the movie's own "This replay was recorded by a game version that yours cannot play." (English, Ukrainian, Russian), and with the first answer of each ask the game's message box (`84 49 00 <text>`, `social.md` §9.1: the box and nothing else) in the game's language (`4F`'s byte: English, Russian, Ukrainian, German, Polish): recorded with an older version of the game (the revisions), which plays matches differently, to be watched only with that release (`026g-rev<n>` of the newest of them, when that release has a tag: 12 and 15 on); for a recording with no revision, the same without the number; for a newer one, to update the game (`lobby-server/src/v026g/replay.rs`, `refusal_text`). Not seen in a game yet: a sentence (rather than a key) in that box, with Cyrillic letters.
+**What the player sees of a refusal** (`incompatible`): nothing starts; the movie says it in the game's language, from the localization tables (`client-patches/localization/`, 10 languages): the prompt's `st_srp_replay_incompatible` ("This replay was recorded by a game version that yours cannot play."), the card's `st_srp_watch_reason_old` ("Recorded before a game update"). The server only logs why (`lobby-server/src/v026g/replay.rs`).
 
-## 3. Conversion
+### 2.1 Save
 
-`match-server/src/v026g/replay.rs`, one thread (`srp-replay`), one match at a time:
+The save icon of the Watch window's cards and the results screen's Save replay save a match's replay to a file in the player's `<game>\replays` (the movie: `survarium/watch/ReplayAsks.as`, the same loop as a watch's).
 
-- **Converted on the first ask only** (owner, 2026-10-15): a match's end converts nothing (most replays are never watched). The first player to ask for a kept recording's replay queues it (status `preparing`, with its place in line); every other asker of that match waits for the same job (never queued twice); the conversion goes on when the askers stop polling (a closed dialog), and later asks are answered from the stored `.sur` at once, each with its own token. Asks for other matches wait in line, 20 at most (one per player of a full match); past that, `busy`.
-- The recording writer (`record.rs`) tells the replays (`session::v026g::replays::Replays`) of each file it closes: kept, dropped under the minimum, deleted by the cap (its `.sur` and `.json` are deleted too). At start, replays whose recording is gone and `.part` files of a stopped server are deleted.
-- Checked before the recording is unpacked whole: its size against `SRP_REPLAY_MAX_RECORDING_MB`, then its header (the first record, in the first block, `record::read_header`) for the map, and so the mode's `.options` file. Only then are the notes read and the file converted.
-- When a failure is tried again (`replays::Failure`): a missing or unreadable mode file (the operator may add the files) after 10 minutes; a reading or writing error of the disk after 10 minutes, then 20, 40, ... 4 hours at most; anything of the recording itself (over the size cap, damaged, no known map, the conversion's own error) not again until a restart.
-- `sur_convert::convert_file` with the mode's `.options` of the server's game data (`gameplay/game_modes/` + the file the map's `maps_dict` row names, `game_data::shared`: the file the map's row was made of, so every map and mode srp plays has one). Written: `SRP_REPLAY_DIR/<id:08x>.sur`, then the sidecar `<id:08x>.json` `{match_id, size, sha256, revisions (by place), account_ids (every place, late joiners too), made_at}`, each under `.part` first. A sidecar means its `.sur` is whole.
-- The replays' own cap, `SRP_REPLAY_MAX_MB` (default 1000): after each conversion and at start, while the `<8 hex>.sur` and `.json` files are over it together, the oldest (by the `.sur`'s time) are deleted, the sidecar first; the one just made stays. A replay deleted so is made again from its recording when asked for.
-- The thread runs at the lowest priority on Linux: nice 19 for that thread itself (`setpriority(PRIO_PROCESS, gettid, 19)`, logged once if it fails; nothing on other systems). The container has one CPU (`SRP26_CPUS`) for the lobby, the web page and every match's ticks, which must never wait for a conversion; the first viewer waits longer while matches run.
+| message | bytes |
+|---|---|
+| ask (C->S) | `3D 00 <u32 0xFFFFFF01> <u32 match id>` (`lobby::SAVE_ASK`), answered at once as a poll |
+| poll (C->S) | `3B 00 <u32 2210000000> <u8 count>` (`lobby::SAVE_START`) |
+| answer (S->C) | `91 01 <str "R2;<status>;<match id 8 lower hex>;<n>"> <u32 2210000000> <u16 0> <u16 0>` (`lobby::save_answer`); `<n>` the place in the line with `preparing` (0 not known), the file's size with `ready`, else 0 |
+| link (S->C) | `9E` `video_link(false, "replay <id 8 hex> <token 32 hex> <sha256 64 hex> <size>")`, just before each `ready` row; never in the packet log |
 
-**Memory and time** (release build, this PC, the largest recording of 2026-10-14: 13.5 MB, 20 places, 15.5 minutes, 1.36 million datagrams, 4.4 million relay copies):
+Statuses as above, and `ready`; `none` (no ask), `gone` also for a match closed under the recordings' minimum, `busy` also for a second ask within 2 s, 20 files waiting or 3 live tokens of the account. On `ready` the movie calls `video_tutorial_link_clicked` once: patch revision 14's `replay_link` (`client_patch.md` 3.27) starts `updater_skhid.exe replay <link>`, which fetches `/replays/<token>` (a token: 10 minutes, 5 downloads, one at a time) and writes `<game>\replays\<YYYY-MM-DD>_<HHMM>_<map>_<id>.srpreplay` (`client/updater/README.md`).
 
-| reader | peak private memory | time |
-|---|---|---|
-| whole file into memory (`record::read` + `convert`, as before) | 431 MiB | 1.8 s |
-| file read a block at a time (`convert_file`) | 230 MiB | 2.2 s |
-| + one table of the copies by message instead of a list each, copies kept in 64 K pieces, both freed when read | **123 MiB** | 2.1 s |
+The match server makes the file on a thread of its own (`match_server::v026g::replay`, nice 19, one at a time, when first asked for): `SRP_REPLAY_DIR/<id:08x>.srpreplay` (`replay_file`: a header of the map, mode, score, places' names, teams, kills and deaths, the history's timeline events, and the `.sur` a replay session plays) and its sidecar `<id:08x>.json` (size, SHA-256, revisions, accounts; never served). A file lives as long as its recording and within `SRP_REPLAY_MAX_MB`. Who may save follows `SRP_REPLAY_WATCH`, and the compatibility rule above holds for a file as for a session.
 
-The second-largest (10 MB, 10 places) peaks at 57 MiB (233 MiB before), in 1.3 s. The 20 recordings made byte-identical `.sur` files before and after the change. 431 MiB would not have fitted the 512 MB container beside the rest of srp; 123 MiB does. The bound for larger files is `SRP_REPLAY_MAX_RECORDING_MB` (default 24, about 220 MiB by the same slope; a 20-place match of 15 minutes is the largest the game has).
+## 3. What a replay holds
 
-## 4. Tokens
+A replay session plays what `sur_convert` makes of the recording, in memory (`replay-stream.md`); `srp-recording-to-sur` writes the same as a `.sur` file for the game's own player (`-match_replay=`, `replay_sur.md`). It holds what every player of the match was sent (`sur_convert`'s chunks): chunk 0 the engine version; chunk 1 the 0xE4 options of the largest roster (names, clan tags, kits, items, the map, the match's static id, the squad numbers); chunk 2 the relayed inputs, roster changes and kit choices; chunk 3 worlds the clients uploaded; chunk 4 the mode's config, filled only by `srp-recording-to-sur` (a replay session's `.sur` and a saved file's carry an empty one). No address (the recording has none), no session id (the clients' 0xD8, which the recording holds, is not read into it), no token, no server path. `match_server::v026g::replay::tests::a_recordings_places_read_and_its_sur_holds_nothing_private` plants a session id, a token, an address and the server's folders in a recording and finds none in the file or in any chunk unpacked.
 
-128 bits from the OS's generator (`OsRng`), 32 lower-case hex digits, bound to (account, match), 10 minutes, 5 downloads (a `GET` takes one, a `HEAD` none; a broken download resumes with the next), one download (`GET` or `HEAD`) of a token under way at a time, 3 live tokens per account (an ask for a match it has a live token of gives that one again; a token past its time still counts while its download runs). So one account holds 3 of the page's 5 replay download slots at most. Many tokens of one replay download the one file at once, a slot each. In memory only: a restart ends them. A log line shows the first 6 hex digits; the lobby's packet log (`SRP_PACKET_LOG`) redacts every `9E`.
-
-## 5. `GET|HEAD /replays/<token>`
-
-`web-server/src/lib.rs` (`replay_route`, `replay_token`, `replay_file`, `Web::replay`):
-
-- Every request whose path is `/replays` or under `/replays/` is answered here, never by a page.
-- Only a `GET` or `HEAD` whose target, **exactly as sent**, is `/replays/` + 32 lower-case hex digits is looked up (no query, no fragment, no escapes, no suffix). The token gives a match id; the file is `SRP_REPLAY_DIR/<id:08x>.sur`, its name built from that u32 alone, served only if it is a regular file (not a link, not a folder) whose real path is in the replay folder. No part of the request is ever joined to a folder.
-- Everything else (malformed, unknown, expired or used-up token, a token of another server, replays off, the file gone) gets the same 64 bytes: `HTTP/1.0 404 Not Found`, `Content-Length: 0`, no body.
-- Failed lookups are counted per address: 30 in a minute, then `429` for a minute. Behind the proxy, `SRP_WEB_TRUST_PROXY=on` is needed for the address to be the player's.
-- Own slots (5 at once, as `/download` and `/resources/` have); `Range` as `/download`. A second download of a token while its first runs gets `503 Service Unavailable` with `Retry-After: 10` (not a failed lookup, none of its downloads taken).
-- The log line of a replay handed out shows the `Range` escaped (`{:?}`): the request's header lines are split at `\r\n` alone, so a bare `\n` or another control character in it cannot start a forged log line. The other values in it are checked first (the method, the token's 6 hex digits, the parsed address); the other routes log request values (user names, the admin text) with `{:?}` too.
-- `SRP_REPLAY_DIR` must be a folder of its own: equal to `SRP_RECORD_DIR`, inside it or around it, replays are off (logged).
-
-## 6. Routes of the web page, and why nothing private is reachable
+## 4. Routes of the web page, and why nothing private is reachable
 
 | route | method | what it can read | why nothing private |
 |---|---|---|---|
-| `/replays/<token>` (0.26g) | GET, HEAD | `SRP_REPLAY_DIR/<id:08x>.sur` of a live token's match | the name is built from the token's u32; the `.json`, recordings, `.part` files and any other name are never opened; regular files in the folder only |
 | `/download` | GET, HEAD | the one file `SRP_DOWNLOAD_FILE` (read-only mount) | exact path match; the file is the operator's setting, no part of the request names it |
 | `/resources/<64 hex>` (0.26g) | GET, HEAD | `<folder of SRP_DOWNLOAD_FILE>/resources/<64 hex>` | only 64 lower-case hex digits name a file there (`resource_file`); that folder holds the update blobs only |
 | `/api/client-files` (0.26g) | GET | the SHA-256 and size of `SRP_DOWNLOAD_FILE` | the archive's checksum, nothing else |
@@ -81,34 +138,22 @@ The second-largest (10 MB, 10 places) peaks at 57 MiB (233 MiB before), in 1.3 s
 | `/launcher…`, `/launcher/places/<lang>`, `/launcher/fresh/<lang>` (0.26g) | GET | the board and counts; the skin is compiled in (`include_bytes!`) | no file; the language is read from the path, nothing else |
 | `/`, `/exchange` | GET | the store's counts (`/exchange` only says the exchange is in the game now) | pages; no file |
 | `/<SRP_ADMIN_PATH>` | GET, POST | accounts, bans, maintenance (with `SRP_ADMIN_TOKEN`, from `SRP_ADMIN_IPS` only) | no file; any other address gets the plain "not found" |
+| `/api/history/*` | GET | public matches, totals and clans from `srp.db`, on read-only connections (`match_history.md`) | only `kind='public'` matches; no logins, bans or hidden rating |
+| `/replays/<token>` (0.26g) | GET, HEAD | `SRP_REPLAY_DIR/<id:08x>.srpreplay` of the live token's match | the token is looked up, never a path; the name is made from the match id alone, a regular file whose real path is in the folder; anything else is one and the same 404, and 30 failed lookups a minute from one address are answered 429 for a minute (`web-server/src/replay_tests.rs`) |
 | anything else | any | nothing | "not found" page |
 
-Recordings, sidecars, `srp.db`, logs, `.env`, certificates and mode files are opened by no route. The test `web_server::replay_tests::no_other_route_reaches_a_private_file` sends every route with 17 hostile tails (`..`, `%2e%2e`, `%2f`, `%5c`, `\`, `//`, NUL, `?file=`, the token, the sidecar's and the recording's names) by GET, HEAD and POST over a socket, with such files planted beside the replay, and finds none of them in any answer.
+Recordings, logs, `.env` and certificates are opened by no route; `srp.db` only by `/api/history/*`, read-only.
 
-## 7. The `.sur`'s content
+## 5. Not proven
 
-It holds what every player of the match was sent (`sur_convert`'s chunks): chunk 0 the engine version; chunk 1 the 0xE4 options of the largest roster (names, clan tags, kits, items, the map, the match's static id, the squad numbers); chunk 2 the relayed inputs, roster changes and kit choices; chunk 3 worlds the clients uploaded; chunk 4 the mode's config, which every game has. No address (the recording has none), no session id (the clients' 0xD8, which the recording holds, is not read into it), no token, no server path. `match_server::v026g::replay::tests::a_kept_recording_becomes_a_replay_and_its_sidecar` plants a session id, a token, an address and the server's folders in a recording and finds none in the file or in any chunk unpacked.
-
-## 8. Settings
-
-`SRP_REPLAY_DIR` (needed, with `SRP_RECORD_DIR`; else `off`), `SRP_REPLAY_MAX_RECORDING_MB` (24), `SRP_REPLAY_MAX_MB` (1000: the replays' `.sur` and `.json` files together, outside `SRP_RECORD_MAX_MB`; the oldest go first). The compose file sets `SRP_REPLAY_DIR=/srv/srp/data/replays`. The mode files are the game data's (`SRP_GAME_DATA`): until 2026-11-10 they were a folder copied by hand (`SRP_GAME_MODES_DIR`), which no release refilled, so no map or mode added after it (Research, Blackout, the 0.21, 0.11 and 0.69 maps) could be converted.
-
-## 9. Not proven
-
-- Nothing here was played against a game: the movie, the exe patch and the updater are the first live test (the owner runs it).
-- A `.sur` made by srp has not been played by a game yet (`replay_sur.md` §6).
 - The compatibility rule above is a choice: which revisions really play each other's recordings is not known.
-- The nice 19 call was type-checked for Linux here, not run: the log says so at the thread's start if it fails.
-- One download of a token at a time: when a connection dies with no reset, the server's write waits up to 5 s (`IO_TIMEOUT`) before the slot is free; the updater tries again after 3 s, and a `503` then ends its try with "busy" (pressing "Download and watch" again works while the token lives).
-- Between the checks of `replay_file` and the open, the replay folder is the server's own (nothing else writes there); a link put there in that moment would be followed. The standard library has no "do not follow" open.
 
 ## Solo matches against bots (2026-10-28)
 
 When recording is enabled, PvE keeps its recording after one human enters, even when
 `SRP_RECORD_MIN_PLAYERS` is higher. PvP still uses that configured threshold. No human entered:
 the recording is discarded as before. The actual threshold is written in each recording's header.
-A kept recording is considered before the replay service's missing-file/minimum-player fallback,
-so History can convert and serve it for its sole human participant.
+A kept recording can be watched by its sole human participant.
 
 Lowering retention alone would lose the human's inputs: they are not relayed back to their owner,
 and server bots have no receiving client. `Game::relay_to_others` therefore records accepted human
@@ -116,8 +161,10 @@ actions and kit choices in PvE after validation, duplicate suppression and late-
 The recorder writes full match times (not wrapping tick bytes), rotation/actions or the kit.
 `sur_convert` combines those with the bots' network relays and deduplicates any human relay copies
 in multi-human PvE. Raw inbound packets are not treated as accepted actions. Existing recording
-files remain readable. No recording starts a replay conversion until someone asks to watch it.
+files remain readable.
 
 Tests cover solo retention versus empty/PvP matches, accepted and rejected actions, kit choices,
 deduplication and conversion from a simulated solo PvE match. In-game playback of the new recording
 path still needs a playtest; no client was launched for these checks.
+
+**A drawing under a press.** The window draws its cards anew on every answer, and a CLIK button clicks only when the release finds the object the press found. While the left button is down in the window `render` only notes that a drawing is owed, and the frame after the release draws it (`WatchWindow._press`; after 5 s without a release, in case it never comes). The frame after and not the release: MOUSE_UP comes before CLICK.

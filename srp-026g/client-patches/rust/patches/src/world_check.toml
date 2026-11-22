@@ -8,6 +8,7 @@ uses = ["packet_recovery"]
 [[hook]]
 site = "world_load.unpacked"
 handler = "on_unpacked"
+order = 1
 
 [[hook]]
 site = "world_load.raw"

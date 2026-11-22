@@ -21,8 +21,8 @@ should be able to go to rankings and rmb to do the same", "for every single play
 - **Every player:** online or not, never signed in since a restart, with no match ever, the
   asker itself: the server answers from the account as it is now (srp.db, kept in memory).
   Kits as they are now, not as some match left them.
-- **Which player:** the request names the row's place (`3D 00 <GEAR_BY_PLACE> <place>`, as the
-  History's "Watch replay" names its match). The server keeps, for each player's session, its last
+- **Which player:** the request names the row's place (`3D 00 <GEAR_BY_PLACE> <place>`, as Save
+  replay's `<SAVE_ASK> <match>` names its match). The server keeps, for each player's session, its last
   8 ranking pages as sent (the first place, the account of each row): a place is the account the
   newest kept page with it showed there, however the ranking moved since, so a tab the movie
   keeps (Top 100 while "My place" was asked, or the other way) is what it showed. The own place

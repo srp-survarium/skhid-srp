@@ -14,6 +14,9 @@ package scaleform.clik.controls
       protected var _groupRenderers:uint = 3;
       
       protected var _groupMargin:uint = 210;
+
+      // srp: the tabs right of the Play block (TopMenu: Clan, Rooms, Watch, Ranking)
+      public static const RIGHT_TABS:uint = 4;
       
       public function TopMenuBar()
       {
@@ -152,7 +155,9 @@ package scaleform.clik.controls
             }
             _renderers.length = 0;
          }
-         var groupOffset:uint = 0;
+         var left:Boolean;
+         var start:Number;
+         var w:Number;
          var i:uint = 0;
          var lastIndex:int;
          var renderer:Button;
@@ -184,16 +189,19 @@ package scaleform.clik.controls
             renderer.validateNow();
             if(_direction == DIRECTION_HORIZONTAL)
             {
-               if(_width > renderer.width + _spacing + offsetX || _maxFit)
+               // srp: the first _groupRenderers tabs (Character, Equipment, Shop) left of the Play
+               // block's gap (_groupMargin), the next RIGHT_TABS (Clan, Rooms, Watch, Ranking)
+               // right of it, as wide as the bar leaves them (the game's width at most); the rest
+               // (Missions, which has its own button) not drawn, as the game's layout left it.
+               if(i < this._groupRenderers + RIGHT_TABS)
                {
+                  left = i < this._groupRenderers;
+                  start = this._groupRenderers * (_buttonWidth + _spacing) + this._groupMargin;
+                  w = left ? _buttonWidth : Math.min(_buttonWidth,int((_width - start + _spacing) / RIGHT_TABS) - _spacing);
+                  renderer.width = w;
+                  renderer.validateNow();
                   renderer.y = 0;
-                  renderer.x = offsetX;
-                  offsetX += renderer.width + _spacing;
-                  if(groupOffset != int((i + 1) / this._groupRenderers) * this._groupMargin)
-                  {
-                     groupOffset = int((i + 1) / this._groupRenderers) * this._groupMargin;
-                     offsetX += int((i + 1) / this._groupRenderers) * this._groupMargin;
-                  }
+                  renderer.x = left ? i * (_buttonWidth + _spacing) : start + (i - this._groupRenderers) * (w + _spacing);
                }
                else
                {

@@ -440,6 +440,7 @@ impl World {
             trusted_by: 2,
             vs_bots: false,
             private: false,
+            events: Vec::new(),
             players: vec![PlayerResult {
                 place: 0,
                 session_id,

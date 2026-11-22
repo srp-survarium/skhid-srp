@@ -22,6 +22,7 @@ dependencies = [
  "artefact-hunt-rule",
  "ban-reason",
  "ragdoll",
+ "replay-control",
  "sign-in-cipher",
  "srp-validate",
  "voice-abi",
@@ -36,6 +37,10 @@ name = "ragdoll"
 version = "0.1.0"
 
 [[package]]
+name = "replay-control"
+version = "0.1.0"
+
+[[package]]
 name = "sign-in-cipher"
 version = "0.1.0"
 
@@ -45,6 +50,7 @@ version = "0.1.0"
 dependencies = [
  "artefact-carry",
  "artefact-hunt-rule",
+ "replay-control",
  "weapon-pickup",
  "world-frame",
 ]

@@ -101,9 +101,15 @@ impl Core<'_> {
         let grace = self.settings.session_grace;
         let mut ended = Vec::new();
         let matches = &self.matches;
+        let matchmaking = self.store.matchmaking();
         for (session_id, away) in &mut self.away {
-            if away.in_match.is_some_and(|id| matches.contains_key(&id)) {
-                // The wait starts when the match is over.
+            // The wait of a player in a match starts when the match is over.
+            // A spectator has no seat to wait for: its wait counts from its
+            // link going, and its session's end gives its place among the
+            // match's few spectators back (its game may never have got there).
+            if away.in_match.is_some_and(|id| matches.contains_key(&id))
+                && matchmaking.watched(*session_id).is_none()
+            {
                 away.since = now;
             } else if now.saturating_duration_since(away.since) >= grace {
                 ended.push(*session_id);

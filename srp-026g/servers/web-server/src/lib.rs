@@ -18,8 +18,8 @@
 //!   of the `resources.db` regions earlier updaters wrote, which the
 //!   updater fetches to put the stock db back once when it kept no copy.
 //! - `/replays/<token>` (the 0.26g page only) is the replay file of the
-//!   match a token of the lobby's "Watch replay" is for
-//!   (`session::v026g::replays`): `SRP_REPLAY_DIR/<id:08x>.sur`, named from
+//!   match a token of the lobby's Save is for (`session::v026g::replays`):
+//!   `SRP_REPLAY_DIR/<id:08x>.srpreplay`, named from
 //!   the token's match id alone ([`replay_file`]); anything else under
 //!   `/replays` is one and the same "not found", and an address that fails
 //!   too often is answered `429` for a while ([`Web::replay`]).
@@ -433,13 +433,13 @@ fn replay_token<'a>(method: &str, target: &'a str) -> Option<&'a str> {
     .then_some(token)
 }
 
-/// The replay file of a match: `SRP_REPLAY_DIR/<id:08x>.sur`, its name made
-/// from the match id alone (`Replays::sur_path`), and only when it is a
+/// The replay file of a match: `SRP_REPLAY_DIR/<id:08x>.srpreplay`, its name
+/// made from the match id alone (`Replays::file_path`), and only when it is a
 /// regular file (not a link, not a folder) whose real path is in the
 /// replay folder.
 fn replay_file(replays: &Replays, match_id: u32) -> Option<PathBuf> {
-    let dir = std::fs::canonicalize(&replays.settings()?.replay_dir).ok()?;
-    let path = replays.sur_path(match_id)?;
+    let dir = std::fs::canonicalize(&replays.save_settings()?.replay_dir).ok()?;
+    let path = replays.file_path(match_id)?;
     if !std::fs::symlink_metadata(&path).ok()?.file_type().is_file() {
         return None;
     }

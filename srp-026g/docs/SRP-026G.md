@@ -186,9 +186,15 @@ that rule is mended when the accounts load, and never plays.
 | `SRP_RECORD_DIR` | unset (off; the compose file sets `/srv/srp/data/recordings`) | Match recordings: every datagram of a match in and out (no addresses), one LZMA2-packed file per match (`servers/match-server/src/v026g/record.rs` has the format); read with `srp-recording` |
 | `SRP_RECORD_MIN_PLAYERS` | `6` | PvP recordings are kept after this many human players enter, including late joiners. PvE recordings need one human regardless of this setting. Empty matches are discarded |
 | `SRP_RECORD_MAX_MB` | `5000` | Kept recordings over this together: the oldest are deleted |
-| `SRP_REPLAY_DIR` | unset (off; the compose file sets `/srv/srp/data/replays`) | "Watch replay" (`docs/notes/replay_watch.md`): a kept recording is made into the game's replay file here (`<match id>.sur` and its sidecar `.json`) when a player first asks for it (never at a match's end; one at a time, 20 waiting at most, at nice 19 on Linux), kept for later asks, served only at `/replays/<token>`. Must be a folder of its own: not `SRP_RECORD_DIR`, inside it or around it (then replays are off, said in the log). The mode's config in a replay is the game data's own (`SRP_GAME_DATA`). Off without `SRP_RECORD_DIR` (the lobby answers `off`) |
-| `SRP_REPLAY_MAX_RECORDING_MB` | `24` | A larger recording is not converted (status `failed`, not tried again until a restart): the conversion's memory grows with it (123 MiB for 13.5 MB, `replay_watch.md`) |
-| `SRP_REPLAY_MAX_MB` | `1000` | Replays (`.sur` and `.json` in `SRP_REPLAY_DIR`, outside `SRP_RECORD_MAX_MB`) over this together: the oldest are deleted after each conversion and at start (the one just made stays); a deleted one is made again when asked for |
+| `SRP_REPLAY_MAX_RECORDING_MB` | `24` | A replay session (`docs/notes/replay-stream.md`) or a Save does not read a larger recording (status `failed`; a Save is refused): it is kept in memory with what is made of it |
+| `SRP_REPLAY_DIR` | unset (off; the compose file sets `/srv/srp/data/replays`) | Save: the `.srpreplay` files players ask to save (`docs/notes/replay_watch.md` section 2.1), made from the kept recordings and handed out at `/replays/<token>`; a folder of its own (never the recordings', inside it or around it: then Save is off). Save is also off without `SRP_RECORD_DIR` (the lobby then answers `off`). `off`: off |
+| `SRP_REPLAY_MAX_MB` | `1000` | Save's files (and their sidecars) over this together: the oldest are deleted (made again when asked for) |
+| `SRP_REPLAY_WATCH` | `all` | Who may watch a match's replay in the game or save it (`docs/notes/replay-stream.md`): `all` anyone, `match` the match's players and `SRP_REPLAY_MODERATORS`; another value is `match` |
+| `SRP_REPLAY_MODERATORS` | unset | Account ids, comma-separated, that may watch any match's replay |
+| `SRP_REPLAY_WATCH_MAX` | `4` | Replay sessions at once (each costs about one player's traffic and its recording in memory) |
+| `SRP_LIVE_WATCH_DELAY_S` | `30` | Seconds a live spectator (the Watch window's Live, Queue and spectate) sees the match behind it, 0 to 58 (a match keeps 60 s to start from) |
+| `SRP_LIVE_WATCH_PER_MATCH` | `4` | Spectators of one match, Live and Queue and spectate together (`docs/notes/queue-spectate.md`) |
+| `SRP_LIVE_WATCH_MAX` | `8` | Spectators of all matches together |
 | `SRP_PACKET_LOG` | unset | A folder: every datagram of the lobby and the match server, one file a connection (the lobby sign-in's session id left out). **Set it for every live test** |
 
 ### Sign-in

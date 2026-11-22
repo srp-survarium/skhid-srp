@@ -14,9 +14,9 @@
 //!   (the owner's of 2026-10-17), and Play goes into one;
 //! - `pvb`: "Player vs Bots": one player against the match server's own
 //!   bots, chosen in srp's changed lobby movie;
-//! - `replay`: the "Watch replay" of the movie's History: the ask, the
-//!   polls, the download link (`SRP_REPLAY_DIR`, set where srp starts the
-//!   lobby: [`Lobby::with_replays`]);
+//! - `replay`: watching a replay in the running game (the movie's Watch,
+//!   Watch replay, Watch my deaths): the ask and the polls (srp's replays,
+//!   [`Lobby::with_replays`]);
 //! - `social`: chat, friends, important messages, squads;
 //! - `clans`: clans, clan chat and clan-team Play.
 //!
@@ -101,7 +101,12 @@ mod dispatch;
 mod faces;
 mod gear;
 mod items;
+mod live;
+/// A match's events on the side channel, for the replay's timeline and the
+/// History's rows.
+pub mod match_events;
 mod patch_check;
+mod player_matches;
 mod play;
 mod presets;
 pub mod pvb;
@@ -137,7 +142,9 @@ use survarium::v026g::maps;
 use udp_transport::PacketLog;
 
 pub use patch_check::{check_min_patch_revision, min_patch_revision_from_env};
-pub use play::{LiveView, MatchHost, MatchPlayer, MatchSetup, MatchTicket, match_profile};
+pub use play::{
+    LivePhase, LiveView, MatchHost, MatchPlayer, MatchSetup, MatchTicket, match_profile,
+};
 
 /// The modes played when `SRP_MATCH_MODES` is unset: all the client has.
 const DEFAULT_MODES: [maps::GameMode; maps::GameMode::ALL.len()] = maps::GameMode::ALL;
@@ -199,6 +206,8 @@ pub struct Settings {
     pub pvb: pvb::Config,
     /// Rooms (`RoomRules::rooms_most`, `SRP_ROOMS_EXTRA_MAPS`; `rooms`).
     pub rooms: rooms::Config,
+    /// The Live window's watching (`SRP_LIVE_WATCH_*`; `live`).
+    pub live: live::Config,
 }
 
 impl Settings {
@@ -299,6 +308,7 @@ impl Settings {
         );
         Self {
             pvb: pvb::Config::from_env(),
+            live: live::Config::from_env(),
             rooms: rooms::Config::from_env(),
             balance,
             min_patch_revision,
@@ -328,6 +338,7 @@ impl Settings {
             min_patch_revision: 0,
             balance: Weights::default(),
             pvb: pvb::Config::default(),
+            live: live::Config::default(),
             rooms: rooms::Config::default(),
         }
     }
@@ -517,7 +528,7 @@ pub struct Lobby {
     /// The relays whose tunnel addresses may say a datagram's own address.
     relays: udp_transport::relay::Relays,
     /// "Watch replay" (`replay`): srp's replays, shared with the match
-    /// server and the web page; none, every ask is answered `off`.
+    /// server; none, every ask is answered `off`.
     replays: Option<Arc<Replays>>,
 }
 
@@ -549,7 +560,7 @@ impl Lobby {
         })
     }
 
-    /// The replays the History's "Watch replay" asks for (`replay`).
+    /// The replays the movie's Watch asks for (`replay`).
     pub fn with_replays(mut self, replays: Arc<Replays>) -> Self {
         self.replays = Some(replays);
         self

@@ -4,6 +4,7 @@ package survarium.item
    import survarium.constants.ModificationState;
    import survarium.constants.PropertyDirection;
    import survarium.data.ItemData;
+   import survarium.data.LocalizationData;
    import survarium.data.PropertiesDescriptor;
    import survarium.player.MatchEffects;
 
@@ -61,7 +62,9 @@ package survarium.item
          }
          // The line break fillModifiersDescription ends a line with, so the row keeps its height.
          var end:String = String(modifier.textValue).slice(-1) == "\n" ? "\n" : "";
-         return description.prop_name + ": " + percent(before) + MatchEffects.ARROW + current + end;
+         // A name of its own: the property's is too long for this line in several languages, and
+         // a line that wraps grows the card while Alt is held.
+         return LocalizationData.getName("st_srp_alt_move_speed") + ": " + percent(before) + MatchEffects.ARROW + current + end;
       }
 
       // A fraction as the bonus line shows it: "-5%", "0%", "+3%".

@@ -36,7 +36,7 @@ use login_server::sealed::ServerKey;
 use login_server::v026g::{self as login, Endpoint, RevisionGate};
 use match_server::v026g::{self as matches, MatchRegistry};
 use session::SessionStore;
-use session::v026g::replays::{ReplaySettings, Replays};
+use session::v026g::replays::Replays;
 use session::v026g::rewards::{self, Results, Terms};
 use session::v026g::{GameAccounts, quests};
 use survarium::v026g::drops::Rng;
@@ -214,6 +214,13 @@ impl MatchHost for RegistryHost {
             } else {
                 live.time_left
             },
+            phase: match live.phase {
+                matches::LivePhase::Gathering => lobby::LivePhase::Gathering,
+                matches::LivePhase::Countdown => lobby::LivePhase::Countdown,
+                matches::LivePhase::Playing => lobby::LivePhase::Playing,
+                matches::LivePhase::Over => lobby::LivePhase::Over,
+            },
+            kills_deaths: live.kills_deaths,
         })
     }
 
@@ -223,6 +230,15 @@ impl MatchHost for RegistryHost {
 
     fn reseat(&self, match_id: u32, account_id: u32, session_id: u32) -> bool {
         self.0.reseat(match_id, account_id, session_id).is_some()
+    }
+
+    fn replay_ticket(&self, match_id: u32) -> Option<lobby::MatchTicket> {
+        let ticket = self.0.replay_ticket(match_id);
+        Some(lobby::MatchTicket {
+            match_id: ticket.match_id,
+            host: ticket.host,
+            port: ticket.port,
+        })
     }
 }
 
@@ -251,6 +267,7 @@ pub fn match_result(result: matches::MatchResult) -> rewards::MatchResult {
         trusted_by: result.trusted_by,
         vs_bots: result.vs_bots,
         private: result.private,
+        events: result.events,
         players: result
             .players
             .into_iter()
@@ -410,10 +427,6 @@ pub struct Options {
     /// names of the accounts that are test bots (`srp-bot`). Empty, the
     /// default: nothing about bots is on.
     pub bots: Vec<String>,
-    /// "Watch replay" (`SRP_REPLAY_DIR`; `None`:
-    /// off): the folders the match server converts recordings into, the
-    /// lobby gives tokens for and the web page serves from.
-    pub replays: Option<ReplaySettings>,
     /// Voice chat (`SRP_VOICE`, default on): the relay on the match port + 1
     /// (`match_server::v026g::voice`).
     pub voice: bool,
@@ -440,7 +453,6 @@ impl Options {
             match_public_host: config.match_server.public_host.clone(),
             sign_in_key: login_server::sealed::key_from_env(),
             bots: session::v026g::bots::from_env(),
-            replays: ReplaySettings::from_env(),
             voice: matches::voice::enabled_from_env(),
             relays: udp_transport::relay::Relays::from_env()
                 .map_err(|error| format!("SRP_RELAYS: {error}")),
@@ -457,7 +469,6 @@ impl Options {
             match_public_host: "127.0.0.1".to_owned(),
             sign_in_key: Ok(login_server::sealed::test_key()),
             bots: Vec::new(),
-            replays: None,
             voice: false,
             relays: Ok(udp_transport::relay::Relays::default()),
         }
@@ -471,8 +482,8 @@ pub struct Stack {
     pub results: Arc<Results>,
     pub registry: Arc<MatchRegistry>,
     pub inbox: Arc<Inbox>,
-    /// "Watch replay": what the match server's conversions, the lobby's
-    /// asks and the web page's downloads share (off when not set).
+    /// The replays: the match server's recordings and Save's files, the
+    /// lobby's asks and the web page's downloads (`/replays/<token>`).
     pub replays: Arc<Replays>,
     /// Where each server listens (the ports given, for a port of 0).
     pub login_addr: SocketAddr,
@@ -543,9 +554,9 @@ impl Stack {
             .map(UdpSocket::local_addr)
             .transpose()?;
 
-        // One for the process: the match server converts, the lobby gives
-        // tokens, the web page takes them.
-        let replays = Arc::new(matches::replays_of(options.replays.clone()));
+        // One for the process: the match server's recordings and replay
+        // sessions, the lobby's asks and list rows.
+        let replays = Arc::new(matches::replays_from_env());
 
         let host: Arc<dyn MatchHost> = Arc::new(RegistryHost(registry.clone()));
         let bind_lobby = {
@@ -599,10 +610,10 @@ impl Stack {
         };
 
         let mut threads = Vec::new();
-        match matches::replay::start(replays.clone()) {
+        match matches::replay::start(replays.clone(), Some(accounts.clone())) {
             Some(Ok(thread)) => threads.push(thread),
-            Some(Err(error)) => log::error!("Replays: the conversion thread failed: {error}"),
-            None => log::info!("Replays are off (SRP_REPLAY_DIR)"),
+            Some(Err(error)) => log::error!("Save: its thread failed: {error}"),
+            None => {}
         }
         {
             let (registry, store, accounts, results, inbox, stop, replays, relays) = (
@@ -636,6 +647,7 @@ impl Stack {
                     relays.clone(),
                     &flag,
                     Some(replays.clone()),
+                    Some(accounts.clone()),
                 )
             }));
         }
@@ -741,7 +753,7 @@ impl Stack {
     pub fn stop(mut self) {
         self.stop.store(true, Ordering::Relaxed);
         self.inbox.stop();
-        // A conversion under way ends first (about two seconds at most).
+        // A file being made ends first (a few seconds at most).
         self.replays.stop();
         for thread in self.threads.drain(..) {
             let _ = thread.join();

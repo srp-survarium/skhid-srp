@@ -947,13 +947,14 @@ impl Core<'_> {
         now: Instant,
     ) -> Result<(), ClanError> {
         let team = self.clans().commander_ready(who.account_id, ready)?;
-        // Everyone who plays must be here, with a kit to play, and in no
-        // match.
+        // Everyone who plays must be here, with a kit to play, in no match
+        // and watching none.
         let all_here = team.battle().all(|member| {
             member.kit_id != 0
-                && self
-                    .who_is(member.account_id)
-                    .is_some_and(|mate| self.store.matchmaking().seat(mate.session_id).is_none())
+                && self.who_is(member.account_id).is_some_and(|mate| {
+                    self.store.matchmaking().seat(mate.session_id).is_none()
+                        && !self.clan_watching(&mate)
+                })
         });
         if ready && !all_here {
             let _ = self.clans().commander_ready(who.account_id, false);
@@ -1062,14 +1063,27 @@ impl Core<'_> {
         }
     }
 
+    /// Whether the player watches something meanwhile: a match being
+    /// played (a seat would never be sent to it: `queue_status`), or a
+    /// replay session of its own. A clan match seats nobody who does
+    /// (`docs/notes/queue-spectate.md`).
+    fn clan_watching(&self, who: &Who) -> bool {
+        self.store.matchmaking().watched(who.session_id).is_some()
+            || self
+                .replays
+                .is_some_and(|replays| replays.watches().holds(who.account_id))
+    }
+
     /// The players of a waiting team, if all of them are still in the
-    /// lobby.
+    /// lobby and watch nothing.
     fn clan_team_players(&self, clan_id: u32) -> Option<Vec<session::Player>> {
         let team = self.clans().team(clan_id).filter(Team::is_queued)?;
         let players: Vec<_> = team
             .battle()
             .map(|member| {
-                let who = self.who_is(member.account_id)?;
+                let who = self
+                    .who_is(member.account_id)
+                    .filter(|who| !self.clan_watching(who))?;
                 Some(session::Player {
                     session_id: who.session_id,
                     account_id: who.account_id,
@@ -1082,8 +1096,8 @@ impl Core<'_> {
     }
 
     /// Two clan teams that wait play each other: one match, a side each.
-    /// A team that can not play after all (a player went, or sits in a
-    /// match it left) is not ready any more.
+    /// A team that can not play after all (a player went, watches
+    /// something, or sits in a match it left) is not ready any more.
     pub(super) fn clan_matches(&mut self, now: Instant) {
         // A team that stopped waiting behind the lobby's back.
         let stale: Vec<u32> = self

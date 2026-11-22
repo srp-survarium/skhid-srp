@@ -1,13 +1,9 @@
-//! "Watch replay" from the History of srp's changed lobby movie: the ask
-//! (`3D` with `REPLAY_ASK`) and the polls (`3B` with `REPLAY_START`),
-//! answered with the asker's own `R1` row and, when ready, the link (`9E`)
-//! just before it. Crafted requests get the asker's own answer and no
-//! token they are not given.
+//! Watching a replay in the running game: the ask (`3D` with a replay
+//! session's player) and the polls (`3B` with `REPLAY_START`), answered
+//! with the asker's own `R1` row.
 
-use std::path::PathBuf;
-
-use session::v026g::replays::{ReplaySettings, Replays, Sidecar, oldest_replayable_here};
-use survarium::v026g::lobby::{REPLAY_ASK, REPLAY_START};
+use session::v026g::replays::{Replays, SaveSettings, Sidecar, oldest_replayable_here};
+use survarium::v026g::lobby::{REPLAY_START, SAVE_ASK, SAVE_START};
 
 use super::*;
 
@@ -19,40 +15,6 @@ fn current() -> u8 {
     oldest_replayable_here(0)
 }
 
-fn temp(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!(
-        "srp-lobby-replay-{name}-{}-{}",
-        std::process::id(),
-        Replays::now_unix()
-    ));
-    let _ = std::fs::remove_dir_all(&dir);
-    dir
-}
-
-/// Replays in `root` with a made replay of `MATCH` that `players` played.
-fn replays(root: &std::path::Path, players: &[u32]) -> &'static Replays {
-    let settings = ReplaySettings {
-        replay_dir: root.join("replays"),
-        record_dir: root.join("recordings"),
-        max_recording_bytes: 1 << 20,
-        max_replay_bytes: 1 << 20,
-    }
-    .checked()
-    .unwrap();
-    let replays: &'static Replays = Box::leak(Box::new(Replays::new(Some(settings), 6)));
-    std::fs::write(replays.sur_path(MATCH).unwrap(), b"0123456789ab").unwrap();
-    let sidecar = Sidecar {
-        match_id: MATCH,
-        size: 12,
-        sha256: "cd".repeat(32),
-        revisions: vec![Some(current()), None, Some(current())],
-        account_ids: players.to_vec(),
-        made_at: 0,
-    };
-    std::fs::write(replays.json_path(MATCH).unwrap(), sidecar.to_json()).unwrap();
-    replays
-}
-
 /// A player whose game signed in as `revision`.
 fn player(world: &mut World, name: &str, revision: u8) -> usize {
     let (account, _) = signed_in(world.store, name);
@@ -60,147 +22,19 @@ fn player(world: &mut World, name: &str, revision: u8) -> usize {
     world.connect_session((account, session))
 }
 
-/// The movie's poll: what came back, as `(9E text, R1 row)`.
-fn poll(world: &mut World, index: usize) -> (Option<String>, String) {
-    world.take(index);
-    world.ask(index, request::ranking(REPLAY_START, 1));
-    let decoded = world.take(index);
-    let (link, rows) = match &decoded[..] {
-        [Decoded::EloList(rows)] => (None, rows),
-        [Decoded::VideoLink { show, url }, Decoded::EloList(rows)] => {
-            assert!(!show, "the link is never shown in the lobby");
-            (Some(url.clone()), rows)
-        }
-        other => panic!("not an R1 answer: {other:?}"),
-    };
-    let [(name, place, 0, 0)] = &rows[..] else {
-        panic!("not one row: {rows:?}");
-    };
-    assert_eq!(*place, REPLAY_START);
-    (link, name.clone())
-}
-
+/// A poll without a session gets `none` (no match); with replays off,
+/// `off`. A save's ask (`3D 00 FFFFFF01 <match>`) is no replay session's.
 #[test]
-fn replays_off_answer_off_and_ask_nothing() {
+fn a_poll_without_a_session_answers_none_and_off_when_off() {
     let mut world = World::new();
-    let alice = player(&mut world, "Alice", 14);
+    let alice = player(&mut world, "Alice", current());
     world.take(alice);
-    world.ask(alice, request::player_details(REPLAY_ASK, MATCH));
-    // The ask itself is not answered: the polls are.
-    assert!(world.take(alice).is_empty());
-    assert_eq!(poll(&mut world, alice), (None, "R1;off;00000000;0".into()));
+    world.ask(alice, request::player_details(0xFFFF_FF01, MATCH));
+    assert_eq!(saved(&mut world, alice), (None, "R2;off;00000000;0".into()));
+    assert_eq!(poll_in_room(&mut world, alice), "R1;off;00000000;0");
+    world.core.replays = Some(sessions());
+    assert_eq!(poll_in_room(&mut world, alice), "R1;none;00000000;0");
     world.assert_clean();
-}
-
-#[test]
-fn a_player_of_the_match_gets_the_link_before_a_ready_row() {
-    let root = temp("ready");
-    let mut world = World::new();
-    let alice = player(&mut world, "Alice", current());
-    let bob = player(&mut world, "Bob", current());
-    let carol = player(&mut world, "Carol", 12);
-    let dave = player(&mut world, "Dave", current());
-    let desk = replays(&root, &[world.ids[alice].0, world.ids[carol].0]);
-    world.core.replays = Some(desk);
-
-    // Nobody asked yet: `none`, for the match 0.
-    assert_eq!(poll(&mut world, alice), (None, "R1;none;00000000;0".into()));
-    world.ask(alice, request::player_details(REPLAY_ASK, MATCH));
-    assert!(world.take(alice).is_empty());
-    let (link, row) = poll(&mut world, alice);
-    assert_eq!(row, "R1;ready;1f07c8fb;12");
-    let link = link.expect("a 9E before the ready row");
-    let parts: Vec<&str> = link.split(' ').collect();
-    assert_eq!(parts.len(), 5, "{link}");
-    assert_eq!(
-        (parts[0], parts[1], parts[3], parts[4]),
-        ("replay", "1f07c8fb", "cd".repeat(32).as_str(), "12")
-    );
-    let token = parts[2];
-    assert_eq!(token.len(), 32);
-    assert!(link.chars().count() <= 245);
-    // The token downloads that match, and only from the web page.
-    assert_eq!(
-        desk.take_download(token, false, world.now)
-            .map(|download| download.match_id),
-        Ok(MATCH)
-    );
-
-    // Bob did not play it: `not_yours`, no link; his polls are his own.
-    world.ask(bob, request::player_details(REPLAY_ASK, MATCH));
-    assert_eq!(
-        poll(&mut world, bob),
-        (None, "R1;not_yours;1f07c8fb;0".into())
-    );
-    // Carol played it with revision 12 (the patches' mount, no
-    // replay link): her game cannot start a replay.
-    world.ask(carol, request::player_details(REPLAY_ASK, MATCH));
-    assert_eq!(
-        poll(&mut world, carol),
-        (None, "R1;old_game;1f07c8fb;0".into())
-    );
-    // Dave never asked: his crafted poll shows nobody's answer.
-    assert_eq!(poll(&mut world, dave), (None, "R1;none;00000000;0".into()));
-    // Another match, of no recording: gone.
-    world.advance(Duration::from_secs(3));
-    world.ask(alice, request::player_details(REPLAY_ASK, 0x1234));
-    assert_eq!(poll(&mut world, alice), (None, "R1;gone;00001234;0".into()));
-    // Asked again at once for another: busy (one ask in two seconds).
-    world.ask(alice, request::player_details(REPLAY_ASK, MATCH));
-    assert_eq!(poll(&mut world, alice), (None, "R1;busy;1f07c8fb;0".into()));
-    // An ordinary row of a results screen is still that (none kept here).
-    world.ask(alice, request::player_details(2, MATCH));
-    assert!(world.take(alice).is_empty());
-    world.assert_clean();
-    let _ = std::fs::remove_dir_all(&root);
-}
-
-#[test]
-fn a_preparing_row_carries_the_place_in_the_conversion_line() {
-    let root = temp("line");
-    let mut world = World::new();
-    let alice = player(&mut world, "Alice", current());
-    let bob = player(&mut world, "Bob", current());
-    let desk = replays(&root, &[]);
-    world.core.replays = Some(desk);
-    // Two kept recordings with no replay yet (MATCH has one).
-    let record_dir = &desk.settings().unwrap().record_dir;
-    for id in [0x0A, 0x0B] {
-        std::fs::write(
-            record_dir.join(format!("rec026g_20261015-120000_{id:08x}.srprec")),
-            b"x",
-        )
-        .unwrap();
-        desk.recording_kept(id);
-    }
-    world.ask(alice, request::player_details(REPLAY_ASK, 0x0A));
-    assert_eq!(
-        poll(&mut world, alice),
-        (None, "R1;preparing;0000000a;1".into())
-    );
-    world.ask(bob, request::player_details(REPLAY_ASK, 0x0B));
-    assert_eq!(
-        poll(&mut world, bob),
-        (None, "R1;preparing;0000000b;2".into())
-    );
-    // The first is taken up: still 1 for it, still 2 behind it.
-    assert_eq!(desk.next_job(), Some(0x0A));
-    assert_eq!(
-        poll(&mut world, alice),
-        (None, "R1;preparing;0000000a;1".into())
-    );
-    assert_eq!(
-        poll(&mut world, bob),
-        (None, "R1;preparing;0000000b;2".into())
-    );
-    // A `ready` row keeps the size there.
-    world.advance(Duration::from_secs(3));
-    world.ask(alice, request::player_details(REPLAY_ASK, MATCH));
-    let (link, row) = poll(&mut world, alice);
-    assert!(link.is_some());
-    assert_eq!(row, "R1;ready;1f07c8fb;12");
-    world.assert_clean();
-    let _ = std::fs::remove_dir_all(&root);
 }
 
 /// `4F` of a game in `language` (the general room in slot 1, the
@@ -212,151 +46,725 @@ fn subscribe(language: u8) -> (u8, Vec<u8>) {
     (0x4F, body)
 }
 
-/// Replays whose oldest given revision is `oldest`, with a made replay of
-/// `MATCH` recorded by games of `revisions`, for every account.
-fn replays_of(root: &std::path::Path, oldest: u8, revisions: Vec<Option<u8>>) -> &'static Replays {
-    let settings = ReplaySettings {
+/// A poll: the one `R1` row, and nothing else (no message box: the movie
+/// says why, from the localization tables).
+fn poll_refused(world: &mut World, index: usize) -> String {
+    world.take(index);
+    world.ask(index, request::ranking(REPLAY_START, 1));
+    match &world.take(index)[..] {
+        [Decoded::EloList(rows)] => rows[0].0.clone(),
+        other => panic!("not a refused answer: {other:?}"),
+    }
+}
+
+/// From two who can play to their room's match: the vote's 15 s, the wait
+/// of `rooms_tests::spec` (15 s), and a little more.
+const ROOM_TO_MATCH: Duration = Duration::from_secs(32);
+
+/// Replays with sessions on (anyone may watch).
+fn sessions() -> &'static Replays {
+    use session::v026g::replay_watch::WatchSettings;
+    Box::leak(Box::new(
+        Replays::new(None).with_watch(WatchSettings::default()),
+    ))
+}
+
+/// The movie's request to watch `MATCH`'s replay from `seconds`, `place`
+/// first: its `R1` row at once.
+fn ask_to_watch(world: &mut World, index: usize, seconds: u16, place: Option<u8>) -> String {
+    use survarium::v026g::lobby::ReplayWatchAsk;
+    world.take(index);
+    let ask = ReplayWatchAsk { seconds, place };
+    world.ask(index, request::player_details(ask.player_id(), MATCH));
+    r1(&world.take(index))
+}
+
+/// The one `R1` row of what came (a room's pushes may come with it).
+fn r1(decoded: &[Decoded]) -> String {
+    let rows: Vec<&String> = decoded
+        .iter()
+        .filter_map(|message| match message {
+            Decoded::EloList(rows) => Some(rows),
+            _ => None,
+        })
+        .flatten()
+        .filter(|(name, place, _, _)| *place == REPLAY_START && name.starts_with("R1;"))
+        .map(|(name, ..)| name)
+        .collect();
+    let [row] = rows[..] else {
+        panic!("not one R1 row: {decoded:?}");
+    };
+    row.clone()
+}
+
+/// The movie's poll in a room: its `R1` row.
+fn poll_in_room(world: &mut World, index: usize) -> String {
+    world.take(index);
+    world.ask(index, request::ranking(REPLAY_START, 1));
+    r1(&world.take(index))
+}
+
+/// A replay session asked by a member whose room can play with it: the room's vote begins and
+/// calls it back (`room_recalls`); its game was not sent yet, so its session is over at once, and
+/// it plays its room's match. A watch asked during the vote is not begun (`in_room`).
+#[test]
+fn a_replay_session_of_a_member_ends_when_its_room_can_play() {
+    use super::rooms_tests::{create, rows, spec};
+    use survarium::v026g::lobby::rooms::ROOM_JOIN_BASE;
+    let desk = sessions();
+    let mut world = World::new();
+    world.core.replays = Some(desk);
+    let alice = player(&mut world, "Alice", current());
+    let bob = player(&mut world, "Bob", current());
+    let carol = player(&mut world, "Carol", current());
+    let key = create(&mut world, alice, spec(6), None);
+    for index in [bob, carol] {
+        rows(&mut world, index, ROOM_JOIN_BASE + key, 1);
+    }
+    assert_eq!(
+        ask_to_watch(&mut world, carol, 75, Some(3)),
+        "R1;preparing;1f07c8fb;2"
+    );
+    let (account, _) = world.ids[carol];
+    let watches = desk.watches();
+    assert!(watches.holds(account));
+    world.advance(Duration::from_secs(1));
+    assert!(!watches.holds(account), "its room's vote began: called back");
+    assert_eq!(
+        ask_to_watch(&mut world, carol, 75, Some(3)),
+        "R1;in_room;1f07c8fb;0",
+        "not during the vote, and told why"
+    );
+    world.advance(ROOM_TO_MATCH);
+    for (index, name) in [(alice, "Alice"), (bob, "Bob"), (carol, "Carol")] {
+        assert!(sent_to_match(&world.take(index)).is_some(), "{name} plays");
+    }
+}
+
+/// A session read (its game about to be sent) when its room becomes able to play with it in the
+/// same tick: the room calls it back before the game is sent, so it is never sent to the replay;
+/// its player plays its room's match.
+#[test]
+fn a_ready_replay_session_is_not_sent_when_its_room_can_play() {
+    use super::rooms_tests::{create, rows, spec};
+    use survarium::v026g::lobby::rooms::ROOM_JOIN_BASE;
+    let desk = sessions();
+    let mut world = World::new();
+    world.core.replays = Some(desk);
+    let carol = player(&mut world, "Carol", current());
+    let dave = player(&mut world, "Dave", current());
+    let key = create(&mut world, carol, spec(6), None);
+    assert_eq!(
+        ask_to_watch(&mut world, carol, 75, Some(3)),
+        "R1;preparing;1f07c8fb;2"
+    );
+    let (account, _) = world.ids[carol];
+    let watches = desk.watches();
+    let request = watches.next_job(world.now).expect("a session to read");
+    // Read between two ticks; Dave's join comes before the next one.
+    assert!(watches.loaded(&request, 74_500, world.now));
+    world.take(carol);
+    rows(&mut world, dave, ROOM_JOIN_BASE + key, 1);
+    world.advance(Duration::from_secs(1));
+    assert_eq!(
+        sent_to_match(&world.take(carol)),
+        None,
+        "not sent to the replay"
+    );
+    assert!(
+        !watches.holds(account),
+        "called back before its game was sent"
+    );
+    world.advance(ROOM_TO_MATCH);
+    for (index, name) in [(carol, "Carol"), (dave, "Dave")] {
+        let (match_id, _) = sent_to_match(&world.take(index)).expect("its room's match");
+        assert_ne!(match_id, MATCH, "{name} plays its room's match");
+    }
+}
+
+/// A member alone in its room (below the room's minimum) watches a replay to its end: `preparing`
+/// while the match server reads the recording, then the game is sent to it as a spectator is (to
+/// the match server, under the recorded match, no team) and the polls say `watching` and where it
+/// starts; nothing of the queue or the matches is touched.
+#[test]
+fn a_replay_session_sends_the_game_to_watch_and_frees_its_player_at_its_end() {
+    use session::v026g::replay_watch::WatchFrom;
+    use super::rooms_tests::{create, spec};
+    let desk = sessions();
+    let mut world = World::new();
+    world.core.replays = Some(desk);
+    let carol = player(&mut world, "Carol", current());
+    let key = create(&mut world, carol, spec(6), None);
+    assert_eq!(
+        ask_to_watch(&mut world, carol, 75, Some(3)),
+        "R1;preparing;1f07c8fb;2"
+    );
+    let (account, session) = world.ids[carol];
+    let watches = desk.watches();
+    assert!(watches.holds(account));
+    // The match server reads it (`match-server`'s `game/playback.rs`).
+    let request = watches.next_job(world.now).expect("a session to read");
+    assert_eq!(
+        (request.account_id, request.session_id, request.match_id),
+        (account, session, MATCH)
+    );
+    assert_eq!(
+        request.from,
+        WatchFrom {
+            ms: 75_000,
+            place: Some(3)
+        }
+    );
+    assert_eq!(poll_in_room(&mut world, carol), "R1;preparing;1f07c8fb;1");
+    // Read: her game is sent.
+    assert!(watches.loaded(&request, 74_500, world.now));
+    world.advance(Duration::from_secs(1));
+    assert_eq!(sent_to_match(&world.take(carol)), Some((MATCH, 0)));
+    assert!(watches.in_replay(session));
+    assert_eq!(
+        watches.connected(session, world.now),
+        Some((request, 74_500))
+    );
+    assert_eq!(
+        poll_in_room(&mut world, carol),
+        "R1;watching;1f07c8fb;74500"
+    );
+    // Alone in her room: nothing calls her back.
+    world.advance(Duration::from_secs(20));
+    assert!(!watches.is_recalled(&request));
+    // A second member: the room could play with her, and calls her back; the match server lets
+    // her game go, which ends the session.
+    let dave = player(&mut world, "Dave", current());
+    super::rooms_tests::rows(&mut world, dave, survarium::v026g::lobby::rooms::ROOM_JOIN_BASE + key, 1);
+    world.advance(Duration::from_secs(1));
+    assert!(watches.is_recalled(&request), "called back from the replay");
+    watches.ended(&request);
+    assert!(!watches.holds(account));
+    assert!(world.store.matchmaking().watched(session).is_none());
+}
+
+/// The player.s replay session read and its game sent to it, watching: its request.
+fn watching_a_replay(
+    world: &mut World,
+    desk: &Replays,
+    index: usize,
+) -> session::v026g::replay_watch::WatchRequest {
+    assert_eq!(
+        ask_to_watch(world, index, 75, Some(3)),
+        "R1;preparing;1f07c8fb;2"
+    );
+    let watches = desk.watches();
+    let request = watches.next_job(world.now).expect("a session to read");
+    assert!(watches.loaded(&request, 74_500, world.now));
+    world.advance(Duration::from_secs(1));
+    assert_eq!(sent_to_match(&world.take(index)), Some((MATCH, 0)));
+    assert!(watches.connected(world.ids[index].1, world.now).is_some());
+    request
+}
+
+/// A member whose kit cannot play is no use to its room's match taking players (the match would
+/// not take it): it may start a watch then (no `in_room`), and is not called back from it; once
+/// its kit can play, it is.
+#[test]
+fn a_member_that_cannot_play_is_neither_kept_nor_called_back_for_its_rooms_match() {
+    use super::rooms_tests::rows;
+    use survarium::v026g::lobby::rooms::ROOM_JOIN_BASE;
+    let desk = sessions();
+    let mut world = World::new();
+    world.core.replays = Some(desk);
+    let (ticket, [alice, _]) = super::live_tests::a_match_in_play(&mut world);
+    let key = world.core.rooms.key_of(world.ids[alice].0).expect("Alice's room");
+    let carol = player(&mut world, "Carol", current());
+    rows(&mut world, carol, ROOM_JOIN_BASE + key, 1);
+    let account = world.ids[carol].0;
+    let kit = world.account(carol).kits[0].slots;
+    world.change(carol, |account| account.kits[0].slots = [None; 23]);
+    world.host.admitting.locked().insert(ticket);
+    assert_eq!(
+        ask_to_watch(&mut world, carol, 75, Some(3)),
+        "R1;preparing;1f07c8fb;2",
+        "not kept for a match that would not take her"
+    );
+    world.advance(Duration::from_secs(1));
+    assert!(desk.watches().holds(account), "not called back");
+    world.change(carol, |account| account.kits[0].slots = kit);
+    world.advance(Duration::from_secs(1));
+    assert!(!desk.watches().holds(account), "called back once she can play");
+}
+
+/// A room waiting for players calls its watchers back once those who can play make its minimum,
+/// and only those: one whose kit cannot play watches on.
+#[test]
+fn a_waiting_room_calls_back_only_the_watchers_that_can_play() {
+    use super::rooms_tests::{create, rows, spec};
+    use survarium::v026g::lobby::rooms::ROOM_JOIN_BASE;
+    let desk = sessions();
+    let mut world = World::new();
+    world.core.replays = Some(desk);
+    let carol = player(&mut world, "Carol", current());
+    let dave = player(&mut world, "Dave", current());
+    let alice = player(&mut world, "Alice", current());
+    let key = create(&mut world, carol, spec(6), None);
+    world.change(carol, |account| account.kits[0].slots = [None; 23]);
+    let carols = watching_a_replay(&mut world, desk, carol);
+    rows(&mut world, dave, ROOM_JOIN_BASE + key, 1);
+    let daves = watching_a_replay(&mut world, desk, dave);
+    assert!(!desk.watches().is_recalled(&daves), "alone fit: no minimum");
+    rows(&mut world, alice, ROOM_JOIN_BASE + key, 1);
+    world.advance(Duration::from_secs(1));
+    assert!(desk.watches().is_recalled(&daves), "Alice and Dave make the minimum");
+    assert!(!desk.watches().is_recalled(&carols), "Carol is not called");
+}
+
+/// A member called back from its replay: the room's state its movie asks for while its game is
+/// still away (it polls) does not use the call back up; the first asked back in the lobby says it,
+/// once.
+#[test]
+fn a_call_back_is_said_once_its_game_is_back_in_the_lobby() {
+    use super::rooms_tests::{create, rows, spec};
+    use survarium::v026g::lobby::rooms::{ROOM_JOIN_BASE, ROOM_STATE, RoomCode};
+    let desk = sessions();
+    let mut world = World::new();
+    world.core.replays = Some(desk);
+    let carol = player(&mut world, "Carol", current());
+    let dave = player(&mut world, "Dave", current());
+    let key = create(&mut world, carol, spec(6), None);
+    let request = watching_a_replay(&mut world, desk, carol);
+    rows(&mut world, dave, ROOM_JOIN_BASE + key, 1);
+    world.advance(Duration::from_secs(1));
+    assert!(desk.watches().is_recalled(&request), "called back");
+    // The code: the state header.s field 16 (`rooms_tests::CODE`).
+    let code = |world: &mut World| {
+        let state = rows(world, carol, ROOM_STATE, 1);
+        state[0].split(';').nth(16).expect("a room's state").to_owned()
+    };
+    let called = (RoomCode::CalledBack as u8).to_string();
+    for _ in 0..3 {
+        assert_eq!(code(&mut world), "0", "not said while away");
+    }
+    // Its game is back (the match server ends the session).
+    desk.watches().ended(&request);
+    assert_eq!(code(&mut world), called);
+    assert_eq!(code(&mut world), "0", "said once");
+}
+
+/// A game can quit as it connects to its replay, and says so: its session is over at once, so
+/// the next ask does not wait for the match server to give up on it (only the
+/// [`START_EVERY`] between an account's sessions).
+///
+/// [`START_EVERY`]: session::v026g::replay_watch::START_EVERY
+#[test]
+fn a_game_back_by_its_own_word_is_free_to_watch_again_at_once() {
+    let desk = sessions();
+    let mut world = World::new();
+    world.core.replays = Some(desk);
+    let carol = player(&mut world, "Carol", current());
+    assert_eq!(ask_to_watch(&mut world, carol, 75, Some(3)), "R1;preparing;1f07c8fb;2");
+    let (account, session) = world.ids[carol];
+    let watches = desk.watches();
+    let request = watches.next_job(world.now).expect("a session to read");
+    assert!(watches.loaded(&request, 74_500, world.now));
+    world.advance(Duration::from_secs(1));
+    let sent = world.take(carol);
+    assert_eq!(sent_to_match(&sent), Some((MATCH, 0)));
+    assert_eq!(watches.connected(session, world.now), Some((request, 74_500)));
+    world.ask(carol, request::leave(order_sent(&sent).unwrap(), true));
+    assert!(!watches.holds(account));
+    world.advance(session::v026g::replay_watch::START_EVERY);
+    assert_eq!(ask_to_watch(&mut world, carol, 75, Some(3)), "R1;preparing;1f07c8fb;2");
+}
+
+/// A session over by the match server's word (its game left by its menu), then the next one's game
+/// sent: the game's own word for the first (`31 <its order> FF`, or the "not queued" of the
+/// lobby's `85 00`) comes late and ends nothing of the next. Its word under the next's order does.
+#[test]
+fn a_late_word_for_the_session_before_keeps_the_next() {
+    let desk = sessions();
+    let mut world = World::new();
+    world.core.replays = Some(desk);
+    let carol = player(&mut world, "Carol", current());
+    let (account, session) = world.ids[carol];
+    let watches = desk.watches();
+    let sent_session = |world: &mut World| {
+        assert_eq!(
+            ask_to_watch(world, carol, 75, Some(3)),
+            "R1;preparing;1f07c8fb;2"
+        );
+        let request = watches.next_job(world.now).expect("a session to read");
+        assert!(watches.loaded(&request, 74_500, world.now));
+        world.advance(Duration::from_secs(1));
+        let sent = world.take(carol);
+        assert_eq!(sent_to_match(&sent), Some((MATCH, 0)));
+        (request, order_sent(&sent).expect("sent to watch"))
+    };
+    let (first, first_order) = sent_session(&mut world);
+    assert!(watches.connected(session, world.now).is_some());
+    watches.ended(&first);
+    world.advance(Duration::from_secs(1));
+    let (second, second_order) = sent_session(&mut world);
+    assert_ne!(second_order, first_order);
+    for late in [first_order, u32::MAX] {
+        world.ask(carol, request::leave(late, true));
+        assert!(watches.in_replay(session), "still on its way to the next");
+        assert!(watches.is_open(&second));
+        assert_eq!(queue_state(&world.take(carol)), None, "nothing told");
+    }
+    world.ask(carol, request::leave(second_order, true));
+    assert!(!watches.holds(account));
+}
+
+/// Refused by the match server: the poll says why; a player not free in
+/// the lobby gets `busy`,
+/// and a server without sessions `off`.
+#[test]
+fn a_refused_replay_session_says_why_and_a_busy_player_gets_none() {
+    use session::v026g::replay_watch::WatchRefusal;
+    use session::v026g::replays::Refusal;
+    let desk = sessions();
+    let mut world = World::new();
+    let taras = player(&mut world, "Taras", 17);
+    world.ask(taras, subscribe(1));
+    assert_eq!(
+        ask_to_watch(&mut world, taras, 0, None),
+        "R1;off;1f07c8fb;0"
+    );
+    world.core.replays = Some(desk);
+    assert_eq!(
+        ask_to_watch(&mut world, taras, 0, None),
+        "R1;preparing;1f07c8fb;2"
+    );
+    let request = desk.watches().next_job(world.now).unwrap();
+    let why = Refusal::Older {
+        from: 16,
+        to: 16,
+        oldest: 17,
+    };
+    desk.watches()
+        .refuse(&request, WatchRefusal::Incompatible(why), world.now);
+    assert_eq!(poll_refused(&mut world, taras), "R1;incompatible;1f07c8fb;0");
+    // A refusal holds nothing; a session not over: `busy`.
+    assert_eq!(
+        ask_to_watch(&mut world, taras, 0, None),
+        "R1;preparing;1f07c8fb;2"
+    );
+    assert_eq!(
+        ask_to_watch(&mut world, taras, 0, None),
+        "R1;busy;1f07c8fb;0"
+    );
+}
+
+/// Guessing match ids runs out: after [`MISSES_ALLOWED`] unknown ones, every
+/// ask is `busy` and reads nothing, until the window ends.
+#[test]
+fn guessing_match_ids_is_cut_off_after_a_few_misses() {
+    use session::v026g::replay_watch::{MISSES_ALLOWED, MISSES_WINDOW, WatchRefusal};
+    let desk = sessions();
+    let mut world = World::new();
+    world.core.replays = Some(desk);
+    let taras = player(&mut world, "Taras", current());
+    for _ in 0..MISSES_ALLOWED {
+        assert_eq!(
+            ask_to_watch(&mut world, taras, 0, None),
+            "R1;preparing;1f07c8fb;2"
+        );
+        let request = desk.watches().next_job(world.now).unwrap();
+        desk.watches()
+            .refuse(&request, WatchRefusal::Gone, world.now);
+        assert_eq!(poll_refused(&mut world, taras), "R1;gone;1f07c8fb;0");
+    }
+    assert_eq!(
+        ask_to_watch(&mut world, taras, 0, None),
+        "R1;busy;1f07c8fb;0"
+    );
+    assert_eq!(desk.watches().next_job(world.now), None, "nothing is read");
+    world.advance(MISSES_WINDOW);
+    assert_eq!(
+        ask_to_watch(&mut world, taras, 0, None),
+        "R1;preparing;1f07c8fb;2"
+    );
+}
+
+/// A match over in the lobby whose recording is still being written (the match server keeps its
+/// game a while after its result): `busy`, with no session to read and no miss counted; once the
+/// recording is closed, the ask is taken.
+#[test]
+fn a_recording_still_being_written_is_busy_and_no_miss() {
+    use session::v026g::replay_watch::{MISSES_ALLOWED, WatchSettings};
+    let root = temp("writing");
+    let record_dir = root.join("recordings");
+    std::fs::create_dir_all(&record_dir).unwrap();
+    let desk: &'static Replays = Box::leak(Box::new(
+        Replays::new(Some(record_dir.clone())).with_watch(WatchSettings::default()),
+    ));
+    let part = record_dir.join(format!("rec026g_20261015-120000_{MATCH:08x}.srprec.part"));
+    std::fs::write(&part, b"x").unwrap();
+    let mut world = World::new();
+    world.core.replays = Some(desk);
+    let taras = player(&mut world, "Taras", current());
+    let account = world.ids[taras].0;
+    for _ in 0..=MISSES_ALLOWED {
+        assert_eq!(
+            ask_to_watch(&mut world, taras, 0, None),
+            "R1;busy;1f07c8fb;0"
+        );
+        assert_eq!(desk.watches().next_job(world.now), None, "nothing to read");
+        assert!(!desk.watches().holds(account));
+    }
+    assert!(!desk.watches().limited(account, world.now), "no miss");
+    // Closed: the next listing finds it kept.
+    std::fs::rename(&part, part.with_extension("")).unwrap();
+    world.advance(Duration::from_secs(6));
+    assert_eq!(
+        ask_to_watch(&mut world, taras, 0, None),
+        "R1;preparing;1f07c8fb;2"
+    );
+    assert!(desk.watches().next_job(world.now).is_some());
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// The movie's prompt closed (or it gave up waiting) withdraws the ask: a session whose recording
+/// is being read, or read with its game not sent yet, is over, and its game is never sent; the
+/// account may watch another a `START_EVERY` after its last ask (`busy` sooner). Another match's
+/// withdrawal touches nothing, and one whose
+/// game was sent is the match server's.
+#[test]
+fn a_withdrawn_watch_is_never_sent_and_frees_its_player() {
+    use survarium::v026g::lobby::REPLAY_WITHDRAW;
+    let desk = sessions();
+    let mut world = World::new();
+    world.core.replays = Some(desk);
+    let carol = player(&mut world, "Carol", current());
+    let (account, session) = world.ids[carol];
+    let watches = desk.watches();
+    let withdraw = |world: &mut World, match_id: u32| {
+        world.ask(carol, request::player_details(REPLAY_WITHDRAW, match_id));
+        assert!(world.take(carol).is_empty(), "not answered");
+    };
+    // Being read.
+    assert_eq!(ask_to_watch(&mut world, carol, 75, Some(3)), "R1;preparing;1f07c8fb;2");
+    let request = watches.next_job(world.now).expect("a session to read");
+    withdraw(&mut world, MATCH ^ 1);
+    assert!(watches.holds(account), "another match's withdrawal");
+    withdraw(&mut world, MATCH);
+    assert!(!watches.holds(account));
+    assert!(!watches.loaded(&request, 74_500, world.now));
+    // Asked again at once (a loop of ask and withdraw would keep the reader converting): `busy`,
+    // and nothing to read.
+    assert_eq!(ask_to_watch(&mut world, carol, 75, Some(3)), "R1;busy;1f07c8fb;0");
+    assert_eq!(watches.next_job(world.now), None);
+    world.advance(session::v026g::replay_watch::START_EVERY);
+    assert_eq!(sent_to_match(&world.take(carol)), None);
+    // Read, its game not sent yet.
+    assert_eq!(ask_to_watch(&mut world, carol, 75, Some(3)), "R1;preparing;1f07c8fb;2");
+    let request = watches.next_job(world.now).expect("a session to read");
+    assert!(watches.loaded(&request, 74_500, world.now));
+    withdraw(&mut world, MATCH);
+    world.advance(Duration::from_secs(1));
+    assert_eq!(sent_to_match(&world.take(carol)), None, "never sent");
+    assert!(!watches.in_replay(session));
+    assert_eq!(poll_in_room(&mut world, carol), "R1;none;00000000;0");
+    // Sent: the match server's to end.
+    assert_eq!(ask_to_watch(&mut world, carol, 75, Some(3)), "R1;preparing;1f07c8fb;2");
+    let request = watches.next_job(world.now).expect("a session to read");
+    assert!(watches.loaded(&request, 74_500, world.now));
+    world.advance(Duration::from_secs(1));
+    assert_eq!(sent_to_match(&world.take(carol)), Some((MATCH, 0)));
+    world.ask(carol, request::player_details(REPLAY_WITHDRAW, MATCH));
+    assert!(watches.in_replay(session) && watches.is_open(&request));
+}
+
+// ------------------------------------------------------- Save
+
+/// What came back to the asker of a save (its ask, or `3B 00 <SAVE_START>`
+/// when `poll`): the `9E` link and the `R2` row.
+fn save_answer(world: &mut World, index: usize) -> (Option<String>, String) {
+    let decoded = world.take(index);
+    let mut link = None;
+    let mut row = None;
+    for message in decoded {
+        match message {
+            Decoded::VideoLink { show, url } => {
+                assert!(!show, "the link is never shown in the lobby");
+                assert!(row.is_none(), "the link comes before the row");
+                link = Some(url);
+            }
+            Decoded::EloList(rows) => {
+                let [(name, place, 0, 0)] = &rows[..] else {
+                    panic!("not one row: {rows:?}");
+                };
+                assert_eq!(*place, SAVE_START);
+                row = Some(name.clone());
+            }
+            other => panic!("not a save's answer: {other:?}"),
+        }
+    }
+    (link, row.expect("an R2 row"))
+}
+
+fn saved(world: &mut World, index: usize) -> (Option<String>, String) {
+    save_answer(world, index)
+}
+
+fn save(world: &mut World, index: usize, match_id: u32) -> (Option<String>, String) {
+    world.take(index);
+    world.ask(index, request::player_details(SAVE_ASK, match_id));
+    save_answer(world, index)
+}
+
+fn save_poll(world: &mut World, index: usize) -> (Option<String>, String) {
+    world.take(index);
+    world.ask(index, request::ranking(SAVE_START, 1));
+    save_answer(world, index)
+}
+
+/// Save on in `root`, oldest given `oldest`, with a made file of `MATCH`
+/// that `players` played, recorded by games of `revisions`.
+fn save_desk(
+    root: &std::path::Path,
+    oldest: u8,
+    players: &[u32],
+    revisions: Vec<Option<u8>>,
+) -> &'static Replays {
+    let record_dir = root.join("recordings");
+    std::fs::create_dir_all(&record_dir).unwrap();
+    let save = SaveSettings {
         replay_dir: root.join("replays"),
-        record_dir: root.join("recordings"),
-        max_recording_bytes: 1 << 20,
         max_replay_bytes: 1 << 20,
     }
-    .checked()
+    .checked(&record_dir)
     .unwrap();
     let replays: &'static Replays = Box::leak(Box::new(
-        Replays::new(Some(settings), 6).with_oldest_revision(oldest),
+        Replays::new(Some(record_dir))
+            .with_save(save)
+            .with_oldest_revision(oldest),
     ));
-    std::fs::write(replays.sur_path(MATCH).unwrap(), b"0123456789ab").unwrap();
+    std::fs::write(replays.file_path(MATCH).unwrap(), b"0123456789ab").unwrap();
     let sidecar = Sidecar {
         match_id: MATCH,
         size: 12,
         sha256: "cd".repeat(32),
         revisions,
-        account_ids: Vec::new(),
+        account_ids: players.to_vec(),
         made_at: 0,
     };
     std::fs::write(replays.json_path(MATCH).unwrap(), sidecar.to_json()).unwrap();
     replays
 }
 
-/// A poll: the `R1` row, and the message box's text if one came after it
-/// (never a link).
-fn poll_refused(world: &mut World, index: usize) -> (String, Option<String>) {
-    world.take(index);
-    world.ask(index, request::ranking(REPLAY_START, 1));
-    match &world.take(index)[..] {
-        [Decoded::EloList(rows)] => (rows[0].0.clone(), None),
-        [Decoded::EloList(rows), Decoded::Denied { op, text }] => {
-            assert_eq!(*op, 0x49, "the message box and nothing else");
-            (rows[0].0.clone(), Some(text.clone()))
-        }
-        other => panic!("not a refused answer: {other:?}"),
-    }
+fn temp(name: &str) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join(format!(
+        "srp-lobby-save-{name}-{}-{:?}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    dir
 }
 
+/// A made file: its `R2 ready` with the hidden link just before it, at
+/// the ask and at each poll; each asker its own token; the others' polls
+/// show nobody's answer.
 #[test]
-fn a_replay_of_games_before_the_last_simulation_change_is_refused_and_said_why() {
+fn a_save_gets_the_link_before_a_ready_row() {
+    let root = temp("ready");
+    let mut world = World::new();
+    let alice = player(&mut world, "Alice", current());
+    let bob = player(&mut world, "Bob", current());
+    let carol = player(&mut world, "Carol", 12);
+    let dave = player(&mut world, "Dave", current());
+    let ids = [world.ids[alice].0, world.ids[carol].0];
+    let desk = save_desk(&root, current(), &ids, vec![Some(current()), None]);
+    world.core.replays = Some(desk);
+
+    assert_eq!(save_poll(&mut world, alice), (None, "R2;none;00000000;0".into()));
+    let (link, row) = save(&mut world, alice, MATCH);
+    assert_eq!(row, "R2;ready;1f07c8fb;12");
+    let link = link.expect("a 9E before the ready row");
+    let parts: Vec<&str> = link.split(' ').collect();
+    assert_eq!(
+        (parts.len(), parts[0], parts[1], parts[3], parts[4]),
+        (5, "replay", "1f07c8fb", "cd".repeat(32).as_str(), "12")
+    );
+    let token = parts[2].to_owned();
+    // The token downloads that match, and only from the web page.
+    assert_eq!(
+        desk.take_download(&token, false, world.now)
+            .map(|download| download.match_id),
+        Ok(MATCH)
+    );
+    // A poll: the same link again.
+    assert_eq!(save_poll(&mut world, alice).0, Some(link));
+    // Bob did not play it: anyone may (the default), his own token.
+    let (bobs, row) = save(&mut world, bob, MATCH);
+    assert_eq!(row, "R2;ready;1f07c8fb;12");
+    assert_ne!(bobs.unwrap().split(' ').nth(2), Some(token.as_str()));
+    // Carol's game (revision 12) has no replay link.
+    assert_eq!(
+        save(&mut world, carol, MATCH),
+        (None, "R2;old_game;1f07c8fb;0".into())
+    );
+    assert_eq!(save_poll(&mut world, dave), (None, "R2;none;00000000;0".into()));
+    // Another match, of no recording: gone; asked again at once: busy.
+    world.advance(Duration::from_secs(3));
+    assert_eq!(
+        save(&mut world, alice, 0x1234),
+        (None, "R2;gone;00001234;0".into())
+    );
+    assert_eq!(
+        save(&mut world, alice, MATCH),
+        (None, "R2;busy;1f07c8fb;0".into())
+    );
+    // A replay session's polls are their own.
+    assert_eq!(poll_in_room(&mut world, alice), "R1;off;00000000;0");
+    world.assert_clean();
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// A file of games before the last simulation change: `incompatible`, the
+/// movie says why (no message box).
+#[test]
+fn a_save_of_games_before_the_last_simulation_change_is_refused_and_said_why() {
     let root = temp("older");
     let mut world = World::new();
     let taras = player(&mut world, "Taras", 17);
-    let emma = player(&mut world, "Emma", 17);
-    // Revision 17 changed what a match computes; the match was of 16.
-    world.core.replays = Some(replays_of(&root, 17, vec![Some(16), None, Some(16)]));
+    world.core.replays = Some(save_desk(&root, 17, &[], vec![Some(16), None]));
     world.ask(taras, subscribe(2));
-
-    world.ask(taras, request::player_details(REPLAY_ASK, MATCH));
-    let (row, said) = poll_refused(&mut world, taras);
-    assert_eq!(row, "R1;incompatible;1f07c8fb;0");
-    let said = said.expect("a message box with the first answer");
-    assert!(said.contains("старою версією гри (ревізія 16)"), "{said}");
-    assert!(
-        said.ends_with("Дивитися його можна лише в тому випуску: 026g-rev16."),
-        "{said}"
-    );
-    // The movie's next polls: the row alone.
+    let (link, row) = save(&mut world, taras, MATCH);
+    assert_eq!((link, row.as_str()), (None, "R2;incompatible;1f07c8fb;0"));
     assert_eq!(
-        poll_refused(&mut world, taras),
-        ("R1;incompatible;1f07c8fb;0".into(), None)
+        save_poll(&mut world, taras),
+        (None, "R2;incompatible;1f07c8fb;0".into())
     );
-    // A game that said no language (or English): English.
-    world.ask(emma, request::player_details(REPLAY_ASK, MATCH));
-    let (_, said) = poll_refused(&mut world, emma);
-    assert_eq!(
-        said.as_deref(),
-        Some(
-            "This replay was recorded with an older version of the game (revision 16), which \
-             plays matches differently. It can be watched only with that release: 026g-rev16."
-        )
-    );
-    // Asked again later: said again.
-    world.advance(Duration::from_secs(3));
-    world.ask(taras, request::player_details(REPLAY_ASK, MATCH));
-    assert!(poll_refused(&mut world, taras).1.is_some());
     world.assert_clean();
     let _ = std::fs::remove_dir_all(&root);
 }
 
+/// A kept recording with no file yet: `preparing` with its place in the
+/// line, from the ask on.
 #[test]
-fn a_replay_recorded_before_the_revisions_were_kept_is_refused() {
-    let root = temp("unknown");
+fn a_preparing_save_carries_its_place_in_the_line() {
+    let root = temp("line");
     let mut world = World::new();
-    let ivan = player(&mut world, "Ivan", 16);
-    world.core.replays = Some(replays_of(&root, 11, vec![None, None]));
-    world.ask(ivan, subscribe(1));
-    world.ask(ivan, request::player_details(REPLAY_ASK, MATCH));
-    let (row, said) = poll_refused(&mut world, ivan);
-    assert_eq!(row, "R1;incompatible;1f07c8fb;0");
-    assert!(
-        said.unwrap()
-            .starts_with("Этот повтор записан старой версией игры")
-    );
+    let alice = player(&mut world, "Alice", current());
+    let bob = player(&mut world, "Bob", current());
+    let desk = save_desk(&root, current(), &[], vec![Some(current())]);
+    world.core.replays = Some(desk);
+    for id in [0x0A, 0x0B] {
+        std::fs::write(
+            desk.record_dir()
+                .unwrap()
+                .join(format!("rec026g_20261015-120000_{id:08x}.srprec")),
+            b"x",
+        )
+        .unwrap();
+        desk.recording_kept(id);
+    }
+    assert_eq!(save(&mut world, alice, 0x0A).1, "R2;preparing;0000000a;1");
+    assert_eq!(save(&mut world, bob, 0x0B).1, "R2;preparing;0000000b;2");
+    assert_eq!(desk.next_job(), Some(0x0A));
+    assert_eq!(save_poll(&mut world, bob).1, "R2;preparing;0000000b;2");
     world.assert_clean();
     let _ = std::fs::remove_dir_all(&root);
-}
-
-#[test]
-fn every_refusal_fits_the_message_box_in_every_language() {
-    use crate::v026g::replay::refusal_text;
-    use session::v026g::replays::Refusal;
-    let refusals = [
-        Refusal::Unknown,
-        // The longest: two three-digit revisions and a tag.
-        Refusal::Older {
-            from: 199,
-            to: 254,
-            oldest: 255,
-        },
-        Refusal::Older {
-            from: 13,
-            to: 14,
-            oldest: 17,
-        },
-        Refusal::Newer { from: 199, to: 255 },
-    ];
-    let english: Vec<String> = refusals
-        .iter()
-        .map(|&refusal| refusal_text(refusal, Some(0)))
-        .collect();
-    for language in [None, Some(0), Some(1), Some(2), Some(3), Some(4), Some(9)] {
-        for (n, &refusal) in refusals.iter().enumerate() {
-            let text = refusal_text(refusal, language);
-            assert!(
-                text.len() <= 255,
-                "{language:?} {refusal:?}: {} bytes",
-                text.len()
-            );
-            if matches!(language, Some(1..=4)) {
-                assert_ne!(text, english[n], "{language:?} {refusal:?}");
-            }
-            for part in ["199-254", "026g-rev254", "13-14", "199-255"] {
-                assert_eq!(
-                    text.contains(part),
-                    english[n].contains(part),
-                    "{language:?} {part}"
-                );
-            }
-        }
-    }
-    // 14 has no tag: the release of that revision, unnamed.
-    assert!(!refusal_text(refusals[2], None).contains("026g-rev"));
 }

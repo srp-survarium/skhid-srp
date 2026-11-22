@@ -2381,6 +2381,7 @@ st_sr3m_bundle_descr	<white>Sadrži sljedeće predmete:\n- Poboljšani CF-3M „
 st_sr3m_bundle_name	Paket SR-3M „Vikhr”
 st_sr3m_description	Opis još nije dostupan.
 st_sr3m_name	SR-3M "Vikhr"
+st_srp_alt_move_speed	Brzina kretanja
 st_srp_ammo069_23mm_r_desc	Metak 23 mm punjen sitnom sačmom za KS-23M. Nanosi veliku štetu neoklopljenim ciljevima.
 st_srp_ammo069_23mm_r_name	23x75R, sitna sačma
 st_srp_ammo_buckshot	Sačma
@@ -2749,6 +2750,7 @@ st_srp_inventory_sell_duplicates_ask	Predmeta za prodaju: %1$s
 st_srp_item_props_mps	m/s
 st_srp_language_option	Jezik:
 st_srp_language_restart	Primjenjuje se nakon ponovnog pokretanja.
+st_srp_live_spectators	gledatelji: %1$s
 st_srp_loadout_block_ammo	Premalo streljiva za oružje
 st_srp_loadout_block_locked	Ovaj je profil zaključan
 st_srp_loadout_block_maintenance	Održavanje poslužitelja za %1$s min
@@ -2892,6 +2894,13 @@ st_srp_pierce_stone	Kamen
 st_srp_pierce_tinplate	Lim
 st_srp_pierce_value	%1$s · %2$s
 st_srp_play_in_squad	U odredu
+st_srp_player_matches	Borbe
+st_srp_player_matches_days	prije %1$s d
+st_srp_player_matches_draw	Neriješeno
+st_srp_player_matches_hours	prije %1$s h
+st_srp_player_matches_kd	K/D %1$s/%2$s
+st_srp_player_matches_minutes	prije %1$s min
+st_srp_player_matches_none	Nema pohranjenih javnih borbi ovog igrača.
 st_srp_pvb_at_limit	Već se odvija najveći broj borbi s botovima, pokušajte za minutu
 st_srp_pvb_at_limit_count	Već se odvija najveći broj borbi s botovima (%1$s/%2$s), pokušajte za minutu
 st_srp_pvb_busy	%1$s (zauzeto)
@@ -2929,6 +2938,7 @@ st_srp_replay_demo_seller	Skupljači
 st_srp_replay_download	PREUZMI I GLEDAJ
 st_srp_replay_failed	Poslužitelj nije uspio pripremiti snimku ove borbe.
 st_srp_replay_gone	Snimka ove borbe više nije pohranjena na poslužitelju.
+st_srp_replay_in_room	Vaša soba vas sada treba za svoju borbu.
 st_srp_replay_incompatible	Ova je snimka nastala u inačici igre koju vaša ne može reproducirati.
 st_srp_replay_made_now	Izrada je u tijeku. Čekanje: %1$s s.
 st_srp_replay_no_answer	Poslužitelj nije odgovorio. Pokušajte ponovno poslije.
@@ -2936,20 +2946,27 @@ st_srp_replay_not_recorded	Ova borba nije snimljena: imala je manje od 6 igrača
 st_srp_replay_not_yours	Možete gledati samo snimke borbi u kojima ste sudjelovali.
 st_srp_replay_off	Snimke su isključene na ovom poslužitelju.
 st_srp_replay_old_game	Vaša inačica igre ne podržava snimke. Ažurirajte igru: pokrenite je ponovno putem pokretača.
+st_srp_replay_opening	Poslužitelj borbi otvara snimku ove borbe.\n\n%1$s
 st_srp_replay_place_in_line	Mjesto u redu: %1$s. Čekanje: %2$s s.
 st_srp_replay_ready	Snimka ove borbe je spremna.\n\nPreuzima se s poslužitelja borbe, koji čuva mjerodavni zapis borbe. Otvara se drugi prozor igre i reproducira snimku; predvorje ostaje otvoreno.\n\nU snimci pritisnite F9 za kontrole: igrači, kamera, premotavanje, brzina.
 st_srp_replay_ready_size	Snimka ove borbe: %1$s.\n\nPreuzima se s poslužitelja borbe, koji čuva mjerodavni zapis borbe. Otvara se drugi prozor igre i reproducira snimku; predvorje ostaje otvoreno.\n\nU snimci pritisnite F9 za kontrole: igrači, kamera, premotavanje, brzina.
+st_srp_replay_save	Spremi snimku
+st_srp_replay_saved	Spremljeno
+st_srp_replay_saving	Spremanje...
 st_srp_replay_size	%1$s.%2$s MB
 st_srp_replay_starting	Pokretanje snimke: otvorit će se drugi prozor igre; ovo predvorje ostaje otvoreno. Ako nešto pođe po zlu, program za ažuriranje pokazat će što se dogodilo.\n\nU snimci pritisnite F9 za kontrole.
 st_srp_replay_still_preparing	Priprema još traje. Izrada se nastavlja na poslužitelju; za minutu ponovno otvorite „Gledaj snimku”.
 st_srp_replay_title	Gledaj snimku
 st_srp_replay_waiting	Čekanje: %1$s s.
+st_srp_replay_watch	Gledaj
 st_srp_reroll_description	Možete mijenjati bilo koji modifikator predmeta, neograničen broj puta. Zatim birate jedan od tri nasumična modifikatora.
 st_srp_rooms_all	Svi
 st_srp_rooms_all_rooms	Sve sobe
 st_srp_rooms_any	Bilo koji
 st_srp_rooms_back	Natrag
 st_srp_rooms_bots	S botovima
+st_srp_rooms_called_back	Vaša soba je spremna
+st_srp_rooms_called_back_in	Vaša soba je spremna. Povratak za %1$s s
 st_srp_rooms_code_10	Vlasnik vas je uklonio iz te sobe.
 st_srp_rooms_code_11	Prvo napustite ekipu klana.
 st_srp_rooms_code_12	Vaša oprema premašuje najvišu razinu.
@@ -3020,9 +3037,11 @@ st_srp_rooms_pool_hint	Glasuje se za 3 nasumične karte.
 st_srp_rooms_private_room	Privatna soba: do 20 igrača; vi slažete ekipe i pokrećete borbu.
 st_srp_rooms_queue	Red čekanja
 st_srp_rooms_queue_room	Čekaj sobu
+st_srp_rooms_queue_spectate	Red i gledanje
 st_srp_rooms_room	Soba
 st_srp_rooms_room_chat	Razgovor sobe
 st_srp_rooms_servers	Sobe
+st_srp_rooms_spectators	Gledatelji:
 st_srp_rooms_start_hint	Pritisnite Pokreni kad svi uđu.
 st_srp_rooms_start_match	Pokreni
 st_srp_rooms_starts	Borba počinje za
@@ -3061,6 +3080,21 @@ st_srp_unit_mps	%1$s m/s
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
+st_srp_viewer_back	Natrag
+st_srp_viewer_cap_ctrl	Ctrl
+st_srp_viewer_cap_space	Space
+st_srp_viewer_cursor	Pokazivač
+st_srp_viewer_filter	Filtar
+st_srp_viewer_hide	Sakrij
+st_srp_viewer_marker_death	Smrt
+st_srp_viewer_marker_event	Događaj
+st_srp_viewer_marker_kill	Ubojstvo
+st_srp_viewer_marker_objective	Cilj
+st_srp_viewer_moments	Trenuci
+st_srp_viewer_moments_all	Svi
+st_srp_viewer_moments_followed	Praćeni
+st_srp_viewer_moments_mine	Moji
+st_srp_viewer_pause	Pauza
 st_srp_vulkan_dedicated_gpu	Prednost zasebnoj grafičkoj kartici
 st_srp_vulkan_dedicated_gpu_hint	Na prijenosnicima bira snažniju grafičku karticu.\n+ Bolje performanse na prijenosnicima\n- Veća potrošnja baterije
 st_srp_vulkan_frame_limit	Ograničenje broja sličica
@@ -3076,6 +3110,35 @@ st_srp_vulkan_overlay_full	Potpuno
 st_srp_vulkan_overlay_hint	Prikazuje brzinu igre na zaslonu.
 st_srp_vulkan_tear_free	Bez trganja uz isključen vsync
 st_srp_vulkan_tear_free_hint	Čuva cjelovitu sliku uz isključenu okomitu sinkronizaciju.\n+ Bez trganja slike pri brzom okretanju\n- Nešto veće kašnjenje nego uz samo isključen vsync
+st_srp_watch_badge_friend	Prijatelj upravo igra
+st_srp_watch_badge_live	Borbe koje možete gledati uživo
+st_srp_watch_chip_everyone	Svi
+st_srp_watch_chip_friends	Prijatelji
+st_srp_watch_chip_mine	Moje
+st_srp_watch_delay	kašnjenje %1$s s
+st_srp_watch_friends	Prijatelji: %1$s
+st_srp_watch_live	Uživo
+st_srp_watch_live_word	UŽIVO
+st_srp_watch_map_retired	Povučena karta
+st_srp_watch_no_player	Nema igrača s imenom %1$s.
+st_srp_watch_none_friends	Nema nedavnih borbi s vašim prijateljima.
+st_srp_watch_none_live_friends	Nijedan vaš prijatelj nije u borbi koju možete gledati.
+st_srp_watch_none_mine	Odsad se ovdje navode vaše borbe.
+st_srp_watch_none_recent	Još nema snimljenih borbi.
+st_srp_watch_players	Igrači: %1$s
+st_srp_watch_private	Privatna soba
+st_srp_watch_reason_full	Nema slobodnih mjesta za gledatelje
+st_srp_watch_reason_gone	Snimka nije pohranjena
+st_srp_watch_reason_not_recorded	Nije snimljeno
+st_srp_watch_reason_old	Snimljeno prije ažuriranja igre
+st_srp_watch_reason_over	Borba je upravo završila
+st_srp_watch_reason_private	Nije otvoreno za gledatelje
+st_srp_watch_reason_starts	Otvara se kad borba počne
+st_srp_watch_replays	Snimke
+st_srp_watch_search_hint	Ime igrača ili kôd borbe
+st_srp_watch_spectate	Gledaj
+st_srp_watch_spectate_lost	Borba igrača %1$s nije pronađena. Možda je završila ili je zatvorena za gledatelje.
+st_srp_watch_title	Gledanje
 st_srp_weapon069_akmsu_desc	Skraćeni AKMS sa sklopivim kundakom, streljivo: 7.62x39. Omogućuje pojedinačnu i automatsku paljbu.
 st_srp_weapon069_akmsu_name	AKMSU
 st_srp_weapon069_famas_desc	Francuska jurišna puška bullpup rasporeda, streljivo: 5.56x45. Omogućuje pojedinačnu paljbu, rafale od tri metka i automatsku paljbu.

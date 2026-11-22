@@ -163,6 +163,7 @@ use super::level_stats::KillsDeaths;
 use super::pay::{self, Pay};
 use super::persist::GameRepository;
 use super::persist::history::{self, MatchKind, MatchRecord};
+use super::persist::match_events::MatchEvent;
 use super::quests::{self, Notice, REPUTATION_LEVEL_MESSAGE};
 use super::replays::ReplayId;
 use super::{GameAccounts, balance, items_rules, wire};
@@ -376,6 +377,8 @@ pub struct MatchResult {
     /// joiners too, and its screen takes no drop card (the owner's of
     /// 2026-10-20; `docs/notes/rooms.md`).
     pub private: bool,
+    /// What happened in it, for the history ([`history::MatchRecord::events`]).
+    pub events: Vec<MatchEvent>,
 }
 
 /// What a Blackout match's score and pay are worth: the owner's of
@@ -770,8 +773,10 @@ struct Changes {
 
 /// How many saves in a row may fail to write a match to the history before
 /// it is dropped (at [`crate::SAVE_INTERVAL`], 5 minutes: longer than a
-/// database stays locked). A match is one transaction under strict CHECKs,
-/// so a row that breaks one would fail for ever.
+/// database stays locked). A match and its events are one transaction under
+/// strict CHECKs, so a row that breaks one would fail for ever: it would
+/// keep the match out, log an error at every save and keep the changes from
+/// ever being empty.
 pub(crate) const RECORD_TRIES: u16 = 150;
 
 /// A match on its way to the history.
@@ -1908,6 +1913,7 @@ impl<'a> Shared<'a> {
                 team_points: result.team_points,
             },
             players,
+            events: result.events.clone(),
         })
     }
 

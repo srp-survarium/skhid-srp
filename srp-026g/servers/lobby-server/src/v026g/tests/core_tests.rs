@@ -55,6 +55,7 @@ impl World {
         Self::with_accounts(settings, GameAccounts::new())
     }
 
+    /// With `accounts` (one on a repository: srp.db's history).
     fn with_accounts(settings: Settings, accounts: GameAccounts) -> Self {
         let store: &'static SessionStore = Box::leak(Box::new(SessionStore::new()));
         let accounts: &'static GameAccounts = Box::leak(Box::new(accounts));
@@ -217,6 +218,15 @@ fn queue_state(decoded: &[Decoded]) -> Option<ClientState> {
         Decoded::ClientState { state, .. } => Some(*state),
         _ => None,
     })
+}
+
+/// The order of the last "match found" or wait in `decoded`: what the
+/// game names in its `31` (lobby client +0x1E57A8).
+fn order_sent(decoded: &[Decoded]) -> Option<u32> {
+    match queue_state(decoded)? {
+        ClientState::InQueue { order_id, .. } => Some(order_id),
+        _ => None,
+    }
 }
 
 /// The `91`s the lobby answers a `3B` with `start` at once, as the client
@@ -1447,6 +1457,42 @@ fn players_in_a_match_talk_on_its_channels() {
     world.assert_clean();
 }
 
+/// A search of players by name: two at once a session, then one a second;
+/// one past that finds nobody (the movie's wait ends as for "not found").
+/// The movie's searches 1.1 s apart are all answered however their arrival
+/// jitters. A Cyrillic name is found as a Latin one.
+#[test]
+fn a_search_of_players_is_one_a_second_and_finds_any_script() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let vasya = world.connect("Вася");
+    let vasya_id = world.ids[vasya].0;
+    world.take(alice);
+    let found = |world: &mut World, typed: &str| -> Vec<u32> {
+        world.ask(alice, request::find_players(typed));
+        match &world.take(alice)[..] {
+            [Decoded::Friendship(FriendshipPush::Found { players, .. })] => {
+                players.iter().map(|player| player.0).collect()
+            }
+            other => panic!("{other:?}"),
+        }
+    };
+    assert_eq!(found(&mut world, "вас"), [vasya_id]);
+    assert_eq!(found(&mut world, "ВАСЯ"), [vasya_id], "the burst's second");
+    assert!(found(&mut world, "вас").is_empty(), "too soon");
+    world.advance(Duration::from_secs(1));
+    world.take(alice);
+    assert_eq!(found(&mut world, "ВАСЯ"), [vasya_id]);
+    // The movie's 1.1 s, arriving 0.95 s and 1.25 s apart by turns.
+    world.advance(Duration::from_secs(3));
+    world.take(alice);
+    for (n, gap) in [950, 1250, 950, 1250, 950, 1250].into_iter().enumerate() {
+        world.advance(Duration::from_millis(gap));
+        world.take(alice);
+        assert_eq!(found(&mut world, "вася"), [vasya_id], "search {n}");
+    }
+}
+
 #[test]
 fn a_friend_request_makes_friends_and_their_statuses_follow() {
     let mut world = World::new();
@@ -2321,6 +2367,7 @@ impl World {
             players,
             vs_bots: setup.vs_bots,
             private: setup.private,
+            events: Vec::new(),
         };
         let terms = Terms::at(session::v026g::quests::now());
         let report = self
@@ -2395,6 +2442,7 @@ impl World {
             players,
             vs_bots: setup.vs_bots,
             private: setup.private,
+            events: Vec::new(),
         };
         let terms = Terms::at(session::v026g::quests::now());
         let report = self
@@ -2860,8 +2908,10 @@ mod faces_tests;
 mod feedback_tests;
 mod gear_tests;
 mod items_tests;
+mod live_tests;
 mod mode_intro_tests;
 mod patch_check_tests;
+mod player_matches_tests;
 mod presets_tests;
 mod pvb_tests;
 mod reconnect_tests;

@@ -32,7 +32,7 @@ impl World {
     /// The game of `index` connects again, from a new port, with what it
     /// holds, and signs in as the game does: asking for the shop only if
     /// it has none.
-    fn game_connects_again(&mut self, index: usize, port: u16) {
+    pub(super) fn game_connects_again(&mut self, index: usize, port: u16) {
         let session_id = self.ids[index].1;
         let old = std::mem::replace(&mut self.clients[index].1, TestClient::new());
         let mut client = old.reconnected();

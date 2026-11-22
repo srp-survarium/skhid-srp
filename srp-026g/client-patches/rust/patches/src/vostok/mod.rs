@@ -96,6 +96,8 @@ pub mod module_watch;
 pub mod voices;
 pub mod voice;
 pub mod settings;
+pub mod spectate;
+pub mod replay_view;
 mod sync;
 pub mod trace;
 pub mod trap;
@@ -190,6 +192,7 @@ pub mod effect_presenter;
 pub mod match_message;
 pub mod packet_recovery;
 pub mod match_close;
+pub mod match_link;
 pub mod seeding;
 
 mod world_context;

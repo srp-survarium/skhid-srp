@@ -45,6 +45,10 @@ package survarium.constants
       // its leader's Play, Join or Queue takes it (squads.md). Its buttons
       // are greyed by the same rule (LocalPlayerProfile.squadSoldier).
       public static const SQUAD_LEADER:int = 17;
+
+      // No refusal: our room called us back from what we watched (queue-spectate.md); said once
+      // with the room, which shows itself and says so.
+      public static const CALLED_BACK:int = 18;
       
       public function RoomCode()
       {

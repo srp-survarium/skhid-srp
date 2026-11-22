@@ -32,6 +32,7 @@ pub mod history;
 mod items;
 mod level_stats;
 mod map_plays;
+pub mod match_events;
 mod mode_intro;
 mod presets;
 mod faces;
@@ -170,6 +171,8 @@ const MIGRATIONS: &[&str] = &[
     history::SCORE_AVG_BOUND_MIGRATION,
     // 22: the names an account leaves (`history`).
     history::NAMES_MIGRATION,
+    // 23: each match's events (`match_events`).
+    match_events::MIGRATION,
 ];
 
 /// The child tables of an account, children of children first.
@@ -267,7 +270,8 @@ pub trait GameRepository: Send {
     fn record_match(&mut self, _record: &history::MatchRecord) -> Result<(), PersistError> {
         Ok(())
     }
-    /// A reader of the history for the site, on connections of its own.
+    /// Readers of the history for the site and the lobby, on connections
+    /// of their own.
     /// (A repository that keeps no history: `None`.)
     fn history(&self) -> Result<Option<history::MatchHistory>, PersistError> {
         Ok(None)

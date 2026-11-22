@@ -133,8 +133,8 @@ one.
 | `updater_skhid.exe check ... torrent` / `direct` | `Skhid-get.bat` (`check torrent`), the tests (`direct`) | `check` takes torrent as the word says, else as the launcher keeps its "Allow torrent": user.cfg's `enable_torrent_seeding on` (`<Documents>\survarium\user.cfg`, as the language), taken only once the launcher's one-time reset is done (`launcher_skhid.torrent_reset` beside user.cfg, launcher patch 15); else off |
 | `updater_skhid.exe ready` (`quiet`: no box) | `play_skhid.bat`, `play_skhid.sh` before they start the game | Reads only: no lock, no server, nothing written but the log. Exit code 1 (and a box that says to start the launcher) when the last patch step did not end `ready` (a new overlay since, too), or the patch files are not now what its list says (one missing, damaged, or one more; looked at with the quick check); else 0 |
 | `updater_skhid.exe play [<game options>]` (`quiet`: no box; `wait`: stays until the game ends, exit code 1 when it ended with an error) | the launcher's PLAY and the play scripts (`wait quiet`), in a download with `updater_skhid.relay` | Starts the game on the player's route ("The route" below): the relay, unprobed; direct, probed; Automatic: the server itself when it answers, else the relay (`srp-026g/deploy/relay/README.md`). A route that does not answer is told apart in a box with Retry (no internet, the server offline, the relay down); blocked here while the relay answers, the launcher's row turns to auto and Retry goes through the relay (`quiet`: at once); a server that restarts is probed every 5 s while its box counts the seconds, and the game starts by itself once it answers. With `-server=` or `-match_replay=` among the options, or no `updater_skhid.relay`, the game is started as given. Exit code 1 when the route does not answer or the patches are not ready |
-| `updater_skhid.exe replay <id> <token> <sha256> <size>` | the patched game (patch revision 14) | "Watch replay": fetches one replay and starts a second game that plays it (below). A problem is a message box |
-| `updater_skhid.exe replay <id> <token> <sha256> <size> quiet` | the tests | The same with no window at all: the problem is in the log and the exit code (1) |
+| `updater_skhid.exe replay <id> <token> <sha256> <size>` | the patched game (patch revision 14) | "Save replay": fetches one replay into the game's `replays` folder (below) and starts no game. Nothing is shown when it is saved; a problem is a message box |
+| `updater_skhid.exe replay <id> <token> <sha256> <size> quiet` | the tests | The same with no window at all: the outcome is in the log and the exit code (0, 1) |
 | `"<exe>" seed \\.\pipe\skhid_seed-<pid>` | the patched game, started by the launcher with "Allow torrent" on: from its login screen on, matches too | Shares the folder's revision torrent until the game closes its pipe (the game's end); answers the game's stats switch. No window, no box, no lock, nothing fetched or installed; its own run logs, in `updater_skhid.seed-logs\` ("BitTorrent" below). Anything after `seed` but the game's pipe: exit code 1 |
 
 Exit codes: 0, 1 (failed), 2 (the launcher's pipe could not be opened), 3
@@ -237,7 +237,7 @@ is put back by the repair, and then the same box (with OK) says the
 antivirus may remove it again.
 
 The stop's box is the updater's own (`MessageBoxW`, Windows' Retry and
-Cancel buttons), in the game's language (as "Watch replay"'s, below),
+Cancel buttons), in the game's language (as "Save replay"'s, below),
 the launcher's line saying "Error" meanwhile. For Windows Security it is
 the box of "The player's boxes" below:
 
@@ -402,64 +402,62 @@ the server was down, the right only sometimes; the boxes now tell the
 server down, restarting, no internet and a block apart, and a block's way out
 is the relay.
 
-## Watch replay
+## Save replay
 
-The lobby's History offers a replay of a match the player played. The
-server sends the game a link `replay <id> <token> <sha256> <size>`; the
-patched game (`srp-026g/client-patches`, patch 29, revision 14) starts
-`updater_skhid.exe` beside itself with that link as its arguments and does
-nothing else with it. The updater (`exe/src/replay.rs`, the rules in
+The lobby's Watch window and results screen save a match's replay to a
+file. The server sends the game a link `replay <id> <token> <sha256>
+<size>`; the patched game (`srp-026g/client-patches`, patch 29, revision 14)
+starts `updater_skhid.exe` beside itself with that link as its arguments and
+does nothing else with it. The updater (`exe/src/replay.rs`, the rules in
 `logic/src/replay.rs`):
 
 1. Takes `replay` only as that exact word, then exactly four arguments:
    8, 32 and 64 lower-case hex digits and 1 to 10 digits, the size 1 byte to
-   64 MiB (an optional fifth word `quiet` is the tests' no-window mode).
+   12 MiB (an optional fifth word `quiet` is the tests' no-window mode).
    Anything else: "This replay link is not valid", nothing fetched.
 2. Holds its own lock, `updater_skhid.replay.lock`: an update and a replay
-   download never wait for each other; a second replay at the same time is
-   told "A replay is already being downloaded".
-3. Needs `survarium_skhid.exe` beside it (what PLAY starts).
-4. Asks its configured site (`updater_skhid.url`, the same rules as an
+   download never wait for each other. A second save while another holds it
+   (the lobby says `ready` while the first may still be downloading) waits
+   for it, up to 60 s, then finds its file saved or downloads its own; one
+   still held after that is told "A replay is already being downloaded".
+   The lock is let go before the box at the end.
+3. Deletes another match's download left over
+   (`srp_<8 hex>.srpreplay.part`); no other name in `<game>\replays` is ever
+   touched: saved replays are the player's.
+4. A file of this match there (`*_<id>.srpreplay`, `*_<id>_<n>.srpreplay`,
+   renamed by the player too) with the link's size and checksum: saved
+   already, nothing asked of the site.
+5. Not enough free space for the file (and 1 MiB more): the disk's error.
+6. Asks its configured site (`updater_skhid.url`, the same rules as an
    update: HTTPS, plain HTTP for this computer alone, no redirect followed,
    no cookie) for `GET /replays/<token>`, into
-   `<game>\replays\srp_<id>.sur.part` (a file of exactly the link's size at
-   most), reads it back from the disk, checks its size and SHA-256, and
-   renames it to `srp_<id>.sur`. A file of that name with the right size and
-   checksum is used again without a request. A connection that fails or
-   breaks off is tried three times; a status is not (404 and 410: "expired
-   or already used"; 429 and 503: busy; any other, a 3xx too: "error <n>").
-5. Keeps the ten newest `srp_<8 hex>.sur` of that folder (the new one
-   always among them) and deletes the others and any other id's `.part`;
-   no other name there is touched.
-6. Makes the check of `updater_skhid.exe ready` (read only, the one
-   `play_skhid.bat` and `play_skhid.sh` make): while the last patch step did
-   not end `ready` (a new overlay since, too), or the patch files are not
-   now what its list says, the game is not started. The player is told that
-   Skhid has not finished updating `game\resources.db.patch_*`, to start `Skhid.bat`
-   (the launcher) and then ask for the replay again; the log has the
-   `ready: NOT READY: ...` line and `replay: FAILED (NotReady)`, the exit
-   code is 1. The replay stays in the folder, checked, for the next ask.
-7. Starts the game as the launcher's PLAY does, from `game\binaries\x86`:
-   `"<x86>\survarium_skhid.exe"
-   -match_replay="<the file>"`, no
-   `-localization=`: the game plays it in its own language (the one chosen
-   in its Settings, game patch 79). The game reads its command line as ANSI
-   text and a value in quotes as one value, spaces and all (read in the exe:
-   `srp-026g/docs/notes/client_patch.md` section 3.27). The path is given as
-   it is when the ANSI code page holds every character of it and it is at
-   most 259 bytes; else its short (8.3) form when that does; else the player
-   is told to move the game to a folder with Latin letters.
+   `<game>\replays\srp_<id>.srpreplay.part` (a file of exactly the link's
+   size at most), reads it back from the disk and checks its size and
+   SHA-256. A connection that fails or breaks off is tried three times; a
+   status is not (404 and 410: "expired or already used"; 429 and 503: busy;
+   any other, a 3xx too: "error <n>").
+7. Reads the file's header (`SRPRPL01`, a u32 length of at most 8 KiB,
+   UTF-8 lines `key value`; `match` must be the link's id, `made` and `map`
+   numbers) and renames it to `<YYYY-MM-DD>_<HHMM>_<map>_<id>.srpreplay`: the
+   match's start in this computer's local time, the header's `map_slug` kept
+   to `[A-Za-z0-9-]` (32 at most, else `map<map id>`). A name another file
+   has: the same bytes are this replay saved before (the download goes),
+   else `_2`, `_3`, ... A header that does not read: "damaged".
 
-Every problem is a message box in the game's language (the `localization`
+A problem is one message box in the game's language (the `localization`
 line of `<Documents>\survarium\user.cfg`, which the game's Settings and the
 launcher's menu write, read only; English for a language the messages are
-not written in, or without one) and a line `replay: FAILED (<problem>): <text>`
-in the run's log. The log names the token by its first 6 hex digits
-only. No progress is shown while the replay downloads (at most 64 MiB).
+not written in, or without one). A saved replay shows none, since the game is
+up and a box would take its focus: the card in the Watch window says Saved.
+Either way there is a line `replay: saved <path>` or `replay: FAILED
+(<problem>): <text>` in the run's log. The log names the token by its
+first 6 hex digits only. No progress is shown while the replay downloads (at
+most 12 MiB). No game is started (before 2026-11-08 it fetched a `.sur` and
+started a second game with `-match_replay=`).
 
-The one call of the message box in the replay's code is `notify` in
+The one place of the boxes in the replay's code is `notify` in
 `exe/src/replay.rs`, behind `if !quiet`, and the replay returns from `run`
-before any of `main.rs`'s own calls of it: with `quiet` no window is made
+before any of `main.rs`'s own calls of them: with `quiet` no window is made
 (`tests/test_replay.py`, `QuietSource`, reads the source to keep it so).
 
 ## BitTorrent
@@ -1076,7 +1074,7 @@ SKHID_REVISION=27 ./build.sh                 # as release/build-zip builds revis
 python tests/test_updater.py                 # Windows
 python tests/test_db_patches.py              # Windows or Wine (resources.db's patches, the restore)
 python tests/test_play_gate.py               # Windows or Wine (PLAY and the server's revision, the watch)
-python tests/test_replay.py                  # Windows; the replay, in its no-window mode only
+python tests/test_replay.py                  # Windows or Wine; the replay, in its no-window mode only
 python tests/test_game_download.py           # Windows or Wine
 python tests/test_unreadable.py              # Windows or Wine (a Skhid file that cannot be read)
 python tests/test_run_logs.py                # Windows or Wine (game\logs; the old logs deleted)
@@ -1304,20 +1302,39 @@ under HKCU. Existing extension defaults and Explorer's UserChoice are untouched.
 Windows controls the default-app chooser; registration does not force a choice.
 
 The handler is `"<x86>\updater_skhid.exe" open-replay "%1"`. It locates the
-game beside itself and starts it from `game\binaries\x86` with:
+game beside itself (`survarium_skhid.exe`; without it: "was not found beside
+the updater, start the game once with the launcher") and starts it from
+`game\binaries\x86` with:
 
 ```text
-survarium_skhid.exe -match_replay="<selected absolute path>"
+"<x86>\survarium_skhid.exe" -match_replay="<selected absolute path>"
 ```
 
 Memory budgets come from the game executable, including future changes to its defaults.
 
 Opening a file through Open With's executable picker or dropping it onto the
 updater works too. One absolute `.sur` path is accepted, including spaces and
-UNC paths. The existing ANSI/short-path conversion and installed-patch gate
-are shared with Watch replay. Unreadable/missing files show their path and
-Windows' reason in the game language. This does not validate replay contents
-or guarantee compatibility with the installed simulation revision.
+UNC paths. Unreadable/missing files show their path and Windows' reason in the
+game language. This does not validate replay contents or guarantee
+compatibility with the installed simulation revision. Before the start:
+
+1. The check of `updater_skhid.exe ready` (read only, the one `play_skhid.bat`
+   and `play_skhid.sh` make): while the last patch step did not end `ready`
+   (a new overlay since, too), or the patch files are not now what its list
+   says, the game is not started. The player is told that Skhid has not
+   finished updating `game\resources.db.patch_*`, to start `Skhid.bat` (the
+   launcher) and then open the replay again; the log has the `ready: NOT
+   READY: ...` line and `replay: FAILED (NotReady)`, the exit code is 1.
+2. The path on the command line: the game reads its command line as ANSI
+   text and a value in quotes as one value, spaces and all
+   (`srp-026g/docs/notes/client_patch.md` section 3.27), and cuts a replay's
+   name at 259 bytes. The path is given as it is when the ANSI code page
+   holds every character of it and it is at most 259 bytes; else its short
+   (8.3) form when that does; else the player is told to move the file to a
+   folder with a shorter path of Latin letters. A path with a quote or a
+   control character, one ending in `\`, or one that is not a full path is
+   refused earlier, as a bad file (the "select one .sur replay file"
+   message), not with this one.
 
 Local files are never downloaded, copied, pruned or deleted, and opening them
 makes no network request. `ready` and `check` do not register file handlers;
@@ -1327,5 +1344,6 @@ registration command. A registration failure is logged without blocking Play.
 
 `tests/check_local_replay.py --wine <wine>` builds its own temporary game folder
 with the test stand-in, creates a fresh Wine prefix, exercises local/drop/Shell
-launch and the remote replay regression, and retains its evidence under `/tmp`.
+launch and a "Save replay" beside it (a `.srpreplay` saved, no game started),
+and retains its evidence under `/tmp`.
 Run it under a virtual display for shell activation. It does not run a real game.

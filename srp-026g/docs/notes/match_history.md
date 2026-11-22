@@ -50,6 +50,13 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
 - The stats are part of our own site (skhid.link), not the old survarium.pro stack.
 - Every finished match is kept in `srp.db`, private rooms and matches against bots too; only public
   matches are ever served, counted in totals, or shown in a list.
+  - One list is the player's own (the owner's of 2026-11-10: "do how you think is appropriate and
+    should be genre best practice"; the rule above was the site's, and the game's lists had taken
+    it over, so a player could not find its own private match again once its results were closed):
+    the game's Watch, Replays, Mine (`3B 00 <OWN_MATCHES_START>`, `MatchHistory::lobby().own_matches`)
+    lists the asker's matches of every kind, a private room's marked "Private room" and one
+    against bots "With bots" (`P2`'s last field, there only for those). Another player's list,
+    Friends, Everyone, the site and every total stay public only.
 - The server's bots (account 0) and test bots (`SRP_BOT_ACCOUNTS`) are never kept.
 - Never served: login names, addresses, bans or their reasons, the hidden matchmaking rating
   (`g26_balance`). "Rating" is the visible one players see in the lobby.
@@ -138,8 +145,49 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   reason.
 - Not kept, as survarium.pro had them: artefact kills (0.26g has none), clan rating (clans have
   none), skills.
-- What happened inside a match (kills in time order) and the game's own lists (Watch, Replays)
-  are #1537's, on top of this.
+- The lobby reads on a connection of its own (`MatchHistory::lobby()`), which the site's four
+  (`MatchHistory::site()`) never take: no number of requests to the site makes a lobby player
+  wait.
+
+## Events
+
+`g26_match_events` (`persist/match_events.rs`): what happened in a match, keyed by its `replay_id`
+and written in the same transaction as the match. The match server makes the list
+(`match-server/src/v026g/events.rs`) from the trusted worlds it reads (one asked for every 5 s,
+`Timing::refresh`; more apart where one was not trusted). Events start with the first match after
+migration 23: older matches have none, and none is added from their recordings. No message names
+a kill, a battery or a capture (`kill_weapon.md` 1), so each event is what changed between two
+worlds' shared statistics and rules.
+
+| kind | from | actor | victim | other |
+|---|---|---|---|---|
+| `kill` | the killer's kills (event 0) | killer | the death paired with it, if any | |
+| `death` | a death (event 2) no kill was paired with: suicide, fall, anomaly, teammate, or open | | the dead | |
+| `battery_found` | event 19 (first pick-up) | finder | | |
+| `battery_delivered` | event 20 (put into a container) | carrier | | |
+| `capture` | Research: a unit's owner became a team | | | `team`, `unit` |
+| `score` | modes 2 and 3: the batteries in the containers changed (taken out too) | | | `points0`, `points1` |
+| `end` | the match's end | | | the final points |
+
+- **Time and precision.** `at_ms` is match ms (the replay's time). `after_ms` empty: `at_ms` is the
+  game's own tick (50 ms) of it. That holds for a kill whose killer made no other kill in the
+  window (the killer's `last_killed_enemy_ms`) and for the end. Else the event was after `after_ms`
+  and at `at_ms` or before: the window between the two worlds, about 5 s (a killer's several kills:
+  up to its last kill's tick). Deaths, batteries, captures and score changes are always windows.
+- **Victims.** A death is paired with a kill when only one enemy of the dead killed in the window
+  and no more of its enemies died than it killed, or only one of the killers left hurt the dead in
+  the life it lost (its `received_damage`). Else the kill has no victim and the death stays a
+  `death`.
+- **Not known:** the weapon (the game never sends it, `kill_weapon.md`), the position (a dead
+  player's block has no body, and the worlds are seconds from the event), headshot or melee per
+  kill, who took a battery out of a container, who captured a unit, Team Deathmatch's tickets
+  (they follow the deaths) and Research's points (they grow all the time).
+- Places are the roster's (a line's `seat`) with their accounts (0: the server's bot).
+- **The lobby** reads them with `MatchHistory::lobby().events(<match server's id>)` (the newest match of
+  that id, of any kind: the caller says who may see them), and the side channel's rows are
+  `lobby-server/src/v026g/match_events.rs` (`match_events_page`): a head
+  `E1;<ok|none|error>;<match id 8 hex>;<events>;<page>`, then 254 events a page, one a row,
+  `<K|D|F|B|C|S|E>;<at>;<after>;...` (the module's table).
 
 ## The API
 
@@ -304,19 +352,20 @@ for, one made or a recording kept to make it from.
 
 ### `GET /api/history/replay?id=<match>`
 
-A visitor asks for a public match's replay (`docs/notes/replay_watch.md`: the same desk the
-lobby's "Watch replay" asks, `Replays::ask_for_site`). Nobody is signed in, so any public match
+A visitor asks for a public match's replay (`docs/notes/replay_watch.md` 2.1: the same desk the
+lobby's Save asks, `Replays::ask_for_site`). Nobody is signed in, so any public match
 may be asked for (the owner, 2026-11-20; a player's own was a courtesy already), and nothing is
 kept of the ask: the page asks again every two seconds while the answer is `preparing`.
 
-- `{"status":"preparing","place":1}`: its recording is being converted (`place` in the line; the
-  first ask for a kept recording queues it, one conversion at a time, 20 waiting at most).
-- `{"status":"ready","url":"/replays/<token>","size":5120000,"sha256":"..."}`: the file is the
-  game's own replay (`.sur`), which the updater opens. The token is the site's one of that match,
-  its visitors' together for ten minutes; 16 such matches at most at a time, then `busy`.
+- `{"status":"preparing","place":1}`: its file is being made (`place` in the line; the first ask
+  for a kept recording queues it, one file at a time, 20 waiting at most).
+- `{"status":"ready","url":"/replays/<token>","size":5120000,"sha256":"..."}`: the file is
+  Save's (`.srpreplay`). The token is the site's one of that match, its visitors' together for
+  ten minutes; 16 such matches at most at a time, then `busy`.
 - `{"status":"incompatible"}`: recorded by games older than the oldest replayable revision (the
-  visitor is taken to run the newest game). `gone`, `not_recorded`, `failed`, `busy`, `off`: as
-  the lobby's (`replays::Status`).
+  visitor is taken to run the newest game). `gone`, `failed`, `busy`, `off`: as the lobby's
+  (`replays::Status`); `not_yours` where only a match's players may watch
+  (`SRP_REPLAY_WATCH=match`).
 - An address may ask 40 times a minute; past that, `429 {"error":"too many"}`.
 - `404` for an unknown or non-public match.
 

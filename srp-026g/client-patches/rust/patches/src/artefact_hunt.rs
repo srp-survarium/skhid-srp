@@ -1240,7 +1240,7 @@ fn after_move(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// game had loaded it): on his body for the others, at the camera for him.
 fn draw_glow(scene: &ArtefactScene<'_>, assets: &ArrivedAssets, hunt: &Hunt, world: &HuntWorld<'_>,
              game_world: &GameWorld<'_>, thread: &Thread) {
-    let local = game_world.network_client().and_then(|client| client.local_place());
+    let local = game_world.network_client().and_then(|client| client.local_place()).map(|place| place.get());
     let target = hunt.state.carrier()
         .filter(|place| world.body(place.get()).is_some_and(|body| body.alive))
         .map_or(Glow::Off, |place| Glow::On {

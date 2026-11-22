@@ -25,6 +25,10 @@ package survarium.rooms
     {
         private static const SIDE_W:Number = 330;
         private static const MEMBERS_W:Number = SIDE_W - 32;
+        // The quiet line of a playing room's spectators under its members: its place
+        // kept while the room plays, whoever watches (nothing moves as they come
+        // and go; the owner's of 2026-11-05, "shouldn't distract anyone").
+        private static const SPECTATORS_H:Number = 18;
 
         private var win:RoomsWindow;
         private var look:RoomsLook;
@@ -160,17 +164,26 @@ package survarium.rooms
             // A member queues for no room (from no room only): Join, off for
             // a full room and for its own.
             var queuedHere:Boolean = queuedFor(joinable);
+            var queues:Boolean = joinable != null && joinable.players >= joinable.size * 2 && win._room == null;
             var joinWord:String = queuedHere ? win.say("st_srp_rooms_leave_queue")
-                : joinable != null && joinable.players >= joinable.size * 2 && win._room == null
-                    ? win.say("st_srp_rooms_queue") : win.say("st_srp_rooms_join");
-            var made:Array = look.footer(joinable != null ? [[win.say("st_srp_rooms_new"), win.createView.onNew, null], [joinWord, onJoin, joinable]]
-                : [[win.say("st_srp_rooms_new"), win.createView.onNew, null]]);
+                : queues ? win.say("st_srp_rooms_queue") : win.say("st_srp_rooms_join");
+            var buttons:Array = [[win.say("st_srp_rooms_new"), win.createView.onNew, null]];
+            if (joinable != null)
+                buttons.push([joinWord, onJoin, joinable]);
+            // A full room's second way in (the owner's of 2026-11-05): the same
+            // queue, its match watched meanwhile; queued, its one Leave queue.
+            if (queues && !queuedHere)
+                buttons.push([win.say("st_srp_rooms_queue_spectate"), onWatch, joinable]);
+            var made:Array = look.footer(buttons);
             if (joinable != null && !queuedHere && (!joins(joinable) || !LocalPlayerProfile.mayEnter(joinable.max)))
             {
-                made[1].enabled = false;
                 // Greyed by a reason (presets.md): the reasons in its tip.
-                if (joins(joinable))
-                    LocalPlayerProfile.reasonTip(look._content, made[1].x, made[1].y, made[1].width, made[1].height);
+                for (var b:int = 1; b < made.length; b++)
+                {
+                    made[b].enabled = false;
+                    if (joins(joinable))
+                        LocalPlayerProfile.reasonTip(look._content, made[b].x, made[b].y, made[b].width, made[b].height);
+                }
             }
             // Making a room: greyed under the maintenance rule.
             if (!LocalPlayerProfile.mayCreate())
@@ -222,7 +235,7 @@ package survarium.rooms
             // Its members below the facts (the owner's of 2026-10-20, "below
             // state"): the map's render made up to 60 lower when the panel is
             // short for the rows its players need at 18 each (two columns).
-            var bottom:Number = look._h - RoomsLook.FOOT_H - 14;
+            var bottom:Number = look._h - RoomsLook.FOOT_H - 14 - (room.phase == RoomPhase.IN_MATCH ? SPECTATORS_H : 0);
             var above:Number = 12 + 30 + 48 + facts.length * 26 + (room.pin ? 36 : 0) + 10;
             var need:int = memberRows(room) * 18;
             var picH:int = 150 - int(Math.max(0, Math.min(60, need - (bottom - 52 - 150 - above))));
@@ -330,6 +343,9 @@ package survarium.rooms
                     // Never past the panel's bottom (a window at its least).
                     if ((r + 1) * rowH <= _membersH + 2)
                         drawMember(box, cols[c][r], c * (colW + 12), r * rowH, colW, rowH, size);
+            // Its spectators in the place kept for them under the members.
+            if (room.phase == RoomPhase.IN_MATCH)
+                look.spectators(box, win._seen.spectators, 0, _membersH + 2, MEMBERS_W);
         }
 
         private function drawMember(box:Sprite, m:Object, x:Number, y:Number, w:Number, rowH:int, size:int):void
@@ -468,6 +484,16 @@ package survarium.rooms
                 joinRoom(room);
         }
 
+        // Queue and spectate: the full room's queue, no kit preset offer.
+        private function onWatch(e:Event):void
+        {
+            var room:Object = e.currentTarget.data;
+            if (room == null || win._steps.length > 0)
+                return;
+            win.busy(e);
+            joinRoom(room, 0, true);
+        }
+
         private function queuedFor(room:Object):Boolean
         {
             return room != null && win._room == null && win._queueKey == room.key;
@@ -488,7 +514,8 @@ package survarium.rooms
         // queue: the server's PRESET joins a room with places, else queues).
         // Greyed by a reason (presets.md) unless the popup can offer a
         // loadout that can play (mayEnter).
-        private function joinRoom(room:Object, preset:int = -1):void
+        // `watch`: Queue and spectate (a full room only; no preset offer).
+        private function joinRoom(room:Object, preset:int = -1, watch:Boolean = false):void
         {
             // A Join of the player's own: no longer the window Play opened.
             win._openedByPlayAt = 0;
@@ -498,7 +525,7 @@ package survarium.rooms
             win._stepsAt = win._busyAt;
             // A full room: wait in its queue (the server joins one a place
             // has freed for meanwhile).
-            var start:int = room.players >= room.size * 2 ? RoomsWire.QUEUE : RoomsWire.JOIN;
+            var start:int = room.players < room.size * 2 ? RoomsWire.JOIN : watch ? RoomsWire.WATCH : RoomsWire.QUEUE;
             win._code = RoomCode.NONE;
             win._steps = [];
             var typed:String = _joinPin != null ? _joinPin.text : _pinText;

@@ -1442,7 +1442,7 @@ fn options_of(arguments: &[String]) -> Result<Options, String> {
 }
 
 fn run() -> u32 {
-    // "Watch replay": started by the patched game with a replay link
+    // "Save replay": started by the patched game with a replay link
     // (`replay.rs`). Exactly this word, as the game's patch sends it.
     let arguments = arguments();
     // Started by the patched game on its login screen and in its lobby.

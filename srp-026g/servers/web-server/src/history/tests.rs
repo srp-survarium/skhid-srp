@@ -194,6 +194,7 @@ fn record(kind: MatchKind, ended_at: u64, alice: u32, bob: u32) -> MatchRecord {
                 weapons: BTreeMap::new(),
             },
         ],
+        events: Vec::new(),
     }
 }
 
@@ -1217,6 +1218,7 @@ pub(crate) fn preview(dir: &std::path::Path, now: u64, crowd: u32) -> GameAccoun
                 },
             },
             players,
+            events: Vec::new(),
         };
         repository.record_match(&record).unwrap();
     }
@@ -1301,6 +1303,7 @@ pub(crate) fn preview(dir: &std::path::Path, now: u64, crowd: u32) -> GameAccoun
                     team_points: if winner == Winner::FirstTeam { [5, 3] } else { [2, 5] },
                 },
                 players,
+                events: Vec::new(),
             })
             .unwrap();
     }
@@ -1311,19 +1314,19 @@ pub(crate) fn preview(dir: &std::path::Path, now: u64, crowd: u32) -> GameAccoun
 /// few bytes, no game's), the one before it a kept recording nobody
 /// converts (asked for, it stays `preparing`), the others none.
 pub(crate) fn preview_replays(dir: &std::path::Path) -> Replays {
-    use session::v026g::replays::{ReplaySettings, Sidecar, oldest_replayable_here};
-    let settings = ReplaySettings {
-        record_dir: dir.join("recordings"),
+    use session::v026g::replays::{SaveSettings, Sidecar, oldest_replayable_here};
+    let record_dir = dir.join("recordings");
+    std::fs::create_dir_all(&record_dir).unwrap();
+    let save = SaveSettings {
         replay_dir: dir.join("replays"),
-        max_recording_bytes: 1 << 20,
         max_replay_bytes: 1 << 20,
-    };
-    std::fs::create_dir_all(&settings.record_dir).unwrap();
-    std::fs::create_dir_all(&settings.replay_dir).unwrap();
-    let replays = Replays::new(Some(settings), 6);
+    }
+    .checked(&record_dir)
+    .unwrap();
+    let replays = Replays::new(Some(record_dir)).with_save(save);
     let (made, kept) = (0x5E1A_0000 + 22, 0x5E1A_0000 + 21);
     let bytes = b"a made-up replay of the preview";
-    std::fs::write(replays.sur_path(made).unwrap(), bytes).unwrap();
+    std::fs::write(replays.file_path(made).unwrap(), bytes).unwrap();
     let sidecar = Sidecar {
         match_id: made,
         size: bytes.len() as u64,
@@ -1333,7 +1336,10 @@ pub(crate) fn preview_replays(dir: &std::path::Path) -> Replays {
         made_at: 0,
     };
     std::fs::write(replays.json_path(made).unwrap(), sidecar.to_json()).unwrap();
-    let recording = replays.settings().unwrap().record_dir.join(format!("rec026g_20261120-120000_{kept:08x}.srprec"));
+    let recording = replays
+        .record_dir()
+        .unwrap()
+        .join(format!("rec026g_20261120-120000_{kept:08x}.srprec"));
     std::fs::write(recording, b"x").unwrap();
     replays.recording_kept(kept);
     replays
@@ -1350,7 +1356,7 @@ fn a_matchs_replay_is_asked_for_by_anyone() {
     let ask = |target: &str, replays: Option<&Replays>| {
         let (path, query) = target.split_once('?').unwrap();
         let endpoint = Endpoint::parse(path, query).unwrap();
-        answer(&endpoint, accounts.history().unwrap(), replays, &|_| false, Lang::En, NOW)
+        answer(&endpoint, accounts.history().unwrap().site(), replays, &|_| false, Lang::En, NOW)
     };
     let ok = |target: &str| ask(target, Some(&replays)).unwrap();
     assert_eq!(ok("/api/history/match?id=23")["replay"], true);
@@ -1381,7 +1387,7 @@ fn the_previews_history_is_served() {
     ));
     let _ = std::fs::remove_dir_all(&dir);
     let accounts = preview(&dir, NOW, 0);
-    let history = accounts.history().unwrap();
+    let history = accounts.history().unwrap().site();
     let ask = |target: &str| {
         let (path, query) = target.split_once('?').unwrap_or((target, ""));
         let endpoint = Endpoint::parse(path, query).unwrap();
@@ -1434,7 +1440,7 @@ fn a_match_has_its_maps_picture_as_the_rooms_draw_it() {
     let _ = std::fs::remove_dir_all(&dir);
     let accounts = preview(&dir, NOW, 0);
     let endpoint = Endpoint::parse("/api/history/matches", "limit=50").unwrap();
-    let answer = answer(&endpoint, accounts.history().unwrap(), None, &|_| false, Lang::En, NOW).unwrap();
+    let answer = answer(&endpoint, accounts.history().unwrap().site(), None, &|_| false, Lang::En, NOW).unwrap();
     for played in answer["matches"].as_array().unwrap() {
         assert!(played["map_icon"].as_str().unwrap().starts_with("/wiki/icons/maps/"));
     }

@@ -85,6 +85,7 @@ fn result(players: Vec<PlayerResult>) -> MatchResult {
         players,
         vs_bots: false,
         private: false,
+        events: Vec::new(),
     }
 }
 
@@ -2698,6 +2699,7 @@ fn at(now: u64) -> Terms {
 fn match_of(match_id: u32) -> MatchResult {
     MatchResult {
         match_id,
+        replay_id: ReplayId::new(match_id, std::time::UNIX_EPOCH),
         ..result(alice_and_bob())
     }
 }
@@ -4235,12 +4237,12 @@ fn the_history_is_written_at_the_next_save() {
     store.flush();
     assert!(history_of(&results).is_empty());
     let history = store.history().unwrap();
-    let matches = history.player_matches(10, None, 10).unwrap();
+    let matches = history.site().player_matches(10, None, 10).unwrap();
     assert_eq!(matches.len(), 1);
     assert_eq!(matches[0].line.kills, 3);
     assert_eq!(matches[0].kits.len(), 1);
     assert_eq!(
-        history.player(11).unwrap().unwrap().totals.matches,
+        history.site().player(11).unwrap().unwrap().totals.matches,
         0,
         "two players: named, counted in no total"
     );

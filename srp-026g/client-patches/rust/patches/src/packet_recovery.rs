@@ -3,7 +3,7 @@
 use crate::vostok::{Context, Flow, NoExit};
 use crate::vostok::packet_recovery::Connection;
 
-pub fn on_loaded(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn on_loaded(ctx: &mut Context<'_>) -> Flow<crate::vostok::PacketRecoveryOnLoadedExit> {
     if let Some(connection) = Connection::at_loaded(ctx) { connection.loaded(); }
     Flow::Continue
 }

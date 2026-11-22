@@ -75,6 +75,57 @@ one JPEXS FFDec ships as `flashlib/playerglobal32_0.swc`), and `target-player`
 dependency only: the movie keeps the original's SWF version, and a player API
 newer than Scaleform's is not supported in the game.
 
+`"ffdec"` (FFDec's `ffdec.jar`) is read by the weapon-details check
+(`scripts/weight-ui/check_ui.sh`, which exports the hud's kill feed icons with it).
+
+### Setting them up
+
+The build and the checks run on x86_64 Linux with nix (the Ruffle harnesses need Xvfb and
+lavapipe); on a Mac, in an x86_64 Linux VM (OrbStack: `orb -m <vm> bash -lc '...'`) that mounts
+`/Users` at the same path, so one `tools.json` serves both. `$T` is any folder outside the
+checkout (e.g. `<workspace>/toolchains`):
+
+```sh
+cd $T
+curl -fLO https://archive.apache.org/dist/flex/4.16.1/binaries/apache-flex-sdk-4.16.1-bin.tar.gz
+# 17fda7ac8d3e476cad3127f345455ef316acfb87c6f4322e5897bd8d9b09388e
+curl -fLO https://github.com/jindrapetrik/jpexs-decompiler/releases/download/version26.4.0/ffdec_26.4.0.zip
+# 56ce960aeafc7caf034e2052ba49f878a883f7c7ca690da6eeffca9587b5e4b9
+shasum -a 256 apache-flex-sdk-4.16.1-bin.tar.gz ffdec_26.4.0.zip
+tar xzf apache-flex-sdk-4.16.1-bin.tar.gz && unzip -q ffdec_26.4.0.zip -d ffdec-26.4.0
+f=apache-flex-sdk-4.16.1-bin
+mkdir -p $f/frameworks/libs/player/32.0
+# sha256 7d4d6168d27603cfb3b750302448e354e0bbc1bdd58f5d101c3dcf6891e9bb65
+cp ffdec-26.4.0/flashlib/playerglobal32_0.swc $f/frameworks/libs/player/32.0/playerglobal.swc
+sed -i.orig 's|<target-player>27.0</target-player>|<target-player>32.0</target-player>|' $f/frameworks/flex-config.xml
+# A JDK of the nixpkgs srp-026g/flake.lock pins (openjdk 17.0.20; 8, 11 and 21 compile the same bytes),
+# in the Linux VM; the link keeps it from nix's garbage collection.
+nix build github:NixOS/nixpkgs/$(jq -r .nodes.nixpkgs.locked.rev <checkout>/srp-026g/flake.lock)#jdk17_headless \
+    --out-link $T/jdk17-linux
+```
+
+Then the main checkout's `private/actionscript/tools.json`:
+
+```json
+{
+  "java": "$T/jdk17-linux/bin/java",
+  "flex": "$T/apache-flex-sdk-4.16.1-bin",
+  "ffdec": "$T/ffdec-26.4.0/ffdec.jar"
+}
+```
+
+The checks (`tools/check localization-harness weapon-details`, in the VM; `nix shell nixpkgs#git -c`
+when it has no git) also need the original movies: `tools/checks/movie.sh` cuts one from
+`~/.cache/skhid-release/patches` (`SKHID_PATCHES`; a game folder with the patches will do, as a
+link) with `srp-game-data`, which it builds in the dev shell the first time. Ruffle, Mesa and Xvfb
+come from the same nixpkgs pin (`scripts/ruffle_harness.sh`).
+
+A tree builds to the same bytes on any machine whose `/tmp` is the same kind of file system
+holding a checkout read in the same order: compc numbers private namespaces (`File.as$N`) in the
+order it lists `/tmp/srp-flash-build/<movie>`. Revision 50's lobby tree built in an OrbStack VM
+(`/tmp` tmpfs) gives the shipped movie's code but for 7 swapped pairs of those numbers; on btrfs,
+322 scripts differ the same way. Only the names differ, never the code.
+
 ## Tests
 
 ```sh
