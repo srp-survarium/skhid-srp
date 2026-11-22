@@ -207,13 +207,15 @@ impl FreezeTag {
             .is_some_and(|rest| rest.iter().all(|p| *p == Player::Waiting))
     }
     /// Whether `place` is his team's last one fighting in a round in play,
-    /// every teammate of his frozen: the other team sees him on its map (the
-    /// owner, 2026-11-22: "last member is always shown on the map"). A team
-    /// of one never is (the owner: "when 1vs1 we see each other on the map,
-    /// bad").
+    /// with two teammates of his frozen at least: the other team sees him on
+    /// its map (the owner, 2026-11-22: "last member is always shown on the
+    /// map"). Only in a team of three or more: never in 1 v 1, 2 v 1 or 2 v 2
+    /// (the owner: "when 1vs1 we see each other on the map, bad", "2vs1
+    /// should also not show", and the two-player side's last one hidden too:
+    /// "yes").
     pub fn last_standing(&self, place: Place) -> bool {
         self.phase == Phase::Playing
-            && matches!(self.player(place), Player::Fighting(team) if self.living(team) == 1 && self.frozen(team) != 0)
+            && matches!(self.player(place), Player::Fighting(team) if self.living(team) == 1 && self.frozen(team) >= 2)
     }
     fn living(&self, team: Team) -> usize {
         self.players
@@ -526,6 +528,7 @@ mod tests {
         Place::new(n).unwrap()
     }
     const VISIBLE: [[bool; PLAYERS]; PLAYERS] = [[true; PLAYERS]; PLAYERS];
+    const BLIND: [[bool; PLAYERS]; PLAYERS] = [[false; PLAYERS]; PLAYERS];
     fn body(team: Team, x: f32, condition: Condition) -> Body {
         Body::Present {
             team,
@@ -837,21 +840,54 @@ mod tests {
     }
 
     #[test]
-    fn a_teams_last_one_fighting_is_last_standing_in_play_only() {
-        let mut b = match_bodies();
-        b[3] = body(Team::Second, 5.0, Condition::Fighting);
+    fn a_team_of_three_shows_its_last_one_fighting_in_play_only() {
+        // 3 v 1: the first team 0, 1 and 3; the second 2 alone.
+        let mut b = [Body::Absent; PLAYERS];
+        b[0] = body(Team::First, 0.0, Condition::Lethal);
+        b[1] = body(Team::First, 10.0, Condition::Fighting);
+        b[2] = body(Team::Second, 20.0, Condition::Fighting);
+        b[3] = body(Team::First, 30.0, Condition::Fighting);
         let mut s = FreezeTag::EMPTY;
-        s.step(&b, &[[false; PLAYERS]; PLAYERS], 50);
-        // The first team: 0 frozen, 1 its last; the second: 2 and 3 fighting.
+        s.step(&b, &BLIND, 50);
+        // One frozen, two fighting: nobody.
+        assert!(!(0..4).any(|n| s.last_standing(place(n))));
+        b[3] = body(Team::First, 30.0, Condition::Lethal);
+        s.step(&b, &BLIND, 50);
+        // Two frozen: their last one is shown; the lone one never.
         assert!(s.last_standing(place(1)));
         assert!(![0, 2, 3].into_iter().any(|n| s.last_standing(place(n))));
-        b[3] = body(Team::Second, 5.0, Condition::Lethal);
-        s.step(&b, &[[false; PLAYERS]; PLAYERS], 50);
-        assert!(s.last_standing(place(1)) && s.last_standing(place(2)));
         // The round over: nobody.
-        b[1] = body(Team::First, RADIUS, Condition::Lethal);
-        s.step(&b, &[[false; PLAYERS]; PLAYERS], 50);
-        assert!(!s.last_standing(place(2)));
+        b[1] = body(Team::First, 10.0, Condition::Lethal);
+        s.step(&b, &BLIND, 50);
+        assert!(!(0..4).any(|n| s.last_standing(place(n))));
+    }
+
+    #[test]
+    fn two_v_one_shows_nobody_whoever_is_frozen() {
+        for frozen in [0, 1] {
+            let mut b = [Body::Absent; PLAYERS];
+            b[0] = body(Team::First, 0.0, Condition::Fighting);
+            b[1] = body(Team::First, 10.0, Condition::Fighting);
+            b[2] = body(Team::Second, 20.0, Condition::Fighting);
+            b[frozen] = body(Team::First, 10.0 * frozen as f32, Condition::Lethal);
+            let mut s = FreezeTag::EMPTY;
+            s.step(&b, &BLIND, 50);
+            assert!(matches!(s.phase(), Phase::Playing));
+            assert!(!(0..3).any(|n| s.last_standing(place(n))), "{frozen}");
+        }
+    }
+
+    #[test]
+    fn two_v_two_shows_nobody() {
+        let mut b = [Body::Absent; PLAYERS];
+        b[0] = body(Team::First, 0.0, Condition::Lethal);
+        b[1] = body(Team::First, 10.0, Condition::Fighting);
+        b[2] = body(Team::Second, 20.0, Condition::Fighting);
+        b[3] = body(Team::Second, 30.0, Condition::Lethal);
+        let mut s = FreezeTag::EMPTY;
+        s.step(&b, &BLIND, 50);
+        assert!(matches!(s.phase(), Phase::Playing));
+        assert!(!(0..4).any(|n| s.last_standing(place(n))));
     }
 
     #[test]
