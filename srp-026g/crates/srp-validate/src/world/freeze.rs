@@ -311,22 +311,25 @@ impl FreezeTag {
         }
         Actions::Play { thawed, thawers }
     }
-    /// A round ends once both teams entered and one or both have nobody fighting.
+    fn entered(&self, side: Team) -> bool {
+        self.players.iter().any(|p| match *p {
+            Player::Fighting(team) | Player::Frozen { team, .. } => team == side,
+            Player::Waiting => false,
+        })
+    }
+    /// A round ends once a team that entered has nobody fighting (a place
+    /// that left stays frozen): the other team wins it if it has someone
+    /// fighting, else it is a draw and is replayed, a double wipe as a team
+    /// frozen with nobody on the other side (the owner, 2026-11-22: a solo
+    /// player stayed frozen; a draw scores nothing, so nobody farms a point
+    /// alone). Before anybody entered nothing ends.
     fn result(&self) -> Option<RoundEnd> {
-        let entered = |side| {
-            self.players.iter().any(|p| match *p {
-                Player::Fighting(team) | Player::Frozen { team, .. } => team == side,
-                Player::Waiting => false,
-            })
-        };
-        if !entered(Team::First) || !entered(Team::Second) {
-            return None;
-        }
-        match (self.living(Team::First), self.living(Team::Second)) {
-            (0, 0) => Some(RoundEnd::Draw),
-            (0, _) => Some(RoundEnd::Won(Team::Second)),
-            (_, 0) => Some(RoundEnd::Won(Team::First)),
-            _ => None,
+        let wiped = |team| self.entered(team) && self.living(team) == 0;
+        match (wiped(Team::First), wiped(Team::Second)) {
+            (false, false) => None,
+            (true, false) if self.living(Team::Second) > 0 => Some(RoundEnd::Won(Team::Second)),
+            (false, true) if self.living(Team::First) > 0 => Some(RoundEnd::Won(Team::First)),
+            _ => Some(RoundEnd::Draw),
         }
     }
 
@@ -509,7 +512,7 @@ mod tests {
         assert!(!s.complete());
     }
     #[test]
-    fn team_wipe_is_terminal_simultaneous_wipe_draws_and_solo_waits() {
+    fn team_wipe_is_terminal_simultaneous_wipe_and_a_team_alone_draw() {
         let mut b = match_bodies();
         let mut s = FreezeTag::EMPTY;
         s.step(&b, &VISIBLE, 50);
@@ -534,10 +537,18 @@ mod tests {
                 ..
             }
         ));
+        // A team alone (1 v 0): its wipe is a draw, replayed, no point.
         b[2] = Body::Absent;
         let mut s = FreezeTag::EMPTY;
         s.step(&b, &VISIBLE, 50);
-        assert!(!s.complete());
+        assert!(matches!(s.phase(), Phase::Between { result: RoundEnd::Draw, .. }));
+        assert_eq!(s.points(), [0, 0]);
+        assert_eq!(FreezeTag::read(&s.bytes()), Some(s));
+        assert_eq!(s.step(&b, &VISIBLE, INTERMISSION.get()), Actions::Restart);
+        // Nobody at all: nothing ends.
+        let mut s = FreezeTag::EMPTY;
+        s.step(&[Body::Absent; PLAYERS], &VISIBLE, 50);
+        assert_eq!(s.phase(), Phase::Playing);
     }
     #[test]
     fn wire_domains_and_roster_are_checked() {
