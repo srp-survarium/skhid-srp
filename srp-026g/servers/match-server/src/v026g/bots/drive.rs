@@ -4665,11 +4665,11 @@ mod tests {
         let toward = -std::f32::consts::FRAC_PI_2;
         let at_rim = on_the_slab(55.4, toward, 3.5);
         assert_eq!(lip_guard(grid, &kin, &at_rim, 0.0, 0, &[], HOLD), LipGuard::Clear, "as it was: nothing to let go of");
-        assert!(matches!(lip_guard_with(grid, &kin, &at_rim, 0.0, 0, &[], HOLD, true, None), LipGuard::Braked(_) | LipGuard::Swapped(_)));
-        assert_eq!(lip_guard_with(grid, &kin, &on_the_slab(55.4, toward, 0.2), 0.0, 0, &[], HOLD, true, None), LipGuard::Clear, "no glide");
-        assert_eq!(lip_guard_with(grid, &kin, &on_the_slab(52.0, toward, 3.5), 0.0, 0, &[], HOLD, true, None), LipGuard::Clear, "far from the rim");
+        assert!(matches!(lip_guard_with(grid, &kin, &at_rim, 0.0, 0, &[], HOLD, true, None, body::RECKONING_M), LipGuard::Braked(_) | LipGuard::Swapped(_)));
+        assert_eq!(lip_guard_with(grid, &kin, &on_the_slab(55.4, toward, 0.2), 0.0, 0, &[], HOLD, true, None, body::RECKONING_M), LipGuard::Clear, "no glide");
+        assert_eq!(lip_guard_with(grid, &kin, &on_the_slab(52.0, toward, 3.5), 0.0, 0, &[], HOLD, true, None, body::RECKONING_M), LipGuard::Clear, "far from the rim");
         // With the keys held it is the same as ever.
-        let walk = |full: bool| lip_guard_with(grid, &kin, &at_rim, 0.0, key::FORWARD, &[], HOLD, full, None);
+        let walk = |full: bool| lip_guard_with(grid, &kin, &at_rim, 0.0, key::FORWARD, &[], HOLD, full, None, body::RECKONING_M);
         assert_eq!(walk(true), walk(false));
     }
 
@@ -4685,7 +4685,7 @@ mod tests {
         for k in 0..60 {
             let me = on_the_slab(50.0 + k as f32 * 0.1, toward, 0.1);
             let old = lip_guard(grid, &kin, &me, 0.0, key::FORWARD, &[], HOLD) != LipGuard::Clear;
-            let new = lip_guard_with(grid, &kin, &me, 0.0, key::FORWARD, &[], HOLD, true, None) != LipGuard::Clear;
+            let new = lip_guard_with(grid, &kin, &me, 0.0, key::FORWARD, &[], HOLD, true, None, body::RECKONING_M) != LipGuard::Clear;
             wider += usize::from(new && !old);
             narrower += usize::from(old && !new);
         }
@@ -4705,7 +4705,7 @@ mod tests {
         let lattice = kin::Kinematics { margin_edge: kin::MarginEdge::Lattice, ..body.clone() };
         assert_eq!((body.edge, body.margin_edge), (kin::Edge::Controller, kin::MarginEdge::Body), "the defaults (A93, A388 step 2)");
         let held = |guard: LipGuard| matches!(guard, LipGuard::Swapped(_) | LipGuard::Braked(_) | LipGuard::Doomed);
-        let walk = |kin: &kin::Kinematics, x: f32, yaw: f32, full: bool| lip_guard_with(grid, kin, &on_the_slab(x, yaw, 3.5), 0.0, key::FORWARD, &[], HOLD, full, None);
+        let walk = |kin: &kin::Kinematics, x: f32, yaw: f32, full: bool| lip_guard_with(grid, kin, &on_the_slab(x, yaw, 3.5), 0.0, key::FORWARD, &[], HOLD, full, None, body::RECKONING_M);
         // Along the rim on its last floor: the sides.
         assert!(held(walk(&lattice, 55.875, 0.0, true)), "held for a side");
         assert_eq!(walk(&lattice, 55.875, 0.0, false), LipGuard::Safe, "the plain guard has no sides");
