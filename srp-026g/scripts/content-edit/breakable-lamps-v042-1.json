@@ -3419,6 +3419,23 @@
                 "z": 12.946943283081055,
                 "name": "environment_and_lights/light/lamp_sparks(4)/point_light(4)"
               }
+            },
+            "ambient_lights": {
+              "light0": {
+                "x": -53.167999267578125,
+                "y": 9.267000198364258,
+                "z": 7.434000015258789,
+                "name": "environment_and_lights/ambient_light_rain/ambient_light(69)"
+              }
+            },
+            "probes": {
+              "probe0": {
+                "x": -50.34000015258789,
+                "y": 10.937000274658203,
+                "z": 10.541000366210938,
+                "name": "environment_and_lights/probes/processed/hall_b/hall(2)",
+                "keeps": 0.409
+              }
             }
           },
           "lamp011": {
@@ -3954,6 +3971,23 @@
                 "z": 12.946943283081055,
                 "name": "environment_and_lights/light/lamp_sparks(4)/point_light(4)"
               }
+            },
+            "ambient_lights": {
+              "light0": {
+                "x": -53.167999267578125,
+                "y": 9.267000198364258,
+                "z": 7.434000015258789,
+                "name": "environment_and_lights/ambient_light_rain/ambient_light(69)"
+              }
+            },
+            "probes": {
+              "probe0": {
+                "x": -50.34000015258789,
+                "y": 10.937000274658203,
+                "z": 10.541000366210938,
+                "name": "environment_and_lights/probes/processed/hall_b/hall(2)",
+                "keeps": 0.409
+              }
             }
           },
           "lamp011": {
@@ -4488,6 +4522,23 @@
                 "y": 12.082743644714355,
                 "z": 12.946943283081055,
                 "name": "environment_and_lights/light/lamp_sparks(4)/point_light(4)"
+              }
+            },
+            "ambient_lights": {
+              "light0": {
+                "x": -53.167999267578125,
+                "y": 9.267000198364258,
+                "z": 7.434000015258789,
+                "name": "environment_and_lights/ambient_light_rain/ambient_light(69)"
+              }
+            },
+            "probes": {
+              "probe0": {
+                "x": -50.34000015258789,
+                "y": 10.937000274658203,
+                "z": 10.541000366210938,
+                "name": "environment_and_lights/probes/processed/hall_b/hall(2)",
+                "keeps": 0.409
               }
             }
           },

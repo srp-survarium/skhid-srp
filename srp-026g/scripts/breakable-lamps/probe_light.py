@@ -19,9 +19,12 @@ A weather's sky can have the tubes' colour (London's rain is as blue as
 them). The lamp is the same in every weather, and so is the probe (its
 place and box): where a weather's own split cannot be made, the lamp's light
 the day's split found in the probe of that name and place is taken out of
-the weather's, if what is left is that weather's room colour (London
-(v0.42)'s rain; its evening bake has no lamp in it, and its own split binds
-nothing there).
+the weather's, where some of each channel is left (London (v0.42)'s rain:
+a bake without the lamp in it leaves less than nothing; its evening's own
+split binds nothing). What is left need not be the room's colour: the rain's
+sky is as blue as the lamp, which is why its own split cannot be made, and
+the neighbours' floor (neighbour_light) keeps the room from going darker
+than the rooms beside it.
 """
 import math
 import struct
@@ -122,11 +125,6 @@ def split(light, lamp, room):
     return a / total, min(1.0, max(KEEPS_FLOOR, d / total))
 
 
-def angle(a, b):
-    cos = sum(x * y for x, y in zip(a, b)) / math.sqrt(sum(x * x for x in a) * sum(y * y for y in b))
-    return math.degrees(math.acos(max(-1.0, min(1.0, cos))))
-
-
 def _surface(probe):
     """Points on a probe's volume: a box's corners, edge middles and face centres, a sphere's
     six poles."""
@@ -214,7 +212,7 @@ def lamp_probes(probes, lamp_lights, cubemap, day=None):
             lamp_light[probe['full_name']] = (probe['position'], [result[0] * luminance(light) * c for c in colour])
         elif day and day.get(probe['full_name'], (None,))[0] == probe['position']:
             left = [a - b for a, b in zip(light, day[probe['full_name']][1])]
-            if min(left) > 0 and angle(left, room) < SPLIT_ANGLE:
+            if min(left) > 0:
                 result = 1 - luminance(left) / luminance(light), min(1.0, max(KEEPS_FLOOR, luminance(left) / luminance(light)))
         if result is not None and result[0] >= LAMP_SHARE:
             found.setdefault(lamp, []).append((probe, result[1]))
