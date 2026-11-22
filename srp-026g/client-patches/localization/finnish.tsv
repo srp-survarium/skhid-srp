@@ -3092,6 +3092,8 @@ st_srp_technical_443_description	Tappo kranaatillasi antaa yhden kranaatin takai
 st_srp_technical_443_name	Haaskalintu
 st_srp_technical_444_description	Ansasi murtaa siihen jääneen jalat. Ansa vie 1,5 taskupaikkaa.
 st_srp_technical_444_name	Karhunrauta
+st_srp_technical_445_description	Happipullo varusteissa: yksi artefaktisäiliö lisää.
+st_srp_technical_445_name	Pullosäiliö
 st_srp_technical_disarm_speed	Ansojen purkunopeus
 st_srp_technical_friendly_blast	Vahinko omista kranaateista
 st_srp_technical_oxygen_rush	Nopeus 20 s pullon käytön jälkeen ja lopussa

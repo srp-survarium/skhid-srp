@@ -18,7 +18,7 @@ package {
    411:"TechnicalSkill069411",412:"TechnicalSkill069412",413:"TechnicalSkill069413",414:"TechnicalSkill069414",
    422:"TechnicalSkill069422",423:"TechnicalSkill069423",431:"TechnicalSkill069431",432:"TechnicalSkill069432",
    433:"TechnicalSkill069433",441:"TechnicalSkill069441",442:"TechnicalSkill069442",443:"TechnicalSkill069443",
-   444:"TechnicalSkill069444"};
+   444:"TechnicalSkill069444",445:"TechnicalSkill069445"};
   private var loader:Loader = new Loader();
   private var failures:Array = [];
   private var icons:Object;

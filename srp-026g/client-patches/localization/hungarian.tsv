@@ -3092,6 +3092,8 @@ st_srp_technical_443_description	Egy gránátoddal szerzett ölés visszaad egy 
 st_srp_technical_443_name	Dögevő
 st_srp_technical_444_description	A csapdád eltöri annak a lábát, aki belelép. Egy csapda 1,5 zsebhelyet foglal.
 st_srp_technical_444_name	Medvecsapda
+st_srp_technical_445_description	Oxigénpalackkal a felszerelésben: még egy artefaktumtároló.
+st_srp_technical_445_name	Palacktároló
 st_srp_technical_disarm_speed	Csapdahatástalanítás sebessége
 st_srp_technical_friendly_blast	Sebzés a saját gránátoktól
 st_srp_technical_oxygen_rush	Sebesség 20 mp palackhasználat után és a végén

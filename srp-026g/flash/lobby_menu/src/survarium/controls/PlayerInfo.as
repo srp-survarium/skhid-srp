@@ -49,11 +49,16 @@ package survarium.controls
       // Pockets does not.
       public static var supplyPocket:Boolean = false;
 
+      // Tank Container (445) taken: a kit that wears an oxygen tank has one more artefact
+      // container (srp's kit block; the tank's card lists it).
+      public static var tankContainer:Boolean = false;
+
       // Only committed skill values affect equipment, never unspent previews.
       public static function committedSkills(value:Array) : void
       {
          additionalMedicine = false;
          supplyPocket = false;
+         tankContainer = false;
          halvedGrenades = false;
          heavyTraps = false;
          for each(var skill:Object in value)
@@ -77,6 +82,10 @@ package survarium.controls
             if(skill.id == 444)
             {
                heavyTraps = true;
+            }
+            if(skill.id == 445)
+            {
+               tankContainer = true;
             }
          }
       }

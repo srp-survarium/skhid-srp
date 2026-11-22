@@ -110,6 +110,20 @@ def back_arrow(g):
     d.polygon([(x * SS, y * SS) for x, y in pts], fill=WHITE)
 
 
+def gem(g):
+    """An artefact container's sign: a cut gem in the badge's circle."""
+    d = ImageDraw.Draw(g)
+    circle(d)
+    w = round(1.9 * SS)
+    top, girdle, tip = CY - 5.8, CY - 1.8, CY + 7.0
+    outline = [(CX - 3.6, top), (CX + 3.6, top), (CX + 7.2, girdle), (CX, tip), (CX - 7.2, girdle)]
+    d.polygon([(x * SS, y * SS) for x, y in outline], outline=WHITE, width=w)
+    d.line([((CX - 7.2) * SS, girdle * SS), ((CX + 7.2) * SS, girdle * SS)], fill=WHITE, width=w)
+    for a, b in (((CX - 3.6, top), (CX - 2, girdle)), ((CX + 3.6, top), (CX + 2, girdle)),
+                 ((CX - 2, girdle), (CX, tip)), ((CX + 2, girdle), (CX, tip))):
+        d.line([(a[0] * SS, a[1] * SS), (b[0] * SS, b[1] * SS)], fill=WHITE, width=w)
+
+
 def broken_bone(g):
     """A bone across the badge, broken in the middle."""
     d = ImageDraw.Draw(g)
@@ -182,6 +196,7 @@ def main():
         414: badge(tank(), bars),                      # Tank Depth: every pocket bigger
         431: badge(tank(), modifier(10, 25)),         # Deep Breaths: lungs
         442: badge(tank(), modifier(11, 24)),         # Oxygen Rush: a runner against the clock
+        445: badge(tank(), gem),                       # Tank Container: an artefact's place
         # smoke grenades
         402: badge(on('smoke_black', haze((215, 215, 215), ((22, 22, 13), (38, 14, 12), (52, 26, 11), (26, 40, 10)), 150)), stopwatch),  # Dense Smoke
         432: badge(on('smoke_black'), glyph(donor(SKULL), 21)),                               # Dead Man's Switch

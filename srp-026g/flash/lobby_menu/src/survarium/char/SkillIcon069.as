@@ -49,6 +49,7 @@ package survarium.char
    import TechnicalSkill069442;
    import TechnicalSkill069443;
    import TechnicalSkill069444;
+   import TechnicalSkill069445;
 
    // Our trees' skill icons in 0.69d's style: its original icons (medical: survival; technical:
    // engineering, utility; artefact: anomaly) copied unchanged, and the drug and item skills'
@@ -106,6 +107,7 @@ package survarium.char
             case 442: type = TechnicalSkill069442; break;
             case 443: type = TechnicalSkill069443; break;
             case 444: type = TechnicalSkill069444; break;
+            case 445: type = TechnicalSkill069445; break;
             case 501: type = ArtefactSkill069501; break;
             case 502: type = ArtefactSkill069502; break;
             case 512: type = ArtefactSkill069512; break;
