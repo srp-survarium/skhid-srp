@@ -110,8 +110,9 @@ pub enum Schedule {
     /// death's respawn, the round's last freeze too): the restart spawns
     /// everyone, the end nobody, and the hud shows no respawn countdown (the
     /// owner, 2026-11-22: it showed the last frozen body's death respawn,
-    /// "respawn in 8 seconds"). A late arrival spawns at his entry, held
-    /// with everyone, and again with the round.
+    /// "respawn in 8 seconds"). A late arrival spawns at his entry, moves
+    /// on in the pause as everyone not frozen, and spawns again with the
+    /// round.
     CancelAll,
     /// The round's restart: every present place is due at this step
     /// ([`Actions::Restart`]), and a place without a free point retries
