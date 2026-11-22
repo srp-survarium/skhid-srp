@@ -102,9 +102,10 @@ impl Cheapest {
 
 /// [cheapest entry] The cheapest way into the zones round floor `goal` (a battery's stand): from any dry floor within
 /// `within_m` across of it that the side reaches (no zone marks it, a way leads to it past the zones on all match, not
-/// another side's spawn area, in `spawn`'s piece of the grid), over the floors [`Cheapest`] walks, priced as it prices
-/// them (any damage outweighs any detour). The floors of the way, from that dry floor (the entry) to `goal`; none when
-/// no such floor leads there.
+/// another side's spawn area, in `spawn`'s piece of the grid), over the floors [`Cheapest`] walks, each floor stepped onto
+/// priced at `damage_per_s` (the caller's price of the walk, so the way found is the one its price is least on; any
+/// damage outweighs any detour, as [`Cheapest`]). The floors of the way, from that dry floor (the entry) to `goal`; none
+/// when no such floor leads there.
 ///
 /// One search, bounded by the box: the sources are all those dry floors next to a marked one at price 0, so the first way
 /// that reaches `goal` is the cheapest of every entry, whatever side of the zone it is on. Before, a battery's crossing was the route from
@@ -115,7 +116,7 @@ pub fn cheapest_entry(
     spawn: NodeId,
     goal: NodeId,
     side: Option<i32>,
-    armour: Option<&ZoneArmour>,
+    damage_per_s: impl Fn(NodeId) -> f32,
     within_m: f32,
 ) -> Option<Vec<NodeId>> {
     use std::collections::HashMap;
@@ -166,7 +167,7 @@ pub fn cheapest_entry(
                 continue;
             }
             let metres = (to - from).length();
-            let damage = hazards.cost_per_s(b, armour).most() * metres / CROSS_MPS;
+            let damage = damage_per_s(b) * metres / CROSS_MPS;
             let through = here + walk.max(metres) + damage * DAMAGE_M;
             if price.get(&b).is_none_or(|&p| through < p) {
                 price.insert(b, through);

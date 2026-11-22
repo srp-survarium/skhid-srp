@@ -1413,7 +1413,7 @@ pub const ENTRY_WITHIN_M: f32 = 40.0;
 /// The crossing to `to` over the zones' floors for a body of map side `side`, for a battery no straight walk crosses to
 /// ([`crossing_to`] found none: a wall, a step or a drop between it and every dry floor within [`CROSS_MAX_M`]), entered
 /// where it is cheapest ([`zone_search::cheapest_entry`](crate::v026g::bots::zone_search::cheapest_entry): from any dry
-/// floor the side reaches within [`ENTRY_WITHIN_M`], the way with the least damage, the shortest of those). `edge` is that
+/// floor the side reaches within [`ENTRY_WITHIN_M`], the way whose leg costs least, the shortest of those). `edge` is that
 /// entry; `leg` the damage of the way from there to `stop_m` short of `to`, in the pools that kill under `armour`, on every
 /// floor the zones mark (the margin's price, the motor's own); `leg_out` the same way walked back out to the entry, the
 /// whole of it (`price_way_out`; else the leg); `at_per_s` as for [`crossing_to`], where the way meets no zone before its
@@ -1444,7 +1444,10 @@ pub fn routed_crossing_to(
     let spawn = tactics.world.map.spawns.iter().find(|p| p.team == side)?;
     let from = grid.locate(spawn.position, 3.0)?;
     let goal = grid.locate(to, 3.0)?;
-    let path = crate::v026g::bots::zone_search::cheapest_entry(tactics, from, goal, Some(side), armour, ENTRY_WITHIN_M);
+    // The way's floors priced as its leg is (`leg_cost_per_s`, the margin's price included): the entry found is the one
+    // whose leg is least, not one cheap by another price.
+    let leg_per_s = |node| tactics.hazards.leg_cost_per_s(grid, node, armour, rules.hurt).most();
+    let path = crate::v026g::bots::zone_search::cheapest_entry(tactics, from, goal, Some(side), leg_per_s, ENTRY_WITHIN_M);
     #[cfg(test)]
     if path.is_none() {
         crate::v026g::bots::hazards::damage_zone_fixes::count(crate::v026g::bots::hazards::damage_zone_fixes::Ev::RoutedNoRoute);
