@@ -277,7 +277,9 @@ data_key=$(sha256sum <<<"$data_key" | cut -c1-64)
 data_cache=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/build-content/server-data
 # A delta's server game data only when a file the server reads changed (resources_db::server::is_read:
 # gameplay/, a project's client_project, a localization dictionary); else the earlier build's serves.
-if [[ -n $delta_from ]] && ! cut -f1 "$out/delta.tsv" | grep -qE '^(gameplay/|projects/.*/client_project$|localization/[^/]*/localization$)'; then
+# grep without -q reads all of cut's output: an early exit would kill cut (SIGPIPE) and pipefail
+# would read that as no match.
+if [[ -n $delta_from ]] && ! cut -f1 "$out/delta.tsv" | grep -E '^(gameplay/|projects/.*/client_project$|localization/[^/]*/localization$)' >/dev/null; then
     for patch in "${chain[@]}"; do
         [[ ! -f ${patch%/*}/$DATA_NAME ]] || earlier_data=${patch%/*}/$DATA_NAME
     done

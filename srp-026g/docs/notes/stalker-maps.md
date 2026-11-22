@@ -20,6 +20,13 @@ and Depository have no FFA and are not played. Dark Valley, Vehicle Station,
 Fire Station and Sports Center (pack `stalker-maps-2`, below) are played in
 Free for All only too.
 
+Training Camp is the exception since 2026-11-22 (the owner: "add tdm and freeze tag on stk2
+training camp"): its Team Deathmatch row 212 is back, after the team maps' lists, with Freeze Tag's
+450 (`training-camp-teams-1.json`), both on `day_teams`, a copy of Free for All's fenced `day_8`
+whose 47 points are every team's (`stalker-ffa.md`, "Team Deathmatch and Freeze Tag at the Free
+for All points"). The boundary and the outside stash below are no more in the way: `day_teams` has
+the wall and no stashes.
+
 Everything else stays: the six TDM configs, the projects with both teams'
 spawns and stashes, their `modes.tsv`/`maps.tsv` rows, names, pictures and
 minimaps; the FFA configs are copies on the same projects. Ids 210-215 stay
