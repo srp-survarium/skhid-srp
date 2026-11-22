@@ -440,10 +440,13 @@ class Game:
         """{path: (status, archive or '')}: same, differs, new."""
         text = run([self.binary, 'compare'] + self.layers(archives) + ['--dir', folder], 'srp-game-data compare')
         out = {}
-        # `new <path>` or `<same|differs> <path> <archive>`: a path may hold spaces (0.21d's
-        # `render/material #825364/` folders), an archive name none.
+        # `new <path>` or `<same|differs> <path> <archive>`, a new or differing file the server
+        # reads followed by ` server`: a path may hold spaces (0.21d's `render/material #825364/`
+        # folders), an archive name none.
         for line in text.splitlines():
             status, rest = line.split(' ', 1)
+            if status != 'same':
+                rest = rest.removesuffix(' server')
             path, name = (rest, '') if status == 'new' else rest.rsplit(' ', 1)
             out[path] = (status, name)
         return out
