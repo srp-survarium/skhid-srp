@@ -35,7 +35,7 @@ TWIPS = 20.0
 
 
 def rdg_m(scale):
-    """The upright RDG-M in twips (the icon's pixels x `scale`): body, fuse head, lever, bottom cap."""
+    """The upright RDG-M in twips (the icon's pixels x `scale`): body (with its bottom cap), fuse head, lever."""
     s = lambda v: v * scale
     centre = 15.5
     head = unary_union([box(s(16.5), s(2.5), s(22.5), s(14.5)), Point(s(19.5), s(2.5)).buffer(s(3.0))])
@@ -43,20 +43,21 @@ def rdg_m(scale):
     shoulder = Polygon([(s(centre - 5), s(27)), (s(centre + 5), s(27)), (s(29.25), s(33.5)), (s(1.75), s(33.5))])
     body = box(s(1.75), s(33), s(29.25), s(62))
     # the base: the body ends in a rim a little wider than it (62 to 67 px, 29.5 px across), and under
-    # it the bottom cap, a dome 25 px across and 12.5 px tall, apart from the rim by a cut
+    # it the bottom cap, a dome 25 px across and 12.5 px tall: one silhouette, the step in width at the
+    # rim showing the cap (the owner: "there is no need for separation")
     rim = box(s(0.75), s(61.5), s(30.25), s(67))
-    body = unary_union([neck, shoulder, body, rim]).buffer(s(1.2)).buffer(-s(1.2))
     dome = affinity.scale(Point(s(centre), s(66.5)).buffer(1.0), s(12.6), s(13.0), origin=(s(centre), s(66.5)))
-    cap = dome.intersection(box(s(-5), s(67) + CUT, s(35), s(85)))
+    cap = dome.intersection(box(s(-5), s(66.5), s(35), s(85)))
+    body = unary_union([neck, shoulder, body, rim, cap]).buffer(s(1.2)).buffer(-s(1.2))
     # the lever: the wire from the fuse's foot down the shoulder's left, outside the body by a cut
     wire = LineString([(s(12.5), s(14.5)), (s(5.0), s(23.0)), (s(0.4), s(30.5)), (s(-3.7), s(37.5))])
     lever = wire.buffer(STROKE / 2, cap_style='round', join_style='round')
     body = body.difference(lever.buffer(CUT))
     head = head.difference(lever.buffer(CUT))
-    return body, head, lever, cap
+    return body, head, lever
 
 
-PARTS = ('BODY', 'HEAD', 'LEVER', 'CAP')
+PARTS = ('BODY', 'HEAD', 'LEVER')
 
 
 def scale_to_frag():
@@ -106,8 +107,8 @@ def main():
                         help='the upright sketch over the upright icon (and OUT with -bottom: its base)')
     args = parser.parse_args()
     parts = dict(zip(PARTS, glyph()))
-    # the toxic smoke's green: the body and the cap inside their 1 px white edge
-    inside = {'BODY_INSIDE': parts['BODY'].buffer(-TWIPS), 'CAP_INSIDE': parts['CAP'].buffer(-TWIPS)}
+    # the toxic smoke's green: the body inside its 1 px white edge
+    inside = {'BODY_INSIDE': parts['BODY'].buffer(-TWIPS)}
     for name, polygon in (*parts.items(), *inside.items()):
         print(f'      public static const {name}:Array = {ring(polygon)};'.replace(', ', ','))
     if args.svg:
