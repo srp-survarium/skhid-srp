@@ -3645,3 +3645,6 @@ va	status	ref_021d	name
 0x0031aca0	inferred-high		survarium::effect_zone_core::protect_players [descriptive]
 0x00316470	inferred-medium		survarium::tdm_rule_core::protect_players [descriptive]
 0x001c8a10	inferred-medium	0x0013d2a6	vostok::render::potential_request::calc_priority
+0x00176340	inferred-high		stlp_std::remove_copy_if<vostok::render::render_surface_instance * *,vostok::render::remove_invisible_models_predicate> [descriptive]
+0x00173fc0	inferred-high	0x001081cd	vostok::render::remove_model_if_fully_in_frustum_predicate::operator()
+0x001740d0	inferred-high	0x001082aa	vostok::render::remove_model_if_shadow_not_it_frustum_predicate::operator()

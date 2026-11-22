@@ -6130,7 +6130,12 @@ option and bounded `r_distance_detail` command: 0 Normal (default), 1 High,
 Hardware mip filtering, frustum and occlusion culling remain active. Maximum
 also removes grass's separate 100-metre cutoff and forces the draw-time grass
 model selector to LOD0; changing only the culling cache did not affect that
-selector. Native shadow-pass limits and its explicit LOD bias remain.
+selector. The sun's shadows follow it: Maximum keeps every model caster in
+every cascade (no per-cascade screen-factor cull), draws grass shadows at the
+camera's grass LOD (not one coarser) and at every distance (not 25 m);
+High lowers the cull thresholds by 2/3 and draws grass shadows to 37.5 m;
+Normal is unchanged (`docs/notes/client_patch.md`, "Sun shadows").
+Model shadows already took the camera's LOD. The cascades' edges stay hard.
 The Graphics presets include this row: Ultra selects Maximum; High selects High;
 Minimum, Low and Medium select Normal. Changing this row away from the selected
 preset selects Custom through the native integer-option comparison. The
