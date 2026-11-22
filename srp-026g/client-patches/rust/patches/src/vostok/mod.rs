@@ -32,6 +32,7 @@ pub mod bullet;
 pub mod explosion;
 pub mod files;
 pub mod footstep;
+pub mod zone_guard;
 pub mod material;
 pub mod freeze;
 pub mod camera;
