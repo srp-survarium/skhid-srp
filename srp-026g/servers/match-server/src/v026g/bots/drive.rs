@@ -2191,6 +2191,10 @@ fn drive_tick_inner(
                     {
                         bot.bench_lane = bot.motor.lane_use;
                     }
+                    // [T1] A try its line-up hold spent (one line a try).
+                    if let Some(line) = bot.motor.take_line_hold_line() {
+                        bot.nav_log.push(super::nav_log::Kind::Press, time, line);
+                    }
                     // [A1b] A walk-off at release that ended: where the body came to rest (decision-neutral).
                     if let Some(line) = bot.motor.take_walk_off_line() {
                         bot.nav_log.push(super::nav_log::Kind::WalkOff, time, line);
