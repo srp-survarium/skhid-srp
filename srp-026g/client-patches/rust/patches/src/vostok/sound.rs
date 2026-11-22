@@ -147,6 +147,11 @@ impl Emitter {
     pub(super) unsafe fn owning(emitter: raw::SoundEmitter) -> Emitter {
         Emitter(emitter)
     }
+
+    /// Its handle, for a play call of another vostok module (the reference stays this Emitter's).
+    pub(super) fn handle(&self) -> raw::SoundEmitter {
+        self.0
+    }
 }
 
 impl Drop for Emitter {

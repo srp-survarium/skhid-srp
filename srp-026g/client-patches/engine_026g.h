@@ -17,6 +17,7 @@ struct battery_clips;
 struct battery_state;
 struct bio;
 struct blackboard;
+struct booby_trap_core;
 struct bt_broadphase_proxy;
 struct bt_collision_object;
 struct bt_collision_shape;
@@ -65,7 +66,11 @@ struct gfx_movie;
 struct gfx_object;
 struct gfx_object_interface;
 struct gfx_value;
+struct grenade_core;
+struct grenade_set;
 struct hit_object;
+struct hit_part;
+struct hit_receiver;
 struct hunt_cook;
 struct hunt_rule;
 struct hw_resource;
@@ -105,6 +110,7 @@ struct object_particle_visual;
 struct panning_lut;
 struct particle_slot;
 struct particle_system;
+struct particle_system_instance;
 struct pinned_resource;
 struct player;
 struct player_input_handler;
@@ -979,6 +985,36 @@ extern unsigned int (__attribute__((stdcall)) *const engine_global_unlock)(void 
 
 /* 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly */
 void __attribute__((stdcall)) engine_set_texture(struct effect_compiler *compiler, const char *slot, const char *texture, unsigned int option, unsigned int request, unsigned int lower, float lower_float, unsigned int flag);
+
+/* 0x305210 survarium::booby_trap_core::switch_to_state: trap ECX, state ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_trap_switch_state(struct booby_trap_core *trap, unsigned int state);
+
+/* 0x304e20 survarium::booby_trap_core::insert_collision: trap ESI; pops 0 */
+void engine_trap_insert_collision(struct booby_trap_core *trap);
+
+/* 0x304f00 survarium::booby_trap_core::remove: trap ESI; pops 0 */
+void engine_trap_remove(struct booby_trap_core *trap);
+
+/* 0x25b940 survarium::game_world::play_sound: world ECX, slot ESP+4, position ESP+8; pops 8; thiscall, called directly */
+void __attribute__((thiscall)) engine_world_play_sound(struct game_world *world, const unsigned int *slot, const float *position);
+
+/* virtual survarium::grenade_core+0x1c (2 vtables of vtables.tsv: 0x248600, 0x303d50): grenade ECX; pops 0 */
+void engine_grenade_remove(struct grenade_core *grenade);
+
+/* virtual survarium::grenade_core+0x18 (2 vtables of vtables.tsv: 0x248520, 0x303c10): grenade ECX, transform ESP+4, velocity ESP+8; pops 8 */
+void engine_grenade_throw(struct grenade_core *grenade, const float *transform, const float *velocity);
+
+/* 0x1f8070 survarium::game_world::select_profile: world EDI, value ESP+4; pops 4 */
+void engine_select_profile(struct game_world *world, unsigned int value);
+
+/* 0x30a120 survarium::grenade_set_core::pull_pin: set ESP+4, now ESP+8; pops 8; AL; stdcall, called directly */
+unsigned char __attribute__((stdcall)) engine_pull_pin(struct grenade_set *set, unsigned int now);
+
+/* 0x2d9ae0 survarium::base_player::hit: receiver ECX, time ESP+4, attacker ESP+8, bodypart ESP+12, kind ESP+16, damage ESP+20, piercing ESP+24, initiator ESP+28, item ESP+32; pops 32; thiscall, called directly */
+void __attribute__((thiscall)) engine_player_hit(struct hit_receiver *receiver, unsigned int time, const struct bullet_owner *attacker, const struct hit_part *bodypart, unsigned int kind, float damage, float piercing, const void *initiator, struct item *item);
+
+/* 0xe0210 vostok::render::render_model_instance::destroy: instance ECX, count EAX; pops 0 */
+void engine_release_particle(struct particle_system_instance *instance, unsigned int *count);
 
 /* 0x390620 vostok::animation::fingers_to_weapon_corrector::set_weapon_model: corrector ESP+4, instance ESP+8, first_view ESP+12; pops 12; stdcall, called directly */
 void __attribute__((stdcall)) engine_fingers_set_weapon_model(struct fingers_corrector *corrector, unsigned int instance, unsigned int first_view);

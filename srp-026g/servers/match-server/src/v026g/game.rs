@@ -3705,6 +3705,7 @@ impl Game {
         let late_inputs = self.settings.late_inputs;
         let reach = self.late_relay_reach(index);
         let places = u8::try_from(self.players()).unwrap_or(u8::MAX);
+        let kits = self.formed.profiles.get(index).map(|profile| profile.kits.as_slice()).unwrap_or_default();
         let Some(peer) = self.peers[index].as_mut() else {
             return;
         };
@@ -3748,6 +3749,16 @@ impl Game {
         let refused = match srp_validate::messages::input(input.rotation, input.actions) {
             Err(reason) => Some(reason.to_string()),
             Ok(()) if !weapon_pickup::sane(input.actions, places) => Some("a pickup of no place of the match".into()),
+            // Client patch 180: a throw-back (Return to Sender) from a player none of whose kits
+            // has the skill; the client sends one only from a kit that has it
+            // (`technical_skills::throw_back::sane`, its twin).
+            Ok(()) if !technical_skills::throw_back::sane(
+                input.actions,
+                kits.iter().map(|kit| kit.modifiers[technical_skills::MODIFIER]),
+            ) =>
+            {
+                Some("a throw-back without Return to Sender in a kit".into())
+            }
             Ok(()) => None,
         };
         if let Some(why) = refused {
@@ -3935,7 +3946,12 @@ impl Game {
             }
         }
         peer.placed_profiles.push_back((time, relayed_time));
-        self.note_kit_choice(index, relayed_time);
+        // A kit choice only: client patch 180's Dead Man's Switch is a profile input of a value
+        // of its own, which changes no kit in any game.
+        use technical_skills::dead_mans_switch::ProfileInput;
+        if matches!(ProfileInput::parse(value), ProfileInput::Kit(_)) {
+            self.note_kit_choice(index, relayed_time);
+        }
         let what = Relayed::Profile {
             tick: relayed_tick,
             value,
