@@ -313,6 +313,15 @@ pub(super) fn fix_floors_in_air() -> Box<dyn RouteTopic> {
     )
 }
 
+/// [N1b] N1's search holds in the reckoning's own flight: begun, ticks held; and the ticks searched with only the kept controller
+/// airborne (`drive::in_flight_counts`).
+pub(super) fn in_flight_holds() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::drive::in_flight_counts::counts().to_vec(),
+        |d, line| line.ends.push(format!("in_flight_holds {} in_flight_held_ticks {} in_flight_kept_only {}", d[0], d[1], d[2])),
+    )
+}
+
 /// The ticks off the route by the walked-leg rule alone (`path::below_walk`).
 pub(super) fn below_walk() -> Box<dyn RouteTopic> {
     Delta::of(

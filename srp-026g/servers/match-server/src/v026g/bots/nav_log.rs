@@ -402,10 +402,13 @@ pub enum Kind {
     /// [fix-lip] The same near a take-off, where the guard left the keys to the link (a carried jump, a line-up, the route's own
     /// walk-off ...): a kind of its own, so the many exemption lines never hold back a brake's.
     TakeOffLeft,
+    /// [N1b] A search due while only the kept controller read the body in the air, the reckoning on the ground: searched, as
+    /// N1 did not before (`drive.rs`, [`kept_only_air_line`]). A kind of its own, so it never holds back a fall's line.
+    InAir,
 }
 
 /// How many kinds of line there are ([`Kind`]).
-const KINDS: usize = 19;
+const KINDS: usize = 20;
 
 /// [owner-5] At most this many lines of a kind per bot per match (the first ones; the rest are counted into the last): the
 /// owner-5 kinds fire on events that can repeat all match (a battery refused at every poll, a role offered and refused
@@ -596,6 +599,12 @@ pub fn clear_line(
 /// [N1] A search due while the reckoned body is in the air, held: `nav: search held in the air at (..) for the goal (..), at most S s`.
 pub fn in_flight_line(feet: Vec3, goal: Vec3, hold_ms: u32) -> String {
     format!("{PREFIX}search held in the air at {} for the goal {}, at most {:.1} s", at(feet), at(goal), hold_ms as f32 / 1000.0)
+}
+
+/// [N1b] A search due with only the kept controller reading the body in the air (no jump arc, no fall in the reckoning): not held:
+/// `nav: search not held: the kept controller reads the body in the air at (..), the reckoning on the ground; goal (..)`.
+pub fn kept_only_air_line(feet: Vec3, goal: Vec3) -> String {
+    format!("{PREFIX}search not held: the kept controller reads the body in the air at {}, the reckoning on the ground; goal {}", at(feet), at(goal))
 }
 
 /// [owner-5] A route search that found no way: `nav: no way from (..) to (..): <verdict>`.

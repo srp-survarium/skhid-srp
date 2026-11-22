@@ -132,6 +132,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         fix_floors(),
         life_start(),
         fix_floors_in_air(),
+        in_flight_holds(),
         rests(),
         rest_stops(),
         contacts(),
