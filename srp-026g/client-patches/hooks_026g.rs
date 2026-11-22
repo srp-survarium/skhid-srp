@@ -7105,6 +7105,21 @@ pub unsafe extern "C" fn hook_music_on_query_done(a0: Option<raw::QueriesResult>
     { crate::music::on_query_done(result, tag); 0 }
 }
 
+// ---- parallax_uv (patch 183) ----
+
+/// The entry `parallax_uv_on_parallax` (0x1dff85, effect_gstage_default_materials::compile (0x1DDD50, g_stage_default: gbuffer_pass and gbuffer_emissive_pass) in its parallax block (the configuration's [esp+1Ah] bit 40h, use_parallax, tested at 0x1DFF18), after constant_parallax_scale and texture_bump's lookup, before t_height_map's set_texture (0x3D98B0 at 0x1DFFA7): fld dword [esp+3Ch] / mov edx,[esp+2Ch] (no address under them, no branch into them; EAX the texture_bump node, kept). EBX the material's config tree, [EBP+8] the compiler. 0.44a5 sets parallax_uv_scrolling_factors and parallax_uv_scale_factors at the same place of its parallax block (0x4C4414..0x4C45A3)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_parallax_uv_on_parallax(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `parallax_uv_on_parallax` calls this, from the game's jump at 0x1dff85,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::parallax_uv::on_parallax(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- particle_room (patch 122) ----
 
 /// The entry `particle_room_on_first_person_made` (0x1f6884, game_world::game_world 0x1F67B0 after its first-person presenter's constructor 0x2971C0 at 0x1F686A (mov [ebp+4D38h],eax / mov [ebp+4D3Ch],ebx; the first site after it without a relocation under it, EAX no longer the presenter): EBP the game world, its first-person presenter at +1D98h (the EDI given at 0x1F6857), its particle list inline (six entries); game_world is the static at 0xA96860, so the address is the same at every construction) calls this with the saved machine.

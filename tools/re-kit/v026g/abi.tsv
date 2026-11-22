@@ -2304,6 +2304,7 @@ va	name	source	ret_cleanup	result
 0x001c9e40	vostok::render::light::set_color_and_intensity	manual	4	void
 0x0034e020	vostok::render::environment_sun_direction	manual	0	EAX = the output pointer (ESI)
 0x001a8900	vostok::render::effect_compiler::set_constant_float4	manual	8	
+0x001d9740	vostok::render::effect_compiler::set_constant_float2	manual	8	EAX: the compiler (0x1D97EF)
 0x003e2ea0	vostok::render::state_descriptor::set_alpha_blend	manual	12	
 0x001acb30	vostok::render::reflection_surface_rejected	manual	0	AL = 1 when the surface is left out of local reflections, 0 when it takes part
 0x00162550	vostok::render::rt_index_to_name	manual	0	EAX = the target's constant name string ("$user$..."), jump table 0x16272C

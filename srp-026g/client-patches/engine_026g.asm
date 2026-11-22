@@ -289,6 +289,7 @@ global engine_fingers_set_weapon_model
 global engine_pin_resource
 global engine_unpin_resource
 global engine_set_constant_float4
+global engine_set_constant_float2
 global engine_shared_string_create
 global engine_shared_string_destroy
 global engine_shared_string_assign
@@ -432,6 +433,7 @@ engine_pull_pin equ 0x30a120   ; 0x30a120 survarium::grenade_set_core::pull_pin:
 engine_player_hit equ 0x2d9ae0   ; 0x2d9ae0 survarium::base_player::hit: receiver ECX, time ESP+4, attacker ESP+8, bodypart ESP+12, kind ESP+16, damage ESP+20, piercing ESP+24, initiator ESP+28, item ESP+32; pops 32; thiscall, called directly
 engine_fingers_set_weapon_model equ 0x390620   ; 0x390620 vostok::animation::fingers_to_weapon_corrector::set_weapon_model: corrector ESP+4, instance ESP+8, first_view ESP+12; pops 12; stdcall, called directly
 engine_set_constant_float4 equ 0x1a8900   ; 0x1a8900 vostok::render::effect_compiler::set_constant_float4: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
+engine_set_constant_float2 equ 0x1d9740   ; 0x1d9740 vostok::render::effect_compiler::set_constant_float2: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
 engine_shared_string_create equ 0xe0b50   ; 0xe0b50 vostok::shared_string::create: text ESP+4; pops 4; EAX; stdcall, called directly
 engine_shared_string_destroy equ 0xe0ae0   ; 0xe0ae0 vostok::shared_string::destroy: string ESP+4; pops 4; stdcall, called directly
 engine_play_particle_system equ 0x22660   ; 0x22660 vostok::render::scene_renderer::play_particle_system: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20, first_attachment ESP+24, second_attachment ESP+28; pops 28; stdcall, called directly

@@ -2482,6 +2482,45 @@ and then; London (v0.32) day_8 at -4.96 14.06 -19.69: the overhead concrete's un
   (format) from WxH/mips: its pool N slots, N occupied, N reserved; takes WxH/mips` (or `stays`).
 - Textures only: nothing a match computes changes.
 
+### 3.100 The g-buffer's parallax constants are 0.44a5's (written 2026-11-22, README patch 183, the next release's revision) — PROVEN in the code of 0.26g, 0.44a5 and 0.32a4
+
+London kept-switch-set packs crash at load when a kept material selects a donor g-buffer program the
+porter could not ship. Of 0.44a5's g-buffer programs players lack, 118 read `parallax_uv_scale_factors`
+and/or `parallax_uv_scrolling_factors`, which no 0.26g program reads and 0.26g never sets: for London,
+the shading-quality-3 programs of `flora_2/saksaul_tile_blend_vc` and `flora_2/l9_anom_tile_top_vc`
+(GLOBAL_SHADING_QUALITY 3 is every r_shading_quality but 0: renderer-026g.md).
+
+- **What 0.44a5 does** (PROVEN; re-kit `v044a5` 0x4C1F20). Its g-buffer material compile
+  (effect_gstage_default_materials::compile, the one reference of `gbuffer_pass` and of `t_height_map`)
+  has a parallax block (configuration [esp+3Ah] bit 80h, 0x4C4371): constant_parallax_scale, the
+  t_height_map texture (0x4C440F), then `parallax_uv_scrolling_factors` = (parallax_u_scrolling_speed,
+  parallax_v_scrolling_speed), 0 for each missing (0x4C4414..0x4C44D9), and `parallax_uv_scale_factors`
+  = (parallax_u_scale, parallax_v_scale), 1.0 for each missing (0x4C44DE..0x4C45A3), each value a float
+  or an integer made a float, by set_constant<float2> (0x4BEC60). 0.32a4's compile has the same block
+  with the same defaults (0x80BB87..0x80BD16).
+- **What 0.26g has** (PROVEN). effect_gstage_default_materials::compile (0x1DDD50) is the only reference
+  of `gbuffer_pass` (0x1DE6DE) and `t_height_map` (0x1DFFA2): no sibling compile sets parallax. Its
+  parallax block (configuration [esp+1Ah] bit 40h, from use_parallax at 0x1DDEA9..0x1DDF01, tested at
+  0x1DFF18) sets constant_parallax_scale when the material has it (0x1DFF23..0x1DFF6A) and t_height_map
+  (0x1DFFA7), and nothing else; the gbuffer_emissive_pass technique begins after it (0x1E0C68), as in
+  0.44a5 (0x4C5450). No string of 0.26g names the two constants or the four fields.
+- **The patch** (Rust `parallax_uv`, one lohook of `sites_026g.tsv`; `vostok::effect_compile::GstageParallax`):
+  `gstage.parallax` 0x1DFF85 (`D9 44 24 3C 8B 54 24 2C`, fld dword [esp+3Ch] / mov edx,[esp+2Ch], replayed;
+  no address under them, no branch into them, reached only inside the parallax block after
+  texture_bump's lookup): the material (EBX, the compile's config tree) read once into its two pairs,
+  sent by the game's set_constant<float2> (0x1D9740, a new engine_026g.tsv row; ECX the value, the
+  compiler [EBP+8], the name; `ret 8`). It binds only while building (+61F4Ch 0) and only a name not
+  bound yet, as for patch 169's constant_tile_uv; the compile runs twice (caching, building) with the
+  same inputs. As in 0.44a5, every material with parallax gets them, the defaults when it lacks a field.
+- **What changes:** the g-buffer pass of a parallax material binds two more constants. No program
+  players have reads either name (the porter's family reads of the live db), so their draws are as
+  before. Rendering only: nothing a match computes or a world holds changes (no `simulation_changes.tsv`
+  row, no world format change).
+- **The content** (resource-porter): a ported material keeps the four fields
+  (`ports/near-build/client-fields-026g.tsv`), and the London manifests' `shader_keys.filled` tells the
+  program supplier that patch 183 fills both constants (8 bytes each) for `gbuffer_pass.ps`, so the
+  donor's parallax programs ship.
+
 ## 4. Mode 3 batteries: not needed in 0.26g
 
 - 0.26g splits the rule: `match_time_vi_spawn_rule` (vtable 0xA06C04) wraps `match_time_vi_spawn_rule_core` (vtable 0xA15CAC). The battery tick is no longer a vtable slot: the core's ctor 0x3147A0 stores a delegate `{this, 0x3148A0}` at +0x1C4 / +0x1C8 (0x3147F1). [V]
