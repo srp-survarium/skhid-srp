@@ -12,7 +12,8 @@ usage: python3 -I make.py --base <folder> [--write <content-edit folder>] [--pac
 --pack   writes the pack of Artifact Hunt's new configs (a new folder).
 
 A team map is a level and weather that maps_dict gives a config of mode 2 to 5 whose project the data
-has (Free for All's maps alone, the STALKER maps and Training Camp, are not). For each:
+has, but a STALKER port's (a v010b_ project: Free for All's maps alone, and Training Camp, whose Team
+Deathmatch and Freeze Tag are training-camp-teams-1's, on its Free for All points). For each:
 
 - Freeze Tag (mode 12), when it has none: a copy of the map's Team Deathmatch config, as
   freeze-tag-1.json makes Rudnya's (its project and team spawns, mode 12, the mode's icon and names,
@@ -64,6 +65,8 @@ AH_TEMPLATE = 'artefact_hunt/level_01_day_ah.options'
 # A container's props: the battery project's own entries within this of its model's place (m).
 PROP_REACH = 1.2
 MODES_DIR = 'gameplay/game_modes/'
+# The STALKER ports' projects: no team map of these lists (Training Camp's are training-camp-teams-1's).
+STALKER = 'v010b_'
 
 
 def load(base, path):
@@ -76,7 +79,8 @@ def project_file(project):
 
 def team_maps(base):
     """{(level, weather): {mode: (id, cfg, config)}} of the maps_dict configs whose project the data
-    has; mode is mode.mode, Blackout's variant left out (its own copy of a battery config)."""
+    has, the STALKER ports' left out; mode is mode.mode, Blackout's variant left out (its own copy of
+    a battery config)."""
     maps = {}
     dictionary = load(base, 'gameplay/db_static_dictionaries')['maps_dict']
     for entry in dictionary:
@@ -85,7 +89,8 @@ def team_maps(base):
             continue
         mode = bcw.loads(path.read_bytes())['mode']
         making = mode.get('match_making_params', {})
-        if 'srp_variant' in mode or not (base / project_file(making.get('map_name', ''))).exists():
+        project = making.get('map_name', '')
+        if 'srp_variant' in mode or project.startswith(STALKER) or not (base / project_file(project)).exists():
             continue
         key = (making['map_id'], making['map_weather_id'])
         maps.setdefault(key, {})[mode['mode']] = (entry['id'], entry['cfg_mode_name'], mode)
