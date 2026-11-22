@@ -587,6 +587,19 @@ pub fn route_line(from: Option<Vec3>, goal: Vec3, verdict: &str) -> String {
     format!("{PREFIX}no way from {from} to {}: {verdict}", at(goal))
 }
 
+/// [T2] A route jump given up after its tries (`Stuck::failed_jump`): `nav: jump failed: from (..) to (..|no landing), feet (..),
+/// its landing shut for S s[; the goal on its landing]`. One line a link a shut (`drive.rs`).
+pub fn failed_jump_line(take_off: Vec3, landing: Option<Vec3>, feet: Vec3, shut_ms: u32, goal_on_landing: bool) -> String {
+    format!(
+        "{PREFIX}jump failed: from {} to {}, feet {}, its landing shut for {:.0} s{}",
+        at(take_off),
+        landing.map_or("no landing".to_string(), at),
+        at(feet),
+        shut_ms as f32 / 1000.0,
+        if goal_on_landing { "; the goal on its landing" } else { "" }
+    )
+}
+
 /// [C6] A zone spawner searched from a look spot on the margin's band (a floor no zone lists a standing body on, that the
 /// margin alone marks): `nav: zone spawner <i> at (..) looked at from the band at (..)`.
 pub fn spawner_band_line(index: usize, item: Vec3, spot: Vec3) -> String {
