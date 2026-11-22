@@ -872,11 +872,11 @@ re-simulation undoes: Research has the same exposure.
   it (the 50 ms grid): the hud is at most a step early. Display only: nothing a match computes
   changes. The movie counts down between updates and goes on to the next wave at 0 (the waves
   repeat until an update says none): no timer of its own.
-  - **What is shown:** a smaller number of seconds right after the match time, on its baseline,
-    in the row's font and white with its dark edge; the bars move apart by its widest ("00") so
-    that the time and it stay centred between them, and close again while no wave comes. Its look
-    is one of ten drawn for the owner's pick (`ArtefactHuntWave.LOOK`; the others go before the
-    merge).
+  - **What is shown** (decided by the owner, 2026-11-22: "exactly like in dirty bomb", "There it is
+    a smaller timer after the main one", "yes, let's go 1", out of ten looks drawn): a smaller
+    number of seconds right after the match time, on its baseline, in the row's font, white with
+    its dark edge (`ArtefactHuntWave`, owned by the row); the bars move apart by its widest ("00")
+    so that the time and it stay centred between them, and close again while no wave comes.
   - **Every team's wave, not a player's.** Both teams share one wave clock (from the match's
     start), so one number serves both. A dead player's own time stays the game's respawn line under
     the row (`root.set_respawn_time` from the respawn rule's own time: the 7 s least time and his

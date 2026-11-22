@@ -1,6 +1,5 @@
 package survarium.modes
 {
-   import flash.display.DisplayObject;
    import flash.display.Graphics;
    import flash.display.Shape;
    import flash.geom.Rectangle;
@@ -51,9 +50,6 @@ package survarium.modes
       // The match time's label now (the indicator's frames may make it anew).
       protected var _clock:Function;
 
-      // How far the artefact and its texts are moved down for the wave under the match time.
-      protected var _push:Number = 0;
-
       // `captionFont`, `bannerFont`: labels of the movie whose embedded fonts the texts take
       // (Research's timers' and the pre-match countdown's); `clock`: the match time's label.
       public function ArtefactHuntRow(captionFont:TextField, bannerFont:TextField, clock:Function)
@@ -83,7 +79,6 @@ package survarium.modes
       public function clear() : void
       {
          this._state = null;
-         this.wave.respawning = false;
          visible = false;
       }
 
@@ -96,10 +91,8 @@ package survarium.modes
             return;
          }
          this.wave.draw(s,now,this.clockBox());
-         this._push = Math.max(0,this.clockBottom() + this.wave.under + GAP - (-(RADIUS + RING) * OWN_CARRY));
          this.drawPip(s,now);
-         this._pip.y = this._push;
-         var y:Number = this._push + (RADIUS + RING) * this._pip.scaleY + GAP;
+         var y:Number = (RADIUS + RING) * this._pip.scaleY + GAP;
          y = this.line(this._sudden,s.sudden != ArtefactHuntState.SUDDEN_OFF ?
             LocalizationData.getName("st_srp_hud_artefact_hunt_sudden_death") : "",y);
          y = this.line(this._caption,this.caption(s,now),y);
@@ -124,12 +117,6 @@ package survarium.modes
          var align:String = field.getTextFormat().align;
          var x:Number = align == "left" ? box.x : (align == "right" ? box.right - wide : box.x + (box.width - wide) / 2);
          return new Rectangle(x,box.y,wide,(2 + field.getLineMetrics(0).ascent) * k);
-      }
-
-      protected function clockBottom() : Number
-      {
-         var box:Rectangle = this.clockBox();
-         return box == null ? -TOP : box.bottom;
       }
 
       protected function drawPip(s:ArtefactHuntState, now:int) : void
@@ -212,7 +199,7 @@ package survarium.modes
 
       override public function get contentBottom() : Number
       {
-         var bottom:Number = this._push + (RADIUS + RING) * this._pip.scaleY;
+         var bottom:Number = (RADIUS + RING) * this._pip.scaleY;
          for each(var field:TextField in [this._sudden,this._caption,this._banner])
          {
             if(field.visible)

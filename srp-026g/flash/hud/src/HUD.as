@@ -2292,7 +2292,7 @@ package
             return;
          }
          this.drawHuntBars();
-         this.spreadHuntBars(state.waveComing ? this.huntRow.wave.room : null);
+         this.spreadHuntBars(state.waveComing ? this.huntRow.wave.room : 0);
          this.huntRow.draw(state,this.player_list.players.nameOf(state.carrier),getTimer());
          this.roundFade.update(state,getTimer());
          this.minimap.setArtefactHunt(state);
@@ -2309,7 +2309,7 @@ package
             return;
          }
          this._hunt = null;
-         this.spreadHuntBars(null);
+         this.spreadHuntBars(0);
          this.huntRow.clear();
          this.roundFade.update(null,0);
          this.minimap.setArtefactHunt(null);
@@ -2349,10 +2349,10 @@ package
       // The indicator's parts as the timeline placed them, before spreadHuntBars moved them.
       private var _huntBarsAt:Array = null;
 
-      // Room beside the match time for the wave ({before, after} in the row's units, null none):
-      // each team's bar and its texts move apart, the time between them shifts so that it and the
-      // wave stay centred.
-      private function spreadHuntBars(room:Object) : void
+      // Room after the match time for the wave (in the row's units, 0 none): each team's bar and its
+      // texts move apart by half of it, the time to the left by half, so that it and the wave stay
+      // centred between them.
+      private function spreadHuntBars(room:Number) : void
       {
          var bar:SrvMatchProgress = this.progress_indicator;
          if(bar == null || bar.match_time_2_tdm == null || bar.team_1_score == null)
@@ -2363,7 +2363,7 @@ package
             [bar.team_2_score,1],[bar.team2Progress,1],[bar.team2LastPlayers,1],[bar.match_time_2_tdm,0]];
          if(this._huntBarsAt == null)
          {
-            if(room == null)
+            if(room == 0)
             {
                return;
             }
@@ -2375,18 +2375,17 @@ package
          }
          // the row's units in the indicator's
          var k:Number = this.huntRow.transform.concatenatedMatrix.a / bar.transform.concatenatedMatrix.a;
-         var before:Number = room == null ? 0 : room.before * k;
-         var after:Number = room == null ? 0 : room.after * k;
+         var half:Number = room * k / 2;
          for(var i:int = 0; i < parts.length; i++)
          {
             var part:* = parts[i][0];
             if(part != null)
             {
-               var side:int = parts[i][1];
-               part.x = this._huntBarsAt[i] + (side == 0 ? (before - after) / 2 : side * (before + after) / 2);
+               // the time to the left, each bar outwards
+               part.x = this._huntBarsAt[i] + (parts[i][1] == 0 ? -half : parts[i][1] * half);
             }
          }
-         if(room == null)
+         if(room == 0)
          {
             this._huntBarsAt = null;
          }
@@ -2491,7 +2490,6 @@ package
       
       public function set_respawn_time(time:String) : void
       {
-         this.huntRow.wave.respawning = time != null && time.length > 0;
          this.deathEyes.countdown(time);
          this.progress_indicator.respawn_time.text = time;
          this.placeResearchCountdowns();

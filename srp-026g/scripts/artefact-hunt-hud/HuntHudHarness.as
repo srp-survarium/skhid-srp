@@ -358,7 +358,7 @@ package
          var clock:Rectangle = p.match_time_2_tdm.textField.getBounds(stage);
          clock.inflate(-(clock.width - p.match_time_2_tdm.textField.textWidth * clock.width / p.match_time_2_tdm.textField.width) / 2 + 2,0);
          // the glyphs, without the text field's 2 px gutters (the hud's scale)
-         var wave:Rectangle = hud.huntRow.wave.shownBounds(stage);
+         var wave:Rectangle = hud.huntRow.wave.getBounds(stage);
          wave.inflate(-2 * hud.scaleX,0);
          var right:Rectangle = p.team_2_score.getBounds(stage);
          var left:Rectangle = p.team_1_score.getBounds(stage);
