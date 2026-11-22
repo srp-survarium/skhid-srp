@@ -32,6 +32,11 @@ With the lamp intact, the lamp's own light still tints the corridor; only the ba
 Four more London probes hold a fluorescent lamp's baked light (`hall_2_floor(11)`, `gerkin(5)`,
 `hall_2_floor(4)`, `hall(2)`); they are untouched until someone reports them.
 
+The ported Londons (`london-ports-probes-1.json`) came back with it (2026-11-22, v0.32 rain_ah,
+screenshot 06-02-41): 0.32a4 and 0.44a5 ship the same bake under the same names, and their lamp
+(`lamp_sparks(4)`, the old `fluor_lamp(9)`) is breakable too. The same edit, each project's own
+`gerkin(3)` cubemap, in every project of `v032a_level_09` and `v044a_level_09`.
+
 ## Vector Laboratory: the bright band (`vector-probe-1.json`)
 
 Screenshot 20-22-55, the room at (-18.7, 17.2, 4.0) with its fluorescent lamp shot out: a bright
