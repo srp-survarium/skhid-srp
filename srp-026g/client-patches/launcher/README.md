@@ -34,7 +34,7 @@ your own copy, and the patched exe is made from it.
 | `patch_launcher_026g.py` | Builds the patched launcher from the original. Python 3, nothing else |
 | `launcher_values_026g.asm`, `.bin` | The new code (304 bytes and three text slots): the values the launcher used to read from the installer's registry key, worked out from where the launcher is; and Enter pressing PLAY. Assembling the source again gives the same bytes |
 | `launcher_pages.py` | The ten small pages the launcher shows from its own folder while the server's page loads and when it cannot be loaded |
-| `check_*_026g.py` | Run the patched code under Unicorn: the registry reads (patch 4), the language (14), the install status (13), the "Allow torrent" box (15), the "Relay" row (16) |
+| `check_*_026g.py` | Run the patched code under Unicorn: the registry reads (patch 4), the language (14), the install status (13), the "Allow torrent" box (15), the "Relay" row (16), the file count of a download (17) |
 | `selftest_launcher_026g.py` | Builds it in memory and checks it: every changed byte is one named below, the PE is well formed, the hook and its way back, the addresses, the relocations, no old address left, the `.asm` gives the `.bin` |
 | `../make_client_026g.py` | Puts all of it into the players' ZIP (the default; `--no-launcher` leaves it out) |
 | `../../../client/updater/` | The updater: Rust source, its tests |
@@ -49,6 +49,7 @@ python check_language_026g.py <game>/binaries/x86/survarium_launcher.exe   # the
 python check_registry_026g.py <game>/binaries/x86/survarium_launcher.exe   # no registry call where the key was read, under Unicorn
 python check_torrent_box_026g.py <game>/binaries/x86/survarium_launcher.exe # the "Allow torrent" box (patch 15), under Unicorn
 python check_relay_box_026g.py <game>/binaries/x86/survarium_launcher.exe   # the "Relay" row (patch 16), under Unicorn
+python check_file_count_026g.py <game>/binaries/x86/survarium_launcher.exe  # "(5/69)" of a download (patch 17), under Unicorn
 ```
 
 After a change of the game's languages (`../localization_026g.py --write`
@@ -91,8 +92,10 @@ installs whenever the ZIP's checksum changes.
    again by itself, and the new updater goes on from here.
 3. Then the game's patches: the bar shows "checking" while a patch file
    that changed since it was last checked is hashed, and a patch the
-   server lists that is missing or damaged is downloaded ("Extracting file
-   resources.db.patch_<n>" once it is in place). The first start after new
+   server lists that is missing or damaged is downloaded, the line saying
+   which of how many after what is left of it, "120 MB left (5/69)": 64
+   more to go (patch 17) ("Extracting file resources.db.patch_<n>" once it
+   is in place). The first start after new
    content downloads it; other starts take a second.
 4. "The latest version of the game is installed" and PLAY: only when the
    game's files are the server's ZIP, its exe is a revision the server lets
@@ -108,12 +111,12 @@ installs whenever the ZIP's checksum changes.
    launcher closes. Since game patch 79 (`../../docs/notes/language-option.md`)
    it passes no `-localization=`: the game's language is the one chosen in
    its Settings (user.cfg).
-7. The language button (EN, UA, RU, DE, PL, SR, CS, HU, FI, BE) opens a
+7. The language button (EN, UA, RU, DE, PL, SR, CS, HU, FI, BE, HR, PT) opens a
    menu of every language of the game, each by its own name, the current
    one checked. A pick is the game's language: it is written to the game's
    user.cfg at once, as the game's Settings write it, and the launcher's
    texts and page change with it (English for a language the launcher has
-   none in: SR, CS, HU, FI, BE). At its start the launcher shows user.cfg's
+   none in: SR, CS, HU, FI, BE, HR, PT). At its start the launcher shows user.cfg's
    language, else the one the game will start in (patch 14).
 
 "Watch replay" in the lobby's History (game patch revision 14) does not go
@@ -850,6 +853,42 @@ shows; the launcher only shows it and passes the pick on.
   launcher window under Wine (2026-11-20, a headless display, the test
   folder of the PR); the gear and its menu not yet.
 
+### 17. "(5/69)": which file of how many is being downloaded
+
+The owner (2026-11-22): a download of many patches says which file of which
+it is at, "like (5/69)", so that 64 more are understood to follow. The
+updater knows (`client/updater`, its patch step's files to fetch) and says
+it; the launcher adds it to its downloading line.
+
+- **What it looks like:** the downloading line's middle text, "120 MB
+  left", is "120 MB left (5/69)" while the updater downloads the 5th of 69
+  patches. Numbers only: the same in every language. The Skhid ZIP and the
+  original game are one file each and have no count; a patch the torrent
+  gave is counted and not shown (nothing is downloaded for it).
+- **The message** `0B <file> <of>` of the updater (two 16-bit numbers; `0B
+  00 00 00 00`: no count, sent when the downloads end, however they end).
+  The original launcher's dispatch ignored 0B as it did 0A: its table entry
+  (0x160C6, a relocated dword) is now `count_message`, which keeps the two
+  numbers, or none when the file is 0 or past the last. An older launcher
+  ignores the message.
+- **The line:** in the updater's state 9 `refresh_status` loads "%s left"
+  (string 0x8D, its `load_string` call at 0x16ADF, a buffer of 128
+  characters) and formats what is left into it. That call is `count_text`:
+  `load_string`'s own, then " (5/69)" after the text while a count is kept
+  and 16 characters are free. The line is painted anew with every progress
+  message (four a second), so the count needs no repaint of its own. The
+  text is only there while the total is known (the original's rule for
+  "... left").
+- **Its state:** 4 bytes at 0x4A810, after the relay row's; `.data`'s
+  VirtualSize is 0x6814 now.
+- Checked: `check_file_count_026g.py` runs message 0B from the dispatch to
+  the handlers' end (kept, none for 0 of 0, file 0 and a file past the last;
+  the registers and the stack as they were) and the line's site (the count
+  after `load_string`'s text, 1 of 1 to 65535 of 65535; none without a
+  count or without room; the registers as they were), under Unicorn at two
+  bases. The other checks still pass. Not yet seen in a real launcher
+  window.
+
 ## The pipe, in short
 
 The launcher makes `\\.\pipe\vostok_updater_pipe-Survarium`, then starts the
@@ -870,6 +909,7 @@ and that many bytes, the first being its type.
 | `05 <text>` | a message box with the text (at most 255 ASCII characters) |
 | `02 0F` and the pipe closed | the launcher closes |
 | `0A <view>` | the "Relay" row (patch 16): hidden until then |
+| `0B <file> <of>` (two 16-bit numbers) | "(5/69)" after "... left" while downloading (patch 17); `0B 00 00 00 00`: no count |
 | `13 <seconds>` | after `02 16`: "The server is restarting. Next try in <seconds> s." (patch 16); `13 00`: "Server maintenance..." again |
 
 The launcher says `1B` (stop) when its window is closed, `22`, `23` or `24`

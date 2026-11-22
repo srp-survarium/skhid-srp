@@ -215,15 +215,15 @@ package survarium.controls
       private static const SEARCH_KIND_LEAST:int = 3;
       
       private static const SEARCH_KINDS:Array = [
-         {words:["gear","equipment","спорядження","снаряжение","экипировка", "oprema","výbava","vybaveni","felszerelés","felszereles","varusteet","рыштунак","экіпіроўка"],group:SuperCategory.EQUIPMENT},
-         {words:["items","предмети","предметы","predmeti","předměty","predmety","tárgyak","targyak","esineet","прадметы"],group:SuperCategory.ITEMS},
-         {words:["helmet","helmets","шолом","шлем","šlem","helma","sisak","kypärä","kypara"],category:ItemCategory.HELMETS},
-         {words:["mask","masks","маска","maska","maszk","naamari"],category:ItemCategory.MASKS},
-         {words:["body","vest","vests","бронежилет","pancir","vesta","pancíř","liivi","бронекамізэлька"],category:ItemCategory.BODY_ARMOR},
+         {words:["gear","equipment","спорядження","снаряжение","экипировка", "oprema","výbava","vybaveni","felszerelés","felszereles","varusteet","рыштунак","экіпіроўка","equipamento"],group:SuperCategory.EQUIPMENT},
+         {words:["items","предмети","предметы","predmeti","předměty","predmety","tárgyak","targyak","esineet","прадметы","itens"],group:SuperCategory.ITEMS},
+         {words:["helmet","helmets","шолом","шлем","šlem","helma","sisak","kypärä","kypara","capacete"],category:ItemCategory.HELMETS},
+         {words:["mask","masks","маска","maska","maszk","naamari","máscara","mascara"],category:ItemCategory.MASKS},
+         {words:["body","vest","vests","бронежилет","pancir","vesta","pancíř","liivi","бронекамізэлька","colete"],category:ItemCategory.BODY_ARMOR},
          {words:["rig","rigs","розвантаження","разгрузка","prsluk","nosný systém","taktikai mellény","taisteluliivi"],category:ItemCategory.RIGS},
-         {words:["gloves","рукавички","перчатки","rukavice","kesztyű","kesztyu","käsineet","kasineet","пальчаткі"],category:ItemCategory.GLOVES},
-         {words:["pants","trousers","штани","штаны","pantalone","kalhoty","nadrág","nadrag","housut"],category:ItemCategory.PANTS},
-         {words:["boots","черевики","ботинки","čizme","boty","bakancs","saappaat","боты"],category:ItemCategory.BOOTS}];
+         {words:["gloves","рукавички","перчатки","rukavice","kesztyű","kesztyu","käsineet","kasineet","пальчаткі","luvas"],category:ItemCategory.GLOVES},
+         {words:["pants","trousers","штани","штаны","pantalone","kalhoty","nadrág","nadrag","housut","calças","calcas"],category:ItemCategory.PANTS},
+         {words:["boots","черевики","ботинки","čizme","boty","bakancs","saappaat","боты","botas"],category:ItemCategory.BOOTS}];
       
       // SEARCH_KINDS' words as the search compares them (made once)
       private static var _kindForms:Array;

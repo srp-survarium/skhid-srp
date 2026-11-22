@@ -1,0 +1,227 @@
+{
+  "_about": "Free for All's own mode icon on the loading screen (the owner's pick, 2026-11-22: a bone skull with a bullet hole; until then Team Deathmatch's skull, ui.icon 2, which ffa-1 copies): ui.icon 5, the lobby movie's SrvGameModeIcons frame 6, in every Free for All config. A free-for-all's twists show their own frames for it (docs/notes/ffa.md, \"Mode icons\"). After every list that makes a Free for All config.",
+  "set": [
+    {
+      "file": "gameplay/game_modes/ffa/level_01_day_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/level_01_evn_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/level_01_rain_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/level_02_day_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/level_02_evn_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/level_02_rain_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/level_03_day_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/level_03_evn_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/level_03_rain_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/level_04_day_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/level_04_evn_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/level_04_rain_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/level_05_day_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/level_05_evn_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/level_05_rain_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/level_06_day_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/level_06_evn_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/level_06_rain_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/level_07_day_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/level_07_evn_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/level_07_rain_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/level_08_day_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/level_08_evn_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/level_08_prerain_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/level_09_day_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/v010b_cs_mp_bath_day_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/v010b_cs_mp_firestation_day_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/v010b_cs_mp_military_1_day_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/v010b_cs_training_camp_day_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/v010b_soc_ug_station_day_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/v011e_level_03_day_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/v011e_level_04_day_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/v021d_level_02_day_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/v021d_level_03_day_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/v021d_level_05_day_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/v021d_level_06_day_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    },
+    {
+      "file": "gameplay/game_modes/ffa/v069d_level_01_day_8.options",
+      "path": "mode/ui/icon",
+      "from": 2,
+      "to": 5
+    }
+  ]
+}

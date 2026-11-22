@@ -2877,6 +2877,9 @@ st_srp_mode_freeze_tag	Замарозка
 st_srp_mode_protective_device	Ахоўная прылада
 st_srp_mode_racket	FFA: Двіж
 st_srp_mode_research	Даследаванне
+st_srp_mode_roulette_high	FFA: Рулетка 11-15
+st_srp_mode_roulette_low	FFA: Рулетка 0-5
+st_srp_mode_roulette_mid	FFA: Рулетка 6-10
 st_srp_mode_team_deathmatch	Камандны бой
 st_srp_mouse_lock_option	Зафіксаваць вертыкальную адчувальнасць
 st_srp_mouse_vertical_option	Вертыкальная адчувальнасць

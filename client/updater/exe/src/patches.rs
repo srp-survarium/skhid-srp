@@ -42,10 +42,10 @@ use alloc::vec::Vec;
 use updater_logic::checked::{Identity, Record, parse_record, write_record};
 use updater_logic::file_error::Stop;
 use updater_logic::patches::{
-    Address, FILE_PREFIX, List, ListError, Local, MAX_LIST, Patch, Problem, check, overlay_patch,
-    parse_list, todo, write_list,
+    Address, FILE_PREFIX, Fetch, List, ListError, Local, MAX_LIST, Patch, Problem, check,
+    overlay_patch, parse_list, todo, write_list,
 };
-use updater_logic::pipe::{ToLauncher, state, step};
+use updater_logic::pipe::{FileOf, ToLauncher, state, step};
 use updater_logic::problem::{self, Fault};
 use updater_logic::sha256::to_hex;
 use updater_logic::url::Url;
@@ -835,6 +835,29 @@ impl Run<'_> {
         Ok(kept.is_some())
     }
 
+    /// Downloads every patch of `files`, the launcher's line saying which
+    /// of how many: each one's number, and whether it is known in place by
+    /// the file ID.
+    fn fetch_all(&mut self, files: &[Fetch]) -> Result<Vec<(u8, bool)>, Fail> {
+        let mut downloaded = Vec::new();
+        for (index, fetch) in files.iter().enumerate() {
+            if !self.session.pump() {
+                return Err(Fail::Stopped);
+            }
+            if fetch.damaged {
+                log!(
+                    "patches: {} does not have the list's checksum: downloaded again",
+                    fetch.patch.file_name()
+                );
+                self.delete(&fetch.patch.file_name())?;
+            }
+            self.session.send(ToLauncher::FileOf(FileOf::at(index, files.len())));
+            let known = self.fetch(&fetch.patch)?;
+            downloaded.push((fetch.patch.number, known));
+        }
+        Ok(downloaded)
+    }
+
     /// What the torrent has of `fetch`, into parts checked against the
     /// list's SHA-256 for [`Run::fetch`] to put in place; the rest comes
     /// from their addresses.
@@ -979,22 +1002,9 @@ impl Run<'_> {
             let wanted: Vec<&Patch> = todo.fetch.iter().map(|fetch| &fetch.patch).collect();
             self.by_torrent(&wanted)?;
         }
-        // Downloaded: whether known in place by the file ID.
-        let mut downloaded: Vec<(u8, bool)> = Vec::new();
-        for fetch in &todo.fetch {
-            if !self.session.pump() {
-                return Err(Fail::Stopped);
-            }
-            if fetch.damaged {
-                log!(
-                    "patches: {} does not have the list's checksum: downloaded again",
-                    fetch.patch.file_name()
-                );
-                self.delete(&fetch.patch.file_name())?;
-            }
-            let known = self.fetch(&fetch.patch)?;
-            downloaded.push((fetch.patch.number, known));
-        }
+        let fetched = self.fetch_all(&todo.fetch);
+        self.session.send(ToLauncher::FileOf(None));
+        let downloaded = fetched?;
         // The folder against the list, as `ready` checks it: no other patch
         // file, the files downloaded as they were checked (by their file ID,
         // else hashed in their place), the others as they were looked at
