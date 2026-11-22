@@ -28,26 +28,21 @@ pub const fn shares(racket: Gun) -> [(Option<Armed>, u32); 4] {
     ]
 }
 
-/// The sum of the [`shares`], a room's of any gun: what a draw's roll is below.
-pub const SHARE_TOTAL: u32 = {
-    let shares = shares(Gun::Ak12);
-    let mut total = 0;
-    let mut at = 0;
-    while at < shares.len() {
-        total += shares[at].1;
-        at += 1;
-    }
-    total
-};
-
-/// What a free-for-all card of a server's room plays, for a roll below [`SHARE_TOTAL`]: the plain
-/// mode and each twist as it arms, for its share, Racket with `racket`. A private room's never
-/// draws: its free-for-all is plain (`session::v026g::rooms`).
-pub fn draw(roll: u32, racket: Gun) -> Option<Armed> {
-    let mut roll = roll % SHARE_TOTAL;
-    for (play, share) in shares(racket) {
+/// What a free-for-all card of a server's room plays on `map`, drawn after it: the plain mode and
+/// each twist as it arms, for its [`shares`], Racket with `racket`; on a map played with a twist
+/// only ([`MapMode::twists_only`]) the twists alone, by their shares (the plain mode's taken out,
+/// so the map comes as often as any, always twisted). `below(n)` is a roll below `n`. A private
+/// room's never draws: its free-for-all is plain, and its pool has no such map
+/// (`session::v026g::rooms`).
+pub fn draw(map: MatchMap, racket: Gun, below: impl FnOnce(u32) -> u32) -> Played {
+    let shares = shares(racket);
+    let drawn = shares.iter().filter(|(play, _)| play.is_some() || !map.map().twists_only);
+    let mut roll = below(drawn.clone().map(|(_, share)| share).sum());
+    for &(play, share) in drawn {
         if roll < share {
-            return play;
+            return play
+                .and_then(|twist| Played::twisted(map, twist))
+                .unwrap_or(Played::plain(map));
         }
         roll -= share;
     }
@@ -295,25 +290,40 @@ mod tests {
             assert_eq!(twisted.is_some(), map.mode == GameMode::FreeForAll, "{}", map.id);
             assert_eq!(Played::plain(played).lobby_number(), map.mode.lobby_number());
         }
-        let ffa = playable_in(GameMode::FreeForAll).next().unwrap();
+        let ffa = playable_in(GameMode::FreeForAll).find(|map| !map.twists_only).unwrap();
         let racket = Armed::Racket(Gun::Ak12);
         let racket = Played::twisted(MatchMap::of(ffa.id).unwrap(), racket).unwrap();
         assert_eq!((racket.lobby_number(), racket.mode()), (9, GameMode::FreeForAll));
         // Every roll below the shares' sum: each its share, 50 / 40 / 5 / 5, Racket with the
-        // room's gun.
+        // room's gun; on a map played with a twist only the twists' 40 / 5 / 5 alone.
+        let rolls = |map: MatchMap, gun| {
+            let mut total = 0;
+            draw(map, gun, |below| {
+                total = below;
+                0
+            });
+            (0..total).map(move |roll| draw(map, gun, |_| roll).armed())
+        };
+        let plain = MatchMap::of(ffa.id).unwrap();
         for gun in Gun::ALL {
-            let drawn = |play| (0..SHARE_TOTAL).filter(|&roll| draw(roll, gun) == play).count();
+            let drawn = |play| rolls(plain, gun).filter(|&drawn| drawn == play).count();
             for (play, share) in shares(gun) {
                 assert_eq!(drawn(play), share as usize);
             }
             assert_eq!(drawn(Some(Armed::Racket(gun))), 40);
         }
-        let drawn = |play| (0..SHARE_TOTAL).filter(|&roll| draw(roll, Gun::Ak74n) == play).count();
+        let drawn = |play| rolls(plain, Gun::Ak74n).filter(|&drawn| drawn == play).count();
         let saloon = |variation| drawn(Some(Armed::Cowboy(variation)));
         let ak_12 = Some(Armed::Racket(Gun::Ak12));
-        assert_eq!((SHARE_TOTAL, drawn(None), drawn(ak_12)), (100, 50, 0));
+        assert_eq!((rolls(plain, Gun::Ak74n).count(), drawn(None), drawn(ak_12)), (100, 50, 0));
         let (rifle, colt) = (Variation::WinchesterAndColt, Variation::Colt);
         assert_eq!((saloon(rifle), saloon(colt)), (5, 5));
+        for map in playable_in(GameMode::FreeForAll).filter(|map| map.twists_only) {
+            let map = MatchMap::of(map.id).unwrap();
+            let drawn: Vec<_> = rolls(map, Gun::Ak12).collect();
+            assert_eq!(drawn.len(), 50);
+            assert!(drawn.iter().all(Option::is_some));
+        }
         // Each twist as it arms its own number, Racket's of any gun; none a mode's (nor Scarcity's
         // 7, not on main).
         for gun in Gun::ALL {

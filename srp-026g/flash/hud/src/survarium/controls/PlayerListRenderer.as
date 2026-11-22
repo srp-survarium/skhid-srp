@@ -41,6 +41,10 @@ package survarium.controls
       
       public var ui_sqad:TextField;
 
+      // Freeze Tag: a frozen place's name, the ice blue of his name over his head (player_icons'
+      // HUDMarker.FROZEN_NAME_COLOR).
+      public static const FROZEN_NAME_COLOR:uint = 0x66C2FF;
+
       // Artifact Hunt: the carrier's row, the artefact's orb left of his name.
       private var _carryMark:Shape;
       
@@ -173,6 +177,10 @@ package survarium.controls
             if(_data.color != undefined)
             {
                this.ui_name.textColor = _data.color;
+            }
+            if(this.board != null && _data.id != undefined && this.board.isFrozen(int(_data.id)))
+            {
+               this.ui_name.textColor = FROZEN_NAME_COLOR;
             }
             this.markCarrier(this.board != null && _data.id != undefined && this.board.carrier == int(_data.id));
          }
