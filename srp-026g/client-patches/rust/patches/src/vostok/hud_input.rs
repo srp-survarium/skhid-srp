@@ -321,8 +321,8 @@ impl<'c> HudCall<'c> {
     }
 
     /// Answers the hud movie: invokes its `method` with plain unsigned values
-    /// (at most four); whether the movie took it.
-    pub fn answer(&self, method: &CStr, values: &[u32]) -> bool {
+    /// (every one); whether the movie took it.
+    pub fn answer<const N: usize>(&self, method: &CStr, values: &[u32; N]) -> bool {
         self.hud.movie().is_some_and(|movie| movie.invoke_uints(method, values))
     }
 }
