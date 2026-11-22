@@ -1565,7 +1565,7 @@ st_mode_05_description	Tehtäväsi on vallata liikkuvat tutkimusyksiköt. Jokain
 st_mode_05_name	Tutkimus
 st_mode_08_description	Jokainen taistelee itsensä puolesta. Ottelu päättyy, kun joku saavuttaa vaaditun tappomäärän tai aika loppuu. Eniten tappoja saanut taistelija voittaa.
 st_mode_08_name	Kaikki kaikkia vastaan
-st_mode_12_description	Jäädytä kaikki vastustajat. Ensimmäinen 5 erää voittanut joukkue voittaa. Seiso 3 sekuntia enintään 2 metrin päässä jäätyneestä joukkuetoverista sulattaaksesi hänet.
+st_mode_12_description	Jäädytä kaikki vastustajat. Ensimmäinen 5 erää voittanut joukkue voittaa. Seiso 4 sekuntia enintään 2 metrin päässä jäätyneestä joukkuetoverista sulattaaksesi hänet.
 st_mode_12_name	Jäädytys
 st_mode_13_description	Etsi Metsän Hohde -artefakti ja vie se tukikohtaasi. Kerää 5 artefaktia voittaaksesi.
 st_mode_13_name	Artefaktijahti
@@ -2703,7 +2703,7 @@ st_srp_hud_blackout_intro	Blackout: tuo akkuja joukkueesi laitteelle. Käyttöli
 st_srp_hud_blackout_start	Blackout\nTuo akkuja joukkueesi laitteelle.\nKäyttöliittymä ja osumamerkit on piilotettu. Pidä Tab pohjassa nähdäksesi ammukset ja terveyden.
 st_srp_hud_freeze_draw	Tasapeli
 st_srp_hud_freeze_frozen	Jäässä
-st_srp_hud_freeze_help	Jäädytä kaikki vastustajat. Ensimmäinen 5 erää voittanut joukkue voittaa. Seiso 3 sekuntia enintään 2 metrin päässä jäätyneestä joukkuetoverista sulattaaksesi hänet.
+st_srp_hud_freeze_help	Jäädytä kaikki vastustajat. Ensimmäinen 5 erää voittanut joukkue voittaa. Seiso 4 sekuntia enintään 2 metrin päässä jäätyneestä joukkuetoverista sulattaaksesi hänet.
 st_srp_hud_freeze_lose	Tappio — vastustajat voittivat viisi erää.
 st_srp_hud_freeze_round_draw	Tasapeli. Uusi erä %1$s s kuluttua.
 st_srp_hud_freeze_round_lose	Erä hävitty. Seuraava %1$s s kuluttua.

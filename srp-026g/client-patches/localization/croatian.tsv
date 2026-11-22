@@ -1565,7 +1565,7 @@ st_mode_05_description	Vaš je zadatak preuzeti kontrolu nad pokretnim istraživ
 st_mode_05_name	Istraživanje
 st_mode_08_description	Svaki se vojnik bori za sebe. Borba završava kad netko dosegne zadani broj ubojstava ili istekne vrijeme. Pobjeđuje vojnik s najviše ubojstava.
 st_mode_08_name	Svatko za sebe
-st_mode_12_description	Zamrzni sve protivnike. Pobjeđuje prvi tim koji osvoji 5 rundi. Stoj 3 sekunde najviše 2 m od zamrznutog suigrača da ga odmrzneš.
+st_mode_12_description	Zamrzni sve protivnike. Pobjeđuje prvi tim koji osvoji 5 rundi. Stoj 4 sekunde najviše 2 m od zamrznutog suigrača da ga odmrzneš.
 st_mode_12_name	Zamrzavanje
 st_mode_13_description	Pronađite artefakt "Sjaj Šume" i dostavite ga u svoju bazu. Prikupite 5 artefakata za pobjedu.
 st_mode_13_name	Lov na artefakt
@@ -2703,7 +2703,7 @@ st_srp_hud_blackout_intro	Zamračenje: donesite baterije do uređaja svoje ekipe
 st_srp_hud_blackout_start	Zamračenje\nDonesite baterije do uređaja svoje ekipe.\nSučelje i pokazatelji pogodaka su skriveni. Držite Tab za pregled streljiva i zdravlja.
 st_srp_hud_freeze_draw	Neriješeno
 st_srp_hud_freeze_frozen	Zamrznut
-st_srp_hud_freeze_help	Zamrzni sve protivnike. Pobjeđuje prvi tim koji osvoji 5 rundi. Stoj 3 sekunde najviše 2 m od zamrznutog suigrača da ga odmrzneš.
+st_srp_hud_freeze_help	Zamrzni sve protivnike. Pobjeđuje prvi tim koji osvoji 5 rundi. Stoj 4 sekunde najviše 2 m od zamrznutog suigrača da ga odmrzneš.
 st_srp_hud_freeze_lose	Poraz — protivnici su osvojili pet rundi.
 st_srp_hud_freeze_round_draw	Runda neriješena. Nova runda za %1$s s.
 st_srp_hud_freeze_round_lose	Runda izgubljena. Sljedeća za %1$s s.

@@ -1565,7 +1565,7 @@ st_mode_05_description	Seu objetivo é tomar o controle das Unidades de Pesquisa
 st_mode_05_name	Captura de Ponto
 st_mode_08_description	Cada um por si. A partida termina quando alguém atinge a meta de eliminações ou o tempo acaba. Vence o soldado com mais eliminações.
 st_mode_08_name	Todos contra Todos
-st_mode_12_description	Congele todos os adversários. Vence a primeira equipe a ganhar 5 rodadas. Fique a até 2 m de um aliado congelado por 3 segundos para descongelá-lo.
+st_mode_12_description	Congele todos os adversários. Vence a primeira equipe a ganhar 5 rodadas. Fique a até 2 m de um aliado congelado por 4 segundos para descongelá-lo.
 st_mode_12_name	Pique-Congela
 st_mode_13_description	Encontre o artefato "Brilho da Floresta" e leve-o para a sua base. Colete 5 artefatos para vencer.
 st_mode_13_name	Caça ao Artefato
@@ -2703,7 +2703,7 @@ st_srp_hud_blackout_intro	Blackout: leve baterias ao dispositivo da sua equipe. 
 st_srp_hud_blackout_start	Blackout\nLeve baterias ao dispositivo da sua equipe.\nHUD e indicadores de acerto ficam ocultos. Segure Tab para ver munição e vida.
 st_srp_hud_freeze_draw	Empate
 st_srp_hud_freeze_frozen	Congelado
-st_srp_hud_freeze_help	Congele todos os adversários. A primeira equipe a vencer 5 rodadas ganha. Fique a até 2 m de um aliado congelado por 3 segundos para descongelá-lo.
+st_srp_hud_freeze_help	Congele todos os adversários. A primeira equipe a vencer 5 rodadas ganha. Fique a até 2 m de um aliado congelado por 4 segundos para descongelá-lo.
 st_srp_hud_freeze_lose	Derrota — os adversários venceram cinco rodadas.
 st_srp_hud_freeze_round_draw	Rodada empatada. Reiniciando em %1$s s.
 st_srp_hud_freeze_round_lose	Rodada perdida. Próxima rodada em %1$s s.

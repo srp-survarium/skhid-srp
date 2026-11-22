@@ -1565,7 +1565,7 @@ st_mode_05_description	Twoim zadaniem jest przejęcie kontroli nad mobilnymi sta
 st_mode_05_name	Badania
 st_mode_08_description	Każdy walczy sam za siebie. Mecz kończy się, gdy ktoś zdobędzie wymaganą liczbę zabójstw albo skończy się czas. Wygrywa żołnierz z największą liczbą zabójstw.
 st_mode_08_name	Każdy na każdego
-st_mode_12_description	Zamroź wszystkich przeciwników. Wygrywa drużyna, która wygra 5 rund. Stój przez 3 sekundy w odległości do 2 m od zamrożonego sojusznika, aby go odmrozić.
+st_mode_12_description	Zamroź wszystkich przeciwników. Wygrywa drużyna, która wygra 5 rund. Stój przez 4 sekundy w odległości do 2 m od zamrożonego sojusznika, aby go odmrozić.
 st_mode_12_name	Zamrażanie
 st_mode_13_description	Odnajdź artefakt "Leśny Blask" i dostarcz go do swojej bazy. Zbierz 5 artefaktów, aby wygrać.
 st_mode_13_name	Poszukiwanie artefaktów
@@ -2703,7 +2703,7 @@ st_srp_hud_blackout_intro	Blackout: przynoś baterie do urządzenia swojej druż
 st_srp_hud_blackout_start	Blackout\nPrzynoś baterie do urządzenia swojej drużyny.\nInterfejs i znaczniki trafień są ukryte. Przytrzymaj Tab, aby sprawdzić amunicję i zdrowie.
 st_srp_hud_freeze_draw	Remis
 st_srp_hud_freeze_frozen	Zamrożony
-st_srp_hud_freeze_help	Zamroź wszystkich przeciwników. Wygrywa drużyna, która wygra 5 rund. Stój przez 3 sekundy w odległości do 2 m od zamrożonego sojusznika, aby go odmrozić.
+st_srp_hud_freeze_help	Zamroź wszystkich przeciwników. Wygrywa drużyna, która wygra 5 rund. Stój przez 4 sekundy w odległości do 2 m od zamrożonego sojusznika, aby go odmrozić.
 st_srp_hud_freeze_lose	Porażka — przeciwnicy wygrali pięć rund.
 st_srp_hud_freeze_round_draw	Remis. Powtórka za %1$s s.
 st_srp_hud_freeze_round_lose	Runda przegrana. Następna za %1$s s.

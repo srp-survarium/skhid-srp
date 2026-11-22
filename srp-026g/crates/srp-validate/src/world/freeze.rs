@@ -8,7 +8,7 @@ use core::num::NonZeroU16;
 pub const INTERMISSION: NonZeroU16 = NonZeroU16::new(5000).unwrap();
 pub const WINS: u8 = 5;
 pub const PLAYERS: usize = MAX_PLAYERS;
-pub const THAW_MS: u16 = 3000;
+pub const THAW_MS: u16 = 4000;
 pub const RADIUS: f32 = 2.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -487,10 +487,10 @@ mod tests {
         b
     }
     #[test]
-    fn proximity_requires_three_continuous_seconds_and_restores_after_rollback() {
+    fn proximity_requires_the_continuous_thaw_time_and_restores_after_rollback() {
         let b = match_bodies();
         let mut s = FreezeTag::EMPTY;
-        assert_eq!(thawed(s.step(&b, &VISIBLE, 2950)), 0);
+        assert_eq!(thawed(s.step(&b, &VISIBLE, THAW_MS - 50)), 0);
         let saved = s.bytes();
         assert_eq!(thawed(s.step(&b, &VISIBLE, 50)), 1);
         assert_eq!(s.player(place(0)), Player::Fighting(Team::First));
@@ -498,7 +498,7 @@ mod tests {
         let mut far = b;
         far[1] = body(Team::First, RADIUS + 0.01, Condition::Fighting);
         assert_eq!(thawed(s.step(&far, &VISIBLE, 50)), 0);
-        assert_eq!(thawed(s.step(&b, &VISIBLE, 2950)), 0);
+        assert_eq!(thawed(s.step(&b, &VISIBLE, THAW_MS - 50)), 0);
         assert_eq!(thawed(s.step(&b, &VISIBLE, 50)), 1);
     }
     #[test]
@@ -506,9 +506,9 @@ mod tests {
         let mut b = match_bodies();
         b[3] = body(Team::First, 20.0, Condition::Fighting);
         let mut s = FreezeTag::EMPTY;
-        assert_eq!(thawed(s.step(&b, &[[false; PLAYERS]; PLAYERS], 3000)), 0);
+        assert_eq!(thawed(s.step(&b, &[[false; PLAYERS]; PLAYERS], THAW_MS)), 0);
         b[1] = body(Team::First, 1.0, Condition::Lethal);
-        assert_eq!(thawed(s.step(&b, &VISIBLE, 3000)), 0);
+        assert_eq!(thawed(s.step(&b, &VISIBLE, THAW_MS)), 0);
         assert!(!s.complete());
     }
     #[test]

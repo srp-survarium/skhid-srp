@@ -1877,7 +1877,8 @@ package
       }
 
       // Status: 0 playing; 1/2/3 match win/loss/draw; 4/5/6 round win/loss/draw.
-      public function freeze_tag_update(frozen:uint, progress:uint, status:uint, remaining:uint) : void
+      // thaw: the thaw time in ms (THAW_MS); the bar shows progress of it.
+      public function freeze_tag_update(frozen:uint, progress:uint, status:uint, remaining:uint, thaw:uint) : void
       {
          // The last freeze also ends a round; it still gets the freeze cue.
          var isFrozen:Boolean = frozen != 0;
@@ -1895,7 +1896,7 @@ package
             text = LocalizationData.getName(progress > 0 ? "st_srp_hud_freeze_thawing" : "st_srp_hud_freeze_help");
          // Let native pickup/use prompts own the widget during ordinary play.
          this._freezeContext = isFrozen || progress > 0 || status != 0
-            ? {text:text,value:status == 0 ? Math.floor(progress / 30) : 0,visible:true} : null;
+            ? {text:text,value:status == 0 ? Math.floor(progress * 100 / thaw) : 0,visible:true} : null;
          this.refresh_context();
       }
 

@@ -382,6 +382,7 @@ pub fn on_hud(ctx: &mut Context<'_>) -> Flow<NoExit> {
                 progress,
                 if round != 0 { round + 3 } else { outcome },
                 remaining,
+                u32::from(THAW_MS),
             ],
         );
         // The Tab list's frozen rows; the movie clears them with the match.

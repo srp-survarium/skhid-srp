@@ -10,7 +10,8 @@ three). No artifact rescue in this version (owner, 2026-11-17).
   zoom around that body. Thaw restores the previous first/third-person mode.
 - A living teammate within 2 metres (the owner, 2026-11-21: "closer a bit";
   it was 3), with a clear static-world ray between
-  their bodies, thaws them after 3 continuous seconds. Losing that proximity
+  their bodies, thaws them after 4 continuous seconds (the owner, 2026-11-22;
+  it was 3). Losing that proximity
   resets progress. Extra teammates do not accelerate it.
 - Thaw restores health in place and clears input. It preserves equipment
   and ammunition. Frozen teammates cannot thaw each other.
@@ -55,7 +56,8 @@ three). No artifact rescue in this version (owner, 2026-11-17).
   spawn in a round; one that enters in the pause or after the match waits
   for the next round. Absent players are excluded when a new round starts.
 - The HUD reuses the stock TDM score bars (full at `WINS`, which the patch
-  passes to `freeze_tag_score`), collection progress
+  passes to `freeze_tag_score`), collection progress (its bar the progress
+  of `THAW_MS`, which the patch passes to `freeze_tag_update`)
   widget and blocked-hit UI sound. Its texts are `st_srp_hud_freeze_*`: the
   content compile gives the hud movie only `st_srp_hud_*` keys. A frozen player's name over his head
   keeps his name and is drawn ice blue (the owner, 2026-11-21: "his name
@@ -198,7 +200,8 @@ player was unfrozen", "so others could deem the freeze state by look"; of the
 first build's four strengths swapped a quarter at a time: "it just disappears a
 few times without becoming smaller"). One system plays; every frame its
 instance's matrix is the body's with its axes scaled by 1 - 0.85 x progress /
-3 s about a point 0.9 m over the feet, so 15 % at the thaw, and full again if
+the thaw time (`THAW_MS`, 4 s) about a point 0.9 m over the feet, so 15 % at
+the thaw, and full again if
 the progress resets. Swapping systems blinked: `remove_particle_system_instance`
 (0x229D0) drops an instance's particles at once and the next starts empty.
 What a scaled matrix does (0.10b source, `particle_emitter_instance`,
@@ -322,6 +325,11 @@ Open:
 - Late joiners spawn into the round in play; waiting for the next round (with
   something to watch meanwhile, e.g. the frozen orbit camera around a living
   teammate) is a possible later change.
+- No auto-thaw (Quake 3 eFreeze thaws after 120 s): left out so hiding is
+  not rewarded (the owner, 2026-11-22). Planned instead, not built: when a
+  team is down to its last unfrozen player, a 1-minute timer starts (not
+  when it is 1 v 1 or 2 v 1); what happens when it runs out is still to
+  design.
 
 ### 2026-11-21, after the merge of main and the alignment
 
