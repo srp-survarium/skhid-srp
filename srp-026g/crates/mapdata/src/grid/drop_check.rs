@@ -12,12 +12,21 @@
 //!
 //! The drops census (A313, every Drop link of rev-48's 16 map/day projects through `controller::tick`, one line from the cell
 //! centre): 36,829 of 494,533 links (7.4 %) left the body on the take-off's level.
+//!
+//! [blocked walk-offs] A line whose body cannot move says nothing of the drop (a start boxed in by the port's placing), except
+//! where a wall or a ceiling no gait passes stands on the way ([`walk_line_blocked`]): when that holds on every line and no jump
+//! off the edge lands either, no client way goes down there, and the link is taken away ([`super::Body::drop_lands`]: a Drop
+//! link cut, a walk-off GapDrop removed). So is a walk-off no client way tried lands from (kept until now: an off-mesh link has
+//! no reach guard) where such a wall or ceiling stands on every line. Level 7's S011 (a walk-off GapDrop from (-41.99, 20.88, -7.04), a wall 0.47 m ahead
+//! from the knee to over the head) and S083 (a Drop link from (31.51, 22.03, -14.04), a wall 0.01 m ahead, a ceiling 0.13 m
+//! over the head): the client's body walked, sprinted and crouched at them at seven headings, from the take-off and with a
+//! run-up, and reached neither landing (exe_walkoff_point_v2 on rig_real_v3, 84 and 55 runs).
 
 use super::{DIRS, LIP_DROP_M, LinkKind, NONE, SEED_M, SPAWN_M, Triangle, Vec3, WalkGrid, Wide};
 use super::controlled::{STARTS, Stance, WalkStart, body_at, out_of_walls, parallel};
 use super::gap_flown::THIN_TOP_M;
 use super::gap::{GAP_PRESS_MAX_M, GAP_PRESS_MIN_M, GAP_PRESS_STEP_M, GridWay, PressLead, RELEASE_AT_MAX_M, Share, Takeoff};
-use crate::controller::{jump, Collision};
+use crate::controller::{jump, Collision, Shape};
 use crate::controller::tick::{Controller, CrouchInput, Settings, TickInput};
 
 /// The tick, s: the client's step, 50 ms (0x9CC878; every step of the traces is 50 ms). It was the census's 30 a second (C2 row
@@ -81,6 +90,28 @@ impl WalkGrid {
 
 fn flat(a: Vec3, b: Vec3) -> f32 {
     (a.x - b.x).hypot(a.z - b.z)
+}
+
+/// [blocked walk-offs] Whether a wall or a ceiling that no gait of the client's body passes stands on the walk line from `from`
+/// toward `to`: the crouched body (the lowest one, [`super::Body::crouch_height`]) above the walk tick's step
+/// ([`Settings::step_height`]: a ledge under it is stepped onto), as the move test's cylinder and margin ([`out_of_walls`]),
+/// swept flat from the line's start (moved out of the walls, as a walk line's is) half the way to the landing (a one-cell
+/// drop's edge), meets a face the walk does not stand on: one steeper than the walk's slope limit, or one facing down.
+pub(super) fn walk_line_blocked(world: &Collision, s: &Settings, body: &super::Body, from: Vec3, to: Vec3) -> bool {
+    const MARGIN_M: f32 = 0.04;
+    let start = out_of_walls(world, from);
+    let (low, high) = (s.step_height, body.crouch_height);
+    if flat(start, to) < 1e-3 || high - low <= 2.0 * MARGIN_M {
+        return false;
+    }
+    let shape = Shape::Cylinder {
+        centre: start + Vec3::new(0.0, 0.5 * (low + high), 0.0),
+        half: 0.5 * (high - low) - MARGIN_M,
+        radius: body.radius,
+        margin: MARGIN_M,
+    };
+    let way = Vec3::new(to.x - start.x, 0.0, to.z - start.z) * 0.5;
+    world.sweep_shape(shape, way, |f| f.normal.y < s.max_slope_cos).is_some()
 }
 
 /// Whether the client's walk tick takes a body walking off `from` down to `to` (module documentation): on any of the
@@ -508,6 +539,10 @@ pub struct DropStats {
     /// … and [deep walk-offs] those a way within it took down: the deep landing also kept, as an off-mesh GapDrop beside it
     /// ([`WalkGrid::keep_deep_landings`]).
     pub past_harmless_fall_also: usize,
+    /// [blocked walk-offs] Of the Drop links, those cut, and of the walk-offs, those removed, where no client way goes down
+    /// ([`Verdict::Blocked`]).
+    pub blocked: usize,
+    pub walk_offs_blocked: usize,
 }
 
 /// [feed 67] What [`super::Body::drop_lands`] does with one Drop link.
@@ -529,6 +564,10 @@ enum Verdict {
     /// No client way down tried stands on a floor of the grid: the walk lines, the crouched walk-off, the short and sprint
     /// jumps at the gap leads.
     Cut,
+    /// [blocked walk-offs] No walk line's body moves, a wall or a ceiling no gait passes stands on every line
+    /// ([`walk_line_blocked`]), and no jump off the edge lands: no client way goes down there. A Drop link is cut, a walk-off
+    /// GapDrop removed.
+    Blocked,
 }
 
 /// [D2] Where a Drop link's walk line came to rest deeper than the harmless fall ([`super::Body::max_drop`]) under the take-off:
@@ -601,8 +640,9 @@ impl WalkGrid {
     /// ([`Self::drop_verdict`]): a link the body comes to stand elsewhere from goes to that floor (none added where the take-off
     /// has a link there already). One no client way tried stands on a floor stays as it is (an off-mesh link has no reach guard
     /// to cut it by; counted). [A1b] One the walk-off at release takes down ([`Verdict::Released`]) carries that press and share.
-    /// Returns (walked, re-aimed, standing on no floor, released).
-    pub(super) fn walk_off_links(&self, wide: &mut Wide, world: &Collision, seeds: &[Vec3], spawns: &[Vec3]) -> (usize, usize, usize, usize, usize) {
+    /// Returns (walked, re-aimed, standing on no floor, released, held off a thin top, [blocked walk-offs] removed: no client way
+    /// goes down there, [`Verdict::Blocked`]).
+    pub(super) fn walk_off_links(&self, wide: &mut Wide, world: &Collision, seeds: &[Vec3], spawns: &[Vec3]) -> (usize, usize, usize, usize, usize, usize) {
         let reached = self.reached_floors(wide, seeds, spawns);
         let todo: Vec<usize> = (0..wide.off.len())
             .filter(|&i| {
@@ -611,7 +651,7 @@ impl WalkGrid {
             })
             .collect();
         if todo.is_empty() {
-            return (0, 0, 0, 0, 0);
+            return (0, 0, 0, 0, 0, 0);
         }
         let s = self.body.controller().1;
         let start = self.body.walk_start();
@@ -620,6 +660,7 @@ impl WalkGrid {
             self.drop_verdict(world, &s, start, l.from, self.position(l.from), l.to)
         });
         let (mut moved, mut none, mut released) = (0, 0, 0);
+        let mut blocked = vec![false; wide.off.len()];
         let held = verdicts.iter().filter(|(_, held, _)| *held).count();
         for (&i, (v, _, _)) in todo.iter().zip(verdicts) {
             match v {
@@ -651,13 +692,22 @@ impl WalkGrid {
                     }
                 }
                 Verdict::Cut => none += 1,
+                Verdict::Blocked => blocked[i] = true,
             }
+        }
+        let removed = blocked.iter().filter(|&&b| b).count();
+        if removed > 0 {
+            let mut i = 0;
+            wide.off.retain(|_| {
+                i += 1;
+                !blocked[i - 1]
+            });
         }
         if moved > 0 {
             wide.off.sort_by_key(|l| (l.from, l.to));
             wide.off.dedup_by_key(|l| (l.from, l.to));
         }
-        (todo.len(), moved, none, released, held)
+        (todo.len(), moved, none, released, held, removed)
     }
 
     /// [feed 67] [`super::Body::drop_lands`]: every Drop link out of a reached floor walked by the client's body to its landing
@@ -692,7 +742,7 @@ impl WalkGrid {
                 Verdict::Reaim(b) | Verdict::Taught(b) => self.stops_below(world, &s, start, from, self.position(b)),
                 // [A1b] Let go at its release, or a press flown to its rest (a crouched walk-off, a jump): the body rests on its
                 // landing, no lip by a stop past it.
-                Verdict::Pressed(..) | Verdict::Cut => false,
+                Verdict::Pressed(..) | Verdict::Cut | Verdict::Blocked => false,
             };
             (v, lip, held, deep)
         });
@@ -736,9 +786,13 @@ impl WalkGrid {
                     }
                 }
                 Verdict::Cut => cut.push((a, d, 0.0)),
+                Verdict::Blocked => {
+                    stats.blocked += 1;
+                    cut.push((a, d, 0.0));
+                }
             }
         }
-        stats.cut = cut.len();
+        stats.cut = cut.len() - stats.blocked;
         stats.past_harmless_fall_kept = deep_kept.len();
         stats.past_harmless_fall_also = deep_also.len();
         (cut, reaim, lips, stats, deep_kept, deep_also)
@@ -846,8 +900,12 @@ impl WalkGrid {
         let rest = |stance: Stance, speed: f32, off: f32, at: Vec3| walk_off_rest(world, s, start, stance, speed, from + side * off, at + side * off);
         let on_top = |w: &DropWalk, of: u32| matches!(*w, DropWalk::LandsAt(feet, _) if self.rest_floor(feet).is_some_and(|g| self.own_top(of, g)));
         let walks = STARTS.map(|off| rest(Stance::Standing, WALK_MPS, off, to));
-        if walks.iter().any(|w| *w == DropWalk::NoMove || on_top(w, b)) {
+        if walks.iter().any(|w| on_top(w, b)) {
             return Verdict::Keep;
+        }
+        // [blocked walk-offs] A line whose body cannot move says nothing, unless no gait passes on any line and no jump lands.
+        if walks.contains(&DropWalk::NoMove) {
+            return if self.no_client_way(world, s, &walks, a, from, to) { Verdict::Blocked } else { Verdict::Keep };
         }
         // [D2] A walk line that overshoots the link's own landing (a ledge) and comes to rest deeper than the harmless fall under
         // the take-off ([`super::Body::max_drop`]) is re-aimed there only when no other client way takes the body down within it
@@ -917,7 +975,65 @@ impl WalkGrid {
         }
         // [D2] No way down within the harmless fall: the walk's own deep landing, at its true depth (re-aimed where walking at it
         // arrives, else taught), as before.
-        deep.map_or(Verdict::Cut, DeepLanding::verdict)
+        // [blocked walk-offs] No client way tried goes down; where a wall or a ceiling no gait passes stands on every line, the link
+        // is Blocked (a walk-off is then removed, not kept as one no way lands from).
+        deep.map_or_else(|| if self.lines_blocked(world, s, from, to) { Verdict::Blocked } else { Verdict::Cut }, DeepLanding::verdict)
+    }
+
+    /// [blocked walk-offs] Whether no client way goes down a walk-off from `a` (at `from`) toward `to`, its standing walk lines
+    /// `walks` (the [`STARTS`] lines): no line's body moves ([`DropWalk::NoMove`]), a wall or a ceiling no gait passes stands on
+    /// every line ([`walk_line_blocked`]), and no jump off the edge lands ([`Self::jumped_down`]).
+    fn no_client_way(&self, world: &Collision, s: &Settings, walks: &[DropWalk; 3], a: u32, from: Vec3, to: Vec3) -> bool {
+        let len = flat(from, to).max(1e-3);
+        walks.iter().all(|w| *w == DropWalk::NoMove)
+            && self.lines_blocked(world, s, from, to)
+            && self.jumped_down(world, s, a, from, ((to.x - from.x) / len, (to.z - from.z) / len)).is_none()
+    }
+
+    /// [blocked walk-offs] Whether a wall or a ceiling no gait passes stands on every [`STARTS`] line from `from` toward `to`
+    /// ([`walk_line_blocked`]).
+    fn lines_blocked(&self, world: &Collision, s: &Settings, from: Vec3, to: Vec3) -> bool {
+        let len = flat(from, to).max(1e-3);
+        let side = Vec3::new(-(to.z - from.z) / len, 0.0, (to.x - from.x) / len);
+        STARTS.iter().all(|&off| walk_line_blocked(world, s, &self.body, from + side * off, to + side * off))
+    }
+
+    /// [blocked walk-offs] The walk-offs of this grid as it stands (its Drop links and walk-off GapDrops) whose landing pass verdict
+    /// is [`Verdict::Blocked`] ([`Self::drop_verdict`], on `world`: the walk's own, the game's shapes where the build has them), as
+    /// (take-off, landing, kind). For a built grid's census (what the build's landing pass now takes away); on the machine's
+    /// threads.
+    ///
+    /// Each with whether a standing walk line's body could not move (the verdict before this rule: such a link was kept; else
+    /// it was cut, a Drop link kept only as a floor's only way, a walk-off kept as it was).
+    pub fn walk_offs_with_no_client_way(&self, world: &Collision) -> Vec<(Vec3, Vec3, LinkKind, bool)> {
+        let s = self.body.controller().1;
+        let start = self.body.walk_start();
+        let links: Vec<(u32, u32, LinkKind)> = (0..self.height.len() as u32)
+            .flat_map(|a| {
+                self.links(a)
+                    .filter(move |&(b, kind)| match kind {
+                        LinkKind::Drop => true,
+                        LinkKind::GapDrop => self.off_link(a, b).is_some_and(|l| l.press.is_walk_off()),
+                        _ => false,
+                    })
+                    .map(move |(b, kind)| (a, b, kind))
+            })
+            .collect();
+        let none = parallel(&links, |&(a, b, _)| {
+            let (from, to) = (self.position(a), self.position(b));
+            let blocked = self.drop_verdict(world, &s, start, a, from, b).0 == Verdict::Blocked;
+            let len = flat(from, to).max(1e-3);
+            let side = Vec3::new(-(to.z - from.z) / len, 0.0, (to.x - from.x) / len);
+            let held = blocked
+                && STARTS.iter().any(|&off| walk_off_rest(world, &s, start, Stance::Standing, WALK_MPS, from + side * off, to + side * off) == DropWalk::NoMove);
+            (blocked, held)
+        });
+        links
+            .iter()
+            .zip(none)
+            .filter(|(_, n)| n.0)
+            .map(|(&(a, b, kind), n)| (self.position(a), self.position(b), kind, n.1))
+            .collect()
     }
 
     /// [A1b] The walk-off at release from `from` towards `to` ([`release_point`], [`released_rest`]): crouched at [`CROUCH_MPS`],
@@ -1462,6 +1578,41 @@ mod tests {
             let rest = at.and_then(|at| released_rest(&world, &s, start, stance, speed, from, way, at, to.y));
             println!("{stance:?} release at {at:?}: rests at {rest:?}");
         }
+    }
+
+    /// [blocked walk-offs] The walk line's room ([`walk_line_blocked`]): a take-off at (0, 2, 0) on a deck, the landing at
+    /// (0.8, 1, 0) past its edge at x 0.4. A wall across the way 0.3 m ahead, from the deck to 3 m over it, blocks every gait; so
+    /// does a ceiling 1.0 m over the deck (under the crouched body, 1.1 m). A ledge 0.5 m high ahead (under the walk tick's
+    /// step, 0.8 m) and a ceiling 1.5 m over the deck (over the crouched body) do not; nor does an open way.
+    #[test]
+    fn a_wall_or_a_low_ceiling_on_the_way_blocks_every_gait_and_a_ledge_or_a_high_ceiling_does_not() {
+        let t = |v: [Vec3; 3]| Triangle { v, walker: WalkerBehaviour::BySlope };
+        // A wall across x = 0.3 from height `lo` to `hi`, both windings (faces both ways).
+        let wall = |lo: f32, hi: f32| {
+            let (a, b, c, d) = (Vec3::new(0.3, lo, -2.0), Vec3::new(0.3, lo, 2.0), Vec3::new(0.3, hi, 2.0), Vec3::new(0.3, hi, -2.0));
+            [t([a, b, c]), t([a, c, d]), t([a, c, b]), t([a, d, c])]
+        };
+        // A ceiling slab's underside at height `y`, facing down, over the way.
+        let ceiling = |y: f32| {
+            let (a, b, c, d) = (Vec3::new(-1.0, y, -2.0), Vec3::new(2.0, y, -2.0), Vec3::new(2.0, y, 2.0), Vec3::new(-1.0, y, 2.0));
+            [t([a, b, c]), t([a, c, d])]
+        };
+        let deck = |extra: &[Triangle]| {
+            let mut tris = Vec::new();
+            tris.extend(quad(-3.0, 0.4, -2.0, 2.0, 2.0));
+            tris.extend(quad(0.4, 3.0, -2.0, 2.0, 1.0));
+            tris.extend_from_slice(extra);
+            Collision::build(&tris)
+        };
+        let body = crate::Body::client();
+        let s = Settings::LIVE;
+        let (from, to) = (Vec3::new(0.0, 2.0, 0.0), Vec3::new(0.8, 1.0, 0.0));
+        let blocked = |extra: &[Triangle]| walk_line_blocked(&deck(extra), &s, &body, from, to);
+        assert!(!blocked(&[]), "an open way");
+        assert!(blocked(&wall(2.0, 5.0)), "a wall from the deck to over the head");
+        assert!(!blocked(&wall(2.0, 2.5)), "a ledge under the step");
+        assert!(blocked(&ceiling(3.0)), "a ceiling 1.0 m over the deck");
+        assert!(!blocked(&ceiling(3.5)), "a ceiling 1.5 m over the deck");
     }
 
     /// A take-off boxed in by walls (the body cannot move from it on any line) says nothing of the drop: the link is kept.
