@@ -40,7 +40,9 @@ import patch_026g as base
 SITE, AFTER = 0x2D9CB1, 0x2D9CB7
 SET_ACTIVE, APPLY_MODIFIER, MALLOC = 0x33D390, 0x2D5AE0, 0xE4F90
 INITIALIZE_LOGIC, CALC_TICK = 0x31D450, 0x31D6E0     # EDI the calculator; ret / (dispersion, ms) ret 8
-ORIGINAL_CODE = ((0x31D040, 0x31D970),)   # fsm::tick has patch 143's lohook (0x38CAA0), for its own states only
+# fsm::tick has patch 143's lohook (0x38CAA0), for its own states only; 0x31D95B is patch 180's Steady
+# Breath lohook, which scales only the sway's stores (m_vibration) and only with an oxygen tank on
+ORIGINAL_CODE = ((0x31D040, 0x31D95B), (0x31D961, 0x31D970))
 WEAPON_VTABLE, WEAPON_CORE_VTABLE, MEDKIT_VTABLE = 0xA04174, 0xA11094, 0xA1C79C
 NORMAL, HOLDING, SHORT = 0xA16F64, 0xA16FAC, 0xA16F88
 THREAD_SLOT = 0x870118
