@@ -142,8 +142,19 @@ Each one a decision; the owner's are marked, the rest are the port's and open to
     walker mesh, one collision of both groups), and those boxes, their bases and use shapes are at
     0.46c2's height on them (pack @6; @3 to @5 had put them on the floor, 0.04 to 0.50 m lower).
     0.46c2 has no stand model of its own: on the other levels its box stands on the floor, and
-    Batteries' other props by the bases (shelves, cables, generators) are not taken. The other team
-    maps ("Maps") are their Batteries mode's containers, with what those stand on. A round start respawns a whole team at once: a team with fewer free
+    Batteries' other props by the bases (shelves, cables, generators) are not taken.
+  - **Concrete on rough ground** (the owner, 2026-11-22: "I wish we could put them everywhere",
+    "essentially everywhere it stands on rough ground"; `scripts/artefact-hunt/stands.py`, used by
+    both makers, pack @7 and artefact-hunt-maps @2). Rough ground: the walker floor under the
+    footprint is a terrain model, or it varies more than 0.10 m. There the box stands on concrete:
+    0.46c2's own (Mamayev); else Mamayev's `concrete_plita2` x0.8, whose flat top (a 2.5 x 1.3 m
+    rectangle at that scale) goes under the footprint. The box, its base, use shapes and props go
+    0.30 m over the floor's highest point, or flush (0.04 m, as Mamayev's team 0) where the raised
+    slab's visible part would cut into another model or cover a spawn point (on the cluttered
+    Batteries bases). 0.46c2's pallets on rough ground give way to the slab. On a built floor (a
+    building's, a street's, a platform) a box keeps 0.46c2's stands or none. The other team maps'
+    containers keep what their Batteries mode sets them on.
+  A round start respawns a whole team at once: a team with fewer free
   points than players spawns the rest a step (50 ms) later each, as the native rule does
   ("Respawns"); 8 points a team (16 players) spawn everyone in the same step.
 - **Known difference: no "not for the first spawn" points.** 0.46c2 keeps some of its points out

@@ -68,6 +68,7 @@ sys.path.insert(0, str(HERE.parent / 'research-mode'))
 import bcw  # noqa: E402
 import dxt  # noqa: E402
 import floors  # noqa: E402
+import stands  # noqa: E402
 from prepare_inputs import STAGES, maps, sha256  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location('research_make_pack', HERE.parent / 'research-mode' / 'make_pack.py')
@@ -75,7 +76,7 @@ research = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(research)
 
 PACK_ID = 'artefact-hunt'
-VERSION = '6'
+VERSION = '7'
 EDITS = 'artefact-hunt-1.json'
 # `mode.mode`, the lobby's number of the mode too (maps::GameMode::lobby_number is the rules'
 # number): 2 to 5 and 8 are modes, 6 Blackout, 7 Scarcity's (#1083), 9 to 11 the lobby's numbers of
@@ -110,7 +111,8 @@ BOX_SNAP = 0.02
 # at that place, which 0.46c2 kept (the owner, 2026-11-22: "all maps with arthunt used to have small
 # concrete stands under the container"): the concrete slabs on level 06, pallets on 02 and 04, the bed
 # on 08. A base's stands are 0.46c2's props of these models within STAND_REACH (m, across) of its box
-# and not over its foot; each goes in as the Batteries project has it (its model and collision).
+# and not over its foot; each goes in as the Batteries project has it (its model and collision). On rough
+# ground the box stands on concrete (slab_bases, stands.py): 0.46c2's own, else Mamayev's slab.
 STANDS = ('props/garbage/concrete_plita1', 'props/garbage/concrete_plita2', 'props/garage/pallet',
           'level/08/furniture/bed')
 STAND_REACH = 1.6
@@ -484,6 +486,46 @@ def stand_entries(data, battery, where):
         base['stand_visuals'], base['stand_solids'] = visuals, solids
         if len(solids) < len(visuals):
             sys.exit(f"{where}: team {base['team']}: a stand without its collision in the Batteries project")
+
+
+def lift(base, foot):
+    """A base with its box's foot at height `foot`: the box, the base and its use shapes go up as one."""
+    delta = foot - base['box']['position'][1]
+    base['box']['position'] = (base['box']['position'][0], f32(foot), base['box']['position'][2])
+    base['position'] = (base['position'][0], f32(base['position'][1] + delta), base['position'][2])
+    for shape in base['shapes']:
+        shape['position'] = (shape['position'][0], f32(shape['position'][1] + delta), shape['position'][2])
+
+
+def slab_bases(data, world, points, where, said):
+    """stands.py's slab under each box on rough ground: 0.46c2's own concrete stays, its pallets there give
+    way to the slab; on a built floor 0.46c2's stands stay and a bare box gets none."""
+    for base in data['bases']:
+        box = base['box']
+        floor = stands.ground(world, BOX, box['position'], box['rotation'])
+        if floor is None:
+            sys.exit(f"{where}: team {base['team']}'s box has no floor under a point of its footprint")
+        why = stands.rough(floor)
+        own = sorted({s['model'] for s in base['stands']})
+        if why is None:
+            said.add(f"{where}: team {base['team']}: a built floor ({', '.join(floor[2])}), "
+                     + (f"0.46c2's stands kept ({', '.join(own)})" if own else 'no stand'))
+            continue
+        if own and all(m.startswith('props/garbage/concrete_') for m in own):
+            said.add(f"{where}: team {base['team']}: rough ground, {why}: 0.46c2's concrete kept ({', '.join(own)})")
+            continue
+        foot, place, outline, cut, covered = stands.place(world, BOX, box['position'], box['rotation'], floor[0], points)
+        visual, solids = stands.entries(place, vector)
+        lift(base, foot)
+        base['stands'] = [{'model': stands.SLAB, 'position': place['position']}]
+        base['stand_visuals'], base['stand_solids'] = [visual], solids
+        said.add(f"{where}: team {base['team']}: rough ground, {why}: "
+                 + (f"0.46c2's {', '.join(own)} replaced by " if own else '')
+                 + f"{stands.SLAB} x{stands.SCALE} at {spot(place['position'])}, the box's foot at {foot:.3f} "
+                   f"({foot - floor[0]:.2f} m over the floor's highest point under it"
+                 + (')' if foot - floor[0] > stands.FLUSH + 1e-3 else ', flush: raised it would cut into what stands by)'))
+        if covered:
+            said.add(f"{where}: team {base['team']}'s slab covers {', '.join(covered)}")
 
 
 def moved(data, level, moves, said):
@@ -948,8 +990,8 @@ def main():
     args = parser.parse_args()
     if args.catalog:
         return catalog(args.catalog, args.write)
-    if not args.inputs or not args.out:
-        parser.error('--inputs and --out, or --catalog')
+    if not args.inputs or not args.out or not args.mapdata:
+        parser.error('--inputs, --out and --mapdata (the bases\' floors, stands.py), or --catalog')
     if args.out.exists():
         sys.exit(f'{args.out}: already there')
     check = research.rotation(research.ROTATION_CHECK[0])
@@ -986,6 +1028,7 @@ def main():
 
     edits = {'_about': '', 'copy': [], 'add_entry': [], 'remove_entry': [], 'append_entry': []}
     entries, projects, per_map, checked = [], [], [], []
+    grounds = {}
     parameters = None
     for number, (level, theirs, config_weather, folder) in enumerate(maps()):
         where = f'level_{level}/{folder}_ah'
@@ -1000,11 +1043,14 @@ def main():
         parameters = donor_config['mode']['parameters']
         data = mode_data(bcw.loads(inputs.read(f'donor/projects/{donor_project}/client_project')), where)
         stand_entries(data, bcw.loads(inputs.read(f'live/projects/level_{level}/{folder}_2/client_project')), where)
-        for base in data['bases']:
-            if base['stands']:
-                said.add(f"{where}: team {base['team']}'s box on its stands as 0.46c2 has it: "
-                         + ', '.join(f"{s['model']} {spot(s['position'])}" for s in base['stands']))
         data = moved(data, level, moves, said)
+        mapdata = floors.load(args.mapdata / f'level_{level}_{folder}_4.mapdata')
+        key = hashlib.sha256(repr(sorted(mapdata['placements'])).encode()).hexdigest()
+        if key not in grounds:
+            grounds[key] = stands.Floors(mapdata, [b['box']['position'] for b in data['bases']])
+        points = ([(f'artefact spawn point {i}', s['position']) for i, s in enumerate(data['spawners'])]
+                  + [(f'respawn point {i}', s['position']) for i, s in enumerate(data['spawns'])])
+        slab_bases(data, grounds[key], points, where, said)
         data['item'] = item
         live = bcw.loads(inputs.read(f'live/projects/{source}/client_project'))
         name = f'level_{level}_{config_weather}_ah'
