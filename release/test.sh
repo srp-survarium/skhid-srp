@@ -22,7 +22,7 @@ root=$(dirname "$here")
 command -v python3 >/dev/null || { echo "test.sh: python3 is needed" >&2; exit 1; }
 
 if command -v shellcheck >/dev/null; then
-    (cd "$here" && shellcheck -x -s bash lib.sh build-patch build-content upload-patch add-mirror build-server-db build-site build-zip build-torrent build-bootstrap publish-dht make-signing-key deploy rollback setup-patches-server release.sh bot-data world-corpus test.sh &&
+    (cd "$here" && shellcheck -x -s bash lib.sh build-patch build-content upload-patch dropbox-upload add-mirror build-server-db build-site build-zip build-torrent build-bootstrap publish-dht make-signing-key deploy rollback setup-patches-server release.sh bot-data world-corpus test.sh &&
         shellcheck -s sh host-rollback.sh host-bot-data.sh)
     echo "ok   shellcheck"
 else
@@ -531,6 +531,7 @@ SKHID_GAME_LIST=$T/game.tsv
 SKHID_STOCK_DB=$T/resources.db
 SKHID_RELEASE_LOCK=$T/lock
 SKHID_BACKUP_DIR=$T/backups
+SKHID_DROPBOX=off
 EOF
 export SKHID_RELEASE_ENV=$T/release.env
 
