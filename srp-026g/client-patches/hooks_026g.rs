@@ -1212,6 +1212,21 @@ pub extern "C" fn hook_artefact_hunt_on_enemy_ids(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- grenade_icons (patch 194) ----
+
+/// The entry `grenade_icons_on_markers_made` (0x235709, game_world_ui::initialize_match (0x234880) about to send the player icons movie its enemy list (root.set_enemy_icon_ids, the Invoke at 0x235726; the icons movie [[ui+10h]+108h]+4), before any marker of the match is sent: mov ecx,[esi+10h] / mov edx,[ecx+108h]; ESI the ui (0x235702). the late join's lists_hook is on the bytes after the Invoke (0x23572B)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_grenade_icons_on_markers_made(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `grenade_icons_on_markers_made` calls this, from the game's jump at 0x235709,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::grenade_icons::on_markers_made(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- blackout (patch 65) ----
 
 /// The entry `blackout_on_update_icons` (0x23aa10, game_world_ui::update_player_icons' start, every frame of a match ([esp+4] the ui)) calls this with the saved machine.
@@ -1326,6 +1341,21 @@ pub extern "C" fn hook_artefact_hunt_on_initialize_match(frame: &mut Frame) -> u
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::artefact_hunt::on_initialize_match(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- freeze_tag (patch 160) ----
+
+/// The entry `freeze_tag_on_initialize_match` (0x234880, game_world_ui::initialize_match's start (sub esp,5D4h), once a match (from 0x1F855D; the late join's rebuild enters at 0x234E71): the site's ESP+4 the hud, whose kits (+2DFh) and cursor (+2DCh) are the last match's) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_freeze_tag_on_initialize_match(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `freeze_tag_on_initialize_match` calls this, from the game's jump at 0x234880,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::freeze_tag::on_initialize_match(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -4955,6 +4985,26 @@ pub extern "C" fn hook_footsteps_on_step_guard(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- footsteps (patch 101) ----
+
+/// The named exits of footsteps::on_foot_material (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum FootstepsOnFootMaterialExit { Skip }
+/// The entry `footsteps_on_foot_material` (0x2a6545, on_foot_step's read of the foot material (lea eax,[edx+ecx*2+7962h] / mov ecx,[esi+3Ch] / movzx edi,word [ecx+eax*2]: the player's u16 at +0F2C4h + 4 x movement + 2 x third view), the one path of both feet's cases of on_player_sound_event (0x2A64B6, 0x2A64D2), whether or not the player has a world core: ESI the effect, ECX the logic state's movement id (+24h, 0x2A6532), EDX 1 for third view; skip 0x2A6577, on_foot_step's end (pop edi / add esp,8 / ret 8, the stack as here: its own je there when the world has no step manager)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_footsteps_on_foot_material(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `footsteps_on_foot_material` calls this, from the game's jump at 0x2a6545,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::footsteps::on_foot_material(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- forest_glow (patch 111) ----
 
 /// The entry `forest_glow_on_loaded` (a callback in engine_store_first_resource's convention, the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query)
@@ -5376,6 +5426,21 @@ pub extern "C" fn hook_geometry_share_on_deallocate(frame: &mut Frame) -> u32 {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- grenade_icons (patch 194) ----
+
+/// The entry `grenade_icons_on_sensed` (0x2471a4, player::st_draw's grenade sensor (0x246F50) once a grenade near the followed player is his team's (the team test 0x24719C passed; mov edx,[esi] / mov edx,[edx+1Ch] reads its position next): ESI the grenade's body (its user the grenade +1Ch), EBP the followed player, BL the marker it takes (0..5, icon 2Fh + BL; show_grenade_icons 0x2471FC shows that many)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_grenade_icons_on_sensed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `grenade_icons_on_sensed` calls this, from the game's jump at 0x2471a4,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::grenade_icons::on_sensed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
     }
 }
 
@@ -6684,6 +6749,26 @@ pub extern "C" fn hook_map_names_on_key(frame: &mut Frame) -> u32 {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- material_bounds (patch 193) ----
+
+/// The named exits of material_bounds::on_material_pair (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum MaterialBoundsOnMaterialPairExit { Done }
+/// The entry `material_bounds_on_material_pair` (0x306d50, game_material_manager::material_pair's start (movzx eax,dx / mov eax,[ecx+eax*4+108h]): ECX the manager, DX and DI the two material ids, indexed into its 128 material slots (+108h) with no bound; done 0x306DF8, its ret (nothing pushed yet), EAX the pair or 0 (no pair: every caller tests it, 0x2481A6 0x2487F8 0x248A74 0x248B90 0x32E5A0 0x32E7FA 0x32EA20 0x32EC9F)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_material_bounds_on_material_pair(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `material_bounds_on_material_pair` calls this, from the game's jump at 0x306d50,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::material_bounds::on_material_pair(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
     }
 }
 
@@ -8107,13 +8192,28 @@ pub extern "C" fn hook_technical_skills_on_dispersion(frame: &mut Frame) -> u32 
 
 // ---- technical_skills (patch 180) ----
 
-/// The entry `technical_skills_on_tank_empty` (0x33e661, oxygen_tank::tick after the air is spent, a living holder's only (the dead path jumps past it): ECX m_amount_ms left, 0 when it ran out this tick (set_active(0) follows at 0x33E66D)) calls this with the saved machine.
+/// The entry `technical_skills_on_tank_spent` (0x33e661, oxygen_tank::tick after the air is spent, a living holder's only (the dead path jumps past it; the tick runs only while the tank is on, set_active 0x33E400 lists it): ECX m_amount_ms left, 0 when it ran out this tick (set_active(0) follows at 0x33E66D), EAX the ms this tick spent (min(m_amount_ms, the elapsed ms), 0x33E5F3..0x33E607)) calls this with the saved machine.
 #[unsafe(no_mangle)]
-pub extern "C" fn hook_technical_skills_on_tank_empty(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `technical_skills_on_tank_empty` calls this, from the game's jump at 0x33e661,
+pub extern "C" fn hook_technical_skills_on_tank_spent(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_skills_on_tank_spent` calls this, from the game's jump at 0x33e661,
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
-    match crate::technical_skills::on_tank_empty(&mut ctx) {
+    match crate::technical_skills::on_tank_spent(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- technical_skills (patch 180) ----
+
+/// The entry `technical_skills_on_tank_switch` (0x33e403, oxygen_tank::set_active's store of m_active (mov [edi+268h],al): AL the new state, EDI the tank; called by action 0x33E3BD (the player's switch) and the tick's off 0x33E66F (run-out or a dead holder); deserialize lists a loaded tank itself, without it) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_technical_skills_on_tank_switch(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `technical_skills_on_tank_switch` calls this, from the game's jump at 0x33e403,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::technical_skills::on_tank_switch(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -8694,6 +8794,21 @@ pub extern "C" fn hook_unplayed_match_on_ready(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::unplayed_match::on_ready(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- use_prompt (patch 195) ----
+
+/// The entry `use_prompt_on_progress` (0x23a430, game_world_ui::set_using_progress_message (0x23A430) at its start (movss xmm0,[esp+8]): player::st_draw calls it each frame the drawn local player has an object in use (its user +4, player +134h; 0x246FC4) with the ui and the use's progress; ESP+4 the ui) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_use_prompt_on_progress(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `use_prompt_on_progress` calls this, from the game's jump at 0x23a430,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::use_prompt::on_progress(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -9450,6 +9565,46 @@ pub extern "C" fn hook_world_check_on_raw(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- zone_guards (patch 192) ----
+
+/// The named exits of zone_guards::on_unsubscribe_find (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ZoneGuardsOnUnsubscribeFindExit { Missing }
+/// The entry `zone_guards_on_unsubscribe_find` (0x2dbeaa, base_player::unsubscribe_from_actions 0x2DBE90 after its find (0x3C5510) of the subscriber, before the erase (mov ecx,esi / lea edx,[eax+4]; then the memmove 0x2DBEBA and the end's -4 at 0x2DBEC2, with no test of the find): EBX the player's game_object part, EAX what the find found, ESI the end (equal: not subscribed), EDI the argument's slot; missing is the function's own pop edi / pop esi / pop ebx / ret 4 (patch 192)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_zone_guards_on_unsubscribe_find(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `zone_guards_on_unsubscribe_find` calls this, from the game's jump at 0x2dbeaa,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::zone_guards::on_unsubscribe_find(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- zone_guards (patch 192) ----
+
+/// The named exits of zone_guards::on_left_find (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ZoneGuardsOnLeftFindExit { Missing }
+/// The entry `zone_guards_on_left_find` (0x319811, damage_zone_core::on_objects_left 0x319780 before its erase of the object from the inside list (mov edx,[edi+54h] / mov eax,[edi+50h]; then the find 0x308A40 and the erase 0x319822..0x31983A, which pops the list's last entry when the find found none): EDI the listener, EBP the left object's holder (its copy at [esp+10h]), ESI the object's owner; missing is the release of that copy at 0x319870 (patch 192)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_zone_guards_on_left_find(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `zone_guards_on_left_find` calls this, from the game's jump at 0x319811,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::zone_guards::on_left_find(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_freeze_tag_on_input_chain(frame: &mut Frame) -> u32 {
     let flow = hook_freeze_tag_on_input(frame);
@@ -9512,6 +9667,8 @@ pub extern "C" fn hook_replay_map_on_enemy_ids_chain(frame: &mut Frame) -> u32 {
     if flow != 0 { return flow; }
     let flow = hook_artefact_hunt_on_enemy_ids(frame);
     if flow != 0 { return flow; }
+    let flow = hook_grenade_icons_on_markers_made(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -9537,6 +9694,8 @@ pub extern "C" fn hook_hud_cursor_on_match_start_chain(frame: &mut Frame) -> u32
     let flow = hook_free_for_all_on_initialize_match(frame);
     if flow != 0 { return flow; }
     let flow = hook_artefact_hunt_on_initialize_match(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_freeze_tag_on_initialize_match(frame);
     if flow != 0 { return flow; }
     0
 }

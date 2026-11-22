@@ -15,7 +15,7 @@ use std::sync::{Arc, Mutex};
 
 use rusqlite::{Connection, OptionalExtension, params};
 
-use super::account::{Account, Item, KIT_SLOTS, Kit, KitSlot, QuestInstance, Upgrade};
+use super::account::{Account, ContainerSlot, Item, KIT_SLOTS, Kit, KitSlot, QuestInstance, Upgrade};
 use survarium::v026g::faces::Faces;
 use super::clans::Clan;
 use super::moderation::AdminAction;
@@ -170,6 +170,8 @@ const MIGRATIONS: &[&str] = &[
     history::SCORE_AVG_BOUND_MIGRATION,
     // 22: the names an account leaves (`history`).
     history::NAMES_MIGRATION,
+    // 23: what each kit and preset kit makes of Artifact Container's slot (`presets`).
+    presets::CONTAINER_MIGRATION,
 ];
 
 /// The child tables of an account, children of children first.
@@ -871,17 +873,28 @@ impl GameRepository for SqliteGameRepository {
             }
             {
                 let mut statement = transaction.prepare_cached(
-                    "SELECT id, name, revision FROM g26_kits WHERE account_id = ?1 ORDER BY seq",
+                    "SELECT id, name, revision, container FROM g26_kits
+                     WHERE account_id = ?1 ORDER BY seq",
                 )?;
                 let rows = statement.query_map([account_id], |row| {
-                    Ok(Kit {
-                        id: row.get(0)?,
-                        name: row.get(1)?,
-                        revision: row.get(2)?,
-                        slots: [None; KIT_SLOTS],
-                    })
+                    Ok((
+                        Kit {
+                            id: row.get(0)?,
+                            name: row.get(1)?,
+                            revision: row.get(2)?,
+                            slots: [None; KIT_SLOTS],
+                            container: ContainerSlot::Container,
+                        },
+                        row.get::<_, i64>(3)?,
+                    ))
                 })?;
-                account.kits = rows.collect::<Result<_, _>>()?;
+                for row in rows {
+                    let (mut kit, code) = row?;
+                    kit.container = ContainerSlot::from_code(code).ok_or_else(|| {
+                        bad_row(account_id, "kit container", &code.to_string())
+                    })?;
+                    account.kits.push(kit);
+                }
             }
             {
                 let mut statement = transaction.prepare_cached(
@@ -1109,9 +1122,16 @@ fn write_account(
     }
     for (seq, kit) in account.kits.iter().enumerate() {
         transaction.execute(
-            "INSERT INTO g26_kits (account_id, id, seq, name, revision)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![account_id, kit.id, seq as i64, kit.name, kit.revision],
+            "INSERT INTO g26_kits (account_id, id, seq, name, revision, container)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                account_id,
+                kit.id,
+                seq as i64,
+                kit.name,
+                kit.revision,
+                kit.container.code()
+            ],
         )?;
         for (slot, held) in kit.slots.iter().enumerate() {
             if let Some(held) = held {

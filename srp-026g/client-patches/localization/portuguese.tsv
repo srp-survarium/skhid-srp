@@ -2761,6 +2761,8 @@ st_srp_loadout_sell_and	 e
 st_srp_loadout_sell_item	Kit %1$s
 st_srp_loadout_sell_many	Usado em %1$s. Vender mesmo assim?
 st_srp_loadout_sell_one	Usado no Kit %1$s. Vender mesmo assim?
+st_srp_loadout_slot_to_container	Clique: recipiente para artefato
+st_srp_loadout_slot_to_pocket	Clique: bolso
 st_srp_loadout_title	Kit
 st_srp_loadout_unfit	não jogável
 st_srp_lobby_basement	Porão
@@ -3084,15 +3086,17 @@ st_srp_technical_433_description	Suas armadilhas atingidas por tiros reabrem ap�
 st_srp_technical_433_name	Rearmar
 st_srp_technical_441_description	Sua fumaça fica esverdeada e envenena os inimigos dentro dela; o tanque de oxigênio protege. Cada bolso comporta metade das granadas de fumaça. Dano tóxico:
 st_srp_technical_441_name	Fumaça Tóxica
-st_srp_technical_442_description	Quando o tanque de oxigênio acaba: +10% de velocidade por 20 s e estamina cheia.
-st_srp_technical_442_name	Último Suspiro
+st_srp_technical_442_description	A cada 20 s de uso contínuo do tanque de oxigênio e quando ele acaba: +10% de velocidade por 20 s e estamina cheia.
+st_srp_technical_442_name	Arrancada de Oxigênio
 st_srp_technical_443_description	Uma eliminação com sua granada devolve uma granada.
 st_srp_technical_443_name	Saqueador
-st_srp_technical_444_description	Sua armadilha quebra as pernas de quem ela pega. Cada bolso comporta metade das armadilhas.
+st_srp_technical_444_description	Sua armadilha quebra as pernas de quem ela pega. Cada armadilha ocupa 1,5 espaço no bolso.
 st_srp_technical_444_name	Armadilha de Urso
+st_srp_technical_445_description	Com tanque de oxigênio no kit: mais um recipiente para artefato.
+st_srp_technical_445_name	Recipiente no Tanque
 st_srp_technical_disarm_speed	Velocidade de desarme
 st_srp_technical_friendly_blast	Dano das próprias granadas
-st_srp_technical_last_gasp	Velocidade com o tanque vazio
+st_srp_technical_oxygen_rush	Velocidade após 20 s de tanque e no fim
 st_srp_technical_per_second	 por segundo
 st_srp_technical_pocket_size	 no tamanho dos bolsos
 st_srp_technical_pockets	 bolsos

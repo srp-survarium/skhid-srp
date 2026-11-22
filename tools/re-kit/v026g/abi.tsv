@@ -2343,8 +2343,8 @@ va	name	source	ret_cleanup	result
 0x002f5450	survarium::shared_statistics::on_player_damaged	manual	16	
 0x002f5500	survarium::shared_statistics::on_player_weapon_firing	manual	8	
 0x002d7800	survarium::base_player::on_fire	manual	4	
-0x0023a430	survarium::game_world_ui::set_using_progress_message	manual	8	
-0x0023a560	survarium::game_world_ui::set_using_info_message	manual	4	
+0x0023a430	survarium::game_world_ui::set_using_progress_message	manual	8	none; a progress of 0 gives nothing, else root.set_context(st_using_progress_message, the progress x 100, 500); never reads or writes ui+334h (the prompt cache set_using_info_message compares)
+0x0023a560	survarium::game_world_ui::set_using_info_message	manual	4	none; when EAX differs from ui+334h: stores it there and calls root.set_context(the translated text, 0, 1000); else nothing (so a progress bar the text did not replace stays)
 0x00246f50	survarium::player::st_draw	manual	4	
 0x002189e0	survarium::replay_network_client::match_options	manual	0	EAX = client+1Ch, inline match options; replay vtable 0x9FF344 +34h. Live client uses a different implementation (0x219990).
 0x0026d6a0	survarium::base_local_network_client::get_active_player	manual	8	EAX = out pointer; active player with reference added, or 0. Core is [client+578BCh]+1F8h; slot +50h in 0xA074BC and replay 0x9FF344. Live 0x27A9C0 instead reads +1F1C40h.
@@ -2817,3 +2817,15 @@ va	name	source	ret_cleanup	result
 0x00176420	stlp_std::find_if<vostok::render::render_surface_instance * *,vostok::render::remove_invisible_models_predicate>	manual	0	EAX: the first instance whose screen factor (+58h; 1000 when its model's +116h is 0) is under the threshold, else the end (EDI); counts it at [0x226048C]+37F0h
 0x003cf260	sun_shadow_map_size [descriptive]	manual	8	EAX: each sun cascade map's side in texels: 512 at r_shadow_quality 0; 1024 at 1 and 2 with at least 640 MiB of video memory; 2048 at 3 with more than 1 GiB (else 1024, 512)
 0x00316be0	survarium::player_respawn_rule_base::on_player_left_match	manual	8	none; its place's time -1 (+138h + 4 x place), then the place's current player out of the world with 1 (vtable +24h, 0x316C12), whether it is in the world or not: one never put in (no player effect +F540h) reads a null effect at 0x2DE36D
+0x002dbe50	survarium::base_player::subscribe_to_actions	manual	4	none; pushes its argument on the game_object part's subscriber vector (+3B0h begin, +3B4h end, +3B8h capacity; 0x22F590 grows it)
+0x002dbe90	survarium::base_player::unsubscribe_from_actions	manual	4	none; finds its argument in the subscriber vector (0x3C5510) and erases it with memmove (0x2DBEBA) and end -4 (0x2DBEC2), with no test of the find: one not there moves -4 bytes (the 2026-11-22 crash; patch 192 skips it)
+0x00319780	survarium::damage_zone_core::on_objects_left	manual	8	none; for each left object while the sensor's +A4h: its owner unsubscribed (vtable+38h with +24h), the owner's +2E4h count down, the object erased from the inside list +50h (find 0x308A40 by the object a holder names; a miss pops the last entry: patch 192 skips it)
+0x003198d0	survarium::damage_zone_core::on_objects_entered	manual	8	none; for each entered object while +A4h: its owner subscribed (vtable+34h with +24h), its +2E4h count up, the object pushed on the inside list +50h
+0x00319a10	survarium::damage_zone_core::erase_lost_objects	manual	4	none; erases lost objects from the inside list without unsubscribing their owners (the sensor's remove_loosed_ptrs 0x307BDE)
+0x002f8570	survarium::usable_object::use_initialize	manual	8	none; the user (stack+4) appended to the object's users (+30h head, +34h tail, +28h count; the user's +28h its next), the user's +4 the object, +8 the start time (stack+8); vtable +3Ch of artefact containers and the other usables but victory items (0x31CC40)
+0x002f85b0	survarium::usable_object::use_finalize	manual	4	none; the user (stack+4): +4 and +8 0, its points and progress (+24h) 0, unlinked from the object's users (0x2F8620); vtable +40h; called when use_execute ends a use (0x2D86D4) and by player::on_player_death (0x1F290C)
+0x0023c3d0	survarium::game_world_ui::show_grenade_icons [descriptive]	manual	4	none; icon 2Fh + i (i below the count) placed at the i-th point by place_object_icon (0x23C411, shown off the screen too), the others of the six (2Fh..34h) hidden (row +386h 0, dirty 10h)
+0x0023c430	survarium::game_world_ui::hide_grenade_icons [descriptive]	manual	0	none; the six grenade icons 2Fh..34h hidden (row +386h 0, dirty 10h); called by update_ui (0x23B5A4)
+0x0023c470	survarium::game_world_ui::show_trap_icons [descriptive]	manual	4	none; the traps' icons (from ui+34Ah) placed at the points, as show_grenade_icons
+0x0023c750	survarium::game_world_ui::place_object_icon [descriptive]	manual	12	AL: shown. point_to_screen; off the screen and ESP+12 0: hidden (row +386h 0); else shown, its scale icon_name_min_size..max_size (1..3) and alpha icon_name_min_alpha..max_alpha (128..255) by the distance from the camera between icon_name_near_dist and far_dist (1..100 m), set_player_icon_position
+0x0023bea0	survarium::game_world_ui::set_hud_icon_type	manual	12	none; the player icons movie's root.set_player_icon_type(id, type) (Invoke 0x511600 at 0x23BF47, the movie [[ui+10h]+108h]+4)

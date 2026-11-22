@@ -114,22 +114,15 @@ impl Rooms {
         }
     }
 
-    /// A free-for-all's version's: a public room's alone (a private room's
-    /// free-for-all is plain, `session::v026g::rooms::Rooms::deal`).
-    fn of_version(free_for_all: Self) -> Self {
-        match free_for_all {
-            Self::Both | Self::PublicOnly => Self::PublicOnly,
-            Self::PrivateOnly | Self::None => Self::None,
-        }
-    }
-
-    fn text(self, lang: Lang) -> String {
-        match self {
-            Self::Both => lang.t("Public and private rooms"),
+    /// The line under a mode's title: none when every room offers it.
+    fn line(self, lang: Lang) -> String {
+        let text = match self {
+            Self::Both => return String::new(),
             Self::PublicOnly => lang.t("Public rooms only"),
             Self::PrivateOnly => lang.t("Private rooms only"),
             Self::None => lang.t("Not offered now"),
-        }
+        };
+        format!("<p class=mode-rooms>{text}</p>")
     }
 }
 
@@ -402,7 +395,6 @@ fn version_rules(lang: Lang, mode: LobbyMode) -> Vec<String> {
                     "{0} % of deals: pistols only.",
                     &[("0", &roulette::PISTOL_HANDS_PERCENT)],
                 ),
-                lang.t("Nothing of yours is used or spent."),
             ]
         }
         LobbyMode::Plain(_) => Vec::new(),
@@ -420,8 +412,7 @@ fn share(pick: Pick) -> u32 {
 }
 
 /// The free-for-all's versions: their subsections.
-fn versions(lang: Lang, out: &mut String, rooms: Rooms) {
-    let rooms = Rooms::of_version(rooms);
+fn versions(lang: Lang, out: &mut String) {
     let _ = write!(
         out,
         "<h3 class=mode-versions>{}</h3><ul class=mode-rules><li>{}</li></ul>",
@@ -445,11 +436,10 @@ fn versions(lang: Lang, out: &mut String, rooms: Rooms) {
         lines.extend(version_rules(lang, mode));
         let _ = write!(
             out,
-            "<section class=mode-version id={}><h3>{}{}</h3><p class=mode-rooms>{}</p>{}</section>",
+            "<section class=mode-version id={}><h3>{}{}</h3>{}</section>",
             anchor(mode),
             version_icon(mode),
             escape(&name),
-            rooms.text(lang),
             rules(&lines),
         );
     }
@@ -485,13 +475,13 @@ pub(crate) fn body(lang: Lang, pools: &Pools) -> String {
         let _ = write!(
             sections,
             "<section class=\"modifiers mode\" id={}><h2>{icon}{name}</h2>\
-             <p class=mode-rooms>{}</p><div class=mode-body>{}</div>",
+             {}<div class=mode-body>{}</div>",
             anchor(lobby),
-            rooms.text(lang),
+            rooms.line(lang),
             rules(&mode_rules(lang, mode, shown)),
         );
         if mode == GameMode::FreeForAll {
-            versions(lang, &mut sections, rooms);
+            versions(lang, &mut sections);
         }
         sections.push_str("</section>");
     }

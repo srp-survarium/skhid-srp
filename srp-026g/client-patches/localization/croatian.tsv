@@ -2761,6 +2761,8 @@ st_srp_loadout_sell_and	 i
 st_srp_loadout_sell_item	Komplet %1$s
 st_srp_loadout_sell_many	Koristi se u %1$s. Svejedno prodati?
 st_srp_loadout_sell_one	Koristi se u kompletu %1$s. Svejedno prodati?
+st_srp_loadout_slot_to_container	Klik: spremnik za artefakte
+st_srp_loadout_slot_to_pocket	Klik: džep
 st_srp_loadout_title	Komplet
 st_srp_loadout_unfit	ne može igrati
 st_srp_lobby_basement	Podrum
@@ -3084,15 +3086,17 @@ st_srp_technical_433_description	Vaše zamke u koje je pucano ponovno se otvaraj
 st_srp_technical_433_name	Ponovno postavljanje
 st_srp_technical_441_description	Vaš dim je zelenkast i truje neprijatelje u njemu; boca s kisikom štiti. U džep stane upola manje dimnih granata. Otrovna šteta:
 st_srp_technical_441_name	Otrovni dim
-st_srp_technical_442_description	Kad se boca s kisikom isprazni: +10% brzine na 20 s i puna energija.
-st_srp_technical_442_name	Posljednji dah
+st_srp_technical_442_description	Nakon svakih 20 s neprekidnog korištenja boce s kisikom i kad se isprazni: +10% brzine na 20 s i puna energija.
+st_srp_technical_442_name	Kisikov nalet
 st_srp_technical_443_description	Ubojstvo vašom granatom vraća jednu granatu.
 st_srp_technical_443_name	Strvinar
-st_srp_technical_444_description	Vaša zamka lomi noge onome tko u nju upadne. U džep stane upola manje zamki.
+st_srp_technical_444_description	Vaša zamka lomi noge onome tko u nju upadne. Zamka zauzima 1,5 mjesta u džepu.
 st_srp_technical_444_name	Medvjeđa zamka
+st_srp_technical_445_description	S bocom s kisikom u opremi: još jedan spremnik za artefakte.
+st_srp_technical_445_name	Spremnik u boci
 st_srp_technical_disarm_speed	Brzina razoružavanja zamki
 st_srp_technical_friendly_blast	Šteta od vlastitih granata
-st_srp_technical_last_gasp	Brzina kad se boca isprazni
+st_srp_technical_oxygen_rush	Brzina nakon 20 s boce i na kraju
 st_srp_technical_per_second	 u sekundi
 st_srp_technical_pocket_size	 veličine džepova
 st_srp_technical_pockets	 džep.

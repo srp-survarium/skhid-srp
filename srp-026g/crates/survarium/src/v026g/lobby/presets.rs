@@ -7,6 +7,7 @@
 //! rooms and within an `int`. Every request is answered with the list
 //! ([`preset_list`]) at [`PRESETS_FIRST`].
 
+use super::super::loadouts::ContainerSlot;
 use super::push::{Ranked, elo_rows};
 use super::rooms::PRESET_COUNT;
 use super::{ServerMessage, WireError, limits};
@@ -16,6 +17,10 @@ pub const PRESETS_FIRST: u32 = 2_090_000_000;
 /// `PRESET_CHOOSE_BASE + preset`, preset 1 to [`PRESET_COUNT`]: make that
 /// preset the active one (its kits put on).
 pub const PRESET_CHOOSE_BASE: u32 = PRESETS_FIRST + 10;
+/// `CONTAINER_BASE + kit × 10 + code`: the kit `kit` (0 to 2, the account's kits in order, as
+/// the list's [`CONTAINERS`] row) makes Artifact Container's slot the one of
+/// [`ContainerSlot::code`] (1 the container, 2 the pocket).
+pub const CONTAINER_BASE: u32 = PRESETS_FIRST + 20;
 /// The last start.
 pub const PRESETS_LAST: u32 = PRESETS_FIRST + 99;
 /// The first field of the header's name. P2: no count of slots left empty
@@ -29,22 +34,35 @@ pub const BLOCK_MAINTENANCE: u8 = 32;
 
 /// The first field of a row of the items the presets use.
 pub const USES: &str = "U";
+/// The first field of the row of the kits' Artifact Container slots.
+pub const CONTAINERS: &str = "K";
 
 /// A presets request, by its start.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PresetRequest {
     List,
     Choose { preset: u8 },
+    /// The kit at `kit` (0 to 2) makes Artifact Container's slot `slot`.
+    Container { kit: u8, slot: ContainerSlot },
 }
 
 /// The presets request a reserved start is, if it is one.
 pub fn preset_request(start: u32) -> Option<PresetRequest> {
     let count = u32::from(PRESET_COUNT);
+    let kits = limits::KITS as u32;
     match start {
         PRESETS_FIRST => Some(PresetRequest::List),
         _ if (PRESET_CHOOSE_BASE + 1..=PRESET_CHOOSE_BASE + count).contains(&start) => {
             Some(PresetRequest::Choose {
                 preset: (start - PRESET_CHOOSE_BASE) as u8,
+            })
+        }
+        _ if (CONTAINER_BASE..CONTAINER_BASE + 10 * kits).contains(&start) => {
+            let offset = start - CONTAINER_BASE;
+            let slot = ContainerSlot::from_code(i64::from(offset % 10))?;
+            Some(PresetRequest::Container {
+                kit: (offset / 10) as u8,
+                slot,
             })
         }
         _ => None,
@@ -73,6 +91,28 @@ pub struct PresetRow {
     pub level: Option<u8>,
 }
 
+/// Everything the list says ([`preset_list`]).
+#[derive(Clone, Copy, Debug)]
+pub struct PresetList<'a> {
+    /// What the request did.
+    pub done: PresetDone,
+    /// The preset it was about; 0 for none.
+    pub preset: u8,
+    /// The active preset.
+    pub active: u8,
+    /// Why no room may be entered now, a set of bits.
+    pub blocks: u8,
+    /// To a planned maintenance; none: none planned.
+    pub minutes: Option<u32>,
+    /// Each preset, 1 first.
+    pub rows: &'a [PresetRow],
+    /// Each kit's id and Artifact Container slot, the account's kits in order; none: the kit
+    /// has no such slot (the account lacks the skill).
+    pub containers: &'a [(u32, Option<ContainerSlot>)],
+    /// The items the presets use, item ids rising, each with its presets.
+    pub uses: &'a [(u32, u8)],
+}
+
 /// `91` at [`PRESETS_FIRST`]: the header
 /// `P2;L;<done>;<preset>;<active>;<blocks>;<minutes>` (`done` a
 /// [`PresetDone`], `preset` the one it was about, 0 for the list; `active`
@@ -84,21 +124,15 @@ pub struct PresetRow {
 /// for none: the tip's number, and the movie asks again while one is
 /// planned), then a row a preset, 1 first:
 /// `<preset>;<saved>;<level>` (`level` -1: none of its kits can play, or it
-/// is empty), then the items the presets use, `U;<item id>:<presets>,...`
+/// is empty), then the kits' Artifact Container slots, `K;<kit id>:<code>,...` (the kits in
+/// order; `code` 0 none, the account lacks the skill, else [`ContainerSlot::code`]; a movie
+/// before it reads it as no preset), then the items the presets use, `U;<item id>:<presets>,...`
 /// (`presets` bit `n - 1` for preset n), as many to a row as a name
 /// holds, item ids rising. The lobby asks before a sale of one of them
 /// (`presets.md`). Rows past [`PRESETS_LAST`] are left out: the server
 /// sells as ever, only the question is missing.
-pub fn preset_list(
-    done: PresetDone,
-    preset: u8,
-    active: u8,
-    blocks: u8,
-    minutes: Option<u32>,
-    rows: &[PresetRow],
-    uses: &[(u32, u8)],
-) -> Result<ServerMessage, WireError> {
-    let names = list_names(done, preset, active, blocks, minutes, rows, uses);
+pub fn preset_list(list: &PresetList<'_>) -> Result<ServerMessage, WireError> {
+    let names = list_names(list);
     let rows: Vec<(u32, Ranked)> = names
         .into_iter()
         .enumerate()
@@ -117,27 +151,26 @@ pub fn preset_list(
     elo_rows(&rows)
 }
 
-fn list_names(
-    done: PresetDone,
-    preset: u8,
-    active: u8,
-    blocks: u8,
-    minutes: Option<u32>,
-    rows: &[PresetRow],
-    uses: &[(u32, u8)],
-) -> Vec<String> {
-    let minutes = minutes.map_or(-1, i64::from);
+fn list_names(list: &PresetList<'_>) -> Vec<String> {
+    let minutes = list.minutes.map_or(-1, i64::from);
     let most = (PRESETS_LAST - PRESETS_FIRST + 1) as usize;
     let mut names = vec![format!(
-        "{PRESETS_VERSION};L;{};{preset};{active};{blocks};{minutes}",
-        done as u8
+        "{PRESETS_VERSION};L;{};{};{};{};{minutes}",
+        list.done as u8, list.preset, list.active, list.blocks
     )];
-    for (index, row) in rows.iter().take(usize::from(PRESET_COUNT)).enumerate() {
+    for (index, row) in list.rows.iter().take(usize::from(PRESET_COUNT)).enumerate() {
         let level = row.level.map_or(-1, i32::from);
         names.push(format!("{};{};{level}", index + 1, u8::from(row.saved)));
     }
+    let containers: Vec<String> = list
+        .containers
+        .iter()
+        .take(limits::KITS)
+        .map(|(id, slot)| format!("{id}:{}", slot.map_or(0, ContainerSlot::code)))
+        .collect();
+    names.push(format!("{CONTAINERS};{}", containers.join(",")));
     let mut row = String::new();
-    for (item_id, presets) in uses {
+    for (item_id, presets) in list.uses {
         let entry = format!("{item_id}:{presets}");
         if !row.is_empty() && row.len() + 1 + entry.len() > limits::NAME {
             names.push(std::mem::take(&mut row));
@@ -160,12 +193,31 @@ fn list_names(
 mod tests {
     use super::*;
 
+    fn list<'a>(
+        done: PresetDone,
+        rows: &'a [PresetRow],
+        containers: &'a [(u32, Option<ContainerSlot>)],
+        uses: &'a [(u32, u8)],
+    ) -> PresetList<'a> {
+        PresetList {
+            done,
+            preset: u8::from(done == PresetDone::Chosen),
+            active: 1,
+            blocks: 0,
+            minutes: None,
+            rows,
+            containers,
+            uses,
+        }
+    }
+
     #[test]
     fn every_start_is_one_request_inside_an_int_past_the_rooms() {
         const {
             assert!(PRESETS_FIRST > super::super::rooms::ROOMS_LAST);
             assert!(PRESETS_LAST <= i32::MAX as u32);
             assert!(PRESETS_LAST < super::super::REPLAY_START);
+            assert!(CONTAINER_BASE + 10 * limits::KITS as u32 <= PRESETS_LAST);
         }
         assert_eq!(preset_request(PRESETS_FIRST), Some(PresetRequest::List));
         assert_eq!(preset_request(PRESET_CHOOSE_BASE), None);
@@ -179,6 +231,23 @@ mod tests {
         );
         assert_eq!(preset_request(PRESET_CHOOSE_BASE + 6), None);
         assert_eq!(preset_request(PRESETS_FIRST + 1), None);
+        assert_eq!(
+            preset_request(CONTAINER_BASE + 2),
+            Some(PresetRequest::Container {
+                kit: 0,
+                slot: ContainerSlot::Pocket
+            })
+        );
+        assert_eq!(
+            preset_request(CONTAINER_BASE + 21),
+            Some(PresetRequest::Container {
+                kit: 2,
+                slot: ContainerSlot::Container
+            })
+        );
+        assert_eq!(preset_request(CONTAINER_BASE), None);
+        assert_eq!(preset_request(CONTAINER_BASE + 13), None);
+        assert_eq!(preset_request(CONTAINER_BASE + 31), None);
     }
 
     #[test]
@@ -196,16 +265,13 @@ mod tests {
             PresetRow::default(),
             PresetRow::default(),
         ];
+        let containers = [
+            (1, Some(ContainerSlot::Container)),
+            (2, Some(ContainerSlot::Pocket)),
+            (7, Some(ContainerSlot::Container)),
+        ];
         assert_eq!(
-            list_names(
-                PresetDone::Chosen,
-                1,
-                1,
-                0,
-                None,
-                &rows,
-                &[(12, 1), (40, 5)]
-            ),
+            list_names(&list(PresetDone::Chosen, &rows, &containers, &[(12, 1), (40, 5)])),
             [
                 "P2;L;1;1;1;0;-1",
                 "1;1;7",
@@ -213,10 +279,16 @@ mod tests {
                 "3;1;-1",
                 "4;0;-1",
                 "5;0;-1",
+                "K;1:1,2:2,7:1",
                 "U;12:1,40:5"
             ]
         );
-        assert!(preset_list(PresetDone::Listed, 0, 3, 40, Some(12), &rows, &[]).is_ok());
+        let without = [(1, None), (2, None), (3, None)];
+        assert_eq!(
+            list_names(&list(PresetDone::Listed, &rows, &without, &[]))[6],
+            "K;1:0,2:0,3:0"
+        );
+        assert!(preset_list(&list(PresetDone::Listed, &rows, &without, &[])).is_ok());
     }
 
     /// The items of five full presets: rows of at most a name each, every
@@ -224,18 +296,15 @@ mod tests {
     #[test]
     fn the_items_the_presets_use_fill_rows_of_a_name_each() {
         let uses: Vec<(u32, u8)> = (0..345).map(|n| (1_000_000 + n, 31)).collect();
-        let names = list_names(
+        let names = list_names(&list(
             PresetDone::Listed,
-            0,
-            1,
-            0,
-            None,
             &[PresetRow::default(); 5],
+            &[(1, None), (2, None), (3, None)],
             &uses,
-        );
+        ));
         assert!(names.len() <= (PRESETS_LAST - PRESETS_FIRST + 1) as usize);
         assert!(names.iter().all(|name| name.len() <= limits::NAME));
-        let listed: Vec<&str> = names[6..]
+        let listed: Vec<&str> = names[7..]
             .iter()
             .flat_map(|name| name.strip_prefix("U;").unwrap().split(','))
             .collect();

@@ -16,12 +16,16 @@
 //! new one is heard, and a long re-simulated window (a resync) plays only
 //! each foot's newest step, not a burst of them in one frame. Nothing of the
 //! simulation: the step is a sound, a decal and particles.
+//!
+//! And a foot step in a logic state with no foot material (movement 0: on
+//! site, dead) is dropped where `on_foot_step` would read the material
+//! before the boots' table (a crash in step_manager::on_step, rev71).
 
 #![forbid(unsafe_code)]
 
-use crate::vostok::footstep::{EventLine, Pass, SimTime, Step, StepSource};
-use crate::vostok::log::{parts, Piece::*};
-use crate::vostok::{Context, Flow, FootstepsOnStepGuardExit, GameCell, Thread};
+use crate::vostok::footstep::{EventLine, Movement, Pass, SimTime, Step, StepSource};
+use crate::vostok::log::{is_power_of_ten, line, parts, Piece::*};
+use crate::vostok::{Context, Flow, FootstepsOnFootMaterialExit, FootstepsOnStepGuardExit, GameCell, Thread};
 
 /// Two steps of one foot closer than this are one step played twice: a foot
 /// steps once a cycle, 600 ms at the quickest (the sprint clips, 18 frames),
@@ -106,14 +110,14 @@ pub fn on_step_guard(ctx: &mut Context<'_>) -> Flow<FootstepsOnStepGuardExit> {
     let event = if crate::step_ground::log_on(ctx.thread()) { EventLine::at_guard(ctx) } else { None };
     let Some(step) = Step::at_guard(ctx) else {
         if let Some(event) = event {
-            log_event(event, "the game's test");
+            log_event(event, event.or_dropped("the game's test"));
         }
         return Flow::Continue;
     };
     let decision = decide(ctx.thread(), step);
     if let Some(event) = event {
         log_event(event, match decision {
-            Decision::Play => "plays",
+            Decision::Play => event.or_dropped("plays"),
             Decision::Skip => "skipped (a re-simulated copy)",
         });
     }
@@ -123,11 +127,38 @@ pub fn on_step_guard(ctx: &mut Context<'_>) -> Flow<FootstepsOnStepGuardExit> {
     }
 }
 
+/// Foot steps dropped for a state with no foot material, this run.
+static NO_FOOT_MATERIAL: GameCell<u32> = GameCell::new(0);
+
+/// on_foot_step's read of the foot material (`player_sound.foot_material`),
+/// which every foot step reaches (also one of a player with no world core,
+/// which the guard never sees). A state with none ends the step there: no
+/// sound, decal or particles. The log says so at the 1st, 10th, 100th, ..
+/// of a run.
+pub fn on_foot_material(ctx: &mut Context<'_>) -> Flow<FootstepsOnFootMaterialExit> {
+    let movement = Movement::at_foot_material(ctx);
+    if movement.has_foot_material() {
+        return Flow::Continue;
+    }
+    let count = NO_FOOT_MATERIAL.get(ctx.thread()).saturating_add(1);
+    NO_FOOT_MATERIAL.set(ctx.thread(), count);
+    if is_power_of_ten(count) {
+        line(&[
+            Text("footsteps: a foot step in a state with no foot material (movement "),
+            Dec(movement.id()),
+            Text(") dropped, "),
+            Dec(count),
+            Text(" this run"),
+        ]);
+    }
+    Flow::Exit(FootstepsOnFootMaterialExit::Skip)
+}
+
 /// The step log's event line (SKHID_STEP_LOG): `step event: <whose>, domain <n> (<foot or rustle>), time <t>
 /// (max <m>), movement <id>, feet <read|not read>[, not its player's]: <what>`.
 fn log_event(event: EventLine, what: &'static str) {
     let movement = match event.movement {
-        Some(id) => [Text(", movement "), Dec(id)],
+        Some(movement) => [Text(", movement "), Dec(movement.id())],
         None => [Text(", no logic state"), Text("")],
     };
     parts(&[

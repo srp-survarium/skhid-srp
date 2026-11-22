@@ -212,6 +212,73 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   layout of `loadouts::KitLayout`): the item of the pocket the skill takes away comes off every
   kit and preset, as for Deep Pockets.
 
+### The slot a pocket again, by kit
+
+The owner (2026-11-22): "if I use additional container skill, I should be able to click on that
+artifact slot to turn it back into equipment slot", and "it should have yelow contours".
+
+- **The choice is a kit's** (`ContainerSlot` of `survarium::v026g::loadouts`: `Container`, the
+  default, or `Pocket`; `Kit::container`). A kit whose slot is the pocket carries the skills'
+  modifiers without Artifact Container's (`Account::kit_modifiers`): its block is a kit's without
+  the skill, so the game reads one pocket more and one container less, in the lobby and in a match
+  alike, with no exe change (the lobby's and the match's counts are apply_kit_parameter's of the
+  kit's own block, `MatchProfile` takes the account body's). Fixed when the kit is saved; nothing
+  changes in a match. Not a change of what a match computes (no `next` row: such a kit is a kit
+  without the skill), and the world format is as it was (the artefact slots' count is already the
+  kit's).
+- **A preset's kit keeps its own** (the owner's pick of 2026-11-22: a preset is its kits;
+  `Preset::containers`, `g26_preset_pockets`), put on with it. Kits: `g26_kits.container`.
+- **Every kit of before is the container**, so nobody's kits change until he clicks. Without the
+  skill every kit's and preset kit's is the container again (`change_skills`, and the repair at
+  load), so the skill learned again starts so.
+- **What the slot held:** the container holds nothing in the lobby, so it opens as an empty
+  pocket. The pocket made the container again: its item comes off the kit and stays owned, as any
+  pocket that goes (`KitLayout::kept`); the server never saves an item in a container.
+- **Wire** (`lobby.md` §2.16.4): `2 090 000 020 + kit × 10 + state` asks it (1 the container, 2
+  the pocket), refused without the skill, in a match or on the way to one; answered with the
+  account and the presets list, whose `K;<kit id>:<state>,...` row says every kit's (0 without the
+  skill). The movie asks for the list at every account it is given, so learning, refunding or a
+  preset chosen redraws it.
+- **The lobby** (`ContainerSlotMark`, `LocalPaperDoll`): with the skill, the slot has a soft edge
+  of the lobby's yellow (`RoomsLook.YELLOW`, 0xFFD23F; the owner, "it should have yelow
+  contours", then of the flat 2 px border: "can it be more beatiful not just yellow border"; he
+  picked the soft edge of three looks, 2026-11-22), over the slot's own look (the locked
+  "Artifact", or the pocket with or without its item), on the first container as the container
+  and on the last pocket as the pocket:
+  - a 1 px line all round at half strength (`RoomsLook.YELLOW_HALF`, 0.5);
+  - the yellow glowing into the slot from it (`RoomsLook.YELLOW_GLOW`, 0.16, to nothing): all
+    round, a ninth of the slot's short side deep, as the container; from the bottom up, half the
+    slot's height, as the pocket. So the two states tell apart at a glance: a glowing box, a
+    pocket lit from its bottom;
+  - on the hover the line goes to the full yellow and the glow doubles;
+  - the glow is drawn as gradients, not a GlowFilter (Scaleform renders a filtered object into a
+    bitmap of its own at every change of its alpha, each frame of a fade).
+- **A switch is a cross-fade**, about 130 ms eased, the hover's too, run on the movie's frames.
+  A click shows the other state's look at once and asks srp; the mark stays on its slot until
+  srp's answer (the account, whose new pocket count comes first, then the `K` row); a list that
+  was on its way says the old state and changes nothing meanwhile; no answer in 3 s shows srp's
+  last word again. The slot's own stock frame and label change when the account comes.
+- **Its hint**, the game's tooltip: "Click: pocket" / "Click: artifact container"
+  (`st_srp_loadout_slot_to_pocket`, `_to_container`). A click on the container makes it the
+  pocket; a click on the empty pocket makes it the container; a click on the pocket holding an
+  item is the item's, as any pocket's (the owner's pick of 2026-11-22: empty it first, so a stray
+  click never moves an item). One ask at a time. Checked in Ruffle:
+  `scripts/container-slot/check.sh` (its looks.png and zoom.png: before and after).
+
+```text
+ Container (default)              Pocket (after a click)
+ +-----------+ +-----------+      +-----------+ +-----------+
+ | medkit x2 | | RGD-5 x1  |      | medkit x2 | | RGD-5 x1  |
+ +-----------+ +-----------+      +-----------+ +-----------+
+ +-----------+ +-----------+      +-----------+ +-----------+
+ | bandage   | |:::::::::::|      | bandage   | |           |
+ |           | |: ARTIFACT:|      |           | |   ITEMS   |
+ |           | |:::::::::::|      |           | |:::::::::::|
+ +-----------+ +-----------+      +-----------+ +-----------+
+ the skill's slot: a thin yellow line, the glow (:) all round as the container, from the
+ bottom up as the pocket
+```
+
 ## Knowledge of Artifacts (512)
 
 - Modifier 39 `artefact_duration` +0.05 a rank: each active's time x max(0, 1 + sum): Spring

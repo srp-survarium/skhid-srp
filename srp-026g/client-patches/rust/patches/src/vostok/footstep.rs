@@ -42,6 +42,50 @@ impl Foot {
     }
 }
 
+/// A logic state's movement id (state +24h; the state constructors
+/// 0x2FABB0..0x2FADCC): the row of the boots' foot materials a foot step
+/// reads (`on_foot_step` 0x2A6545: the player's u16 at +0F2C4h + 4 x id +
+/// 2 x third view; the eight start at +0F2C8h, ids 1..4).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Movement {
+    /// 1..4: crouch_walk, stand_run, stand_sprint, stand_jump.
+    Moving(u32),
+    /// 0: stand_on_site, crouch_on_site, dead. No row: the read is the
+    /// word before the table (a crash in step_manager::on_step, rev71).
+    OnSite,
+    /// Past the table: no state the game makes.
+    Unknown(u32),
+}
+
+impl Movement {
+    pub fn parse(id: u32) -> Movement {
+        match id {
+            0 => Movement::OnSite,
+            1..=4 => Movement::Moving(id),
+            _ => Movement::Unknown(id),
+        }
+    }
+
+    /// The state's movement at `player_sound.foot_material`.
+    pub fn at_foot_material(ctx: &Context<'_>) -> Movement {
+        // SAFETY: the context is this site's: ECX the logic state's movement
+        // id, read at 0x2A6532.
+        Movement::parse(unsafe { raw::site::player_sound_foot_material::movement(ctx) })
+    }
+
+    pub fn id(self) -> u32 {
+        match self {
+            Movement::Moving(id) | Movement::Unknown(id) => id,
+            Movement::OnSite => 0,
+        }
+    }
+
+    /// Whether a foot step in this state has a foot material.
+    pub fn has_foot_material(self) -> bool {
+        matches!(self, Movement::Moving(_))
+    }
+}
+
 /// Simulation milliseconds (the event's time, the core's times).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SimTime(u32);
@@ -150,14 +194,26 @@ pub struct EventLine {
     pub feet: bool,
     /// The local player's.
     pub own: bool,
-    /// The logic state's movement id now.
-    pub movement: Option<u32>,
+    /// The logic state's movement now.
+    pub movement: Option<Movement>,
     /// The effect's address (the held item's +884h): two lines of one event
     /// with two addresses are two effects.
     pub effect: u32,
 }
 
 impl EventLine {
+    /// `what` the guard let on, or what on_foot_step then does with a foot
+    /// step in a state with no foot material
+    /// (footsteps::on_foot_material).
+    pub fn or_dropped(&self, what: &'static str) -> &'static str {
+        let foot = Foot::parse(self.domain).is_some();
+        if foot && self.ours && self.feet && self.movement.is_some_and(|m| !m.has_foot_material()) {
+            "dropped (no foot material)"
+        } else {
+            what
+        }
+    }
+
     pub fn at_guard(ctx: &Context<'_>) -> Option<EventLine> {
         use raw::site::player_sound_step_guard as site;
         // SAFETY: the site's effect, event and core, alive for the call; the
@@ -173,7 +229,7 @@ impl EventLine {
                 ours: read(event.object()) == player.address(),
                 feet: read(effect.feet()) != 0,
                 own: local == Some(player),
-                movement: effect.logic().and_then(|logic| logic.state()).map(|state| read(state.movement())),
+                movement: effect.logic().and_then(|logic| logic.state()).map(|state| Movement::parse(read(state.movement()))),
                 effect: effect.address(),
             })
         }

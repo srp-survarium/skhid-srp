@@ -86,6 +86,7 @@ fn page_text(lang: Lang) -> Value {
         ("kills", lang.t("Kills")),
         ("deaths", lang.t("Deaths")),
         ("kd", lang.t("K/D")),
+        ("killsPerMinute", lang.t("Kills/min")),
         ("assists", lang.t("Assists")),
         ("score", lang.tc("stats", "Score")),
         ("scoreAvg", lang.t("Avg score")),
@@ -421,9 +422,10 @@ fn totals_key_name(key: TotalsKey) -> &'static str {
 }
 
 /// What a player's weapons sort by, as `by` names it.
-const WEAPON_RANKINGS: [(&str, WeaponRanking); 8] = [
+const WEAPON_RANKINGS: [(&str, WeaponRanking); 9] = [
     ("kills", WeaponRanking::Kills),
     ("kd", WeaponRanking::Kd),
+    ("kills_per_minute", WeaponRanking::KillsPerMinute),
     ("headshot_rate", WeaponRanking::HeadshotRate),
     ("accuracy", WeaponRanking::Accuracy),
     ("kill_distance", WeaponRanking::KillDistance),
@@ -922,7 +924,8 @@ fn item_ref(dict_id: u16, lang: Lang) -> Value {
 /// A weapon of a player's counted public matches, as the games counted it
 /// (exe patch 165): the item, the matches it was counted in, and what was
 /// done with it. `deaths` are the player's with it in the hands (`kd` is by
-/// them); `damage` is in enemies' whole pain pools; `kill_distance_m` is the
+/// them); `kills_per_minute` is by the time in the hands (`null` never
+/// held); `damage` is in enemies' whole pain pools; `kill_distance_m` is the
 /// kills' average (`null` without a kill).
 fn weapon(totals: &WeaponTotals, lang: Lang) -> Value {
     let counts = &totals.counts;
@@ -935,6 +938,8 @@ fn weapon(totals: &WeaponTotals, lang: Lang) -> Value {
             "kills": counts.kills,
             "deaths": counts.deaths,
             "kd": kd(counts.kills, counts.deaths),
+            "kills_per_minute": (counts.held_ms > 0)
+                .then(|| round(counts.kills as f64 * 60_000.0 / counts.held_ms as f64, 2)),
             "headshots": counts.headshots,
             "wall_kills": counts.wall_kills,
             "ricochet_kills": counts.ricochet_kills,

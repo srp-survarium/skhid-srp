@@ -2,10 +2,10 @@
 Wiki	Wiki
 Maps	Pályák
 Skhid wiki	Skhid wiki
+Kills/min	Ölés/perc
 Modes	Játékmódok
 Every mode: its rules, numbers and maps.	Minden játékmód: szabályok, számok és pályák.
 Versions	Változatok
-Public and private rooms	Nyilvános és privát szobák
 Public rooms only	Csak nyilvános szobák
 Private rooms only	Csak privát szobák
 Not offered now	Most nem elérhető
@@ -58,7 +58,6 @@ Level bands: {0}.	Szintsávok: {0}.
 A room draws bands up to its level.	A szoba a szintjéig sorsol sávot.
 Each kit a gun of another class, with random bonuses and attachments.	Minden felszerelésben más osztályú fegyver, véletlen bónuszokkal és kiegészítőkkel.
 {0} % of deals: pistols only.	Az osztások {0} %-a: csak pisztolyok.
-Nothing of yours is used or spent.	Semmi sem fogy a sajátodból.
 Plain FFA: {0} % of FFA cards.	Sima FFA: az FFA-kártyák {0} %-a.
 {0} % of FFA cards.	Az FFA-kártyák {0} %-a.
 FFA: Roulette	FFA: Rulett

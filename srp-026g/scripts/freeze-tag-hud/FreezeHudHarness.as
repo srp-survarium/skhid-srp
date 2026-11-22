@@ -239,6 +239,20 @@ package
                hud.show_player_list(true);
                hud.update_players(players());
                dots([],"a new match: nobody frozen");
+               // The pause between rounds shows the kits and its countdown at once; an artefact offer
+               // still waits under the kits.
+               hud.show_profiles_selector(true);
+               hud.freeze_tag_update(0,0,5,4200,4000,0);
+               check(hud.contextInfo.visible && hud.contextInfo.contextText.text.length > 0,
+                  "the pause's countdown shown with the kits (the losing side's line)");
+               hud.freeze_tag_update(0,0,4,3000,4000,0);
+               check(hud.contextInfo.visible && hud.contextInfo.contextText.text.length > 0,
+                  "the pause's countdown shown with the kits (the winning side's line)");
+               hud.freeze_tag_update(0,0,0,0,4000,0);
+               hud.show_artefact_offer("st_artefact_take_teammate");
+               check(!hud.contextInfo.visible,"an artefact offer waits under the kits");
+               hud.show_artefact_offer("");
+               hud.show_profiles_selector(false);
                trace("FREEZE RESULT " + (failures.length ? "fail: " + failures.join("; ") : "pass"));
                phase = 3;
             }

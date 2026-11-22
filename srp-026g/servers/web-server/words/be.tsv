@@ -2,10 +2,10 @@
 Wiki	Вікі
 Maps	Мапы
 Skhid wiki	Вікі Схода
+Kills/min	Забойстваў/хв
 Modes	Рэжымы
 Every mode: its rules, numbers and maps.	Усе рэжымы: правілы, лікі і мапы.
 Versions	Версіі
-Public and private rooms	Публічныя і прыватныя пакоі
 Public rooms only	Толькі публічныя пакоі
 Private rooms only	Толькі прыватныя пакоі
 Not offered now	Цяпер не прапануецца
@@ -58,7 +58,6 @@ Level bands: {0}.	Дыяпазоны ўзроўняў: {0}.
 A room draws bands up to its level.	Пакой атрымлівае дыяпазоны да свайго ўзроўню.
 Each kit a gun of another class, with random bonuses and attachments.	У кожным наборы зброя іншага класа з выпадковымі бонусамі і модулямі.
 {0} % of deals: pistols only.	{0} % раздач: толькі пісталеты.
-Nothing of yours is used or spent.	Нічога вашага не выкарыстоўваецца і не траціцца.
 Plain FFA: {0} % of FFA cards.	Звычайны FFA: {0} % картак FFA.
 {0} % of FFA cards.	{0} % картак FFA.
 FFA: Roulette	FFA: Рулетка

@@ -22,6 +22,7 @@ CAMERA_STACK = 0x36000000
 # The frozen glow's particle query (a frame's draw asks it): the game's query_resources stubbed and
 # recorded, never answered, so nothing of the glow is drawn here (it is presentation only).
 QUERY = 0xE5B60
+WEAPON_VTABLE = 0xA04174   # the client weapon's (fields_026g.tsv survarium::image weapon_vtable)
 # A world player of its own size (the harness's players are 1000h), for player::insert and
 # player::remove themselves: their fields run to +0F540h, the player effect.
 WHOLE = 0x37000000
@@ -259,6 +260,12 @@ def main():
     # Only the frozen stop in the pause (the owner, 2026-11-22: "only frozen people do"): the
     # winner's tick and input are his, and he keeps his camera; the frozen are held and see the
     # round's countdown (the warmup camera and the kits).
+    # The score bars' native source is the hud state's +90h/+92h, which no Freeze Tag rule fills
+    # and nothing clears at a new match: the last match's 7:3 is written over with the rule's.
+    r.emu.mem_write(ffa.HUD + 0xB4, struct.pack("<2H", 7, 3))
+    r.freeze_hud(1)
+    assert struct.unpack("<2H", r.emu.mem_read(ffa.HUD + 0xB4, 4)) == (0, 1)
+    print("ok the hud state's team points are the rule's (the last match's 7:3 written over)")
     assert not r.player_tick(2, 4150) and not r.input(2)
     assert r.player_tick(0, 4150) and r.input(0) and r.player_tick(1, 4150) and r.input(1)
     assert r.read(ffa.CORE + 0x18FE4) == 4
@@ -378,6 +385,56 @@ def main():
     r.word(ffa.CORE + 0x18FE4, 4)  # A round's countdown is the native camera's: ours leaves it.
     assert r.camera() == 3 and len(r.camera_calls) == calls
     assert kits.check_limits(bytes(patched), True) == 7
+
+    # The gun in hand keeps the clock while held: its first tick after a thaw no longer steps the
+    # whole freeze at once (the owner, 2026-11-22: "after unfreezing there are problems with mouse").
+    r.start()
+    gun = CAMERA_STACK + 0x20000
+    r.emu.mem_write(gun, bytes(0x800))
+    r.word(gun, WEAPON_VTABLE)
+    r.word(gun + 0x5A4, 950)
+    r.word(ffa.player(0) + 0x128, gun)
+    r.lethal(0)
+    assert r.player_tick(0, 1000) and r.read(gun + 0x5A4) == 1000
+    assert r.player_tick(0, 1050) and r.read(gun + 0x5A4) == 1050
+    r.word(gun, 0x00ABCDEF)                    # another item in hand: its fields are not a gun's
+    r.word(gun + 0x5A4, 7)
+    assert r.player_tick(0, 1100) and r.read(gun + 0x5A4) == 7
+    r.word(ffa.player(0) + 0x128, 0)
+    print("ok a held player's gun keeps its clock (its +5A4h the hold's time); another item is not touched")
+
+    # Why: the game's own recoil spring (weapon_recoil_calculator::tick 0x331A50) on a gun frozen
+    # 63 ms after a shot (the state of a frozen player's gun in the 2026-11-22 dump: its clock at
+    # 52250, the match at 147000): one step of the whole freeze pins the kick's y at -1 for seconds;
+    # with the clock kept the kick settles within a quarter of a second.
+    def kick_after(first):
+        r.emu.mem_write(gun, bytes(0x800))
+        r.emu.mem_write(gun + 0x464, bytes.fromhex("32dcab3d"))
+        recoil = gun + 0x468
+        r.word(recoil, gun)
+        r.word(recoil + 8, 52187)
+        r.emu.mem_write(recoil + 0xC, struct.pack("<6f", -0.0045, 0.0288, 0.7218, 0.0512, 0.1725, 1.6604))
+        r.emu.mem_write(recoil + 0x48, struct.pack("<2f", 5.0, 10.0))
+        ys = []
+        for i, dt in enumerate([first] + [50] * 39):
+            sp = hide.STACK + 0x8000
+            r.emu.mem_write(sp, struct.pack("<2I", ffa.RETURN, 147000 + 50 * i))
+            r.run(0x331A50, (ffa.RETURN,), sp, {**hide.GAME, UC_X86_REG_ESI: recoil, UC_X86_REG_EAX: dt})
+            assert r.stopped == ffa.RETURN
+            ys.append(struct.unpack("<f", r.emu.mem_read(recoil + 0x10, 4))[0])
+        return ys
+    stepped, kept = kick_after(147000 - 52250), kick_after(50)
+    assert all(y == -1.0 for y in stepped[:20]), stepped[:20]
+    assert all(abs(y) < 0.03 for y in kept) and abs(kept[5]) < 0.01, kept
+    print("ok the game's recoil spring: one step of the freeze pins the kick at -1 (1 s and more), a kept clock "
+          "settles it")
+
+    # A new match: the rule's 0:0 from its first frame, before anyone has entered.
+    r.start()
+    r.emu.mem_write(ffa.HUD + 0xB4, struct.pack("<2H", 7, 3))
+    assert r.freeze_hud(0) == []                   # nobody entered yet: no Freeze Tag call
+    assert struct.unpack("<2H", r.emu.mem_read(ffa.HUD + 0xB4, 4)) == (0, 0)
+    print("ok the hud state's team points are the rule's 0:0 from a new match's first frame, nobody entered yet")
 
     # No place out of the world (freeze-tag.md): an entering place's spawn is never cancelled.
     r.start()
