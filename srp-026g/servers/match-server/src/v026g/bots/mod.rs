@@ -515,6 +515,9 @@ pub struct Bot {
     /// [A388 step 2b] Its own reckoned body's kept controller at its last decided tick ([`body::Estimate::kept`]), which the lip
     /// guard's forecast starts from; set before each drive.
     reckoned_kept: Option<body::KeptBody>,
+    /// [N1] Since when its reckoned body has been in the air on its own (the kept controller's verdict) while a search was due:
+    /// none is started then ([`drive::IN_FLIGHT_HOLD_MS`]).
+    in_flight_since: Option<u32>,
     /// [press forecast] Its own reckoned body before this tick's decision and its speed level ([`body::BodyTrack::level`]): what
     /// the motor's forecast presses fly from (`motor::PressFlyer`).
     reckoned: Option<(body::Estimate, f32)>,
@@ -763,6 +766,7 @@ impl Bot {
             crouch_climb: None,
             creep: None,
             reckoned_kept: None,
+            in_flight_since: None,
             reckoned: None,
             reckoned_creep: body::Creep::Unknown,
             reckon_error: body::MeasuredError::default(),

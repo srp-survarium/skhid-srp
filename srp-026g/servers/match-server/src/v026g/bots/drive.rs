@@ -16,6 +16,9 @@ const LANE_FLOOR_M: f32 = 0.5;
 
 /// A goal that moved this much is planned to again, metres.
 pub(super) const REPLAN_MOVED_M: f32 = 2.0;
+/// [N1] A search due while the reckoned body is in the air waits at most this long a flight, ms: a fall's or a sprint jump's
+/// flight is under 1.5 s, and a kept controller that keeps saying "in the air" (a floor the grid lacks) holds no search longer.
+pub(super) const IN_FLIGHT_HOLD_MS: u32 = 1_500;
 
 /// A world that puts the body this far from its reckoning plans again.
 pub(super) const REPLAN_ERROR_M: f32 = 2.0;
@@ -1285,6 +1288,24 @@ fn drive_tick_inner(
                 };
             }
             let replan = replan || threat_ahead;
+            // [N1] A search from mid-air plans from the floor the body is over, or from none ("its start on no floor"), and its
+            // "no way" is proof for the plays: the 887 final round's no-way knock-ons after a fall or a drift (S095, S338 searched
+            // in the air). While the reckoned body is in the air on its own (the kept controller's verdict) and a search is due,
+            // none is started, for at most IN_FLIGHT_HOLD_MS a flight, with a line once a flight.
+            let airborne = bot.reckoned_kept.as_ref().is_some_and(body::KeptBody::airborne);
+            if !airborne {
+                bot.in_flight_since = None;
+            }
+            let in_flight = replan
+                && airborne
+                && match bot.in_flight_since {
+                    Some(since) => time.wrapping_sub(since) < IN_FLIGHT_HOLD_MS,
+                    None => {
+                        bot.in_flight_since = Some(time);
+                        bot.nav_log.push(super::nav_log::Kind::Fall, time, super::nav_log::in_flight_line(me.feet, at, IN_FLIGHT_HOLD_MS));
+                        true
+                    }
+                };
             // A goal with no way lately: not searched again every tick.
             let no_way = bot.no_way.is_some_and(|(goal, until)| {
                 time < until && goal.distance_xz(at) <= REPLAN_MOVED_M
@@ -1374,6 +1395,9 @@ fn drive_tick_inner(
                 } else {
                     path::NoRoute::NoWay
                 };
+            } else if replan && in_flight {
+                // [N1] In the air (a fall, a drift's drop, a jump): no search from there; the route it has meanwhile.
+                no_route = path::NoRoute::Searching;
             } else if waiting || (replan && !searching.may_start(bot.team)) {
                 #[cfg(test)]
                 if !waiting {
