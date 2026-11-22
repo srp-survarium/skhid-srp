@@ -679,7 +679,7 @@ fn style() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::LiveStanding;
+    use crate::{LiveKind, LiveStanding};
     use session::v026g::BoardRow;
     use session::v026g::matches_now::SCORE_AGE;
 
@@ -690,6 +690,7 @@ mod tests {
     fn playing(map_id: maps::MapId, points: [u16; 2], leader: Option<usize>) -> LiveMatch {
         LiveMatch {
             map_id,
+            kind: LiveKind::Normal,
             phase: LivePhase::Playing,
             players: [4, 3],
             played: Some(Duration::from_secs(6 * 60 + 20)),
@@ -708,6 +709,7 @@ mod tests {
             playing(RUDNYA_TDM, [88, 78], Some(0)),
             LiveMatch {
                 map_id: RUDNYA_BATTERIES,
+                kind: LiveKind::Normal,
                 phase: LivePhase::Countdown,
                 players: [2, 2],
                 played: None,
@@ -721,6 +723,7 @@ mod tests {
             },
             LiveMatch {
                 map_id: RUDNYA_TDM,
+                kind: LiveKind::Normal,
                 phase: LivePhase::Gathering,
                 players: [5, 5],
                 played: None,

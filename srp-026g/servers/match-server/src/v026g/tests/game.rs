@@ -3619,6 +3619,7 @@ fn the_registry_says_how_a_match_stands_while_it_runs() {
         LiveMatch {
             match_id: bench.match_id,
             map_id: MAP_TDM,
+            kind: session::v026g::match_kind::MatchKind::Normal,
             phase: LivePhase::Gathering,
             players: [2, 1],
             present: 0b111,
