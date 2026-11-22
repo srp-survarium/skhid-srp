@@ -23,7 +23,7 @@ The list:
 - plays Team Deathmatch's config (maps_dict 212, held out since stalker-tdm-hold-1) on day_teams
   and gives it its dictionary row back;
 - makes Freeze Tag's config of it as freeze-tag-1 makes Rudnya's (mode 12, its icon and names, no
-  ticket rule) under gameplay/game_modes/freeze/, maps_dict 420.
+  ticket rule) under gameplay/game_modes/freeze/, maps_dict 450.
 """
 import argparse
 import json
@@ -44,7 +44,7 @@ POINTS = 'server_objects/respawn_points'
 MODES = 'gameplay/game_modes/'
 TDM = 'v010b_cs_training_camp_level_03_day_4.options'
 FREEZE = 'freeze/' + TDM
-TDM_ID, FREEZE_ID = 212, 420
+TDM_ID, FREEZE_ID = 212, 450
 # Team Deathmatch's own points' full names, by team.
 FULL_NAME = {0: 'logic/deathmatch/team1/respawn_point(%d)', 1: 'logic/deathmatch/team2/respawn_point(%d)'}
 
@@ -102,7 +102,7 @@ def edits(live):
     for place in solo:
         out['remove_entry'].append({'file': PROJECT, 'list': POINTS,
                                     'where': {'team': 2, 'point_id': place['point_id'], 'name': place['name']}})
-    # The two rows after Free for All's (44): 212, then 420.
+    # The two rows after Free for All's (44): 212, then 450.
     for after, map_id, cfg in ((44, TDM_ID, TDM), (TDM_ID, FREEZE_ID, FREEZE)):
         out['add_entry'].append({
             'files': 'gameplay/db_static_dictionaries', 'list': 'maps_dict', 'after': {'id': after},
@@ -118,8 +118,9 @@ def edits(live):
         'made like them (Team Deathmatch\'s protection, radii and priority; the game\'s own choice of a team\'s '
         'free points), and the team-2 points go. Team Deathmatch\'s config (maps_dict 212, its row taken out by '
         'stalker-tdm-hold-1) plays day_teams and has its row again; Freeze Tag\'s, a copy of it as freeze-tag-1 '
-        'makes Rudnya\'s (mode 12, ui.icon 4, its names, no ticket rule), is maps_dict 420. After artefact-hunt-1, '
-        'whose rows count the dictionary (scripts/stalker-maps/make_training_teams.py, docs/notes/stalker-ffa.md).')
+        'makes Rudnya\'s (mode 12, ui.icon 4, its names, no ticket rule), is maps_dict 450. After artefact-hunt-1, '
+        'whose rows count the dictionary, and the other team maps\' lists (freeze-tag-maps-1, artefact-hunt-maps-1), '
+        'whose rows follow its last (scripts/stalker-maps/make_training_teams.py, docs/notes/stalker-ffa.md).')
     return out
 
 

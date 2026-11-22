@@ -20,6 +20,7 @@ package survarium.controls
    import survarium.constants.ItemCategory;
    import survarium.constants.QuickSlotSize;
    import survarium.data.LocalizationData;
+   import survarium.upgrade.UpgradeWindow;
    
    public class ItemCompare extends MovieClip
    {
@@ -267,7 +268,8 @@ package survarium.controls
             var modifierProp:Object;
             var propValue:Number;
             var modifierDescription:Object;
-            var modifierList:Object = owner.modifiers;
+            // held Alt, a weapon's fitted device and grip count as its rolls (UpgradeWindow.withFitted)
+            var modifierList:Object = effects != null && owner.isWeapon ? UpgradeWindow.withFitted(owner) : owner.modifiers;
             if(modifierList)
             {
                for each(modifierEntry in modifierList)

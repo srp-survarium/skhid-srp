@@ -1686,7 +1686,7 @@ fn a_member_who_cannot_go_into_the_match_is_told_why() {
 }
 
 #[test]
-fn a_used_up_match_roster_keeps_a_newcomer_in_the_room_for_the_next_match() {
+fn a_used_up_match_roster_queues_a_newcomer_for_the_next_match() {
     let mut world = World::new();
     let players = ["Alice", "Bob", "Carol", "Dave"].map(|name| world.connect(name));
     let key = create(
@@ -1710,13 +1710,15 @@ fn a_used_up_match_roster_keeps_a_newcomer_in_the_room_for_the_next_match() {
         .unwrap()
         .0;
     // Twenty lifetime places, but only twelve currently occupied (6 v 6).
-    // The room still has space, and its match cannot reuse the departed seats.
+    // The room has seats, and its match cannot reuse the departed places:
+    // sixteen late joiners came and went.
     {
         let running = world.core.matches.get_mut(&id).unwrap();
         for n in running.seats.len()..20 {
             running.seats.push((9000 + n as u32, (n % 2) as u8));
             running.strengths.push(session::Strength::ZERO);
             running.names.push(String::new());
+            world.core.rooms.seated_late(key, 9000 + n as u32, (n % 2) as u8);
         }
     }
     world.host.live.locked().insert(
@@ -1728,12 +1730,17 @@ fn a_used_up_match_roster_keeps_a_newcomer_in_the_room_for_the_next_match() {
     );
     world.host.admitting.locked().insert(ticket);
     let erin = world.connect("Erin");
+    // Play does not enter it: its queue. So does Join from the list.
     rows(&mut world, erin, ROOM_PLAY, 1);
-    assert_eq!(world.core.rooms.key_of(world.ids[erin].0), Some(key));
-    assert_eq!(join_row(&state(&mut world, erin)), Some("J;-1;7"));
+    assert_eq!(world.core.rooms.key_of(world.ids[erin].0), None);
+    assert_eq!(world.core.rooms.queue_place(world.ids[erin].0), Some((key, 1)));
+    let frank = world.connect("Frank");
+    rows(&mut world, frank, ROOM_JOIN_BASE + key, 1);
+    assert_eq!(world.core.rooms.key_of(world.ids[frank].0), None);
+    assert_eq!(world.core.rooms.queue_place(world.ids[frank].0), Some((key, 2)));
     world.advance(Duration::from_secs(20));
     assert!(sent_to_match(&world.take(erin)).is_none());
-    assert_eq!(world.core.rooms.key_of(world.ids[erin].0), Some(key));
+    assert_eq!(world.core.rooms.key_of(world.ids[erin].0), None);
     world.end_match(ticket, 0);
     for player in players {
         world.take(player);

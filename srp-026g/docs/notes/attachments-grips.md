@@ -53,23 +53,26 @@ speed, so by the one rule of `grips.py` (the owner, 2026-11-20: what needs an ex
 simplified for now):
 
 - the effect, a conditional recoil, becomes plain recoil at a share: aimed x 0.75, hip x 0.25,
-  the first three shots x 0.25;
-- a penalty on the aim time is kept; a penalty on a key the weapon does not read is dropped.
+  the first three shots x 0.25; then it is drawn towards -3 %: -3 % + (that + 4 %) x 0.25;
+- its cost is aim time, a third of the recoil it takes off, to 0.1 %. 0.69d0's penalty no longer
+  decides it (the owner, 2026-11-22: "some grips are better than others", "toned down to be in
+  more equilibrium", "slightly different in numbers"): its penalties are mostly on keys the weapon
+  does not read, so those grips cost nothing and beat the ones that paid aim time on the same guns.
 
 | Grip | Guns | 0.69d0 at its bought grade | Here |
 |---|---|---|---|
-| FAB-Defense PTK (2661) | 44 | aimed recoil -8 %, aimed movement -0.75 % | recoil -6 % |
-| AFG-1 (2665) | 35 | aimed recoil -8 %, hip recoil +3 % | recoil -6 % |
-| Troy Modular (2671) | 53 | aimed recoil -8 %, aim time +1.5 % | recoil -6 %, aim time +1.5 % |
-| FSG2 (2664) | 46 | hip recoil -8 %, aimed recoil +1.5 % | recoil -2 % |
-| FAB-Defense MIKI (2660) | 32 | first three shots -16 %, aimed movement -0.75 % | recoil -4 % |
-| Zenit RK-2 (2659) | 49 | first three shots -16 %, aim time +1.5 % | recoil -4 %, aim time +1.5 % |
-| G&P RIS (2663) | 53 | first three shots -16 %, aim time +1.5 % | recoil -4 %, aim time +1.5 % |
-| Fort-401's own (2662), Mauser M.712's own (2666) | 1 each | aimed recoil -8 %, aimed movement -0.75 % | recoil -6 % |
-| PKP's own (2668) | 1 | aimed recoil -8 %, hip recoil +3 % | recoil -6 % |
+| FAB-Defense PTK (2661) | 44 | aimed recoil -8 %, aimed movement -0.75 % | recoil -3.5 %, aim time +1.2 % |
+| AFG-1 (2665) | 35 | aimed recoil -8 %, hip recoil +3 % | recoil -3.5 %, aim time +1.2 % |
+| Troy Modular (2671) | 53 | aimed recoil -8 %, aim time +1.5 % | recoil -3.5 %, aim time +1.2 % |
+| FSG2 (2664) | 46 | hip recoil -8 %, aimed recoil +1.5 % | recoil -2.5 %, aim time +0.8 % |
+| FAB-Defense MIKI (2660) | 32 | first three shots -16 %, aimed movement -0.75 % | recoil -3 %, aim time +1 % |
+| Zenit RK-2 (2659) | 49 | first three shots -16 %, aim time +1.5 % | recoil -3 %, aim time +1 % |
+| G&P RIS (2663) | 53 | first three shots -16 %, aim time +1.5 % | recoil -3 %, aim time +1 % |
+| Fort-401's own (2662), Mauser M.712's own (2666) | 1 each | aimed recoil -8 %, aimed movement -0.75 % | recoil -3.5 %, aim time +1.2 % |
+| PKP's own (2668) | 1 | aimed recoil -8 %, hip recoil +3 % | recoil -3.5 %, aim time +1.2 % |
 
-- With the penalties dropped, PTK and AFG-1 are one grip in numbers, Troy is PTK with a penalty,
-  RK-2 and RIS are MIKI with one. What a player picks is mostly what the gun takes.
+- A stronger grip costs more aim time, so none is better than another: what a player picks is
+  mostly what the gun takes and how it looks.
 - These change what a match computes: the branch's one `next` row of `simulation_changes.tsv`.
 - Later, each with its own reader (`attachments.md`, "Stats for now"): aimed and hip recoil, the
   first three shots, the aimed movement speed.

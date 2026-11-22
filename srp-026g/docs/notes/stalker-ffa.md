@@ -386,15 +386,17 @@ The owner: "add tdm and freeze tag on stk2 training camp, there are already many
 should just reuse them, all teams spawns everywhere randomly (there are no 'map sides')"; then "not
 the same rules, the same spawn points that already exist". `training-camp-teams-1.json`
 (`scripts/stalker-maps/make_training_teams.py`, from `day_8` as every row above it leaves it), after
-`artefact-hunt-1`, whose rows count the dictionary:
+`artefact-hunt-1`, whose rows count the dictionary, and the other team maps' `freeze-tag-maps-1` and
+`artefact-hunt-maps-1`, whose rows follow its last:
 
 | maps_dict | mode | config | project |
 | ---: | --- | --- | --- |
 | 212 | Team Deathmatch (4) | `v010b_cs_training_camp_level_03_day_4.options`, its row again (`stalker-tdm-hold-1` takes it out; this list puts it back) | `v010b_cs_training_camp/day_teams` |
-| 420 | Freeze Tag (12) | `freeze/v010b_cs_training_camp_level_03_day_4.options`, a copy of 212's as `freeze-tag-1` makes Rudnya's (mode 12, `ui.icon` 4, its names, no ticket rule) | the same |
+| 450 | Freeze Tag (12) | `freeze/v010b_cs_training_camp_level_03_day_4.options`, a copy of 212's as `freeze-tag-1` makes Rudnya's (mode 12, `ui.icon` 4, its names, no ticket rule) | the same |
 
-420 is clear of the ids `scripts/mode-maps` takes for Freeze Tag and Artifact Hunt on the other team
-maps (327 on).
+450 is the first id past those `scripts/mode-maps/make.py` gives the other team maps (Artifact Hunt
+327-349, Freeze Tag 400-449). `make.py` leaves Training Camp out of its team maps (its STALKER
+ports, `v010b_` projects, are Free for All's or this list's).
 
 - **One pool, no sides.** A respawn point has one team, and the respawn rule fills its three groups
   (team 0, 1, 2 at +188h, +18Ch, +190h) by it; no point is in two groups. So in `day_teams`, a copy

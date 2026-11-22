@@ -11,19 +11,19 @@ use super::match_msgs::static_info::MatchProfile;
 use super::racket::Gun;
 
 /// The shares of a free-for-all card's draw ([`draw`]): the plain mode's and each twist's,
-/// in hundredths, a twist's by what its match arms. Cowboy 20 in all (the owner, 2026-11-15:
+/// in hundredths, a twist's by what its match arms. Cowboy 10 in all since 2026-11-22 (20 from
+/// 2026-11-15:
 /// "let's make saloon 20% with two variations (no need to name them)"; was 10, "cowboy version
 /// should be rare with only 10% chance", 2026-11-14), in two variations (the owner, 2026-11-14:
 /// "saloon should have two variations with winchesters and colts or just with colts"), the
-/// Winchester and Colt 15 and the Colt alone 5 (the owner, 2026-11-15, once each had its own
-/// name: "and now since those are two modes, simple saloon can stay at 5, and new one get 15";
-/// half and half before); Racket as often as the plain mode (my pick). Racket's gun is its room's
+/// Winchester and Colt 5 (the owner, 2026-11-22: "winchester should become 5% again on FFA";
+/// 15 from 2026-11-15) and the Colt alone 5, the plain mode the 10 freed (my pick); Racket 40. Racket's gun is its room's
 /// (`racket`, `Gun::of_room`).
 pub const fn shares(racket: Gun) -> [(Option<Armed>, u32); 4] {
     [
-        (None, 40),
+        (None, 50),
         (Some(Armed::Racket(racket)), 40),
-        (Some(Armed::Cowboy(Variation::WinchesterAndColt)), 15),
+        (Some(Armed::Cowboy(Variation::WinchesterAndColt)), 5),
         (Some(Armed::Cowboy(Variation::Colt)), 5),
     ]
 }
@@ -299,7 +299,7 @@ mod tests {
         let racket = Armed::Racket(Gun::Ak12);
         let racket = Played::twisted(MatchMap::of(ffa.id).unwrap(), racket).unwrap();
         assert_eq!((racket.lobby_number(), racket.mode()), (9, GameMode::FreeForAll));
-        // Every roll below the shares' sum: each its share, 40 / 40 / 15 / 5, Racket with the
+        // Every roll below the shares' sum: each its share, 50 / 40 / 5 / 5, Racket with the
         // room's gun.
         for gun in Gun::ALL {
             let drawn = |play| (0..SHARE_TOTAL).filter(|&roll| draw(roll, gun) == play).count();
@@ -311,9 +311,9 @@ mod tests {
         let drawn = |play| (0..SHARE_TOTAL).filter(|&roll| draw(roll, Gun::Ak74n) == play).count();
         let saloon = |variation| drawn(Some(Armed::Cowboy(variation)));
         let ak_12 = Some(Armed::Racket(Gun::Ak12));
-        assert_eq!((SHARE_TOTAL, drawn(None), drawn(ak_12)), (100, 40, 0));
+        assert_eq!((SHARE_TOTAL, drawn(None), drawn(ak_12)), (100, 50, 0));
         let (rifle, colt) = (Variation::WinchesterAndColt, Variation::Colt);
-        assert_eq!((saloon(rifle), saloon(colt)), (15, 5));
+        assert_eq!((saloon(rifle), saloon(colt)), (5, 5));
         // Each twist as it arms its own number, Racket's of any gun; none a mode's (nor Scarcity's
         // 7, not on main).
         for gun in Gun::ALL {

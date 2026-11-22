@@ -643,10 +643,11 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   vote (the third card; all three in a pool of free-for-alls alone) draws its twist with the card,
   by its share (`twist::shares`, `twist::draw`):
   - plain Free for all 40 %, **Racket** 40 % (my pick: as often as each other);
-  - **Cowboy**, "Saloon" in the lobby, 20 % (the owner, 2026-11-15: "let's make saloon 20% with
+  - **Cowboy**, "Saloon" in the lobby, 10 % since 2026-11-22 (20 % from 2026-11-15, the owner: "let's make saloon 20% with
     two variations (no need to name them)"; 10 % before, 2026-11-14: "cowboy version should be
     rare with only 10% chance"), in two variations (the owner, 2026-11-14: "saloon should have
-    two variations with winchesters and colts or just with colts"), the Winchester and Colt 15 %
+    two variations with winchesters and colts or just with colts"), the Winchester and Colt 5 %
+    (the owner, 2026-11-22: "winchester should become 5% again on FFA"; 15 from 2026-11-15)
     and the Colt alone 5 % (the owner, 2026-11-15, once each had its own name: "and now since
     those are two modes, simple saloon can stay at 5, and new one get 15"; half and half before,
     my pick, `twist::Armed`): every kit a Winchester 1894 and a Colt Python, or a Colt Python alone
