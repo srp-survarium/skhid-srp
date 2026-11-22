@@ -111,7 +111,10 @@ const MOVEMENT_LIST: u32 = 4;
 const REGENERATION_LIST: u32 = 2;
 
 /// The match's rule and what it plays with: one at a time (the cook's last
-/// rule), its world once slot 11 gave it.
+/// rule), its world once slot 11 gave it; forgotten when its scene is left
+/// (`on_deactivate`): a later match's core can take the same address, and its
+/// world would be taken for this one's (2026-11-22: a Free for All after a hunt
+/// drew the hunt's artefact and ran its respawns).
 #[derive(Clone, Copy)]
 struct Hunt {
     rule: RuleKey,
@@ -1294,9 +1297,11 @@ fn clear(scene: &ArtefactScene<'_>, assets: &ArrivedAssets, view: WorldView) {
     }
 }
 
-/// game_world::on_deactivate: the match's scene is left; nothing of ours in it.
+/// game_world::on_deactivate: the match's scene is left; nothing of ours in it,
+/// and its hunt over.
 pub fn on_deactivate(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
+    HUNT.with(thread, |hunt| *hunt = None);
     let view = VIEW.get(thread);
     if view.rule.is_some()
         && let Load::Ready(assets) = ASSETS.get(thread)
