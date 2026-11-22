@@ -111,7 +111,8 @@ Every other team map has it too (the owner, 2026-11-21: "make sure freeze tag
 is playable on all non FFA-only maps"): each level and weather maps_dict gives
 a battery, Team Deathmatch or Research config, 50 more, each config made as
 Rudnya's from the map's own Team Deathmatch config (`freeze/<its name>`), maps
-400-449 (`freeze-tag-maps-1.json`, made by `scripts/mode-maps/make.py`; the
+400-449 (`freeze-tag-maps-1.json`, made by `scripts/mode-maps/make.py`, which keeps each
+map's id in `ids.tsv` beside it: a new map's is the next free one, an id never moves; the
 list: `artefact_hunt.md` "Maps"). Free for All's maps alone (the STALKER maps)
 have none. Training Camp has its own (maps_dict 450, `training-camp-teams-1.json`,
 which `make.py` leaves to it), made the same way from its Team Deathmatch config,

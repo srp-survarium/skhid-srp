@@ -8,7 +8,7 @@ usage: python3 -I make.py --base <folder> [--write <content-edit folder>] [--pac
 --base   the files as a build of release/content.tsv without these lists and their pack leaves them, at their game
          paths (`srp-game-data get` of a build of the manifest): gameplay/db_static_dictionaries, the
          maps' configs, the battery and Team Deathmatch projects of the maps Artifact Hunt lacks.
---write  writes freeze-tag-maps-1.json and artefact-hunt-maps-1.json there.
+--write  writes freeze-tag-maps-1.json and artefact-hunt-maps-1.json there, and the new maps' ids to ids.tsv.
 --pack   writes the pack of Artifact Hunt's new configs (a new folder).
 
 A team map is a level and weather that maps_dict gives a config of mode 2 to 5 whose project the data
@@ -17,7 +17,7 @@ Deathmatch and Freeze Tag are training-camp-teams-1's, on its Free for All point
 
 - Freeze Tag (mode 12), when it has none: a copy of the map's Team Deathmatch config, as
   freeze-tag-1.json makes Rudnya's (its project and team spawns, mode 12, the mode's icon and names,
-  no ticket rule), under gameplay/game_modes/freeze/, its maps_dict row from FT_FIRST_ID.
+  no ticket rule), under gameplay/game_modes/freeze/, its maps_dict row of ids.tsv.
 - Artifact Hunt (mode 13), when it has none, from the map's own battery mode (0.46c2 had the mode on
   the nine stock levels alone, which artefact-hunt-1 has): the artefact's spawn points are the
   battery spawners' items (lifted by the item's drop_lift, as a dropped one lies), each team's base
@@ -25,10 +25,17 @@ Deathmatch and Freeze Tag are training-camp-teams-1's, on its Free for All point
   its props (the container's models and collision, as the battery project has them). The project is
   a copy of the map's Team Deathmatch project with those props (its respawn points, each team's
   base checked to be on its own team's side); the config, in the pack, has the stock Artifact Hunt config's rules,
-  parameters, announcer and item and the map's own ui. Its maps_dict row from AH_FIRST_ID.
+  parameters, announcer and item and the map's own ui. Its maps_dict row of ids.tsv.
   A map whose Artifact Hunt plays a project other than its Team Deathmatch project's `_ah` copy
   (London: artefact-hunt-1 copied level_09's, London plays v0.32's) gets the same, named after
   its project, and its maps_dict row is pointed at it (its id kept).
+
+ids.tsv (level, weather, mode, id, the config it was given for) keeps every id these lists ever gave:
+rooms, drafts and recordings name a map by it, so it never moves. A map it has keeps its id; a new one
+takes the next id of its mode past the mode's highest there (FT_FIRST_ID, AH_FIRST_ID for the first),
+over any id taken (any row of ids.tsv, the base's maps_dict, another edit list's maps_dict rows): Freeze
+Tag past 449 goes on at 451 (450 is Training Camp's), Artifact Hunt past 399 at Freeze Tag's next free.
+A map that is gone keeps its row, its id given to no other.
 
 Both lists run after artefact-hunt-1.json and before client-dictionary-1.json, as Freeze Tag's and
 Artifact Hunt's own. Their maps_dict rows go after the dictionary's last row (artefact-hunt-1's), each
@@ -57,9 +64,13 @@ FT_EDITS, AH_EDITS = 'freeze-tag-maps-1.json', 'artefact-hunt-maps-1.json'
 PACK_ID, VERSION = 'artefact-hunt-maps', '1'
 FT_MODE, AH_MODE, TDM, BATTERIES, RESEARCH = 12, 13, 4, 2, 5
 FT_ICON = 4
-# The ids: past Artifact Hunt's 300-326, over a byte (exe patch 154); Freeze Tag's apart, with room
-# for Artifact Hunt's to grow.
+# The first ids of a mode ids.tsv has none of: past Artifact Hunt's 300-326, over a byte (exe patch
+# 154); Freeze Tag's apart, with room for Artifact Hunt's to grow.
 AH_FIRST_ID, FT_FIRST_ID = 327, 400
+IDS = HERE / 'ids.tsv'
+IDS_HEADER = ('# The maps_dict id of each (level, weather, mode) these lists ever gave, never moved nor given again\n'
+              '# (make.py appends a new map\'s; a map that is gone keeps its row). Tabs: level weather mode id config\n')
+EDITS_DIR = HERE.parent / 'content-edit'
 # The stock Artifact Hunt config the new ones take the mode's values of.
 AH_TEMPLATE = 'artefact_hunt/level_01_day_ah.options'
 # A container's props: the battery project's own entries within this of its model's place (m).
@@ -104,6 +115,65 @@ def order(key):
     return (level, {1: 0, 3: 1, 2: 2}.get(weather, weather))
 
 
+class Ids:
+    """ids.tsv: the kept ids, and the next free id of a mode for a new map."""
+
+    def __init__(self, taken):
+        self.rows = []
+        if IDS.exists():
+            for line in IDS.read_text(encoding='utf-8').splitlines():
+                if line and not line.startswith('#'):
+                    level, weather, mode, map_id, cfg = line.split('\t')
+                    self.rows.append((int(level), int(weather), int(mode), int(map_id), cfg))
+        self.kept = {row[:3]: row[3] for row in self.rows}
+        mine = [row[3] for row in self.rows]
+        if len(self.kept) != len(mine) or len(set(mine)) != len(mine) or taken & set(mine):
+            sys.exit(f'{IDS}: a map twice, an id twice, or ids maps_dict or another list has: {sorted(taken & set(mine))}')
+        self.used = taken | set(mine)
+        self.new = []
+
+    def of(self, key, mode, cfg):
+        if (*key, mode) in self.kept:
+            return self.kept[(*key, mode)]
+        mine = [row[3] for row in self.rows if row[2] == mode]
+        map_id = max(mine) + 1 if mine else {FT_MODE: FT_FIRST_ID, AH_MODE: AH_FIRST_ID}[mode]
+        while map_id in self.used:
+            map_id += 1
+        row = (*key, mode, map_id, cfg)
+        self.rows.append(row)
+        self.new.append(row)
+        self.kept[row[:3]] = map_id
+        self.used.add(map_id)
+        return map_id
+
+    def write(self):
+        IDS.write_text(IDS_HEADER + ''.join('\t'.join(map(str, row)) + '\n' for row in self.rows), encoding='utf-8')
+
+
+def listed_ids():
+    """The maps_dict ids the other edit lists give."""
+    ids = set()
+    for path in EDITS_DIR.glob('*.json'):
+        if path.name in (FT_EDITS, AH_EDITS):
+            continue
+        for ops in json.loads(path.read_text(encoding='utf-8')).values():
+            for op in ops if isinstance(ops, list) else []:
+                if isinstance(op, dict) and op.get('list') == 'maps_dict' and 'id' in op.get('values', {}):
+                    ids.add(op['values']['id'])
+    return ids
+
+
+def spans(ids):
+    """400-449, 451: the ids as runs."""
+    out = []
+    for map_id in sorted(ids):
+        if out and out[-1][1] == map_id - 1:
+            out[-1][1] = map_id
+        else:
+            out.append([map_id, map_id])
+    return ', '.join(str(a) if a == b else f'{a}-{b}' for a, b in out)
+
+
 def dictionary_rows(edits, anchor, rows):
     """maps_dict rows of `rows`, the first after the row of id `anchor`, each made like it."""
     for map_id, cfg, _ in rows:
@@ -115,7 +185,7 @@ def dictionary_rows(edits, anchor, rows):
 
 # ---- Freeze Tag ----------------------------------------------------------------------------
 
-def freeze_edits(team, anchor):
+def freeze_edits(team, anchor, ids):
     edits = {'_about': '', 'copy': [], 'set': [], 'remove_item': [], 'replace_string': [], 'add_entry': []}
     rows = []
     for key in sorted(team, key=order):
@@ -136,13 +206,13 @@ def freeze_edits(team, anchor):
         edits['remove_item'].append({'file': target, 'path': 'mode/rules', 'value': 90, 'expected_count': 1})
         edits['replace_string'] += [{'files': target, 'from': 'st_mode_04_name', 'to': 'st_mode_12_name'},
                                     {'files': target, 'from': 'st_mode_04_description', 'to': 'st_mode_12_description'}]
-        rows.append((FT_FIRST_ID + len(rows), f'freeze/{name}', tdm['match_making_params']['map_name']))
+        rows.append((ids.of(key, FT_MODE, f'freeze/{name}'), f'freeze/{name}', tdm['match_making_params']['map_name']))
     dictionary_rows(edits, anchor, rows)
     edits['_about'] = (
         f'Freeze Tag (mode 12, docs/notes/freeze-tag.md) on every team map but Rudnya day (freeze-tag-1.json), '
         f'{len(rows)} maps in their weathers: each a copy of the map\'s Team Deathmatch config under '
         'gameplay/game_modes/freeze/, as freeze-tag-1 makes Rudnya\'s (its project and team spawns, mode 12, '
-        f'ui.icon 4, no ticket rule), maps_dict {FT_FIRST_ID}-{FT_FIRST_ID + len(rows) - 1}. Generated by '
+        f'ui.icon 4, no ticket rule), maps_dict {spans(r[0] for r in rows)}. Generated by '
         'scripts/mode-maps/make.py, after artefact-hunt-1.json (its rows after that list\'s last).')
     return edits, rows
 
@@ -266,7 +336,7 @@ def hunt_config(template, tdm, name, project, data):
     return config
 
 
-def hunt(base, team, anchor):
+def hunt(base, team, anchor, ids):
     edits = {'_about': '', 'copy': [], 'add_entry': [], 'replace_string': [], 'add_value': []}
     template = load(base, MODES_DIR + AH_TEMPLATE)
     lift = template['mode']['artefact_hunt']['item']['drop_lift']
@@ -309,7 +379,7 @@ def hunt(base, team, anchor):
             edits['replace_string'].append({'files': 'gameplay/db_static_dictionaries', 'from': old[1], 'to': cfg})
             moved.append((old[0], cfg, target))
         else:
-            rows.append((AH_FIRST_ID + len(rows), cfg, target))
+            rows.append((ids.of(key, AH_MODE, cfg), cfg, target))
         said.append(f'{(old or rows[-1])[0]} {name}: project {target} of {source}, from {battery_project}'
                     + (f' (was {old[1]})' if old else '') + ': '
                     f"{len(data['spawners'])} artefact spawn points; bases "
@@ -322,7 +392,7 @@ def hunt(base, team, anchor):
         'has not (0.46c2 had the mode on the nine stock levels alone), from each map\'s own battery mode: '
         'projects/<level>/<weather>_ah/, a copy of the map\'s Team Deathmatch project with its two battery '
         'containers\' props (their models, collision and walker collision, as its battery project has them); '
-        f'maps_dict {AH_FIRST_ID}-{AH_FIRST_ID + len(rows) - 1} for the configs of the pack {PACK_ID}'
+        f'maps_dict {spans(r[0] for r in rows)} for the configs of the pack {PACK_ID}'
         + (f'; and the same for the maps whose Team Deathmatch project is no longer the one artefact-hunt-1 copied '
            f'(London, v0.32\'s now): their ids ' + ', '.join(str(m[0]) for m in moved) + ' play the pack\'s configs '
            'of the new projects' if moved else '')
@@ -345,9 +415,10 @@ def main():
     args = parser.parse_args()
     dictionary, team = team_maps(args.base)
     taken = {entry['id'] for entry in dictionary}
+    ids = Ids(taken | listed_ids())
     last = dictionary[-1]['id']
-    ft, ft_rows = freeze_edits(team, last)
-    ah_edits, files, ah_rows, ah_moved, said = hunt(args.base, team, ft_rows[-1][0] if ft_rows else last)
+    ft, ft_rows = freeze_edits(team, last, ids)
+    ah_edits, files, ah_rows, ah_moved, said = hunt(args.base, team, ft_rows[-1][0] if ft_rows else last, ids)
     new = [row[0] for row in ft_rows + ah_rows]
     if taken & set(new) or len(set(new)) != len(new):
         sys.exit(f'maps_dict ids taken or twice: {sorted(taken & set(new))}, {len(new) - len(set(new))} twice')
@@ -355,7 +426,9 @@ def main():
     print('\n'.join(f'  {map_id} {cfg} ({project})' for map_id, cfg, project in ft_rows))
     print(f'Artifact Hunt {len(ah_rows)} new, {len(ah_moved)} moved to a new project:')
     print('\n'.join('  ' + line for line in said))
+    print(f'ids.tsv: {len(ids.new)} new: ' + ', '.join(f'{row[3]} {row[4]}' for row in ids.new))
     if args.write:
+        ids.write()
         dump_edits(ft, args.write / FT_EDITS)
         dump_edits(ah_edits, args.write / AH_EDITS)
     if args.pack:
@@ -364,7 +437,7 @@ def main():
         pack = {
             'format_version': 1, 'id': PACK_ID, 'version': VERSION, 'target_build': '0.26g',
             'description': f'Artifact Hunt (mode 13) on the {len(ah_rows)} team maps 0.46c2 did not have it on '
-                           f'(maps {AH_FIRST_ID}-{AH_FIRST_ID + len(ah_rows) - 1})'
+                           f'(maps {spans(r[0] for r in ah_rows)})'
                            + (f' and on the new projects of maps ' + ', '.join(str(m[0]) for m in ah_moved)
                               + ' (their Team Deathmatch project changed)' if ah_moved else '')
                            + ', from each map\'s battery mode (the artefact\'s spawn points its battery spawners, a '

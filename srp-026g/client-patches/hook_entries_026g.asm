@@ -9053,6 +9053,12 @@ lamps_on_load_replay:
 ; 0xa0afd0 object_particle_visual remove slot 9: vtable -> lamps_on_particle_remove (wraps engine_particle_remove 0x292dc0)
     RUST_THISCALL lamps_on_particle_remove, hook_lamps_on_particle_remove, 0
 
+; 0xa0ac0c object_environment_probe insert slot 8: vtable -> lamps_on_probe_insert (wraps engine_probe_insert 0x28ffd0)
+    RUST_THISCALL lamps_on_probe_insert, hook_lamps_on_probe_insert, 0
+
+; 0xa0ac10 object_environment_probe remove slot 9: vtable -> lamps_on_probe_remove (wraps engine_probe_remove 0x2904a0)
+    RUST_THISCALL lamps_on_probe_remove, hook_lamps_on_probe_remove, 0
+
 ; 0x32e672 process_front_face_piercing at the pair's entry decal (cmp [esi+8],0; lea edi): EBP the bullet, EBX its hit; skip is the particle/sound part after add_decal, EDI unused there: lohook -> lamps_on_decal_enter
 global lamps_on_decal_enter
 extern hook_lamps_on_decal_enter
@@ -10867,6 +10873,45 @@ music_on_sound_tick_replay:
 
 ; 0x14730 the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query: callback -> music_on_query_done (wraps engine_store_first_resource 0x14730)
     RUST_CDECL music_on_query_done, hook_music_on_query_done, 2
+
+; 0x1dff85 effect_gstage_default_materials::compile (0x1DDD50, g_stage_default: gbuffer_pass and gbuffer_emissive_pass) in its parallax block (the configuration's [esp+1Ah] bit 40h, use_parallax, tested at 0x1DFF18), after constant_parallax_scale and texture_bump's lookup, before t_height_map's set_texture (0x3D98B0 at 0x1DFFA7): fld dword [esp+3Ch] / mov edx,[esp+2Ch] (no address under them, no branch into them; EAX the texture_bump node, kept). EBX the material's config tree, [EBP+8] the compiler. 0.44a5 sets parallax_uv_scrolling_factors and parallax_uv_scale_factors at the same place of its parallax block (0x4C4414..0x4C45A3): lohook -> parallax_uv_on_parallax
+global parallax_uv_on_parallax
+extern hook_parallax_uv_on_parallax
+parallax_uv_on_parallax:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_parallax_uv_on_parallax
+    mov edx, parallax_uv_on_parallax_replay
+    cmp eax, 0
+    je parallax_uv_on_parallax_go
+    mov edx, 0x1dff8d
+    cmp eax, 1
+    je parallax_uv_on_parallax_go
+    ud2
+parallax_uv_on_parallax_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+parallax_uv_on_parallax_replay:
+    db 0xd9, 0x44, 0x24, 0x3c, 0x8b, 0x54, 0x24, 0x2c
+    jmp 0x1dff8d
 
 ; 0x1f6884 game_world::game_world 0x1F67B0 after its first-person presenter's constructor 0x2971C0 at 0x1F686A (mov [ebp+4D38h],eax / mov [ebp+4D3Ch],ebx; the first site after it without a relocation under it, EAX no longer the presenter): EBP the game world, its first-person presenter at +1D98h (the EDI given at 0x1F6857), its particle list inline (six entries); game_world is the static at 0xA96860, so the address is the same at every construction: lohook -> particle_room_on_first_person_made
 global particle_room_on_first_person_made
@@ -15904,3 +15949,19 @@ lamps_particle_vtable:
     dd 0x292b10
     dd lamps_on_particle_insert
     dd lamps_on_particle_remove
+
+section .rodata
+align 4
+global lamps_probe_vtable
+lamps_probe_vtable:
+    dd 0xa4d808
+    dd 0x28f350
+    dd 0xf1900
+    dd 0xf1f00
+    dd 0xf1f40
+    dd 0xfda90
+    dd 0xfda90
+    dd 0xfda90
+    dd 0x28f3b0
+    dd lamps_on_probe_insert
+    dd lamps_on_probe_remove

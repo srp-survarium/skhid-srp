@@ -189,6 +189,7 @@ survarium::project_object	vtable	0x0	u32	native interface identity before bindin
 survarium::project_object	light	0x0	obj<survarium::object_light>	only when the native vtable identifies object_light
 survarium::project_object	ambient_light	0x0	obj<survarium::object_ambient_light>	only when the native vtable identifies object_ambient_light
 survarium::project_object	particle	0x0	obj<survarium::object_particle_visual>	only when the native vtable identifies object_particle_visual
+survarium::project_object	probe	0x0	obj<survarium::object_environment_probe>	only when the native vtable identifies object_environment_probe
 survarium::render_visual	vtable	0x0	u32	render visual insertion/removal interface
 survarium::render_visual	size	0x48	size	render visual stride in insert_static 0x285540
 survarium::object_light	vtable	0x0	u32	light object interface
@@ -197,6 +198,11 @@ survarium::object_ambient_light	vtable	0x0	u32	ambient light object interface
 survarium::object_ambient_light	position	0x140	f32	translation float3, the last row of the transform (+110h) object_ambient_light::insert 0x290930 copies
 survarium::object_particle_visual	vtable	0x0	u32	particle object interface
 survarium::object_particle_visual	position	0x140	f32	translation float3, the last row of the transform (+110h) object_particle_visual::insert 0x292CC0 plays its system (+158h) at
+survarium::object_environment_probe	vtable	0x0	u32	environment probe object interface
+survarium::object_environment_probe	position	0x140	f32	translation float3, the last row of the transform (+110h) object_environment_probe::insert 0x28FFD0 copies
+survarium::object_environment_probe	radius	0x3EC	f32	radius as load 0x28F3B0 read it (0x28F42C); insert hands it to the render probe (+320h), the key the visible probes are sorted by (largest first)
+survarium::object_environment_probe	diffuse_multiplier	0x3F0	f32	diffuse_multiplier as load 0x28F3B0 read it (0x28F451); insert hands it to the render probe (its +328h, color_parameters.x)
+survarium::object_environment_probe	specular_multiplier	0x3F4	f32	specular_multiplier as load read it (0x28F476); insert hands it to the render probe (its +32Ch, color_parameters.y)
 survarium::render_visual_methods	rtti	-4	u32	native complete object locator
 survarium::render_visual_methods	size	8	size	two native virtual methods: insert and remove
 survarium::object_light_methods	rtti	-4	u32	native complete object locator
@@ -205,10 +211,13 @@ survarium::object_ambient_light_methods	rtti	-4	u32	native complete object locat
 survarium::object_ambient_light_methods	size	40	size	ten methods, insert/remove at indices 8 and 9
 survarium::object_particle_visual_methods	rtti	-4	u32	native complete object locator
 survarium::object_particle_visual_methods	size	40	size	ten methods, insert/remove at indices 8 and 9
+survarium::object_environment_probe_methods	rtti	-4	u32	native complete object locator
+survarium::object_environment_probe_methods	size	40	size	ten methods, insert/remove at indices 8 and 9
 survarium::image	visual_methods	0xA029B4	obj<survarium::render_visual_methods>	render_visual native vtable including RTTI at -4
 survarium::image	light_methods	0xA0ADEC	obj<survarium::object_light_methods>	object_light native vtable including RTTI at -4
 survarium::image	ambient_light_methods	0xA0AC4C	obj<survarium::object_ambient_light_methods>	object_ambient_light native vtable including RTTI at -4
 survarium::image	particle_methods	0xA0AFAC	obj<survarium::object_particle_visual_methods>	object_particle_visual native vtable (its first, of the object at +0) including RTTI at -4
+survarium::image	probe_methods	0xA0ABEC	obj<survarium::object_environment_probe_methods>	object_environment_probe native vtable including RTTI at -4
 survarium::project_insert_frame	physics	4	ptr<vostok::physics::bullet_physics_world>	insert entry ESP+4: the physics world, not scene camera director
 survarium::history_save_frame	writer	8	ptr<vostok::buffer_writer>	serialize epilogue EBP+8: writer argument
 survarium::bullet_manager	physics	0x98	ptr<vostok::physics::bullet_physics_world>	physics world used for ray tests and lamp history
@@ -1488,6 +1497,7 @@ vostok::render::forward_begin_frame	configuration	0x0	ptr<vostok::render::shader
 vostok::render::forward_begin_frame	tree	0x4	ptr<vostok::engine_cfg>	its +4: the material's merged config tree (compile_begin's fifth argument, EBX, pushed at 0x1D90FF)
 vostok::render::particle_lighting_begin_frame	tree	0x0	ptr<vostok::engine_cfg>	effect_offscreen_particle_lighting_materials::compile's pushes for compile_begin (0x1CD0B0) at 0x1DB34B: +0 the material's merged config tree (compile_begin's fifth argument, ESI, pushed at 0x1DB346)
 vostok::render::particle_lighting_begin_frame	configuration	0x48	obj<vostok::render::shader_configuration>	its +48h: the 16-byte shader configuration, the compile's local [esp+40h] (zeroed 0x1DB184..0x1DB197), whose address it pushes next (lea eax,[esp+48h] / push eax)
+vostok::render::gstage_compile_frame	compiler	0x8	ptr<vostok::render::effect_compiler>	effect_gstage_default_materials::compile's (0x1DDD50) EBP frame: its first argument, the effect compiler (every set_constant and set_texture of the compile is given [ebp+8], e.g. t_height_map's at 0x1DFF9C)
 vostok::render::god_rays_entry_frame	stage	0x4	ptr<vostok::render::stage_atmosphere>	the god-rays pass's (0x1A5520) one argument at its entry, the stage_atmosphere it draws for (pushed at 0x1A5133)
 vostok::render::stage_atmosphere	context	0x4	ptr<vostok::render::renderer_context>	the renderer context (the god-rays pass 0x1A5528: its +4170h scene view)
 vostok::render::stage_atmosphere	mode	0xAC	u32	the constructor's second argument: 0 the sky stage, 1 the geometry stage (execute 0x1A50C9 fills the geometry's scattering target only in mode 1; 0x1A42B7 updates the scattering lookup only in mode 0)

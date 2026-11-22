@@ -1,10 +1,24 @@
 # London (v0.32)
 
 The live London rebuilt from 0.32a4's own projects (the owner, 2026-11-20: "I think we want london 0.32
-in the game and london 0.42 in the game"; `london.md`, "Name and build"). Content pack `london-v032@1`,
+in the game and london 0.42 in the game"; `london.md`, "Name and build"). Content pack `london-v032@2`,
 made by resource-porter's `build-survarium-near-map` in the same one pass as London (v0.42)
 (`ports/survarium-032a4-london-to-026g.json`, `docs/near-builds.md` there), and the forward effects as
 0.44a5 and 0.32a4 draw them with client patch 169 (pack `forward-effects@1`).
+
+Version 2 (the owner's test, 2026-11-22: hard terrain edges, swaying walls, glossy vines, black and
+dithered walls, pale grass, the glass on the sand, the rain's empty texture cook) is built with the
+donor's own switch sets (`--keep-switch-sets`) and the donor's programs of the g-buffer, its emissive
+pass and the vertex shaders with their two shadow passes: version 1 gave 31 materials of each London
+the nearest switch set players have programs for, which dropped parallax, roughness and translucency
+maps, hardened blended terrain edges (vertex_blend_technique 2 to 0) and gave static walls wind (0 to
+2). Also by rule now: an environment setting the donor leaves empty is left out (0.44a5's rain
+`sky_clouds_normal_texture` ""), a texture no archive has is cleared with the switch that samples it,
+and a surface whose mesh carries no wind weights draws its windy material without wind.
+A kept set whose programs are not all there takes the nearest set players have: 0.32a4's saksaul
+and anomaly-field ground tiles lose their parallax at shading quality 3 (its programs read constants
+0.26g never sets; an exe patch for them follows), `pol` its tiled blend mask, `stena_wood` its blend
+technique. The kept sets' programs are 0.44a5's, shipped by `london-v042@4`.
 
 ## In place, by one switch
 

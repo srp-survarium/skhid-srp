@@ -471,6 +471,10 @@ unsafe extern "thiscall" {
     pub fn engine_particle_insert(particle: Option<ObjectParticleVisual>);
     /// 0x292dc0 survarium::object_particle_visual::remove: particle ECX; pops 0; thiscall, called directly
     pub fn engine_particle_remove(particle: Option<ObjectParticleVisual>);
+    /// 0x28ffd0 survarium::object_environment_probe::insert: probe ECX; pops 0; thiscall, called directly
+    pub fn engine_probe_insert(probe: Option<ObjectEnvironmentProbe>);
+    /// 0x2904a0 survarium::object_environment_probe::remove: probe ECX; pops 0; thiscall, called directly
+    pub fn engine_probe_remove(probe: Option<ObjectEnvironmentProbe>);
     /// 0x5aba0 vostok::sound::sound_instance_proxy_internal::play: proxy ECX, mode ESP+4, producer ESP+8, receiver ESP+12; pops 12; thiscall, called directly
     pub fn engine_play_voice(proxy: Option<SoundInstanceProxy>, mode: u32, producer: *const c_void, receiver: *const c_void);
     /// 0x5b390 vostok::sound::sound_instance_proxy_internal::free_object: proxy ECX; pops 0; thiscall, called directly
@@ -525,6 +529,8 @@ unsafe extern "thiscall" {
     pub fn engine_player_hit(receiver: Option<HitReceiver>, time: u32, attacker: Option<BulletOwner>, bodypart: Option<HitPart>, kind: u32, damage: f32, piercing: f32, initiator: *const c_void, item: Option<Item>);
     /// 0x1a8900 vostok::render::effect_compiler::set_constant_float4: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
     pub fn engine_set_constant_float4(value: *const f32, compiler: Option<EffectCompiler>, name: *const u8);
+    /// 0x1d9740 vostok::render::effect_compiler::set_constant_float2: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
+    pub fn engine_set_constant_float2(value: *const f32, compiler: Option<EffectCompiler>, name: *const u8);
     /// 0x2063f0 survarium::tdm_rule_cook::create_resource: cook ECX, query ESP+4; pops 4; EAX; thiscall, called directly
     pub fn engine_tdm_cook_create(cook: Option<HuntCook>, query: Option<RuleQuery>) -> u32;
     /// 0x2063e0 survarium::tdm_rule_cook::resource_size: cook ECX; pops 0; EAX; thiscall, called directly
@@ -6910,6 +6916,15 @@ impl ProjectObject {
     pub unsafe fn particle(self) -> ObjectParticleVisual {
         ObjectParticleVisual(unsafe { self.0.byte_add(0x0) })
     }
+
+    /// +0x0 (obj<survarium::object_environment_probe>): only when the native vtable identifies object_environment_probe
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn probe(self) -> ObjectEnvironmentProbe {
+        ObjectEnvironmentProbe(unsafe { self.0.byte_add(0x0) })
+    }
 }
 
 /// A survarium::render_visual (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -7075,6 +7090,66 @@ impl ObjectParticleVisual {
     #[inline(always)]
     pub unsafe fn position(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x140).cast::<f32>().as_ptr() }
+    }
+}
+
+/// A survarium::object_environment_probe (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ObjectEnvironmentProbe(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ObjectEnvironmentProbe {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): environment probe object interface
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x140 (f32): translation float3, the last row of the transform (+110h) object_environment_probe::insert 0x28FFD0 copies
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn position(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x140).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x3ec (f32): radius as load 0x28F3B0 read it (0x28F42C); insert hands it to the render probe (+320h), the key the visible probes are sorted by (largest first)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn radius(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x3ec).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x3f0 (f32): diffuse_multiplier as load 0x28F3B0 read it (0x28F451); insert hands it to the render probe (its +328h, color_parameters.x)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn diffuse_multiplier(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x3f0).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x3f4 (f32): specular_multiplier as load read it (0x28F476); insert hands it to the render probe (its +32Ch, color_parameters.y)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn specular_multiplier(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x3f4).cast::<f32>().as_ptr() }
     }
 }
 
@@ -7343,6 +7418,73 @@ impl ObjectParticleVisualMethodsStorage {
     #[inline(always)]
     pub fn first(rooms: &mut [Self]) -> Option<ObjectParticleVisualMethods> {
         (!rooms.is_empty()).then(|| ObjectParticleVisualMethods(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::object_environment_probe_methods (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ObjectEnvironmentProbeMethods(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ObjectEnvironmentProbeMethods {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// -0x4 (u32): native complete object locator
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn rtti(self) -> *mut u32 {
+        unsafe { self.0.byte_sub(0x4).cast::<u32>().as_ptr() }
+    }
+
+    /// 0x28 bytes: ten methods, insert/remove at indices 8 and 9
+    pub const SIZE: usize = 0x28;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::object_environment_probe_methodss (0x28 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct ObjectEnvironmentProbeMethodsStorage([u8; 0x28]);
+
+#[allow(dead_code)]
+impl ObjectEnvironmentProbeMethodsStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x28])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> ObjectEnvironmentProbeMethods {
+        ObjectEnvironmentProbeMethods(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<ObjectEnvironmentProbeMethods> {
+        (!rooms.is_empty()).then(|| ObjectEnvironmentProbeMethods(NonNull::from(rooms).cast()))
     }
 }
 
@@ -28764,6 +28906,39 @@ impl ParticleLightingBeginFrame {
     }
 }
 
+/// A vostok::render::gstage_compile_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GstageCompileFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl GstageCompileFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (ptr<vostok::render::effect_compiler>): effect_gstage_default_materials::compile's (0x1DDD50) EBP frame: its first argument, the effect compiler (every set_constant and set_texture of the compile is given [ebp+8], e.g. t_height_map's at 0x1DFF9C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn compiler(self) -> Option<EffectCompiler> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<EffectCompiler>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<vostok::render::effect_compiler>): effect_gstage_default_materials::compile's (0x1DDD50) EBP frame: its first argument, the effect compiler (every set_constant and set_texture of the compile is given [ebp+8], e.g. t_height_map's at 0x1DFF9C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_compiler(self, value: Option<EffectCompiler>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<EffectCompiler>>().write_volatile(value) }
+    }
+}
+
 /// A vostok::render::god_rays_entry_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -33661,6 +33836,13 @@ pub mod image {
     pub fn particle_methods() -> ObjectParticleVisualMethods {
         // SAFETY: an image VA, not 0.
         ObjectParticleVisualMethods(unsafe { NonNull::new_unchecked(0xa0afac as *mut c_void) })
+    }
+
+    /// 0xa0abec (obj<survarium::object_environment_probe_methods>, survarium::image): object_environment_probe native vtable including RTTI at -4
+    #[inline(always)]
+    pub fn probe_methods() -> ObjectEnvironmentProbeMethods {
+        // SAFETY: an image VA, not 0.
+        ObjectEnvironmentProbeMethods(unsafe { NonNull::new_unchecked(0xa0abec as *mut c_void) })
     }
 
     /// 0xa04174 (u32, survarium::image): client weapon active interface; constructor 0x243640
@@ -39277,6 +39459,30 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// gstage.parallax (0x1dff85): effect_gstage_default_materials::compile (0x1DDD50, g_stage_default: gbuffer_pass and gbuffer_emissive_pass) in its parallax block (the configuration's [esp+1Ah] bit 40h, use_parallax, tested at 0x1DFF18), after constant_parallax_scale and texture_bump's lookup, before t_height_map's set_texture (0x3D98B0 at 0x1DFFA7): fld dword [esp+3Ch] / mov edx,[esp+2Ch] (no address under them, no branch into them; EAX the texture_bump node, kept). EBX the material's config tree, [EBP+8] the compiler. 0.44a5 sets parallax_uv_scrolling_factors and parallax_uv_scale_factors at the same place of its parallax block (0x4C4414..0x4C45A3)
+    pub mod gstage_parallax {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::engine_cfg (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn tree(machine: &impl Machine) -> Option<EngineCfg> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EngineCfg)
+        }
+
+        /// EBP: a vostok::render::gstage_compile_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<GstageCompileFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(GstageCompileFrame)
         }
     }
 
