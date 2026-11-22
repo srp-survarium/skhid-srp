@@ -41,7 +41,10 @@
 #   --out <folder>      a new folder for resources.db.patch_<revision>,
 #                       server-game-data.db, files.tsv (every file made:
 #                       its status, path, why, the archive players have it
-#                       from) and item-tables/; default ./content-rev<revision>
+#                       from), digests.tsv (the patch's sha256, then each of
+#                       its files' sha256 and path: what a --delta-from over
+#                       this folder reads of it) and item-tables/; default
+#                       ./content-rev<revision>
 #   --tree <checkout>   the sources (edit lists, content_edit.py, Flash
 #                       trees, the manifest) of another checkout; default
 #                       this one
@@ -61,7 +64,12 @@
 #                         (build_content.py pack_runs), each kept by the base
 #                         archives' sha256s, its operations, the pack files
 #                         they read (path, size, time), vostok-port and the
-#                         bytes of the movies they edit;
+#                         graphics of the movies they edit (flash_tree.py
+#                         graphics: the tree's movie without its code, keyed by
+#                         its original, the tree but src/ and tables/, and the
+#                         programs); the code goes into the composed movie
+#                         after them (flash_tree.py code, keyed by both), so a
+#                         code edit of the lobby composes no pack again;
 #                       an edit list: its bytes, content_edit.py and its
 #                         modules (not their tests; a localization list also
 #                         client-patches' localization modules and its folder)
@@ -79,6 +87,10 @@
 #                       the lamps, walker twins and grass: each file by its
 #                         bytes; the comparison with players' files: each
 #                         file by its bytes, for the same players' archives;
+#                       the files left by earlier versions of the packs:
+#                         players' archives and, for each live file no row
+#                         makes, the earlier versions' files of its path
+#                         (size, time);
 #                       the checks' code: their own functions' source (an
 #                         edit elsewhere in build_content.py keeps them);
 #                       the server game data: srp-game-data and every
@@ -105,7 +117,14 @@
 #                       players lack and this build does not make cannot be
 #                       taken away: refused, build it whole). Mounted over the
 #                       earlier patches, the game sees what a quick build of
-#                       this tree gives it. delta.tsv says each file and why;
+#                       this tree gives it (the earlier patch's files known by
+#                       its folder's digests.tsv, or read once and kept by its
+#                       sha256). The quick way to test a small edit: build
+#                       once, then each edit with --delta-from the last
+#                       folder (a lobby code edit: about a minute, mostly the
+#                       compiler and the cache's reads; without it, packing
+#                       every unreleased file into the patch takes minutes).
+#                       delta.tsv says each file and why;
 #                       the server game data (of the list, the earlier patches
 #                       and it) only when a file the server reads is in it,
 #                       else the earlier build's serves. QUICK-BUILD and
@@ -215,7 +234,10 @@ args+=(--stock-sha256 "$STOCK_SHA")
 [[ -n ${SRP_GAME_DATA_BIN:-} ]] || args+=(--bin-source "$ROOT/srp-026g")
 ((!cached)) || args+=(--cache "${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/build-content")
 ((full)) || args+=(--quick)
-[[ -z $delta_from ]] || args+=(--delta-over "${chain[@]}")
+if [[ -n $delta_from ]]; then
+    args+=(--delta-over)
+    for patch in "${chain[@]}"; do args+=("$patch=$(cached_sha256 "$patch")"); done
+fi
 [[ -z ${SKHID_VOSTOK_PORT:-} ]] || args+=(--vostok-port "$SKHID_VOSTOK_PORT")
 [[ -z ${SKHID_PACKS_DIR:-} ]] || args+=(--packs "$SKHID_PACKS_DIR")
 say "building $(basename "$manifest") of $tree ($(git -C "$tree" rev-parse --short HEAD 2>/dev/null || echo 'no git'))"
@@ -253,6 +275,9 @@ fi
 
 say
 SRP_GAME_DATA_BIN=$bin "$here/build-patch" "$work/build/patch" "$revision" --out "$out/$name" | grep -v "^next: "
+patch_sha=$(cached_sha256 "$out/$name")
+# Each file's sha256 under the patch's: what a later --delta-from over this folder reads of it.
+{ printf '# %s %s\n' "$name" "$patch_sha"; cat "$work/build/digests.tsv"; } >"$out/digests.tsv"
 took "the patch (build-patch)"
 say
 patches=()
@@ -270,8 +295,9 @@ extra=''
 for patch in "${chain[@]}" "$out/$name"; do
     url="$PATCHES_URL/${patch##*/}"
     patches+=(--patch "$patch=$url")
-    extra+=${extra:+$'\n'}"${patch##*/} $(sha256_of "$patch") $(size_of "$patch") $url"
-    data_key+=" ${patch##*/} $(sha256_of "$patch") $url"
+    sha=$(cached_sha256 "$patch")
+    extra+=${extra:+$'\n'}"${patch##*/} $sha $(size_of "$patch") $url"
+    data_key+=" ${patch##*/} $sha $url"
 done
 data_key=$(sha256sum <<<"$data_key" | cut -c1-64)
 data_cache=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/build-content/server-data
@@ -283,7 +309,7 @@ if [[ -n $delta_from ]] && ! cut -f1 "$out/delta.tsv" | grep -E '^(gameplay/|pro
     for patch in "${chain[@]}"; do
         [[ ! -f ${patch%/*}/$DATA_NAME ]] || earlier_data=${patch%/*}/$DATA_NAME
     done
-    say "$out/$name: $(size_of "$out/$name") bytes, sha256 $(sha256_of "$out/$name"): a delta over ${chain[*]##*/}"
+    say "$out/$name: $(size_of "$out/$name") bytes, sha256 $patch_sha: a delta over ${chain[*]##*/}"
     say "the server game data: not made, no file the server reads changed: ${earlier_data:-the earlier build} serves it"
     say "a local test build: mount $name over ${chain[*]##*/}; release.sh refuses it ($QUICK_MARK)"
     exit 0
@@ -316,7 +342,7 @@ else
     say "with $name over players' files, all $(grep -c . <<<"$compared") files the manifest makes are as it makes them"
     took "players' files with the patch"
 fi
-say "$out/$name: $(size_of "$out/$name") bytes, sha256 $(sha256_of "$out/$name")"
+say "$out/$name: $(size_of "$out/$name") bytes, sha256 $patch_sha"
 say "$out/$DATA_NAME: sha256 $(sha256_of "$out/$DATA_NAME") (offers the list's patches and $name at $url)"
 say
 rerun="the patch and the server data in $out are made; to run it all again: rm -rf $(q "$out")"
