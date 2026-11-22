@@ -46,7 +46,7 @@ use super::route_end::RouteEnd;
 use super::route_filter::RouteFilter;
 use super::think::Due;
 use super::trap_know::TrapField;
-use super::tuning::{LaneSource, PressClear, Stayer, TrapLanes, TrapRelease, TrapTuning};
+use super::tuning::{LaneSource, PressClear, Stayer, TrapRelease, TrapTuning};
 use super::view::PlaceView;
 use super::{Bot, TeamState};
 
@@ -5592,6 +5592,7 @@ mod tests {
         assert_eq!(presence(&lanes, Vec3::new(90.0, 0.0, 10.0), 1_000), 0.0);
         // [fix-team PvB traps] The default reads the humans' lanes for a team facing a human, the trap map for one facing bots
         // only; `humans` and `enemies` read theirs whatever it faces.
+        use crate::v026g::bots::tuning::TrapLanes;
         let mut tuning = crate::v026g::bots::tuning::Tuning::default().traps;
         assert_eq!(tuning.lanes, TrapLanes::Facing);
         assert_eq!((tuning.lanes.source(true), tuning.lanes.source(false)), (LaneSource::Humans, LaneSource::Enemies));
