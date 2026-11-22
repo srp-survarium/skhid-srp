@@ -1160,6 +1160,16 @@ impl Rooms {
         self.queued.len()
     }
 
+    /// The account's Queue and spectate waits on as a plain Queue, its place
+    /// kept: its game came back from the watch by itself.
+    pub fn watch_no_more(&mut self, account_id: u32) {
+        if let Some(queued) = self.queued.get_mut(&account_id)
+            && queued.choice == QueueChoice::ChosenToWatch
+        {
+            queued.choice = QueueChoice::Chosen;
+        }
+    }
+
     /// Who waits in a queue to watch its room's match (Queue and
     /// spectate), with the room's key: every account of an entry, a pair's
     /// mate too.

@@ -68,7 +68,6 @@ LEAVE_MATCH = (799, 593)
 VIEWER_PLATES, VIEWER_PLATE_Y = (999, 1156, 1310), 901  # the kit plates in a replay's viewer
 PLAYER_ROW_X = 1495  # a viewer's player list
 PLAYER_ROWS = (("ReplayTester", 560), ("SecondTester", 583))
-LIVE_DELAY = 30  # SRP_LIVE_WATCH_DELAY_S's default
 DAILY_CLOSE = (1032, 539)  # the X of the first sign-in of a day's reward box
 # A room's three map cards: where to sample each mode label's box, and where to click to vote for the card.
 CARD_LABELS = (132, 598, 1064)
@@ -337,8 +336,8 @@ def live(run: Run) -> None:
     a.key("2")  # a spectator has no kits: the game's own key must not bring up or pick one
     time.sleep(0.5)
     a.shot("live-5-after-kit-key")
-    # The spectator is 30 s behind: only past that is the followed player spawned, and its kit used.
-    time.sleep(max(0, begun + LIVE_DELAY + 8 - time.time()))
+    # Past the start the followed player has spawned, and its kit is used.
+    time.sleep(max(0, begun + 8 - time.time()))
     a.shot("live-7-past-the-start")
     leave_match(a)  # on a live match, unlike a replay, Esc is the game's own menu
     a.wait_screen(window_open, "the Watch window, after watching", 25, steady=1.5)
@@ -375,8 +374,8 @@ def follow(run: Run) -> None:
     for frame in range(1, 3):
         time.sleep(2)
         a.shot(f"live-9-following-{frame}")
-    # 30 s behind: past the start the followed friend has spawned, so the one kit it used is shown, and no other.
-    time.sleep(max(0, begun + LIVE_DELAY + 8 - time.time()))
+    # Past the start the followed friend has spawned, so the one kit it used is shown, and no other.
+    time.sleep(max(0, begun + 8 - time.time()))
     a.shot("live-9-following-past-the-start")
     leave_match(a)
     a.wait_screen(lambda picture: window_open(picture) or play_ready(picture), "the lobby, after following", 25, steady=1.5)
@@ -577,7 +576,7 @@ def after_results(game: Game) -> None:
 
 def queue_spectate(run: Run) -> None:
     """Queue and spectate, which needs a full public room: the server's public rooms must be 1 v 1 for this flow (two
-    accounts fill one). It watches behind the match by the Live delay; when a place frees it is let go and seated."""
+    accounts fill one). It watches the match as it is played; when a place frees it is let go and seated."""
     a, b, c = sign_in(run, "ReplayTester"), sign_in(run, "SecondTester"), sign_in(run, "ThirdTester")
     room_match(b, c)
     to_room_list(a)
@@ -585,16 +584,13 @@ def queue_spectate(run: Run) -> None:
     mark = run.server.mark()
     a.click(*QUEUE_SPECTATE, 8)
     a.expect_server(r"ReplayTester: watches its queue's room's match 0x[0-9a-f]+", 10, mark)
-    behind = a.expect_server(r"a spectator \(session 0x[0-9a-f]+\) connected from [^,]+, \d+ s behind", 10, mark)
-    if f"{LIVE_DELAY} s behind" not in behind:
-        raise a.fail(f"not behind by the Live delay: {behind}")
-    say(behind)
+    say(a.expect_server(r"a spectator \(session 0x[0-9a-f]+\) connected from \S+", 10, mark))
     a.expect_server(r"spectator 0x[0-9a-f]+ has loaded", 30, mark)
     time.sleep(2)
-    a.shot("queue-2-waiting-for-the-delayed-clock")
+    a.shot("queue-2-loaded")
     a.expect_server(r"spectator 0x[0-9a-f]+ starts from the snapshot", 45, mark)
     a.expect_server(r"spectator 0x[0-9a-f]+ watches", 10, mark)
-    say("watching, behind the match")
+    say("watching")
     time.sleep(3)
     a.shot("queue-3-watching")
     mark = run.server.mark()

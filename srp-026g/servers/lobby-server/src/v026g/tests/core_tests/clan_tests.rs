@@ -1421,7 +1421,7 @@ fn two_clan_teams_meet_in_a_match_and_one_alone_waits() {
 fn a_clan_team_with_a_player_watching_is_not_ready() {
     use session::v026g::replay_watch::WatchSettings;
     use session::v026g::replays::Replays;
-    use session::{LiveDelay, WatchKind, Watcher};
+    use session::{WatchKind, Watcher};
 
     use super::live_tests::{a_match_in_play, ask_to_watch};
 
@@ -1466,12 +1466,9 @@ fn a_clan_team_with_a_player_watching_is_not_ready() {
         match_id,
         ticket,
         account_id: account,
-        kind: WatchKind::Live {
-            delay: LiveDelay::DEFAULT,
-            view: None,
-        },
+        kind: WatchKind::Live { view: None },
     };
-    assert!(world.store.matchmaking().watch(session, live, world.now));
+    assert!(world.store.matchmaking().watch(session, live));
     world.clan_ready(eve, true, true);
     assert_eq!(world.core.clan_teams_waiting(), [bandits]);
     world.advance(Duration::from_secs(1));

@@ -1,5 +1,5 @@
 //! The Live window (`live`): the list of the matches being played, a
-//! match's roster, and watching one as it is played, behind it.
+//! match's roster, and watching one as it is played.
 
 use survarium::v026g::lobby::rooms::{ROOM_JOIN_BASE, ROOM_PLAY};
 use survarium::v026g::lobby::{
@@ -62,21 +62,12 @@ pub(super) fn ask_to_watch(world: &mut World, index: usize, match_id: u32) -> St
         .expect("an R1 row")
 }
 
-/// A Live spectator whose game never reaches the match server gives its
-/// place back when its session goes, its link silent for the session's
-/// wait: not only when the match ends. Until then the same game connecting
-/// again watches on. (Timeouts short enough for the session to end before
-/// [`session::WATCH_CONNECT_WITHIN`], which ends such a watch too.)
+/// A Live spectator whose game never reaches the match server, or which
+/// signs in anew, gives its place back when its lobby link or session goes:
+/// not only when the match ends.
 #[test]
 fn a_live_watcher_gives_its_place_back_when_its_link_goes() {
-    let mut settings = Settings::local("127.0.0.1:0");
-    settings.match_link_timeout = settings.link_timeout;
-    settings.session_grace = Duration::from_secs(20);
-    assert!(
-        settings.link_timeout + settings.session_grace + Duration::from_secs(3)
-            < session::WATCH_CONNECT_WITHIN
-    );
-    let mut world = World::with_settings(settings);
+    let mut world = World::new();
     let (ticket, _) = a_match_in_play(&mut world);
     let carol = world.connect("Carol");
     assert!(ask_to_watch(&mut world, carol, ticket).starts_with("R1;watching;"));
@@ -86,40 +77,7 @@ fn a_live_watcher_gives_its_place_back_when_its_link_goes() {
     // Its game crashed while loading: nothing more comes from it.
     drop(std::mem::replace(&mut world.clients[carol].1, TestClient::new()));
     world.advance(world.core.settings.match_link_timeout + Duration::from_secs(1));
-    assert!(matchmaking(&world).is_some(), "its session waits");
-    world.advance(world.core.settings.session_grace + Duration::from_secs(2));
     assert_eq!(matchmaking(&world), None);
-    assert!(world.store.has_ended(session));
-}
-
-/// The review of #1537: a spectator whose game connects again with its
-/// session (its lobby link dropped, or went silent, while its game watches)
-/// watches on, as a seated player keeps its place.
-#[test]
-fn a_live_watcher_whose_game_connects_again_watches_on() {
-    let mut world = World::new();
-    let (ticket, _) = a_match_in_play(&mut world);
-    let carol = world.connect("Carol");
-    assert!(ask_to_watch(&mut world, carol, ticket).starts_with("R1;watching;"));
-    let session = world.ids[carol].1;
-    // Its game is there: the match server took it as a spectator.
-    world.store.matchmaking().watcher_connected(session, ticket);
-    let watched = |world: &World| world.store.matchmaking().watched(session);
-    let before = watched(&world);
-    assert!(before.is_some());
-    // Its link dropped on the game's side: it connects again at once.
-    world.game_connects_again(carol, 41_000);
-    assert_eq!(watched(&world), before);
-    // Its link went silent on the lobby's side first.
-    let silent = world.core.settings.match_link_timeout + Duration::from_secs(1);
-    world.silent_for(carol, silent);
-    assert!(!world.core.links.contains_key(&world.clients[carol].0), "its link went");
-    world.game_connects_again(carol, 41_001);
-    assert_eq!(watched(&world), before);
-    assert!(!world.store.has_ended(session));
-    // Its game is not sent to the match again: it is there.
-    world.advance(Duration::from_secs(2));
-    assert!(sent_to_match(&world.take(carol)).is_none());
 }
 
 /// The review of #1537: a player whose game started anew while its seat is
@@ -203,13 +161,13 @@ fn past_the_guessing_limit_a_running_match_is_not_told_apart() {
 }
 
 #[test]
-fn the_live_window_lists_a_match_its_roster_and_watches_it_behind() {
+fn the_live_window_lists_a_match_its_roster_and_watches_it() {
     let mut world = World::new();
     let (ticket, _) = a_match_in_play(&mut world);
     let carol = world.connect("Carol");
     let list = rows(&mut world, carol, LIVE_START, 20);
     assert_eq!(list.len(), 2, "{list:?}");
-    assert_eq!(list[0], "L0;1;30");
+    assert_eq!(list[0], "L0;1");
     let fields: Vec<&str> = list[1].split(';').collect();
     assert_eq!(fields[0], "L1");
     assert_eq!(fields[1], format!("{ticket:08x}"));
@@ -226,8 +184,8 @@ fn the_live_window_lists_a_match_its_roster_and_watches_it_behind() {
     assert_eq!(alice[4..], ["3", "1", "Alice"]);
     assert!(roster[1].ends_with(";1;3;Bob"), "{}", roster[1]);
 
-    // Watching: sent to the match as a spectator, 30 s behind, Bob (place
-    // 1) in view first.
+    // Watching: sent to the match as a spectator, Bob (place 1) in view
+    // first.
     world.take(carol);
     let ask = ReplayWatchAsk {
         seconds: 0,
@@ -245,10 +203,7 @@ fn the_live_window_lists_a_match_its_roster_and_watches_it_behind() {
     let watcher = world.store.matchmaking().watched(session).expect("watches");
     assert_eq!(
         watcher.kind,
-        session::WatchKind::Live {
-            delay: session::LiveDelay::DEFAULT,
-            view: Some(1),
-        }
+        session::WatchKind::Live { view: Some(1) }
     );
     // No room's queue keeps it, and none ends it.
     world.advance(Duration::from_secs(5));
@@ -302,45 +257,6 @@ fn a_full_match_is_busy_and_one_not_begun_is_not_watched() {
         ask_to_watch(&mut world, erin, ticket),
         format!("R1;busy;{ticket:08x};0")
     );
-}
-
-/// A Live watch whose game never reaches the match server, its lobby link
-/// alive, ends after [`session::WATCH_CONNECT_WITHIN`] and frees its place
-/// for another; one whose game the match server took watches on. Its
-/// account is `busy` for [`session::WATCH_COOLDOWN`], taking no place.
-#[test]
-fn a_live_watch_whose_game_never_comes_frees_its_place() {
-    let mut settings = Settings::local("127.0.0.1:0");
-    settings.live.per_match = 1;
-    let mut world = World::with_settings(settings);
-    let (ticket, _) = a_match_in_play(&mut world);
-    let carol = world.connect("Carol");
-    let dave = world.connect("Dave");
-    assert!(ask_to_watch(&mut world, carol, ticket).starts_with("R1;watching;"));
-    let carols = world.ids[carol].1;
-    world.advance(session::WATCH_CONNECT_WITHIN - Duration::from_secs(2));
-    assert!(world.store.matchmaking().watched(carols).is_some());
-    assert_eq!(
-        ask_to_watch(&mut world, dave, ticket),
-        format!("R1;busy;{ticket:08x};0")
-    );
-    world.advance(Duration::from_secs(3));
-    assert_eq!(world.store.matchmaking().watched(carols), None);
-    // Carol asks again at once: busy, and the place stays free.
-    let busy = format!("R1;busy;{ticket:08x};0");
-    assert_eq!(ask_to_watch(&mut world, carol, ticket), busy);
-    assert_eq!(world.store.matchmaking().watched(carols), None);
-    assert!(ask_to_watch(&mut world, dave, ticket).starts_with("R1;watching;"));
-    // Dave's game comes (the match server says so): its watch goes on.
-    let daves = world.ids[dave].1;
-    world.store.matchmaking().watcher_connected(daves, ticket);
-    world.advance(session::WATCH_CONNECT_WITHIN + Duration::from_secs(1));
-    assert!(world.store.matchmaking().watched(daves).is_some());
-    // Its game leaves; Carol is still cooling down, then watches.
-    world.store.matchmaking().watcher_left(daves, ticket);
-    assert_eq!(ask_to_watch(&mut world, carol, ticket), busy);
-    world.advance(session::WATCH_COOLDOWN);
-    assert!(ask_to_watch(&mut world, carol, ticket).starts_with("R1;watching;"));
 }
 
 /// A room's member who watches a live match meanwhile is called back when its room could play
@@ -429,44 +345,6 @@ fn a_live_watcher_leaving_its_match_keeps_its_room_queue() {
     assert_eq!(world.core.rooms.queue_place(account), Some((key, 1)));
 }
 
-/// Queue and spectate's spectators count toward the Live window's caps:
-/// a match they fill is busy for the Live window.
-#[test]
-fn queue_spectators_fill_a_match_for_the_live_window() {
-    use survarium::v026g::lobby::rooms::ROOM_WATCH_BASE;
-    let mut settings = Settings::local("127.0.0.1:0");
-    settings.live.per_match = 1;
-    let mut world = World::with_settings(settings);
-    let alice = world.connect("Alice");
-    let bob = world.connect("Bob");
-    let key = create(&mut world, alice, spec(1), None);
-    rows(&mut world, bob, ROOM_JOIN_BASE + key, 1);
-    world.advance(ROOM_TO_MATCH);
-    let (ticket, _) = sent_to_match(&world.take(alice)).expect("Alice plays");
-    world.host.live.locked().insert(
-        ticket,
-        LiveView {
-            present: 0b11,
-            phase: LivePhase::Playing,
-            ..LiveView::default()
-        },
-    );
-    world
-        .host
-        .closed
-        .locked()
-        .insert(ticket, session::matchmaking_policy::Closed::Joining);
-    let carol = world.connect("Carol");
-    rows(&mut world, carol, ROOM_WATCH_BASE + key, 1);
-    world.advance(Duration::from_secs(1));
-    assert!(world.store.matchmaking().watched(world.ids[carol].1).is_some());
-    let dave = world.connect("Dave");
-    assert_eq!(
-        ask_to_watch(&mut world, dave, ticket),
-        format!("R1;busy;{ticket:08x};0")
-    );
-}
-
 /// A match over waits for its spectators before it ends, and its recording
 /// is not readable before that: the list says it may not be watched, and an
 /// ask is `busy`, never a lookup of its recording (`gone`, a miss counted
@@ -500,8 +378,8 @@ fn a_match_over_is_listed_not_watchable_and_answered_busy() {
 
 /// A Live spectator is no player of the match (`queue-spectate.md`: "never
 /// as players"): its lines on the match's channel reach none of the
-/// players, and theirs never reach it (it would read them live, ahead of
-/// its delay), nor does the idle removal's line on that channel.
+/// players, and theirs never reach it, nor does the idle removal's line on
+/// that channel.
 #[test]
 fn a_live_watcher_is_out_of_the_matchs_chat_both_ways() {
     let mut world = World::new();

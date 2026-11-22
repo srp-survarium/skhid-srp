@@ -25,7 +25,7 @@ dynamic game". Rooms: [rooms.md](rooms.md) (Queue, Late joins). Wire: `lobby.md`
 
 ## Picks (simplest; the owner may change them)
 
-- **Behind the match by the Live delay, like every live watcher** (the owner's of 2026-11-09;
+- **In real time, like every live watcher** (the owner's of 2026-11-22: no live delay;
   `replay-stream.md`, "Live").
 - **When:** at once. The button sends the game straight to the running match as a spectator,
   with no 15 s room view first. A room between matches (vote, wait): the usual queue, and the
@@ -38,12 +38,18 @@ dynamic game". Rooms: [rooms.md](rooms.md) (Queue, Late joins). Wire: `lobby.md`
   queue's own rule).
 - **A free place:** the queue's own rule takes the first who may come; a spectator may, though
   its game is in the match it watches. It is let go (one 0xEA naming 0xFF); its game, back in the lobby,
-  goes into the match at once when it asks for its room (no 15 s), as a late joiner: side
-  choice, until `LOAD_MARGIN`. Past it, it waits in the room for the next match, as any member.
+  goes into the match when it asks for its room (no 15 s), as a late joiner: side choice, until
+  `LOAD_MARGIN`. The game sends no word as it takes that farewell (patch 178,
+  close_current_match(0)) and its movie asks for its room meanwhile, so the lobby sends it in only
+  `FREED_WORD` (10 s) after it let it go, or at once after a word of its own (`31 .. FF`). Past
+  `LOAD_MARGIN` it waits in the room for the next match, as any member.
 - **The match ends:** a spectator watches nothing; it is still in the queue (in the lobby), and
   goes in if the end frees places, or watches the next match.
-- **Leaving:** the game's own Leave match (0xE0), or its match link lost, leaves the queue (one
-  exit). A plain Queue pressed for the same room keeps the place and stops the watch.
+- **Leaving:** the game's own Leave match (0xE0), or its match link lost, as the match server
+  tells it, leaves the queue (one exit). A game back by itself before that word (its `31 .. FF`
+  first), or one whose load failed (the match server never had it), stops watching and waits on
+  in the queue as by Queue. A plain Queue pressed for the same room keeps the place and stops
+  the watch.
 - **Not in the Tab list yet:** spectators are not roster places, so no game has their names, and
   the match link has no free message for them. It would take three new parts: a tagged system
   line of the lobby to the match's players, an exe hook in `process_incoming_text_message`
@@ -55,10 +61,8 @@ dynamic game". Rooms: [rooms.md](rooms.md) (Queue, Late joins). Wire: `lobby.md`
 - **A PIN room's match** can be watched this way by anyone who may queue for it (queuing takes
   the PIN), while the Live window does not list a private room's match (nor one against the server's
   bots) and opens it to no spectator.
-- **Spectators share the Live window's caps** (`SRP_LIVE_WATCH_PER_MATCH`, 4, and
-  `SRP_LIVE_WATCH_MAX`, 8): each costs about one more player (its relays and worlds). A queue
-  waiter past the cap stays in the queue without watching and starts when a place frees, the
-  oldest account first.
+- **Not under the Live window's caps** (`SRP_LIVE_WATCH_PER_MATCH`, `SRP_LIVE_WATCH_MAX`): a public
+  room's queue holds two at most (a new room opens past that), so its spectators are few.
 
 ## How
 
@@ -123,9 +127,10 @@ but with nice non-disruptive ux/ui".
   room or a queue, the next room state decides: a room that called back says so once, with its
   state (the room code 18, `RoomCode::CalledBack`, kept until the game asks: a room that waited
   for players is still waiting at that moment, its vote begins with the one who is back), and it,
-  or any room in its vote or its match, shows itself, with
+  or any room in its vote, shows itself, with
   one line over it for 7 s, "Your room is ready" (`st_srp_rooms_called_back`; no press taken,
-  nothing moved); a room still waiting, or no room, gives the Watch window back as it was.
+  nothing moved); a room still waiting or playing a match without the player (one with a place
+  for it calls it back), or no room, gives the Watch window back as it was.
 - **Said first, in what is watched** (the owner's of 2026-11-10: "match found nice ui/ux
   indication with micro-countdown is still nice vs abruptly loading back into menu"): the match
   server tells the game once (`replay_control::ServerNote::Recall`, `52 05 <seconds>`) and lets it

@@ -81,7 +81,7 @@
 //! |---|---|---|
 //! | `SRP_ROOMS_EXTRA_MAPS` | (none) | playable `maps_dict` ids a creator may add to a pool besides the match pool (`SRP_MATCH_MAPS`): the experimental maps |
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use udp_transport::relay::Peer;
 use std::time::Instant;
 
@@ -1911,9 +1911,8 @@ impl Core<'_> {
         let account_id = who.account_id;
         // A spectator given a place: its game is back in the lobby and goes
         // into the match at once, with no room shown first. Not while the
-        // match it watched is still its game's (the movie asks for its room
-        // meanwhile): its word that it is back comes first (`leave` takes
-        // `freed_at`), or `FREED_WORD` passes.
+        // match it watched may still be its game's (the movie asks for its
+        // room meanwhile): for `FREED_WORD`, or until a word of its own.
         let away = self.player(who.addr).is_some_and(|player| {
             player
                 .freed_at
@@ -1972,9 +1971,8 @@ impl Core<'_> {
     ///   (it then goes into the match as soon as its game asks for its room,
     ///   `room_shown`), Leave queue, a join or a room made, the match over.
     /// - A waiter free in the lobby, its game of the growing roster, starts
-    ///   watching unless its room's match is ending or has its spectators
-    ///   (`watchers_full`: the Live window's caps, every spectator counted);
-    ///   `queue_status` sends it (`send_to_watch`).
+    ///   watching unless its room's match is ending; `queue_status` sends
+    ///   it (`send_to_watch`).
     fn room_watchers(&mut self, now: Instant) {
         for (match_id, account_id) in self.store.matchmaking().take_watchers_left() {
             if let Some(key) = self.rooms.dequeue(account_id) {
@@ -1986,9 +1984,7 @@ impl Core<'_> {
             }
         }
         // Who should watch: by account, the room's match (the lobby's id).
-        // Past the spectators' caps (`watchers_full`) the oldest accounts
-        // start first; one that watches keeps its watch.
-        let wanted: BTreeMap<u32, u32> = self
+        let wanted: HashMap<u32, u32> = self
             .rooms
             .watching_queue()
             .into_iter()
@@ -2002,16 +1998,11 @@ impl Core<'_> {
         let matchmaking = self.store.matchmaking();
         for &match_id in self.matches.keys() {
             for (session_id, watcher) in matchmaking.queue_watchers_of(match_id) {
-                // The watch is its session's, not its link's (`retire_link`):
-                // with no link now it watches on until the session ends; a
-                // link of its account under another session (its game
-                // started anew) ends it.
-                let current = !self.store.has_ended(session_id)
-                    && self
-                        .by_account
-                        .get(&watcher.account_id)
-                        .and_then(|addr| self.player(*addr))
-                        .is_none_or(|player| player.session_id == session_id);
+                let current = self
+                    .by_account
+                    .get(&watcher.account_id)
+                    .and_then(|addr| self.player(*addr))
+                    .is_some_and(|player| player.session_id == session_id);
                 if current && wanted.get(&watcher.account_id) == Some(&match_id) {
                     continue;
                 }
@@ -2044,12 +2035,9 @@ impl Core<'_> {
             // a spectator's game would be turned away. Not one ending.
             let closed = self.host.closed(ticket, now);
             let running = closed.is_some() || self.host.admits(ticket, now);
-            // Past the caps it waits in the lobby, as a plain Queue does, and
-            // starts watching when a spectator's slot frees.
             if self.pool_for_sessions([session_id]) != Some(QueuePool::GrowingRoster)
                 || !running
                 || closed == Some(Closed::Ending)
-                || self.watchers_full(match_id)
             {
                 continue;
             }
@@ -2057,11 +2045,9 @@ impl Core<'_> {
                 match_id,
                 ticket,
                 account_id,
-                kind: session::WatchKind::Queued {
-                    delay: self.settings.live.delay,
-                },
+                kind: session::WatchKind::Queued,
             };
-            if matchmaking.watch(session_id, watcher, now) {
+            if matchmaking.watch(session_id, watcher) {
                 log::info!(
                     "{}: watches its queue's room's match {ticket:#x}",
                     self.name_of(account_id).unwrap_or_default()

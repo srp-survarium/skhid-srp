@@ -245,42 +245,18 @@ struct Inner {
     /// Who watches a running match from its room's queue, by session
     /// ([`Matchmaking::watch`], `docs/notes/queue-spectate.md`).
     watchers: HashMap<u32, Watch>,
-    /// The watching sessions their rooms called back ([`Matchmaking::recall_watcher`]).
-    recalled: HashSet<u32>,
     /// `(match, account)`: watchers whose game left the match by itself
     /// ([`Matchmaking::watcher_left`]), the lobby not told yet
     /// ([`Matchmaking::take_watchers_left`]).
     watchers_left: Vec<(u32, u32)>,
-    /// Account → until when it starts no watch: its last one ended with its
-    /// game never come ([`Matchmaking::expire_watches`], [`WATCH_COOLDOWN`]).
-    watch_cooldowns: HashMap<u32, Instant>,
 }
 
-/// How long a watch waits for its game to reach the match server as a
-/// spectator ([`Matchmaking::watcher_connected`]) before it ends
-/// ([`Matchmaking::expire_watches`]): a game that never comes holds none of
-/// the match's few spectators' places for the rest of the match.
-pub const WATCH_CONNECT_WITHIN: Duration = Duration::from_secs(90);
-
-/// How long an account whose watch ended with its game never come starts no
-/// other ([`Matchmaking::watch`] refuses it): asking again at once would
-/// hold a spectator's place on and on without ever watching.
-pub const WATCH_COOLDOWN: Duration = Duration::from_secs(5 * 60);
-
-/// A session's watch: what it watches, and how far its game got.
+/// A session's watch, and whether its room called it back
+/// ([`Matchmaking::recall_watcher`]): a call back ends with its watch.
 #[derive(Clone, Copy, Debug)]
 struct Watch {
     watcher: Watcher,
-    game: WatchingGame,
-}
-
-/// Where a watching session's game is.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum WatchingGame {
-    /// On its way to the match server since the watch began.
-    Coming { since: Instant },
-    /// The match server took it as a spectator of the match.
-    Connected,
+    called_back: bool,
 }
 
 /// A session that watches a match as a spectator: no roster place, no kit,
@@ -296,43 +272,15 @@ pub struct Watcher {
     pub kind: WatchKind,
 }
 
-/// How far behind the match a Live window's spectator watches: whole seconds, at most
-/// [`LiveDelay::MAX_SECONDS`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct LiveDelay(u16);
-
-impl LiveDelay {
-    /// The longest delay a spectator can start at. A delayed start needs a world from just before
-    /// its clock and the inputs since, and a match keeps those for 60 s: the window it looks in
-    /// (1.5 s) has to be kept whole. The match server asserts this against its own constants.
-    pub const MAX_SECONDS: u16 = 58;
-    pub const DEFAULT: LiveDelay = LiveDelay(30);
-
-    /// `None` past [`LiveDelay::MAX_SECONDS`].
-    pub fn from_secs(seconds: u64) -> Option<LiveDelay> {
-        u16::try_from(seconds).ok().filter(|&seconds| seconds <= Self::MAX_SECONDS).map(LiveDelay)
-    }
-
-    pub fn as_secs(self) -> u64 {
-        u64::from(self.0)
-    }
-
-    pub fn as_duration(self) -> Duration {
-        Duration::from_secs(self.as_secs())
-    }
-}
-
-/// How a session came to watch a match.
+/// How a session came to watch a match (in real time, either way).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WatchKind {
-    /// From its room's queue (Queue and spectate): `delay` behind the match
-    /// (the one rule of all live watching), until a place comes or it leaves
-    /// the queue (`docs/notes/queue-spectate.md`).
-    Queued { delay: LiveDelay },
-    /// From the lobby's Live window: `delay` behind the match (a public
-    /// match's, so nobody calls positions to a friend), until it leaves;
-    /// `view` the place its game is to follow first (`None`: its own pick).
-    Live { delay: LiveDelay, view: Option<u8> },
+    /// From its room's queue (Queue and spectate), until a place comes or it
+    /// leaves the queue (`docs/notes/queue-spectate.md`).
+    Queued,
+    /// From the lobby's Live window, until it leaves; `view` the place its
+    /// game is to follow first (`None`: its own pick).
+    Live { view: Option<u8> },
 }
 
 pub struct Matchmaking {
@@ -359,9 +307,7 @@ impl Matchmaking {
                 left: Vec::new(),
                 failed_joins: Vec::new(),
                 watchers: HashMap::new(),
-                recalled: HashSet::new(),
                 watchers_left: Vec::new(),
-                watch_cooldowns: HashMap::new(),
             }),
         }
     }
@@ -710,76 +656,23 @@ impl Matchmaking {
     /// gets no place (`docs/notes/queue-spectate.md`). A session watches one
     /// match at a time; one whose account has a seat watches none, also when
     /// the seat names another session of it (its game started anew): it
-    /// would see its match as a spectator, then go back to its place. Its
-    /// game has [`WATCH_CONNECT_WITHIN`] from `now` to reach the match; a
-    /// watch of the match the session watches already goes on as it was. An
-    /// account whose last watch ended with its game never come watches none
-    /// for [`WATCH_COOLDOWN`].
-    pub fn watch(&self, session_id: u32, watcher: Watcher, now: Instant) -> bool {
+    /// would see its match as a spectator, then go back to its place.
+    pub fn watch(&self, session_id: u32, watcher: Watcher) -> bool {
         let mut inner = self.inner.locked();
-        let cooling = inner
-            .watch_cooldowns
-            .get(&watcher.account_id)
-            .is_some_and(|&until| now < until);
-        if cooling
-            || inner.seat_of_session(session_id).is_some()
+        if inner.seat_of_session(session_id).is_some()
             || inner.live_seat_of_account(watcher.account_id).is_some()
             || !inner.matches.contains_key(&watcher.match_id)
         {
             return false;
         }
-        // A new watch: a call back of one before it is over with that one.
-        inner.recalled.remove(&session_id);
-        let game = match inner.watchers.get(&session_id) {
-            Some(watch) if watch.watcher.ticket == watcher.ticket => watch.game,
-            _ => WatchingGame::Coming { since: now },
-        };
-        inner.watchers.insert(session_id, Watch { watcher, game });
+        inner.watchers.insert(
+            session_id,
+            Watch {
+                watcher,
+                called_back: false,
+            },
+        );
         true
-    }
-
-    /// The match server: the watcher's game connected as a spectator of the
-    /// match `ticket` (its id there); its watch no longer ends by
-    /// [`Self::expire_watches`]. Nothing for a session that does not watch
-    /// that match.
-    pub fn watcher_connected(&self, session_id: u32, ticket: u32) {
-        let mut inner = self.inner.locked();
-        if let Some(watch) = inner.watchers.get_mut(&session_id)
-            && watch.watcher.ticket == ticket
-        {
-            watch.game = WatchingGame::Connected;
-        }
-    }
-
-    /// The lobby: every watch whose game did not reach the match server
-    /// within [`WATCH_CONNECT_WITHIN`] ends, as by [`Self::stop_watching`];
-    /// returned by session. One from a room's queue stays in that queue. Its
-    /// account starts no watch for [`WATCH_COOLDOWN`].
-    pub fn expire_watches(&self, now: Instant) -> Vec<(u32, Watcher)> {
-        let mut inner = self.inner.locked();
-        let Inner {
-            watchers,
-            recalled,
-            watch_cooldowns,
-            ..
-        } = &mut *inner;
-        watch_cooldowns.retain(|_, until| now < *until);
-        let mut expired = Vec::new();
-        watchers.retain(|&session_id, watch| {
-            let late = match watch.game {
-                WatchingGame::Coming { since } => {
-                    now.saturating_duration_since(since) >= WATCH_CONNECT_WITHIN
-                }
-                WatchingGame::Connected => false,
-            };
-            if late {
-                recalled.remove(&session_id);
-                watch_cooldowns.insert(watch.watcher.account_id, now + WATCH_COOLDOWN);
-                expired.push((session_id, watch.watcher));
-            }
-            !late
-        });
-        expired
     }
 
     /// What the session watches. The match server takes a connecting
@@ -804,15 +697,15 @@ impl Matchmaking {
     /// The sessions watching the match from its room's queue.
     pub fn queue_watchers_of(&self, match_id: u32) -> Vec<(u32, Watcher)> {
         let mut watchers = self.watchers_of(match_id);
-        watchers.retain(|(_, watcher)| matches!(watcher.kind, WatchKind::Queued { .. }));
+        watchers.retain(|(_, watcher)| watcher.kind == WatchKind::Queued);
         watchers
     }
 
     /// The lobby: the session watches no more (it got a place, left the
-    /// queue, or the match is over). The match server closes its link.
+    /// queue, its game came back by itself, or the match is over). The match
+    /// server closes its link.
     pub fn stop_watching(&self, session_id: u32) -> Option<Watcher> {
         let mut inner = self.inner.locked();
-        inner.recalled.remove(&session_id);
         inner
             .watchers
             .remove(&session_id)
@@ -826,12 +719,22 @@ impl Matchmaking {
     /// call changed anything.
     pub fn recall_watcher(&self, session_id: u32) -> bool {
         let mut inner = self.inner.locked();
-        inner.watchers.contains_key(&session_id) && inner.recalled.insert(session_id)
+        match inner.watchers.get_mut(&session_id) {
+            Some(watch) if !watch.called_back => {
+                watch.called_back = true;
+                true
+            }
+            _ => false,
+        }
     }
 
     /// Whether the watching session was called back ([`Self::recall_watcher`]).
     pub fn is_recalled(&self, session_id: u32) -> bool {
-        self.inner.locked().recalled.contains(&session_id)
+        self.inner
+            .locked()
+            .watchers
+            .get(&session_id)
+            .is_some_and(|watch| watch.called_back)
     }
 
     /// The match server: the watcher's game left the match by itself (its
@@ -843,23 +746,14 @@ impl Matchmaking {
     /// match server's id of it).
     pub fn watcher_left(&self, session_id: u32, ticket: u32) {
         let mut inner = self.inner.locked();
-        if let Some((watcher, game)) = inner
+        if let Some(watcher) = inner
             .watchers
             .get(&session_id)
-            .map(|watch| (watch.watcher, watch.game))
+            .map(|watch| watch.watcher)
             && watcher.ticket == ticket
         {
             inner.watchers.remove(&session_id);
-            inner.recalled.remove(&session_id);
-            // Its game never reached the match: as at the deadline
-            // ([`Self::expire_watches`]), or a word just before it would ask
-            // anew and keep a spectator's place for good.
-            if matches!(game, WatchingGame::Coming { .. }) {
-                inner
-                    .watch_cooldowns
-                    .insert(watcher.account_id, Instant::now() + WATCH_COOLDOWN);
-            }
-            if matches!(watcher.kind, WatchKind::Queued { .. }) {
+            if watcher.kind == WatchKind::Queued {
                 inner
                     .watchers_left
                     .push((watcher.match_id, watcher.account_id));
@@ -950,18 +844,10 @@ impl Matchmaking {
         }
         inner.given_up.retain(|(id, _)| *id != match_id);
         inner.left.retain(|(id, _)| *id != match_id);
-        // Its spectators watch nothing now; they are still in their queue,
-        // and no call back outlives their watch.
-        let Inner {
-            watchers, recalled, ..
-        } = &mut *inner;
-        watchers.retain(|session_id, watch| {
-            let other = watch.watcher.match_id != match_id;
-            if !other {
-                recalled.remove(session_id);
-            }
-            other
-        });
+        // Its spectators watch nothing now; they are still in their queue.
+        inner
+            .watchers
+            .retain(|_, watch| watch.watcher.match_id != match_id);
         inner.watchers_left.retain(|(id, _)| *id != match_id);
         inner.formed_at.remove(&match_id);
         inner.match_pools.remove(&match_id);
@@ -1310,12 +1196,10 @@ mod tests {
             match_id: id,
             ticket: 0xA000,
             account_id,
-            kind: WatchKind::Queued {
-                delay: LiveDelay::DEFAULT,
-            },
+            kind: WatchKind::Queued,
         };
         assert!(
-            !mm.watch(1, watcher(1001), now),
+            !mm.watch(1, watcher(1001)),
             "a seated session watches none"
         );
         assert!(!mm.watch(
@@ -1323,10 +1207,8 @@ mod tests {
             Watcher {
                 match_id: id + 1,
                 ..watcher(1003)
-            },
-            now
-        ));
-        assert!(mm.watch(3, watcher(1003), now));
+            }));
+        assert!(mm.watch(3, watcher(1003)));
         assert_eq!(mm.watched(3), Some(watcher(1003)));
         assert_eq!(mm.watchers_of(id), [(3, watcher(1003))]);
         assert_eq!(mm.poll(3, now), None, "no place");
@@ -1346,7 +1228,7 @@ mod tests {
         assert_eq!(mm.stop_watching(3), Some(watcher(1003)));
         assert!(mm.append_player(id, player(3), 0, |first, _| first == 2));
         // Another one leaves by itself: told once, by the lobby's id.
-        assert!(mm.watch(4, watcher(1004), now));
+        assert!(mm.watch(4, watcher(1004)));
         mm.watcher_left(4, 0xB000);
         assert_eq!(mm.watched(4), Some(watcher(1004)), "another match's word");
         mm.watcher_left(4, 0xA000);
@@ -1354,7 +1236,7 @@ mod tests {
         assert_eq!(mm.take_watchers_left(), [(id, 1004)]);
         assert!(mm.take_watchers_left().is_empty());
         // The end of the match: its watchers watch nothing, nobody is told.
-        assert!(mm.watch(5, watcher(1005), now));
+        assert!(mm.watch(5, watcher(1005)));
         mm.end_match(id);
         assert_eq!(mm.watched(5), None);
         assert!(mm.take_watchers_left().is_empty());
@@ -1375,16 +1257,13 @@ mod tests {
             match_id,
             ticket: match_id,
             account_id,
-            kind: WatchKind::Live {
-                delay: LiveDelay::DEFAULT,
-                view: None,
-            },
+            kind: WatchKind::Live { view: None },
         };
         // Account 1001's game started anew: session 7, its seat kept.
-        assert!(!mm.watch(7, watcher(id, 1001), now));
+        assert!(!mm.watch(7, watcher(id, 1001)));
         assert_eq!(mm.watched(7), None);
         // Account 1008 watches under session 9 and has a seat under session 8.
-        assert!(mm.watch(9, watcher(id, 1008), now));
+        assert!(mm.watch(9, watcher(id, 1008)));
         let other = mm
             .seat_sides_in_pool([&[player(8)], &[player(10)]], now, pool, &|_| 0)
             .expect("1 v 1");
@@ -1413,85 +1292,27 @@ mod tests {
             match_id,
             ticket: match_id,
             account_id,
-            kind: WatchKind::Live {
-                delay: LiveDelay::DEFAULT,
-                view: None,
-            },
+            kind: WatchKind::Live { view: None },
         };
-        assert!(mm.watch(3, live(first, 1003), now));
+        assert!(mm.watch(3, live(first, 1003)));
         mm.watcher_left(3, first);
         assert_eq!(mm.watched(3), None);
         assert!(mm.take_watchers_left().is_empty());
 
         // Called back, then the match ends before the match server stops it.
-        assert!(mm.watch(4, live(first, 1004), now));
+        assert!(mm.watch(4, live(first, 1004)));
         assert!(mm.recall_watcher(4));
         mm.end_match(first);
         assert!(!mm.is_recalled(4));
         let second = mm
             .seat_sides_in_pool([&[player(5)], &[player(6)]], now, pool, &|_| 0)
             .expect("1 v 1");
-        assert!(mm.watch(4, live(second, 1004), now));
+        assert!(mm.watch(4, live(second, 1004)));
         assert!(!mm.is_recalled(4), "a later watch is not cut");
         assert!(mm.recall_watcher(4), "and a later call back is made");
         // A watch begun anew over a called back one is not called back.
-        assert!(mm.watch(4, live(second, 1004), now));
+        assert!(mm.watch(4, live(second, 1004)));
         assert!(!mm.is_recalled(4));
-    }
-
-    /// A watch whose game never reaches the match server ends after
-    /// [`WATCH_CONNECT_WITHIN`], its place among the spectators free; asking
-    /// again for the same match does not put that off. One whose game came
-    /// watches on.
-    #[test]
-    fn a_watch_whose_game_never_comes_ends_and_one_that_came_goes_on() {
-        let mm = Matchmaking::new(Duration::ZERO);
-        let now = Instant::now();
-        let pool = QueuePool::GrowingRoster;
-        let id = mm
-            .seat_sides_in_pool([&[player(1)], &[player(2)]], now, pool, &|_| 0)
-            .expect("1 v 1");
-        let live = |account_id| Watcher {
-            match_id: id,
-            ticket: 0xA000,
-            account_id,
-            kind: WatchKind::Live {
-                delay: LiveDelay::DEFAULT,
-                view: None,
-            },
-        };
-        assert!(mm.watch(3, live(1003), now));
-        assert!(mm.watch(4, live(1004), now));
-        assert!(mm.recall_watcher(3));
-        mm.watcher_connected(3, 0xB000); // another match's word
-        let half = now + WATCH_CONNECT_WITHIN / 2;
-        assert!(mm.watch(3, live(1003), half), "the same match: no new wait");
-        mm.watcher_connected(4, 0xA000);
-        assert!(mm.expire_watches(half).is_empty());
-        let late = now + WATCH_CONNECT_WITHIN;
-        assert_eq!(mm.expire_watches(late), [(3, live(1003))]);
-        assert_eq!(mm.watched(3), None);
-        assert!(!mm.is_recalled(3));
-        assert!(mm.take_watchers_left().is_empty(), "nobody left by itself");
-        assert_eq!(mm.watchers_of(id), [(4, live(1004))]);
-        assert!(mm.expire_watches(late + WATCH_CONNECT_WITHIN).is_empty());
-        // Its game came only after its watch ended: nothing changes.
-        mm.watcher_connected(3, 0xA000);
-        assert_eq!(mm.watched(3), None);
-        // Its account starts no watch for the cooldown, under any session;
-        // the one whose game came starts another at once.
-        let cooled = late + WATCH_COOLDOWN;
-        assert!(!mm.watch(3, live(1003), cooled - Duration::from_secs(1)));
-        assert!(!mm.watch(7, live(1003), cooled - Duration::from_secs(1)));
-        assert_eq!(mm.watchers_of(id), [(4, live(1004))], "no place taken");
-        assert_eq!(mm.stop_watching(4), Some(live(1004)));
-        assert!(mm.watch(4, live(1004), late));
-        mm.watcher_connected(4, 0xA000);
-        assert!(mm.watch(3, live(1003), cooled));
-        // The cooldown is gone once over.
-        assert_eq!(mm.stop_watching(3), Some(live(1003)));
-        assert!(mm.expire_watches(cooled).is_empty());
-        assert!(mm.inner.locked().watch_cooldowns.is_empty());
     }
 
     #[test]

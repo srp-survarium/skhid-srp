@@ -20,7 +20,7 @@ use survarium::v026g::maps::GameMode;
 use survarium::v026g::twist::LobbyMode;
 
 use super::*;
-use crate::v026g::player_matches::{FRIENDS_EVERY, HISTORY_EVERY};
+use crate::v026g::player_matches::{HISTORY_BURST, HISTORY_EVERY};
 
 const BOB: u32 = 900_001;
 
@@ -64,7 +64,7 @@ fn bobs_match(bob: u32, n: u32, kind: MatchKind) -> MatchRecord {
                 place: 2,
                 seat: 4,
                 presence: Presence::Finished,
-                outcome: if n % 2 == 0 { Outcome::Won } else { Outcome::Lost },
+                outcome: if n.is_multiple_of(2) { Outcome::Won } else { Outcome::Lost },
                 rating: 100,
                 score: 100,
                 kills: u64::from(n),
@@ -112,15 +112,9 @@ fn matches_at(world: &mut World, index: usize, start: u32, count: u8) -> Vec<Str
 }
 
 /// The rows of the answer to the ask at `start` for `count`, at places
-/// from `first` on, a [`FRIENDS_EVERY`] (the longest a list is kept) after
-/// the last ask: made anew.
+/// from `first` on, the session's allowance of lists full again.
 fn rows_at(world: &mut World, index: usize, start: u32, count: u8, first: u32) -> Vec<String> {
-    world.advance(FRIENDS_EVERY);
-    rows_now(world, index, start, count, first)
-}
-
-/// The same, asked at once.
-fn rows_now(world: &mut World, index: usize, start: u32, count: u8, first: u32) -> Vec<String> {
+    world.advance(HISTORY_EVERY * HISTORY_BURST);
     world.take(index);
     world.ask(index, request::ranking(start, count));
     let decoded = world.take(index);
@@ -344,51 +338,3 @@ fn the_recent_tab_lists_public_matches_all_or_the_friends() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// A list asked sooner than `HISTORY_EVERY` after the last of its kind is
-/// that answer again, not read anew; each kind (and session) has its own.
-#[test]
-fn a_list_is_made_anew_at_most_once_a_second() {
-    let dir = temp("throttle");
-    let mut world = world(&dir, BOB);
-    let carol = world.connect("Carol");
-    let alice = world.connect("Alice");
-    // Bob, a friend of Alice's.
-    let alice_id = world.ids[alice].0;
-    world
-        .store
-        .account(alice_id)
-        .unwrap()
-        .locked()
-        .friends
-        .push(BOB);
-    let _ = world.accounts.sign_up(BOB, "Bob");
-    world.advance(Duration::from_secs(2));
-    let first = RECENT_MATCHES_START;
-    let recent = |world: &mut World, index, f: u32| rows_now(world, index, first + f, 20, first);
-    // Each ask 0.4 s after the last.
-    assert_eq!(recent(&mut world, alice, 0)[0], "M0;12;0");
-    let newer = bobs_match(BOB, 14, MatchKind::Public(Eligibility::Counted));
-    SqliteGameRepository::open_in(&dir)
-        .unwrap()
-        .record_match(&newer)
-        .unwrap();
-    // The friends' list is another kind: made anew at once.
-    assert_eq!(recent(&mut world, alice, 1)[0], "M0;13;1");
-    // All of them again: the answer made before the new match. Carol's own is made anew.
-    assert_eq!(recent(&mut world, alice, 0)[0], "M0;12;0");
-    assert_eq!(recent(&mut world, carol, 0)[0], "M0;13;0");
-    // A second on, Alice's lists it too.
-    world.advance(HISTORY_EVERY);
-    assert_eq!(recent(&mut world, alice, 0)[0], "M0;13;0");
-    // The friends' list (a query a friend) is kept longer: a second on, as
-    // it was made; ten seconds on, made anew.
-    let newest = bobs_match(BOB, 15, MatchKind::Public(Eligibility::Counted));
-    SqliteGameRepository::open_in(&dir)
-        .unwrap()
-        .record_match(&newest)
-        .unwrap();
-    assert_eq!(recent(&mut world, alice, 1)[0], "M0;13;1");
-    world.advance(FRIENDS_EVERY);
-    assert_eq!(recent(&mut world, alice, 1)[0], "M0;14;1");
-    let _ = std::fs::remove_dir_all(&dir);
-}

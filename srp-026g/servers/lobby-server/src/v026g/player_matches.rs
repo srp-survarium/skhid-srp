@@ -4,9 +4,9 @@
 //! the asker itself; and the Watch hub's Recent tab
 //! (`survarium::v026g::lobby::recent_matches`), the latest public matches,
 //! or those of the asker's friends. Private rooms' matches and matches
-//! against bots are listed on the asker's own Matches list only. Each list is made at most once a
-//! [`HISTORY_EVERY`] for a session, the friends' Recent list once a [`FRIENDS_EVERY`]
-//! ([`HistoryAnswers`]).
+//! against bots are listed on the asker's own Matches list only. A session
+//! is answered [`HISTORY_BURST`] lists at once and one more each
+//! [`HISTORY_EVERY`] (`social::Allowance::history`).
 
 use std::time::{Duration, Instant};
 
@@ -25,106 +25,28 @@ use survarium::v026g::lobby::{ServerMessage, WireError, friend_row};
 
 use super::core::{Core, Who};
 
-/// How often a session's list of one kind ([`HistoryList`]) is made anew:
-/// a list reads srp.db's history (a query a friend, up to 200) and the
+/// History lists a session is answered at once, and the time that earns one
+/// more: a list reads srp.db's history (a query a friend, up to 200) and the
 /// replays' state on the lobby's one thread. The movie asks a shown list
-/// every 30 s, one not answered yet about once a second.
+/// every 30 s, one not answered yet about once a second, so one past the
+/// allowance goes unanswered and is asked again.
+pub(super) const HISTORY_BURST: u32 = 4;
 pub(super) const HISTORY_EVERY: Duration = Duration::from_secs(1);
-/// And the friends' Recent list, the heaviest: a query a friend, then the
-/// friends among each match's players. Its 30 s poll is well within.
-pub(super) const FRIENDS_EVERY: Duration = Duration::from_secs(10);
-
-/// The kinds of list a session is answered from the history.
-#[derive(Clone, Copy)]
-enum HistoryList {
-    Matches(Whose),
-    Recent(RecentFilter),
-}
-
-impl HistoryList {
-    const COUNT: usize = 4;
-
-    fn slot(self) -> usize {
-        match self {
-            Self::Matches(Whose::Shown) => 0,
-            Self::Matches(Whose::Own) => 1,
-            Self::Recent(RecentFilter::All) => 2,
-            Self::Recent(RecentFilter::Friends) => 3,
-        }
-    }
-
-    /// How long an answer of this kind is given again rather than made anew.
-    fn every(self) -> Duration {
-        match self {
-            Self::Recent(RecentFilter::Friends) => FRIENDS_EVERY,
-            Self::Matches(_) | Self::Recent(RecentFilter::All) => HISTORY_EVERY,
-        }
-    }
-}
-
-/// The answer a session was last made for a kind of list, and when.
-struct Made {
-    at: Instant,
-    /// The account the list is of, for another player's matches (the
-    /// player shown last): a list of another is made anew.
-    about: Option<u32>,
-    /// `None`: its writer refused it (a bug, logged): nothing to send again.
-    answer: Option<ServerMessage>,
-}
-
-/// A session's last answer of each kind of list ([`HistoryList`]): an ask
-/// sooner than its kind's interval ([`HistoryList::every`]) after it, about
-/// the same player, gets it again as it was made.
-#[derive(Default)]
-pub struct HistoryAnswers([Option<Made>; HistoryList::COUNT]);
-
-impl HistoryAnswers {
-    /// The answer of `list` made less than its interval before `now`.
-    fn fresh(&self, list: HistoryList, about: Option<u32>, now: Instant) -> Option<&Made> {
-        self.0[list.slot()].as_ref().filter(|made| {
-            made.about == about && now.saturating_duration_since(made.at) < list.every()
-        })
-    }
-
-    fn keep(&mut self, list: HistoryList, made: Made) {
-        self.0[list.slot()] = Some(made);
-    }
-}
 
 impl Core<'_> {
-    /// Send `who` its answer of `list`: the one made less than
-    /// less than its interval ago again, else the one `make` makes, kept.
+    /// Send `who` the list `make` makes, while its allowance has one.
     fn history_answer(
         &mut self,
         who: &Who,
-        list: HistoryList,
         now: Instant,
         make: impl FnOnce(&Self) -> Result<ServerMessage, WireError>,
     ) {
-        let Some(player) = self.player(who.addr) else {
-            return;
-        };
-        let about = match list {
-            HistoryList::Matches(Whose::Shown) => player.shown_kits_of,
-            HistoryList::Matches(Whose::Own) | HistoryList::Recent(_) => None,
-        };
-        if let Some(made) = player.history_answers.fresh(list, about, now) {
-            if let Some(answer) = made.answer.clone() {
-                self.send(who.addr, answer);
-            }
-            return;
-        }
-        let answer = make(self)
-            .inspect_err(|error| log::error!("A lobby message could not be made: {error}"))
-            .ok();
-        if let Some(player) = self.player_mut(who.addr) {
-            let answer = answer.clone();
-            player
-                .history_answers
-                .keep(list, Made { at: now, about, answer });
-        }
-        if let Some(answer) = answer {
-            self.send(who.addr, answer);
+        if self
+            .player_mut(who.addr)
+            .is_some_and(|player| player.history_lists.take(now))
+        {
+            let answer = make(self);
+            self.send_made(who.addr, answer);
         }
     }
 
@@ -139,7 +61,7 @@ impl Core<'_> {
     /// asker's last `93`, or of the asker. Asked before any `93`, or for an
     /// account with no public match, the answer lists none.
     pub(super) fn player_matches(&mut self, who: &Who, whose: Whose, count: u8, now: Instant) {
-        self.history_answer(who, HistoryList::Matches(whose), now, |core| {
+        self.history_answer(who, now, |core| {
             core.player_matches_made(who, whose, count, now)
         });
     }
@@ -218,7 +140,7 @@ impl Core<'_> {
         count: u8,
         now: Instant,
     ) {
-        self.history_answer(who, HistoryList::Recent(filter), now, |core| {
+        self.history_answer(who, now, |core| {
             core.recent_matches_made(who, filter, count, now)
         });
     }

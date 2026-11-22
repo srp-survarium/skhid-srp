@@ -120,7 +120,7 @@ pub(super) fn idle_removed_text(name: &str, language: Option<u8>) -> String {
 /// What a player may still do of something limited, and when that was
 /// counted: `burst` at first, one more each `every`, never more than the
 /// burst. Its rates: [`Allowance::friend_requests`],
-/// [`Allowance::searches`].
+/// [`Allowance::searches`], [`Allowance::history`].
 #[derive(Clone, Copy, Debug)]
 pub(super) struct Allowance {
     every: Duration,
@@ -144,6 +144,12 @@ impl Allowance {
     /// [`SEARCH_EVERY`].
     pub(super) fn searches(now: Instant) -> Self {
         Self::full(SEARCH_EVERY, SEARCH_BURST, now)
+    }
+
+    /// Lists of the match history (`player_matches`).
+    pub(super) fn history(now: Instant) -> Self {
+        use super::player_matches::{HISTORY_BURST, HISTORY_EVERY};
+        Self::full(HISTORY_EVERY, HISTORY_BURST, now)
     }
 
     /// One now, if the allowance has one.
@@ -175,10 +181,7 @@ const MAX_FOUND: usize = 50;
 /// Searches of players by name a session may make at once, and the time
 /// that earns one more: each goes through every account on the lobby's one
 /// thread. The movies ask on a press (Enter, the search icon), never as a
-/// name is typed, and send one at most every 1.1 s (`LobbyMenu`'s
-/// `PLAYER_SEARCH_EVERY_MS`): the second of the burst takes the jitter of
-/// their arrival, so the movie's spacing never finds nobody, and the cost
-/// stays one a second.
+/// name is typed; a search past the allowance is answered with nobody.
 const SEARCH_BURST: u32 = 2;
 const SEARCH_EVERY: Duration = Duration::from_secs(1);
 /// The letters of a searched text the log keeps.
@@ -474,8 +477,7 @@ impl Core<'_> {
     /// The match whose chat (its all-chat and its teams') the player is in:
     /// the one it plays in. A game that only watches a match (Queue and
     /// spectate, a Live window, a replay session) is in none, either way:
-    /// spectators are "never as players" (`docs/notes/queue-spectate.md`),
-    /// and a Live watcher would read the players' lines outside the delay.
+    /// spectators are "never as players" (`docs/notes/queue-spectate.md`).
     fn match_chat_of(&self, player: &Player<'_>) -> Option<u32> {
         let watching = self
             .store

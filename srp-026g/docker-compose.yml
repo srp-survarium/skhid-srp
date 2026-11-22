@@ -100,7 +100,6 @@ services:
       # The Live window's spectators: seconds behind the match (0 to 58,
       # default 30), at most so many of a match (default 4) and in all
       # (default 8).
-      - SRP_LIVE_WATCH_DELAY_S
       - SRP_LIVE_WATCH_PER_MATCH
       - SRP_LIVE_WATCH_MAX
       # Save (the Watch window's save icon, the results screen's Save

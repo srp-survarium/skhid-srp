@@ -959,17 +959,13 @@ impl Replays {
     /// The match server kept a match's recording. Its file is made when a
     /// player first asks to save it ([`Self::save_ask`]), not now: most
     /// matches are never saved, and making one takes the CPU the matches
-    /// share. A file of that id made before is another match's (ids come
-    /// again after restarts): it goes, so Save never hands it out.
+    /// share.
     pub fn recording_kept(&self, match_id: u32) {
-        {
-            let mut inner = self.inner.locked();
-            inner.not_kept.retain(|&id| id != match_id);
-            inner.deleted.retain(|&id| id != match_id);
-            inner.failed.remove(&match_id);
-            inner.news_of(match_id);
-        }
-        self.delete_file(match_id);
+        let mut inner = self.inner.locked();
+        inner.not_kept.retain(|&id| id != match_id);
+        inner.deleted.retain(|&id| id != match_id);
+        inner.failed.remove(&match_id);
+        inner.news_of(match_id);
     }
 
     /// A match's recording was closed under the minimum of players.
@@ -1030,33 +1026,6 @@ impl Replays {
     /// `revision`: its game's patch revision, if known; `played`: whether
     /// it played the match, while the lobby keeps its report. The status is
     /// kept for its polls.
-    /// A save of a match still being played: `busy`, looked up nowhere. Its
-    /// recording may be named before its end (by a match server taken up
-    /// again after a restart in this process), and a file of it would get
-    /// past the live delay.
-    pub fn save_running(
-        &self,
-        account_id: u32,
-        match_id: u32,
-        revision: Option<u8>,
-        played: Option<bool>,
-        now: Instant,
-    ) -> Status {
-        self.inner.locked().asks.insert(
-            account_id,
-            Ask {
-                match_id,
-                at: now,
-                status: Status::Busy,
-                ready: None,
-                revision,
-                played,
-                checked: Some(now),
-            },
-        );
-        Status::Busy
-    }
-
     pub fn save_ask(
         &self,
         account_id: u32,
@@ -1784,20 +1753,6 @@ mod tests {
 
     fn made(replays: &Replays, match_id: u32) {
         made_by(replays, match_id, vec![Some(current())]);
-    }
-
-    #[test]
-    fn a_file_of_an_id_kept_anew_is_another_matchs_and_goes() {
-        let root = temp("id-again");
-        let replays = on(&root);
-        kept(&replays, MATCH);
-        made(&replays, MATCH);
-        assert!(replays.file_path(MATCH).unwrap().exists());
-        // The id comes again (after a restart): the old file is not this match's.
-        replays.recording_kept(MATCH);
-        assert!(!replays.file_path(MATCH).unwrap().exists());
-        assert!(!replays.json_path(MATCH).unwrap().exists());
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

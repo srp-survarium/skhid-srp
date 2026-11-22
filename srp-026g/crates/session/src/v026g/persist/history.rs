@@ -1358,17 +1358,11 @@ const FAVOURITES: &str = "SELECT dict_id, matches
      ORDER BY matches DESC, dict_id DESC LIMIT ?3";
 
 /// An account's newest public matches after `?2`, at most `?3`: along its
-/// by-account index, newest first, among its newest
-/// [`MatchHistory::MAX_READ`] (its private ones and those against bots are
-/// read past) ([`HistoryReaders::matches_with`]).
+/// by-account index, newest first ([`HistoryReaders::matches_with`]).
 const NEWEST_PUBLIC_OF: &str = "SELECT p.match_id
-     FROM (SELECT match_id FROM g26_match_players
-           WHERE account_id = ?1 AND match_id > ?2
-           ORDER BY match_id DESC LIMIT 500) p
-     JOIN g26_matches m ON m.id = p.match_id
-     WHERE m.kind = 'public'
+     FROM g26_match_players p JOIN g26_matches m ON m.id = p.match_id
+     WHERE p.account_id = ?1 AND p.match_id > ?2 AND m.kind = 'public'
      ORDER BY p.match_id DESC LIMIT ?3";
-const _: () = assert!(MatchHistory::MAX_READ == 500, "NEWEST_PUBLIC_OF and player_matches read as many");
 /// The matches `?1` (a JSON list of ids), newest first.
 const MATCHES_BY_ID: &str =
     "FROM g26_matches m WHERE m.id IN (SELECT value FROM json_each(?1)) ORDER BY m.id DESC";
@@ -3703,7 +3697,7 @@ mod tests {
         let plan = plan_of(&dir, NEWEST_PUBLIC_OF, params![10, 0, 20]);
         assert!(
             plan.contains(
-                "SEARCH g26_match_players USING COVERING INDEX g26_match_players_by_account (account_id=? AND match_id>?)"
+                "SEARCH p USING COVERING INDEX g26_match_players_by_account (account_id=? AND match_id>?)"
             ),
             "{plan}"
         );
@@ -3711,8 +3705,7 @@ mod tests {
             plan.contains("SEARCH m USING INTEGER PRIMARY KEY (rowid=?)"),
             "{plan}"
         );
-        // Only its own bounded read is gone through (`SCAN p`), no table.
-        assert!(!plan.contains("SCAN g26_"), "{plan}");
+        assert!(!plan.contains("SCAN"), "{plan}");
         assert!(!plan.contains("TEMP B-TREE"), "{plan}");
         let plan = plan_of(
             &dir,

@@ -46,9 +46,9 @@ pub mod utc;
 pub mod v026g;
 pub use bans::{Ban, IpBan, Net};
 pub use matchmaking::{
-    DEFAULT_GATHER_WINDOW, FormedMatch, Level, LiveDelay, MAX_PLAYERS_PER_MATCH, Matchmaking,
-    Player, QueuePool, QueueState, Seat, Strength, WATCH_CONNECT_WITHIN, WATCH_COOLDOWN, WatchKind,
-    Watcher, fill_from_env, gather_window_from_env, quiet_from_env,
+    DEFAULT_GATHER_WINDOW, FormedMatch, Level, MAX_PLAYERS_PER_MATCH, Matchmaking, Player, QueuePool,
+    QueueState, Seat, Strength, WatchKind, Watcher, fill_from_env, gather_window_from_env,
+    quiet_from_env,
 };
 use persist::{AccountRecord, AccountRepository, PersistError, StoredSession};
 pub use reports::{MatchReport, Reports};
@@ -2158,11 +2158,9 @@ mod tests {
             match_id: id,
             ticket: 0xA000,
             account_id: account,
-            kind: WatchKind::Queued {
-                delay: crate::matchmaking::LiveDelay::DEFAULT,
-            },
+            kind: WatchKind::Queued,
         };
-        assert!(store.matchmaking().watch(old, watcher, Instant::now()));
+        assert!(store.matchmaking().watch(old, watcher));
         let _new = store.create_session_with_revision(account, 40);
         assert_eq!(store.matchmaking().watched(old), None);
     }

@@ -23,10 +23,8 @@
 //! - The withdrawal: `3D 00 <REPLAY_WITHDRAW> <match>`, when the movie's
 //!   prompt is closed or the movie gives up waiting. Not answered: the
 //!   asker's session of that match is over unless its game was sent
-//!   already (`Watches::withdraw`), so it is never sent later, and the
-//!   asker may ask for another once `replay_watch::START_EVERY` has passed
-//!   since its last ask (`busy` before: each ask has a recording converted),
-//!   or `WATCH_COOLDOWN` after a session whose game never connected.
+//!   already (`Watches::withdraw`), so it is never sent later; one being
+//!   read is over once its read ends (`busy` for another ask meanwhile).
 //! - A replay refused for its recording's games (`incompatible`) is said by
 //!   the movie, in the game's language, from the localization tables: the
 //!   prompt's `st_srp_replay_incompatible`, the card's
@@ -53,7 +51,6 @@ use survarium::v026g::lobby;
 use survarium::v026g::lobby::ReplayWatchAsk;
 
 use super::core::{Core, Who};
-use super::play::LivePhase;
 
 impl Core<'_> {
     /// `3D 00 <REPLAY_WATCH_BASE | place << 16 | seconds> <match_id>`: the
@@ -73,14 +70,6 @@ impl Core<'_> {
         let in_lobby = self.player(who.addr).is_some_and(|player| {
             player.in_match.is_none() && player.connect.is_none() && player.queued_since.is_none()
         });
-        // A seat kept for the account (its game dropped out of its match) is
-        // its to go back to: no session meanwhile, as no live watch
-        // (`Matchmaking::watch`).
-        let seat_kept = self
-            .store
-            .matchmaking()
-            .pool_of_account(who.account_id)
-            .is_some();
         let room_keeps = self.room_keeps(who.account_id, now);
         let free = in_lobby && !room_keeps;
         // Past the limit of lookups of unknown matches: `busy`, before
@@ -101,7 +90,7 @@ impl Core<'_> {
         let status = match (live, self.replays) {
             (Some(status), _) => status,
             (None, None) => Status::Off,
-            (None, Some(_)) if !in_lobby || limited || seat_kept => Status::Busy,
+            (None, Some(_)) if !in_lobby || limited => Status::Busy,
             (None, Some(_)) if room_keeps => Status::InRoom,
             // Over in the lobby, its recording not closed yet (the match
             // server keeps its game a while): `busy`, no session and no
@@ -211,19 +200,7 @@ impl Core<'_> {
                 .find(match_id)
                 .map(|report| report.player(who.account_id).is_some());
             let revision = self.store.client_revision(who.session_id);
-            let running = self
-                .matches
-                .values()
-                .any(|running| running.ticket.match_id == match_id)
-                && matches!(
-                    self.host.live(match_id, now).unwrap_or_default().phase,
-                    LivePhase::Countdown | LivePhase::Playing
-                );
-            let status = if running {
-                replays.save_running(who.account_id, match_id, revision, played, now)
-            } else {
-                replays.save_ask(who.account_id, match_id, revision, played, now)
-            };
+            let status = replays.save_ask(who.account_id, match_id, revision, played, now);
             log::info!(
                 "{} asked to save the replay of match {match_id:#x} (game revision {}): {}",
                 who.name,

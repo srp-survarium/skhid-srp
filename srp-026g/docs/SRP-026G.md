@@ -192,9 +192,8 @@ that rule is mended when the accounts load, and never plays.
 | `SRP_REPLAY_WATCH` | `all` | Who may watch a match's replay in the game or save it (`docs/notes/replay-stream.md`): `all` anyone, `match` the match's players and `SRP_REPLAY_MODERATORS`; another value is `match` |
 | `SRP_REPLAY_MODERATORS` | unset | Account ids, comma-separated, that may watch any match's replay |
 | `SRP_REPLAY_WATCH_MAX` | `4` | Replay sessions at once (each costs about one player's traffic and its recording in memory) |
-| `SRP_LIVE_WATCH_DELAY_S` | `30` | Seconds a live spectator (the Watch window's Live, Queue and spectate) sees the match behind it, 0 to 58 (a match keeps 60 s to start from) |
-| `SRP_LIVE_WATCH_PER_MATCH` | `4` | Spectators of one match, Live and Queue and spectate together (`docs/notes/queue-spectate.md`) |
-| `SRP_LIVE_WATCH_MAX` | `8` | Spectators of all matches together |
+| `SRP_LIVE_WATCH_PER_MATCH` | `4` | The Live window's spectators of one match (Queue and spectate is not counted, `docs/notes/queue-spectate.md`) |
+| `SRP_LIVE_WATCH_MAX` | `8` | The Live window's spectators of all matches together |
 | `SRP_PACKET_LOG` | unset | A folder: every datagram of the lobby and the match server, one file a connection (the lobby sign-in's session id left out). **Set it for every live test** |
 
 ### Sign-in

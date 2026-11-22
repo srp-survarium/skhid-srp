@@ -6,7 +6,7 @@
 
 1. The movie asks to watch a match's replay in this game: `3D 00 <REPLAY_WATCH_BASE | place << 16 | seconds> <match id>` (`victory_screen_request_player_data`). The lobby answers at once with one `91` row (`lobby-server/src/v026g/replay.rs`).
 2. The movie polls with `3B 00 <REPLAY_START> 01` (`REPLAY_START = 2_200_000_000`) every second (30 times at most, up to 180 s while the answer is `preparing`). Each poll is answered with one `91` row: the asker's own session's answer, never anyone else's (`none` with match 0 when it has none, `off` with replays off).
-3. A watch the movie ends without an answer that ends it (the prompt's Close, or no answer in time) is withdrawn: `3D 00 <REPLAY_WITHDRAW = 0xFFFFFF05> <match id>`, not answered. The asker's session of that match is over unless its game was sent already (`Watches::withdraw`): otherwise the lobby would send the game into that replay when it is read, up to 2 minutes later, and every other Watch would get `busy` meanwhile. A `none` after the ask's own `preparing` (its session ended at the server without a word for the movie) ends the ask too: its prompt goes, and nothing is withdrawn.
+3. A watch the movie ends without an answer that ends it (the prompt's Close, or no answer in time) is withdrawn: `3D 00 <REPLAY_WITHDRAW = 0xFFFFFF05> <match id>`, not answered. The asker's session of that match is over unless its game was sent already (`Watches::withdraw`; one whose recording is being read is over once the read ends, the asker `busy` meanwhile, so that an account never has two read at once): otherwise the lobby would send the game into that replay when it is read, up to 2 minutes later, and every other Watch would get `busy` meanwhile. A `none` after the ask's own `preparing` (its session ended at the server without a word for the movie) ends the ask too: its prompt goes, and nothing is withdrawn.
 
 ### In the movie, since 2026-11-08 (watching in the running game)
 
@@ -31,24 +31,25 @@ Watch button wherever a match is mentioned.
   a card's code is (a press selects it, Ctrl+C); the movie's own Share and Save buttons, with
   nothing behind them in this game, are hidden (`VictoryScreen.as`); each History row's **Watch** with the number under
   it; a friend's right-click **Spectate** (a friend in a match): the friend's live match watched from
-  the friend's place once the live list names it (it waits through a countdown, 60 s at most); the
+  the friend's place once a live list asked after the press names it in play (it waits while the
+  match gathers or counts down); the
   player pop-up's **Matches**, and **Matches** in a player's right-click menu (a Ranking row, a
   room's member; `LobbyMenu.showPlayerInfoMenu`): Watch, Replays, that player's name searched.
 - **The window.** Tabs **Live** (its count, a red dot) and **Replays**. Chips under them: Live
   Everyone (the default) or Friends (the matches with a friend in them); Replays Mine (the default:
   the asker's own `P1` rows, its private rooms' matches and those against bots among them, marked: no other list has those), Friends (`M1` with `f` 1) or Everyone (`M1`). A search box: a match's code
-  (`#` and 8 hex digits) watches it; anything else is a player's name (8 hex digits without `#` are searched as an exact name first, and watched as a code only when no player has that name; `WatchWindow.as`): the game's own player
-  search (`find_players`, answered in `LobbyMenu.fill_players_search`, handed by `LobbyMenu.playersFound` to the search waiting for it: one is sent at a time, a second at most, none for 3 s after one dropped unanswered after 15 s or a stray answer, so a late answer is never taken for the next search; srp answers two at once, then one a second, `social.rs` `SEARCH_BURST`)
+  (`#` and 8 hex digits) watches it; anything else is a player's name: the game's own player
+  search (`find_players`, answered in `LobbyMenu.fill_players_search`, handed by `LobbyMenu.playersFound` to the oldest search sent: srp answers every one, in order; a reconnect tells the searches sent that no answer comes)
   finds the account: srp answers the players whose name the text matches loosely, the best first
   (`session::name_search`, the item search's rules: a part of the name, its letters in order, a typo
   or two), and the window takes the name itself (any case), else the first found when three letters
   or more were typed or one player was found; `3D 00 <PLAYER_MATCHES_ASK> <account>`
   chooses it, and its `P1` rows list its matches (no chip chosen meanwhile; a chip ends the search;
-  the asker's own name is Mine). After a watch asked from the window plays (the game loads a match within
-  2 min of the ask) the lobby's return opens it on that view again; a refusal drops the view. It is a
-  time limit because `show_match_making(false)` also comes before the load and nothing names the
-  load's match. A friend's Spectate whose 60 s end, or that finds a
-  match it can't watch, says so in a message box.
+  the asker's own name is Mine). A match's load closes the window and ends everything pending in it
+  (the watch or save asked, its prompt, a Spectate, a search not answered); a watch asked from the
+  window that no answer ended keeps its view, and the lobby's return opens the window on it once,
+  unless the results are up or the player's room shows itself. A friend's Spectate whose list has
+  the friend in no match, or in one it can't watch, says so in a message box.
 - **Cards** (`MatchCard`): the map's render and name by the rooms' pool (`RoomsWindow.entry`: the
   map id's level and weather; a map the pool lacks: its History row's name, else "Retired map", its
   mode's colour), mode and teams or players; the score or the player's result and K/D; the age, the
@@ -71,7 +72,7 @@ Watch button wherever a match is mentioned.
   (`REPLAY_WATCH_BASE..=REPLAY_WATCH_LAST`).
 - **The rows** (`survarium/watch/WatchRows.as`; `91` rows at the request's start plus their index):
   - Live, `3B 00 <2 240 000 000> <20>`, every 5 s while shown (30 s otherwise, for the badge):
-    `L0;<n>;<delay s>`, then n of
+    `L0;<n>`, then n of
     `L1;<match 8 hex>;<map id>;<mode>;<phase>;<players a>;<players b>;<score a|->;<score b|->;<played s>;<spectators>;<watch 1 may|0 full|2 not public (fixed rosters, or over)>`,
     then the asker's friends in them, `F1;<match 8 hex>;<place>;<team 0|1>;<name>` (their matches first);
   - Recent, `3B 00 <2 250 000 000 + f> <20>` (`f` 0 all, 1 with a friend of the asker; no bot-only
@@ -99,7 +100,7 @@ Watch button wherever a match is mentioned.
 
 The row's name is 45 bytes at the most (63 is the client's limit).
 
-Status words (`session::v026g::replays::Status`): `preparing`, `watching`, `none` (no session; match id 0), `gone` (no kept recording), `not_yours` (`SRP_REPLAY_WATCH=match` and the asker is neither a player of the match nor a moderator; a live match that cannot be watched: a private room's, fixed rosters), `old_game` (the asker's patch revision is below 14, or unknown), `incompatible` (the recording's games are of revisions this game does not play, or of none known, below), `busy` (the player is in a match or queued, has a session already, asked again within 2 s of its last start (`START_EVERY`), has looked up 12 matches with no recording in an hour (`MISSES_ALLOWED`), or `SRP_REPLAY_WATCH_MAX` sessions run; a live match: full, not begun, or over; a match just ended whose recording is still being written, `Replays::writing`), `in_room` (the player's room has a use for it now: its vote, a place in its match; also the answer to the next poll of a session its room called back before its game was sent, `Watches::recall`; `st_srp_replay_in_room`), `failed` (unreadable, over `SRP_REPLAY_MAX_RECORDING_MB`, not read within 2 minutes), `off` (no recordings).
+Status words (`session::v026g::replays::Status`): `preparing`, `watching`, `none` (no session; match id 0), `gone` (no kept recording), `not_yours` (`SRP_REPLAY_WATCH=match` and the asker is neither a player of the match nor a moderator; a live match that cannot be watched: a private room's, fixed rosters), `old_game` (the asker's patch revision is below 14, or unknown), `incompatible` (the recording's games are of revisions this game does not play, or of none known, below), `busy` (the player is in a match or queued, has a session already (a withdrawn one too, while its recording is read), has looked up 12 matches with no recording in an hour (`MISSES_ALLOWED`), or `SRP_REPLAY_WATCH_MAX` sessions run; a live match: full, not begun, or over; a match just ended whose recording is still being written, `Replays::writing`), `in_room` (the player's room has a use for it now: its vote, a place in its match; also the answer to the next poll of a session its room called back before its game was sent, `Watches::recall`; `st_srp_replay_in_room`), `failed` (unreadable, over `SRP_REPLAY_MAX_RECORDING_MB`, not read within 2 minutes), `off` (no recordings).
 
 **Compatibility rule.** A recording made from 2026-10-15 on has each place's patch revision (a `revision` note at every connection, the highest kept). A game of revision R plays it when every known revision (0 and places that never connected are not counted) is from the oldest replayable revision to R: a newer game's match may play out otherwise in an older one, and an older game's in a newer one once what a match computes changed. The oldest replayable revision is the last row of `crates/session/src/v026g/simulation_changes.tsv` (a game of revision R plays the recordings from that revision to R, revisions that changed nothing a match computes included). Recordings made before 2026-10-15 have no revision and are refused (the owner, 2026-10-17: not guessed).
 
@@ -166,5 +167,3 @@ files remain readable.
 Tests cover solo retention versus empty/PvP matches, accepted and rejected actions, kit choices,
 deduplication and conversion from a simulated solo PvE match. In-game playback of the new recording
 path still needs a playtest; no client was launched for these checks.
-
-**A drawing under a press.** The window draws its cards anew on every answer, and a CLIK button clicks only when the release finds the object the press found. While the left button is down in the window `render` only notes that a drawing is owed, and the frame after the release draws it (`WatchWindow._press`; after 5 s without a release, in case it never comes). The frame after and not the release: MOUSE_UP comes before CLICK.
