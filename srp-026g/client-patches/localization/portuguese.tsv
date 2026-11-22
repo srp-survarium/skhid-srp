@@ -2877,9 +2877,9 @@ st_srp_mode_freeze_tag	Pique-Congela
 st_srp_mode_protective_device	Pegue a Bateria
 st_srp_mode_racket	FFA: Bagunça
 st_srp_mode_research	Captura de Ponto
-st_srp_mode_roulette_high	FFA: Roleta 11-15
-st_srp_mode_roulette_low	FFA: Roleta 0-5
-st_srp_mode_roulette_mid	FFA: Roleta 6-10
+st_srp_mode_roulette_high	FFA: Roleta
+st_srp_mode_roulette_low	FFA: Roleta
+st_srp_mode_roulette_mid	FFA: Roleta
 st_srp_mode_team_deathmatch	Mata-Mata em Equipe
 st_srp_mouse_lock_option	Travar sensibilidade vertical
 st_srp_mouse_vertical_option	Sensibilidade vertical

@@ -690,7 +690,7 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   (Винчестер), Салун (Вінчестер) (uk), Салун (Вінчэстар) (be), Saloon (Winchester) (pl, de, cs,
   hu), Salun (Winchester), Saluuna (Winchester) (the game's own words for the Winchester: its
   item's and its ammunition's).
-  `st_srp_mode_roulette_low`, `_mid`, `_high` FFA: Roulette 0-5, 6-10, 11-15 (Рулетка in ru, uk,
+  `st_srp_mode_roulette_low`, `_mid`, `_high` FFA: Roulette, the band not shown (Рулетка in ru, uk,
   be; `ffa-roulette.md` has every language).
   The lobby's mode numbers 9 Racket, 10 Saloon (the Colt alone), 11 Saloon (Winchester) and 14,
   15, 16 Roulette by its band
