@@ -168,11 +168,27 @@ pub mod counts {
         [const { AtomicU64::new(0) }; RouteEnd::ALL.len()];
     static AGE_MS: [AtomicU64; RouteEnd::ALL.len()] =
         [const { AtomicU64::new(0) }; RouteEnd::ALL.len()];
+    /// [jump loop] Routes ended by a failed jump within [`AT_ONCE_MS`] of being given: a link the motor is out of tries at,
+    /// handed to it again by a search that did not keep off its shut landing.
+    static JUMP_FAILED_AT_ONCE: AtomicU64 = AtomicU64::new(0);
+
+    /// [jump loop] A route ended by a failed jump this young is ended "at once" ([`jump_failed_at_once`]): no try was made on it
+    /// (a try is a press and a back-off to the run-up, or a press wait of `motor::PRESS_WAIT_S`, 4 s; a link fails after
+    /// `motor::JUMP_TRIES` of them), so the motor was out of tries at the link when the route was given. Counted only.
+    pub const AT_ONCE_MS: u32 = 500;
 
     pub fn ended(why: RouteEnd, age_ms: u32) {
         let k = why as usize;
         ENDED[k].fetch_add(1, Ordering::Relaxed);
         AGE_MS[k].fetch_add(u64::from(age_ms), Ordering::Relaxed);
+        if why == RouteEnd::JumpFailed && age_ms < AT_ONCE_MS {
+            JUMP_FAILED_AT_ONCE.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    /// The routes ended by a failed jump within [`AT_ONCE_MS`] of being given.
+    pub fn jump_failed_at_once() -> u64 {
+        JUMP_FAILED_AT_ONCE.load(Ordering::Relaxed)
     }
 
     /// (endings, summed ages in ms), by [`RouteEnd::ALL`].

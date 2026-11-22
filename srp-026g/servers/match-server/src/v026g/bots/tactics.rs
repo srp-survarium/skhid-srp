@@ -1689,7 +1689,8 @@ impl Tactics {
     /// `crossing::crossable`), off another side's spawn area all the same: a
     /// crossing's search, after the plain one found no way or a long one
     /// (`crossing.rs`). Regions are let through but for another side's spawn
-    /// area: the floors decide.
+    /// area: the floors decide. Every floor is also one `hard` keeps open (the search filter's hard part,
+    /// `RouteFilter::hard_open`: the landings this body gave up), as for the plain search ([`Self::crossing_allowed`]).
     #[allow(clippy::too_many_arguments)]
     #[allow(clippy::result_large_err)]
     pub fn start_crossing(
@@ -1699,6 +1700,7 @@ impl Tactics {
         time: u32,
         side: Option<i32>,
         objective: bool,
+        hard: impl Fn(NodeId) -> bool,
         crossable: impl Fn(NodeId) -> bool,
         iters: &mut usize,
     ) -> Result<Option<Route>, path::Planning> {
@@ -1708,7 +1710,7 @@ impl Tactics {
             &self.base.regions,
             start,
             goal,
-            |node| self.crossing_allowed(node, time, side, objective, at, &crossable),
+            |node| self.crossing_allowed(node, time, side, objective, at, &hard, &crossable),
             |region| self.spawn_ok(self.base.regions.middle(region), side, objective),
             mapdata::Reach::FULL,
             None,
@@ -1717,7 +1719,7 @@ impl Tactics {
     }
 
     /// A [`Self::start_crossing`] search goes on, as
-    /// [`Self::resume_route`] (the same arguments, `crossable` too).
+    /// [`Self::resume_route`] (the same arguments, `hard` and `crossable` too).
     #[allow(clippy::too_many_arguments)]
     pub fn resume_crossing(
         &self,
@@ -1726,6 +1728,7 @@ impl Tactics {
         time: u32,
         side: Option<i32>,
         objective: bool,
+        hard: impl Fn(NodeId) -> bool,
         crossable: impl Fn(NodeId) -> bool,
         iters: &mut usize,
     ) -> Option<Option<Route>> {
@@ -1733,7 +1736,7 @@ impl Tactics {
         planning.resume(
             &self.world.grid,
             &self.base.regions,
-            |node| self.crossing_allowed(node, time, side, objective, at, &crossable),
+            |node| self.crossing_allowed(node, time, side, objective, at, &hard, &crossable),
             |region| self.spawn_ok(self.base.regions.middle(region), side, objective),
             &|_| 1.0,
             iters,
@@ -1741,7 +1744,12 @@ impl Tactics {
     }
 
     /// A crossing's floors: [`Self::allowed_from`]'s, and those `crossable`
-    /// gives off another side's spawn area.
+    /// gives off another side's spawn area; every one of them open by `hard` (the search filter's hard part). Before,
+    /// `hard` reached the zone floors alone (inside `crossable`): an ordinary floor was open to the crossing whatever the
+    /// body had shut, so a jump's landing it gave up was routed onto again by the crossing that follows the plain
+    /// search's "no way", and the motor, out of tries at the link, failed it on its first tick, every tick (the bench's
+    /// Mamayev Kurgan batteries, seed 3: 1,146 failures of one link by one bot, `drive` setting the crossing's route).
+    #[allow(clippy::too_many_arguments)]
     fn crossing_allowed(
         &self,
         node: NodeId,
@@ -1749,10 +1757,10 @@ impl Tactics {
         side: Option<i32>,
         objective: bool,
         from: Vec3,
+        hard: &impl Fn(NodeId) -> bool,
         crossable: &impl Fn(NodeId) -> bool,
     ) -> bool {
-        self.allowed_from(node, time, side, objective, from)
-            || (crossable(node) && self.spawn_ok(node, side, objective))
+        hard(node) && (self.allowed_from(node, time, side, objective, from) || (crossable(node) && self.spawn_ok(node, side, objective)))
     }
 
     /// Whether the floors a body on `from` may walk to
