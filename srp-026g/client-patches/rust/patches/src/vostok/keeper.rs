@@ -31,7 +31,7 @@ struct Pool {
 static POOL: GameCell<Option<Pool>> = GameCell::new(None);
 
 /// The core world's registered artefacts (+18940h), each with its id.
-fn registered(world: raw::CoreWorld) -> impl Iterator<Item = (ArtefactId, raw::Artefact)> + Clone {
+pub(super) fn registered(world: raw::CoreWorld) -> impl Iterator<Item = (ArtefactId, raw::Artefact)> + Clone {
     // SAFETY: the live core world's vector of registered artefacts (inventory::deserialize
     // 0x2FE655 indexes it by id); its bounded length is checked before indexing.
     let (first, count) = unsafe {

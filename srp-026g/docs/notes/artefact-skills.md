@@ -386,6 +386,17 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
     initialize clears its modifier lists, setup_from_profile sets its container range and links
     its own artefacts) and in the world (vtable+20h). With the bit in the new kit, the old kit's
     container artefacts in state 5 go, in container order, into the new kit's empty containers.
+  - The old kit's container range is gone by the spawn (PROVEN): the respawn rule's tick takes a
+    dead player still in the world out of it before its spawn (0x316999..0x3169A0: vtable+24h with
+    1, player::remove 0x1F2870 -> base_player::remove 0x2DA790), whose unload_to_profile 0x2FD2D0
+    ends with +168h 0 and +16Ch 0 (0x2FDBE8..0x2FDBF2); its slots keep their items, and the next
+    spawn in that kit sets the range again (0x2FD29F). So the old kit's artefacts are found in its
+    23 slots: an item of the world's registered artefacts (+18940h) whose owner and slot are that
+    slot's, in slot order (a range is a run of slots, so the containers' order). Revision 69 read
+    them through the cleared range and moved nothing, at every respawn into another kit (match
+    0xf62d810b, Chemical Plant, 2026-11-22: place 10's static info has bit 14 (22509), its Spring
+    in kit 0 slot 16 went to state 5 at the death at 210 s and stayed there in every world after
+    the respawn into kit 1 at 218 s; no `courier:` line in the owner's log).
 - The move (`Inventory::take_from_dead_kit`): the old slot emptied as remove_item (0x2FC680) does
   but without on_removed (vtable+34h, 0x313490): the death already unlinked the passive
   (artefact_base::tick 0x3132E5: vtable+84h, then state 5, for an amount above 0, 0x2FFDD0; an
@@ -399,9 +410,11 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   as after any pickup; `keeper::reconcile` keeps every kit's slots the world's after a load.
 - Changes what a match computes: a `next` row of `simulation_changes.tsv`.
 - Check: `client-patches/check_artefact_courier_026g.py` (Unicorn on the built exe: the owner's two
-  runs through the game's take_artefact, on_holder_death, artefact_base::tick and the spawn's two
+  runs through the game's take_artefact, on_holder_death, artefact_base::tick, the dead kit's
+  unload_to_profile before each spawn (as the respawn rule's tick removes it) and the spawn's two
   sites; each moved artefact in its new container, state 3, unlinked once and linked once; nothing
-  without the bit, in the same kit, or from another place) and `artefact_courier`'s tests.
+  without the bit, in the same kit, or from another place; it fails on revision 69's build) and
+  `artefact_courier`'s tests.
 
 ## Spring II (531)
 
