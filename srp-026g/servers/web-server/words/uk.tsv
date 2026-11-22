@@ -52,8 +52,6 @@ Wiki	Вікі
 Equipment	Спорядження
 Equipment reference	Довідник спорядження
 pieces	предметів
-Every armour piece: protection by body part, weight, what it has built in and what it can roll.	Усе спорядження: захист за частинами тіла, вага, вбудовані властивості й модифікатори.
-Armour (bullets, melee, explosions) and isolation (fire, radiation, electricity, toxins) are the share of damage stopped (×100); worn pieces add up. Over {0} kg a kit slows you, up to −20% speed and +150% sprint stamina at the limit, where you can't sprint.	Броня (кулі, холодна зброя, вибухи) та ізоляція (вогонь, радіація, електрика, токсини) — частка зупиненої шкоди (×100); вдягнені предмети додаються. Понад {0} кг комплект сповільнює: до −20% швидкості й +150% витрат енергії на біг на межі, де бігти не можна.
 Nothing matches.	Нічого не знайдено.
 Stats	Статистика
 Public matches	Публічні матчі
@@ -133,7 +131,7 @@ Start <code>Skhid.bat</code> again. Still failing? Run <code>Skhid-without-updat
 “No connection: …”	«Немає з'єднання: …»
 Run <code>Skhid-network-setup.cmd</code>.	Запустіть <code>Skhid-network-setup.cmd</code>.
 “Blocked on this network: …”	«Заблоковано в цій мережі: …»
-Your provider blocks skhid.link: the launcher sets <b>Relay</b> (bottom left) to auto. Press Retry.	Ваш провайдер блокує skhid.link: лаунчер ставить <b>Релей</b> (ліворуч унизу) на авто. Натисніть «Повторити».
+Your provider blocks our server. The launcher has already switched to our relay, a way around the block (<b>Relay: auto</b>, bottom left). Just press <b>Retry</b>.	Ваш провайдер блокує наш сервер. Лаунчер уже сам перемкнувся на наш релей, що обходить блокування (<b>Релей: авто</b>, ліворуч унизу). Просто натисніть <b>«Повторити»</b>.
 Nothing works.	Нічого не працює.
 Run <code>Skhid-collect-logs.cmd</code> and send the zip it makes to us on Discord: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.	Запустіть <code>Skhid-collect-logs.cmd</code> і надішліть zip, який він зробить, нам у Discord: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.
 Q:	П:
@@ -162,7 +160,7 @@ Start it with this command line:	Запустіть гру з такою ком�
 english	ukrainian
 server address	адреса сервера
 language: english, russian, ukrainian	мова: english, russian, ukrainian
-Skhid (Ukrainian for “east”) is a small community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.	Схід — невеликий ком'юніті сервер, на якому клієнт Survarium {version} знову може входити, торгувати, збирати загони й грати матчі.
+Skhid (Ukrainian for “east”) is a community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.	Схід — ком'юніті сервер, на якому клієнт Survarium {version} знову може входити, торгувати, збирати загони й грати матчі.
 Project Discord: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>	Discord проєкту: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>
 Early test server.	Тестовий сервер.
 It has bugs and may not work fully. Your progress, items and accounts can be lost or reset at any time, and the server may be stopped at any time. By playing you accept this.	Можливі помилки та збої. Ваш прогрес, предмети й акаунти можуть зникнути або бути скинуті будь-коли, а сервер можуть зупинити будь-коли. Граючи, ви з цим погоджуєтесь.
