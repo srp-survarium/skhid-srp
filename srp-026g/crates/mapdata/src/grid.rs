@@ -2064,6 +2064,12 @@ impl WalkGrid {
             named(&mut tables.lips, &mut wide.lips.iter().copied());
             named(&mut tables.drop_speeds, &mut wide.drop_speed.iter().map(|&(a, b, _)| (a, b)));
             stats.give_back_tables = tables;
+            // [given-back walks] The give-back's walks are walked as every link is ([`Body::walk_every_link`]): the walk check
+            // ran before they were made.
+            if body.client_controller && body.walk_every_link {
+                let world = world.expect("a world");
+                grid.walk_given_back(&mut wide, world, seeds, spawns, &mut stats.controlled);
+            }
         }
         grid.pieces(&wide);
         grid.mark_pockets(&wide, spawns);

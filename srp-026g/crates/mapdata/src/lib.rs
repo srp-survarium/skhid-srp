@@ -285,8 +285,10 @@ pub const WALK_FACE_STANDS_ALGO: u32 = 0x5389_0302;
 /// walls, and 0.05-0.10 m around it where it jams there; a body jammed in faces is no rest), the exe's class on 52 of 53 floors.
 /// 0109: the test body's downward speed given once, at the put (as the game's, `can_skip_player_step` 0x7C7E0).
 /// 0110: [give-back ids] the per-link tables made before the give-back (the walk check's marked and crouched walks, the risers'
-/// presses, the held floors' drops, the lips, the drops' landing speeds) follow the floors' new ids.
-pub const WALL_GIVE_BACK_ALGO: u32 = 0x5318_0110;
+/// presses, the held floors' drops, the lips, the drops' landing speeds) follow the floors' new ids. 0111: [given-back walks]
+/// with the walk check over every link ([`Body::walk_every_link`]), the give-back's Walk links are walked too, and a failing
+/// one with a walking way round is taken away (`grid::controlled` `walk_given_back`).
+pub const WALL_GIVE_BACK_ALGO: u32 = 0x5318_0111;
 /// The same for the walk-tick passes with the exe's collision rules ([`Body::exe_collision`], A325), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const EXE_COLLISION_ALGO: u32 = 0x5325_0101;
