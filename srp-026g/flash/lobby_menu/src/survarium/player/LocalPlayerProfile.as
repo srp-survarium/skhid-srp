@@ -107,6 +107,11 @@ package survarium.player
       private static const PRESETS_LAST:int = PRESETS_FIRST + 99;
       
       private static const PRESET_CHOOSE:int = PRESETS_FIRST + 10;
+
+      // A kit's Artifact Container slot made one (+ kit x 10 + state), and the list's row of them.
+      private static const CONTAINER_BASE:int = PRESETS_FIRST + 20;
+
+      private static const CONTAINERS_ROW:String = "K;";
       
       private static const PRESET_COUNT:int = 5;
       
@@ -211,6 +216,9 @@ package survarium.player
       // Item id -> the presets that use it (bit n - 1: preset n), as the
       // server last said.
       private var _presetUses:Object = {};
+
+      // The `K` row: [kit id, ContainerSlotMark state] a kit, the account's kits in order.
+      private var _containers:Array = [];
       
       // The U rows the uses came from, to tell a change.
       private var _presetUsesRows:String = "";
@@ -659,6 +667,8 @@ package survarium.player
          }
          this._unresolvedItems.length = 0;
          super.fillProfileItems(data);
+         // The kit shown may be another: its Artifact Container slot as last told.
+         this.tellContainerSlot();
          // The presets' levels follow the inventory: asked again.
          this.askPresets();
          trace("PP:invalidateItems");
@@ -1593,8 +1603,64 @@ package survarium.player
          }
       }
       
+      // `K;<kit id>:<state>,...`, the account's kits in order: each kit's Artifact Container
+      // slot (ContainerSlotMark's states; 0 without the skill), told to the paper doll for the
+      // kit shown.
+      private function takeContainers(row:String) : void
+      {
+         var kits:Array = [];
+         for each(var entry:String in row.split(","))
+         {
+            var pair:Array = entry.split(":");
+            if(pair.length == 2)
+            {
+               kits.push([uint(pair[0]),int(pair[1])]);
+            }
+         }
+         this._containers = kits;
+         this.tellContainerSlot();
+      }
+
+      // The kit shown's Artifact Container slot to its paper doll, with how to ask for the other.
+      private function tellContainerSlot() : void
+      {
+         var doll:LocalPaperDoll = profileItems as LocalPaperDoll;
+         if(doll == null)
+         {
+            return;
+         }
+         var at:int = this.containerKit();
+         doll.containerSlot(at >= 0 ? int(this._containers[at][1]) : ContainerSlotMark.NONE,this.askContainerSlot);
+      }
+
+      // The kit shown's place among the account's kits (the `K` row's order); -1: not listed.
+      private function containerKit() : int
+      {
+         var i:int = 0;
+         while(i < this._containers.length)
+         {
+            if(this._containers[i][0] == uint(_profileId))
+            {
+               return i;
+            }
+            i++;
+         }
+         return -1;
+      }
+
+      // A click on the slot: the kit shown's made `state` (CONTAINER_BASE + kit x 10 + state),
+      // answered with the account and the list.
+      private function askContainerSlot(state:int) : void
+      {
+         var at:int = this.containerKit();
+         if(at >= 0)
+         {
+            this.sendPresets(CONTAINER_BASE + at * 10 + state);
+         }
+      }
+
       // `P2;L;<done>;<preset>;<active>;<blocks>;<minutes>`, then `<preset>;<saved>;<level>`
-      // each, then `U;<item id>:<presets>,...` rows.
+      // each, then the `K;` row (takeContainers), then `U;<item id>:<presets>,...` rows.
       private function takePresets(rows:Array) : void
       {
          var head:Array = String(rows[0].nickname).split(";");
@@ -1631,6 +1697,12 @@ package survarium.player
                   }
                   k++;
                }
+               i++;
+               continue;
+            }
+            if(name.indexOf(CONTAINERS_ROW) == 0)
+            {
+               this.takeContainers(name.substr(CONTAINERS_ROW.length));
                i++;
                continue;
             }

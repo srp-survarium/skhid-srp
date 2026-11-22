@@ -91,6 +91,9 @@ package survarium.player
       protected var _contextIndex:int = -1;
       
       private var _lockedSlot:uint = 0;
+
+      // Artifact Container's slot, outlined (on the slots from configUI).
+      private var _containerMark:ContainerSlotMark = new ContainerSlotMark();
       
       public function LocalPaperDoll()
       {
@@ -327,6 +330,60 @@ package survarium.player
          this._ammoControl.openSlots(slotsN,slotsA);
          super.openSlots(slotsN,slotsA);
       }
+
+      // Artifact Container's slot of the kit shown, as srp says it (ContainerSlotMark's state),
+      // and how to ask for the other (LocalPlayerProfile).
+      public function containerSlot(state:int, ask:Function) : void
+      {
+         this._containerMark.told(state,ask);
+         this.placeContainerMark();
+      }
+
+      // The pockets and containers shown, then the mark on the skill's slot among them.
+      override protected function handleQuickSlots() : void
+      {
+         super.handleQuickSlots();
+         this.placeContainerMark();
+      }
+
+      private function placeContainerMark() : void
+      {
+         var at:int = this._containerMark.slotIndex(_slotsN,_slotsA);
+         var slot:IPaperDollSlot = at >= 0 ? _slots[ProfileSlot.QUICK_1 + at] as IPaperDollSlot : null;
+         this._containerMark.place(slot as DisplayObject,slot != null && slot.data != null);
+      }
+
+      private function markedSlot(e:Event) : Boolean
+      {
+         return e.currentTarget == this._containerMark.slot;
+      }
+
+      // The marked slot's own hover and left click, as the pocket (as the container the mark
+      // takes them itself).
+      private function onMarkedSlotOver(e:MouseEvent) : void
+      {
+         if(this.markedSlot(e))
+         {
+            this._containerMark.hover(true);
+         }
+      }
+
+      private function onMarkedSlotOut(e:MouseEvent) : void
+      {
+         if(this.markedSlot(e))
+         {
+            this._containerMark.hover(false);
+         }
+      }
+
+      private function onMarkedSlotClick(e:MouseEvent) : void
+      {
+         var button:int = e is MouseEventEx ? int((e as MouseEventEx).buttonIdx) : MouseEventEx.LEFT_BUTTON;
+         if(enabled && button == MouseEventEx.LEFT_BUTTON && this.markedSlot(e))
+         {
+            this._containerMark.slotClicked();
+         }
+      }
       
       public function hasAgreements(category:uint) : uint
       {
@@ -470,12 +527,20 @@ package survarium.player
          slot.addEventListener(Events.DROP_IN,this.updateSelectedSlot);
          slot.addEventListener(ButtonEvent.CLICK,this.newItemClick);
          slot.addEventListener(Events.DROP_IN,this.newItemClick);
+         if(ProfileSlot.isPocket(slot.index))
+         {
+            slot.addEventListener(MouseEvent.ROLL_OVER,this.onMarkedSlotOver);
+            slot.addEventListener(MouseEvent.ROLL_OUT,this.onMarkedSlotOut);
+            slot.addEventListener(MouseEvent.CLICK,this.onMarkedSlotClick);
+         }
       }
-      
+
       override protected function configUI() : void
       {
          trace("LPD_base::configUI");
          super.configUI();
+         // Over the slots (the timeline's), so the mark is drawn on them.
+         addChild(this._containerMark);
          var ammoSlots:Array = [_slotNames.indexOf("slotWpn1A1"),_slotNames.indexOf("slotWpn1A2"),_slotNames.indexOf("slotWpn2A1"),_slotNames.indexOf("slotWpn2A2"),_slotNames.indexOf("slotWpn5"),_slotNames.indexOf("slotWpn6"),_slotNames.indexOf("slotWpn7"),_slotNames.indexOf("slotWpn8")];
          trace("LPD::configUI");
          this._ammoControl.setSlotTarget(_slotNames.indexOf("slotWpn1"),ammoSlots);
