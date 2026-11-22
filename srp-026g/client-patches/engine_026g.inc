@@ -973,6 +973,10 @@ extern engine_unpin_resource
 ; 0x1a8900 vostok::render::effect_compiler::set_constant_float4: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
 ; thiscall: push (and ECX for thiscall) as that convention says
 extern engine_set_constant_float4
+; void engine_set_constant_float2(const float *value, struct effect_compiler *compiler, const char *name)
+; 0x1d9740 vostok::render::effect_compiler::set_constant_float2: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_set_constant_float2
 ; struct shared_string *engine_shared_string_create(const char *text)
 ; 0xe0b50 vostok::shared_string::create: text ESP+4; pops 4; EAX; stdcall, called directly
 ; stdcall: push (and ECX for thiscall) as that convention says

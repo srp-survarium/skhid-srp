@@ -5483,6 +5483,9 @@ va	name	location	role	basis
 0x001a8900	vostok::render::effect_compiler::set_constant_float4	ECX	the float4 value (0x1A8903/0x1A8914)	observed
 0x001a8900	vostok::render::effect_compiler::set_constant_float4	entry ESP+4	compiler receiver (0x1A8959); binding vector +61C1Ch..+61C20h	observed
 0x001a8900	vostok::render::effect_compiler::set_constant_float4	entry ESP+8	constant name, interned at 0x1A893B	observed
+0x001d9740	vostok::render::effect_compiler::set_constant_float2	ECX	the float2 value, copied (0x1D9743..0x1D9753)	observed
+0x001d9740	vostok::render::effect_compiler::set_constant_float2	entry ESP+4	compiler receiver (0x1D9791); a binding added to +61C1Ch only when building (+61F4Ch 0, 0x1D9795) and no binding has the name (0x3C3DD0, 0x1D97C0..0x1D97CB)	observed
+0x001d9740	vostok::render::effect_compiler::set_constant_float2	entry ESP+8	constant name, interned at 0x1D9773	observed
 0x001ddd50	vostok::render::effect_gstage_default_materials::compile	0x1E0D1E..0x1E0D71	solid_emission_color: RGB times the configured intensity, alpha kept	observed
 0x001ddd50	vostok::render::effect_gstage_default_materials::compile	0x1E10FF..0x1E11EF	emissive_flickering_parameters default (0, 1, 0, 0) unless use_emissive_flickering (0x9F97A8); then, unless compiler+61F4Ch, set_alpha_blend(enable, RGB ONE/ONE ADD, alpha ONE/ZERO) for the emission technique	observed
 0x003e2ea0	vostok::render::state_descriptor::set_alpha_blend	entry ESP+4	state descriptor; eight render-target blend records at +64h, 20h bytes each	observed
