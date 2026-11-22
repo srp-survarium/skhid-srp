@@ -988,10 +988,12 @@ pub(super) fn asks() -> Box<dyn RouteTopic> {
 pub(super) fn route_ends() -> Box<dyn RouteTopic> {
     Delta::of(
         || {
-            super::super::route_end::counts::counts()
+            let mut all: Vec<u64> = super::super::route_end::counts::counts()
                 .iter()
                 .flat_map(|&(n, age)| [n, age])
-                .collect()
+                .collect();
+            all.push(super::super::route_end::counts::jump_failed_at_once());
+            all
         },
         |d, line| {
             for (k, why) in super::super::route_end::RouteEnd::ALL.into_iter().enumerate() {
@@ -1004,6 +1006,8 @@ pub(super) fn route_ends() -> Box<dyn RouteTopic> {
                     age / n.max(1)
                 ));
             }
+            // [jump loop] Ended by a failed jump within `AT_ONCE_MS` of being given: the motor was out of tries at the link.
+            line.ends.push(format!("route_end_jump_failed_at_once {}", d[2 * super::super::route_end::RouteEnd::ALL.len()]));
         },
     )
 }

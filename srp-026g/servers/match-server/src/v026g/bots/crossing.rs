@@ -273,7 +273,8 @@ pub fn start(
         time,
         side,
         objective,
-        |n| crossable(tactics, n, body) && filter.hard_open(&tactics.world.grid, n),
+        |n| filter.hard_open(&tactics.world.grid, n),
+        |n| crossable(tactics, n, body),
         floors,
     );
     #[cfg(test)]
@@ -302,7 +303,8 @@ pub fn resume(
         time,
         side,
         objective,
-        |n| crossable(tactics, n, body) && filter.hard_open(&tactics.world.grid, n),
+        |n| filter.hard_open(&tactics.world.grid, n),
+        |n| crossable(tactics, n, body),
         floors,
     );
     #[cfg(test)]
@@ -681,6 +683,29 @@ pub(crate) mod tests {
         let grid = &deadly.world.grid;
         let mid = grid.locate(Vec3::new(40.0, 0.0, 32.5), 1.5).unwrap();
         assert!(!crossable(&deadly, mid, &fixture(1.0)));
+    }
+
+    /// [jump loop] A crossing's search keeps off the landings the body gave up on every floor, as the plain search does: with
+    /// the goal's floor shut (a jump's landing failed there) it finds no way, where with nothing shut it crosses. Before, the
+    /// shut reached the zone's floors alone, and an ordinary floor it had shut was routed onto again (the bench's Mamayev
+    /// Kurgan batteries, seed 3: 1,146 jump failures of one link at the route's first tick).
+    #[test]
+    fn a_crossing_keeps_off_a_landing_the_body_gave_up_on_an_ordinary_floor() {
+        let weak = tactics(0.04, 0.0);
+        let grid = &weak.world.grid;
+        let (a, b) = (grid.locate(WEST, 1.5).unwrap(), grid.locate(EAST, 1.5).unwrap());
+        assert!(weak.hazards.allowed(b, 0), "the goal is an ordinary floor");
+        let cross = |filter: &RouteFilter| {
+            let mut iters = usize::MAX;
+            match start(&weak, a, b, 0, Some(0), false, &fixture(1.0), filter, &mut iters) {
+                Ok(route) => route,
+                Err(_) => panic!("an unbounded search ends"),
+            }
+        };
+        assert!(cross(&RouteFilter::open()).is_some(), "the crossing");
+        let shut = RouteFilter::shutting_landings(vec![super::super::stuck::Shut::jump(grid.position(b))]);
+        assert!(!shut.hard_open(grid, b));
+        assert!(cross(&shut).is_none(), "no way onto the landing it gave up");
     }
 
     /// [take.cross_from_zone] From a floor inside a zone on all match (a body that stepped in by its crossing's edge) a failed
