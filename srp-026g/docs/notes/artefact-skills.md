@@ -245,22 +245,29 @@ chooses each.
 - **Every kit of before takes every perk**, so nobody's kits change until he clicks. Without a
   perk's skill every kit and preset kit takes it again (`change_skills`, and the repair at load), so
   the skill learned again starts so.
-- **Each perk owns its slot, in one order** (the owner, 2026-11-22: "two skills badly interact
+- **Each perk owns its place, in one order** (the owner, 2026-11-22: "two skills badly interact
   with one another", "the additional pocket that we get should never be switchable to art
-  container", "[free pockets - 1] [additional pocket] [free pocket for switching with artis]", "if
-  [add pock] is removed last just slides off"; `KitPockets` and `PocketRole` of
-  `survarium::v026g::loadouts`, `Account::kit_pockets`): the quick places are the base pockets
-  (the gear's and the other skills') but the last, then the weapon perk's added pocket while the
-  kit takes it (`Added`, never a container), then the last base pocket, Artifact Container's
-  (`Switched(Taken)` the container, `Switched(Declined)` a pocket). That is the game's own order:
-  it opens the first `pockets` places as pockets and the containers after them, so the container
-  is the last place and the declined container's pocket the last pocket, in the lobby and in a
-  match alike (the kit's modifiers give the game the same counts; `each_perk_switches_its_own_slot`
-  checks both). A slot taken away slides the ones after it left, each with its role and its item
-  (`KitPockets::moved`, at a switch and at a skill learned or refunded): the weapon perk declined
-  takes the added pocket away, and Artifact Container's slot (its item, or the container) slides
-  one place left; taken again, the added pocket comes back empty before it. Gear that changes the
-  base pockets moves nothing (the pockets are places, as ever).
+  container", "[free pockets - 1] [additional pocket] [free pocket for switching with artis]", then
+  the added pocket declined stays in its place, blocked, and the container's slot stays last;
+  `KitPockets` and `PocketRole` of `survarium::v026g::loadouts`, `Account::kit_pockets`): the
+  quick places are the base pockets (the gear's and the other skills') but the last, then the
+  weapon perk's added pocket while the account has the skill (`Added(Taken)` open,
+  `Added(Declined)` blocked, never a container), then the last base pocket, Artifact Container's
+  (`Switched(Taken)` the container, `Switched(Declined)` a pocket).
+  - **The game** opens its first `pockets` quick slots as pockets and the containers after them,
+    with no place between, so `KitPockets::slots` is the same order without the blocked pocket:
+    a kit that declines the weapon perk has a pocket fewer in a match (the kit's modifiers without
+    the skill's), the container its first slot past the pockets, and no slot nobody may use
+    (`each_perk_switches_its_own_slot`). A match's inventory shows the container's pocket or the
+    container right after the base pockets (the stock HUD knows nothing of the blocked one; no exe
+    or HUD change).
+  - **The lobby** (`KitPockets::places`) shows the blocked pocket in its place: the first quick
+    slot past the pockets and containers, locked in red, is drawn before Artifact Container's slot
+    (`LocalPaperDoll.arrange` moves the slots' places, not their items; each keeps its profile
+    slot), while one of the six places is free.
+  - Each role keeps its item (`KitPockets::moved`, at a switch and at a skill learned or refunded):
+    the added pocket blocked loses its item; Artifact Container's slot keeps its own, last in the
+    lobby. Gear that changes the base pockets moves nothing (the pockets are places, as ever).
 - **What the slot held:** the container holds nothing in the lobby, so it opens as an empty
   pocket. The pocket made the container again: its item comes off the kit and stays owned, as any
   pocket that goes (`KitLayout::kept`); the server never saves an item in a container. The weapon
@@ -298,8 +305,8 @@ chooses each.
     (`SlotLock`, the skills' `SkillLockSpriteRed`; its tip "Deep Pockets — Right-click: second
     weapon", `st_srp_loadout_slot_to_weapon`);
   - declined: the second weapon slot is open and has the yellow soft edge (all round); the pocket
-    is closed with the same red lock, shown where the next quick place is after the pockets and
-    containers (where the pocket was, without containers), its tip "Deep Pockets — Right-click:
+    is closed with the same red lock, in its place (before Artifact Container's slot; without
+    it, the next quick place after the pockets and containers), its tip "Deep Pockets — Right-click:
     pocket";
   - a right click on either red lock switches (its slot is empty); a right click on the yellow
     pocket switches while it holds nothing (on an item it opens the item's menu, as on any slot);
@@ -308,13 +315,15 @@ chooses each.
     right button the shop's left click is untouched); holding a weapon, a right click is the
     weapon's menu, as in the stock game, and the red pocket switches (the weapon goes back, with
     the sound and the shake).
-  - **Each mark on its perk's own slot**, by srp's order (`LocalPaperDoll.placeMarks`, the same
+  - **Each mark on its perk's own place**, by srp's order (`LocalPaperDoll.placeMarks`, the same
     rule as `KitPockets`): Artifact Container's on the last pocket or the container after the
-    pockets; the weapon perk's yellow on the pocket before Artifact Container's (the last pocket
-    without it), its red pocket on the first free place after the pockets and containers. With
-    both perks each has its own yellow, and a switch closes its own slot only (the review of
-    #2476 found a mark on another pocket than the one srp closes; the owner then found the added
-    pocket switching to the container).
+    pockets, last; the weapon perk's yellow on the pocket before it (the last pocket without it),
+    its red pocket in the same place (with Artifact Container's slot, the red pocket is drawn
+    before it; without, it is the first free place after the pockets and containers). With both
+    perks each has its own place, and a switch closes its own slot only (the review of #2476 found
+    a mark on another pocket than the one srp closes; the owner then found the added pocket
+    switching to the container). The shake of a place goes with the place, whichever slot is
+    shown there once the slots are arranged again.
   - **A switch that sends an item back** (a red lock pressed while the yellow slot holds one; the
     owner, 2026-11-22: keep it so, "i wish there was some good sound design to say that, or maybe
     some shaking"): the item comes off the kit (it stays owned), the lobby plays the game's own
@@ -385,12 +394,13 @@ chooses each.
 ```
 
 ```text
- Both perks (the stock pocket, Deep Pockets, Artifact Container declined), then Deep Pockets
- declined: the added pocket goes, the container's pocket slides left with its item
+ Both perks (the stock pockets, Deep Pockets, Artifact Container declined), then Deep Pockets
+ declined: the added pocket blocked in its place, the container's pocket last with its item
  +------+ +------+ +------+        +------+ +------+ +------+
- | base | |added | |contnr|        | base | |contnr| |(lock)|
- |      | |::::::| |pocket|        |      | |pocket| |      |
+ | base | |added | |contnr|        | base | |(lock)| |contnr|
+ |      | |::::::| |pocket|        |      | |      | |pocket|
  +------+ +------+ +------+        +------+ +------+ +------+
+ in a match the same kit has two pockets: base, container's pocket
 ```
 
 ```text

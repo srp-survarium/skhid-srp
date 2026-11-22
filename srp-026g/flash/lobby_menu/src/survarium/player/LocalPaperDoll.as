@@ -2,6 +2,7 @@ package survarium.player
 {
    import flash.display.DisplayObject;
    import flash.display.Sprite;
+   import flash.geom.Point;
    import flash.geom.Rectangle;
    import flash.utils.getTimer;
    import flash.events.Event;
@@ -348,7 +349,7 @@ package survarium.player
       // on top can appear for a moment"): none while another is asked, nor while a slot shakes.
       private function mayClick() : Boolean
       {
-         if(this._shaken != null)
+         if(this.shaking)
          {
             return false;
          }
@@ -389,37 +390,52 @@ package survarium.player
 
       private static const SHAKE_SWINGS:Number = 3;
 
+      // What shakes: a quick place (the slot shown there, whichever it is once the slots are
+      // arranged again), or the second weapon slot.
+      private var _shakenPlace:int = -1;
+
       private var _shaken:DisplayObject;
 
       private var _shakenX:Number = 0;
 
       private var _shakeAt:int = 0;
 
+      private function get shaking() : Boolean
+      {
+         return this._shakenPlace >= 0 || this._shaken != null;
+      }
+
       private function onMarkDisplaced(e:Event) : void
       {
          var slot:DisplayObject = (e.target as PerkSlotMark).closingSlot;
-         if(slot == null || this._shaken != null)
+         if(slot == null || this.shaking)
          {
             return;
          }
-         this._shaken = slot;
-         this._shakenX = slot.x;
+         this._shakenPlace = this._atPlace.indexOf(slot);
+         if(this._shakenPlace < 0)
+         {
+            this._shaken = slot;
+            this._shakenX = slot.x;
+         }
          this._shakeAt = getTimer();
          addEventListener(Event.ENTER_FRAME,this.onShake);
       }
 
       private function onShake(e:Event) : void
       {
-         var t:Number = (getTimer() - this._shakeAt) / SHAKE_MS;
+         var t:Number = Math.min(1,(getTimer() - this._shakeAt) / SHAKE_MS);
+         var slot:DisplayObject = this._shakenPlace >= 0 ? this._atPlace[this._shakenPlace] : this._shaken;
+         var rest:Number = this._shakenPlace >= 0 ? Point(this._places[this._shakenPlace]).x : this._shakenX;
+         slot.x = rest + Math.round(SHAKE_PX * (1 - t) * Math.sin(t * Math.PI * 2 * SHAKE_SWINGS));
          if(t >= 1)
          {
-            this._shaken.x = this._shakenX;
+            slot.x = rest;
+            this._shakenPlace = -1;
             this._shaken = null;
             removeEventListener(Event.ENTER_FRAME,this.onShake);
             invalidate(InvalidationType.DATA);
-            return;
          }
-         this._shaken.x = this._shakenX + Math.round(SHAKE_PX * (1 - t) * Math.sin(t * Math.PI * 2 * SHAKE_SWINGS));
       }
 
       private function get containerMark() : PerkSlotMark
@@ -446,12 +462,12 @@ package survarium.player
       }
 
       // Where each perk's slot is, the pockets and containers counted as srp's answer to a click
-      // will make them (PerkSlotMark.pocketShift), by srp's order of the quick slots (`KitPockets`,
+      // will make them (PerkSlotMark.pocketShift), by srp's order of the quick places (`KitPockets`,
       // loadouts.rs): the base pockets but the last, the weapon perk's added pocket, then the last
       // base pocket, which Artifact Container switches: a pocket, or the container after the
-      // pockets. Each perk's slot is its own; one taken away slides the ones after it left. A kit
-      // that declines the weapon perk shows the pocket it closes after every pocket and container,
-      // locked in red, while one of the six places is free.
+      // pockets. Each perk's place is its own. The game opens its first pockets and the containers
+      // after them, so a declined added pocket is no slot of the game's: the first slot past them
+      // is shown in its place, locked in red, and Artifact Container's slot one place on, last.
       private function placeMarks() : void
       {
          var cs:int = this.containerMark.pocketShift(_slotsN);
@@ -460,30 +476,27 @@ package survarium.player
          var containers:int = _slotsA - cs;
          var container:int = this.containerMark.shown;
          var weapon:int = this.weaponMark.shown;
-         // Artifact Container's slot, the last: the container after the pockets, or the last pocket.
-         var switched:IPaperDollSlot = null;
+         // The game's slots (0 the first quick slot): Artifact Container's, the added pocket's, and
+         // the blocked added pocket's (the first past the pockets and containers).
+         var switchedAt:int = -1;
          if(container == PerkSlotMark.TAKEN)
          {
-            switched = containers >= 1 ? this.quick(pockets,ProfileSlot.QUICK_POSITIONS) : null;
+            switchedAt = containers >= 1 ? pockets : -1;
          }
          else if(container == PerkSlotMark.DECLINED)
          {
-            switched = this.quick(pockets - 1,pockets);
+            switchedAt = pockets - 1;
          }
+         var addedAt:int = weapon == PerkSlotMark.TAKEN ? pockets - (container == PerkSlotMark.DECLINED ? 2 : 1) : -1;
+         var closedAt:int = weapon == PerkSlotMark.DECLINED ? pockets + containers : -1;
+         this.arrange(closedAt,switchedAt);
+         var switched:IPaperDollSlot = this.quick(switchedAt);
          this.mark(this.containerMark,switched,container == PerkSlotMark.DECLINED ? switched : null);
-         // The weapon perk's added pocket, before Artifact Container's pocket; declined, the second
-         // weapon slot open.
-         if(weapon == PerkSlotMark.TAKEN)
-         {
-            var added:IPaperDollSlot = this.quick(pockets - (container == PerkSlotMark.DECLINED ? 2 : 1),pockets);
-            this.mark(this.weaponMark,added,added);
-         }
-         else
-         {
-            var weaponSlot:IPaperDollSlot = weapon == PerkSlotMark.DECLINED ? _slots[ProfileSlot.WEAPON_2] as IPaperDollSlot : null;
-            this.mark(this.weaponMark,weaponSlot,weaponSlot);
-         }
-         var closed:IPaperDollSlot = weapon == PerkSlotMark.DECLINED ? this.quick(pockets + containers,ProfileSlot.QUICK_POSITIONS) : null;
+         // The weapon perk taken: its added pocket; declined: the second weapon slot open.
+         var weaponSlot:IPaperDollSlot = weapon == PerkSlotMark.DECLINED ? _slots[ProfileSlot.WEAPON_2] as IPaperDollSlot : null;
+         var perkSlot:IPaperDollSlot = weapon == PerkSlotMark.TAKEN ? this.quick(addedAt) : weaponSlot;
+         this.mark(this.weaponMark,perkSlot,perkSlot);
+         var closed:IPaperDollSlot = this.quick(closedAt);
          if(closed == null)
          {
             this._pocketLock.hide();
@@ -496,10 +509,52 @@ package survarium.player
          this._pocketLock.show(this,closed as DisplayObject,this.weaponMark.label(),this.weaponMark.blockedClicked);
       }
 
-      // The quick slot `i` (0 the first), when it is below `below`; else none.
-      private function quick(i:int, below:int) : IPaperDollSlot
+      // The quick places (the timeline's slots' own), taken once; the slot shown at each.
+      private var _places:Array;
+
+      private var _atPlace:Array = [];
+
+      // Each quick slot at its place, the one at `moved` shown at `before`'s and those from there
+      // one place on (-1: none moved).
+      private function arrange(moved:int, before:int) : void
       {
-         return i >= 0 && i < below && i < ProfileSlot.QUICK_POSITIONS ? _slots[ProfileSlot.QUICK_1 + i] as IPaperDollSlot : null;
+         var i:int;
+         if(this._places == null)
+         {
+            this._places = [];
+            for(i = 0; i < ProfileSlot.QUICK_POSITIONS; i++)
+            {
+               var at:DisplayObject = _slots[ProfileSlot.QUICK_1 + i] as DisplayObject;
+               this._places.push(new Point(at.x,at.y));
+            }
+         }
+         var order:Array = [];
+         for(i = 0; i < ProfileSlot.QUICK_POSITIONS; i++)
+         {
+            order.push(i);
+         }
+         if(moved >= 0 && before >= 0 && moved > before && moved < order.length)
+         {
+            order.splice(moved,1);
+            order.splice(before,0,moved);
+         }
+         for(i = 0; i < order.length; i++)
+         {
+            var slot:DisplayObject = _slots[ProfileSlot.QUICK_1 + order[i]] as DisplayObject;
+            var place:Point = this._places[i];
+            if(i != this._shakenPlace)
+            {
+               slot.x = place.x;
+            }
+            slot.y = place.y;
+            this._atPlace[i] = slot;
+         }
+      }
+
+      // The quick slot `i` (0 the first); none past the six.
+      private function quick(i:int) : IPaperDollSlot
+      {
+         return i >= 0 && i < ProfileSlot.QUICK_POSITIONS ? _slots[ProfileSlot.QUICK_1 + i] as IPaperDollSlot : null;
       }
 
       // `mark` on `slot`; `closing` the slot its switch closes (its item sent back).

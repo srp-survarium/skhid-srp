@@ -41,8 +41,9 @@ package {
   private var sheetSteps:Array=[];
   // The lobby's tooltips' layer (ToolTip.tipContainer), drawn into the sheets' cells too.
   private var tipsLayer:Sprite;
-  // A slot watched for its shake: where it rests, and the most it moved.
-  private var shaken:DisplayObject, shakenX:Number=0, shakenMost:Number=0;
+  // The quick places (the slots' own at the start); one watched for its shake (whichever slot
+  // is shown there), and the most it moved.
+  private var places:Array, shakePlace:int=-1, shakenMost:Number=0;
   public function PerkSlotsHarness() {
    var tsv:URLLoader=new URLLoader();
    tsv.addEventListener(Event.COMPLETE,function(e:Event):void {
@@ -123,14 +124,29 @@ package {
   }
   // What the quick slots show: each visible one by its number, a pocket's yellow (p), the
   // container's mark (c) or a red lock (r) on it; then the weapon slot's yellow (wW) or red (wR).
+  // The quick slot shown at place `p` (1 the first), if one is visible there.
+  private function atPlace(p:int):DisplayObject {
+   for(var q:int=1;q<=6;q++) if(slot(q).visible && slot(q).x==places[p-1].x && slot(q).y==places[p-1].y) return slot(q);
+   return null;
+  }
+  // Every quick slot at a place: none shaken off it.
+  private function atRest():Boolean {
+   for(var q:int=1;q<=6;q++) {
+    var found:Boolean=false;
+    for each(var pl:Point in places) found=found || (slot(q).x==pl.x && slot(q).y==pl.y);
+    if(!found) return false;
+   }
+   return true;
+  }
   private function layout():String {
    var ms:Array=marks(), out:Array=[];
-   for(var q:int=1;q<=6;q++) {
-    if(!slot(q).visible) continue;
-    var t:String=String(q);
-    if(ms[0].visible && ms[0].slot==slot(q)) t+="c";
-    if(ms[1].visible && ms[1].slot==slot(q)) t+="p";
-    if(lockOn(slot(q))!=null) t+="r";
+   for(var p:int=1;p<=6;p++) {
+    var s:DisplayObject=atPlace(p);
+    if(s==null) continue;
+    var t:String=String(p);
+    if(ms[0].visible && ms[0].slot==s) t+="c";
+    if(ms[1].visible && ms[1].slot==s) t+="p";
+    if(lockOn(s)!=null) t+="r";
     out.push(t);
    }
    out.push(ms[1].visible && ms[1].slot==weaponSlot() ? "wW" : (lockOn(weaponSlot())!=null ? "wR" : "w"));
@@ -215,7 +231,10 @@ package {
   }
 
   private function tick(e:Event):void {
-   if(shaken!=null) shakenMost=Math.max(shakenMost,Math.abs(shaken.x-shakenX));
+   if(shakePlace>=0) for(var sq:int=1;sq<=6;sq++) {
+    var sp:Point=places[shakePlace], sd:Number=Math.abs(slot(sq).x-sp.x);
+    if(slot(sq).y==sp.y && sd<12) shakenMost=Math.max(shakenMost,sd);
+   }
    if(++frames<10 || --wait>0) return;
    wait=5;
    try {
@@ -223,6 +242,7 @@ package {
     switch(step++) {
      case 0:
       check(ms.length==2,"the paper doll has a mark a perk");
+      places=[];for(var pq:int=1;pq<=6;pq++) places.push(new Point(slot(pq).x,slot(pq).y));
       // Kit 2: three pockets and the skill's container after them.
       kit(2,3,1);list("K;1:1:0,2:1:0,3:0:0");
       break;
@@ -301,7 +321,7 @@ package {
       // A press on the red lock, a medkit in the yellow pocket: the second weapon at once, asked
       // for once; the medkit goes back, its slot shaken.
       wm.place(slot(2),true);wm.closing(slot(2),true);
-      shaken=slot(2);shakenX=slot(2).x;shakenMost=0;
+      shakePlace=1;shakenMost=0;
       clickOn(lock,0);
       check(asked.length==0,"the red lock's left click asks nothing: "+asked);
       clickOn(lock);
@@ -318,7 +338,7 @@ package {
       wait=40;
       break;
      case 10:
-      check(shaken.x==shakenX && lockOn(slot(2))!=null,"declined: the pocket closed red where it was, slot 2");
+      check(atRest() && lockOn(slot(2))!=null,"declined: the pocket closed red where it was, slot 2");
       // srp's answer: the account first (one pocket), nothing moves.
       kit(2,1,0);
       step=101;
@@ -330,7 +350,7 @@ package {
       break;
      case 11:
       check(lockOn(slot(2))!=null && slot(2).visible,"the closed pocket shown, red, after the pockets");
-      check(shaken.x==shakenX,"the shaken slot back where it rests");
+      check(atRest(),"the shaken slot back where it rests");
       // The open second weapon slot: its tip; a left click is its own; holding a weapon, the
       // weapon's tip line and menu (nothing asked); empty, a right click takes the pocket again.
       weaponSlot().dispatchEvent(new MouseEvent(MouseEvent.ROLL_OVER));
@@ -386,21 +406,21 @@ package {
       clickOn(slot(3));
       check(asked.length==0,"both: the container's pocket holding an item keeps it: "+asked);
       wm.closing(slot(2),true);
-      shaken=slot(2);shakenX=slot(2).x;shakenMost=0;
+      shakePlace=1;shakenMost=0;
       clickOn(lockOn(weaponSlot()));
       check(asked.join()=="1:2","both: the red lock asks for the second weapon: "+asked);
       wait=40;
       break;
      case 16:
-      check(shakenMost>=1 && shaken.x==shakenX,"both: the added pocket that closes shakes: "+shakenMost);
+      check(shakenMost>=1 && atRest(),"both: the added pocket's place shakes: "+shakenMost);
       // srp answers that switch: two pockets.
       kit(2,2,0);answer("K;1:0:1,2:2:2,3:0:1",14);
       wait=10;
       break;
      case 17:
-      // The added pocket gone, the container's slides left; the closed one red after it.
+      // The added pocket blocked in its place (the owner, 2026-11-22), the container's last.
       trace("PERK both declined: "+layout());
-      check(layout()=="1 2c 3r wW","both: the container's pocket slid left, the added one red after it: "+layout());
+      check(layout()=="1 2r 3c wW","both: the added pocket red where it was, the container's pocket last: "+layout());
       // Rapid clicks (the owner, 2026-11-22: "when I click too fast, 'fake' pocket on top can
       // appear for a moment", "there is data race there somewhere"): both perks taken, one
       // pocket and Artifact Container's container.
@@ -419,12 +439,12 @@ package {
       break;
      case 19:
       trace("PERK race account: "+layout());
-      check(layout()=="1c 2r wW","race: the account before its answer: the new state, nothing more: "+layout());
+      check(layout()=="1r 2c wW","race: the account before its answer: the new state, nothing more: "+layout());
       answer("K;1:0:1,2:1:2,3:0:1",14);doll.perkSlots(2,[1,2],ask);
       break;
      case 20:
       trace("PERK race answered: "+layout());
-      check(layout()=="1c 2r wW","race: answered: "+layout());
+      check(layout()=="1r 2c wW","race: answered: "+layout());
       // Now the container switch is taken; its answer refused (srp's word: nothing changed).
       asked.length=0;clickOn(m);
       check(asked.join()=="0:2","race: the next switch once answered: "+asked);
@@ -432,7 +452,7 @@ package {
       break;
      case 21:
       trace("PERK race refused: "+layout());
-      check(m.shown==Mark.TAKEN && layout()=="1c 2r wW","race: a refused switch shows srp's state again at once: "+layout());
+      check(m.shown==Mark.TAKEN && layout()=="1r 2c wW","race: a refused switch shows srp's state again at once: "+layout());
       planSheets();
       break;
      case 200:

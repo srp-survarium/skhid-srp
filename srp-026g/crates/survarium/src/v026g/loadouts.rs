@@ -372,24 +372,30 @@ impl KitPerks {
     }
 }
 
-/// One quick slot's role in a kit's order ([`KitPockets`]).
+/// One quick place's role in a kit's order ([`KitPockets`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PocketRole {
     /// The `n`-th pocket the gear and the other skills open (0 the first), Artifact Container's
     /// aside.
     Base(u8),
-    /// The weapon perk's added pocket (Deep Pockets, Supply Pocket), never a container.
-    Added,
+    /// The weapon perk's added pocket (Deep Pockets, Supply Pocket), never a container: taken an
+    /// open pocket; declined blocked (the lobby's red lock; the second weapon slot open instead,
+    /// and the game has a pocket fewer).
+    Added(PerkSlot),
     /// Artifact Container's slot, the last base pocket: taken the container, declined the pocket.
     Switched(PerkSlot),
 }
 
-/// A kit's quick slots by role, in the game's order (the owner, 2026-11-22: "[free pockets - 1]
-/// [additional pocket] [free pocket for switching with artis]"): the base pockets but the last,
-/// the weapon perk's pocket while the kit takes it, then the last base pocket, Artifact
-/// Container's when the account has the skill: a pocket, or the container (the game opens the
-/// first `pockets` places as pockets and the containers after them, `artefact-skills.md`). A slot
-/// taken away slides the ones after it left; each keeps its role and its item ([`Self::moved`]).
+/// A kit's quick places by role (the owner, 2026-11-22: "[free pockets - 1] [additional pocket]
+/// [free pocket for switching with artis]", the added pocket blocked in its place while declined):
+/// the base pockets but the last, the weapon perk's added pocket while the account has the skill,
+/// then the last base pocket, Artifact Container's while the account has that skill: a pocket, or
+/// the container. Each role keeps its place and its item ([`Self::moved`]).
+///
+/// The game holds the same order without the blocked pocket ([`Self::slots`]): it opens its first
+/// `pockets` quick slots as pockets and the containers after them (`artefact-skills.md`), so a
+/// declined added pocket is no slot of the kit in the game, and the lobby shows it, red, before
+/// Artifact Container's slot ([`Self::places`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct KitPockets {
     base: u8,
@@ -408,23 +414,44 @@ impl KitPockets {
         }
     }
 
-    /// Each quick place's role ([`POCKET_SLOTS`] in order); none past the kit's slots.
-    pub fn roles(&self) -> [Option<PocketRole>; MAX_POCKETS] {
+    /// The game's quick slots ([`POCKET_SLOTS`] in order) by role: a blocked added pocket takes
+    /// none; none past the kit's slots.
+    pub fn slots(&self) -> [Option<PocketRole>; MAX_POCKETS] {
         let plain = match self.container {
             Some(_) => self.base.saturating_sub(1),
             None => self.base,
         };
         let mut order = (0..plain)
             .map(PocketRole::Base)
-            .chain((self.weapon == Some(PerkSlot::Taken)).then_some(PocketRole::Added))
+            .chain(
+                (self.weapon == Some(PerkSlot::Taken)).then_some(PocketRole::Added(PerkSlot::Taken)),
+            )
             .chain(self.container.map(PocketRole::Switched));
+        std::array::from_fn(|_| order.next())
+    }
+
+    /// The lobby's quick places by role: the game's slots, and a blocked added pocket before
+    /// Artifact Container's slot (else after the others) while one of the six places is free.
+    /// Each entry the game's slot shown there ([`Self::slots`]'s index), none for the blocked one.
+    pub fn places(&self) -> [Option<(PocketRole, Option<usize>)>; MAX_POCKETS] {
+        let slots = self.slots();
+        let used = slots.iter().flatten().count();
+        let mut order: Vec<(PocketRole, Option<usize>)> =
+            slots.iter().enumerate().filter_map(|(at, role)| Some(((*role)?, Some(at)))).collect();
+        if self.weapon == Some(PerkSlot::Declined) && used < MAX_POCKETS {
+            let at = order
+                .iter()
+                .position(|(role, _)| matches!(role, PocketRole::Switched(_)))
+                .unwrap_or(order.len());
+            order.insert(at, (PocketRole::Added(PerkSlot::Declined), None));
+        }
+        let mut order = order.into_iter();
         std::array::from_fn(|_| order.next())
     }
 
     /// The pockets open, the game's count (the kit's modifiers give it the same).
     pub fn pockets(&self) -> u32 {
-        let roles = self.roles();
-        roles
+        self.slots()
             .iter()
             .flatten()
             .filter(|&&role| role != PocketRole::Switched(PerkSlot::Taken))
@@ -432,8 +459,9 @@ impl KitPockets {
     }
 
     /// `slots` (a kit's, [`POCKET_SLOTS`] among them) as a kit of `after` holds them: each
-    /// pocket's item where its role is in `after` (the last base pocket is Artifact Container's
-    /// slot and back as the skill comes and goes); gone where its role is, or is the container.
+    /// pocket's item in its role's slot in `after` (the last base pocket is Artifact Container's
+    /// slot and back as the skill comes and goes); gone where its role has no slot, is blocked,
+    /// or is the container.
     pub fn moved<T: Copy, const SLOTS: usize>(
         &self,
         after: &KitPockets,
@@ -444,9 +472,9 @@ impl KitPockets {
         let key = |pockets: &KitPockets, role: PocketRole| match role {
             PocketRole::Base(n) => Some(n),
             PocketRole::Switched(_) => Some(pockets.base.saturating_sub(1)),
-            PocketRole::Added => None,
+            PocketRole::Added(_) => None,
         };
-        let (before, now) = (self.roles(), after.roles());
+        let (before, now) = (self.slots(), after.slots());
         let held: [Option<T>; MAX_POCKETS] =
             std::array::from_fn(|at| slots[usize::from(POCKET_SLOTS[at])]);
         for (at, role) in now.iter().enumerate() {
@@ -1231,34 +1259,43 @@ mod tests {
     use super::*;
 
     /// The owner's order (2026-11-22): the base pockets but the last, the added pocket, then
-    /// Artifact Container's; a slot that goes slides the ones after it left, each with its item.
+    /// Artifact Container's. The added pocket declined is blocked in its place in the lobby and no
+    /// slot in the game, so the game's slots close up; each keeps its item.
     #[test]
     fn a_kits_pockets_keep_their_roles() {
         use PocketRole::*;
-        let both = KitPockets::new(3, Some(PerkSlot::Taken), Some(PerkSlot::Declined));
-        let roles = both.roles();
+        use PerkSlot::{Declined, Taken};
+        let both = KitPockets::new(3, Some(Taken), Some(Declined));
         assert_eq!(
-            roles[..5],
+            both.slots()[..5],
+            [Some(Base(0)), Some(Base(1)), Some(Added(Taken)), Some(Switched(Declined)), None]
+        );
+        assert_eq!(both.places()[2], Some((Added(Taken), Some(2))));
+        assert_eq!(both.pockets(), 4);
+        let container = KitPockets::new(3, Some(Taken), Some(Taken));
+        assert_eq!(container.pockets(), 3);
+        assert_eq!(container.slots()[3], Some(Switched(Taken)));
+        // Declined: blocked in its place in the lobby, before the container's pocket, which is
+        // the game's third slot.
+        let declined = KitPockets::new(3, Some(Declined), Some(Declined));
+        assert_eq!(declined.pockets(), 3);
+        assert_eq!(declined.slots()[2], Some(Switched(Declined)));
+        assert_eq!(
+            declined.places()[..4],
             [
-                Some(Base(0)),
-                Some(Base(1)),
-                Some(Added),
-                Some(Switched(PerkSlot::Declined)),
-                None
+                Some((Base(0), Some(0))),
+                Some((Base(1), Some(1))),
+                Some((Added(Declined), None)),
+                Some((Switched(Declined), Some(2)))
             ]
         );
-        assert_eq!(both.pockets(), 4);
-        let container = KitPockets::new(3, Some(PerkSlot::Taken), Some(PerkSlot::Taken));
-        assert_eq!(container.pockets(), 3);
-        assert_eq!(container.roles()[3], Some(Switched(PerkSlot::Taken)));
         let mut slots: [Option<char>; 23] = [None; 23];
         slots[13..17].copy_from_slice(&[Some('a'), Some('b'), Some('w'), Some('c')]);
-        // The weapon perk declined: its pocket's item gone, the container's pocket slid left.
-        let declined = KitPockets::new(3, Some(PerkSlot::Declined), Some(PerkSlot::Declined));
+        // Declined: the added pocket's item gone; the container's pocket keeps its item.
         let mut moved = slots;
         both.moved(&declined, &mut moved);
         assert_eq!(moved[13..17], [Some('a'), Some('b'), Some('c'), None]);
-        // And back: the added pocket empty, the container's pocket last again.
+        // And back: the added pocket open and empty.
         let mut back = moved;
         declined.moved(&both, &mut back);
         assert_eq!(back[13..17], [Some('a'), Some('b'), None, Some('c')]);
@@ -1266,11 +1303,11 @@ mod tests {
         let mut taken = slots;
         both.moved(&container, &mut taken);
         assert_eq!(taken[13..17], [Some('a'), Some('b'), Some('w'), None]);
-        // Full: the six places hold the base pockets and the added one, the container cut.
-        assert_eq!(
-            KitPockets::new(6, Some(PerkSlot::Taken), Some(PerkSlot::Taken)).pockets(),
-            6
-        );
+        // Full: the six places hold the base pockets and the added one, the container cut; the
+        // blocked pocket shown while a place is free.
+        assert_eq!(KitPockets::new(6, Some(Taken), Some(Taken)).pockets(), 6);
+        let full = KitPockets::new(6, Some(Declined), None).places();
+        assert!(full.iter().flatten().all(|(_, at)| at.is_some()));
     }
 
     #[test]

@@ -1714,11 +1714,12 @@ mod tests {
 
     /// Both perks on a kit (the owner, 2026-11-22: "[free pockets - 1] [additional pocket] [free
     /// pocket for switching with artis]"): each perk switches its own slot only. The weapon perk's
-    /// pocket is never the container; declined, Artifact Container's slot slides left with its
-    /// item. The match gets the same order: the kit's modifiers open as many pockets, the
-    /// container after them.
+    /// pocket is never the container; declined, it is blocked in its place in the lobby and the
+    /// game has a pocket fewer, Artifact Container's slot last with its item. The match gets the
+    /// same order: the kit's modifiers open as many pockets, the container after them.
     #[test]
     fn each_perk_switches_its_own_slot() {
+        use PerkSlot::{Declined, Taken};
         use survarium::v026g::skills::slot_modifier::ARTEFACT_SLOTS;
         let tree = tree_with_container();
         let dictionary = Dictionary::shared();
@@ -1726,21 +1727,24 @@ mod tests {
         let medkit = account.add_item(dictionary.item_named("medkit").unwrap().dict_id, 2);
         let bandage = account.add_item(dictionary.item_named("bandages").unwrap().dict_id, 2);
         account.change_skills(vec![(ARTIFACT_CONTAINER, 1), (DEEP_POCKETS, 1)], &tree);
-        let roles = |account: &Account| account.kit_pockets(0, &tree).unwrap().roles();
+        let pockets = |account: &Account| account.kit_pockets(0, &tree).unwrap();
+        let roles = |account: &Account| {
+            pockets(account)
+                .places()
+                .map(|place| place.map(|(role, _)| role))
+        };
         let pocket =
             |account: &Account, slot: usize| account.kits[0].slots[slot].map(|held| held.item_id);
-        // The match's count: the kit's modifiers, as the match block sends them.
+        // The match's count: the kit's modifiers, as the match block sends them; the container
+        // the game's slot after the pockets.
         let matched = |account: &Account| {
             let modifiers = tree.modifiers(&account.kits[0].perks.skills_taken(&account.skills));
-            let pockets = account.kit_pockets(0, &tree).unwrap();
-            assert_eq!(
-                account.layout_of([], &modifiers).pockets(),
-                pockets.pockets()
-            );
+            let pockets = pockets(account);
+            assert_eq!(account.layout_of([], &modifiers).pockets(), pockets.pockets());
             let container = pockets
-                .roles()
+                .slots()
                 .iter()
-                .position(|role| *role == Some(PocketRole::Switched(PerkSlot::Taken)));
+                .position(|role| *role == Some(PocketRole::Switched(Taken)));
             let containers = modifiers[ARTEFACT_SLOTS];
             assert_eq!(
                 container.map(|at| at as u32),
@@ -1748,67 +1752,38 @@ mod tests {
             );
         };
         use PocketRole::{Added, Switched};
-        assert_eq!(
-            roles(&account)[..2],
-            [Some(Added), Some(Switched(PerkSlot::Taken))]
-        );
+        assert_eq!(roles(&account)[..2], [Some(Added(Taken)), Some(Switched(Taken))]);
         matched(&account);
 
         // The container a pocket: the last one, the added pocket before it.
-        account
-            .set_perk_slot(0, CONTAINER, PerkSlot::Declined, &tree)
-            .unwrap();
-        assert_eq!(
-            roles(&account)[..2],
-            [Some(Added), Some(Switched(PerkSlot::Declined))]
-        );
+        account.set_perk_slot(0, CONTAINER, Declined, &tree).unwrap();
+        assert_eq!(roles(&account)[..2], [Some(Added(Taken)), Some(Switched(Declined))]);
         matched(&account);
         in_pocket(&mut account, 0, 13, medkit, 2);
         in_pocket(&mut account, 0, 14, bandage, 2);
         let inventory = account.inventory.clone();
 
-        // The weapon perk declined: its pocket goes with its medkit; the container's pocket
-        // slides left with its bandage.
-        account
-            .set_perk_slot(0, SlotPerk::WeaponPocket, PerkSlot::Declined, &tree)
-            .unwrap();
-        assert_eq!(
-            roles(&account)[..2],
-            [Some(Switched(PerkSlot::Declined)), None]
-        );
-        assert_eq!(
-            (pocket(&account, 13), pocket(&account, 14)),
-            (Some(bandage), None)
-        );
+        // The weapon perk declined: its pocket blocked where it is, its medkit off; the game has
+        // the container's pocket alone, with its bandage, in its first slot.
+        account.set_perk_slot(0, SlotPerk::WeaponPocket, Declined, &tree).unwrap();
+        assert_eq!(roles(&account)[..2], [Some(Added(Declined)), Some(Switched(Declined))]);
+        assert_eq!(pockets(&account).slots()[..2], [Some(Switched(Declined)), None]);
+        assert_eq!((pocket(&account, 13), pocket(&account, 14)), (Some(bandage), None));
         matched(&account);
 
-        // Taken again: the added pocket back, empty, before it.
-        account
-            .set_perk_slot(0, SlotPerk::WeaponPocket, PerkSlot::Taken, &tree)
-            .unwrap();
-        assert_eq!(
-            (pocket(&account, 13), pocket(&account, 14)),
-            (None, Some(bandage))
-        );
+        // Taken again: the added pocket open, empty.
+        account.set_perk_slot(0, SlotPerk::WeaponPocket, Taken, &tree).unwrap();
+        assert_eq!((pocket(&account, 13), pocket(&account, 14)), (None, Some(bandage)));
         in_pocket(&mut account, 0, 13, medkit, 2);
 
         // The container again: its pocket's bandage off, the added pocket's medkit kept.
-        account
-            .set_perk_slot(0, CONTAINER, PerkSlot::Taken, &tree)
-            .unwrap();
-        assert_eq!(
-            (pocket(&account, 13), pocket(&account, 14)),
-            (Some(medkit), None)
-        );
+        account.set_perk_slot(0, CONTAINER, Taken, &tree).unwrap();
+        assert_eq!((pocket(&account, 13), pocket(&account, 14)), (Some(medkit), None));
         matched(&account);
-        // The weapon perk declined with the container: the container slides left.
-        account
-            .set_perk_slot(0, SlotPerk::WeaponPocket, PerkSlot::Declined, &tree)
-            .unwrap();
-        assert_eq!(
-            roles(&account)[..2],
-            [Some(Switched(PerkSlot::Taken)), None]
-        );
+        // The weapon perk declined with the container: blocked before it; the game's container
+        // its first quick slot, after no pocket.
+        account.set_perk_slot(0, SlotPerk::WeaponPocket, Declined, &tree).unwrap();
+        assert_eq!(roles(&account)[..2], [Some(Added(Declined)), Some(Switched(Taken))]);
         assert_eq!(pocket(&account, 13), None);
         matched(&account);
         assert_eq!(account.inventory, inventory);
