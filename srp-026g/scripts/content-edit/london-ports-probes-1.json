@@ -1,5 +1,5 @@
 {
- "_about": "The two ported Londons' purple corridor, as london-probes-1 fixed it on the old London (the owner, 2026-11-15: screenshot 20-45-05; rain_4 2026-11-19; back on London (v0.32)'s rain_ah, 2026-11-22: screenshot 06-02-41): the corridor probe gerkin(4) takes its neighbour gerkin(3)'s cubemap, each project's own. Both donors (0.32a4, 0.44a5) ship 0.31a2's bake of it (the same files), with the corridor's fluorescent lamp's lavender light in it (lamp_sparks(4), the old fluor_lamp(9), breakable by breakable-lamps-v032-1/-v042-1), which stays once the lamp is shot out. Every project of both: the pack's day, rain and evening, Free for All's day_8 (v0.32); the Artifact Hunt copies made after take it along (docs/notes/map-probes.md).",
+ "_about": "The two ported Londons' purple corridor, as london-probes-1 fixed it on the old London (the owner, 2026-11-15: screenshot 20-45-05; rain_4 2026-11-19; back on London (v0.32)'s rain_ah, 2026-11-22: screenshot 06-02-41): the corridor probe gerkin(4) takes its neighbour gerkin(3)'s cubemap, each project's own. Both donors (0.32a4, 0.44a5) ship 0.31a2's bake of it (the same files), with the corridor's fluorescent lamp's lavender light in it (lamp_sparks(4), the old fluor_lamp(9), breakable by breakable-lamps-v032-1/-v042-1), which stays once the lamp is shot out. Every project of both: the pack's day, rain and evening, Free for All's day_8 (v0.32); the Artifact Hunt copies made after take it along. On London (v0.32) also the office probe gerkin(5) (the owner, 2026-11-22: screenshot 06-30-46, rain_4's office with the glass partitions), which holds its lamp lamp_sparks(5)'s lavender light the same way: it takes the office's other probe gerkin(13)'s cubemap. 0.44a5 baked gerkin(5) anew and its gerkin(13) warm, so London (v0.42)'s stays (docs/notes/map-probes.md).",
  "set_entry": [
   {
    "file": "projects/v032a_level_09/day_2/client_project",
@@ -16,6 +16,20 @@
    }
   },
   {
+   "file": "projects/v032a_level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(5)",
+    "game_object_type": "environment_probe"
+   },
+   "from": {
+    "texture": "environment_probes/v032a_level_09/probe_day_default_20557674691233917074"
+   },
+   "to": {
+    "texture": "environment_probes/v032a_level_09/probe_day_default_28467315224973027178"
+   }
+  },
+  {
    "file": "projects/v032a_level_09/day_3/client_project",
    "list": "client_objects",
    "where": {
@@ -27,6 +41,20 @@
    },
    "to": {
     "texture": "environment_probes/v032a_level_09/probe_day_default_69818708879831187022"
+   }
+  },
+  {
+   "file": "projects/v032a_level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(5)",
+    "game_object_type": "environment_probe"
+   },
+   "from": {
+    "texture": "environment_probes/v032a_level_09/probe_day_default_20557674691233917074"
+   },
+   "to": {
+    "texture": "environment_probes/v032a_level_09/probe_day_default_28467315224973027178"
    }
   },
   {
@@ -58,6 +86,34 @@
    }
   },
   {
+   "file": "projects/v032a_level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(5)",
+    "game_object_type": "environment_probe"
+   },
+   "from": {
+    "texture": "environment_probes/v032a_level_09/probe_day_default_20557674691233917074"
+   },
+   "to": {
+    "texture": "environment_probes/v032a_level_09/probe_day_default_28467315224973027178"
+   }
+  },
+  {
+   "file": "projects/v032a_level_09/day_8/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(5)",
+    "game_object_type": "environment_probe"
+   },
+   "from": {
+    "texture": "environment_probes/v032a_level_09/probe_day_default_20557674691233917074"
+   },
+   "to": {
+    "texture": "environment_probes/v032a_level_09/probe_day_default_28467315224973027178"
+   }
+  },
+  {
    "file": "projects/v032a_level_09/day_5/client_project",
    "list": "client_objects",
    "where": {
@@ -69,6 +125,20 @@
    },
    "to": {
     "texture": "environment_probes/v032a_level_09/probe_day_default_69818708879831187022"
+   }
+  },
+  {
+   "file": "projects/v032a_level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(5)",
+    "game_object_type": "environment_probe"
+   },
+   "from": {
+    "texture": "environment_probes/v032a_level_09/probe_day_default_20557674691233917074"
+   },
+   "to": {
+    "texture": "environment_probes/v032a_level_09/probe_day_default_28467315224973027178"
    }
   },
   {
@@ -86,6 +156,20 @@
    }
   },
   {
+   "file": "projects/v032a_level_09/rain_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(5)",
+    "game_object_type": "environment_probe"
+   },
+   "from": {
+    "texture": "environment_probes/v032a_level_09/probe_rain_default_15913465885085241190"
+   },
+   "to": {
+    "texture": "environment_probes/v032a_level_09/probe_rain_default_43967979707279432178"
+   }
+  },
+  {
    "file": "projects/v032a_level_09/rain_3/client_project",
    "list": "client_objects",
    "where": {
@@ -97,6 +181,20 @@
    },
    "to": {
     "texture": "environment_probes/v032a_level_09/probe_rain_default_88843432350183793023"
+   }
+  },
+  {
+   "file": "projects/v032a_level_09/rain_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(5)",
+    "game_object_type": "environment_probe"
+   },
+   "from": {
+    "texture": "environment_probes/v032a_level_09/probe_rain_default_15913465885085241190"
+   },
+   "to": {
+    "texture": "environment_probes/v032a_level_09/probe_rain_default_43967979707279432178"
    }
   },
   {
@@ -114,6 +212,20 @@
    }
   },
   {
+   "file": "projects/v032a_level_09/rain_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(5)",
+    "game_object_type": "environment_probe"
+   },
+   "from": {
+    "texture": "environment_probes/v032a_level_09/probe_rain_default_15913465885085241190"
+   },
+   "to": {
+    "texture": "environment_probes/v032a_level_09/probe_rain_default_43967979707279432178"
+   }
+  },
+  {
    "file": "projects/v032a_level_09/evening_2/client_project",
    "list": "client_objects",
    "where": {
@@ -125,6 +237,20 @@
    },
    "to": {
     "texture": "environment_probes/v032a_level_09/probe_evening_default_93471958484732453023"
+   }
+  },
+  {
+   "file": "projects/v032a_level_09/evening_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(5)",
+    "game_object_type": "environment_probe"
+   },
+   "from": {
+    "texture": "environment_probes/v032a_level_09/probe_evening_default_73739381983616541190"
+   },
+   "to": {
+    "texture": "environment_probes/v032a_level_09/probe_evening_default_28633803427766572178"
    }
   },
   {
@@ -142,6 +268,20 @@
    }
   },
   {
+   "file": "projects/v032a_level_09/evening_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(5)",
+    "game_object_type": "environment_probe"
+   },
+   "from": {
+    "texture": "environment_probes/v032a_level_09/probe_evening_default_73739381983616541190"
+   },
+   "to": {
+    "texture": "environment_probes/v032a_level_09/probe_evening_default_28633803427766572178"
+   }
+  },
+  {
    "file": "projects/v032a_level_09/evening_4/client_project",
    "list": "client_objects",
    "where": {
@@ -153,6 +293,20 @@
    },
    "to": {
     "texture": "environment_probes/v032a_level_09/probe_evening_default_93471958484732453023"
+   }
+  },
+  {
+   "file": "projects/v032a_level_09/evening_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(5)",
+    "game_object_type": "environment_probe"
+   },
+   "from": {
+    "texture": "environment_probes/v032a_level_09/probe_evening_default_73739381983616541190"
+   },
+   "to": {
+    "texture": "environment_probes/v032a_level_09/probe_evening_default_28633803427766572178"
    }
   },
   {

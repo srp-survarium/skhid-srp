@@ -36,6 +36,10 @@ The ported Londons (`london-ports-probes-1.json`) came back with it (2026-11-22,
 screenshot 06-02-41): 0.32a4 and 0.44a5 ship the same bake under the same names, and their lamp
 (`lamp_sparks(4)`, the old `fluor_lamp(9)`) is breakable too. The same edit, each project's own
 `gerkin(3)` cubemap, in every project of `v032a_level_09` and `v044a_level_09`.
+On London (v0.32) the list also gives the office probe `gerkin(5)` (one of the four above; screenshot
+06-30-46, rain_4's office with the glass partitions) the office's other probe `gerkin(13)`'s cubemap:
+its lamp `lamp_sparks(5)` is baked into it the same way. 0.44a5 baked `gerkin(5)` anew and its
+`gerkin(13)` warm, so London (v0.42)'s stays.
 
 ## Vector Laboratory: the bright band (`vector-probe-1.json`)
 
