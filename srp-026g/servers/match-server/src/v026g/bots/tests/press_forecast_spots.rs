@@ -52,7 +52,7 @@ fn press_forecast_crossings_on_map_91() {
     let n_starts = starts.len();
     for start in starts {
         let c = cross(&world, start, a, b, goal, 40_000, tuning.clone());
-        let (steps, ns) = kept_clock::take(kept_clock::Of::Press);
+        let kept_clock::Counted { steps, ns, .. } = kept_clock::take(kept_clock::Of::Press);
         let (chains, flights) = press_casts::take_match();
         let ms = ns as f64 / 1e6;
         all_ms += ms;

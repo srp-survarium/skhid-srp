@@ -165,10 +165,14 @@ pub(crate) fn kept_step(
     sprinting: bool,
     clock: kept_clock::Of,
 ) -> Option<KeptStep> {
-    let started = std::time::Instant::now();
+    let timer = kept_clock::Timer::start();
     let mut body = match kept.take() {
         Some(body) if body.feet.distance_xz(feet) <= KEPT_SAME_M => body,
-        _ => KeptBody { controller: grid.kept_controller_at(feet)?, feet, airborne: false },
+        _ => {
+            let controller = grid.kept_controller_at(feet)?;
+            kept_clock::anew(clock);
+            KeptBody { controller, feet, airborne: false }
+        }
     };
     let input = TickInput {
         walk: Vec3::new(by.x, 0.0, by.z),
@@ -178,8 +182,9 @@ pub(crate) fn kept_step(
     };
     let start = body.controller.feet();
     let notes = grid.kept_tick(&mut body.controller, input)?;
-    let ns = started.elapsed().as_nanos() as u64;
-    kept_clock::add(clock, ns);
+    // The wall time is the bench's own count too (`client_steps`).
+    #[cfg_attr(not(test), allow(unused_variables))]
+    let ns = timer.stop(clock);
     if crouch == (CrouchInput::Tested { key: false, legs_broken: true }) && clock == kept_clock::Of::Reckoning {
         kept_clock::legs_crouched();
     }
@@ -862,9 +867,9 @@ pub fn press_forecast(at: &Estimate, plan: &PressPlan, world: &PressWorld) -> Pr
         let input = TickInput { walk: Vec3::ZERO, air_control: Vec3::ZERO, crouch: crouch_input(0, false), sprinting: false };
         let mut down = false;
         for _ in 0..PRESS_FALL_STEPS {
-            let started = std::time::Instant::now();
+            let timer = kept_clock::Timer::start();
             let notes = grid.kept_tick(&mut kept.controller, input);
-            kept_clock::add(kept_clock::Of::Press, started.elapsed().as_nanos() as u64);
+            timer.stop(kept_clock::Of::Press);
             let Some(notes) = notes else {
                 return PressOutcome::NoFlight;
             };
@@ -1014,7 +1019,11 @@ impl FlownJump {
         }
         let body = match kept {
             Some(body) if body.feet.distance_xz(feet) <= KEPT_SAME_M => body,
-            _ => KeptBody { controller: grid.kept_controller_at(feet)?, feet, airborne: false },
+            _ => {
+                let controller = grid.kept_controller_at(feet)?;
+                kept_clock::anew(clock);
+                KeptBody { controller, feet, airborne: false }
+            }
         };
         let cap = CAP * level;
         let sprint = keys & (key::FORWARD | key::SPRINT) == (key::FORWARD | key::SPRINT)
@@ -1036,7 +1045,7 @@ impl FlownJump {
     /// 1,392 of 1,392 air steps; the exe review of #1938). The controller turns both by the walk's heading, so the air control is
     /// handed over already turned into it. None without the grid's walker.
     pub(crate) fn step(&mut self, grid: &WalkGrid, yaw: f32, air_keys: u32, air_yaw: f32) -> Option<FlownStep> {
-        let started = std::time::Instant::now();
+        let timer = kept_clock::Timer::start();
         let [fx, fz] = super::kin::forward(yaw);
         let sign = |plus, minus| i8::from(air_keys & plus != 0) - i8::from(air_keys & minus != 0);
         let (a, r) = mapdata::controller::jump::Flying::air_of(self.flying.press(), sign(key::FORWARD, key::BACK), sign(key::RIGHT, key::LEFT));
@@ -1045,7 +1054,7 @@ impl FlownJump {
         let (sin, cos) = super::kin::wrap(air_yaw - yaw).sin_cos();
         let air = (a * cos + r * sin, r * cos - a * sin);
         let step = grid.kept_fly_step(&mut self.body.controller, &mut self.flying, (fx, fz), air)?;
-        kept_clock::add(self.clock, started.elapsed().as_nanos() as u64);
+        timer.stop(self.clock);
         let feet = step.feet + self.shift;
         if !self.flying.landed() {
             return Some(FlownStep::Air(feet));
@@ -2493,10 +2502,43 @@ pub(crate) mod kept_clock {
 
     static STEPS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
     static NS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+    /// [CPU] The steps' time on the thread's CPU (`cpu_time::thread`), beside their wall time (`NS`): in the bench only (a read is a
+    /// system call; the server keeps the wall clock alone).
+    #[cfg(test)]
+    static CPU_NS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+    /// [CPU] Controllers made anew (`WalkGrid::kept_controller_at`: no kept one at the feet).
+    static ANEW: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
 
-    pub(crate) fn add(of: Of, ns: u64) {
-        STEPS[of as usize].fetch_add(1, Relaxed);
-        NS[of as usize].fetch_add(ns, Relaxed);
+    /// [CPU] A step's clocks, started: the wall's, and in the bench the thread's CPU.
+    pub(crate) struct Timer {
+        wall: std::time::Instant,
+        #[cfg(test)]
+        cpu: std::time::Duration,
+    }
+
+    impl Timer {
+        pub(crate) fn start() -> Self {
+            Self {
+                wall: std::time::Instant::now(),
+                #[cfg(test)]
+                cpu: super::super::cpu_time::thread(),
+            }
+        }
+
+        /// `of`'s step ended: counted with its wall time (and in the bench its CPU time). Its wall time, ns.
+        pub(crate) fn stop(self, of: Of) -> u64 {
+            #[cfg(test)]
+            CPU_NS[of as usize].fetch_add(super::super::cpu_time::thread().saturating_sub(self.cpu).as_nanos() as u64, Relaxed);
+            let ns = self.wall.elapsed().as_nanos() as u64;
+            STEPS[of as usize].fetch_add(1, Relaxed);
+            NS[of as usize].fetch_add(ns, Relaxed);
+            ns
+        }
+    }
+
+    /// [CPU] `of` made a kept controller anew.
+    pub(crate) fn anew(of: Of) {
+        ANEW[of as usize].fetch_add(1, Relaxed);
     }
 
     /// [A388 (e) gap 16] The reckoning's controller steps crouched by both legs broken with the crouch key up.
@@ -2511,9 +2553,33 @@ pub(crate) mod kept_clock {
         LEGS_CROUCHED.swap(0, Relaxed)
     }
 
-    /// `of`'s steps and their time (ns) since the last call, and zero again.
-    pub(crate) fn take(of: Of) -> (u64, u64) {
-        (STEPS[of as usize].swap(0, Relaxed), NS[of as usize].swap(0, Relaxed))
+    /// What one clock counted: its steps, their wall time (and in the bench their thread CPU), ns, and the controllers it made anew.
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    pub(crate) struct Counted {
+        pub(crate) steps: u64,
+        pub(crate) ns: u64,
+        #[cfg(test)]
+        pub(crate) cpu_ns: u64,
+        pub(crate) anew: u64,
+    }
+
+    /// `of`'s counts since the last call, and zero again.
+    pub(crate) fn take(of: Of) -> Counted {
+        let i = of as usize;
+        Counted {
+            steps: STEPS[i].swap(0, Relaxed),
+            ns: NS[i].swap(0, Relaxed),
+            #[cfg(test)]
+            cpu_ns: CPU_NS[i].swap(0, Relaxed),
+            anew: ANEW[i].swap(0, Relaxed),
+        }
+    }
+
+    /// [CPU] The thread CPU of the bots' own kept steps so far (the reckoning's, the lip guard forecast's, the press forecast's; not
+    /// the stand-in's), not zeroed: the bench's split of a poll (`bench_cpu`).
+    #[cfg(test)]
+    pub(crate) fn bots_cpu_ns() -> u64 {
+        [Of::Reckoning, Of::Forecast, Of::Press].iter().map(|&of| CPU_NS[of as usize].load(Relaxed)).sum()
     }
 }
 
@@ -3856,7 +3922,7 @@ pub(super) mod tests {
             }
         }
         eprintln!("presses that fell on: {fell} of 20");
-        let (steps, _) = kept_clock::take(kept_clock::Of::Press);
+        let steps = kept_clock::take(kept_clock::Of::Press).steps;
         assert!(steps > 0, "on the press clock");
     }
 
@@ -3905,7 +3971,7 @@ pub(super) mod tests {
                 }
             }
             let ns = started.elapsed().as_nanos() as f64;
-            let (steps, step_ns) = kept_clock::take(kept_clock::Of::Press);
+            let kept_clock::Counted { steps, ns: step_ns, .. } = kept_clock::take(kept_clock::Of::Press);
             eprintln!(
                 "PRESS COST round {round}: {forecasts} forecasts, {:.3} ms a forecast (the loop), {} controller steps, {:.1} a forecast, {} ns a step (the press clock)",
                 ns / 1e6 / f64::from(forecasts),

@@ -209,6 +209,23 @@ pub(crate) struct Times {
     pub(crate) each: Vec<f32>,
     /// The longest of each part in one poll, µs.
     pub(crate) worst: [f32; 4],
+    /// [CPU] The view, the commanders and the bots' loop (thinks and ticks) on the thread's CPU (`cpu_time`), s, and the named
+    /// costs' share of each (grid searches, pulls, the kept controllers' steps: `bench_cpu::named_ns`), s. The loop's thinks and
+    /// its parts are `bench_cpu`'s, read where they run.
+    pub(crate) cpu: [f64; 3],
+    pub(crate) cpu_named: [f64; 3],
+    /// [CPU] Each poll's whole time on the thread's CPU, µs.
+    pub(crate) cpu_each: Vec<f32>,
+}
+
+/// [CPU] The thread's CPU and the named costs' CPU (ns) at a point of a poll.
+fn cpu_mark() -> (std::time::Duration, u64) {
+    (thread_cpu(), crate::v026g::bots::bench_cpu::named_ns())
+}
+
+/// [CPU] From mark `a` to mark `b`: the thread's CPU and the named costs' part of it, s.
+fn cpu_between(a: (std::time::Duration, u64), b: (std::time::Duration, u64)) -> (f64, f64) {
+    (b.0.saturating_sub(a.0).as_secs_f64(), b.1.saturating_sub(a.1) as f64 / 1e9)
 }
 
 /// The default tuning, with `SRP_BENCH_SEARCH_FLOORS=<n>` (`max`: no bound)
@@ -282,18 +299,7 @@ pub(crate) fn bench_pings(places: usize, seed: u32) -> Option<Vec<u32>> {
 /// The calling thread's CPU time (Linux: `CLOCK_THREAD_CPUTIME_ID`; zero elsewhere): what the thread ran, without the wall
 /// time it also waited for a core on a loaded machine (a nice-19 bench beside other work waits seconds at times).
 fn thread_cpu() -> std::time::Duration {
-    #[cfg(target_os = "linux")]
-    {
-        let mut t = libc::timespec { tv_sec: 0, tv_nsec: 0 };
-        // SAFETY: `t` is a valid, writable timespec; the call only writes it.
-        let read = unsafe { libc::clock_gettime(libc::CLOCK_THREAD_CPUTIME_ID, &mut t) };
-        assert_eq!(read, 0, "clock_gettime(CLOCK_THREAD_CPUTIME_ID): {}", std::io::Error::last_os_error());
-        std::time::Duration::new(u64::try_from(t.tv_sec).unwrap_or(0), u32::try_from(t.tv_nsec).unwrap_or(0))
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        std::time::Duration::ZERO
-    }
+    crate::v026g::bots::cpu_time::thread()
 }
 
 pub(super) fn bench_wall_clearance() -> bool {
@@ -623,6 +629,7 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     use std::time::Instant;
     let spike = spike_us();
     let started = Instant::now();
+    let cpu_started = cpu_mark();
     let work_start = super::bench_work::totals();
     super::bench_work::set(super::bench_work::Who::Shared);
     bots.poll_budgets();
@@ -640,6 +647,7 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
         .tracker
         .view(&clock, &bots.match_wide_tuning().kin, world.as_deref());
     let viewed = Instant::now();
+    let cpu_viewed = cpu_mark();
     let work_viewed = super::bench_work::totals();
     let mut commanders: Vec<(u8, f32, [u64; super::bench_work::KINDS])> = Vec::new();
     super::route_twins::phase(clock.playing, now);
@@ -657,6 +665,7 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
         }
     }
     let commanded = Instant::now();
+    let cpu_commanded = cpu_mark();
     let mut think = 0.0;
     let mut rays = RayBudget::new(bots.match_wide_tuning().think.rays_per_poll);
     rays.thinks_left = bots.thinks_due(&view);
@@ -665,6 +674,7 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     // each bot's think timed; the ticks are the rest of the loop, the searches under way with them (they are drive
     // work, as the drive's own searches are).
     let looped = Instant::now();
+    let cpu_looped = cpu_mark();
     let work_looped = super::bench_work::totals();
     let mut by_bot: Vec<BotTime> = Vec::new();
     let mut in_bots = 0.0;
@@ -698,6 +708,7 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
         }
     });
     let ticks = looped.elapsed().as_secs_f64() - think;
+    let cpu_end = cpu_mark();
     super::bench_work::set(super::bench_work::Who::Idle);
     bots.polls.record(clock.clock, &rays);
     let parts = [
@@ -716,6 +727,14 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     }
     let whole_us = started.elapsed().as_secs_f32() * 1e6;
     times.each.push(whole_us);
+    // [CPU] The same parts on the thread's CPU, read at the poll's own marks (the loop's thinks and parts by `bench_cpu`).
+    let cpu_parts =
+        [cpu_between(cpu_started, cpu_viewed), cpu_between(cpu_viewed, cpu_commanded), cpu_between(cpu_looped, cpu_end)];
+    for (k, (cpu, named)) in cpu_parts.into_iter().enumerate() {
+        times.cpu[k] += cpu;
+        times.cpu_named[k] += named;
+    }
+    times.cpu_each.push(cpu_between(cpu_started, cpu_end).0 as f32 * 1e6);
     if spike.is_some_and(|over| whole_us > over) {
         let us = |s: f64| s as f32 * 1e6;
         let loop_work = work_since(&work_looped);
@@ -1170,6 +1189,9 @@ pub(crate) fn real_bot_cost() {
                 bots.entered(place, true, 0);
             }
             let mut times = Times::default();
+            // [CPU] The ticks' split and the clock's own reads from here: this match's.
+            let _ = crate::v026g::bots::bench_cpu::take();
+            let clock_reads_before = crate::v026g::bots::cpu_time::calls();
             let mut decisions = Decisions::default();
             let mut plays: std::collections::BTreeMap<String, u32> = Default::default();
             // Takes: plays ended "could not take it", and stands given up.
@@ -2071,6 +2093,20 @@ pub(crate) fn real_bot_cost() {
                 search_us / 1e3 / searched.max(1) as f64,
                 search_us / 1e4 / (times.view + times.commander + times.think + times.ticks)
             );
+            // [CPU] The same searches and pulls on the thread's CPU (`cpu_time`), ms a second of play.
+            {
+                let per_s = |us: f64| us / 1e3 / f64::from(limit_s.max(1));
+                let stages_cpu: Vec<String> =
+                    (0..4).map(|k| format!("{:.2}", per_s(searches.stage_cpu_us[k] - searches_before.stage_cpu_us[k]))).collect();
+                eprintln!(
+                    "  thread CPU ms a second: grid searches {:.2} (by stage no way, corridor, widened, whole: {}), pulled straight {:.2}; wall {:.2} and {:.2}",
+                    per_s(searches.cpu_us - searches_before.cpu_us),
+                    stages_cpu.join(", "),
+                    per_s(searches.pull_cpu_us - searches_before.pull_cpu_us),
+                    per_s(search_us),
+                    per_s(searches.pull_us - searches_before.pull_us),
+                );
+            }
             if bench_settings().flag("SRP_BENCH_WHY") {
                 let tactics = bots.tactics.as_ref().unwrap();
                 let grid = &tactics.world.grid;
@@ -2669,6 +2705,60 @@ pub(crate) fn real_bot_cost() {
                 game.team_hits,
                 game.team_kills,
             );
+            // [CPU] The same parts on the thread's CPU (`cpu_time`: what the thread ran, without the time it waited for a core),
+            // the named costs' share of each, the ticks' own time by part (`bench_cpu`), the polls, and the clock's own reads.
+            {
+                use crate::v026g::bots::bench_cpu::Part;
+                let per_s = |s: f64| s * 1e3 / f64::from(limit_s.max(1));
+                let (parts, parts_named) = crate::v026g::bots::bench_cpu::take();
+                let part = |p: Part| parts[p as usize] as f64 / 1e9;
+                let named = |p: Part| parts_named[p as usize] as f64 / 1e9;
+                // The ticks: the loop less the thinks that ran (the wall's ticks are the loop less every think call).
+                let (think, think_named) = (part(Part::Think), named(Part::Think));
+                let (ticks, ticks_named) = (times.cpu[2] - think, times.cpu_named[2] - think_named);
+                let cpu_total = times.cpu[0] + times.cpu[1] + times.cpu[2];
+                eprintln!(
+                    "  thread CPU: bots {:.1} ms a second (wall {:.1}); view {:.2}, commander {:.2}, think {:.2}, ticks {:.2}; of them the named costs (searches, pulls, kept steps) {:.2}: view {:.2}, commander {:.2}, think {:.2}, ticks {:.2}",
+                    per_s(cpu_total),
+                    per_s(total),
+                    per_s(times.cpu[0]),
+                    per_s(times.cpu[1]),
+                    per_s(think),
+                    per_s(ticks),
+                    per_s(times.cpu_named.iter().sum()),
+                    per_s(times.cpu_named[0]),
+                    per_s(times.cpu_named[1]),
+                    per_s(think_named),
+                    per_s(ticks_named),
+                );
+                let own = |p: Part| part(p) - named(p);
+                let ticks_own = ticks - ticks_named;
+                let drive_rest = own(Part::Drive) - own(Part::LipGuard);
+                let tick_rest = ticks_own - own(Part::Drive) - own(Part::Input) - own(Part::Queue);
+                eprintln!(
+                    "  thread CPU of the ticks' own time (named costs out), ms a second: {:.2} = the lip guard {:.2}, the rest of the drive {:.2}, the reckoning's input {:.2}, the search queue {:.2}, the rest of the ticks {:.2}; the thinks' own {:.2}",
+                    per_s(ticks_own),
+                    per_s(own(Part::LipGuard)),
+                    per_s(drive_rest),
+                    per_s(own(Part::Input)),
+                    per_s(own(Part::Queue)),
+                    per_s(tick_rest),
+                    per_s(think - think_named),
+                );
+                let mut each = std::mem::take(&mut times.cpu_each);
+                each.sort_by(f32::total_cmp);
+                let at = |q: f64| each.get(((each.len().max(1) - 1) as f64 * q) as usize).copied().unwrap_or(0.0);
+                let reads = crate::v026g::bots::cpu_time::calls() - clock_reads_before;
+                let read_ns = crate::v026g::bots::cpu_time::read_ns();
+                eprintln!(
+                    "  thread CPU poll µs p50 {:.0}, p99 {:.0}, p99.9 {:.0}, max {:.0}; the clock's own reads {reads} at {read_ns:.0} ns a read = {:.2} ms a second",
+                    at(0.5),
+                    at(0.99),
+                    at(0.999),
+                    each.last().copied().unwrap_or(0.0),
+                    reads as f64 * read_ns / 1e6 / f64::from(limit_s.max(1)),
+                );
+            }
             // [A318] Whether the reckoning takes the client's walk tick in the bench's matches (it did not before the world's walker).
             eprintln!("route hash: camper {:016x} bots {:016x}", bots.bench_route_hash[0], bots.bench_route_hash[1]);
             eprintln!("walker_holds so far: {}", crate::v026g::bots::body::walker_holds::count());

@@ -484,9 +484,15 @@ pub struct Searches {
     pub searches: u64,
     pub failed: u64,
     pub us: f64,
-    /// By [`mapdata::regions::Stage`]: how many, and their µs.
+    /// [CPU] The same searches' µs on the thread's CPU (`cpu_time`), beside their wall µs.
+    pub cpu_us: f64,
+    /// [CPU] The searches' thread CPU as each slice ends, µs (a search over several polls is in `cpu_us` once it ends, here as it
+    /// runs): the bench's split of a poll (`bench_cpu`).
+    pub spent_cpu_us: f64,
+    /// By [`mapdata::regions::Stage`]: how many, and their µs (wall, and the thread's CPU).
     pub stages: [u64; 4],
     pub stage_us: [f64; 4],
+    pub stage_cpu_us: [f64; 4],
     pub worst_us: f64,
     /// Floors expanded, in all and by the largest search.
     pub expanded: u64,
@@ -500,6 +506,8 @@ pub struct Searches {
     /// the straight-line checks made.
     pub pulls: u64,
     pub pull_us: f64,
+    /// [CPU] The pulls' µs on the thread's CPU.
+    pub pull_cpu_us: f64,
     pub pull_floors: u64,
     pub straight_checks: u64,
 }
@@ -511,8 +519,11 @@ thread_local! {
             searches: 0,
             failed: 0,
             us: 0.0,
+            cpu_us: 0.0,
+            spent_cpu_us: 0.0,
             stages: [0; 4],
             stage_us: [0.0; 4],
+            stage_cpu_us: [0.0; 4],
             worst_us: 0.0,
             expanded: 0,
             worst_expanded: 0,
@@ -521,6 +532,7 @@ thread_local! {
             slices: 0,
             pulls: 0,
             pull_us: 0.0,
+            pull_cpu_us: 0.0,
             pull_floors: 0,
             straight_checks: 0,
         })
@@ -894,6 +906,8 @@ pub struct Planning {
     #[cfg(test)]
     us: f64,
     #[cfg(test)]
+    cpu_us: f64,
+    #[cfg(test)]
     slices: u64,
 }
 
@@ -917,11 +931,14 @@ pub fn plan_start(
     iters: &mut usize,
 ) -> Result<Option<Route>, Planning> {
     #[cfg(test)]
-    let started = std::time::Instant::now();
+    let (started, started_cpu) = (std::time::Instant::now(), super::cpu_time::thread());
     match regions.start_route_search_reaching(grid, from, to, &allowed, &region_ok, usize::MAX, reach) {
         Err((found, _stage)) => {
             #[cfg(test)]
-            count(&found, _stage, started.elapsed().as_secs_f64() * 1e6, 0, 1);
+            {
+                let cpu_us = spent(started_cpu);
+                count(&found, _stage, started.elapsed().as_secs_f64() * 1e6, cpu_us, 0, 1);
+            }
             let ended = finish(grid, found, allowed, weight);
             // Answered before a floor was searched: the regions (or the goal's links in) rule the way out.
             if ended.is_none() {
@@ -935,6 +952,8 @@ pub fn plan_start(
                 weighted: weight.is_some(),
                 #[cfg(test)]
                 us: started.elapsed().as_secs_f64() * 1e6,
+                #[cfg(test)]
+                cpu_us: spent(started_cpu),
                 #[cfg(test)]
                 slices: 0,
             };
@@ -962,7 +981,7 @@ impl Planning {
     ) -> Option<Option<Route>> {
         let weight = self.weighted.then_some(weight);
         #[cfg(test)]
-        let started = std::time::Instant::now();
+        let (started, started_cpu) = (std::time::Instant::now(), super::cpu_time::thread());
         // The plain search keeps its own loop (no call through the weight).
         let ended = match weight {
             Some(w) => self.search.step(regions, grid, &allowed, region_ok, w, iters),
@@ -971,6 +990,7 @@ impl Planning {
         #[cfg(test)]
         {
             self.us += started.elapsed().as_secs_f64() * 1e6;
+            self.cpu_us += spent(started_cpu);
             self.slices += 1;
         }
         let (found, _stage) = ended?;
@@ -979,6 +999,7 @@ impl Planning {
             &found,
             _stage,
             self.us,
+            self.cpu_us,
             self.search.expanded() as u64,
             self.slices,
         );
@@ -1061,17 +1082,38 @@ fn finish(
     }
 }
 
-/// A search ended, into the thread's counts.
+/// [CPU] The thread's CPU since `started` (a [`super::cpu_time::thread`] read), µs.
 #[cfg(test)]
-fn count(found: &Search, stage: Stage, us: f64, expanded: u64, slices: u64) {
+fn cpu_us_since(started: std::time::Duration) -> f64 {
+    super::cpu_time::thread().saturating_sub(started).as_secs_f64() * 1e6
+}
+
+/// [CPU] A search's slice (or its start) ended: its thread CPU since `started`, µs, counted at once as spent
+/// ([`Searches::spent_cpu_us`]).
+#[cfg(test)]
+fn spent(started: std::time::Duration) -> f64 {
+    let us = cpu_us_since(started);
+    SEARCHES.with(|s| {
+        let mut c = s.get();
+        c.spent_cpu_us += us;
+        s.set(c);
+    });
+    us
+}
+
+/// A search ended, into the thread's counts: its wall µs and its µs on the thread's CPU.
+#[cfg(test)]
+fn count(found: &Search, stage: Stage, us: f64, cpu_us: f64, expanded: u64, slices: u64) {
     SEARCHES.with(|s| {
         let mut c = s.get();
         c.searches += 1;
         c.failed += u64::from(!matches!(found, Search::Found(_)));
         tag::ended(!matches!(found, Search::Found(_)), expanded);
         c.us += us;
+        c.cpu_us += cpu_us;
         c.stages[stage as usize] += 1;
         c.stage_us[stage as usize] += us;
+        c.stage_cpu_us[stage as usize] += cpu_us;
         c.worst_us = c.worst_us.max(us);
         c.expanded += expanded;
         super::bench_work::add(super::bench_work::Work::Floors, expanded);
@@ -1225,7 +1267,7 @@ fn note_marked_walks(grid: &WalkGrid, path: &mapdata::Path) {
 fn pull(grid: &WalkGrid, path: mapdata::Path, allowed: impl Fn(NodeId) -> bool) -> Route {
     note_marked_walks(grid, &path);
     #[cfg(test)]
-    let (started, floors) = (std::time::Instant::now(), path.nodes.len() as u64);
+    let (started, started_cpu, floors) = (std::time::Instant::now(), super::cpu_time::thread(), path.nodes.len() as u64);
     #[cfg(test)]
     let checks = std::cell::Cell::new(0u64);
     let route = pull_straight(grid, path, &allowed, &|a, b| grid.walk_crouched(a, b), &|| {
@@ -1237,6 +1279,7 @@ fn pull(grid: &WalkGrid, path: mapdata::Path, allowed: impl Fn(NodeId) -> bool) 
         let mut c = s.get();
         c.pulls += 1;
         c.pull_us += started.elapsed().as_secs_f64() * 1e6;
+        c.pull_cpu_us += cpu_us_since(started_cpu);
         c.pull_floors += floors;
         c.straight_checks += checks.get();
         s.set(c);
