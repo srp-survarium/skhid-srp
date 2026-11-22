@@ -254,6 +254,48 @@ pub const MAX_POCKETS: usize = POCKET_SLOTS.len();
 /// Final units in one supply pocket, including medicine bonuses.
 pub const MAX_POCKET_UNITS: u32 = 5;
 
+/// Artifact Container, artefact skill 522 (`docs/notes/artefact-skills.md`): one pocket becomes
+/// an artefact container.
+pub const ARTIFACT_CONTAINER: u16 = 522;
+
+/// What a kit makes of the slot Artifact Container gives a choice on (the owner, 2026-11-22):
+/// the container, or the pocket it was. A kit whose slot is the pocket takes the skill's
+/// modifiers no more ([`Self::skills_taken`]), as a kit without it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ContainerSlot {
+    #[default]
+    Container,
+    Pocket,
+}
+
+impl ContainerSlot {
+    /// Its number on the wire and in the account's rows: 1 the container, 2 the pocket (0 is a
+    /// kit with no such slot, `lobby::presets`).
+    pub fn code(self) -> u8 {
+        match self {
+            ContainerSlot::Container => 1,
+            ContainerSlot::Pocket => 2,
+        }
+    }
+
+    /// The choice a number is, if it is one.
+    pub fn from_code(code: i64) -> Option<ContainerSlot> {
+        [ContainerSlot::Container, ContainerSlot::Pocket]
+            .into_iter()
+            .find(|slot| i64::from(slot.code()) == code)
+    }
+
+    /// The skills of `skills` (`(id, points)`) a kit of this choice takes: the pocket leaves
+    /// Artifact Container out.
+    pub fn skills_taken(self, skills: &[(u16, u8)]) -> Vec<(u16, u8)> {
+        skills
+            .iter()
+            .copied()
+            .filter(|&(id, _)| !(self == ContainerSlot::Pocket && id == ARTIFACT_CONTAINER))
+            .collect()
+    }
+}
+
 /// What one unit of the item takes of a pocket (its config's,
 /// [`item_params::PocketShare`]); one unit for an item with no config.
 pub fn pocket_share(dict_id: u16) -> item_params::PocketShare {

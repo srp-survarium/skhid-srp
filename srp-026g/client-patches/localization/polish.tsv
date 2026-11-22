@@ -2761,6 +2761,8 @@ st_srp_loadout_sell_and	 i
 st_srp_loadout_sell_item	%1$s
 st_srp_loadout_sell_many	Używany w zestawach %1$s. Sprzedać?
 st_srp_loadout_sell_one	Używany w zestawie %1$s. Sprzedać?
+st_srp_loadout_slot_to_container	Kliknij: pojemnik na artefakt
+st_srp_loadout_slot_to_pocket	Kliknij: kieszeń
 st_srp_loadout_title	Zestaw
 st_srp_loadout_unfit	nie do gry
 st_srp_lobby_basement	Piwnica
