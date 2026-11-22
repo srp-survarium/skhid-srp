@@ -1829,5 +1829,7 @@ survarium::zone_entry	size	0x4	size	a loose_ptr
 survarium::zone_holder	object	0x0	u32	the physics object a loose_ptr holder names (0 once it is gone); on_objects_left's find (0x308A40) compares entries by it
 survarium::image	client_zone_sensor_vtable	0xA0B8A4	u32	a client damage_zone's collision sensor vtable (its +108h; RTTI survarium::damage_zone): on_objects_entered 0x3198D0, on_objects_left 0x319780 at +3Ch, +44h
 survarium::image	core_zone_sensor_vtable	0xA165CC	u32	a damage_zone_core's collision sensor vtable (its +108h): the same handlers
+survarium::use_progress_frame	ui	0x4	ptr<survarium::game_world_ui>	set_using_progress_message's ui at its start (0x23A430, by the site's ESP): entry ESP+4 (player::st_draw pushes [player+F480h], 0x246FBA..0x246FC3)
+survarium::game_world_ui	prompt_text	0x334	u32	the use prompt's text key last given root.set_context by set_using_info_message (0x23A560: it calls set_context only when its text differs from this, then stores it, 0x23A570..0x23A584); initialize_match writes 0 (0x234ACC); set_using_progress_message neither reads nor writes it
 survarium::game_world_ui	team_zero_points	0xB4	u16	the hud state's +90h: team 0's points, which update_ui sends as root.set_game_progress (0x2364C0, the viewed team's first); written by the mode's rule (tdm_rule_core::fill_match_hud_state 0x31643B, Artifact Hunt's slot 17) and by nothing at a new match (match_hud_state is made once, 0x233680)
 survarium::game_world_ui	team_one_points	0xB6	u16	the hud state's +92h: team 1's points (as +90h)

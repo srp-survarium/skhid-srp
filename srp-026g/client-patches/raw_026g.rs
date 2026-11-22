@@ -4557,6 +4557,15 @@ impl GameWorldUi {
         HudKd(unsafe { self.0.byte_add(0xbc) })
     }
 
+    /// +0x334 (u32): the use prompt's text key last given root.set_context by set_using_info_message (0x23A560: it calls set_context only when its text differs from this, then stores it, 0x23A570..0x23A584); initialize_match writes 0 (0x234ACC); set_using_progress_message neither reads nor writes it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn prompt_text(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x334).cast::<u32>().as_ptr() }
+    }
+
     /// +0xb4 (u16): the hud state's +90h: team 0's points, which update_ui sends as root.set_game_progress (0x2364C0, the viewed team's first); written by the mode's rule (tdm_rule_core::fill_match_hud_state 0x31643B, Artifact Hunt's slot 17) and by nothing at a new match (match_hud_state is made once, 0x233680)
     ///
     /// # Safety
@@ -33881,6 +33890,39 @@ impl ZoneHolder {
     }
 }
 
+/// A survarium::use_progress_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UseProgressFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl UseProgressFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<survarium::game_world_ui>): set_using_progress_message's ui at its start (0x23A430, by the site's ESP): entry ESP+4 (player::st_draw pushes [player+F480h], 0x246FBA..0x246FC3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn ui(self) -> Option<GameWorldUi> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<GameWorldUi>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<survarium::game_world_ui>): set_using_progress_message's ui at its start (0x23A430, by the site's ESP): entry ESP+4 (player::st_draw pushes [player+F480h], 0x246FBA..0x246FC3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_ui(self, value: Option<GameWorldUi>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<GameWorldUi>>().write_volatile(value) }
+    }
+}
+
 /// A survarium::bullet_manager_engine (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -42202,6 +42244,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn object(machine: &impl Machine) -> Option<SensedObject> {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(SensedObject)
+        }
+    }
+
+    /// use_prompt.progress (0x23a430): game_world_ui::set_using_progress_message (0x23A430) at its start (movss xmm0,[esp+8]): player::st_draw calls it each frame the drawn local player has an object in use (its user +4, player +134h; 0x246FC4) with the ui and the use's progress; ESP+4 the ui
+    pub mod use_prompt_progress {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::use_progress_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<UseProgressFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(UseProgressFrame)
         }
     }
 }

@@ -85,6 +85,7 @@ pub mod render_stage;
 pub mod effect_compile;
 pub mod gun_cook;
 pub mod pickup;
+pub mod use_prompt;
 pub mod use_scan;
 pub mod streaming;
 pub mod texture_pool;

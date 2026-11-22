@@ -14241,6 +14241,45 @@ unplayed_match_on_ready_replay:
     db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5
     jmp 0x27aec4
 
+; 0x23a430 game_world_ui::set_using_progress_message (0x23A430) at its start (movss xmm0,[esp+8]): player::st_draw calls it each frame the drawn local player has an object in use (its user +4, player +134h; 0x246FC4) with the ui and the use's progress; ESP+4 the ui: lohook -> use_prompt_on_progress
+global use_prompt_on_progress
+extern hook_use_prompt_on_progress
+use_prompt_on_progress:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_use_prompt_on_progress
+    mov edx, use_prompt_on_progress_replay
+    cmp eax, 0
+    je use_prompt_on_progress_go
+    mov edx, 0x23a436
+    cmp eax, 1
+    je use_prompt_on_progress_go
+    ud2
+use_prompt_on_progress_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+use_prompt_on_progress_replay:
+    db 0xf3, 0x0f, 0x10, 0x44, 0x24, 0x08
+    jmp 0x23a436
+
 ; 0x2d84c0 base_player::detect_usable_object's start (push ebp / mov ebp,esp / and esp,-8): every use scan (a use's start 0x2D8900, its tick 0x2D86AD, the prompt 0x246FCD); ESP+4 the player, +8 the point or 0; returned is its `ret 8` (0x2D8697), EAX the object: lohook -> use_scan_on_detect
 global use_scan_on_detect
 extern hook_use_scan_on_detect
