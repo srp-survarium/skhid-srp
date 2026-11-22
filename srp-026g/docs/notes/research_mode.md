@@ -184,8 +184,18 @@ about arranging things beautifully". The places: his cursor on the minimap, thre
     cylinder 5.5 m round.
   - Each unit's station is the Research project's own (shelves, transmitter, computers, generator,
     charger, small antenna, their sounds, sparks and light), moved as one piece and standing in the
-    middle of its zone, as 0.27d's stand. The crates of the old unit B are the terrace's cover, a stack
-    north and south of the station; the two roof antennas stand on the roof over the halls.
+    middle of its zone, as 0.27d's stand. The two roof antennas stand on the roof over the halls.
+  - Cover (the owner, 2026-11-22: "the one outside should have a bit more cover", "it is barely
+    playable with 6 crates", "see how on rudnya this is done", "the ones inside can have something
+    too", "it shouldn't be mirrored, it should be interesting everywhere"): each place its own, of
+    props the map has already, none a mirror of another.
+    - B, the terrace: Rudnya's crate piles (a full cover, a half cover, a corner half cover, a low
+      cover) with a sandbag wall towards the school, a cargo crate and three barrels before the
+      gate, tyres by the big tree; the old unit B's six crates in two stacks north and south.
+    - A, the north hall: a row of lockers along the corridor's edge, a furniture barricade west, a
+      couch towards the courtyard.
+    - C, the south hall: three shelving units along the corridor's edge, cartons towards the
+      courtyard, a cargo crate west.
   - `mapdata-zones` (2026-11-22, a preview patch of the list): each unit one floor, none above or
     below it inside its shapes (A 20.26-22.89 m, B 19.53-21.90 m, C 19.52-22.91 m: the halls' rubble
     and the terrace).
@@ -205,7 +215,9 @@ about arranging things beautifully". The places: his cursor on the minimap, thre
 - **Bots, late joiners, replays:** nothing new (Research has no bots; a replay names its map id).
 - **Release impact:** content and the site's pages; no exe, no server code. Three more entries of a
   room's pool (256 at most, `lobby/rooms.rs` `POOL_BITS`).
-- **Another layout:** a file beside `school-b.json` and its list's row in `release/content.tsv`.
+- **Another layout:** a file beside `school-b.json` and its list's row in `release/content.tsv`. More
+  cover at a unit: a `props` entry of its layout file (a model the map or an `examples` project
+  has, its place and yaw), then the list made again.
 
 ## The exe (patch 53)
 
