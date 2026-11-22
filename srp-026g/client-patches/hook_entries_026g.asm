@@ -7223,6 +7223,48 @@ footsteps_on_step_guard_replay:
     db 0x8b, 0x7e, 0x10, 0x3b, 0xb9, 0xc4, 0x8f, 0x01, 0x00, 0x0f, 0x96, 0xc1, 0x84, 0xc9
     jmp 0x2a6493
 
+; 0x2a6545 on_foot_step's read of the foot material (lea eax,[edx+ecx*2+7962h] / mov ecx,[esi+3Ch] / movzx edi,word [ecx+eax*2]: the player's u16 at +0F2C4h + 4 x movement + 2 x third view), the one path of both feet's cases of on_player_sound_event (0x2A64B6, 0x2A64D2), whether or not the player has a world core: ESI the effect, ECX the logic state's movement id (+24h, 0x2A6532), EDX 1 for third view; skip 0x2A6577, on_foot_step's end (pop edi / add esp,8 / ret 8, the stack as here: its own je there when the world has no step manager): lohook -> footsteps_on_foot_material
+global footsteps_on_foot_material
+extern hook_footsteps_on_foot_material
+footsteps_on_foot_material:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_footsteps_on_foot_material
+    mov edx, footsteps_on_foot_material_replay
+    cmp eax, 0
+    je footsteps_on_foot_material_go
+    mov edx, 0x2a6553
+    cmp eax, 1
+    je footsteps_on_foot_material_go
+    mov edx, 0x2a6577
+    cmp eax, 2
+    je footsteps_on_foot_material_go
+    ud2
+footsteps_on_foot_material_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+footsteps_on_foot_material_replay:
+    db 0x8d, 0x84, 0x4a, 0x62, 0x79, 0x00, 0x00, 0x8b, 0x4e, 0x3c, 0x0f, 0xb7, 0x3c, 0x41
+    jmp 0x2a6553
+
 ; 0x14730 the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query: callback -> forest_glow_on_loaded (wraps engine_store_first_resource 0x14730)
     RUST_CDECL forest_glow_on_loaded, hook_forest_glow_on_loaded, 2
 
@@ -9817,6 +9859,48 @@ map_names_on_key_go:
 map_names_on_key_replay:
     db 0x8b, 0x10, 0x8b, 0xc8, 0x8b, 0x02
     jmp 0x25cd22
+
+; 0x306d50 game_material_manager::material_pair's start (movzx eax,dx / mov eax,[ecx+eax*4+108h]): ECX the manager, DX and DI the two material ids, indexed into its 128 material slots (+108h) with no bound; done 0x306DF8, its ret (nothing pushed yet), EAX the pair or 0 (no pair: every caller tests it, 0x2481A6 0x2487F8 0x248A74 0x248B90 0x32E5A0 0x32E7FA 0x32EA20 0x32EC9F): lohook -> material_bounds_on_material_pair
+global material_bounds_on_material_pair
+extern hook_material_bounds_on_material_pair
+material_bounds_on_material_pair:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_material_bounds_on_material_pair
+    mov edx, material_bounds_on_material_pair_replay
+    cmp eax, 0
+    je material_bounds_on_material_pair_go
+    mov edx, 0x306d5a
+    cmp eax, 1
+    je material_bounds_on_material_pair_go
+    mov edx, 0x306df8
+    cmp eax, 2
+    je material_bounds_on_material_pair_go
+    ud2
+material_bounds_on_material_pair_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+material_bounds_on_material_pair_replay:
+    db 0x0f, 0xb7, 0xc2, 0x8b, 0x84, 0x81, 0x08, 0x01, 0x00, 0x00
+    jmp 0x306d5a
 
 ; 0x33d41b EBP medkit EBX player XMM0 duration: lohook -> medical_skills_on_duration_start
 global medical_skills_on_duration_start

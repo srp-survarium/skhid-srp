@@ -642,6 +642,8 @@ pub enum WeaponRanking {
     Kills,
     /// Kills by the deaths with it in the hands.
     Kd,
+    /// Kills by the time in the hands: a weapon never held comes last.
+    KillsPerMinute,
     /// Headshots by kills, hits by shots, the kills' average distance: a
     /// weapon without a kill (a shot) comes last.
     HeadshotRate,
@@ -659,6 +661,7 @@ impl WeaponRanking {
         match self {
             Self::Kills => "kills",
             Self::Kd => "CAST(kills AS REAL) / max(deaths, 1)",
+            Self::KillsPerMinute => "CAST(kills AS REAL) / nullif(held_ms, 0)",
             Self::HeadshotRate => "CAST(headshots AS REAL) / nullif(kills, 0)",
             Self::Accuracy => "CAST(hits AS REAL) / nullif(shots, 0)",
             Self::KillDistance => "CAST(kill_distance_dm AS REAL) / nullif(kills, 0)",
@@ -2513,6 +2516,7 @@ mod tests {
             match by {
                 WeaponRanking::Kills => counts.kills as f64,
                 WeaponRanking::Kd => ratio(counts.kills, counts.deaths.max(1)),
+                WeaponRanking::KillsPerMinute => ratio(counts.kills, counts.held_ms),
                 WeaponRanking::HeadshotRate => ratio(counts.headshots, counts.kills),
                 WeaponRanking::Accuracy => ratio(counts.hits, counts.shots),
                 WeaponRanking::KillDistance => ratio(counts.kill_distance_dm, counts.kills),
@@ -2524,6 +2528,7 @@ mod tests {
         for by in [
             WeaponRanking::Kills,
             WeaponRanking::Kd,
+            WeaponRanking::KillsPerMinute,
             WeaponRanking::HeadshotRate,
             WeaponRanking::Accuracy,
             WeaponRanking::KillDistance,

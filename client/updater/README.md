@@ -330,7 +330,7 @@ caption is `Skhid: <the fixed words>` in English always.
 | Title begins | When | What to run |
 |---|---|---|
 | `Game files removed by antivirus: <file>` | Windows Security's 225/226 on a Skhid file; a file just written that is gone or denied when read back, or gone once in place; a program file gone at the start (put back, OK box) | `Skhid-defender-setup.cmd` (or exclude the folder named); for a patch of resources.db, in `game`, which the script does not exclude: Windows Security > Protection history > Allow on device, and that folder as an exclusion |
-| `Download failed: <file>, <damaged / cut short / too slow / a web page instead of the file / refused (HTTP n) / no secure connection / not usable>[ at every address]` | every address of a patch, of the game's archive (`survarium-026g.7z`) or of the Skhid files (`<host>/download`) failed, one of them with an answer (the first that answered says how). An address that broke off while its file came answered: cut short, never "no connection". No secure connection (TLS, a certificate: also the update server, as `<host>`) | `Skhid.bat` again; for no secure connection, this PC's date, time and time zone, and no program intercepting HTTPS |
+| `Download failed: <file>, <damaged / cut short / a web page instead of the file / refused (HTTP n) / no secure connection / not usable>[ at every address]` | every address of a patch, of the game's archive (`survarium-026g.7z`) or of the Skhid files (`<host>/download`) failed, one of them with an answer (the first that answered says how). An address that broke off while its file came answered: cut short, never "no connection". No secure connection (TLS, a certificate: also the update server, as `<host>`) | `Skhid.bat` again; for no secure connection, this PC's date, time and time zone, and no program intercepting HTTPS |
 | `No internet connection: ...`, `The server is offline: ...`, `The server is restarting: ...`, `Blocked on this network: ...`, `The relay does not answer: ...`, `No connection: ...`, each `<host> did not answer (<how>)` or `no address of <file> answered (<how>)` (or `<host>: the game server does not answer` for a 502, 503 or 504 of the site's proxy) | nothing answered before its answer's headers (WinHTTP's 12007 name not found, 12029 connection refused, 12002 timed out, 12030 connection cut off: `logic/src/network.rs`), or the site said the game server behind it is down; then told apart by what answers now (`logic/src/diagnosis.rs`, below) | what helps, and only that: nothing to run for no internet, a server offline or restarting; the launcher's "Relay" row for blocked here or the relay down; `Skhid-network-setup.cmd` for no connection |
 
 Nothing answered: the updater asks the server's site (`/api/stats`, 5 s at
@@ -689,10 +689,11 @@ without it has none, and says so). A server that answers always wins. srp's
 `/game` is the release's addresses (that row) with the rows of its
 `mirrors.tsv` added (see "Mirrors" below).
 
-**The download** is that of a patch's file (`http::get_file`), with the
+**The download** is that of a patch's file (`http::get_file_into`, the same code), with the
 rules of "Mirrors" below: redirects followed, a web page refused. The
 addresses are tried in their order, each once a run; any failure moves on to
-the next. The bytes on disk (`game\.skhid-game.7z`) are the same file at
+the next, and a slow one is left for the fastest (see "The fastest address"
+below). The bytes on disk (`game\.skhid-game.7z`) are the same file at
 every address, so the next address goes on from them: `Range: bytes=<n>-`;
 a `206` from byte n is appended, a `206` of another range is a failure, a
 `200` (a server that gives no part) is the whole file again from byte 0. A
@@ -715,9 +716,7 @@ answer within 30 s, or nothing received for 30 s: WinHTTP's 10 s name
 lookup, 10 s connect, 30 s send and receive), `host not found (DNS)`,
 `unreachable`, `connection reset`, `HTTP <status>`, `web page "<its
 title>", not the file` (the `<title>` of its first 8 KB, any host's: Google
-Drive's "Quota exceeded" page among them), `too slow: <n> KB/s over 2
-minutes (under 50 KB/s)` (`download::Speed`; only while another address
-remains: the last one is waited for, however slow), `cut short at byte <n> of
+Drive's "Quota exceeded" page among them), `cut short at byte <n> of
 <size>`, `larger than the file`, `wrong SHA-256`, `more than 5 redirects`.
 When every address failed the player is told each one's host and reason,
 then where to send the log (`text::reported`, as the crash reporter words
@@ -899,8 +898,7 @@ list's SHA-256, and the list came from the update server over HTTPS.
   connection or a broken one, another status than 200, a web page
   (`Content-Type: text/html`: a sign-in page, Google Drive's "cannot scan
   this file for viruses" or "Quota exceeded" page; its title is in the
-  log), slower than 50 KB/s over 2 minutes (while another address
-  remains), a body shorter than its
+  log), a body shorter than its
   Content-Length, another SHA-256, too many redirects or one to an address
   a list may not name. Each try is a line of the log too (`... (try 1 of
   2): asking`). The second round tries again only the addresses that failed on the
@@ -910,6 +908,30 @@ list's SHA-256, and the list came from the update server over HTTPS.
   2): <why>`); PLAY stays off only when every address failed. Not enough
   disk, a file that cannot be written here: no other address would do
   better, the run ends.
+- **The fastest address.** A slow address is never a failure: it is left
+  for a faster one, which goes on from the bytes on disk, so nothing
+  measured is thrown away (`download::Mirrors`, the one rule of the
+  patches and the game's archive; one connection at a time). The address
+  in use is measured over each 30 s; under 1 MiB/s with more than 2
+  minutes of the file still to go at that speed (more than 120 MiB at
+  1 MiB/s, 12 MiB at 100 KiB/s), a round starts: every other open address
+  is sampled for 20 s in turn, each once a round, and the download goes on
+  at the fastest measured (the one in use among them). That choice is kept
+  until it breaks off, or falls under half the speed it was chosen at
+  over a minute; no round starts sooner than 5 minutes after the last. An
+  address that failed outright this run (a status, a web page, another
+  range, another SHA-256) is not sampled again; one that failed on the
+  network not in the same pass. When every address is slow, the fastest
+  is waited for, as one address is. One line of the log a decision:
+
+  ```text
+  patches: resources.db.patch_69: dl.dropboxusercontent.com (address 1): 512 KB/s over 30 s, 3511 MB to go: goes on at 2.28.121.133 (address 2) from byte 15728640, to sample it
+  patches: resources.db.patch_69: measured dl.dropboxusercontent.com 512 KB/s, 2.28.121.133 3072 KB/s: goes on at 2.28.121.133 (address 2) from byte 78643200
+  ```
+
+  (the game's archive: `skhid-game  speed    <host>: ...`). The launcher's
+  bar keeps its bytes across a move, and its speed and time left are those
+  of the address in use.
 - **Redirects** are followed, up to 5 a download (the 6th is a failure),
   WinHTTP's own following being off: each `Location` (absolute, `//host`,
   `/path`, `?query` or relative) is resolved against the address it came
@@ -926,8 +948,31 @@ list's SHA-256, and the list came from the update server over HTTPS.
   web page instead: that address fails and the next is tried. A Drive
   file has a daily download quota; past it, a "Quota exceeded" page, the
   same. `release/add-mirror` checks an address before srp offers it.
-- No patch download is resumed: one that broke off is fetched again whole
-  (a patch is tens of megabytes; the game's archive is gone on from).
+- **A download that broke off goes on from its bytes**, as the game's
+  archive does (`http::get_file_into`, the one code of both; a patch is
+  gigabytes now: `patch_69` is 3.7 GB, and one Dropbox answer ends after an
+  hour, so a link under 1 MB/s never got it in one go). Every address of a
+  patch serves the same file (the list's SHA-256), so the bytes on disk
+  are gone on from at the next address, in the second round and at the
+  next start, also after a stop (the launcher's, a route change, the pipe
+  closing) and a new updater: `Range: bytes=<n>-`. A `206` from byte n is
+  appended; a `206` of another range is a failure of that address; a `200`
+  (a server that gives no part) is the whole file again from byte 0; a
+  `416` (no byte n: the part is at least the file) has the part hashed
+  when the answer's size is the part's (it may be whole), else deleted,
+  and the second round asks that address from byte 0. The whole file is
+  hashed: another SHA-256 deletes the part (and when that try went on from
+  bytes kept, which may be what was wrong, the second round asks the
+  address again from byte 0, once). The part is
+  `game\.skhid-patch_<n>.<sha256>.part` (`Patch::part_name`): no
+  `resources.db.patch_*`, so neither the game nor the folder check takes it
+  for a patch, and the SHA-256 in its name ties its bytes to the one file:
+  a part of another file for the same number, of a patch the list has
+  not, of one already in place, or a name that is no part's is deleted at
+  the step (not with the list built in, which only adds). Each try's line
+  says the byte it goes on from (`... (try 1 of 2): asking, from byte
+  2833252352`); the launcher's bar starts from the bytes on disk, and its
+  speed counts from there.
 - **The server not reached.** When the list cannot be fetched and the
   folder is not as the list kept says, the list built into the updater at
   release time is used (`SKHID_BUILTIN_PATCHES`, the `/patches` of
@@ -938,7 +983,8 @@ list's SHA-256, and the list came from the update server over HTTPS.
   exe may be newer than the updater and need it), and neither the list
   kept nor the status is written (it is not the server's list).
 - The Content-Length, when the server sends one, is checked against the
-  disk first, and a body shorter than it is an error.
+  disk first (what is still to come of it, past the bytes kept), and a
+  body shorter than it is an error.
 
 **The quick check.** A patch file is not read at every start. After it is
 downloaded or hashed whole, `updater_skhid.patches.checked` beside the
@@ -994,14 +1040,17 @@ the installation lock):
    touched.
 4. Every `game\resources.db.patch_*` that is not a listed patch is deleted:
    one the list no longer has (a rollback), a name the game does not take
-   (`_014`, `_0`, `_300`), a download left over (`.skhid-part`).
+   (`_014`, `_0`, `_300`), a torrent's or an older updater's download left
+   over (`.skhid-part`). So is every part (`.skhid-patch_*`) that no
+   patch to download has (above).
 5. A damaged listed patch is deleted. A missing or damaged one is
-   downloaded from its addresses in turn (above) into
-   `resources.db.patch_<n>.skhid-part` beside its place (the disk must have
-   its Content-Length plus 64 MB free, else nothing is fetched), flushed,
+   downloaded from its addresses in turn (above) into its part,
+   `.skhid-patch_<n>.<sha256>.part` beside its place, going on from the
+   bytes it holds (the disk must have what is still to come, by the
+   Content-Length, plus 64 MB free, else nothing more is fetched), flushed,
    read back and hashed, and renamed to its name only when it has the
-   list's SHA-256. When every address failed, the run ends. A
-   `.skhid-part` that failed, or was stopped, is deleted. The launcher's
+   list's SHA-256. When every address failed, the run ends; the part
+   stays for the next start (one of no byte is deleted). The launcher's
    line says which of them it is at, "(5/69)" after what is left of the
    file (message `0B`, launcher patch 17; taken back when the downloads
    end).
@@ -1048,7 +1097,7 @@ done." after it:
 | A file of one address cannot be downloaded (network, a status, a web page, too many redirects, cut short) | "game\resources.db.patch_<n> could not be downloaded. <the network error>" |
 | A file of one address has another SHA-256 | "<host> sent game\resources.db.patch_<n> with another checksum than its list says. Tell the server's operator." |
 | None of a patch's addresses (two or more) gave its file | "game\resources.db.patch_<n> could not be downloaded from any of its <k> addresses (each is in updater_skhid.<date>.log). The first: <its failure>" |
-| Not enough disk | "Not enough free disk space to update the game's files in <folder>: N MB needed, M MB free. ..." (N: the file's size and 64 MB) |
+| Not enough disk | "Not enough free disk space to update the game's files in <folder>: N MB needed, M MB free. ..." (N: what is still to come of the file and 64 MB) |
 | resources.db is held (the game runs) and a patch file is to change | "The game is running, so Skhid could not update the game's patches ... Close the game, then start the launcher again." |
 | A patch file stays held by another program | "Another program holds game\resources.db.patch_<n>, so Skhid could not update the game's patches. An antivirus may be scanning it: wait a minute, then start the launcher again." |
 | The server could not be asked and the patches were not checked in place | "The game's patches could not be checked: <why the server could not be asked>" |
@@ -1287,9 +1336,8 @@ trackers.
 
 - A signature on the ZIP made with a key that is not on the server. Today
   the ZIP is trusted because the HTTPS connection to the server is.
-- Resuming a broken download (the ZIP is a few megabytes; it is fetched
-  again; a patch, from its next address, else at the next start, whole: by
-  the owner's decision).
+- Resuming a broken download of the ZIP (a few megabytes; it is fetched
+  again). The game's archive and the patches go on from their bytes.
 - Texts in other languages than English (the launcher shows them in an
   ANSI message box), but the stop's box of "A file that cannot be read",
   which is the updater's own.

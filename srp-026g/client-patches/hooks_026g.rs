@@ -1332,6 +1332,21 @@ pub extern "C" fn hook_artefact_hunt_on_initialize_match(frame: &mut Frame) -> u
     }
 }
 
+// ---- freeze_tag (patch 160) ----
+
+/// The entry `freeze_tag_on_initialize_match` (0x234880, game_world_ui::initialize_match's start (sub esp,5D4h), once a match (from 0x1F855D; the late join's rebuild enters at 0x234E71): the site's ESP+4 the hud, whose kits (+2DFh) and cursor (+2DCh) are the last match's) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_freeze_tag_on_initialize_match(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `freeze_tag_on_initialize_match` calls this, from the game's jump at 0x234880,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::freeze_tag::on_initialize_match(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- music (patch 88) ----
 
 /// The entry `music_on_announced` (0x23b36a, update_ui marks the welcome message shown (mov byte [edi+370h],1; the mode's jne at 0x23B354 lands here too): once a world, at its first update past the pregame, as the countdown ends) calls this with the saved machine.
@@ -4955,6 +4970,26 @@ pub extern "C" fn hook_footsteps_on_step_guard(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- footsteps (patch 101) ----
+
+/// The named exits of footsteps::on_foot_material (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum FootstepsOnFootMaterialExit { Skip }
+/// The entry `footsteps_on_foot_material` (0x2a6545, on_foot_step's read of the foot material (lea eax,[edx+ecx*2+7962h] / mov ecx,[esi+3Ch] / movzx edi,word [ecx+eax*2]: the player's u16 at +0F2C4h + 4 x movement + 2 x third view), the one path of both feet's cases of on_player_sound_event (0x2A64B6, 0x2A64D2), whether or not the player has a world core: ESI the effect, ECX the logic state's movement id (+24h, 0x2A6532), EDX 1 for third view; skip 0x2A6577, on_foot_step's end (pop edi / add esp,8 / ret 8, the stack as here: its own je there when the world has no step manager)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_footsteps_on_foot_material(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `footsteps_on_foot_material` calls this, from the game's jump at 0x2a6545,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::footsteps::on_foot_material(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- forest_glow (patch 111) ----
 
 /// The entry `forest_glow_on_loaded` (a callback in engine_store_first_resource's convention, the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query)
@@ -6684,6 +6719,26 @@ pub extern "C" fn hook_map_names_on_key(frame: &mut Frame) -> u32 {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- material_bounds (patch 193) ----
+
+/// The named exits of material_bounds::on_material_pair (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum MaterialBoundsOnMaterialPairExit { Done }
+/// The entry `material_bounds_on_material_pair` (0x306d50, game_material_manager::material_pair's start (movzx eax,dx / mov eax,[ecx+eax*4+108h]): ECX the manager, DX and DI the two material ids, indexed into its 128 material slots (+108h) with no bound; done 0x306DF8, its ret (nothing pushed yet), EAX the pair or 0 (no pair: every caller tests it, 0x2481A6 0x2487F8 0x248A74 0x248B90 0x32E5A0 0x32E7FA 0x32EA20 0x32EC9F)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_material_bounds_on_material_pair(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `material_bounds_on_material_pair` calls this, from the game's jump at 0x306d50,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::material_bounds::on_material_pair(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
     }
 }
 
@@ -9577,6 +9632,8 @@ pub extern "C" fn hook_hud_cursor_on_match_start_chain(frame: &mut Frame) -> u32
     let flow = hook_free_for_all_on_initialize_match(frame);
     if flow != 0 { return flow; }
     let flow = hook_artefact_hunt_on_initialize_match(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_freeze_tag_on_initialize_match(frame);
     if flow != 0 { return flow; }
     0
 }
