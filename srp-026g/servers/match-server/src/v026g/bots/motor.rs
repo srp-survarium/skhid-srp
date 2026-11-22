@@ -898,6 +898,12 @@ pub const JUMP_TRIES: u32 = 3;
 /// on the final build (LOOPS.md, the D11 lines): the slow standing presses that were made waited a median 0.6 s, 25 of 27 within
 /// 4 s; the waits that never pressed went on up to 33 s.
 pub const PRESS_WAIT_S: f32 = 4.0;
+/// [T1] A try's line-up hold ([`LineHold`]) spends the try after this, seconds: the press point's wait ([`PRESS_WAIT_S`]) and the
+/// walk of the line-up to it (from [`SPRINT_LINE_UP_FROM_M`] at a walk's speed, about 2 s), so no try a press point's wait would
+/// end comes to it first.
+pub const LINE_HOLD_S: f32 = PRESS_WAIT_S + 2.0;
+/// [T1] A line-up hold not ticked for this long (the route left the jump, a press's flight) starts again, seconds.
+const LINE_HOLD_GAP_S: f32 = 1.0;
 /// The press's own state (its band hold, its lift, the carry after it) is kept over a route planned again to the jump within
 /// this, seconds. The TRIES at a link are kept for the match ([`LinkTries`], A387): a link retried more than 10 s apart was
 /// never counted failed (owner-5 R3: one bot pressed a Mamayev Kurgan link 14 times in 190 s).
@@ -1020,6 +1026,8 @@ pub struct Motor {
     cast: Option<PressCast>,
     /// [press forecast] The log line of its last press or spent try ([`Self::take_cast_line`]).
     cast_line: Option<String>,
+    /// [T1] The log line of the last try a line-up hold spent ([`Self::take_line_hold_line`]).
+    line_hold_line: Option<String>,
     /// [press forecast] The last forecast press, followed for its line ([`Self::cast_watch_tick`]).
     cast_watch: Option<CastWatch>,
     /// [press forecast] What the last forecast press's watch makes of this tick ([`Self::cast_watch_tick`]).
@@ -1146,6 +1154,21 @@ struct JumpTry {
     walk_up: WalkUp,
     /// [loops] The wait at the press point under way, if any ([`PressWait`]).
     wait: Option<PressWait>,
+    /// [T1] The try's line-up hold under way, if any ([`LineHold`]).
+    hold: Option<LineHold>,
+}
+
+/// [T1] A try's hold at its route jump: from the first line-up tick of try `tries` that pressed nothing (motor tick `since`), its
+/// last such tick `last`. Unlike [`PressWait`] it runs on every such tick, the body moving or not, lined or not, at the press
+/// point or short of it; once it has lasted [`LINE_HOLD_S`] the try is spent as a back-off spends it, so the link fails after
+/// [`JUMP_TRIES`]. The press point's wait runs only on a still body or at the press point lined, and a sprint gap's back-off only
+/// lined at its due press: the 887 final round's NotDue(NotLined) and SprintGapNotSprinted holds spent none (S209 40 s at one
+/// take-off, S187 23 s; 76 failing starts in 62 spots held one try over 6 s), with the stuck watch paused for the line-up.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct LineHold {
+    since: u32,
+    last: u32,
+    tries: u32,
 }
 
 /// [loops] A wait at a route jump's press point: begun at motor tick `since`, at try `tries`. A wait at the press point that
@@ -2113,6 +2136,7 @@ impl Motor {
             held_line: None,
             cast: None,
             cast_line: None,
+            line_hold_line: None,
             cast_watch: None,
             watch_now: WatchNow::Off,
             held_up: None,
@@ -3427,6 +3451,7 @@ impl Motor {
                 faced: false,
                 walk_up: WalkUp::ToRest,
                 wait: None,
+                hold: None,
             },
         };
         let in_the_air = jump.pressed.is_some_and(|at| self.since(at) < CARRY_S);
@@ -3906,7 +3931,57 @@ impl Motor {
                 ));
             }
         }
+        self.line_hold_tick(keys & key::JUMP != 0, pose);
         keys
+    }
+
+    /// [T1] A line-up tick of the route jump's try ([`LineHold`]): one that pressed nothing, not in a press's flight, runs the try's
+    /// hold; once it has lasted [`LINE_HOLD_S`] the try is spent as a back-off spends it, with a line ([`Self::take_line_hold_line`]).
+    fn line_hold_tick(&mut self, pressed: bool, pose: &Pose) {
+        let Some(mut jump) = self.jump_try else {
+            return;
+        };
+        let flying = jump.pressed.is_some_and(|at| self.since(at) < JUMP_AGAIN_S.max(CARRY_S));
+        if pressed || flying || jump.tries >= JUMP_TRIES {
+            if jump.hold.take().is_some() {
+                self.jump_try = Some(jump);
+            }
+            return;
+        }
+        let hold = match jump.hold {
+            Some(hold) if hold.tries == jump.tries && self.since(hold.last) <= LINE_HOLD_GAP_S => LineHold { last: self.clock, ..hold },
+            _ => LineHold { since: self.clock, last: self.clock, tries: jump.tries },
+        };
+        if self.since(hold.since) >= LINE_HOLD_S {
+            jump.tries += 1;
+            jump.back = true;
+            jump.wait = None;
+            jump.hold = None;
+            self.links.backed_off();
+            self.line_hold_line = Some(format!(
+                "{}jump try {} spent by its line-up hold ({LINE_HOLD_S:.1} s, no press) at ({:.2}, {:.2}, {:.2}), speed {:.1} m/s; take-off ({:.2}, {:.2}, {:.2}) landing ({:.2}, {:.2}, {:.2})",
+                super::nav_log::PREFIX,
+                jump.tries,
+                pose.feet.x,
+                pose.feet.y,
+                pose.feet.z,
+                pose.speed,
+                jump.take_off.x,
+                jump.take_off.y,
+                jump.take_off.z,
+                jump.landing.x,
+                jump.landing.y,
+                jump.landing.z
+            ));
+        } else {
+            jump.hold = Some(hold);
+        }
+        self.keep_try(jump);
+    }
+
+    /// [T1] The log line of the last try a line-up hold spent ([`Self::line_hold_tick`]), once (for the driver's nav log).
+    pub fn take_line_hold_line(&mut self) -> Option<String> {
+        self.line_hold_line.take()
     }
 
     /// [loops] A tick of the try's wait ([`PressWait`]): from its first tick at this try; once it has lasted [`PRESS_WAIT_S`]
@@ -7701,6 +7776,7 @@ mod tests {
             faced: false,
             walk_up: WalkUp::ToRest,
             wait: None,
+            hold: None,
         });
         let before = lifts::left_counts();
         let band = 2; // 0.95-1.05
