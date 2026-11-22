@@ -24,7 +24,7 @@
 #![forbid(unsafe_code)]
 
 use crate::vostok::footstep::{EventLine, Movement, Pass, SimTime, Step, StepSource};
-use crate::vostok::log::{line, parts, Piece::*};
+use crate::vostok::log::{is_power_of_ten, line, parts, Piece::*};
 use crate::vostok::{Context, Flow, FootstepsOnFootMaterialExit, FootstepsOnStepGuardExit, GameCell, Thread};
 
 /// Two steps of one foot closer than this are one step played twice: a foot
@@ -152,13 +152,6 @@ pub fn on_foot_material(ctx: &mut Context<'_>) -> Flow<FootstepsOnFootMaterialEx
         ]);
     }
     Flow::Exit(FootstepsOnFootMaterialExit::Skip)
-}
-
-fn is_power_of_ten(mut n: u32) -> bool {
-    while n % 10 == 0 && n > 1 {
-        n /= 10;
-    }
-    n == 1
 }
 
 /// The step log's event line (SKHID_STEP_LOG): `step event: <whose>, domain <n> (<foot or rustle>), time <t>

@@ -9860,6 +9860,48 @@ map_names_on_key_replay:
     db 0x8b, 0x10, 0x8b, 0xc8, 0x8b, 0x02
     jmp 0x25cd22
 
+; 0x306d50 game_material_manager::material_pair's start (movzx eax,dx / mov eax,[ecx+eax*4+108h]): ECX the manager, DX and DI the two material ids, indexed into its 128 material slots (+108h) with no bound; done 0x306DF8, its ret (nothing pushed yet), EAX the pair or 0 (no pair: every caller tests it, 0x2481A6 0x2487F8 0x248A74 0x248B90 0x32E5A0 0x32E7FA 0x32EA20 0x32EC9F): lohook -> material_bounds_on_material_pair
+global material_bounds_on_material_pair
+extern hook_material_bounds_on_material_pair
+material_bounds_on_material_pair:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_material_bounds_on_material_pair
+    mov edx, material_bounds_on_material_pair_replay
+    cmp eax, 0
+    je material_bounds_on_material_pair_go
+    mov edx, 0x306d5a
+    cmp eax, 1
+    je material_bounds_on_material_pair_go
+    mov edx, 0x306df8
+    cmp eax, 2
+    je material_bounds_on_material_pair_go
+    ud2
+material_bounds_on_material_pair_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+material_bounds_on_material_pair_replay:
+    db 0x0f, 0xb7, 0xc2, 0x8b, 0x84, 0x81, 0x08, 0x01, 0x00, 0x00
+    jmp 0x306d5a
+
 ; 0x33d41b EBP medkit EBX player XMM0 duration: lohook -> medical_skills_on_duration_start
 global medical_skills_on_duration_start
 extern hook_medical_skills_on_duration_start
