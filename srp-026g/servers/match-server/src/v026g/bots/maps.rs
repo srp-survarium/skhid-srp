@@ -1854,15 +1854,22 @@ mod tests {
         dir
     }
 
+    /// How long [`a_real_map_loads`] waits for its map, seconds: a full live grid build (see the test).
+    const REAL_MAP_BUILD_LIMIT_S: u64 = 3600;
+
     /// One real map, only with `SRP_MAPDATA_DIR=<dir of mapdata-dump files>`.
     #[test]
     fn a_real_map_loads() {
         let Some(dir) = real_dir() else { return };
         // [A364 C2 rows 11/12] With the rim jumps off: their flights are the pre-build's (the grids ship built, the 2f package), a
         // map's live build with them is many minutes; the rim pass has its own tests (`mapdata::grid::rim`).
+        // The store builds the grid here: no prebuilt grid of this body is read (a `built` folder of the shipped grids holds the
+        // rim jumps' body, under another key, and none tracks the builder in use), so the wait covers the full build. Measured at
+        // 1140 s and 1181 s on 2026-11-21 (two clean runs, both passing but for the old 300 s limit); 3600 s keeps a margin
+        // of about 3x for a loaded machine.
         let built = dir.join(BUILT_DIR);
         let maps = Maps::configured(Some(dir), KEEP, AT_ONCE, Some(built), GridTuning { rim_jumps: false, ..GridTuning::default() });
-        let world = wait_ready(&maps, "level_01/day_4", Duration::from_secs(300))
+        let world = wait_ready(&maps, "level_01/day_4", Duration::from_secs(REAL_MAP_BUILD_LIMIT_S))
             .world
             .clone();
         assert_eq!(world.map.project, "level_01/day_4");
