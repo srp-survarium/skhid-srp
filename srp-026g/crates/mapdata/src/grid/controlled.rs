@@ -73,6 +73,14 @@ pub struct ControlledStats {
     pub checks_failed_crouched: usize,
     /// [2c] Risers cut by the walk but kept, marked, for no walking way round them ([`ROUND_HOPS`]).
     pub checks_no_way_round: usize,
+    /// [given-back walks] The wall give-back's Walk links the walk check walked ([`WalkGrid::walk_given_back`]).
+    pub given_back_checks: usize,
+    /// [given-back walks] Of those, the failing ones taken away.
+    pub given_back_dropped: usize,
+    /// [given-back walks] Of those, the failing ones kept as a floor's only way in or back (`WalkGrid::cut_keeping_reach`), marked.
+    pub given_back_kept: usize,
+    /// [given-back walks] Of those, the failing ones kept, marked, for no walking way round them ([`ROUND_HOPS`]).
+    pub given_back_no_way_round: usize,
 }
 
 /// [2c] The risers [`WalkGrid::walk_every_link`] keeps for no walking way round them (floor, floor).
@@ -872,6 +880,68 @@ impl WalkGrid {
         (stats, round.into_iter().map(|(f, _)| f).collect(), held, crouch)
     }
 
+    /// [given-back walks] The Walk links the wall give-back made ([`Body::wall_give_back`]: out of each given-back floor, and
+    /// into one from a kept floor) walked as [`Self::walk_every_link`] walks every link: the walk check runs before the
+    /// give-back, so its links were never walked. Of those [`Self::walk_checked`] selects, each is walked by [`Self::walk_link`];
+    /// a failing one, flat or rising, is taken away where a walking way leads round it ([`Self::walk_way_round`]) and the cut
+    /// disconnects no floor from the seeds and spawns ([`WalkGrid::cut_keeping_reach`], the last resorts kept, and with
+    /// [`Body::walk_every_link`] the walking ways); the others stay, marked, as the walk check's kept ones do. Vector
+    /// Laboratory batteries: the diagonal Walk (-25.99, 16.93, -4.04) -> (-25.74, 16.93, -4.29) is the give-back's (a 30 m box
+    /// built with and without it: the floor and the link exist only with it), and the client's body gets 0.066 of the way.
+    pub(super) fn walk_given_back(&self, wide: &mut Wide, world: &Collision, seeds: &[Vec3], spawns: &[Vec3], stats: &mut ControlledStats) {
+        if wide.given.is_empty() {
+            return;
+        }
+        let (_, s) = self.body.controller();
+        let (s, start) = (&s, self.body.walk_start());
+        let n = self.height.len();
+        let made = |a: usize, d: usize| {
+            let b = wide.links[a][d];
+            b != NONE && wide.kinds[a][d] == LinkKind::Walk && (wide.given[a] || wide.given[b as usize])
+        };
+        // The floors at those links' ends, and which have a face no body walks on near them (as `walk_every_link` asks).
+        let mut ends = vec![false; n];
+        for a in 0..n {
+            for d in 0..8 {
+                if made(a, d) {
+                    ends[a] = true;
+                    ends[wide.links[a][d] as usize] = true;
+                }
+            }
+        }
+        let floors: Vec<usize> = (0..n).filter(|&a| ends[a]).collect();
+        let faced = parallel(&floors, |&a| {
+            let feet = self.position(a as NodeId);
+            let height = if self.ceiling[a] - self.height[a] >= STANDING_ROOM_M { STAND_HEIGHT_M } else { CROUCH_HEIGHT_M };
+            let cap = Capsule::standing(feet, height, STAND_RADIUS_M);
+            world
+                .nearest(cap, CHECK_WIDE_REACH_M, |f| f.walker == WalkerBehaviour::DontWalk || f.normal.y.abs() < s.idle_max_slope_cos)
+                .is_some()
+        });
+        let mut near = vec![false; n];
+        for (&a, f) in floors.iter().zip(faced) {
+            near[a] = f;
+        }
+        let checks: Vec<(usize, usize)> =
+            (0..n).flat_map(|a| (0..8).map(move |d| (a, d))).filter(|&(a, d)| made(a, d) && self.walk_checked(a, wide.links[a][d] as usize, &near)).collect();
+        stats.given_back_checks = checks.len();
+        let walked = parallel(&checks, |&(a, d)| self.walk_link(wide, world, s, start, a, d));
+        let failing: Vec<(u32, usize, f32)> = checks.iter().zip(walked).filter(|(_, w)| !w.passes).map(|(&(a, d), w)| (a as u32, d, w.share)).collect();
+        let cut: std::collections::HashSet<(u32, u32)> = failing.iter().map(|&(a, d, _)| (a, wide.links[a as usize][d])).collect();
+        let other_way = parallel(&failing, |&(a, d, _)| self.walk_way_round(wide, a, wide.links[a as usize][d], &cut));
+        let (round, held): (Vec<_>, Vec<_>) = failing.into_iter().zip(other_way).partition(|&(_, round)| round);
+        stats.given_back_no_way_round = held.len();
+        let mut marked: Vec<(u32, u32)> = held.into_iter().map(|((a, d, _), _)| (a, wide.links[a as usize][d])).collect();
+        let round: Vec<(u32, usize, f32)> = round.into_iter().map(|(f, _)| f).collect();
+        let tried: Vec<(u32, u32)> = round.iter().map(|&(a, d, _)| (a, wide.links[a as usize][d])).collect();
+        (stats.given_back_dropped, stats.given_back_kept) = self.cut_keeping_reach(wide, round, seeds, spawns, true, self.body.walk_every_link);
+        // The kept ones are marked, as the walk check's are: a route may need them, and they are where a body is likely held.
+        marked.extend(tried.into_iter().filter(|&(a, b)| (0..DIRS.len()).any(|d| wide.links[a as usize][d] == b && wide.kinds[a as usize][d] == LinkKind::Walk)));
+        wide.marked.extend(marked);
+        wide.marked.sort_unstable();
+        wide.marked.dedup();
+    }
+
     /// [2c] Whether a walking way leads from `a` to `b` within [`ROUND_HOPS`] links without the links `cut` (Walk links only).
     fn walk_way_round(&self, wide: &Wide, a: u32, b: u32, cut: &std::collections::HashSet<(u32, u32)>) -> bool {
         let mut seen = std::collections::HashSet::from([a]);
@@ -1178,6 +1248,58 @@ mod tests {
         assert!((way_along(from, to, Vec3::new(0.9, 0.36, 0.0)) - 0.9).abs() < 1e-5);
         // A way down: its lower end is the floor of its level.
         assert!((way_along(to, from, Vec3::new(0.5, -0.1, 0.0)) - 0.5).abs() < 1e-5);
+    }
+
+    /// [given-back walks] A platform 0.78 m up (z 3-6) with a vertical front face and a ramp up at its west end (x 0-1.5), beside
+    /// a wall 2.5 m tall at x 5.2: the front face is a Walk link's rise (under the 0.8 m step) that the client's walk does not
+    /// climb (refused from 0.76 m, [`Body::walked_step`]), and the wall's give-back makes such links by the wall, after the walk
+    /// check has run. The give-back's walks up the face fail and, with the ramp as their way round, are taken away: no Walk link
+    /// up the face is left by the wall (within 1 m of it, where the give-back's floors are) unless it is marked, and the platform
+    /// by the wall is still reached. Before, the walk check never walked them and they stayed.
+    #[test]
+    fn the_wall_give_backs_walks_are_walked() {
+        let (wall, top, h) = (5.2, 0.78, 2.5);
+        let mut tris = Vec::new();
+        floor(&mut tris, 1.5, 0.0, wall, 3.0, 0.0);
+        floor(&mut tris, 0.0, 0.0, 1.5, 1.0, 0.0);
+        quad(&mut tris, Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, top, 3.0), Vec3::new(1.5, top, 3.0), Vec3::new(1.5, 0.0, 1.0));
+        tris.push(Triangle { v: [Vec3::new(1.5, 0.0, 1.0), Vec3::new(1.5, top, 3.0), Vec3::new(1.5, 0.0, 3.0)], walker: WalkerBehaviour::BySlope });
+        floor(&mut tris, 0.0, 3.0, wall, 6.0, top);
+        quad(&mut tris, Vec3::new(1.5, 0.0, 3.0), Vec3::new(1.5, top, 3.0), Vec3::new(wall, top, 3.0), Vec3::new(wall, 0.0, 3.0));
+        quad(&mut tris, Vec3::new(wall, 0.0, 0.0), Vec3::new(wall, h, 0.0), Vec3::new(wall, h, 6.0), Vec3::new(wall, 0.0, 6.0));
+        let body = Body {
+            erosion: super::super::Erosion::Exact,
+            wall_give_back: true,
+            give_back_in_cell: true,
+            client_controller: true,
+            walk_start_clear: true,
+            walk_every_link: true,
+            exe_collision: true,
+            ..Body::client()
+        };
+        let start = [Vec3::new(3.0, 0.0, 1.0)];
+        let area = [0.0, 0.0, 6.0, 6.0];
+        let (grid, stats) = WalkGrid::build_kept_with_links(&tris, area, 0.25, body, &start, &start, OffMeshLinks::None);
+        println!("GBTEST given back {}; {:?}", stats.wall_given_back, stats.controlled);
+        let mut up: Vec<(Vec3, Vec3, bool)> = Vec::new();
+        for a in grid.floors_in(area) {
+            let p = grid.position(a);
+            if p.x < wall - 1.0 || p.y > 0.1 {
+                continue;
+            }
+            for (b, kind) in grid.links(a) {
+                let q = grid.position(b);
+                if kind == LinkKind::Walk && q.y > top - 0.1 {
+                    up.push((p, q, grid.walk_marked(a, b)));
+                }
+            }
+        }
+        println!("GBTEST Walk links up the face by the wall: {up:?}");
+        assert!(stats.wall_given_back > 0 && stats.controlled.given_back_checks > 0, "{:?}", stats.controlled);
+        assert!(stats.controlled.given_back_dropped > 0, "the give-back's walks up the face are taken away: {:?}", stats.controlled);
+        assert!(up.iter().all(|&(_, _, marked)| marked), "a Walk link up the face by the wall is left unmarked: {up:?}");
+        let by_wall = grid.locate(Vec3::new(wall - 0.4, top, 4.5), 0.3).expect("the platform by the wall");
+        assert!(grid.reached(by_wall), "the platform by the wall is reached by the ramp");
     }
 
     /// [2c] A platform whose only way up is a 0.785 m vertical step (a Walk link with the clients' 0.8 m step, which the

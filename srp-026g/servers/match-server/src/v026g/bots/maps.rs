@@ -966,6 +966,16 @@ fn build(
                             walked.checks_crouched,
                             walked.checks_no_way_round
                         );
+                        // [given-back walks] The wall give-back's walks walked after it: checked, failed and cut, failed and kept as a
+                        // floor's only way (marked), failed and kept for no walking way round (marked).
+                        log::info!(
+                            "Bot map {} given-back walks: {} checked, {} failed and cut, {} failed and kept, {} no way round",
+                            path.display(),
+                            walked.given_back_checks,
+                            walked.given_back_dropped,
+                            walked.given_back_kept,
+                            walked.given_back_no_way_round
+                        );
                         // [item 10] Each held sprint built (`Takeoff::SprintHeld`: the forward key held on after the landing).
                         for l in grid.off_links().iter().filter(|l| matches!(l.press, mapdata::grid::gap::Takeoff::SprintHeld(_))) {
                             let (from, to) = (grid.position(l.from), grid.position(l.to));
