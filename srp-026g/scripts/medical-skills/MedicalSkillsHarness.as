@@ -7,10 +7,10 @@ package {
  public class MedicalSkillsHarness extends Sprite {
   // Our trees' skills and each's embedded artwork (bitmaps/<class>.png; medical-skills,
   // artefact-skills and technical-skills icons-069.tsv).
-  private static const ARTWORK:Object = {301:"MedicalSkill069301",302:"MedicalSkill069302",303:"MedicalSkill069301",
-   311:"MedicalSkill069311",312:"MedicalSkill069312",314:"MedicalSkill069322",321:"MedicalSkill069321",
-   322:"MedicalSkill069322",323:"MedicalSkill069301",324:"MedicalSkill069322",331:"MedicalSkill069331",332:"MedicalSkill069332",
-   333:"MedicalSkill069322",341:"MedicalSkill069341",342:"MedicalSkill069342",
+  private static const ARTWORK:Object = {301:"MedicalSkill069301",302:"MedicalSkill069302",303:"MedicalSkill069303",
+   311:"MedicalSkill069311",312:"MedicalSkill069312",314:"MedicalSkill069314",321:"MedicalSkill069321",
+   322:"MedicalSkill069322",323:"MedicalSkill069323",324:"MedicalSkill069324",331:"MedicalSkill069331",332:"MedicalSkill069332",
+   333:"MedicalSkill069333",341:"MedicalSkill069341",342:"MedicalSkill069342",
    501:"ArtefactSkill069501",502:"ArtefactSkill069502",512:"ArtefactSkill069512",513:"ArtefactSkill069513",
    521:"ArtefactSkill069521",522:"ArtefactSkill069522",523:"ArtefactSkill069523",531:"ArtefactSkill069531",532:"ArtefactSkill069532",
    533:"ArtefactSkill069533",534:"ArtefactSkill069534",541:"ArtefactSkill069541",542:"ArtefactSkill069542",
