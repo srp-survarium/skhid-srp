@@ -2672,7 +2672,16 @@ pub(super) struct JumpWatch {
     pub(super) from: Vec3,
     pub(super) route: Option<RoutePress>,
     pub(super) up: Option<u32>,
-    pub(super) landed: Option<u32>,
+    pub(super) landed: Option<(u32, Landed)>,
+}
+
+/// [fix-lip] How a world showed a route jump down's feet on its landing.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) enum Landed {
+    /// Within `motor::UP_NEAR_M` of the landing ([`motor::on_landing`]).
+    Near,
+    /// On the landing's floor this far (m, flat) from it ([`motor::on_landing_floor`]).
+    Floor { off_m: f32 },
 }
 
 impl Bot {
@@ -2694,6 +2703,11 @@ impl Bot {
             };
             // [F3] A jump that missed its landing says the body at its press against the stored window (decides nothing).
             let line = if outcome.missed() { format!("{line}; {}", route.state.text()) } else { line };
+            // [fix-lip] A jump down seen only on its landing's floor says so.
+            let line = match watch.landed {
+                Some((_, Landed::Floor { off_m })) => format!("{line}; seen on the landing's floor {off_m:.1} m from it"),
+                _ => line,
+            };
             self.nav_log.push(super::nav_log::Kind::Jump, time, line);
         }
         if self.tracing {
@@ -2723,7 +2737,7 @@ impl Bot {
                 watch.up = Some(time);
             }
             if watch.landed.is_none() && motor::on_landing(feet, route.landing) {
-                watch.landed = Some(time);
+                watch.landed = Some((time, Landed::Near));
             }
         }
     }
