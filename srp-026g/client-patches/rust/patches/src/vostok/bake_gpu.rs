@@ -693,7 +693,8 @@ pub enum CompressError {
     Size { data: u32, size: DdsSize },
     /// A capture of another compress is under way (it is never another's).
     Busy,
-    /// create_texture2d gave no texture for level 0 (the GPU's memory).
+    /// create_texture2d gave no texture for level 0 (out of memory:
+    /// [`refused`]).
     Level0,
     /// A level compress_mip copied that [`readback`] could not keep.
     Capture(CaptureError),
@@ -704,8 +705,10 @@ pub enum CompressError {
 /// Why [`readback`] did not keep a level.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CaptureError {
-    /// The site's staging, frame or cursor was 0 (or the capture was gone).
+    /// The site's frame or cursor was 0 (or the capture was gone).
     Site,
+    /// compress_mip's staging was not made (out of memory: [`refused`]).
+    Unmade,
     /// More levels than a texture has.
     TooMany,
     /// The level's blocks not inside the DDS (past its size, or before its
@@ -974,23 +977,46 @@ enum Mine {
     Broken,
 }
 
+/// Where compress_mip goes on from `compress_mip.readback`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AtReadback {
+    /// The game's map and copy (not our compress).
+    Map,
+    /// Past the map: our compress keeps the staging, or its capture is broken.
+    Kept,
+    /// Past the staging's release too: our compress's staging was not made.
+    Unmade,
+}
+
 /// `compress_mip.readback`, a level copied to its staging. During
-/// [`compress`] on this thread every level is kept (true: leave by `kept`,
-/// no map, no copy): its staging with a reference more and its place noted,
-/// the cursor moved past its blocks as 0x11F863 moves it. One that does not
-/// fit breaks the capture (and the bake), unmapped too. Any other compress
-/// (another thread's, or not ours): false, the game's map.
-pub fn readback(ctx: &mut Context<'_>) -> bool {
+/// [`compress`] on this thread every level is kept (`Kept`: no map, no
+/// copy): its staging with a reference more and its place noted, the cursor
+/// moved past its blocks as 0x11F863 moves it. One that does not fit breaks
+/// the capture (and the bake), unmapped too; so does a staging that was not
+/// made (`Unmade`: nothing to release). Any other compress (another
+/// thread's, or not ours): `Map`, the game's.
+pub fn readback(ctx: &mut Context<'_>) -> AtReadback {
     let thread = ctx.thread();
     let mine = CAPTURE.with(thread, |c| match c.as_ref().and_then(|bound| bound.get(thread)) {
         None => Mine::No,
         Some(Capture { kept: Kept::Broken(_), .. }) => Mine::Broken,
         Some(Capture { size, kept: Kept::Levels(_) }) => Mine::Yes(*size),
     });
-    let size = match mine {
-        Mine::No => return false,
-        Mine::Broken => return true,
-        Mine::Yes(size) => size,
+    // SAFETY: compress_mip's site: ESI its staging (0 when none was made).
+    let made = unsafe { raw::site::compress_mip_readback::staging(ctx) }.is_some();
+    let size = match (mine, made) {
+        (Mine::No, _) => return AtReadback::Map,
+        (Mine::Broken, true) => return AtReadback::Kept,
+        (Mine::Broken, false) => return AtReadback::Unmade,
+        (Mine::Yes(_), false) => {
+            let held = CAPTURE.with(thread, |c| {
+                c.as_mut().and_then(|bound| bound.get_mut(thread)).and_then(|capture| capture.broken(CaptureError::Unmade))
+            });
+            // let go out of the lock
+            drop(held);
+            return AtReadback::Unmade;
+        }
+        (Mine::Yes(size), true) => size,
     };
     match copied(ctx, size) {
         Ok(Copied { staging, place, bytes, cursor }) => {
@@ -1021,7 +1047,47 @@ pub fn readback(ctx: &mut Context<'_>) -> bool {
         }
     }
     // ESI keeps the staging: the exit releases compress_mip's reference
-    true
+    AtReadback::Kept
+}
+
+/// Whether this thread runs [`compress`] now (its capture under way).
+fn capturing(thread: &Thread) -> bool {
+    CAPTURE.with(thread, |c| c.as_ref().is_some_and(|bound| bound.get(thread).is_some()))
+}
+
+/// D3D11's E_OUTOFMEMORY (8007000Eh): a failure (bit 31) of facility Win32
+/// (7), ERROR_OUTOFMEMORY (14).
+const OUT_OF_MEMORY: u32 = 1 << 31 | 7 << 16 | 14;
+
+/// `texture2d.refused`: CreateTexture2D failed. Out of memory while this
+/// thread runs [`compress`] (level 0, a level's staging: the address space
+/// or video memory the driver needs is not there), the texture is refused
+/// (true: create_texture2d_impl returns 0 and create_texture2d gives 0,
+/// [`unmade`]); the compress then fails and so does its bake, whose item
+/// keeps its own texture. Any other failure, or any other texture: false,
+/// the game's assertion.
+pub fn refused(ctx: &Context<'_>) -> bool {
+    // SAFETY: the site's EAX, the HRESULT.
+    let result = unsafe { raw::site::texture2d_refused::result(ctx) };
+    result == OUT_OF_MEMORY && capturing(ctx.thread())
+}
+
+/// `texture2d.unmade`: create_texture2d_impl gave no texture ([`refused`])
+/// while this thread runs [`compress`]: true, create_texture2d returns 0
+/// (it would read the texture). Else false, the game's code.
+pub fn unmade(ctx: &Context<'_>) -> bool {
+    // SAFETY: the site's EAX, create_texture2d_impl's texture.
+    let texture = unsafe { raw::site::texture2d_unmade::texture(ctx) };
+    texture.is_none() && capturing(ctx.thread())
+}
+
+/// `compress_mip.copy`: compress_mip's staging not made ([`refused`]) while
+/// this thread runs [`compress`]: true, the copy to it is skipped
+/// (copy2D would read it); `compress_mip.readback` then breaks the capture.
+pub fn copy_skipped(ctx: &Context<'_>) -> bool {
+    // SAFETY: compress_mip's site: ESI its staging (0 when none was made).
+    let staging = unsafe { raw::site::compress_mip_copy::staging(ctx) };
+    staging.is_none() && capturing(ctx.thread())
 }
 
 /// How a level is mapped: D3D11_MAP_READ, waiting for the GPU or with

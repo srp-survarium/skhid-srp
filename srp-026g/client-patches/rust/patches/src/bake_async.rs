@@ -32,17 +32,23 @@
 //!   waiting; after it, bakes take the stock path.
 //!
 //! A bake whose levels cannot be read back (the device lost), that finds no
-//! MT memory, whose level 0 finds no GPU memory, or whose compressor does
-//! not fit its DDS fails its query, as a bake that fails does. Textures
-//! only: nothing a match computes changes.
+//! MT memory, or whose compressor does not fit its DDS fails its query, as a
+//! bake that fails does. So does one whose level 0 or a level's staging
+//! CreateTexture2D cannot make for want of memory (`on_texture_refused`,
+//! `on_texture_unmade`, `on_copy`: stock, the game's assertion closed the
+//! game; the address space of a long session, 2026-11-22): its item keeps
+//! its own texture, and the game plays on. Textures only: nothing a match
+//! computes changes.
 
 #![forbid(unsafe_code)]
 
-use crate::vostok::bake_gpu::{self, CaptureError, Completion, CompressError, IssueFailed, Issued, Ms, Outcome,
-                              Progress, ReadError, Stamp};
+use crate::vostok::bake_gpu::{self, AtReadback, CaptureError, Completion, CompressError, IssueFailed, Issued, Ms,
+                              Outcome, Progress, ReadError, Stamp};
 use crate::vostok::log::{line, parts, Limited, Piece};
-use crate::vostok::{BakeAsyncOnIssueExit, BakeAsyncOnReadbackExit, BakeAsyncOnResumeExit, BakeAsyncOnSaveExit,
-                    Context, Flow, Lock, NoExit, Thread, ThreadBound, ThreadId};
+use crate::vostok::memory;
+use crate::vostok::{BakeAsyncOnCopyExit, BakeAsyncOnIssueExit, BakeAsyncOnReadbackExit, BakeAsyncOnResumeExit,
+                    BakeAsyncOnSaveExit, BakeAsyncOnTextureRefusedExit, BakeAsyncOnTextureUnmadeExit, Context, Flow,
+                    Lock, NoExit, Thread, ThreadBound, ThreadId};
 
 /// Bakes on the GPU at once (their stagings, up to 5.6 MB each).
 const IN_FLIGHT: usize = 8;
@@ -429,6 +435,8 @@ static DRAINED: Limited = Limited::new("such passes");
 static UNSAVED: Limited = Limited::new("not saved");
 /// The bakes whose issue (with its draw) took LONG_ISSUE or more.
 static SLOW: Limited = Limited::new("slow issues");
+/// Bakes that failed for want of memory for a texture.
+static NO_MEMORY: Limited = Limited::new("bakes with no memory");
 
 /// A dispatch of a thread that ticks frames while the GPU's bakes are
 /// another thread's (only that one completes them, at its own dispatches).
@@ -476,7 +484,7 @@ fn log_completion(thread: &Thread, completion: &Completion) {
 }
 
 /// What a compressor's failure says.
-fn log_failed(failed: &IssueFailed) {
+fn log_failed(thread: &Thread, failed: &IssueFailed) {
     use Piece::{Dec, Text};
     let head: &[Piece] = &[Text("bake_async: "), Text(failed.job.name())];
     let tail: &[Piece] = &[Text("; failed")];
@@ -486,10 +494,9 @@ fn log_failed(failed: &IssueFailed) {
         CompressError::Size { data, size } => parts(&[head, &[
             Text(": its levels' "), Dec(data), Text(" bytes do not fit its DDS of "), Dec(size.bytes())], tail]),
         CompressError::Busy => parts(&[head, &[Text(": another compress is being captured")], tail]),
-        CompressError::Level0 => parts(&[head, &[Text(": no texture for its level 0 (the GPU's memory?)")], tail]),
-        CompressError::Capture(CaptureError::Site) => {
-            parts(&[head, &[Text(": a level's staging or cursor missing")], tail])
-        }
+        CompressError::Level0 => log_no_memory(thread, head, "its level 0"),
+        CompressError::Capture(CaptureError::Unmade) => log_no_memory(thread, head, "a level's staging"),
+        CompressError::Capture(CaptureError::Site) => parts(&[head, &[Text(": a level's cursor missing")], tail]),
         CompressError::Capture(CaptureError::TooMany) => {
             parts(&[head, &[Text(": more levels than a texture has")], tail])
         }
@@ -498,6 +505,18 @@ fn log_failed(failed: &IssueFailed) {
         CompressError::End { end, size } => parts(&[head, &[
             Text(": the levels end at "), Dec(end.bytes()), Text(", past its DDS of "), Dec(size.bytes())], tail]),
     }
+}
+
+/// A bake that CreateTexture2D had no memory for (`what`), with the address
+/// space left; a line a second at most (a long session's last bakes may all
+/// fail so).
+fn log_no_memory(thread: &Thread, head: &[Piece], what: &str) {
+    use Piece::{Dec, Text};
+    let space = memory::process(thread);
+    NO_MEMORY.parts(thread, &[head, &[
+        Text(": no memory for "), Text(what), Text(" (E_OUTOFMEMORY); failed, its item keeps its own texture; address \
+                                            space free "),
+        Dec(space.free >> 20), Text(" MiB, largest "), Dec(space.largest_free >> 20), Text(" MiB")]]);
 }
 
 /// A bake whose issue took LONG_ISSUE or more: the cook line's "bake" is its
@@ -591,7 +610,7 @@ pub fn on_issue(ctx: &mut Context<'_>) -> Flow<BakeAsyncOnIssueExit> {
         }
         Err(failed) => {
             drop(ticket);
-            log_failed(&failed);
+            log_failed(thread, &failed);
             failed.job.fail();
         }
     }
@@ -623,7 +642,27 @@ pub fn on_free(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 /// `compress_mip.readback`: a level's staging kept, not mapped.
 pub fn on_readback(ctx: &mut Context<'_>) -> Flow<BakeAsyncOnReadbackExit> {
-    if bake_gpu::readback(ctx) { Flow::Exit(BakeAsyncOnReadbackExit::Kept) } else { Flow::Continue }
+    match bake_gpu::readback(ctx) {
+        AtReadback::Map => Flow::Continue,
+        AtReadback::Kept => Flow::Exit(BakeAsyncOnReadbackExit::Kept),
+        AtReadback::Unmade => Flow::Exit(BakeAsyncOnReadbackExit::Unmade),
+    }
+}
+
+/// `compress_mip.copy`: no copy to a staging that was not made.
+pub fn on_copy(ctx: &mut Context<'_>) -> Flow<BakeAsyncOnCopyExit> {
+    if bake_gpu::copy_skipped(ctx) { Flow::Exit(BakeAsyncOnCopyExit::Skipped) } else { Flow::Continue }
+}
+
+/// `texture2d.refused`: a bake's texture with no memory is not made (the
+/// bake fails), not the game's assertion.
+pub fn on_texture_refused(ctx: &mut Context<'_>) -> Flow<BakeAsyncOnTextureRefusedExit> {
+    if bake_gpu::refused(ctx) { Flow::Exit(BakeAsyncOnTextureRefusedExit::Refused) } else { Flow::Continue }
+}
+
+/// `texture2d.unmade`: create_texture2d gives the bake no texture.
+pub fn on_texture_unmade(ctx: &mut Context<'_>) -> Flow<BakeAsyncOnTextureUnmadeExit> {
+    if bake_gpu::unmade(ctx) { Flow::Exit(BakeAsyncOnTextureUnmadeExit::Empty) } else { Flow::Continue }
 }
 
 /// One pass of this thread's bakes, oldest first: each the GPU has done

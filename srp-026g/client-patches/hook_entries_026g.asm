@@ -3099,7 +3099,7 @@ bake_async_on_free_replay:
     db 0x8b, 0x8c, 0x24, 0x88, 0x01, 0x00, 0x00
     jmp 0x12f3fe
 
-; 0x11f754 compress_mip after the level's copy to its staging (push 0 / lea ecx,[esp+48h], then map2D 0x11F763 and the memcpy); kept past the Unmap: ESI's staging released, the target released, ret 20h; EBX the level's blocks wide: lohook -> bake_async_on_readback
+; 0x11f754 compress_mip after the level's copy to its staging (push 0 / lea ecx,[esp+48h], then map2D 0x11F763 and the memcpy); kept past the Unmap: ESI's staging released, the target released, ret 20h; EBX the level's blocks wide; unmade 0x11F885, past that release (a staging create_texture2d did not make, texture2d.unmade: nothing to release), where the target is released, the same ESP: lohook -> bake_async_on_readback
 global bake_async_on_readback
 extern hook_bake_async_on_readback
 bake_async_on_readback:
@@ -3129,6 +3129,9 @@ bake_async_on_readback:
     mov edx, 0x11f871
     cmp eax, 2
     je bake_async_on_readback_go
+    mov edx, 0x11f885
+    cmp eax, 3
+    je bake_async_on_readback_go
     ud2
 bake_async_on_readback_go:
     mov [ebp + 36], edx
@@ -3140,6 +3143,132 @@ bake_async_on_readback_go:
 bake_async_on_readback_replay:
     db 0x6a, 0x00, 0x8d, 0x4c, 0x24, 0x48
     jmp 0x11f75a
+
+; 0x11f730 compress_mip before its copy of the level to its staging (mov esi,[esp+10h] done; mov edx,[esp+38h] / push edi, then push esi / mov eax,ebx / call copy2D 0x3C0E00, which reads the staging's [esi+1ACh]; ESI the staging, 0 when create_texture2d at 0x11F600 made none); skipped 0x11F73D, past the call (copy2D's ret 8 takes the two pushes: the same ESP), where EDI's level is released: lohook -> bake_async_on_copy
+global bake_async_on_copy
+extern hook_bake_async_on_copy
+bake_async_on_copy:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_async_on_copy
+    mov edx, bake_async_on_copy_replay
+    cmp eax, 0
+    je bake_async_on_copy_go
+    mov edx, 0x11f735
+    cmp eax, 1
+    je bake_async_on_copy_go
+    mov edx, 0x11f73d
+    cmp eax, 2
+    je bake_async_on_copy_go
+    ud2
+bake_async_on_copy_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_async_on_copy_replay:
+    db 0x8b, 0x54, 0x24, 0x38, 0x57
+    jmp 0x11f735
+
+; 0x3be8cd create_texture2d_impl after a failed ID3D11Device::CreateTexture2D (call edx 0x3BE8BE; the assertions' flag byte [2260C28h] 0, then test eax,eax / jge 0x3BE917 fell through: EAX the HRESULT, below 0), before its assertion (mov byte [esp+54h],1 / call 0x3D02F0, then 0x1132D0 and int3 0x3BE916); EBP the usage, EDI the format, ESP+10h the description; refused 0x3BE80A, the function's own early return (xor eax,eax / pop edi / pop esi / pop ebp / add esp,30h / ret 18h: the four pushes of the call are the callee's, the same ESP): no texture: lohook -> bake_async_on_texture_refused
+global bake_async_on_texture_refused
+extern hook_bake_async_on_texture_refused
+bake_async_on_texture_refused:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_async_on_texture_refused
+    mov edx, bake_async_on_texture_refused_replay
+    cmp eax, 0
+    je bake_async_on_texture_refused_go
+    mov edx, 0x3be8d2
+    cmp eax, 1
+    je bake_async_on_texture_refused_go
+    mov edx, 0x3be80a
+    cmp eax, 2
+    je bake_async_on_texture_refused_go
+    ud2
+bake_async_on_texture_refused_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_async_on_texture_refused_replay:
+    db 0xc6, 0x44, 0x24, 0x54, 0x01
+    jmp 0x3be8d2
+
+; 0x3beb4f create_texture2d after create_texture2d_impl (0x3BEB4A) on its named path, which every call takes (an unnamed one gets a made-up name, 0x3BE9D0: the frame's buffer, never 0; 0x3BEADF is not reached), before it reads the texture (mov ecx,[ebp+0Ch] / mov ebx,eax, then [ebx+98h]); EAX the texture, 0 when texture2d.refused refused it; empty 0x3BEA92, the function's own early return (xor eax,eax / pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp / ret 20h; 0x3C6A30's two pushes are its own, the same ESP): lohook -> bake_async_on_texture_unmade
+global bake_async_on_texture_unmade
+extern hook_bake_async_on_texture_unmade
+bake_async_on_texture_unmade:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_async_on_texture_unmade
+    mov edx, bake_async_on_texture_unmade_replay
+    cmp eax, 0
+    je bake_async_on_texture_unmade_go
+    mov edx, 0x3beb54
+    cmp eax, 1
+    je bake_async_on_texture_unmade_go
+    mov edx, 0x3bea92
+    cmp eax, 2
+    je bake_async_on_texture_unmade_go
+    ud2
+bake_async_on_texture_unmade_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_async_on_texture_unmade_replay:
+    db 0x8b, 0x4d, 0x0c, 0x8b, 0xd8
+    jmp 0x3beb54
 
 ; 0x1024fa resources_manager::dispatch_callbacks' common end (pop edi / pop esi / pop ebx / mov esp,ebp, then pop ebp / ret 4): the thread's callbacks dispatched: lohook -> bake_async_on_dispatched
 global bake_async_on_dispatched

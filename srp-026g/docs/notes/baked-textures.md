@@ -220,9 +220,28 @@ asynchronous, the cost is the GPU work the game waited for.
   targets by on_textures_loaded as stock, and the textures made are the game's. So the patch keeps no
   more than 8 bakes' stagings and models alive past stock (the 99.5% managed of 2026-11-09 is the
   load's; main ran out of it in the same load at 124-184 cooks without the raised arenas).
-- A bake whose levels cannot be mapped (the device lost), whose level 0 finds no GPU memory, or whose
-  compressor does not fit its DDS fails its query the same way, once (never tried again), and is
-  logged.
+- A bake whose levels cannot be mapped (the device lost), or whose compressor does not fit its DDS
+  fails its query the same way, once (never tried again), and is logged.
+- **A bake with no memory for its textures fails; the game plays on** (2026-11-22). A player's game
+  (revision 71, Windows, NVIDIA) closed in its tenth match load of one run: "Expression: E_OUTOFMEMORY,
+  resource_manager.cpp:3472, create_texture2d_impl", int3 0x3BE916, during the load's bakes. At the
+  int3 EBP held usage 3 and EDI format 0Ch: compress_mip's staging (0x11F600, R16G16B16A16_UINT, the
+  level's blocks), CPU memory the driver maps into the 32-bit address space. Its log: the address
+  space free at the world loads 357 MB at the first match, 93 MB at the ninth (the largest region
+  330 -> 71 MB), the fixed arenas unchanged. Stock, CreateTexture2D failing in create_texture2d_impl
+  asserts (0x3BE8CD) and the game ends; create_texture2d (0x3BEA70) would read a texture of 0
+  anyway. Now, while this thread runs patch 121's compress, E_OUTOFMEMORY for its level 0 (in
+  `bake_gpu::level0`) or a level's staging is refused: create_texture2d_impl returns 0 by its own
+  early return (`texture2d.refused`, exit 0x3BE80A), create_texture2d returns 0 (`texture2d.unmade`,
+  0x3BEB4F, exit 0x3BEA92), compress_mip skips its copy to the staging (`compress_mip.copy`, 0x11F730,
+  exit 0x11F73D) and its release (`compress_mip.readback`'s exit `unmade`, 0x11F885), and the
+  capture breaks. The bake fails its query (the item keeps its own texture, as any failed bake), the
+  stagings made are let go, and one line a second at most: "bake_async: <name>: no memory for a
+  level's staging (E_OUTOFMEMORY); failed, its item keeps its own texture; address space free N MiB,
+  largest M MiB". Any other HRESULT, and any texture outside a bake (another thread's, the stock
+  bake's, the game's own), still asserts as stock. Not covered: the bake's render targets
+  (create_render_target 0x3BF930, video memory: make_mips' and compress_mip's), and what the rest of a
+  load needs: the address space that ran out is still gone.
 - At game::exit (its start: every exit passes it) every bake on the GPU is completed, waiting; bakes
   after it are the stock ones.
 - `srp_patches.log`: the game's threads all log; a line now goes out whole, one at a time, and is

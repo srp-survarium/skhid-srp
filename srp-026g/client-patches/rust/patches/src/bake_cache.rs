@@ -965,7 +965,7 @@ mod tests {
     }
 
     /// BAKE_CODE's hash (its bytes but '\r') as BAKE_FORMAT was set.
-    const BAKE_CODE_HASH: u64 = 0x1fef_ffb8_a426_58aa;
+    const BAKE_CODE_HASH: u64 = 0x1845_be1f_fd98_59ea;
 
     #[test]
     fn the_bake_code_is_this_format() {

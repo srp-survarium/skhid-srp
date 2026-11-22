@@ -31,6 +31,21 @@ handler = "on_free"
 site = "compress_mip.readback"
 handler = "on_readback"
 
+# compress_mip before the copy to its staging: none made, no copy
+[[hook]]
+site = "compress_mip.copy"
+handler = "on_copy"
+
+# create_texture2d_impl, CreateTexture2D out of memory in a bake: no texture
+[[hook]]
+site = "texture2d.refused"
+handler = "on_texture_refused"
+
+# create_texture2d with no texture from create_texture2d_impl in a bake: none
+[[hook]]
+site = "texture2d.unmade"
+handler = "on_texture_unmade"
+
 # each resources dispatch: the bakes the GPU has done finished, the
 # postponed queries made again
 [[hook]]

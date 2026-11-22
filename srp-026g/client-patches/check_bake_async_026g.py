@@ -42,8 +42,14 @@ record, bake.free, finish).
   copy of the game's, logged); no memory for the save's descriptor (the
   texture made, the query finished with success and no save, the DDS freed,
   logged; the game's make_save_descriptor not called);
-- a compressor that does not fit the DDS, and no texture for level 0: the
-  query failed, nothing left on the GPU, no stock bake, not tried again;
+- a compressor that does not fit the DDS: the query failed, nothing left on
+  the GPU, no stock bake, not tried again;
+- out of memory (create_texture2d and create_texture2d_impl run for real,
+  CreateTexture2D gives E_OUTOFMEMORY): the original asserts (int3) at a
+  staging's; the build fails the bake whose level 0 or a level's staging
+  it is (the query failed, no assertion, no copy to the staging, the
+  stagings made let go, nothing left on the GPU, one line with the address
+  space), and asserts as the original for a texture outside a bake;
 - the places: 8 on the GPU; a 9th completes the oldest first, on the spot
   (its no-wait poll, then its levels read back waiting, its tail, patch
   70's waiter given its texture), then is issued in its place (no Map of
@@ -96,6 +102,11 @@ DESCRIPTOR_ALLOCATED = 0x109F6F    # allocate_save_descriptor's mt_allocate retu
 SAVE_FREED = 0x10A050              # save_descriptor::~save_descriptor (save.freed)
 QPC, QPF, THREAD_ID = 0x870158, 0x870150, 0x870118
 SAVE_COUNTER = 0x1B3A2AC
+VIRTUAL_QUERY = 0x870168
+E_OUTOFMEMORY = 0x8007000E
+DX_TEXT, ASSERT_PROCESS = 0x3D02F0, 0x1132D0       # create_texture2d_impl's assertion: the HRESULT's text, the report
+CREATED = 0xAA5B20 + 0x224                         # 0x145C0's state: 2, the render's device made (it says yes)
+FREE_SPACE = 80 << 20                              # VirtualQuery's made-up free region
 WAS_STILL_DRAWING, DEVICE_REMOVED = 0x887A000A, 0x887A0005
 NO_WAIT = 0x100000
 HEAP = 0x50000000
@@ -119,7 +130,7 @@ class Game(cache.Game):
         self.qpc_step = 1000               # the counter's ticks a read (1 MHz: 1 ms)
         self.thread_id = MAIN
         self.mt_refuse = lambda size, back: False     # (its size, its return address): give 0
-        self.level0_refused = False
+        self.out_of_memory = lambda usage, fmt: False   # CreateTexture2D's E_OUTOFMEMORY: the game's code runs
         self.log = []
         self.done = set()                  # stagings the "GPU" has done
         self.lost = False
@@ -129,7 +140,16 @@ class Game(cache.Game):
         self.device, self.context = self.new(0x200), self.new(0x40)
         self.word(self.device + 0x180, self.context)
         self.word(DEVICE_GLOBAL, self.device)
-        self.word(MANAGER_GLOBAL, self.new(0x100))
+        self.word(MANAGER_GLOBAL, self.new(0x90000))   # create_texture2d's names, +8809Ch: none yet
+        self.word(CREATED, 2)
+        # the D3D11 device (the render device's +17Ch): CreateTexture2D (+14h), out of memory
+        self.d3d = self.new(0x10)
+        self.word(self.d3d, self.new(0x40))
+        self.word(self.read(self.d3d) + 0x14, cache.STUBS + 0xA00)
+        self.stubs[cache.STUBS + 0xA00] = "CreateTexture2D"
+        self.word(self.device + 0x17C, self.d3d)
+        self.word(VIRTUAL_QUERY, cache.STUBS + 0xA10)
+        self.stubs[cache.STUBS + 0xA10] = "VirtualQuery"
         self.renderer = self.new(0x200)
         self.effect = self.new(0x5700)
         self.word(self.effect + 0xD0, 5)
@@ -177,7 +197,8 @@ class Game(cache.Game):
                          (APPENDF, "appendf"), (PHYSICAL, "physical"), (CONVERT, "convert"),
                          (FROM_MEMORY, "from memory"), (MT_ALLOC, "mt alloc"), (MT_FREE, "mt free"),
                          (RENDER_FREE, "render free"), (MAKE_SAVE, "make save"), (TRIM, "trim"),
-                         (BLOCK_FREE, "block free"), (DESTROY_COPY, "destroy copy")):
+                         (BLOCK_FREE, "block free"), (DESTROY_COPY, "destroy copy"), (DX_TEXT, "dx text"),
+                         (ASSERT_PROCESS, "assert process")):
             self.stubs[va] = name
         for slot, name in ((QPC, "QueryPerformanceCounter"), (QPF, "QueryPerformanceFrequency"),
                            (THREAD_ID, "GetCurrentThreadId")):
@@ -238,16 +259,36 @@ class Game(cache.Game):
         sp = emu.reg_read(UC_X86_REG_ESP)
         arg = lambda n: self.read(sp + 4 + 4 * n)
         reg = emu.reg_read
+        if name == "create texture" and self.out_of_memory(arg(5), arg(4)):
+            self.calls.append(("create texture", reg(UC_X86_REG_EAX), arg(2), arg(3), arg(4), arg(5), "game's"))
+            return                                   # create_texture2d itself, then create_texture2d_impl
         self.calls.append((name,))
         if name == "allocate":                       # esi the allocator, eax the size, the name; `ret 4`
             at = self.new(max(reg(UC_X86_REG_EAX), 0x10))
             self.calls[-1] = (name, reg(UC_X86_REG_ESI), reg(UC_X86_REG_EAX), arg(0))
             self.returns(at, 4)
         elif name == "create texture":                 # eax the width; manager, name, height, initial, format, usage, mips, bind
-            refused = self.level0_refused and arg(5) == 0 and arg(4) == 0x1C
-            t = 0 if refused else self.texture(reg(UC_X86_REG_EAX), arg(2), arg(5))
+            t = self.texture(reg(UC_X86_REG_EAX), arg(2), arg(5))
             self.calls[-1] = (name, reg(UC_X86_REG_EAX), arg(2), arg(3), arg(4), arg(5), t)
             self.returns(t, 0x20)
+        elif name == "CreateTexture2D":              # this, desc, initial, &texture: no memory
+            desc = [self.read(arg(1) + 4 * i) for i in range(11)]
+            self.calls[-1] = (name, desc[0], desc[1], desc[4], desc[7])
+            self.word(arg(3), 0)
+            self.returns(E_OUTOFMEMORY, 0x10)
+        elif name == "dx text":
+            self.returns(self.new(0x10))
+        elif name == "assert process":               # the assertion's report (cdecl); then IsDebuggerPresent, int3
+            self.returns(0)
+        elif name == "VirtualQuery":                 # address, info, size: one free region, then one in use
+            at = arg(0)
+            if at >= FREE_SPACE + 0x1000000:
+                self.returns(0, 0xC)
+                return
+            base, size, state = (0, FREE_SPACE, 0x10000) if at < FREE_SPACE else (FREE_SPACE, 0x1000000, 0x1000)
+            for i, value in enumerate((base, base, 0, size, state, 0 if state == 0x10000 else 4, 0x20000)):
+                self.word(arg(1) + 4 * i, value)
+            self.returns(28, 0xC)
         elif name == "create target":                # manager, name, width, height, format, ...: the target, its texture +1Ch
             target = self.new(0x40)
             self.word(target + 0x1C, self.texture(arg(2), arg(3), 0))
@@ -682,19 +723,57 @@ def main():
            and any("do not fit its DDS of 256" in line for line in game.log),
            "a DDS too small for its levels: the query failed (1, 1, 0Bh), no texture made, no Map (no stock bake), "
            "the model let go, logged: " + "; ".join(game.log))
-    game = fresh(built)
-    game.level0_refused = True
+    print("out of memory: CreateTexture2D gives E_OUTOFMEMORY")
+    space = f"address space free {FREE_SPACE >> 20} MiB, largest {FREE_SPACE >> 20} MiB"
+    game = Game(bytes(original))
     bake = Bake(game)
+    game.out_of_memory = lambda usage, fmt: usage == 3
+    process(game, bake)
+    report(("int3",) in game.calls and names(game.calls, "CreateTexture2D"),
+           "the original: the bake's staging with no memory stops at create_texture2d_impl's assertion (int3 "
+           "0x3BE916, the crash of 2026-11-22)")
+    game = fresh(built)
+    bake = Bake(game)
+    game.out_of_memory = lambda usage, fmt: usage == 0 and fmt == 0x1C
     ok, calls = process(game, bake)
-    report(ok and finishes(calls, FAILED) == [bake.query] and not names(calls, "Map")
+    created = names(calls, "CreateTexture2D")
+    report(ok and ("int3",) not in calls and created == [("CreateTexture2D", bake.size, bake.size, 0x1C, 0)]
+           and finishes(calls, FAILED) == [bake.query] and not names(calls, "Map")
            and not names(calls, "create target") and game.read(bake.model + 0xD0) == 5
-           and any("level 0" in line for line in game.log),
-           "no texture for level 0: the query failed (1, 1, 0Bh), nothing drawn, no Map (no stock bake), the model "
-           "let go, logged: " + "; ".join(game.log))
-    game.level0_refused = False
+           and any("no memory for its level 0" in line and space in line for line in game.log),
+           "level 0 with no memory: no assertion, the query failed (1, 1, 0Bh), nothing drawn, no Map (no stock "
+           "bake), the model let go, logged: " + "; ".join(game.log))
     ok, calls = dispatched(game)
     report(ok and not names(calls, "finish") and not names(calls, "Map"),
            "the next dispatch: nothing of it is left (never tried again)")
+    game = fresh(built)
+    bake = Bake(game)
+    made = []
+    game.out_of_memory = lambda usage, fmt: usage == 3 and (made.append(fmt) or len(made) == 2)
+    before = set(game.textures)
+    ok, calls = process(game, bake)
+    stagings = [s for s in game.textures if s not in before and game.textures[s]["usage"] == 3]
+    copies = names(calls, "copy2D")
+    report(ok and ("int3",) not in calls and len(names(calls, "CreateTexture2D")) == 1
+           and finishes(calls, FAILED) == [bake.query] and not names(calls, "Map")
+           and all(c[1] != 0 for c in copies) and len(copies) == bake.levels
+           and stagings and all(game.read(s + 4) == 0 for s in stagings) and game.read(bake.model + 0xD0) == 5
+           and any("no memory for a level's staging" in line and space in line for line in game.log),
+           f"the second level's staging with no memory: no assertion, no copy to it (copy2D {len(copies)} times: "
+           f"level 0 and {len(copies) - 1} stagings), the query failed, the {len(stagings)} stagings made let go "
+           "(0 references), no Map, the model let go, logged: " + "; ".join(game.log))
+    ok, calls = dispatched(game)
+    report(ok and not names(calls, "finish") and not names(calls, "Map"),
+           "the next dispatch: nothing of it is left (never tried again)")
+    game = fresh(built)
+    game.out_of_memory = lambda usage, fmt: True
+    sp = cache.STACK + 0xD6000
+    game.word(sp, cache.STOP)
+    for i, value in enumerate((game.read(MANAGER_GLOBAL), 0, 64, 0, 0xC, 3, 1, 0)):
+        game.word(sp + 4 + 4 * i, value)
+    game.run(CREATE_TEXTURE, sp, {UC_X86_REG_EAX: 64}, count=2_000_000)
+    report(("int3",) in game.calls and not any("no memory" in line for line in game.log),
+           "a texture outside a bake (create_texture2d called on its own): the game's assertion, as the original")
 
     print("the places: 8 on the GPU, the oldest completed for a new bake")
     game = fresh(built)

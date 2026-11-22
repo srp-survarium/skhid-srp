@@ -37428,7 +37428,7 @@ pub mod site {
         }
     }
 
-    /// compress_mip.readback (0x11f754): compress_mip after the level's copy to its staging (push 0 / lea ecx,[esp+48h], then map2D 0x11F763 and the memcpy); kept past the Unmap: ESI's staging released, the target released, ret 20h; EBX the level's blocks wide
+    /// compress_mip.readback (0x11f754): compress_mip after the level's copy to its staging (push 0 / lea ecx,[esp+48h], then map2D 0x11F763 and the memcpy); kept past the Unmap: ESI's staging released, the target released, ret 20h; EBX the level's blocks wide; unmade 0x11F885, past that release (a staging create_texture2d did not make, texture2d.unmade: nothing to release), where the target is released, the same ESP
     pub mod compress_mip_readback {
         #[allow(unused_imports)]
         use super::*;
@@ -37458,6 +37458,51 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<CompressMipFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(CompressMipFrame)
+        }
+    }
+
+    /// compress_mip.copy (0x11f730): compress_mip before its copy of the level to its staging (mov esi,[esp+10h] done; mov edx,[esp+38h] / push edi, then push esi / mov eax,ebx / call copy2D 0x3C0E00, which reads the staging's [esi+1ACh]; ESI the staging, 0 when create_texture2d at 0x11F600 made none); skipped 0x11F73D, past the call (copy2D's ret 8 takes the two pushes: the same ESP), where EDI's level is released
+    pub mod compress_mip_copy {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::render::res_texture (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn staging(machine: &impl Machine) -> Option<ResTexture> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(ResTexture)
+        }
+    }
+
+    /// texture2d.refused (0x3be8cd): create_texture2d_impl after a failed ID3D11Device::CreateTexture2D (call edx 0x3BE8BE; the assertions' flag byte [2260C28h] 0, then test eax,eax / jge 0x3BE917 fell through: EAX the HRESULT, below 0), before its assertion (mov byte [esp+54h],1 / call 0x3D02F0, then 0x1132D0 and int3 0x3BE916); EBP the usage, EDI the format, ESP+10h the description; refused 0x3BE80A, the function's own early return (xor eax,eax / pop edi / pop esi / pop ebp / add esp,30h / ret 18h: the four pushes of the call are the callee's, the same ESP): no texture
+    pub mod texture2d_refused {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn result(machine: &impl Machine) -> u32 {
+            machine.register(Register::Eax)
+        }
+    }
+
+    /// texture2d.unmade (0x3beb4f): create_texture2d after create_texture2d_impl (0x3BEB4A) on its named path, which every call takes (an unnamed one gets a made-up name, 0x3BE9D0: the frame's buffer, never 0; 0x3BEADF is not reached), before it reads the texture (mov ecx,[ebp+0Ch] / mov ebx,eax, then [ebx+98h]); EAX the texture, 0 when texture2d.refused refused it; empty 0x3BEA92, the function's own early return (xor eax,eax / pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp / ret 20h; 0x3C6A30's two pushes are its own, the same ESP)
+    pub mod texture2d_unmade {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a vostok::render::res_texture (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn texture(machine: &impl Machine) -> Option<ResTexture> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(ResTexture)
         }
     }
 

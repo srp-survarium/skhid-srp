@@ -2441,14 +2441,74 @@ pub extern "C" fn hook_bake_async_on_free(frame: &mut Frame) -> u32 {
 /// follows, 2 upward).
 #[repr(u32)]
 #[allow(dead_code)]
-pub enum BakeAsyncOnReadbackExit { Kept }
-/// The entry `bake_async_on_readback` (0x11f754, compress_mip after the level's copy to its staging (push 0 / lea ecx,[esp+48h], then map2D 0x11F763 and the memcpy); kept past the Unmap: ESI's staging released, the target released, ret 20h; EBX the level's blocks wide) calls this with the saved machine.
+pub enum BakeAsyncOnReadbackExit { Kept, Unmade }
+/// The entry `bake_async_on_readback` (0x11f754, compress_mip after the level's copy to its staging (push 0 / lea ecx,[esp+48h], then map2D 0x11F763 and the memcpy); kept past the Unmap: ESI's staging released, the target released, ret 20h; EBX the level's blocks wide; unmade 0x11F885, past that release (a staging create_texture2d did not make, texture2d.unmade: nothing to release), where the target is released, the same ESP) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_bake_async_on_readback(frame: &mut Frame) -> u32 {
     // SAFETY: only the entry `bake_async_on_readback` calls this, from the game's jump at 0x11f754,
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::bake_async::on_readback(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- bake_async (patch 121) ----
+
+/// The named exits of bake_async::on_copy (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum BakeAsyncOnCopyExit { Skipped }
+/// The entry `bake_async_on_copy` (0x11f730, compress_mip before its copy of the level to its staging (mov esi,[esp+10h] done; mov edx,[esp+38h] / push edi, then push esi / mov eax,ebx / call copy2D 0x3C0E00, which reads the staging's [esi+1ACh]; ESI the staging, 0 when create_texture2d at 0x11F600 made none); skipped 0x11F73D, past the call (copy2D's ret 8 takes the two pushes: the same ESP), where EDI's level is released) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_async_on_copy(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `bake_async_on_copy` calls this, from the game's jump at 0x11f730,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::bake_async::on_copy(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- bake_async (patch 121) ----
+
+/// The named exits of bake_async::on_texture_refused (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum BakeAsyncOnTextureRefusedExit { Refused }
+/// The entry `bake_async_on_texture_refused` (0x3be8cd, create_texture2d_impl after a failed ID3D11Device::CreateTexture2D (call edx 0x3BE8BE; the assertions' flag byte [2260C28h] 0, then test eax,eax / jge 0x3BE917 fell through: EAX the HRESULT, below 0), before its assertion (mov byte [esp+54h],1 / call 0x3D02F0, then 0x1132D0 and int3 0x3BE916); EBP the usage, EDI the format, ESP+10h the description; refused 0x3BE80A, the function's own early return (xor eax,eax / pop edi / pop esi / pop ebp / add esp,30h / ret 18h: the four pushes of the call are the callee's, the same ESP): no texture) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_async_on_texture_refused(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `bake_async_on_texture_refused` calls this, from the game's jump at 0x3be8cd,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::bake_async::on_texture_refused(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- bake_async (patch 121) ----
+
+/// The named exits of bake_async::on_texture_unmade (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum BakeAsyncOnTextureUnmadeExit { Empty }
+/// The entry `bake_async_on_texture_unmade` (0x3beb4f, create_texture2d after create_texture2d_impl (0x3BEB4A) on its named path, which every call takes (an unnamed one gets a made-up name, 0x3BE9D0: the frame's buffer, never 0; 0x3BEADF is not reached), before it reads the texture (mov ecx,[ebp+0Ch] / mov ebx,eax, then [ebx+98h]); EAX the texture, 0 when texture2d.refused refused it; empty 0x3BEA92, the function's own early return (xor eax,eax / pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp / ret 20h; 0x3C6A30's two pushes are its own, the same ESP)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_async_on_texture_unmade(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `bake_async_on_texture_unmade` calls this, from the game's jump at 0x3beb4f,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::bake_async::on_texture_unmade(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
