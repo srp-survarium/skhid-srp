@@ -49,15 +49,21 @@
 .stats-team + .table-scroll .stats-table { border-top:2px solid var(--team) }
 .stats-team0 { --team:var(--team0) }
 .stats-team1 { --team:var(--team1) }
-/* The day's leaders: five short lists side by side, as many as fit. */
-/* A heading with its choice at the other end of its line. */
 /* The names a player left: the button that opens the rest, a word among them. */
 .stats-names button { margin:0; padding:0 6px; font:inherit }
+/* A heading with its choice at the other end of its line. */
 .stats-heading-row { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:26px 0 10px }
 .stats-heading-row .stats-heading,.stats-heading-row .slot-filter { margin:0 }
 .stats-sizes button { padding:4px 10px }
-.stats-leaders { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px }
-.stats-leaders .stats-table td.l { width:100%; max-width:0; overflow:hidden; text-overflow:ellipsis }
+/* The day's leaders: five lists, three a row on a desktop, wide enough for a whole name (a six-letter
+   tag and the game's sixteen letters); the rank and the number narrow, every list's columns alike.
+   The number's heading reaches over the name's; a name longer than the list wraps, never cut. */
+.stats-leaders { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr)); gap:12px }
+.stats-leaders .stats-table { table-layout:fixed }
+.stats-leaders .stats-table th:first-child { width:1.75rem }
+.stats-leaders .stats-table th:last-child { width:3.75rem }
+.stats-leaders .stats-table td.l { white-space:normal; overflow-wrap:anywhere }
+.stats-leaders .stats-over { display:inline-block; margin-left:-10rem }
 /* Everything added up: one row, each number as wide as the next. */
 .stats-all { margin-bottom:22px }
 .stats-all .stats-table { table-layout:fixed }

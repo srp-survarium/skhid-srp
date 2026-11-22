@@ -3,7 +3,7 @@
 // 9457. The page, its script, its policy and /api/history/... are the HTTP
 // preview's (cargo test -p web-server serve_wiki_preview -- --ignored
 // --nocapture), whose history is made up (history::tests::preview: twelve
-// players, two clans, 23 public matches). This script serves it again on
+// players, six clans, 23 public matches). This script serves it again on
 // port 24584 with each /api/history/ answer late by 300 ms and kept, so the
 // page is seen loading and its cells are compared with what was answered.
 // Saves review screenshots to /tmp/wiki-stats-review.
@@ -196,6 +196,11 @@ try {
   // Over the boards: the day's leaders, five lists of five, and everything added up.
   assert.equal(await count('.stats-leaders .stats-table'), 5);
   assert.equal(await count('.stats-leaders .stats-table tbody tr'), 25, 'five rows each, empty ones too');
+  // The longest name a player can choose, with the longest tag, in wide capitals: whole, on one line.
+  assert.deepEqual(JSON.parse(await evaluate(`JSON.stringify((() => {
+    const td = [...document.querySelectorAll('.stats-leaders td.l')].find(cell => cell.textContent.includes('ЩЮЖШЩЮЖШ'));
+    return td && [td.textContent, td.firstChild.getClientRects().length, td.scrollWidth <= td.clientWidth]; })())`)),
+    ['[ЩЮЖШЩЮ] ЩЮЖШЩЮЖШЩЮЖШЩЮЖШ', 1, true], 'the widest name in a list of three a row');
   assert.deepEqual(await cells('.stats-leaders .table-scroll:first-child tbody td:nth-child(3)'),
     [...answered.today.leaders.kills.map(row => String(row.value)), ...Array(5 - answered.today.leaders.kills.length).fill('\u00a0')]);
   assert.equal(answered.today.leaders.kills.length, 5);
@@ -223,7 +228,7 @@ try {
   await screenshot('boards-accuracy');
   await evaluate("document.querySelector('[data-board=clans]').click()");
   await settled();
-  assert.equal(await count('.stats-board .stats-table tbody tr'), 2);
+  assert.equal(await count('.stats-board .stats-table tbody tr'), 6);
   const firstClan = answered.clans.clans[0];
   assert.equal(await text('.stats-board .stats-table tbody tr td:nth-child(2) a'), `[${firstClan.tag}] ${firstClan.name}`);
   assert.equal(await text('.stats-board .stats-table tbody tr td:nth-child(4)'), String(firstClan.members));

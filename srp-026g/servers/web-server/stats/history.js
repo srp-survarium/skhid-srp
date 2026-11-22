@@ -561,7 +561,7 @@
       lists.replaceChildren(...LEADERS.map(([key, label]) => {
         const rows = of(key);
         const list = table([[TEXT.rank, row => n(row.rank + 1)], [TEXT.player, row => playerLink(row.player), 'l'],
-          [TEXT[label], row => value(key, row.value)]], rows, longest, '', openPlayer);
+          [el('span', {className: 'stats-over'}, TEXT[label]), row => value(key, row.value)]], rows, longest, '', openPlayer);
         if (rows) list.blank(longest - rows.length);
         return list;
       }));
