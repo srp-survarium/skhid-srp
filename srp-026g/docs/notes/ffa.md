@@ -641,8 +641,11 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   hold one).
 - **Where:** in the server's rooms (Play's, the open ones) alone, each free-for-all card of a
   vote (the third card; all three in a pool of free-for-alls alone) draws its twist with the card,
-  by its share (`twist::shares`, `twist::draw`):
-  - plain Free for all 50 % (the 10 Saloon gave up on 2026-11-22, my pick), **Racket** 40 %;
+  by its share (`twist::SHARES`, `twist::draw`, armed for the room):
+  - plain Free for all 30 % (the owner, 2026-11-22: plain 30, Racket 30, Roulette 30; 50 and 40
+    before Roulette), **Racket** 30 %;
+  - **Roulette** 30 % (`ffa-roulette.md`): a level band the room allows and one hand of three kits
+    of it, every player's;
   - **Cowboy**, "Saloon" in the lobby, 10 % since 2026-11-22 (20 % from 2026-11-15, the owner: "let's make saloon 20% with
     two variations (no need to name them)"; 10 % before, 2026-11-14: "cowboy version should be
     rare with only 10% chance"), in two variations (the owner, 2026-11-14: "saloon should have
@@ -664,11 +667,12 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   which the server reads as `maps::MapMode::twists_only` (refused on a config of another mode); the
   game does not read it. Another map takes it by the same key.
   - A card draws its map first, as any (`rooms.md`, "Each card is drawn from pools"), then its
-    twist: on such a map the plain share is taken out and the twists keep theirs, so Racket 80 %,
-    each Saloon 10 % (`twist::draw`). My pick of the two orders: the map comes as often as any
+    twist: on such a map the plain share is taken out and the twists keep theirs, so Racket 42.9 %,
+    Roulette 42.9 % (its band one the room allows), each Saloon 7.1 % (`twist::draw`; Racket 80 % and
+    each Saloon 10 % before Roulette). My pick of the two orders: the map comes as often as any
     free-for-all map, always twisted; drawing the twist first would have left it out of half the
     free-for-all cards (the plain ones), and every other map's twist shares stay as they are. Of
-    all free-for-all cards, plain falls from 50 % to about 48.5 % (one map in 33).
+    all free-for-all cards, plain falls from 30 % to about 29.1 % (one map in 33).
   - A private room's free-for-all is plain (below), so its pool never holds such a map: the
     create window does not list it (`Core::private_entries`), and a private room's pool leaves it
     out whatever it was made with (`Rooms::create_with_pool`: a saved window with it, the default
@@ -689,11 +693,28 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   (Винчестер), Салун (Вінчестер) (uk), Салун (Вінчэстар) (be), Saloon (Winchester) (pl, de, cs,
   hu), Salun (Winchester), Saluuna (Winchester) (the game's own words for the Winchester: its
   item's and its ammunition's).
-  The lobby's mode numbers 9 Racket, 10 Saloon (the Colt alone) and 11 Saloon (Winchester)
+  `st_srp_mode_roulette_low`, `_mid`, `_high` FFA: Roulette 0-5, 6-10, 11-15 (Рулетка in ru, uk,
+  be; `ffa-roulette.md` has every language).
+  The lobby's mode numbers 9 Racket, 10 Saloon (the Colt alone), 11 Saloon (Winchester) and 14,
+  15, 16 Roulette by its band
   (`Armed::lobby_number`: the twist as it arms; 7 is Scarcity's; the two Saloons' tags one
   colour): a card's tag and colour, the room's banner of its match (`lobby.md`, rooms' `C` and `L`
   rows), the log's "mode". The game's own screens (loading, results, the HUD) say Free for all:
   they read the map's config.
+- **Mode icons** (the owner's picks, 2026-11-22; until then all four showed Team Deathmatch's skull):
+  the loading screen shows the lobby movie's `SrvGameModeIcons` frame `ui.icon` + 1. Free for
+  All's configs have `ui.icon` 5, frame 6 (a bone skull with a bullet hole; content edit
+  `ffa-icon-1`, after every list that makes a Free for All config). A twist has no config: while
+  the room's match plays one (the room state's `L` row in the match's phase, its lobby mode), the
+  loading screen shows its own frame for Free for All's (`SrvGameModeIcons.forTwist`): 7 Racket
+  (crossed AK-12s), 8 Saloon (a cowboy hat), 9 Saloon (Winchester) (the hat over a Winchester), 10
+  Roulette (two dice). The bitmaps are `flash/lobby_menu/bitmaps/GameModeIcon*.png`, 61 x 56.
+  - From the loading screen's first frame (the owner, 2026-11-22: never the skull first): when a
+    room's match is made the lobby server marks the room in it and sends each of its players the
+    room's state, its `L` row this match's mode, before it sends them to the match
+    (`room_send_to_match`), so the movie knows the twist (`LobbyGameLoad.twist`) before the game
+    opens the loading screen and calls `set_mm_level`. Later states (the 2 s poll) keep it; out of
+    a room, or a room not in its match, it is none.
 - **The kits:** the server owns what spawns: the static info's profiles, which every game cooks
   each life from. The match server arms every profile it gives (the first players', each late
   joiner's) before the Keeper's draw; the clients, late joiners and replays get the armed ones.
@@ -705,6 +726,12 @@ rules, spawns, pay and results, every kit's guns changed by the server.
     shot the others hear as the AS Val's muffled `weapons/val_m` (`states.fire.sounds.third_view`):
     the Val, the MP7 with its silencer and its Legend, the ported Kriss Vector. Loud: the SR-3M,
     the 9A-91, the MSBS (shots of their own).
+  - And every assault rifle, SMG and machine gun that fires no automatic mode (the owner,
+    2026-11-22: Racket's guns "should just be proper automatic weapons"; "remove g3sg from it and
+    replace with ak12", "check that socom is not available too"): its `parameters.fire_queue_types`
+    has no -1 (`item_params::ItemParams::automatic`, `racket::AUTOMATIC_CLASSES`), the G3SG/1 and
+    the SOCOM 16 among them. Shotguns and pistols stay as they are. Racket's own two guns must fire
+    automatic, or srp refuses to start (`racket::check`).
   - The gun, by the room's level (`racket::Gun::of_room`, the room's max level when its card is
     dealt, carried in the match's `twist::Armed::Racket`; the owner, 2026-11-15: "also racket on
     lvl10 room should not give AK-12 and instead AK74N with 7N10 ammo and eotech collimator"): a

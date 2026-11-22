@@ -68,7 +68,6 @@ use std::time::{Duration, Instant};
 use survarium::v026g::drops::Rng;
 use survarium::v026g::lobby::rooms::rules;
 use survarium::v026g::maps::{self, MapId};
-use survarium::v026g::racket;
 use survarium::v026g::twist::{self, Played};
 
 use super::level_stats;
@@ -1347,11 +1346,12 @@ impl Rooms {
     /// The vote's cards from the pool ([`Self::draw`]), each a map a match
     /// can be played on, and then, in a room behind `door`, each
     /// free-for-all's twist or none: an open room's (the server's) drawn by
-    /// its share after its map ([`twist::draw`]; the owner, 2026-11-15:
-    /// "let's make saloon 20%"; a map played with a twist only draws a
-    /// twist), Racket with the gun of the room's max level
-    /// ([`racket::Gun::of_room`]: "racket on lvl10 room should not give
-    /// AK-12 and instead AK74N"), a private room's none (the owner,
+    /// its share after its map, armed for the room ([`twist::draw`]; the
+    /// owner, 2026-11-15: "let's make saloon 20%"; a map played with a twist
+    /// only draws a twist), Racket with the gun of the room's max level
+    /// ("racket on lvl10 room should not give AK-12 and instead AK74N"),
+    /// Roulette with a band it allows and a hand of it
+    /// (`docs/notes/ffa-roulette.md`), a private room's none (the owner,
     /// 2026-11-15: "we can also remove from private lobbies FFA: Saloon and
     /// FFA: Racket"; its pool has no map played with a twist only,
     /// [`Self::create_with_pool`]). A pool's id no match can play is no card.
@@ -1363,9 +1363,7 @@ impl Rooms {
         maps.into_iter()
             .map(|map| match door {
                 Door::Open { max_level } if map.mode() == maps::GameMode::FreeForAll => {
-                    twist::draw(map, racket::Gun::of_room(max_level), |total| {
-                        below(total as usize) as u32
-                    })
+                    twist::draw(map, max_level, below)
                 }
                 Door::Open { .. } | Door::Pin { .. } => Played::plain(map),
             })
