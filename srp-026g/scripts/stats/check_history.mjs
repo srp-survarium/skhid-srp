@@ -555,12 +555,12 @@ try {
   }
 
   // Another of the game's languages: the game's names in it, the page's own words in English; the
-  // header names it and offers the ten others, each keeping what is shown.
+  // header names it and offers the eleven others, each keeping what is shown.
   await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 1});
   await navigate('/stats?board=latest&lang=ru');
   assert.equal(await evaluate('document.documentElement.lang'), 'ru');
   assert.equal(await text('.lang summary'), 'Русский');
-  assert.equal(await count('.lang a'), 10);
+  assert.equal(await count('.lang a'), 11);
   assert.ok((await evaluate("document.querySelector('.lang a[hreflang=pl]').href")).includes('board=latest'));
   assert.equal(await text('.stats-heading'), 'Daily leaders');
   assert.ok(asked.some(path => path.startsWith('/api/history/matches') && path.includes('lang=ru')), 'the names are asked for in it');
