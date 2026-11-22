@@ -205,8 +205,13 @@ impl WalkGrid {
     /// ([`jump::landing_and_rest`], the first step out of the jump on the ground, `on_ground` 0x7EF90) over a floor
     /// ([`Self::floor_under`]) two or more cells on from `a`'s, in a gap link's reach of it (no higher than the reach, no lower
     /// than the harmless drop) and over `over` (out of the gap, [`Gap::over`]), with standing room, not one `a` has a link to
-    /// (`linked`), and at rest over such a floor: the floor it rests on.
-    fn gap_lands_on(&self, steps: &[FlightStep], a: u32, linked: &[NodeId], over: f32, past: i32) -> Option<NodeId> {
+    /// (`linked`), and at rest over such a floor: the floor it rests on. [backward landing] The floor must lie ahead of `a`'s
+    /// cell along the way the press is flown (`dir`, a [`DIRS`] step: its cell's offset from `a`'s has a positive dot with it):
+    /// the link is stored with that way ([`GridWay::of_dir`]) and a bot presses along it, so a flight that comes down behind the
+    /// take-off (the press point on the landing's own floor, the body thrown back onto it) proves no crossing along the way.
+    /// Before, such a flight made a link: Mamayev Kurgan TDM's GapJump (8.60, 25.20, 48.12) -> (10.10, 25.08, 48.12) stored the
+    /// way (-1, 0) with its landing 1.5 m behind the take-off along it, its press point at x 10.2 on the landing floor.
+    fn gap_lands_on(&self, steps: &[FlightStep], a: u32, dir: (i32, i32), linked: &[NodeId], over: f32, past: i32) -> Option<NodeId> {
         let h = self.height[a as usize];
         let reach = self.body.max_jump.min(MARGINAL_JUMP_M);
         let (i, k) = self.cell_xz(self.cell_of[a as usize] as usize);
@@ -214,7 +219,8 @@ impl WalkGrid {
             self.floor_under(feet).filter(|&g| {
                 let y = self.height[g as usize];
                 let (gi, gk) = self.cell_xz(self.cell_of[g as usize] as usize);
-                (gi - i).abs().max((gk - k).abs()) >= past
+                (gi - i) * dir.0 + (gk - k) * dir.1 > 0
+                    && (gi - i).abs().max((gk - k).abs()) >= past
                     && y - h <= reach
                     && h - y <= self.body.max_drop
                     && y > over
@@ -317,7 +323,7 @@ impl WalkGrid {
                 // As the flown groups: the floors `a` has a link to already make no landing.
                 let linked: Vec<NodeId> = wide.links[l.from as usize].iter().copied().filter(|&f| f != NONE).collect();
                 let over = self.clip_gap_bottom(wide, solids, l.from, d, l.to) + self.body.step;
-                let lands = |st: &[FlightStep]| self.gap_lands_on(st, l.from, &linked, over, 2);
+                let lands = |st: &[FlightStep]| self.gap_lands_on(st, l.from, DIRS[d], &linked, over, 2);
                 let p = self.best_press(world, s, l.from, l.to, way, &leads, lands, kits);
                 flights += p.flights;
                 let made = if p.made.is_empty() && p.near {
@@ -443,7 +449,7 @@ impl WalkGrid {
                 tried += 1;
                 let linked = linked(g);
                 let super::rim::RimPress { made, flights: f, near: close, .. } =
-                    self.best_press(world, s, g.a, g.b, way(g), &leads, |st| self.gap_lands_on(st, g.a, &linked, g.over, g.past), kits);
+                    self.best_press(world, s, g.a, g.b, way(g), &leads, |st| self.gap_lands_on(st, g.a, DIRS[g.d], &linked, g.over, g.past), kits);
                 flights += f;
                 // Every press it makes (a jump's, and [S1] a sprint climb's onto its own floor), as the rim pass keeps them.
                 if !made.is_empty() {
@@ -457,7 +463,8 @@ impl WalkGrid {
             // (`R83-FORMAT.md`; Mamayev Kurgan day_2's box from the rock pile is a gap made only aimed).
             if let Some(g) = near {
                 let linked = linked(&g);
-                let sweep = self.best_aimed(world, s, g.a, g.b, way(&g), &|st| self.gap_lands_on(st, g.a, &linked, g.over, g.past), kits);
+                let sweep =
+                    self.best_aimed(world, s, g.a, g.b, way(&g), &|st| self.gap_lands_on(st, g.a, DIRS[g.d], &linked, g.over, g.past), kits);
                 let (made, f) = (sweep.made, sweep.flights);
                 flights += f;
                 return (made.map(|m| (g, vec![m])), tried, flights, Some(f));
@@ -612,6 +619,35 @@ mod tests {
         assert!(!under(None).is_empty(), "a flown link with no deck");
         assert!(!under(Some(6.4)).is_empty(), "a flown link under the high deck");
         assert!(under(Some(4.3)).is_empty(), "a low deck is a wall");
+    }
+
+    /// [backward landing] The flight of Mamayev Kurgan TDM's GapJump (8.60, 25.20, 48.12) -> (10.10, 25.08, 48.12), pressed along
+    /// the way (-1, 0) and coming down 1.5 m behind the take-off on its own level: on the blocks (a gap of 1 m at x 6..7), the
+    /// take-off at the gap's far rim (x 7.4) with the way back over the gap (-1, 0), a flight resting at x 8.9 on the take-off's
+    /// block lands on no floor along that way; the same flight with the way (1, 0) lands on it, and one resting across the gap
+    /// at x 5.0 lands with the way (-1, 0).
+    #[test]
+    fn a_flight_coming_down_behind_the_takeoff_lands_on_no_floor_along_its_way() {
+        let g = grid(&blocks(2.0, 2.0, 1.0, -3.0), false);
+        let a = g.locate(Vec3::new(7.4, 2.0, 5.0), 0.2).expect("the take-off");
+        let flight = |to_x: f32| -> Vec<FlightStep> {
+            let from = g.position(a);
+            let mut steps = vec![FlightStep { n: 0, feet: from, in_jump: false, on_ground: true }];
+            for n in 1..=10 {
+                let t = n as f32 / 10.0;
+                let feet = Vec3::new(from.x + (to_x - from.x) * t, from.y + 0.5 * (1.0 - (2.0 * t - 1.0).powi(2)), from.z);
+                steps.push(FlightStep { n, feet, in_jump: n < 10, on_ground: n == 10 });
+            }
+            let rest = Vec3::new(to_x, from.y, from.z);
+            steps.extend((11..14).map(|n| FlightStep { n, feet: rest, in_jump: false, on_ground: true }));
+            steps
+        };
+        let behind = flight(8.9);
+        assert_eq!(g.gap_lands_on(&behind, a, (-1, 0), &[], f32::NEG_INFINITY, 2), None, "the proven link's flight, behind along (-1, 0)");
+        assert!(g.gap_lands_on(&behind, a, (1, 0), &[], f32::NEG_INFINITY, 2).is_some(), "the same flight along (1, 0) lands ahead");
+        let across = flight(5.0);
+        let landed = g.gap_lands_on(&across, a, (-1, 0), &[], f32::NEG_INFINITY, 2).expect("a flight across the gap lands");
+        assert!(g.position(landed).x < 6.0, "{:?}", g.position(landed));
     }
 
     /// A level gap of 6 m: no press of the client's lands across (the sprint jump from a 0.6-1.6 m lead comes down about 4 m on),
