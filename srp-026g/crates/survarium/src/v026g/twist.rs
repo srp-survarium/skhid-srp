@@ -90,7 +90,7 @@ pub enum Twist {
     /// ([`super::cowboy`]); "Saloon (Winchester)" and "Saloon" in the lobby.
     Cowboy,
     /// Every kit one of a hand of three, the same for every player, of a level band its room
-    /// allows ([`super::roulette`]); "Roulette 0-5", "6-10" or "11-15" in the lobby.
+    /// allows ([`super::roulette`]); "FFA: Roulette" in the lobby, whatever the band.
     Roulette,
 }
 
