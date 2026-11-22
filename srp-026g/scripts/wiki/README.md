@@ -167,3 +167,32 @@ differs, faction (`factions_dict`), and the modifiers page's "Can roll" /
 `equipment.js` (copied by `build.py`) filters by slot and faction (both kept
 in the address: `?slot=helmet&faction=3`), level and name, sorts, and groups
 by set (a faction's tier: `<family>_<slot>_<tier>` configs) or slot.
+
+## Modes
+
+`/wiki/modes` is the web server's (`servers/web-server/src/modes.rs`), like the
+quests page: one page, a section a mode in the lobby's order, each with its
+anchor (`#team-deathmatch`, `#protective-device`, `#chargers`, `#blackout`,
+`#research`, `#free-for-all`, `#freeze-tag`, `#artifact-hunt`) and the free-for-all's
+versions under it (`#racket`, `#saloon`, `#saloon-winchester`, `#roulette`). A
+section has the mode's loading-screen icon (`icons/modes/`, above), its game
+name, the rooms that offer it, its rules a short line each, and its maps with
+their weathers, each linked to the Maps tab (`#<project folder>/<mode>`) when
+the tab has it. Nothing in it is typed in that the server has:
+
+- each number of a map's config (time limit, respawn, batteries, chargers and
+  their timing, tickets, Research's points, the kills to win, Artifact Hunt's
+  goal, waits and sudden death) is read from the playable maps of the mode
+  (`maps::playable_in`), a span where they differ;
+- Freeze Tag's thaw time, reach, round wins and pause are its rule's
+  constants (`srp_validate::world::freeze`);
+- a free-for-all's versions: their shares (`twist::SHARES`), Racket's guns and
+  sight (`racket`), Saloon's (`cowboy`), Roulette's kits, bands and pistol share
+  (`roulette`);
+- the rooms: the running lobby's pools (`SRP_MATCH_MAPS`,
+  `SRP_ROOMS_EXTRA_MAPS`; srp hands them to the page as `web_server::Pools`):
+  a mode is public with a map of the match pool, private only with an
+  experimental one; a version is a public room's alone.
+
+The texts are the site's (`words/`), the mode, map, weather and item names the
+game's own in the page's language.

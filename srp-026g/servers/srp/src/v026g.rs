@@ -482,6 +482,9 @@ pub struct Stack {
     pub voice_addr: Option<SocketAddr>,
     /// `SRP_MIN_PATCH_REVISION`, which the web page says to the updater.
     pub min_patch_revision: u8,
+    /// The lobby's pools (`SRP_MATCH_MAPS`, `SRP_ROOMS_EXTRA_MAPS`), which
+    /// the wiki's modes page says the rooms offer.
+    pools: web_server::Pools,
     stop: Arc<AtomicBool>,
     /// The lobby's and the match server's threads: the ones [`Stack::stop`]
     /// waits for.
@@ -710,6 +713,10 @@ impl Stack {
             match_addr,
             voice_addr,
             min_patch_revision: options.lobby.min_patch_revision,
+            pools: web_server::Pools::new(
+                &options.lobby.maps,
+                &options.lobby.rooms.extra_maps,
+            ),
             stop,
             threads,
         })
@@ -732,6 +739,7 @@ impl Stack {
             min_patch_revision: self.min_patch_revision,
             replays: Some(self.replays.clone()),
             results: self.results.clone(),
+            pools: self.pools.clone(),
         }
     }
 

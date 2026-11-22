@@ -200,6 +200,7 @@ fn world_with(accounts: GameAccounts) -> World {
             min_patch_revision: 0,
             replays: None,
             results: Arc::new(session::v026g::rewards::Results::new()),
+            pools: crate::Pools::every_playable(),
         }),
     };
     World {

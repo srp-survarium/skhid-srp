@@ -6,11 +6,12 @@
 //! The calculator ([`crate::damage`]) and the maps ([`crate::maps`]) are its
 //! sections too, each a page of its own look; the skills ([`crate::skills`])
 //! are built like them, from the released game, into a page of the wiki's.
-//! The quests ([`crate::quests`]) come from the server's game data and pay rules.
+//! The quests ([`crate::quests`]) come from the server's game data and pay rules;
+//! the modes ([`crate::modes`]) from its game data, its rules and the lobby's pools.
 
 use crate::{
-    ContentType, Lang, Response, Written, damage, equipment, escape, maps, modifiers, quests,
-    skills,
+    ContentType, Lang, Response, Written, damage, equipment, escape, maps, modes, modifiers,
+    quests, skills,
 };
 
 pub(crate) const PATH: &str = "/wiki";
@@ -89,7 +90,7 @@ pub(crate) fn page(
         (
             lang.t("Wiki"),
             format!(
-                "<div class=wiki-heading><h1>{}</h1></div><div class=wiki-sections>{}{}{}{}{}{}{}{}</div>",
+                "<div class=wiki-heading><h1>{}</h1></div><div class=wiki-sections>{}{}{}{}{}{}{}{}{}</div>",
                 lang.t("Wiki"),
                 section(
                     lang,
@@ -138,6 +139,12 @@ pub(crate) fn page(
                     maps::PATH,
                     &lang.t("Maps"),
                     &lang.t("Spawns, batteries, chargers, containers and artefacts on every map."),
+                ),
+                section(
+                    lang,
+                    modes::PATH,
+                    &lang.t("Modes"),
+                    &lang.t("Every mode: its rules, numbers and maps."),
                 ),
             ),
         )
