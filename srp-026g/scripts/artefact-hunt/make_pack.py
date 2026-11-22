@@ -97,7 +97,7 @@ FIRST_MAP_ID = 300
 # refuses another, so a list placed elsewhere or a new row before it stops the build. The rows
 # are the edit list's, not the pack's: a pack's rows come before every edit list and would move
 # the counts those lists expect.
-MAPS_DICT_COUNT = 231
+MAPS_DICT_COUNT = 241
 FOLDER = 'artefact_hunt'
 BOX = 'item/storage_device/box_atlant8c'
 # Its bounding box (render/export_properties): half its width in x and z, its height over its foot.
