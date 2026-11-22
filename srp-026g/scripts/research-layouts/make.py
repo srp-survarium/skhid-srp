@@ -7,11 +7,13 @@ usage: python3 -I make.py <layout>.json --base <folder> [--write <content-edit f
 
 <layout>  the layout: the map, its new ids, and for each unit where its station stands (`marker` x and
           z, the `floor` its generator stands on, a `yaw` in degrees about the marker), its capture
-          zone as the mode config keeps it, its roof `antenna`'s place and its `cover` (the Research
-          project's own cover inside `from`, x0 z0 x1 z1, moved with the station and by `shift`).
+          zone as the mode config keeps it, its roof `antenna`'s place, its `cover` (the Research
+          project's own cover inside `from`, x0 z0 x1 z1, moved with the station and by `shift`) and
+          its `props`: more cover, each a `model` standing `at` x y z turned by `yaw` degrees, made
+          like the model's entries of one of the layout's `examples` (projects of the base).
 --base    the files as a build of release/content.tsv without the layout's list leaves them, at their
-          game paths (`srp-game-data get`): the map's Team Deathmatch and Research projects and its
-          Research configs.
+          game paths (`srp-game-data get`): the map's Team Deathmatch and Research projects, its
+          Research configs and the `examples`.
 --write   writes the layout's edit list there.
 
 A layout's map is a copy of the map's Team Deathmatch project (the same spawns and ammo, probes and
@@ -128,7 +130,25 @@ def across(a, b):
     return math.hypot(a[0] - b[0], a[2] - b[2])
 
 
-def layout_of(spec, tdm, research, config, said):
+def prop_entries(prop, examples, where):
+    """A prop's visual and collision entries: those of the first example that has its model, there."""
+    for project in examples:
+        like = next((e for e in project['render_visuals']
+                     if e['visual_name'] == prop['model'] and e['scale'] == [1.0, 1.0, 1.0]), None)
+        if like is None:
+            continue
+        lib = f"resources/models/{prop['model']}.model/"
+        solid = [c for c in project['collision_objects'] if c['lib_name'].startswith(lib)
+                 and c['position'] == like['position'] and c['rotation'] == like['rotation']]
+        if not solid:
+            sys.exit(f"{where}: {prop['model']} has no collision in its example")
+        place = {'position': [f32(v) for v in prop['at']],
+                 'rotation': [0.0, f32(math.radians(prop.get('yaw', 0))), 0.0], 'scale': [1.0, 1.0, 1.0]}
+        return dict(like, **place), [dict(c, **place) for c in solid]
+    sys.exit(f"{where}: no example of {prop['model']}")
+
+
+def layout_of(spec, tdm, research, config, examples, said):
     """The layout's additions to the Team Deathmatch project and its units' config values."""
     zones = {zone['cp_id']: zone for zone in config['mode']['parameters']['capture_zones']}
     added = {section: [e for e in research[section] if key(e) not in {key(o) for o in tdm[section]}]
@@ -167,6 +187,11 @@ def layout_of(spec, tdm, research, config, said):
                 taken.add((section, i))
                 out[section].append(piece.entry(entry))
                 count[section] = count.get(section, 0) + 1
+        for prop in unit.get('props', []):
+            visual, solid = prop_entries(prop, examples, f"unit {unit['cp_id']}")
+            out['render_visuals'].append(visual)
+            out['collision_objects'] += solid
+            count['props'] = count.get('props', 0) + 1
         place = move.place(old)
         units.append((unit, zone, place))
         said.append(f"  unit {unit['cp_id']} ({unit['what']}): " + ', '.join(f'{n} {s}' for s, n in count.items())
@@ -197,6 +222,8 @@ def edits_of(spec, base):
     level = spec['level']
     edits = {'_about': '', 'copy': [], 'set_string': [], 'set_entry': [], 'add_entry': [], 'append_entry': []}
     said = []
+    examples = [plain(bcw.loads((base / f'projects/{name}/client_project').read_bytes()))
+                for name in spec.get('examples', [])]
     for row in spec['maps']:
         weather, cfg = row['weather'], row['config']
         source, target = f'projects/{level}/{weather}_4/', f"projects/{level}/{weather}_{spec['project']}/"
@@ -207,7 +234,7 @@ def edits_of(spec, base):
         if config['mode']['match_making_params']['map_name'] != project or config['mode']['mode'] != 5:
             sys.exit(f'{cfg}: not the Research config of {project}')
         said.append(f"{row['id']} {spec['folder']}/{cfg} ({level}/{weather}_{spec['project']}):")
-        added, units = layout_of(spec, tdm, research, config, said)
+        added, units = layout_of(spec, tdm, research, config, examples, said)
         file = target + 'client_project'
         edits['copy'].append({'files': source + 'client_project', 'from': source, 'to': target})
         for section in SECTIONS:
