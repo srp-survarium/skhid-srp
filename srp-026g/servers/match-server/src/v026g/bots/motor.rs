@@ -1086,6 +1086,8 @@ pub struct Motor {
     link_why: link_time::Why,
     /// The walk key set held ([`Motor::pick_keys`]).
     key_hold: Option<KeyHold>,
+    /// [keys] The motor's tick of its last eight-way pick (the debug trace `key_sources`).
+    picked_at: Option<u32>,
     /// [spot suite] TEST ONLY: what held the route jump's press last, and the motor's tick ([`PressHeld`]).
     #[cfg(test)]
     bench_held: Option<(u32, PressHeld)>,
@@ -2133,9 +2135,16 @@ impl Motor {
             links: super::link_time::Watch::default(),
             link_why: link_time::Why::Unknown,
             key_hold: None,
+            picked_at: None,
             #[cfg(test)]
             bench_held: None,
         }
+    }
+
+    /// [keys] Whether this tick's walk keys are the eight-way pick's ([`Motor::pick_keys`]), for the debug trace of where a key
+    /// change comes from (`key_sources`).
+    pub fn picked(&self) -> bool {
+        self.picked_at == Some(self.clock)
     }
 
     /// The walk keys for a way to go `relative` to the facing (positive to
@@ -2169,6 +2178,14 @@ impl Motor {
             held.is_some_and(|hold| hold.sector != sector),
             held.map_or(0, |hold| hold.held),
         );
+        // [keys] The debug trace of where a key change comes from (`key_sources`).
+        match held {
+            None => super::key_sources::pick(super::key_sources::Pick::Fresh),
+            Some(hold) if hold.sector != sector && hold.held < KEY_HOLD_TICKS => super::key_sources::pick(super::key_sources::Pick::Forced),
+            Some(hold) if hold.sector != sector => super::key_sources::pick(super::key_sources::Pick::AfterHold),
+            Some(_) => {}
+        }
+        self.picked_at = Some(self.clock);
         self.key_hold = Some(KeyHold {
             sector,
             at: self.clock,
