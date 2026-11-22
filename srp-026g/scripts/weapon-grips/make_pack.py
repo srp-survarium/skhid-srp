@@ -2,12 +2,13 @@
 """make_pack.py: the content pack weapon-grips, 0.69d0's foregrips as items a player buys and fits
 to a weapon's kit slot 5 (docs/notes/attachments-grips.md, attachments.md).
 
-usage: python3 -I make_pack.py --donor <folder> --modules <pack folder> --out <packs folder>/weapon-grips-<version>
-                               [--check]
+usage: python3 -I make_pack.py --donor <folder> --modules <pack folder> --icons <folder>
+                               --out <packs folder>/weapon-grips-<version> [--check]
        (needs numpy and Pillow: nix-shell -p 'python3.withPackages(p: [p.numpy p.pillow])')
 
 --donor    donor.sh's folder (0.69d0's game.options rows, its names and its pictures of the grips).
 --modules  the pack weapon-modules as built (its files/: every grip's model must be there).
+--icons    render_icons.py's folder: <module>.png, every grip's icon drawn from its model.
 --out      the pack's folder (a new one): pack.json, files/ and icons/, for the manifest's `pack`
            row (release/content.tsv), which this prints.
 
@@ -19,7 +20,8 @@ that stay a gun's own part, grips.OWN_PARTS):
   its srp_gun), which is all the game reads to draw the grip, its carrier and the left hand
   (client patch 161 and the modules table); and its stats, type 2 on the six kick bounds and on
   parameters/aim_time, as the stock recoil and aim-time rolls (weapon-rolls.md);
-- its dictionary row (the price) and its icon, 0.69d0's own picture in the stock icons' frame.
+- its dictionary row (the price) and its icon, drawn from its model as the muzzle devices' are
+  (render_icons.py; @1 had 0.69d0's own pictures, blue-lit in its style).
 The texts are the localization tables' (texts.py). Also writes grips.tsv here: what each grip is
 in 0.69d0 and here. With --check it writes the pack and nothing else, and fails unless grips.tsv,
 the pack's row of release/content.tsv and the grips' rows of ../content-edit/items.tsv are what it
@@ -27,23 +29,19 @@ makes (tools/check weapon-grips).
 """
 import argparse
 import hashlib
-import io
 import json
 from pathlib import Path
 import sys
 
-from PIL import Image
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent / 'content-edit'))
-sys.path.insert(0, str(HERE.parent / 'rifle-scopes'))
 import content_edit as ce  # noqa: E402
 import grips as lib  # noqa: E402
-import render_icon  # noqa: E402
 
 PACK_ID = 'weapon-grips'
-VERSION = '1'
+VERSION = '2'
 CATEGORY = 22
 KICK_BOUNDS = [f'{bound}_{side}_recoil' for side in ('top', 'left', 'right') for bound in ('min', 'max')]
 ADD_KEY, FACTOR = 3, 2  # a modifier's type: a new key of a table; base x max(0, 1 + sum)
@@ -106,6 +104,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--donor', type=Path, required=True)
     parser.add_argument('--modules', type=Path, required=True)
+    parser.add_argument('--icons', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--check', action='store_true')
     args = parser.parse_args()
@@ -119,9 +118,10 @@ def main():
         files[grip.config] = encoded(config(grip))
         row, column = grip.icon
         source = f'icons/{lib.ICON_ATLAS}/r{row:02}c{column:02}.png'
-        picture = io.BytesIO()
-        render_icon.framed(Image.open(args.donor / 'icons' / f'{grip.module}.png')).save(picture, 'PNG')
-        files[source] = picture.getvalue()
+        drawn = args.icons / f'{grip.module}.png'
+        if not drawn.is_file():
+            sys.exit(f'{args.icons}: no {grip.module}.png (render_icons.py)')
+        files[source] = drawn.read_bytes()
         icons.append({'row': row, 'col': column, 'source': source})
     operations = [{'op': 'add_file', 'path': path} for path in files if not path.startswith('icons/')]
     operations.append({'op': 'dictionary_add', 'table': 'items_dict', 'entries': [
@@ -137,9 +137,9 @@ def main():
                        '(srp-026g/docs/notes/attachments-grips.md)',
         'operations': operations,
         'server': {'items': [{'dict_id': grip.dict_id} for grip in grips]},
-        'notes': ['made by srp-026g/scripts/weapon-grips/make_pack.py from 0.69d0\'s game.options and pictures '
+        'notes': ['made by srp-026g/scripts/weapon-grips/make_pack.py from 0.69d0\'s game.options '
                   '(donor.sh, donor.sha256) and scripts/weapon-modules/ids.tsv; the models are the pack '
-                  'weapon-modules\''] + [f'{g.dict_id} {g.item}: recoil {lib.percent(g.recoil)} %'
+                  'weapon-modules\', the icons drawn from them (render_icons.py)'] + [f'{g.dict_id} {g.item}: recoil {lib.percent(g.recoil)} %'
                                          + (f', aim time {lib.percent(g.aim_time)} %' if g.aim_time else '')
                                          for g in grips],
     }
