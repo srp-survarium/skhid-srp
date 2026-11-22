@@ -292,8 +292,9 @@ chooses each.
 - **The weapon perk in the lobby** (the owner, 2026-11-22: "when slot is added, it should be
   yellow, clicking on it, unblocks the weapon slot (it becomes yellow) but blocks teh slot
   (becomes red as in when item is blocked)"):
-  - taken (the default): the pocket it adds, the last pocket, has the yellow soft edge (glowing
-    from the bottom, a pocket's); the second weapon slot shows the red lock it always had
+  - taken (the default): the pocket it adds (before Artifact Container's, else the last) has the
+    yellow soft edge (glowing from the bottom, a pocket's); the second weapon slot shows the red
+    lock it always had
     (`SlotLock`, the skills' `SkillLockSpriteRed`; its tip "Deep Pockets — Right-click: second
     weapon", `st_srp_loadout_slot_to_weapon`);
   - declined: the second weapon slot is open and has the yellow soft edge (all round); the pocket
