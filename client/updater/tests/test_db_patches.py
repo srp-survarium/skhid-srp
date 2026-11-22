@@ -810,6 +810,51 @@ class PatchTest(WineTest):
         self.assertEqual(self.run_updater(), 0, self.log())
         self.assert_patches(patches)
 
+    def part_name(self, n, data):
+        return f"game/.skhid-patch_{n}.{sha256(data)}.part"
+
+    def test_a_download_that_broke_off_goes_on_from_its_bytes(self):
+        patches = self.make_patches(14, size=1_000_000)
+        part = self.part_name(14, patches[14])
+        # Broken off at byte 300000: the bytes stay in the part, which the
+        # game and the patch files' rules do not take; the second round
+        # goes on from them.
+        self.site.patch_cut[14] = 300_000
+        self.assertEqual(self.run_updater(), 1)
+        self.assertEqual(self.site.patch_ranges_asked, [(14, None), (14, "bytes=300000-")])
+        self.assertEqual(self.read(part), patches[14][:300_000])
+        self.assertIn("(try 2 of 2): asking, from byte 300000", self.log())
+        self.assertEqual(self.patch_files(), {})
+        self.assertEqual(self.run_ready(), 1)
+        # The next start goes on from them too, and puts the whole in place.
+        self.site.patch_cut.clear()
+        self.site.patch_ranges_asked.clear()
+        mark = self.log_size()
+        self.assertEqual(self.run_updater(), 0, self.log())
+        self.assertEqual(self.site.patch_ranges_asked, [(14, "bytes=300000-")])
+        self.assertIn("300000 bytes of it kept from before: gone on from", self.log_since(mark))
+        self.assert_patches(patches)
+        self.assertFalse(self.exists(part))
+        # A server that gives no part: the whole file again, from byte 0.
+        self.write(self.patch_name(14), b"damaged")
+        self.write(part, patches[14][:300_000])
+        self.site.patch_ranges = False
+        self.site.patch_ranges_asked.clear()
+        self.assertEqual(self.run_updater(), 0, self.log())
+        self.assertEqual(self.site.patch_ranges_asked, [(14, "bytes=300000-")])
+        self.assert_patches(patches)
+        self.site.patch_ranges = True
+        # A new file for patch 14: the old one's part is dropped, and a part
+        # longer than the file (a 416) is deleted and fetched from byte 0.
+        new = self.make_patches(14, size=500_000)
+        self.write(part, patches[14][:300_000])
+        self.write(self.part_name(14, new[14]), b"x" * 600_000)
+        self.site.patch_ranges_asked.clear()
+        self.assertEqual(self.run_updater(), 0, self.log())
+        self.assertEqual(self.site.patch_ranges_asked, [(14, "bytes=600000-"), (14, None)])
+        self.assert_patches(new)
+        self.assertEqual([name for name in os.listdir(self.path("game")) if name.startswith(".skhid-patch_")], [])
+
     def test_a_damaged_file_the_server_spoils_too_is_not_left_in_place(self):
         patches = self.make_patches(14)
         self.assertEqual(self.run_updater(), 0, self.log())
@@ -1055,7 +1100,8 @@ class PatchTest(WineTest):
         # An antivirus that scans the new file before it is renamed into
         # place: the rename waits for it.
         patches = self.make_patches(14, size=32 << 20)
-        scanner = Holder(self, "game/resources.db.patch_14.skhid-part", wait=False)
+        part = self.part_name(14, patches[14])
+        scanner = Holder(self, part, wait=False)
         updater = self.start_updater()
         until = time.time() + 120
         while updater.poll() is None and time.time() < until:
@@ -1065,7 +1111,7 @@ class PatchTest(WineTest):
         self.assertEqual(updater.wait(120), 0, self.log())
         self.assertTrue(scanner.holding(), "the stand-in never got hold of the download")
         log = self.log()
-        self.assertIn("resources.db.patch_14.skhid-part cannot be renamed now", log)
+        self.assertIn(f"{os.path.basename(part)} cannot be renamed now", log)
         self.assertIn("try 1 of 6: another program holds it", log)
         self.assert_patches(patches)
         self.assertEqual(self.status(), "ready\r\n")

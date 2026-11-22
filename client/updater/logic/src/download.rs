@@ -63,6 +63,43 @@ pub fn range_start(content_range: &str) -> Option<u64> {
     (number(last)? >= first).then_some(first)
 }
 
+/// Why an answer to a request for a file's bytes is not taken.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Refused {
+    /// Another status than 200 (or 206 or 416 to a request from a byte on).
+    Status(u32),
+    /// A `206` of another range than the one asked for, or of none.
+    BadRange,
+    /// A `416` to `Range: bytes=<n>-`: the file has no byte n, so the bytes
+    /// on disk are at least the whole file. Its size, when the answer names
+    /// it (`Content-Range: bytes */<size>`).
+    PastEnd(Option<u64>),
+}
+
+/// Where the body of an answer starts in the file, for a request from byte
+/// `from` (`Range: bytes=<from>-` when it is not 0): a `200` is the whole
+/// file again from byte 0 (a server that gives no part); a `206` goes on
+/// from `from` when its `Content-Range` starts there.
+pub fn body_start(from: u64, status: u32, content_range: Option<&str>) -> Result<u64, Refused> {
+    match status {
+        200 => Ok(0),
+        206 if from > 0 => content_range
+            .and_then(range_start)
+            .filter(|&start| start == from)
+            .ok_or(Refused::BadRange),
+        416 if from > 0 => Err(Refused::PastEnd(content_range.and_then(unsatisfied_size))),
+        status => Err(Refused::Status(status)),
+    }
+}
+
+/// The size a `416` names: `Content-Range: bytes */<size>`.
+fn unsatisfied_size(content_range: &str) -> Option<u64> {
+    let size = content_range.trim().strip_prefix("bytes */")?;
+    (!size.is_empty() && size.len() <= 19 && size.bytes().all(|c| c.is_ascii_digit()))
+        .then(|| size.parse().ok())
+        .flatten()
+}
+
 /// The `<title>` of a web page's first bytes (any host's: a quota page, a
 /// sign-in page, a virus-scan page), as one line of at most 100
 /// characters; `None` when they have none.
@@ -157,6 +194,31 @@ mod tests {
         ] {
             assert_eq!(range_start(bad), None, "{bad}");
         }
+    }
+
+    #[test]
+    fn an_answer_goes_on_from_the_byte_asked_for_or_from_0() {
+        let range = "bytes 2833252352-3698326099/3698326100";
+        // Resumed: a 206 from the byte asked for.
+        assert_eq!(body_start(2_833_252_352, 206, Some(range)), Ok(2_833_252_352));
+        // A server that gives no part: the whole file again.
+        assert_eq!(body_start(2_833_252_352, 200, None), Ok(0));
+        assert_eq!(body_start(0, 200, None), Ok(0));
+        // Another range, or none named, is refused.
+        assert_eq!(body_start(100, 206, Some(range)), Err(Refused::BadRange));
+        assert_eq!(body_start(100, 206, Some("bytes 0-99/3698326100")), Err(Refused::BadRange));
+        assert_eq!(body_start(100, 206, None), Err(Refused::BadRange));
+        // A part never asked for.
+        assert_eq!(body_start(0, 206, Some(range)), Err(Refused::Status(206)));
+        // Nothing past what is on disk: as long as the file, or longer.
+        assert_eq!(
+            body_start(3_698_326_100, 416, Some("bytes */3698326100")),
+            Err(Refused::PastEnd(Some(3_698_326_100)))
+        );
+        assert_eq!(body_start(500, 416, Some("bytes */x")), Err(Refused::PastEnd(None)));
+        assert_eq!(body_start(500, 416, None), Err(Refused::PastEnd(None)));
+        assert_eq!(body_start(0, 416, None), Err(Refused::Status(416)));
+        assert_eq!(body_start(500, 404, None), Err(Refused::Status(404)));
     }
 
     #[test]

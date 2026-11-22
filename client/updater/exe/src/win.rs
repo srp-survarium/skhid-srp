@@ -19,7 +19,7 @@ use windows_sys::Win32::Storage::FileSystem::{
     FILE_SHARE_WRITE, FindClose, FindFirstFileW, FindNextFileW, FlushFileBuffers,
     GetDiskFreeSpaceExW, GetFileAttributesW, GetFileInformationByHandle, GetFileSizeEx,
     INVALID_FILE_ATTRIBUTES, MOVEFILE_REPLACE_EXISTING, MoveFileExW, OPEN_ALWAYS, OPEN_EXISTING,
-    ReadFile, SetFilePointerEx, WIN32_FIND_DATAW, WriteFile,
+    ReadFile, SetEndOfFile, SetFilePointerEx, WIN32_FIND_DATAW, WriteFile,
 };
 use windows_sys::Win32::System::Diagnostics::Debug::{
     FORMAT_MESSAGE_FROM_SYSTEM, FORMAT_MESSAGE_IGNORE_INSERTS, FormatMessageW,
@@ -560,6 +560,28 @@ impl File {
     /// this program alone.
     pub fn create(path: &str) -> Result<Self, Code> {
         open(path, GENERIC_READ | GENERIC_WRITE, 0, CREATE_ALWAYS).map(Self)
+    }
+
+    /// A download of `from` bytes kept, to go on from: a new file when
+    /// `from` is 0, else the one there, by this program alone, at byte
+    /// `from` (`http::get_file_into`).
+    pub fn download(path: &str, from: u64) -> Result<Self, Code> {
+        if from == 0 {
+            return Self::create(path);
+        }
+        let file = Self::exclusive(path)?;
+        file.seek(from)?;
+        Ok(file)
+    }
+
+    /// Ends the file at byte `at` (and moves there): what was after it is
+    /// gone.
+    pub fn cut(&self, at: u64) -> Result<(), Code> {
+        self.seek(at)?;
+        if unsafe { SetEndOfFile(self.0.0) } == 0 {
+            return Err(last_error());
+        }
+        Ok(())
     }
 
     pub fn size(&self) -> Result<u64, Code> {

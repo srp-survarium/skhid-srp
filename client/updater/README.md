@@ -689,7 +689,7 @@ without it has none, and says so). A server that answers always wins. srp's
 `/game` is the release's addresses (that row) with the rows of its
 `mirrors.tsv` added (see "Mirrors" below).
 
-**The download** is that of a patch's file (`http::get_file`), with the
+**The download** is that of a patch's file (`http::get_file_into`, the same code), with the
 rules of "Mirrors" below: redirects followed, a web page refused. The
 addresses are tried in their order, each once a run; any failure moves on to
 the next. The bytes on disk (`game\.skhid-game.7z`) are the same file at
@@ -926,8 +926,31 @@ list's SHA-256, and the list came from the update server over HTTPS.
   web page instead: that address fails and the next is tried. A Drive
   file has a daily download quota; past it, a "Quota exceeded" page, the
   same. `release/add-mirror` checks an address before srp offers it.
-- No patch download is resumed: one that broke off is fetched again whole
-  (a patch is tens of megabytes; the game's archive is gone on from).
+- **A download that broke off goes on from its bytes**, as the game's
+  archive does (`http::get_file_into`, the one code of both; a patch is
+  gigabytes now: `patch_69` is 3.7 GB, and one Dropbox answer ends after an
+  hour, so a link under 1 MB/s never got it in one go). Every address of a
+  patch serves the same file (the list's SHA-256), so the bytes on disk
+  are gone on from at the next address, in the second round and at the
+  next start, also after a stop (the launcher's, a route change, the pipe
+  closing) and a new updater: `Range: bytes=<n>-`. A `206` from byte n is
+  appended; a `206` of another range is a failure of that address; a `200`
+  (a server that gives no part) is the whole file again from byte 0; a
+  `416` (no byte n: the part is at least the file) has the part hashed
+  when the answer's size is the part's (it may be whole), else deleted,
+  and the second round asks that address from byte 0. The whole file is
+  hashed: another SHA-256 deletes the part (and when that try went on from
+  bytes kept, which may be what was wrong, the second round asks the
+  address again from byte 0, once). The part is
+  `game\.skhid-patch_<n>.<sha256>.part` (`Patch::part_name`): no
+  `resources.db.patch_*`, so neither the game nor the folder check takes it
+  for a patch, and the SHA-256 in its name ties its bytes to the one file:
+  a part of another file for the same number, of a patch the list has
+  not, of one already in place, or a name that is no part's is deleted at
+  the step (not with the list built in, which only adds). Each try's line
+  says the byte it goes on from (`... (try 1 of 2): asking, from byte
+  2833252352`); the launcher's bar starts from the bytes on disk, and its
+  speed counts from there.
 - **The server not reached.** When the list cannot be fetched and the
   folder is not as the list kept says, the list built into the updater at
   release time is used (`SKHID_BUILTIN_PATCHES`, the `/patches` of
@@ -938,7 +961,8 @@ list's SHA-256, and the list came from the update server over HTTPS.
   exe may be newer than the updater and need it), and neither the list
   kept nor the status is written (it is not the server's list).
 - The Content-Length, when the server sends one, is checked against the
-  disk first, and a body shorter than it is an error.
+  disk first (what is still to come of it, past the bytes kept), and a
+  body shorter than it is an error.
 
 **The quick check.** A patch file is not read at every start. After it is
 downloaded or hashed whole, `updater_skhid.patches.checked` beside the
@@ -994,14 +1018,17 @@ the installation lock):
    touched.
 4. Every `game\resources.db.patch_*` that is not a listed patch is deleted:
    one the list no longer has (a rollback), a name the game does not take
-   (`_014`, `_0`, `_300`), a download left over (`.skhid-part`).
+   (`_014`, `_0`, `_300`), a torrent's or an older updater's download left
+   over (`.skhid-part`). So is every part (`.skhid-patch_*`) that no
+   patch to download has (above).
 5. A damaged listed patch is deleted. A missing or damaged one is
-   downloaded from its addresses in turn (above) into
-   `resources.db.patch_<n>.skhid-part` beside its place (the disk must have
-   its Content-Length plus 64 MB free, else nothing is fetched), flushed,
+   downloaded from its addresses in turn (above) into its part,
+   `.skhid-patch_<n>.<sha256>.part` beside its place, going on from the
+   bytes it holds (the disk must have what is still to come, by the
+   Content-Length, plus 64 MB free, else nothing more is fetched), flushed,
    read back and hashed, and renamed to its name only when it has the
-   list's SHA-256. When every address failed, the run ends. A
-   `.skhid-part` that failed, or was stopped, is deleted. The launcher's
+   list's SHA-256. When every address failed, the run ends; the part
+   stays for the next start (one of no byte is deleted). The launcher's
    line says which of them it is at, "(5/69)" after what is left of the
    file (message `0B`, launcher patch 17; taken back when the downloads
    end).
@@ -1048,7 +1075,7 @@ done." after it:
 | A file of one address cannot be downloaded (network, a status, a web page, too many redirects, cut short) | "game\resources.db.patch_<n> could not be downloaded. <the network error>" |
 | A file of one address has another SHA-256 | "<host> sent game\resources.db.patch_<n> with another checksum than its list says. Tell the server's operator." |
 | None of a patch's addresses (two or more) gave its file | "game\resources.db.patch_<n> could not be downloaded from any of its <k> addresses (each is in updater_skhid.<date>.log). The first: <its failure>" |
-| Not enough disk | "Not enough free disk space to update the game's files in <folder>: N MB needed, M MB free. ..." (N: the file's size and 64 MB) |
+| Not enough disk | "Not enough free disk space to update the game's files in <folder>: N MB needed, M MB free. ..." (N: what is still to come of the file and 64 MB) |
 | resources.db is held (the game runs) and a patch file is to change | "The game is running, so Skhid could not update the game's patches ... Close the game, then start the launcher again." |
 | A patch file stays held by another program | "Another program holds game\resources.db.patch_<n>, so Skhid could not update the game's patches. An antivirus may be scanning it: wait a minute, then start the launcher again." |
 | The server could not be asked and the patches were not checked in place | "The game's patches could not be checked: <why the server could not be asked>" |
@@ -1287,9 +1314,8 @@ trackers.
 
 - A signature on the ZIP made with a key that is not on the server. Today
   the ZIP is trusted because the HTTPS connection to the server is.
-- Resuming a broken download (the ZIP is a few megabytes; it is fetched
-  again; a patch, from its next address, else at the next start, whole: by
-  the owner's decision).
+- Resuming a broken download of the ZIP (a few megabytes; it is fetched
+  again). The game's archive and the patches go on from their bytes.
 - Texts in other languages than English (the launcher shows them in an
   ANSI message box), but the stop's box of "A file that cannot be read",
   which is the updater's own.
