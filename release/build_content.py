@@ -72,12 +72,12 @@ TYPE_ALLOWLIST = {
         '/client_objects[environment]/properties/sky_clouds_color_multiplier'):
        "0.21d's 1.28 in its day environment (a 0.21d key 0.26g does not read; its environment loader "
        'load_environment_properties_impl 0x34E1E0 reads a float as it is and an int through cvtsi2ss)'
-       for mode in (2, 4)},
+       for mode in (2, 4, 'ah')},
     **{(f'projects/v021d_level_01/day_{mode}/client_project', '/client_objects[damage_zone]/max_armor_piercing'):
        "0.21d's 0.02 on the swamp anomaly's fourth sensor: a fraction the hit takes with max_hit "
        '(damage_zone_core::hit_objects 0x319AF0, +1C4h beside the float +1C0h), as srp reads it '
        "(mapdata's f32_or); 0.26g's own zones have a whole 0 there"
-       for mode in (2, 4)},
+       for mode in (2, 4, 'ah')},
     # London's evening (pack london-weathers): 0.31a2's stratosphere turns at 0.62, a fraction where
     # 0.26g's corpus has whole numbers; the reader takes either (stratosphere 0x34E84F). `ah`:
     # Artifact Hunt's copy of evening_4 (artefact-hunt-1.json), the same value.
@@ -86,6 +86,7 @@ TYPE_ALLOWLIST = {
        "0.31a2's London evening 0.62; load_environment_properties_impl 0x34E1E0 reads float/int "
        "numerically (stratosphere 0x34E84F)"
        for mode in (2, 3, 4, 'ah')},
+    # `ah` in the rows below: Artifact Hunt's copies of the Team Deathmatch projects (artefact-hunt-maps-1).
     # London (v0.32) (pack london-v032): 0.32a4's evening stratosphere turns at a fraction too, and its
     # evening's camera track (only the console command demo_play flies it, game_world::demo_play
     # 0x1F9800) has the editor's whole key values as ints and fractions as floats, as 0.26g's own lobby
@@ -94,19 +95,19 @@ TYPE_ALLOWLIST = {
         '/client_objects[environment]/properties/stratosphere_rotation_speed'):
        "0.32a4's London evening; load_environment_properties_impl 0x34E1E0 reads float/int "
        "numerically (stratosphere 0x34E84F)"
-       for mode in (2, 3, 4)},
+       for mode in (2, 3, 4, 'ah')},
     **{(f'projects/v032a_level_09/evening_{mode}/client_project',
         f'/client_objects[track]/path/channels/{channel}/keys[]/value'):
        "0.32a4's London evening track: whole key values as ints, fractions as floats, as the editor writes "
        "them and as 0.26g's lobby track (projects/lobby_scene/day) mixes them"
-       for mode in (2, 3, 4) for channel in ('translateX', 'translateY', 'translateZ', 'rotateX', 'rotateY', 'rotateZ')},
+       for mode in (2, 3, 4, 'ah') for channel in ('translateX', 'translateY', 'translateZ', 'rotateX', 'rotateY', 'rotateZ')},
     # London (v0.42) (pack london-v042): 0.44a5's vignette power is 2.56, a fraction where 0.26g's
     # corpus has whole numbers; the reader takes either (0x34F2C2, the same read as the stratosphere's).
     **{(f'projects/v044a_level_09/{weather}_{mode}/client_project',
         '/client_objects[environment]/properties/vignette_effect_power'):
        "0.44a5's London 2.56; load_environment_properties_impl 0x34E1E0 reads float/int "
        'numerically (vignette 0x34F2C2)'
-       for weather in ('day', 'rain', 'evening') for mode in (2, 3, 4)},
+       for weather in ('day', 'rain', 'evening') for mode in (2, 3, 4, 'ah')},
     # Its evening's camera track (only the console command demo_play flies it, game_world::demo_play
     # 0x1F9800): the editor writes a whole key value as an int and a fraction as a float, and 0.26g's own
     # lobby track mixes them channel by channel (rotateZ's ints, rotateY's floats), which its curve
@@ -115,17 +116,18 @@ TYPE_ALLOWLIST = {
         f'/client_objects[track]/path/channels/{channel}/keys[]/value'):
        "0.44a5's London evening track: whole key values as ints, fractions as floats, as the editor writes "
        "them and as 0.26g's lobby track (projects/lobby_scene/day) mixes them"
-       for mode in (2, 3, 4) for channel in ('translateX', 'translateY', 'translateZ', 'rotateX', 'rotateY', 'rotateZ')},
+       for mode in (2, 3, 4, 'ah') for channel in ('translateX', 'translateY', 'translateZ', 'rotateX', 'rotateY', 'rotateZ')},
     # Its rain and evening: 0.44a5's stratosphere turns at a fraction, as London's evening above.
     **{(f'projects/v044a_level_09/{weather}_{mode}/client_project',
         '/client_objects[environment]/properties/stratosphere_rotation_speed'):
        "0.44a5's London rain and evening; load_environment_properties_impl 0x34E1E0 reads float/int "
        'numerically (stratosphere 0x34E84F)'
-       for weather in ('rain', 'evening') for mode in (2, 3, 4)},
+       for weather in ('rain', 'evening') for mode in (2, 3, 4, 'ah')},
     # Original 0.21 weather scalar representations, scoped to the exact
     # projects/keys that differ from the 0.26 corpus. The native reader tests
     # binary-config type 2 then uses movss; otherwise it uses cvtsi2ss. Keep
     # fractional donor values instead of rounding them to the corpus's ints.
+    # `ah`: Artifact Hunt's copies of the Team Deathmatch projects (artefact-hunt-maps-1.json).
     **{(f'projects/v021d_level_{level}/{weather}_{mode}/client_project',
         f'/client_objects[environment]/properties/{key}'):
        "Original 0.21d weather scalar; load_environment_properties_impl 0x34E1E0 "
@@ -145,11 +147,11 @@ TYPE_ALLOWLIST = {
            ('05', 'rain', ('mie_fog_base_height', 'rain_u_scale', 'sky_clouds_color_multiplier', 'stratosphere_rotation')),
            ('06', 'evening', ('mie_fog_base_height', 'stratosphere_rotation')),
            ('06', 'rain', ('mie_fog_base_height', 'sky_clouds_color_multiplier', 'stratosphere_rotation')),
-       ) for mode in (2, 4) for key in keys},
+       ) for mode in (2, 4, 'ah') for key in keys},
     **{(f'projects/v021d_level_01/{weather}_{mode}/client_project', '/client_objects[damage_zone]/max_armor_piercing'):
        "Same authored Rudnya day swamp sensor's 0.02; damage_zone_core::hit_objects 0x319AF0 "
        "reads float +1C4h beside max_hit +1C0h (mapdata f32_or), retained in both original weathers"
-       for weather in ('rain', 'evening') for mode in (2, 4)},
+       for weather in ('rain', 'evening') for mode in (2, 4, 'ah')},
 }
 
 SIMULATION_CHANGES = 'srp-026g/crates/session/src/v026g/simulation_changes.tsv'
