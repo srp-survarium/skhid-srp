@@ -375,6 +375,77 @@ pub(crate) fn stand_in_kept_edge() -> bool {
     *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_KEPT_EDGE").map_or(true, |v| v != "off"))
 }
 
+/// [stand-in fidelity] Whether a climb the stand-in body's kept controller makes on a ground step takes the body up
+/// (`SRP_BENCH_STAND_IN_KEPT_CLIMB`, on unless `off`): the client's sprinting capsule climbs an edge to `jump::SPRINT_CLIMB_MAX_M`
+/// (1.15 m) with no jump (`step_up` 0x7C900 and the plain capsule 0x7D33D), where the lattice's walk is held at the face over the
+/// client step; the body goes on the floor at the controller's height ([`kept_climb`]). The same holds where the lattice walks the
+/// body down a ledge its controller stays on the ground over (the controller ends over the lattice's walk). The suite's riser stucks
+/// of 887697d4a: the game's body on the bot's own keys got onto the top at 12 of 15 faces the stand-in was held at (fix-move's exe
+/// check, 2026-11-22); its falls where the game's body stays (fix-lip's exe check of S065, S285, S074).
+pub(crate) fn stand_in_kept_climb() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_KEPT_CLIMB").map_or(true, |v| v != "off"))
+}
+
+/// [stand-in fidelity] Whether a stand-in body that leaves the ground falls by its kept controller (`SRP_BENCH_STAND_IN_KEPT_FALL`, on
+/// unless `off`): a walk-off its kept controller left the ground at ([`stand_in_kept_edge`]), and a jump's flight that ends in the air
+/// ([`stand_in_controller_jump`]'s "falls on"), go on as the client's walk tick with the tick's walk keys (the walk branch's fall,
+/// `player_step` 0x7BDA0) until the controller is on the ground; off: the stand-in's own fall (a jump's straight down, a walk-off's
+/// speed carried across). The suite's walk-off stucks and falls of 887697d4a where the game's body went elsewhere (fix-move's and
+/// fix-lip's exe checks, 2026-11-22).
+pub(crate) fn stand_in_kept_fall() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_KEPT_FALL").map_or(true, |v| v != "off"))
+}
+
+/// [stand-in fidelity] How much higher than the lattice's walk the kept controller must end a ground step for its climb to count
+/// ([`kept_climb`]), m: over the lattice's own height noise on a slope.
+pub(crate) const KEPT_CLIMB_OVER_M: f32 = 0.15;
+/// [stand-in fidelity] How far from the controller's height the floor it climbed onto may be, m ([`kept_climb`]).
+pub(crate) const KEPT_CLIMB_FLOOR_M: f32 = 0.2;
+/// [stand-in fidelity] The longest fall by the kept controller ([`stand_in_kept_fall`]) before the stand-in's own fall takes over, ms.
+pub(crate) const KEPT_FALL_MAX_MS: u32 = 8_000;
+
+/// [stand-in fidelity] Where a ground step whose kept controller ended over the lattice's walk ([`stand_in_kept_climb`]: it climbed,
+/// or it stayed up where the lattice walked down) puts the body: the grid's floor at the controller's end `to` (flat) and its own
+/// height `top` (`KeptBody::height`), when that is over the lattice's walk `walked` by [`KEPT_CLIMB_OVER_M`] and a floor lies within
+/// [`KEPT_CLIMB_FLOOR_M`] of it; none for a step the lattice follows, or a height with no floor of the grid (a climb's first step,
+/// still rising: the controller is kept, the next step tells).
+pub(crate) fn kept_climb(grid: &mapdata::WalkGrid, to: Vec3, top: f32, walked: Vec3) -> Option<(NodeId, Vec3)> {
+    if top <= walked.y + KEPT_CLIMB_OVER_M {
+        return None;
+    }
+    let at = Vec3::new(to.x, top, to.z);
+    let node = grid.locate(at, 0.6)?;
+    let floor = grid.position(node).y;
+    ((floor - top).abs() <= KEPT_CLIMB_FLOOR_M).then_some((node, Vec3::new(at.x, floor, at.z)))
+}
+
+/// [stand-in fidelity] The stand-in's climbs and falls by its kept controller ([`stand_in_kept_climb`], [`stand_in_kept_fall`]):
+/// climbs made, falls started, falls landed, falls handed back to the stand-in's own fall (too long, or no controller).
+pub(crate) mod kept_moves {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+
+    #[derive(Clone, Copy)]
+    pub(crate) enum Kind {
+        Climbed,
+        FallStarted,
+        FallLanded,
+        FallHandedBack,
+    }
+
+    static COUNTS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+
+    pub(crate) fn count(kind: Kind) {
+        COUNTS[kind as usize].fetch_add(1, Relaxed);
+    }
+
+    /// (climbed, falls started, landed, handed back) so far.
+    pub(crate) fn counts() -> [u64; 4] {
+        std::array::from_fn(|i| COUNTS[i].load(Relaxed))
+    }
+}
+
 pub(crate) fn stand_in_walk_off() -> bool {
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_WALKOFF").map_or(true, |v| v != "off"))
@@ -852,6 +923,10 @@ pub(crate) struct Flight {
     /// [stand-in jump] The client's own flight from the kept controller ([`stand_in_controller_jump`]): it moves the body, not the
     /// clip; none: the clip's flight (a side or back press, or the switch off).
     pub(crate) flown: Option<crate::v026g::bots::body::FlownJump>,
+    /// [stand-in fidelity] Falling by the body's kept controller ([`stand_in_kept_fall`]): each tick the client's walk tick with the
+    /// tick's walk keys moves it (`body::kept_step`, the controller's own height kept), down to where the controller is on the ground
+    /// again; false: the stand-in's own fall ([`Self::fall`], [`Self::carry`]).
+    pub(crate) kept_fall: bool,
 }
 
 impl Flight {
@@ -982,6 +1057,14 @@ const FATAL_V: f32 = 14.0;
 /// A fall of this damage or more kills a body at full health (about 0.6, `fall_damage.md`).
 pub(crate) const LETHAL_FALL_DAMAGE: f32 = 0.6;
 
+/// [stand-in fidelity] A tick's walk for [`fly`]: the walk's heading (the input before the tick's, as the stand-in's walk) and the
+/// tick's walk move (flat, m), which steers a fall by the kept controller ([`stand_in_kept_fall`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct FlyWalk {
+    pub(crate) heading: f32,
+    pub(crate) walk: Vec3,
+}
+
 /// One tick of `body`'s jump ([`Flight`]) at `tick`; the landing when it
 /// came down.
 ///
@@ -993,7 +1076,7 @@ pub(crate) fn fly(
     body: &mut Body,
     place: Place,
     tick: u32,
-    heading: f32,
+    FlyWalk { heading, walk }: FlyWalk,
 ) -> Option<Landing> {
     let mut f = body.flight?;
     let Some(node) = body.node else {
@@ -1059,11 +1142,49 @@ pub(crate) fn fly(
                 }
                 controller_jumps::count(controller_jumps::Kind::Fell);
                 body.feet = feet;
-                body.kept = None;
                 f.flown = None;
                 f.fall = Some((-vertical).max(0.0));
+                if stand_in_kept_fall() {
+                    // [stand-in fidelity] It falls on by its kept controller, the flight's own ([`stand_in_kept_fall`]).
+                    kept_moves::count(kept_moves::Kind::FallStarted);
+                    body.kept = Some(after);
+                    f.kept_fall = true;
+                } else {
+                    body.kept = None;
+                }
                 body.flight = Some(f);
                 return None;
+            }
+        }
+    }
+    // [stand-in fidelity] The fall by the kept controller ([`stand_in_kept_fall`]): the client's walk tick with this tick's walk, the
+    // controller's own height kept, until it is on the ground; [`KEPT_FALL_MAX_MS`] or no controller hands it to the stand-in's fall.
+    if f.kept_fall {
+        use crate::v026g::bots::body;
+        let stepped = (tick.saturating_sub(f.at) <= KEPT_FALL_MAX_MS)
+            .then(|| body::kept_step(grid, &mut body.kept, body.feet, walk, body::crouch_input(body.keys, false), false, body::kept_clock::Of::StandIn))
+            .flatten();
+        match stepped {
+            Some(step) => {
+                let height = body.kept.map_or(body.feet.y, |kept| kept.height());
+                let feet = Vec3::new(step.to.x, height, step.to.z);
+                let down = ((body.feet.y - height) / TICK_S).max(0.0);
+                if !step.airborne {
+                    kept_moves::count(kept_moves::Kind::FallLanded);
+                    let under = grid.locate(feet, 1.5).unwrap_or(node);
+                    let fall_v = f.fall.map_or(down, |v| v.max(down));
+                    return landed(body, &f, under, feet, Some(fall_v));
+                }
+                body.feet = feet;
+                f.fall = Some(down);
+                body.flight = Some(f);
+                return None;
+            }
+            None => {
+                kept_moves::count(kept_moves::Kind::FallHandedBack);
+                body.kept = None;
+                f.kept_fall = false;
+                f.fall = Some(f.fall.unwrap_or(0.0));
             }
         }
     }
@@ -1345,13 +1466,14 @@ pub(crate) fn honest_jump_in(
         arc: client_clip(keys, speed, true),
         speed,
         flown: None,
+        kept_fall: false,
     });
     let mut top = 0.0f32;
     for k in 1..=80 {
         let (mut ticks, mut held) = (0, 0);
         let wall = wall.map(|sections| JumpWall { sections, hold: true, ticks: &mut ticks, held: &mut held });
         let heading = body.yaw;
-        let landing = fly(grid, walls, wall, &mut body, 0, start + k * TICK_MS, heading);
+        let landing = fly(grid, walls, wall, &mut body, 0, start + k * TICK_MS, FlyWalk { heading, walk: Vec3::ZERO });
         top = top.max(body.feet.y - base);
         if let Some(landing) = landing {
             assert_eq!(landing.to, body.feet);
@@ -1663,9 +1785,10 @@ fn a_walk_off_falls_on_at_its_walk_speed() {
             arc: None,
             speed: 0.0,
             flown: None,
+            kept_fall: false,
         });
         let heading = body.yaw;
-        (1..=100).find_map(|k| fly(&grid, &walls, None, &mut body, 0, 1_000 + k * TICK_MS, heading)).map(|landing| landing.to)
+        (1..=100).find_map(|k| fly(&grid, &walls, None, &mut body, 0, 1_000 + k * TICK_MS, FlyWalk { heading, walk: Vec3::ZERO })).map(|landing| landing.to)
     };
     let carried = fall([-3.5, 0.0]).expect("it comes down");
     assert!((carried.y - 0.9).abs() < 0.05 && carried.x < 8.6, "kept its walk: on the walkway: {carried:?}");
@@ -1705,4 +1828,108 @@ fn a_body_past_a_ledges_edge_walks_on_within_the_support_and_falls_past_it() {
         .unwrap();
     let at = grid.position(foot);
     assert_eq!(past_edge(&grid, &walls, foot, at, at + Vec3::new(0.2, 0.0, 0.0)), None);
+}
+
+/// Ground at 0 for x under 6 and a block from x 6 to 14 whose top is `top` high (z 0-10, its face at x 6 a wall), with the client's
+/// numbers (`Body::client`, step 0.80, the exe's collision) and its walker: the grid.
+fn face_grid(top: f32) -> mapdata::WalkGrid {
+    use super::body::tests::{floor, wall_x};
+    let mut triangles: Vec<mapdata::Triangle> = floor(0.0, 0.0, 6.0, 10.0, 0.0).to_vec();
+    triangles.extend(floor(6.0, 0.0, 14.0, 10.0, top));
+    triangles.extend(wall_x(6.0, 0.0, 10.0).map(|mut t| {
+        t.v.iter_mut().for_each(|v| v.y = v.y.min(top));
+        t
+    }));
+    // The live grids' caster (the exe's collision, `Tuning::grid_body`): the controller's climb needs it.
+    let body = mapdata::Body { exe_collision: true, start_witness: true, ..mapdata::Body::client() };
+    mapdata::WalkGrid::build(&triangles, [0.0, 0.0, 14.0, 10.0], 0.25, body).with_client_walker(&triangles)
+}
+
+/// [stand-in fidelity] [`kept_climb`]: a body run east into a face by its kept controller, the lattice holding it at the face's foot
+/// (as `walk_slide` does over the client step): at a sprint the controller climbs a 0.95 m edge and the body goes on the top's floor;
+/// at a walk it is held at the foot. A 1.4 m face (over `jump::SPRINT_CLIMB_MAX_M`) is climbed by neither.
+#[test]
+fn a_kept_controllers_sprint_climb_takes_the_stand_in_up() {
+    use crate::v026g::bots::body;
+    let run = |grid: &mapdata::WalkGrid, sprinting: bool| {
+        let (cap, keys) = if sprinting { (5.0, key::FORWARD | key::SPRINT) } else { (3.5, key::FORWARD) };
+        let mut kept = None;
+        let mut feet = Vec3::new(3.0, 0.0, 5.0);
+        for _ in 0..40 {
+            let by = Vec3::new(cap * TICK_S, 0.0, 0.0);
+            let Some(step) = body::kept_step(grid, &mut kept, feet, by, body::crouch_input(keys, false), sprinting, body::kept_clock::Of::StandIn)
+            else {
+                return feet;
+            };
+            // The lattice: on the ground's floors, held at the face's foot.
+            let walked = if feet.y < 0.5 { Vec3::new(step.to.x.min(6.0 - 0.38), feet.y, step.to.z) } else { Vec3::new(step.to.x, feet.y, step.to.z) };
+            let top = kept.map_or(feet.y, |kept: body::KeptBody| kept.height());
+            feet = match kept_climb(grid, step.to, top, walked) {
+                Some((_, at)) => at,
+                None => walked,
+            };
+            if feet.x > 6.0 + 0.5 {
+                break;
+            }
+        }
+        feet
+    };
+    let low = face_grid(0.95);
+    let up = run(&low, true);
+    assert!((up.y - 0.95).abs() < 0.05 && up.x > 6.0, "a sprint climbs 0.95 m: {up:?}");
+    let held = run(&low, false);
+    assert!(held.y.abs() < 0.05 && held.x < 6.0, "a walk is held at the foot: {held:?}");
+    let high = run(&face_grid(1.4), true);
+    assert!(high.y.abs() < 0.05 && high.x < 6.0, "1.4 m is not climbed: {high:?}");
+}
+
+/// [stand-in fidelity] [`stand_in_kept_fall`]: a body walking east off a 2 m top's edge by its kept controller falls by it with the
+/// walk held (the client's walk tick in the air) and comes down on the ground beyond the edge, its feet at the ground's height.
+#[test]
+fn a_walk_off_falls_by_the_kept_controller() {
+    use super::body::tests::{floor, wall_x};
+    use crate::v026g::bots::body;
+    let mut triangles: Vec<mapdata::Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+    triangles.extend(floor(0.0, 0.0, 10.0, 10.0, 2.0));
+    triangles.extend(wall_x(10.0, 0.0, 10.0).map(|mut t| {
+        t.v.iter_mut().for_each(|v| v.y = v.y.min(2.0));
+        t
+    }));
+    let grid = mapdata::WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, mapdata::Body::client()).with_client_walker(&triangles);
+    let walls = mapdata::RayTree::build(&triangles);
+    let mut body = honest_body(&grid, Vec3::new(8.0, 2.0, 5.0));
+    let by = Vec3::new(3.5 * TICK_S, 0.0, 0.0);
+    // Walk east by the kept controller until its step leaves the ground.
+    let mut left = None;
+    for _ in 0..40 {
+        let step = body::kept_step(&grid, &mut body.kept, body.feet, by, body::crouch_input(key::FORWARD, false), false, body::kept_clock::Of::StandIn)
+            .expect("a kept controller on the walker");
+        if step.airborne {
+            left = Some(step);
+            break;
+        }
+        body.feet = Vec3::new(step.to.x, body.kept.map_or(body.feet.y, |kept| kept.height()), step.to.z);
+    }
+    let step = left.expect("it walks off the edge");
+    body.feet = Vec3::new(step.to.x, body.kept.map_or(body.feet.y, |kept| kept.height()), step.to.z);
+    body.keys = key::FORWARD;
+    body.flight = Some(Flight {
+        at: 1_000,
+        from: body.feet,
+        dir: [0.0, 0.0],
+        clip: &SHORT_CLIP,
+        prepare: (0.0, 0.0),
+        base: Some(2.0),
+        fall: Some(0.0),
+        air: [0.0; 2],
+        carry: [0.0; 2],
+        arc: None,
+        speed: 0.0,
+        flown: None,
+        kept_fall: true,
+    });
+    let heading = body.yaw;
+    let landing = (1..=100).find_map(|k| fly(&grid, &walls, None, &mut body, 0, 1_000 + k * TICK_MS, FlyWalk { heading, walk: by })).expect("it comes down");
+    assert!(landing.to.y.abs() < 0.05 && landing.to.x > 10.0, "down on the ground past the edge: {:?}", landing.to);
+    assert!(body.kept.is_some(), "the controller kept on the ground");
 }

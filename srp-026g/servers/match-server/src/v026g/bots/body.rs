@@ -137,6 +137,14 @@ impl KeptBody {
     pub fn airborne(&self) -> bool {
         self.airborne
     }
+
+    /// [stand-in fidelity] The kept controller's own feet height, m: the height its steps leave to the grid ([`KeptStep::to`]).
+    /// Tests only: the bench's stand-in body follows a climb the client's controller makes (a sprinting body up an edge to
+    /// `jump::SPRINT_CLIMB_MAX_M`, over two steps) where the lattice's walk is held at the face, and falls by it.
+    #[cfg(test)]
+    pub(crate) fn height(&self) -> f32 {
+        self.controller.feet().y
+    }
 }
 
 /// [A364 P9] Feet this far (flat, m) from where the kept controller left them were placed by something else (a world's fix, a jump,
