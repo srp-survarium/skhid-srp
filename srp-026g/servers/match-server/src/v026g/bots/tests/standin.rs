@@ -1318,6 +1318,7 @@ impl Game {
                             if body.carrying.is_some() { 0.95 } else { 1.0 } * body.speed_level,
                             may_sprint,
                         ),
+                        kept_fall: false,
                     });
                 }
             }
@@ -1359,6 +1360,7 @@ impl Game {
                     if body.carrying.is_some() { 0.95 } else { 1.0 } * body.speed_level,
                     may_sprint,
                 ),
+                kept_fall: false,
             });
         }
         // A death, a ticket, the battery dropped, and the respawn of the mode: as the game's, no one's kill.
@@ -1542,7 +1544,8 @@ impl Game {
                         ticks: &mut self.climbs.prewalk_ticks,
                         held: &mut self.climbs.prewalk_held,
                     });
-                    if let Some(landing) = fly(grid, walls, wall, body, place, tick, moving_yaw) {
+                    let walk = Vec3::new(to.x - body.feet.x, 0.0, to.z - body.feet.z);
+                    if let Some(landing) = fly(grid, walls, wall, body, place, tick, standin_jump::FlyWalk { heading: moving_yaw, walk }) {
                         if let Some((from, base)) = took_off {
                             // The rise is from the floor the body left (the walk before the jump is the walk's), not from the press.
                             let from = Vec3::new(from.x, base.unwrap_or(from.y), from.z);
@@ -1588,6 +1591,10 @@ impl Game {
                     // (`WalkGrid::client_step`), the lattice walking to that point: the reckoning's rule (`kin.client_step`).
                     // [A364 P9] With `kept`, every ground step is the client's own controller kept across the body's steps (the
                     // reckoning's `ClientStep::Kept`): the lattice walks to where it ends.
+                    // [stand-in fidelity] The kept controller's step that left the ground for a floor below ([`body::KeptOff::Left`]):
+                    // where it ended and its own rise, for a walk-off that falls by it (`SRP_BENCH_STAND_IN_KEPT_FALL`).
+                    let mut kept_left: Option<Vec3> = None;
+                    let mut kept_climbed = false;
                     if super::standin_jump::stand_in_kept() {
                         let by = Vec3::new(to.x - body.feet.x, 0.0, to.z - body.feet.z);
                         if let Some(step) = body::kept_step(grid, &mut body.kept, body.feet, by, body::crouch_input(keys, false), sprint_state, body::kept_clock::Of::StandIn) {
@@ -1599,13 +1606,27 @@ impl Game {
                                 .inspect(|&off| body::kept_edges::count(off));
                             (node, feet, _) = match off {
                                 Some(body::KeptOff::Left(down, at)) => {
-                                    body.kept = None;
+                                    if super::standin_jump::stand_in_kept_fall() {
+                                        kept_left = Some(step.to);
+                                    } else {
+                                        body.kept = None;
+                                    }
                                     (down, at, false)
                                 }
                                 Some(body::KeptOff::WalkerGround | body::KeptOff::NoFloor | body::KeptOff::NoWalker) | None => {
                                     walk_slide(grid, body.node.unwrap_or(node), body.feet, step.to)
                                 }
                             };
+                            // [stand-in fidelity] A climb the client's controller made on this step (a sprint up an edge over the client
+                            // step, `SRP_BENCH_STAND_IN_KEPT_CLIMB`): the body goes on the floor at the controller's height.
+                            if super::standin_jump::stand_in_kept_climb()
+                                && let Some(top) = body.kept.map(|kept| kept.height())
+                                && let Some((up, at)) = super::standin_jump::kept_climb(grid, step.to, top, feet)
+                            {
+                                super::standin_jump::kept_moves::count(super::standin_jump::kept_moves::Kind::Climbed);
+                                (node, feet) = (up, at);
+                                kept_climbed = true;
+                            }
                         }
                     } else if super::standin_jump::stand_in_client_step()
                         && (feet.y - body.feet.y > body::STEP_UP_RISE_M || feet.distance_xz(target) > body::CLIENT_BLOCKED_M)
@@ -1632,7 +1653,7 @@ impl Game {
                             lift_count(rise, LiftOutcome::SlowContact);
                         }
                     }
-                    let mut lifted = false;
+                    let mut lifted = kept_climbed;
                     if let Some((since, rise)) = body.lift_since
                         && tick >= since + LIFT_HOLD_MS
                     {
@@ -1671,6 +1692,11 @@ impl Game {
                     if walk_off {
                         standin_jump::walk_off_started();
                         let carry = [(target.x - body.feet.x) / TICK_S, (target.z - body.feet.z) / TICK_S];
+                        // [stand-in fidelity] Left by its kept controller: it falls by it, from where that controller's step ended.
+                        let kept_fall = kept_left.is_some() && body.kept.is_some();
+                        if kept_fall {
+                            super::standin_jump::kept_moves::count(super::standin_jump::kept_moves::Kind::FallStarted);
+                        }
                         body.flight = Some(Flight {
                             at: tick,
                             from: body.feet,
@@ -1684,8 +1710,12 @@ impl Game {
                             arc: None,
                             speed: 0.0,
                             flown: None,
+                            kept_fall,
                         });
-                        body.feet = Vec3::new(target.x, body.feet.y, target.z);
+                        body.feet = match (kept_left.filter(|_| kept_fall), body.kept) {
+                            (Some(end), Some(kept)) => Vec3::new(end.x, kept.height(), end.z),
+                            _ => Vec3::new(target.x, body.feet.y, target.z),
+                        };
                         if let Some(stood) = standing.get_mut(place) {
                             stood.0 = body.feet;
                         }
@@ -1697,6 +1727,10 @@ impl Game {
                         if let Some(stood) = standing.get_mut(place) {
                             stood.0 = feet;
                         }
+                    }
+                    // A step its kept controller left the ground on that started no fall by it: the controller is let go, as before.
+                    if kept_left.is_some() && !body.flight.is_some_and(|f| f.kept_fall) {
+                        body.kept = None;
                     }
                 }
                 body.step_m = body.feet.distance_xz(before);
