@@ -3644,3 +3644,4 @@ va	status	ref_021d	name
 0x000fde20	inferred-high		vostok::console_commands::logging_rule::execute [descriptive]
 0x0031aca0	inferred-high		survarium::effect_zone_core::protect_players [descriptive]
 0x00316470	inferred-medium		survarium::tdm_rule_core::protect_players [descriptive]
+0x001c8a10	inferred-medium	0x0013d2a6	vostok::render::potential_request::calc_priority

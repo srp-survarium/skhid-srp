@@ -7704,6 +7704,26 @@ pub extern "C" fn hook_text_input_on_char(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- texture_pool (patch 182) ----
+
+/// The named exits of texture_pool::on_no_slot (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum TexturePoolOnNoSlotExit { Next }
+/// The entry `texture_pool_on_no_slot` (0x15433e, scene::process_streaming's turn of a request whose pool has no free, unreserved slot of the key it wants (mov eax,[ebp+8] / mov edx,[eax+980550h]; the non-lazy path, r_lazy_streaming off): the game then looks for another request leaving that size and cancels this one either way (0x1C89C0: wanted_mips = resident_mips), so the texture stays as it is; next is the loop's step to the next request (add esi,64h), the stack as at the site) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_texture_pool_on_no_slot(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `texture_pool_on_no_slot` calls this, from the game's jump at 0x15433e,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::texture_pool::on_no_slot(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- texture_streaming (patch 137) ----
 
 /// The named exits of texture_streaming::on_update (the order the shim's Flow code
