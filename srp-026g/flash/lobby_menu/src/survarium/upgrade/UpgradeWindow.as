@@ -103,6 +103,15 @@ package survarium.upgrade
 
       // A weapon's window has two pages, its attachments (the scope) and its appearance (the decals and
       // the camouflage), turned by the arrows either side of the title.
+      // A slot's item hovered (cardItem, cardSlot): the lobby shows its card beside the slot; left: hidden.
+      public static const SHOW_CARD:String = "upgradeShowCard";
+
+      public static const HIDE_CARD:String = "upgradeHideCard";
+
+      public var cardItem:Object = null;
+
+      public var cardSlot:UpgradeSlot = null;
+
       public static const PAGE_ATTACHMENTS:int = 0;
 
       public static const PAGE_APPEARANCE:int = 1;
@@ -248,6 +257,14 @@ package survarium.upgrade
       public static function hasAppearance(item:Object) : Boolean
       {
          return int(item.camoAvailable) > 0 || int(item.decalAvailable) > 0;
+      }
+
+      // Whether the inventory lists an item: while the window is open for a weapon, a scope, muzzle
+      // device or grip only where it fits that weapon (the owner, 2026-11-22: "you don't even see
+      // attachments you cannot put on the weapon"); anything else as always.
+      public static function listsItem(item:Object) : Boolean
+      {
+         return !(Boolean(instance) && instance.visible && hostDictId >= 0 && int(item.category) == ItemCategory.SCOPES) || fits(hostDictId,int(item.dictId));
       }
 
       public static function fits(weaponDictId:int, attachmentDictId:int) : Boolean
@@ -1293,14 +1310,23 @@ package survarium.upgrade
       
       private function onItemOut(event:Event) : void
       {
+         this.cardItem = null;
+         this.cardSlot = null;
+         dispatchEvent(new Event(HIDE_CARD));
       }
       
+      // the item a slot holds: its card, as the inventory's (the owner, 2026-11-22: "I hover over grip")
       private function onItemOver(event:Event) : void
       {
-         var slot:UpgradeSlot = event.target as UpgradeSlot;
-         if(slot && slot.data && slot.data.modifiers)
+         var slot:UpgradeSlot = event.currentTarget as UpgradeSlot;
+         var item:Object = Boolean(slot) && Boolean(slot.data) ? inventoryItem(uint(slot.data.itemId)) : null;
+         if(!item)
          {
+            return;
          }
+         this.cardItem = item;
+         this.cardSlot = slot;
+         dispatchEvent(new Event(SHOW_CARD));
       }
       
       private function onItemUpdated(event:Event) : void
