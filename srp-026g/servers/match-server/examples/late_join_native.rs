@@ -68,8 +68,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map(|place| player(place, loadouts::starter()))
             .collect(),
         score_weights: None,
-        vs_bots: false,
-        private: false,
+        kind: session::v026g::match_kind::MatchKind::Normal,
         room_minimum: None,
     })?;
     let store = Arc::new(SessionStore::with_repository(

@@ -2879,9 +2879,9 @@ st_srp_mode_freeze_tag	Zamrzavanje
 st_srp_mode_protective_device	Zaštitni uređaj
 st_srp_mode_racket	FFA: Galama
 st_srp_mode_research	Istraživanje
-st_srp_mode_roulette_high	FFA: Rulet 11-15
-st_srp_mode_roulette_low	FFA: Rulet 0-5
-st_srp_mode_roulette_mid	FFA: Rulet 6-10
+st_srp_mode_roulette_high	FFA: Rulet
+st_srp_mode_roulette_low	FFA: Rulet
+st_srp_mode_roulette_mid	FFA: Rulet
 st_srp_mode_team_deathmatch	Timska eliminacija
 st_srp_mouse_lock_option	Zaključaj vertikalnu osetljivost
 st_srp_mouse_vertical_option	Vertikalna osetljivost

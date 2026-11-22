@@ -8,6 +8,7 @@ package survarium.controls
    import scaleform.clik.data.DataProvider;
    import scaleform.clik.events.ListEvent;
    import survarium.constants.TeamSide;
+   import survarium.modes.FrozenPlaces;
    
    public class PlayerList extends MovieClip
    {
@@ -40,9 +41,9 @@ package survarium.controls
       // is marked (PlayerListRenderer).
       private var _carrier:int = -1;
 
-      // Freeze Tag (HUD.freeze_tag_rows): bit n set while place n (a row's id) is frozen; his
-      // name is ice blue (PlayerListRenderer).
-      private var _frozen:uint = 0;
+      // Freeze Tag (HUD.freeze_tag_rows): a frozen place's row (its id the place) has his name in the
+      // ice blue (PlayerListRenderer).
+      private var _frozen:FrozenPlaces = FrozenPlaces.NONE;
 
       // PlayerListz's authored lists each fit ten 30 px rows (twenty match places).
       private static const COLUMN_ROWS:int = 10;
@@ -120,17 +121,17 @@ package survarium.controls
 
       public function isFrozen(place:int) : Boolean
       {
-         return place >= 0 && place < 32 && (this._frozen & (1 << place)) != 0;
+         return this._frozen.has(place);
       }
 
       // A change draws the rows again.
-      public function set frozen(mask:uint) : void
+      public function set frozen(places:FrozenPlaces) : void
       {
-         if(mask == this._frozen)
+         if(places == this._frozen)
          {
             return;
          }
-         _frozen = mask;
+         _frozen = places;
          this.redrawRows();
       }
 

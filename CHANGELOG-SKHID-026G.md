@@ -9,6 +9,23 @@ release that made it what it is now.
 
 ---
 
+## 22 Nov, 13:29 — TODO: the owner's words (update required)
+
+<!-- Revision 71 (026g-rev71), released 2026-11-22 13:29 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2431 FFA Roulette: its name does not show its level band
+- TODO: #2432 Release: --end-bot-and-private-matches waits for the normal matches only
+- TODO: #2434 Freeze Tag: the last one standing is shown only with two teammates frozen
+- TODO: #2435 Freeze Tag and Artifact Hunt: an entering place always spawns at its entry (the rejoin crash)
+- TODO: #2436 H&K G3SG/1: a 10-round magazine, more recoil, less stopping force
+- TODO: #2437 Freeze Tag: frozen teammates ice blue on the maps and over heads
+
+## 22 Nov, 10:52 — TODO: the owner's words (update required)
+
+<!-- Revision 70 (026g-rev70), released 2026-11-22 10:52 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2430 Freeze Tag: the HUD gets all six values; 1 v 1 players off each other's map
+
 ## 22 Nov, 09:46 — TODO: the owner's words (update required)
 
 <!-- Revision 69 (026g-rev69), released 2026-11-22 09:46 UTC. To be worded for players; what it shipped: -->

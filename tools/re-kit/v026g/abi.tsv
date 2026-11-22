@@ -1284,7 +1284,7 @@ va	name	source	ret_cleanup	result
 0x002fc850	survarium::inventory::take_artefact	manual	4	
 0x002fcaa0	survarium::inventory::action	manual	12	
 0x002fcb70	survarium::inventory::setup_from_profile	manual	4	
-0x002fd2d0	survarium::inventory::unload_to_profile	manual	8	
+0x002fd2d0	survarium::inventory::unload_to_profile	manual	8	none; slots 7/10, 8..22, 13..18 whose profile kit word is not 0xFFFF: counts back to the profile items (+8), condition/amount 0; removes no item; at its end +170h 17h and the container range cleared (+168h 0, +16Ch 0, 0x2FDBE8..0x2FDBF2), weight dirty; called by base_player::remove 0x2DA790 with 1, which the respawn rule tick 0x316820 calls (0x31699B) on a dead player still in the world before spawn_player 0x316DA0
 0x002fe360	survarium::inventory::serialize	manual	4	
 0x002fe550	survarium::inventory::deserialize	manual	8	
 0x002ff600	survarium::portable_interactive_object_core::update_bones_matrices	manual	48	the user's matrices (entry ESP+8, count +0Ch) left in model space (bone-to-model, rows i j k c, v * M): compute_bones_local_matrices 0x39F7A0, the Weapon bone turned by pi (0x293AE0), IK, convert_to_object_matrices 0x39F7F0 (0x2FF906)
@@ -2816,3 +2816,4 @@ va	name	source	ret_cleanup	result
 0x0031aca0	survarium::effect_zone_core::protect_players [descriptive]	manual	4	none; each own-team player of the list gets the damage model's +32Ch = the time + the zone's +48h and +330h = the zone's +4Ch (0x31AD0F, 0x31AD15)
 0x00176420	stlp_std::find_if<vostok::render::render_surface_instance * *,vostok::render::remove_invisible_models_predicate>	manual	0	EAX: the first instance whose screen factor (+58h; 1000 when its model's +116h is 0) is under the threshold, else the end (EDI); counts it at [0x226048C]+37F0h
 0x003cf260	sun_shadow_map_size [descriptive]	manual	8	EAX: each sun cascade map's side in texels: 512 at r_shadow_quality 0; 1024 at 1 and 2 with at least 640 MiB of video memory; 2048 at 3 with more than 1 GiB (else 1024, 512)
+0x00316be0	survarium::player_respawn_rule_base::on_player_left_match	manual	8	none; its place's time -1 (+138h + 4 x place), then the place's current player out of the world with 1 (vtable +24h, 0x316C12), whether it is in the world or not: one never put in (no player effect +F540h) reads a null effect at 0x2DE36D

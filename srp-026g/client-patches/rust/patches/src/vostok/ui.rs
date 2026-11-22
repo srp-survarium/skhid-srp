@@ -215,10 +215,6 @@ pub(super) const GFX_MANAGED: u32 = 0x40;
 
 /// Up to this many strings in one Invoke.
 pub const MAX_STRINGS: usize = 64;
-/// Up to this many plain unsigned values in one Invoke.
-pub const MAX_UINTS: usize = 4;
-/// Up to this many Numbers in one Invoke (patch 171's hud update has 28).
-pub const MAX_NUMBERS: usize = 32;
 /// The longest text a GFx argument may be here.
 pub(super) const TEXT_LIMIT: usize = 0x200;
 
@@ -352,11 +348,11 @@ impl Movie<'_> {
         self.invoke(c"root.set_parameterized_message", &mut arguments)
     }
 
-    /// Plain unsigned GFx values, at most [`MAX_UINTS`]; whether the movie took them.
-    pub fn invoke_uints(&self, method: &CStr, values: &[u32]) -> bool {
-        let mut arguments = [const { raw::GfxValueStorage::zeroed() }; MAX_UINTS];
-        let count = values.len().min(MAX_UINTS);
-        for (room, &value) in arguments.iter_mut().zip(&values[..count]) {
+    /// Plain unsigned GFx values, every one (the room is sized by their
+    /// count); whether the movie took them.
+    pub fn invoke_uints<const N: usize>(&self, method: &CStr, values: &[u32; N]) -> bool {
+        let mut arguments = [const { raw::GfxValueStorage::zeroed() }; N];
+        for (room, &value) in arguments.iter_mut().zip(values) {
             let gfx = room.handle();
             // SAFETY: our own value.
             unsafe {
@@ -364,17 +360,16 @@ impl Movie<'_> {
                 *gfx.value() = value;
             }
         }
-        self.invoke(method, &mut arguments[..count])
+        self.invoke(method, &mut arguments)
     }
 }
 
 impl Movie<'_> {
-    /// GFx Numbers (type 5, an f64 each), at most [`MAX_NUMBERS`]; whether
-    /// the movie took them.
-    pub fn invoke_numbers(&self, method: &CStr, values: &[f64]) -> bool {
-        let mut arguments = [const { raw::GfxValueStorage::zeroed() }; MAX_NUMBERS];
-        let count = values.len().min(MAX_NUMBERS);
-        for (room, &value) in arguments.iter_mut().zip(&values[..count]) {
+    /// GFx Numbers (type 5, an f64 each), every one (the room is sized by
+    /// their count); whether the movie took them.
+    pub fn invoke_numbers<const N: usize>(&self, method: &CStr, values: &[f64; N]) -> bool {
+        let mut arguments = [const { raw::GfxValueStorage::zeroed() }; N];
+        for (room, &value) in arguments.iter_mut().zip(values) {
             let gfx = room.handle();
             let bits = value.to_bits();
             // SAFETY: our own value: its type and the f64's two words.
@@ -384,6 +379,6 @@ impl Movie<'_> {
                 *gfx.value_high() = (bits >> 32) as u32;
             }
         }
-        self.invoke(method, &mut arguments[..count])
+        self.invoke(method, &mut arguments)
     }
 }

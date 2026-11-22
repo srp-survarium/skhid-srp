@@ -219,3 +219,4 @@ vtable	slot	va	class	base	basis
 0x00a16fac	0x1c	0x0031d200	survarium::breath_state_holding	vostok::ai::fsm_state	observed: its tick (dispersion, dt)
 0x00a16f88	0x18	0x0031d0d0	survarium::breath_state_shortbreathing	vostok::ai::fsm_state	observed: initialize_logic 0x31D51C; is_ready_for_transition, the penalty at 1.0
 0x00a16f88	0x1c	0x0031d0a0	survarium::breath_state_shortbreathing	vostok::ai::fsm_state	observed: its tick (dispersion, dt)
+0x00a16084	0x24	0x00316be0	survarium::player_respawn_rule_core	survarium::game_match_rule_base	observed: each rule's slot +24h, called by game_world_core::on_player_left_match (0x2D2141)

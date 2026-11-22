@@ -317,7 +317,8 @@ at 1600 MB).
 ```
 release/release.sh [--resources <resources.db.patch_<rev>>] [--test]
                    [--revision <n>] [--server-code auto|yes|no]
-                   [--minutes <n> | --no-maintenance] [--now]
+                   [--minutes <n> | --no-maintenance]
+                   [--now | --end-bot-and-private-matches]
                    [--match-wait <minutes>] [--label <word>] [--ref <branch>]
                    [--no-bot-data] [--worlds <folder>] [--no-selftest]
                    [--dry-run] [--yes --i-know]
@@ -490,6 +491,8 @@ The order, as it runs:
      every running match (≤ 9 min: 10); else a whole match and 30 s, 16.
      The log says which.
    - `--minutes <n>`: `<n>`, planned at the same point (right after the go).
+   - `--end-bot-and-private-matches`: the same over the normal matches alone,
+     `last_normal_match_ends_in` for `last_match_ends_in` (below).
    - `--no-maintenance` or `--now`: nothing is planned (below).
 5. **The swap, at the planned time at the latest**: while it waits for it, it reads
    `/api/stats` every quarter of a minute, and once `"matches":0` has held 30 s (the
@@ -642,6 +645,32 @@ before the swap, and still rolls back by itself when the new srp doesn't
 come up. `--now --no-maintenance` is the same thing (accepted, with a
 note); `--now --minutes` is refused; `--match-wait` is ignored. Use it only
 when the owner asks for it: every player in a match loses that match.
+
+### Normal matches only: --end-bot-and-private-matches
+
+Between the default and `--now` (the owner, 2026-11-22: "only stops bot
+matches and private ones", "but normal ones are fine"): the release waits
+for the **normal matches** alone, those neither against bots (Player vs Bots,
+a PIN room made with bots) nor of a private room (a PIN). One long bot or
+private match no longer holds everyone. Everything else is the default: at
+the go the maintenance is planned 30 s after the last normal match ends
+(`last_normal_match_ends_in`; or `--minutes`), Play locks, and the swap comes
+once `"normal_matches":0` (sooner once that held 30 s while Play is locked;
+`--match-wait` after the planned time), whatever bot and private matches
+still run. Right before it stops srp26 it says how many matches run and of
+which kinds (`--end-bot-and-private-matches: <n> match(es) running (<b>
+against bots or of private rooms, 0 normal): the stop ends them now, WITHOUT
+RESULTS`); its last lines and the folder's release.log keep the numbers.
+With `--no-maintenance` it waits for `"normal_matches":0` from the go
+instead. `--now` with it is refused.
+
+The target's srp must say the normal matches apart: `/api/stats` gives
+`normal_matches` and `last_normal_match_ends_in` from the server change that
+added them on. A target without them is a preflight problem (the release
+stops before the lock), never a silent wait for every match or for none:
+release it without the option, or with `--now`. So the option works from the
+release after the one that ships that server change. Use it only when the
+owner asks for it: every player in a bot or private match loses that match.
 
 ### The release folder
 

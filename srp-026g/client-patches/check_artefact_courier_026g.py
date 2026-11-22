@@ -8,17 +8,23 @@ places, kits and artefacts): artefacts go into a kit by the game's take_artefact
 set_item, on_taken), a death is the game's on_holder_death (0x2FCA50) and artefact_base::tick
 (0x313200, its holder dead: the passive unlinked, state 5), and a respawn is the respawn rule's
 spawn (0x316DA0) at its two sites with patch 109's hooks: from 0x316DDA through the write that
-makes the chosen kit current (0x316DE3), and from 0x316EAB (its end) to its `ret`. Between the
-two the new kit is set up as setup_from_profile leaves it (its container range; on_taken for what
-it holds) and alive. Stubs: each kind's passive link and unlink (vfn +7Ch, +84h), counted.
+makes the chosen kit current (0x316DE3), and from 0x316EAB (its end) to its `ret`. Before them, as
+the respawn rule's tick does (0x31699B, base_player::remove with 1), the dead kit leaves the world:
+the game's own unload_to_profile (0x2FD2D0), which clears its container range (0x2FDBE8); between
+the two sites the new kit is set up as setup_from_profile leaves it (its container range, as
+0x2FD29F sets it; on_taken for what it holds) and alive. Every artefact taken is in the world's
+registered artefacts (+18940h), as every map artefact is. Stubs: each kind's passive link and
+unlink (vfn +7Ch, +84h), counted.
 
 Checked, the owner's runs (2026-11-21): kit 0 with two artefacts dies into kit 1 with no
 container: nothing moves (both stay in kit 0, state 5); kit 1 dies into kit 2: nothing (kit 0's
 are not kit 1's); kit 2 takes one and dies into kit 0 with three containers: kit 0 holds three
 (its two, kit 2's one, which kit 2 no longer holds). Kit 0 with two dies into kit 1 with one
-container: one moves (the first container's), the other stays in kit 0. Each moved artefact: in
-the new kit's inventory and container, state 3, its passive unlinked once (the death's) and linked
-once (the take's); the old kit's slot empty and its weight to recalculate. Nothing without the
+container: one moves (the first container's), the other stays in kit 0. Each run fails on revision
+69's build, which read the dead kit's artefacts through the container range its unload had
+cleared. Each moved artefact: in the new kit's inventory and container, state 3, its passive
+unlinked once (the death's) and linked once (the take's); the old kit's slot empty and its weight
+to recalculate. Nothing without the
 skill, nothing at a respawn in the same kit, and only the spawning place's kits. Says nothing of a
 real match, the HUD or the save (the moved artefact is a pickup's: its owner and slot, which every
 world carries).
@@ -35,6 +41,7 @@ COURIER = 1 << 14             # modifier 40 bit 14
 KITS, KITS_END = 0x316DDA, 0x316DE6     # the spawn's kit read, through mov [eax+0Ch],dl
 END, END_RET = 0x316EAB, 0x316EB0       # the spawn's end: its pops, up to ret 0Ch
 FRAME = 0x21006000
+UNLOAD = 0x2FD2D0             # inventory::unload_to_profile (al the kit; the inventory, the profile)
 
 
 class Courier(Keeper):
@@ -50,6 +57,9 @@ class Courier(Keeper):
     def kit(self, place, kit, containers, ranks=COURIER):
         player, inventory, slots = self.player(place, ranks, containers, kit)
         self.holder(player, inventory)
+        # The profile's kit slot words (+98h + kit x 704h): no lobby item in any slot.
+        profile = self.read(player + 0x6B8)
+        self.emu.mem_write(profile + 0x98 + kit * 0x704, b'\xff' * 4 * 23)
         self.kits[(place, kit)] = (player, inventory, slots, containers)
         return player, inventory, slots
 
@@ -64,6 +74,9 @@ class Courier(Keeper):
         self.word(held, item)
         self.call(TAKE, (held,), eax=inventory)
         assert self.read(item + 0x250) == inventory and self.state(item) == 3
+        end = self.read(self.world + 0x18944)
+        self.word(end, item)
+        self.word(self.world + 0x18944, end + 4)
         return item
 
     def held(self, place, kit):
@@ -79,11 +92,19 @@ class Courier(Keeper):
                 self.call(ARTEFACT_TICK, (16, 1000), ecx=item)
                 assert self.state(item) == 5, 'its holder dead: passive off'
 
+    def leave(self, place, kit):
+        """The respawn rule's tick takes the dead kit's player out of the world before the spawn
+        (0x31699B: base_player::remove with 1, whose unload_to_profile clears its container range)."""
+        player, inventory, _, _ = self.kits[(place, kit)]
+        self.call(UNLOAD, (inventory, self.read(player + 0x6B8)), eax=kit)
+        assert self.read(inventory + 0x168) == 0 and self.read(inventory + 0x16C) & 0xFF == 0
+
     def respawn(self, place, into):
-        """The spawn's two sites around the new kit's setup (setup_from_profile: on_taken for
-        what it holds; the kit alive)."""
+        """The dead kit out of the world, then the spawn's two sites around the new kit's setup
+        (setup_from_profile: its container range, on_taken for what it holds; the kit alive)."""
         entry = self.entry(place)
         current = self.read(entry + 0xC) & 0xFF
+        self.leave(place, current)
         self.emu.mem_write(entry + 0xD, bytes([into]))
         old = self.read(entry + 4 * current)
         self.emu.reg_write(UC_X86_REG_ESP, FRAME)
@@ -91,7 +112,9 @@ class Courier(Keeper):
             self.emu.reg_write(reg, value)
         self.emu.emu_start(KITS, KITS_END, count=200_000)
         assert self.read(entry + 0xC) & 0xFF == into, 'the spawn made the chosen kit current'
-        player, _, _, _ = self.kits[(place, into)]
+        player, inventory, slots, containers = self.kits[(place, into)]
+        self.word(inventory + 0x168, slots)
+        self.emu.mem_write(inventory + 0x16C, bytes([containers]))
         if into != current:
             for item in self.held(place, into):
                 if item:
