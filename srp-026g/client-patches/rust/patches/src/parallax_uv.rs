@@ -1,5 +1,5 @@
 //! Patch 183: the g-buffer's parallax constants as 0.44a5 sets them (README
-//! "The parallax of 0.44a5", client_patch.md section 3.99).
+//! "The parallax of 0.44a5", client_patch.md section 3.100).
 //!
 //! 0.44a5's g-buffer material compile (re-kit v044a5 0x4C1F20) sets two
 //! constants in its parallax block that 0.26g's (0x1DDD50) never sets:

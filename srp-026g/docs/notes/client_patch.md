@@ -2512,9 +2512,16 @@ the shading-quality-3 programs of `flora_2/saksaul_tile_blend_vc` and `flora_2/l
   compiler [EBP+8], the name; `ret 8`). It binds only while building (+61F4Ch 0) and only a name not
   bound yet, as for patch 169's constant_tile_uv; the compile runs twice (caching, building) with the
   same inputs. As in 0.44a5, every material with parallax gets them, the defaults when it lacks a field.
-- **What changes:** the g-buffer pass of a parallax material binds two more constants. No program
-  players have reads either name (the porter's family reads of the live db), so their draws are as
-  before. Rendering only: nothing a match computes or a world holds changes (no `simulation_changes.tsv`
+- **What changes:** the g-buffer pass of a parallax material binds two more constants. The pass's
+  end (0x3DA450, building only) applies its bindings to the bound programs (0x3D7F40, which skips a
+  name a program lacks) and empties the vector; no program players have reads either name (the
+  porter's family reads of the live db), so their draws are as before. The vector holds 32 bindings
+  a pass (0x280 bytes of 14h, 0x3D95AB..0x3D95C2; push_back 0x3C1110 asserts past it): the pass's
+  setters name 34 constants with every feature on, 9 always, so a parallax material now has two
+  fewer to spare.
+- **Not done: constant_parallax_scale's default.** 0.44a5 sets it to 1.0 when the material lacks it
+  (0x4C43BA); 0.26g sets it only when present (0x1DFF2A). Setting the default would change players'
+  parallax materials without the field; both London materials have it (1). Rendering only: nothing a match computes or a world holds changes (no `simulation_changes.tsv`
   row, no world format change).
 - **The content** (resource-porter): a ported material keeps the four fields
   (`ports/near-build/client-fields-026g.tsv`), and the London manifests' `shader_keys.filled` tells the
