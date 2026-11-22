@@ -9450,6 +9450,46 @@ pub extern "C" fn hook_world_check_on_raw(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- zone_guards (patch 192) ----
+
+/// The named exits of zone_guards::on_unsubscribe_find (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ZoneGuardsOnUnsubscribeFindExit { Missing }
+/// The entry `zone_guards_on_unsubscribe_find` (0x2dbeaa, base_player::unsubscribe_from_actions 0x2DBE90 after its find (0x3C5510) of the subscriber, before the erase (mov ecx,esi / lea edx,[eax+4]; then the memmove 0x2DBEBA and the end's -4 at 0x2DBEC2, with no test of the find): EBX the player's game_object part, EAX what the find found, ESI the end (equal: not subscribed), EDI the argument's slot; missing is the function's own pop edi / pop esi / pop ebx / ret 4 (patch 192)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_zone_guards_on_unsubscribe_find(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `zone_guards_on_unsubscribe_find` calls this, from the game's jump at 0x2dbeaa,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::zone_guards::on_unsubscribe_find(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- zone_guards (patch 192) ----
+
+/// The named exits of zone_guards::on_left_find (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ZoneGuardsOnLeftFindExit { Missing }
+/// The entry `zone_guards_on_left_find` (0x319811, damage_zone_core::on_objects_left 0x319780 before its erase of the object from the inside list (mov edx,[edi+54h] / mov eax,[edi+50h]; then the find 0x308A40 and the erase 0x319822..0x31983A, which pops the list's last entry when the find found none): EDI the listener, EBP the left object's holder (its copy at [esp+10h]), ESI the object's owner; missing is the release of that copy at 0x319870 (patch 192)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_zone_guards_on_left_find(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `zone_guards_on_left_find` calls this, from the game's jump at 0x319811,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::zone_guards::on_left_find(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_freeze_tag_on_input_chain(frame: &mut Frame) -> u32 {
     let flow = hook_freeze_tag_on_input(frame);
