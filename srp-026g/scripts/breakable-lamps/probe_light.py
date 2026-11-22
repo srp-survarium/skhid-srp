@@ -19,9 +19,12 @@ A weather's sky can have the tubes' colour (London's rain is as blue as
 them). The lamp is the same in every weather, and so is the probe (its
 place and box): where a weather's own split cannot be made, the lamp's light
 the day's split found in the probe of that name and place is taken out of
-the weather's, if what is left is that weather's room colour (London
-(v0.42)'s rain; its evening bake has no lamp in it, and its own split binds
-nothing there).
+the weather's, where some of each channel is left (London (v0.42)'s rain:
+a bake without the lamp in it leaves less than nothing; its evening's own
+split binds nothing). What is left need not be the room's colour: the rain's
+sky is as blue as the lamp, which is why its own split cannot be made, and
+the neighbours' floor (neighbour_light) keeps the room from going darker
+than the rooms beside it.
 """
 import math
 import struct
@@ -34,6 +37,9 @@ SPLIT_ANGLE = 8.0
 # What a probe keeps at least once its lamp is broken: light from the room's
 # doors and windows the split cannot tell from the lamp's.
 KEEPS_FLOOR = 0.15
+# A neighbour of a probe: a probe its lamp does not dim, at most this many
+# times its radius (not the level's sky or a building's), that overlaps it.
+NEIGHBOUR_SIZE = 2.0
 
 
 def _rgb565(v):
@@ -119,9 +125,64 @@ def split(light, lamp, room):
     return a / total, min(1.0, max(KEEPS_FLOOR, d / total))
 
 
-def angle(a, b):
-    cos = sum(x * y for x, y in zip(a, b)) / math.sqrt(sum(x * x for x in a) * sum(y * y for y in b))
-    return math.degrees(math.acos(max(-1.0, min(1.0, cos))))
+def _surface(probe):
+    """Points on a probe's volume: a box's corners, edge middles and face centres, a sphere's
+    six poles."""
+    if probe.get('geometry') != 1:
+        r = probe['radius']
+        return [[c + r * d for c, d in zip(probe['position'], axis)]
+                for axis in ((1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1))]
+    x, y, z = probe['rotation']
+    xs, xc, ys, yc, zs, zc = math.sin(x), math.cos(x), math.sin(y), math.cos(y), math.sin(z), math.cos(z)
+    axes = ((yc * zc, -yc * zs, ys),
+            (ys * xs * zc + xc * zs, -xs * ys * zs + xc * zc, -xs * yc),
+            (-xc * ys * zc + xs * zs, xc * ys * zs + xs * zc, xc * yc))
+    points = []
+    for f in ((a, b, c) for a in (-1, 0, 1) for b in (-1, 0, 1) for c in (-1, 0, 1)):
+        if f == (0, 0, 0):
+            continue
+        local = [f[j] * probe['scale'][j] for j in range(3)]
+        points.append([probe['position'][k] + sum(local[j] * axes[j][k] for j in range(3)) for k in range(3)])
+    return points
+
+
+def weight(probe, point):
+    """A probe's alpha at a point, as 0.26g's probe shader falls it off (renderer-026g.md 5.3):
+    smoothstep over its side width, the product of the box's three axes."""
+    width = probe.get('probe_side_width', 0.5)
+    if probe.get('geometry') != 1:
+        inner, outer = probe['radius'] - width - 0.05, 0.98 * probe['radius']
+        t = min(1.0, max(0.0, (math.dist(probe['position'], point) - inner) / max(outer - inner, 1e-6)))
+        return 1 - t * t * (3 - 2 * t)
+    alpha = 1.0
+    for a, s in zip(_local(probe, point), probe['scale']):
+        inner = max(s - width, 0.0)
+        t = min(1.0, max(0.0, (abs(a) - inner) / max(s - inner, 1e-6)))
+        alpha *= 1 - t * t * (3 - 2 * t)
+    return alpha
+
+
+def neighbour_light(probe, others, light_of):
+    """What the probes beside `probe` (of `others`) draw just outside it, where a room goes on
+    into the next: their light as the renderer lays them over one another (largest radius
+    first, each by its alpha) at its surface points of its middle height, pushed 10 % out. A
+    probe beside it overlaps it without holding all of it (one under it, a building's, is not
+    seen across its edge) and is at most NEIGHBOUR_SIZE times its radius; None where none is."""
+    edge = _surface(probe)
+    beside = sorted((p for p in others if p['radius'] <= NEIGHBOUR_SIZE * probe['radius']
+                     and 0 < sum(holds(p, point) for point in edge) < len(edge)), key=lambda p: -p['radius'])
+    seen = []
+    for point in edge:
+        if probe.get('geometry') == 1 and abs(_local(probe, point)[1]) > 1e-3:
+            continue
+        out = [x + 0.1 * (x - c) for x, c in zip(point, probe['position'])]
+        light, covered = 0.0, 0.0
+        for p in beside:
+            a = weight(p, out)
+            light, covered = (1 - a) * light + a * luminance(light_of[id(p)]), (1 - a) * covered + a
+        if covered > 0.5:
+            seen.append(light / covered)
+    return sum(seen) / len(seen) if seen else None
 
 
 def lamp_probes(probes, lamp_lights, cubemap, day=None):
@@ -151,8 +212,18 @@ def lamp_probes(probes, lamp_lights, cubemap, day=None):
             lamp_light[probe['full_name']] = (probe['position'], [result[0] * luminance(light) * c for c in colour])
         elif day and day.get(probe['full_name'], (None,))[0] == probe['position']:
             left = [a - b for a, b in zip(light, day[probe['full_name']][1])]
-            if min(left) > 0 and angle(left, room) < SPLIT_ANGLE:
+            if min(left) > 0:
                 result = 1 - luminance(left) / luminance(light), min(1.0, max(KEEPS_FLOOR, luminance(left) / luminance(light)))
         if result is not None and result[0] >= LAMP_SHARE:
-            found.setdefault(lamp, []).append((probe, round(result[1], 3)))
+            found.setdefault(lamp, []).append((probe, result[1]))
+    # A dimmed probe is never darker than the probes around it its lamp
+    # leaves as they are: its box would show as a dark rectangle among them.
+    for lamp, own in found.items():
+        dimmed = [p for p, _ in own]
+        others = [p for p in diffuse if not any(p is q for q in dimmed)]
+        for k, (probe, keeps) in enumerate(own):
+            around = neighbour_light(probe, others, light_of)
+            if around is not None:
+                keeps = min(1.0, max(keeps, around / luminance(light_of[id(probe)])))
+            own[k] = (probe, round(keeps, 3))
     return found, lamp_light

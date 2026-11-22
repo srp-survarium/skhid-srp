@@ -28406,6 +28406,15 @@ impl EnvironmentProbe {
     pub unsafe fn diffuse_multiplier(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x328).cast::<f32>().as_ptr() }
     }
+
+    /// +0x384 (u8): the hi-Z occlusion's last answer (the constructor clears it, 0x1C2F6A; get_results_and_prepare_bounds_env_probes stores it, 0x1B81E3; the filter 0x1B9376 drops an occluded probe while the option is on)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn occluded(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x384).cast::<u8>().as_ptr() }
+    }
 }
 
 /// A vostok::render::stage_lights (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -33433,6 +33442,54 @@ impl TexturePoolSlotStorage {
     #[inline(always)]
     pub fn first(rooms: &mut [Self]) -> Option<TexturePoolSlot> {
         (!rooms.is_empty()).then(|| TexturePoolSlot(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::render::ambient_light (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AmbientLight(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl AmbientLight {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xa4 (u8): the hi-Z occlusion's last answer (get_results_and_prepare_bounds_ambient_lights stores it, 0x1B8043; the filter 0x1B9151 drops an occluded light while the option is on)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn occluded(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0xa4).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A vostok::render::light (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Light(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl Light {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x270 (u8): the hi-Z occlusion's last answer (get_results_and_prepare_bounds_lights stores it, 0x1B7C2B; stage_lights::execute 0x1934F0 skips an occluded light while the option is on, unless it waits for a refresh)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn occluded(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x270).cast::<u8>().as_ptr() }
     }
 }
 
@@ -41559,6 +41616,69 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<ProcessStreamingFrame> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(ProcessStreamingFrame)
+        }
+    }
+
+    /// hiz.light_answer (0x1b7c2b): get_results_and_prepare_bounds_lights (0x1B7BD0) storing a point or spot light's hi-Z answer (mov [ecx+270h],al): ECX the light, AL 1 occluded / 0 visible, its result in the last query (0 at [stage+1Ch] + the index it had then, +2ACh; 0 when it never had one, -1), read when that query's results came in (quary_and_get_results_if_ready 0x1D7E30); EDI the index it takes in the query sent now (written next, 0x1B7C33): it grows within a pass, all kinds sharing one counter from 0. Joined by the never-queried path (jmp at 0x1B7C1B)
+    pub mod hiz_light_answer {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a vostok::render::light (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn light(machine: &impl Machine) -> Option<Light> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(Light)
+        }
+
+        /// EAX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn answer(machine: &impl Machine) -> u32 {
+            machine.register(Register::Eax)
+        }
+
+        /// EDI: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn index(machine: &impl Machine) -> u32 {
+            machine.register(Register::Edi)
+        }
+    }
+
+    /// hiz.ambient_light_answer (0x1b8043): get_results_and_prepare_bounds_ambient_lights (0x1B7FF0) storing an ambient light's hi-Z answer (mov [ecx+0A4h],al): ECX the light, AL 1 occluded / 0 visible, as hiz.light_answer (its index +9Ch); joined by the never-queried path (jmp at 0x1B8030)
+    pub mod hiz_ambient_light_answer {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn answer(machine: &impl Machine) -> u32 {
+            machine.register(Register::Eax)
+        }
+    }
+
+    /// hiz.probe_answer (0x1b81e3): get_results_and_prepare_bounds_env_probes (0x1B8190) storing an environment probe's hi-Z answer (mov [ecx+384h],al): ECX the probe, AL 1 occluded / 0 visible, as hiz.light_answer (its index +37Ch); joined by the never-queried path (jmp at 0x1B81D0)
+    pub mod hiz_probe_answer {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn answer(machine: &impl Machine) -> u32 {
+            machine.register(Register::Eax)
         }
     }
 }

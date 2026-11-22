@@ -355,7 +355,7 @@
                 "y": 10.913999557495117,
                 "z": -37.58100128173828,
                 "name": "environment_and_lights/probes/hall_2_floor(4)",
-                "keeps": 0.243
+                "keeps": 0.602
               }
             }
           },
@@ -574,7 +574,7 @@
                 "y": 10.937000274658203,
                 "z": 10.541000366210938,
                 "name": "environment_and_lights/probes/hall(2)",
-                "keeps": 0.22
+                "keeps": 0.497
               }
             }
           },
@@ -619,7 +619,7 @@
                 "y": 11.097000122070312,
                 "z": -58.06100082397461,
                 "name": "environment_and_lights/probes/hall_2_floor(11)",
-                "keeps": 0.349
+                "keeps": 0.614
               }
             }
           },
@@ -700,7 +700,7 @@
                 "y": 15.609000205993652,
                 "z": -0.20900000631809235,
                 "name": "environment_and_lights/probes/gerkin(4)",
-                "keeps": 0.271
+                "keeps": 0.387
               }
             }
           },
@@ -1014,7 +1014,7 @@
                 "y": 10.913999557495117,
                 "z": -37.58100128173828,
                 "name": "environment_and_lights/probes/hall_2_floor(4)",
-                "keeps": 0.243
+                "keeps": 0.602
               }
             }
           },
@@ -1233,7 +1233,7 @@
                 "y": 10.937000274658203,
                 "z": 10.541000366210938,
                 "name": "environment_and_lights/probes/hall(2)",
-                "keeps": 0.22
+                "keeps": 0.497
               }
             }
           },
@@ -1278,7 +1278,7 @@
                 "y": 11.097000122070312,
                 "z": -58.06100082397461,
                 "name": "environment_and_lights/probes/hall_2_floor(11)",
-                "keeps": 0.349
+                "keeps": 0.614
               }
             }
           },
@@ -1359,7 +1359,7 @@
                 "y": 15.609000205993652,
                 "z": -0.20900000631809235,
                 "name": "environment_and_lights/probes/gerkin(4)",
-                "keeps": 0.271
+                "keeps": 0.387
               }
             }
           },
@@ -1608,7 +1608,7 @@
                 "y": 10.913999557495117,
                 "z": -37.58100128173828,
                 "name": "environment_and_lights/probes/hall_2_floor(4)",
-                "keeps": 0.243
+                "keeps": 0.602
               }
             }
           },
@@ -1827,7 +1827,7 @@
                 "y": 10.937000274658203,
                 "z": 10.541000366210938,
                 "name": "environment_and_lights/probes/hall(2)",
-                "keeps": 0.22
+                "keeps": 0.497
               }
             }
           },
@@ -1872,7 +1872,7 @@
                 "y": 11.097000122070312,
                 "z": -58.06100082397461,
                 "name": "environment_and_lights/probes/hall_2_floor(11)",
-                "keeps": 0.349
+                "keeps": 0.614
               }
             }
           },
@@ -1953,7 +1953,7 @@
                 "y": 15.609000205993652,
                 "z": -0.20900000631809235,
                 "name": "environment_and_lights/probes/gerkin(4)",
-                "keeps": 0.271
+                "keeps": 0.387
               }
             }
           },
@@ -2202,7 +2202,7 @@
                 "y": 10.913999557495117,
                 "z": -37.58100128173828,
                 "name": "environment_and_lights/probes/hall_2_floor(4)",
-                "keeps": 0.243
+                "keeps": 0.602
               }
             }
           },
@@ -2421,7 +2421,7 @@
                 "y": 10.937000274658203,
                 "z": 10.541000366210938,
                 "name": "environment_and_lights/probes/hall(2)",
-                "keeps": 0.22
+                "keeps": 0.497
               }
             }
           },
@@ -2466,7 +2466,7 @@
                 "y": 11.097000122070312,
                 "z": -58.06100082397461,
                 "name": "environment_and_lights/probes/hall_2_floor(11)",
-                "keeps": 0.349
+                "keeps": 0.614
               }
             }
           },
@@ -2547,7 +2547,7 @@
                 "y": 15.609000205993652,
                 "z": -0.20900000631809235,
                 "name": "environment_and_lights/probes/gerkin(4)",
-                "keeps": 0.271
+                "keeps": 0.387
               }
             }
           },
@@ -2873,7 +2873,7 @@
                 "y": 10.913999557495117,
                 "z": -37.58100128173828,
                 "name": "environment_and_lights/probes/hall_2_floor(4)",
-                "keeps": 0.19
+                "keeps": 0.524
               }
             }
           },
@@ -3063,7 +3063,7 @@
                 "y": 10.937000274658203,
                 "z": 10.541000366210938,
                 "name": "environment_and_lights/probes/hall(2)",
-                "keeps": 0.15
+                "keeps": 0.328
               }
             }
           },
@@ -3108,7 +3108,7 @@
                 "y": 11.097000122070312,
                 "z": -58.06100082397461,
                 "name": "environment_and_lights/probes/hall_2_floor(11)",
-                "keeps": 0.418
+                "keeps": 0.465
               }
             }
           },
@@ -3198,7 +3198,7 @@
                 "y": 15.609000205993652,
                 "z": -0.20900000631809235,
                 "name": "environment_and_lights/probes/gerkin(4)",
-                "keeps": 0.262
+                "keeps": 0.376
               }
             }
           },
@@ -3309,7 +3309,7 @@
                 "y": 15.913000106811523,
                 "z": -15.085000038146973,
                 "name": "environment_and_lights/probes/gerkin(5)",
-                "keeps": 0.386
+                "keeps": 0.601
               }
             }
           },
@@ -3532,7 +3532,7 @@
                 "y": 10.913999557495117,
                 "z": -37.58100128173828,
                 "name": "environment_and_lights/probes/hall_2_floor(4)",
-                "keeps": 0.19
+                "keeps": 0.524
               }
             }
           },
@@ -3722,7 +3722,7 @@
                 "y": 10.937000274658203,
                 "z": 10.541000366210938,
                 "name": "environment_and_lights/probes/hall(2)",
-                "keeps": 0.15
+                "keeps": 0.328
               }
             }
           },
@@ -3767,7 +3767,7 @@
                 "y": 11.097000122070312,
                 "z": -58.06100082397461,
                 "name": "environment_and_lights/probes/hall_2_floor(11)",
-                "keeps": 0.418
+                "keeps": 0.465
               }
             }
           },
@@ -3857,7 +3857,7 @@
                 "y": 15.609000205993652,
                 "z": -0.20900000631809235,
                 "name": "environment_and_lights/probes/gerkin(4)",
-                "keeps": 0.262
+                "keeps": 0.376
               }
             }
           },
@@ -3968,7 +3968,7 @@
                 "y": 15.913000106811523,
                 "z": -15.085000038146973,
                 "name": "environment_and_lights/probes/gerkin(5)",
-                "keeps": 0.386
+                "keeps": 0.601
               }
             }
           },
@@ -4159,7 +4159,7 @@
                 "y": 10.913999557495117,
                 "z": -37.58100128173828,
                 "name": "environment_and_lights/probes/hall_2_floor(4)",
-                "keeps": 0.19
+                "keeps": 0.524
               }
             }
           },
@@ -4349,7 +4349,7 @@
                 "y": 10.937000274658203,
                 "z": 10.541000366210938,
                 "name": "environment_and_lights/probes/hall(2)",
-                "keeps": 0.15
+                "keeps": 0.328
               }
             }
           },
@@ -4394,7 +4394,7 @@
                 "y": 11.097000122070312,
                 "z": -58.06100082397461,
                 "name": "environment_and_lights/probes/hall_2_floor(11)",
-                "keeps": 0.418
+                "keeps": 0.465
               }
             }
           },
@@ -4484,7 +4484,7 @@
                 "y": 15.609000205993652,
                 "z": -0.20900000631809235,
                 "name": "environment_and_lights/probes/gerkin(4)",
-                "keeps": 0.262
+                "keeps": 0.376
               }
             }
           },
@@ -4595,7 +4595,7 @@
                 "y": 15.913000106811523,
                 "z": -15.085000038146973,
                 "name": "environment_and_lights/probes/gerkin(5)",
-                "keeps": 0.386
+                "keeps": 0.601
               }
             }
           },
@@ -4855,7 +4855,7 @@
                 "y": 10.913999557495117,
                 "z": -37.58100128173828,
                 "name": "environment_and_lights/probes/hall_2_floor(4)",
-                "keeps": 0.314
+                "keeps": 0.439
               }
             }
           },
@@ -5053,7 +5053,7 @@
                 "y": 10.937000274658203,
                 "z": 10.541000366210938,
                 "name": "environment_and_lights/probes/hall(2)",
-                "keeps": 0.15
+                "keeps": 0.33
               }
             }
           },
@@ -5559,7 +5559,7 @@
                 "y": 10.913999557495117,
                 "z": -37.58100128173828,
                 "name": "environment_and_lights/probes/hall_2_floor(4)",
-                "keeps": 0.314
+                "keeps": 0.439
               }
             }
           },
@@ -5757,7 +5757,7 @@
                 "y": 10.937000274658203,
                 "z": 10.541000366210938,
                 "name": "environment_and_lights/probes/hall(2)",
-                "keeps": 0.15
+                "keeps": 0.33
               }
             }
           },
@@ -6202,7 +6202,7 @@
                 "y": 10.913999557495117,
                 "z": -37.58100128173828,
                 "name": "environment_and_lights/probes/hall_2_floor(4)",
-                "keeps": 0.314
+                "keeps": 0.439
               }
             }
           },
@@ -6400,7 +6400,7 @@
                 "y": 10.937000274658203,
                 "z": 10.541000366210938,
                 "name": "environment_and_lights/probes/hall(2)",
-                "keeps": 0.15
+                "keeps": 0.33
               }
             }
           },

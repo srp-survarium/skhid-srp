@@ -216,7 +216,7 @@
                 "y": 11.097000122070312,
                 "z": -58.06100082397461,
                 "name": "environment_and_lights/probes/processed/hall_b/hall_2_floor(11)",
-                "keeps": 0.332
+                "keeps": 0.868
               }
             }
           },
@@ -298,7 +298,7 @@
                 "y": 10.913999557495117,
                 "z": -37.018001556396484,
                 "name": "environment_and_lights/probes/processed/hall_b/hall_2_floor(3)",
-                "keeps": 0.308
+                "keeps": 1.0
               }
             }
           },
@@ -379,7 +379,7 @@
                 "y": 10.937000274658203,
                 "z": 10.541000366210938,
                 "name": "environment_and_lights/probes/processed/hall_b/hall(2)",
-                "keeps": 0.15
+                "keeps": 0.904
               }
             }
           },
@@ -453,7 +453,7 @@
                 "y": 15.609000205993652,
                 "z": -0.20900000631809235,
                 "name": "environment_and_lights/probes/processed/tower/gerkin(4)",
-                "keeps": 0.426
+                "keeps": 0.47
               }
             }
           },
@@ -731,7 +731,7 @@
                 "y": 11.097000122070312,
                 "z": -58.06100082397461,
                 "name": "environment_and_lights/probes/processed/hall_b/hall_2_floor(11)",
-                "keeps": 0.332
+                "keeps": 0.868
               }
             }
           },
@@ -813,7 +813,7 @@
                 "y": 10.913999557495117,
                 "z": -37.018001556396484,
                 "name": "environment_and_lights/probes/processed/hall_b/hall_2_floor(3)",
-                "keeps": 0.308
+                "keeps": 1.0
               }
             }
           },
@@ -894,7 +894,7 @@
                 "y": 10.937000274658203,
                 "z": 10.541000366210938,
                 "name": "environment_and_lights/probes/processed/hall_b/hall(2)",
-                "keeps": 0.15
+                "keeps": 0.904
               }
             }
           },
@@ -968,7 +968,7 @@
                 "y": 15.609000205993652,
                 "z": -0.20900000631809235,
                 "name": "environment_and_lights/probes/processed/tower/gerkin(4)",
-                "keeps": 0.426
+                "keeps": 0.47
               }
             }
           },
@@ -1246,7 +1246,7 @@
                 "y": 11.097000122070312,
                 "z": -58.06100082397461,
                 "name": "environment_and_lights/probes/processed/hall_b/hall_2_floor(11)",
-                "keeps": 0.332
+                "keeps": 0.868
               }
             }
           },
@@ -1328,7 +1328,7 @@
                 "y": 10.913999557495117,
                 "z": -37.018001556396484,
                 "name": "environment_and_lights/probes/processed/hall_b/hall_2_floor(3)",
-                "keeps": 0.308
+                "keeps": 1.0
               }
             }
           },
@@ -1409,7 +1409,7 @@
                 "y": 10.937000274658203,
                 "z": 10.541000366210938,
                 "name": "environment_and_lights/probes/processed/hall_b/hall(2)",
-                "keeps": 0.15
+                "keeps": 0.904
               }
             }
           },
@@ -1483,7 +1483,7 @@
                 "y": 15.609000205993652,
                 "z": -0.20900000631809235,
                 "name": "environment_and_lights/probes/processed/tower/gerkin(4)",
-                "keeps": 0.426
+                "keeps": 0.47
               }
             }
           },
@@ -3242,7 +3242,7 @@
                 "y": 11.097000122070312,
                 "z": -58.06100082397461,
                 "name": "environment_and_lights/probes/processed/hall_b/hall_2_floor(11)",
-                "keeps": 0.483
+                "keeps": 0.54
               }
             }
           },
@@ -3316,7 +3316,7 @@
                 "y": 10.913999557495117,
                 "z": -37.018001556396484,
                 "name": "environment_and_lights/probes/processed/hall_b/hall_2_floor(3)",
-                "keeps": 0.526
+                "keeps": 0.692
               }
             }
           },
@@ -3419,6 +3419,23 @@
                 "z": 12.946943283081055,
                 "name": "environment_and_lights/light/lamp_sparks(4)/point_light(4)"
               }
+            },
+            "ambient_lights": {
+              "light0": {
+                "x": -53.167999267578125,
+                "y": 9.267000198364258,
+                "z": 7.434000015258789,
+                "name": "environment_and_lights/ambient_light_rain/ambient_light(69)"
+              }
+            },
+            "probes": {
+              "probe0": {
+                "x": -50.34000015258789,
+                "y": 10.937000274658203,
+                "z": 10.541000366210938,
+                "name": "environment_and_lights/probes/processed/hall_b/hall(2)",
+                "keeps": 0.409
+              }
             }
           },
           "lamp011": {
@@ -3491,7 +3508,7 @@
                 "y": 15.609000205993652,
                 "z": -0.20900000631809235,
                 "name": "environment_and_lights/probes/processed/tower/gerkin(4)",
-                "keeps": 0.353
+                "keeps": 0.448
               }
             }
           },
@@ -3777,7 +3794,7 @@
                 "y": 11.097000122070312,
                 "z": -58.06100082397461,
                 "name": "environment_and_lights/probes/processed/hall_b/hall_2_floor(11)",
-                "keeps": 0.483
+                "keeps": 0.54
               }
             }
           },
@@ -3851,7 +3868,7 @@
                 "y": 10.913999557495117,
                 "z": -37.018001556396484,
                 "name": "environment_and_lights/probes/processed/hall_b/hall_2_floor(3)",
-                "keeps": 0.526
+                "keeps": 0.692
               }
             }
           },
@@ -3954,6 +3971,23 @@
                 "z": 12.946943283081055,
                 "name": "environment_and_lights/light/lamp_sparks(4)/point_light(4)"
               }
+            },
+            "ambient_lights": {
+              "light0": {
+                "x": -53.167999267578125,
+                "y": 9.267000198364258,
+                "z": 7.434000015258789,
+                "name": "environment_and_lights/ambient_light_rain/ambient_light(69)"
+              }
+            },
+            "probes": {
+              "probe0": {
+                "x": -50.34000015258789,
+                "y": 10.937000274658203,
+                "z": 10.541000366210938,
+                "name": "environment_and_lights/probes/processed/hall_b/hall(2)",
+                "keeps": 0.409
+              }
             }
           },
           "lamp011": {
@@ -4026,7 +4060,7 @@
                 "y": 15.609000205993652,
                 "z": -0.20900000631809235,
                 "name": "environment_and_lights/probes/processed/tower/gerkin(4)",
-                "keeps": 0.353
+                "keeps": 0.448
               }
             }
           },
@@ -4312,7 +4346,7 @@
                 "y": 11.097000122070312,
                 "z": -58.06100082397461,
                 "name": "environment_and_lights/probes/processed/hall_b/hall_2_floor(11)",
-                "keeps": 0.483
+                "keeps": 0.54
               }
             }
           },
@@ -4386,7 +4420,7 @@
                 "y": 10.913999557495117,
                 "z": -37.018001556396484,
                 "name": "environment_and_lights/probes/processed/hall_b/hall_2_floor(3)",
-                "keeps": 0.526
+                "keeps": 0.692
               }
             }
           },
@@ -4489,6 +4523,23 @@
                 "z": 12.946943283081055,
                 "name": "environment_and_lights/light/lamp_sparks(4)/point_light(4)"
               }
+            },
+            "ambient_lights": {
+              "light0": {
+                "x": -53.167999267578125,
+                "y": 9.267000198364258,
+                "z": 7.434000015258789,
+                "name": "environment_and_lights/ambient_light_rain/ambient_light(69)"
+              }
+            },
+            "probes": {
+              "probe0": {
+                "x": -50.34000015258789,
+                "y": 10.937000274658203,
+                "z": 10.541000366210938,
+                "name": "environment_and_lights/probes/processed/hall_b/hall(2)",
+                "keeps": 0.409
+              }
             }
           },
           "lamp011": {
@@ -4561,7 +4612,7 @@
                 "y": 15.609000205993652,
                 "z": -0.20900000631809235,
                 "name": "environment_and_lights/probes/processed/tower/gerkin(4)",
-                "keeps": 0.353
+                "keeps": 0.448
               }
             }
           },

@@ -1565,7 +1565,7 @@ st_mode_05_description	Tvým úkolem je ovládnout mobilní výzkumné jednotky.
 st_mode_05_name	Výzkum
 st_mode_08_description	Každý bojuje sám za sebe. Zápas končí, když někdo dosáhne potřebného počtu zabití nebo když vyprší čas. Vyhrává bojovník s nejvíce zabitími.
 st_mode_08_name	Každý proti každému
-st_mode_12_description	Zmraz všechny soupeře. Vyhrává první tým s 5 vítěznými koly. Stůj 3 sekundy do 2 m od zmrazeného spoluhráče, aby rozmrzl.
+st_mode_12_description	Zmraz všechny soupeře. Vyhrává první tým s 5 vítěznými koly. Stůj 4 sekundy do 2 m od zmrazeného spoluhráče, aby rozmrzl.
 st_mode_12_name	Zmrazování
 st_mode_13_description	Najdi artefakt "Záře Lesa" a dones ho na svou základnu. Získej 5 artefaktů a vyhraj.
 st_mode_13_name	Lov na artefakt
@@ -2702,8 +2702,8 @@ st_srp_hud_artefact_hunt_sudden_death	Náhlá smrt
 st_srp_hud_blackout_intro	Blackout: noste baterie k zařízení svého týmu. Rozhraní a ukazatele zásahů jsou skryté pro větší vtažení do hry. Podržte Tab: munice, zdraví, chat; po smrti výběr výbavy.
 st_srp_hud_blackout_start	Blackout\nNoste baterie k zařízení svého týmu.\nRozhraní a ukazatele zásahů jsou skryté. Podržte Tab pro zobrazení munice a zdraví.
 st_srp_hud_freeze_draw	Remíza
-st_srp_hud_freeze_frozen	Zmrazen
-st_srp_hud_freeze_help	Zmraz všechny soupeře. Vyhrává první tým s 5 vítěznými koly. Stůj 3 sekundy do 2 m od zmrazeného spoluhráče, aby rozmrzl.
+st_srp_hud_freeze_frozen	Zmrazen (%1$s)
+st_srp_hud_freeze_help	Zmraz všechny soupeře. Vyhrává první tým s 5 vítěznými koly. Stůj 4 sekundy do 2 m od zmrazeného spoluhráče, aby rozmrzl.
 st_srp_hud_freeze_lose	Porážka — soupeři vyhráli pět kol.
 st_srp_hud_freeze_round_draw	Remíza. Nové kolo za %1$s s.
 st_srp_hud_freeze_round_lose	Prohrané kolo. Další za %1$s s.
