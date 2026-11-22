@@ -7370,6 +7370,56 @@ pub extern "C" fn hook_scaleform_capture_on_queue_destroy(frame: &mut Frame) -> 
     }
 }
 
+// ---- weapon_stats (patch 165) ----
+
+/// The entry `weapon_stats_on_fired` (0x2d7843, base_player::on_fire 0x2D7800 after its fire listeners, before the handler's on_player_weapon_firing (slot +8, the only call, 0x2D78A5; mov ecx,[esi+10h] / mov ebx,[ecx+18FA8h]): ESI the player + 110h, the site's ESP+14h the bullets fired) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_stats_on_fired(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_stats_on_fired` calls this, from the game's jump at 0x2d7843,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_stats::on_fired(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- shot_protection (patch 179) ----
+
+/// The entry `shot_protection_on_fired` (0x2d7843, base_player::on_fire 0x2D7800 after its fire listeners, before the handler's on_player_weapon_firing (slot +8, the only call, 0x2D78A5; mov ecx,[esi+10h] / mov ebx,[ecx+18FA8h]): ESI the player + 110h, the site's ESP+14h the bullets fired) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_shot_protection_on_fired(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `shot_protection_on_fired` calls this, from the game's jump at 0x2d7843,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::shot_protection::on_fired(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- shot_protection (patch 179) ----
+
+/// The named exits of shot_protection::on_zone_protect (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ShotProtectionOnZoneProtectExit { Skip }
+/// The entry `shot_protection_on_zone_protect` (0x31ad0f, the effect zone protecting an own-team player inside it (0x31ACA0, each player of its list whose team is the zone's +50h): about to store the fade (mov [eax+330h],ecx, the zone's +4Ch) and the end (mov [eax+32Ch],edx at 0x31AD15: the time + the zone's +48h) into the player's damage model, EAX; skip is past both stores, the player's reference released as on the other team's path (the jne at 0x31ACF4)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_shot_protection_on_zone_protect(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `shot_protection_on_zone_protect` calls this, from the game's jump at 0x31ad0f,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::shot_protection::on_zone_protect(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- sign_in_cipher (patch 139) ----
 
 /// The entry `sign_in_cipher_on_begin` (0x380504, on_user_name_answer_received (0x380340) for the answer 0Bh, the user name taken (mov ecx,[ebp+8] / sub esp,30h, past the jne at 0x380502): before it starts the stream's handshake (0x38B840), once a sign-in) calls this with the saved machine.
@@ -8481,21 +8531,6 @@ pub extern "C" fn hook_weapon_stats_on_hit(frame: &mut Frame) -> u32 {
 
 // ---- weapon_stats (patch 165) ----
 
-/// The entry `weapon_stats_on_fired` (0x2d7843, base_player::on_fire 0x2D7800 after its fire listeners, before the handler's on_player_weapon_firing (slot +8, the only call, 0x2D78A5; mov ecx,[esi+10h] / mov ebx,[ecx+18FA8h]): ESI the player + 110h, the site's ESP+14h the bullets fired) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_weapon_stats_on_fired(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `weapon_stats_on_fired` calls this, from the game's jump at 0x2d7843,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::weapon_stats::on_fired(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- weapon_stats (patch 165) ----
-
 /// The entry `weapon_stats_on_save` (0x2f5bd0, shared_statistics::serialize 0x2F5AC0 after its tail's last write (m_active_in_match_players_mask, 0x2F5BCB), at its epilogue (pop edi / pop ebx / mov esp,ebp / pop ebp): ESI the statistics, EDI the writer) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_weapon_stats_on_save(frame: &mut Frame) -> u32 {
@@ -9092,6 +9127,15 @@ pub extern "C" fn hook_voice_on_key_chain(frame: &mut Frame) -> u32 {
     let flow = hook_tab_cursor_on_key(frame);
     if flow != 0 { return flow; }
     let flow = hook_replay_keys_on_key(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_stats_on_fired_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_weapon_stats_on_fired(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_shot_protection_on_fired(frame);
     if flow != 0 { return flow; }
     0
 }

@@ -56,9 +56,10 @@ package survarium.rooms
         public static const MEMBERS_MAX:int = 20;
         public static const LEVEL_ANY:int = 0;
         // The form's pool rows (`E;<chunk>;<bits>`) of BITS_PER_CHUNK entries; a create names
-        // POOL_BITS entries at most. 256: every playable map (219 in the live data).
+        // POOL_BITS entries at most (the server's POOL_BITS). 512: every playable map (333 on
+        // 2026-11-22; 256 cut off the maps after the 0.21 ones).
         public static const BITS_PER_CHUNK:int = 16;
-        public static const POOL_BITS:int = 256;
+        public static const POOL_BITS:int = 512;
         // A PIN's digits (PIN_MAX 9999).
         public static const PIN_DIGITS:int = 4;
         // The vote's cards: 0 to LAST_CARD (the server's CARDS, 3).
