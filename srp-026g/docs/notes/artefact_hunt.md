@@ -132,7 +132,18 @@ Each one a decision; the owner's are marked, the rest are the port's and open to
     folders), not a single sound (found while building patch 171; the pack ships them so).
 - **A project a map:** 0.26g's own project of the map with 0.46c2's mode spawns
   (`server_objects.respawn_points`) and the two bases' box as a prop; nothing of 0.46c2's reworked
-  geometry or anomalies. A round start respawns a whole team at once: a team with fewer free
+  geometry or anomalies.
+  - **The boxes' stands.** 0.46c2's Artifact Hunt projects carry 0.26g's Batteries props one for
+    one, and seven of its boxes stand on them, not on the floor: the concrete slabs of Mamayev
+    Kurgan (`props/garbage/concrete_plita1` x 1.2 under team 0's, `concrete_plita2` x 1.3 under
+    team 1's, 0.50 m over the ground), pallets (`props/garage/pallet`, two a box) on School and
+    Chemical Plant, the bed (`level/08/furniture/bed`) under Cologne's team 0. Each is in the
+    project as the map's Batteries project has it (its model and collision: 0.26g's pallet has no
+    walker mesh, one collision of both groups), and those boxes, their bases and use shapes are at
+    0.46c2's height on them (pack @6; @3 to @5 had put them on the floor, 0.04 to 0.50 m lower).
+    0.46c2 has no stand model of its own: on the other levels its box stands on the floor, and
+    Batteries' other props by the bases (shelves, cables, generators) are not taken. The other team
+    maps ("Maps") are their Batteries mode's containers, with what those stand on. A round start respawns a whole team at once: a team with fewer free
   points than players spawns the rest a step (50 ms) later each, as the native rule does
   ("Respawns"); 8 points a team (16 players) spawn everyone in the same step.
 - **Known difference: no "not for the first spawn" points.** 0.46c2 keeps some of its points out
