@@ -6275,6 +6275,70 @@ pub unsafe extern "C" fn hook_lamps_on_particle_remove(a0: Option<raw::ObjectPar
 
 // ---- lamps (patch 81) ----
 
+/// engine_probe_insert (0x28ffd0), as the vtable hook at 0xa0ac0c wraps it.
+pub struct OrigProbeInsert;
+
+impl OrigProbeInsert {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, probe: &mut ObjectEnvironmentProbe) {
+        // SAFETY: engine_probe_insert at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_probe_insert(Some(probe.raw())) }
+    }
+}
+
+/// The entry `lamps_on_probe_insert` (0xa0ac0c, object_environment_probe insert slot 8) calls this with
+/// engine_probe_insert's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `lamps_on_probe_insert`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_lamps_on_probe_insert(a0: Option<raw::ObjectEnvironmentProbe>) -> u32 {
+    // SAFETY: only the entry `lamps_on_probe_insert` calls this, from the game's call at
+    // 0xa0ac0c, on the game's thread; a0.. are engine_probe_insert's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut probe) = (unsafe { ObjectEnvironmentProbe::from_raw(&thread, a0) }) else {
+        // a null ObjectEnvironmentProbe never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_probe_insert(a0) }; 0 };
+    };
+    let orig = OrigProbeInsert;
+    { crate::lamps::on_probe_insert(&orig, &mut probe); 0 }
+}
+
+// ---- lamps (patch 81) ----
+
+/// engine_probe_remove (0x2904a0), as the vtable hook at 0xa0ac10 wraps it.
+pub struct OrigProbeRemove;
+
+impl OrigProbeRemove {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, probe: &mut ObjectEnvironmentProbe) {
+        // SAFETY: engine_probe_remove at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_probe_remove(Some(probe.raw())) }
+    }
+}
+
+/// The entry `lamps_on_probe_remove` (0xa0ac10, object_environment_probe remove slot 9) calls this with
+/// engine_probe_remove's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `lamps_on_probe_remove`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_lamps_on_probe_remove(a0: Option<raw::ObjectEnvironmentProbe>) -> u32 {
+    // SAFETY: only the entry `lamps_on_probe_remove` calls this, from the game's call at
+    // 0xa0ac10, on the game's thread; a0.. are engine_probe_remove's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut probe) = (unsafe { ObjectEnvironmentProbe::from_raw(&thread, a0) }) else {
+        // a null ObjectEnvironmentProbe never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_probe_remove(a0) }; 0 };
+    };
+    let orig = OrigProbeRemove;
+    { crate::lamps::on_probe_remove(&orig, &mut probe); 0 }
+}
+
+// ---- lamps (patch 81) ----
+
 /// The named exits of lamps::on_decal_enter (the order the shim's Flow code
 /// follows, 2 upward).
 #[repr(u32)]
@@ -10040,4 +10104,10 @@ unsafe extern "C" { static lamps_particle_vtable: [u32; 11]; }
 pub fn lamps_particle_vtable_handle() -> super::project::NativeVtable<raw::ObjectParticleVisualMethods> {
     // SAFETY: the generated immutable table lives for the executable's lifetime.
     unsafe { super::project::NativeVtable::from_address(core::ptr::addr_of!(lamps_particle_vtable).cast::<u32>().add(1) as usize as u32) }
+}
+
+unsafe extern "C" { static lamps_probe_vtable: [u32; 11]; }
+pub fn lamps_probe_vtable_handle() -> super::project::NativeVtable<raw::ObjectEnvironmentProbeMethods> {
+    // SAFETY: the generated immutable table lives for the executable's lifetime.
+    unsafe { super::project::NativeVtable::from_address(core::ptr::addr_of!(lamps_probe_vtable).cast::<u32>().add(1) as usize as u32) }
 }

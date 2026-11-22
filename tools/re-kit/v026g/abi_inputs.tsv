@@ -2703,8 +2703,8 @@ va	name	location	role	basis
 0x0028fd40	survarium::object_environment_probe::on_textures_loaded	ECX	environment probe	inferred
 0x0028fd40	survarium::object_environment_probe::on_textures_loaded	stack+4	query results	inferred
 0x0028fd40	survarium::object_environment_probe::on_textures_loaded	stack+8	completion callback	inferred
-0x0028ffd0	survarium::object_environment_probe::insert	ECX	environment probe	inferred
-0x002904a0	survarium::object_environment_probe::remove	ECX	environment probe	inferred
+0x0028ffd0	survarium::object_environment_probe::insert	ECX	environment probe	observed
+0x002904a0	survarium::object_environment_probe::remove	ECX	environment probe	observed
 0x00293ca0	survarium::object_wire::`scalar deleting destructor'	ECX	wire object	inferred
 0x00293ca0	survarium::object_wire::`scalar deleting destructor'	stack+4	deletion flags	inferred
 0x00293cc0	survarium::object_wire::~object_wire	ECX	wire object	inferred

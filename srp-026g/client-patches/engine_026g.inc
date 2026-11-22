@@ -302,6 +302,14 @@ extern engine_particle_insert
 ; 0x292dc0 survarium::object_particle_visual::remove: particle ECX; pops 0; thiscall, called directly
 ; thiscall: push (and ECX for thiscall) as that convention says
 extern engine_particle_remove
+; void engine_probe_insert(struct object_environment_probe *probe)
+; 0x28ffd0 survarium::object_environment_probe::insert: probe ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_probe_insert
+; void engine_probe_remove(struct object_environment_probe *probe)
+; 0x2904a0 survarium::object_environment_probe::remove: probe ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_probe_remove
 ; void engine_inventory_remove(struct inventory *inventory, unsigned int slot)
 ; 0x2fc680 survarium::inventory::remove_item: inventory ESI, slot EAX; pops 0
 extern engine_inventory_remove

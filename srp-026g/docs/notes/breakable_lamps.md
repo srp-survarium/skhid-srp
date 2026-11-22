@@ -18,9 +18,10 @@ are not yet configured.
 Fixtures with no glass to break stay scenery: empty fluorescent fittings
 (`fluor_lamp_base`, `lamp_big_03`, a `lamp_midle_04` without tubes) and
 v0.11's `lamp_midle_0N`, older meshes than the stock broken housings. It
-does not darken baked lights, sunlight, environment probes or a room's
-ambient lights. A lit alarm lamp's red glow, an ambient light of its own,
-goes out with it (below).
+does not darken baked lights, sunlight or a room's ambient lights. A lit
+alarm lamp's red glow, an ambient light of its own, goes out with it
+(below), and so does a tube lamp's share of the room probe its light is
+baked into, on London (v0.32) and London (v0.42) (Room probes, below).
 
 ## Content
 
@@ -117,6 +118,43 @@ Build this resource-porter pack into
 `$SKHID_PACKS_DIR/breakable-lamps-2`, then use `release/build-content` normally.
 No release patch is assembled by the authoring tools.
 
+## Room probes
+
+In a ported map most of a room's light is its environment probe's, whose
+cubemap the donor's editor baked with the lamps on. Nothing in the donors
+ties a probe or an ambient light to a lamp: 0.44a5's and 0.32a4's lamp group
+holds its point light and its sparks alone, their ambient lights are each
+weather's fill set (`ambient_light_day`, `ambient_evening_light`: sky-blue
+and grey, none in a tube lamp's reach), and a probe has no owner field. The
+owner's `2026-11-22-05-55-19.png` (London (v0.42), the tower's corridor,
+lamp at 1.5, 16.8, 0.4 broken) was this: no ambient light within 9 m, the
+corridor drawn by `gerkin(4)`, whose light is some 60 % its lavender tube's.
+
+`scripts/breakable-lamps/probe_light.py` splits a probe's light by colour.
+Its light is the mean of its irradiance cubemap (`_diffuse.dds`) as 0.26g's
+shader reads it (RGBM); it is fitted as a mix of the lamp's colour (its
+light object's) and the room's light without lamps (the mean colour of the
+project's probes that hold no lamp's light). A diffuse probe whose volume
+holds the light of one lamp alone, and whose light is at least 40 % that
+lamp's (`LAMP_SHARE`), is that lamp's: its row lists it in a `probes` table
+(exact position, name, `keeps`: the share of its light not the lamp's, at
+least 0.15, `KEEPS_FLOOR`). The two colours must differ by 8 degrees
+(`SPLIT_ANGLE`): a warm bulb or a kerosene flame (no light object) is the
+daylight's colour and splits nothing. London (v0.42)'s day projects bind 5
+probes (`gerkin(4)` keeps 0.43, `gerkin(5)`, `hall(2)`, `hall_2_floor(3)`,
+`(11)`), London (v0.32)'s day, rain and evening 5 to 7. London (v0.42)'s
+evening probes carry no lamp's colour, and its rain's light is as blue as
+the tubes: none is bound there. The rule binds 4 probes on Vostok (v0.11)
+too, whose list (`breakable-lamps-1.json`) is not regenerated yet.
+
+A broken lamp's probe stays drawn, with its `diffuse_multiplier` and
+`specular_multiplier` (+3F0h, +3F4h, read by `insert`) times `keeps`: the
+registry takes it out and puts it back with the other multipliers
+(`drive_probe`), and gives it back its own when the lamp is whole again or
+the project goes. One multiplier dims the probe's light, not its colour: the
+lamp's tint stays in what is left. A probe in the boxes of two lamps (a
+room's or a building's) is left as it is.
+
 ## Rust implementation and ownership
 
 `client-patches/rust/patches/src/lamps.rs` and `lamps/model.rs` implement the
@@ -141,9 +179,13 @@ hook. Every visual index, exact light position, native type, unique owner
 and capacity is checked before committing any vtable change. Scenery without
 metadata requires none of the lamp-specific scene or physics inputs.
 
-The registry binds four native kinds, each by its own table: render visuals
-(0xA029B4), `object_light` (0xA0ADEC), `object_ambient_light` (0xA0AC4C) and
-`object_particle_visual` (0xA0AFAC, the table of the object at +0).
+The registry binds five native kinds, each by its own table: render visuals
+(0xA029B4), `object_light` (0xA0ADEC), `object_ambient_light` (0xA0AC4C),
+`object_particle_visual` (0xA0AFAC, the table of the object at +0) and
+`object_environment_probe` (0xA0ABEC: insert 0x28FFD0, remove 0x2904A0 at
+slots 8 and 9, `this` in ECX, the translation at +140h; insert hands its
+properties to `scene_renderer::update_environment_probe` under its render id
++3E4h, remove takes that id out).
 The ambient light has `object_light`'s layout where the patch reads it: ten
 methods with insert and remove at slots 8 and 9 (0x290930, 0x290AE0: `this`
 in ECX, nothing on the stack), the translation at +140h. Its insert hands
