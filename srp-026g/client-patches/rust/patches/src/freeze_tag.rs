@@ -367,6 +367,9 @@ pub fn on_hud(ctx: &mut Context<'_>) -> Flow<NoExit> {
             .max()
             .unwrap_or(0)
     };
+    let mask = Place::all()
+        .filter(|place| is_frozen(&state, *place))
+        .fold(0, |mask, place| mask | (1 << place.index()));
     if let Some(movie) = ui.hud_movie() {
         movie.invoke_uints(
             c"root.freeze_tag_score",
@@ -381,11 +384,10 @@ pub fn on_hud(ctx: &mut Context<'_>) -> Flow<NoExit> {
                 remaining,
             ],
         );
+        // The Tab list's frozen rows; the movie clears them with the match.
+        movie.invoke_uints(c"root.freeze_tag_rows", &[mask]);
     }
     if let Some(movie) = ui.icons_movie() {
-        let mask = Place::all()
-            .filter(|place| is_frozen(&state, *place))
-            .fold(0, |mask, place| mask | (1 << place.index()));
         if movie.invoke_uints(c"root.freeze_tag_markers", &[mask]) {
             MARKERS.set(ctx.thread(), Some(movie.id()));
         }
