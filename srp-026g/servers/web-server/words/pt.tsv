@@ -464,3 +464,64 @@ No public match {}.	A partida pública {} não existe.
 This server keeps no match history.	Este servidor não guarda histórico de partidas.
 Could not load the stats. Reload the page.	Não foi possível carregar as estatísticas. Recarregue a página.
 Nobody yet.	Ninguém ainda.
+
+# The wiki's modes (src/modes.rs).
+Modes	Modos
+Every mode: its rules, numbers and maps.	Todos os modos: regras, números e mapas.
+Versions	Versões
+Public and private rooms	Salas públicas e privadas
+Public rooms only	Só salas públicas
+Private rooms only	Só salas privadas
+Not offered now	Não oferecido agora
+FFA versions only	Só versões do FFA
+Respawn after {0} s.	Renascimento após {0} s.
+Batteries lie on the map.	As baterias ficam no mapa.
+Carry them to your team's container.	Leve-as ao contêiner da sua equipe.
+First to {0} batteries wins.	Vence a primeira equipe com {0} baterias.
+Time limit {0}: more batteries wins.	Limite de tempo {0}: vence quem tiver mais baterias.
+Batteries come out of {0} active chargers.	As baterias saem de {0} carregadores ativos.
+A new battery every {0} s, give or take {1} s.	Uma nova bateria a cada {0} s, com variação de {1} s.
+Protective device rules: batteries, no chargers.	Regras do dispositivo de proteção: baterias, sem carregadores.
+No interface: no ammo, health, crosshair or minimap.	Sem interface: sem munição, vida, mira ou minimapa.
+Teammates' markers stay; enemies have none.	Os marcadores dos aliados ficam; os inimigos não têm.
+Hold Tab for ammo, body state, the clock and the team list.	Segure Tab: munição, estado do corpo, relógio e lista da equipe.
+Each team has {0} tickets.	Cada equipe tem {0} tíquetes.
+A death costs one ticket; a teamkill costs none.	Uma morte custa um tíquete; matar um aliado não custa nenhum.
+Out of tickets, a team stops respawning and loses when its last player dies.	Sem tíquetes, a equipe para de renascer e perde quando seu último jogador morre.
+Time limit {0}: more tickets wins.	Limite de tempo {0}: vence quem tiver mais tíquetes.
+Capture research units: be inside with no enemy there.	Capture unidades de pesquisa: fique dentro sem inimigos lá.
+Owned units earn points; more units, faster.	Unidades dominadas dão pontos; mais unidades, mais rápido.
+First to {0} points wins.	Vence a primeira equipe com {0} pontos.
+Time limit {0}: more points wins.	Limite de tempo {0}: vence quem tiver mais pontos.
+Every player for himself.	Cada um por si.
+First to {0} kills wins.	Vence o primeiro a fazer {0} abates.
+Time limit {0}: most kills wins.	Limite de tempo {0}: vence quem tiver mais abates.
+Public rooms: each FFA card draws a version.	Salas públicas: cada carta de FFA sorteia uma versão.
+Private rooms: plain FFA only.	Salas privadas: só FFA normal.
+A lethal hit freezes you in place.	Um golpe letal congela você no lugar.
+A teammate within {0} m thaws you in {1} s.	Um aliado a até {0} m descongela você em {1} s.
+A thaw counts as a kill.	Descongelar conta como um abate.
+Freeze the whole enemy team to win the round.	Congele toda a equipe inimiga para vencer a rodada.
+{0} s pause between rounds, then everyone respawns.	{0} s de pausa entre rodadas, depois todos renascem.
+First to {0} rounds wins.	Vence a primeira equipe a ganhar {0} rodadas.
+Time limit {0}: an unfinished series is a draw.	Limite de tempo {0}: uma série incompleta é empate.
+One artefact at a time, {0}–{1} s into a round.	Um artefato por vez, {0}–{1} s após o início da rodada.
+Bring it to your own base: 1 point, and the round ends.	Leve-o à sua base: 1 ponto, e a rodada termina.
+The carrier is slower and seen by everyone.	O portador fica mais lento e visível para todos.
+Respawn in waves every {0} s.	Renascimento em ondas a cada {0} s.
+Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Limite de tempo {0}: vence o placar maior; no empate, {1} de morte súbita sem renascimento.
+Sniper rifles, silenced guns and guns without automatic fire are replaced.	Fuzis de precisão, armas com silenciador e armas sem tiro automático são substituídos.
+Rooms up to level {0}: {1}.	Salas até o nível {0}: {1}.
+Other rooms: {0}.	Outras salas: {0}.
+Sight: {0}.	Mira: {0}.
+Every kit: {0} only.	Todo kit: só {0}.
+Every kit: {0} and {1}.	Todo kit: {0} e {1}.
+Everyone plays the same {0} random kits.	Todos jogam com os mesmos {0} kits aleatórios.
+Level bands: {0}.	Faixas de nível: {0}.
+A room draws bands up to its level.	Uma sala sorteia faixas até o seu nível.
+Each kit a gun of another class, with random bonuses and attachments.	Cada kit com uma arma de outra classe, com bônus e acessórios aleatórios.
+{0} % of deals: pistols only.	{0} % das distribuições: só pistolas.
+Nothing of yours is used or spent.	Nada seu é usado ou gasto.
+Plain FFA: {0} % of FFA cards.	FFA normal: {0} % das cartas de FFA.
+{0} % of FFA cards.	{0} % das cartas de FFA.
+FFA: Roulette	FFA: Roleta

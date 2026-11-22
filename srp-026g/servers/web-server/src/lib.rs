@@ -50,6 +50,7 @@ pub mod item_tables;
 mod launcher;
 mod maps;
 mod moderation;
+mod modes;
 mod modifiers;
 mod password_reset;
 mod patches;
@@ -62,6 +63,7 @@ mod v026g;
 mod wiki;
 mod words;
 
+pub use modes::Pools;
 pub use patches::{Downloads, OfferedPatch};
 pub use v026g::{Game, LiveMatch, LivePhase, LiveStanding, LobbyLink, MatchCounter};
 
@@ -878,6 +880,7 @@ impl Web {
                     | wiki::EQUIPMENT
                     | skills::PATH
                     | quests::PATH
+                    | modes::PATH
             )
         {
             damage::POLICY
@@ -1189,7 +1192,8 @@ impl Web {
                     | wiki::MODIFIERS
                     | wiki::EQUIPMENT
                     | skills::PATH
-                    | quests::PATH) => {
+                    | quests::PATH
+                    | modes::PATH) => {
                         return wiki_page(path, &request.target, request.lang, game);
                     }
                     path if path.starts_with(launcher::FRESH) => {
@@ -1779,6 +1783,15 @@ fn wiki_page(path: &str, target: &str, lang: Lang, game: &Game) -> Response {
     let test = connect.is_some_and(|connect| connect.test_server);
     let other_url = connect.and_then(|connect| connect.other_url.as_deref());
     let (header, notice) = site_header(lang, true, test, other_url, wiki::PATH);
+    if path == modes::PATH {
+        return wiki::framed(
+            lang,
+            &lang.t("Modes"),
+            &lang.t("Skhid wiki"),
+            &format!("{header}{notice}"),
+            &modes::body(lang, &game.pools),
+        );
+    }
     let query = target.split_once('?').map_or("", |(_, query)| query);
     let now = if path == skills::PATH {
         skills::Now {
