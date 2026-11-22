@@ -2481,11 +2481,19 @@ impl Route {
     }
 
     /// Whether the route from `s` to `within` metres on goes over a floor
-    /// a standing body does not fit under ([`Waypoint::low`]).
+    /// a standing body does not fit under ([`Waypoint::low`]), short of the route's next riser ([`Route::risers`]).
+    /// [face] A riser is climbed standing: sprinted into, else a walking jump at it (`drive.rs` `riser_gait`; a sprint and a
+    /// jump from a crouch are what the crouch key refuses). A low leg past its top is crouched from the top on, not before the
+    /// climb. The crouch [`super::motor::LOW_AHEAD_M`] before a low leg reached back over the climb: on level_07 (map 97) the face at
+    /// z = -17.4 has a sprint climb of +1.08 m (the grid's `Takeoff::Climb` gap links) and floors of 1.39 m headroom past its
+    /// top, so the bot walked into the face crouched with forward held (keys 0x101), the client's capsule crouched, and it never
+    /// sprinted nor pressed: 55 stuck lines, 15 bots in 14 local matches (recording 1bbc905a, player 15, 662-684 s); the
+    /// spot suite's three starts at that face on 1afba01c2 stuck there 3, 2 and 5 times.
     pub fn low_ahead(&self, s: f32, within: f32) -> bool {
         let first = self.along.partition_point(|&a| a <= s).max(1);
         (first..self.points.len())
             .take_while(|&k| self.along[k - 1] <= s + within)
+            .take_while(|&k| !self.risers.iter().any(|riser| riser.top == self.points[k].at))
             .any(|k| self.points[k].low)
     }
 
@@ -2511,6 +2519,24 @@ impl Route {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [face] A low leg past a riser's top is not crouched for before the climb: the riser is climbed standing; from its top on
+    /// the low leg is crouched for as before.
+    #[test]
+    fn a_low_leg_past_a_riser_is_crouched_for_from_its_top() {
+        let wp = |z: f32, y: f32, low: bool| Waypoint { at: Vec3::new(20.8, y, z), node: 0, jump: None, low };
+        let points = vec![wp(-20.0, 20.94, false), wp(-17.54, 20.94, false), wp(-17.04, 22.02, false), wp(-16.5, 22.02, true)];
+        let plain = Route::new(points.clone());
+        assert!(plain.low_ahead(2.0, 1.0), "with no riser the low leg 0.96 m on is crouched for");
+        let route = Route::new(points).with_riser(RiserUp {
+            top: Vec3::new(20.8, 22.02, -17.04),
+            take_off: Vec3::new(20.8, 20.94, -17.54),
+            press: RiserPress::NoPress,
+        });
+        assert!(!route.low_ahead(2.0, 1.0), "before the climb");
+        assert!(!route.low_ahead(2.6, 1.0), "on the climb's leg");
+        assert!(route.low_ahead(3.0, 1.0), "on its top");
+    }
 
     /// [A386] A gap or rim link's press reaches the route as the grid flew it: the short jump at the cap or slow from a stand,
     /// the sprint with its walking press for a refused sprint, the share kept; a walk-off is no press.
