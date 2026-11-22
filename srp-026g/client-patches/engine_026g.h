@@ -1035,6 +1035,9 @@ void engine_unpin_resource(struct pinned_resource *pinned);
 /* 0x1a8900 vostok::render::effect_compiler::set_constant_float4: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly */
 void __attribute__((thiscall)) engine_set_constant_float4(const float *value, struct effect_compiler *compiler, const char *name);
 
+/* 0x1d9740 vostok::render::effect_compiler::set_constant_float2: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly */
+void __attribute__((thiscall)) engine_set_constant_float2(const float *value, struct effect_compiler *compiler, const char *name);
+
 /* 0xe0b50 vostok::shared_string::create: text ESP+4; pops 4; EAX; stdcall, called directly */
 struct shared_string *__attribute__((stdcall)) engine_shared_string_create(const char *text);
 

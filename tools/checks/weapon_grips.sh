@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The grips' pack and texts are what their sources make (scripts/weapon-grips): the pack built anew
 # from the kept 0.69d0 donor folder has the manifest's hash, grips.tsv and the items' rows are its,
-# and the eleven localization tables hold its texts. Needs the pack weapon-modules as built (its
+# and the twelve localization tables hold its texts. Needs the pack weapon-modules as built (its
 # models are checked to be there).
 set -euo pipefail
 root=$(cd "$(dirname "$0")/../.." && pwd)

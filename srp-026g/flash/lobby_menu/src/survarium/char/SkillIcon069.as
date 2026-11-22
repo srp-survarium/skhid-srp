@@ -19,12 +19,17 @@ package survarium.char
    import ArtefactSkill069542;
    import MedicalSkill069301;
    import MedicalSkill069302;
+   import MedicalSkill069303;
    import MedicalSkill069311;
    import MedicalSkill069312;
+   import MedicalSkill069314;
    import MedicalSkill069321;
    import MedicalSkill069322;
+   import MedicalSkill069323;
+   import MedicalSkill069324;
    import MedicalSkill069331;
    import MedicalSkill069332;
+   import MedicalSkill069333;
    import MedicalSkill069341;
    import MedicalSkill069342;
    import TechnicalSkill069401;
@@ -45,8 +50,9 @@ package survarium.char
    import TechnicalSkill069443;
    import TechnicalSkill069444;
 
-   // Original 0.69d skill icons of our trees (medical: survival, Take Cover physical; technical:
-   // engineering, utility; artefact: anomaly), copied unchanged;
+   // Our trees' skill icons in 0.69d's style: its original icons (medical: survival; technical:
+   // engineering, utility; artefact: anomaly) copied unchanged, and the drug and item skills'
+   // made by scripts/{medical,technical}-skills/make_icons.py (an item's render and a badge);
    // scripts/{medical,technical,artefact}-skills/icons-069.tsv record their provenance.
    public class SkillIcon069 extends Sprite
    {
@@ -70,17 +76,17 @@ package survarium.char
          {
             case 301: type = MedicalSkill069301; break;
             case 302: type = MedicalSkill069302; break;
-            case 303: type = MedicalSkill069301; break;
+            case 303: type = MedicalSkill069303; break;
             case 311: type = MedicalSkill069311; break;
             case 312: type = MedicalSkill069312; break;
-            case 314: type = MedicalSkill069322; break;
+            case 314: type = MedicalSkill069314; break;
             case 321: type = MedicalSkill069321; break;
             case 322: type = MedicalSkill069322; break;
-            case 323: type = MedicalSkill069301; break;
-            case 324: type = MedicalSkill069322; break;
+            case 323: type = MedicalSkill069323; break;
+            case 324: type = MedicalSkill069324; break;
             case 331: type = MedicalSkill069331; break;
             case 332: type = MedicalSkill069332; break;
-            case 333: type = MedicalSkill069322; break;
+            case 333: type = MedicalSkill069333; break;
             case 341: type = MedicalSkill069341; break;
             case 342: type = MedicalSkill069342; break;
             case 401: type = TechnicalSkill069401; break;

@@ -15,9 +15,9 @@ approved the name, level 0 in the low band and every recommendation below (2026-
 - The card draws a **level band** among those the room allows (a level-15 room 1-5, 6-10 or 11-15;
   a level-10 room 1-5 or 6-10), each as likely, then **one equipment**: three kits from that band.
 - **Everyone plays that same equipment**, all three kits, picked in the warm-up as any kit.
-- **Each kit:** a main gun, a pistol, the guns' best ammo (a shotgun buckshot and slugs), a full
+- **Each kit:** one gun in weapon 1's slot (weapon 2's empty), its best ammo (a shotgun buckshot and slugs), a full
   set of armour, medkit, grenade and more pockets; every gun and armour piece with random bonuses,
-  as a dropped item gets them, every gun random attachments that fit it. The three main guns are of **three different classes** (say a shotgun, a sniper
+  as a dropped item gets them, every gun random attachments that fit it. The three guns are of **three different classes** (say a shotgun, a sniper
   rifle and an SMG).
 - **Nothing of the players' is used or charged**: no item, no ammo, no medkit. Their skills still
   apply (more pockets, more ammo bags, Deep Pockets' one weapon).
@@ -69,7 +69,7 @@ The card's names, `st_srp_mode_roulette_low` / `_mid` / `_high` (`<band>` is `1-
   a reason): a level-15 room's Roulette 1-5, 6-10 and 11-15 a third each, a level-10 room's 1-5
   and 6-10 half each. No reason seen to weigh them otherwise.
 - **The whole equipment from that band:** every gun and armour piece of it. The pockets are the
-  band's or lower (the game has no medkit above `mm_level` 3), the pistol too (none is above 10).
+  band's or lower (the game has no medkit above `mm_level` 3), a pistol hand's pistols too (none is above 10).
   The ammo is a gun's highest, whatever its level (the owner: "the ammo type should be highest
   available"): a kit's level may be over its band by its ammo alone, which no room checks in a
   match (the rooms' door reads the account's own kits).
@@ -83,9 +83,8 @@ One **hand**: three kits, drawn once per card. Each kit's slots (`data.md`, "slo
 | 7, weapon 1 | a main gun of the band | its class (assault rifle, machine gun, shotgun, sniper rifle, SMG) one of three different classes the hand draws, one a kit |
 | 8 | weapon 1's ammo | its highest ammunition; a shotgun's highest buckshot (below) |
 | 9 | a shotgun's slugs | its highest slug, beside its buckshot; empty for any other gun |
-| 10, weapon 2 | a pistol of at most the band's top | from the band's pistols, else the highest band below that has some (the high band's from 6-10: no pistol is above level 10) |
-| 11 | the pistol's ammo | its ammunition |
-| 12, 19-22 | empty | a pistol fires one ammunition |
+| 10, 11, 12, weapon 2 and its ammo | empty | one gun a kit (below) |
+| 19-22 | empty | the gun's two ammo slots are 8 and 9 |
 | 0-6, armour | helmet, mask, torso, back, legs, gloves, boots: one piece of the band each | a slot another drawn piece covers stays empty (`covered_slots`) |
 | 13-18, pockets | a medkit, a grenade, then four other pocket items | drawn kinds, each pocket full (below) |
 | artefacts | none | no profile slot; they are found in the match |
@@ -95,6 +94,17 @@ One **hand**: three kits, drawn once per card. Each kit's slots (`data.md`, "slo
   has (each class as likely: 4 in the low band, which has no machine gun; 5 in the others), then a
   gun of each class (each gun as likely). So the three main guns always differ, and so do the
   kits' roles. Pistols are no main-gun class.
+- **One gun a kit** (the owner, 2026-11-22: "it shouldn't try to slot in two weapons or pistols in
+  second slot"): weapon 2's slot and its ammo slots (10, 11, 12) stay empty, whatever the kit's
+  carry rule. A kit with weapon 1 alone is one every carry rule allows and the game plays (Saloon's
+  Colt alone leaves weapon 2 empty the same way; only a spawn with both weapon slots empty ends a
+  game, `play::match_profile`). Every ammo bag is the gun's.
+- **A pistol hand** (the owner, 2026-11-22: "we can have random versions where everyone starts with
+  pistols", "it should still be random one", about 5 %): `roulette::PISTOL_HANDS_PERCENT` (5) hands
+  in 100 are a pistol hand: each kit's one gun a pistol at random of the band's (three different
+  ones while it has three), with the same bonuses, attachments and ammo rules; the 11-15 band takes
+  the 6-10 pistols (none is above level 10). Drawn with the hand, the same for everyone. The card
+  says Roulette as any (no name of its own); players see the pistols in the warm-up kit picker.
 - **Armour,** drawn per kit, slot by slot: torso, helmet, mask, legs, gloves, boots, back. A
   piece is a candidate only if no slot it covers is filled; a slot a drawn piece covers is left
   empty. The back slot takes what the band has there: backpacks, the artefact containers, the
@@ -112,8 +122,7 @@ One **hand**: three kits, drawn once per card. Each kit's slots (`data.md`, "slo
   kind (the KS-23M: buckshot only) has that alone. Its rounds: a clip for each of the kit's ammo
   bags, as Saloon's Winchester and Colt (`ffa-cowboy.md`, "Rounds"): the bags as the lobby counts
   them (`KitLayout::ammo_bags`: the player's 3, the worn pieces' `ammo_bags_modifier`, their
-  bonuses' and the skills'), the main gun the first and every other one, the pistol the rest; a gun
-  with no clip its magazine alone.
+  bonuses' and the skills'), all the gun's; a gun with no clip its magazine alone.
 - **Bonuses** (the owner, 2026-11-22: "roulette should also give random bonuses on
   equipment/weapons"): every gun and armour piece of the hand gets its modifications as a dropped
   item does (`Bonuses::roll`): a rarity from the after-match drop table (`drops::DropTable::
@@ -144,7 +153,7 @@ One **hand**: three kits, drawn once per card. Each kit's slots (`data.md`, "slo
   items stay the shop's (sold, or premium). Cosmetics have no profile slot. Nothing is listed in
   code; an item to keep out later would take a key of its own in the game data.
 - **Attachments** (the owner, 2026-11-22: "there should be random applicable attachments on
-  weapons"; `attachments.md`): every gun of the hand, the main gun and the pistol, for each kind
+  weapons"; `attachments.md`): every gun of the hand, for each kind
   of module it takes by the game data's modules table (the scope, the muzzle device, the grip:
   `weapon_modules::Modules::fits`), none half the time (my pick), else one of the modules of that
   kind that fit it beside those drawn before it (`Modules::check`, the one fit check), each as
@@ -153,7 +162,7 @@ One **hand**: three kits, drawn once per card. Each kit's slots (`data.md`, "slo
   they reach the game as an owned module does, the gun's records (`weapon_kit::pack`, as Racket's
   sight), their item ids from 1,000,000 up (no item of the profile, as an owned module is in no
   kit). Nobody's inventory gives or gets one.
-- **The three kits** differ by their main gun's class at least; armour, pistol and pockets are
+- **The three kits** differ by their main gun's class at least; armour and pockets are
   drawn for each kit on its own and may repeat.
 
 Example, a level-10 room's Roulette 6-10 (illustration):
@@ -200,8 +209,8 @@ pockets  military medkit, RGD-5, bandages, antitoxin, ...   (as many as each kit
   own three are. Kit ids and names are the account's, as the other twists keep them.
 - **Skills apply** [my recommendation]: the kits' modifiers stay the player's. They are his
   character (health, stamina, reload) as in every twist; they change only the layout here: more
-  pockets and bags hold more of the same items, Deep Pockets or Supply Pocket (one weapon) drop
-  the pistol, Terminator's two rifles get no second rifle (the hand has one). The alternative,
+  pockets and bags hold more of the same items, Deep Pockets, Supply Pocket and Terminator change
+  nothing of the guns: a kit has one. The alternative,
   zeroing the modifiers, would take the whole skill tree out of the match, not only the layout.
 - **The rooms' doors are as now:** a player still needs a playable kit of his own, within the
   room's max level, to be in the room; the card is drawn after.
@@ -246,7 +255,7 @@ the 30 (each allowed band a third or a half of it), so no share is a fraction.
 6. Share: 30 (the owner, after: plain 30, Racket 30, Roulette 30, the Saloons 5 each).
 7. Main guns of three different classes, each class as likely: **yes** (rec.; a class with one gun,
    the mid band's RPD, then comes as often as the 9 assault rifles).
-8. A pistol in every kit, the high band's from 6-10: **yes** (rec.); or no second weapon at all.
+8. No pistol in the kits: one gun a kit (the owner, after); a pistol hand 5 % of the time.
 9. Ammo: the gun's highest-level ammo, whatever the band (the owner, after: "the ammo type should
    be highest available"); a shotgun its highest buckshot and its highest slug ("for shotguns it
    should be a mix").
@@ -262,7 +271,7 @@ No exe patch. Server, lobby movie, the names, the icons.
 
 - `crates/survarium/src/v026g/roulette.rs` (new), the twist's rules, as `racket.rs` and `cowboy.rs`:
   - `Band` (`Low`, `Mid`, `High`: its levels, `allowed(max_level) -> &[Band]`), `Hand` (its band
-    and three `Dealt` kits: main gun and ammo, pistol and ammo, armour `[Option<u16>; 7]`, pockets
+    and three `Dealt` kits: its one gun and its ammo, armour `[Option<u16>; 7]`, pockets
     `[u16; 6]`: dict ids only, `Copy`, made only by `Hand::deal`), `Pool` (each band's candidates
     by slot and class, read once from the game data, `OnceLock` as `Arms::shared`).
   - `Hand::deal(band, below)`: the draw above, a pure function of the rolls and the data (pools in
@@ -272,11 +281,11 @@ No exe patch. Server, lobby movie, the names, the icons.
     rounds by `free_bags`, pockets by `KitLayout::kept`, carry rule by `CarryRule`, stores
     `STORE_LIVES`, `MatchKit::new` packs the pockets; `drop_unheld`.
   - `check(data)`: srp refuses to start on data where a band lacks three main-gun classes, a
-    pistol at most its top, a piece for a slot, a medkit and a grenade, or ammo for one of its guns;
+    piece for a slot, a medkit and a grenade, or ammo for one of its guns;
     beside `racket::check` and `cowboy::check` (`game_data.rs`).
   - Tests: the same rolls give the same hand; every kit's `gear_level` within its band; three
     classes; ammo the gun fires and the slot takes; no covered slot worn; 30 kg; `check_sent`
-    passes, pockets packed, under 69 items; Deep Pockets drops the pistol; a bot profile armed
+    passes, pockets packed, under 69 items; one gun a kit whatever its skills; a bot profile armed
     alike; one band of each test data band dealt.
 - `twist.rs`: `Twist::Roulette`; `Armed::Roulette(Hand)`; `LobbyMode::Roulette(Band)` (numbers
   14-16, name keys, `ALL` 14 long); `shares` and `draw` with the 10 (the draw names what to arm, the
@@ -303,7 +312,7 @@ No exe patch. Server, lobby movie, the names, the icons.
 ## Risks
 
 - **Thin pools:** the low band has 2 assault rifles and no machine gun, the mid band one machine
-  gun (RPD), no pistol is above level 10. The rules above handle each; `check` stops srp at start
+  gun (RPD), no pistol is above level 10 (a pistol hand of 11-15 takes 6-10's). The rules above handle each; `check` stops srp at start
   if live data thins further.
 - **A kit that crashes every game:** a spawn with no gun ends every game of the match, an empty
   pocket before a held one too (`lobby-server` `play::match_profile`). Every kit has a main gun by

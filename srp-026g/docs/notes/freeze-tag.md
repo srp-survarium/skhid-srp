@@ -27,7 +27,13 @@ three). No artifact rescue in this version (owner, 2026-11-17).
   results' kills line (`rewards`: `SRP_KILL`); quests' kills are the kd
   rule's and do not count it.
 - Freezing the entire opposing team awards one round. Simultaneous wipes
-  award neither team a point and replay the round.
+  award neither team a point and replay the round. A place that left stays
+  frozen, so a team whose players all left counts as frozen.
+- A team frozen whole while the other team has nobody (a 1 v 0 private
+  room, or the other side all left) draws: no point, the round replayed, so
+  a player alone farms nothing and still gets a new round (the owner,
+  2026-11-22: alone in a room he stayed frozen, no round came). Nobody
+  entered on either side: nothing ends.
 - The final win ends the match: no pause, no countdown and no respawn after
   it, and the match server ends it 2 s after the snapshot that has it
   (`FREEZE_TAG_END_DELAY_MS`, the other modes' end delay is 3 s), so the last

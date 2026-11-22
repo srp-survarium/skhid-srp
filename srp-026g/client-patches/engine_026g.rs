@@ -523,6 +523,8 @@ unsafe extern "thiscall" {
     pub fn engine_player_hit(receiver: *mut c_void, time: u32, attacker: *const c_void, bodypart: *const c_void, kind: u32, damage: f32, piercing: f32, initiator: *const c_void, item: *mut c_void);
     /// 0x1a8900 vostok::render::effect_compiler::set_constant_float4: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
     pub fn engine_set_constant_float4(value: *const f32, compiler: *mut c_void, name: *const u8);
+    /// 0x1d9740 vostok::render::effect_compiler::set_constant_float2: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
+    pub fn engine_set_constant_float2(value: *const f32, compiler: *mut c_void, name: *const u8);
     /// 0x2063f0 survarium::tdm_rule_cook::create_resource: cook ECX, query ESP+4; pops 4; EAX; thiscall, called directly
     pub fn engine_tdm_cook_create(cook: *mut c_void, query: *mut c_void) -> u32;
     /// 0x2063e0 survarium::tdm_rule_cook::resource_size: cook ECX; pops 0; EAX; thiscall, called directly

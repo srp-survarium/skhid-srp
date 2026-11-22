@@ -1,0 +1,9 @@
+# Patch 183: the g-buffer's parallax constants as 0.44a5 sets them
+# (parallax_uv.rs; README "The parallax of 0.44a5"). The site is sites_026g.tsv's.
+name = "parallax_uv"
+patch = 183
+
+# effect_gstage_default_materials::compile's parallax block, before t_height_map
+[[hook]]
+site = "gstage.parallax"
+handler = "on_parallax"

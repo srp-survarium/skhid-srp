@@ -529,6 +529,8 @@ unsafe extern "thiscall" {
     pub fn engine_player_hit(receiver: Option<HitReceiver>, time: u32, attacker: Option<BulletOwner>, bodypart: Option<HitPart>, kind: u32, damage: f32, piercing: f32, initiator: *const c_void, item: Option<Item>);
     /// 0x1a8900 vostok::render::effect_compiler::set_constant_float4: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
     pub fn engine_set_constant_float4(value: *const f32, compiler: Option<EffectCompiler>, name: *const u8);
+    /// 0x1d9740 vostok::render::effect_compiler::set_constant_float2: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
+    pub fn engine_set_constant_float2(value: *const f32, compiler: Option<EffectCompiler>, name: *const u8);
     /// 0x2063f0 survarium::tdm_rule_cook::create_resource: cook ECX, query ESP+4; pops 4; EAX; thiscall, called directly
     pub fn engine_tdm_cook_create(cook: Option<HuntCook>, query: Option<RuleQuery>) -> u32;
     /// 0x2063e0 survarium::tdm_rule_cook::resource_size: cook ECX; pops 0; EAX; thiscall, called directly
@@ -28904,6 +28906,39 @@ impl ParticleLightingBeginFrame {
     }
 }
 
+/// A vostok::render::gstage_compile_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GstageCompileFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl GstageCompileFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (ptr<vostok::render::effect_compiler>): effect_gstage_default_materials::compile's (0x1DDD50) EBP frame: its first argument, the effect compiler (every set_constant and set_texture of the compile is given [ebp+8], e.g. t_height_map's at 0x1DFF9C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn compiler(self) -> Option<EffectCompiler> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<EffectCompiler>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<vostok::render::effect_compiler>): effect_gstage_default_materials::compile's (0x1DDD50) EBP frame: its first argument, the effect compiler (every set_constant and set_texture of the compile is given [ebp+8], e.g. t_height_map's at 0x1DFF9C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_compiler(self, value: Option<EffectCompiler>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<EffectCompiler>>().write_volatile(value) }
+    }
+}
+
 /// A vostok::render::god_rays_entry_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -39424,6 +39459,30 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// gstage.parallax (0x1dff85): effect_gstage_default_materials::compile (0x1DDD50, g_stage_default: gbuffer_pass and gbuffer_emissive_pass) in its parallax block (the configuration's [esp+1Ah] bit 40h, use_parallax, tested at 0x1DFF18), after constant_parallax_scale and texture_bump's lookup, before t_height_map's set_texture (0x3D98B0 at 0x1DFFA7): fld dword [esp+3Ch] / mov edx,[esp+2Ch] (no address under them, no branch into them; EAX the texture_bump node, kept). EBX the material's config tree, [EBP+8] the compiler. 0.44a5 sets parallax_uv_scrolling_factors and parallax_uv_scale_factors at the same place of its parallax block (0x4C4414..0x4C45A3)
+    pub mod gstage_parallax {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::engine_cfg (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn tree(machine: &impl Machine) -> Option<EngineCfg> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EngineCfg)
+        }
+
+        /// EBP: a vostok::render::gstage_compile_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<GstageCompileFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(GstageCompileFrame)
         }
     }
 

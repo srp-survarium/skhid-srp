@@ -11,7 +11,7 @@ use crate::Lang;
 
 /// Each language's file, in [`Lang::ALL`]'s order. English has none: its
 /// words are the code's.
-const FILES: [&str; 11] = [
+const FILES: [&str; 12] = [
     "",
     include_str!("../words/uk.tsv"),
     include_str!("../words/ru.tsv"),
@@ -23,6 +23,7 @@ const FILES: [&str; 11] = [
     include_str!("../words/fi.tsv"),
     include_str!("../words/be.tsv"),
     include_str!("../words/hr.tsv"),
+    include_str!("../words/pt.tsv"),
 ];
 
 /// A row of a file: an English text in a context ("" for none) and what it
@@ -82,7 +83,7 @@ pub(crate) fn rows(file: &str) -> Result<Vec<Row>, String> {
 type Words = HashMap<String, Vec<(String, String)>>;
 
 fn words(lang: Lang) -> &'static Words {
-    static WORDS: [OnceLock<Words>; 11] = [const { OnceLock::new() }; 11];
+    static WORDS: [OnceLock<Words>; 12] = [const { OnceLock::new() }; 12];
     let index = Lang::ALL.iter().position(|each| *each == lang).expect("a language of ALL");
     WORDS[index].get_or_init(|| {
         let mut words = Words::new();

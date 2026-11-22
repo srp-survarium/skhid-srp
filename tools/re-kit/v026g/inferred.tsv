@@ -1022,7 +1022,6 @@ va	status	ref_021d	name
 0x001d3b10	inferred-medium	0x0013fe8f	vostok::render::particle_rain_drops_geometry::draw
 0x001d4300	inferred-medium	0x0014040f	vostok::render::fog_box_geometry::fog_box_geometry
 0x001d82d0	inferred-medium	0x001432ad	vostok::render::box_geometry::box_geometry
-0x001d9740	inferred-high		vostok::render::effect_compiler::set_constant_float2
 0x001d99c0	inferred-medium	0x001442e8	vostok::render::effect_lighting_stage_default_materials::should_recompile_when_global_changes
 0x001e7c20	inferred-medium	0x00150338	vostok::buffer_vector<vostok::render::culling::sector_double_query_preventer::frustum_image>::push_back
 0x001e7ca0	inferred-medium	0x001503af	vostok::buffer_vector<vostok::math::frustum>::push_back
