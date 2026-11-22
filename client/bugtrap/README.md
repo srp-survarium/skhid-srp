@@ -688,6 +688,13 @@ built with Nix's MinGW g++): `check_logs.py` and `check_report.py` pass,
 `check_abi.py` passes, and so do the host tests (`sanitize_tests.rs`,
 `run_name_tests.rs`); the other checks were not run again.
 
+Run on 2026-11-22 for Open folder (Linux, Wine Staging 11.8, an Xorg dummy
+display with openbox; `ui_probe.exe` built with MinGW g++): `check_abi.py` and
+`check_localization.py` (62 dialogs) pass; the other checks were not run again.
+By hand, the same `ShellExecuteW` call under Wine returned at once (33, in
+6 ms) and Wine's explorer window showed the folder `Игра-Żółw` with the ZIP
+listed (not highlighted); no Linux program was started.
+
 Run on 2026-10-21 (Linux, Wine, Xvfb), the build with the standard library
 and the C runtime linked in, the C++ probes built with `clang-cl` against the
 same Microsoft libraries: `check_abi.py` passes (the 82 ordinals; `_fltused`,
