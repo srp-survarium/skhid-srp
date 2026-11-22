@@ -2244,6 +2244,33 @@ fn drive_tick_inner(
                                 })
                                 .map(|(_, point)| point.at);
                             bot.stuck.failed_jump(time, take_off, landing);
+                            // [T2] The route's goal on the failed jump's landing: the search never shuts a goal's own floor (only
+                            // the floors it enters from), so it planned the same route over the same gap every tick and the kept
+                            // tries failed it at once, keys 0 to the end (the 887 final round's level_04 ledges S169, S260, S262,
+                            // S086, S093, S037: silent from "try 3 spent" to 60 s). Given up as no way for this body while the
+                            // landing is shut, and for the plays as any proven no way, so a play chooses again.
+                            let end = route.end();
+                            let goal_on_landing = landing.is_some_and(|landing| {
+                                landing.distance_xz(end) < super::stuck::LANDING_SHUT_M
+                                    && (landing.y - end.y).abs() < super::stuck::LANDING_SHUT_UP_M
+                            });
+                            let line = super::nav_log::failed_jump_line(take_off, landing, me.feet, super::stuck::JUMP_SHUT_MS, goal_on_landing);
+                            let link = landing.unwrap_or(take_off);
+                            let key = super::nav_log::key(("failed jump", take_off.x.to_bits(), take_off.z.to_bits(), link.x.to_bits(), link.z.to_bits(), time / super::stuck::JUMP_SHUT_MS));
+                            bot.nav_log.push_once(super::nav_log::Kind::Jump, key, time, line);
+                            if goal_on_landing {
+                                bot.no_way = Some((at, time + super::stuck::JUMP_SHUT_MS));
+                                bot.no_way_to.retain(|&(old, until)| time < until && old.distance_xz(at) > REPLAN_MOVED_M);
+                                bot.no_way_to.push((at, time + NO_WAY_KEEP_MS));
+                                let verdict = format!(
+                                    "its route's jump from {} failed {} tries with the goal on its landing (a goal's floor is never shut): given up for {:.0} s",
+                                    super::nav_log::at(take_off),
+                                    motor::JUMP_TRIES,
+                                    super::stuck::JUMP_SHUT_MS as f32 / 1000.0
+                                );
+                                let line = super::nav_log::route_line(Some(me.feet), at, &verdict);
+                                bot.nav_log.push_once(super::nav_log::Kind::Route, super::nav_log::key(("goal on failed landing", key)), time, line);
+                            }
                         }
                         // [A386] A sprint link the client refuses now, with no walking press: its landing is shut to this body's
                         // searches until its next think (`Stuck::refused_jump`), so the route is planned without it while the
