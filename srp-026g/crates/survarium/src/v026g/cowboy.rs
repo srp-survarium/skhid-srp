@@ -25,7 +25,7 @@ const FIRST: (u8, u8) = (7, 8);
 const SECOND: (u8, u8) = (10, 11);
 
 /// The guns of a Saloon match (the owner, 2026-11-14: "saloon should have two variations with
-/// winchesters and colts or just with colts"), drawn with its card, the Winchester and Colt 15 %
+/// winchesters and colts or just with colts"), drawn with its card, the Winchester and Colt 5 %
 /// and the Colt alone 5 % (`twist::shares`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Variation {

@@ -3,6 +3,7 @@ package survarium.controls
    import flash.display.MovieClip;
    import flash.events.Event;
    import flash.events.TimerEvent;
+   import flash.geom.Rectangle;
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
    import flash.utils.Timer;
@@ -32,10 +33,32 @@ package survarium.controls
       protected var _visibleTarget:Boolean = false;
       
       protected var _labelRenderer:Label;
+
+      // Freeze Tag (patch 160, docs/notes/freeze-tag.md): a frozen player's name is drawn in
+      // ice blue. Every colour the movie or the game gives the name is kept as its own and comes
+      // back on thaw; a name set while frozen stays blue (the names are plain text: .text).
+      public static const FROZEN_NAME_COLOR:uint = 0x66C2FF;
+
+      protected var _nameColor:uint;
+
+      protected var _frozen:Boolean = false;
+      // The game's carrier mark (modifier_visible, set_player_icon_container): a battery's carrier in
+      // the game's modes, the artefact's in Artifact Hunt (artefactCarry).
+      protected var _carrying:Boolean = false;
+
+      // Artifact Hunt (HUDIconLayer.carriersShown): the mark is the artefact's (ArtefactMark), not
+      // the battery's box.
+      protected var _artefactCarry:Boolean = false;
+
+      protected var _artefactMark:ArtefactMark;
       
       public function HUDMarker()
       {
          super();
+         if(this.textField)
+         {
+            this._nameColor = this.textField.textColor;
+         }
          if(this.icon_box)
          {
             this.icon_box.visible = false;
@@ -78,6 +101,39 @@ package survarium.controls
          }
       }
       
+      // The name's own colour (the team's, as the game sends it).
+      public function set nameColor(value:uint) : void
+      {
+         this._nameColor = value;
+         this.applyNameColor();
+      }
+
+      public function setName(value:String) : void
+      {
+         if(this.textField.text != value)
+         {
+            this.textField.text = value;
+         }
+         if(this._frozen)
+         {
+            this.applyNameColor();
+         }
+      }
+
+      public function set frozen(value:Boolean) : void
+      {
+         this._frozen = value;
+         this.applyNameColor();
+      }
+
+      protected function applyNameColor() : void
+      {
+         if(this.textField)
+         {
+            this.textField.textColor = this._frozen ? FROZEN_NAME_COLOR : this._nameColor;
+         }
+      }
+
       public function set glow(value:Boolean) : void
       {
          trace("set_glow::",value);
@@ -91,9 +147,44 @@ package survarium.controls
       
       public function set container(value:Boolean) : void
       {
+         this._carrying = value;
+         this.showCarryMark();
+      }
+
+      public function get carrying() : Boolean
+      {
+         return this._carrying;
+      }
+
+      public function set artefactCarry(value:Boolean) : void
+      {
+         this._artefactCarry = value;
+         this.showCarryMark();
+      }
+
+      public function get artefactMarkShown() : Boolean
+      {
+         return this._artefactMark != null && this._artefactMark.visible;
+      }
+
+      // The battery's box, or in Artifact Hunt the artefact's orb where the box is.
+      protected function showCarryMark() : void
+      {
          if(this.icon_box)
          {
-            this.icon_box.visible = value;
+            this.icon_box.visible = this._carrying && !this._artefactCarry;
+         }
+         if(this._artefactCarry && this._carrying && !this._artefactMark && this.icon_box)
+         {
+            var box:Rectangle = this.icon_box.getBounds(this);
+            _artefactMark = new ArtefactMark(Math.max(box.width,box.height) / 2);
+            this._artefactMark.x = box.x + box.width / 2;
+            this._artefactMark.y = box.y + box.height / 2;
+            addChild(this._artefactMark);
+         }
+         if(this._artefactMark)
+         {
+            this._artefactMark.visible = this._artefactCarry && this._carrying;
          }
       }
       

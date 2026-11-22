@@ -28,6 +28,8 @@ use crate::raw;
 
 /// A hud sound's playback mode (play 0x5ABA0's first argument).
 const LOOPED: u32 = 1;
+/// Once (the game's own hud sounds, 0x23F6F0).
+const ONCE: u32 = 0;
 /// A scene's fade state: fading in (process_fade 0x5C061).
 const FADING_IN: u32 = 1;
 /// The bytes of a track path, its zero too (a game path is shorter).
@@ -73,6 +75,26 @@ impl SoundUser {
             raw::engine_play_voice(Some(proxy), LOOPED, null(), null());
             Some(Voice(proxy))
         }
+    }
+}
+
+/// `emitter` played once as a hud sound in the game world's scene (its
+/// +94h), as the game's own hud sounds (damage_sound_effect 0x23F676..
+/// 0x23F6F8: emit_hud_sound, then the proxy's play in mode 0): its voice,
+/// which stops when let go; None when no proxy is free or the world has no
+/// scene.
+pub(in crate::vostok) fn play_once(world: raw::GameWorld, _: &Thread, emitter: &Emitter) -> Option<Voice> {
+    // SAFETY: the live game world's scene and its game's sound world's
+    // logic user, on the game's thread; emit fills `out` with a proxy of
+    // one reference (the Voice's).
+    unsafe {
+        let mut scene = Some(world.sound_scene()?);
+        let user = world.game()?.sound_world()?.logic_user()?;
+        let mut out = None;
+        raw::engine_emit_hud_sound(Some(emitter.0), &mut scene, Some(user), &mut out);
+        let proxy = out?;
+        raw::engine_play_voice(Some(proxy), ONCE, null(), null());
+        Some(Voice(proxy))
     }
 }
 

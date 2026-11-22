@@ -315,3 +315,25 @@ engine_shared_string_destroy	0x0e0ae0	ESP+4:string	void engine_shared_string_des
 engine_shared_string_assign	0x011170	EDI:holder EAX:string	void engine_shared_string_assign(struct shared_string **holder, struct shared_string *string)	thunk	
 engine_register_constant_host	0x3c8bc0	EAX:backend ESP+4:name ESP+8:auxiliary	struct constant_host *engine_register_constant_host(struct backend *backend, struct shared_string **name, unsigned int auxiliary)	thunk	
 engine_set_ps_constant	0x132a90	EAX:host EDI:backend ESP+4:value	void engine_set_ps_constant(struct constant_host *host, struct backend *backend, const float *value)	thunk	
+engine_freeze_reset_health	0x2e5290	EDI:receiver ESP+4:time	void engine_freeze_reset_health(struct medical_damage *receiver, unsigned int time)	thunk
+engine_switch_to_warmup_camera	0x1f8190	EDX:world	void engine_switch_to_warmup_camera(struct game_world *world)	thunk
+engine_switch_to_player_camera	0x1f8200	EAX:world ESP+4:first_person	void engine_switch_to_player_camera(struct game_world *world, unsigned char first_person)	thunk
+engine_play_particle_system	0x22660	ESP+4:receiver ESP+8:scene ESP+12:particle ESP+16:first ESP+20:matrix ESP+24:attachment ESP+28:second	void engine_play_particle_system(struct scene_renderer *renderer, struct scene_reference *scene, struct particle_system *particle, const float *first_matrix, const float *second_matrix, const unsigned int *first_attachment, const unsigned int *second_attachment)	stdcall	
+engine_remove_particle_system	0x229d0	ESP+4:receiver ESP+8:scene ESP+12:particle	void engine_remove_particle_system(struct scene_renderer *renderer, struct scene_reference *scene, struct particle_system *const *particle)	stdcall	
+engine_update_particle_system	0x22b30	ESP+4:receiver ESP+8:scene ESP+12:particle ESP+16:first ESP+20:matrix	void engine_update_particle_system(struct scene_renderer *renderer, struct scene_reference *scene, struct particle_system *const *particle, const float *first_matrix, const float *second_matrix)	stdcall	
+engine_tdm_cook_create	0x2063f0	ECX:cook ESP+4:query	unsigned int engine_tdm_cook_create(struct hunt_cook *cook, struct rule_query *query)	thiscall	cook: HuntCook, query: RuleQuery -> u32
+engine_tdm_cook_size	0x2063e0	ECX:cook	unsigned int engine_tdm_cook_size(struct hunt_cook *cook)	thiscall	cook: HuntCook -> u32
+engine_tdm_rule_on_event	0x316090	ECX:rule ESP+4:type ESP+8:data ESP+12:time	void engine_tdm_rule_on_event(struct hunt_rule *rule, unsigned int type, const struct kill_event *data, unsigned int time)	thiscall	rule: HuntRule, kind: u32, data: RuleEvent, time: u32 ->
+engine_tdm_rule_entered	0x316590	ECX:rule ESP+4:place ESP+8:time	void engine_tdm_rule_entered(struct hunt_rule *rule, unsigned int place, unsigned int time)	thiscall	rule: HuntRule, place: u32, time: u32 ->
+engine_tdm_rule_left	0x3165d0	ECX:rule ESP+4:place ESP+8:time	void engine_tdm_rule_left(struct hunt_rule *rule, unsigned int place, unsigned int time)	thiscall	rule: HuntRule, place: u32, time: u32 ->
+engine_tdm_rule_set_core	0x267810	ECX:rule ESP+4:core	void engine_tdm_rule_set_core(struct hunt_rule *rule, struct core_world *core)	thiscall	rule: HuntRule, core: RuleCore ->
+engine_tdm_rule_serialize	0x316340	ECX:rule ESP+4:writer	void engine_tdm_rule_serialize(struct hunt_rule *rule, struct buffer_writer *writer)	thiscall	rule: HuntRule, writer: RuleWriter ->
+engine_tdm_rule_deserialize	0x3163d0	ECX:rule ESP+4:reader ESP+8:dword	void engine_tdm_rule_deserialize(struct hunt_rule *rule, struct buffer_reader *reader, unsigned int unused)	thiscall	rule: HuntRule, reader: RuleReader, unused: u32 ->
+engine_tdm_rule_fill_hud	0x316430	ECX:rule ESP+4:match_hud_state ESP+8:time	void engine_tdm_rule_fill_hud(struct hunt_rule *rule, struct match_hud_state *hud, unsigned int time)	thiscall	rule: HuntRule, hud: HudState, time: u32 ->
+engine_tdm_rule_completed	0x316520	ECX:rule ESP+4:time	unsigned char engine_tdm_rule_completed(struct hunt_rule *rule, unsigned int time)	thiscall	rule: HuntRule, time: u32 -> bool
+engine_timelimit_tick	0x317f10	ECX:object ESP+4:dt ESP+8:time ESP+12:step	void engine_timelimit_tick(struct hunt_rule *rule, unsigned int dt, unsigned int time, unsigned int step)	thiscall	rule: TickRule, dt: u32, time: u32, step: u32 ->
+engine_blackboard_set_bool	0x316630	EAX:index ESP+4:blackboard ESP+8:bool	void engine_blackboard_set_bool(unsigned int index, struct blackboard *blackboard, const unsigned char *value)	thunk	
+engine_register_hunt_cook	0x102d10	EDI:cook	void engine_register_hunt_cook(struct hunt_cook *cook)	thunk	
+engine_hunt_rule_base	0x313900	EAX:this ESP+4:game_match_rule_type	struct hunt_rule *engine_hunt_rule_base(void *rule, unsigned int type)	thunk	
+engine_player_remove	0x1f2870	ECX:player ESP+4:flag	void engine_player_remove(struct player *player, unsigned int flag)	thiscall	
+engine_spawn_player	0x316da0	ECX:rule ESP+4:place ESP+8:point ESP+12:time	void engine_spawn_player(struct player_respawn_rule_base *rule, unsigned int place, const unsigned int *point, unsigned int time)	thiscall	

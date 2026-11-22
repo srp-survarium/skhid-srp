@@ -77,6 +77,13 @@ pub struct GameWorldUi<'t> {
 }
 
 impl<'t> GameWorldUi<'t> {
+    /// The hud's game world (+18h).
+    pub fn game_world(&self, thread: &'t Thread) -> Option<super::world::GameWorld<'t>> {
+        // SAFETY: the live ui's world, alive while the hud is.
+        let world = unsafe { self.this.world() }?;
+        Some(super::world::GameWorld::of(world, thread))
+    }
+
     /// At `player_icons.update_start`.
     pub fn at_update_icons(ctx: &'t Context<'_>) -> Option<GameWorldUi<'t>> {
         // SAFETY: the context is this site's: update_player_icons' frame, its
@@ -110,6 +117,15 @@ impl<'t> GameWorldUi<'t> {
     pub fn viewed_place(&self) -> Option<Place> {
         // SAFETY: the ui is alive for the hook; a byte of its hud state.
         Place::new(u32::from(unsafe { read(self.this.viewed_place()) }))
+    }
+
+    /// Freeze Tag's rescue reach, from the HUD's current player to a
+    /// frozen teammate. The same static-world query the rule uses.
+    pub fn freeze_reachable(&self, from: srp_validate::Place, target: srp_validate::Place) -> bool {
+        // SAFETY: the UI's owning match remains live for its update hook.
+        // The hud outlives the match world (the results), and nothing is in reach then.
+        let core = unsafe { self.this.world().and_then(|w| w.pvp_match()).map(|m| m.core()) };
+        core.is_some_and(|core| super::freeze::clear(core, from, target))
     }
 
     /// The exact deadline against the completed simulation clock. The
@@ -193,6 +209,7 @@ pub struct Movie<'t> {
 /// unsigned int, a string; with the managed bit, a string its node holds.
 const GFX_BOOL: u32 = 2;
 pub(super) const GFX_UINT: u32 = 4;
+pub(super) const GFX_NUMBER: u32 = 5;
 pub(super) const GFX_STRING: u32 = 6;
 pub(super) const GFX_MANAGED: u32 = 0x40;
 
@@ -200,6 +217,8 @@ pub(super) const GFX_MANAGED: u32 = 0x40;
 pub const MAX_STRINGS: usize = 64;
 /// Up to this many plain unsigned values in one Invoke.
 pub const MAX_UINTS: usize = 4;
+/// Up to this many Numbers in one Invoke (patch 171's hud update has 28).
+pub const MAX_NUMBERS: usize = 32;
 /// The longest text a GFx argument may be here.
 pub(super) const TEXT_LIMIT: usize = 0x200;
 
@@ -343,6 +362,26 @@ impl Movie<'_> {
             unsafe {
                 *gfx.kind() = GFX_UINT;
                 *gfx.value() = value;
+            }
+        }
+        self.invoke(method, &mut arguments[..count])
+    }
+}
+
+impl Movie<'_> {
+    /// GFx Numbers (type 5, an f64 each), at most [`MAX_NUMBERS`]; whether
+    /// the movie took them.
+    pub fn invoke_numbers(&self, method: &CStr, values: &[f64]) -> bool {
+        let mut arguments = [const { raw::GfxValueStorage::zeroed() }; MAX_NUMBERS];
+        let count = values.len().min(MAX_NUMBERS);
+        for (room, &value) in arguments.iter_mut().zip(&values[..count]) {
+            let gfx = room.handle();
+            let bits = value.to_bits();
+            // SAFETY: our own value: its type and the f64's two words.
+            unsafe {
+                *gfx.kind() = GFX_NUMBER;
+                *gfx.value() = bits as u32;
+                *gfx.value_high() = (bits >> 32) as u32;
             }
         }
         self.invoke(method, &mut arguments[..count])
