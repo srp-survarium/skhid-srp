@@ -91,8 +91,11 @@ three). No artifact rescue in this version (owner, 2026-11-17).
   widget and blocked-hit UI sound. Its texts are `st_srp_hud_freeze_*`: the
   content compile gives the hud movie only `st_srp_hud_*` keys. A frozen player's name over his head
   keeps his name and is drawn ice blue (the owner, 2026-11-21: "his name
-  should be of 'frozen' color, not just read frozen"); it gets its own
-  colour back on thaw. A rescuer sees progress only for a reachable frozen
+  should be of 'frozen' color, not just read frozen"), his arrow under it
+  too, and a frozen teammate is ice blue on the minimap and the Tab map
+  (the owner, 2026-11-22: "your teammates should be blue when frozen", "it
+  should also be on map/mini map and game ui"); each gets its own colour
+  back on thaw ("The frozen name" below). A rescuer sees progress only for a reachable frozen
   teammate. The frozen player's prompt is "Frozen" and the auto-thaw's time left
   ("Frozen (1:42)"), with the
   thaw's bar under it while a teammate thaws him, no percentage (the owner,
@@ -230,23 +233,52 @@ place of the match in the world, as the stock game does.
 ## The frozen name and the frozen glow
 
 **The name.** The player icons movie (`flash/player_icons`, HUDMarker and
-HUDIconLayer) draws a frozen place's name (the marker's `textField`) in
-`HUDMarker.FROZEN_NAME_COLOR`, ice blue, while the place's bit is set in
+HUDIconLayer) draws a frozen place's name (the marker's `textField`) and his
+arrow under it (the icon's parts named `renderer`, which the game's colour
+paints) in `HUDMarker.FROZEN_COLOR`, ice blue, while the place's bit is set in
 `root.freeze_tag_markers(mask)` (sent each frame by `freeze_tag::on_hud`, 0
 when another mode follows). The marker keeps the colour the movie and the game
-give the name (its own, the team's by `render_name`'s `rgb` or
+give the name and the arrow (its own, the team's by `render_name`'s `rgb` or
 `set_player_color`) and puts it back exactly on thaw, the newest one if the game
 set another while frozen; a name set while frozen stays blue (names are plain
-text); a marker made while its place is frozen is blue from the start. The
-native label is the game's, never written over. The Tab list shows it too
-(the owner, 2026-11-22: "frozen players should also be colored blue when
-tabbing"): `freeze_tag::on_hud` sends the same mask to the hud movie,
-`root.freeze_tag_rows(mask)`, and `PlayerList.frozen` draws the name of the row
-whose id is a frozen place in the same blue
-(`PlayerListRenderer.FROZEN_NAME_COLOR`); the row is drawn again from its data
-on thaw, so it has its own colour back. The movie clears the mask at a new
-match (`reset`) and another mode (`set_game_type`). `tools/check freeze-names`
-(`scripts/freeze-tag-hud`) checks it in Ruffle at 1920x1080 and 1280x720.
+text), and so does an arrow of another frame (`type`); a marker made while its
+place is frozen is blue from the start. The native label is the game's, never
+written over. An enemy's marker shows only in a replay (and as Artifact Hunt's
+carrier): there a frozen enemy's name was already blue, and his arrow follows
+his name.
+
+**The hud.** `freeze_tag::on_hud` sends the same mask to the hud movie,
+`root.freeze_tag_rows(mask)` (the name is the first use's; the exe is
+unchanged), which the hud reads once into a `FrozenPlaces`
+(`survarium.modes.FrozenPlaces`: the places and `COLOR`, the same ice blue as
+the icons movie's; `freeze-names` checks they are equal) and gives the Tab list
+and both maps; each asks it whether a place is frozen.
+
+- The Tab list (the owner, 2026-11-22: "frozen players should also be colored
+  blue when tabbing"): `PlayerList.frozen` draws the name of the row whose id is
+  a frozen place in the blue, either team's; the row is drawn again from its
+  data on thaw, so it has its own colour back.
+- The minimap and the Tab map (the owner, 2026-11-22: "your teammates should be
+  blue when frozen", "it should also be on map/mini map and game ui"): a frozen
+  teammate's dot (`Minimap`, the players of `update_players` whose team is the
+  local player's, himself excepted) has its glyph in the blue, as the squad's
+  dots have theirs green (the upper of the frame's two parts named `renderer`,
+  `MinimapObjectPlayer.frozen`), a squad mate's and a battery carrier's too (the
+  carrier keeps his mark), and his name on the Tab map (Alt) in the blue; the
+  glyph's own colour (white, the squad's green) comes back on thaw. An enemy's
+  dot (shown only by the spotted rules) is as it is. A Tab map held (the list
+  closed) draws it with its next update when it shows again.
+
+The hud clears the mask at a new match (`reset`, which also drops the last
+match's players from the maps) and another mode (`set_game_type`).
+`tools/check freeze-names` (`scripts/freeze-tag-hud`) checks both movies in
+Ruffle at 1920x1080 and 1280x720.
+
+Not blue: the kill feed, the voice chat's speakers and the chat. Each line of
+them is an event or a message with a name and a side from the exe, no place
+(`on_player_killed` 0x237C70; `srp_voice_talking`): a frozen state there would
+need the exe to send the place, or names matched to the Tab list's rows, and
+the kill feed's victim is the one just frozen anyway.
 
 **The frozen glow.** `fx/artifacts/human_frozen` (content pack
 `freeze-tag-glow`, `scripts/freeze-tag-glow/make_pack.py`): the stock Spring

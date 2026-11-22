@@ -49,6 +49,7 @@ package
    import survarium.modes.ArtefactHuntRow;
    import survarium.modes.ArtefactHuntState;
    import survarium.modes.FfaProgress;
+   import survarium.modes.FrozenPlaces;
    import survarium.constants.UiSound;
    import survarium.modes.RoundFade;
    import survarium.modes.ModeNotice;
@@ -654,6 +655,8 @@ package
 
       private static const FREEZE_BAR_WIDTH:Number = 120;
       private var _freezeWasFrozen:Boolean = false;
+      // Freeze Tag: the places frozen now (freeze_tag_rows), which the Tab list and both maps show.
+      private var _frozen:FrozenPlaces = FrozenPlaces.NONE;
       private var _pregameText:String = "";
 
       // Each frame the mode notice shows (its countdown, then its reading time): its end, and its place
@@ -1722,7 +1725,7 @@ package
          this.set_match_time("");
          this.deathEyes.countdown("");
          this.endArtefactHunt();
-         this.player_list.players.frozen = 0;
+         this.showFrozen(FrozenPlaces.NONE);
          if(this.progress_indicator.respawn_time)
          {
             this.set_respawn_time("");
@@ -1819,7 +1822,7 @@ package
          this._freezeWasFrozen = false;
          if(type != 12)
          {
-            this.player_list.players.frozen = 0;
+            this.showFrozen(FrozenPlaces.NONE);
          }
          this.refresh_context();
          this.researchUnits.visible = type == this.GAME_MODE_RESEARCH;
@@ -1909,10 +1912,22 @@ package
          return String(Math.floor(seconds / 60)) + ":" + (rest < 10 ? "0" : "") + String(rest);
       }
 
-      // The frozen places (bit n: place n), sent each frame; their Tab names ice blue.
+      // The frozen places (bit n: place n), sent each frame (exe patch 160, freeze_tag::on_hud): their
+      // Tab rows' names, and their dots on the minimap and the Tab map while they are teammates, ice blue.
       public function freeze_tag_rows(mask:uint) : void
       {
-         this.player_list.players.frozen = mask;
+         if(mask != this._frozen.mask)
+         {
+            this.showFrozen(new FrozenPlaces(mask));
+         }
+      }
+
+      private function showFrozen(places:FrozenPlaces) : void
+      {
+         this._frozen = places;
+         this.player_list.players.frozen = places;
+         this.minimap.frozen = places;
+         this.tabMinimap.frozen = places;
       }
 
       public function set_ffa_progress(own:int, top:int, target:int) : void

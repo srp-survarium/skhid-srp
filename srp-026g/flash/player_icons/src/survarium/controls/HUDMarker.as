@@ -3,6 +3,7 @@ package survarium.controls
    import flash.display.MovieClip;
    import flash.events.Event;
    import flash.events.TimerEvent;
+   import flash.geom.ColorTransform;
    import flash.geom.Rectangle;
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
@@ -34,12 +35,17 @@ package survarium.controls
       
       protected var _labelRenderer:Label;
 
-      // Freeze Tag (patch 160, docs/notes/freeze-tag.md): a frozen player's name is drawn in
-      // ice blue. Every colour the movie or the game gives the name is kept as its own and comes
-      // back on thaw; a name set while frozen stays blue (the names are plain text: .text).
-      public static const FROZEN_NAME_COLOR:uint = 0x66C2FF;
+      // Freeze Tag (patch 160, docs/notes/freeze-tag.md): a frozen player's name and arrow are drawn in
+      // ice blue (the hud movie's FrozenPlaces.COLOR, the same value). Every colour the movie or the game
+      // gives them is kept as their own and comes back on thaw; a name set while frozen stays blue (the
+      // names are plain text: .text).
+      public static const FROZEN_COLOR:uint = 0x66C2FF;
 
       protected var _nameColor:uint;
+
+      // The arrow's colour the game gives (render_name's rgb, set_player_color), null before any: the
+      // movie's own (its parts have none).
+      protected var _iconColour:ColorTransform = null;
 
       protected var _frozen:Boolean = false;
       // The game's carrier mark (modifier_visible, set_player_icon_container): a battery's carrier in
@@ -77,6 +83,17 @@ package survarium.controls
       public function set type(value:uint) : void
       {
          this.icon.gotoAndStop(value + 1);
+         // another frame's arrow: a frozen one stays blue
+         if(this._frozen)
+         {
+            this.applyIconColour();
+         }
+      }
+
+      public function set iconColour(value:ColorTransform) : void
+      {
+         this._iconColour = value;
+         this.applyIconColour();
       }
       
       public function set label(value:String) : void
@@ -122,15 +139,43 @@ package survarium.controls
 
       public function set frozen(value:Boolean) : void
       {
+         if(value == this._frozen)
+         {
+            return;
+         }
          this._frozen = value;
          this.applyNameColor();
+         this.applyIconColour();
       }
 
       protected function applyNameColor() : void
       {
          if(this.textField)
          {
-            this.textField.textColor = this._frozen ? FROZEN_NAME_COLOR : this._nameColor;
+            this.textField.textColor = this._frozen ? FROZEN_COLOR : this._nameColor;
+         }
+      }
+
+      // Every part of the arrow named renderer (each frame of the icon has two, the arrow and its inner
+      // part; icon.renderer names one of them only): the ice blue while frozen, its alpha the game's;
+      // else the game's colour, or none.
+      protected function applyIconColour() : void
+      {
+         var colour:ColorTransform = this._iconColour != null ? this._iconColour : new ColorTransform();
+         if(this._frozen)
+         {
+            var ice:ColorTransform = new ColorTransform();
+            ice.color = FROZEN_COLOR;
+            ice.alphaMultiplier = colour.alphaMultiplier;
+            ice.alphaOffset = colour.alphaOffset;
+            colour = ice;
+         }
+         for(var i:int = 0; this.icon != null && i < this.icon.numChildren; i++)
+         {
+            if(this.icon.getChildAt(i).name == "renderer")
+            {
+               this.icon.getChildAt(i).transform.colorTransform = colour;
+            }
          }
       }
 
