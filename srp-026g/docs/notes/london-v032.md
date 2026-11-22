@@ -53,6 +53,29 @@ environment, probes and materials replace them, with London's tone marker and bo
 carried by the manifest as for London (v0.42). The campfires are 0.32a4's own fires with their damage
 zones (one mechanism), not `port-campfires-1`.
 
+## The red team at the owner's picks
+
+The owner, 2026-11-23: "here are multiple red london 0.32 spawns in tdm and chargers which look not towards the
+ceonter of the map/doors, having people to adjust as they spawn, not good"; he typed `where` at 13 places in the
+red team's building (team 1, the office building south-east of the round hall), facing as a spawning player should;
+over the drawing of them against the old ones: "yep, let's use mine". `london-v032-red-spawns-1.json`, made by
+`scripts/london-v032/make_red_spawns.py` from `london-v032-red-picks.tsv` (check-points `picks --team 1` on the ten
+team projects):
+
+- All 13 on their ground (pick 4 0.05 m down, the others where he stood), body clear, 2 m from harmful zones; 12
+  and 13 are on the lower floor (y 5.5). Facing as he faced: rotation `[0, -yaw, 0]`.
+- The ten team projects (day 2-5, rain and evening 2-4) had the same 10 red places under other ids and names by
+  mode: in each, the 10 red points take picks 1-10 (position and rotation only), and picks 11-13 are new points
+  after the last entry (ids 20-22, `red_pick_<n>`), copies of the project's first red point (its radii, priority,
+  6 s of protection). The blue team is unchanged.
+- Its row is after `ffa-london-v032-1` (Free for All's day_8, a copy of day_4, keeps the old team points, which it
+  does not play) and before `artefact-hunt-maps-1`, whose `<weather>_ah` copies of the `_4` projects carry the new
+  points. Blackout plays day_2 and Freeze Tag the `_4` projects themselves.
+- The old facings: the exe takes a point's yaw from its whole rotation (`respawn_point_core::load` 0x2F4580 builds
+  the matrix with `create_rotation` 0x725E0 and takes the angles of its k row, 0xEE370), so a rotation
+  `(pi, a, pi)`, which most of the map editor's points have, faces the opposite way to `(0, a, 0)`, as the site's
+  map tab draws it (`scripts/maps-tab/build.py`, `heading`).
+
 ## Checked
 
 - The pack is built against what players have with London (v0.42) (the manifest `requires`
