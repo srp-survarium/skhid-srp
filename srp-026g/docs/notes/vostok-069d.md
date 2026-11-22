@@ -20,6 +20,26 @@ the same 0.69d rules as Rudnya (v0.69) @4 (`rudnya-069d.md`), with no per-map tu
 - Not yet in Blackout, Free for All, Freeze Tag or Artifact Hunt: the last two come with School
   (v0.69) in one run of `scripts/mode-maps/make.py` once both are merged.
 
+## After the owner's first game (2026-11-22: "it is fine")
+
+- "remove ammo crates and make them like in Rudnya": ammo only at the bases, as Rudnya (v0.69)'s
+  `rudnya-ammo-1`: `vostok-v069-ammo-1.json`, made by `scripts/base-ammo/make.py` (each team's base
+  is the crate nearest its spawns and refills that team alone; every other crate goes whole, its
+  zones, decal, collision geometry, models and their collision). 0.69d's two mid-map crates
+  (`logic/resupply/new_resupply/1`, `/2`) are gone; `logic/resupply/team1` is team 0's base,
+  `team2` team 1's.
+- "return the gaseous smoke anomaly in the bunker": native Vostok's rust anomaly came over whole
+  but for its smoke, ten particles of its own folder (`fx/smoke*`: `fx/level_3_anomaly/rust_smoke`
+  and `rust_smoke_dark`); `map.native_objects` takes them too. 0.69d's ground under them is within
+  0.1 m of native's at nine of the ten.
+- "make lamps breakable for Vostok": `breakable-lamps-vostok-v069-1.json`, by
+  `scripts/breakable-lamps/make_edits.py`, which now reads a 0.69d port's render visuals by
+  `lib_name` (they have no `visual_name`) and its `v069d_<map>/` fixtures: 4 lamps in Team
+  Deathmatch (two with their light), 7 in Protective device (its native battery props' three).
+  No 0.69d room probe holds a lamp: no probe or fill light goes out with one.
+- Both lists run right after `rudnya-ammo-1`, before the Keeper (its counts stay: the smoke adds
+  ten objects, the ammo list takes ten).
+
 ## What 0.69d changed against 0.26g's Vostok
 
 A new checkpoint (kpp1), the outer and inner fences re-cut, terrain water, debris round the
