@@ -29,9 +29,12 @@ package survarium.player
    //   A press on the red lock switches too (blockedClicked).
    // - The marked slot has a soft edge of the lobby's yellow: all round on a container or a
    //   weapon slot, glowing from the bottom up on a pocket. A click on it while it holds an item
-   //   is the item's (the owner's pick of 2026-11-22: a stray click never moves an item); the red
-   //   lock's slot is empty, so its click always switches, and what the yellow slot held comes off
-   //   the kit (it stays owned).
+   //   is the item's (the owner's pick of 2026-11-22: a stray click never moves an item); the open
+   //   second weapon slot keeps its own click always (the owner, 2026-11-22: it is switched back
+   //   from the red pocket). The red lock's slot is empty, so its click always switches, and what
+   //   the yellow slot held comes off the kit (it stays owned): the item goes back with a sound and
+   //   a shake of its slot (DISPLACED, the paper doll's; the owner: "some good sound design to say
+   //   that, or maybe some shaking").
    // - A click shows the other look at once (a cross-fade) and asks srp. Until srp's answer (the
    //   account, whose counts come first, then the `K` row) the paper doll counts the pockets as they
    //   will be (pocketShift), so nothing jumps.
@@ -49,6 +52,9 @@ package survarium.player
       public static const TAKEN:int = 1;
 
       public static const DECLINED:int = 2;
+
+      // The event of a switch that sends the yellow slot's item back to the inventory.
+      public static const DISPLACED:String = "perkSlotDisplaced";
 
       // The cross-fade between the two states' looks, and the hover's.
       private static const FADE_MS:Number = 130;
@@ -200,9 +206,9 @@ package survarium.player
       // hint too, while it is empty.
       public function hover(over:Boolean) : void
       {
-         this._overWanted = over;
+         this._overWanted = over && this.switches(this._shown);
          this.fade();
-         if(over && !this.takesMouse(this._shown) && !this._holds && visible)
+         if(over && this.switches(this._shown) && !this.takesMouse(this._shown) && !this._holds && visible)
          {
             this._tip.tipData = {"name":this.hint()};
             this._tip.showNow();
@@ -256,6 +262,12 @@ package survarium.player
          return this._pendingAt >= 0 && getTimer() - this._pendingAt < PENDING_MS;
       }
 
+      // Whether a click on the yellow slot switches: not on the open second weapon slot.
+      private function switches(state:int) : Boolean
+      {
+         return !(this._perk == WEAPON && state == DECLINED);
+      }
+
       // Where the mark itself takes the mouse: on Artifact Container's container, a locked slot.
       private function takesMouse(state:int) : Boolean
       {
@@ -279,10 +291,12 @@ package survarium.player
          {
             return;
          }
-         if(!blocked && (!visible || this._holds))
+         if(!blocked && (!visible || this._holds || !this.switches(this._shown)))
          {
             return;
          }
+         // The red lock's switch with an item in the yellow slot: that item goes back.
+         var displaced:Boolean = blocked && visible && this._holds;
          var wanted:int = this._shown == TAKEN ? DECLINED : TAKEN;
          // Artifact Container declined is a pocket more; Deep Pockets or Supply Pocket declined
          // a pocket less.
@@ -293,7 +307,9 @@ package survarium.player
          this._tip.hideNow();
          try
          {
-            ExternalInterface.call("sound_play",UiSound.CLICK);
+            // An item sent back: the lobby's sound of an item taken (the movie has no other for
+            // an item moved; the stock list, gameplay/ui_sounds 14 ammo_pick_up).
+            ExternalInterface.call("sound_play",displaced ? UiSound.AMMO_PICK_UP : UiSound.CLICK);
          }
          catch(err:Error)
          {
@@ -303,6 +319,10 @@ package survarium.player
          this._tip.tipData = {"name":this.hint()};
          // The paper doll draws its slots again (the second weapon slot open or closed).
          dispatchEvent(new Event(Event.CHANGE));
+         if(displaced)
+         {
+            dispatchEvent(new Event(DISPLACED));
+         }
          this._ask(this._perk,wanted);
       }
 

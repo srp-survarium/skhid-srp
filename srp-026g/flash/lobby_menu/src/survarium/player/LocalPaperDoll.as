@@ -3,6 +3,7 @@ package survarium.player
    import flash.display.DisplayObject;
    import flash.display.Sprite;
    import flash.geom.Rectangle;
+   import flash.utils.getTimer;
    import flash.events.Event;
    import flash.events.MouseEvent;
    import scaleform.clik.constants.InvalidationType;
@@ -355,6 +356,48 @@ package survarium.player
          invalidate(InvalidationType.DATA);
       }
 
+      // A switch sent the marked slot's item back: that slot shakes a little, three swings fading
+      // out in a quarter of a second, on the movie's frames; then the slots are drawn again
+      // where they are.
+      private static const SHAKE_MS:Number = 260;
+
+      private static const SHAKE_PX:Number = 4;
+
+      private static const SHAKE_SWINGS:Number = 3;
+
+      private var _shaken:DisplayObject;
+
+      private var _shakenX:Number = 0;
+
+      private var _shakeAt:int = 0;
+
+      private function onMarkDisplaced(e:Event) : void
+      {
+         var slot:DisplayObject = (e.target as PerkSlotMark).slot;
+         if(slot == null || this._shaken != null)
+         {
+            return;
+         }
+         this._shaken = slot;
+         this._shakenX = slot.x;
+         this._shakeAt = getTimer();
+         addEventListener(Event.ENTER_FRAME,this.onShake);
+      }
+
+      private function onShake(e:Event) : void
+      {
+         var t:Number = (getTimer() - this._shakeAt) / SHAKE_MS;
+         if(t >= 1)
+         {
+            this._shaken.x = this._shakenX;
+            this._shaken = null;
+            removeEventListener(Event.ENTER_FRAME,this.onShake);
+            invalidate(InvalidationType.DATA);
+            return;
+         }
+         this._shaken.x = this._shakenX + Math.round(SHAKE_PX * (1 - t) * Math.sin(t * Math.PI * 2 * SHAKE_SWINGS));
+      }
+
       private function get containerMark() : PerkSlotMark
       {
          return this._marks[PerkSlotMark.CONTAINER];
@@ -627,6 +670,7 @@ package survarium.player
          {
             addChild(mark);
             mark.addEventListener(Event.CHANGE,this.onMarkChanged);
+            mark.addEventListener(PerkSlotMark.DISPLACED,this.onMarkDisplaced);
          }
          var ammoSlots:Array = [_slotNames.indexOf("slotWpn1A1"),_slotNames.indexOf("slotWpn1A2"),_slotNames.indexOf("slotWpn2A1"),_slotNames.indexOf("slotWpn2A2"),_slotNames.indexOf("slotWpn5"),_slotNames.indexOf("slotWpn6"),_slotNames.indexOf("slotWpn7"),_slotNames.indexOf("slotWpn8")];
          trace("LPD::configUI");

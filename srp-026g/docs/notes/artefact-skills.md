@@ -280,10 +280,22 @@ chooses each.
   - declined: the second weapon slot is open and has the yellow soft edge (all round); the pocket
     is closed with the same red lock, shown where the next quick place is after the pockets and
     containers (where the pocket was, without containers), its tip "Click: pocket";
-  - a click on either red lock switches (its slot is empty); a click on the yellow slot switches
-    while it holds nothing (a weapon or an item keeps its own click). What the slot that closes
-    held comes off the kit, as above. With Artifact Container too, its pocket is the one before
-    the weapon perk's.
+  - a click on either red lock switches (its slot is empty); a click on the yellow pocket switches
+    while it holds nothing (an item keeps its own click); the open second weapon slot keeps its
+    own click always, empty or not (the owner, 2026-11-22: he described only the pocket's click
+    opening the weapon slot; an empty weapon slot's click lists the weapons, and switching it back
+    would close it), so a kit takes the perk again from the red pocket. With Artifact Container
+    too, its pocket is the one before the weapon perk's.
+  - **A switch that sends an item back** (a red lock pressed while the yellow slot holds one; the
+    owner, 2026-11-22: keep it so, "i wish there was some good sound design to say that, or maybe
+    some shaking"): the item comes off the kit (it stays owned), the lobby plays the game's own
+    sound of an item taken (`gameplay/ui_sounds` 14, `ammo_pick_up`, `UiSound.AMMO_PICK_UP`; the
+    movie plays nothing when an item is unequipped, and the stock list has no other sound of an
+    item moved) in place of the click, and the slot it left shakes: sideways, 4 px, three swings
+    fading out over 260 ms, on the movie's frames (`LocalPaperDoll.onShake`), then the slots are
+    drawn again where they rest. Artifact Container's switch never sends an item back (its pocket
+    switches only empty), so it has none; any other switch that does gets the same
+    (`PerkSlotMark.DISPLACED`).
   - The movie reads the counts as srp's answer will make them while a click is asked
     (`PerkSlotMark.pocketShift`), so neither the yellow nor the red moves when the account
     comes.

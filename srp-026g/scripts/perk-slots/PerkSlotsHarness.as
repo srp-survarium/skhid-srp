@@ -16,8 +16,9 @@ package {
  //   no mark without the skill or on another kit.
  // - Deep Pockets or Supply Pocket: taken, the yellow on the pocket it adds and the second weapon
  //   slot locked red; a click on the red lock opens the weapon slot at once (yellow) and closes the
- //   pocket (red, where it was), srp's answer moving nothing; a click on the red pocket, or on the
- //   empty weapon slot, takes it again; a weapon slot holding a weapon keeps its click.
+ //   pocket (red, where it was), srp's answer moving nothing, the pocket's item sent back with its
+ //   slot shaken; a click on the red pocket takes it again; the open weapon slot keeps its own
+ //   click.
  // Every language's hints. Then the looks before and after: Artifact Container's slot at three
  // times (zoom.png; before, the first flat 2 px border), the weapon perk's slots at their size
  // (weapon.png; before, the red lock alone). The slot labels are the stock English (english.tsv).
@@ -26,7 +27,7 @@ package {
   private static const W:int=2100, H:int=1450;
   private static const LOOKS:Array=["before","after"];
   private static const CONTAINER_CELLS:Array=["container","container, hover","pocket","pocket, hover"];
-  private static const WEAPON_CELLS:Array=["perk: pocket","pocket, hover","second weapon","second weapon, hover"];
+  private static const WEAPON_CELLS:Array=["perk: pocket","pocket, hover","second weapon","second weapon, hover (no switch)"];
   private static const WEAPON_2:int=10;
   private var loader:Loader=new Loader();
   private var domain:ApplicationDomain;
@@ -37,6 +38,8 @@ package {
   private var step:int=0, wait:int=0, frames:int=0;
   private var zoom:Bitmap, weapon:Bitmap;
   private var sheetSteps:Array=[];
+  // A slot watched for its shake: where it rests, and the most it moved.
+  private var shaken:DisplayObject, shakenX:Number=0, shakenMost:Number=0;
   public function PerkSlotsHarness() {
    var tsv:URLLoader=new URLLoader();
    tsv.addEventListener(Event.COMPLETE,function(e:Event):void {
@@ -174,6 +177,7 @@ package {
   }
 
   private function tick(e:Event):void {
+   if(shaken!=null) shakenMost=Math.max(shakenMost,Math.abs(shaken.x-shakenX));
    if(++frames<10 || --wait>0) return;
    wait=5;
    try {
@@ -250,30 +254,40 @@ package {
       check(!doll.getSlotAt(WEAPON_2).enabled,"taken: the second weapon slot closed");
       var lock:Object=lockOn(weaponSlot());
       check(lock!=null && String(lock.tipData.name).indexOf("Click: second weapon")>=0,"taken: the red lock on the second weapon slot, its hint: "+(lock?lock.tipData.name:null));
-      // A press on the red lock: the second weapon at once, asked for once.
+      // A press on the red lock, a medkit in the yellow pocket: the second weapon at once, asked
+      // for once; the medkit goes back, its slot shaken.
+      wm.place(slot(2),true);
+      shaken=slot(2);shakenX=slot(2).x;shakenMost=0;
       lock.dispatchEvent(new MouseEvent(MouseEvent.CLICK,true));
       lock.dispatchEvent(new MouseEvent(MouseEvent.CLICK,true));
       check(asked.join()=="1:2","the red lock's click asks for the second weapon, once: "+asked);
       check(wm.shown==Mark.DECLINED,"the second weapon shown at once");
       break;
      case 9:
+      check(shakenMost>=1,"the pocket the medkit left shakes: "+shakenMost);
       check(doll.getSlotAt(WEAPON_2).enabled,"declined: the second weapon slot open at once");
       check(on(wm,weaponSlot()),"declined: the yellow on the second weapon slot");
-      check(lockOn(slot(2))!=null,"declined: the pocket closed red where it was, slot 2");
       check(lockOn(weaponSlot())==null,"declined: no red lock on the weapon slot");
-      // srp's answer: the account first (one pocket), nothing moves.
-      kit(2,1,0);
+      // The shake over (a quarter of a second), the slots are where they rest.
+      wait=40;
       break;
      case 10:
+      check(shaken.x==shakenX && lockOn(slot(2))!=null,"declined: the pocket closed red where it was, slot 2");
+      // srp's answer: the account first (one pocket), nothing moves.
+      kit(2,1,0);
+      step=101;
+      break;
+     case 101:
       check(lockOn(slot(2))!=null && on(wm,weaponSlot()),"the account before the `K` row: nothing moves");
+      step=11;
       list("K;1:0:1,2:0:2,3:0:1");doll.perkSlots(2,[0,2],ask);asked.length=0;
       break;
      case 11:
       check(lockOn(slot(2))!=null && slot(2).visible,"the closed pocket shown, red, after the pockets");
-      weaponSlot().dispatchEvent(new MouseEvent(MouseEvent.ROLL_OVER));
-      check(hint(wm)=="Click: pocket","the hint on the second weapon slot: "+hint(wm));
-      weaponSlot().dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
-      // A weapon in the slot: its click is the weapon's.
+      check(shaken.x==shakenX,"the shaken slot back where it rests");
+      // The open second weapon slot keeps its own click: empty or not, nothing asked.
+      clickOn(weaponSlot());
+      check(asked.length==0,"the empty second weapon slot's click asks nothing: "+asked);
       wm.place(weaponSlot(),true);
       clickOn(weaponSlot());
       check(asked.length==0,"a weapon slot holding a weapon keeps it: "+asked);
