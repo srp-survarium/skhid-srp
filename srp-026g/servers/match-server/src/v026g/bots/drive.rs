@@ -3138,6 +3138,23 @@ pub(crate) mod riser_window {
 const PLANNED_DROP_M: f32 = 6.0;
 
 /// [drop give-ups] The ticks the lip guard left a body to its route's own walk-off at release (`guard_keys`).
+/// [fix-lip] The ticks the lip guard left a route jump's flight after its carry ([`JumpAir`]).
+pub mod jump_air_left {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static LEFT: AtomicU64 = AtomicU64::new(0);
+
+    pub fn left() {
+        LEFT.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// The ticks left so far.
+    #[cfg(test)]
+    pub fn count() -> u64 {
+        LEFT.load(Ordering::Relaxed)
+    }
+}
+
 pub mod walk_off_guards {
     use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -3155,6 +3172,39 @@ pub mod walk_off_guards {
 }
 /// The guard also looks this far on along the velocity (s) for a lip's floor.
 const LIP_LOOK_S: f32 = 0.4;
+
+/// [fix-lip] A route jump's body flown on after its carry is left by the lip guard at most this long (ms): the jump watch's own wait
+/// for its landing.
+const JUMP_AIR_MAX_MS: u32 = 3_000;
+
+/// [fix-lip] A route jump's flight, for the lip guard: carried ([`Motor::carrying`](motor::Motor)), then flown on until the reckoned
+/// body is on the ground again. The carry ends with the jump's clip (24 frames), and a jump down flies on after it: from that tick
+/// the guard judged the airborne body and braked it, the brake keys air control against the landing. In the spot suite (887697d4a)
+/// 19 of the 29 lip-guard brakes the game's controller could not judge from the ground came in such a flight (the bodies of the
+/// route jumps "not down", S408 and S325, were braked 1.2-1.4 m above the landing).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) enum JumpAir {
+    /// No route jump in the air.
+    #[default]
+    Ground,
+    /// A route jump carried this tick (ms).
+    Carried { at: u32 },
+    /// Flown on after the carry of that time (ms), not yet on the ground.
+    After { carried_at: u32 },
+}
+
+impl JumpAir {
+    /// The flight after a tick at `time`: carried, still in the air after the carry (the reckoned body `on_ground` or not), or down.
+    fn next(self, carrying: bool, on_ground: bool, time: u32) -> Self {
+        match self {
+            _ if carrying => Self::Carried { at: time },
+            Self::Carried { at: carried_at } | Self::After { carried_at } if !on_ground && time.saturating_sub(carried_at) < JUMP_AIR_MAX_MS => {
+                Self::After { carried_at }
+            }
+            _ => Self::Ground,
+        }
+    }
+}
 /// A tick that changed the keys adds this to the [`LipWatch`] score, and one that did not takes 1 off.
 const LIP_HELD_SCORE: u8 = 3;
 /// The score at which the guard gives a bot up for [`LIP_OFF_MS`].
@@ -3668,6 +3718,11 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
     if bot.motor.feel.lip_guard_ticks == 0 {
         return;
     }
+    // [fix-lip] The route jump's flight: on the ground is the reckoned body neither in an arc or a fall nor its kept controller off
+    // the ground.
+    let on_ground = bot.footing == motor::Footing::Ground && !bot.reckoned_kept.is_some_and(|kept| kept.airborne());
+    let was = bot.jump_air;
+    bot.jump_air = bot.jump_air.next(bot.motor.carrying, on_ground, time);
     // A jump (the route's, a hop) goes off the floor on purpose; [A1b] so does a body let go at a walk-off's release. [press forecast]
     // A body the press forecast stops (no press from this walk-in: it coasts up to `motor::let_go_travel_m` on) is judged as any.
     // [press forecast] A forecast press in its flight is left too (`Motor::press_flight`): the forecast flew it to its landing.
@@ -3698,6 +3753,31 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
     // give-up watch (`LipWatch`) a held tick for each tick of the flight, which could leave the guard given up after the landing.
     if bot.motor.carrying {
         take_off_note(bot, me, tactics, tuning, decision, time, "left", "carried jump", None);
+        #[cfg(test)]
+        {
+            bot.bench_guard = 5;
+        }
+        return;
+    }
+    // [fix-lip] Flown on after the carry, not yet on the ground: the guard leaves it as it left the carry (`JumpAir`). The first such
+    // tick of a flight writes a line.
+    if let JumpAir::After { .. } = bot.jump_air {
+        jump_air_left::left();
+        if matches!(was, JumpAir::Carried { .. }) {
+            let speed = me.velocity[0].hypot(me.velocity[1]);
+            bot.nav_log.push(
+                super::nav_log::Kind::Guard,
+                time,
+                format!(
+                    "{}lip guard left in a route jump's flight after its carry at ({:.2}, {:.2}, {:.2}), speed {speed:.2} m/s, until on the ground",
+                    super::nav_log::PREFIX,
+                    me.feet.x,
+                    me.feet.y,
+                    me.feet.z
+                ),
+            );
+        }
+        take_off_note(bot, me, tactics, tuning, decision, time, "left", "a route jump's flight after its carry", None);
         #[cfg(test)]
         {
             bot.bench_guard = 5;
@@ -4090,6 +4170,22 @@ pub(super) fn no_way_line(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [fix-lip] A route jump's flight: carried while the carry holds, then flown on in the air until the body is on the ground or
+    /// `JUMP_AIR_MAX_MS` after the carry; a new carry starts again.
+    #[test]
+    fn a_route_jump_is_flown_on_after_its_carry_until_on_the_ground() {
+        let air = JumpAir::Ground.next(false, false, 0);
+        assert_eq!(air, JumpAir::Ground, "a fall with no route jump is not one");
+        let air = air.next(true, false, 1_000);
+        assert_eq!(air, JumpAir::Carried { at: 1_000 });
+        let air = air.next(false, false, 1_050);
+        assert_eq!(air, JumpAir::After { carried_at: 1_000 });
+        assert_eq!(air.next(false, false, 1_500), JumpAir::After { carried_at: 1_000 });
+        assert_eq!(air.next(false, true, 1_500), JumpAir::Ground, "on the ground");
+        assert_eq!(air.next(false, false, 1_000 + JUMP_AIR_MAX_MS), JumpAir::Ground, "at most the watch's wait");
+        assert_eq!(JumpAir::Carried { at: 1_000 }.next(false, true, 1_050), JumpAir::Ground, "landed within the carry");
+    }
 
     /// [Go::To arrival] A goal 1.03 m up a ledge, within its reach across, is still walked to from under it (as the level_04
     /// ledge spots' were not); on its floor it is reached; beyond its reach across it is walked to. A point over the feet's own
