@@ -7,6 +7,7 @@ use windows_sys::Win32::{
     System::{
         DataExchange::{CloseClipboard, EmptyClipboard, OpenClipboard, SetClipboardData},
         Memory::{GMEM_MOVEABLE, GlobalAlloc, GlobalLock, GlobalUnlock},
+        SystemInformation::GetWindowsDirectoryW,
         SystemServices::*,
     },
     UI::{Controls::*, Shell::ShellExecuteW, WindowsAndMessaging::*},
@@ -65,6 +66,8 @@ struct DialogData {
     small_icon: HICON,
     folder: *const u16,
     filename: *const u16,
+    /// The whole path of the file shown, for "Open folder".
+    path: *const [u16],
     have_dump: bool,
     text: &'static crash_text::Text,
     /// The short details the dialog shows, and what "Copy" copies.
@@ -128,7 +131,8 @@ unsafe extern "system" fn dialog(window: HWND, msg: u32, wp: usize, lp: isize) -
                 data.font = CreateFontIndirectW(&font);
                 if !data.font.is_null() {
                     for id in [
-                        1030, 1031, 1034, 1035, 1036, 1037, 1038, 1040, 1041, 1042, 1013, IDCANCEL,
+                        1030, 1031, 1034, 1035, 1036, 1037, 1038, 1040, 1041, 1042, 1013, 1043,
+                        IDCANCEL,
                     ] {
                         SendDlgItemMessageW(window, id, WM_SETFONT, data.font as usize, 1);
                     }
@@ -179,7 +183,7 @@ unsafe extern "system" fn dialog(window: HWND, msg: u32, wp: usize, lp: isize) -
             SetBkColor(wp as HDC, GetSysColor(COLOR_WINDOW));
             GetSysColorBrush(COLOR_WINDOW) as isize
         }
-        WM_DRAWITEM if wp == 1013 => {
+        WM_DRAWITEM if wp == 1013 || wp == 1043 => {
             let item = &*(lp as *const DRAWITEMSTRUCT);
             let saved = SaveDC(item.hDC);
             let mut rect = item.rcItem;
@@ -277,6 +281,11 @@ unsafe extern "system" fn dialog(window: HWND, msg: u32, wp: usize, lp: isize) -
             }
             1
         }
+        WM_COMMAND if wp as u16 == 1043 => {
+            let data = &*(GetWindowLongW(window, DWL_USER as i32) as *const DialogData);
+            show_in_folder(window, &*data.path, data.folder);
+            1
+        }
         WM_COMMAND if wp as u16 == 1041 => {
             let data = &*(GetWindowLongW(window, DWL_USER as i32) as *const DialogData);
             if copy(window, &*data.clip) {
@@ -353,7 +362,7 @@ unsafe fn tighten(window: HWND) {
     lift(
         window,
         &[
-            1039, 1040, 1042, 1037, 1034, 1038, 1035, 1036, 1033, 1013, 1041, IDCANCEL,
+            1039, 1040, 1042, 1037, 1034, 1038, 1035, 1036, 1033, 1013, 1043, 1041, IDCANCEL,
         ],
         slack,
     );
@@ -405,6 +414,40 @@ unsafe fn lift(window: HWND, ids: &[i32], slack: i32) {
         frame.right - frame.left,
         frame.bottom - frame.top - slack,
         SWP_NOZORDER | SWP_NOACTIVATE,
+    );
+}
+
+/// Shows `path` selected in its folder: Explorer's `/select`, a process of
+/// its own, so a slow shell cannot hold the dialog. Failing that, the folder
+/// alone; failing that, nothing.
+unsafe fn show_in_folder(window: HWND, path: &[u16], folder: *const u16) {
+    let mut explorer = Wide::<300>::new();
+    explorer.len = GetWindowsDirectoryW(explorer.buf.as_mut_ptr(), 260) as usize;
+    let mut select = Wide::<32800>::new();
+    if (1..260).contains(&explorer.len)
+        && write!(explorer, "\\explorer.exe").is_ok()
+        && write!(select, "/select,\"").is_ok()
+        && select.wide(path).is_ok()
+        && write!(select, "\"").is_ok()
+        && ShellExecuteW(
+            window,
+            windows_sys::w!("open"),
+            explorer.ptr(),
+            select.ptr(),
+            core::ptr::null(),
+            SW_SHOWNORMAL,
+        ) as isize
+            > 32
+    {
+        return;
+    }
+    ShellExecuteW(
+        window,
+        windows_sys::w!("open"),
+        folder,
+        core::ptr::null(),
+        core::ptr::null(),
+        SW_SHOWNORMAL,
     );
 }
 
@@ -525,8 +568,8 @@ pub unsafe fn show(
             | DS_CENTER as u32,
     );
     t.dword(0);
-    // The number of controls below.
-    t.word(if extra != 0 { 15 } else { 14 });
+    // The number of controls below: Open folder only with a file to show.
+    t.word(14 + (extra != 0) as u16 + have_file as u16);
     t.word(0);
     t.word(0);
     t.word(380);
@@ -640,9 +683,18 @@ pub unsafe fn show(
         0x80,
         text.discord,
     );
+    if have_file {
+        t.control(
+            WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW as u32,
+            [99, 177 + extra, 86, 16],
+            1043,
+            0x80,
+            text.open_folder,
+        );
+    }
     t.control(
         WS_CHILD | WS_VISIBLE | WS_TABSTOP | (BS_PUSHBUTTON | BS_CENTER | BS_VCENTER) as u32,
-        [99, 177 + extra, 70, 16],
+        [if have_file { 191 } else { 99 }, 177 + extra, 70, 16],
         1041,
         0x80,
         text.copy,
@@ -654,6 +706,7 @@ pub unsafe fn show(
         small_icon: null_mut(),
         folder: folder.ptr(),
         filename: path.buf.as_ptr().add(split),
+        path: &path.buf[..path.len],
         have_dump: have_file,
         text,
         details: short.ptr(),
