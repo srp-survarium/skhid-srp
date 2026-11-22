@@ -9,6 +9,7 @@
 //! count of UTF-16 units and the units.
 
 use alloc::vec::Vec;
+use core::num::NonZeroU16;
 
 /// The updater's states the launcher knows (`02 <state>`). Only the ones
 /// this updater reports are named.
@@ -53,6 +54,24 @@ pub mod step {
 pub mod disk {
     pub const FULL: u8 = 0;
     pub const CANNOT_WRITE: u8 = 3;
+}
+
+/// Which file of how many a step is downloading, the first being 1: the
+/// launcher's "(5/69)" ([`ToLauncher::FileOf`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FileOf {
+    file: NonZeroU16,
+    of: NonZeroU16,
+}
+
+impl FileOf {
+    /// The file at `index` (from 0) of `count`; `None` for one past the
+    /// last, or more files than the message can say.
+    pub fn at(index: usize, count: usize) -> Option<Self> {
+        let file = NonZeroU16::new(u16::try_from(index.checked_add(1)?).ok()?)?;
+        let of = NonZeroU16::new(u16::try_from(count).ok()?)?;
+        (file <= of).then_some(Self { file, of })
+    }
 }
 
 /// A message of the updater.
@@ -101,6 +120,10 @@ pub enum ToLauncher<'a> {
     /// `0A`: what the "Relay" row shows (`crate::route::Shown::byte`;
     /// launcher patch 16). The original launcher ignores 0A..0D.
     Route(crate::route::Shown),
+    /// `0B`: the file being downloaded and how many there are, two 16-bit
+    /// numbers, shown after the downloading line's "... left" as "(5/69)"
+    /// (launcher patch 17); `None`, 0 of 0: no count.
+    FileOf(Option<FileOf>),
 }
 
 fn narrow(out: &mut Vec<u8>, text: &str) {
@@ -174,6 +197,12 @@ pub fn frame(message: ToLauncher) -> Vec<u8> {
         ToLauncher::PortOk => out.push(0x15),
         ToLauncher::NextTry(seconds) => out.extend_from_slice(&[0x13, seconds]),
         ToLauncher::Route(shown) => out.extend_from_slice(&[0x0A, shown.byte()]),
+        ToLauncher::FileOf(count) => {
+            out.push(0x0B);
+            let (file, of) = count.map_or((0, 0), |count| (count.file.get(), count.of.get()));
+            out.extend_from_slice(&file.to_le_bytes());
+            out.extend_from_slice(&of.to_le_bytes());
+        }
     }
     let length = (out.len() - 2) as u16;
     out[..2].copy_from_slice(&length.to_le_bytes());
@@ -287,6 +316,9 @@ mod tests {
         assert_eq!(frame(ToLauncher::State(state::LATEST)), [2, 0, 0x02, 0x0E]);
         assert_eq!(frame(ToLauncher::Route(crate::route::Shown::Relay)), [2, 0, 0x0A, 5]);
         assert_eq!(frame(ToLauncher::NextTry(5)), [2, 0, 0x13, 5]);
+        assert_eq!(frame(ToLauncher::FileOf(FileOf::at(4, 69))), [5, 0, 0x0B, 5, 0, 69, 0]);
+        assert_eq!(frame(ToLauncher::FileOf(None)), [5, 0, 0x0B, 0, 0, 0, 0]);
+        assert_eq!(FileOf::at(69, 69), None);
         assert_eq!(frame(ToLauncher::Question), [1, 0, 0x0E]);
         assert_eq!(frame(ToLauncher::CannotMoveFile), [1, 0, 0x11]);
         let progress = frame(ToLauncher::Progress {
