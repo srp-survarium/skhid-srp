@@ -183,16 +183,25 @@ impl Share {
 
 /// A probe's diffuse and specular multipliers (+3F0h, +3F4h) and radius
 /// (+3ECh): its own, and those it is drawn with while its binding is Hidden:
-/// the multipliers dimmed, the radius 1 mm less, so that it is drawn over the
-/// probes of its own radius (the renderer draws the largest first, equal ones
-/// in no set order), whose light would show through where they overlap it.
+/// the multipliers dimmed, the radius `DRAWN_OVER` less, so that it is drawn
+/// over the probes of its own radius, whose light would show through where
+/// they overlap it.
 #[derive(Clone, Copy)]
 struct ProbeLight { own: ProbeFields, dimmed: ProbeFields }
 #[derive(Clone, Copy)]
 struct ProbeFields { diffuse: f32, specular: f32, radius: f32 }
+/// The renderer draws the visible probes largest sort key first; a render
+/// probe's key is its radius plus a number in [0, 0.1) its constructor makes
+/// from its heap address (+380h, 0x1C2F30..0x1C2FA6; set_properties 0x1C370F
+/// adds it), so probes of one radius come in no set order. 0.1 less puts the
+/// dimmed probe after every one of its radius, whatever their numbers and its
+/// own. A box probe's volume and falloff are its transform and side width,
+/// not its radius; a sphere's would draw 10 cm smaller (London binds boxes).
+const DRAWN_OVER: f32 = 0.1;
 impl ProbeLight {
     fn new(own: ProbeFields, keeps: Share) -> Self {
-        let dimmed = ProbeFields { diffuse: own.diffuse * keeps.0, specular: own.specular * keeps.0, radius: own.radius - 0.001 };
+        let dimmed = ProbeFields { diffuse: own.diffuse * keeps.0, specular: own.specular * keeps.0,
+                                   radius: own.radius - DRAWN_OVER };
         Self { own, dimmed }
     }
     fn at(self, membership: Membership) -> ProbeFields {

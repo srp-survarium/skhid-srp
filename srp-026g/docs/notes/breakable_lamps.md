@@ -172,13 +172,31 @@ the project goes. One multiplier dims the probe's light, not its colour: the
 lamp's tint stays in what is left. A probe in the boxes of two lamps (a
 room's or a building's) is left as it is.
 
-The renderer draws the visible probes largest radius first, equal radii in
-no set order. A neighbour of the dimmed probe's radius that overlaps it
+A dimmed probe is never darker than what is drawn beside it, where its room
+goes on into the next (`neighbour_light`): the probes that overlap it
+without holding all of it (not one under it, a building's), at most twice
+its radius, laid over one another as the renderer does (largest first, each
+by its smoothstep alpha), just outside its box at its middle height. Its
+`keeps` is at least their light over its own. The split alone took London
+(v0.32) evening's corridor probe `gerkin(4)` to 0.26 of 0.33 (0.085) between
+`gerkin(1)`, `(2)`, `(3)` and `gerkin_hall_centre` at 0.11 to 0.13: its box
+showed as a dark rectangle, and the corridor beyond it as a lit patch (the
+owner's 2026-11-22-07-16-06.png). It keeps 0.38 now, their 0.12. A probe the
+lamp-free rooms beside are as bright as (London (v0.42)'s
+`hall_2_floor(3)`, darker than them with its lamp on) keeps all of it.
+
+The renderer draws the visible probes largest sort key first. A render
+probe's key is its radius plus a number in [0, 0.1) its constructor makes from
+its heap address (+380h, 0x1C2F30..0x1C2FA6, added by `set_properties`
+0x1C370F), so probes of one radius come in an order of the run. A neighbour of the dimmed probe's radius that overlaps it
 (London (v0.32)'s `bkg_building_all_floor_low_32(7)` over the top half metre
 of `hall_2_floor(4)`'s room, 0.124 against the dimmed 0.049: the owner's
 bright strip under the ceiling, 2026-11-22-06-31-49.png) shows through where
-it happens to be drawn later. While dimmed, the probe's radius (+3ECh, the
-sort key) is 1 mm less: it is drawn over its equals.
+it happens to be drawn later. While dimmed, the probe's radius (+3ECh) is
+0.1 less (`DRAWN_OVER`): its key is below every key of its radius, whatever
+the numbers, so it is drawn over its equals. (#2400's 1 mm did that in about
+half the runs.) A box probe's volume and falloff are its transform and side
+width, not its radius; London binds box probes only.
 
 ## Rust implementation and ownership
 
