@@ -97,17 +97,21 @@ pub enum Actions {
 
 /// What the native respawn rule's schedule (twenty times, one a place: the
 /// tick spawns a place whose time is the step's) is left to do after a step.
+/// A cancel never applies to a place entering the match (its player not in
+/// the world yet): its entry spawn always runs, in every phase, so no place
+/// of the match is ever out of the world when a world is saved or loaded.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Schedule {
     /// In play: a frozen body's death respawn is void (the freeze replaced
     /// the death); every other place keeps its native time, so a late
     /// arrival's first spawn runs.
     CancelFrozen(Places),
-    /// Between rounds and after the match: no place has a native time (a
-    /// death's respawn, the round's last freeze too, or a late arrival's
-    /// entry): the restart spawns everyone, the end nobody, and the hud
-    /// shows no respawn countdown (the owner, 2026-11-22: it showed the last
-    /// frozen body's death respawn, "respawn in 8 seconds").
+    /// Between rounds and after the match: no body has a native time (a
+    /// death's respawn, the round's last freeze too): the restart spawns
+    /// everyone, the end nobody, and the hud shows no respawn countdown (the
+    /// owner, 2026-11-22: it showed the last frozen body's death respawn,
+    /// "respawn in 8 seconds"). A late arrival spawns at his entry, held
+    /// with everyone, and again with the round.
     CancelAll,
     /// The round's restart: every present place is due at this step
     /// ([`Actions::Restart`]), and a place without a free point retries
@@ -282,7 +286,10 @@ impl FreezeTag {
                 }
                 (Player::Waiting, Body::Present { team, .. }) => *player = Player::Fighting(team),
                 // Leaving cannot erase a freeze. Nor can reconnecting turn
-                // a retained frozen place back into a fighting player.
+                // a retained frozen place back into a fighting player: he
+                // comes back at his team's spawn, frozen there until a
+                // teammate or the auto-thaw thaws him (the release manager's
+                // pick, 2026-11-22: rejoining is no way out of a freeze).
                 (Player::Fighting(team), Body::Absent) => {
                     *player = Player::frozen(team);
                 }

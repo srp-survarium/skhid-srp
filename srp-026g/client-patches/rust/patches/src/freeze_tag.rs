@@ -91,10 +91,13 @@ pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
         Actions::Wait => {}
     }
     // A frozen body's death also queued its ordinary respawn; only the new
-    // round's restart spawns it.
+    // round's restart spawns it. An entering place's spawn is never cancelled
+    // (`World::cancel`): a frozen place that comes back appears at his team's
+    // points and stays frozen there (the rule keeps it, the hold keeps it
+    // lethal) until a teammate or the auto-thaw thaws it.
     match state.schedule() {
-        Schedule::CancelFrozen(frozen) => frozen.iter().for_each(|place| world.unschedule(place)),
-        Schedule::CancelAll => world.cancel_all(),
+        Schedule::CancelFrozen(frozen) => frozen.iter().for_each(|place| world.cancel(place)),
+        Schedule::CancelAll => Place::all().for_each(|place| world.cancel(place)),
         Schedule::Native => {}
     }
     // The pause and the restart play the match start's countdown, as Artifact Hunt's round.
