@@ -6447,6 +6447,21 @@ pub extern "C" fn hook_language_on_configs_texts(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- light_set_log (patch 189) ----
+
+/// The entry `light_set_log_on_culled` (0x1b6acb, stage_visibility::execute_stage once a frame after the frustum and hi-Z culling and gather_statistics (0x1B8730), before the probes' filter and sort (mov edx,[esi+4] / mov ebp,[edx+4170h]): ESI the stage; the scene view's probe, ambient light and light vectors hold what the frustum found, the occluded flags the last hi-Z answer) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_light_set_log_on_culled(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `light_set_log_on_culled` calls this, from the game's jump at 0x1b6acb,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::light_set_log::on_culled(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- lobby_scene (patch 81) ----
 
 /// The entry `lobby_scene_on_squad_id` (0x2747c3, read_squad_info (0x274720, the 0xA1 squad info handler) with its squad id kept (+1EAAA4h, 0x2747A8) and compared with 0 (the je at 0x2747CA reads the flags), at mov byte [ebx+1EAAACh],0: EBX the lobby client, ESI the message's reader (its cursor past the id: srp's two bytes there when the id is 0); both paths pass, a squad id of 0 (no squad) jumps over the members and the rest from here) calls this with the saved machine.

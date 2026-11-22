@@ -3720,3 +3720,7 @@ va	status	ref_021d	name
 0x00176340	inferred-high		stlp_std::remove_copy_if<vostok::render::render_surface_instance * *,vostok::render::remove_invisible_models_predicate> [descriptive]
 0x00173fc0	inferred-high	0x001081cd	vostok::render::remove_model_if_fully_in_frustum_predicate::operator()
 0x001740d0	inferred-high	0x001082aa	vostok::render::remove_model_if_shadow_not_it_frustum_predicate::operator()
+0x001b9b00	inferred-high	0x0012d568	stlp_std::priv::__find_if<vostok::render::environment_probe * *,vostok::render::remove_if_disabled_or_occluded_predicate<vostok::render::environment_probe> >
+0x001b9320	inferred-medium		stlp_std::remove_copy_if<vostok::render::environment_probe * *,vostok::render::environment_probe * *,vostok::render::remove_if_disabled_or_occluded_predicate<vostok::render::environment_probe> >
+0x001b9670	inferred-high	0x0012d2b1	stlp_std::priv::__find_if<vostok::render::ambient_light * *,vostok::render::remove_if_disabled_or_occluded_predicate<vostok::render::ambient_light> >
+0x001b9130	inferred-medium		stlp_std::remove_copy_if<vostok::render::ambient_light * *,vostok::render::ambient_light * *,vostok::render::remove_if_disabled_or_occluded_predicate<vostok::render::ambient_light> >

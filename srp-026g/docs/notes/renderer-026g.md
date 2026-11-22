@@ -620,16 +620,22 @@ side_width is 0.1 m.
 
 **(c) Overlap and order.** `stage_visibility::execute_stage` sorts the visible probes
 (0x1B6B54/0x1B6B63, STLport introsort + final insertion sort) with `sort_by_size_predicate`
-`a->+320h > b->+320h` (0x1BA0C7): largest authored `radius` first. +320h is the `radius`
-property only; a box's volume comes from its transform, so for a box the radius is only this sort
-key. Each probe then lerps over the result so far with its alpha (SRC_ALPHA / INV_SRC_ALPHA, for
-diffuse and specular alike): the last drawn (smallest radius) replaces where its alpha is 1,
-blends in its fade band, nothing adds. Ties: STLport sorts ranges of up to 16 elements
-(`cmp eax,40h` = 16 pointers, 0x1B93A1) by insertion sort only, which is stable, so equal radii
-keep the order of the visible list built by the culling query
-(`get_results_and_prepare_bounds_env_probes` 0x1B8190); above 16 visible probes introsort makes
-ties unstable. PROVEN for the sort and blend; that the culling order changes between runs is the
-lobby observation (LIKELY: query results from the spatial tree / asynchronous occlusion).
+`a->+320h > b->+320h` (0x1BA0C7): largest first. +320h is the `radius` property plus a
+per-probe number in [0, 0.1): the constructor (`environment_probe::environment_probe` 0x1C2E70,
+0x1C2F30..0x1C2FA6) keeps `((this * 8088405h + 1) * 100000h).high / 2^20 * 0.1` at +380h, from
+the probe's own heap address, and `set_properties` (0x1C370F..0x1C3732) adds it to the radius and
+to the inner radius. So probes of one authored radius do not tie: they draw in an order fixed for
+the run and different from run to run (the lobby's order that changed between runs), whatever
+the culling finds; a radius only 1 mm below another's is drawn later about half the time. A
+box's volume comes from its transform, so for a box the radius is only this sort key (London
+(v0.42) rain_2: 120 of its 122 probes are boxes of radius 5). Each probe then lerps over the
+result so far with its alpha (SRC_ALPHA / INV_SRC_ALPHA, for diffuse and specular alike): the
+last drawn (smallest key) replaces where its alpha is 1, blends in its fade band, nothing adds.
+The sort itself (STLport, insertion sort up to 16 elements, `cmp eax,40h` 0x1B93A1) does not
+matter once the keys differ. PROVEN (instructions read). Before the sort the frame drops a probe
+that is disabled (+339h), whose cubemap (+36Ch) or diffuse cubemap (+370h) is not ready
+(res_texture +8 and +1B4h), or that the hi-Z answer calls occluded (+384h) while the option is on
+(0x1B9320); patch 189 (`SKHID_LIGHT_SET_LOG=on`) logs each change of that.
 Differs from 0.10b: 0.10b sorted inside the ambient stage; same predicate and same lerp blend.
 
 ### 5.4 Ambient lights (0x181EB0, per-list body 0x181660)

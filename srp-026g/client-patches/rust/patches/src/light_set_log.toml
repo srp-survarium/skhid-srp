@@ -1,0 +1,13 @@
+# Patch 189: a diagnostic. With SKHID_LIGHT_SET_LOG=on each change of the
+# environment probes, ambient lights and lights a frame draws is logged to
+# srp_patches.log: one in view that starts or stops being drawn and why
+# (disabled, occluded by the hi-Z answer, a probe's cubemap not ready), a
+# probe coming into or out of view, each probe's draw-order key the first
+# time it is seen. Nothing the game draws changes. The site is
+# sites_026g.tsv's; the logic is light_set_log.rs.
+name = "light_set_log"
+patch = 189
+
+[[hook]]
+site = "stage_visibility.culled"
+handler = "on_culled"

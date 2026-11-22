@@ -86,6 +86,7 @@ pub mod pickup;
 pub mod use_scan;
 pub mod streaming;
 pub mod texture_pool;
+pub mod light_sets;
 pub mod ray_test;
 mod rt;
 pub mod sound;

@@ -9305,6 +9305,45 @@ language_on_configs_texts_replay:
     db 0x8d, 0x87, 0xa8, 0x52, 0x00, 0x00
     jmp 0x1ea30c
 
+; 0x1b6acb stage_visibility::execute_stage once a frame after the frustum and hi-Z culling and gather_statistics (0x1B8730), before the probes' filter and sort (mov edx,[esi+4] / mov ebp,[edx+4170h]): ESI the stage; the scene view's probe, ambient light and light vectors hold what the frustum found, the occluded flags the last hi-Z answer: lohook -> light_set_log_on_culled
+global light_set_log_on_culled
+extern hook_light_set_log_on_culled
+light_set_log_on_culled:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_light_set_log_on_culled
+    mov edx, light_set_log_on_culled_replay
+    cmp eax, 0
+    je light_set_log_on_culled_go
+    mov edx, 0x1b6ad4
+    cmp eax, 1
+    je light_set_log_on_culled_go
+    ud2
+light_set_log_on_culled_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+light_set_log_on_culled_replay:
+    db 0x8b, 0x56, 0x04, 0x8b, 0xaa, 0x70, 0x41, 0x00, 0x00
+    jmp 0x1b6ad4
+
 ; 0x2747c3 read_squad_info (0x274720, the 0xA1 squad info handler) with its squad id kept (+1EAAA4h, 0x2747A8) and compared with 0 (the je at 0x2747CA reads the flags), at mov byte [ebx+1EAAACh],0: EBX the lobby client, ESI the message's reader (its cursor past the id: srp's two bytes there when the id is 0); both paths pass, a squad id of 0 (no squad) jumps over the members and the rest from here: lohook -> lobby_scene_on_squad_id
 global lobby_scene_on_squad_id
 extern hook_lobby_scene_on_squad_id

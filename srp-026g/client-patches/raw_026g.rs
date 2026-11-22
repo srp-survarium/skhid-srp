@@ -18527,6 +18527,24 @@ impl ResTexture {
     pub unsafe fn pool_format(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x40).cast::<u32>().as_ptr() }
     }
+
+    /// +0x8 (u8): not 0 once the texture's data is in (the probe filter 0x1B9345)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn ready(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x8).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x1b4 (u32): its shader resource view, 0 until made (the probe filter 0x1B934B)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn shader_view(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1b4).cast::<u32>().as_ptr() }
+    }
 }
 
 /// A vostok::render::baked_texture_resource (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -28382,6 +28400,114 @@ impl SceneView {
     pub unsafe fn probes_diffuse_intensity(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x290).cast::<f32>().as_ptr() }
     }
+
+    /// +0x16cf4 (ptr<vostok::render::probe_slot>): the environment probes the frustum culling found, a vector's begin; execute_stage drops the disabled, cubemap-less and occluded ones (0x1B6AF1, predicate 0x1B9320) and sorts the rest by radius (0x1B6B54), and stage_ambient_lighting draws them in that order
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn probes(self) -> Option<ProbeSlot> {
+        unsafe { self.0.byte_add(0x16cf4).cast::<Option<ProbeSlot>>().read_volatile() }
+    }
+
+    /// +0x16cf4 (ptr<vostok::render::probe_slot>): the environment probes the frustum culling found, a vector's begin; execute_stage drops the disabled, cubemap-less and occluded ones (0x1B6AF1, predicate 0x1B9320) and sorts the rest by radius (0x1B6B54), and stage_ambient_lighting draws them in that order
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_probes(self, value: Option<ProbeSlot>) {
+        unsafe { self.0.byte_add(0x16cf4).cast::<Option<ProbeSlot>>().write_volatile(value) }
+    }
+
+    /// +0x16cf8 (ptr<vostok::render::probe_slot>): its end (0x1B6AD4)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn probes_end(self) -> Option<ProbeSlot> {
+        unsafe { self.0.byte_add(0x16cf8).cast::<Option<ProbeSlot>>().read_volatile() }
+    }
+
+    /// +0x16cf8 (ptr<vostok::render::probe_slot>): its end (0x1B6AD4)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_probes_end(self, value: Option<ProbeSlot>) {
+        unsafe { self.0.byte_add(0x16cf8).cast::<Option<ProbeSlot>>().write_volatile(value) }
+    }
+
+    /// +0x1cd24 (ptr<vostok::render::ambient_light_slot>): the ambient lights the frustum culling found, a vector's begin; filter_and_sort_ambient_lights (0x1B7210) drops the disabled and occluded ones (predicate 0x1B9130)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn ambient_lights(self) -> Option<AmbientLightSlot> {
+        unsafe { self.0.byte_add(0x1cd24).cast::<Option<AmbientLightSlot>>().read_volatile() }
+    }
+
+    /// +0x1cd24 (ptr<vostok::render::ambient_light_slot>): the ambient lights the frustum culling found, a vector's begin; filter_and_sort_ambient_lights (0x1B7210) drops the disabled and occluded ones (predicate 0x1B9130)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_ambient_lights(self, value: Option<AmbientLightSlot>) {
+        unsafe { self.0.byte_add(0x1cd24).cast::<Option<AmbientLightSlot>>().write_volatile(value) }
+    }
+
+    /// +0x1cd28 (ptr<vostok::render::ambient_light_slot>): its end (0x1B7229)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn ambient_lights_end(self) -> Option<AmbientLightSlot> {
+        unsafe { self.0.byte_add(0x1cd28).cast::<Option<AmbientLightSlot>>().read_volatile() }
+    }
+
+    /// +0x1cd28 (ptr<vostok::render::ambient_light_slot>): its end (0x1B7229)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_ambient_lights_end(self, value: Option<AmbientLightSlot>) {
+        unsafe { self.0.byte_add(0x1cd28).cast::<Option<AmbientLightSlot>>().write_volatile(value) }
+    }
+
+    /// +0x14cdc (ptr<vostok::render::light_slot>): the point and spot lights the frustum culling found, a vector's begin: stage_lights::execute (0x193360) draws each that is enabled and, with hi-Z occlusion on, not occluded or waiting for a refresh (0x1934E0..0x19352C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn lights(self) -> Option<LightSlot> {
+        unsafe { self.0.byte_add(0x14cdc).cast::<Option<LightSlot>>().read_volatile() }
+    }
+
+    /// +0x14cdc (ptr<vostok::render::light_slot>): the point and spot lights the frustum culling found, a vector's begin: stage_lights::execute (0x193360) draws each that is enabled and, with hi-Z occlusion on, not occluded or waiting for a refresh (0x1934E0..0x19352C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_lights(self, value: Option<LightSlot>) {
+        unsafe { self.0.byte_add(0x14cdc).cast::<Option<LightSlot>>().write_volatile(value) }
+    }
+
+    /// +0x14ce0 (ptr<vostok::render::light_slot>): its end (0x193529 reads [edi+4], edi the begin's address)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn lights_end(self) -> Option<LightSlot> {
+        unsafe { self.0.byte_add(0x14ce0).cast::<Option<LightSlot>>().read_volatile() }
+    }
+
+    /// +0x14ce0 (ptr<vostok::render::light_slot>): its end (0x193529 reads [edi+4], edi the begin's address)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_lights_end(self, value: Option<LightSlot>) {
+        unsafe { self.0.byte_add(0x14ce0).cast::<Option<LightSlot>>().write_volatile(value) }
+    }
 }
 
 /// A vostok::render::environment_probe (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -28405,6 +28531,96 @@ impl EnvironmentProbe {
     #[inline(always)]
     pub unsafe fn diffuse_multiplier(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x328).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x20 (u8): its cubemap texture's name, a fixed_string<260>'s buffer (the constructor 0x1C2E70 points +14h and +18h at it); the probe's project names it by this texture
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn name(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x20).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x314 (f32): its location, float3 (renderer-026g.md 5.3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn location(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x314).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x320 (f32): the sort key of the draw order, largest first: the project's radius plus +380h (set_properties 0x1C370F..0x1C3732)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn radius(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x320).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x380 (f32): a number in [0, 0.1) from the probe's own address, the constructor's (0x1C2F30..0x1C2FA6: (this * 8088405h + 1) * 100000h's high dword / 2^20 * 0.1), which set_properties adds to the radius and the inner radius: probes of one radius draw in an order that differs from run to run, fixed within one
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn tie_break(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x380).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x339 (u8): the project's enabled (the filter 0x1B9332)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn enabled(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x339).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x36c (ptr<vostok::render::res_texture>): its cubemap (the filter 0x1B933B drops a probe without it ready)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn specular_cubemap(self) -> Option<ResTexture> {
+        unsafe { self.0.byte_add(0x36c).cast::<Option<ResTexture>>().read_volatile() }
+    }
+
+    /// +0x36c (ptr<vostok::render::res_texture>): its cubemap (the filter 0x1B933B drops a probe without it ready)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_specular_cubemap(self, value: Option<ResTexture>) {
+        unsafe { self.0.byte_add(0x36c).cast::<Option<ResTexture>>().write_volatile(value) }
+    }
+
+    /// +0x370 (ptr<vostok::render::res_texture>): its diffuse cubemap (the filter 0x1B9354 drops a probe without it ready)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn diffuse_cubemap(self) -> Option<ResTexture> {
+        unsafe { self.0.byte_add(0x370).cast::<Option<ResTexture>>().read_volatile() }
+    }
+
+    /// +0x370 (ptr<vostok::render::res_texture>): its diffuse cubemap (the filter 0x1B9354 drops a probe without it ready)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_diffuse_cubemap(self, value: Option<ResTexture>) {
+        unsafe { self.0.byte_add(0x370).cast::<Option<ResTexture>>().write_volatile(value) }
+    }
+
+    /// +0x384 (u8): the hi-Z occlusion's last answer (the constructor clears it, 0x1C2F6A; the filter 0x1B9376 drops an occluded probe while the option is on)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn occluded(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x384).cast::<u8>().as_ptr() }
     }
 }
 
@@ -33436,6 +33652,444 @@ impl TexturePoolSlotStorage {
     }
 }
 
+/// A vostok::render::stage_visibility (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StageVisibility(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl StageVisibility {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<vostok::render::renderer_context>): stage_visibility's renderer context (execute_stage 0x1B6A10 reads it at 0x1B6A6D and 0x1B6ACB, the frame's scene view at its +4170h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn context(self) -> Option<RendererContext> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<RendererContext>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::render::renderer_context>): stage_visibility's renderer context (execute_stage 0x1B6A10 reads it at 0x1B6A6D and 0x1B6ACB, the frame's scene view at its +4170h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_context(self, value: Option<RendererContext>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<RendererContext>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::probe_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ProbeSlot(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ProbeSlot {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::render::environment_probe>): one of the vector's probes
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn probe(self) -> Option<EnvironmentProbe> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<EnvironmentProbe>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::render::environment_probe>): one of the vector's probes
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_probe(self, value: Option<EnvironmentProbe>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<EnvironmentProbe>>().write_volatile(value) }
+    }
+
+    /// 0x4 bytes: a slot is the probe's pointer (the filter steps 4, 0x1B9384)
+    pub const SIZE: usize = 0x4;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::render::probe_slots (0x4 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct ProbeSlotStorage([u8; 0x4]);
+
+#[allow(dead_code)]
+impl ProbeSlotStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x4])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> ProbeSlot {
+        ProbeSlot(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<ProbeSlot> {
+        (!rooms.is_empty()).then(|| ProbeSlot(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::render::ambient_light_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AmbientLightSlot(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl AmbientLightSlot {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::render::ambient_light>): one of the vector's ambient lights
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn light(self) -> Option<AmbientLight> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<AmbientLight>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::render::ambient_light>): one of the vector's ambient lights
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_light(self, value: Option<AmbientLight>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<AmbientLight>>().write_volatile(value) }
+    }
+
+    /// 0x4 bytes: a slot is the light's pointer (the filter steps 4, 0x1B915F)
+    pub const SIZE: usize = 0x4;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::render::ambient_light_slots (0x4 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct AmbientLightSlotStorage([u8; 0x4]);
+
+#[allow(dead_code)]
+impl AmbientLightSlotStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x4])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> AmbientLightSlot {
+        AmbientLightSlot(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<AmbientLightSlot> {
+        (!rooms.is_empty()).then(|| AmbientLightSlot(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::render::light_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LightSlot(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl LightSlot {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::render::light>): one of the vector's lights
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn light(self) -> Option<Light> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<Light>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::render::light>): one of the vector's lights
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_light(self, value: Option<Light>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<Light>>().write_volatile(value) }
+    }
+
+    /// 0x4 bytes: a slot is the light's pointer (0x193526 add esi,4)
+    pub const SIZE: usize = 0x4;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::render::light_slots (0x4 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct LightSlotStorage([u8; 0x4]);
+
+#[allow(dead_code)]
+impl LightSlotStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x4])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> LightSlot {
+        LightSlot(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<LightSlot> {
+        (!rooms.is_empty()).then(|| LightSlot(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::render::ambient_light (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AmbientLight(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl AmbientLight {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x44 (f32): its location, float3 (renderer-026g.md 5.4)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn location(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x44).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x5c (f32): its intensity: up to 1 it multiplies the ambient, above 1 it adds (renderer-026g.md 5.4)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn intensity(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x5c).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x64 (f32): its radius (renderer-026g.md 5.4)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn radius(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x64).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x70 (u8): the project's enabled (the filter 0x1B9142)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn enabled(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x70).cast::<u8>().as_ptr() }
+    }
+
+    /// +0xa4 (u8): the hi-Z occlusion's last answer (the filter 0x1B9151 drops an occluded light while the option is on)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn occluded(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0xa4).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A vostok::render::light (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Light(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl Light {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x214 (f32): its position, float3 (renderer-026g.md 4.2)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn position(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x214).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x260 (f32): its range (renderer-026g.md 4.2)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn range(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x260).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x270 (u8): the hi-Z occlusion's last answer (stage_lights::execute 0x1934F0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn occluded(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x270).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x2a8 (u8): drawn once though occluded, then cleared (0x1934F9, 0x19351F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn refresh(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x2a8).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x2a9 (u8): 0: not drawn (0x193504)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn enabled(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x2a9).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A vostok::render::options_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OptionsSlot(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl OptionsSlot {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::render::options>): the render options
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn options(self) -> Option<Options> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<Options>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::render::options>): the render options
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_options(self, value: Option<Options>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<Options>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::options (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Options(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl Options {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x12d (u8): hi-Z occlusion culling on (0.10b: options::m_use_hiz_occlusion_culling): probes, ambient lights and lights it calls occluded are not drawn (0x1B936D, 0x1B9148, 0x1934E5)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn hiz_occlusion(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x12d).cast::<u8>().as_ptr() }
+    }
+}
+
 /// A survarium::bullet_manager_engine (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -34315,6 +34969,13 @@ pub mod image {
 
     /// 0xa16fac (u32, survarium::image): breath_state_holding's vtable (initialize_logic 0x31D4CF): +4h initialize 0x31D140, +0Ch finalize 0x31D190, +1Ch tick 0x31D200
     pub const BREATH_HOLDING_VTABLE: u32 = 0xa16fac;
+
+    /// 0x2260498 (obj<vostok::render::options_slot>, survarium::image): the render options' global (the probe filter 0x1B9328, stage_lights::execute 0x1934E0)
+    #[inline(always)]
+    pub fn render_options_global() -> OptionsSlot {
+        // SAFETY: an image VA, not 0.
+        OptionsSlot(unsafe { NonNull::new_unchecked(0x2260498 as *mut c_void) })
+    }
 }
 
 /// A general-purpose register at a hook's site.
@@ -41559,6 +42220,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<ProcessStreamingFrame> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(ProcessStreamingFrame)
+        }
+    }
+
+    /// stage_visibility.culled (0x1b6acb): stage_visibility::execute_stage once a frame after the frustum and hi-Z culling and gather_statistics (0x1B8730), before the probes' filter and sort (mov edx,[esi+4] / mov ebp,[edx+4170h]): ESI the stage; the scene view's probe, ambient light and light vectors hold what the frustum found, the occluded flags the last hi-Z answer
+    pub mod stage_visibility_culled {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::render::stage_visibility (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn stage(machine: &impl Machine) -> Option<StageVisibility> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(StageVisibility)
         }
     }
 }
