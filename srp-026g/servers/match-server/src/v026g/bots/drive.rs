@@ -2199,6 +2199,10 @@ fn drive_tick_inner(
                     if let Some(line) = bot.motor.take_held_line() {
                         bot.nav_log.push(super::nav_log::Kind::Jump, time, line);
                     }
+                    // [fix-lip] A hop kept off the route's drop.
+                    if let Some(line) = bot.motor.take_hop_line() {
+                        bot.nav_log.push(super::nav_log::Kind::Jump, time, line);
+                    }
                     // [press forecast] A forecast press made, or a try it spent, with its reason (decision-neutral).
                     if let Some(line) = bot.motor.take_cast_line() {
                         bot.nav_log.push(super::nav_log::Kind::Press, time, line);
