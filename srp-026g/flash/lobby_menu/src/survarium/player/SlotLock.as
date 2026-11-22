@@ -9,7 +9,8 @@ package survarium.player
    // A slot a skill closes shows the skills' red lock in its middle (the lock of a skill another
    // excludes, without the circle around it: the symbol's first child), with a tip over the slot:
    // the second weapon slot Deep Pockets or Supply Pocket closes, and the pocket a kit gave back
-   // for it (PerkSlotMark). A press on it calls its owner (switching the perk's slot), when given.
+   // for it (PerkSlotMark). A right click on it calls its owner (switching the perk's slot), when
+   // given.
    public class SlotLock
    {
 
@@ -111,7 +112,7 @@ package survarium.player
 
       private function onClick(event:MouseEvent) : void
       {
-         if(this._pressed != null)
+         if(this._pressed != null && PerkSlotMark.rightClick(event))
          {
             this._pressed();
          }

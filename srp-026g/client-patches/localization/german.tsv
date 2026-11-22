@@ -2761,9 +2761,9 @@ st_srp_loadout_sell_and	 und
 st_srp_loadout_sell_item	%1$s
 st_srp_loadout_sell_many	Wird in Loadout %1$s genutzt. Trotzdem verkaufen?
 st_srp_loadout_sell_one	Wird in Loadout %1$s genutzt. Trotzdem verkaufen?
-st_srp_loadout_slot_to_container	Klick: Artefaktbehälter
-st_srp_loadout_slot_to_pocket	Klick: Tasche
-st_srp_loadout_slot_to_weapon	Klick: zweite Waffe
+st_srp_loadout_slot_to_container	Rechtsklick: Artefaktbehälter
+st_srp_loadout_slot_to_pocket	Rechtsklick: Tasche
+st_srp_loadout_slot_to_weapon	Rechtsklick: zweite Waffe
 st_srp_loadout_title	Loadout
 st_srp_loadout_unfit	nicht spielbar
 st_srp_lobby_basement	Keller

@@ -481,7 +481,7 @@ package survarium.player
          return null;
       }
 
-      // A marked slot's own hover and left click, where it keeps the mouse (on Artifact
+      // A marked slot's own hover and right click, where it keeps the mouse (on Artifact
       // Container's container the mark takes them itself).
       private function onMarkedSlotOver(e:MouseEvent) : void
       {
@@ -503,9 +503,8 @@ package survarium.player
 
       private function onMarkedSlotClick(e:MouseEvent) : void
       {
-         var button:int = e is MouseEventEx ? int((e as MouseEventEx).buttonIdx) : MouseEventEx.LEFT_BUTTON;
          var mark:PerkSlotMark = this.markOf(e);
-         if(enabled && button == MouseEventEx.LEFT_BUTTON && mark != null)
+         if(enabled && PerkSlotMark.rightClick(e) && mark != null)
          {
             mark.slotClicked();
          }

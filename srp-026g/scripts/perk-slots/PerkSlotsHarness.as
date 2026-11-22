@@ -7,6 +7,7 @@ package {
  import flash.text.*;
  import flash.utils.*;
  // The perks' slots in the kit (docs/notes/artefact-skills.md, "The slot a pocket again, by kit"),
+ // switched by the right mouse button (a left click asks nothing),
  // with the lobby movie's own player panel (SrvLocalPlayerProfile) and paper doll: srp's `K` row of
  // the presets list (LocalPlayerProfile.presetsTake) for the kit shown, a perk each.
  // - Artifact Container: the mark on the first container as the container and on the last pocket
@@ -127,7 +128,9 @@ package {
    return red?area:null;
   }
   private function ask(perk:int,state:int):void {asked.push(perk+":"+state);}
-  private function clickOn(s:DisplayObject):void {var e:*=new (C("scaleform.gfx.MouseEventEx"))("click");e.buttonIdx=0;s.dispatchEvent(e);}
+  // A click as Scaleform gives it, of the left button (0) or the right one (1): the switch is
+  // the right one's (the owner, 2026-11-22: "lets make it so rmb switches not lmb").
+  private function clickOn(s:Object,button:int=1):void {var e:*=new (C("scaleform.gfx.MouseEventEx"))("click");e.buttonIdx=button;s.dispatchEvent(e);}
   private function label(b:BitmapData,text:String,x:Number,y:Number):void {
    var t:TextField=new TextField();t.defaultTextFormat=new TextFormat("_sans",14,0xC8D0D6);t.autoSize=TextFieldAutoSize.LEFT;t.text=text;
    b.draw(t,new Matrix(1,0,0,1,x,y));
@@ -192,12 +195,15 @@ package {
       trace("PERK container: "+m.visible+" on "+(m.slot?m.slot.name:null)+", "+int(m.width)+" x "+int(m.height));
       check(on(m,slot(4)),"as the container: on the first container, slot 4");
       check(m.shown==Mark.TAKEN && m.mouseEnabled,"as the container the mark takes the mouse (the slot is locked)");
-      check(hint(m)=="Click: pocket","the hint as the container: "+hint(m));
+      check(hint(m)=="Right-click: pocket","the hint as the container: "+hint(m));
       check(!wm.visible,"no weapon perk: no mark");
-      // A click: the pocket shown at once and asked for, once while it waits.
+      // A left click does nothing here; a right click: the pocket shown at once and asked for,
+      // once while it waits.
       doll.perkSlots(2,[1,0],ask);
-      m.dispatchEvent(new MouseEvent(MouseEvent.CLICK,true,false,10,10));
-      m.dispatchEvent(new MouseEvent(MouseEvent.CLICK,true,false,10,10));
+      clickOn(m,0);
+      check(asked.length==0,"the container's left click asks nothing: "+asked);
+      clickOn(m);
+      clickOn(m);
       check(asked.join()=="0:2","a click asks for the pocket, once while it waits: "+asked);
       check(m.shown==Mark.DECLINED,"the pocket shown at once");
       // An older list on its way says the container still: nothing changes.
@@ -215,7 +221,7 @@ package {
       check(on(m,slot(4)),"as the pocket: on the last pocket, slot 4");
       check(!m.mouseEnabled,"as the pocket the slot keeps the mouse (drops, its item)");
       slot(4).dispatchEvent(new MouseEvent(MouseEvent.ROLL_OVER));
-      check(hint(m)=="Click: artifact container","the hint as the pocket: "+hint(m));
+      check(hint(m)=="Right-click: artifact container","the hint as the pocket: "+hint(m));
       slot(4).dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
       doll.perkSlots(2,[2,0],ask);asked.length=0;
       clickOn(slot(3));
@@ -225,8 +231,10 @@ package {
       clickOn(slot(4));
       check(asked.length==0,"a pocket holding an item keeps it: "+asked);
       m.place(slot(4),false);
+      clickOn(slot(4),0);
+      check(asked.length==0,"the empty pocket's left click is the slot's own: "+asked);
       clickOn(slot(4));
-      check(asked.join()=="0:1","the empty pocket's click asks for the container: "+asked);
+      check(asked.join()=="0:1","the empty pocket's right click asks for the container: "+asked);
       list("K;1:1:0,2:1:0,3:0:0");kit(2,3,1);
       break;
      case 4:
@@ -253,13 +261,15 @@ package {
       check(on(wm,slot(2)),"taken: the yellow on the pocket it adds, slot 2");
       check(!doll.getSlotAt(WEAPON_2).enabled,"taken: the second weapon slot closed");
       var lock:Object=lockOn(weaponSlot());
-      check(lock!=null && String(lock.tipData.name).indexOf("Click: second weapon")>=0,"taken: the red lock on the second weapon slot, its hint: "+(lock?lock.tipData.name:null));
+      check(lock!=null && String(lock.tipData.name).indexOf("Right-click: second weapon")>=0,"taken: the red lock on the second weapon slot, its hint: "+(lock?lock.tipData.name:null));
       // A press on the red lock, a medkit in the yellow pocket: the second weapon at once, asked
       // for once; the medkit goes back, its slot shaken.
       wm.place(slot(2),true);
       shaken=slot(2);shakenX=slot(2).x;shakenMost=0;
-      lock.dispatchEvent(new MouseEvent(MouseEvent.CLICK,true));
-      lock.dispatchEvent(new MouseEvent(MouseEvent.CLICK,true));
+      clickOn(lock,0);
+      check(asked.length==0,"the red lock's left click asks nothing: "+asked);
+      clickOn(lock);
+      clickOn(lock);
       check(asked.join()=="1:2","the red lock's click asks for the second weapon, once: "+asked);
       check(wm.shown==Mark.DECLINED,"the second weapon shown at once");
       break;
@@ -285,7 +295,8 @@ package {
      case 11:
       check(lockOn(slot(2))!=null && slot(2).visible,"the closed pocket shown, red, after the pockets");
       check(shaken.x==shakenX,"the shaken slot back where it rests");
-      // The open second weapon slot keeps its own click: empty or not, nothing asked.
+      // The open second weapon slot keeps its own clicks: empty or not, nothing asked.
+      clickOn(weaponSlot(),0);
       clickOn(weaponSlot());
       check(asked.length==0,"the empty second weapon slot's click asks nothing: "+asked);
       wm.place(weaponSlot(),true);
@@ -293,7 +304,7 @@ package {
       check(asked.length==0,"a weapon slot holding a weapon keeps it: "+asked);
       wm.place(weaponSlot(),false);
       // The red pocket's click takes the perk again.
-      lockOn(slot(2)).dispatchEvent(new MouseEvent(MouseEvent.CLICK,true));
+      clickOn(lockOn(slot(2)));
       check(asked.join()=="1:1","the red pocket's click asks for the pocket: "+asked);
       kit(2,2,0);list("K;1:0:1,2:0:1,3:0:1");
       break;

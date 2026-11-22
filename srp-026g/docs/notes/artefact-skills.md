@@ -275,16 +275,16 @@ chooses each.
   (becomes red as in when item is blocked)"):
   - taken (the default): the pocket it adds, the last pocket, has the yellow soft edge (glowing
     from the bottom, a pocket's); the second weapon slot shows the red lock it always had
-    (`SlotLock`, the skills' `SkillLockSpriteRed`; its tip the skill's name, then "Click: second
-    weapon", `st_srp_loadout_slot_to_weapon`);
+    (`SlotLock`, the skills' `SkillLockSpriteRed`; its tip the skill's name, then "Right-click:
+    second weapon", `st_srp_loadout_slot_to_weapon`);
   - declined: the second weapon slot is open and has the yellow soft edge (all round); the pocket
     is closed with the same red lock, shown where the next quick place is after the pockets and
-    containers (where the pocket was, without containers), its tip "Click: pocket";
-  - a click on either red lock switches (its slot is empty); a click on the yellow pocket switches
-    while it holds nothing (an item keeps its own click); the open second weapon slot keeps its
-    own click always, empty or not (the owner, 2026-11-22: he described only the pocket's click
-    opening the weapon slot; an empty weapon slot's click lists the weapons, and switching it back
-    would close it), so a kit takes the perk again from the red pocket. With Artifact Container
+    containers (where the pocket was, without containers), its tip "Right-click: pocket";
+  - a right click on either red lock switches (its slot is empty); a right click on the yellow
+    pocket switches while it holds nothing (on an item it opens the item's menu, as on any slot);
+    the open second weapon slot never switches, empty or not (the owner, 2026-11-22: he described
+    only the pocket's click opening the weapon slot), so a kit takes the perk again from the red
+    pocket. With Artifact Container
     too, its pocket is the one before the weapon perk's.
   - **A switch that sends an item back** (a red lock pressed while the yellow slot holds one; the
     owner, 2026-11-22: keep it so, "i wish there was some good sound design to say that, or maybe
@@ -299,15 +299,21 @@ chooses each.
   - The movie reads the counts as srp's answer will make them while a click is asked
     (`PerkSlotMark.pocketShift`), so neither the yellow nor the red moves when the account
     comes.
+- **The switch is the right mouse button** (the owner, 2026-11-22: "lets make it so rmb switches
+  not lmb"), on every perk's slot and red lock: the left click does what the slot always did (the
+  shop's filter, an item chosen, a drag). The lobby takes a right click on a slot only for the
+  menu of the item in it (`LocalPaperDoll.onMouseItemClick`, Scaleform's `MouseEventEx.buttonIdx`
+  of the click the exe hands the movie), and a slot that holds an item never switches, so the two
+  never meet.
 - **A switch is a cross-fade**, about 130 ms eased, the hover's too, run on the movie's frames.
   A click shows the other state's look at once and asks srp; the mark stays on its slot until
   srp's answer (the account, whose new pocket count comes first, then the `K` row); a list that
   was on its way says the old state and changes nothing meanwhile; no answer in 3 s shows srp's
   last word again. The slot's own stock frame and label change when the account comes.
-- **Its hint**, the game's tooltip: "Click: pocket" / "Click: artifact container"
-  (`st_srp_loadout_slot_to_pocket`, `_to_container`). A click on the container makes it the
-  pocket; a click on the empty pocket makes it the container; a click on the pocket holding an
-  item is the item's, as any pocket's (the owner's pick of 2026-11-22: empty it first, so a stray
+- **Its hint**, the game's tooltip: "Right-click: pocket" / "Right-click: artifact container"
+  (`st_srp_loadout_slot_to_pocket`, `_to_container`). A right click on the container makes it the
+  pocket; a right click on the empty pocket makes it the container; on the pocket holding an
+  item it is the item's, as any pocket's (the owner's pick of 2026-11-22: empty it first, so a stray
   click never moves an item). One ask at a time. Checked in Ruffle:
   `scripts/perk-slots/check.sh` (its zoom.png, Artifact Container's slot before and after; its
   weapon.png, the weapon perk's slots before and after).

@@ -12,6 +12,7 @@ package survarium.player
    import flash.geom.Rectangle;
    import flash.utils.getTimer;
    import scaleform.clik.core.UIComponent;
+   import scaleform.gfx.MouseEventEx;
    import survarium.constants.UiSound;
    import survarium.data.LocalizationData;
    import survarium.rooms.RoomsLook;
@@ -35,6 +36,10 @@ package survarium.player
    //   the yellow slot held comes off the kit (it stays owned): the item goes back with a sound and
    //   a shake of its slot (DISPLACED, the paper doll's; the owner: "some good sound design to say
    //   that, or maybe some shaking").
+   // - The switch is the right mouse button (the owner, 2026-11-22: "lets make it so rmb switches
+   //   not lmb"): the left one does what the slot always did (the shop, an item chosen, a drag).
+   //   A right click on a slot holding an item is its menu (LocalPaperDoll.onMouseItemClick),
+   //   where no switch is made either.
    // - A click shows the other look at once (a cross-fade) and asks srp. Until srp's answer (the
    //   account, whose counts come first, then the `K` row) the paper doll counts the pockets as they
    //   will be (pocketShift), so nothing jumps.
@@ -244,7 +249,16 @@ package survarium.player
 
       private function onClick(e:MouseEvent) : void
       {
-         this.clicked(false);
+         if(rightClick(e))
+         {
+            this.clicked(false);
+         }
+      }
+
+      // Whether a click is the right button's (Scaleform's own events say which).
+      public static function rightClick(e:MouseEvent) : Boolean
+      {
+         return e is MouseEventEx && (e as MouseEventEx).buttonIdx == MouseEventEx.RIGHT_BUTTON;
       }
 
       private function onOver(e:MouseEvent) : void
