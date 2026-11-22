@@ -1225,6 +1225,12 @@ impl Tactics {
     /// (`crossing::wanted`). Not when it gets there with them shut too (the
     /// plain search failed for something else), nor when it does not with
     /// them open. A few thousand regions at most, twice.
+    ///
+    /// A goal whose own floor such a zone marks is not reached with them shut, however near: the plain search refuses that
+    /// floor as any other, while the walk over the regions lets the goal's region in whatever its floors (Chemical Plant's
+    /// battery 0, match 1f52a49c of 2026-11-22: from the dry edge 5 m off, every take of the team ended "no way to its
+    /// goal", "the regions rule it out", no crossing's search asked, while that search finds a 5.7 m way).
+    /// Then only a crossing that may walk the goal's floor (`open`) gets there.
     pub fn only_across_fixed(
         &self,
         from: NodeId,
@@ -1255,8 +1261,11 @@ impl Tactics {
             }
             false
         };
-        !reach(&|middle| !self.hazards.fixed_at(middle))
-            && reach(&|middle| !self.hazards.fixed_at(middle) || open(middle))
+        let opened = |middle: NodeId| !self.hazards.fixed_at(middle) || open(middle);
+        if self.hazards.fixed_at(to) {
+            return open(to) && reach(&opened);
+        }
+        !reach(&|middle| !self.hazards.fixed_at(middle)) && reach(&opened)
     }
 
     /// Whether `point` is in a spawn area of `side` (any side if `None`).

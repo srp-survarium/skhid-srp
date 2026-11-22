@@ -705,6 +705,29 @@ pub(crate) mod tests {
         assert!(crossed.is_some(), "from the zone floor the crossing's search finds the way");
     }
 
+    /// A goal on a zone's floor (a battery lying in a zone on all match) from the dry floor by the zone: the plain search
+    /// refuses the goal's floor, so the crossing's search is asked and finds the way in; too hurt to bear the zone's
+    /// floor, no search, as before. Chemical Plant's battery 0 (match 1f52a49c): every take ended "no way to its goal" there.
+    #[test]
+    fn a_goal_on_a_zone_floor_asks_the_crossings_search_from_the_dry_floor_by_it() {
+        let weak = tactics(0.04, 0.0);
+        let grid = &weak.world.grid;
+        let (edge, goal) = (Vec3::new(35.5, 0.0, 32.5), Vec3::new(40.0, 0.0, 32.5));
+        let (from, to) = (grid.locate(edge, 1.5).unwrap(), grid.locate(goal, 1.5).unwrap());
+        assert!(weak.hazards.only_fixed_at(to) && !weak.hazards.fixed_at(from), "a dry edge, the goal on the zone's floor");
+        let plain = weak.route_nodes(from, to, 0, Some(0), false, &RouteFilter::open());
+        assert!(plain.is_none(), "the plain search refuses the goal's floor");
+        assert!(wanted(&weak, None, from, to, Some(0), false, &fixture(1.0)));
+        let mut iters = usize::MAX;
+        let Ok(crossed) = start(&weak, from, to, 0, Some(0), false, &fixture(1.0), &RouteFilter::open(), &mut iters) else {
+            panic!("an unbounded search ends");
+        };
+        let crossed = crossed.expect("the crossing's search finds the way in");
+        assert!(crossed.end().distance_xz(goal) < 1.0, "{:?}", crossed.end());
+        // A body that may not walk the goal's floor (`crossable`): no search, as before.
+        assert!(!wanted(&weak, None, from, to, Some(0), false, &fixture(0.2)));
+    }
+
     /// The gate reads the client's rate, the interval included: a continuous zone of 0.8 a second raw whose interval is 500 ms
     /// takes 1.6 a second (Vector Laboratory's `death_damage_zone`), more than the walk across its thinnest bears; the
     /// same hit every 1000 ms is borne.
