@@ -43,6 +43,8 @@ pub mod clip_tree;
 pub mod concede;
 pub mod contact;
 pub mod control;
+#[cfg(test)]
+pub(crate) mod cpu_time;
 pub mod crossing;
 pub mod curve;
 pub mod dead_links;
@@ -119,6 +121,8 @@ pub mod worth;
 pub mod zone_cost;
 pub mod zone_search;
 
+#[cfg(test)]
+pub(crate) mod bench_cpu;
 #[cfg(test)]
 pub mod bench_work;
 mod commander;
@@ -2672,14 +2676,17 @@ impl Bots {
         ));
         // [A388] The kept controllers' CPU: their steps on this server since the last match's end (every match on it), and the
         // time a step took.
-        let (steps, ns) = body::kept_clock::take(body::kept_clock::Of::Reckoning);
-        let (forecast_steps, forecast_ns) = body::kept_clock::take(body::kept_clock::Of::Forecast);
+        let reckoning = body::kept_clock::take(body::kept_clock::Of::Reckoning);
+        let forecast = body::kept_clock::take(body::kept_clock::Of::Forecast);
         // [press forecast] Its ground chains and flights (`body::press_forecast`), last on the line so the parts before keep their place.
-        let (press_steps, press_ns) = body::kept_clock::take(body::kept_clock::Of::Press);
+        let press = body::kept_clock::take(body::kept_clock::Of::Press);
+        let (steps, ns) = (reckoning.steps, reckoning.ns);
+        let (forecast_steps, forecast_ns) = (forecast.steps, forecast.ns);
+        let (press_steps, press_ns) = (press.steps, press.ns);
         let (chains, flights) = motor::press_casts::take_match();
         let (left, ground, held) = body::kept_edges::take();
         lines.push(format!(
-            "{}kept controller steps since the last match end (every match on this server): the reckoning's {steps}, {} ns a step, {:.1} ms in all; the lip guard forecast's {forecast_steps}, {} ns a step, {:.1} ms in all; the reckoning's off the ground {}: left the floor {left}, the walker's ground under the feet {ground}, no floor under them {held}; the press forecast's {press_steps}, {} ns a step, {:.1} ms in all, in {chains} chains and {flights} flights",
+            "{}kept controller steps since the last match end (every match on this server): the reckoning's {steps}, {} ns a step, {:.1} ms in all; the lip guard forecast's {forecast_steps}, {} ns a step, {:.1} ms in all; the reckoning's off the ground {}: left the floor {left}, the walker's ground under the feet {ground}, no floor under them {held}; the press forecast's {press_steps}, {} ns a step, {:.1} ms in all, in {chains} chains and {flights} flights; controllers made anew (no kept one at the feet): the reckoning's {}, the lip guard forecast's {}, the press forecast's {}",
             nav_log::PREFIX,
             ns.checked_div(steps).unwrap_or(0),
             ns as f64 / 1e6,
@@ -2687,7 +2694,23 @@ impl Bots {
             forecast_ns as f64 / 1e6,
             left + ground + held,
             press_ns.checked_div(press_steps).unwrap_or(0),
-            press_ns as f64 / 1e6
+            press_ns as f64 / 1e6,
+            reckoning.anew,
+            forecast.anew,
+            press.anew,
+        ));
+        // [CPU] In the bench: the same steps on the thread's CPU (`cpu_time`: without the time the thread waited for a core, which
+        // the wall time above counts on a loaded machine).
+        #[cfg(test)]
+        lines.push(format!(
+            "{}kept controller steps on the thread's CPU since the last match end (every match on this server): the reckoning's {:.1} ms, {} ns a step; the lip guard forecast's {:.1} ms, {} ns a step; the press forecast's {:.1} ms, {} ns a step",
+            nav_log::PREFIX,
+            reckoning.cpu_ns as f64 / 1e6,
+            reckoning.cpu_ns.checked_div(reckoning.steps).unwrap_or(0),
+            forecast.cpu_ns as f64 / 1e6,
+            forecast.cpu_ns.checked_div(forecast.steps).unwrap_or(0),
+            press.cpu_ns as f64 / 1e6,
+            press.cpu_ns.checked_div(press.steps).unwrap_or(0),
         ));
         // [A388 step 3] The reckoning's jump presses by what flew them, and how the client's flights ended.
         let [short, sprint, not_forward, landed, falling] = body::flown_jumps::take();
@@ -3239,7 +3262,12 @@ impl Bots {
         let think = &self.tunings.match_wide().think;
         let (queue, floors) = (think.search_queue, think.search_floors_per_poll as usize);
         self.features.searching.new_poll(queue, floors, search::living(&self.bots, view));
+        // [CPU] The bench's split of a poll (`bench_cpu`): the queue's slices. Timing only.
+        #[cfg(test)]
+        let queue_span = bench_cpu::Span::begin();
         self.go_on_searching();
+        #[cfg(test)]
+        queue_span.end(bench_cpu::Part::Queue);
         let mut to_go = [0usize; 2];
         for bot in self.bots.iter().flatten() {
             to_go[usize::from(bot.team & 1)] += 1;
@@ -3260,7 +3288,11 @@ impl Bots {
         #[cfg(test)]
         bench_work::set(bench_work::Who::Shared);
         if self.features.searching.goes_on_at_poll_end() {
+            #[cfg(test)]
+            let queue_span = bench_cpu::Span::begin();
             self.go_on_searching();
+            #[cfg(test)]
+            queue_span.end(bench_cpu::Part::Queue);
         }
         #[cfg(test)]
         self.features.searching.count_idle();

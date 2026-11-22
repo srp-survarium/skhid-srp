@@ -38,6 +38,9 @@ impl Bots {
         if !schedule(bot, &tuning, now) {
             return;
         }
+        // [CPU] The bench's split of a poll (`bench_cpu`): a think that is due, to its end. Timing only.
+        #[cfg(test)]
+        let _cpu = super::bench_cpu::Guard::begin(super::bench_cpu::Part::Think);
         // The sights it tests now are held to this think's next.
         bot.memory.set_next_think(bot.next_think);
         bot.memory
@@ -219,7 +222,12 @@ impl Bots {
                         bot.reckoned_creep = at.creep;
                         bot.reckoned_kept = at.kept;
                         bot.reckoned = Some((at, self.tracker.body(bot.place).map_or(1.0, |body| body.level())));
+                        // [CPU] The bench's split of the ticks' time (`bench_cpu`): timing only.
+                        #[cfg(test)]
+                        let drive_span = super::bench_cpu::Span::begin();
                         let decision = drive_tick(bot, &me, view, tactics, &tuning, time, searching, press);
+                        #[cfg(test)]
+                        drive_span.end(super::bench_cpu::Part::Drive);
                         #[cfg(test)]
                         if let Some(life) = bot.bench_life.as_mut() {
                             life.drove(time, path::take_last_no_route());
@@ -280,6 +288,8 @@ impl Bots {
                 bot.reflex.held_gun().aim_ms,
                 bot.stamina.low(),
             );
+            #[cfg(test)]
+            let input_span = super::bench_cpu::Span::begin();
             self.tracker.input(
                 bot.place,
                 time,
@@ -289,6 +299,8 @@ impl Bots {
                 &tuning.kin,
                 world.as_deref(),
             );
+            #[cfg(test)]
+            input_span.end(super::bench_cpu::Part::Input);
             #[cfg(test)]
             if keys & (key::FORWARD | key::BACK | key::LEFT | key::RIGHT) != 0
                 && let Some(life) = bot.bench_life.take()

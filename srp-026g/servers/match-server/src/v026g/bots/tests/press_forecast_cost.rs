@@ -80,7 +80,7 @@ fn press_forecast_cost_on_a_real_map() {
             }
         }
         let ns = started.elapsed().as_nanos() as f64;
-        let (steps, step_ns) = kept_clock::take(kept_clock::Of::Press);
+        let kept_clock::Counted { steps, ns: step_ns, .. } = kept_clock::take(kept_clock::Of::Press);
         eprintln!(
             "PRESS REAL COST round {round}: {forecasts} forecasts, {:.3} ms a forecast (the loop), {steps} controller steps, {:.1} a forecast, {} ns a step (the press clock)",
             ns / 1e6 / f64::from(forecasts),
@@ -113,7 +113,7 @@ fn press_forecast_cost_on_a_real_map() {
                 }
             }
         }
-        let (steps, step_ns) = kept_clock::take(kept_clock::Of::Reckoning);
+        let kept_clock::Counted { steps, ns: step_ns, .. } = kept_clock::take(kept_clock::Of::Reckoning);
         eprintln!(
             "PRESS REAL RECKONING round {round}: {steps} controller steps, {} ns a step (the reckoning's clock, same ticks)",
             step_ns.checked_div(steps).unwrap_or(0)

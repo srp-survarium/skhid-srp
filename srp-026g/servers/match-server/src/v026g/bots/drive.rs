@@ -2495,7 +2495,12 @@ fn drive_tick_inner(
     // go for one that stops on the floor, unless the route drops there. Every unplanned fall of the bench was
     // off a lip (`WalkGrid::near_lip`), with the body's keys pushing it over or its glide carrying it.
     let lift_stepped = decision.keys & lift_wants == lift_wants;
+    // [CPU] The bench's split of the ticks' time (`bench_cpu`): timing only.
+    #[cfg(test)]
+    let lip_span = super::bench_cpu::Span::begin();
     guard_keys(bot, &mut decision, me, tactics, tuning, time);
+    #[cfg(test)]
+    lip_span.end(super::bench_cpu::Part::LipGuard);
     // [#2081] The own-trap guard, the last say on the move keys: no step ends within contact of a known own trap (or one it noticed)
     // unless it moves away from it (`traps::own_trap_guard`); its replacement keys pass the lip guard's test too.
     let lip_ok = lip_ok_of(bot, me, tactics, tuning, decision.turn.0);
