@@ -5,7 +5,6 @@ Skhid wiki	Wiki Skhid
 Modes	Režimy
 Every mode: its rules, numbers and maps.	Každý režim: pravidla, čísla a mapy.
 Versions	Varianty
-Public and private rooms	Veřejné i soukromé místnosti
 Public rooms only	Jen veřejné místnosti
 Private rooms only	Jen soukromé místnosti
 Not offered now	Nyní se nenabízí
@@ -58,7 +57,6 @@ Level bands: {0}.	Rozsahy úrovní: {0}.
 A room draws bands up to its level.	Místnost losuje rozsahy do své úrovně.
 Each kit a gun of another class, with random bonuses and attachments.	V každé sadě zbraň jiné třídy, s náhodnými bonusy a doplňky.
 {0} % of deals: pistols only.	{0} % rozdání: jen pistole.
-Nothing of yours is used or spent.	Nic vašeho se nepoužije ani nespotřebuje.
 Plain FFA: {0} % of FFA cards.	Obyčejné FFA: {0} % karet FFA.
 {0} % of FFA cards.	{0} % karet FFA.
 FFA: Roulette	FFA: Ruleta
