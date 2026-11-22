@@ -1,7 +1,471 @@
-# The site's own words in German (README.md here): English as in the code, German. A text without a row is shown in English.
+# The site's own words in German (README.md here): English as in the code, German, a context if any.
+Head	Kopf
+Face	Gesicht
+Chest	Brust
+Back	Rücken
+Arms	Arme
+Hands	Hände
+Legs	Beine
+Feet	Füße
+Bullets	Kugeln
+Melee	Nahkampf
+Explosions	Explosionen
+Fire	Feuer
+Radiation	Strahlung
+Electricity	Elektrizität
+Toxins	Gifte
+Armour	Rüstung
+Isolation	Isolierung
+Protection	Schutz
+Level	Stufe
+Faction	Fraktion
+Matchmaking level	Matchmaking-Stufe
+Also takes	Belegt auch
+Oxygen	Sauerstoff
+Gas filter	Gasfilter
+{0}: hits up to {1} stopped, the rest ×{2}	{0}: Treffer bis {1} abgewehrt, der Rest ×{2}
+Fatal headshot	Tödlicher Kopftreffer
+flies off	fliegt weg
+About it	Beschreibung
+premium	Premium
+level	Stufe
+Weight	Gewicht
+Details	Details
+Its modifiers	Seine Modifikatoren
+Slot	Slot
+All	Alle
+Find	Suchen
+Search by name…	Nach Name suchen…
+All factions	Alle Fraktionen
+Level from	Stufe von
+to	bis
+Sort by	Sortieren nach
+Name	Name
+Weight: low to high	Gewicht: aufsteigend
+Armour: high to low	Rüstung: absteigend
+Isolation: high to low	Isolierung: absteigend
+Group	Gruppieren
+No groups	Keine Gruppen
+By set	Nach Set
+By slot	Nach Slot
 Wiki	Wiki
+Equipment	Ausrüstung
+Equipment reference	Ausrüstungsübersicht
+pieces	Teile
+Nothing matches.	Keine Treffer.
+Stats	Statistik
+Public matches	Öffentliche Matches
+The stats need JavaScript.	Die Statistik braucht JavaScript.
+Skhid	Skhid
+mode {0}	Modus {0}
+No match is being played now.	Gerade läuft kein Match.
+waiting	wartet
+starting	startet
+just now	gerade eben
+{minutes} min ago	vor {minutes} min
+&le; {minutes} min	&le; {minutes} min
+{0} v {1}	{0} gegen {1}
+and {more} more	und {more} weitere
+Match	Match
+Players	Spieler
+Started	Beginn
+Time left	Restzeit
+Score	Punktestand
+No battle has been fought yet. Be the first.	Noch wurde kein Kampf ausgetragen. Sei der Erste.
+Player	Spieler
+Rating	Wertung
+online	online
+rooms	Räume
+in rooms	in Räumen
+matches now	Matches gerade
+players	Spieler
+battles fought	Kämpfe ausgetragen
+clans	Klans
+Maintenance: the server is down	Wartung: Der Server ist offline
+Maintenance in {minutes} min	Wartung in {minutes} min
+On the server now	Gerade auf dem Server
+Since the server opened	Seit der Eröffnung des Servers
+TEST SERVER	TESTSERVER
+Unofficial community server. Not affiliated with or endorsed by Vostok Games. Survarium is a trademark of its owners. An early test: accounts and progress can be reset at any time.	Inoffizieller Community-Server. Nicht mit Vostok Games verbunden oder von Vostok Games unterstützt. Survarium ist eine Marke ihrer Inhaber. Früher Test: Konten und Fortschritt können jederzeit zurückgesetzt werden.
+Top 10 players	Top 10 Spieler
+Matches now	Laufende Matches
+Skhid &middot; Survarium <i>0.26g</i> community server	Skhid &middot; Community-Server für Survarium <i>0.26g</i>
+Legal notice	Rechtliche Hinweise
+Not found.	Nicht gefunden.
+Too many wrong tokens; wait a minute.	Zu viele falsche Tokens; warte eine Minute.
+Wrong token.	Falsches Token.
+No such user.	Diesen Benutzer gibt es nicht.
+Silver and gold are whole numbers, + or -, or empty.	Silber und Gold sind ganze Zahlen, + oder -, oder leer.
+{user}: now {silver_now} silver and {gold_now} gold.	{user}: jetzt {silver_now} Silber und {gold_now} Gold.
+New accounts are taken again.	Neue Konten werden wieder angenommen.
+New accounts are refused; existing players sign in as before.	Neue Konten werden abgelehnt; bestehende Spieler melden sich wie bisher an.
+Maintenance cancelled.	Wartung abgesagt.
+No maintenance was planned.	Es war keine Wartung geplant.
+Minutes: a whole number from 1 to {MAX_MAINTENANCE_MINUTES}.	Minuten: eine ganze Zahl von 1 bis {MAX_MAINTENANCE_MINUTES}.
+Maintenance starts in {minutes} min, at {0} UTC.	Die Wartung beginnt in {minutes} min, um {0} UTC.
+for {hours} h	für {hours} Std.
+for good	dauerhaft
+Address {net} banned {how_long}; {kicked} session(s) ended.	Adresse {net} {how_long} gesperrt; beendete Sitzungen: {kicked}.
+No such user or address. A name several accounts share needs the user name they sign in with.	Kein solcher Benutzer und keine solche Adresse. Teilen sich mehrere Konten einen Namen, gib den Anmeldenamen an.
+{target} banned {how_long}; {kicked} session(s) ended.	{target} {how_long} gesperrt; beendete Sitzungen: {kicked}.
+ Its address {net} too ({more} more session(s) ended).	 Auch seine Adresse {net} (weitere beendete Sitzungen: {more}).
+ Its address is not known, so no address was banned.	 Seine Adresse ist unbekannt, daher wurde keine Adresse gesperrt.
+Address {net} unbanned.	Adresse {net} entsperrt.
+{net} was not banned (a range is lifted as it was banned).	{net} war nicht gesperrt (ein Bereich wird so entsperrt, wie er gesperrt wurde).
+No such user or address.	Kein solcher Benutzer und keine solche Adresse.
+{target} unbanned.	{target} entsperrt.
+{target} was not banned.	{target} war nicht gesperrt.
+ Its address {ip} too.	 Auch seine Adresse {ip}.
+The players' server:	Der Server für Spieler:
+Test server.	Testserver.
+Changes are tried here before they reach the players: it can restart at any moment, and accounts and progress here can be reset.	Hier werden Änderungen erprobt, bevor sie die Spieler erreichen: Der Server kann jederzeit neu starten, und Konten und Fortschritt hier können zurückgesetzt werden.
+Damage calculator	Schadensrechner
 Maps	Karten
+TEST	TEST
+Home	Startseite
+Community server, unofficial. Not affiliated with or endorsed by Vostok Games. Survarium is a trademark of its owners.	Inoffizieller Community-Server. Nicht mit Vostok Games verbunden oder von Vostok Games unterstützt. Survarium ist eine Marke ihrer Inhaber.
+“Game files removed by antivirus: …”	„Spieldateien vom Virenschutz entfernt: …“
+Run <code>Skhid-defender-setup.cmd</code>.	Starte <code>Skhid-defender-setup.cmd</code>.
+“Download failed: …”	„Download fehlgeschlagen: …“
+Start <code>Skhid.bat</code> again. Still failing? Run <code>Skhid-without-updater.bat</code>: it downloads the game and its updates without the launcher, then starts it.	Starte <code>Skhid.bat</code> erneut. Klappt es immer noch nicht? Starte <code>Skhid-without-updater.bat</code>: Es lädt das Spiel und seine Updates ohne den Launcher herunter und startet es dann.
+“No connection: …”	„Keine Verbindung: …“
+Run <code>Skhid-network-setup.cmd</code>.	Starte <code>Skhid-network-setup.cmd</code>.
+“Blocked on this network: …”	„In diesem Netzwerk gesperrt: …“
+Your provider blocks our server. The launcher has already switched to our relay, a way around the block (<b>Relay: auto</b>, bottom left). Just press <b>Retry</b>.	Dein Anbieter sperrt unseren Server. Der Launcher ist schon auf unser Relay umgestiegen, einen Weg um die Sperre herum (<b>Relay: auto</b>, unten links). Drück einfach <b>Wiederholen</b>.
+Nothing works.	Nichts funktioniert.
+Run <code>Skhid-collect-logs.cmd</code> and send the zip it makes to us on Discord: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.	Starte <code>Skhid-collect-logs.cmd</code> und schick uns die ZIP-Datei, die es erstellt, auf Discord: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.
+Q:	F:
+A:	A:
+If something goes wrong	Wenn etwas schiefgeht
+Download the files	Dateien herunterladen
+Download the game	Spiel herunterladen
+The download link is coming soon.	Der Download-Link kommt bald.
+Can't download? Run {script}: it downloads the whole game into a Survarium folder beside it.	Download klappt nicht? Starte {script}: Es lädt das ganze Spiel in einen Survarium-Ordner daneben herunter.
+Get the game	Spiel besorgen
+The link is coming soon.	Der Link kommt bald.
+Get the original Survarium 0.26g (build 2777) and unpack it.	Besorge das originale Survarium 0.26g (Build 2777) und entpacke es.
+Maintenance.	Wartung.
+The server is down for maintenance.	Der Server ist wegen Wartung offline.
+The game closes in {minutes} min; Play is locked in the last 30.	Das Spiel schließt sich in {minutes} min; in den letzten 30 ist „Spielen“ gesperrt.
+New registrations are closed for now. Existing players can sign in and play.	Neue Registrierungen sind vorerst geschlossen. Bestehende Spieler können sich anmelden und spielen.
+players online	Spieler online
+registered	registriert
+Run <code>Skhid.bat</code> and press <b>PLAY</b>. The first start downloads the game.	Starte <code>Skhid.bat</code> und drück <b>PLAY</b>. Beim ersten Start wird das Spiel heruntergeladen.
+Run <code>Skhid.bat</code> and press <b>PLAY</b>.	Starte <code>Skhid.bat</code> und drück <b>PLAY</b>.
+Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh launcher</code>, see <code>LINUX.txt</code>.	Windows warnt vor einem unbekannten Herausgeber? Lass es trotzdem laufen.<br>Linux: <code>bash Skhid.sh launcher</code>, siehe <code>LINUX.txt</code>.
+Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh</code>, see <code>LINUX.txt</code>.	Windows warnt vor einem unbekannten Herausgeber? Lass es trotzdem laufen.<br>Linux: <code>bash Skhid.sh</code>, siehe <code>LINUX.txt</code>.
+Run <code>play_skhid.bat</code> in <code>game\\binaries\\x86</code>.	Starte <code>play_skhid.bat</code> in <code>game\\binaries\\x86</code>.
+Start it with this command line:	Starte es mit dieser Befehlszeile:
+english	german
+server address	Serveradresse
+language: english, russian, ukrainian	Sprache: english, german, russian, ukrainian
+Skhid (Ukrainian for “east”) is a community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.	Skhid (ukrainisch für „Osten“) ist ein Community-Server, auf dem sich der Client von Survarium {version} wieder anmelden, handeln, Trupps bilden und Matches spielen kann.
+Project Discord: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>	Discord des Projekts: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>
+Early test server.	Früher Testserver.
+It has bugs and may not work fully. Your progress, items and accounts can be lost or reset at any time, and the server may be stopped at any time. By playing you accept this.	Er hat Fehler und funktioniert vielleicht nicht vollständig. Dein Fortschritt, deine Gegenstände und Konten können jederzeit verloren gehen oder zurückgesetzt werden, und der Server kann jederzeit abgeschaltet werden. Mit dem Spielen akzeptierst du das.
+How to play	So spielst du
+Download our files and unpack them into an empty folder (e.g. D:\\Survarium). <b>You do this only once.</b>	Lade unsere Dateien herunter und entpacke sie in einen leeren Ordner (z. B. D:\\Survarium). <b>Das machst du nur einmal.</b>
+Download our files and unpack them into the game's folder, the one with the <code>game</code> folder, replacing files. <b>You do this only once.</b>	Lade unsere Dateien herunter und entpacke sie in den Ordner des Spiels, den mit dem Ordner <code>game</code>, und ersetze dabei die Dateien. <b>Das machst du nur einmal.</b>
+Download our files and unpack them over the game's <code>game</code> folder.	Lade unsere Dateien herunter und entpacke sie über den Ordner <code>game</code> des Spiels.
+Download the patched game and unpack it.	Lade das gepatchte Spiel herunter und entpacke es.
+Sign in with any name and password: a new name registers itself. Remember the password.	Melde dich mit beliebigem Namen und Passwort an: Ein neuer Name registriert sich selbst. Merk dir das Passwort.
+New accounts are taken.	Neue Konten werden angenommen.
+Stop new registrations	Neue Registrierungen stoppen
+New accounts are refused for now.	Neue Konten werden vorerst abgelehnt.
+Take new registrations	Neue Registrierungen annehmen
+Shown once the token is right.	Wird angezeigt, sobald das Token stimmt.
+Password	Passwort
+User name	Benutzername
+Silver, + or -	Silber, + oder -
+Gold, + or -	Gold, + oder -
+Change	Ändern
+Admin	Admin
+Token	Token
+Money	Geld
+Ban	Sperre
+Unban	Entsperrung
+Bans	Sperren
+Maintenance	Wartung
+Signups	Registrierung
+User name, or an address or range (1.2.3.4, 1.2.3.0/24)	Benutzername oder eine Adresse oder ein Bereich (1.2.3.4, 1.2.3.0/24)
+Hours (empty: for good)	Stunden (leer: dauerhaft)
+Reason (only admins see it)	Grund (nur Admins sehen ihn)
+Also ban the address it last signed in from	Auch die Adresse der letzten Anmeldung sperren
+Ban	Sperren	button
+User name, or an address or range	Benutzername oder eine Adresse oder ein Bereich
+Also lift the ban of its last address	Auch die Sperre der letzten Adresse aufheben
+Unban	Entsperren	button
+Refresh	Aktualisieren
+Existing players keep signing in and playing either way. Registration is open by default; a restart goes back to that (or to SRP_REGISTRATION=closed).	Bestehende Spieler melden sich in jedem Fall weiter an und spielen. Die Registrierung ist standardmäßig offen; ein Neustart stellt das wieder her (oder SRP_REGISTRATION=closed).
+Starts in (minutes)	Beginnt in (Minuten)
+Players see the minutes left from 60 on, cannot press Play from 30, and the game closes at 0. Restarting srp cancels it.	Spieler sehen die verbleibenden Minuten ab 60, können ab 30 nicht mehr „Spielen“ drücken, und bei 0 schließt sich das Spiel. Ein Neustart von srp bricht sie ab.
+Plan	Planen
+Cancel	Abbrechen
+Account	Konto
+Give item	Gegenstand geben
+Take items	Gegenstände nehmen
+Text	Text
+Mute chat	Chat stummschalten
+Rename	Umbenennen
+Shown now:	Gerade angezeigt:
+No text is shown.	Es wird kein Text angezeigt.
+Set the level (0 to {0})	Stufe setzen (0 bis {0})
+Experience, + or -	Erfahrung, + oder -
+Faction (1 to 4)	Fraktion (1 bis 4)
+Reputation with it, + or -	Reputation bei ihr, + oder -
+Empty fields change nothing. An open game is sent the account again.	Leere Felder ändern nichts. Ein offenes Spiel bekommt das Konto erneut.
+Item: its id in the 0.26g dictionary, or its exact name	Gegenstand: seine ID im 0.26g-Wörterbuch oder sein genauer Name
+Count (rounds for ammo; up to 8 of anything else)	Anzahl (Patronen bei Munition; sonst bis zu 8)
+Give	Geben
+First line	Erste Zeile
+Second line	Zweite Zeile
+Everyone in the lobby sees it, and whoever signs in, until it is cleared or srp restarts.	Alle in der Lobby sehen ihn, auch jeder, der sich anmeldet, bis er entfernt wird oder srp neu startet.
+Show	Anzeigen
+Clear	Entfernen
+No maintenance is planned.	Keine Wartung geplant.
+Maintenance has started: the game closes for everyone who signs in.	Die Wartung hat begonnen: Das Spiel schließt sich für jeden, der sich anmeldet.
+Hours: a whole number up to {MAX_BAN_HOURS}, or empty for good.	Stunden: eine ganze Zahl bis {MAX_BAN_HOURS} oder leer für dauerhaft.
+until {at} UTC	bis {at} UTC
+None.	Keine.
+Accounts	Konten
+Until	Bis
+Reason	Grund
+Last address	Letzte Adresse
+Addresses	Adressen
+Address	Adresse
+Chat mutes	Chat-Stummschaltungen
+ The database was busy: srp's saver writes it within seconds (the history below is shown next time).	 Die Datenbank war belegt: srp speichert es innerhalb von Sekunden (der Verlauf unten erscheint beim nächsten Mal).
+ Error: the change stands in memory only: the database refused it ({error}). srp retries the write; check its log.	 Fehler: Die Änderung besteht nur im Speicher: Die Datenbank hat sie abgelehnt ({error}). srp versucht das Schreiben erneut; prüfe sein Log.
+No 0.26g account has that id.	Kein 0.26g-Konto hat diese ID.
+More than one account has that character name: type its user name or #id.	Mehrere Konten haben diesen Charakternamen: Gib den Benutzernamen oder die #ID ein.
+Silver is a whole number, + or -, or empty.	Silber ist eine ganze Zahl, + oder -, oder leer.
+{0}: silver {1} → {2} ({3}).	{0}: Silber {1} → {2} ({3}).
+Type the silver to add (+) or take (-). The balance is below.	Gib das Silber ein, das hinzugefügt (+) oder abgezogen (-) wird. Der Kontostand steht unten.
+Nothing would change: the account has none of it left to take.	Nichts würde sich ändern: Das Konto hat davon nichts mehr, was genommen werden kann.
+A reason is required: nothing was changed.	Ein Grund ist nötig: Nichts wurde geändert.
+The account changed since the preview, or the fields did: nothing was changed. Check the new preview below and apply again.	Das Konto oder die Felder haben sich seit der Vorschau geändert: Nichts wurde geändert. Prüfe die neue Vorschau unten und übernimm erneut.
+Check the change below; type a reason to apply it.	Prüfe die Änderung unten; gib einen Grund ein, um sie zu übernehmen.
+Check the change below, then press Apply. Nothing is changed until then.	Prüfe die Änderung unten und drück dann „Übernehmen“. Bis dahin wird nichts geändert.
+Type the account: its user name, its character name, or #id.	Gib das Konto ein: Benutzername, Charaktername oder #ID.
+Units are a whole number above 0, or empty for all of it.	Einheiten sind eine ganze Zahl über 0, oder leer für alles.
+Tick the items to take (and the units of a stack, or all of it), type a reason, then press Preview.	Hake die zu nehmenden Gegenstände an (und die Einheiten eines Stapels, oder alles), gib einen Grund ein und drück dann „Vorschau“.
+{0}: {1} item(s) taken.	{0}: genommene Gegenstände: {1}.
+The items or the choice changed since the preview: nothing was changed. Check the new preview below and apply again.	Die Gegenstände oder die Auswahl haben sich seit der Vorschau geändert: Nichts wurde geändert. Prüfe die neue Vorschau unten und übernimm erneut.
+Check what would be taken below; type a reason to apply it.	Prüfe unten, was genommen würde; gib einen Grund ein, um es zu übernehmen.
+Check what would be taken below, then press Apply. Nothing is changed until then.	Prüfe unten, was genommen würde, und drück dann „Übernehmen“. Bis dahin wird nichts geändert.
+A reason is required: the player is told it.	Ein Grund ist nötig: Der Spieler bekommt ihn mitgeteilt.
+{name}'s chat muted {0}.	Chat von {name} {0} stummgeschaltet.
+{name}'s chat was not muted.	Chat von {name} war nicht stummgeschaltet.
+{name}'s chat unmuted.	Chat von {name} wieder freigegeben.
+Account: user name or character name	Konto: Benutzername oder Charaktername
+Reason (the player is told it)	Grund (der Spieler bekommt ihn mitgeteilt)
+Nobody gets its chat lines, on any channel; it gets "muted for &lt;reason&gt;" (or "muted until &lt;time&gt; UTC: &lt;reason&gt;") back instead. Unmute needs the account only.	Niemand bekommt seine Chatzeilen, in keinem Kanal; stattdessen bekommt er "muted for &lt;Grund&gt;" (oder "muted until &lt;Zeit&gt; UTC: &lt;Grund&gt;") zurück. Zum Aufheben genügt das Konto.
+Mute	Stummschalten
+Unmute	Stummschaltung aufheben
+This preview was used already or is older than 10 minutes: nothing was changed. Check the new preview below and apply again.	Diese Vorschau wurde schon benutzt oder ist älter als 10 Minuten: Nichts wurde geändert. Prüfe die neue Vorschau unten und übernimm erneut.
+No item was ticked.	Kein Gegenstand angehakt.
+At most {0} items at once.	Höchstens {0} Gegenstände auf einmal.
+The account has no item {item_id} now (sold or taken meanwhile): nothing was changed. Check the list again.	Das Konto hat Gegenstand {item_id} nicht mehr (inzwischen verkauft oder genommen): Nichts wurde geändert. Prüfe die Liste erneut.
+Item {item_id} is named twice.	Gegenstand {item_id} ist doppelt angegeben.
+0 units of item {item_id}: leave it empty for all of it.	0 Einheiten von Gegenstand {item_id}: Lass das Feld leer für alles.
+yes: its game is sent the change at once	ja: Sein Spiel bekommt die Änderung sofort
+no: it sees the change at its next sign-in	nein: Es sieht die Änderung bei der nächsten Anmeldung
+User name	Anmeldename	sign-in
+Character	Charakter
+Account id	Konto-ID
+ID	ID
+Earlier names	Frühere Namen
+until {}	bis {}
+In the game now	Gerade im Spiel
+Earlier moderation of this account	Frühere Moderation dieses Kontos
+not shown ({error})	nicht angezeigt ({error})
+none	keine
+What	Was
+Change	Änderung	what
+; {0} asked, never below 0	; {0} verlangt, nie unter 0
+Apply to {0}	Für {0} übernehmen
+Done	Erledigt
+Preview	Vorschau
+Silver	Silber
+Account: user name, character name or #id	Konto: Benutzername, Charaktername oder #ID
+Reason (required; only admins see it)	Grund (Pflicht; nur Admins sehen ihn)
+Preview shows the balance before and after; nothing changes until Apply. A balance never goes below 0. An open game shows the change at once.	Die Vorschau zeigt den Kontostand davor und danach; bis „Übernehmen“ ändert sich nichts. Ein Kontostand fällt nie unter 0. Ein offenes Spiel zeigt die Änderung sofort.
+Preview	Vorschau	button
+the item	der Gegenstand
+all {0} units	alle {0} Einheiten
+{0} of {1} units ({2} left)	{0} von {1} Einheiten ({2} übrig)
+taken off its kits	aus seinen Kits entfernt
+Apply: take them from {0}	Übernehmen: {0} wegnehmen
+Taken	Genommen
+Would be taken	Würde genommen
+Item	Gegenstand
+Item id	Gegenstands-ID
+Kits	Kits
+{0} units	{0} Einheiten
+all	alle
+cosmetic {id}	Kosmetik {id}
+Items	Gegenstände
+Tick what to take. A stack takes the units typed, or all of it when empty. Kit * is the one it plays.	Hake an, was genommen wird. Von einem Stapel werden die eingegebenen Einheiten genommen, oder alles, wenn leer. Kit * ist das, mit dem gespielt wird.
+Dict id	Wörterbuch-ID
+Units / condition	Einheiten / Zustand
+Worn	Angelegt
+Modifications	Modifikationen
+First the list, then a preview of what is taken; nothing changes until Apply. A worn item is taken off every kit, as when it is sold. An open game shows the change at once.	Erst die Liste, dann eine Vorschau dessen, was genommen wird; bis „Übernehmen“ ändert sich nichts. Ein angelegter Gegenstand wird aus jedem Kit entfernt, wie beim Verkauf. Ein offenes Spiel zeigt die Änderung sofort.
+List / preview	Liste / Vorschau
+(premium)	(Premium)
+{0} of {1}	{0} von {1}
+Choose an item…	Gegenstand wählen…
+By item	Nach Gegenstand
+level {0}	Stufe {0}
+Can roll	Kann erhalten
+Comes with	Ab Werk
+Modifiers	Modifikatoren
+An item rolls up to three modifiers, each of a different kind. The stronger, the rarer.	Ein Gegenstand erhält bis zu drei Modifikatoren, jeder von anderer Art. Je stärker, desto seltener.
+Weapons	Waffen
+Strengths from common to rare.	Stärken von häufig bis selten.
+Built into some items	In manche Gegenstände eingebaut
+These never roll.	Diese werden nie zufällig vergeben.
+No account signs in with that user name (character names are not looked up).	Kein Konto meldet sich mit diesem Benutzernamen an (Charakternamen werden nicht gesucht).
+Type the user name the player signs in with.	Gib den Benutzernamen ein, mit dem sich der Spieler anmeldet.
+Check the account below, then press the reset button.	Prüfe das Konto unten und drück dann den Knopf zum Zurücksetzen.
+That user name now means another account: nothing was changed. Check it below.	Dieser Benutzername gehört jetzt zu einem anderen Konto: Nichts wurde geändert. Prüfe es unten.
+The password of {login} is cleared; {ended} session(s) ended. Their next sign-in, with any password, sets the new one.	Das Passwort von {login} ist gelöscht; beendete Sitzungen: {ended}. Die nächste Anmeldung, mit beliebigem Passwort, setzt das neue.
+The password of {login} is cleared; {ended} session(s) ended. The database was busy: srp's saver writes it within seconds. Their next sign-in, with any password, sets the new one.	Das Passwort von {login} ist gelöscht; beendete Sitzungen: {ended}. Die Datenbank war belegt: srp speichert es innerhalb von Sekunden. Die nächste Anmeldung, mit beliebigem Passwort, setzt das neue.
+Error: the password of {login} is cleared and {ended} session(s) ended, but only in memory: the database was not written ({error}). srp retries the write; check its log before the player signs in.	Fehler: Das Passwort von {login} ist gelöscht und Sitzungen sind beendet ({ended}), aber nur im Speicher: Die Datenbank wurde nicht geschrieben ({error}). srp versucht das Schreiben erneut; prüfe sein Log, bevor sich der Spieler anmeldet.
+not since srp started	nicht seit dem Start von srp
+unknown	unbekannt
+yes: its game is signed out	ja: Sein Spiel wird abgemeldet
+no	nein
+Last sign-in	Letzte Anmeldung
+Signed in now	Gerade angemeldet
+Reset the password of {0}	Passwort von {0} zurücksetzen
+User name the player signs in with (not the character name)	Benutzername, mit dem sich der Spieler anmeldet (nicht der Charaktername)
+Clears the password: the player's next sign-in, with any password, sets it as the new one (owner's decision, 2026-10-18). Whoever signs in first takes it, so reset when the player is ready to sign in. A game signed in with the account is signed out. Case does not matter.	Löscht das Passwort: Die nächste Anmeldung des Spielers, mit beliebigem Passwort, setzt es als neues (Entscheidung des Besitzers, 2026-10-18). Wer sich zuerst anmeldet, bekommt es, also setze zurück, wenn der Spieler bereit zur Anmeldung ist. Ein mit dem Konto angemeldetes Spiel wird abgemeldet. Groß- und Kleinschreibung ist egal.
+Quests	Aufgaben
+Pay by match level	Bezahlung nach Match-Stufe
+Enter an account ID.	Gib eine Konto-ID ein.
+Invalid nickname: at least 3 characters, at most 63 UTF-8 bytes, no spaces or control characters.	Ungültiger Nickname: mindestens 3 Zeichen, höchstens 63 UTF-8-Bytes, keine Leer- oder Steuerzeichen.
+A reason is required.	Ein Grund ist nötig.
+That nickname or a Cyrillic/Latin lookalike is already taken.	Dieser Nickname oder ein kyrillisch/lateinisch gleich aussehender ist schon vergeben.
+No such account ID.	Diese Konto-ID gibt es nicht.
+Account #{account_id} renamed: {0} → {1}.	Konto #{account_id} umbenannt: {0} → {1}.
+Account ID	Konto-ID
+New nickname	Neuer Nickname
+Reason (admin history only)	Grund (nur im Admin-Verlauf)
+Changes the nickname immediately, free of charge. Login and progress stay the same. Duplicate and Cyrillic/Latin lookalike names are refused.	Ändert den Nickname sofort und kostenlos. Anmeldename und Fortschritt bleiben gleich. Doppelte und kyrillisch/lateinisch gleich aussehende Namen werden abgelehnt.
+Levels	Stufen
+This level	Diese Stufe
+Total	Gesamt
+Matches	Matches
+Hours	Stunden
+Total experience by level	Gesamterfahrung nach Stufe
+That account has not signed in to the 0.26g lobby yet: it has nothing to change.	Dieses Konto war noch nicht in der 0.26g-Lobby: Es gibt nichts zu ändern.
+Experience and reputation are whole numbers, + or -; the level is 0 to {MAX_LEVEL}; the faction is 1 to 4.	Erfahrung und Reputation sind ganze Zahlen, + oder -; die Stufe ist 0 bis {MAX_LEVEL}; die Fraktion 1 bis 4.
+That level is under the skill points the account has spent; reset its skills in the game first.	Diese Stufe liegt unter den ausgegebenen Fähigkeitspunkten des Kontos; setze zuerst seine Fähigkeiten im Spiel zurück.
+{user}: level {level_now} ({exp_now} experience).	{user}: Stufe {level_now} ({exp_now} Erfahrung).
+ Reputation with faction {faction}: {points}.	 Reputation bei Fraktion {faction}: {points}.
+No such item in the 0.26g dictionary (give its id or its exact name).	Kein solcher Gegenstand im 0.26g-Wörterbuch (gib seine ID oder seinen genauen Namen an).
+The count for this item is 1 to {most}.	Die Anzahl für diesen Gegenstand ist 1 bis {most}.
+That stack would overflow.	Dieser Stapel würde überlaufen.
+{user}: given {count} of {0} (id {1}).	{user}: {count} × {0} gegeben (ID {1}).
+The text is cleared.	Der Text ist entfernt.
+Each line is at most {MAX_TEXT_LEN} bytes (a Cyrillic letter is 2) with no control characters.	Jede Zeile hat höchstens {MAX_TEXT_LEN} Bytes (ein kyrillischer Buchstabe zählt 2), ohne Steuerzeichen.
+The text is shown to everyone in the lobby, and to who signs in, until cleared.	Der Text wird allen in der Lobby angezeigt, auch jedem, der sich anmeldet, bis er entfernt wird.
+Simulators	Simulatoren
+Skills	Fähigkeiten
+Browse weapons, compare base stats and explore their damage and handling.	Waffen durchsehen, Grundwerte vergleichen, Schaden und Handhabung erkunden.
+Recoil and spread of any weapon: aim, stance, skills, gear and injuries.	Rückstoß und Streuung jeder Waffe: Zielen, Haltung, Fähigkeiten, Ausrüstung und Verletzungen.
+Every armour piece: protection, weight, built-in bonuses and what it can roll.	Jedes Rüstungsteil: Schutz, Gewicht, eingebaute Boni und was es erhalten kann.
+Every modifier, its strengths and the items that can get it.	Jeder Modifikator, seine Stärken und die Gegenstände, die ihn erhalten können.
+Levels and the experience they take; every skill tree: thresholds, ranks and what each rank gives.	Stufen und die nötige Erfahrung; jeder Fähigkeitenbaum: Schwellen, Ränge und was jeder Rang bringt.
+Every faction quest: its goal at each reputation level and what it pays.	Jede Fraktionsaufgabe: ihr Ziel auf jeder Reputationsstufe und ihre Belohnung.
+Shots to kill a target in any armour, at any distance.	Treffer bis zum Kill bei jeder Rüstung und auf jede Entfernung.
+Spawns, batteries, chargers, containers and artefacts on every map.	Spawns, Batterien, Ladestationen, Container und Artefakte auf jeder Karte.
 Skhid wiki	Skhid-Wiki
+Skhid · Survarium {version} community server	Skhid · Community-Server für Survarium {version}
+Skhid · Survarium {version} TEST server	Skhid · TESTSERVER für Survarium {version}
+COMMUNITY SERVER FOR SURVARIUM	COMMUNITY-SERVER FÜR SURVARIUM
+TEST SERVER FOR SURVARIUM	TESTSERVER FÜR SURVARIUM
+{text} is not an item id: nothing was changed.	{text} ist keine Gegenstands-ID: Nichts wurde geändert.
+Exp	EP	formula
+Total	Gesamt	formula
+Experience gives levels, and every level gives one skill point.	Erfahrung bringt Stufen, und jede Stufe bringt einen Fähigkeitspunkt.
+Clan	Klan
+Matches	Matches	stats
+Player name	Spielername
+Clan tag	Klan-Tag
+Match number	Match-Nummer
+Clans	Klans
+Best matches	Beste Matches
+Latest matches	Neueste Matches
+Hour	Stunde
+Day	Tag
+Experience	Erfahrung
+Wins	Siege
+Losses	Niederlagen
+Win rate	Siegquote
+Kills	Kills
+Deaths	Tode
+K/D	K/D
+Assists	Assists
+Score	Punkte	stats
+Avg score	Ø Punkte
+Headshots	Kopfschüsse
+Grenade kills	Granaten-Kills
+Melee kills	Nahkampf-Kills
+Batteries	Batterien
+Captures	Eroberungen
+Artefacts	Artefakte
+Members	Mitglieder
+Commander	Kommandant
+Overall	Gesamt
+In matches	In Matches
+Last 30 days	Letzte 30 Tage
+Ended	Beendet
+Duration	Dauer
+Map	Karte
+Mode	Modus
+Result	Ergebnis
+Place	Platz
+Team	Team
+Points	Punkte
+Win	Sieg
+Loss	Niederlage
+Draw	Unentschieden
+Left	Verlassen
+won	siegt
+More players	Mehr Spieler
+Older matches	Ältere Matches
+Hours played	Gespielte Stunden
+Replay	Replay
+Preparing…	Wird vorbereitet…
+Download	Herunterladen
+Recorded by an older game version	Mit einer älteren Spielversion aufgenommen
+Busy, try again in a minute	Belegt, versuch es in einer Minute erneut
+No replay	Kein Replay
+Daily leaders	Tagesbeste
+All time	Allzeit
+Shots fired	Abgegebene Schüsse
+Accuracy	Genauigkeit
+Weapon	Waffe
+Kit	Kit
+Favourite equipment	Lieblingsausrüstung
+1000+ shots	1000+ Schüsse
+5+ matches	5+ Matches
+HS %	Kopfschuss %
+Avg distance	Ø Entfernung
+Through walls	Durch Wände
+Ricochets	Abpraller
+No weapons counted yet.	Noch keine Waffen gezählt.
+No public matches yet.	Noch keine öffentlichen Matches.
+No player with public matches named “{}”.	Kein Spieler mit öffentlichen Matches namens „{}“.
+No clan tagged [{}].	Kein Klan mit dem Tag [{}].
+No public match {}.	Kein öffentliches Match {}.
+This server keeps no match history.	Dieser Server speichert keinen Matchverlauf.
+Could not load the stats. Reload the page.	Die Statistik konnte nicht geladen werden. Lade die Seite neu.
+Nobody yet.	Noch niemand.
+
+# The wiki's modes (src/modes.rs).
 Modes	Modi
 Every mode: its rules, numbers and maps.	Jeder Modus: Regeln, Zahlen und Karten.
 Versions	Varianten
