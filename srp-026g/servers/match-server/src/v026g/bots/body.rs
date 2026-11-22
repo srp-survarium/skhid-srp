@@ -770,11 +770,13 @@ impl PressToken {
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct LinkLearned {
     pub walk_in: WalkIn,
+    /// [press forecast, sprint pass] What a sprint walk-in found: with no run, later tries walk in at the cap.
+    pub sprint_in: WalkIn,
     /// The lead (m before the take-off along the press's line) of the last press from rest that got up: rested at first.
     pub rest_lead: Option<f32>,
 }
 
-/// [press forecast] What a walk-in at the cap found at a link ([`LinkLearned`]).
+/// [press forecast] What a walk-in (at the cap, or at a sprint) found at a link ([`LinkLearned`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum WalkIn {
     #[default]
@@ -842,9 +844,34 @@ pub fn press_forecast(at: &Estimate, plan: &PressPlan, world: &PressWorld) -> Pr
     let mut at = *press_chain(at, walk, plan.press_in, world).last().expect("the chain holds its start");
     let tick = |at: &Estimate, keys: u32| Tick { time: at.time + TICK_MS, keys, turn: (0.0, 0.0), kick: 0.0, jump: JumpGate::Open, legs_broken: false };
     at = advance(at, tick(&at, walk | key::JUMP), kin, level, Some(grid), None, Role::Press, false);
-    if !matches!(at.arc, Some(Jump::Flown(_))) {
+    let Some(Jump::Flown(flown)) = at.arc else {
         return PressOutcome::NoFlight;
+    };
+    // [press forecast, sprint pass] The client picks a sprint jump's leg and its prepare's phase, not the bot (A385,
+    // `jump::sprint_variants`): the press lands only when every variant lands, as the builder flies a sprint press. The first
+    // variant that does not land is the outcome.
+    if flown.sprints() {
+        let mut landed = None;
+        for (leg, frame) in mapdata::controller::jump::sprint_variants() {
+            let variant = flown.sprint_variant(leg, frame).expect("a sprint jump not yet in the air");
+            match fly_pressed(Estimate { arc: Some(Jump::Flown(variant)), ..at }, plan, world) {
+                PressOutcome::Lands { rest } => {
+                    landed.get_or_insert(rest);
+                }
+                missed => return missed,
+            }
+        }
+        return PressOutcome::Lands { rest: landed.expect("six variants flown") };
     }
+    fly_pressed(at, plan, world)
+}
+
+/// [press forecast] [`press_forecast`] from the press tick on: the body `at` in the client's flight, played to its landing step and
+/// the stay steps after it.
+fn fly_pressed(mut at: Estimate, plan: &PressPlan, world: &PressWorld) -> PressOutcome {
+    let PressWorld { kin, level, grid } = *world;
+    let walk = plan.walk & !key::JUMP;
+    let tick = |at: &Estimate, keys: u32| Tick { time: at.time + TICK_MS, keys, turn: (0.0, 0.0), kick: 0.0, jump: JumpGate::Open, legs_broken: false };
     let air = walk & key::FORWARD;
     let mut steps = 0;
     while at.arc.is_some() && steps < PRESS_FLIGHT_STEPS {
@@ -981,6 +1008,9 @@ pub enum Jump {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FlownJump {
     flying: mapdata::controller::jump::Flying,
+    /// The body and world it flies by ([`mapdata::controller::jump::Flight`]): a sprint press's variants are flown by it
+    /// ([`Self::sprint_variant`]).
+    flight: mapdata::controller::jump::Flight,
     /// The flying body: its controller, and the reckoned feet less the controller's (where the reckoning has the body against
     /// the controller's own feet, kept across the flight).
     body: KeptBody,
@@ -1028,7 +1058,25 @@ impl FlownJump {
         if counted {
             flown_jumps::count(if sprint { flown_jumps::Kind::Sprint } else { flown_jumps::Kind::Short });
         }
-        Some(Self { flying: Flying::new(press, Flight { cap, dy: 0.0 }), body, shift: feet - body.controller.feet(), clock })
+        let flight = Flight { cap, dy: 0.0 };
+        Some(Self { flying: Flying::new(press, flight), flight, body, shift: feet - body.controller.feet(), clock })
+    }
+
+    /// [press forecast, sprint pass] Whether this is the client's sprint jump (not the short jump).
+    pub(crate) fn sprints(&self) -> bool {
+        matches!(self.flying.press(), mapdata::controller::jump::Press::Sprint { .. })
+    }
+
+    /// [press forecast, sprint pass] This sprint jump, not yet in the air, off `leg` with its first air step ending at the clip
+    /// frame `first_air_frame` (one of [`mapdata::controller::jump::sprint_variants`]); none for a short jump or one under way.
+    pub(crate) fn sprint_variant(&self, leg: mapdata::controller::jump::Leg, first_air_frame: f32) -> Option<Self> {
+        use mapdata::controller::jump::{Flying, Press};
+        match self.flying.press() {
+            Press::Sprint { speed, .. } if self.flying.n() == 0 => {
+                Some(Self { flying: Flying::new(Press::Sprint { speed, leg, first_air_frame }, self.flight), ..*self })
+            }
+            _ => None,
+        }
     }
 
     /// The next step on `grid`: the walk in the heading `yaw` (the step's: after the input before its own, rig rule 7), the air

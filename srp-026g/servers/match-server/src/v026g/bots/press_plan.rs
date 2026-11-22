@@ -11,6 +11,24 @@ use mapdata::Vec3;
 
 use super::body::{Estimate, PressOutcome};
 use super::kin::wrap;
+use crate::v026g::drive::key;
+
+/// [press forecast, sprint pass] The keys a walk-in is chained and flown with: forward at the walk cap, or forward and the sprint.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum CastGait {
+    Walk,
+    Sprint,
+}
+
+impl CastGait {
+    /// The keys held on the ground and with the press.
+    pub(super) fn keys(self) -> u32 {
+        match self {
+            CastGait::Walk => key::FORWARD,
+            CastGait::Sprint => key::FORWARD | key::SPRINT,
+        }
+    }
+}
 
 /// [press forecast] What a candidate's flight says.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -35,8 +53,8 @@ impl Verdict {
 pub(super) enum Ask {
     /// A body walking in: the ticks at which its feet are in the press zone (`zone`, m before the take-off along the line, the
     /// near end first), every second one flown first, then the ticks beside each landing one; the middle of the longest run of
-    /// landing ticks is pressed (design §2.4-§2.5).
-    Moving { zone: (f32, f32) },
+    /// landing ticks is pressed (design §2.4-§2.5). `gait`: the keys it walks in and presses with.
+    Moving { zone: (f32, f32), gait: CastGait },
     /// A body at rest: forward held for 0 to [`REST_STEPS_MAX`] ticks and pressed on the next, each flown; the first that lands
     /// with a landing neighbour is pressed (the builder's slow press, `jump::Kind::Slow`, from the body's real rest; §3.4). Its
     /// ticks count from the walk-up's first tick ([`Plan::start`]), not from the ask: the body stands while it is flown.
@@ -83,7 +101,7 @@ impl Plan {
     pub(super) fn new(lock: u32, ask: Ask, chain: Vec<Estimate>, before: impl Fn(Vec3) -> f32) -> Option<Self> {
         let ticks = chain.len() as u32;
         let (first, last) = match ask {
-            Ask::Moving { zone: (near, far) } => {
+            Ask::Moving { zone: (near, far), .. } => {
                 let inside = |j: u32| {
                     let b = before(chain[j as usize].feet);
                     (near..=far).contains(&b)
@@ -109,6 +127,14 @@ impl Plan {
 
     pub(super) fn ask(&self) -> Ask {
         self.ask
+    }
+
+    /// The keys its chain holds and its candidates press with: a rest's walk-up is forward alone.
+    pub(super) fn gait(&self) -> CastGait {
+        match self.ask {
+            Ask::Moving { gait, .. } => gait,
+            Ask::Rest => CastGait::Walk,
+        }
     }
 
     /// The plan's tick of the motor's tick `now` (none before the lock).
@@ -353,16 +379,16 @@ mod tests {
     /// 8.35-9.85, ticks 8-16 of a chain from x 7 at 0.175 m a tick.
     #[test]
     fn a_moving_plans_candidates_are_the_chains_ticks_in_the_zone() {
-        let plan = Plan::new(100, Ask::Moving { zone: ZONE }, chain(20), before).unwrap();
+        let plan = Plan::new(100, Ask::Moving { zone: ZONE, gait: CastGait::Walk }, chain(20), before).unwrap();
         assert_eq!(plan.candidates(), (8, 9));
-        assert!(Plan::new(100, Ask::Moving { zone: ZONE }, chain(5), before).is_none(), "a chain that never gets there");
+        assert!(Plan::new(100, Ask::Moving { zone: ZONE, gait: CastGait::Walk }, chain(5), before).is_none(), "a chain that never gets there");
     }
 
     /// [press forecast] Every second candidate first, then the neighbours of the landing ones; the middle of a run of three
     /// or more is pressed (rule 2-3), and a run's ends are flown so its length is known.
     #[test]
     fn a_moving_plan_presses_the_middle_of_the_longest_run() {
-        let plan = Plan::new(100, Ask::Moving { zone: ZONE }, chain(20), before).unwrap();
+        let plan = Plan::new(100, Ask::Moving { zone: ZONE, gait: CastGait::Walk }, chain(20), before).unwrap();
         // Ticks 10-14 land (a run of 5), 16 alone.
         let (choice, flown) = run(plan, |j| (10..=14).contains(&j) || j == 16);
         assert_eq!(choice, Choice::Press { j: 12, run: 5 });
@@ -373,7 +399,7 @@ mod tests {
     /// is pressed at its middle.
     #[test]
     fn a_narrow_run_is_pressed_only_with_no_longer_one() {
-        let plan = Plan::new(100, Ask::Moving { zone: ZONE }, chain(20), before).unwrap();
+        let plan = Plan::new(100, Ask::Moving { zone: ZONE, gait: CastGait::Walk }, chain(20), before).unwrap();
         let (choice, _) = run(plan.clone(), |j| j == 10 || j == 11);
         assert_eq!(choice, Choice::NoLanding { flown: 7, unflown: 2, longest: 2 }, "a run of two is no press");
         let (choice, _) = run(plan, |j| j == 9 || j == 10 || (13..=15).contains(&j));
@@ -383,7 +409,7 @@ mod tests {
     /// [press forecast] No candidate lands: no press, with the flights counted.
     #[test]
     fn a_plan_with_no_landing_tick_says_so() {
-        let plan = Plan::new(100, Ask::Moving { zone: ZONE }, chain(20), before).unwrap();
+        let plan = Plan::new(100, Ask::Moving { zone: ZONE, gait: CastGait::Walk }, chain(20), before).unwrap();
         let (choice, flown) = run(plan, |_| false);
         assert_eq!(choice, Choice::NoLanding { flown: 5, unflown: 4, longest: 0 });
         assert_eq!(flown, 5, "every second of 9 candidates");
@@ -394,7 +420,7 @@ mod tests {
     /// and 15 not, and by then 14 is past).
     #[test]
     fn a_candidate_not_flown_in_time_is_never_pressed() {
-        let mut plan = Plan::new(100, Ask::Moving { zone: ZONE }, chain(20), before).unwrap();
+        let mut plan = Plan::new(100, Ask::Moving { zone: ZONE, gait: CastGait::Walk }, chain(20), before).unwrap();
         for now in 113..140 {
             if let Some(j) = plan.next_flight(now) {
                 assert!(j >= now - 100, "a past tick flown: {j} at {now}");
