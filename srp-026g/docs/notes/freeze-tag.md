@@ -166,7 +166,10 @@ charges the kits' reloads.
 The three native hooks are declared in `sites_026g.tsv`:
 
 - `2DAA60` (`freeze.player_tick`), `base_player::tick`: a frozen player's
-  clock advances, but the deferred death callback and tick are skipped
+  clock advances, the gun in hand's too (its `m_last_tick_time` +5A4h: its
+  first tick after a thaw stepped the whole freeze at once, and the recoil's
+  spring, 0x331A50, pinned the kick of a shot fired before the freeze at -1
+  for seconds: the view moved by itself after a thaw, the owner 2026-11-22), but the deferred death callback and tick are skipped
   through the native `ret 4` at `2DAB69`. Lethal hits already set
   `pending_death` (+33Dh), which also prevents further damage in `hit_impl`.
 - `2D86E0` (`carry.input`, patch 78's site, order 0 before its handler at 1):
