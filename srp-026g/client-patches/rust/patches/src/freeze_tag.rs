@@ -104,8 +104,10 @@ pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 /// update_minimap_players' spotted test of an enemy: a team's last one fighting, his teammates
-/// frozen (a team of one never), his dot on the minimap and the Tab map always, as a spotted enemy's (the owner, 2026-11-22: "last member is
-/// always shown on the map"). From the rule state, the same in every game; nothing simulated.
+/// frozen, two at least, his dot on the minimap and the Tab map always, as a spotted enemy's (the
+/// owner, 2026-11-22: "last member is always shown on the map"); never in 1 v 1, 2 v 1 or 2 v 2
+/// ("when 1vs1 we see each other on the map, bad", "2vs1 should also not show"). From the rule
+/// state, the same in every game; nothing simulated.
 pub fn on_enemy(ctx: &mut Context<'_>) -> Flow<FreezeTagOnEnemyExit> {
     let Match::Freeze(state) = MATCH.get(ctx.thread()) else {
         return Flow::Continue;
