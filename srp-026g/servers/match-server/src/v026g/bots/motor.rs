@@ -5194,13 +5194,38 @@ pub fn on_top(grid: &mapdata::WalkGrid, feet: Vec3, take_off: Vec3, landing: Vec
         return false;
     };
     let on = |n: mapdata::NodeId| grid.position(n).y >= low && grid.position(n).distance_xz(landing) <= reach;
-    if !on(at) {
+    on(at) && walk_joined(grid, top, at, on)
+}
+
+/// [fix-lip] Whether a world's `feet` stand on the floor a route jump down to `landing` lands on, judged on the walk grid: the floor
+/// under the feet (within the capsule's radius) is joined to the landing's floor by Walk links, every floor on the way within [`UP_M`]
+/// of the landing's height and no farther from it than a sprint goes in `since_s` (as [`on_top`]). [`on_landing`] asked for the feet
+/// within [`UP_NEAR_M`] of the landing point, and a world comes every 2 s: a body that landed and walked on before the next world was
+/// "not down" (the spot suite's S408 at 887697d4a: on the landing at 8.10-8.15 s, the world at 9.0 s 1.8 m on at the same level).
+/// Read only by the jump's log line; decides nothing.
+pub fn on_landing_floor(grid: &mapdata::WalkGrid, feet: Vec3, landing: Vec3, since_s: f32) -> bool {
+    let level = |y: f32| (y - landing.y).abs() <= UP_M;
+    let reach = UP_NEAR_M.max(super::stamina::SPRINT_MPS * since_s);
+    if !level(feet.y) || feet.distance_xz(landing) > reach {
         return false;
     }
-    let mut seen = std::collections::HashSet::from([top]);
-    let mut queue = VecDeque::from([top]);
+    let near = grid.body().radius;
+    let (Some(floor), Some(at)) = (
+        grid.locate_within(landing, near, super::kin::FIX_ABOVE_M),
+        grid.locate_within(feet, near, super::kin::FIX_ABOVE_M),
+    ) else {
+        return false;
+    };
+    let on = |n: mapdata::NodeId| level(grid.position(n).y) && grid.position(n).distance_xz(landing) <= reach;
+    on(floor) && on(at) && walk_joined(grid, floor, at, on)
+}
+
+/// Whether the floor `to` is reached from `from` by Walk links over floors `on` holds for.
+fn walk_joined(grid: &mapdata::WalkGrid, from: mapdata::NodeId, to: mapdata::NodeId, on: impl Fn(mapdata::NodeId) -> bool) -> bool {
+    let mut seen = std::collections::HashSet::from([from]);
+    let mut queue = VecDeque::from([from]);
     while let Some(n) = queue.pop_front() {
-        if n == at {
+        if n == to {
             return true;
         }
         for (m, kind) in grid.links(n) {

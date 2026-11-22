@@ -2167,6 +2167,18 @@ impl Bots {
         let team = usize::from(bot.team & 1);
         if let Some(feet) = feet {
             bot.jump_seen(time, feet);
+            // [fix-lip] Down the route jump watched, judged from this world on the landing's floors ([`motor::on_landing_floor`]): the
+            // log's word only.
+            if let Some(world) = world.as_deref()
+                && let Some(watch) = bot.jump_watch.as_mut()
+                && let Some(route) = watch.route
+                && watch.landed.is_none()
+                && time > watch.at
+                && route.landing.y - route.take_off.y < -motor::UP_M
+                && motor::on_landing_floor(&world.grid, feet, route.landing, (time - watch.at) as f32 / 1_000.0)
+            {
+                watch.landed = Some((time, Landed::Floor { off_m: feet.distance_xz(route.landing) }));
+            }
             // [A387] Up the route jump watched, judged from this world on the top's floors ([`motor::on_top`]): the log's word,
             // and the link's tries start again (the motor's tries per link for the match).
             if let Some(world) = world.as_deref()
