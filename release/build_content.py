@@ -1380,6 +1380,52 @@ def walker_check(base, world, cache):
           'has what the battery rule reads')
 
 
+# The longest project name (a mode config's match_making_params/map_name) the client loads: it cuts
+# a longer one to 31 characters, finds no project and crashes loading the map (create_game_objects
+# 0x22C11E, a null project config; Training Camp's v010b_cs_training_camp/day_teams, 2026-11-22).
+PROJECT_NAME_MAX = 31
+
+
+def project_name_problems(path, buf):
+    """The mode config's project name, when it is longer than the client takes."""
+    ce = own_content_edit()
+    try:
+        data, _, _, kind, count = ce.rec(buf, ce.find(buf, 'mode/match_making_params/map_name'))
+    except KeyError:
+        return []
+    name = bytes(buf[data:data + count - 1]).decode('utf-8', 'replace') if kind == ce.T_STR else ''
+    return [f'{path}: map_name {name} is {len(name)} characters, over {PROJECT_NAME_MAX}: the client cuts it '
+            'and crashes loading the map'] if len(name) > PROJECT_NAME_MAX else []
+
+
+def project_name_check(base, world, cache):
+    """Every mode config, as players will have it, names a project the client can load
+    (project_name_problems). A config's problems are cached by its path and bytes and the check's
+    source."""
+    configs = sorted(p for p in set(base.of) | set(world)
+                     if p.startswith('gameplay/game_modes/') and p.endswith('.options'))
+    key = Cache.key('the project names of mode configs', code_digest(project_name_problems),
+                    files_digest([Path(own_content_edit().__file__)]), sys.version)
+    earlier = (cache.get(key) or ({}, {}))[1]
+    digests, files = base.digests([p for p in configs if p not in world])
+    key_of = {p: f'{world.sha256(p) if p in world else digests[p]} {p}' for p in configs}
+    todo = [p for p in configs if key_of[p] not in earlier]
+    files.update(base.game.get(base.archives, [p for p in todo if p not in world and p not in files]))
+    files.update({p: world.data(p) for p in todo if p in world})
+    found = {key_of[p]: project_name_problems(p, bytearray(files[p])) for p in todo}
+    each = {key_of[p]: found.get(key_of[p], earlier.get(key_of[p])) for p in configs}
+    if found:
+        cache.put(key, {}, each)
+    problems = [problem for p in configs for problem in each[key_of[p]]]
+    if problems:
+        print()
+        for problem in problems:
+            print(f'PROJECT NAME: {problem}')
+        raise Problem(f'{len(problems)} mode config(s) name a project longer than the client loads: no patch made')
+    print(f'project names: every one of {len(configs)} mode config(s) names a project of at most '
+          f'{PROJECT_NAME_MAX} characters')
+
+
 GRASS_MAX = 120_000
 
 
@@ -1640,6 +1686,8 @@ def main():
                 grass_check(base_layers, world, cache)
             with timed('the walker twins'):
                 walker_check(base_layers, world, cache)
+            with timed('the project names'):
+                project_name_check(base_layers, world, cache)
             with timed('the clothing fit'):
                 clothing_check(base_layers, world)
 
