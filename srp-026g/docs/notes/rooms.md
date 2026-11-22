@@ -145,12 +145,12 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     (before 2026-11-15, every id alike: a third as often). A pool with too few (a private room's
     maker ticked one mode or few maps) draws the shown ones again once no other is left (a mode
     no card shows first, even on a shown map), never a card fewer (`rooms::Left`).
-  - **The third card is a free-for-all** (the owner's of 2026-11-12: "ffa should be a third
-    pane always, blackout should be in general pool"; Blackout had the card from 2026-11-02
-    until then): cards 1 and 2 drawn from the rest of the pool (two other modes while it has
-    them, never a free-for-all), card 3 one of its free-for-alls, on another map than
-    theirs while there is one; a pool without a free-for-all or of free-for-alls alone draws
-    its three as before (`ffa.md`, "Where it is played"; `rooms::THIRD_CARD` names the mode).
+  - **Every card from the whole pool** (the owner's of 2026-11-22: "all columns should draw from
+    a general pool", "first choose ffa, then its version"): Free for All is one mode of the
+    pool like any other, on any card, as likely as each other mode; a card that drew it then
+    draws its twist (below). From 2026-11-12 to then the third card was always a free-for-all
+    ("ffa should be a third pane always"), and Blackout had that card from 2026-11-02
+    (`ffa.md`, "Where it is played").
   - **A free-for-all card's twist** (`ffa.md`, "Twists"): an open room's (the server's) card
     draws "FFA: Racket", "FFA: Roulette 6-10" (its band, `ffa-roulette.md`), "FFA: Saloon
     (Winchester)", "FFA: Saloon" (the Colt alone) or none by the owner's shares (30 / 30 / 5 / 5 /
@@ -165,11 +165,12 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     alone, by the twists' shares (the map drawn first, as any); a private room never has it: the
     create window does not list it (`Core::private_entries`) and its pool leaves it out
     (`Rooms::create_with_pool`).
-  - **Blackout is on one card at the most** (the owner's of 2026-11-12: "Make it so blackout
-    cannot be on two cards at the same time"): in every vote, one without a free-for-all card
-    too. A case of no mode repeats (above): a mode comes again only when the pool has no other,
-    Blackout the last of those; a pool with nothing else keeps it, never a card fewer
-    (`blackout.md`; `rooms::ONE_CARD_AT_MOST` names the mode).
+  - **Free for All and Blackout are each on one card at the most** (the owner's of 2026-11-12:
+    "Make it so blackout cannot be on two cards at the same time"; of 2026-11-22: "there can
+    only be one ffa (or none)", plain or with any twist). A case of no mode repeats (above): a
+    mode comes again only when the pool has no other, these two the last of those; a pool with
+    nothing else keeps them, never a card fewer (`blackout.md`; `rooms::ONE_CARD_AT_MOST` names
+    the modes).
 - **The match starts at the room's minimum** (the owner's of 2026-10-20: "threshold is 2
   players though, not 4"; "just let people play, since rules are in rooms"; live, room 5209
   sat in "Awaiting other players" with 2 of 5): the game itself waits for 80 % of the
