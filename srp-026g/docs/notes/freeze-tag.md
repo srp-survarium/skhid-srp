@@ -296,6 +296,24 @@ copies (`fx/artifacts/<name>_ice`, constant_emissive (0.62, 0.88, 1.0) x
 half its intensity: the owner's pick of the previews' variants ("a is good",
 2026-11-21). Spring's own files are unchanged.
 
+Its plume (pack version 2; the owner, 2026-11-22: "it is hard to know what was
+frozen from enemy team, so effect should be visible higher too"): one more
+emitter, `plume`, a column of soft ice-blue smoke about 4 m tall: `up`'s puffs
+at 1.4 to 2.2 m/s for 2.4 s, 30 a second, drawn facing the camera with
+`fx/artifacts/smoke_ice` (the Spring emergence's smoke `smoke_blue`, additive,
+in the ice blue at full emissive), fading in and out as `up` does. Every game
+draws it the same for either team (it is the same particle system), so it reads
+as "frozen", not as a team's marker. It scales with the thaw like the rest.
+Particles do not collide: under a low ceiling the column shows through it.
+
+What the glow looks like without it: the patch plays the system with the body's
+matrix and no skeleton, so every emitter with the body-shaped (animated) domain
+spawns at the matrix's origin, the feet. The stock glow is there a small light at
+the feet; its `up` streaks (`star_trail`, a thin line texture) a hair-thin line.
+Seen in headless captures of the system placed as a map particle object
+(`private/renders/frozen-glow/`), which the game plays the same way
+(`scene_renderer::play_particle_system` at the object's transform).
+
 The thaw shrinks it (the owner: "would be nice if the glow was reducing as the
 player was unfrozen", "so others could deem the freeze state by look"; of the
 first build's four strengths swapped a quarter at a time: "it just disappears a
@@ -315,7 +333,7 @@ particle's birth. A sprite's size is added after the matrix (view-aligned,
 `input.size`), so the sprites keep their size, and the point light keeps its
 intensity: the glow gathers to the body's middle rather than dims. The
 pack's `human_frozen_70`, `_40` and `_15` and their materials are no longer
-played (to drop from the pack in its next version).
+played; version 2 no longer makes them (left live as version 1 put them).
 
 Each game draws it for itself, never in the simulation: an effect added to a
 body's simulated effect list at the first tick after a game loaded it enters

@@ -22,18 +22,38 @@ human_spring (the activation glow of effect_artefact_spring, unchanged), with:
 - every emitter's Rate (its curve and its data source) and MaxParticles (rounded up, at least 1)
   times RATE;
 - its point light (up_light) ICE in colour, its Intensity curve times LIGHT.
+
+Version 2 adds the plume (the owner, 2026-11-22: "in freeze tag there it is hard to know what was
+frozen from enemy team, so effect should be visible higher too"): one more emitter, `plume`, a
+column of soft ice-blue smoke rising about 4 m from the body, so a frozen body shows over low
+cover and at range, to either team. The patch plays the system with the body's matrix and no
+skeleton, so the body-shaped (animated) domains spawn at the matrix's origin, the feet: what the
+stock glow shows there is a small light at the feet, and its `up` streaks (star_trail, a thin line
+texture) a hair-thin line. The plume is `up` with:
+
+- its upward speed (InitVelocity's y, 0.1 to 0.2 m/s) PLUME_SPEED[0] times plus PLUME_SPEED[1]
+  (1.4 to 2.2 m/s), its width and height PLUME_SIZE times, its life PLUME_LIFE and its rate
+  PLUME_RATE (MaxParticles their product, rounded up), each changed property (curve and data
+  source) with a data source of its own; it fades in and out as `up` does (its ColorLife);
+- drawn facing the camera (PLUME_ALIGNMENT) with fx/artifacts/smoke_ice: the Spring emergence's
+  smoke (smoke_blue, additive) with its constant_emissive ICE times PLUME_EMISSIVE.
+
+The four strengths of version 1 (human_frozen_70, _40, _15 and their materials) are no longer
+made: the patch scales one system's matrix through the thaw.
 """
 import argparse
 import json
+import math
 from pathlib import Path
 import sys
+import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'artefact-glow'))
 import make_pack as glow  # noqa: E402  (the artefact-glow pack's reader, writer and helpers)
 from make_pack import T_NAMED, T_STR, parse, serialize, sha256, sort_key  # noqa: E402
 
 PACK_ID = 'freeze-tag-glow'
-VERSION = '1'
+VERSION = '2'
 SPRING_SYSTEM = 'fx/artifacts/human_spring'
 BLUE = ('rays', 'stroke_scroll', 'up')
 STOCK = {
@@ -44,6 +64,8 @@ STOCK = {
         'b75df7286a56b32cf9d4704ef39298e9a58c9d2713ef375347f59892b53fd810',
     'material_instances/fx/artifacts/up_blue.material':
         '1229867293729394f2e3642d27db9225b6cfc0caebb8f50f510769deb8f46bd2',
+    'material_instances/fx/artifacts/smoke_blue.material':
+        'd93a7a95db68c39f917560ff1b65ed19d9b19cb3a434c6a1b8b9e2056bf7f65d',
 }
 SYSTEM = 'fx/artifacts/human_frozen'
 # Spring is (0, 0.40, 1), a deep blue; the frozen glow ice blue, fainter (the owner's pick, "a").
@@ -51,13 +73,17 @@ ICE = (0.62, 0.88, 1.0)
 EMISSIVE = 0.6
 RATE = 0.6
 LIGHT = 0.5
-# The thaw fades it (the owner, 2026-11-21: "would be nice if the glow was reducing as the player
-# was unfrozen", "so others could deem the freeze state by look"): the particle instances the
-# engine plays take no colour or emission scale once playing (scene_renderer has play, stop,
-# remove and update of the transform only), so the glow comes at four strengths, one a quarter of
-# the thaw, the patch swapping them: each a system and its materials, the ice emissive, the
-# rate and the light all times the strength. The suffix of each one's paths, and its strength.
-STRENGTHS = (('', 1.0), ('_70', 0.7), ('_40', 0.4), ('_15', 0.15))
+# The plume (version 2): its upward speed a x + b of `up`'s (m/s); its width and height times
+# `up`'s; its life (s) and rate (a second); drawn camera-facing with the Spring emergence's smoke
+# (smoke_blue) in ice, PLUME_EMISSIVE times the ice blue.
+PLUME_SPEED = (8.0, 0.6)
+PLUME_SIZE = (45.0, 16.0)
+PLUME_LIFE = 2.4
+PLUME_RATE = 30.0
+PLUME_ALIGNMENT = 'Rectangle'
+PLUME_SMOKE = 'smoke'
+PLUME_EMISSIVE = 1.0
+PLUME_MATERIAL = f'fx/artifacts/{PLUME_SMOKE}_ice'
 
 
 def f32(x):
@@ -131,20 +157,101 @@ def scaled(tree, rate, light):
     return (T_NAMED, [(n, lod if n == 'LOD 0' else data if n == 'data_sources' else c) for n, c in tree[1]])
 
 
+def remapped(node, f):
+    """A curve with every key's value (a vector's second number: the key's position and both
+    tangents) f of it, as f32."""
+    t, v = node
+    if t == T_NAMED:
+        return (t, [(n, remapped(c, f)) for n, c in v])
+    if t == glow.T_INDEXED:
+        return (t, [remapped(c, f) for c in v])
+    if t == 6:
+        return (t, [v[0], f32(f(v[1]))])
+    return node
+
+
+def values(node):
+    t, v = node
+    if t == T_NAMED:
+        return [x for _, c in v for x in values(c)]
+    return [v[1]] if t == 6 else []
+
+
+def set_props(node, changes):
+    """`node` (an emitter or an action) with its properties' values replaced by `changes`."""
+    return (T_NAMED, [(k, (T_NAMED, [(n, changes.get(n, c)) for n, c in v[1]]) if k == 'properties' else v)
+                      for k, v in node[1]])
+
+
+def plume(tree):
+    """`tree` with the plume: a copy of its `up` emitter, a column of ice smoke rising from the body."""
+    _, up = glow.emitters_by_name(tree)['up']
+    kinds = {n: dict(k[1]) for n, k in dict(tree[1])['data_sources'][1]}
+    added = {}
+
+    def fresh(kind, prop, fs):
+        """`prop` with each curve of `fs` (by name) f of it and a new data source, the old one's so too."""
+        name = dict(prop[1])['selected_source'][1]
+        n = 1 + max(int(k[len(kind):]) for k in kinds[kind] if k[len(kind):].isdigit())
+        new = f'{kind}{n}'
+        kinds[kind][new] = (T_NAMED, [(a, remapped(c, fs[a]) if a in fs else c) for a, c in kinds[kind][name][1]])
+        added.setdefault(kind, []).append(new)
+        return (T_NAMED, [(a, remapped(c, fs[a]) if a in fs else (T_STR, new) if a == 'selected_source' else c)
+                          for a, c in prop[1]])
+
+    def constant(prop, value):
+        assert len(set(values(dict(prop[1])['source']))) == 1, 'not a flat curve'
+        return fresh('float', prop, {'source': lambda _: value})
+
+    def guid(old):
+        return str(uuid.uuid5(uuid.NAMESPACE_URL, f'{SYSTEM}/plume/{old}'))
+
+    a, b = PLUME_SPEED
+    children = []
+    for old, child in dict(up[1])['children'][1]:
+        field = dict(child[1])['node_config_field'][1]
+        props = dict(dict(child[1])['properties'][1])
+        if field == 'InitVelocity':
+            child = set_props(child, {field: fresh('float3', props[field], {'source1': lambda y: a * y + b})})
+        elif field == 'Billboard':
+            child = set_props(child, {'ScreenAlignment': (T_STR, PLUME_ALIGNMENT)})
+        elif field == 'InitSize':
+            w, h = PLUME_SIZE
+            child = set_props(child, {field: fresh('float3', props[field], {'source0': lambda x: x * w,
+                                                                            'source1': lambda y: y * h})})
+        child = (T_NAMED, [(k, (T_STR, guid(old)) if k == 'id' else v) for k, v in child[1]])
+        children.append((guid(old), child))
+    props = dict(dict(up[1])['properties'][1])
+    emitter = set_props(up, {
+        'Name': (T_STR, 'plume'),
+        'Material': (T_STR, PLUME_MATERIAL),
+        'Rate': constant(props['Rate'], PLUME_RATE),
+        'LifeTime': constant(props['LifeTime'], PLUME_LIFE),
+        'MaxParticles': (props['MaxParticles'][0], math.ceil(PLUME_RATE * PLUME_LIFE)),
+    })
+    me = guid('emitter')
+    emitter = (T_NAMED, [(k, (T_STR, me) if k == 'id' else (T_NAMED, children) if k == 'children'
+                          else (glow.T_INDEXED, [(T_STR, guid(c[1])) for c in v[1]]) if k == 'children_order'
+                          else v) for k, v in emitter[1]])
+    assert sorted(dict(dict(emitter[1])['children'][1])) == sorted(c[1] for c in dict(emitter[1])['children_order'][1])
+    lod = dict(tree[1])['LOD 0']
+    lod = (T_NAMED, [(k, (T_NAMED, v[1] + [(me, emitter)]) if k == 'children'
+                      else (glow.T_INDEXED, v[1] + [(T_STR, me)]) if k == 'children_order' else v) for k, v in lod[1]])
+    data = (T_NAMED, [(n, (T_NAMED, list(kinds[n].items()))) for n, _ in dict(tree[1])['data_sources'][1]])
+    assert sorted(added) == ['float', 'float3'] and len(added['float']) == len(added['float3']) == 2
+    return (T_NAMED, [(n, lod if n == 'LOD 0' else data if n == 'data_sources' else c) for n, c in tree[1]])
+
 
 def frozen_files(stock):
-    """The glow's particle systems and their ice materials at each strength, by path."""
+    """The glow's particle system and its ice materials, by path."""
     spring = parse(stock[f'particles/{SPRING_SYSTEM}.particle'])
-    files = {}
-    for suffix, strength in STRENGTHS:
-        materials = {f'fx/artifacts/{name}_blue': f'fx/artifacts/{name}_ice{suffix}' for name in BLUE}
-        tree = scaled(coloured(spring, ICE, materials), RATE * strength, LIGHT * strength)
-        assert len(glow.emitters_by_name(tree)) == len(glow.emitters_by_name(spring))
-        files[f'particles/{SYSTEM}{suffix}.particle'] = tree
-        for name in BLUE:
-            blue = parse(stock[f'material_instances/fx/artifacts/{name}_blue.material'])
-            files[f'material_instances/fx/artifacts/{name}_ice{suffix}.material'] = \
-                ice_material(blue, ICE, EMISSIVE * strength)
+    materials = {f'fx/artifacts/{name}_blue': f'fx/artifacts/{name}_ice' for name in BLUE}
+    tree = plume(scaled(coloured(spring, ICE, materials), RATE, LIGHT))
+    assert len(glow.emitters_by_name(tree)) == len(glow.emitters_by_name(spring)) + 1
+    files = {f'particles/{SYSTEM}.particle': tree}
+    for name, emissive in [(name, EMISSIVE) for name in BLUE] + [(PLUME_SMOKE, PLUME_EMISSIVE)]:
+        blue = parse(stock[f'material_instances/fx/artifacts/{name}_blue.material'])
+        files[f'material_instances/fx/artifacts/{name}_ice.material'] = ice_material(blue, ICE, emissive)
     return files
 
 
@@ -179,9 +286,9 @@ def main():
             'fx/artifacts/human_frozen, the Spring activation glow fx/artifacts/human_spring (unchanged) in ice '
             f"blue {ICE} and fainter: its blue materials' ice copies fx/artifacts/<name>_ice (constant_emissive "
             f'the ice blue x {EMISSIVE}), every emitter at {RATE} of its rate, its point light ice blue at '
-            f'{LIGHT} of its intensity; at four strengths (the thaw fades it): '
-            + ', '.join(f'{SYSTEM}{suffix} {strength:g}' for suffix, strength in STRENGTHS)
-            + ' (emissive, rate and light times the strength)'),
+            f'{LIGHT} of its intensity; and its plume, a column of ice smoke (fx/artifacts/smoke_ice, smoke_blue '
+            f'with the ice blue x {PLUME_EMISSIVE}) rising about 4 m from the body ({PLUME_RATE:g} a second, '
+            f'{PLUME_LIFE} s), so that a frozen body shows over low cover and at range'),
         'operations': operations,
         'notes': ['made by srp-026g/scripts/freeze-tag-glow/make_pack.py from the stock resources.db\'s '
                   'Spring glow (docs/notes/freeze-tag.md)'],
