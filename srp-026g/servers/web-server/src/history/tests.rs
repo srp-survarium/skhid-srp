@@ -391,7 +391,7 @@ fn a_player_is_its_card_and_totals_of_public_matches() {
     let body = world.ok("/api/history/player?name=alice");
     assert_eq!(
         keys(&body),
-        ["experience", "level", "names", "player", "rating", "totals"]
+        ["experience", "level", "names", "player", "rating", "skills", "totals"]
     );
     assert_eq!(body["player"]["id"], world.alice);
     assert_eq!(body["player"]["name"], "Alice");
@@ -970,6 +970,12 @@ pub(crate) fn preview(dir: &std::path::Path, now: u64, crowd: u32) -> GameAccoun
         account.rating = 1180 - 20 * index;
         if name != "Nova" {
             account.exp_total = 1_234_567 - 90_000 * u32::from(index);
+        }
+        // Sheep's build, for its Skills tab.
+        if name == "Sheep" {
+            account.skills = vec![
+                (101, 5), (102, 3), (103, 3), (104, 2), (105, 3), (109, 1), (201, 3), (204, 3), (209, 2),
+            ];
         }
         repository.save(FIRST + u32::from(index), &account).unwrap();
     }
