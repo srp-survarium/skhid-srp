@@ -2999,9 +2999,9 @@ va	name	location	role	basis
 0x002fcb70	survarium::inventory::setup_from_profile	EDI	inventory receiver	inferred
 0x002fcb70	survarium::inventory::setup_from_profile	AL	profile index	inferred
 0x002fcb70	survarium::inventory::setup_from_profile	stack+4	profile	inferred
-0x002fd2d0	survarium::inventory::unload_to_profile	AL	profile index	inferred
-0x002fd2d0	survarium::inventory::unload_to_profile	stack+4	inventory receiver	inferred
-0x002fd2d0	survarium::inventory::unload_to_profile	stack+8	profile	inferred
+0x002fd2d0	survarium::inventory::unload_to_profile	AL	profile index	observed
+0x002fd2d0	survarium::inventory::unload_to_profile	stack+4	inventory receiver	observed
+0x002fd2d0	survarium::inventory::unload_to_profile	stack+8	profile	observed
 0x002fe360	survarium::inventory::serialize	EAX	inventory	inferred
 0x002fe360	survarium::inventory::serialize	EDI	writer	inferred
 0x002fe550	survarium::inventory::deserialize	EAX	inventory	inferred

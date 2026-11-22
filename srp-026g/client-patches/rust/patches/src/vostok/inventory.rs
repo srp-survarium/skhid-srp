@@ -224,6 +224,13 @@ impl<'t> Inventory<'t> {
     /// containers into this alive kit's empty containers, in the donor's container order, as many
     /// as there are empty ones.
     ///
+    /// The donor's container range is gone by then: the respawn rule's tick takes the dead kit's
+    /// player out of the world (0x31699B, base_player::remove 0x2DA790 with 1) before the spawn,
+    /// and its unload_to_profile clears the range (0x2FDBE8..0x2FDBF2: +168h 0, +16Ch 0). Its
+    /// slots keep their items, so the donor's are found in its 23 slots: an item of `world`'s
+    /// registered artefacts whose owner and slot are that slot's, in slot order (the containers'
+    /// order: their range is a run of slots).
+    ///
     /// Only an artefact its holder's death switched off moves (state 5: artefact_base::tick
     /// 0x3132E5 unlinks its passive, vtable+84h, then writes 5; nothing else writes 5). Its slot is
     /// emptied as remove_item (0x2FC680) empties one but without on_removed (vtable+34h, 0x313490),
@@ -233,7 +240,7 @@ impl<'t> Inventory<'t> {
     /// reference released, the weight to recalculate; then the game's own take_artefact (as a
     /// pickup: set_item, on_taken links the passive, state 3). A free container keeps
     /// take_artefact off its evicting path.
-    pub(super) fn take_from_dead_kit(&mut self, donor: &mut Inventory<'t>) -> crate::artefact_courier::Carried {
+    pub(super) fn take_from_dead_kit(&mut self, donor: &mut Inventory<'t>, world: raw::CoreWorld) -> crate::artefact_courier::Carried {
         let mut carried = crate::artefact_courier::Carried::default();
         if self.player.address() == donor.player.address() || self.this.address() == donor.this.address() {
             return carried;
@@ -241,15 +248,19 @@ impl<'t> Inventory<'t> {
         if !self.alive() || donor.alive() {
             return carried;
         }
-        let Some(containers) = donor.containers() else { return carried };
-        for n in 0..containers.count {
-            let index = ContainerIndex::parse(n).unwrap();
-            let (Some(item), Some(slot), Some(entry)) = (donor.item_in(index), donor.native_slot(index), containers.entry(index)) else {
+        for slot in 0..SLOTS {
+            // SAFETY: one of the donor's 23 slots (+10Ch + 4 x slot).
+            let entry = unsafe { donor.this.slots().at(usize::from(slot)) };
+            // SAFETY: the slot's item, if any; read as an artefact only once it is a registered one.
+            let Some(address) = (unsafe { entry.item() }).map(|item| item.address()) else { continue };
+            let Some((_, item)) = super::keeper::registered(world).find(|(_, item)| item.address() == address) else {
                 continue;
             };
-            // SAFETY: the donor slot's live item; inventory_item's and artefact_base's fields.
+            // SAFETY: a registered artefact's inventory_item's and artefact_base's fields.
             let dead = unsafe {
-                item.item().inventory() == Some(donor.this) && read(item.item().inventory_slot()) == slot && read(item.state()) == 5
+                item.item().inventory() == Some(donor.this)
+                    && read(item.item().inventory_slot()) == u32::from(slot)
+                    && read(item.state()) == 5
             };
             if !dead {
                 continue;
