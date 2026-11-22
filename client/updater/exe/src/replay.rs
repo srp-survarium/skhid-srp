@@ -258,7 +258,6 @@ fn download(server: &Url, request: &Request, part: &str) -> Result<(), Problem> 
             error @ (HttpError::Network(..)
             | HttpError::Cut { .. }
             | HttpError::Stopped
-            | HttpError::Slow(_)
             | HttpError::Html(..)
             | HttpError::Redirects
             | HttpError::BadRedirect(_)

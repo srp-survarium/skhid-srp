@@ -43,6 +43,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use updater_logic::checked::{Identity, Record, parse_record, write_record};
+use updater_logic::download::{Action, Decision, Event, Failure, Mirrors};
 use updater_logic::file_error::Stop;
 use updater_logic::patches::{
     Address, FILE_PREFIX, Fetch, List, ListError, Local, MAX_LIST, Next, PART_PATTERN, Part, Patch,
@@ -383,6 +384,8 @@ enum Fail {
 /// Why one address did not give a patch's file.
 enum Miss {
     Stopped,
+    /// Left for a faster address (`Mirrors::at`), its bytes kept.
+    Moved,
     /// Here: the disk, a file that cannot be written. No other address
     /// would do better: the fetch ends.
     Here(Fail),
@@ -395,8 +398,9 @@ enum Miss {
         why: String,
         /// How: not reached, or what it sent (another SHA-256: damaged).
         miss: problem::Miss,
-        /// A second round may do better (the network, a cut, a 5xx).
-        again: bool,
+        /// The network (a second pass may do better), or an answer that is
+        /// not the file.
+        failure: Failure,
     },
 }
 
@@ -588,72 +592,72 @@ impl Run<'_> {
             ));
         }
         let count = patch.addresses.len();
-        // What the part holds, which addresses a second round tries, the
-        // first failure's words, and how each address failed last.
+        // What the part holds, which address is in use and why (failures in
+        // order, two passes; a slow one leaves for the fastest measured),
+        // the first failure's words, and how each address failed last.
         let mut held = fetch.part;
-        let mut again = alloc::vec![true; count];
+        let mut mirrors = Mirrors::new(count, FETCH_TRIES);
         let mut first: Option<(String, problem::Miss, &Address)> = None;
         let mut misses: Vec<Option<problem::Miss>> = alloc::vec![None; count];
-        for round in 1..=FETCH_TRIES {
-            if round > 1 {
-                if !again.contains(&true) {
-                    break;
-                }
-                if !self.session.pause(RETRY_PAUSE_MS) {
-                    return Err(Fail::Stopped);
-                }
+        self.session.begin_progress();
+        loop {
+            if !self.session.pump() {
+                return Err(Fail::Stopped);
             }
-            for (at, address) in patch.addresses.iter().enumerate() {
-                if !again[at] {
-                    continue;
+            let at = mirrors.at();
+            let address = &patch.addresses[at];
+            let pass = mirrors.pass();
+            self.session.state(state::DOWNLOADING);
+            self.session.restart_speed();
+            log!(
+                "patches: {name}: address {} of {count}, {} (try {pass} of {FETCH_TRIES}): \
+                 asking, from byte {}",
+                at + 1,
+                address.text,
+                held.from()
+            );
+            mirrors.on(Event::Begin {
+                ticks: win::ticks(),
+                done: held.from(),
+            });
+            let (result, now) = self.download(&part, patch, &mut mirrors, held);
+            held = now;
+            let (reason, why, miss, failure) = match result {
+                Ok(identity) => {
+                    return self.put(patch, &part, &target, identity, &address.text, at + 1);
                 }
-                if !self.session.pump() {
-                    return Err(Fail::Stopped);
-                }
-                self.session.state(state::DOWNLOADING);
-                self.session.begin_progress();
-                log!(
-                    "patches: {name}: address {} of {count}, {} (try {round} of {FETCH_TRIES}): \
-                     asking, from byte {}",
-                    at + 1,
-                    address.text,
-                    held.from()
-                );
-                // Too slow is a failure only while another address will be
-                // tried this round (the second tries again only those that
-                // failed on the network).
-                let slow = if again[at + 1..].contains(&true) {
-                    http::Slow::Leave
-                } else {
-                    http::Slow::Wait
-                };
-                let (result, now) = self.download(&part, patch, address, slow, held);
-                held = now;
-                let identity = match result {
-                    Ok(identity) => identity,
-                    Err(Miss::Stopped) => return Err(Fail::Stopped),
-                    Err(Miss::Here(fail)) => return Err(fail),
-                    Err(Miss::There {
-                        reason,
-                        why,
-                        miss,
-                        again: worth,
-                    }) => {
-                        log!(
-                            "patches: {name}: address {} of {count}, {} (try {round} of \
-                             {FETCH_TRIES}): {why}",
-                            at + 1,
-                            address.text
-                        );
-                        again[at] = worth && round < FETCH_TRIES;
-                        misses[at] = Some(miss);
-                        if first.is_none() {
-                            first = Some((reason, miss, address));
-                        }
-                        continue;
+                Err(Miss::Moved) => continue,
+                Err(Miss::Stopped) => return Err(Fail::Stopped),
+                Err(Miss::Here(fail)) => return Err(fail),
+                Err(Miss::There {
+                    reason,
+                    why,
+                    miss,
+                    failure,
+                }) => (reason, why, miss, failure),
+            };
+            log!(
+                "patches: {name}: address {} of {count}, {} (try {pass} of {FETCH_TRIES}): {why}",
+                at + 1,
+                address.text
+            );
+            misses[at] = Some(miss);
+            if first.is_none() {
+                first = Some((reason, miss, address));
+            }
+            match mirrors.on(Event::Failed {
+                ticks: win::ticks(),
+                failure,
+            }) {
+                Action::Go { to, pause, decision } => {
+                    if let Some(decision) = decision {
+                        log!("patches: {name}: {}", decision_line(patch, to, held.from(), &decision));
                     }
-                };
-                return self.put(patch, &part, &target, identity, &address.text, at + 1);
+                    if pause && !self.session.pause(RETRY_PAUSE_MS) {
+                        return Err(Fail::Stopped);
+                    }
+                }
+                Action::Stay | Action::GiveUp => break,
             }
         }
         // Bytes got stay for the next start; no byte, no file.
@@ -699,11 +703,13 @@ impl Run<'_> {
         &mut self,
         part: &str,
         patch: &Patch,
-        address: &Address,
-        slow: http::Slow,
+        mirrors: &mut Mirrors,
         held: Part,
     ) -> (Result<Option<Identity>, Miss>, Part) {
         let from = held.from();
+        let at = mirrors.at();
+        let address = &patch.addresses[at];
+        let mut moved = false;
         let output = match retried("written", part, &mut || File::download(part, from)) {
             Ok(output) => output,
             Err(code) => return (Err(Miss::Here(file_fail(part, code, "written"))), held),
@@ -719,7 +725,6 @@ impl Run<'_> {
             &address.url,
             from,
             MAX_PATCH,
-            slow,
             &mut |to| log!("patches: {name}: {} redirects to {to}", address.text),
             &mut |done, total| {
                 // Before the first byte: is there room for what is still to
@@ -740,7 +745,25 @@ impl Run<'_> {
                         return false;
                     }
                 }
-                session.progress(done, total.unwrap_or(0))
+                if !session.progress(done, total.unwrap_or(0)) {
+                    return false;
+                }
+                let event = Event::Progress {
+                    ticks: win::ticks(),
+                    done,
+                    size: total,
+                };
+                match mirrors.on(event) {
+                    Action::Go { to, decision, .. } => {
+                        if let Some(decision) = decision {
+                            log!("patches: {name}: {}", decision_line(patch, to, done, &decision));
+                        }
+                        // The whole file here already: nothing to move for.
+                        moved = to != at && total != Some(done);
+                        !moved
+                    }
+                    Action::Stay | Action::GiveUp => true,
+                }
             },
         );
         drop(output);
@@ -777,6 +800,9 @@ impl Run<'_> {
                 Part::of_size(saved.end),
             );
         }
+        if moved {
+            return (Err(Miss::Moved), Part::of_size(saved.end));
+        }
         let tried = match &saved.result {
             Ok(()) => Tried::Complete { end: saved.end },
             Err(HttpError::PastEnd(size)) => Tried::PastEnd(*size),
@@ -789,16 +815,12 @@ impl Run<'_> {
                     return (Err(Miss::Stopped), now);
                 }
                 let message = text::http(&address.url, &address.url.prefix, &error);
-                let again = matches!(
-                    error,
-                    HttpError::Network(..) | HttpError::Cut { .. } | HttpError::Status(500..=599)
-                );
                 (
                     Err(Miss::There {
                         why: message.clone(),
                         reason: message,
                         miss: error.miss(),
-                        again,
+                        failure: error.failure(),
                     }),
                     now,
                 )
@@ -807,14 +829,14 @@ impl Run<'_> {
                 self.drop_part(part, "longer than the address's file");
                 let error = saved.result.expect_err("a 416");
                 let message = text::http(&address.url, &address.url.prefix, &error);
-                // The part was at fault, not the address: a second round
-                // asks it from byte 0.
+                // The part was at fault, not the address: the next one, and
+                // the second pass, ask from byte 0.
                 (
                     Err(Miss::There {
                         why: message.clone(),
                         reason: message,
                         miss: error.miss(),
-                        again: true,
+                        failure: Failure::Network,
                     }),
                     Part::Nothing,
                 )
@@ -857,7 +879,7 @@ impl Run<'_> {
                             hex(&patch.sha256)
                         ),
                         miss: problem::Miss::Answered(Fault::Damaged),
-                        again: from > 0,
+                        failure: if from > 0 { Failure::Network } else { Failure::Refused },
                     }),
                     Part::Nothing,
                 )
@@ -1144,6 +1166,12 @@ impl Run<'_> {
         );
         Ok(())
     }
+}
+
+/// A decision of speed for the log, the patch's addresses named by their
+/// hosts.
+fn decision_line(patch: &Patch, to: usize, from: u64, decision: &Decision) -> String {
+    decision.line(to, from, &|at| patch.addresses[at].url.host.clone())
 }
 
 fn list_error(error: &ListError) -> String {

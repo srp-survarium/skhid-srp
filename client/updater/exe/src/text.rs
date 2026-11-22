@@ -10,7 +10,6 @@
 use alloc::format;
 use alloc::string::String;
 
-use updater_logic::download;
 use updater_logic::network;
 use updater_logic::problem::{Fault, Miss};
 use updater_logic::url::Url;
@@ -200,11 +199,6 @@ pub fn http(server: &Url, path: &str, error: &HttpError) -> String {
         HttpError::BadRedirect(location) => {
             format!("{host} redirected {path} to an address the updater does not take: {location}")
         }
-        HttpError::Slow(speed) => format!(
-            "The download from {host} was too slow ({} KB/s over {} minutes). Try again later.",
-            speed / 1024,
-            download::SLOW_WINDOW_MS / 60_000
-        ),
         HttpError::BadRange => {
             format!("{host} answered {path} with another part of the file than was asked for.")
         }
@@ -217,8 +211,7 @@ pub fn http(server: &Url, path: &str, error: &HttpError) -> String {
 
 /// Why one address of a file did not give it, in a few words, for the log
 /// and the list of every address's failure: which timeout, the host not
-/// found or not reached, the status, a web page and its title, too slow,
-/// cut short.
+/// found or not reached, the status, a web page and its title, cut short.
 pub fn reason(error: &HttpError) -> String {
     match error {
         HttpError::Network(step, code) => match (*step, *code) {
@@ -250,12 +243,6 @@ pub fn reason(error: &HttpError) -> String {
         HttpError::BadRedirect(location) => {
             format!("redirect to an address the updater does not take: {location}")
         }
-        HttpError::Slow(speed) => format!(
-            "too slow: {} KB/s over {} minutes (under {} KB/s)",
-            speed / 1024,
-            download::SLOW_WINDOW_MS / 60_000,
-            download::MIN_SPEED / 1024
-        ),
         HttpError::BadRange => "answered another part of the file than was asked for".into(),
         HttpError::PastEnd(Some(size)) => format!("no byte past those kept (HTTP 416, the file is {size} bytes)"),
         HttpError::PastEnd(None) => "no byte past those kept (HTTP 416)".into(),
