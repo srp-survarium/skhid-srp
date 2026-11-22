@@ -473,6 +473,9 @@ pub struct TeamTraps {
     /// [A292 S1] The lanes of every enemy the team sensed, for the trap habit's score when `TrapTuning::lanes` is `enemies`
     /// (`traps::learn_enemy_lanes`); empty otherwise.
     pub lanes: super::know::HumanLanes,
+    /// [fix-team PvB traps] Whether an enemy human is in the match, as the commander's last tick saw it (`TrapLanes::source`);
+    /// none before its first tick.
+    pub faces_humans: Option<bool>,
 }
 
 #[cfg(test)]

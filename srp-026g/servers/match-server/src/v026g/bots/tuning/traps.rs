@@ -132,7 +132,8 @@ pub struct TrapTuning {
     /// Bots the human's own team never places and the bots' team places only on his sensed path) or `enemies` (a team map of every
     /// enemy the team sensed, bots and humans, by the same rule: its own senses, 6 m cells, 180 s half life; kept apart from
     /// `HumanLanes`, whose other readers stay as they are). A human in a bot's place knows where any enemy he saw or heard walked.
-    /// `humans` by default until its by-side bench decides.
+    /// [fix-team PvB traps] `facing` by default: the humans' lanes for a team that faces an enemy human, every enemy's for a team
+    /// that faces bots only ([`TrapLanes::Facing`]).
     pub lanes: TrapLanes,
     /// [A292 S2] The enemy-near gate's "sensed lately" part only for an enemy sensed this near (`None`: anywhere, today). The
     /// tally of #1207 on the bench: of the thinks the enemy gate stopped, about 70 % were "sensed lately" (a shot or a step
@@ -229,6 +230,32 @@ pub enum TrapLanes {
     Humans,
     /// Every enemy the team sensed (`trap_know::TeamTraps::lanes`).
     Enemies,
+    /// [fix-team PvB traps] `humans` for a team that faces an enemy human, `enemies` for a team that faces bots only. With
+    /// `humans` for every team, Player vs Bots' human's bot mates face no enemy human, their humans' lanes are empty all match
+    /// and the spot score's presence is 0 everywhere: in 14 local matches that side planned 4 traps (all camper jobs) against the
+    /// bots' side's 262 (`pins-wall-traps-20261122.md` row 14, PROVEN; the skill gate was not it, its share 0.95 at skill 0.5).
+    Facing,
+}
+
+/// [fix-team PvB traps] The lanes a team's trap spot score reads, for this match ([`TrapLanes::source`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LaneSource {
+    /// The enemy humans' lanes (`know::HumanLanes`).
+    Humans,
+    /// Every enemy the team sensed (`trap_know::TeamTraps::lanes`).
+    Enemies,
+}
+
+impl TrapLanes {
+    /// The lanes a team reads: `faces_humans`, whether an enemy human is in the match.
+    pub fn source(self, faces_humans: bool) -> LaneSource {
+        match self {
+            TrapLanes::Humans => LaneSource::Humans,
+            TrapLanes::Enemies => LaneSource::Enemies,
+            TrapLanes::Facing if faces_humans => LaneSource::Humans,
+            TrapLanes::Facing => LaneSource::Enemies,
+        }
+    }
 }
 
 /// [A292 S2] How near an enemy sensed lately must be to keep a bot from placing (`TrapTuning::sensed_near`).
@@ -573,7 +600,7 @@ impl Default for TrapTuning {
             look_ms: 900,
             cooldown_s: 20.0,
             react: ReactTuning::default(),
-            lanes: TrapLanes::Humans,
+            lanes: TrapLanes::Facing,
             sensed_near: Some(SensedNear { within_m: 40.0 }),
             after_press: None,
             stayer: Stayer::Place,

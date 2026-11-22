@@ -222,6 +222,7 @@ pub use traps::CamperJob;
 pub use traps::Forward;
 pub use traps::FreshRing;
 pub use traps::KeepOff;
+pub use traps::LaneSource;
 pub use traps::PassTuning;
 pub use traps::PressClear;
 pub use traps::PressMoving;
