@@ -360,6 +360,12 @@ impl Session {
         });
     }
 
+    /// A new request of the same file (another address, a new try): its
+    /// speed is measured anew from its first report, the bar kept as it is.
+    fn restart_speed(&mut self) {
+        self.counted_from = None;
+    }
+
     /// Reports bytes done of a total, four times a second at most (always
     /// at the end). `false` when told to stop.
     fn progress(&mut self, done: u64, total: u64) -> bool {

@@ -330,7 +330,7 @@ caption is `Skhid: <the fixed words>` in English always.
 | Title begins | When | What to run |
 |---|---|---|
 | `Game files removed by antivirus: <file>` | Windows Security's 225/226 on a Skhid file; a file just written that is gone or denied when read back, or gone once in place; a program file gone at the start (put back, OK box) | `Skhid-defender-setup.cmd` (or exclude the folder named); for a patch of resources.db, in `game`, which the script does not exclude: Windows Security > Protection history > Allow on device, and that folder as an exclusion |
-| `Download failed: <file>, <damaged / cut short / too slow / a web page instead of the file / refused (HTTP n) / no secure connection / not usable>[ at every address]` | every address of a patch, of the game's archive (`survarium-026g.7z`) or of the Skhid files (`<host>/download`) failed, one of them with an answer (the first that answered says how). An address that broke off while its file came answered: cut short, never "no connection". No secure connection (TLS, a certificate: also the update server, as `<host>`) | `Skhid.bat` again; for no secure connection, this PC's date, time and time zone, and no program intercepting HTTPS |
+| `Download failed: <file>, <damaged / cut short / a web page instead of the file / refused (HTTP n) / no secure connection / not usable>[ at every address]` | every address of a patch, of the game's archive (`survarium-026g.7z`) or of the Skhid files (`<host>/download`) failed, one of them with an answer (the first that answered says how). An address that broke off while its file came answered: cut short, never "no connection". No secure connection (TLS, a certificate: also the update server, as `<host>`) | `Skhid.bat` again; for no secure connection, this PC's date, time and time zone, and no program intercepting HTTPS |
 | `No internet connection: ...`, `The server is offline: ...`, `The server is restarting: ...`, `Blocked on this network: ...`, `The relay does not answer: ...`, `No connection: ...`, each `<host> did not answer (<how>)` or `no address of <file> answered (<how>)` (or `<host>: the game server does not answer` for a 502, 503 or 504 of the site's proxy) | nothing answered before its answer's headers (WinHTTP's 12007 name not found, 12029 connection refused, 12002 timed out, 12030 connection cut off: `logic/src/network.rs`), or the site said the game server behind it is down; then told apart by what answers now (`logic/src/diagnosis.rs`, below) | what helps, and only that: nothing to run for no internet, a server offline or restarting; the launcher's "Relay" row for blocked here or the relay down; `Skhid-network-setup.cmd` for no connection |
 
 Nothing answered: the updater asks the server's site (`/api/stats`, 5 s at
@@ -692,7 +692,8 @@ without it has none, and says so). A server that answers always wins. srp's
 **The download** is that of a patch's file (`http::get_file_into`, the same code), with the
 rules of "Mirrors" below: redirects followed, a web page refused. The
 addresses are tried in their order, each once a run; any failure moves on to
-the next. The bytes on disk (`game\.skhid-game.7z`) are the same file at
+the next, and a slow one is left for the fastest (see "The fastest address"
+below). The bytes on disk (`game\.skhid-game.7z`) are the same file at
 every address, so the next address goes on from them: `Range: bytes=<n>-`;
 a `206` from byte n is appended, a `206` of another range is a failure, a
 `200` (a server that gives no part) is the whole file again from byte 0. A
@@ -715,9 +716,7 @@ answer within 30 s, or nothing received for 30 s: WinHTTP's 10 s name
 lookup, 10 s connect, 30 s send and receive), `host not found (DNS)`,
 `unreachable`, `connection reset`, `HTTP <status>`, `web page "<its
 title>", not the file` (the `<title>` of its first 8 KB, any host's: Google
-Drive's "Quota exceeded" page among them), `too slow: <n> KB/s over 2
-minutes (under 50 KB/s)` (`download::Speed`; only while another address
-remains: the last one is waited for, however slow), `cut short at byte <n> of
+Drive's "Quota exceeded" page among them), `cut short at byte <n> of
 <size>`, `larger than the file`, `wrong SHA-256`, `more than 5 redirects`.
 When every address failed the player is told each one's host and reason,
 then where to send the log (`text::reported`, as the crash reporter words
@@ -899,8 +898,7 @@ list's SHA-256, and the list came from the update server over HTTPS.
   connection or a broken one, another status than 200, a web page
   (`Content-Type: text/html`: a sign-in page, Google Drive's "cannot scan
   this file for viruses" or "Quota exceeded" page; its title is in the
-  log), slower than 50 KB/s over 2 minutes (while another address
-  remains), a body shorter than its
+  log), a body shorter than its
   Content-Length, another SHA-256, too many redirects or one to an address
   a list may not name. Each try is a line of the log too (`... (try 1 of
   2): asking`). The second round tries again only the addresses that failed on the
@@ -910,6 +908,30 @@ list's SHA-256, and the list came from the update server over HTTPS.
   2): <why>`); PLAY stays off only when every address failed. Not enough
   disk, a file that cannot be written here: no other address would do
   better, the run ends.
+- **The fastest address.** A slow address is never a failure: it is left
+  for a faster one, which goes on from the bytes on disk, so nothing
+  measured is thrown away (`download::Mirrors`, the one rule of the
+  patches and the game's archive; one connection at a time). The address
+  in use is measured over each 30 s; under 1 MiB/s with more than 2
+  minutes of the file still to go at that speed (more than 120 MiB at
+  1 MiB/s, 12 MiB at 100 KiB/s), a round starts: every other open address
+  is sampled for 20 s in turn, each once a round, and the download goes on
+  at the fastest measured (the one in use among them). That choice is kept
+  until it breaks off, or falls under half the speed it was chosen at
+  over a minute; no round starts sooner than 5 minutes after the last. An
+  address that failed outright this run (a status, a web page, another
+  range, another SHA-256) is not sampled again; one that failed on the
+  network not in the same pass. When every address is slow, the fastest
+  is waited for, as one address is. One line of the log a decision:
+
+  ```text
+  patches: resources.db.patch_69: dl.dropboxusercontent.com (address 1): 512 KB/s over 30 s, 3511 MB to go: goes on at 2.28.121.133 (address 2) from byte 15728640, to sample it
+  patches: resources.db.patch_69: measured dl.dropboxusercontent.com 512 KB/s, 2.28.121.133 3072 KB/s: goes on at 2.28.121.133 (address 2) from byte 78643200
+  ```
+
+  (the game's archive: `skhid-game  speed    <host>: ...`). The launcher's
+  bar keeps its bytes across a move, and its speed and time left are those
+  of the address in use.
 - **Redirects** are followed, up to 5 a download (the 6th is a failure),
   WinHTTP's own following being off: each `Location` (absolute, `//host`,
   `/path`, `?query` or relative) is resolved against the address it came

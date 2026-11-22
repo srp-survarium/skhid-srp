@@ -15,7 +15,7 @@ use crate::{
 };
 use alloc::{format, string::String, vec::Vec};
 use updater_logic::{
-    download,
+    download::{self, Action, Decision, Event, Failure, Mirrors},
     game::{self, Pin},
     patches::{self as list, Address, Download},
     pipe::{ToLauncher, state, step},
@@ -210,10 +210,12 @@ fn check(
 /// Returns a read lock only after hashing the bytes actually on disk. The lock
 /// stays alive until the extractor exits, preventing replacement after checking.
 ///
-/// The addresses are tried in their order, each once a run; any failure
-/// moves on to the next, which goes on from the bytes on disk (they are
-/// the same file at every address). A download left by a run that stopped
-/// is gone on from the same way. One line of the log a try and a failure.
+/// The addresses are tried in their order, each once a run
+/// (`download::Mirrors`); any failure moves on to the next, which goes on
+/// from the bytes on disk (they are the same file at every address), and a
+/// slow one with much to go has the others sampled and the fastest gone
+/// on at. A download left by a run that stopped is gone on from the same
+/// way. One line of the log a try, a failure and a decision of speed.
 fn fetch(
     session: &mut Session,
     addresses: &[Address],
@@ -225,12 +227,16 @@ fn fetch(
         return Ok(file);
     }
     let count = addresses.len();
+    let mut mirrors = Mirrors::new(count, 1);
     let mut failed: Vec<(String, String)> = Vec::new();
     let mut misses: Vec<Miss> = Vec::new();
-    for (at, address) in addresses.iter().enumerate() {
+    session.begin_progress();
+    loop {
         if !session.pump() {
             return Err(None);
         }
+        let at = mirrors.at();
+        let address = &addresses[at];
         let host = address.url.host.as_str();
         // A whole file that is here failed its check: it is no part.
         let mut have = win::file_size(path).unwrap_or(0);
@@ -251,20 +257,22 @@ fn fetch(
                 )
             )
         );
-        session.begin_progress();
         session.state(state::DOWNLOADING);
-        // Too slow is a failure only while another address remains.
-        let slow = if at + 1 < count {
-            http::Slow::Leave
-        } else {
-            http::Slow::Wait
+        session.restart_speed();
+        mirrors.on(Event::Begin {
+            ticks: win::ticks(),
+            done: have,
+        });
+        let (result, received) = match get(session, &mut mirrors, addresses, path, have, pin)? {
+            Tried::Moved => continue,
+            Tried::Answered(result, received) => (result, received),
         };
-        let (result, received) = get(session, address, path, have, pin, slow)?;
-        let (why, miss) = match result {
+        let (why, miss, failure) = match result {
             Ok(()) => match win::file_size(path).unwrap_or(0) {
                 size if size != pin.size => (
                     format!("cut short at byte {size} of {}", pin.size),
                     Miss::Answered(Fault::CutShort),
+                    Failure::Network,
                 ),
                 _ => match check(path, pin, session)? {
                     Some(file) => {
@@ -284,11 +292,12 @@ fn fetch(
                         (
                             format!("wrong SHA-256 (not {})", pin.sha256),
                             Miss::Answered(Fault::Damaged),
+                            Failure::Refused,
                         )
                     }
                 },
             },
-            Err(error) => (text::reason(&error), error.miss()),
+            Err(error) => (text::reason(&error), error.miss(), error.failure()),
         };
         log!(
             "{}",
@@ -301,6 +310,18 @@ fn fetch(
         );
         failed.push((host.into(), why));
         misses.push(miss);
+        match mirrors.on(Event::Failed {
+            ticks: win::ticks(),
+            failure,
+        }) {
+            Action::Go { to, decision, .. } => {
+                if let Some(decision) = decision {
+                    let from = win::file_size(path).unwrap_or(0);
+                    log!("{}", decision_line(addresses, at, to, from, &decision));
+                }
+            }
+            Action::Stay | Action::GiveUp => break,
+        }
     }
     // Bytes got stay for the next start; no byte, no file.
     if win::file_size(path).is_ok_and(|size| size == 0) {
@@ -312,35 +333,72 @@ fn fetch(
     ))))
 }
 
-/// One try of one address: its bytes into `path` from byte `from` on, or
-/// from 0 when it gives the whole file again. What it answered and the
-/// bytes received of it; `Err` for a failure here (the disk), not of the
-/// address, and when told to stop (the bytes stay for the next run).
+/// A decision of speed, as a line of the log: `skhid-game  speed  <host>: ...`.
+fn decision_line(addresses: &[Address], at: usize, to: usize, from: u64, decision: &Decision) -> String {
+    let host = |index: usize| addresses[index].url.host.clone();
+    download::line(LABEL, "speed", &host(at), &decision.line(to, from, &host))
+}
+
+/// How a try ended.
+enum Tried {
+    /// What the address answered, and the bytes received of it.
+    Answered(Result<(), HttpError>, u64),
+    /// Left for a faster address (`mirrors.at()`), its bytes kept.
+    Moved,
+}
+
+/// One try of the address in use: its bytes into `path` from byte `from`
+/// on, or from 0 when it gives the whole file again. `Err` for a failure
+/// here (the disk), not of the address, and when told to stop (the bytes
+/// stay for the next run).
 fn get(
     session: &mut Session,
-    address: &Address,
+    mirrors: &mut Mirrors,
+    addresses: &[Address],
     path: &str,
     from: u64,
     pin: Pin,
-    slow: http::Slow,
-) -> Result<(Result<(), HttpError>, u64), Option<String>> {
+) -> Result<Tried, Option<String>> {
+    let at = mirrors.at();
+    let address = &addresses[at];
     let file = win::File::download(path, from)
         .map_err(|code| io_error("save the game download", code))?;
+    let mut moved = false;
     let saved = http::get_file_into(
         &file,
         &address.url,
         from,
         pin.size,
-        slow,
         &mut |to| log!("{LABEL}: {} redirects to {to}", address.text),
-        &mut |done, _| session.progress(done, pin.size),
+        &mut |done, _| {
+            if !session.progress(done, pin.size) {
+                return false;
+            }
+            let event = Event::Progress {
+                ticks: win::ticks(),
+                done,
+                size: Some(pin.size),
+            };
+            match mirrors.on(event) {
+                Action::Go { to, decision, .. } => {
+                    if let Some(decision) = decision {
+                        log!("{}", decision_line(addresses, at, to, done, &decision));
+                    }
+                    // The whole file here already: nothing to move for.
+                    moved = to != at && done < pin.size;
+                    !moved
+                }
+                Action::Stay | Action::GiveUp => true,
+            }
+        },
     );
     drop(file);
     match saved {
         Err(http::DiskError::Write(code)) => Err(io_error("save the game download", code)),
         Err(http::DiskError::Flush(code)) => Err(io_error("flush the download to disk", code)),
+        Ok(_) if moved => Ok(Tried::Moved),
         Ok(saved) if saved.result == Err(HttpError::Stopped) => Err(None),
-        Ok(saved) => Ok((saved.result, saved.received)),
+        Ok(saved) => Ok(Tried::Answered(saved.result, saved.received)),
     }
 }
 

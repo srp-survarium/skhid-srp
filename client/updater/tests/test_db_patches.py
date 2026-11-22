@@ -484,6 +484,27 @@ class PatchTest(WineTest):
         self.assertEqual(kept["patch_14"]["urls"], self.site.patch_urls[14])
         self.assertEqual(self.run_ready(), 0)
 
+    def test_a_slow_address_is_left_for_a_faster_one_from_the_bytes_on_disk(self):
+        # 120 MB at 512 KB/s from the first address: after 30 s the second
+        # is sampled, going on from the bytes on disk, and gives the rest.
+        patches = self.make_patches(14, size=120 << 20)
+        slow, fast = self.two_sites()
+        for site in (slow, fast):
+            site.patches.update(patches)
+        slow.patch_slow = 0.125
+        self.site.patch_urls = {14: [f"{slow.url}/store/patch_14", f"{fast.url}/store/patch_14"]}
+        self.assertEqual(self.run_updater(), 0, self.log())
+        self.assert_patches(patches)
+        self.assertEqual(slow.patch_ranges_asked, [(14, None)])
+        [(_, asked)] = fast.patch_ranges_asked
+        at = int(asked[len("bytes="):-1])
+        self.assertGreater(at, 10 << 20)
+        log = self.log()
+        self.assertIn("patches: resources.db.patch_14: 127.0.0.1 (address 1): ", log)
+        self.assertIn("KB/s over 30 s, ", log)
+        self.assertIn(f": goes on at 127.0.0.1 (address 2) from byte {at}, to sample it", log)
+        self.assertIn(f"address 2 of 2, {fast.url}/store/patch_14 (try 1 of 2): asking, from byte {at}", log)
+
     def test_a_web_page_in_the_place_of_the_file_moves_on_to_the_next_address(self):
         patches = self.make_patches(14)
         drive, files = self.two_sites()
