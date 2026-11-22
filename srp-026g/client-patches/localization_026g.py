@@ -25,7 +25,7 @@ LANGUAGES = (
     # Serbian remains the fallback for primary 0x1A; exact Croatian locales take precedence.
     ('serbian', 'Srpski', 0x1A, 'sr'), ('czech', 'Čeština', 0x05, 'cs'), ('hungarian', 'Magyar', 0x0E, 'hu'),
     ('finnish', 'Suomi', 0x0B, 'fi'), ('belarusian', 'Беларуская', 0x23, 'be'),
-    ('croatian', 'Hrvatski', (0x041A, 0x101A), 'hr'),
+    ('croatian', 'Hrvatski', (0x041A, 0x101A), 'hr'), ('portuguese', 'Português', 0x16, 'pt'),
 )
 # Languages written in Cyrillic; every other dictionary is Latin.
 CYRILLIC = frozenset({'ukrainian', 'russian', 'belarusian'})
