@@ -88,6 +88,7 @@ pub mod breath_hit;
 // patch 179: a shot ends the shooter's protection
 pub mod shot_protection;
 pub mod footsteps;
+pub mod zone_guards;
 // patch 153: a step on a walker-only floor finds its ground
 pub mod step_ground;
 
