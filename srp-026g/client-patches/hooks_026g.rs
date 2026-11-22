@@ -6447,6 +6447,51 @@ pub extern "C" fn hook_language_on_configs_texts(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- light_occlusion (patch 190) ----
+
+/// The entry `light_occlusion_on_probe_answer` (0x1b81e3, get_results_and_prepare_bounds_env_probes (0x1B8190) storing an environment probe's hi-Z answer (mov [ecx+384h],al): ECX the probe, AL 1 occluded / 0 visible, as hiz.light_answer (its index +37Ch); joined by the never-queried path (jmp at 0x1B81D0)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_light_occlusion_on_probe_answer(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `light_occlusion_on_probe_answer` calls this, from the game's jump at 0x1b81e3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::light_occlusion::on_probe_answer(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- light_occlusion (patch 190) ----
+
+/// The entry `light_occlusion_on_ambient_light_answer` (0x1b8043, get_results_and_prepare_bounds_ambient_lights (0x1B7FF0) storing an ambient light's hi-Z answer (mov [ecx+0A4h],al): ECX the light, AL 1 occluded / 0 visible, as hiz.light_answer (its index +9Ch); joined by the never-queried path (jmp at 0x1B8030)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_light_occlusion_on_ambient_light_answer(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `light_occlusion_on_ambient_light_answer` calls this, from the game's jump at 0x1b8043,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::light_occlusion::on_ambient_light_answer(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- light_occlusion (patch 190) ----
+
+/// The entry `light_occlusion_on_light_answer` (0x1b7c2b, get_results_and_prepare_bounds_lights (0x1B7BD0) storing a point or spot light's hi-Z answer (mov [ecx+270h],al): ECX the light, AL 1 occluded / 0 visible, its result in the last query (0 at [stage+1Ch] + the index it had then, +2ACh; 0 when it never had one, -1), read when that query's results came in (quary_and_get_results_if_ready 0x1D7E30); EDI the index it takes in the query sent now (written next, 0x1B7C33): it grows within a pass, all kinds sharing one counter from 0. Joined by the never-queried path (jmp at 0x1B7C1B)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_light_occlusion_on_light_answer(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `light_occlusion_on_light_answer` calls this, from the game's jump at 0x1b7c2b,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::light_occlusion::on_light_answer(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- lobby_scene (patch 81) ----
 
 /// The entry `lobby_scene_on_squad_id` (0x2747c3, read_squad_info (0x274720, the 0xA1 squad info handler) with its squad id kept (+1EAAA4h, 0x2747A8) and compared with 0 (the je at 0x2747CA reads the flags), at mov byte [ebx+1EAAACh],0: EBX the lobby client, ESI the message's reader (its cursor past the id: srp's two bytes there when the id is 0); both paths pass, a squad id of 0 (no squad) jumps over the members and the rest from here) calls this with the saved machine.
