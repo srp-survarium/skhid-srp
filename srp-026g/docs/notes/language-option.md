@@ -9,7 +9,7 @@ the main menu movie (`flash/main_menu/src/SrpLanguage.as`).
 
 - **Where:** Settings, Gameplay tab, the bottom panel, centred: the label "Language:" (styled as
   the tab's option labels), a list of every registered language by its own name (English,
-  Українська, Русский, Deutsch, Polski, Srpski, Čeština, Magyar, Suomi, Беларуская, Hrvatski), the saved one selected
+  Українська, Русский, Deutsch, Polski, Srpski, Čeština, Magyar, Suomi, Беларуская, Hrvatski, Português), the saved one selected
   (in Ruffle: `../images/language-option.png`).
 - **The panel's old options are hidden:** "Enable seeding", "Limit upload speed" (the old launcher's
   torrent) and "Enable statistics collection" (nothing in the 0.26g exe reads it). Hidden, not

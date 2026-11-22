@@ -111,12 +111,12 @@ installs whenever the ZIP's checksum changes.
    launcher closes. Since game patch 79 (`../../docs/notes/language-option.md`)
    it passes no `-localization=`: the game's language is the one chosen in
    its Settings (user.cfg).
-7. The language button (EN, UA, RU, DE, PL, SR, CS, HU, FI, BE) opens a
+7. The language button (EN, UA, RU, DE, PL, SR, CS, HU, FI, BE, HR, PT) opens a
    menu of every language of the game, each by its own name, the current
    one checked. A pick is the game's language: it is written to the game's
    user.cfg at once, as the game's Settings write it, and the launcher's
    texts and page change with it (English for a language the launcher has
-   none in: SR, CS, HU, FI, BE). At its start the launcher shows user.cfg's
+   none in: SR, CS, HU, FI, BE, HR, PT). At its start the launcher shows user.cfg's
    language, else the one the game will start in (patch 14).
 
 "Watch replay" in the lobby's History (game patch revision 14) does not go
