@@ -40,11 +40,22 @@ impl Rank<3> {
     }
 }
 
-/// A pocket stack a skill can halve ([`Skills::halves`]).
+/// A pocket stack a skill makes take more of a pocket ([`Skills::stack_units`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stack {
     Grenades,
     Traps,
+}
+
+/// What one unit of such a stack takes of a pocket's units.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StackUnits {
+    /// Its own (the item's config).
+    Own,
+    /// One and a half: two in three of the pocket's units (Bear Trap).
+    OneAndHalf,
+    /// Two: half the pocket's units (Toxic Smoke, as the RGD-5).
+    Two,
 }
 
 /// Row II's either/or pair: what an oxygen tank in the kit adds to its pockets.
@@ -439,12 +450,14 @@ impl Skills {
         self.bear_trap
     }
 
-    /// Toxic Smoke (441) and Bear Trap (444): a grenade or a trap of such a kit takes two of a
-    /// pocket's units, as the RGD-5 does.
-    pub fn halves(self, stack: Stack) -> bool {
+    /// Toxic Smoke (441): a grenade of such a kit takes two of a pocket's units, as the RGD-5
+    /// does. Bear Trap (444): a trap takes one and a half (the owner, 2026-11-22: "so you could take
+    /// 3 traps").
+    pub fn stack_units(self, stack: Stack) -> StackUnits {
         match stack {
-            Stack::Grenades => self.toxic_smoke.0 > 0,
-            Stack::Traps => self.bear_trap,
+            Stack::Grenades if self.toxic_smoke.0 > 0 => StackUnits::Two,
+            Stack::Traps if self.bear_trap => StackUnits::OneAndHalf,
+            _ => StackUnits::Own,
         }
     }
 }
@@ -482,8 +495,9 @@ mod tests {
         assert_eq!(s.rearm_ms(), Some(20_000));
         assert_eq!(Skills::parse(packed(&[(433, 1)])).unwrap().rearm_ms(), Some(30_000));
         assert_eq!(Skills::default().rearm_ms(), None);
-        assert!(s.halves(Stack::Grenades) && s.halves(Stack::Traps));
-        assert!(!Skills::default().halves(Stack::Grenades) && !Skills::default().halves(Stack::Traps));
+        assert_eq!((s.stack_units(Stack::Grenades), s.stack_units(Stack::Traps)), (StackUnits::Two, StackUnits::OneAndHalf));
+        let none = Skills::default();
+        assert_eq!((none.stack_units(Stack::Grenades), none.stack_units(Stack::Traps)), (StackUnits::Own, StackUnits::Own));
         assert_eq!(s.pack(), value);
         // Everything at its most, Tank Depth for the pair: 30 points.
         let most: Vec<_> = FIELDS.iter().filter(|f| f.skill != 413).map(|f| (f.skill, f.ranks)).collect();

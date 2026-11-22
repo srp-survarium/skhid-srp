@@ -3090,7 +3090,7 @@ st_srp_technical_442_description	After every 20 s of continuous oxygen tank use 
 st_srp_technical_442_name	Oxygen Rush
 st_srp_technical_443_description	A kill with your grenade gives one grenade back.
 st_srp_technical_443_name	Scavenger
-st_srp_technical_444_description	Your trap breaks the legs it catches. A pocket holds half as many traps.
+st_srp_technical_444_description	Your trap breaks the legs it catches. A trap takes 1.5 pocket slots.
 st_srp_technical_444_name	Bear Trap
 st_srp_technical_disarm_speed	Trap disarming speed
 st_srp_technical_friendly_blast	Damage from own grenades
