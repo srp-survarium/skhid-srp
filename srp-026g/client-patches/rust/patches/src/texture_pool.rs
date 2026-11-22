@@ -10,7 +10,8 @@
 //! A texture that has no smaller size free, or wants fewer mips, goes on as stock.
 //!
 //! With `SKHID_TEXTURE_STREAMING_LOG=on` (read once) each such request is logged, once a texture
-//! while what it wants and gets stays the same: the texture, the sizes, its pool's slots.
+//! while what it wants and gets stays the same: the texture, the sizes, its pool's slots and
+//! whose textures fill them (the scene's, or textures still alive that no scene streams).
 
 #![forbid(unsafe_code)]
 
@@ -76,14 +77,18 @@ fn report(thread: &Thread, request: &NoSlot, want: Want, took: Option<Level>) {
     size(&mut put, want.resident);
     match request.pool(want.wanted) {
         Pool::Absent => put(Text(": no pool of that size")),
-        Pool::Slots { total, occupied, reserved } => {
+        Pool::Slots { total, reserved, occupied } => {
             put(Text(": its pool "));
             put(Dec(total));
             put(Text(" slots, "));
-            put(Dec(occupied));
-            put(Text(" occupied, "));
             put(Dec(reserved));
-            put(Text(" reserved"));
+            put(Text(" reserved, occupied by "));
+            put(Dec(occupied.in_scene));
+            put(Text(" of the scene's, "));
+            put(Dec(occupied.baked_elsewhere));
+            put(Text(" baked and "));
+            put(Dec(occupied.other_elsewhere));
+            put(Text(" other textures it does not stream"));
         }
     }
     match took {

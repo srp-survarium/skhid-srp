@@ -31526,6 +31526,42 @@ impl TexturePoolSlot {
         self.0.as_ptr() as usize as u32
     }
 
+    /// +0x0 (ptr<vostok::render::res_texture>): the texture in it while occupied (the take's caller on_texture_loaded_res_impl writes it, 0x3BD51D)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn texture(self) -> Option<ResTexture> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ResTexture>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::render::res_texture>): the texture in it while occupied (the take's caller on_texture_loaded_res_impl writes it, 0x3BD51D)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_texture(self, value: Option<ResTexture>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ResTexture>>().write_volatile(value) }
+    }
+
+    /// +0x4 (ptr<u8>): that texture's name, its +98h buffer string's begin, NUL-terminated (0x3BD51A)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn name(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x4).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<u8>): that texture's name, its +98h buffer string's begin, NUL-terminated (0x3BD51A)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_name(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x4).cast::<*mut u8>().write_volatile(value) }
+    }
+
     /// +0x18 (u8): a texture lives in it (the take 0x3D3271 sets it; the release 0x3D3550 clears it)
     ///
     /// # Safety

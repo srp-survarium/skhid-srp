@@ -54,13 +54,26 @@ pub struct Want {
 pub enum Pool {
     /// The table has no pool of that key.
     Absent,
-    Slots { total: u32, occupied: u32, reserved: u32 },
+    Slots { total: u32, reserved: u32, occupied: Occupants },
+}
+
+/// Who occupies a pool's slots.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Occupants {
+    /// Textures the scene streams (it can move them to another size).
+    pub in_scene: u32,
+    /// Textures the scene does not stream, baked camouflage (`user_data/`) ...
+    pub baked_elsewhere: u32,
+    /// ... and any other: nothing streams them, they keep their size while they live.
+    pub other_elsewhere: u32,
 }
 
 /// A request at `streaming.no_slot`: no free, unreserved slot of the size it wants.
 pub struct NoSlot {
     request: raw::PotentialRequest,
     texture: raw::StreamableTexture,
+    /// The scene's streamable textures: the first, and how many.
+    streamable: (raw::StreamableTexture, usize),
     pools: Option<raw::TexturePoolMap>,
     want: Want,
 }
@@ -98,7 +111,7 @@ impl NoSlot {
                 array_size: read(request.array_size()),
                 format,
             };
-            Some(NoSlot { request, texture, pools, want })
+            Some(NoSlot { request, texture, streamable: (first, count), pools, want })
         }
     }
 
@@ -121,15 +134,34 @@ impl NoSlot {
     /// How the pool of the texture's key at `level` stands.
     pub fn pool(&self, level: Level) -> Pool {
         let Some(pool) = self.find(level) else { return Pool::Absent };
-        let (mut total, mut occupied, mut reserved) = (0, 0, 0);
+        let (mut total, mut reserved, mut occupied) = (0, 0, Occupants::default());
         for slot in slots(pool) {
-            // SAFETY: a slot of a live pool.
-            let (o, r) = unsafe { (read(slot.occupied()) != 0, read(slot.reserved()) != 0) };
             total += 1;
-            occupied += u32::from(o);
-            reserved += u32::from(r);
+            // SAFETY: a slot of a live pool; an occupied one's texture and name are its live
+            // texture's (the take writes both, 0x3BD51A).
+            unsafe {
+                reserved += u32::from(read(slot.reserved()) != 0);
+                if read(slot.occupied()) == 0 {
+                    continue;
+                }
+                let texture = slot.texture();
+                if self.streams(texture) {
+                    occupied.in_scene += 1;
+                } else if name_starts(slot.name(), b"user_data") {
+                    occupied.baked_elsewhere += 1;
+                } else {
+                    occupied.other_elsewhere += 1;
+                }
+            }
         }
-        Pool::Slots { total, occupied, reserved }
+        Pool::Slots { total, reserved, occupied }
+    }
+
+    /// Whether the scene streams `texture`.
+    fn streams(&self, texture: Option<raw::ResTexture>) -> bool {
+        let (first, count) = self.streamable;
+        // SAFETY: below the vector's count (at_site's).
+        (0..count).any(|i| unsafe { first.at(i).texture() } == texture)
     }
 
     /// Takes a free, unreserved slot of the texture's key at `level` and makes the request ask
@@ -181,6 +213,18 @@ unsafe fn find(node: Option<raw::TexturePoolNode>, level: Level, array_size: u32
         }
         find(node.left(), level, array_size, format, depth + 1).or_else(|| find(node.right(), level, array_size, format, depth + 1))
     }
+}
+
+/// Whether the C string at `name` starts with `prefix`.
+///
+/// # Safety
+/// `name` is 0 or a live NUL-terminated string.
+unsafe fn name_starts(name: *mut u8, prefix: &[u8]) -> bool {
+    if name.is_null() {
+        return false;
+    }
+    // SAFETY: the caller's; the walk stops at the string's NUL.
+    prefix.iter().enumerate().all(|(i, &byte)| unsafe { name.add(i).read() } == byte)
 }
 
 /// A pool's slots in their order.

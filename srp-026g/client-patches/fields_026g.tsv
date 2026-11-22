@@ -1690,6 +1690,8 @@ vostok::render::texture_pool_node	usage	0x24	u32	its D3D11 usage, 0 (0x11B4CB)
 vostok::render::texture_pool_node	pool	0x28	ptr<vostok::render::texture_pool>	the value, the pool of that key (0x15422F)
 vostok::render::texture_pool	slots	0x64	ptr<vostok::render::texture_pool_slot>	its slots' vector, the begin (0x154232; get_pools_size 0x3D33F3)
 vostok::render::texture_pool	slots_end	0x68	ptr<vostok::render::texture_pool_slot>	the end (0x154235)
+vostok::render::texture_pool_slot	texture	0x0	ptr<vostok::render::res_texture>	the texture in it while occupied (the take's caller on_texture_loaded_res_impl writes it, 0x3BD51D)
+vostok::render::texture_pool_slot	name	0x4	ptr<u8>	that texture's name, its +98h buffer string's begin, NUL-terminated (0x3BD51A)
 vostok::render::texture_pool_slot	occupied	0x18	u8	a texture lives in it (the take 0x3D3271 sets it; the release 0x3D3550 clears it)
 vostok::render::texture_pool_slot	reserved	0x19	u8	promised to a request of this batch (process_streaming 0x1543C0; cleared for every slot before each batch, 0x3D3510); the take after the load wants it
 vostok::render::texture_pool_slot	size	0x1C	size	one slot (0x15424C)
