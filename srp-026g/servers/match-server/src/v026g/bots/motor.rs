@@ -1016,6 +1016,8 @@ pub struct Motor {
     walk_off_line: Option<String>,
     /// [item 10] The log line of the last held sprint's walk that ended ([`Self::take_held_line`]).
     held_line: Option<String>,
+    /// [fix-lip] The log line of the last hop kept off the route's drop ([`Self::take_hop_line`]).
+    hop_line: Option<String>,
     /// [press forecast] The forecast press of the route jump under way ([`Feel::press_forecast`]).
     cast: Option<PressCast>,
     /// [press forecast] The log line of its last press or spent try ([`Self::take_cast_line`]).
@@ -2111,6 +2113,7 @@ impl Motor {
             walk_off: super::walk_off::WalkOff::Idle,
             walk_off_line: None,
             held_line: None,
+            hop_line: None,
             cast: None,
             cast_line: None,
             cast_watch: None,
@@ -4863,6 +4866,11 @@ impl Motor {
         self.held_line.take()
     }
 
+    /// [fix-lip] The log line of the last hop kept off the route's drop, once.
+    pub fn take_hop_line(&mut self) -> Option<String> {
+        self.hop_line.take()
+    }
+
     /// The route jump's try as it now is, its tries kept for the link ([`LinkTries`]).
     fn keep_try(&mut self, jump: JumpTry) {
         self.link_tries.set(jump.take_off, jump.landing, jump.tries);
@@ -4987,7 +4995,10 @@ impl Motor {
         let jump_near = route
             .next_jump(from)
             .is_some_and(|(_, before)| before <= 2.0 * feel.hop_look_m);
-        let hop = may
+        // [fix-lip] And off the route's own drops: a drop's waypoint has no jump (`next_jump` passed it). In the spot suite (887697d4a)
+        // S222 hopped 0.38 m before a drop's take-off (keys 0x11), and the hop flew the body 2.4 m past the drop's landing.
+        let drop_near = route.next_drop_edge_along(from, 2.0 * feel.hop_look_m, feel.drop_truth);
+        let hop_but_drop = may
             && !self.carrying
             && cooled
             && !jumped
@@ -4995,6 +5006,18 @@ impl Motor {
             && !jump_near
             && self.stalled(feet, held_short_m)
             && self.rises(route, s, feet);
+        let hop = hop_but_drop && drop_near.is_none();
+        if hop_but_drop && let Some(edge) = drop_near {
+            hop_off_drops::kept();
+            self.hop_line = Some(format!(
+                "{}hop kept off the route's drop: feet ({:.2}, {:.2}, {:.2}), its take-off {:.2} m on along the route",
+                super::nav_log::PREFIX,
+                feet.x,
+                feet.y,
+                feet.z,
+                edge - s
+            ));
+        }
         self.trail.push_back((self.clock, feet));
         while self.trail.len() > HOP_TRAIL_TICKS {
             self.trail.pop_front();
@@ -6255,6 +6278,23 @@ pub mod drop_aim {
 /// the first press and later, those given up ([`JUMP_TRIES`]), the cuts of
 /// a look-ahead to a point a line is not clear to, and the fight's side
 /// steps asked and refused (`Tactics::clear_step_for`).
+/// [fix-lip] The hops the motor kept off the route's drop take-offs (`Motor::hop_key`).
+pub mod hop_off_drops {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static KEPT: AtomicU64 = AtomicU64::new(0);
+
+    pub fn kept() {
+        KEPT.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// The hops kept off so far.
+    #[cfg(test)]
+    pub fn count() -> u64 {
+        KEPT.load(Ordering::Relaxed)
+    }
+}
+
 #[cfg(test)]
 pub mod counts {
     use std::sync::atomic::{AtomicU64, Ordering};
