@@ -6709,3 +6709,8 @@ va	name	location	role	basis
 0x0031aca0	survarium::effect_zone_core::protect_players [descriptive]	entry ESP+4	the time (ms); its one caller is the vtable's slot +38h (0x31AC80, 0xA1668C), which passes its third argument	observed
 0x0031aca0	survarium::effect_zone_core::protect_players [descriptive]	EAX at 0x31AD0F	the damage model of a player whose team (its +6B8h's +45ECh) is the zone's, from the player's +108h interface (slot +8)	observed
 0x00316470	survarium::tdm_rule_core::protect_players [descriptive]	ESI, EAX	the two-team rule and the time: a team whose word (+110h / +112h) and byte (+11Ch / +11Dh) are both 0 sets +12Ch = the time + 3000, and every place of the mask +120h gets it as its damage model's +32Ch, the fade 0 (0x316500); called by on_event 0x3161D8 and on_player_left_match 0x31661F	observed
+0x00176420	stlp_std::find_if<vostok::render::render_surface_instance * *,vostok::render::remove_invisible_models_predicate>	EAX	the first surface-instance pointer	observed
+0x00176420	stlp_std::find_if<vostok::render::render_surface_instance * *,vostok::render::remove_invisible_models_predicate>	EDI	the end of the pointers	observed
+0x00176420	stlp_std::find_if<vostok::render::render_surface_instance * *,vostok::render::remove_invisible_models_predicate>	entry ESP+4	the cascade's minimum screen factor (float; r_shadow_cascade_N_max_screen_factor times 1, 0.85, 0.75 or 0.5 by r_shading_quality; prepare_visibile_objects 0x175218..0x175294)	observed
+0x003cf260	sun_shadow_map_size [descriptive]	EAX	the render options (r_shadow_quality at +9Ch)	observed
+0x003cf260	sun_shadow_map_size [descriptive]	entry ESP+4	the device's video memory, 64 bits (device+1B0h, +1B4h; stage_shadow_direct::stage_shadow_direct 0x17269B)	observed

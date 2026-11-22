@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 1668700,
-  "sha256": "b70e483cffce2cc9ebfb3e757ce6efdabb85c0444f2c1fc386e401fa1ef110db",
+  "size": 1668812,
+  "sha256": "0ff263bf4db59d95adbd282a2d8a619fc6f404da91cced3d3d6164bd6031f686",
   "blocks": {
     "bullet_bounds.code": {
       "kind": "code",
@@ -112,25 +112,25 @@
     "detail.code": {
       "kind": "code",
       "va": "0xa5c4000",
-      "size": 988
+      "size": 1104
     },
     "detail.data": {
       "kind": "data",
-      "va": "0xa5c43e0",
+      "va": "0xa5c4450",
       "size": 108
     },
     "ambient_021.code": {
       "kind": "code",
-      "va": "0xa5c4450",
+      "va": "0xa5c44c0",
       "size": 524
     }
   },
   "symbols": {
     "SRP_DIAGNOSTICS": "0xa4f0b74",
     "_RNvNtNtCsgEaDafe65MU_7patches6vostok8gun_cook12cooked_entry": "0xa443000",
-    "__rodata_ambient_021_code": "0xa5c4640",
+    "__rodata_ambient_021_code": "0xa5c46b0",
     "__rodata_audio_device_code": "0xa44080b",
-    "__rodata_detail_code": "0xa5c42fb",
+    "__rodata_detail_code": "0xa5c4369",
     "__rodata_hide_ui_code": "0xa43a1e2",
     "__rodata_kill_feed_code": "0xa43d178",
     "__rodata_match_keys_code": "0xa438154",
@@ -148,8 +148,8 @@
     "ad_tick": "0xa44054b",
     "ad_xaudio2_create": "0xa4406bd",
     "aim_pose_on_aim_alignment": "0xa4e5b10",
-    "ambient_021_insert": "0xa5c45d5",
-    "ambient_021_insert_hook": "0xa5c4450",
+    "ambient_021_insert": "0xa5c4645",
+    "ambient_021_insert_hook": "0xa5c44c0",
     "animation_id_log_on_id_missing": "0xa4e5b6e",
     "animation_math_domain": "0xa4ef010",
     "animation_math_on_angle_atan2": "0xa4e5c73",
@@ -354,7 +354,7 @@
     "deserialize_guards_on_wait_end": "0xa4e9811",
     "deserialize_guards_on_wait_melee": "0xa4e98df",
     "deserialize_guards_on_wait_throw": "0xa4e9878",
-    "detail_command_vtable": "0xa5c42fc",
+    "detail_command_vtable": "0xa5c436c",
     "detail_commit": "0xa5c40b9",
     "detail_default_next": "0xa5c413b",
     "detail_execute": "0xa5c4096",
@@ -363,6 +363,8 @@
     "detail_grass_metric": "0xa5c42c3",
     "detail_grass_model": "0xa5c41b6",
     "detail_grass_screen": "0xa5c42a8",
+    "detail_grass_shadow_distance": "0xa5c4325",
+    "detail_grass_shadow_lod": "0xa5c4311",
     "detail_label": "0xa5c4156",
     "detail_model": "0xa5c4179",
     "detail_model_distance": "0xa5c428c",
@@ -370,11 +372,13 @@
     "detail_options": "0xa5c4000",
     "detail_preset_address": "0xa5c4104",
     "detail_preset_compare": "0xa5c40cf",
-    "detail_previous": "0xa5c4448",
+    "detail_previous": "0xa5c44b8",
     "detail_register": "0xa5c4042",
     "detail_shader": "0xa5c419d",
-    "detail_shader_threshold": "0xa5c42dd",
-    "detail_state": "0xa5c4444",
+    "detail_shader_threshold": "0xa5c434b",
+    "detail_shadow_cull": "0xa5c42dd",
+    "detail_shadow_threshold": "0xa5c42f5",
+    "detail_state": "0xa5c44b4",
     "detail_texture": "0xa5c4251",
     "drug_interrupt_on_hit_applied": "0xa4e847f",
     "effect_presenters_on_particle_stop": "0xa4e9c6b",
@@ -1292,8 +1296,8 @@
     "music_on_sound_tick": "0xa4ec1c8",
     "music_on_unload": "0xa4eb5fb",
     "packet_recovery_on_loaded": "0xa4e71c8",
-    "particle_021_intensity_hook": "0xa5c4484",
-    "particle_021_original_intensity": "0xa5c45a5",
+    "particle_021_intensity_hook": "0xa5c44f4",
+    "particle_021_original_intensity": "0xa5c4615",
     "particle_room_on_first_person_made": "0xa4ec23a",
     "particle_room_on_read_room": "0xa4ec2f1",
     "particle_room_on_start": "0xa4ec3b5",
