@@ -8912,6 +8912,48 @@ keyboard_layout_on_console_char_replay:
     db 0x8b, 0x47, 0x04, 0xf6, 0x80, 0xac, 0x02, 0x00, 0x00, 0x30
     jmp 0x34b4e4
 
+; 0x2337fa on_kill_cross_event (0x233770, from process_kill_cross_events 0x1FB6C0, each world event after the last kill-cross time) once it handled the event in EDI (a kill by the drawn player drew the kill marker at 0x2337D9): cmp byte [esp+14h],0 (sealed), then the write of the event's time (+24h) into the last kill-cross time (EBX, game_world+564h) at 0x233801; kept is past it (pop esi, 0x233806): lohook -> kill_cross_on_walked
+global kill_cross_on_walked
+extern hook_kill_cross_on_walked
+kill_cross_on_walked:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_kill_cross_on_walked
+    mov edx, kill_cross_on_walked_replay
+    cmp eax, 0
+    je kill_cross_on_walked_go
+    mov edx, 0x2337ff
+    cmp eax, 1
+    je kill_cross_on_walked_go
+    mov edx, 0x233806
+    cmp eax, 2
+    je kill_cross_on_walked_go
+    ud2
+kill_cross_on_walked_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+kill_cross_on_walked_replay:
+    db 0x80, 0x7c, 0x24, 0x14, 0x00
+    jmp 0x2337ff
+
 ; 0x32d627 check_collision after the bullet's ray_test (movq of its result; EAX the result, EDI the bullet): lohook -> subtick_hits_on_ray
 global subtick_hits_on_ray
 extern hook_subtick_hits_on_ray_chain

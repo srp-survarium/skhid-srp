@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Patch 167 (hit_marker_walls): no white hit marker for a hit through a wall
-(docs/notes/hit-marker-walls.md), the default build beside the original.
+(docs/notes/hit-marker-walls.md), and patch 191 (kill_cross): a kill a
+re-simulation makes keeps its kill marker (docs/notes/kill-marker.md); the
+default build beside the original.
 
     python check_hit_marker_walls_026g.py <original survarium.exe>
 
@@ -34,8 +36,15 @@ What a game shows, for a shooter at place 2 on the victim at place 7:
 - another shooter's (place 5) collector: its own hits only;
 - a bullet try_pierce stopped is not noted;
 - a lethal round through a wall: no white marker, then its kill event, run
-  through the game world's walk of its events (0x1FB6C0, 0x233770, 0x23CF20
-  to the invoke): the kill marker (1.0, killed) in both, once.
+  through the game world's walk of its events (0x1FB6C0, 0x233770 with
+  patch 191's hook, 0x23CF20 to the invoke): the kill marker (1.0, killed)
+  in both, once, and not again when a world load makes it again at its time;
+- a kill a world load's re-simulation makes at or before a hit (the same
+  shot's, not lethal before the load; another player's) or a battery's user
+  walked before the load: the kill marker in the build, none in the original;
+- a kill at a new time: one marker in both; undone by a load and made again
+  later: a second in both; made before another player's kill walked: none in
+  both (only kills move the last time).
 In every run the registers the game keeps are the original's. The kill's
 marker (0x23CF20) and draw_damage_collector but its hook's five bytes are the
 original's: a kill through a wall reaches the hud by the kill's call alone,
@@ -59,7 +68,8 @@ DRAW_FROM, DRAW_DONE = 0x24745B, 0x24746C
 INVOKE = 0x511600
 KILL_MARKER, DRAW_SITE = (0x23CF20, 0x23D100), 0x238272
 DRAW_BEFORE, DRAW_AFTER = (0x238230, DRAW_SITE), (DRAW_SITE + 5, 0x2383AA)
-SITES = {0x32D88A: "bullet.pierced", 0x1F3D76: "damage_collector.hit", DRAW_SITE: "damage_collector.draw"}
+SITES = {0x32D88A: "bullet.pierced", 0x1F3D76: "damage_collector.hit", DRAW_SITE: "damage_collector.draw",
+         0x2337FA: "kill_cross.walked"}
 THREAD_SLOT = 0x870118
 HEAP, STUBS, STACK = 0x30000000, 0x38000000, 0x39000000
 PLAYERS = {2: HEAP, 5: HEAP + 0x10000}
@@ -71,8 +81,8 @@ RANGED, BLUNT = 0, 1
 CONCRETE, GLASS_HARD = 0.23, 0.10    # game.materials' armor
 VICTIM = 7
 KILL_WALK, SHOW_KILL_MARKER = 0x1FB6C0, 0xA70EC6    # process_kill_cross_events, show_enemy_killed_marker
-KILL_EVENT, HIT_EVENT = 0, 2    # a world event's type (+18h)
-KILL_LIST, KILL_EVENTS, KILL_UI, GAME_WORLD = HEAP + 0x23000, HEAP + 0x24000, HEAP + 0x26000, HEAP + 0x27000
+KILL_EVENT, BATTERY_EVENT, HIT_EVENT = 0, 1, 2    # a world event's type (+18h): a kill, a victory item's user, a hit
+KILL_LIST, KILL_EVENTS, GAME_WORLD, GAME, CLIENT = HEAP + 0x23000, HEAP + 0x24000, HEAP + 0x27000, HEAP + 0x28000, HEAP + 0x2E000
 KEPT = (UC_X86_REG_EBX, UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EBP, UC_X86_REG_ESP)
 
 failed = 0
@@ -180,10 +190,12 @@ class Game:
         return [m[2] for m in self.markers if m[0] == b"root.crosshair_enemy_hit" and m[1] == 4 and not m[3]], kept
 
     def kill_walk(self, events, shooter=2):
-        """The game world's tick handing its world events (each (type, victim,
-        killer, time)) to the kill marker (0x1FB6C0, as 0x1F7FF6 calls it: the
-        bound the newest ticked time, stock's delay 0): the kill markers the hud
-        got."""
+        """game_world's tick handing the world's events (each (type, victim,
+        killer, time), the list a world load and its re-simulation left) to
+        the kill marker (0x1FB6C0 as 0x1F7FF6 calls it: the bound the newest
+        ticked time, the original's delay 0; the last kill-cross time
+        game_world+564h kept from walk to walk): the kill markers the hud got,
+        and the registers the game keeps."""
         node = KILL_EVENTS
         self.u32(KILL_LIST, node if events else 0)
         for n, (kind, victim, killer, time) in enumerate(events):
@@ -193,21 +205,22 @@ class Game:
             self.u32(node + 0x24, time)
             self.emu.mem_write(node + 0x28, b"\x01" if kind == HIT_EVENT else b"\x00")
             node += 0x40
-        self.u32(KILL_UI + 0x9C, KILL_UI + 0x100)
-        self.u32(KILL_UI + 0x100 + 0x53AC, KILL_UI + 0x400)
-        self.u32(KILL_UI + 0x400 + 4, PLAYERS[shooter])
+        self.u32(GAME_WORLD + 0x568, GAME_WORLD)    # the hud's +36Ch, its game world
+        self.u32(GAME_WORLD + 0x9C, GAME)
+        self.u32(GAME + 0x53AC, CLIENT)
+        self.u32(CLIENT + 4, PLAYERS[shooter])    # the drawn player
         self.u32(PLAYERS[shooter] + 0xD0, 100)    # its reference count, never 0 here
-        self.u32(KILL_UI + 0x1FC + 8, HOLDER)
-        self.u32(GAME_WORLD + 0x568, KILL_UI)
+        self.u32(GAME_WORLD + 0x1FC + 8, HOLDER)    # the hud's movie
         self.emu.mem_write(SHOW_KILL_MARKER, b"\x01")
         sp = STACK + 0x8000
         self.u32(sp, RETURN)
         self.u32(sp + 4, self.u32(GAME_WORLD + 0x564))
         self.u32(sp + 8, GAME_WORLD + 0x564)
         self.markers = []
-        self.run(KILL_WALK, {RETURN}, {UC_X86_REG_ECX: KILL_LIST - 0x12744, UC_X86_REG_EDX: max(e[3] for e in events),
-                                      UC_X86_REG_ESP: sp})
-        return [m[2] for m in self.markers if m[0] == b"root.crosshair_enemy_hit" and m[1] == 4 and m[3]]
+        _, kept = self.run(KILL_WALK, {RETURN}, {UC_X86_REG_ECX: KILL_LIST - 0x12744, UC_X86_REG_EDX: max(e[3] for e in events),
+                                                 UC_X86_REG_EBX: 0x0B0B0B0B, UC_X86_REG_ESI: 0x05050505,
+                                                 UC_X86_REG_EDI: 0x0D0D0D0D, UC_X86_REG_EBP: 0x0E0E0E0E, UC_X86_REG_ESP: sp})
+        return [m[2] for m in self.markers if m[0] == b"root.crosshair_enemy_hit" and m[1] == 4 and m[3]], kept
 
 
 def main():
@@ -302,10 +315,40 @@ def main():
     both("place 2's clear hit", clear(700, 0.6), [0.6], [0.6])
 
     both("a lethal round through a wall", through(CONCRETE, 800, 1.0), [1.0], [])
-    kill = [(HIT_EVENT, VICTIM, 2, 800), (KILL_EVENT, VICTIM, 2, 800)]
-    check([game.kill_walk(kill) for game in (stock, ours)] == [[1.0], [1.0]],
-          "its kill event: the kill marker (1.0, killed) in the original and the build")
-    check([game.kill_walk(kill) for game in (stock, ours)] == [[], []], "the next frame: no second kill marker")
+
+    def walks(what, events, stock_shows, ours_shows):
+        """The world's events walked in each (the list as the frame has it):
+        the kill markers (1.0, killed) shown."""
+        (stock_seen, stock_kept), (ours_seen, ours_kept) = (game.kill_walk(events) for game in (stock, ours))
+        check(ours_kept == stock_kept, f"{what}: the registers the game keeps are the original's")
+        check((stock_seen, ours_seen) == (stock_shows, ours_shows),
+              f"{what}: the original shows {stock_shows}, the build {ours_shows}")
+
+    H, K, B = HIT_EVENT, KILL_EVENT, BATTERY_EVENT
+    shown = [(H, VICTIM, 2, 800), (K, VICTIM, 2, 800)]
+    walks("its kill event", shown, [1.0], [1.0])
+    walks("the next frame", shown, [], [])
+    walks("a world load before it, the kill made again at its time", shown, [], [])
+    # patch 191: a kill a re-simulation makes after a hit or a battery's user of its time or later was walked
+    hit = shown + [(H, 8, 2, 900)]
+    walks("a hit on 8 at 900, not lethal", hit, [], [])
+    walks("a world load before 900: the same hit lethal, its kill", hit + [(K, 8, 2, 900)], [], [1.0])
+    hit += [(K, 8, 2, 900)]
+    walks("place 5's hit on 11 at 1010", hit + [(H, 11, 5, 1010)], [], [])
+    walks("a world load before 1000: a kill of 9 at 1000, then that hit", hit + [(K, 9, 2, 1000), (H, 11, 5, 1010)],
+          [], [1.0])
+    hit += [(K, 9, 2, 1000), (H, 11, 5, 1010)]
+    walks("a battery's user at 1110", hit + [(B, 3, 3, 1110)], [], [])
+    walks("a world load before 1100: a kill of 12 at 1100, then the battery's",
+          hit + [(K, 12, 2, 1100), (B, 3, 3, 1110)], [], [1.0])
+    hit += [(K, 12, 2, 1100), (B, 3, 3, 1110)]
+    walks("a kill of 13 at a new time (1200)", hit + [(K, 13, 2, 1200)], [1.0], [1.0])
+    walks("the next frame", hit + [(K, 13, 2, 1200)], [], [])
+    walks("a world load before 1200: that kill undone, 13 killed at 1250", hit + [(K, 13, 2, 1250)], [1.0], [1.0])
+    hit += [(K, 13, 2, 1250)]
+    walks("place 5's kill of 11 at 1310", hit + [(K, 11, 5, 1310)], [], [])
+    walks("a world load before 1300: a kill of 14 at 1300, then place 5's", hit + [(K, 14, 2, 1300), (K, 11, 5, 1310)],
+          [], [])
 
     if failed:
         sys.exit(f"{failed} check(s) failed")

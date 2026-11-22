@@ -5954,6 +5954,26 @@ pub extern "C" fn hook_keyboard_layout_on_console_char(frame: &mut Frame) -> u32
     }
 }
 
+// ---- kill_cross (patch 191) ----
+
+/// The named exits of kill_cross::on_walked (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum KillCrossOnWalkedExit { Kept }
+/// The entry `kill_cross_on_walked` (0x2337fa, on_kill_cross_event (0x233770, from process_kill_cross_events 0x1FB6C0, each world event after the last kill-cross time) once it handled the event in EDI (a kill by the drawn player drew the kill marker at 0x2337D9): cmp byte [esp+14h],0 (sealed), then the write of the event's time (+24h) into the last kill-cross time (EBX, game_world+564h) at 0x233801; kept is past it (pop esi, 0x233806)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_kill_cross_on_walked(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `kill_cross_on_walked` calls this, from the game's jump at 0x2337fa,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::kill_cross::on_walked(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- subtick_hits (patch 103) ----
 
 /// The entry `subtick_hits_on_ray` (0x32d627, check_collision after the bullet's ray_test (movq of its result; EAX the result, EDI the bullet)) calls this with the saved machine.

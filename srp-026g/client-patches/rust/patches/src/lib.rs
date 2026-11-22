@@ -65,6 +65,8 @@ pub mod weapon_stats;
 pub mod hud_options;
 // patch 167: no white hit marker through walls
 pub mod hit_marker_walls;
+// patch 191: a kill made in a re-simulation keeps its kill marker
+pub mod kill_cross;
 // patch 169: the forward effects draw as 0.44a5's
 pub mod forward_effects;
 // patch 183: the g-buffer's parallax constants as 0.44a5 sets them
