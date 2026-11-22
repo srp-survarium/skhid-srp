@@ -272,6 +272,8 @@
   // plain for a map the game data no longer has.
   const mapAddress = row => `/wiki/maps?${new URLSearchParams({lang})}#${row.map_key}/${row.rules}`;
   const mapLink = row => row.map_key ? el('a', {href: mapAddress(row)}, row.map) : name(row.map);
+  // A mode's name, linked to its section on the wiki's Modes page.
+  const modeLink = row => row.mode_url ? el('a', {href: row.mode_url}, name(row.mode)) : name(row.mode);
   // A map's picture as the rooms draw it, beside its name and mode; an
   // empty frame of its size while loading, and for a map without one.
   // The picture leads where the name does.
@@ -457,7 +459,7 @@
         });
       return [panels([TEXT.match, [[TEXT.ended, m ? when(m.ended_at) : null], [TEXT.duration, m ? duration(m.duration_s) : null],
         [TEXT.map, el('span', {className: 'stats-map-cell'}, m ? mapLink(m) : BLANK, mapPicture(m))],
-        [TEXT.mode, m ? name(m.mode) : null]]],
+        [TEXT.mode, m ? modeLink(m) : null]]],
       [TEXT.result, [[TEXT.result, winner], [TEXT.points, m ? (free ? '—' : sidePoints(m)) : null],
         [TEXT.level, m ? n(m.level) : null], [TEXT.players, m ? n(m.players) : null],
         // Always there, so that nothing moves when the answer comes; a match without one has none.

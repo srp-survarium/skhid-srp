@@ -256,15 +256,11 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .mode>h2,.mode-version>h3 { display:flex; align-items:center; gap:10px }
 .mode-icon { width:44px; height:44px; object-fit:contain; flex:none }
 .mode-rooms { margin:0 0 10px; font:700 .72rem var(--display); text-transform:uppercase; letter-spacing:.08em; color:var(--accent) }
-.mode-body { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr); gap:8px 32px }
+.mode-body { display:block }
 .mode-body h3,.mode-versions { font-size:.85rem; margin:0 0 6px; color:var(--ink-3); text-transform:uppercase; letter-spacing:.08em }
 .mode-versions { margin-top:22px }
-.mode-rules,.mode-maps { margin:0; padding-left:1.1em; color:var(--ink-2) }
-.mode-rules li,.mode-maps li { margin:0 0 4px }
-.mode-maps { list-style:none; padding:0 }
-.mode-maps a { color:var(--ink); font-weight:700; text-decoration:none }
-.mode-maps a:hover { color:var(--accent) }
-.mode-maps small { color:var(--ink-3); font:.8rem var(--data) }
+.mode-rules { margin:0; padding-left:1.1em; color:var(--ink-2) }
+.mode-rules li { margin:0 0 4px }
 .mode-maps em { color:var(--accent); font-size:.8rem }
 .mode-version { margin:12px 0 0; padding:14px 18px; border:1px solid var(--rule); background:var(--panel); scroll-margin-top:20px }
 .mode-version h3 { margin:0 0 4px; font:700 1.1rem var(--display); text-transform:none; letter-spacing:normal }
