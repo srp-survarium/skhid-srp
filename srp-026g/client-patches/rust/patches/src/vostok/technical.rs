@@ -240,11 +240,11 @@ pub fn tank_spent(ctx: &Context<'_>) {
 /// Off, its tick does not run, so nothing counts.
 pub fn tank_switch(ctx: &Context<'_>) {
     use raw::site::technical_tank_switch as site;
-    if site::active(ctx) & 0xFF == 0 {
-        return;
-    }
-    // SAFETY: set_active's live tank.
+    // SAFETY: set_active's AL, the new state, and its live tank.
     unsafe {
+        if site::active(ctx) & 0xFF == 0 {
+            return;
+        }
         if let Some(tank) = site::tank(ctx) {
             count_use(tank, TankEvent::On);
         }

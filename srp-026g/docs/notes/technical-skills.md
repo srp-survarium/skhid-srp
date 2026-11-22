@@ -155,8 +155,11 @@ booster's modifications; 29 the hand-kill marker.
 - What else resets it: death switches the tank off (the tick's dead path); a respawn refills it
   (vtable +38h), and so does an ammo crate (+40h, `resupply_from_profile_slot`'s slot), each
   counting from 0 and ending a running boost (as since Last Gasp); a kit change is another kit's
-  tank, with its own count; a round restart of Artifact Hunt or Freeze Tag is a spawn of the
-  respawn rule, so its refill (LIKELY: not read for those modes).
+  tank, with its own count; a round restart of Artifact Hunt or Freeze Tag makes every present
+  place due at the respawn rule's tick (freeze-tag.md, "With Artifact Hunt"), which removes the
+  player and spawns it again, the living too: the spawn's `inventory::setup_from_profile` calls
+  every slot item's vtable +38h (0x2FD1A5..0x2FD1C1), the tank's refill, so the count and the boost
+  start again at every round, as at every spawn (read in the exe, not run in a match).
 - Why a saved u16 and not the air alone: the count of use without a break is not in the tank's
   own state (set_active keeps no time and no air level; the tick-list entry holds none), and the
   one word of the boost cannot also hold it: a tank switched off and on during a boost has a boost
