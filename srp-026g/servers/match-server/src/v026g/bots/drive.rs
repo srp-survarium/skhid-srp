@@ -583,6 +583,9 @@ enum Arrival {
     Walks(Vec3),
     /// A goal within its reach across whose floor is up a ledge over the feet (by `rise`, m): walked to, as one beyond.
     UpTo { at: Vec3, rise: f32 },
+    /// [T3] A goal within its reach across whose floor lies more than [`motor::ARRIVE_OVER_M`] under the feet (by `drop`, m: the
+    /// top of a drop to it): walked to, as one beyond. The 887 final round's "stops at the top" timeouts rested over it.
+    DownTo { at: Vec3, drop: f32 },
 }
 
 impl Arrival {
@@ -595,6 +598,7 @@ impl Arrival {
         }
         match path::goal_floor(grid, at).map(|node| grid.position(node).y - feet.y) {
             Some(rise) if rise > motor::ARRIVE_BELOW_M => Self::UpTo { at, rise },
+            Some(rise) if -rise > motor::ARRIVE_OVER_M => Self::DownTo { at, drop: -rise },
             _ => Self::Rests,
         }
     }
@@ -603,7 +607,7 @@ impl Arrival {
     fn goal(self) -> Option<Vec3> {
         match self {
             Self::Rests => None,
-            Self::Walks(at) | Self::UpTo { at, .. } => Some(at),
+            Self::Walks(at) | Self::UpTo { at, .. } | Self::DownTo { at, .. } => Some(at),
         }
     }
 }
@@ -1017,6 +1021,10 @@ fn drive_tick_inner(
     if let Arrival::UpTo { at, rise } = arrival {
         let line = super::nav_log::arrival_up_line(at, rise, me.feet);
         bot.nav_log.push_once(super::nav_log::Kind::Arrival, super::nav_log::key(("arrival up", at.x.to_bits(), at.y.to_bits(), at.z.to_bits())), time, line);
+    }
+    if let Arrival::DownTo { at, drop } = arrival {
+        let line = super::nav_log::arrival_down_line(at, drop, me.feet);
+        bot.nav_log.push_once(super::nav_log::Kind::Arrival, super::nav_log::key(("arrival down", at.x.to_bits(), at.y.to_bits(), at.z.to_bits())), time, line);
     }
     let goal = arrival.goal();
     // [K1] In a held shooter's lane on its way somewhere, a bot that was to
@@ -2210,6 +2218,11 @@ fn drive_tick_inner(
                     // [press forecast] A forecast press made, or a try it spent, with its reason (decision-neutral).
                     if let Some(line) = bot.motor.take_cast_line() {
                         bot.nav_log.push(super::nav_log::Kind::Press, time, line);
+                    }
+                    // [T3] A route end under the feet, not arrived at: walked on (once a route end).
+                    if let Some((end, over)) = bot.motor.take_over_end() {
+                        let line = super::nav_log::over_end_line(end, over, me.feet);
+                        bot.nav_log.push_once(super::nav_log::Kind::Arrival, super::nav_log::key(("over end", end.x.to_bits(), end.y.to_bits(), end.z.to_bits())), time, line);
                     }
                     // Pressing against something while walking the route: counted, nothing is decided from it.
                     let counted = bot.contact.tick(time, walks_the_route && walked == Walked::OnTheWay, decision.keys, me.speed());
@@ -4262,6 +4275,13 @@ mod tests {
         assert_eq!(Arrival::of(use_point, Vec3::new(5.0, 0.0, 5.0), &grid), Arrival::Rests);
         assert_eq!(Arrival::of(Go::Stay, under, &grid), Arrival::Rests);
         assert!(super::super::nav_log::arrival_up_line(goal, 1.03, under).starts_with("nav: goal up a ledge kept: goal "));
+        // [T3] A goal under the ledge, within its reach across of feet on the ledge's top (1.03 m over its floor): walked to.
+        let low = Go::To { at: Vec3::new(9.0, 0.0, 5.0), within_m: 2.0 };
+        let down = Arrival::of(low, Vec3::new(10.6, 1.03, 5.0), &grid);
+        assert!(matches!(down, Arrival::DownTo { drop, .. } if (drop - 1.03).abs() < 0.05), "{down:?}");
+        assert_eq!(down.goal(), Some(Vec3::new(9.0, 0.0, 5.0)));
+        assert_eq!(Arrival::of(low, Vec3::new(8.5, 0.0, 5.0), &grid), Arrival::Rests);
+        assert!(super::super::nav_log::arrival_down_line(goal, 1.03, under).starts_with("nav: goal down kept: goal "));
     }
 
     /// [`Pace::Escape`]: the sights, crouch and side steps of the reflex's wish are let go by every reason, the trigger by a blast's only; a
