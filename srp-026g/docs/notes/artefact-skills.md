@@ -217,29 +217,46 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 The owner (2026-11-22): "if I use additional container skill, I should be able to click on that
 artifact slot to turn it back into equipment slot", and "it should have yelow contours".
 
-- **The choice is a kit's** (`ContainerSlot` of `survarium::v026g::loadouts`: `Container`, the
-  default, or `Pocket`; `Kit::container`). A kit whose slot is the pocket carries the skills'
-  modifiers without Artifact Container's (`Account::kit_modifiers`): its block is a kit's without
-  the skill, so the game reads one pocket more and one container less, in the lobby and in a match
+The same for the two skills that close the second weapon slot for a pocket (the owner,
+2026-11-22: "can we do that for another perk which blocks a weapon but gives you item slot, we
+have 2 of those", "essentially we already have red icon there"): Deep Pockets (stock 113) and
+Supply Pocket (medical 331), each `pocket_slots` +1 and `disable_second_weapon` 1 (Supply Pocket
+also its medical bit 16, which nothing reads). They exclude each other, so a kit has one at most;
+either is one perk here. Artifact Container and one of them may be held together: each kit
+chooses each.
+
+- **The choice is a kit's, a perk each** (`SlotPerk` of `survarium::v026g::loadouts`:
+  `ArtifactContainer`, `WeaponPocket`; `PerkSlot`: `Taken`, the default, or `Declined`;
+  `Kit::perks`, `KitPerks`). A kit that declines a perk carries the skills' modifiers without its
+  skill's (`Account::kit_modifiers`): its block is a kit's without the skill, so the game reads one pocket more and one container less, in the lobby and in a match
   alike, with no exe change (the lobby's and the match's counts are apply_kit_parameter's of the
   kit's own block, `MatchProfile` takes the account body's). Fixed when the kit is saved; nothing
   changes in a match. Not a change of what a match computes (no `next` row: such a kit is a kit
   without the skill), and the world format is as it was (the artefact slots' count is already the
-  kit's).
+  kit's). Declining the weapon perk opens the second weapon slot the same way: the kit's
+  `disable_second_weapon` is 0, so the server's carry rule (`KitLayout`), the match's (patch 85)
+  and the lobby's slot all let a second weapon in; the lobby's own word on it
+  (`root.enable_second_weapon`, fill_char_info 0x2247D5) is the account's skills, not the kit's,
+  so the movie opens the slot itself for a kit that declines the perk.
 - **A preset's kit keeps its own** (the owner's pick of 2026-11-22: a preset is its kits;
-  `Preset::containers`, `g26_preset_pockets`), put on with it. Kits: `g26_kits.container`.
-- **Every kit of before is the container**, so nobody's kits change until he clicks. Without the
-  skill every kit's and preset kit's is the container again (`change_skills`, and the repair at
-  load), so the skill learned again starts so.
+  `Preset::perks`, `g26_preset_declined`, a row a declined perk), put on with it. Kits:
+  `g26_kits.declined`, the declined perks as bits (bit `SlotPerk::index`; step 24 made it of step
+  23's `container`).
+- **Every kit of before takes every perk**, so nobody's kits change until he clicks. Without a
+  perk's skill every kit and preset kit takes it again (`change_skills`, and the repair at load), so
+  the skill learned again starts so.
 - **What the slot held:** the container holds nothing in the lobby, so it opens as an empty
   pocket. The pocket made the container again: its item comes off the kit and stays owned, as any
-  pocket that goes (`KitLayout::kept`); the server never saves an item in a container.
-- **Wire** (`lobby.md` §2.16.4): `2 090 000 020 + kit × 10 + state` asks it (1 the container, 2
-  the pocket), refused without the skill, in a match or on the way to one; answered with the
-  account and the presets list, whose `K;<kit id>:<state>,...` row says every kit's (0 without the
-  skill). The movie asks for the list at every account it is given, so learning, refunding or a
-  preset chosen redraws it.
-- **The lobby** (`ContainerSlotMark`, `LocalPaperDoll`): with the skill, the slot has a soft edge
+  pocket that goes (`KitLayout::kept`); the server never saves an item in a container. The weapon
+  perk declined: the last pocket closes, its item off the kit (owned); taken again: the second
+  weapon comes off the kit (owned), as when the skill is learned.
+- **Wire** (`lobby.md` §2.16.4): `2 090 000 020 + kit × 10 + perk × 2 + state` asks it (perk 0
+  Artifact Container: 1 the container, 2 the pocket; perk 1 the weapon perk: 3 the pocket, 4 the
+  second weapon), refused without the skill, in a match or on the way to one; answered with the
+  account and the presets list, whose `K;<kit id>:<container>:<weapon>,...` row says every kit's
+  (each 0 without the skill, 1 taken, 2 declined). The movie asks for the list at every account it
+  is given, so learning, refunding or a preset chosen redraws it.
+- **The lobby** (`PerkSlotMark`, `LocalPaperDoll`): with the skill, the slot has a soft edge
   of the lobby's yellow (`RoomsLook.YELLOW`, 0xFFD23F; the owner, "it should have yelow
   contours", then of the flat 2 px border: "can it be more beatiful not just yellow border"; he
   picked the soft edge of three looks, 2026-11-22), over the slot's own look (the locked
@@ -253,6 +270,23 @@ artifact slot to turn it back into equipment slot", and "it should have yelow co
   - on the hover the line goes to the full yellow and the glow doubles;
   - the glow is drawn as gradients, not a GlowFilter (Scaleform renders a filtered object into a
     bitmap of its own at every change of its alpha, each frame of a fade).
+- **The weapon perk in the lobby** (the owner, 2026-11-22: "when slot is added, it should be
+  yellow, clicking on it, unblocks the weapon slot (it becomes yellow) but blocks teh slot
+  (becomes red as in when item is blocked)"):
+  - taken (the default): the pocket it adds, the last pocket, has the yellow soft edge (glowing
+    from the bottom, a pocket's); the second weapon slot shows the red lock it always had
+    (`SlotLock`, the skills' `SkillLockSpriteRed`; its tip the skill's name, then "Click: second
+    weapon", `st_srp_loadout_slot_to_weapon`);
+  - declined: the second weapon slot is open and has the yellow soft edge (all round); the pocket
+    is closed with the same red lock, shown where the next quick place is after the pockets and
+    containers (where the pocket was, without containers), its tip "Click: pocket";
+  - a click on either red lock switches (its slot is empty); a click on the yellow slot switches
+    while it holds nothing (a weapon or an item keeps its own click). What the slot that closes
+    held comes off the kit, as above. With Artifact Container too, its pocket is the one before
+    the weapon perk's.
+  - The movie reads the counts as srp's answer will make them while a click is asked
+    (`PerkSlotMark.pocketShift`), so neither the yellow nor the red moves when the account
+    comes.
 - **A switch is a cross-fade**, about 130 ms eased, the hover's too, run on the movie's frames.
   A click shows the other state's look at once and asks srp; the mark stays on its slot until
   srp's answer (the account, whose new pocket count comes first, then the `K` row); a list that
@@ -263,7 +297,8 @@ artifact slot to turn it back into equipment slot", and "it should have yelow co
   pocket; a click on the empty pocket makes it the container; a click on the pocket holding an
   item is the item's, as any pocket's (the owner's pick of 2026-11-22: empty it first, so a stray
   click never moves an item). One ask at a time. Checked in Ruffle:
-  `scripts/container-slot/check.sh` (its looks.png and zoom.png: before and after).
+  `scripts/perk-slots/check.sh` (its zoom.png, Artifact Container's slot before and after; its
+  weapon.png, the weapon perk's slots before and after).
 
 ```text
  Container (default)              Pocket (after a click)
@@ -277,6 +312,19 @@ artifact slot to turn it back into equipment slot", and "it should have yelow co
  +-----------+ +-----------+      +-----------+ +-----------+
  the skill's slot: a thin yellow line, the glow (:) all round as the container, from the
  bottom up as the pocket
+```
+
+```text
+ Deep Pockets taken (default)     The second weapon (after a click)
+ +-----------+ +-----------+      +-----------+ +-----------+
+ | weapon    | |  (lock)   |      | weapon    | |:::::::::::|
+ |           | |  WEAPON   |      |           | |: WEAPON  :|
+ +-----------+ +-----------+      +-----------+ +-----------+
+ +-----------+ +-----------+      +-----------+ +-----------+
+ | medkit x2 | |   ITEMS   |      | medkit x2 | |  (lock)   |
+ |           | |:::::::::::|      |           | |   ITEMS   |
+ +-----------+ +-----------+      +-----------+ +-----------+
+ (lock) the red lock; (:) the yellow glow
 ```
 
 ## Knowledge of Artifacts (512)

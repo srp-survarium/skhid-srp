@@ -7,7 +7,7 @@
 //! rooms and within an `int`. Every request is answered with the list
 //! ([`preset_list`]) at [`PRESETS_FIRST`].
 
-use super::super::loadouts::ContainerSlot;
+use super::super::loadouts::{PerkSlot, SlotPerk};
 use super::push::{Ranked, elo_rows};
 use super::rooms::PRESET_COUNT;
 use super::{ServerMessage, WireError, limits};
@@ -17,10 +17,11 @@ pub const PRESETS_FIRST: u32 = 2_090_000_000;
 /// `PRESET_CHOOSE_BASE + preset`, preset 1 to [`PRESET_COUNT`]: make that
 /// preset the active one (its kits put on).
 pub const PRESET_CHOOSE_BASE: u32 = PRESETS_FIRST + 10;
-/// `CONTAINER_BASE + kit × 10 + code`: the kit `kit` (0 to 2, the account's kits in order, as
-/// the list's [`CONTAINERS`] row) makes Artifact Container's slot the one of
-/// [`ContainerSlot::code`] (1 the container, 2 the pocket).
-pub const CONTAINER_BASE: u32 = PRESETS_FIRST + 20;
+/// `PERK_BASE + kit × 10 + perk × 2 + code`: the kit `kit` (0 to 2, the account's kits in order,
+/// as the list's [`PERKS`] row) takes or declines the slot of `perk` ([`SlotPerk::index`]: 0
+/// Artifact Container, 1 Deep Pockets or Supply Pocket), `code` [`PerkSlot::code`] (1 taken, 2
+/// declined): 1 the container, 2 the pocket again; 3 the pocket, 4 the second weapon again.
+pub const PERK_BASE: u32 = PRESETS_FIRST + 20;
 /// The last start.
 pub const PRESETS_LAST: u32 = PRESETS_FIRST + 99;
 /// The first field of the header's name. P2: no count of slots left empty
@@ -34,16 +35,20 @@ pub const BLOCK_MAINTENANCE: u8 = 32;
 
 /// The first field of a row of the items the presets use.
 pub const USES: &str = "U";
-/// The first field of the row of the kits' Artifact Container slots.
-pub const CONTAINERS: &str = "K";
+/// The first field of the row of the kits' perk slots.
+pub const PERKS: &str = "K";
 
 /// A presets request, by its start.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PresetRequest {
     List,
     Choose { preset: u8 },
-    /// The kit at `kit` (0 to 2) makes Artifact Container's slot `slot`.
-    Container { kit: u8, slot: ContainerSlot },
+    /// The kit at `kit` (0 to 2) takes or declines `perk`'s slot.
+    Perk {
+        kit: u8,
+        perk: SlotPerk,
+        slot: PerkSlot,
+    },
 }
 
 /// The presets request a reserved start is, if it is one.
@@ -57,11 +62,13 @@ pub fn preset_request(start: u32) -> Option<PresetRequest> {
                 preset: (start - PRESET_CHOOSE_BASE) as u8,
             })
         }
-        _ if (CONTAINER_BASE..CONTAINER_BASE + 10 * kits).contains(&start) => {
-            let offset = start - CONTAINER_BASE;
-            let slot = ContainerSlot::from_code(i64::from(offset % 10))?;
-            Some(PresetRequest::Container {
+        _ if (PERK_BASE..PERK_BASE + 10 * kits).contains(&start) => {
+            let offset = start - PERK_BASE;
+            let perk = *SlotPerk::ALL.get(((offset % 10).checked_sub(1)? / 2) as usize)?;
+            let slot = PerkSlot::from_code(offset % 10 - perk.index() as u32 * 2)?;
+            Some(PresetRequest::Perk {
                 kit: (offset / 10) as u8,
+                perk,
                 slot,
             })
         }
@@ -106,9 +113,10 @@ pub struct PresetList<'a> {
     pub minutes: Option<u32>,
     /// Each preset, 1 first.
     pub rows: &'a [PresetRow],
-    /// Each kit's id and Artifact Container slot, the account's kits in order; none: the kit
+    /// Each kit's id and its choice of each perk ([`SlotPerk::ALL`]), the account's kits in
+    /// order; none: the account lacks that perk.
     /// has no such slot (the account lacks the skill).
-    pub containers: &'a [(u32, Option<ContainerSlot>)],
+    pub perks: &'a [(u32, [Option<PerkSlot>; SlotPerk::ALL.len()])],
     /// The items the presets use, item ids rising, each with its presets.
     pub uses: &'a [(u32, u8)],
 }
@@ -124,8 +132,8 @@ pub struct PresetList<'a> {
 /// for none: the tip's number, and the movie asks again while one is
 /// planned), then a row a preset, 1 first:
 /// `<preset>;<saved>;<level>` (`level` -1: none of its kits can play, or it
-/// is empty), then the kits' Artifact Container slots, `K;<kit id>:<code>,...` (the kits in
-/// order; `code` 0 none, the account lacks the skill, else [`ContainerSlot::code`]; a movie
+/// is empty), then the kits' perk slots, `K;<kit id>:<container>:<weapon>,...` (the kits in
+/// order; each [`PerkSlot::code`] of [`SlotPerk::ALL`], 0 when the account lacks the perk; a movie
 /// before it reads it as no preset), then the items the presets use, `U;<item id>:<presets>,...`
 /// (`presets` bit `n - 1` for preset n), as many to a row as a name
 /// holds, item ids rising. The lobby asks before a sale of one of them
@@ -162,13 +170,16 @@ fn list_names(list: &PresetList<'_>) -> Vec<String> {
         let level = row.level.map_or(-1, i32::from);
         names.push(format!("{};{};{level}", index + 1, u8::from(row.saved)));
     }
-    let containers: Vec<String> = list
-        .containers
+    let perks: Vec<String> = list
+        .perks
         .iter()
         .take(limits::KITS)
-        .map(|(id, slot)| format!("{id}:{}", slot.map_or(0, ContainerSlot::code)))
+        .map(|(id, slots)| {
+            let codes: Vec<String> = slots.iter().map(|slot| slot.map_or(0, PerkSlot::code).to_string()).collect();
+            format!("{id}:{}", codes.join(":"))
+        })
         .collect();
-    names.push(format!("{CONTAINERS};{}", containers.join(",")));
+    names.push(format!("{PERKS};{}", perks.join(",")));
     let mut row = String::new();
     for (item_id, presets) in list.uses {
         let entry = format!("{item_id}:{presets}");
@@ -196,7 +207,7 @@ mod tests {
     fn list<'a>(
         done: PresetDone,
         rows: &'a [PresetRow],
-        containers: &'a [(u32, Option<ContainerSlot>)],
+        perks: &'a [(u32, [Option<PerkSlot>; 2])],
         uses: &'a [(u32, u8)],
     ) -> PresetList<'a> {
         PresetList {
@@ -206,7 +217,7 @@ mod tests {
             blocks: 0,
             minutes: None,
             rows,
-            containers,
+            perks,
             uses,
         }
     }
@@ -217,7 +228,7 @@ mod tests {
             assert!(PRESETS_FIRST > super::super::rooms::ROOMS_LAST);
             assert!(PRESETS_LAST <= i32::MAX as u32);
             assert!(PRESETS_LAST < super::super::REPLAY_START);
-            assert!(CONTAINER_BASE + 10 * limits::KITS as u32 <= PRESETS_LAST);
+            assert!(PERK_BASE + 10 * limits::KITS as u32 <= PRESETS_LAST);
         }
         assert_eq!(preset_request(PRESETS_FIRST), Some(PresetRequest::List));
         assert_eq!(preset_request(PRESET_CHOOSE_BASE), None);
@@ -232,22 +243,32 @@ mod tests {
         assert_eq!(preset_request(PRESET_CHOOSE_BASE + 6), None);
         assert_eq!(preset_request(PRESETS_FIRST + 1), None);
         assert_eq!(
-            preset_request(CONTAINER_BASE + 2),
-            Some(PresetRequest::Container {
+            preset_request(PERK_BASE + 2),
+            Some(PresetRequest::Perk {
                 kit: 0,
-                slot: ContainerSlot::Pocket
+                perk: SlotPerk::ArtifactContainer,
+                slot: PerkSlot::Declined
             })
         );
         assert_eq!(
-            preset_request(CONTAINER_BASE + 21),
-            Some(PresetRequest::Container {
+            preset_request(PERK_BASE + 21),
+            Some(PresetRequest::Perk {
                 kit: 2,
-                slot: ContainerSlot::Container
+                perk: SlotPerk::ArtifactContainer,
+                slot: PerkSlot::Taken
             })
         );
-        assert_eq!(preset_request(CONTAINER_BASE), None);
-        assert_eq!(preset_request(CONTAINER_BASE + 13), None);
-        assert_eq!(preset_request(CONTAINER_BASE + 31), None);
+        assert_eq!(
+            preset_request(PERK_BASE + 14),
+            Some(PresetRequest::Perk {
+                kit: 1,
+                perk: SlotPerk::WeaponPocket,
+                slot: PerkSlot::Declined
+            })
+        );
+        assert_eq!(preset_request(PERK_BASE), None);
+        assert_eq!(preset_request(PERK_BASE + 15), None);
+        assert_eq!(preset_request(PERK_BASE + 31), None);
     }
 
     #[test]
@@ -265,13 +286,10 @@ mod tests {
             PresetRow::default(),
             PresetRow::default(),
         ];
-        let containers = [
-            (1, Some(ContainerSlot::Container)),
-            (2, Some(ContainerSlot::Pocket)),
-            (7, Some(ContainerSlot::Container)),
-        ];
+        let (taken, declined) = (Some(PerkSlot::Taken), Some(PerkSlot::Declined));
+        let perks = [(1, [taken, None]), (2, [declined, taken]), (7, [taken, declined])];
         assert_eq!(
-            list_names(&list(PresetDone::Chosen, &rows, &containers, &[(12, 1), (40, 5)])),
+            list_names(&list(PresetDone::Chosen, &rows, &perks, &[(12, 1), (40, 5)])),
             [
                 "P2;L;1;1;1;0;-1",
                 "1;1;7",
@@ -279,14 +297,14 @@ mod tests {
                 "3;1;-1",
                 "4;0;-1",
                 "5;0;-1",
-                "K;1:1,2:2,7:1",
+                "K;1:1:0,2:2:1,7:1:2",
                 "U;12:1,40:5"
             ]
         );
-        let without = [(1, None), (2, None), (3, None)];
+        let without = [(1, [None; 2]), (2, [None; 2]), (3, [None; 2])];
         assert_eq!(
             list_names(&list(PresetDone::Listed, &rows, &without, &[]))[6],
-            "K;1:0,2:0,3:0"
+            "K;1:0:0,2:0:0,3:0:0"
         );
         assert!(preset_list(&list(PresetDone::Listed, &rows, &without, &[])).is_ok());
     }
@@ -299,7 +317,7 @@ mod tests {
         let names = list_names(&list(
             PresetDone::Listed,
             &[PresetRow::default(); 5],
-            &[(1, None), (2, None), (3, None)],
+            &[(1, [None; 2]), (2, [None; 2]), (3, [None; 2])],
             &uses,
         ));
         assert!(names.len() <= (PRESETS_LAST - PRESETS_FIRST + 1) as usize);

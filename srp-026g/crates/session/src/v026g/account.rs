@@ -15,7 +15,9 @@ use survarium::v026g::faces::Face;
 use survarium::v026g::golden;
 use survarium::v026g::item_params;
 use survarium::v026g::loadouts::{self, AMMO_SLOTS, KitLayout, Loadout, POCKET_SLOTS};
-pub use survarium::v026g::loadouts::{ARTIFACT_CONTAINER, ContainerSlot};
+pub use survarium::v026g::loadouts::{
+    ARTIFACT_CONTAINER, DEEP_POCKETS, KitPerks, PerkSlot, SUPPLY_POCKET, SlotPerk,
+};
 use survarium::v026g::lobby::{FULL_CONDITION, limits};
 use survarium::v026g::quests::FACTIONS;
 use survarium::v026g::skills::{self, SkillsTree};
@@ -85,22 +87,22 @@ pub struct KitSlot {
     pub count: u32,
 }
 
-/// Why a kit's Artifact Container slot was not changed ([`Account::set_container_slot`]).
+/// Why a kit's perk slot was not changed ([`Account::set_perk_slot`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ContainerError {
+pub enum PerkError {
     /// No kit at that place.
     NoSuchKit,
-    /// The account lacks Artifact Container: no slot to choose.
+    /// The account lacks the perk: no slot to choose.
     NoSkill,
 }
 
-impl std::fmt::Display for ContainerError {
+impl std::fmt::Display for PerkError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{self:?}")
     }
 }
 
-impl std::error::Error for ContainerError {}
+impl std::error::Error for PerkError {}
 
 /// One kit: the client's "profile".
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -113,8 +115,8 @@ pub struct Kit {
     /// rebuilds the character it shows.
     pub revision: u32,
     pub slots: [Option<KitSlot>; KIT_SLOTS],
-    /// Artifact Container's slot in this kit ([`Account::set_container_slot`]).
-    pub container: ContainerSlot,
+    /// What the kit makes of each perk's slot ([`Account::set_perk_slot`]).
+    pub perks: KitPerks,
 }
 
 impl Kit {
@@ -124,7 +126,7 @@ impl Kit {
             name: String::new(),
             revision: 1,
             slots: [None; KIT_SLOTS],
-            container: ContainerSlot::Container,
+            perks: KitPerks::default(),
         }
     }
 
@@ -704,16 +706,14 @@ impl Account {
     /// units owned go.
     pub fn change_skills(&mut self, skills: Vec<(u16, u8)>, tree: &SkillsTree) {
         let skills_before = std::mem::replace(&mut self.skills, skills);
-        let kits_before: Vec<ContainerSlot> = self.kits.iter().map(|kit| kit.container).collect();
-        let presets_before = self.presets.map(|preset| preset.map(|preset| preset.containers));
-        self.forget_container_slots();
-        let modifiers_of = |skills: &[(u16, u8)], container: ContainerSlot| {
-            tree.modifiers(&container.skills_taken(skills))
-        };
-        for (index, &container_before) in kits_before.iter().enumerate() {
+        let kits_before: Vec<KitPerks> = self.kits.iter().map(|kit| kit.perks).collect();
+        let presets_before = self.presets.map(|preset| preset.map(|preset| preset.perks));
+        self.forget_perk_slots();
+        let modifiers_of = |skills: &[(u16, u8)], perks: KitPerks| tree.modifiers(&perks.skills_taken(skills));
+        for (index, &perks_before) in kits_before.iter().enumerate() {
             let found = self.kits[index].slots;
-            let before = modifiers_of(&skills_before, container_before);
-            let modifiers = modifiers_of(&self.skills, self.kits[index].container);
+            let before = modifiers_of(&skills_before, perks_before);
+            let modifiers = modifiers_of(&self.skills, self.kits[index].perks);
             let mut slots = found;
             self.follow_layout(&found, &before, &mut slots, &modifiers);
             let kit = &mut self.kits[index];
@@ -722,17 +722,12 @@ impl Account {
         }
         let mut presets = self.presets;
         for (preset, before) in presets.iter_mut().zip(presets_before) {
-            let (Some(preset), Some(containers_before)) = (preset, before) else {
+            let (Some(preset), Some(perks_before)) = (preset, before) else {
                 continue;
             };
-            for ((kit, container), container_before) in preset
-                .kits
-                .iter_mut()
-                .zip(preset.containers)
-                .zip(containers_before)
-            {
-                let before = modifiers_of(&skills_before, container_before);
-                let modifiers = modifiers_of(&self.skills, container);
+            for ((kit, perks), perks_before) in preset.kits.iter_mut().zip(preset.perks).zip(perks_before) {
+                let before = modifiers_of(&skills_before, perks_before);
+                let modifiers = modifiers_of(&self.skills, perks);
                 let held = kit.map(|slot| slot.map(|saved| (saved.dict_id, saved.count)));
                 let worn = || kit.iter().flatten().map(|saved| saved.item_id);
                 let layout = self.layout_of(worn(), &modifiers);
@@ -744,64 +739,62 @@ impl Account {
         self.presets = presets;
     }
 
-    /// Whether the account has Artifact Container, whose slot each kit may make a pocket again.
-    pub fn has_container_skill(&self) -> bool {
+    /// Whether the account has `perk` (one of its skills), whose slot each kit may decline.
+    pub fn has_perk(&self, perk: SlotPerk) -> bool {
         self.skills
             .iter()
-            .any(|&(id, points)| id == ARTIFACT_CONTAINER && points > 0)
+            .any(|&(id, points)| points > 0 && perk.skills().contains(&id))
     }
 
-    /// Without Artifact Container, every kit's and preset's slot is the container (so the skill
-    /// learned again gives the container everywhere, as at first). Whether anything changed.
-    fn forget_container_slots(&mut self) -> bool {
-        if self.has_container_skill() {
-            return false;
-        }
+    /// Every perk the account lacks is taken again in every kit and preset (so the skill learned
+    /// again starts as at first). Whether anything changed.
+    fn forget_perk_slots(&mut self) -> bool {
+        let lacking: Vec<SlotPerk> = SlotPerk::ALL.into_iter().filter(|&perk| !self.has_perk(perk)).collect();
         let mut changed = false;
-        let containers = self
+        let kits = self
             .kits
             .iter_mut()
-            .map(|kit| &mut kit.container)
-            .chain(self.presets.iter_mut().flatten().flat_map(|preset| &mut preset.containers));
-        for container in containers {
-            changed |= *container != ContainerSlot::Container;
-            *container = ContainerSlot::Container;
+            .map(|kit| &mut kit.perks)
+            .chain(self.presets.iter_mut().flatten().flat_map(|preset| &mut preset.perks));
+        for perks in kits {
+            let taken = lacking.iter().fold(*perks, |perks, &perk| perks.with(perk, PerkSlot::Taken));
+            changed |= taken != *perks;
+            *perks = taken;
         }
         changed
     }
 
     /// The skills' modifiers the kit at `kit_index` carries (the lobby's and the match's kit
-    /// block): every skill's, but Artifact Container's in a kit whose slot is the pocket
-    /// ([`ContainerSlot`]).
+    /// block): every skill's, but those of the perks it declines ([`KitPerks`]).
     pub fn kit_modifiers(&self, kit_index: usize) -> [f32; skills::MODIFIERS] {
-        let container = self
-            .kits
-            .get(kit_index)
-            .map_or(ContainerSlot::Container, |kit| kit.container);
-        SkillsTree::shared().modifiers(&container.skills_taken(&self.skills))
+        let perks = self.kits.get(kit_index).map_or(KitPerks::default(), |kit| kit.perks);
+        SkillsTree::shared().modifiers(&perks.skills_taken(&self.skills))
     }
 
-    /// The kit at `kit_index` makes Artifact Container's slot `container` (the lobby's click,
-    /// `presets.md`): the slot a pocket again, or the container. What the pocket held comes off
-    /// the kit and stays owned, as when any pocket goes ([`Self::keep_to_layout`]). Whether the
-    /// kit changed (a new revision). `tree` is the skills tree (`SkillsTree::shared`).
-    pub fn set_container_slot(
+    /// The kit at `kit_index` takes or declines `perk`'s slot (the lobby's click, `presets.md`):
+    /// Artifact Container's container or the pocket it was; Deep Pockets' or Supply Pocket's
+    /// pocket or the second weapon slot. What the slot that goes held (the pocket's item, the
+    /// second weapon) comes off the kit and stays owned ([`KitLayout::kept`]). Whether the kit
+    /// changed (a new revision). `tree` is the skills tree (`SkillsTree::shared`).
+    pub fn set_perk_slot(
         &mut self,
         kit_index: usize,
-        container: ContainerSlot,
+        perk: SlotPerk,
+        slot: PerkSlot,
         tree: &SkillsTree,
-    ) -> Result<bool, ContainerError> {
+    ) -> Result<bool, PerkError> {
         if kit_index >= self.kits.len() {
-            return Err(ContainerError::NoSuchKit);
+            return Err(PerkError::NoSuchKit);
         }
-        if !self.has_container_skill() {
-            return Err(ContainerError::NoSkill);
+        if !self.has_perk(perk) {
+            return Err(PerkError::NoSkill);
         }
-        if self.kits[kit_index].container == container {
+        let perks = self.kits[kit_index].perks.with(perk, slot);
+        if perks == self.kits[kit_index].perks {
             return Ok(false);
         }
-        self.kits[kit_index].container = container;
-        let modifiers = tree.modifiers(&container.skills_taken(&self.skills));
+        self.kits[kit_index].perks = perks;
+        let modifiers = tree.modifiers(&perks.skills_taken(&self.skills));
         let found = self.kits[kit_index].slots;
         let mut slots = found;
         self.follow_layout(&found, &modifiers, &mut slots, &modifiers);
@@ -996,7 +989,7 @@ impl Account {
         let dictionary = Dictionary::shared();
         let before = self.clone();
         self.settle_skills(SkillsTree::shared());
-        self.forget_container_slots();
+        self.forget_perk_slots();
 
         let mut seen = Vec::new();
         self.inventory.retain(|item| {
@@ -1581,6 +1574,12 @@ mod tests {
         tree
     }
 
+    const CONTAINER: SlotPerk = SlotPerk::ArtifactContainer;
+
+    fn declined(perk: SlotPerk) -> KitPerks {
+        KitPerks::default().with(perk, PerkSlot::Declined)
+    }
+
     /// A kit's Artifact Container slot: the pocket again and back (the owner, 2026-11-22). A
     /// kit with the stock pocket has none with the container, one with the pocket; what the
     /// pocket held comes off when it is the container again, and stays owned.
@@ -1591,22 +1590,22 @@ mod tests {
         let mut account = Account::new("Alice");
         let held = account.add_item(medkit, 2);
         assert_eq!(
-            account.set_container_slot(1, ContainerSlot::Pocket, &tree),
-            Err(ContainerError::NoSkill)
+            account.set_perk_slot(1, CONTAINER, PerkSlot::Declined, &tree),
+            Err(PerkError::NoSkill)
         );
         account.change_skills(vec![(ARTIFACT_CONTAINER, 1)], &tree);
         let layout = |account: &Account, kit: usize| {
-            let container = account.kits[kit].container;
+            let perks = account.kits[kit].perks;
             account
-                .layout_of([], &tree.modifiers(&container.skills_taken(&account.skills)))
+                .layout_of([], &tree.modifiers(&perks.skills_taken(&account.skills)))
                 .pockets()
         };
-        assert_eq!(account.kits[1].container, ContainerSlot::Container);
+        assert_eq!(account.kits[1].perks, KitPerks::default());
         assert_eq!(layout(&account, 1), 0);
 
         let revision = account.kits[1].revision;
-        assert_eq!(account.set_container_slot(1, ContainerSlot::Pocket, &tree), Ok(true));
-        assert_eq!(account.set_container_slot(1, ContainerSlot::Pocket, &tree), Ok(false));
+        assert_eq!(account.set_perk_slot(1, CONTAINER, PerkSlot::Declined, &tree), Ok(true));
+        assert_eq!(account.set_perk_slot(1, CONTAINER, PerkSlot::Declined, &tree), Ok(false));
         assert_eq!(account.kits[1].revision, revision.wrapping_add(1));
         assert_eq!(layout(&account, 1), 1);
         // The other kits keep the container.
@@ -1614,12 +1613,51 @@ mod tests {
 
         in_pocket(&mut account, 1, 13, held, 2);
         let inventory = account.inventory.clone();
-        assert_eq!(account.set_container_slot(1, ContainerSlot::Container, &tree), Ok(true));
+        assert_eq!(account.set_perk_slot(1, CONTAINER, PerkSlot::Taken, &tree), Ok(true));
         assert_eq!(account.kits[1].slots[13], None);
         assert_eq!(account.inventory, inventory);
         assert_eq!(
-            account.set_container_slot(3, ContainerSlot::Pocket, &tree),
-            Err(ContainerError::NoSuchKit)
+            account.set_perk_slot(3, CONTAINER, PerkSlot::Declined, &tree),
+            Err(PerkError::NoSuchKit)
+        );
+    }
+
+    /// Deep Pockets' slot (the owner, 2026-11-22): taken, a pocket more and no second weapon;
+    /// declined, the second weapon slot again and the pocket gone. What the slot that goes held
+    /// comes off the kit and stays owned. Supply Pocket is the same perk.
+    #[test]
+    fn a_kit_makes_the_extra_pocket_a_weapon_slot_and_back() {
+        use survarium::v026g::skills::slot_modifier::{DISABLE_SECOND_WEAPON, POCKET_SLOTS};
+        let tree = SkillsTree::shared();
+        let dictionary = Dictionary::shared();
+        let mut account = Account::new("Alice");
+        let medkit = account.add_item(dictionary.item_named("medkit").unwrap().dict_id, 2);
+        let ppsh = account.add_item(dictionary.item_named("ppsh").unwrap().dict_id, FULL_CONDITION);
+        account.change_skills(vec![(DEEP_POCKETS, 1)], tree);
+        let modifiers = |account: &Account| tree.modifiers(&account.kits[0].perks.skills_taken(&account.skills));
+        assert_eq!(modifiers(&account)[POCKET_SLOTS], 1.0);
+        assert_eq!(modifiers(&account)[DISABLE_SECOND_WEAPON], 1.0);
+        in_pocket(&mut account, 0, 14, medkit, 2);
+        let inventory = account.inventory.clone();
+
+        // Declined: the second weapon slot; the second pocket's medkit off.
+        assert_eq!(account.set_perk_slot(0, SlotPerk::WeaponPocket, PerkSlot::Declined, tree), Ok(true));
+        assert_eq!(modifiers(&account), tree.modifiers(&[]));
+        assert_eq!(account.kits[0].slots[14], None);
+        account.kits[0].slots[10] = Some(KitSlot { item_id: ppsh, count: 1 });
+        let mut slots = account.kits[0].slots;
+        account.keep_to_layout(0, &mut slots);
+        assert!(slots[10].is_some(), "a kit that declines the perk carries a second weapon");
+
+        // Taken again: the second weapon off.
+        account.kits[0].slots = slots;
+        assert_eq!(account.set_perk_slot(0, SlotPerk::WeaponPocket, PerkSlot::Taken, tree), Ok(true));
+        assert_eq!(account.kits[0].slots[10], None);
+        assert_eq!(account.inventory, inventory);
+        // The other perk's slot is no one's choice without its skill.
+        assert_eq!(
+            account.set_perk_slot(0, CONTAINER, PerkSlot::Declined, tree),
+            Err(PerkError::NoSkill)
         );
     }
 
@@ -1630,19 +1668,22 @@ mod tests {
         use crate::v026g::presets::Preset;
         let tree = tree_with_container();
         let mut account = Account::new("Alice");
-        account.change_skills(vec![(ARTIFACT_CONTAINER, 1)], &tree);
-        account.set_container_slot(0, ContainerSlot::Pocket, &tree).unwrap();
+        account.change_skills(vec![(ARTIFACT_CONTAINER, 1), (DEEP_POCKETS, 1)], &tree);
+        account.set_perk_slot(0, CONTAINER, PerkSlot::Declined, &tree).unwrap();
+        account.set_perk_slot(0, SlotPerk::WeaponPocket, PerkSlot::Declined, &tree).unwrap();
         let mut preset = Preset::EMPTY;
-        preset.containers[2] = ContainerSlot::Pocket;
+        preset.perks[2] = declined(CONTAINER);
         account.presets[1] = Some(preset);
 
-        account.change_skills(Vec::new(), &tree);
-        assert!(account.kits.iter().all(|kit| kit.container == ContainerSlot::Container));
+        // Artifact Container refunded: its choice forgotten, Deep Pockets' kept.
+        account.change_skills(vec![(DEEP_POCKETS, 1)], &tree);
+        assert_eq!(account.kits[0].perks, declined(SlotPerk::WeaponPocket));
+        assert!(account.kits[1..].iter().all(|kit| kit.perks == KitPerks::default()));
         assert_eq!(account.presets[1].map(|preset| preset.is_empty()), Some(true));
 
-        // A saved account with a pocket and no skill (an admin's refund) is repaired so too.
-        account.kits[2].container = ContainerSlot::Pocket;
+        // A saved account with a choice and no skill (an admin's refund) is repaired so too.
+        account.kits[2].perks = declined(CONTAINER);
         assert!(account.repair());
-        assert_eq!(account.kits[2].container, ContainerSlot::Container);
+        assert_eq!(account.kits[2].perks, KitPerks::default());
     }
 }

@@ -15,7 +15,7 @@ use std::sync::{Arc, Mutex};
 
 use rusqlite::{Connection, OptionalExtension, params};
 
-use super::account::{Account, ContainerSlot, Item, KIT_SLOTS, Kit, KitSlot, QuestInstance, Upgrade};
+use super::account::{Account, Item, KIT_SLOTS, Kit, KitPerks, KitSlot, QuestInstance, Upgrade};
 use survarium::v026g::faces::Faces;
 use super::clans::Clan;
 use super::moderation::AdminAction;
@@ -172,6 +172,8 @@ const MIGRATIONS: &[&str] = &[
     history::NAMES_MIGRATION,
     // 23: what each kit and preset kit makes of Artifact Container's slot (`presets`).
     presets::CONTAINER_MIGRATION,
+    // 24: what each kit and preset kit makes of every perk's slot (`presets`).
+    presets::PERK_MIGRATION,
 ];
 
 /// The child tables of an account, children of children first.
@@ -873,7 +875,7 @@ impl GameRepository for SqliteGameRepository {
             }
             {
                 let mut statement = transaction.prepare_cached(
-                    "SELECT id, name, revision, container FROM g26_kits
+                    "SELECT id, name, revision, declined FROM g26_kits
                      WHERE account_id = ?1 ORDER BY seq",
                 )?;
                 let rows = statement.query_map([account_id], |row| {
@@ -883,15 +885,15 @@ impl GameRepository for SqliteGameRepository {
                             name: row.get(1)?,
                             revision: row.get(2)?,
                             slots: [None; KIT_SLOTS],
-                            container: ContainerSlot::Container,
+                            perks: KitPerks::ALL_TAKEN,
                         },
                         row.get::<_, i64>(3)?,
                     ))
                 })?;
                 for row in rows {
                     let (mut kit, code) = row?;
-                    kit.container = ContainerSlot::from_code(code).ok_or_else(|| {
-                        bad_row(account_id, "kit container", &code.to_string())
+                    kit.perks = KitPerks::from_declined_bits(code).ok_or_else(|| {
+                        bad_row(account_id, "kit perks", &code.to_string())
                     })?;
                     account.kits.push(kit);
                 }
@@ -1122,7 +1124,7 @@ fn write_account(
     }
     for (seq, kit) in account.kits.iter().enumerate() {
         transaction.execute(
-            "INSERT INTO g26_kits (account_id, id, seq, name, revision, container)
+            "INSERT INTO g26_kits (account_id, id, seq, name, revision, declined)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
                 account_id,
@@ -1130,7 +1132,7 @@ fn write_account(
                 seq as i64,
                 kit.name,
                 kit.revision,
-                kit.container.code()
+                kit.perks.declined_bits()
             ],
         )?;
         for (slot, held) in kit.slots.iter().enumerate() {
@@ -1493,6 +1495,39 @@ mod tests {
         assert_eq!((gold, silver), (150, 1000));
         assert!(!repository.paid_back().unwrap());
         std::fs::remove_file(&blocked).unwrap();
+    }
+
+    /// Step 24 keeps the Artifact Container choices step 23 saved: a kit's pocket is its first
+    /// perk declined, a preset kit's row a declined row of that perk.
+    #[test]
+    fn the_container_choices_become_perk_choices() {
+        let connection = Connection::open_in_memory().unwrap();
+        for step in &MIGRATIONS[..23] {
+            connection.execute_batch(step).unwrap();
+        }
+        connection
+            .execute_batch(
+                "PRAGMA foreign_keys = OFF;
+                 INSERT INTO g26_kits (account_id, id, seq, name, revision, container)
+                     VALUES (1, 1, 0, '', 1, 1), (1, 2, 1, '', 1, 2);
+                 INSERT INTO g26_preset_pockets (account_id, preset, kit) VALUES (1, 3, 2);",
+            )
+            .unwrap();
+        connection.execute_batch(MIGRATIONS[23]).unwrap();
+        let declined: Vec<i64> = connection
+            .prepare("SELECT declined FROM g26_kits ORDER BY seq")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(declined, [0, 1]);
+        let row: (i64, i64, i64) = connection
+            .query_row("SELECT preset, kit, perk FROM g26_preset_declined", [], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+            })
+            .unwrap();
+        assert_eq!(row, (3, 2, 0));
     }
 
     #[test]

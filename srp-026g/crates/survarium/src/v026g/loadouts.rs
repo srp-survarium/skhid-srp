@@ -257,41 +257,117 @@ pub const MAX_POCKET_UNITS: u32 = 5;
 /// Artifact Container, artefact skill 522 (`docs/notes/artefact-skills.md`): one pocket becomes
 /// an artefact container.
 pub const ARTIFACT_CONTAINER: u16 = 522;
+/// Deep Pockets, stock skill 113: a pocket more, no second weapon.
+pub const DEEP_POCKETS: u16 = 113;
+/// Supply Pocket, medical skill 331 (`docs/notes/medical-skills.md`): a pocket more, no second
+/// weapon; it excludes Deep Pockets, so a kit has one of the two at most.
+pub const SUPPLY_POCKET: u16 = 331;
 
-/// What a kit makes of the slot Artifact Container gives a choice on (the owner, 2026-11-22):
-/// the container, or the pocket it was. A kit whose slot is the pocket takes the skill's
-/// modifiers no more ([`Self::skills_taken`]), as a kit without it.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum ContainerSlot {
-    #[default]
-    Container,
-    Pocket,
+/// A perk that turns one slot of a kit into another, which each kit may take or decline by a
+/// click in the lobby (the owner, 2026-11-22): the kit that declines it carries its skill's
+/// modifiers no more ([`KitPerks::skills_taken`]), as a kit without it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SlotPerk {
+    /// Artifact Container: a pocket becomes an artefact container.
+    ArtifactContainer,
+    /// Deep Pockets or Supply Pocket: the second weapon slot becomes a pocket.
+    WeaponPocket,
 }
 
-impl ContainerSlot {
-    /// Its number on the wire and in the account's rows: 1 the container, 2 the pocket (0 is a
-    /// kit with no such slot, `lobby::presets`).
+impl SlotPerk {
+    pub const ALL: [SlotPerk; 2] = [SlotPerk::ArtifactContainer, SlotPerk::WeaponPocket];
+
+    /// The skills that give it.
+    pub fn skills(self) -> &'static [u16] {
+        match self {
+            SlotPerk::ArtifactContainer => &[ARTIFACT_CONTAINER],
+            SlotPerk::WeaponPocket => &[DEEP_POCKETS, SUPPLY_POCKET],
+        }
+    }
+
+    /// Its place on the wire and in the account's rows ([`Self::ALL`]'s order).
+    pub fn index(self) -> usize {
+        match self {
+            SlotPerk::ArtifactContainer => 0,
+            SlotPerk::WeaponPocket => 1,
+        }
+    }
+}
+
+/// What a kit makes of a perk's slot: the perk's (the default), or the slot it replaced.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PerkSlot {
+    #[default]
+    Taken,
+    Declined,
+}
+
+impl PerkSlot {
+    /// Its number on the wire: 1 taken, 2 declined (0 is a kit with no such perk,
+    /// `lobby::presets`).
     pub fn code(self) -> u8 {
         match self {
-            ContainerSlot::Container => 1,
-            ContainerSlot::Pocket => 2,
+            PerkSlot::Taken => 1,
+            PerkSlot::Declined => 2,
         }
     }
 
     /// The choice a number is, if it is one.
-    pub fn from_code(code: i64) -> Option<ContainerSlot> {
-        [ContainerSlot::Container, ContainerSlot::Pocket]
+    pub fn from_code(code: u32) -> Option<PerkSlot> {
+        [PerkSlot::Taken, PerkSlot::Declined]
             .into_iter()
-            .find(|slot| i64::from(slot.code()) == code)
+            .find(|slot| u32::from(slot.code()) == code)
+    }
+}
+
+/// A kit's choice of each [`SlotPerk`]: all taken by default.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct KitPerks([PerkSlot; SlotPerk::ALL.len()]);
+
+impl KitPerks {
+    /// Every perk taken, the default.
+    pub const ALL_TAKEN: KitPerks = KitPerks([PerkSlot::Taken; SlotPerk::ALL.len()]);
+
+    pub fn get(self, perk: SlotPerk) -> PerkSlot {
+        self.0[perk.index()]
     }
 
-    /// The skills of `skills` (`(id, points)`) a kit of this choice takes: the pocket leaves
-    /// Artifact Container out.
+    pub fn with(mut self, perk: SlotPerk, slot: PerkSlot) -> KitPerks {
+        self.0[perk.index()] = slot;
+        self
+    }
+
+    /// The perks declined as bits (bit [`SlotPerk::index`]), the account's rows' number.
+    pub fn declined_bits(self) -> i64 {
+        SlotPerk::ALL
+            .into_iter()
+            .filter(|&perk| self.get(perk) == PerkSlot::Declined)
+            .map(|perk| 1 << perk.index())
+            .sum()
+    }
+
+    /// The choices of a row's bits; none for a bit no perk has.
+    pub fn from_declined_bits(bits: i64) -> Option<KitPerks> {
+        let known = (1 << SlotPerk::ALL.len()) - 1;
+        (bits & !known == 0).then(|| {
+            SlotPerk::ALL.into_iter().fold(KitPerks::default(), |kit, perk| match bits >> perk.index() & 1 {
+                1 => kit.with(perk, PerkSlot::Declined),
+                _ => kit,
+            })
+        })
+    }
+
+    /// The skills of `skills` (`(id, points)`) a kit of these choices takes: a perk declined
+    /// leaves its skills out.
     pub fn skills_taken(self, skills: &[(u16, u8)]) -> Vec<(u16, u8)> {
         skills
             .iter()
             .copied()
-            .filter(|&(id, _)| !(self == ContainerSlot::Pocket && id == ARTIFACT_CONTAINER))
+            .filter(|&(id, _)| {
+                !SlotPerk::ALL
+                    .into_iter()
+                    .any(|perk| self.get(perk) == PerkSlot::Declined && perk.skills().contains(&id))
+            })
             .collect()
     }
 }

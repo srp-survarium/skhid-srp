@@ -13,7 +13,7 @@ package survarium.player
 
    // The greyed Play's and Join's tip (presets.md, the reasons), and the
    // item search's (item-search.md, InventoryList.makeSearch), and Artifact Container's slot's
-   // hint (ContainerSlotMark): the game's tooltip (SrvProfileTipRendererStyled).
+   // hint (PerkSlotMark): the game's tooltip (SrvProfileTipRendererStyled).
    // - tipData.name: its text a line a reason, with the left margin as wide
    //   as the right (the owner's of 2026-10-23: "a bit more padding from the
    //   left"). The stock renderer pads the right by 5 more than its margins
@@ -52,7 +52,7 @@ package survarium.player
       }
 
       // Shown and taken away by its owner, for a control under it that keeps the mouse
-      // (ContainerSlotMark: a pocket's own hover).
+      // (PerkSlotMark: a slot's own hover).
       public function showNow() : void
       {
          if(stage != null)

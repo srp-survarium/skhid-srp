@@ -2763,6 +2763,7 @@ st_srp_loadout_sell_many	Выкарыстоўваецца ў камплекта�
 st_srp_loadout_sell_one	Выкарыстоўваецца ў камплекце %1$s. Прадаць?
 st_srp_loadout_slot_to_container	Клік: кантэйнер для артэфакта
 st_srp_loadout_slot_to_pocket	Клік: кішэня
+st_srp_loadout_slot_to_weapon	Клік: другая зброя
 st_srp_loadout_title	Камплект
 st_srp_loadout_unfit	не для бою
 st_srp_lobby_basement	Падвал

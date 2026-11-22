@@ -2763,6 +2763,7 @@ st_srp_loadout_sell_many	Ezekben használod: %1$s. Így is eladod?
 st_srp_loadout_sell_one	A(z) %1$s. összeállításban használod. Így is eladod?
 st_srp_loadout_slot_to_container	Kattintás: artefaktumtároló
 st_srp_loadout_slot_to_pocket	Kattintás: zseb
+st_srp_loadout_slot_to_weapon	Kattintás: második fegyver
 st_srp_loadout_title	Összeállítás
 st_srp_loadout_unfit	nem használható
 st_srp_lobby_basement	Pince

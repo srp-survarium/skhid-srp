@@ -2763,6 +2763,7 @@ st_srp_loadout_sell_many	Koristi se u: %1$s. Ipak prodati?
 st_srp_loadout_sell_one	Koristi se u kompletu %1$s. Ipak prodati?
 st_srp_loadout_slot_to_container	Klik: kontejner za artefakt
 st_srp_loadout_slot_to_pocket	Klik: džep
+st_srp_loadout_slot_to_weapon	Klik: drugo oružje
 st_srp_loadout_title	Komplet
 st_srp_loadout_unfit	nije spreman
 st_srp_lobby_basement	Podrum
