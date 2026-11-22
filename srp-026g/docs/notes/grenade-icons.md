@@ -45,18 +45,52 @@ and harmful; technical-skills.md).
 
 `survarium.constants.MarkerType` names a marker's types: `GRENADE` 0 (the stock frame 1, the frag),
 `TRAP` 1, and srp's `SMOKE` 3 and `TOXIC_SMOKE` 4. `MarkerRenderer` shows `SmokeMark` for the two smoke
-types in place of the icon: the stock ring and pointer, an upright canister with its fuse, lever and
-pin ring, and a cloud rising from the fuse; white, the toxic smoke's cloud green (0x9BE15D). Any other
-type is the icon's frame as before. The frag keeps the stock glyph. An enemy's grenade still has no
-marker.
+types in place of the icon; any other type is the icon's frame as before. The frag keeps the stock
+glyph. An enemy's grenade still has no marker.
+
+`SmokeMark` is the stock marker's ring and pointer around a white sketch of the RDG-M, made the way
+the stock frag glyph (shape 32) is a sketch of the RGD-5 (the owner, 2026-11-22: "white sketch of the
+grenade that already exists"):
+
+- **The source**: rdg-m's own icon (`ui_desc/icon` 3, 6, icon 49: the stock hud's hudItems cell 15,
+  the same render as the lobby's AmmoIcons one), measured upright (it leans 12.5 degrees): the fuse
+  head, the neck, the shoulder, the body and its domed bottom, and the lever's wire down the
+  shoulder's left. The pin's ring is left out, as the frag glyph leaves out the RGD-5's.
+- **The hand**: the frag glyph's. Its tilt (its fuse rod's line, 31 degrees; the RGD-5's icon leans
+  about 15, so the glyph leans about 19 more, and so does the RDG-M's from its 12.5), its height
+  (617 twips), its centre in the ring, its strokes (40 twips) and cuts (about 20) between the body,
+  the fuse head and the lever.
+- `srp-026g/scripts/grenade-icons/smoke_glyph.py` makes the polygons (shapely) from those
+  measurements and prints them as `SmokeMark`'s arrays.
+- **Toxic smoke** (the owner: "fully green inside"): the same sketch, its body green inside a 1 px
+  white edge, the fuse head and the lever white. The green is Toxic Smoke's own icon's
+  (`scripts/technical-skills/make_icons.py` GREEN, 0x7BD11F). The cloud's own tint in the game (the
+  toxic-smoke pack's emissive 0.40, 0.52, 0.38) is too dark and grey for a 20 px mark.
 
 Check: `srp-026g/scripts/grenade-icons/check.sh` (Ruffle, the stock feed and the feed with kinds).
 
-## The game's part (not written)
+## The game's part: exe patch 194
 
-The stock game never tells a marker a grenade's kind. It needs an exe patch: where `player::st_draw`
-takes a grenade for marker i (0x2471A4, the grenade at [ESI+0Ch], i in BL, the player in EBP), the
-grenade's kind (a smoke grenade: its stack's `splash_max_damage` is 0, as technical_smoke's test; toxic:
-its thrower's kit has 441), and after `show_grenade_icons` (0x2471FC) `set_hud_icon_type(ui, 2Fh + i,
-kind)` (0x23BEA0) for each marker whose kind changed since the last frame. Presentation only: nothing
-the match computes changes.
+`grenade_icons` (`rust/patches/src/grenade_icons.rs`, `vostok/grenade_icons.rs`):
+
+- **`grenade_icons.sensed`** (0x2471A4, a lohook of 5 bytes): player::st_draw once a grenade near the
+  followed player passed the team test, before it reads its position. ESI the grenade's body, whose
+  user is the grenade +1Ch (`game_object.grenade`), EBP the followed player, BL the marker it takes.
+  The grenade is read once into a kind: a frag; a smoke (its stack's `splash_max_damage` is 0, the
+  test patch 180 uses); a toxic smoke (a smoke whose thrower's kit has Toxic Smoke 441). When the
+  marker was last told another kind, `set_hud_icon_type(ui [player+F480h], 2Fh + BL, MarkerType)`
+  (0x23BEA0, the game's own, its Invoke root.set_player_icon_type). The type is set in the same frame
+  as the position, before the movie draws.
+- **`player_icons.enemy_ids`** (order 3): initialize_match is about to make the match's markers anew,
+  each a frag's (type 0): what the markers were told is forgotten.
+- **A marker reused**: the six markers are filled in the order the sensor finds grenades, so a
+  marker moves from grenade to grenade. Every grenade that takes a marker is compared with what that
+  marker was last told, so a smoke's marker taken by a frag next is told the frag's again; a hidden
+  marker keeps its type until a grenade takes it.
+- **A replay, a spectated player**: the sensor runs for the player the camera follows (st_draw's
+  test 0x246F5F..0x246FA5: the network client's player, `[[player+F478h]+53ACh]+4`, as the
+  first-person test 0x243940 reads it; in a replay the replay client), and the team test is his.
+  The hook is inside that path, so a replay's and a spectated player's markers take it too (by the
+  code; not run in a replay).
+- Presentation only: nothing the match computes reads it. Check: `check_grenade_icons_026g.py`
+  (`tools/check grenade-icons-native`).

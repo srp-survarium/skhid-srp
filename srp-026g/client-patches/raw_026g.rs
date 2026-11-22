@@ -373,6 +373,8 @@ unsafe extern "C" {
     pub fn engine_register_hunt_cook(cook: Option<HuntCook>);
     /// 0x313900 survarium::game_match_rule_base::game_match_rule_base: rule EAX, type ESP+4; pops 4; EAX
     pub fn engine_hunt_rule_base(rule: *mut c_void, r#type: u32) -> Option<HuntRule>;
+    /// 0x23bea0 survarium::game_world_ui::set_hud_icon_type: ui ESP+4, id ESP+8, type ESP+12; pops 12
+    pub fn engine_set_hud_icon_type(ui: Option<GameWorldUi>, id: u32, r#type: u32);
 }
 
 #[allow(dead_code)]
@@ -2246,6 +2248,24 @@ impl Player {
     #[inline(always)]
     pub unsafe fn yaw(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x490).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xf480 (ptr<survarium::game_world_ui>): the hud (player::st_draw reads it for the followed player: set_stamina 0x247000, show_grenade_icons 0x2471F2)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn ui(self) -> Option<GameWorldUi> {
+        unsafe { self.0.byte_add(0xf480).cast::<Option<GameWorldUi>>().read_volatile() }
+    }
+
+    /// +0xf480 (ptr<survarium::game_world_ui>): the hud (player::st_draw reads it for the followed player: set_stamina 0x247000, show_grenade_icons 0x2471F2)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_ui(self, value: Option<GameWorldUi>) {
+        unsafe { self.0.byte_add(0xf480).cast::<Option<GameWorldUi>>().write_volatile(value) }
     }
 }
 
@@ -20869,6 +20889,15 @@ impl GameObject {
     #[inline(always)]
     pub unsafe fn vtable(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// -0x1c (obj<survarium::grenade_core>): a thrown grenade's body user is its +1Ch (throw_grenade 0x303C5C: lea eax,[esi+1Ch] into the body +0Ch; its vtable 0xA046E0 +0Ch, as_grenade 0x248AC0, is sub ecx,1Ch / mov eax,ecx): the grenade 1Ch before it, only for a user whose as_grenade (vtable +0Ch) answered it, as player::st_draw's sensor asks (0x2470F1)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn grenade(self) -> GrenadeCore {
+        GrenadeCore(unsafe { self.0.byte_sub(0x1c) })
     }
 }
 
@@ -41763,6 +41792,39 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn answer(machine: &impl Machine) -> u32 {
             machine.register(Register::Eax)
+        }
+    }
+
+    /// grenade_icons.sensed (0x2471a4): player::st_draw's grenade sensor (0x246F50) once a grenade near the followed player is his team's (the team test 0x24719C passed; mov edx,[esi] / mov edx,[edx+1Ch] reads its position next): ESI the grenade's body (its user the grenade +1Ch), EBP the followed player, BL the marker it takes (0..5, icon 2Fh + BL; show_grenade_icons 0x2471FC shows that many)
+    pub mod grenade_icons_sensed {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::physics::hit_object (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn body(machine: &impl Machine) -> Option<HitObject> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(HitObject)
+        }
+
+        /// EBP: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(Player)
+        }
+
+        /// EBX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn slot(machine: &impl Machine) -> u32 {
+            machine.register(Register::Ebx)
         }
     }
 }

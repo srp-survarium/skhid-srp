@@ -6733,3 +6733,6 @@ va	name	location	role	basis
 0x0023c750	survarium::game_world_ui::place_object_icon [descriptive]	entry ESP+4	the icon id, a byte	observed
 0x0023c750	survarium::game_world_ui::place_object_icon [descriptive]	entry ESP+8	the point, float3 in world space	observed
 0x0023c750	survarium::game_world_ui::place_object_icon [descriptive]	entry ESP+12	shown when off the screen too, a byte (show_grenade_icons passes 1)	observed
+0x0023bea0	survarium::game_world_ui::set_hud_icon_type	entry ESP+4	the ui (the game_world_ui)	observed
+0x0023bea0	survarium::game_world_ui::set_hud_icon_type	entry ESP+8	the icon id, a byte (movzx at 0x23BEEA)	observed
+0x0023bea0	survarium::game_world_ui::set_hud_icon_type	entry ESP+12	the type, a byte (movzx at 0x23BF1D): the icon's frame - 1 (initialize_match: 0 a grenade, 1 a trap, 0Dh a battery)	observed

@@ -2821,3 +2821,4 @@ va	name	source	ret_cleanup	result
 0x0023c430	survarium::game_world_ui::hide_grenade_icons [descriptive]	manual	0	none; the six grenade icons 2Fh..34h hidden (row +386h 0, dirty 10h); called by update_ui (0x23B5A4)
 0x0023c470	survarium::game_world_ui::show_trap_icons [descriptive]	manual	4	none; the traps' icons (from ui+34Ah) placed at the points, as show_grenade_icons
 0x0023c750	survarium::game_world_ui::place_object_icon [descriptive]	manual	12	AL: shown. point_to_screen; off the screen and ESP+12 0: hidden (row +386h 0); else shown, its scale icon_name_min_size..max_size (1..3) and alpha icon_name_min_alpha..max_alpha (128..255) by the distance from the camera between icon_name_near_dist and far_dist (1..100 m), set_player_icon_position
+0x0023bea0	survarium::game_world_ui::set_hud_icon_type	manual	12	none; the player icons movie's root.set_player_icon_type(id, type) (Invoke 0x511600 at 0x23BF47, the movie [[ui+10h]+108h]+4)
