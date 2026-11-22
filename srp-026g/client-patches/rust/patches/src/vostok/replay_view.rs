@@ -149,9 +149,8 @@ impl<'t> GameClock<'t> {
         unsafe { raw::image::time_scale().value().write_volatile(factor) }
     }
 
-    /// The clock of a viewer's game as every other match has it: running, at 1. Whatever the
-    /// game's role now: a viewing whose close_current_match was skipped ends at the next match's
-    /// options, its role already the new match's. None of the game's own replay client.
+    /// The clock of a viewer's game as every other match has it: running, at 1. None of the
+    /// game's own replay client.
     pub fn restore(client: &NetworkClient<'t>) {
         if !client.is_match_client() {
             return;

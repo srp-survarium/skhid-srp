@@ -152,7 +152,7 @@ def main():
         saved = sorted((game / 'replays').iterdir())
         assert [path.name.endswith('_Rudnya_1234abcd.srpreplay') for path in saved] == [True], saved
         assert saved[0].read_bytes() == body
-        assert 'replay: saved ' in log.read_text()
+        assert 'replay: saved ' in log()
         time.sleep(1)
         assert not started.exists(), 'a save must not start the game'
         requests.clear()

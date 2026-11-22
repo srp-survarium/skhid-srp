@@ -20,9 +20,6 @@ pub const MAX_SIZE: u64 = 12 << 20;
 /// The folder of the game (`<game>`, the one with `resources.db`) the
 /// replays go into.
 pub const FOLDER: &str = "replays";
-/// The lock of a replay download, beside the updater: not the update's, so
-/// that neither waits for the other.
-pub const LOCK_FILE: &str = "updater_skhid.replay.lock";
 /// A saved replay's extension.
 pub const EXTENSION: &str = ".srpreplay";
 /// The file's first bytes, then its header's length (u32 LE).
@@ -31,8 +28,6 @@ pub const MAGIC: &[u8; 8] = b"SRPRPL01";
 pub const MAX_HEADER: usize = 8192;
 /// The longest map name in a file's name.
 const MAX_SLUG: usize = 32;
-/// The most names tried for one replay (`_2` ... `_99`).
-pub const MAX_COPIES: u32 = 99;
 /// What the launcher's PLAY starts, beside the updater.
 pub const GAME_EXE: &str = "survarium_skhid.exe";
 /// The game cuts a replay's name at 259 bytes (0x1F02EC: a 0x104-byte
@@ -164,15 +159,6 @@ impl Request {
     }
 }
 
-/// A download of another match left over: `srp_<8 lower hex>.srpreplay.part`
-/// of an id that is not `current`. A name that is not the updater's own is
-/// never named.
-pub fn is_stale_part(name: &str, current: &str) -> bool {
-    name.strip_prefix("srp_")
-        .and_then(|rest| rest.strip_suffix(".srpreplay.part"))
-        .is_some_and(|id| lower_hex(id, 8) && id != current)
-}
-
 /// What the updater reads of a replay file's header: the file starts with
 /// [`MAGIC`], a u32 LE length (at most [`MAX_HEADER`]) and that many bytes
 /// of UTF-8 lines `key value\n`. Other keys are the server's and the game's.
@@ -270,12 +256,10 @@ pub fn slug(header: &Header) -> String {
 }
 
 /// A saved replay's name: `<YYYY-MM-DD>_<HHMM>_<map>_<id>.srpreplay`, the
-/// match's start in local time; `copy` 2 and up adds `_<copy>` (another
-/// replay already has the name).
-pub fn saved_name(header: &Header, start: Stamp, copy: u32) -> String {
+/// match's start in local time.
+pub fn saved_name(header: &Header, start: Stamp) -> String {
     let Stamp { year, month, day, hour, minute } = start;
-    let copy = if copy > 1 { format!("_{copy}") } else { String::new() };
-    format!("{year:04}-{month:02}-{day:02}_{hour:02}{minute:02}_{}_{}{copy}{EXTENSION}", slug(header), header.match_id)
+    format!("{year:04}-{month:02}-{day:02}_{hour:02}{minute:02}_{}_{}{EXTENSION}", slug(header), header.match_id)
 }
 
 /// The game's command line: the launcher's PLAY (no `-localization=`: the
@@ -557,10 +541,9 @@ mod tests {
     fn a_saved_name_is_the_start_the_map_and_the_match() {
         let start = Stamp { year: 2026, month: 11, day: 8, hour: 21, minute: 40 };
         let header = |slug: Option<&str>| Header { match_id: "1ce45cbe".into(), made: 0, map: 24, map_slug: slug.map(String::from) };
-        assert_eq!(saved_name(&header(Some("Rudnya")), start, 1), "2026-11-08_2140_Rudnya_1ce45cbe.srpreplay");
-        assert_eq!(saved_name(&header(Some("Rudnya")), start, 2), "2026-11-08_2140_Rudnya_1ce45cbe_2.srpreplay");
+        assert_eq!(saved_name(&header(Some("Rudnya")), start), "2026-11-08_2140_Rudnya_1ce45cbe.srpreplay");
         let early = Stamp { year: 999, month: 1, day: 2, hour: 3, minute: 4 };
-        assert_eq!(saved_name(&header(Some("Vostok-Radar-Station")), early, 1),
+        assert_eq!(saved_name(&header(Some("Vostok-Radar-Station")), early),
                    "0999-01-02_0304_Vostok-Radar-Station_1ce45cbe.srpreplay");
         // Only [A-Za-z0-9-], 32 at most; nothing left: the map's number.
         for (given, slug) in [
@@ -572,7 +555,7 @@ mod tests {
     }
 
     #[test]
-    fn only_this_matchs_saved_files_and_other_matches_parts_are_named() {
+    fn only_this_matchs_saved_files_are_named() {
         let request = parse(&args("1ce45cbe", TOKEN, SHA, "1")).unwrap();
         for name in ["2026-11-08_2140_Rudnya_1ce45cbe.srpreplay", "x_1ce45cbe_2.srpreplay", "a_1ce45cbe_99.srpreplay"] {
             assert!(request.is_saved_name(name), "{name}");
@@ -582,13 +565,6 @@ mod tests {
             "x_1ce45cbe.srpreplay.part", "x_1ce45cbe.SRPREPLAY", "x1ce45cbe.srpreplay", "srp_1ce45cbe.srpreplay.part",
         ] {
             assert!(!request.is_saved_name(name), "{name}");
-        }
-        assert!(is_stale_part("srp_0a1b2c3d.srpreplay.part", "1ce45cbe"));
-        for name in [
-            "srp_1ce45cbe.srpreplay.part", "srp_0A1B2C3D.srpreplay.part", "srp_0a1b2c3d.sur.part", "srp_0a1b2c3d.sur",
-            "x_0a1b2c3d.srpreplay", "srp_0a1b2c3.srpreplay.part", "notes.txt",
-        ] {
-            assert!(!is_stale_part(name, "1ce45cbe"), "{name}");
         }
     }
 

@@ -3036,21 +3036,6 @@ pub extern "C" fn hook_freeze_tag_on_static_info(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- replay_viewer (patch 179) ----
-
-/// The entry `replay_viewer_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch], EDI the network client ([ebp+8], kept since 0x27B8DB), [ebp-5] the 0xE4's first byte, the local place) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_replay_viewer_on_static_info(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `replay_viewer_on_static_info` calls this, from the game's jump at 0x27b92d,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::replay_viewer::on_static_info(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
 // ---- map_id (patch 154) ----
 
 /// The entry `map_id_on_replay_options` (0x1f0971, a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h) calls this with the saved machine.
@@ -8680,8 +8665,6 @@ pub extern "C" fn hook_map_id_on_static_info_chain(frame: &mut Frame) -> u32 {
     let flow = hook_faces_on_static_info(frame);
     if flow != 0 { return flow; }
     let flow = hook_freeze_tag_on_static_info(frame);
-    if flow != 0 { return flow; }
-    let flow = hook_replay_viewer_on_static_info(frame);
     if flow != 0 { return flow; }
     0
 }

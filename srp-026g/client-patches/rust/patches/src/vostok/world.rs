@@ -323,7 +323,7 @@ impl<'t> NetworkClient<'t> {
 
     /// Whether the game watches a match it plays no part in.
     pub fn is_spectator(&self) -> bool {
-        matches!(self.role(), Some(MatchRole::Spectator(_)))
+        matches!(self.role(), Some(MatchRole::Spectator))
     }
 
     /// A spectator whose match is there: its +1F1C40h, which get_active_player reads through
@@ -350,20 +350,13 @@ impl<'t> NetworkClient<'t> {
         self.set_observer(None);
     }
 
-    /// A spectator's game has become a replay's viewer (the first playback note).
-    pub fn become_replay_viewer(&self) {
-        if let Some(MatchRole::Spectator(_)) = ROLE.get(self.thread) {
-            ROLE.set(self.thread, Some(MatchRole::Spectator(Watching::Replay)));
-        }
-    }
-
     /// The client's +0Ch: no input is built or sent for the followed player, exactly while a
     /// match's game is a spectator's. Only [`Self::begin_match`] and [`Self::end_match`] write it.
     fn set_observer(&self, role: Option<MatchRole>) {
         if !self.is_match_client() {
             return;
         }
-        let observer = u8::from(matches!(role, Some(MatchRole::Spectator(_))));
+        let observer = u8::from(matches!(role, Some(MatchRole::Spectator)));
         // SAFETY: a network client's +0Ch, the game's thread's (game_world::tick reads it there).
         unsafe { self.this.observer().write_volatile(observer) }
     }
@@ -522,14 +515,7 @@ pub fn spectate_order(places: u32, current: Option<Place>, step: Step) -> impl I
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MatchRole {
     Player,
-    Spectator(Watching),
-}
-
-/// What a spectator watches: a live match, or a replay's stream (from its first playback note).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Watching {
-    Live,
-    Replay,
+    Spectator,
 }
 
 impl MatchRole {
@@ -537,7 +523,7 @@ impl MatchRole {
     /// server's 0xFF: any value past them): the game's is_local is set by the same comparison
     /// (0x27BE5F), so on_match_ready never marks a place its own.
     fn of(local_place: u8, places: u8) -> MatchRole {
-        if local_place < places { MatchRole::Player } else { MatchRole::Spectator(Watching::Live) }
+        if local_place < places { MatchRole::Player } else { MatchRole::Spectator }
     }
 }
 
@@ -552,8 +538,8 @@ mod role_tests {
     fn the_static_infos_byte_names_a_player_or_none() {
         assert_eq!(MatchRole::of(0, 10), MatchRole::Player);
         assert_eq!(MatchRole::of(9, 10), MatchRole::Player);
-        assert_eq!(MatchRole::of(0xFF, 10), MatchRole::Spectator(Watching::Live));
-        assert_eq!(MatchRole::of(10, 10), MatchRole::Spectator(Watching::Live), "a value past the places names none");
+        assert_eq!(MatchRole::of(0xFF, 10), MatchRole::Spectator);
+        assert_eq!(MatchRole::of(10, 10), MatchRole::Spectator, "a value past the places names none");
     }
 }
 

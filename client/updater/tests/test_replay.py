@@ -11,7 +11,7 @@ server writes, then stand-in bytes).
 On Windows the exe runs as it is; elsewhere under Wine, as test_db_patches.py
 runs it (`wine` on the PATH or SKHID_TEST_WINE; a prefix of its own unless
 SKHID_TEST_WINEPREFIX names one). The stand-in program (tests/fake_exe) holds
-the replay's lock where a test needs another updater holding it.
+a download where a test needs another updater holding it.
 
 NO WINDOW: the updater is started only with the trailing word `quiet`, in
 which it never calls MessageBox (exe/src/replay.rs: `notify` is the one
@@ -33,7 +33,6 @@ import struct
 import subprocess
 import sys
 import tempfile
-import threading
 import time
 import unittest
 
@@ -127,11 +126,11 @@ def replay_file(match=ID, slug="Rudnya", header=None, body=None):
     return b"SRPRPL01" + struct.pack("<I", len(head)) + head + struct.pack("<I", 0) + struct.pack("<I", len(body)) + body
 
 
-def saved_name(slug="Rudnya", copy=1):
+def saved_name(slug="Rudnya"):
     """The name the updater gives a replay of MADE: the start in this
     computer's local time (Wine's is the host's)."""
     stamp = time.strftime("%Y-%m-%d_%H%M", time.localtime(MADE))
-    return f"{stamp}_{slug}_{ID}" + (f"_{copy}" if copy > 1 else "") + ".srpreplay"
+    return f"{stamp}_{slug}_{ID}.srpreplay"
 
 
 class QuietSource(unittest.TestCase):
@@ -282,7 +281,7 @@ class ReplayTest(unittest.TestCase):
         self.assertIn(f"token {TOKEN[:6]}...", log)
         self.assertNotIn(TOKEN[:7], log)
 
-    def test_a_replay_saved_before_is_kept_and_another_gets_the_next_name(self):
+    def test_a_replay_saved_before_is_kept(self):
         data = replay_file()
         arguments = self.offer(data)
         self.assertEqual(self.run_updater(arguments), (0, None))
@@ -296,56 +295,41 @@ class ReplayTest(unittest.TestCase):
         self.assertEqual(self.run_updater(arguments), (0, None))
         self.assertEqual(self.site.requests, [])
         self.assertSaved(f"mine_{ID}.srpreplay")
-        # Other bytes under the name it would take: the next name, both kept.
-        self.put(saved_name(), b"another replay")
-        other = replay_file()
-        self.assertEqual(self.run_updater(self.offer(other, token="f" * 32)), (0, None))
-        self.assertEqual(self.read(saved_name(copy=2)), other)
-        self.assertEqual(self.read(saved_name()), b"another replay")
-        self.assertEqual(self.replays(), sorted([saved_name(), saved_name(copy=2), f"mine_{ID}.srpreplay"]))
 
     def test_a_map_name_is_kept_to_plain_letters(self):
         data = replay_file(slug="..\\..\\Vostok Radar")
         self.assertEqual(self.run_updater(self.offer(data)), (0, None))
         self.assertEqual(self.replays(), [saved_name("VostokRadar")])
 
-    def test_saved_replays_and_other_files_stay_and_only_other_downloads_go(self):
+    def test_saved_replays_and_other_files_stay(self):
         others = ["notes.txt", "srp_00000001.sur", "srp_00000002.sur.part", f"srp_{ID}.sur",
                   "2026-01-01_1200_Rudnya_00000003.srpreplay", "SRP_00000004.SRPREPLAY.PART",
-                  "srp_0000000.srpreplay.part"]
-        for name in others + ["srp_000000ee.srpreplay.part"]:
+                  "srp_0000000.srpreplay.part", "srp_000000ee.srpreplay.part"]
+        for name in others:
             self.put(name, b"x")
         self.assertEqual(self.run_updater(self.offer(replay_file())), (0, None))
         self.assertEqual(self.replays(), sorted(others + [saved_name()]))
 
-    def test_a_save_waits_for_another_and_none_for_an_update(self):
+    def test_none_waits_for_an_update_and_a_match_held_is_refused(self):
         arguments = self.offer(replay_file())
-        for name in ("updater_skhid.lock", "updater_skhid.replay.lock"):
-            with open(os.path.join(self.x86, name), "wb"):
-                pass
+        with open(os.path.join(self.x86, "updater_skhid.lock"), "wb"):
+            pass
         update = Holder(self, f"{X86}/updater_skhid.lock", mode="lock")
         self.assertEqual(self.run_updater(arguments), (0, None))
         update.release()
         os.remove(os.path.join(self.folder, saved_name()))
         self.site.requests.clear()
-        # Another save holding the lock a moment (still downloading after the
-        # lobby said `ready`): this one waits for it, then saves.
-        replay = Holder(self, f"{X86}/updater_skhid.replay.lock", mode="lock")
-        threading.Timer(2, replay.release).start()
-        self.assertEqual(self.run_updater(arguments), (0, None))
-        self.assertIn("waiting for it", self.log())
-        self.assertSaved(saved_name())
-        os.remove(os.path.join(self.folder, saved_name()))
-        self.site.requests.clear()
-        # One that does not let go: refused after the wait (60 s).
-        replay = Holder(self, f"{X86}/updater_skhid.replay.lock", mode="lock")
-        started = time.time()
-        code, line = self.run_updater(arguments, seconds=120)
+        # Another save of this match downloading: its .part is held.
+        part = f"srp_{ID}.srpreplay.part"
+        self.put(part, b"")
+        replay = Holder(self, f"game/replays/{part}", mode="lock")
+        code, line = self.run_updater(arguments)
         replay.release()
-        self.assertGreaterEqual(time.time() - started, 55)
         self.assertEqual(code, 1)
         self.assertSaid(line, "AlreadyRunning")
-        self.assertNothingDone()
+        # The other save's download is left to it, and nothing is asked of the site.
+        self.assertEqual(self.replays(), [part])
+        self.assertEqual(self.site.requests, [])
 
     def test_a_game_folder_in_another_alphabet(self):
         shutil.rmtree(self.top)

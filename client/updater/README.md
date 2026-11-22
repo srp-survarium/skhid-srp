@@ -415,34 +415,27 @@ does nothing else with it. The updater (`exe/src/replay.rs`, the rules in
    8, 32 and 64 lower-case hex digits and 1 to 10 digits, the size 1 byte to
    12 MiB (an optional fifth word `quiet` is the tests' no-window mode).
    Anything else: "This replay link is not valid", nothing fetched.
-2. Holds its own lock, `updater_skhid.replay.lock`: an update and a replay
-   download never wait for each other. A second save while another holds it
-   (the lobby says `ready` while the first may still be downloading) waits
-   for it, up to 60 s, then finds its file saved or downloads its own; one
-   still held after that is told "A replay is already being downloaded".
-   The lock is let go before the box at the end.
-3. Deletes another match's download left over
-   (`srp_<8 hex>.srpreplay.part`); no other name in `<game>\replays` is ever
-   touched: saved replays are the player's.
-4. A file of this match there (`*_<id>.srpreplay`, `*_<id>_<n>.srpreplay`,
-   renamed by the player too) with the link's size and checksum: saved
-   already, nothing asked of the site.
-5. Not enough free space for the file (and 1 MiB more): the disk's error.
-6. Asks its configured site (`updater_skhid.url`, the same rules as an
+2. A file of this match in `<game>\replays` (`*_<id>.srpreplay`,
+   `*_<id>_<n>.srpreplay`, renamed by the player too) with the link's size
+   and checksum: saved already, nothing asked of the site. No other file
+   there is ever touched: saved replays are the player's.
+3. Asks its configured site (`updater_skhid.url`, the same rules as an
    update: HTTPS, plain HTTP for this computer alone, no redirect followed,
    no cookie) for `GET /replays/<token>`, into
    `<game>\replays\srp_<id>.srpreplay.part` (a file of exactly the link's
-   size at most), reads it back from the disk and checks its size and
+   size at most, opened by this updater alone: an update and a save never
+   wait for each other, saves of two matches run side by side, and a second
+   save of a match whose `.part` is open is told "A replay is already being
+   downloaded"), reads it back from the disk and checks its size and
    SHA-256. A connection that fails or breaks off is tried three times; a
    status is not (404 and 410: "expired or already used"; 429 and 503: busy;
-   any other, a 3xx too: "error <n>").
-7. Reads the file's header (`SRPRPL01`, a u32 length of at most 8 KiB,
+   any other, a 3xx too: "error <n>"). A full disk is the write's error.
+4. Reads the file's header (`SRPRPL01`, a u32 length of at most 8 KiB,
    UTF-8 lines `key value`; `match` must be the link's id, `made` and `map`
    numbers) and renames it to `<YYYY-MM-DD>_<HHMM>_<map>_<id>.srpreplay`: the
    match's start in this computer's local time, the header's `map_slug` kept
-   to `[A-Za-z0-9-]` (32 at most, else `map<map id>`). A name another file
-   has: the same bytes are this replay saved before (the download goes),
-   else `_2`, `_3`, ... A header that does not read: "damaged".
+   to `[A-Za-z0-9-]` (32 at most, else `map<map id>`). A header that does not
+   read: "damaged"; a file of that name already there: the disk's error.
 
 A problem is one message box in the game's language (the `localization`
 line of `<Documents>\survarium\user.cfg`, which the game's Settings and the

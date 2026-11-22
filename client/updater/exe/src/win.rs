@@ -641,32 +641,6 @@ pub fn list_run_files(folder: &str, pattern: &str) -> Vec<updater_logic::run_log
     out
 }
 
-/// The files in `folder` that match `pattern`, each with the time it was
-/// last written (100 ns since 1601).
-pub fn list_with_times(folder: &str, pattern: &str) -> Vec<(String, u64)> {
-    let mut out = Vec::new();
-    let mut found: WIN32_FIND_DATAW = unsafe { core::mem::zeroed() };
-    let query = alloc::format!("{folder}\\{pattern}");
-    let handle = unsafe { FindFirstFileW(wide(&query).as_ptr(), &mut found) };
-    if handle == INVALID_HANDLE_VALUE {
-        return out;
-    }
-    loop {
-        if found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY == 0 {
-            let time = u64::from(found.ftLastWriteTime.dwHighDateTime) << 32
-                | u64::from(found.ftLastWriteTime.dwLowDateTime);
-            out.push((from_wide(&found.cFileName), time));
-        }
-        if unsafe { FindNextFileW(handle, &mut found) } == 0 {
-            break;
-        }
-    }
-    unsafe {
-        FindClose(handle);
-    }
-    out
-}
-
 /// The player's Documents folder, the one the game keeps its settings and
 /// baked textures in (CSIDL_PERSONAL).
 pub fn documents() -> Option<String> {
@@ -695,7 +669,7 @@ pub fn game_language(documents: &str) -> Option<u32> {
 
 /// A moment in Unix seconds (UTC) as this computer's local date and time,
 /// with the time zone's daylight saving of that day.
-pub fn local_stamp(unix: u64) -> Option<updater_logic::replay::Stamp> {
+pub fn local_stamp_of(unix: u64) -> Option<updater_logic::replay::Stamp> {
     use windows_sys::Win32::System::Time::{FileTimeToSystemTime, SystemTimeToTzSpecificLocalTime};
     // 100 ns since 1601.
     let ticks = unix.checked_add(11_644_473_600)?.checked_mul(10_000_000)?;
