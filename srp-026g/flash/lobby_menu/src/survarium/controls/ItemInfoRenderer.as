@@ -336,7 +336,9 @@ package survarium.controls
             }
             i = ++i;
          }
-         if(names.length > 0)
+         // not while the window is open for a weapon: what it lists fits that weapon (the owner, 2026-11-22)
+         var inWindow:Boolean = Boolean(UpgradeWindow.instance) && UpgradeWindow.instance.visible && UpgradeWindow.hostDictId >= 0;
+         if(names.length > 0 && !inWindow)
          {
             hint += (hint.length > 0 ? "\n" : "") + LocalizationData.getName("can_be_installed_on") + ": " + names.join(", ");
          }
