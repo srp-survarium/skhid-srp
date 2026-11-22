@@ -252,7 +252,7 @@ fn download(server: &Url, request: &Request, part: &str) -> Result<(), Problem> 
         // More than the link says: not this replay.
         Err(HttpError::TooLarge) => return Err(Problem::Damaged),
         // get_stream follows no redirect, reads no type and asks for no
-        // part: Html, Redirects, BadRedirect and BadRange are the files of
+        // part: Html, Redirects, BadRedirect, BadRange and PastEnd are the files of
         // a list's (get_file) and never come here.
         Err(
             error @ (HttpError::Network(..)
@@ -262,7 +262,8 @@ fn download(server: &Url, request: &Request, part: &str) -> Result<(), Problem> 
             | HttpError::Html(..)
             | HttpError::Redirects
             | HttpError::BadRedirect(_)
-            | HttpError::BadRange),
+            | HttpError::BadRange
+            | HttpError::PastEnd(_)),
         ) => {
             log!("replay: {error:?}");
             return Err(Problem::Network(host));

@@ -22,7 +22,6 @@ use updater_logic::{
     problem::{Fault, Miss},
     url::Url,
 };
-use windows_sys::Win32::Foundation::ERROR_INVALID_HANDLE;
 
 pub fn present(layout: &Layout) -> bool {
     ["resources.db", "binaries\\x86\\survarium.exe"]
@@ -135,8 +134,6 @@ fn io_error(action: &str, code: win::Code) -> Option<String> {
 /// What the log calls the archive's download (`download::line`), as
 /// Skhid-without-updater.bat does.
 const LABEL: &str = "skhid-game";
-/// What a failed write of the download is, to tell it from the network's.
-const WRITE_STEP: &str = "write the download";
 
 /// The archive's addresses built into this updater at release time
 /// (`SKHID_BUILTIN_GAME`, the `/game` of the release's list, which
@@ -327,56 +324,24 @@ fn get(
     pin: Pin,
     slow: http::Slow,
 ) -> Result<(Result<(), HttpError>, u64), Option<String>> {
-    let opened = if from == 0 {
-        win::File::create(path)
-    } else {
-        win::File::exclusive(path).and_then(|file| file.seek(from).map(|()| file))
-    };
-    // `None` only between the old file closed and the new one made.
-    let mut file = Some(opened.map_err(|code| io_error("save the game download", code))?);
-    let mut written = from;
-    let mut received = 0_u64;
-    let result = http::get_file(
+    let file = win::File::download(path, from)
+        .map_err(|code| io_error("save the game download", code))?;
+    let saved = http::get_file_into(
+        &file,
         &address.url,
         from,
         pin.size,
         slow,
         &mut |to| log!("{LABEL}: {} redirects to {to}", address.text),
-        &mut |at, chunk| {
-            if at != written {
-                // A 200 to a request from a byte on: the whole file again
-                // (the old one closed first: it is open to this alone).
-                file = None;
-                file = Some(
-                    win::File::create(path).map_err(|code| HttpError::Network(WRITE_STEP, code))?,
-                );
-                written = at;
-            }
-            let Some(out) = &file else {
-                return Err(HttpError::Network(WRITE_STEP, ERROR_INVALID_HANDLE));
-            };
-            out.write(chunk)
-                .map_err(|code| HttpError::Network(WRITE_STEP, code))?;
-            written += chunk.len() as u64;
-            received += chunk.len() as u64;
-            Ok(())
-        },
         &mut |done, _| session.progress(done, pin.size),
     );
-    let flushed = file.as_ref().map_or(Ok(()), win::File::flush);
     drop(file);
-    match result {
-        Err(HttpError::Stopped) => return Err(None),
-        Err(HttpError::Network(WRITE_STEP, code)) => {
-            return Err(io_error("save the game download", code));
-        }
-        _ => {}
+    match saved {
+        Err(http::DiskError::Write(code)) => Err(io_error("save the game download", code)),
+        Err(http::DiskError::Flush(code)) => Err(io_error("flush the download to disk", code)),
+        Ok(saved) if saved.result == Err(HttpError::Stopped) => Err(None),
+        Ok(saved) => Ok((saved.result, saved.received)),
     }
-    flushed.map_err(|code| io_error("flush the download to disk", code))?;
-    if let Err(HttpError::Html(_, read)) = result {
-        received = read;
-    }
-    Ok((result, received))
 }
 
 fn extracted(stage: &str, name: &str) -> String {

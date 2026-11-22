@@ -130,6 +130,9 @@ struct Session {
     run: Run,
     last_progress: u64,
     started: u64,
+    /// The bytes done at the first report since [`Session::begin_progress`]
+    /// (those of a download gone on from): the speed counts from them.
+    counted_from: Option<u64>,
     /// The launcher's line names a file ("Extracting file <name>") that the
     /// next state message must clear.
     named_file: bool,
@@ -348,6 +351,7 @@ impl Session {
     fn begin_progress(&mut self) {
         self.started = win::ticks();
         self.last_progress = 0;
+        self.counted_from = None;
         self.send(ToLauncher::Progress {
             done: 0,
             total: 0,
@@ -360,12 +364,19 @@ impl Session {
     /// at the end). `false` when told to stop.
     fn progress(&mut self, done: u64, total: u64) -> bool {
         let now = win::ticks();
+        // The first report, or a file started again from byte 0: the speed
+        // is of the bytes from here on.
+        if self.counted_from.is_none_or(|from| done < from) {
+            self.counted_from = Some(done);
+            self.started = now;
+        }
         if done < total && now < self.last_progress + 250 {
             return !self.stopped();
         }
         self.last_progress = now;
         let elapsed = now.saturating_sub(self.started).max(1);
-        let speed = done.saturating_mul(1000) / elapsed;
+        let counted = done.saturating_sub(self.counted_from.unwrap_or(done));
+        let speed = counted.saturating_mul(1000) / elapsed;
         let eta = if speed == 0 || total < done {
             u64::MAX
         } else {
@@ -1517,6 +1528,7 @@ fn run() -> u32 {
         run: Run::Going,
         last_progress: 0,
         started: 0,
+        counted_from: None,
         named_file: false,
         seen: None,
         trouble: None,

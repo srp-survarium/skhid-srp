@@ -208,6 +208,10 @@ pub fn http(server: &Url, path: &str, error: &HttpError) -> String {
         HttpError::BadRange => {
             format!("{host} answered {path} with another part of the file than was asked for.")
         }
+        HttpError::PastEnd(size) => format!(
+            "{host} has no byte of the file past those downloaded before{}: they are deleted. Try again.",
+            size.map_or_else(String::new, |size| format!(" (it says the file is {size} bytes)"))
+        ),
     }
 }
 
@@ -253,6 +257,8 @@ pub fn reason(error: &HttpError) -> String {
             download::MIN_SPEED / 1024
         ),
         HttpError::BadRange => "answered another part of the file than was asked for".into(),
+        HttpError::PastEnd(Some(size)) => format!("no byte past those kept (HTTP 416, the file is {size} bytes)"),
+        HttpError::PastEnd(None) => "no byte past those kept (HTTP 416)".into(),
     }
 }
 
