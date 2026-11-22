@@ -6,8 +6,6 @@
 
 use std::fmt;
 
-use weapon_pickup::CarryRule;
-
 use super::dictionary::{Dictionary, Item, PROFILE_SLOTS};
 use super::drops::{Drops, Rng};
 use super::game_data::{GameData, GameDataError};
@@ -19,7 +17,6 @@ use super::match_msgs::static_info::{
 use super::modifications::{MAX_RANK, Modifications};
 use super::prices;
 use super::skills::MODIFIERS;
-use super::skills::slot_modifier::{DISABLE_SECOND_WEAPON, USE_TWO_DOUBLE_HANDED_WEAPONS};
 use super::twist::STORE_LIVES;
 use super::weapon_modules::{self, Fitted, Kind, Modules};
 
@@ -35,9 +32,15 @@ const MAIN_CLASSES: [u8; 5] = [
     category::SMGS,
 ];
 
-/// The weapon slots and the two ammo slots of each one's rounds.
+/// The main gun's slot, weapon 1's, and the two ammo slots of its rounds. A kit has no other gun
+/// (the owner, 2026-11-22: "it shouldn't try to slot in two weapons or pistols in second slot"):
+/// weapon 2's slot stays empty, as Saloon's Colt alone leaves it.
 const MAIN: (u8, [u8; 2]) = (7, [8, 9]);
-const PISTOL: (u8, [u8; 2]) = (10, [11, 12]);
+
+/// The share, in percent, of the hands that are a pistol hand: each kit's one gun a pistol, at
+/// random of the band's (the owner, 2026-11-22: "we can have random versions where everyone starts
+/// with pistols", "it should still be random one", about 5 %).
+pub const PISTOL_HANDS_PERCENT: usize = 5;
 
 /// The armour slots in the order a kit draws them (helmet 0, mask 1, torso 2, back 3, legs 4,
 /// gloves 5, boots 6): the torso first, which may cover the legs, the helmet before the mask.
@@ -245,8 +248,8 @@ pub struct Piece {
 /// One kit of a hand: what every player's kit of its place holds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Dealt {
+    /// Its one gun, in weapon 1's slot.
     pub main: Gun,
-    pub pistol: Gun,
     /// Armour slots 0 to 6; a slot another piece covers is empty.
     pub armour: [Option<Piece>; 7],
     /// The pocket items in the order the pockets take them, each a type of its own.
@@ -254,35 +257,18 @@ pub struct Dealt {
 }
 
 impl Dealt {
-    /// The guns a kit whose skills give `modifiers` carries, with their slots: the pistol too
-    /// unless the kit carries one weapon.
-    fn guns(&self, modifiers: &[f32; MODIFIERS]) -> Vec<((u8, [u8; 2]), Gun)> {
-        let carry = CarryRule::from_modifiers(
-            modifiers[DISABLE_SECOND_WEAPON],
-            modifiers[USE_TWO_DOUBLE_HANDED_WEAPONS],
-        );
-        match carry {
-            CarryRule::OneWeapon => vec![(MAIN, self.main)],
-            CarryRule::OneDoubleHanded | CarryRule::TwoDoubleHanded => {
-                vec![(MAIN, self.main), (PISTOL, self.pistol)]
-            }
-        }
-    }
-
     /// The attachments of the gun in `slot` (none for any other slot).
     fn attachments_at(&self, slot: usize) -> Attachments {
-        match slot {
-            7 => self.main.attachments,
-            10 => self.pistol.attachments,
-            _ => Attachments::default(),
+        match slot == usize::from(MAIN.0) {
+            true => self.main.attachments,
+            false => Attachments::default(),
         }
     }
 
     /// The bonuses of what the kit wears in `slot`.
     fn bonuses_at(&self, slot: usize) -> Bonuses {
         match slot {
-            7 => self.main.bonuses,
-            10 => self.pistol.bonuses,
+            slot if slot == usize::from(MAIN.0) => self.main.bonuses,
             _ => self
                 .armour
                 .get(slot)
@@ -293,19 +279,17 @@ impl Dealt {
     }
 
     /// Its slots for a player whose kit has the skills' `modifiers`, as `(dict id, units)`: the
-    /// armour, the main gun, the pistol unless the kit carries one weapon, a clip of a gun's ammo
-    /// for every ammo bag of the kit (the main gun's the first and every other one, the pistol's
-    /// the rest; a shotgun's buckshot the first and every other of its own, its slugs the rest),
-    /// the pocket items as many as the kit's pockets open, each pocket full.
+    /// armour, the main gun in weapon 1's slot (weapon 2's empty, whatever the kit's carry rule:
+    /// one weapon every rule allows), a clip of its ammo for every ammo bag of the kit (a
+    /// shotgun's buckshot the first and every other one, its slugs the rest), the pocket items as
+    /// many as the kit's pockets open, each pocket full.
     fn slots(&self, modifiers: &[f32; MODIFIERS]) -> [Option<(u16, u32)>; PROFILE_SLOTS] {
         let mut slots = [None; PROFILE_SLOTS];
         for (slot, piece) in self.armour.iter().enumerate() {
             slots[slot] = piece.map(|piece| (piece.piece, 1));
         }
-        let guns = self.guns(modifiers);
-        for &((gun_slot, _), gun) in &guns {
-            slots[usize::from(gun_slot)] = Some((gun.gun, 1));
-        }
+        let (gun_slot, ammo_slots) = MAIN;
+        slots[usize::from(gun_slot)] = Some((self.main.gun, 1));
         let worn: Vec<(u32, bool)> = slots
             .iter()
             .enumerate()
@@ -322,33 +306,21 @@ impl Dealt {
             .any(|&(dict_id, _)| loadouts::is_oxygen_tank(dict_id));
         let layout = KitLayout::new(&worn, modifiers, oxygen_tank);
         let bags = layout.ammo_bags();
-        let shares = match guns.len() {
+        let ammo: Vec<Ammo> = self.main.ammo().collect();
+        let shares = match ammo.len() {
             1 => vec![bags],
             _ => vec![bags.div_ceil(2), bags / 2],
         };
-        for (((_, ammo_slots), gun), bags) in guns.into_iter().zip(shares) {
-            let ammo: Vec<Ammo> = gun.ammo().collect();
-            let shares = match ammo.len() {
-                1 => vec![bags],
-                _ => vec![bags.div_ceil(2), bags / 2],
-            };
-            for ((slot, ammo), bags) in ammo_slots.into_iter().zip(ammo).zip(shares) {
-                let rounds = ammo.rounds(bags);
-                if rounds > 0 {
-                    slots[usize::from(slot)] = Some((ammo.ammo, rounds));
-                }
+        for ((slot, ammo), bags) in ammo_slots.into_iter().zip(ammo).zip(shares) {
+            let rounds = ammo.rounds(bags);
+            if rounds > 0 {
+                slots[usize::from(slot)] = Some((ammo.ammo, rounds));
             }
         }
         for (pocket, kind) in POCKET_SLOTS.into_iter().zip(self.pockets) {
             slots[usize::from(pocket)] = kind.map(|kind| (kind, POCKET_FILL));
         }
-        let mut kept = layout.kept(&slots);
-        if kept[usize::from(PISTOL.0)].is_none() {
-            for slot in PISTOL.1 {
-                kept[usize::from(slot)] = None;
-            }
-        }
-        kept
+        layout.kept(&slots)
     }
 
     /// What its slots weigh for a player of no skills.
@@ -371,9 +343,10 @@ pub struct Hand {
 impl Hand {
     /// A hand of `band`, each choice one of `below`'s rolls (`below(n)` is under `n`):
     ///
-    /// - three main-gun classes of those the band has, each as likely, and a gun of each, each as
-    ///   likely: one a kit;
-    /// - each kit a pistol, its armour slot by slot (a piece is drawn only if no slot it covers is
+    /// - a pistol hand [`PISTOL_HANDS_PERCENT`] times in 100 (a band with pistols): each kit a pistol
+    ///   of the band's, three different ones while it has them; else three main-gun classes of
+    ///   those the band has, each as likely, and a gun of each, each as likely: one a kit;
+    /// - each kit its armour slot by slot (a piece is drawn only if no slot it covers is
     ///   filled), a medkit, a grenade and four other pocket items in a drawn order; a kit over a
     ///   player's carry limit draws its armour again, [`WEIGHT_DRAWS`] times at most, then leaves
     ///   its heaviest pieces out until it fits;
@@ -383,23 +356,29 @@ impl Hand {
     ///   seeded by a roll.
     pub fn deal(band: Band, below: &mut impl FnMut(usize) -> usize) -> Self {
         let pool = &Pool::shared().bands[band as usize];
+        let pistols = !pool.pistols.is_empty() && pick(100, below) < PISTOL_HANDS_PERCENT;
         let mut classes: Vec<&Vec<Gun>> = pool.classes.iter().collect();
+        let mut left: Vec<Gun> = Vec::new();
         let mut kits = std::array::from_fn(|_| {
-            let class = classes.remove(pick(classes.len(), below));
-            let main = class[pick(class.len(), below)];
+            let main = if pistols {
+                // Three different pistols while the band has them, then again from all.
+                if left.is_empty() {
+                    left = pool.pistols.clone();
+                }
+                left.remove(pick(left.len(), below))
+            } else {
+                let class = classes.remove(pick(classes.len(), below));
+                class[pick(class.len(), below)]
+            };
             pool.kit(main, below)
         });
         for kit in &mut kits {
-            for gun in [&mut kit.main, &mut kit.pistol] {
-                gun.attachments = Attachments::roll(gun.gun, &pool.modules, below);
-            }
+            kit.main.attachments = Attachments::roll(kit.main.gun, &pool.modules, below);
         }
         let seed = (pick(1 << 31, below) as u64) << 32 | pick(1 << 31, below) as u64;
         let mut rng = Rng::new(seed);
         for kit in &mut kits {
-            for gun in [&mut kit.main, &mut kit.pistol] {
-                gun.bonuses = Bonuses::roll(gun.gun, &mut rng);
-            }
+            kit.main.bonuses = Bonuses::roll(kit.main.gun, &mut rng);
             for piece in kit.armour.iter_mut().flatten() {
                 piece.bonuses = Bonuses::roll(piece.piece, &mut rng);
             }
@@ -423,7 +402,6 @@ impl Hand {
             .flat_map(|kit| {
                 kit.main
                     .ammo()
-                    .chain(kit.pistol.ammo())
                     .map(|ammo| ammo.ammo)
                     .chain(kit.pockets.into_iter().flatten())
                     .collect::<Vec<u16>>()
@@ -471,6 +449,8 @@ fn class(dict_id: u16) -> Option<ItemClass> {
 struct BandPool {
     /// Each main-gun class the band has, its guns (no bonuses yet).
     classes: Vec<Vec<Gun>>,
+    /// The band's pistols, else those of the highest band under it that has some (none is above
+    /// level 10): a pistol hand's guns; none, no pistol hand.
     pistols: Vec<Gun>,
     /// By armour slot.
     armour: [Vec<u16>; 7],
@@ -485,7 +465,6 @@ struct BandPool {
 impl BandPool {
     /// A kit of `main` (its bonuses are the hand's to roll).
     fn kit(&self, main: Gun, below: &mut impl FnMut(usize) -> usize) -> Dealt {
-        let pistol = self.pistols[pick(self.pistols.len(), below)];
         let mut pockets = [None; POCKET_KINDS];
         let mut others = self.others.clone();
         let medkit = self.medkits[pick(self.medkits.len(), below)];
@@ -501,7 +480,6 @@ impl BandPool {
         }
         let mut kit = Dealt {
             main,
-            pistol,
             armour: [None; 7],
             pockets,
         };
@@ -567,7 +545,7 @@ struct Pool {
 
 impl Pool {
     /// The pools of `dictionary`'s items that are dealt, or what a band lacks for a hand: three
-    /// main-gun classes, a pistol, a medkit, a grenade. The guns, the armour and the modules are
+    /// main-gun classes, a medkit, a grenade. The guns, the armour and the modules are
     /// every such item of the dictionary that is no golden or premium copy of another (the owner,
     /// 2026-11-22: the guns no shop sells too, the VSS, the SR-3M, the SOCOM 16); the ammunition
     /// and the pocket items those the shop offers (sold, or a premium item, sold for silver as any).
@@ -656,19 +634,18 @@ impl Pool {
         let band = |band: Band| -> Result<BandPool, String> {
             let top = band.top();
             let (low, _) = band.levels();
+            let pistols = Band::ALL
+                .into_iter()
+                .rev()
+                .filter(|lower| lower.top() <= top)
+                .map(|lower| guns(category::PISTOLS, MAIN, lower))
+                .find(|pistols| !pistols.is_empty())
+                .unwrap_or_default();
             let classes: Vec<Vec<Gun>> = MAIN_CLASSES
                 .into_iter()
                 .map(|category| guns(category, MAIN, band))
                 .filter(|guns| !guns.is_empty())
                 .collect();
-            // The band's pistols, else those of the highest band under it that has some.
-            let pistols = Band::ALL
-                .into_iter()
-                .rev()
-                .filter(|lower| lower.top() <= top)
-                .map(|lower| guns(category::PISTOLS, PISTOL, lower))
-                .find(|pistols| !pistols.is_empty())
-                .unwrap_or_default();
             let armour = std::array::from_fn(|slot| {
                 gear
                     .iter()
@@ -712,7 +689,6 @@ impl Pool {
             };
             let lacks = [
                 (pool.classes.len() < KITS, "three main-gun classes"),
-                (pool.pistols.is_empty(), "a pistol"),
                 (pool.medkits.is_empty(), "a medkit"),
                 (pool.grenades.is_empty(), "a grenade"),
             ];
@@ -838,7 +814,11 @@ mod tests {
                     .collect();
                 classes.sort_unstable();
                 classes.dedup();
-                assert_eq!(classes.len(), KITS, "{hand:?}");
+                // A pistol hand's are pistols alone; any other's of three classes.
+                match classes[..] {
+                    [category::PISTOLS] => {}
+                    _ => assert_eq!(classes.len(), KITS, "{hand:?}"),
+                }
                 let mut profile = MatchProfile {
                     team: 0,
                     name: "roulette".to_owned(),
@@ -864,13 +844,18 @@ mod tests {
         }
     }
 
+    /// One gun a kit, in weapon 1's slot, whatever the skills: weapon 2's slot and its ammo slots
+    /// empty.
     #[test]
-    fn a_kit_of_one_weapon_has_no_pistol() {
+    fn a_kit_holds_its_main_gun_alone() {
+        use super::super::skills::slot_modifier::USE_TWO_DOUBLE_HANDED_WEAPONS;
         let hand = Hand::deal(Band::Mid, &mut rolls(7));
-        let mut modifiers = [0.0; MODIFIERS];
-        modifiers[DISABLE_SECOND_WEAPON] = 1.0;
-        let slots = hand.kits()[0].slots(&modifiers);
-        assert_eq!((slots[10], slots[11], slots[12]), (None, None, None));
-        assert!(slots[7].is_some());
+        let mut two = [0.0; MODIFIERS];
+        two[USE_TWO_DOUBLE_HANDED_WEAPONS] = 1.0;
+        for modifiers in [[0.0; MODIFIERS], two] {
+            let slots = hand.kits()[0].slots(&modifiers);
+            assert_eq!((slots[10], slots[11], slots[12]), (None, None, None));
+            assert!(slots[7].is_some());
+        }
     }
 }
