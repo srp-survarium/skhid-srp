@@ -331,6 +331,12 @@ pub struct MapMode {
     pub resources_count: u32,
     /// A free-for-all: the kills that win (`kills_to_win`, 30).
     pub kills_to_win: u32,
+    /// A free-for-all played with a twist only, never plain (srp's `mode.srp_twists_only`,
+    /// refused on another mode's config; the owner, 2026-11-22, of Military Warehouses: "should
+    /// not be playable on general ffa, only ffa: racket and other variants"): a room's card on it
+    /// draws a twist ([`super::twist::draw`]), a private room's pool, whose free-for-all is plain,
+    /// leaves it out.
+    pub twists_only: bool,
     /// Artifact Hunt: its rule's parameters, as the game's rule reads them
     /// from the same config ([`artefact_hunt_params`]). Some exactly when
     /// `mode` is [`GameMode::ArtefactHunt`].
@@ -928,6 +934,17 @@ impl MapMode {
             return Ok(None);
         };
         let rule_mode = game_mode.rules();
+        let twists_only = match mode.get("srp_twists_only") {
+            None => false,
+            Some(value) => value
+                .as_bool()
+                .ok_or_else(|| ConfigError("`srp_twists_only` is not a bool".into()))?,
+        };
+        if twists_only && game_mode != GameMode::FreeForAll {
+            return Err(ConfigError(format!(
+                "`srp_twists_only` is a free-for-all's, and it is mode {rule_mode}"
+            )));
+        }
         let artefact_hunt = match rule_mode {
             RuleMode::ArtefactHunt => Some(&*Box::leak(Box::new(artefact_hunt_params(mode)?))),
             _ => None,
@@ -976,6 +993,7 @@ impl MapMode {
             tickets_count: int(p, "tickets_count")?,
             resources_count: int(p, "resources_count")?,
             kills_to_win: int(p, "kills_to_win")?,
+            twists_only,
             artefact_hunt,
             respawn_points: objects.respawn_points,
             solo_respawn_points: objects.solo_respawn_points,
