@@ -154,27 +154,14 @@ package {
    out.push(ms[1].visible && ms[1].slot==weaponSlot() ? "wW" : (lockOn(weaponSlot())!=null ? "wR" : "w"));
    return out.join(" ");
   }
-  // The red lock over `s` is clear of the slot's label (its text field's bounds).
-  private function lockClear(s:DisplayObject):Boolean {
+  // The red lock drawn over `s` (the symbol's second child, its circle hidden) is in its centre.
+  private function lockCentred(s:DisplayObject):Boolean {
    var d:DisplayObjectContainer=doll as DisplayObjectContainer, at:Rectangle=s.getBounds(d), Lock:Class=C("SkillLockSpriteRed");
-   var text:Rectangle=null;
-   var walk:Function=function(o:DisplayObject):void {
-    if(!o.visible) return;
-    if(o is TextField && TextField(o).text.length>0 && o.visible) {
-     // the text itself: centred across its field, from its top
-     var f:TextField=TextField(o), r:Rectangle=f.getBounds(d), kx:Number=r.width/f.width, ky:Number=r.height/f.height, tw:Number=Math.min(r.width,(f.textWidth+4)*kx);
-     r=new Rectangle(r.x+(r.width-tw)/2,r.y,tw,Math.min(r.height,(f.textHeight+4)*ky));
-     text=text==null?r:text.union(r);
-    }
-    if(o is DisplayObjectContainer) for(var k:int=0;k<DisplayObjectContainer(o).numChildren;k++) walk(DisplayObjectContainer(o).getChildAt(k));
-   };
-   walk(s);
    for(var i:int=0;i<d.numChildren;i++) {
     var c:DisplayObject=d.getChildAt(i);
     if(c is Lock && c.visible) {
-     // the lock drawn: the symbol's second child (its circle hidden), else the symbol
      var shown:DisplayObject=Sprite(c).numChildren==2?Sprite(c).getChildAt(1):c, lb:Rectangle=shown.getBounds(d);
-     if(at.containsPoint(new Point(lb.x+lb.width/2,lb.y+lb.height/2))) return text==null || !lb.intersects(text);
+     if(at.containsPoint(new Point(lb.x+lb.width/2,lb.y+lb.height/2))) return Math.abs(lb.x+lb.width/2-(at.x+at.width/2))<=1 && Math.abs(lb.y+lb.height/2-(at.y+at.height/2))<=1;
     }
    }
    return false;
@@ -369,7 +356,7 @@ package {
       check(!doll.getSlotAt(WEAPON_2).enabled,"taken: the second weapon slot closed");
       var lock:Object=lockOn(weaponSlot());
       check(lock!=null && String(lock.tipData.name)=="Deep Pockets — Right-click: second weapon","taken: the red lock on the second weapon slot, its hint: "+(lock?lock.tipData.name:null));
-      check(lockClear(weaponSlot()),"taken: the red lock clear of the weapon slot's label");
+      check(lockCentred(weaponSlot()),"taken: the red lock in the weapon slot's centre, as the stock game draws it");
       // A press on the red lock, a medkit in the yellow pocket: asked once; the medkit goes back,
       // its place shaken; nothing else changes until srp answers.
       wm.place(slot(2),true);wm.closing(slot(2),true);
@@ -395,7 +382,7 @@ package {
       check(on(wm,weaponSlot()),"declined: the yellow on the second weapon slot");
       check(lockOn(weaponSlot())==null,"declined: no red lock on the weapon slot");
       check(atRest() && lockOn(slot(2))!=null && slot(2).visible,"declined: the pocket closed red where it was, slot 2");
-      check(lockClear(slot(2)),"declined: the red lock clear of the pocket's label");
+      check(lockCentred(slot(2)),"declined: the red lock in the pocket's centre");
       // The open second weapon slot: its tip; a left click is its own; holding a weapon, the
       // weapon's tip line and menu (nothing asked); empty, a right click takes the pocket again.
       asked.length=0;

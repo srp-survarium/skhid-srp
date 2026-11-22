@@ -315,8 +315,9 @@ chooses each.
     right button the shop's left click is untouched); holding a weapon, a right click is the
     weapon's menu, as in the stock game, and the red pocket switches (the weapon goes back, with
     the sound and the shake).
-  - **The red lock is clear of the slot's label** (the owner, 2026-11-23: it covered "Weapon"):
-    in the middle of the room above the label, else beside it (`SlotLock`).
+  - **The red lock is in the slot's centre**, where the stock game draws it, over the stock label
+    as there (the owner, 2026-11-23, after a build that moved it clear of "Weapon": "lock icon is
+    no longer centered now").
   - **Each mark on its perk's own place**, by srp's order (`LocalPaperDoll.placeMarks`, the same
     rule as `KitPockets`): Artifact Container's on the last pocket or the container after the
     pockets, last; the weapon perk's yellow on the pocket before it (the last pocket without it),
