@@ -144,6 +144,27 @@ def branch_target(text):
     return int(match.group(2), 16) if match else None
 
 
+SWITCH = re.compile(r"^jmp (?:dword )?\[e[a-z]{2}\*4\+(0x[0-9a-f]+)\]$")
+
+
+def switch_targets(image, entry, text):
+    """The cases of a compiler's switch, `jmp [reg*4+table]` with the table
+    right after the function's code (MSVC's): the table's dwords from its
+    start while each is a place in [entry, table). [] for any other jump."""
+    match = SWITCH.match(text)
+    table = int(match.group(1), 16) if match else 0
+    targets = []
+    while table > entry:
+        try:
+            case = struct.unpack("<I", image.read(table + 4 * len(targets), 4))[0]
+        except (ValueError, struct.error):
+            break
+        if not entry <= case < table:
+            break
+        targets.append(case)
+    return targets
+
+
 class Image:
     def __init__(self, data):
         self.data = data
@@ -715,7 +736,11 @@ def function_pops(image, entry, limit=20000):
             target = branch_target(text)
             if op == "jmp":
                 if target is None:
-                    lost.append(f"{va:#x}: {text}")
+                    cases = switch_targets(image, entry, text)
+                    if cases:                              # a switch: each case followed
+                        todo.extend(cases)
+                    else:
+                        lost.append(f"{va:#x}: {text}")
                     break
                 ways = lohook_dispatch(image, target)
                 if ways is not None:                       # a generated lohook entry: its `ret` is a jump
