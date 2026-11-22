@@ -2536,13 +2536,13 @@ mod tests {
         );
     }
 
-    /// A pool of every playable map (167 in the live data with the
-    /// free-for-alls) and more: each entry sent by its bit, each named back.
+    /// A pool of every playable map (333 with Artifact Hunt and Freeze Tag
+    /// on every team map) and more: each entry sent by its bit, each named back.
     #[test]
     fn a_draft_of_a_big_pool_names_every_entry() {
         let now = Instant::now();
         let mut rooms = Rooms::default();
-        let entries: Vec<MapId> = (1..=250).map(MapId::new).collect();
+        let entries: Vec<MapId> = (1..=500).map(MapId::new).collect();
         let pieces = entries.len().div_ceil(DRAFT_CHUNK);
         assert_eq!(pieces, DRAFT_CHUNKS);
         for piece in 0..pieces {
@@ -2559,7 +2559,7 @@ mod tests {
             .map(|(_, &id)| id)
             .collect();
         assert_eq!(rooms.get(key).unwrap().pool, want);
-        assert!(want.contains(&MapId::new(250)) && !want.contains(&MapId::new(1)) && want.len() > 167);
+        assert!(want.contains(&MapId::new(500)) && !want.contains(&MapId::new(1)) && want.len() > 333);
     }
 
     /// Three battery maps of three different places, by id, their Blackout
