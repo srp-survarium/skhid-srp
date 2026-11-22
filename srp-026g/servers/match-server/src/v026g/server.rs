@@ -135,13 +135,13 @@ pub fn run_on(
     stop: &AtomicBool,
 ) -> io::Result<()> {
     let relays = udp_transport::relay::Relays::from_env()?;
-    run_on_with_replays(socket, registry, store, results, relays, stop, None, None)
+    run_on_with_replays(socket, registry, store, results, relays, stop, None)
 }
 
 /// [`run_on`] whose recordings' writer tells `replays` of every file it
 /// keeps, drops or deletes (`SRP_REPLAY_DIR`, `super::replay`): srp's, one
-/// for the process, which its lobby and web page share; its replay
-/// sessions read their timelines from the history of `accounts`. `relays`: the
+/// for the process, which its lobby and web page share, with the accounts
+/// whose history its replay sessions read their timelines from. `relays`: the
 /// relays whose tunnel addresses may say a datagram's own address
 /// (`SRP_RELAYS`, parsed once by the caller).
 pub fn run_on_with_replays(
@@ -151,9 +151,9 @@ pub fn run_on_with_replays(
     results: impl ResultsSink + 'static,
     relays: udp_transport::relay::Relays,
     stop: &AtomicBool,
-    replays: Option<Arc<Replays>>,
-    accounts: Option<Arc<session::v026g::GameAccounts>>,
+    shared: Option<(Arc<Replays>, Arc<session::v026g::GameAccounts>)>,
 ) -> io::Result<()> {
+    let (replays, accounts) = shared.unzip();
     let mut settings = Settings::from_env();
     settings.accounts = accounts.map(super::Accounts);
     if let Some(record) = settings.record.as_mut() {
@@ -257,19 +257,6 @@ pub(crate) struct Server {
     /// For tests: the patch revision of a session the store does not hold.
     #[cfg(test)]
     pub(crate) revisions: HashMap<u32, u8>,
-}
-
-/// The server ends (it returns, or unwinds from a panic and `srp` starts it
-/// again in the same process): its matches' recordings are closed, and the
-/// writing thread has written them all before it is gone, or is given up on
-/// after a while ([`Recorder::finish`]).
-impl Drop for Server {
-    fn drop(&mut self) {
-        self.games.clear();
-        if let Some(recorder) = &self.recorder {
-            recorder.finish();
-        }
-    }
 }
 
 impl Server {
@@ -564,8 +551,8 @@ impl Server {
     }
 
     /// A client's 0xD8 for a session that watches the match `watcher.ticket`
-    /// from a room's queue (Queue and spectate) or the Live window, its
-    /// delay behind: a spectator of it, if this server runs it (a match no
+    /// from a room's queue (Queue and spectate) or the Live window: a
+    /// spectator of it, if this server runs it (a match no
     /// player has reached is not made for one) in the dialect the client
     /// speaks. Else turned away, as a client with no seat is.
     fn connect_spectator(
@@ -578,27 +565,19 @@ impl Server {
         now: Instant,
     ) {
         let ticket = watcher.ticket;
-        // One rule for all live watching: its delay behind, from the queue
-        // as from the Live window.
-        let (delay, view) = match watcher.kind {
-            session::WatchKind::Queued { delay } => (delay, None),
-            session::WatchKind::Live { delay, view } => (delay, view),
+        let view = match watcher.kind {
+            session::WatchKind::Queued => None,
+            session::WatchKind::Live { view } => view,
         };
-        let delay = delay.as_duration();
         let growing = survarium::v026g::match_msgs::late_join::has_connect_capability(debug);
         let watched = match self.games.get_mut(&ticket) {
-            Some(game) if growing => game.watch(addr, session_id, transport, delay, view, now),
+            Some(game) if growing => game.watch(addr, session_id, transport, view, now),
             _ => Err(Box::new(transport)),
         };
         match watched {
             Ok(()) => {
                 self.spectator_routes.insert(addr, ticket);
                 self.store.seen_in_match(session_id);
-                // The lobby ends a watch whose game does not come
-                // (`Matchmaking::expire_watches`): this one came.
-                self.store
-                    .matchmaking()
-                    .watcher_connected(session_id, ticket);
             }
             Err(transport) => {
                 let mut transport = *transport;

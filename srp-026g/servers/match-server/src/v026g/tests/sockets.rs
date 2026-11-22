@@ -232,7 +232,7 @@ fn a_match_of_enough_players_is_recorded_whole_over_udp() {
             && let Ok(read) = record::read(path)
             && read
                 .last()
-                .is_some_and(|last| last.bytes.starts_with(b"{\"dropped\""))
+                .is_some_and(|last| last.bytes.starts_with(b"{\"kept\""))
         {
             records = read;
             break;
@@ -269,7 +269,6 @@ fn a_match_of_enough_players_is_recorded_whole_over_udp() {
     let closed = notes.last().expect("notes");
     assert_eq!(closed["note"], "closed");
     assert_eq!(closed["players"], 3);
-    assert_eq!(closed["dropped"], 0);
     for place in 0..3u8 {
         let of = |kind| {
             records

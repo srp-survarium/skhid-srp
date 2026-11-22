@@ -381,7 +381,7 @@ fn a_solo_humans_bot_match_keeps_accepted_actions_for_replay() {
                 p.extension().is_some_and(|e| e == "srprec")
                     && record::read(p).is_ok_and(|r| {
                         r.last().is_some_and(|r| {
-                            r.kind == record::NOTE && r.bytes.starts_with(b"{\"dropped\"")
+                            r.kind == record::NOTE && r.bytes.starts_with(b"{\"kept\"")
                         })
                     })
             });

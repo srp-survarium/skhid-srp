@@ -896,34 +896,31 @@ impl Transport {
     /// on its way may still arrive. It counts as delivered from then on,
     /// never as lost.
     pub fn forget(&mut self, serial: u64, now: Instant) {
-        self.forget_where(|each| each == serial, now);
+        self.forget_where(|message| message.serial == serial, now);
         self.outstanding.remove(&serial);
     }
 
-    /// [`Self::forget`] for each of `serials`, in one pass over what waits.
-    pub fn forget_all(&mut self, serials: &BTreeSet<u64>, now: Instant) {
-        if serials.is_empty() {
-            return;
-        }
-        self.forget_where(|each| serials.contains(&each), now);
-        for serial in serials {
-            self.outstanding.remove(serial);
-        }
+    /// [`Self::forget`] for every whole message of these ids not acked yet.
+    pub fn forget_ids(&mut self, ids: &[u8], now: Instant) {
+        self.forget_where(|message| ids.contains(&message.head[0]), now);
     }
 
-    fn forget_where(&mut self, gone: impl Fn(u64) -> bool, now: Instant) {
+    fn forget_where(&mut self, gone: impl Fn(&Outgoing) -> bool, now: Instant) {
         let mut channels = Vec::new();
+        let outstanding = &mut self.outstanding;
         self.pending.retain(|message| {
-            let keep = !gone(message.serial);
+            let keep = !gone(message);
             if !keep {
                 channels.push(message.channel);
+                outstanding.remove(&message.serial);
             }
             keep
         });
         self.unacked.retain(|(message, _)| {
-            let keep = !gone(message.serial);
+            let keep = !gone(message);
             if !keep {
                 channels.push(message.channel);
+                outstanding.remove(&message.serial);
             }
             keep
         });

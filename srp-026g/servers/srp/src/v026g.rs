@@ -646,8 +646,7 @@ impl Stack {
                     settler,
                     relays.clone(),
                     &flag,
-                    Some(replays.clone()),
-                    Some(accounts.clone()),
+                    Some((replays.clone(), accounts.clone())),
                 )
             }));
         }

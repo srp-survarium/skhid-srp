@@ -686,59 +686,6 @@ fn a_match_server_that_ends_ends_its_sessions() {
     assert!(!replays.watches().holds(READ_ACCOUNT));
 }
 
-/// The recall notes a game took: the seconds each told.
-fn recalls(client: &Client) -> Vec<u8> {
-    client
-        .replay_notes
-        .iter()
-        .filter_map(|payload| match ServerNote::parse(payload)? {
-            ServerNote::Recall(seconds) => Some(seconds),
-            _ => None,
-        })
-        .collect()
-}
-
-/// Review of 2026-11-13: a note goes only to a game that watches, so one called back while its
-/// world was on its way was let go with no countdown. It is told once its world is in, the
-/// seconds left of the [`replay_control::RECALL_SECONDS`] from the call, and let go when they are
-/// over, as one told at once.
-#[test]
-fn a_viewer_called_back_while_its_world_loads_is_told_once_it_watches() {
-    let (mut bench, replays) = bench();
-    session_of_the_recording(&mut bench, &replays, 0);
-    let at = bench.clients.len();
-    bench.clients.push(Client::idle_growing(WATCHER));
-    bench
-        .addrs
-        .push(udp_transport::relay::Peer::direct(SocketAddr::from(([127, 0, 0, 1], 45_000 + at as u16))));
-    bench.clients[at].connect();
-    assert!(bench.until(1_000, |b| b.clients[at].model.options.is_some()));
-    assert!(replays.watches().recall(WATCHER_ACCOUNT));
-    let called = bench.ms;
-    bench.run(1_000);
-    assert!(
-        recalls(&bench.clients[at]).is_empty(),
-        "its game does not watch yet"
-    );
-    bench.clients[at].ready();
-    assert!(bench.until(3_000, |b| !recalls(&b.clients[at]).is_empty()));
-    let told = recalls(&bench.clients[at]);
-    assert_eq!(told.len(), 1);
-    assert!(
-        (1..replay_control::RECALL_SECONDS).contains(&told[0]),
-        "the seconds left: {told:?}"
-    );
-    assert!(bench.until(5_000, |b| b.clients[at].told_to_leave));
-    let let_go = bench.ms - called;
-    let recall_ms = u64::from(replay_control::RECALL_SECONDS) * 1_000;
-    assert!(
-        (recall_ms..recall_ms + 200).contains(&let_go),
-        "let go {let_go} ms after the call"
-    );
-    bench.run(500);
-    assert_eq!(recalls(&bench.clients[at]).len(), 1, "told once");
-}
-
 fn recorded_live(dir: &Path) -> (u32, PathBuf) {
     let settings = Settings {
         record: Some(RecordSettings {
@@ -756,25 +703,28 @@ fn recorded_live(dir: &Path) -> (u32, PathBuf) {
     live.join_all();
     live.run_long(12_000);
     let match_id = live.match_id;
-    // A server gone has had its recordings written and closed
-    // (`Recorder::finish`): a match server started again in the same
-    // process finds no `.part` of it.
+    // A server gone has its recordings closed by the writing thread.
     drop(live);
     let closed = |path: &Path| {
         path.extension().is_some_and(|ext| ext == "srprec")
             && record::read(path).is_ok_and(|records| {
                 records.last().is_some_and(|last| {
-                    last.kind == record::NOTE && last.bytes.starts_with(b"{\"dropped\"")
+                    last.kind == record::NOTE && last.bytes.starts_with(b"{\"kept\"")
                 })
             })
     };
-    let path = std::fs::read_dir(dir)
-        .unwrap()
-        .flatten()
-        .map(|entry| entry.path())
-        .find(|path| closed(path))
-        .expect("the live match's recording, closed with its server");
-    (match_id, path)
+    for _ in 0..500 {
+        if let Some(path) = std::fs::read_dir(dir)
+            .unwrap()
+            .flatten()
+            .map(|entry| entry.path())
+            .find(|path| closed(path))
+        {
+            return (match_id, path);
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    panic!("the live match's recording, closed with its server");
 }
 
 /// The bench runs until the desk's session of `account` is no longer
@@ -1221,112 +1171,6 @@ fn a_viewer_let_go_that_connects_again_is_heard_at_once() {
     bench.assert_no_faults();
 }
 
-/// Review of 2026-11-13: each start again packs a world on the match thread, and a game that
-/// sought, answered its 0xE5, acked the world and sought again started anew as fast as it went
-/// round. One second apart at least: a seek asked sooner waits, the latest alone taken.
-#[test]
-fn a_game_that_seeks_without_end_starts_again_once_a_second() {
-    let (mut bench, replays) = bench();
-    session_of_the_recording(&mut bench, &replays, 0);
-    let at = watching(&mut bench, WATCHER);
-    bench.run_long(2_000);
-    let worlds = bench.clients[at].snapshots().len();
-    // A seek every 50 ms for 3 s, the last to 94.55 s.
-    for seq in 1..=60u8 {
-        let target = if seq == 60 {
-            94_550
-        } else {
-            20_000 + u32::from(seq % 2) * 45_000
-        };
-        let request = Request {
-            seq,
-            op: Op::Seek(MatchMs(target)),
-        };
-        bench.clients[at].send(id::LEAVE, &request.encode(), true);
-        bench.run(50);
-    }
-    let started = bench.clients[at].snapshots().len() - worlds;
-    assert!((2..=4).contains(&started), "{started} starts in 3 s");
-    bench.run_long(2_000);
-    assert_eq!(
-        bench.clients[at].snapshots().last().unwrap().1,
-        94_550,
-        "the latest seek"
-    );
-    assert!(bench.clients[at].snapshots().len() - worlds <= started + 1);
-    bench.assert_no_faults();
-}
-
-/// Review of 2026-11-13: a game off the playback started again after every third report, with
-/// no cap: bogus reports right after its world was in started it again and again. It starts
-/// again for its reports as rarely as a live match's spectator.
-#[test]
-fn a_game_off_the_playback_is_started_again_as_rarely_as_a_spectator() {
-    let (mut bench, replays) = bench();
-    session_of_the_recording(&mut bench, &replays, 0);
-    let at = watching(&mut bench, WATCHER);
-    bench.run_long(2_000);
-    let off_reports = |bench: &mut Bench| {
-        let off = position(bench) + 4_000;
-        for step in 0..3 {
-            bench.clients[at].report(off + step * 50, 1);
-        }
-    };
-    let worlds = bench.clients[at].snapshots().len();
-    off_reports(&mut bench);
-    assert!(bench.until(2_000, |b| b.clients[at].snapshots().len() > worlds));
-    assert!(bench.until(2_000, |b| b.clients[at].model.is_synced()));
-    bench.run_long(1_500);
-    // Within the resync interval: none more.
-    let worlds = bench.clients[at].snapshots().len();
-    off_reports(&mut bench);
-    bench.run_long(3_000);
-    assert_eq!(bench.clients[at].snapshots().len(), worlds);
-    bench.assert_no_faults();
-}
-
-/// Review of 2026-11-13: a session ended only at the recording's end, so a game that sought
-/// back or paused now and then kept one of the few sessions for ever. It lasts the recording's
-/// length and a quarter of an hour at most (or twice its length), then is shown the end.
-#[test]
-fn a_session_lasts_its_longest_then_ends_as_at_the_recordings_end() {
-    let most = playable().session_most();
-    assert_eq!(
-        most,
-        Duration::from_millis(114_600) + Duration::from_secs(15 * 60)
-    );
-    let (mut bench, replays) = bench();
-    session_of_the_recording(&mut bench, &replays, 0);
-    let connected = bench.now();
-    let at = watching(&mut bench, WATCHER);
-    // Paused two minutes, then played a second, again and again: never at
-    // the recording's end, never paused too long.
-    let lasted = |bench: &Bench| bench.now().saturating_duration_since(connected);
-    let mut seq = 0u8;
-    'played: loop {
-        for (paused, seconds) in [(true, 120), (false, 1)] {
-            seq = seq.wrapping_add(1);
-            control(&mut bench, at, seq, Op::Pause(paused));
-            for _ in 0..seconds {
-                if lasted(&bench) >= most - Duration::from_secs(2) {
-                    break 'played;
-                }
-                bench.run_long(1_000);
-                assert!(!bench.clients[at].told_to_leave, "within its longest");
-            }
-        }
-    }
-    assert!(bench.until(30_000, |b| b.clients[at].told_to_leave));
-    let lasted = lasted(&bench);
-    assert!(
-        lasted >= most && lasted < most + Duration::from_secs(1),
-        "{lasted:?}"
-    );
-    bench.run_long(10_000);
-    assert!(!replays.watches().holds(WATCHER_ACCOUNT));
-    bench.assert_no_faults();
-}
-
 /// Whether a datagram to a game carries a message of `id`.
 fn carries(datagram: &[u8], id: u8) -> bool {
     udp_transport::wire::parse(
@@ -1336,20 +1180,6 @@ fn carries(datagram: &[u8], id: u8) -> bool {
         1,
     )
     .is_ok_and(|parsed| parsed.messages.iter().any(|message| message.id == id))
-}
-
-/// The watcher's game connects (again: from an address of its own) and
-/// loads: its client's index. Its world is the server's to send.
-fn connect_watcher(bench: &mut Bench) -> usize {
-    let at = bench.clients.len();
-    bench.clients.push(Client::idle_growing(WATCHER));
-    bench
-        .addrs
-        .push(udp_transport::relay::Peer::direct(SocketAddr::from(([127, 0, 0, 1], 45_000 + at as u16))));
-    bench.clients[at].connect();
-    assert!(bench.until(1_000, |b| b.clients[at].model.options.is_some()));
-    bench.clients[at].ready();
-    at
 }
 
 /// Review of 2026-11-13: the playback clock waited at its start until the
@@ -1426,44 +1256,6 @@ fn at_a_higher_speed_the_relays_go_as_far_ahead_in_real_time() {
     bench.assert_no_faults();
 }
 
-/// Review of 2026-11-13: a game that connected again from another port was
-/// its session's anew, with no starts behind it: each round (0xD8, probe,
-/// 0xDA, its answer to the 0xE5) packed a world on the match thread, as
-/// fast as it went round. Its session's starts go on from its last: one a
-/// second at most, and the world (the same key frame) is packed once.
-#[test]
-fn a_game_connecting_again_and_again_starts_from_a_world_once_a_second() {
-    let (mut bench, replays) = bench();
-    session_of_the_recording(&mut bench, &replays, 0);
-    let first = watching(&mut bench, WATCHER);
-    let started = bench.ms;
-    let mut games = vec![first];
-    for _ in 0..15 {
-        bench.clients[*games.last().unwrap()].silent = true;
-        let at = connect_watcher(&mut bench);
-        games.push(at);
-        bench.run(200);
-    }
-    let lasted = bench.ms - started;
-    let worlds: usize = games
-        .iter()
-        .skip(1)
-        .map(|&at| bench.clients[at].snapshots().len())
-        .sum();
-    assert!(
-        worlds as u64 <= lasted / 1_000 + 1,
-        "{worlds} worlds in {lasted} ms"
-    );
-    // The last gets its world, the first one's key frame packed once.
-    let last = *games.last().unwrap();
-    assert!(bench.until(3_000, |b| b.clients[last].model.is_synced()));
-    assert_eq!(
-        bench.clients[last].snapshots().last().unwrap().1,
-        FIRST_VIEW
-    );
-    bench.assert_no_faults();
-}
-
 /// The generations of the 0xE5s a game took.
 fn generations(client: &Client) -> HashSet<u8> {
     client
@@ -1494,7 +1286,13 @@ fn at_8x_a_world_goes_and_loads_at_1x_and_the_speed_comes_after() {
     assert_eq!(speed, Speed::Octuple);
     let worlds = bench.clients[at].snapshots().len();
     let started = generations(&bench.clients[at]);
-    control(&mut bench, at, 2, Op::Seek(MatchMs(65_000)));
+    // Sent, not run on (`control`): its world comes at once, and from then
+    // the clock runs at 8x.
+    let seek = Request {
+        seq: 2,
+        op: Op::Seek(MatchMs(65_000)),
+    };
+    bench.clients[at].send(id::LEAVE, &seek.encode(), true);
     assert!(bench.until(2_000, |b| b.clients[at].snapshots().len() > worlds));
     // Where a seek at 1x puts it, from the same key frame.
     let resumed = position(&bench);
@@ -1600,121 +1398,6 @@ fn at_8x_a_long_round_trip_is_no_drift() {
         bench.run(50);
     }
     assert!(bench.until(3_000, |b| b.clients[at].snapshots().len() > worlds));
-    bench.assert_no_faults();
-}
-
-/// The watcher's game sought (its control `seq`) to 40 s, where a player's
-/// inputs are few (they do not overrun its rings while its world loads
-/// for seconds): its world's parts are lost until the switch given back is
-/// let off, its 0xE5 (that sets its clock) is not. With the number of notes
-/// it had taken before.
-fn seek_into_a_slow_load(bench: &mut Bench, at: usize, seq: u8) -> (Arc<AtomicBool>, usize) {
-    let held = Arc::new(AtomicBool::new(true));
-    let holds = Arc::clone(&held);
-    bench.clients[at].lose = Some(Box::new(move |datagram| {
-        holds.load(Ordering::Relaxed)
-            && carries(datagram, id::SNAPSHOT)
-            && !carries(datagram, id::SET_TIME)
-    }));
-    let told = notes(&bench.clients[at]).len();
-    control(bench, at, seq, Op::Seek(MatchMs(40_000)));
-    (held, told)
-}
-
-/// The paused bit of the last playback note its game took.
-fn told_paused(client: &Client) -> Option<bool> {
-    notes(client).last().map(|&(_, paused, _)| paused)
-}
-
-/// Review of 2026-11-13: a pause asked while a world loaded stopped the
-/// playback clock at once, while its game's ran on from its 0xE5 until it was
-/// live and told (a note goes only to a live game): the game was ahead of the
-/// playback by the rest of the load for good, and every relay reached it that
-/// much late. The pause is taken once the world is in, where its game's
-/// clock then is.
-#[test]
-fn a_pause_asked_while_a_world_loads_stops_where_its_game_stops() {
-    let (mut bench, replays) = bench();
-    session_of_the_recording(&mut bench, &replays, 0);
-    let at = watching(&mut bench, WATCHER);
-    bench.run_long(2_000);
-    let (held, told) = seek_into_a_slow_load(&mut bench, at, 1);
-    bench.run(300);
-    control(&mut bench, at, 2, Op::Pause(true));
-    bench.run(1_000);
-    assert_eq!(
-        notes(&bench.clients[at]).len(),
-        told,
-        "told before its world"
-    );
-    held.store(false, Ordering::Relaxed);
-    assert!(bench.until(3_000, |b| notes(&b.clients[at]).len() > told));
-    assert_eq!(told_paused(&bench.clients[at]), Some(true));
-    // The viewer's game stops where its clock is as it takes the note.
-    let stopped = bench.clients[at].clock();
-    let off = i64::from(stopped) - i64::from(position(&bench));
-    assert!(off.abs() <= 100, "the game stops {off} ms off the playback");
-    let paused = position(&bench);
-    bench.run_long(2_000);
-    assert_eq!(position(&bench), paused);
-    // Played: both from there.
-    control(&mut bench, at, 3, Op::Pause(false));
-    bench.run(900);
-    let went = i64::from(position(&bench)) - i64::from(stopped);
-    assert!((900..=1_100).contains(&went), "{went} ms in 1 s");
-    bench.assert_no_faults();
-}
-
-/// Review of 2026-11-13: a pause and a play asked within one load lost the
-/// time between them on the playback clock, the game's running on (told
-/// neither). It is as if neither was asked.
-#[test]
-fn a_pause_and_a_play_within_one_load_leave_the_clock_running() {
-    let (mut bench, replays) = bench();
-    session_of_the_recording(&mut bench, &replays, 0);
-    let at = watching(&mut bench, WATCHER);
-    bench.run_long(2_000);
-    let (held, told) = seek_into_a_slow_load(&mut bench, at, 1);
-    bench.run(300);
-    control(&mut bench, at, 2, Op::Pause(true));
-    bench.run(400);
-    control(&mut bench, at, 3, Op::Pause(false));
-    bench.run(400);
-    held.store(false, Ordering::Relaxed);
-    assert!(bench.until(3_000, |b| notes(&b.clients[at]).len() > told));
-    assert_eq!(told_paused(&bench.clients[at]), Some(false));
-    bench.run(500);
-    let off = i64::from(bench.clients[at].clock()) - i64::from(position(&bench));
-    assert!(off.abs() <= 100, "the game is {off} ms off the playback");
-    bench.assert_no_faults();
-}
-
-/// A paused game sought stays paused through its new world's load (the
-/// viewer's patch keeps its pause), its clock standing where the 0xE5 put it:
-/// a play asked meanwhile is taken once the world is in (told then), from
-/// there, not from when it was asked.
-#[test]
-fn a_play_asked_while_a_paused_games_world_loads_starts_from_its_world() {
-    let (mut bench, replays) = bench();
-    session_of_the_recording(&mut bench, &replays, 0);
-    let at = watching(&mut bench, WATCHER);
-    bench.run_long(2_000);
-    control(&mut bench, at, 1, Op::Pause(true));
-    let (held, told) = seek_into_a_slow_load(&mut bench, at, 2);
-    let stood = position(&bench);
-    bench.run(300);
-    control(&mut bench, at, 3, Op::Pause(false));
-    bench.run(1_000);
-    assert_eq!(position(&bench), stood, "its game's clock stands");
-    held.store(false, Ordering::Relaxed);
-    assert!(bench.until(3_000, |b| notes(&b.clients[at]).len() > told));
-    assert_eq!(told_paused(&bench.clients[at]), Some(false));
-    // Its game plays from where it stood as it takes the note.
-    let ahead = i64::from(position(&bench)) - i64::from(stood);
-    assert!(
-        (0..=100).contains(&ahead),
-        "the playback is {ahead} ms ahead"
-    );
     bench.assert_no_faults();
 }
 

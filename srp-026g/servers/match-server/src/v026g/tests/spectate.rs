@@ -3,7 +3,7 @@
 
 use super::super::game::SpectatorAt;
 use super::*;
-use session::{LiveDelay, Player, WatchKind, Watcher};
+use session::{Player, WatchKind, Watcher};
 use survarium::v026g::match_msgs::ServerMessage;
 use survarium::v026g::match_msgs::id;
 use survarium::v026g::match_msgs::rules::state;
@@ -40,19 +40,12 @@ fn watch_as(bench: &Bench, session: u32, kind: WatchKind) {
             account_id: SPECTATOR_ACCOUNT,
             kind,
         },
-        bench.now(),
     ));
 }
 
 /// A spectator's game connected and loaded: its client's index.
 fn spectate(bench: &mut Bench, session: u32) -> usize {
-    spectate_as(bench, session, WatchKind::Queued { delay: no_delay() })
-}
-
-/// Live watching with its delay configured away: the worlds and relays as
-/// soon as the path takes them, so a test need not run through the delay.
-fn no_delay() -> LiveDelay {
-    LiveDelay::from_secs(0).unwrap()
+    spectate_as(bench, session, WatchKind::Queued)
 }
 
 /// [`spectate`], as `kind` watches (`watch_as`).
@@ -78,10 +71,6 @@ fn a_spectator_gets_the_roster_with_no_place_its_world_and_every_relay() {
     let syncs = [bench.clients[0].model.syncs, bench.clients[1].model.syncs];
     let at = spectate(&mut bench, SPECTATOR);
     assert_eq!(bench.clients[at].model.local_index, None);
-    // Its game came: the lobby's connect deadline does not end its watch.
-    let late = bench.now() + session::WATCH_CONNECT_WITHIN;
-    let expired = bench.server.store().matchmaking().expire_watches(late);
-    assert!(expired.is_empty());
     assert_eq!(
         bench.clients[at]
             .model
@@ -270,63 +259,6 @@ fn a_watch_that_ends_lets_the_spectator_go_and_its_own_leave_is_told() {
     assert_eq!(bench.stages(), "LL");
 }
 
-/// Review of 2026-11-13: a note goes only to a game that watches, so a spectator called back by
-/// its room while its world was on its way was let go with no countdown. It is told once it
-/// watches, the seconds left of the [`replay_control::RECALL_SECONDS`] from the call, and let go
-/// when they are over.
-#[test]
-fn a_spectator_called_back_while_its_world_loads_is_told_once_it_watches() {
-    let recalls = |client: &Client| -> Vec<u8> {
-        client
-            .replay_notes
-            .iter()
-            .filter_map(
-                |payload| match replay_control::ServerNote::parse(payload)? {
-                    replay_control::ServerNote::Recall(seconds) => Some(seconds),
-                    _ => None,
-                },
-            )
-            .collect()
-    };
-    let mut bench = running();
-    watch_as(&bench, SPECTATOR, WatchKind::Queued { delay: no_delay() });
-    let at = bench.clients.len();
-    let players = bench.game().roster_size();
-    bench
-        .clients
-        .push(Client::growing(SPECTATOR, players, MAP_BATTERIES));
-    bench
-        .addrs
-        .push(udp_transport::relay::Peer::direct(SocketAddr::from(([127, 0, 0, 1], 45_000 + at as u16))));
-    bench.clients[at].connect();
-    assert!(bench.until(1_000, |b| b.clients[at].model.options.is_some()));
-    assert!(bench.server.store().matchmaking().recall_watcher(SPECTATOR));
-    let called = bench.ms;
-    bench.run(1_000);
-    assert!(!bench.game().spectator_watches(SPECTATOR));
-    assert!(
-        recalls(&bench.clients[at]).is_empty(),
-        "its game does not watch yet"
-    );
-    bench.clients[at].ready();
-    assert!(bench.until(3_000, |b| !recalls(&b.clients[at]).is_empty()));
-    let told = recalls(&bench.clients[at]);
-    assert_eq!(told.len(), 1);
-    assert!(
-        (1..replay_control::RECALL_SECONDS).contains(&told[0]),
-        "the seconds left: {told:?}"
-    );
-    assert!(bench.until(5_000, |b| b.clients[at].told_to_leave));
-    let let_go = bench.ms - called;
-    let recall_ms = u64::from(replay_control::RECALL_SECONDS) * 1_000;
-    assert!(
-        (recall_ms..recall_ms + 200).contains(&let_go),
-        "let go {let_go} ms after the call"
-    );
-    bench.run(500);
-    assert_eq!(recalls(&bench.clients[at]).len(), 1, "told once");
-}
-
 #[test]
 fn the_end_of_the_match_lets_its_spectators_go_and_counts_none_of_them() {
     let mut bench = running();
@@ -378,9 +310,8 @@ fn a_spectator_of_no_match_here_is_turned_away() {
             match_id: lobby_match,
             ticket: bench.match_id + 1,
             account_id: SPECTATOR_ACCOUNT,
-            kind: WatchKind::Queued { delay: no_delay() },
+            kind: WatchKind::Queued,
         },
-        bench.now(),
     ));
     let at = bench.clients.len();
     bench
@@ -392,10 +323,6 @@ fn a_spectator_of_no_match_here_is_turned_away() {
     bench.clients[at].connect();
     assert!(bench.until(2_000, |b| b.clients[at].disconnected));
     assert!(bench.clients[at].model.options.is_none());
-    // Its game never came to its match: the lobby ends the watch in time.
-    let late = bench.now() + session::WATCH_CONNECT_WITHIN;
-    let expired = bench.server.store().matchmaking().expire_watches(late);
-    assert_eq!(expired.len(), 1);
 }
 
 #[test]
@@ -460,36 +387,6 @@ fn a_spectator_out_of_step_alone_starts_again_from_a_world() {
         bench.run(50);
     }
     assert!(bench.clients[at].snapshots().len() <= restarted + 1);
-    bench.assert_no_faults();
-}
-
-/// Review of 2026-11-13: a delayed spectator's reports are of ticks the
-/// delay back, and the players' majorities were kept 30 s: at the default
-/// delay none was judged, and one that loaded wrong stayed wrong.
-#[test]
-fn a_spectator_out_of_step_at_the_default_delay_starts_again_from_a_world() {
-    let mut bench = running();
-    let delay = LiveDelay::DEFAULT;
-    bench.run_long(delay.as_secs() * 1_000 + 5_000);
-    let at = spectate_as(&mut bench, SPECTATOR, WatchKind::Live { delay, view: None });
-    assert!(bench.until(10_000, |b| b.game().spectator_watches(SPECTATOR)));
-    let generation = bench.game().spectator_generation(SPECTATOR);
-    let behind = bench.clients[0].clock() - bench.clients[at].clock();
-    assert!(behind >= delay.as_secs() as u32 * 1_000 - 1_000, "{behind}");
-    bench.clients[at].no_hashes = true;
-    for _ in 0..40 {
-        let clock = bench.clients[at].clock();
-        bench.clients[at].report(clock / 50 * 50, 0xdead_beef);
-        bench.run(50);
-    }
-    assert!(
-        bench.until(5_000, |b| b.game().spectator_generation(SPECTATOR)
-            != generation),
-        "the spectator was not started again"
-    );
-    assert!(bench.until(10_000, |b| b.game().spectator_watches(SPECTATOR)));
-    assert_eq!(bench.game().resyncs(0), 0);
-    assert_eq!(bench.game().resyncs(1), 0);
     bench.assert_no_faults();
 }
 
@@ -563,30 +460,12 @@ fn a_place_whose_newcomer_failed_keeps_no_spectator_waiting() {
     );
 }
 
-/// The longest delay `LiveDelay` allows still finds a world to start from: a match keeps 60 s.
+/// The place a Live window's watcher asked to see is told its game once,
+/// when it watches.
 #[test]
-fn a_live_windows_spectator_at_the_longest_delay_still_starts() {
+fn a_live_windows_spectator_is_told_the_place_asked_once() {
     let mut bench = running();
-    let delay = session::LiveDelay::from_secs(u64::from(session::LiveDelay::MAX_SECONDS)).unwrap();
-    bench.until(62_000, |_| false);
-    let at = spectate_as(&mut bench, SPECTATOR, WatchKind::Live { delay, view: None });
-    assert!(
-        bench.until(8_000, |b| b.clients[at].model.is_synced()),
-        "{:?}",
-        bench.clients[at].faults
-    );
-}
-
-/// The Live window's spectator of a public match watches it 10 s behind:
-/// its game's clock and world are that far back, its relays come as its
-/// clock reaches them, and the players see nothing of it. The place its
-/// watcher asked to see is told its game once, when it watches.
-#[test]
-fn a_live_windows_spectator_watches_behind_the_match() {
-    let mut bench = running();
-    let delay = session::LiveDelay::from_secs(10).unwrap();
-    let view = Some(1);
-    let at = spectate_as(&mut bench, SPECTATOR, WatchKind::Live { delay, view });
+    let at = spectate_as(&mut bench, SPECTATOR, WatchKind::Live { view: Some(1) });
     assert!(
         bench.until(8_000, |b| b.clients[at].model.is_synced()),
         "{:?}",
@@ -597,62 +476,8 @@ fn a_live_windows_spectator_watches_behind_the_match() {
         views_told(&bench.clients[at]),
         [replay_control::ServerNote::view(1).to_vec()]
     );
-    let behind = |bench: &Bench| i64::from(bench.clients[0].clock()) - i64::from(bench.clients[at].clock());
-    assert!((9_000..=11_000).contains(&behind(&bench)), "{}", behind(&bench));
-    let world = bench.clients[at].snapshots()[0].1;
-    assert!(bench.clients[0].clock() - world >= 10_000, "{world}");
-    // Player 0's inputs: at once to player 1, 10 s later to it.
-    for _ in 0..20 {
-        bench.clients[0].input(50, 0x21);
-        bench.run(50);
-    }
-    bench.run(500);
-    let sent = bench.clients[1].relays_of(0);
-    assert!(sent.len() >= 20);
-    let late = |bench: &Bench| {
-        let got = bench.clients[at].relays_of(0);
-        sent.iter().rev().take(15).filter(|input| got.contains(input)).count()
-    };
-    assert_eq!(late(&bench), 0, "not yet");
-    bench.run_long(10_000);
-    assert_eq!(late(&bench), 15);
-    assert!((9_000..=11_000).contains(&behind(&bench)), "{}", behind(&bench));
-    assert_eq!(bench.clients[at].snapshots().len(), 1, "never started again");
+    bench.run_long(5_000);
     assert_eq!(views_told(&bench.clients[at]).len(), 1, "told once");
-    bench.assert_no_faults();
-}
-
-/// Review of 2026-11-09: a delayed spectator was sent every leave after its world up to the
-/// present, so a leave inside the delay reached it at once and again when its clock got there.
-#[test]
-fn a_delayed_spectator_gets_a_leave_once_when_its_clock_reaches_it() {
-    let mut bench = Bench::growing(3, MAP_BATTERIES, Settings::default());
-    bench.join_all();
-    bench.run_long(25_000);
-    assert_eq!(bench.game().rule_state(), state::IN_PROCESS);
-    let delay = session::LiveDelay::from_secs(10).unwrap();
-    bench.clients[2].leave();
-    bench.run(500);
-    let at = spectate_as(&mut bench, SPECTATOR, WatchKind::Live { delay, view: None });
-    assert!(
-        bench.until(8_000, |b| b.clients[at].model.is_synced()),
-        "{:?}",
-        bench.clients[at].faults
-    );
-    bench.run(200);
-    // Taken or refused for its time, it would have come.
-    let leaves_heard = |client: &Client| {
-        client.left().len()
-            + client
-                .skipped
-                .iter()
-                .filter(|(message, _)| *message == survarium::v026g::match_msgs::id::PLAYER_LEFT)
-                .count()
-    };
-    assert_eq!(leaves_heard(&bench.clients[at]), 0, "a leave from its future");
-    bench.run_long(11_000);
-    assert_eq!(bench.clients[at].left(), [2], "when its clock got there");
-    assert_eq!(leaves_heard(&bench.clients[at]), 1, "once");
     bench.assert_no_faults();
 }
 
@@ -680,41 +505,6 @@ fn a_spectator_coming_back_holds_no_abandoned_match_open() {
     assert!(bench.clients.last().unwrap().disconnected, "turned away");
 }
 
-/// The owner's rule of 2026-11-09: Queue and spectate runs behind the match by the delay it was
-/// given (the Live delay), as a Live window's watcher does.
-#[test]
-fn queue_and_spectate_watches_behind_the_match() {
-    let mut bench = running();
-    let delay = LiveDelay::from_secs(10).unwrap();
-    let at = spectate_as(&mut bench, SPECTATOR, WatchKind::Queued { delay });
-    assert!(
-        bench.until(8_000, |b| b.clients[at].model.is_synced()),
-        "{:?}",
-        bench.clients[at].faults
-    );
-    bench.run(200);
-    let behind = i64::from(bench.clients[0].clock()) - i64::from(bench.clients[at].clock());
-    assert!((9_000..=11_000).contains(&behind), "{behind}");
-    bench.assert_no_faults();
-}
-
-/// Review of 2026-11-09: a spectator waiting for a fresh world asked the players for one every
-/// second, and one that ignores each 0xE5 waits for ever: it got them uploading a world a second.
-#[test]
-fn a_stuck_spectator_asks_the_players_for_nothing() {
-    let requests = |stuck: bool| {
-        let mut bench = running();
-        if stuck {
-            let at = spectate(&mut bench, SPECTATOR);
-            bench.clients[at].mute_time_replies = true;
-        }
-        let before = bench.clients[0].upload_requests;
-        bench.run_long(15_000);
-        bench.clients[0].upload_requests - before
-    };
-    assert_eq!(requests(true), requests(false));
-}
-
 /// Review of 2026-11-09: a spectator that never acks grew its send queue without limit (each
 /// relay kept for ever) and every poll of the match thread walked it.
 #[test]
@@ -731,20 +521,6 @@ fn a_spectator_that_never_acks_piles_up_nothing() {
     }
     // The relays of about one wait for its world: 40 a second for 15 s.
     assert!(most < 1_000, "{most} messages queued");
-    bench.assert_no_faults();
-}
-
-/// Review of 2026-11-09: a spectator's turn walked all the match's relays on every poll, and a
-/// poll follows every datagram the server takes. Once a tick is as often as anything comes due.
-#[test]
-fn a_spectator_walks_the_matchs_relays_once_a_tick() {
-    let mut bench = running();
-    let at = watching(&mut bench);
-    let before = bench.game().spectator_list_walks(SPECTATOR).unwrap();
-    bench.run(5_000);
-    let walks = bench.game().spectator_list_walks(SPECTATOR).unwrap() - before;
-    assert!((90..=101).contains(&walks), "{walks} walks in 5 s");
-    assert!(bench.clients[at].model.is_synced());
     bench.assert_no_faults();
 }
 
@@ -817,27 +593,13 @@ fn a_spectator_is_told_every_playable_kit_once_it_watches() {
     bench.assert_no_faults();
 }
 
-/// A delayed spectator too: its clock keeps nothing of the kits from it.
+/// Review of 2026-11-13: a spectator installs a late joiner's place when the players do, and the
+/// players' majorities of the ticks before were of worlds without the place: its reports of them
+/// are no sign of a world out of step.
 #[test]
-fn a_delayed_spectator_is_told_the_kits_as_soon_as_it_watches() {
+fn a_late_join_starts_no_spectator_again() {
     let mut bench = running();
-    let delay = session::LiveDelay::from_secs(10).unwrap();
-    let at = spectate_as(&mut bench, SPECTATOR, WatchKind::Live { delay, view: None });
-    assert!(bench.until(8_000, |b| b.clients[at].model.is_synced()), "{:?}", bench.clients[at].faults);
-    bench.run(500);
-    assert_eq!(kits_of_place(&bench.clients[at], 0), Some(vec![0]), "{:?}", kits_told(&bench.clients[at]));
-    bench.assert_no_faults();
-}
-
-/// Review of 2026-11-13: a delayed spectator installs a late joiner's place when the players do,
-/// a delay before its clock reaches that time, and the players' majorities of the ticks before
-/// were of worlds without the place: its reports of them are no sign of a world out of step.
-#[test]
-fn a_late_join_starts_no_delayed_spectator_again() {
-    let mut bench = running();
-    let delay = session::LiveDelay::from_secs(10).unwrap();
-    bench.run_long(12_000);
-    let at = spectate_as(&mut bench, SPECTATOR, WatchKind::Live { delay, view: None });
+    let at = spectate(&mut bench, SPECTATOR);
     assert!(bench.until(8_000, |b| b.game().spectator_watches(SPECTATOR)));
     bench.run_long(2_000);
     let generation = bench.game().spectator_generation(SPECTATOR);
@@ -904,8 +666,7 @@ fn a_spectator_let_go_that_connects_again_is_heard_at_once() {
     assert!(bench.until(1_000, |b| b.clients[at].told_to_leave));
     bench.run(300);
     // Its game watches again, from the same address.
-    let now = bench.now();
-    assert!(bench.server.store().matchmaking().watch(SPECTATOR, watcher, now));
+    assert!(bench.server.store().matchmaking().watch(SPECTATOR, watcher));
     let players = bench.game().roster_size();
     bench.clients[at] = Client::growing(SPECTATOR, players, MAP_BATTERIES);
     bench.clients[at].connect();
@@ -966,164 +727,6 @@ fn a_queued_spectator_whose_place_came_keeps_its_farewell_then_connects() {
     bench.assert_no_faults();
 }
 
-/// A busy 5 ms of the match: player 0 makes two precise inputs a tick, as a firing player
-/// does, player 1 one.
-fn busy(bench: &mut Bench) {
-    use survarium::v026g::match_msgs::{PlayerInput, WireTime};
-    if bench.ms.is_multiple_of(50) {
-        let tick = bench.clients[0].clock() / 50 * 50 + 50;
-        for at in [tick + 10, tick + 35] {
-            bench.clients[0].send_input(PlayerInput {
-                time: WireTime::precise(at),
-                rotation: [0x00, 0x3C, 0x00, 0xC0],
-                actions: 0x21,
-            });
-        }
-        bench.clients[1].input(20, 0x21);
-    }
-    bench.step(5);
-}
-
-/// The bench busy until a spectator `delay_ms` behind the match would have the newest world the
-/// match keeps (every 5 s, at 4 550 ms and on) `age_ms` behind its clock.
-fn busy_until_world_age(bench: &mut Bench, delay_ms: u32, age_ms: u32) {
-    let end = bench.ms + 5_000;
-    while bench.ms < end || (bench.clock() + 5_000 - delay_ms - 4_550) % 5_000 != age_ms {
-        busy(bench);
-    }
-}
-
-/// Player 0's inputs the game had when the world it took came: those after the 0xE5 that went
-/// with that world.
-fn inputs_with_world(client: &Client) -> usize {
-    let taken = &client.taken;
-    let world = taken
-        .iter()
-        .rposition(|message| matches!(message, ServerMessage::Snapshot { .. }))
-        .expect("a world");
-    let ServerMessage::Snapshot { generation, .. } = taken[world] else {
-        unreachable!()
-    };
-    let timed = taken[..world]
-        .iter()
-        .rposition(|message| {
-            matches!(message, ServerMessage::SetTime { generation: g, .. } if *g == generation)
-        })
-        .expect("its 0xE5");
-    let mut inputs = Vec::new();
-    for message in &taken[timed..world] {
-        if let ServerMessage::InputRelay { player: 0, input } = message
-            && !inputs.contains(input)
-        {
-            inputs.push(*input);
-        }
-    }
-    inputs.len()
-}
-
-/// Review of 2026-11-13: a delayed spectator took a world up to 1.5 s behind its clock, with the
-/// inputs since: a player making two inputs a tick put more of them after it than its game keeps
-/// (27), and it played wrong from its first tick. It waits for a newer world.
-#[test]
-fn a_delayed_spectators_world_comes_with_no_more_inputs_than_its_game_keeps() {
-    let mut bench = running();
-    let delay = LiveDelay::from_secs(3).unwrap();
-    busy_until_world_age(&mut bench, 3_000, 900);
-    let at = spectate_as(&mut bench, SPECTATOR, WatchKind::Live { delay, view: None });
-    let end = bench.ms + 15_000;
-    while bench.ms < end && !bench.game().spectator_watches(SPECTATOR) {
-        busy(&mut bench);
-    }
-    assert!(bench.game().spectator_watches(SPECTATOR));
-    let inputs = inputs_with_world(&bench.clients[at]);
-    assert!(inputs <= 26, "{inputs} inputs of player 0 after its world");
-    bench.assert_no_faults();
-}
-
-/// The same for the inputs it is fed while its world is on its way: a world held up is given
-/// up once they are past the ring, and it starts again from a newer one.
-#[test]
-fn a_delayed_spectators_world_held_up_past_the_ring_is_given_up() {
-    let mut bench = running();
-    let delay = LiveDelay::from_secs(3).unwrap();
-    busy_until_world_age(&mut bench, 3_000, 250);
-    let at = spectate_as(&mut bench, SPECTATOR, WatchKind::Live { delay, view: None });
-    // Its first world's datagrams are lost for a second.
-    let held_until = bench.ms + 1_000;
-    let clock = Arc::new(std::sync::atomic::AtomicU64::new(bench.ms));
-    let now = Arc::clone(&clock);
-    bench.clients[at].lose = Some(Box::new(move |datagram| {
-        now.load(Ordering::Relaxed) < held_until
-            && udp_transport::wire::parse(
-                udp_transport::Table::Match,
-                udp_transport::Direction::ToClient,
-                datagram,
-                1,
-            )
-            .is_ok_and(|parsed| {
-                parsed
-                    .messages
-                    .iter()
-                    .any(|message| message.id == survarium::v026g::match_msgs::id::SNAPSHOT)
-            })
-    }));
-    let end = bench.ms + 15_000;
-    while bench.ms < end && !bench.game().spectator_watches(SPECTATOR) {
-        busy(&mut bench);
-        clock.store(bench.ms, Ordering::Relaxed);
-    }
-    assert!(bench.game().spectator_watches(SPECTATOR));
-    let mut generations = bench.clients[at].got(|message| match message {
-        ServerMessage::SetTime { generation, .. } => Some(*generation),
-        _ => None,
-    });
-    generations.dedup();
-    assert!(generations.len() >= 2, "started again: {generations:?}");
-    let inputs = inputs_with_world(&bench.clients[at]);
-    assert!(inputs <= 26, "{inputs} inputs of player 0 after its world");
-}
-
-/// Review of 2026-11-13: a spectator's game that connected again from
-/// another port was its session's spectator anew, with no starts behind it:
-/// each round (0xD8, probe, 0xDA, its answer to the 0xE5) packed a world on
-/// the match thread, as fast as it went round, and against a live match. Its
-/// session's starts go on from its last: one a second at most.
-#[test]
-fn a_spectator_connecting_again_and_again_starts_from_a_world_once_a_second() {
-    let mut bench = running();
-    let first = watching(&mut bench);
-    let players = bench.game().roster_size();
-    let started = bench.ms;
-    let mut games = vec![first];
-    for _ in 0..15 {
-        bench.clients[*games.last().unwrap()].silent = true;
-        let at = bench.clients.len();
-        bench
-            .clients
-            .push(Client::growing(SPECTATOR, players, MAP_BATTERIES));
-        bench
-            .addrs
-            .push(udp_transport::relay::Peer::direct(SocketAddr::from(([127, 0, 0, 1], 45_000 + at as u16))));
-        bench.clients[at].connect();
-        assert!(bench.until(1_000, |b| b.clients[at].model.options.is_some()));
-        bench.clients[at].ready();
-        games.push(at);
-        bench.run(200);
-    }
-    let lasted = bench.ms - started;
-    let worlds: usize = games
-        .iter()
-        .skip(1)
-        .map(|&at| bench.clients[at].snapshots().len())
-        .sum();
-    assert!(
-        worlds as u64 <= lasted / 1_000 + 1,
-        "{worlds} worlds in {lasted} ms"
-    );
-    assert!(bench.until(3_000, |b| b.game().spectator_watches(SPECTATOR)));
-    bench.assert_no_faults();
-}
-
 /// Review of 2026-11-13: a player that left by its own word (0xE0) has no
 /// seat, and its place's link is kept, gone, with the route of its address.
 /// Its game, watching the match from that address within the link's timeout,
@@ -1140,7 +743,7 @@ fn a_player_that_left_watches_the_match_from_the_address_it_played_from() {
     watch_as(
         &bench,
         session_of(1),
-        WatchKind::Queued { delay: no_delay() },
+        WatchKind::Queued,
     );
     let players = bench.game().roster_size();
     bench.clients[1] = Client::growing(session_of(1), players, MAP_BATTERIES);
@@ -1166,7 +769,7 @@ fn a_match_that_ended_keeps_its_spectators_silence() {
     bench.join_all();
     bench.run_long(25_000);
     assert_eq!(bench.game().rule_state(), state::IN_PROCESS);
-    watch_as(&bench, SPECTATOR, WatchKind::Queued { delay: no_delay() });
+    watch_as(&bench, SPECTATOR, WatchKind::Queued);
     let at = bench.clients.len();
     bench.clients.push(Client::growing(SPECTATOR, 2, MAP_TDM));
     bench

@@ -1,7 +1,6 @@
 //! Spectators: games that watch the match from a room's queue ("Queue and
 //! spectate", `docs/notes/queue-spectate.md`, `match.md` section 37) or the
-//! lobby's Live window, behind the match by the Live delay: one rule for all
-//! live watching.
+//! lobby's Live window, as it is played.
 //!
 //! A spectator is no player. It has no roster place, so it is kept apart
 //! from the places: not a [`Peer`] of `Game::peers` (indexed by place, beside
@@ -17,10 +16,9 @@
 //! - the places appended later, as every game is asked to install them
 //!   (`late_join`'s `Prepare`), and acked the same way;
 //! - once it has loaded (0xDA) and has every place, a trusted world young
-//!   enough to start from (the worlds the match keeps, behind its delay:
-//!   it never asks the players for one): 0xE5 of its next generation until
-//!   it answers, then 0xE5 again with the inputs and entries since the
-//!   world and the world (0xE8);
+//!   enough to start from: 0xE5 of its next generation until it answers,
+//!   then 0xE5 again with the inputs and entries since the world and the
+//!   world (0xE8);
 //! - from then on every relay and roster change the players get (a leave
 //!   only after its world is loaded: the client's 0xEA handler reads the
 //!   match's view, `Game::roster_change`).
@@ -91,19 +89,6 @@ const DRIFT_REPORTS: u32 = 2;
 /// poll of the match thread, which follows every datagram the server takes,
 /// walks it.
 pub(super) const BACKLOG_MOST: usize = 2048;
-
-/// A spectator is this far behind the match at least, whatever delay it was
-/// given: a relay it can be fed comes this far before the time the match's
-/// list holds it for (the `HORIZON_MS` of lead), and an input the match
-/// takes late comes up to `HORIZON_MS` after: nearer than this, what is
-/// on its way would be behind what it has been fed.
-const LEAST_BEHIND: Duration = Duration::from_secs(1);
-
-/// A session's game starts from a world (an 0xE5 of a new generation, then
-/// the world packed on the match thread) no sooner than this after its last,
-/// whatever starts it again (a seek, a drift, a world not in, its ring, its
-/// game connecting anew): what is asked meanwhile waits.
-pub(super) const START_EVERY: Duration = Duration::from_secs(1);
 
 /// Where a spectator's game is. [`Spectator::go`] alone moves it, by
 /// [`Watch::step`].
@@ -215,15 +200,6 @@ impl Watch {
     }
 }
 
-/// A spectator of a match, `ms` behind it: its relays and roster changes
-/// come from the match's lists as its clock reaches them, not as they are
-/// played; those up to `fed` have gone to it.
-#[derive(Clone, Copy, Debug)]
-struct Delay {
-    ms: u32,
-    fed: u32,
-}
-
 /// What a spectator at an address is to the server's routing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum SpectatorAt {
@@ -247,73 +223,25 @@ struct Installing {
 pub(crate) struct Spectator {
     addr: relay::Peer,
     session_id: u32,
-    /// A match's spectator's: behind the match (`None`: a replay's, which
-    /// its playback drives).
-    delay: Option<Delay>,
     transport: Transport,
     stage: Watch,
     generation: Generation,
     /// The places its game has: the static info's, then each it installed.
     installed_roster: usize,
     installing: Option<Installing>,
-    /// Its session's starts from a world, of every connection of its game.
-    starts: Starts,
+    /// When it was started anew for drifting, the latest
+    /// [`RESYNCS_PER_MINUTE`] ([`Spectator::take_drift_restart`]).
+    drift_restarts: VecDeque<Instant>,
+    /// Its starts done again in a row since it last watched, its world's
+    /// inputs past its game's ring ([`Spectator::ring_overrun`]).
+    ring_redos: u32,
     /// The place its watcher asked to see, still to be told: in a view note
     /// (`replay_control::ServerNote::View`) once it first watches.
     view: Option<u8>,
     /// The mask of kits it has been told of each place (a live match's chooser).
     kits_told: Vec<u8>,
-    /// The relays and roster changes sent for its current start (since its
-    /// last 0xE5 of a new generation) that may still go again: its next
-    /// start forgets them ([`Self::forget_timeline`]).
-    timeline: Vec<u64>,
-    /// Its room called it back ([`Self::recall`]).
-    recall: Option<Recall>,
-    /// How often [`Self::feed`] walked the match's lists.
-    #[cfg(test)]
-    list_walks: u32,
-}
-
-/// Its room called a spectator back ([`Spectator::recall`]): let go at
-/// `due`, [`replay_control::RECALL_SECONDS`] after, and its game told so in
-/// a note (`ServerNote::Recall`), which goes only while it is live.
-#[derive(Clone, Copy, Debug)]
-enum Recall {
-    /// Its game was not live yet (its world on its way): the note is still
-    /// to go, with the seconds left then.
-    Untold {
-        due: Instant,
-    },
-    Told {
-        due: Instant,
-    },
-}
-
-/// What a session's game has had of starts from a world. Each packs a world
-/// on the match thread, so it outlives the game's connection: a game that
-/// connects again (from another port: `Game::watch`, `ReplayWatch::connect`)
-/// is its session's spectator anew, with what its last one had of them.
-#[derive(Debug, Default)]
-pub(super) struct Starts {
-    /// When it last started from a world (an 0xE5 of a new generation
-    /// went): the next no sooner than [`START_EVERY`] after.
-    last: Option<Instant>,
-    /// When it was started anew for drifting, the latest
-    /// [`RESYNCS_PER_MINUTE`] ([`Spectator::take_drift_restart`]).
-    drift: VecDeque<Instant>,
-    /// Its starts done again in a row since it last watched, its world's
-    /// inputs past its game's ring ([`Spectator::ring_overrun`]).
-    ring_redos: u32,
-}
-
-/// A spectator's list of what went for its current start
-/// ([`Spectator::track`]) is cleared of what is in once it is longer than
-/// twice what its game has not acked and this.
-const TIMELINE_SLACK: usize = 64;
-
-/// A message sent may still go again: neither acked nor given up.
-fn in_flight(transport: &Transport, serial: u64) -> bool {
-    !transport.is_delivered(serial) && !transport.is_lost(serial)
+    /// Its room called it back ([`Self::recall`]): let go at this time.
+    recall_at: Option<Instant>,
 }
 
 /// One more input of `place` in a world's ring count: its count now.
@@ -342,26 +270,14 @@ pub(super) struct Watched<'a> {
     pub(super) worlds: Vec<&'a Snapshot>,
     /// Their 0xE8s past the generation byte, by index, each made once for
     /// every game shown it (a recording's key frames: its sessions share
-    /// them, `playback::Recording`; a delayed spectator's past worlds);
-    /// none: made for each start.
+    /// them, `playback::Recording`); none: made for each start.
     pub(super) sent_worlds: Vec<&'a OnceLock<Vec<u8>>>,
     /// Everything relayed so far: its time, whose it is, what.
     pub(super) inputs: &'a [(u32, usize, Relayed)],
     /// The roster changes so far: time, place, entered (else left).
     pub(super) events: &'a [(u32, usize, bool)],
-    /// Of those, what is due: up to this time, a delayed spectator's clock
-    /// and the horizon (the rest come later); `None`: all of it (a replay's,
-    /// whose lists are cut at what is due).
-    pub(super) until: Option<u32>,
     pub(super) compress: bool,
     pub(super) entry_state: Duration,
-}
-
-impl Watched<'_> {
-    /// Whether what is listed at `at` is due.
-    fn due(&self, at: u32) -> bool {
-        self.until.is_none_or(|until| at <= until)
-    }
 }
 
 /// What a spectator's game said that its owner has to act on.
@@ -383,7 +299,6 @@ impl Game {
         addr: relay::Peer,
         session_id: u32,
         transport: Transport,
-        delay: Duration,
         view: Option<u8>,
         now: Instant,
     ) -> Result<(), Box<Transport>> {
@@ -393,95 +308,82 @@ impl Game {
         if self.finished_at.is_some() || self.over_unfinished(now) || !self.growing_roster() {
             return Err(Box::new(transport));
         }
-        // One game a session, one session an address. Its session's game
-        // again (from another port): anew, with what it had of starts.
-        let starts = self
-            .spectators
-            .iter()
-            .position(|spectator| spectator.session_id == session_id)
-            .map(|at| self.spectators.remove(at).into_starts())
-            .unwrap_or_default();
-        self.spectators.retain(|spectator| spectator.addr != addr);
+        // One game a session, one session an address.
+        self.spectators
+            .retain(|spectator| spectator.addr != addr && spectator.session_id != session_id);
         log::info!(
-            "Match {:#x}: a spectator (session {session_id:#x}) connected from {addr}, {} s behind",
-            self.id,
-            delay.as_secs()
+            "Match {:#x}: a spectator (session {session_id:#x}) connected from {addr}",
+            self.id
         );
-        let mut spectator = Spectator::connect(
+        self.spectators.push(Spectator::connect(
             addr,
             session_id,
             transport,
             self.snapshot_players() as u8,
             self.port,
             view,
-            starts,
-        );
-        spectator.delay = Some(Delay {
-            ms: delay.max(LEAST_BEHIND).as_millis() as u32,
-            fed: 0,
-        });
-        self.spectators.push(spectator);
+        ));
         Ok(())
     }
 
-    /// A trusted world, kept for a delayed spectator to start from: the
-    /// last [`INPUTS_KEPT_MS`] (its inputs since are kept as long).
-    pub(super) fn keep_past(&mut self, world: &Snapshot) {
-        if self.past.back().is_some_and(|(last, _)| last.time >= world.time) {
-            return;
+    /// A trusted world the spectator may start from now: final, young
+    /// enough for its 1-byte ticks, taken when every game had every place
+    /// (`after_preparation`; a place whose newcomer failed has no barrier,
+    /// and is in every game's world as one whose player left) and no game is
+    /// installing one (a world with a place's kit objects is another than
+    /// one without).
+    fn spectator_start(&self, clock: u32) -> Option<Snapshot> {
+        if self.installing() {
+            return None;
         }
-        self.past.push_back((world.clone(), OnceLock::new()));
-        let keep_from = world.time.saturating_sub(INPUTS_KEPT_MS);
-        while self.past.front().is_some_and(|(old, _)| old.time < keep_from) {
-            self.past.pop_front();
-        }
-    }
-
-    /// What a delayed spectator at `clock` (behind the match's) is shown:
-    /// the worlds at or before it, the relays and roster changes due by it.
-    fn watched_delayed(&self, clock: u32) -> Watched<'_> {
-        Watched {
-            // Oldest first: the same index in both.
-            worlds: self
-                .past
-                .iter()
-                .map(|(world, _)| world)
-                .filter(|world| world.time <= clock)
-                .collect(),
-            sent_worlds: self
-                .past
-                .iter()
-                .filter(|(world, _)| world.time <= clock)
-                .map(|(_, sent)| sent)
-                .collect(),
-            until: Some(clock + HORIZON_MS),
-            ..self.watched(clock)
-        }
-    }
-
-    /// The world a delayed spectator at `clock` starts from: the newest
-    /// trusted one far enough behind it, and fresh enough that the inputs
-    /// since are read right and its game holds them all: no player has more
-    /// than [`INPUT_RING_SAFE`] up to what goes with it, its clock and the
-    /// horizon (as `Recording::reach` puts a replay's; those that come while
-    /// it is on its way, [`Spectator::ring_overrun`]).
-    fn delayed_start(&self, clock: u32) -> Option<Snapshot> {
-        self.past
-            .iter()
-            .map(|(world, _)| world)
-            .filter(|world| world.time + HORIZON_MS <= clock)
-            .filter(|world| clock - world.time <= FRESH_SNAPSHOT_MS)
+        let first_time = self.clock_start.map(|(_, at)| at);
+        let recent = self.recent.as_ref().filter(|recent| {
+            self.live() <= 1 || self.vouchers(recent.time, snapshot::crc(&recent.body)) >= 2
+        });
+        [self.snapshot.as_ref(), recent]
+            .into_iter()
+            .flatten()
+            .filter(|world| {
+                (0..self.spectator_roster()).all(|place| {
+                    self.after_preparation(place, world.time)
+                        || self.admissions[place]
+                            .as_ref()
+                            .is_some_and(Admission::failed)
+                })
+            })
+            .filter(|world| clock.saturating_sub(world.time) <= FRESH_SNAPSHOT_MS)
+            .filter(|world| Some(world.time) == first_time || world.time + HORIZON_MS <= clock)
             .max_by_key(|world| world.time)
-            .filter(|world| self.ring_fill(world.time, clock + HORIZON_MS) <= INPUT_RING_SAFE)
             .cloned()
     }
 
-    /// The view of the spectator `at` (behind the match or not), at the
-    /// match clock `clock`.
-    fn view_of(&self, delay: Option<Delay>, clock: u32) -> Watched<'_> {
-        match delay {
-            Some(delay) => self.watched_delayed(clock.saturating_sub(delay.ms)),
-            None => self.watched(clock),
+    /// A relay of the place `from` went to the players: to the spectators
+    /// too (`Game::relay_to_others`).
+    pub(super) fn relay_to_spectators(
+        &mut self,
+        from: usize,
+        message: &ServerMessage,
+        time: u32,
+        now: Instant,
+    ) {
+        let clock = self.clock(now);
+        for spectator in &mut self.spectators {
+            spectator.relay(from, message, time, clock, now);
+        }
+    }
+
+    /// A roster change of the place `index` at `at` went to the players: to
+    /// the spectators too (`Game::roster_change`).
+    pub(super) fn roster_to_spectators(
+        &mut self,
+        index: usize,
+        entered: bool,
+        at: u32,
+        message: &ServerMessage,
+        now: Instant,
+    ) {
+        for spectator in &mut self.spectators {
+            spectator.roster_change(index, entered, at, message, now);
         }
     }
 
@@ -500,7 +402,6 @@ impl Game {
             sent_worlds: Vec::new(),
             inputs: &self.inputs,
             events: &self.events,
-            until: None,
             compress: self.settings.compress_state,
             entry_state: self.settings.timing.entry_state,
         }
@@ -539,9 +440,9 @@ impl Game {
 
     /// The server lets go of the spectator of `session_id` (its watch
     /// ended): its farewell, then its link closes. Not reported as left.
-    /// The spectator's room calls it back: its game is told once, when it is
-    /// live (`Spectator::recall`); whether the seconds since the first call
-    /// are over (a spectator not here any more: at once).
+    /// The spectator's room calls it back: its game is told once
+    /// (`Spectator::recall`); whether the seconds since the first call are
+    /// over (a spectator not here any more: at once).
     pub(crate) fn recall_spectator(&mut self, session_id: u32, now: Instant) -> bool {
         let Some(spectator) = self
             .spectators
@@ -593,8 +494,7 @@ impl Game {
     fn spectator_message(&mut self, at: usize, message_id: u8, payload: &[u8], now: Instant) {
         let clock = self.clock(now);
         let mut spectators = std::mem::take(&mut self.spectators);
-        let view = self.view_of(spectators[at].delay, clock);
-        let heard = spectators[at].hear(&view, message_id, payload, now);
+        let heard = spectators[at].hear(&self.watched(clock), message_id, payload, now);
         self.spectators = spectators;
         match heard {
             Heard::Nothing => {}
@@ -706,23 +606,26 @@ impl Game {
             }
         }
         let roster = self.spectator_roster();
+        let mut starts = Vec::with_capacity(self.spectators.len());
         for at in 0..self.spectators.len() {
             self.prepare_for_spectator(at, now);
+            let start = if self.spectators[at].waits_for_world(roster) && self.clock_start.is_some()
+            {
+                let start = self.spectator_start(clock);
+                if start.is_none() && !self.installing() {
+                    self.request_upload(usize::MAX, now, RESYNC_REQUEST_GAP);
+                }
+                start.map(|world| world.time)
+            } else {
+                None
+            };
+            starts.push(start);
         }
         let echo = self.mono(now) as u16;
         let mut spectators = std::mem::take(&mut self.spectators);
-        for spectator in &mut spectators {
-            let view = self.view_of(spectator.delay, clock);
-            let ticked = spectator.feed(&view, now);
-            // From the worlds the match keeps anyway: a spectator asks the
-            // players for nothing. Looked for once a tick, as the lists are
-            // walked (`delayed_start` counts the inputs since a world).
-            let start = spectator
-                .delay
-                .filter(|_| ticked && spectator.waits_for_world(roster))
-                .and_then(|delay| self.delayed_start(clock.saturating_sub(delay.ms)))
-                .map(|world| world.time);
-            spectator.step(&view, start, echo, now);
+        let watched = self.watched(clock);
+        for (spectator, start) in spectators.iter_mut().zip(starts) {
+            spectator.step(&watched, start, echo, now);
             spectator.tell_kits(&self.formed.profiles);
         }
         self.spectators = spectators;
@@ -737,35 +640,33 @@ impl Game {
 
     /// Each live spectator's reports against the players': a tick the match
     /// has judged (`hashes_checked_until`) and its players' majority names
-    /// (kept for as far back as the longest delay, `Game::settled_hashes`)
-    /// is right or wrong; one with no majority, or older than those kept,
-    /// decides nothing, and so does one of a tick up to the end of the
+    /// is right or wrong; one with no majority, or older than the reports
+    /// kept, decides nothing, and so does one of a tick up to the end of the
     /// players' last install (`hashes_unjudged_until`): its game installs a
     /// place when they do, a delay before it plays that time, and their
     /// majorities before were of worlds without it. [`DRIFT_REPORTS`] wrong
-    /// in a row: it is
-    /// started anew from a world (its next generation), as a player out of
-    /// step is resynced, and no more often: [`RESYNCS_PER_MINUTE`] in
-    /// [`RESYNC_WINDOW`], `Timing::resync_interval` apart. Its reports never
-    /// go into `Game::hashes`: nothing of the match reads them.
+    /// in a row: it is started anew from a world (its next generation), as a
+    /// player out of step is resynced, and no more often:
+    /// [`RESYNCS_PER_MINUTE`] in [`RESYNC_WINDOW`],
+    /// `Timing::resync_interval` apart. Its reports never go into
+    /// `Game::hashes`: nothing of the match reads them.
     fn judge_spectators(&mut self, now: Instant) {
         let checked = self.hashes_checked_until;
         let unjudged_until = self.hashes_unjudged_until;
+        let keep_from = self.clock(now).saturating_sub(HASH_KEEP_MS);
         let interval = self.settings.timing.resync_interval;
         let id = self.id;
-        let settled = &self.settled_hashes;
-        let majority = |time: u32| {
-            settled
-                .binary_search_by_key(&time, |&(at, _)| at)
-                .ok()
-                .map(|at| settled[at].1)
-        };
-        for spectator in &mut self.spectators {
+        // Taken out for the time of the judging: the majority reads the match.
+        let mut spectators = std::mem::take(&mut self.spectators);
+        for spectator in &mut spectators {
             let Watch::Live { wrong, reports, .. } = &mut spectator.stage else {
                 continue;
             };
             let judged = std::mem::take(reports);
             for (time, crc) in judged {
+                if time < keep_from {
+                    continue;
+                }
                 if time >= checked {
                     reports.push_back((time, crc));
                     continue;
@@ -773,7 +674,7 @@ impl Game {
                 if time <= unjudged_until {
                     continue;
                 }
-                match majority(time) {
+                match self.majority(time) {
                     Some(right) if right == crc => *wrong = 0,
                     Some(_) => *wrong += 1,
                     None => {}
@@ -790,6 +691,7 @@ impl Game {
             );
             spectator.wait_again();
         }
+        self.spectators = spectators;
     }
 
     /// The next place the spectator's game lacks, asked as every game is
@@ -860,14 +762,6 @@ impl Game {
     }
 
     #[cfg(test)]
-    pub(crate) fn spectator_list_walks(&self, session_id: u32) -> Option<u32> {
-        self.spectators
-            .iter()
-            .find(|spectator| spectator.session_id == session_id)
-            .map(|spectator| spectator.list_walks)
-    }
-
-    #[cfg(test)]
     pub(crate) fn spectator_generation(&self, session_id: u32) -> Option<u8> {
         self.spectators
             .iter()
@@ -885,8 +779,7 @@ impl Game {
 
 impl Spectator {
     /// A game that connects to watch: told the ports (0xE3); `view` the
-    /// place it is to follow first, when one was asked; `starts` what its
-    /// session had of starts (a game that connects again).
+    /// place it is to follow first, when one was asked.
     pub(super) fn connect(
         addr: relay::Peer,
         session_id: u32,
@@ -894,7 +787,6 @@ impl Spectator {
         roster_size: u8,
         port: u16,
         view: Option<u8>,
-        starts: Starts,
     ) -> Self {
         transport.set_roster_size(roster_size);
         let ports = ServerMessage::Ports {
@@ -905,37 +797,21 @@ impl Spectator {
         Self {
             addr,
             session_id,
-            delay: None,
             transport,
             stage: Watch::Connecting,
             generation: Generation::AT_READY,
             installed_roster: 0,
             installing: None,
-            starts,
+            drift_restarts: VecDeque::new(),
+            ring_redos: 0,
             view,
             kits_told: Vec::new(),
-            timeline: Vec::new(),
-            recall: None,
-            #[cfg(test)]
-            list_walks: 0,
+            recall_at: None,
         }
     }
 
     pub(super) fn session_id(&self) -> u32 {
         self.session_id
-    }
-
-    /// Its game connects again: what its session had of starts, for the new
-    /// one ([`Self::connect`]).
-    pub(super) fn into_starts(self) -> Starts {
-        self.starts
-    }
-
-    /// It may start from a world now ([`START_EVERY`]).
-    pub(super) fn may_start(&self, now: Instant) -> bool {
-        self.starts
-            .last
-            .is_none_or(|last| now.saturating_duration_since(last) >= START_EVERY)
     }
 
     pub(super) fn at(&self) -> SpectatorAt {
@@ -1077,7 +953,7 @@ impl Spectator {
                 .count();
         let replay: Vec<ServerMessage> = watched.inputs[since..]
             .iter()
-            .filter(|(at, _, _)| *at > time && watched.due(*at))
+            .filter(|(at, _, _)| *at > time)
             .map(|(_, from, what)| relay(*from, what))
             .collect();
         let mut fill = Vec::new();
@@ -1093,13 +969,10 @@ impl Spectator {
         if self.ring_overrun(most.unwrap_or(0)) {
             return;
         }
-        if let (Some(delay), Some(until)) = (self.delay.as_mut(), watched.until) {
-            delay.fed = until;
-        }
         let entries: Vec<ServerMessage> = watched
             .events
             .iter()
-            .filter(|(at, _, entered)| *entered && *at > time && watched.due(*at))
+            .filter(|(at, _, entered)| *entered && *at > time)
             .map(|&(at, who, _)| ServerMessage::PlayerEntered {
                 tick: tick_byte(at),
                 player: who as u8,
@@ -1153,51 +1026,6 @@ impl Spectator {
         }
     }
 
-    /// A delayed spectator's turn: the relays and roster changes its clock
-    /// reached since the last, from the match's lists. Whether they were
-    /// walked (its clock reached a new tick).
-    fn feed(&mut self, view: &Watched<'_>, now: Instant) -> bool {
-        let (Some(delay), Some(until)) = (self.delay, view.until) else {
-            return false;
-        };
-        let from = delay.fed;
-        // Once a tick: the lists are walked whole, and this runs for every
-        // datagram the server takes. What is due has its lead (`HORIZON_MS`)
-        // to spare.
-        if until / TICK_MS <= from / TICK_MS {
-            return false;
-        }
-        #[cfg(test)]
-        {
-            self.list_walks += 1;
-        }
-        for &(time, place, entered) in view.events {
-            if time > from && time <= until {
-                let message = if entered {
-                    ServerMessage::PlayerEntered {
-                        tick: tick_byte(time),
-                        player: place as u8,
-                    }
-                } else {
-                    ServerMessage::PlayerLeft {
-                        tick: tick_byte(time),
-                        player: place as u8,
-                    }
-                };
-                self.roster_change(place, entered, time, &message, now);
-            }
-        }
-        for (time, place, what) in view.inputs {
-            if *time > from && *time <= until {
-                self.relay(*place, &relay(*place, what), *time, view.clock, now);
-            }
-        }
-        if let Some(delay) = self.delay.as_mut() {
-            delay.fed = until;
-        }
-        true
-    }
-
     /// What its game may show of the kits: every place's playable ones, as a replay's viewer is
     /// told; a place is told once, and again when its kits change (a late joiner's). Only once
     /// it watches.
@@ -1230,10 +1058,9 @@ impl Spectator {
             }
             Watch::Live { .. } => {
                 let until = relay_deadline(0, clock, time, now);
-                let sent = self
+                let _ = self
                     .transport
                     .send_until(message.id(), &message.payload(), until);
-                self.track(sent);
             }
             Watch::Syncing {
                 time: from_time, ..
@@ -1268,8 +1095,7 @@ impl Spectator {
                 self.wait_again();
             }
             Watch::Live { .. } => {
-                let sent = self.transport.send(message.id(), &message.payload());
-                self.track(sent);
+                let _ = self.transport.send(message.id(), &message.payload());
             }
             Watch::Syncing { time, .. } if entered && at > time => {
                 self.send_waiting(message, now);
@@ -1294,7 +1120,7 @@ impl Spectator {
     }
 
     /// Its turn of a poll: one that waits starts from the world at `start`
-    /// (0xE5 of its next generation), once it may ([`Self::may_start`]); one timed gets its 0xE5 again; one
+    /// (0xE5 of its next generation); one timed gets its 0xE5 again; one
     /// whose world is in watches (the leaves since its world). Each waits
     /// for a world again past its wait.
     pub(super) fn step(
@@ -1308,9 +1134,8 @@ impl Spectator {
         match self.stage {
             Watch::Waiting => {
                 if let Some(time) =
-                    start.filter(|_| self.installed_roster >= watched.roster && self.may_start(now))
+                    start.filter(|_| self.installed_roster >= watched.roster)
                 {
-                    self.starts.last = Some(now);
                     self.generation = self.generation.next();
                     self.forget_timeline(now);
                     self.send_time(self.generation.0, echo, clock);
@@ -1339,17 +1164,16 @@ impl Spectator {
                     for &(at, who, _) in watched
                         .events
                         .iter()
-                        .filter(|(at, _, entered)| !*entered && *at > time && watched.due(*at))
+                        .filter(|(at, _, entered)| !*entered && *at > time)
                     {
                         let leave = ServerMessage::PlayerLeft {
                             tick: tick_byte(at),
                             player: who as u8,
                         };
-                        let sent = self.transport.send(leave.id(), &leave.payload());
-                        self.track(sent);
+                        let _ = self.transport.send(leave.id(), &leave.payload());
                     }
                     self.go(Step::WorldIn);
-                    self.starts.ring_redos = 0;
+                    self.ring_redos = 0;
                     log::info!(
                         "Match {:#x}: spectator {:#x} watches",
                         watched.id,
@@ -1415,35 +1239,25 @@ impl Spectator {
 
     /// Whether its room called it back ([`Self::recall`]).
     pub(super) fn is_recalled(&self) -> bool {
-        self.recall.is_some()
+        self.recall_at.is_some()
     }
 
-    /// Its room calls it back: asked each turn while it does. Let go
-    /// [`replay_control::RECALL_SECONDS`] after the first call, and its game
-    /// told the seconds left (`ServerNote::Recall`) once, as soon as it is
-    /// live: one called back while its world is on its way hears it when the
-    /// world is in. Whether those seconds are over.
+    /// Its room calls it back: asked each turn while it does. Its game is
+    /// told once (`ServerNote::Recall`, a note: only while it is live) and
+    /// let go [`replay_control::RECALL_SECONDS`] after the first call.
+    /// Whether those seconds are over.
     pub(super) fn recall(&mut self, now: Instant) -> bool {
-        let due = match self.recall {
-            Some(Recall::Told { due }) => return now >= due,
-            Some(Recall::Untold { due }) => due,
-            None => now + Duration::from_secs(replay_control::RECALL_SECONDS.into()),
+        let due = match self.recall_at {
+            Some(due) => due,
+            None => {
+                self.note(&replay_control::ServerNote::recall(
+                    replay_control::RECALL_SECONDS,
+                ));
+                let due = now + Duration::from_secs(replay_control::RECALL_SECONDS.into());
+                self.recall_at = Some(due);
+                due
+            }
         };
-        // Whole seconds, rounded up: never told less than is left.
-        let left = due
-            .saturating_duration_since(now)
-            .as_millis()
-            .div_ceil(1_000);
-        let seconds = u8::try_from(left).unwrap_or(u8::MAX);
-        let told = seconds > 0
-            && self
-                .note(&replay_control::ServerNote::recall(seconds))
-                .is_some();
-        self.recall = Some(if told {
-            Recall::Told { due }
-        } else {
-            Recall::Untold { due }
-        });
         now >= due
     }
 
@@ -1504,45 +1318,32 @@ impl Spectator {
     /// longer than a world is waited for: a game that never acks must not
     /// pile them up, and every poll of the match thread walks the queue.
     fn send_waiting(&mut self, message: &ServerMessage, now: Instant) {
-        let sent = self.transport.send_kept_until(
+        let _ = self.transport.send_kept_until(
             message.id(),
             &message.payload(),
             WAITING_RELAY_RESEND,
             now + WORLD_WAIT,
         );
-        self.track(sent);
     }
 
-    /// A relay or roster change of its current start went: kept until its
-    /// next start ([`Self::forget_timeline`]). Those in or given up are
-    /// dropped from the list as more go, so it stays about as long as what
-    /// its game has not acked.
-    fn track(&mut self, sent: Result<u64, SendError>) {
-        let Ok(serial) = sent else {
-            return;
-        };
-        if self.timeline.len() > 2 * self.transport.backlog() + TIMELINE_SLACK {
-            let transport = &self.transport;
-            self.timeline.retain(|&serial| in_flight(transport, serial));
-        }
-        self.timeline.push(serial);
-    }
-
-    /// Its game starts from a world again: what went for its last start
-    /// goes no more. A copy of a relay or roster change carries a tick byte
-    /// and no generation, so one that came after the new 0xE5 would be read
-    /// against the new clock (a leave of then taking a place out of the new
-    /// world, an input of then played in it); the new start sends what is
-    /// due after its own world, as its first did. As a player's resync
-    /// forgets its roster changes (`clear_gate`).
+    /// Its game starts from a world again: the relays and roster changes of
+    /// its last start go no more. A copy of one carries a tick byte and no
+    /// generation, so one that came after the new 0xE5 would be read against
+    /// the new clock (a leave of then taking a place out of the new world, an
+    /// input of then played in it); the new start sends what is due after its
+    /// own world, as its first did. As a player's resync forgets its roster
+    /// changes (`clear_gate`).
     fn forget_timeline(&mut self, now: Instant) {
-        // In one pass: a game may keep thousands in flight, and start again
-        // each second.
-        let serials: std::collections::BTreeSet<u64> = std::mem::take(&mut self.timeline)
-            .into_iter()
-            .filter(|&serial| in_flight(&self.transport, serial))
-            .collect();
-        self.transport.forget_all(&serials, now);
+        self.transport.forget_ids(
+            &[
+                id::PLAYER_ENTERED,
+                id::PLAYER_LEFT,
+                id::INPUT_RELAY,
+                id::INPUT_RELAY_PRECISE,
+                id::PROFILE_INPUT_RELAY,
+            ],
+            now,
+        );
     }
 
     /// One step of its game's machine: the only place its stage is set.
@@ -1557,15 +1358,15 @@ impl Spectator {
     /// again from a newer one (true), as a player's slow load is done again
     /// ([`SLOW_LOADS_REDONE`] times in a row at most: then it goes on).
     fn ring_overrun(&mut self, fill: usize) -> bool {
-        if fill <= INPUT_RING_SAFE || self.starts.ring_redos >= SLOW_LOADS_REDONE {
+        if fill <= INPUT_RING_SAFE || self.ring_redos >= SLOW_LOADS_REDONE {
             return false;
         }
-        self.starts.ring_redos += 1;
+        self.ring_redos += 1;
         log::info!(
             "Spectator {:#x}: a place has {fill} inputs after its world, more than its game \
              keeps ({INPUT_RING_SAFE}; {} of {SLOW_LOADS_REDONE} times), so again from a newer one",
             self.session_id,
-            self.starts.ring_redos
+            self.ring_redos
         );
         self.wait_again();
         true
@@ -1575,7 +1376,7 @@ impl Spectator {
     /// as a player is resynced: [`RESYNCS_PER_MINUTE`] in [`RESYNC_WINDOW`],
     /// `interval` apart. If so, this start is counted.
     pub(super) fn take_drift_restart(&mut self, interval: Duration, now: Instant) -> bool {
-        let drift = &mut self.starts.drift;
+        let drift = &mut self.drift_restarts;
         while drift
             .front()
             .is_some_and(|at| now.saturating_duration_since(*at) >= RESYNC_WINDOW)

@@ -20,8 +20,7 @@ The spike (branch `spike/replay-stream`) proved it on a real game on 2026-11-07:
 2. The lobby answers at once with one `R1` row (`91`, `replay_watch.md` section 2): `R1;preparing;<id 8 hex>;2`, or why not: `off` (no recordings),
    `old_game` (revision below 14), `in_room` (the room has a use for the player now: its vote or a place in its
    match), `busy` (the player is in a match or queued, has a session already, has missed
-   `MISSES_ALLOWED` match ids lately, asked again within `START_EVERY` (2 s) of its last start, or
-   `SRP_REPLAY_WATCH_MAX` sessions run; a live match: full, not begun, or over; a match just ended
+   `MISSES_ALLOWED` match ids lately, or `SRP_REPLAY_WATCH_MAX` sessions run; a live match: full, not begun, or over; a match just ended
    whose recording is still being written, `Replays::writing`).
 3. The match server reads the match's newest `.srprec` from `SRP_RECORD_DIR` on a thread of its own
    (nice 19, one at a time; a recording already loaded for another session of that match is
@@ -46,9 +45,8 @@ The spike (branch `spike/replay-stream`) proved it on a real game on 2026-11-07:
    recording, the key frame, then the relays and roster changes at their recorded times.
 6. It ends when the game leaves (0xE0, Esc), its link goes, the recording ends, its room calls it
    back (`52 05`), the viewer asks Back (op 4), it has been
-   paused for 5 minutes (`playback::PAUSED_MOST`; the sessions are few), it has run its longest
-   (the recording's length and 15 minutes, or twice the length when that is more: `SESSION_SPARE`,
-   `Recording::session_most`), or its game leaves more than 4096 messages unacked
+   paused for 5 minutes (`playback::PAUSED_MOST`; the sessions are few), or its game leaves
+   more than 4096 messages unacked
    (`VIEWER_BACKLOG_MOST`). All but the game's own leave and its link go the same
    way: 0xEA naming 0xFF, then 7 s of silence, and patch 178 takes the game back to the lobby. The
    session is over once the match server forgets the game.
@@ -104,8 +102,7 @@ clock):
   - the kits, `52 04 place mask`: which of a place's kits a spectator's chooser may show (a mask below
     `1 << KIT_NUMBERS`): each place's playable kits, used or not. A replay's once, after the events
     note; a live match's once the spectator watches, and again for a place whose kits change (a late
-    joiner's) (the owner's of 2026-11-10: a live spectator was
-    told only the kits a place had played by its delayed clock; that rule is gone).
+    joiner's) (the owner's of 2026-11-10).
   - the recall, `52 05 seconds` (`ServerNote::Recall`, `RECALL_SECONDS` 5): the watcher's room calls it
     back; the server lets the game go that many seconds after the note.
 
@@ -155,8 +152,7 @@ watching.
 Track C's Live window (the "Matches now" tab revived), `lobby-server/src/v026g/live.rs`. Each row
 is a `91` row at the request's start plus its index.
 
-- **List**: `3B 00 <LIVE_START = 2 240 000 000> <count <= 20>` (polled every 5 s): `L0;<n>;<delay s>`
-  (`SRP_LIVE_WATCH_DELAY_S`, so a card can say how far behind a watch is), then
+- **List**: `3B 00 <LIVE_START = 2 240 000 000> <count <= 20>` (polled every 5 s): `L0;<n>`, then
   `L1;<match 8 hex>;<map id>;<mode>;<phase>;<players a>;<players b>;<score a|->;<score b|->;
   <played s>;<spectators>;<watch>`; `phase` 0 made, 1 countdown, 2 in play, 3 over; `watch` 1 may,
   0 full, 2 not watchable (fixed rosters, which take no spectator, or over). A private room's match is not
@@ -165,24 +161,18 @@ is a `91` row at the request's start plus its index.
   match (the Watch hub's pinned cards, the friends list's Spectate).
 - **Roster**: `3D 00 <LIVE_ROSTER_ASK = 0xFFFF_FF06> <match>` chooses the match, then
   `3B 00 <LIVE_ROSTER_START = 2 241 000 000> <count <= 24>`: `L2;<match 8 hex>;<place>;<team>;
-  <kills>;<deaths>;<name>` for each place present now (kills and deaths of a trusted world at least
-  58 s behind, the longest Live delay, so they never say who died before the picture does).
+  <kills>;<deaths>;<name>` for each place present now (kills and deaths of the newest trusted
+  world).
 - **Watch**: the replay session's ask (`0xC0000000 | place << 16 | seconds`) for a match still
-  being played (countdown or in play) sends the game to it as #1285's spectators are sent, but
-  `SRP_LIVE_WATCH_DELAY_S` (default 30, at most 58: a match keeps 60 s to start from) behind, so nobody calls a friend the positions: answered
-  `R1;watching;<match>;0`, `busy` when full (`SRP_LIVE_WATCH_PER_MATCH`, default 4;
+  being played (countdown or in play) sends the game to it as #1285's spectators are sent, as it
+  is played (the owner's of 2026-11-22: the game is public, anyone may watch, with no delay):
+  answered `R1;watching;<match>;0`, `busy` when full (`SRP_LIVE_WATCH_PER_MATCH`, default 4;
   `SRP_LIVE_WATCH_MAX`, default 8, of all matches) not begun or over, `not_yours` when not watchable.
   A match gone from the live list gets its recording, as above.
-- **Behind the match** (`game/spectate.rs`, `WatchKind::Live`): the match keeps its trusted worlds
-  of the last 60 s (as its inputs); a delayed spectator starts from the newest at least 250 ms
-  behind its clock (and fresh enough for the inputs since, 1.5 s) and gets the relays and roster
-  changes from the match's lists as its clock reaches them, never as they are played. Queue and
-  spectate is the same (`WatchKind::Queued { delay }`, the owner's of 2026-11-09: one rule for all
-  live watching, so nobody calls a friend the positions). The delay of a watcher is at least 1 s
-  (`LEAST_BEHIND`: nearer, an input on its way would be behind what it has been fed), so a delay
-  of 0 is 1 s. A room's queue never ends a Live one. Not yet: a delayed spectator is let go at the match's end with the players, so the last
-  delay of the match is not shown; a late joiner who entered within the delay has a place in its
-  0xE4 before the world shows it (as a replay's late install).
+- **The spectator** (`game/spectate.rs`, `WatchKind::Live` and Queue and spectate's
+  `WatchKind::Queued` alike): it starts from the match's newest trusted world fresh enough to start
+  from (`Game::spectator_start`; the players are asked for one when there is none)
+  and gets every relay and roster change as the players do. A room's queue never ends a Live one.
 
 ## Opening a saved file (not built)
 

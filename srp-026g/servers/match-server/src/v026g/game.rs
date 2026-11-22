@@ -318,10 +318,6 @@ const CANDIDATE_WAIT: Duration = Duration::from_secs(3);
 const ASKED_FOR: Duration = Duration::from_secs(6);
 /// Hash reports are kept this long (match ms).
 const HASH_KEEP_MS: u32 = 30_000;
-/// The players' majorities are kept this long (match ms): a spectator at
-/// the longest Live delay reports ticks that far back, and its horizon and
-/// the settling a little more.
-const SETTLED_KEPT_MS: u32 = session::LiveDelay::MAX_SECONDS as u32 * 1000 + 5_000;
 /// The match ends this long after the clients' time limit.
 const END_GRACE_MS: u32 = 2_000;
 /// A match without a client for this long is over.
@@ -340,8 +336,6 @@ const INPUT_MAX_AGE_MS: u32 = 5_000;
 /// Relayed inputs are kept this long for clients that start from a
 /// snapshot (none older than `TICK_REACH_MS` is started from).
 const INPUTS_KEPT_MS: u32 = 60_000;
-// The longest live delay must still find a start: all of `delayed_start`'s window is kept.
-const _: () = assert!(session::LiveDelay::MAX_SECONDS as u32 * 1000 + FRESH_SNAPSHOT_MS <= INPUTS_KEPT_MS);
 /// Rejected or unchecked snapshots saved at most this many times a match.
 const MAX_DOUBTFUL_DUMPS: u32 = 40;
 /// The worlds of players found out of step asked for (`ask_wrong_world`):
@@ -1003,14 +997,6 @@ pub(crate) struct Game {
     snapshot: Option<Snapshot>,
     /// The newest upload no majority contradicts, checked or not.
     recent: Option<Snapshot>,
-    /// The trusted worlds of the last [`INPUTS_KEPT_MS`], oldest first: where
-    /// a Live window's spectator, behind the match, starts (`spectate`);
-    /// each with its 0xE8 past the generation byte, made once for every
-    /// spectator started from it.
-    past: VecDeque<(Snapshot, OnceLock<Vec<u8>>)>,
-    /// The places' kills and deaths of the trusted worlds, told behind the
-    /// match (`live`).
-    live_records: live::DelayedRecords,
     requested_at: Option<Instant>,
     candidates: Vec<Candidate>,
     /// Everything relayed: its time, whose it is, what.
@@ -1020,10 +1006,6 @@ pub(crate) struct Game {
     /// CRC reports by tick and client.
     hashes: BTreeMap<u32, HashMap<usize, u32>>,
     hashes_checked_until: u32,
-    /// The players' majority of each tick judged, oldest first, for the
-    /// last [`SETTLED_KEPT_MS`]: what a spectator behind the match by up to
-    /// the longest Live delay is judged against (`judge_spectators`).
-    settled_hashes: VecDeque<(u32, u32)>,
     /// Reports for ticks up to this are not judged: the games were
     /// installing a new place then ([`Game::installing`]).
     hashes_unjudged_until: u32,
@@ -1128,15 +1110,12 @@ impl Game {
             clock_start: None,
             snapshot: None,
             recent: None,
-            past: VecDeque::new(),
-            live_records: live::DelayedRecords::default(),
             requested_at: None,
             candidates: Vec::new(),
             inputs: Vec::new(),
             events: Vec::new(),
             hashes: BTreeMap::new(),
             hashes_checked_until: 0,
-            settled_hashes: VecDeque::new(),
             hashes_unjudged_until: 0,
             hash_unshared_since: None,
             hash_starved: false,
@@ -2320,6 +2299,7 @@ impl Game {
                 track(peer, serial, Flight::Roster(message.clone()), at);
             }
         }
+        self.roster_to_spectators(index, entered, at, &message, now);
         self.events.push((at, index, entered));
         let bot = self.is_bot(index);
         if let Some(recording) = self.recording.as_mut() {
@@ -4109,6 +4089,7 @@ impl Game {
                 _ => {}
             }
         }
+        self.relay_to_spectators(index, &message, time, now);
     }
 
     /// A client's whole world came (its 0xE0 chunks).
@@ -4289,7 +4270,6 @@ impl Game {
         self.rule.on_match_ready(snapshot.time);
         self.dump(&snapshot, index, "initial");
         self.observe(&snapshot, 1);
-        self.keep_past(&snapshot);
         self.snapshot = Some(snapshot);
         Verdict::Passed
     }
@@ -4525,10 +4505,6 @@ impl Game {
                 *slot = Supplies::read(&block, profile, Dictionary::shared());
             }
         }
-        if let Some(rules) = &decoded.rules {
-            self.live_records
-                .observe(snapshot.time, &rules.kills_deaths);
-        }
         self.state = Some(Observed {
             time: snapshot.time,
             vouchers: vouchers.min(usize::from(u8::MAX)) as u8,
@@ -4698,7 +4674,6 @@ impl Game {
                             candidate.snapshot.time
                         );
                     }
-                    self.keep_past(&candidate.snapshot);
                     self.record_accepted_world(&candidate.snapshot, now);
                     self.snapshot = Some(candidate.snapshot);
                     self.requested_at = None;
@@ -4975,11 +4950,7 @@ impl Game {
             .collect();
         for time in times {
             let (wrong, right) = self.judge(time, now);
-            let majority = self.majority(time);
-            if let Some(crc) = majority {
-                self.settled_hashes.push_back((time, crc));
-            }
-            let strict = majority.is_some();
+            let strict = self.majority(time).is_some();
             for index in wrong {
                 self.note_report(index, time, false, strict, now);
             }
@@ -4990,14 +4961,6 @@ impl Game {
         self.hashes_checked_until = self.hashes_checked_until.max(settled);
         let keep_from = clock.saturating_sub(HASH_KEEP_MS);
         self.hashes = self.hashes.split_off(&keep_from);
-        let settled_from = clock.saturating_sub(SETTLED_KEPT_MS);
-        while self
-            .settled_hashes
-            .front()
-            .is_some_and(|&(time, _)| time < settled_from)
-        {
-            self.settled_hashes.pop_front();
-        }
         let desynced: Vec<usize> = self
             .peers
             .iter()

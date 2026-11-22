@@ -29,9 +29,8 @@
 //! started again (its world waits for that note to be in); the speed asked
 //! applies from when its world is in, told in the note that goes then.
 //! Pause stops the clock and play resumes it in place; speed scales
-//! it; a seek starts the game again (0xE5 of its
-//! next generation, the world; no sooner than `spectate::START_EVERY` after
-//! the last start) from the key frame at or before the time,
+//! it; a seek starts the game again (0xE5 of its next generation, the
+//! world; one start a world) from the key frame at or before the time,
 //! put as far past it as the game's input lists reach ([`Recording::reach`]).
 //! The end of the recording lets the game go (0xEA naming no place), as
 //! the end of a live match does. The controls come from the game (`replay_control::Request`), and the
@@ -60,7 +59,7 @@ use udp_transport::table::{Direction, Table};
 use udp_transport::wire;
 
 use super::kit_view::all_kits;
-use super::spectate::{BACKLOG_MOST, Heard, Spectator, Starts, Watched};
+use super::spectate::{BACKLOG_MOST, Heard, Spectator, Watched};
 use super::*;
 use crate::v026g::sur::{self, record_type};
 use crate::v026g::{record, replay, sur_convert};
@@ -111,10 +110,8 @@ pub(crate) const PAUSED_MOST: Duration = Duration::from_secs(5 * 60);
 const VIEWER_BACKLOG_MOST: usize = 2 * BACKLOG_MOST;
 /// A game whose reported world is this far from where the playback has it
 /// ([`DRIFT_REPORTS`] in a row) is started again from a world: the
-/// fallback for a game that did not freeze or scale its clock as told. No
-/// more often than a live match's spectator is for being out of step
-/// (`Spectator::take_drift_restart`). Judged past the round trip at the
-/// playback's speed ([`Playback::judge_drift`]): a report is that old when
+/// fallback for a game that did not freeze or scale its clock as told.
+/// Judged past the round trip at the playback's speed ([`Playback::judge_drift`]): a report is that old when
 /// it comes, and a speed's note reaches the game that late; at 8x a 500 ms
 /// round trip is 4 s of match time.
 const DRIFT_MS: i64 = 2_000;
@@ -123,10 +120,6 @@ const DRIFT_MS: i64 = 2_000;
 /// plays no match.
 const ROUND_TRIP_MOST_MS: u32 = 2_000;
 const DRIFT_REPORTS: u8 = 3;
-/// A session lasts at most its recording's length and this (paused, sought
-/// back), or twice its length when that is more: then it is shown the end,
-/// as at the recording's. Its session is one of a few.
-const SESSION_SPARE: Duration = Duration::from_secs(15 * 60);
 
 /// A recording made into what a game is shown.
 pub(crate) struct Recording {
@@ -363,12 +356,6 @@ impl Recording {
         self.countdown_end = None;
     }
 
-    /// The longest a session of it lasts ([`SESSION_SPARE`]).
-    pub(crate) fn session_most(&self) -> Duration {
-        let length = Duration::from_millis(self.end.into());
-        (length + SESSION_SPARE).max(length * 2)
-    }
-
     /// How many of its first `due` inputs may have gone to a game whose
     /// clock is at `clock`, `sent` of them gone already: up to the first
     /// that would put more than [`RELAYED_AHEAD_MOST`] of its player's past
@@ -447,16 +434,6 @@ fn relay_lead(speed: Speed) -> u32 {
     (RELAY_LEAD_MS * u32::from(speed.percent()) / 100).clamp(RELAY_LEAD_MS, RELAY_LEAD_MOST_MS)
 }
 
-/// A pause or a play its viewer asked for while its world is on its way:
-/// taken by the clock once the world is in, when its game is told it (a
-/// playback note goes only to a live game, and until one does its game's
-/// clock does what it was last told).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Wish {
-    Play,
-    Pause,
-}
-
 /// The playback clock: match time, by the wall clock.
 #[derive(Clone, Copy, Debug)]
 enum Clock {
@@ -464,20 +441,12 @@ enum Clock {
     /// again from one): the clock waits at `at`, where [`Recording::reach`]
     /// put it, until the world goes with its 0xE5 of that time; from then it
     /// runs, as the game's own clock runs from that 0xE5 through the load
-    /// (`match.md` section 27). `then`: what it does once the world is in.
-    Starting {
-        at: u32,
-        then: Wish,
-    },
+    /// (`match.md` section 27).
+    Starting { at: u32 },
     /// Its world went with its 0xE5 and is on its way: at `at` at `since`,
     /// running at 1x, as the game's clock (told 1x for a world,
-    /// [`GameSpeed`]) does through the load, until the world is in; then
-    /// `then`, from where it is.
-    Loading {
-        since: Instant,
-        at: u32,
-        then: Wish,
-    },
+    /// [`GameSpeed`]) does through the load, until the world is in.
+    Loading { since: Instant, at: u32 },
     /// Its game has its world: at `at` at `since`, running at the
     /// playback's speed.
     Playing {
@@ -489,46 +458,19 @@ enum Clock {
     /// `since`: when it paused (a seek keeps it: [`PAUSED_MOST`] counts
     /// from there).
     Paused { at: u32, ping: Instant, since: Instant },
-    /// Paused, its world on its way, and play asked meanwhile: its game's
-    /// clock stands at `at` (told paused) until it is live and told to
-    /// play; the clock plays from there then.
-    Resuming { at: u32 },
 }
 
-impl Clock {
-    /// Its viewer's pause or play, the clock at `at`: taken now while its
-    /// game is `live` (told it in the note that goes then), else once its
-    /// world is in ([`Playback::follow_world`]).
-    fn asked(self, wish: Wish, at: u32, live: bool, now: Instant) -> Self {
-        let paused = || Clock::Paused {
-            at,
-            ping: now + PAUSED_PING_EVERY,
-            since: now,
-        };
-        match (self, wish) {
-            (Clock::Starting { at, .. }, then) => Clock::Starting { at, then },
-            (Clock::Loading { since, at, .. }, then) => Clock::Loading { since, at, then },
-            (Clock::Playing { .. } | Clock::Resuming { .. }, Wish::Pause) => paused(),
-            (Clock::Paused { at, .. }, Wish::Play) if live => Clock::Playing { since: now, at },
-            (Clock::Paused { at, .. }, Wish::Play) => Clock::Resuming { at },
-            (clock @ (Clock::Playing { .. } | Clock::Resuming { .. }), Wish::Play)
-            | (clock @ Clock::Paused { .. }, Wish::Pause) => clock,
-        }
-    }
-}
-
-/// What its game's clock was told (in its playback notes; the viewer's
-/// patch sets the clock's time scale and freezes it by the newest it takes,
-/// and keeps them through a world's load). A world goes only to a game told
-/// 1x, frozen exactly when its start is paused: its 0xE5 waits for the note
-/// to be in.
+/// The speed its game's clock was told (in its playback notes; the viewer's
+/// patch sets the clock's time scale by the newest it takes, and keeps it
+/// through a world's load). A world goes only to a game told 1x: its 0xE5
+/// waits for the note to be in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum GameSpeed {
-    /// At this speed, frozen or not (a game new to its match runs at 1x).
-    Told { speed: Speed, paused: bool },
-    /// Told 1x, frozen or not, for the world it starts again from, in the
-    /// note `serial`, not yet acked.
-    Slowing { serial: u64, paused: bool },
+    /// At this speed (a game new to its match runs at 1x).
+    Told(Speed),
+    /// Told 1x for the world it starts again from, in the note of this
+    /// serial, not yet acked.
+    Slowing(u64),
 }
 
 /// What became of a playback.
@@ -570,16 +512,14 @@ struct Playback {
     /// Its reports in a row far from the playback ([`DRIFT_MS`]).
     drift: u8,
     /// The latest seek its game asked for while a world was on its way to
-    /// it, or before it may start again (`Spectator::may_start`): taken
-    /// once that world is in or given up and it may ([`Self::poll`]), so
+    /// it: taken once that world is in or given up ([`Self::poll`]), so
     /// that its game starts again at most once a world.
     sought: Option<u32>,
     /// How many of the recording's inputs and roster changes have gone to
     /// it as they came due (those since its world go with the world).
     inputs: usize,
     events: usize,
-    /// When its session's game first connected (again from another address,
-    /// the same): the session ends [`Recording::session_most`] after.
+    /// When its game connected: its 0xE5s' echoes count from there.
     created: Instant,
     settings: Settings,
 }
@@ -598,17 +538,11 @@ impl Playback {
             recording,
             request,
             spectator,
-            clock: Clock::Starting {
-                at: start,
-                then: Wish::Play,
-            },
+            clock: Clock::Starting { at: start },
             sought: None,
             recalled: false,
             speed: Speed::Normal,
-            game_speed: GameSpeed::Told {
-                speed: Speed::Normal,
-                paused: false,
-            },
+            game_speed: GameSpeed::Told(Speed::Normal),
             last_request: None,
             told: None,
             revision: 0,
@@ -625,8 +559,8 @@ impl Playback {
     /// The playback clock.
     fn position(&self, now: Instant) -> u32 {
         match self.clock {
-            Clock::Starting { at, .. } | Clock::Paused { at, .. } | Clock::Resuming { at } => at,
-            Clock::Loading { since, at, .. } => {
+            Clock::Starting { at } | Clock::Paused { at, .. } => at,
+            Clock::Loading { since, at } => {
                 at + played(Speed::Normal, now.saturating_duration_since(since))
             }
             Clock::Playing { since, at } => {
@@ -641,10 +575,7 @@ impl Playback {
     fn pace(&self) -> Speed {
         match self.clock {
             Clock::Playing { .. } => self.speed,
-            Clock::Starting { .. }
-            | Clock::Loading { .. }
-            | Clock::Paused { .. }
-            | Clock::Resuming { .. } => Speed::Normal,
+            Clock::Starting { .. } | Clock::Loading { .. } | Clock::Paused { .. } => Speed::Normal,
         }
     }
 
@@ -677,7 +608,6 @@ impl Playback {
             sent_worlds: recording.sent_worlds.iter().collect(),
             inputs: &recording.inputs[..self.inputs],
             events: &recording.events[..self.events],
-            until: None,
             compress: self.settings.compress_state,
             entry_state: self.settings.timing.entry_state,
         }
@@ -743,14 +673,30 @@ impl Playback {
             self.recording.match_id
         );
         match op {
-            // Taken as its game takes it: now when it is live (its clock
-            // stands or plays on from where the playback is, the relays
-            // with it), else once its world is in, where its clock is then.
-            // One whose clock did otherwise is caught by its reports
-            // ([`DRIFT_MS`]).
-            Op::Pause(paused) => {
-                let wish = if paused { Wish::Pause } else { Wish::Play };
-                self.clock = self.clock.asked(wish, at, self.spectator.is_live(), now);
+            // Taken now; its game is told once it is live (a pause during a
+            // load is off by the load until the next start). One whose
+            // clock did otherwise is caught by its reports ([`DRIFT_MS`]).
+            Op::Pause(true) => {
+                if let Clock::Playing { .. } | Clock::Loading { .. } | Clock::Starting { .. } =
+                    self.clock
+                {
+                    self.clock = Clock::Paused {
+                        at,
+                        ping: now + PAUSED_PING_EVERY,
+                        since: now,
+                    };
+                }
+            }
+            Op::Pause(false) => {
+                if let Clock::Paused { at, .. } = self.clock {
+                    self.clock = if self.spectator.is_live() {
+                        Clock::Playing { since: now, at }
+                    } else if self.spectator.world_sent() {
+                        Clock::Loading { since: now, at }
+                    } else {
+                        Clock::Starting { at }
+                    };
+                }
             }
             // Taken by the clock now when its game has its world (told it
             // in the note that goes then), else once it is in: a world's
@@ -771,9 +717,7 @@ impl Playback {
 
     /// A hash report of its game (its event-horizon world, [`EVENT_HORIZON_MS`]
     /// behind its clock) against the playback: [`DRIFT_REPORTS`] in a row
-    /// [`DRIFT_MS`] off and it starts again from where the playback is, once
-    /// it may (`Spectator::may_start`, and as rarely as a live match's
-    /// spectator); until then each report more off tries again.
+    /// [`DRIFT_MS`] off and it starts again from where the playback is.
     ///
     /// A game in step is behind the playback, while the clock plays, by its
     /// report's way (half a round trip, at the speed) and by the way of the
@@ -795,10 +739,7 @@ impl Playback {
                 i64::from(played(self.speed, Duration::from_millis(way.into())))
                     - i64::from(way / 2)
             }
-            Clock::Starting { .. }
-            | Clock::Loading { .. }
-            | Clock::Paused { .. }
-            | Clock::Resuming { .. } => 0,
+            Clock::Starting { .. } | Clock::Loading { .. } | Clock::Paused { .. } => 0,
         };
         let off = i64::from(reported) + i64::from(EVENT_HORIZON_MS) - i64::from(at) + behind;
         if off.abs() < DRIFT_MS {
@@ -806,12 +747,7 @@ impl Playback {
             return;
         }
         self.drift = self.drift.saturating_add(1);
-        if self.drift >= DRIFT_REPORTS
-            && self.spectator.may_start(now)
-            && self
-                .spectator
-                .take_drift_restart(self.settings.timing.resync_interval, now)
-        {
+        if self.drift >= DRIFT_REPORTS {
             log::info!(
                 "Replay {:#x}: its game is {off} ms off the playback at {at} ms; started again",
                 self.spectator.session_id()
@@ -829,82 +765,41 @@ impl Playback {
     fn restart(&mut self, time: u32, now: Instant) {
         let at = self.recording.seek_to(time);
         let paused = match self.clock {
-            Clock::Starting { then, .. } | Clock::Loading { then, .. } => {
-                self.clock = Clock::Starting { at, then };
-                false
-            }
-            Clock::Playing { .. } => {
-                self.clock = Clock::Starting {
-                    at,
-                    then: Wish::Play,
-                };
+            Clock::Starting { .. } | Clock::Loading { .. } | Clock::Playing { .. } => {
+                self.clock = Clock::Starting { at };
                 false
             }
             Clock::Paused { ping, since, .. } => {
                 self.clock = Clock::Paused { at, ping, since };
                 true
             }
-            Clock::Resuming { .. } => {
-                self.clock = Clock::Resuming { at };
-                true
-            }
         };
-        // Told another speed, or a pause other than this start's (a pause
-        // or play asked with the seek, not told yet): told 1x and this
-        // start's pause first. (One being told them already keeps that note.)
-        match self.game_speed {
-            GameSpeed::Told { speed, paused: was } if speed != Speed::Normal || was != paused => {
-                self.slow_to_world(paused, now);
+        if let GameSpeed::Told(speed) = self.game_speed
+            && speed != Speed::Normal
+        {
+            self.send_playback(paused, Speed::Normal, now);
+            if let Some(serial) = self.playback_note {
+                self.game_speed = GameSpeed::Slowing(serial);
             }
-            GameSpeed::Slowing { paused: was, .. } if was != paused => {
-                self.slow_to_world(paused, now);
-            }
-            // Told them in a note not acked yet (it may be lost, and sent
-            // again): the world waits for it as for a new one.
-            GameSpeed::Told { .. } => {
-                if let Some(serial) = self
-                    .playback_note
-                    .filter(|&serial| !self.spectator.is_delivered(serial))
-                {
-                    self.game_speed = GameSpeed::Slowing { serial, paused };
-                }
-            }
-            GameSpeed::Slowing { .. } => {}
         }
         (self.inputs, self.events) = self.recording.due(at, relay_lead(Speed::Normal));
         self.spectator.wait_again();
         self.told = None;
     }
 
-    /// Its game told 1x and `paused` for the world it starts again from.
-    fn slow_to_world(&mut self, paused: bool, now: Instant) {
-        self.send_playback(paused, Speed::Normal, now);
-        if let Some(serial) = self.playback_note {
-            self.game_speed = GameSpeed::Slowing { serial, paused };
-        }
-    }
-
     /// The clock follows its game's: from its world's 0xE5 of the time it
     /// waits at, it runs at 1x through the load; from when that world is in,
-    /// at the speed asked, or paused if that was asked meanwhile (its game
-    /// told it now, [`Self::tell`]). One paused through the load, asked to
-    /// play, plays from where it stood.
+    /// at the speed asked (its game told it now, [`Self::tell`]).
     fn follow_world(&mut self, now: Instant) {
-        let live = self.spectator.is_live();
         match self.clock {
-            Clock::Starting { at, then } if self.spectator.world_sent() => {
-                self.clock = Clock::Loading {
+            Clock::Starting { at } if self.spectator.world_sent() => {
+                self.clock = Clock::Loading { since: now, at };
+            }
+            Clock::Loading { .. } if self.spectator.is_live() => {
+                self.clock = Clock::Playing {
                     since: now,
-                    at,
-                    then,
+                    at: self.position(now),
                 };
-            }
-            Clock::Loading { then, .. } if live => {
-                let at = self.position(now);
-                self.clock = Clock::Playing { since: now, at }.asked(then, at, live, now);
-            }
-            Clock::Resuming { at } if live => {
-                self.clock = Clock::Playing { since: now, at };
             }
             _ => {}
         }
@@ -915,14 +810,11 @@ impl Playback {
     /// when it was last live, and only a start again ends that.)
     fn takes_world(&mut self) -> bool {
         match self.game_speed {
-            GameSpeed::Told { .. } => true,
-            GameSpeed::Slowing { serial, paused } => {
+            GameSpeed::Told(_) => true,
+            GameSpeed::Slowing(serial) => {
                 let slowed = self.spectator.is_delivered(serial);
                 if slowed {
-                    self.game_speed = GameSpeed::Told {
-                        speed: Speed::Normal,
-                        paused,
-                    };
+                    self.game_speed = GameSpeed::Told(Speed::Normal);
                 }
                 slowed
             }
@@ -965,10 +857,7 @@ impl Playback {
         }
         let note = self.send_playback(paused, self.speed, now);
         if self.playback_note.is_some() {
-            self.game_speed = GameSpeed::Told {
-                speed: self.speed,
-                paused,
-            };
+            self.game_speed = GameSpeed::Told(self.speed);
         }
         if fresh {
             for serial in std::mem::take(&mut self.timeline_notes) {
@@ -1012,10 +901,9 @@ impl Playback {
             return (Vec::new(), Some(Ended::Left));
         }
         let before = self.spectator.stage();
-        // A seek once no world is on its way and the last start again is
-        // far enough behind: one start again a world, the latest asked for.
+        // A seek once no world is on its way: one start again a world, the
+        // latest asked for.
         if (self.spectator.is_live() || self.spectator.is_waiting())
-            && self.spectator.may_start(now)
             && let Some(time) = self.sought.take()
         {
             self.restart(time, now);
@@ -1038,15 +926,13 @@ impl Playback {
             self.clock,
             Clock::Paused { since, .. } if now.saturating_duration_since(since) >= PAUSED_MOST
         );
-        // Called back: told once its game is live, and let go `RECALL_SECONDS`
-        // after the call.
+        // Called back: told once, and let go `RECALL_SECONDS` after the call.
         if self.recalled && !self.spectator.is_recalled() {
             log::info!("Replay {session_id:#x}: its player's room calls it back");
         }
         let recall_due = self.recalled && self.spectator.recall(now);
         let flooded = self.spectator.flooded(VIEWER_BACKLOG_MOST);
-        let too_long = now.saturating_duration_since(self.created) >= self.recording.session_most();
-        if (at >= self.recording.end || paused_out || too_long || recall_due || flooded)
+        if (at >= self.recording.end || paused_out || recall_due || flooded)
             && !self.spectator.is_leaving()
         {
             log::info!(
@@ -1057,8 +943,6 @@ impl Playback {
                     "let go, back to its player's room"
                 } else if paused_out {
                     "paused too long, its session goes to someone else"
-                } else if too_long {
-                    "its session ran its longest, it goes to someone else"
                 } else {
                     "the recording is over"
                 }
@@ -1075,10 +959,7 @@ impl Playback {
             Clock::Playing { .. } => {
                 recording.within_rings(self.inputs, self.game_clock(at), inputs)
             }
-            Clock::Starting { .. }
-            | Clock::Loading { .. }
-            | Clock::Paused { .. }
-            | Clock::Resuming { .. } => inputs,
+            Clock::Starting { .. } | Clock::Loading { .. } | Clock::Paused { .. } => inputs,
         };
         let (inputs, events) = (inputs.max(self.inputs), events.max(self.events));
         for &(time, index, entered) in &recording.events[self.events..events] {
@@ -1400,27 +1281,13 @@ impl ReplayWatch {
             .iter()
             .find(|(_, playback)| playback.request == request)
             .map(|(addr, _)| *addr);
-        // Its length counts from its first connection, its starts from a
-        // world go on from its last (each packs one), and it plays on from
-        // where the last connection was.
-        let (prepared, created, starts, start) = match again
-            .and_then(|old| self.playbacks.remove(&old))
-        {
-            Some(old) => {
-                // As a seek there: from a key frame its rings hold (`seek_to`).
-                let at = old.recording.seek_to(old.position(now));
-                (
-                    Prepared {
-                        request,
-                        recording: old.recording,
-                    },
-                    old.created,
-                    old.spectator.into_starts(),
-                    at,
-                )
-            }
+        let prepared = match again.and_then(|old| self.playbacks.remove(&old)) {
+            Some(old) => Prepared {
+                request,
+                recording: old.recording,
+            },
             None => match self.ready.remove(&session_id) {
-                Some(prepared) => (prepared, now, Starts::default(), start),
+                Some(prepared) => prepared,
                 None => {
                     // Read by a match server before a restart.
                     self.replays.watches().ended(&request);
@@ -1443,7 +1310,6 @@ impl ReplayWatch {
             sur::MAX_PLAYERS as u8,
             self.port,
             view,
-            starts,
         );
         let playback = Playback::new(
             prepared.recording,
@@ -1451,7 +1317,7 @@ impl ReplayWatch {
             spectator,
             start,
             self.settings.clone(),
-            created,
+            now,
         );
         self.playbacks.insert(addr, playback);
         Ok(())

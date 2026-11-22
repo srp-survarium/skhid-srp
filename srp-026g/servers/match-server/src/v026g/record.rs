@@ -42,24 +42,17 @@
 //! A file is written under `.part` from the match's first connection to its
 //! end. When its match closes it gets its name if [`Recording::entered`] has
 //! seen the minimum of players (never earlier: a replay is made of a closed
-//! match alone), else it is deleted. A `.part` a stopped server left is of a
-//! match that runs no more: at start it gets its name if it was kept (its
-//! `kept` note, written at once), else it is deleted. Kept files over
-//! `SRP_RECORD_MAX_MB` together
-//! are deleted oldest first. The writing and the packing are done on a
-//! thread of their own; the match loop only hands the bytes over, and drops
-//! them (counted) if that thread is behind by [`QUEUE`] records. The other
-//! jobs (open, the header, kept and closed notes, keep, close) are never
-//! dropped: a close lost would leave a kept recording under `.part`, with no
-//! replay, and a `kept` note lost would get it deleted after a stop.
+//! match alone), else it is deleted; a `.part` a stopped server left is
+//! deleted at start. Kept files over `SRP_RECORD_MAX_MB` together are
+//! deleted oldest first. The writing and the packing are done on a thread
+//! of their own; the match loop only hands the bytes over.
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::{self, BufWriter, Write};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, SyncSender};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::Arc;
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use session::v026g::replays::{ReplayId, Replays};
@@ -85,42 +78,8 @@ pub const NO_PLACE: u8 = 0xFF;
 const BLOCK_BYTES: usize = 1 << 20;
 /// ... or is this old.
 const BLOCK_EVERY: Duration = Duration::from_secs(20);
-/// Records the writing thread may be behind before new ones are dropped.
-/// Only records: its other jobs are always queued.
-const QUEUE: usize = 200_000;
 const PART: &str = "part";
 const EXTENSION: &str = "srprec";
-/// The note a recording gets once it is kept ([`Recording::entered`]).
-const KEPT_NOTE: &str = "kept";
-/// A server that ends waits this long at most for its writer to close its
-/// recordings ([`Recorder::finish`]).
-const FINISH_WAIT: Duration = Duration::from_secs(15);
-
-/// The `.part` files a writer of this process has open: each [`Open`]'s,
-/// claimed before the file is made and given back once it is named or
-/// deleted (or its writer is gone). [`Recorder::start`] leaves these alone.
-struct Writing(PathBuf);
-
-static WRITING: Mutex<BTreeSet<PathBuf>> = Mutex::new(BTreeSet::new());
-
-impl Writing {
-    fn all() -> MutexGuard<'static, BTreeSet<PathBuf>> {
-        WRITING.lock().unwrap_or_else(PoisonError::into_inner)
-    }
-
-    /// `None` while another writer of this process has it open.
-    fn claim(path: &Path) -> Option<Self> {
-        Self::all()
-            .insert(path.to_owned())
-            .then(|| Self(path.to_owned()))
-    }
-}
-
-impl Drop for Writing {
-    fn drop(&mut self) {
-        Self::all().remove(&self.0);
-    }
-}
 
 /// `SRP_RECORD_*`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -240,120 +199,41 @@ impl RecordSettings {
 enum Job {
     Open { match_id: u32, name: String },
     Record { match_id: u32, bytes: Vec<u8> },
-    /// A note the file must have (its header, `kept`, `closed`): outside
-    /// the records' bound.
-    Note { match_id: u32, bytes: Vec<u8> },
     Keep { match_id: u32 },
     Close { match_id: u32 },
-    /// Every recording still open is closed, then `done` is told
-    /// ([`Recorder::finish`]).
-    Finish { done: SyncSender<()> },
 }
 
 /// The writing thread's door: one for the match server, shared by its
-/// matches.
+/// matches. Unbounded: the match loop never waits for the writer, and
+/// nothing is dropped.
 #[derive(Clone)]
 pub(crate) struct Recorder {
-    /// Unbounded: the match loop never waits for the writer, and drops no
-    /// job but a record ([`Self::records`]).
     jobs: Sender<Job>,
-    /// [`Job::Record`]s queued and not yet taken by the writer, at most
-    /// [`QUEUE`]: the queue's bound.
-    records: Arc<AtomicUsize>,
     min_players: usize,
 }
 
 impl Recorder {
-    /// Starts the writing thread, after naming what a stopped server left
-    /// under `.part` (its matches run no more) if it was kept, and deleting
-    /// the rest. A `.part` a writer of this process still has open (the
-    /// last server's, given up on by its [`Self::finish`]) is left to it: it
-    /// names or deletes it at its close, with every record and its `kept`
-    /// note in (which may still be in its queue).
+    /// Starts the writing thread, after deleting what a stopped server left
+    /// under `.part`.
     pub fn start(settings: RecordSettings) -> io::Result<Self> {
         fs::create_dir_all(&settings.dir)?;
-        // Held over the walk: a `.part` listed is open or not for all of it.
-        let writing = Writing::all();
         for entry in fs::read_dir(&settings.dir)?.flatten() {
             let path = entry.path();
-            if !path.extension().is_some_and(|ext| ext == PART) {
-                continue;
-            }
-            if writing.contains(&path) {
-                log::warn!(
-                    "Recordings: {} is still being written by the last server's writer; left \
-                     to it",
-                    path.display()
-                );
-                continue;
-            }
-            // `<name>.srprec.part` -> `<name>.srprec`.
-            let named = path.with_extension("");
-            if was_kept(&path) && fs::rename(&path, &named).is_ok() {
+            if path.extension().is_some_and(|ext| ext == PART) {
                 log::info!(
-                    "Recordings: {} was a match still running when the server stopped; kept, \
-                     cut short",
-                    named.display()
-                );
-                if let Some(match_id) = match_of_file(&named) {
-                    settings.tell(|replays| replays.recording_kept(match_id));
-                }
-            } else {
-                log::info!(
-                    "Recordings: {} was a match still running when the server stopped, not \
-                     kept; deleted",
+                    "Recordings: {} was a match still running when the server stopped; \
+                     deleted",
                     path.display()
                 );
                 let _ = fs::remove_file(&path);
             }
         }
-        drop(writing);
         let (jobs, queue) = mpsc::channel();
-        let records = Arc::new(AtomicUsize::new(0));
         let min_players = settings.min_players;
-        let taken = records.clone();
         std::thread::Builder::new()
             .name("srp-record".into())
-            .spawn(move || Writer::new(settings, taken).run(queue))?;
-        Ok(Self {
-            jobs,
-            records,
-            min_players,
-        })
-    }
-
-    /// Waits until the writing thread has written and closed (named or
-    /// deleted) every recording it was given, those whose close it has not
-    /// reached yet too: the server's last act, once its matches' recordings
-    /// are dropped. `srp` starts a match server that panicked again in the
-    /// same process (`supervise`), and the new one serves no match before
-    /// this returns: no longer than [`FINISH_WAIT`] (a stalled disk, a
-    /// backlog of [`QUEUE`] records). Given up on, the thread goes on
-    /// writing and closing; the new [`Self::start`] leaves what it has
-    /// open to it.
-    pub fn finish(&self) {
-        self.finish_within(FINISH_WAIT);
-    }
-
-    /// [`Self::finish`], waiting no longer than `wait`: whether the thread
-    /// was done (or gone).
-    fn finish_within(&self, wait: Duration) -> bool {
-        let (done, finished) = mpsc::sync_channel(1);
-        // Either fails only with the thread gone: nothing of it is open.
-        if self.jobs.send(Job::Finish { done }).is_err() {
-            return true;
-        }
-        match finished.recv_timeout(wait) {
-            Ok(()) | Err(RecvTimeoutError::Disconnected) => true,
-            Err(RecvTimeoutError::Timeout) => {
-                log::warn!(
-                    "Recordings: the writer has not closed every recording in {} s; it goes on \
-                     alone, and what it has open is left to it",
-                    wait.as_secs()
-                );
-                false
-            }
-        }
+            .spawn(move || Writer::new(settings).run(queue))?;
+        Ok(Self { jobs, min_players })
     }
 
     /// The recording of a new match, named by its replay id: its header
@@ -375,7 +255,6 @@ impl Recorder {
             began: now,
             entered: HashSet::new(),
             kept: false,
-            dropped: 0,
         };
         recording.send(Job::Open { match_id, name });
         let mut header = header;
@@ -402,7 +281,6 @@ pub(crate) struct Recording {
     /// The places that entered, test bots not counted.
     entered: HashSet<usize>,
     kept: bool,
-    dropped: u64,
 }
 
 impl Recording {
@@ -410,57 +288,27 @@ impl Recording {
         now.saturating_duration_since(self.began).as_millis() as u32
     }
 
-    /// A job that is not a record: always queued. It fails only with the
-    /// writing thread gone, which has nothing of this match open then.
+    /// It fails only with the writing thread gone, which has nothing of
+    /// this match open then.
     fn send(&self, job: Job) {
         let _ = self.recorder.jobs.send(job);
     }
 
-    fn encode(&self, kind: u8, place: u8, bytes: &[u8], now: Instant) -> Vec<u8> {
+    fn record(&self, kind: u8, place: u8, bytes: &[u8], now: Instant) {
         let mut record = Vec::with_capacity(10 + bytes.len());
         record.push(kind);
         record.push(place);
         record.extend_from_slice(&self.at(now).to_le_bytes());
         record.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
         record.extend_from_slice(bytes);
-        record
-    }
-
-    /// A note the file must have, however far behind its writer is.
-    fn mark(&self, note: &serde_json::Value, now: Instant) {
-        self.send(Job::Note {
+        self.send(Job::Record {
             match_id: self.match_id,
-            bytes: self.encode(NOTE, NO_PLACE, note.to_string().as_bytes(), now),
+            bytes: record,
         });
     }
 
-    /// Queued unless the writer is [`QUEUE`] records behind: then dropped
-    /// (counted).
-    fn record(&mut self, kind: u8, place: u8, bytes: &[u8], now: Instant) {
-        let records = &self.recorder.records;
-        let room = records
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |queued| {
-                (queued < QUEUE).then_some(queued + 1)
-            })
-            .is_ok();
-        if !room {
-            if self.dropped == 0 {
-                log::warn!(
-                    "Match {:#x}: the recording's writer is behind; records are dropped",
-                    self.match_id
-                );
-            }
-            self.dropped += 1;
-            return;
-        }
-        let job = Job::Record {
-            match_id: self.match_id,
-            bytes: self.encode(kind, place, bytes, now),
-        };
-        if self.recorder.jobs.send(job).is_err() {
-            records.fetch_sub(1, Ordering::AcqRel);
-            self.dropped += 1;
-        }
+    fn mark(&self, note: &serde_json::Value, now: Instant) {
+        self.record(NOTE, NO_PLACE, note.to_string().as_bytes(), now);
     }
 
     /// A datagram the client at `place` sent.
@@ -511,10 +359,6 @@ impl Recording {
                 self.match_id,
                 self.entered.len()
             );
-            // In the file at once ([`Job::Keep`]): a `.part` with it is kept
-            // after a stop ([`Recorder::start`]).
-            let note = serde_json::json!({ "note": KEPT_NOTE, "players": self.entered.len() });
-            self.mark(&note, Instant::now());
             self.send(Job::Keep {
                 match_id: self.match_id,
             });
@@ -529,19 +373,10 @@ impl Recording {
 
 impl Drop for Recording {
     fn drop(&mut self) {
-        let dropped = self.dropped;
-        let players = self.entered.len();
-        if dropped > 0 {
-            log::warn!(
-                "Match {:#x}: its recording lost {dropped} records",
-                self.match_id
-            );
-        }
         let note = serde_json::json!({
             "note": "closed",
-            "players": players,
+            "players": self.entered.len(),
             "kept": self.kept,
-            "dropped": dropped,
         });
         self.mark(&note, Instant::now());
         self.send(Job::Close {
@@ -556,8 +391,6 @@ fn place_byte(place: usize) -> u8 {
 
 /// One open file.
 struct Open {
-    /// Its `.part`, claimed while it is open.
-    _claim: Writing,
     name: String,
     path: PathBuf,
     file: Option<BufWriter<File>>,
@@ -569,16 +402,13 @@ struct Open {
 struct Writer {
     settings: RecordSettings,
     open: HashMap<u32, Open>,
-    /// [`Recorder::records`]: one less for each record taken.
-    records: Arc<AtomicUsize>,
 }
 
 impl Writer {
-    fn new(settings: RecordSettings, records: Arc<AtomicUsize>) -> Self {
+    fn new(settings: RecordSettings) -> Self {
         Self {
             settings,
             open: HashMap::new(),
-            records,
         }
     }
 
@@ -608,22 +438,6 @@ impl Writer {
         match job {
             Job::Open { match_id, name } => {
                 let path = self.settings.dir.join(format!("{name}.{EXTENSION}.{PART}"));
-                // A match its server took up again after a restart in this
-                // process (its replay id is the same): the first recording
-                // stays its own, still written or named already; this one
-                // is not made.
-                let named = self.settings.dir.join(format!("{name}.{EXTENSION}"));
-                let claim = match Writing::claim(&path) {
-                    Some(claim) if !named.exists() => claim,
-                    _ => {
-                        log::warn!(
-                            "Match {match_id:#x}: {} was recorded before a restart; not \
-                             recorded again",
-                            path.display()
-                        );
-                        return;
-                    }
-                };
                 let file = File::create(&path)
                     .and_then(|file| {
                         let mut file = BufWriter::new(file);
@@ -637,7 +451,6 @@ impl Writer {
                 self.open.insert(
                     match_id,
                     Open {
-                        _claim: claim,
                         name,
                         path,
                         file,
@@ -648,39 +461,24 @@ impl Writer {
                 );
             }
             Job::Record { match_id, bytes } => {
-                self.records.fetch_sub(1, Ordering::AcqRel);
-                self.add(match_id, &bytes);
-            }
-            Job::Note { match_id, bytes } => self.add(match_id, &bytes),
-            // Named when its match closes ([`Self::close`]), not now; its
-            // `kept` note goes to the file now.
-            Job::Keep { match_id } => {
-                if let Some(open) = self.open.get_mut(&match_id) {
-                    open.kept = true;
+                let Some(open) = self.open.get_mut(&match_id) else {
+                    return;
+                };
+                if open.block.is_empty() {
+                    open.block_since = Instant::now();
+                }
+                open.block.extend_from_slice(&bytes);
+                if open.block.len() >= BLOCK_BYTES {
                     write_block(open);
                 }
             }
-            Job::Close { match_id } => self.close(match_id),
-            Job::Finish { done } => {
-                let ids: Vec<u32> = self.open.keys().copied().collect();
-                for match_id in ids {
-                    self.close(match_id);
+            // Named when its match closes ([`Self::close`]), not now.
+            Job::Keep { match_id } => {
+                if let Some(open) = self.open.get_mut(&match_id) {
+                    open.kept = true;
                 }
-                let _ = done.send(());
             }
-        }
-    }
-
-    fn add(&mut self, match_id: u32, bytes: &[u8]) {
-        let Some(open) = self.open.get_mut(&match_id) else {
-            return;
-        };
-        if open.block.is_empty() {
-            open.block_since = Instant::now();
-        }
-        open.block.extend_from_slice(bytes);
-        if open.block.len() >= BLOCK_BYTES {
-            write_block(open);
+            Job::Close { match_id } => self.close(match_id),
         }
     }
 
@@ -707,10 +505,7 @@ impl Writer {
             // A write failed earlier: the file is cut short.
             None => false,
         };
-        // Its name only now: a replay is made of a closed match alone (one
-        // of a running match would get past the live delay).
-        // A writer started meanwhile in the same folder left its `.part`
-        // alone (`Recorder::start`): it is open here.
+        // Its name only now: a replay is made of a closed match alone.
         let kept = self.settings.dir.join(format!("{}.{EXTENSION}", open.name));
         if let Err(error) = fs::rename(&open.path, &kept) {
             log::warn!("Recordings: can't keep {}: {error}", open.path.display());
@@ -944,19 +739,6 @@ pub fn read_header(path: &Path) -> io::Result<Option<Record>> {
     Ok(header)
 }
 
-/// A recording's file has its `kept` note ([`Recording::entered`]): read up
-/// to it.
-fn was_kept(path: &Path) -> bool {
-    let mut kept = false;
-    let _ = read_while(path, |record| {
-        kept = record.kind == NOTE
-            && serde_json::from_slice::<serde_json::Value>(record.bytes)
-                .is_ok_and(|note| note["note"] == KEPT_NOTE);
-        !kept
-    });
-    kept
-}
-
 fn unix_ms(time: SystemTime) -> u64 {
     time.duration_since(UNIX_EPOCH)
         .map_or(0, |since| since.as_millis() as u64)
@@ -1074,12 +856,12 @@ mod tests {
         let mut records = Vec::new();
         for _ in 0..200 {
             records = read(&path).unwrap_or_default();
-            if records.len() == 5 {
+            if records.len() == 4 {
                 break;
             }
             std::thread::sleep(Duration::from_millis(10));
         }
-        assert_eq!(records.len(), 5, "{records:?}");
+        assert_eq!(records.len(), 4, "{records:?}");
         assert_eq!(records[0].kind, NOTE);
         let header: serde_json::Value = serde_json::from_slice(&records[0].bytes).unwrap();
         assert_eq!(header["note"], "header");
@@ -1098,9 +880,7 @@ mod tests {
         assert_eq!(records[2].place, 1);
         assert_eq!(records[2].at_ms, 1_500);
         assert_eq!(records[2].bytes, vec![9; 600]);
-        let note: serde_json::Value = serde_json::from_slice(&records[3].bytes).unwrap();
-        assert_eq!(note["note"], KEPT_NOTE);
-        let closed: serde_json::Value = serde_json::from_slice(&records[4].bytes).unwrap();
+        let closed: serde_json::Value = serde_json::from_slice(&records[3].bytes).unwrap();
         assert_eq!(closed["note"], "closed");
         assert_eq!(closed["players"], 2);
         assert_eq!(closed["kept"], true);
@@ -1130,38 +910,6 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
-    /// Review of 2026-11-13: every job was dropped like a record with the
-    /// writer behind, a close too: the kept recording stayed a `.part`, with
-    /// no replay. Records alone are dropped; its keep and close get through.
-    #[test]
-    fn a_writer_behind_drops_records_but_never_a_keep_or_a_close() {
-        use session::v026g::replays::ReplayState;
-        let root = temp_dir("behind");
-        let dir = root.join("recordings");
-        let replays = Arc::new(Replays::new(Some(dir.clone())));
-        let mut settings = settings(&dir, 2);
-        settings.replays = Some(Desk(replays.clone()));
-        let recorder = Recorder::start(settings).unwrap();
-        let now = Instant::now();
-        let mut recording = recorder.open(&id(0xAB), false, serde_json::json!({}), now);
-        settle(&dir, |names| names.len() == 1);
-        // The writer as a disk stall leaves it: [`QUEUE`] records behind.
-        recorder.records.fetch_add(QUEUE, Ordering::AcqRel);
-        recording.datagram_in(0, &[1], now);
-        recording.entered(0);
-        recording.entered(1);
-        assert_eq!(recording.dropped, 1, "the datagram, not the kept note");
-        drop(recording);
-        let names = settle(&dir, |names| {
-            names.len() == 1 && names[0].ends_with("_000000ab.srprec")
-        });
-        assert!(names[0].ends_with("_000000ab.srprec"), "{names:?}");
-        recorder.finish();
-        let later = now + Duration::from_secs(10);
-        assert_eq!(replays.state(0xAB, Some(14), later), ReplayState::Kept);
-        let _ = fs::remove_dir_all(&root);
-    }
-
     #[test]
     fn a_match_under_the_minimum_leaves_no_file() {
         let dir = temp_dir("small");
@@ -1181,138 +929,19 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
-    /// Review of 2026-11-13: a `.part` left by a stop was deleted at start,
-    /// and with it the recording of every match running then. Its match runs
-    /// no more: one that was kept gets its name (cut short), one under the
-    /// minimum (or no recording) is deleted.
     #[test]
-    fn a_part_left_by_a_stopped_server_is_named_if_kept_else_deleted_at_start() {
-        let dir = temp_dir("running-at-stop");
-        let recorder = Recorder::start(settings(&dir, 2)).unwrap();
-        let now = Instant::now();
-        let mut kept = recorder.open(&id(0xAB), false, serde_json::json!({}), now);
-        kept.entered(0);
-        kept.entered(1);
-        let mut small = recorder.open(&id(0xCD), false, serde_json::json!({}), now);
-        small.entered(0);
-        small.datagram_in(0, &[1], now);
-        // The files as a stop leaves them: the kept one's note is written
-        // at once, the other's records are still in its block.
-        let names = settle(&dir, |names| {
-            names.len() == 2 && names.iter().any(|name| was_kept(&dir.join(name)))
-        });
-        let left = temp_dir("left");
-        fs::create_dir_all(&left).unwrap();
-        for name in &names {
-            assert!(name.ends_with(".srprec.part"), "{names:?}");
-            fs::copy(dir.join(name), left.join(name)).unwrap();
-        }
+    fn a_part_left_by_a_stopped_server_is_deleted_at_start() {
+        let dir = temp_dir("left");
+        fs::create_dir_all(&dir).unwrap();
         fs::write(
-            left.join("rec026g_20261014-000000_00000001.srprec.part"),
+            dir.join("rec026g_20261014-000000_00000001.srprec.part"),
             b"x",
         )
         .unwrap();
-        fs::write(left.join("rec026g_20261014-000000_00000002.srprec"), b"y").unwrap();
-        drop((kept, small));
-        let _recorder = Recorder::start(settings(&left, 2)).unwrap();
-        let named = files(&left);
-        assert_eq!(named.len(), 2, "{named:?}");
-        assert_eq!(named[0], "rec026g_20261014-000000_00000002.srprec");
-        assert!(named[1].ends_with("_000000ab.srprec"), "{named:?}");
-        let notes = read_notes(&left.join(&named[1])).unwrap();
-        let header: serde_json::Value = serde_json::from_slice(&notes[0].bytes).unwrap();
-        assert_eq!(header["note"], "header");
-        assert!(super::super::replay::recording_in(&left, 0xAB).is_some());
+        fs::write(dir.join("rec026g_20261014-000000_00000002.srprec"), b"y").unwrap();
+        let _recorder = Recorder::start(settings(&dir, 6)).unwrap();
+        assert_eq!(files(&dir), ["rec026g_20261014-000000_00000002.srprec"]);
         let _ = fs::remove_dir_all(&dir);
-        let _ = fs::remove_dir_all(&left);
-    }
-
-    /// Review of 2026-11-13: `srp` starts a match server that panicked again
-    /// in the same process a second later, while the old writing thread may
-    /// still be writing and closing. Its server waits for it
-    /// ([`Recorder::finish`]): every recording is named or deleted then.
-    #[test]
-    fn a_finished_writer_has_closed_every_recording() {
-        let dir = temp_dir("finish");
-        let recorder = Recorder::start(settings(&dir, 2)).unwrap();
-        let now = Instant::now();
-        let mut kept = recorder.open(&id(0xAB), false, serde_json::json!({}), now);
-        kept.entered(0);
-        kept.entered(1);
-        let mut small = recorder.open(&id(0xCD), false, serde_json::json!({}), now);
-        small.entered(0);
-        for _ in 0..1_000 {
-            kept.datagram_in(0, &[7; 300], now);
-        }
-        drop((kept, small));
-        recorder.finish();
-        let names = files(&dir);
-        assert_eq!(names.len(), 1, "{names:?}");
-        assert!(names[0].ends_with("_000000ab.srprec"), "{names:?}");
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    /// Review of 2026-11-13: the server that ended waited for its writer
-    /// with no end, and `srp`'s restart with it: on a stalled disk no match
-    /// was served until the writer caught up, or ever. It waits
-    /// [`FINISH_WAIT`] at most; a writer that never answers is given up on.
-    #[test]
-    fn a_writer_that_never_answers_is_given_up_on() {
-        let (jobs, _queue) = mpsc::channel();
-        let recorder = Recorder {
-            jobs,
-            records: Arc::new(AtomicUsize::new(0)),
-            min_players: 2,
-        };
-        let started = Instant::now();
-        assert!(!recorder.finish_within(Duration::from_millis(50)));
-        assert!(started.elapsed() < Duration::from_secs(5));
-    }
-
-    /// The same race once the last writer is given up on: it still writes
-    /// and closes while the new one starts. Its `.part`s are left to it, the
-    /// kept one and one whose `kept` note is still in its queue alike (the
-    /// new start named the first under it and deleted the second, a kept
-    /// recording lost); its closes name both, kept once.
-    #[test]
-    fn a_part_the_last_writer_still_writes_is_left_to_it() {
-        use session::v026g::replays::{MIN_REVISION, ReplayState, SaveSettings, Status};
-        let root = temp_dir("still-writing");
-        let dir = root.join("recordings");
-        fs::create_dir_all(&dir).unwrap();
-        let replays = Arc::new(Replays::new(Some(dir.clone())).with_save(SaveSettings {
-            replay_dir: root.join("replays"),
-            max_replay_bytes: 1 << 30,
-        }));
-        let mut settings = settings(&dir, 2);
-        settings.replays = Some(Desk(replays.clone()));
-        let recorder = Recorder::start(settings.clone()).unwrap();
-        let now = Instant::now();
-        let mut kept = recorder.open(&id(0xAB), false, serde_json::json!({}), now);
-        kept.entered(0);
-        kept.entered(1);
-        let mut late = recorder.open(&id(0xCD), false, serde_json::json!({}), now);
-        late.entered(0);
-        let parts = settle(&dir, |names| {
-            names.len() == 2 && names.iter().any(|name| was_kept(&dir.join(name)))
-        });
-        let _new = Recorder::start(settings).unwrap();
-        assert_eq!(files(&dir), parts, "left to the last writer");
-        late.entered(1);
-        drop((kept, late));
-        assert!(recorder.finish_within(Duration::from_secs(10)));
-        let names = files(&dir);
-        assert_eq!(names.len(), 2, "{names:?}");
-        assert!(names[0].ends_with("_000000ab.srprec"), "{names:?}");
-        assert!(names[1].ends_with("_000000cd.srprec"), "{names:?}");
-        let later = now + Duration::from_secs(10);
-        assert_eq!(replays.state(0xAB, Some(14), later), ReplayState::Kept);
-        assert_eq!(replays.state(0xCD, Some(14), later), ReplayState::Kept);
-        assert_eq!(
-            replays.save_ask(1, 0xAB, Some(MIN_REVISION), Some(true), later),
-            Status::Preparing
-        );
-        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -1417,11 +1046,6 @@ mod tests {
                 &datagram,
                 now + Duration::from_millis(u64::from(i)),
             );
-            // Paced as a match is: all at once, a busy machine's writer
-            // falls behind and records are dropped by design.
-            if i % 200 == 199 {
-                std::thread::sleep(Duration::from_millis(5));
-            }
         }
         drop(recording);
         // Named once closed.
@@ -1432,15 +1056,15 @@ mod tests {
         let mut records = Vec::new();
         for _ in 0..500 {
             records = read(&path).unwrap_or_default();
-            if records.len() == 6_003 {
+            if records.len() == 6_002 {
                 break;
             }
             std::thread::sleep(Duration::from_millis(10));
         }
-        assert_eq!(records.len(), 6_003);
-        assert_eq!(records[6_001].place, 19);
-        assert_eq!(records[6_001].at_ms, 5_999);
-        assert_eq!(records[6_001].bytes, datagram);
+        assert_eq!(records.len(), 6_002);
+        assert_eq!(records[6_000].place, 19);
+        assert_eq!(records[6_000].at_ms, 5_999);
+        assert_eq!(records[6_000].bytes, datagram);
         let _ = fs::remove_dir_all(&dir);
     }
 }
