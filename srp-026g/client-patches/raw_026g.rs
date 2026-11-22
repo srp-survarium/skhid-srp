@@ -28407,7 +28407,7 @@ impl EnvironmentProbe {
         unsafe { self.0.byte_add(0x328).cast::<f32>().as_ptr() }
     }
 
-    /// +0x384 (u8): the hi-Z occlusion's last answer (the constructor clears it, 0x1C2F6A; get_results_and_prepare_bounds_env_probes stores it, 0x1B81E3; the filter 0x1B9376 drops an occluded probe while the option is on)
+    /// +0x384 (u8): the hi-Z occlusion's last answer (the constructor clears it, 0x1C2F6A; get_results_and_prepare_bounds_env_probes stores it, 0x1B81E3; the filter 0x1B9376 and its find_if 0x1B98C0 drop an occluded probe while the option is on; gather_statistics counts it)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
@@ -33459,7 +33459,7 @@ impl AmbientLight {
         self.0.as_ptr() as usize as u32
     }
 
-    /// +0xa4 (u8): the hi-Z occlusion's last answer (get_results_and_prepare_bounds_ambient_lights stores it, 0x1B8043; the filter 0x1B9151 drops an occluded light while the option is on)
+    /// +0xa4 (u8): the hi-Z occlusion's last answer (get_results_and_prepare_bounds_ambient_lights stores it, 0x1B8043; the filter 0x1B9151 and its find_if 0x1B94C0 drop an occluded light while the option is on; gather_statistics counts it)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
@@ -33483,7 +33483,7 @@ impl Light {
         self.0.as_ptr() as usize as u32
     }
 
-    /// +0x270 (u8): the hi-Z occlusion's last answer (get_results_and_prepare_bounds_lights stores it, 0x1B7C2B; stage_lights::execute 0x1934F0 skips an occluded light while the option is on, unless it waits for a refresh)
+    /// +0x270 (u8): the hi-Z occlusion's last answer (get_results_and_prepare_bounds_lights stores it, 0x1B7C2B; stage_lights::execute 0x1934F0, render_forward_lighting 0x1932C0 and debug_render 0x195AA1 skip an occluded light while the option is on, unless it waits for a refresh; gather_statistics counts it)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
