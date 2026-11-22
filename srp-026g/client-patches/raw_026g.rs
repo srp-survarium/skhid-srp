@@ -33961,6 +33961,30 @@ impl UseProgressFrame {
     }
 }
 
+/// A survarium::world_event (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WorldEvent(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl WorldEvent {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x18 (u32): the event's type: 0 a kill (generate_killed_event, 0x2DA3A8), 1 a victory item's user (0x300B4A, 0x301004), 2 a hit (generate_hit_event, 0x2DA054); game_world_core::new_world_event 0x2D43B0 makes the node, the world's list from core+12744h
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn kind(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x18).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A survarium::bullet_manager_engine (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -42372,6 +42396,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn slot(machine: &impl Machine) -> u32 {
             machine.register(Register::Ebx)
+        }
+    }
+
+    /// kill_cross.walked (0x2337fa): on_kill_cross_event (0x233770, from process_kill_cross_events 0x1FB6C0, each world event after the last kill-cross time) once it handled the event in EDI (a kill by the drawn player drew the kill marker at 0x2337D9): cmp byte [esp+14h],0 (sealed), then the write of the event's time (+24h) into the last kill-cross time (EBX, game_world+564h) at 0x233801; kept is past it (pop esi, 0x233806)
+    pub mod kill_cross_walked {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::world_event (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn event(machine: &impl Machine) -> Option<WorldEvent> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(WorldEvent)
         }
     }
 }

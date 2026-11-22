@@ -3730,3 +3730,4 @@ va	status	ref_021d	name
 0x0023c430	inferred-medium		survarium::game_world_ui::hide_grenade_icons [descriptive]
 0x0023c470	inferred-medium		survarium::game_world_ui::show_trap_icons [descriptive]
 0x0023c750	inferred-medium		survarium::game_world_ui::place_object_icon [descriptive]
+0x002d3700	inferred-medium		survarium::game_world_core::drop_world_events_after

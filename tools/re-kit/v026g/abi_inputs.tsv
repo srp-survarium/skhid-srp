@@ -6744,3 +6744,8 @@ va	name	location	role	basis
 0x0023bea0	survarium::game_world_ui::set_hud_icon_type	entry ESP+4	the ui (the game_world_ui)	observed
 0x0023bea0	survarium::game_world_ui::set_hud_icon_type	entry ESP+8	the icon id, a byte (movzx at 0x23BEEA)	observed
 0x0023bea0	survarium::game_world_ui::set_hud_icon_type	entry ESP+12	the type, a byte (movzx at 0x23BF1D): the icon's frame - 1 (initialize_match: 0 a grenade, 1 a trap, 0Dh a battery)	observed
+0x002d3700	survarium::game_world_core::drop_world_events_after	EDX	the core (its world events from +12744h, the last +12748h)	observed
+0x002d3700	survarium::game_world_core::drop_world_events_after	entry ESP+4	the loaded time: every event after it is dropped from the tail (the world load, 0x2D2FFE), and the re-simulation makes them again	observed
+0x002d43b0	survarium::game_world_core::new_world_event	EAX	the core's world events (core+12740h)	observed
+0x00233770	survarium::game_world_ui::on_kill_cross_event	entry ESP+4	&game_world+564h, the last kill-cross time ([+4] the game_world_ui); a sealed event of any type writes its time (+24h) there (0x2337FA..0x233804), so a kill a re-simulation makes at or before an event already walked is never shown	observed
+0x00233770	survarium::game_world_ui::on_kill_cross_event	entry ESP+8	sealed (bool): the event is at or below the walker's bound	observed

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Patch 167: no white hit marker for a hit through a wall; the hud alone.
+# Patch 167: no white hit marker for a hit through a wall; patch 191: the kill marker of a re-simulated kill. The hud alone.
 set -euo pipefail
 main=$(git worktree list --porcelain | sed -n '1s/^worktree //p')
 exe=${SKHID_ORIGINAL_EXE:-$main/private/function-map/inputs/026g/survarium.exe}
