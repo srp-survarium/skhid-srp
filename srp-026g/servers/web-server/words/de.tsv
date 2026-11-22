@@ -5,7 +5,6 @@ Skhid wiki	Skhid-Wiki
 Modes	Modi
 Every mode: its rules, numbers and maps.	Jeder Modus: Regeln, Zahlen und Karten.
 Versions	Varianten
-Public and private rooms	Öffentliche und private Räume
 Public rooms only	Nur öffentliche Räume
 Private rooms only	Nur private Räume
 Not offered now	Derzeit nicht angeboten
@@ -58,7 +57,6 @@ Level bands: {0}.	Stufenbereiche: {0}.
 A room draws bands up to its level.	Ein Raum zieht Bereiche bis zu seiner Stufe.
 Each kit a gun of another class, with random bonuses and attachments.	Jedes Kit eine Waffe einer anderen Klasse, mit zufälligen Boni und Anbauteilen.
 {0} % of deals: pistols only.	{0} % der Ausgaben: nur Pistolen.
-Nothing of yours is used or spent.	Nichts von dir wird benutzt oder verbraucht.
 Plain FFA: {0} % of FFA cards.	Normales FFA: {0} % der FFA-Karten.
 {0} % of FFA cards.	{0} % der FFA-Karten.
 FFA: Roulette	FFA: Roulette
