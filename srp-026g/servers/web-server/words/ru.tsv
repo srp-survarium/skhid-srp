@@ -36,6 +36,8 @@ Private rooms: plain FFA only.	Приватные комнаты: только �
 A lethal hit freezes you in place.	Смертельное попадание замораживает на месте.
 A teammate within {0} m thaws you in {1} s.	Союзник в пределах {0} м размораживает за {1} с.
 A thaw counts as a kill.	Разморозка засчитывается как убийство.
+A frozen player thaws by himself after {0}.	Замороженный игрок размораживается сам через {0}.
+A team's last fighter shows on the enemies' map.	Последнего бойца команды видно на карте противников.
 Freeze the whole enemy team to win the round.	Заморозьте всю команду противника, чтобы выиграть раунд.
 {0} s pause between rounds, then everyone respawns.	{0} с паузы между раундами, затем все возрождаются.
 First to {0} rounds wins.	Побеждает первая команда, выигравшая {0} раундов.

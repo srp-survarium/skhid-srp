@@ -36,6 +36,8 @@ Private rooms: plain FFA only.	Yksityiset huoneet: vain tavallinen FFA.
 A lethal hit freezes you in place.	Kuolettava osuma jäädyttää sinut paikallesi.
 A teammate within {0} m thaws you in {1} s.	Joukkuetoveri {0} m:n sisällä sulattaa sinut {1} s:ssa.
 A thaw counts as a kill.	Sulatus lasketaan tapoksi.
+A frozen player thaws by himself after {0}.	Jäätynyt pelaaja sulaa itsestään {0} jälkeen.
+A team's last fighter shows on the enemies' map.	Joukkueen viimeinen taistelija näkyy vastustajien kartalla.
 Freeze the whole enemy team to win the round.	Jäädytä koko vastajoukkue voittaaksesi erän.
 {0} s pause between rounds, then everyone respawns.	{0} s tauko erien välillä, sitten kaikki syntyvät uudelleen.
 First to {0} rounds wins.	Ensimmäinen joukkue, joka voittaa {0} erää, voittaa.

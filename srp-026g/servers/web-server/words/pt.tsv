@@ -500,6 +500,8 @@ Private rooms: plain FFA only.	Salas privadas: só FFA normal.
 A lethal hit freezes you in place.	Um golpe letal congela você no lugar.
 A teammate within {0} m thaws you in {1} s.	Um aliado a até {0} m descongela você em {1} s.
 A thaw counts as a kill.	Descongelar conta como um abate.
+A frozen player thaws by himself after {0}.	Um jogador congelado descongela sozinho após {0}.
+A team's last fighter shows on the enemies' map.	O último combatente de uma equipe aparece no mapa dos inimigos.
 Freeze the whole enemy team to win the round.	Congele toda a equipe inimiga para vencer a rodada.
 {0} s pause between rounds, then everyone respawns.	{0} s de pausa entre rodadas, depois todos renascem.
 First to {0} rounds wins.	Vence a primeira equipe a ganhar {0} rodadas.

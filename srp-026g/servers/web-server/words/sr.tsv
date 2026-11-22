@@ -36,6 +36,8 @@ Private rooms: plain FFA only.	Privatne sobe: samo obični FFA.
 A lethal hit freezes you in place.	Smrtonosni pogodak te zamrzava na mestu.
 A teammate within {0} m thaws you in {1} s.	Saigrač na manje od {0} m te odmrzava za {1} s.
 A thaw counts as a kill.	Odmrzavanje se računa kao ubistvo.
+A frozen player thaws by himself after {0}.	Zamrznuti igrač se sam odmrzne posle {0}.
+A team's last fighter shows on the enemies' map.	Poslednji borac tima vidi se na mapi protivnika.
 Freeze the whole enemy team to win the round.	Zamrznite ceo protivnički tim da biste dobili rundu.
 {0} s pause between rounds, then everyone respawns.	{0} s pauze između rundi, zatim svi oživljavaju.
 First to {0} rounds wins.	Pobeđuje prvi tim sa {0} dobijenih rundi.

@@ -500,6 +500,8 @@ Private rooms: plain FFA only.	Приватні кімнати: лише зви�
 A lethal hit freezes you in place.	Смертельне влучання заморожує на місці.
 A teammate within {0} m thaws you in {1} s.	Союзник у межах {0} м розморожує за {1} с.
 A thaw counts as a kill.	Розморожування зараховується як вбивство.
+A frozen player thaws by himself after {0}.	Заморожений гравець розморожується сам через {0}.
+A team's last fighter shows on the enemies' map.	Останнього бійця команди видно на карті суперників.
 Freeze the whole enemy team to win the round.	Заморозьте всю команду суперника, щоб виграти раунд.
 {0} s pause between rounds, then everyone respawns.	{0} с паузи між раундами, потім усі відроджуються.
 First to {0} rounds wins.	Перемагає перша команда, що виграє {0} раундів.

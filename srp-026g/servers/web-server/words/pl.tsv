@@ -36,6 +36,8 @@ Private rooms: plain FFA only.	Pokoje prywatne: tylko zwykłe FFA.
 A lethal hit freezes you in place.	Śmiertelne trafienie zamraża cię w miejscu.
 A teammate within {0} m thaws you in {1} s.	Sojusznik w promieniu {0} m odmraża cię w {1} s.
 A thaw counts as a kill.	Odmrożenie liczy się jako zabójstwo.
+A frozen player thaws by himself after {0}.	Zamrożony gracz sam się odmraża po {0}.
+A team's last fighter shows on the enemies' map.	Ostatni walczący drużyny jest widoczny na mapie przeciwników.
 Freeze the whole enemy team to win the round.	Zamroź całą drużynę wroga, by wygrać rundę.
 {0} s pause between rounds, then everyone respawns.	{0} s przerwy między rundami, potem wszyscy się odradzają.
 First to {0} rounds wins.	Wygrywa pierwsza drużyna z {0} wygranymi rundami.

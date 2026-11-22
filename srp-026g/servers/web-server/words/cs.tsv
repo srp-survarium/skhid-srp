@@ -36,6 +36,8 @@ Private rooms: plain FFA only.	Soukromé místnosti: jen obyčejné FFA.
 A lethal hit freezes you in place.	Smrtelný zásah tě zmrazí na místě.
 A teammate within {0} m thaws you in {1} s.	Spoluhráč do {0} m tě rozmrazí za {1} s.
 A thaw counts as a kill.	Rozmrazení se počítá jako zabití.
+A frozen player thaws by himself after {0}.	Zmrazený hráč se sám rozmrazí po {0}.
+A team's last fighter shows on the enemies' map.	Poslední bojovník týmu je vidět na mapě soupeřů.
 Freeze the whole enemy team to win the round.	Zmrazte celý nepřátelský tým a vyhrajte kolo.
 {0} s pause between rounds, then everyone respawns.	{0} s pauza mezi koly, pak se všichni oživí.
 First to {0} rounds wins.	Vyhrává první tým s {0} vyhranými koly.
