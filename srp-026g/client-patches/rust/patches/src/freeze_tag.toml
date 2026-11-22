@@ -75,3 +75,4 @@ handler = "on_loaded"
 [[hook]]
 site = "hud.initialize_match"
 handler = "on_initialize_match"
+order = 3
