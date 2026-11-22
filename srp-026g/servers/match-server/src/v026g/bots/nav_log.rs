@@ -581,6 +581,11 @@ pub fn clear_line(
     format!("{PREFIX}{play:?} holds off battery {battery} at {}: player {who} known at {}, waits out of his sight {from}", at(item), at(spot))
 }
 
+/// [N1] A search due while the reckoned body is in the air, held: `nav: search held in the air at (..) for the goal (..), at most S s`.
+pub fn in_flight_line(feet: Vec3, goal: Vec3, hold_ms: u32) -> String {
+    format!("{PREFIX}search held in the air at {} for the goal {}, at most {:.1} s", at(feet), at(goal), hold_ms as f32 / 1000.0)
+}
+
 /// [owner-5] A route search that found no way: `nav: no way from (..) to (..): <verdict>`.
 pub fn route_line(from: Option<Vec3>, goal: Vec3, verdict: &str) -> String {
     let from = from.map_or("no floor".to_string(), at);
