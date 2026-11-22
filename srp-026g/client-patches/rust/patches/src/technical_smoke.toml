@@ -1,0 +1,65 @@
+# Patch 180: Dense Smoke (402) and Toxic Smoke (441), the thrower's smoke cloud
+# (docs/notes/technical-skills.md). The logic is technical_smoke.rs and vostok/technical_smoke.rs.
+name = "technical_smoke"
+patch = 180
+
+# The grenade object's tail (the toxic cloud, the green instance): its size, its making, its end.
+[[hook]]
+site = "smoke.grenade_size"
+handler = "on_grenade_size"
+
+[[hook]]
+site = "smoke.grenade_construct"
+handler = "on_grenade_construct"
+
+[[hook]]
+site = "smoke.grenade_destroy"
+handler = "on_grenade_destroy"
+
+# The green copy of a smoke grenade's particle: asked with the cook's own three, kept.
+[[hook]]
+site = "smoke.cook_query"
+handler = "on_cook_query"
+
+[[hook]]
+site = "smoke.cook_ready"
+handler = "on_cook_ready"
+
+# Toxic Smoke (the simulation): the blast keeps the cloud; each player's tick its hits (after the
+# battery, Resonance, Forest glow, Keeper and Last Gasp handlers, orders 1-5).
+[[hook]]
+site = "smoke.explode"
+handler = "on_explode"
+
+[[hook]]
+site = "battery.carrier_tick"
+handler = "on_tick"
+order = 7
+
+# The cloud saved with its grenade.
+[[hook]]
+site = "smoke.save_state"
+handler = "on_save_state"
+
+[[hook]]
+site = "smoke.save_cloud"
+handler = "on_save_cloud"
+
+[[hook]]
+site = "smoke.load_cloud"
+handler = "on_load_cloud"
+
+# The presentation: the green particle, Dense Smoke's hold.
+[[hook]]
+site = "smoke.play"
+handler = "on_play"
+
+[[hook]]
+site = "smoke.particle_tick"
+handler = "on_particle_tick"
+
+# Forest Protection (523, patch 109's modifier 41): a toxic cloud counts as a damage zone where a
+# hit with an owner reads the victim's zones.
+[[hook]]
+site = "smoke.anomaly_zones"
+handler = "on_anomaly_zones"

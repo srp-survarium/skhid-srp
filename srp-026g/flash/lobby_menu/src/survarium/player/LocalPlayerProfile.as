@@ -392,6 +392,12 @@ package survarium.player
          _kitModifiers = kit;
       }
 
+      // A technical skill's rank in the selected kit (0 before the exe sends the kit's modifiers).
+      public static function technicalRank(skill:int) : int
+      {
+         return me == null || me._kitModifiers == null ? 0 : me._kitModifiers.technicalRank(skill);
+      }
+
       // What a match adds to a weapon's stats in the selected kit: its skills and its armour.
       public function matchEffects() : MatchEffects
       {

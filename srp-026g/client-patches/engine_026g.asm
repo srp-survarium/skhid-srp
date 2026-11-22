@@ -275,6 +275,16 @@ global engine_close_clipboard
 global engine_global_lock
 global engine_global_unlock
 global engine_set_texture
+global engine_trap_switch_state
+global engine_trap_insert_collision
+global engine_trap_remove
+global engine_world_play_sound
+global engine_grenade_remove
+global engine_grenade_throw
+global engine_select_profile
+global engine_pull_pin
+global engine_player_hit
+global engine_release_particle
 global engine_fingers_set_weapon_model
 global engine_pin_resource
 global engine_unpin_resource
@@ -416,6 +426,10 @@ engine_close_clipboard equ 0xaefed4   ; the IAT slot 0xaefed4 (an import, stdcal
 engine_global_lock equ 0x870078   ; the IAT slot 0x870078 (an import, stdcall)
 engine_global_unlock equ 0x87007c   ; the IAT slot 0x87007c (an import, stdcall)
 engine_set_texture equ 0x3d98b0   ; 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly
+engine_trap_switch_state equ 0x305210   ; 0x305210 survarium::booby_trap_core::switch_to_state: trap ECX, state ESP+4; pops 4; thiscall, called directly
+engine_world_play_sound equ 0x25b940   ; 0x25b940 survarium::game_world::play_sound: world ECX, slot ESP+4, position ESP+8; pops 8; thiscall, called directly
+engine_pull_pin equ 0x30a120   ; 0x30a120 survarium::grenade_set_core::pull_pin: set ESP+4, now ESP+8; pops 8; AL; stdcall, called directly
+engine_player_hit equ 0x2d9ae0   ; 0x2d9ae0 survarium::base_player::hit: receiver ECX, time ESP+4, attacker ESP+8, bodypart ESP+12, kind ESP+16, damage ESP+20, piercing ESP+24, initiator ESP+28, item ESP+32; pops 32; thiscall, called directly
 engine_fingers_set_weapon_model equ 0x390620   ; 0x390620 vostok::animation::fingers_to_weapon_corrector::set_weapon_model: corrector ESP+4, instance ESP+8, first_view ESP+12; pops 12; stdcall, called directly
 engine_set_constant_float4 equ 0x1a8900   ; 0x1a8900 vostok::render::effect_compiler::set_constant_float4: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
 engine_shared_string_create equ 0xe0b50   ; 0xe0b50 vostok::shared_string::create: text ESP+4; pops 4; EAX; stdcall, called directly
@@ -3246,6 +3260,102 @@ engine_text_edit_delete_selection:
     push edi
     mov esi, [esp + 20]   ; edit
     call 0x3486a0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_trap_insert_collision:
+    ; 0x304e20 survarium::booby_trap_core::insert_collision: trap ESI; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov esi, [esp + 20]   ; trap
+    call 0x304e20
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_trap_remove:
+    ; 0x304f00 survarium::booby_trap_core::remove: trap ESI; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov esi, [esp + 20]   ; trap
+    call 0x304f00
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_grenade_remove:
+    ; virtual survarium::grenade_core+0x1c (2 vtables of vtables.tsv: 0x248600, 0x303d50): grenade ECX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; grenade
+    mov eax, [ecx]                   ; this's vtable
+    call [eax + 0x1c]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_grenade_throw:
+    ; virtual survarium::grenade_core+0x18 (2 vtables of vtables.tsv: 0x248520, 0x303c10): grenade ECX, transform ESP+4, velocity ESP+8; pops 8
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; velocity -> 8
+    push dword [esp + 28]   ; transform -> 4
+    mov ecx, [esp + 28]   ; grenade
+    mov eax, [ecx]                   ; this's vtable
+    call [eax + 0x18]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_select_profile:
+    ; 0x1f8070 survarium::game_world::select_profile: world EDI, value ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; value -> 4
+    mov edi, [esp + 24]   ; world
+    call 0x1f8070
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_release_particle:
+    ; 0xe0210 vostok::render::render_model_instance::destroy: instance ECX, count EAX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; instance
+    mov eax, [esp + 24]   ; count
+    call 0xe0210
     pop edi
     pop esi
     pop ebx

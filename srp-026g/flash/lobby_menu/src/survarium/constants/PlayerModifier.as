@@ -45,6 +45,9 @@ package survarium.constants
       // (docs/notes/medical-skills.md)
       public static const MEDICAL_RANKS:int = 43;
 
+      // The technical tree's packed ranks (docs/notes/technical-skills.md).
+      public static const TECHNICAL_RANKS:int = 47;
+
       // can_defuse_traps, unused by 0.26g: the medical combo skills' ranks, one packed integer
       // (docs/notes/medical-skills.md)
       public static const COMBO_RANKS:int = 45;

@@ -184,8 +184,29 @@ about arranging things beautifully". The places: his cursor on the minimap, thre
     cylinder 5.5 m round.
   - Each unit's station is the Research project's own (shelves, transmitter, computers, generator,
     charger, small antenna, their sounds, sparks and light), moved as one piece and standing in the
-    middle of its zone, as 0.27d's stand. The crates of the old unit B are the terrace's cover, a stack
-    north and south of the station; the two roof antennas stand on the roof over the halls.
+    middle of its zone, as 0.27d's stand. The two roof antennas stand on the roof over the halls.
+  - Cover (the owner, 2026-11-22: "the one outside should have a bit more cover", "it is barely
+    playable with 6 crates", "the ones inside can have something too"). His rules for it:
+    - a place is dressed on its own, never as another's mirror ("it should be interesting
+      everywhere"), and not as a ring on a rectangle's edge: it reads as one scene, built up the way
+      such a place would be ("organically", "a complete picture");
+    - the station stays in the middle of its zone, unturned: it shows where the capture is; only
+      what is around it is arranged;
+    - in the halls nothing stands in the middle of the back wall, and furniture faces the room;
+    - the terrace plays on both of its sides as Rudnya's unit by the bus stop does: runs of cover
+      at the zone's edge, each of several heights, gaps between them to come through; not the same
+      amount on each side by count.
+    - B, the terrace: the parapet towards the school sandbagged, the generator's barrels by the
+      station; north a full cover with a low cover inside it and a half cover carrying the line
+      on, a corner half cover open towards the north stairs; south a full cover and a corner half
+      cover open towards the station, against the big tree; a cargo crate by the gate; the old unit
+      B's wooden crates as the first cover at the top of each stairway.
+    - A, the north hall: lockers with their backs to the east wall, a couch against the west one, a
+      furniture barricade at the breach towards the courtyard.
+    - C, the south hall: shelving at the west wall and one unit dragged to the breach, cartons
+      spilled towards the courtyard, a cargo crate at the east wall.
+    - Quick looks while arranging: the map editor (`~/Projects/survarium/map-editor`) with a
+      preview patch of the list, `--variant day_5b`; the game's own pictures by `capture.py`.
   - `mapdata-zones` (2026-11-22, a preview patch of the list): each unit one floor, none above or
     below it inside its shapes (A 20.26-22.89 m, B 19.53-21.90 m, C 19.52-22.91 m: the halls' rubble
     and the terrace).
@@ -205,7 +226,9 @@ about arranging things beautifully". The places: his cursor on the minimap, thre
 - **Bots, late joiners, replays:** nothing new (Research has no bots; a replay names its map id).
 - **Release impact:** content and the site's pages; no exe, no server code. Three more entries of a
   room's pool (256 at most, `lobby/rooms.rs` `POOL_BITS`).
-- **Another layout:** a file beside `school-b.json` and its list's row in `release/content.tsv`.
+- **Another layout:** a file beside `school-b.json` and its list's row in `release/content.tsv`. More
+  cover at a unit: a `props` entry of its layout file (a model the map or an `examples` project
+  has, its place and yaw), then the list made again.
 
 ## The exe (patch 53)
 

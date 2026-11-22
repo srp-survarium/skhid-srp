@@ -34,9 +34,17 @@ package survarium.player
       // (docs/notes/artefact-skills.md, Transport).
       private var _resistanceRank:int;
 
+      // The technical tree's digits in modifier 47, as technical_skills::FIELDS: [skill, ranks].
+      private static const TECHNICAL:Array = [[401,3],[402,3],[403,2],[404,2],[411,3],[412,1],[413,2],[414,2],
+         [422,1],[423,1],[431,3],[432,1],[433,2],[441,3],[442,1],[443,1],[444,1]];
+
+      // The technical skills' ranks by id; none when float 47 is no tree's.
+      private var _technical:Object = {};
+
       public function KitModifiers(values:Array)
       {
          _values = values;
+         parseTechnical(values[PlayerModifier.TECHNICAL_RANKS]);
          // As the exe's artefact Skills::parse: float 40 an exact integer below 2^14, Resistance
          // (bits 0..2) at most 5 and Keeper's draw (9..11) at most 6, otherwise no artefact skill.
          var artefact:Object = packed(values[PlayerModifier.ARTEFACT_RANKS],14);
@@ -66,6 +74,32 @@ package survarium.player
          _unflinchingRank = combo >> 4 & 7;
          _concentrationRank = combo >> 7 & 7;
          _sharpEyeRank = combo >> 12 & 3;
+      }
+
+      // As technical_skills::Skills::parse: a whole number of -LOW..LOW, LOW the product of the first
+      // sixteen digits' radices; a negative one has Bear Trap (its rank takes LOW away); the rest
+      // is a mixed-radix number; Tank Pocket and Tank Depth never both.
+      private function parseTechnical(value:Number) : void
+      {
+         var low:Number = 1;
+         for(var i:int = 0; i < TECHNICAL.length - 1; i++) low *= TECHNICAL[i][1] + 1;
+         if(!(value >= -low && value < low) || value != Math.floor(value)) return;
+         var ranks:Object = {};
+         ranks[444] = value < 0 ? 1 : 0;
+         var rest:Number = value < 0 ? value + low : value;
+         for(i = 0; i < TECHNICAL.length - 1; i++)
+         {
+            var radix:int = TECHNICAL[i][1] + 1;
+            ranks[TECHNICAL[i][0]] = rest % radix;
+            rest = Math.floor(rest / radix);
+         }
+         if(ranks[413] > 0 && ranks[414] > 0) return;
+         _technical = ranks;
+      }
+
+      public function technicalRank(skill:int) : int
+      {
+         return int(_technical[skill]);
       }
 
       // A packed float: an exact integer of `width` bits, else null.

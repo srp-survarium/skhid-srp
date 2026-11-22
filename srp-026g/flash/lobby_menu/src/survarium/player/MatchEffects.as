@@ -62,7 +62,7 @@ package survarium.player
       // a trap's, and that of a piece with an isolation line (armour).
       public static function covers(item:Object) : Boolean
       {
-         return item != null && (item.isWeapon || item.category == ItemCategory.MEDKITS || throwable(item) || has(item,ISOLATION));
+         return item != null && (item.isWeapon || item.category == ItemCategory.MEDKITS || throwable(item) || has(item,ISOLATION) || tank(item));
       }
 
       private static function throwable(item:Object) : Boolean
@@ -182,6 +182,77 @@ package survarium.player
       private static function skillLine(lines:Array, key:String, factor:Number, higherIsBetter:Boolean) : void
       {
          if(factor != 1) lines.push({name:LocalizationData.getName(key),before:100,after:100 * factor,higherIsBetter:higherIsBetter});
+      }
+
+      // The lines a smoke's, a grenade's, a trap's or an oxygen tank's card adds below its own:
+      // what the technical skills do with it (technical_skills::Skills; docs/notes/
+      // technical-skills.md), each as medicineSkillLines' (a share of the game's own), or a value
+      // the game has none of ({before: 0, after, postfix}).
+      public function technicalSkillLines(item:Object) : Array
+      {
+         var lines:Array = [];
+         if(_kit == null) return lines;
+         var rank:Function = _kit.technicalRank;
+         if(smoke(item))
+         {
+            skillLine(lines,"st_srp_technical_smoke_duration",1 + 0.1 * rank(402),true);
+            var toxic:Number = [0,5,6,7][rank(441)];
+            if(toxic > 0) lines.push({name:LocalizationData.getName("st_srp_technical_toxic_damage"),before:0,after:toxic,
+               higherIsBetter:true,postfix:LocalizationData.getName("st_srp_technical_per_second")});
+         }
+         else if(item.category == ItemCategory.GRENADES)
+         {
+            skillLine(lines,"st_srp_technical_friendly_blast",1 - 0.25 * rank(404),false);
+         }
+         if(item.category == ItemCategory.BOOBY_TRAPS)
+         {
+            skillLine(lines,"st_srp_technical_disarm_speed",1 + 0.15 * rank(411),true);
+            var rearm:int = [0,30,20][rank(433)];
+            if(rearm > 0) lines.push({name:LocalizationData.getName("st_srp_technical_rearm"),before:0,after:rearm,
+               higherIsBetter:false,postfix:LocalizationData.getName("st_srp_medical_seconds")});
+         }
+         if(tank(item))
+         {
+            if(rank(442) > 0) skillLine(lines,"st_srp_technical_last_gasp",1.1,true);
+         }
+         return lines;
+      }
+
+      // A smoke grenade: a grenade without damage (its card has no damage row).
+      private static function smoke(item:Object) : Boolean
+      {
+         return item.category == ItemCategory.GRENADES && !has(item,1);
+      }
+
+      // What an oxygen tank's card lists with its built-in bonuses, as the modifications of the same
+      // kind show it ({icon, prop_id, value}): the pockets or the pocket size Tank Pocket or Tank
+      // Depth adds to a kit that wears it (1031 "Item slots", icon 3, prop 10; 1171 pocket size,
+      // icon 17, prop 117); Steady Breath's sway (the boosters' "Sight sway", icon 39, prop 125)
+      // and dispersion (1070's accuracy, icon 7, prop 101), -10 % a rank; Deep Breaths' sprint
+      // energy (1160's "Energy costs", icon 16, prop 116), -20/-30/-40 %.
+      public static function tankBonuses(item:Object) : Array
+      {
+         var bonuses:Array = [];
+         if(item == null || !tank(item)) return bonuses;
+         var pockets:int = LocalPlayerProfile.technicalRank(413);
+         var size:int = LocalPlayerProfile.technicalRank(414);
+         if(pockets > 0) bonuses.push({icon:3,prop_id:10,value:pockets});
+         if(size > 0) bonuses.push({icon:17,prop_id:117,value:size});
+         var steady:int = LocalPlayerProfile.technicalRank(403);
+         if(steady > 0)
+         {
+            bonuses.push({icon:39,prop_id:125,value:-0.1 * steady});
+            bonuses.push({icon:7,prop_id:101,value:-0.1 * steady});
+         }
+         var deep:int = LocalPlayerProfile.technicalRank(431);
+         if(deep > 0) bonuses.push({icon:16,prop_id:116,value:[0,-0.2,-0.3,-0.4][deep]});
+         return bonuses;
+      }
+
+      // An oxygen tank: a piece with an oxygen capacity (prop 11).
+      private static function tank(item:Object) : Boolean
+      {
+         return has(item,11);
       }
 
       // A grenade's or a trap's card stat (docs/notes/alt-weapon-stats.md), each as the match's
