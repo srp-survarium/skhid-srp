@@ -2702,7 +2702,7 @@ st_srp_hud_artefact_hunt_sudden_death	Morte súbita
 st_srp_hud_blackout_intro	Blackout: leve baterias ao dispositivo da sua equipe. HUD e indicadores de acerto ficam ocultos para mais imersão. Segure Tab para ver munição, vida e chat e, quando morto, escolher o kit.
 st_srp_hud_blackout_start	Blackout\nLeve baterias ao dispositivo da sua equipe.\nHUD e indicadores de acerto ficam ocultos. Segure Tab para ver munição e vida.
 st_srp_hud_freeze_draw	Empate
-st_srp_hud_freeze_frozen	Congelado
+st_srp_hud_freeze_frozen	Congelado (%1$s)
 st_srp_hud_freeze_help	Congele todos os adversários. A primeira equipe a vencer 5 rodadas ganha. Fique a até 2 m de um aliado congelado por 4 segundos para descongelá-lo.
 st_srp_hud_freeze_lose	Derrota — os adversários venceram cinco rodadas.
 st_srp_hud_freeze_round_draw	Rodada empatada. Reiniciando em %1$s s.

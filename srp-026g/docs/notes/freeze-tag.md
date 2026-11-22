@@ -27,6 +27,25 @@ three). No artifact rescue in this version (owner, 2026-11-17).
   FREEZE_TAG_WEIGHTS`: the scoreboard's 10) and pays it as one, in the
   results' kills line (`rewards`: `SRP_KILL`); quests' kills are the kd
   rule's and do not count it.
+- A frozen player thaws by himself 120 s after his freeze (`AUTO_THAW_MS`),
+  a stop gap (the owner, 2026-11-22: "2 min unthaw is good for now as a stop
+  gap"), unless the round ends first: the same thaw as a teammate's
+  (`Actions::Play::thawed`, his glow and camera with it), crediting nobody.
+  The clock runs only while his body is in the world (a place that left
+  stays frozen), and a teammate's progress is apart from it. His prompt
+  shows the time left ("Frozen (1:42)").
+- The freezer's kill is his always (the owner, 2026-11-22: "credit for
+  freezing is given always"): the kd rule counts it at the lethal hit, and
+  no thaw, a teammate's or the auto-thaw, takes it back or changes it.
+- A team's last one fighting, while a round is in play, is on the other
+  team's minimap and Tab map at all times, until a teammate of his is
+  thawed or the round ends (the owner, 2026-11-22: "last member is always
+  shown on the map"); a team of one is so from the start. The game's own
+  spotted-enemy path: `minimap.enemy_spotted` (update_minimap_players'
+  test of an enemy's spotted time, 0x239505) lists his dot as a spotted
+  enemy's, as Artifact Hunt's carrier and a replay's enemies; from the rule
+  state (`FreezeTag::last_standing`) each frame, the same in every game,
+  nothing simulated. No marker over his head.
 - Freezing the entire opposing team awards one round. Simultaneous wipes
   award neither team a point and replay the round. A place that left stays
   frozen, so a team whose players all left counts as frozen.
@@ -63,7 +82,8 @@ three). No artifact rescue in this version (owner, 2026-11-17).
   keeps his name and is drawn ice blue (the owner, 2026-11-21: "his name
   should be of 'frozen' color, not just read frozen"); it gets its own
   colour back on thaw. A rescuer sees progress only for a reachable frozen
-  teammate. The frozen player's prompt is the one word "Frozen", with the
+  teammate. The frozen player's prompt is "Frozen" and the auto-thaw's time left
+  ("Frozen (1:42)"), with the
   thaw's bar under it while a teammate thaws him, no percentage (the owner,
   2026-11-21: "just frozen text is fine"); the rescuer's sentence and bar as
   before. Freeze Tag's bar is 120 px long (`HUD.FREEZE_BAR_WIDTH`, about the
@@ -101,9 +121,10 @@ on a project whose team spawns are Free for All's 47 points for both teams
 ## State and native lifecycle
 
 `srp-validate::world::freeze` owns the deterministic transition and codec.
-The rule saves 69 bytes after the native respawn state: version, phase,
+The rule saves 149 bytes after the native respawn state: version (2), phase,
 two scores, a 16-bit intermission countdown, round result, twenty
-three-byte player records (waiting/fighting/frozen with team, thaw time),
+seven-byte player records (waiting/fighting/frozen with team, thaw time
+(u16), auto-thaw time left (u32, 1 ms to 120 s, a frozen record's only)),
 then the round starts (u16): the restarts after the match's first, each of
 which spawns everyone with the kit's load, a double wipe's replay too. The
 parser checks the closed domains, roster extent, phase/score agreement,
@@ -325,11 +346,9 @@ Open:
 - Late joiners spawn into the round in play; waiting for the next round (with
   something to watch meanwhile, e.g. the frozen orbit camera around a living
   teammate) is a possible later change.
-- No auto-thaw (Quake 3 eFreeze thaws after 120 s): left out so hiding is
-  not rewarded (the owner, 2026-11-22). Planned instead, not built: when a
-  team is down to its last unfrozen player, a 1-minute timer starts (not
-  when it is 1 v 1 or 2 v 1); what happens when it runs out is still to
-  design.
+- Auto-thaw after 2 minutes, a stop gap (the owner, 2026-11-22). Planned
+  instead: when a team is down to its last unfrozen player, a 1-minute
+  timer starts (not in 1 v 1 or 2 v 1); its outcome still to design.
 
 ### 2026-11-21, after the merge of main and the alignment
 

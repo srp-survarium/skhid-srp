@@ -1877,8 +1877,9 @@ package
       }
 
       // Status: 0 playing; 1/2/3 match win/loss/draw; 4/5/6 round win/loss/draw.
-      // thaw: the thaw time in ms (THAW_MS); the bar shows progress of it.
-      public function freeze_tag_update(frozen:uint, progress:uint, status:uint, remaining:uint, thaw:uint) : void
+      // thaw: the thaw time in ms (THAW_MS); the bar shows progress of it. thawsIn: the frozen
+      // player's time left to the auto-thaw (ms).
+      public function freeze_tag_update(frozen:uint, progress:uint, status:uint, remaining:uint, thaw:uint, thawsIn:uint) : void
       {
          // The last freeze also ends a round; it still gets the freeze cue.
          var isFrozen:Boolean = frozen != 0;
@@ -1891,13 +1892,21 @@ package
          else if(status >= 4)
             text = LocalizationData.format(status == 4 ? "st_srp_hud_freeze_round_win" : status == 5 ? "st_srp_hud_freeze_round_lose" : "st_srp_hud_freeze_round_draw", String(Math.ceil(remaining / 1000)));
          else if(isFrozen)
-            text = LocalizationData.getName("st_srp_hud_freeze_frozen");
+            text = LocalizationData.format("st_srp_hud_freeze_frozen", freezeClock(thawsIn));
          else
             text = LocalizationData.getName(progress > 0 ? "st_srp_hud_freeze_thawing" : "st_srp_hud_freeze_help");
          // Let native pickup/use prompts own the widget during ordinary play.
          this._freezeContext = isFrozen || progress > 0 || status != 0
             ? {text:text,value:status == 0 ? Math.floor(progress * 100 / thaw) : 0,visible:true} : null;
          this.refresh_context();
+      }
+
+      // m:ss of a time in ms, rounded up.
+      private static function freezeClock(ms:uint) : String
+      {
+         var seconds:uint = Math.ceil(ms / 1000);
+         var rest:uint = seconds % 60;
+         return String(Math.floor(seconds / 60)) + ":" + (rest < 10 ? "0" : "") + String(rest);
       }
 
       // The frozen places (bit n: place n), sent each frame; their Tab names ice blue.

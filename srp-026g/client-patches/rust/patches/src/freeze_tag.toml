@@ -58,6 +58,13 @@ site = "player_icons.update_start"
 handler = "on_hud"
 order = 4
 
+# a team's last one fighting: his dot on the other team's minimap and Tab map
+# (after patch 135's 1 and Artifact Hunt's 2; each acts in its own mode)
+[[hook]]
+site = "minimap.enemy_spotted"
+handler = "on_enemy"
+order = 3
+
 # the glow's particle query's answer
 [[hook]]
 site = "resources.query_done"

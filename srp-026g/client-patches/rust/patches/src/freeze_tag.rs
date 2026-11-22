@@ -1,7 +1,7 @@
 //! Freeze Tag: snapshot-owned best-of-nine rule and native player lifecycle.
 #![forbid(unsafe_code)]
 use crate::vostok::{self, Context, Flow, GameCell, NoExit, OptionsRead};
-use crate::vostok::{FreezeTagOnInputExit, FreezeTagOnPlayerTickExit};
+use crate::vostok::{FreezeTagOnEnemyExit, FreezeTagOnInputExit, FreezeTagOnPlayerTickExit};
 use crate::vostok::log::{self, Piece};
 use crate::vostok::resources::{self, Arrived, KeptParticle, QueryResults, QueryTag};
 use crate::vostok::parse::Reader;
@@ -102,6 +102,18 @@ pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
     world.publish(state.points(), state.winner());
     MATCH.set(ctx.thread(), Match::Freeze(state));
     Flow::Continue
+}
+/// update_minimap_players' spotted test of an enemy: a team's last one fighting, his dot on the
+/// minimap and the Tab map always, as a spotted enemy's (the owner, 2026-11-22: "last member is
+/// always shown on the map"). From the rule state, the same in every game; nothing simulated.
+pub fn on_enemy(ctx: &mut Context<'_>) -> Flow<FreezeTagOnEnemyExit> {
+    let Match::Freeze(state) = MATCH.get(ctx.thread()) else {
+        return Flow::Continue;
+    };
+    match vostok::freeze::Player::at_minimap_enemy(ctx) {
+        Some(player) if state.last_standing(player.place()) => Flow::Exit(FreezeTagOnEnemyExit::Shown),
+        _ => Flow::Continue,
+    }
 }
 fn is_frozen(state: &FreezeTag, place: Place) -> bool {
     matches!(state.player(place), Player::Frozen { .. })
@@ -318,9 +330,9 @@ pub fn on_hud(ctx: &mut Context<'_>) -> Flow<NoExit> {
         return Flow::Continue;
     };
     let viewed = Place::new(viewed.get()).expect("the twenty places");
-    let (team, frozen, progress) = match state.player(viewed) {
-        Player::Fighting(team) => (team, 0, 0),
-        Player::Frozen { team, progress } => (team, 1, u32::from(progress.millis())),
+    let (team, frozen, progress, thaws_in) = match state.player(viewed) {
+        Player::Fighting(team) => (team, 0, 0, 0),
+        Player::Frozen { team, progress, thaws_in } => (team, 1, u32::from(progress.millis()), thaws_in.get()),
         Player::Waiting => return Flow::Continue,
     };
     // 1 won, 2 lost, 3 drawn by the time limit.
@@ -359,6 +371,7 @@ pub fn on_hud(ctx: &mut Context<'_>) -> Flow<NoExit> {
                 Player::Frozen {
                     team: side,
                     progress,
+                    ..
                 } if side == team && progress.millis() != 0 && ui.freeze_reachable(viewed, place) => {
                     Some(u32::from(progress.millis()))
                 }
@@ -383,6 +396,7 @@ pub fn on_hud(ctx: &mut Context<'_>) -> Flow<NoExit> {
                 if round != 0 { round + 3 } else { outcome },
                 remaining,
                 u32::from(THAW_MS),
+                thaws_in,
             ],
         );
         // The Tab list's frozen rows; the movie clears them with the match.

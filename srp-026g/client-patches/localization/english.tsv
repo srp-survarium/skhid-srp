@@ -2702,7 +2702,7 @@ st_srp_hud_artefact_hunt_sudden_death	Sudden death
 st_srp_hud_blackout_intro	Blackout: bring batteries to your team’s device. HUD and hitmarkers are hidden for immersion. Hold Tab for ammo, health, chat and kit selection when dead.
 st_srp_hud_blackout_start	Blackout\nBring batteries to your team’s device.\nHUD and hit markers are hidden. Hold Tab to check ammo and health.
 st_srp_hud_freeze_draw	Draw
-st_srp_hud_freeze_frozen	Frozen
+st_srp_hud_freeze_frozen	Frozen (%1$s)
 st_srp_hud_freeze_help	Freeze every opponent. First team to win 5 rounds wins. Stand within 2 m of a frozen teammate for 4 seconds to thaw them.
 st_srp_hud_freeze_lose	Defeat — opponents won five rounds.
 st_srp_hud_freeze_round_draw	Round drawn. Restarting in %1$s s.

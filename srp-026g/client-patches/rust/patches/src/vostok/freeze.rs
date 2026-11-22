@@ -169,6 +169,16 @@ impl<'t> Player<'t> {
             })
         }
     }
+    /// update_minimap_players' enemy at its spotted test (`minimap.enemy_spotted`, EAX).
+    pub fn at_minimap_enemy(ctx: &'t Context<'_>) -> Option<Self> {
+        // SAFETY: the minimap's live player (alive and in the world).
+        unsafe {
+            Some(Self {
+                native: raw::site::minimap_enemy_spotted::player(ctx)?,
+                _thread: ctx.thread(),
+            })
+        }
+    }
     pub fn place(&self) -> Place {
         // SAFETY: a live player.
         unsafe { place_of(self.native) }
