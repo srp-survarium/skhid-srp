@@ -73,7 +73,8 @@ impl Bots {
         if let Some(d) = death {
             victim_side.at = d.at;
         }
-        let kind = killer.map(|(k, _)| {
+        // No kinds in the world (no statistics, the bench's stand-in): the kind is not read.
+        let kind = killer.filter(|_| !kinds.is_empty()).map(|(k, _)| {
             let now = kinds.get(k).copied().unwrap_or_default();
             let was = self.kill_kinds.get(k).copied().unwrap_or(now);
             death_log::KillKind::of([0, 1, 2, 3].map(|i| now[i] > was[i]))

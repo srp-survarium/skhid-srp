@@ -201,7 +201,7 @@ impl Death {
                 self.victim.who(),
                 k.who(),
                 self.range_m().unwrap_or(0.0),
-                self.kind.map_or("unbooked", KillKind::name),
+                self.kind.map_or("kind not read", KillKind::name),
                 self.victim.pose(),
                 hits(&self.victim),
                 k.pose(),
