@@ -145,15 +145,28 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
+/// Whom the rule holds (his tick and input skipped): a lethal body always; a
+/// frozen player in play and in the pause between rounds, where everyone else
+/// moves on (the owner, 2026-11-22: "when one team in freeze tag wins a round
+/// it shouldn't stop moving", "only frozen people do"); everyone in the
+/// restart and after the match.
 fn held(state: &FreezeTag, player: &vostok::freeze::Player<'_>) -> bool {
     player.playing()
         && (player.lethal()
-            || matches!(
-                state.phase(),
-                Phase::Between { .. } | Phase::Restarting | Phase::Finished(_)
-            )
-            || (state.phase() == Phase::Playing
-                && matches!(state.player(player.place()), Player::Frozen { .. })))
+            || match state.phase() {
+                Phase::Playing | Phase::Between { .. } => is_frozen(state, player.place()),
+                Phase::Restarting | Phase::Finished(_) => true,
+            })
+}
+/// Whether the local player at `local` sees a round's countdown (the warmup
+/// camera, patch 31's kits) while the core says one is about to start: in
+/// Freeze Tag only a frozen one; the others keep their camera and move on
+/// (`held`). Any other mode with rounds: everyone.
+pub fn countdown_view(thread: &vostok::Thread, local: Option<Place>) -> bool {
+    match (MATCH.get(thread), local) {
+        (Match::Freeze(state), Some(place)) => is_frozen(&state, place),
+        (Match::Freeze(_), None) | (Match::Other, _) => true,
+    }
 }
 pub fn on_player_tick(ctx: &mut Context<'_>) -> Flow<FreezeTagOnPlayerTickExit> {
     let Match::Freeze(state) = MATCH.get(ctx.thread()) else {

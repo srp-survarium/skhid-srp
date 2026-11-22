@@ -41563,6 +41563,15 @@ pub mod site {
         pub unsafe fn rule(machine: &impl Machine) -> Option<MatchRule> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(MatchRule)
         }
+
+        /// ESI: a survarium::network_client (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn client(machine: &impl Machine) -> Option<NetworkClient> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(NetworkClient)
+        }
     }
 
     /// camera.apply (0x23ddd0): base_game_scene::apply_camera's start (sub esp,40h / push ebx / mov ebx,[esp+48h]; ret 4, the scene its stack argument): EDX the camera_director whose view (+4h) and projection (+44h) it copies into the scene (+0Ch, +4Ch) for the frame's draw; its one caller camera_director::apply (0x2434F6), every frame of every scene with a camera
