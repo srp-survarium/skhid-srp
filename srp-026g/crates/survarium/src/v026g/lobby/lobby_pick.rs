@@ -20,10 +20,12 @@ pub enum LobbyPick {
     Bunker,
     /// `lobby_scene/hangar_046`.
     Hangar,
+    /// `lobby_scene/camp_069_rules`: the Room lit by the 0.69d converter's rules (a test).
+    RoomRules,
 }
 
 impl LobbyPick {
-    pub const ALL: [LobbyPick; 4] = [LobbyPick::Room, LobbyPick::Basement, LobbyPick::Bunker, LobbyPick::Hangar];
+    pub const ALL: [LobbyPick; 5] = [LobbyPick::Room, LobbyPick::Basement, LobbyPick::Bunker, LobbyPick::Hangar, LobbyPick::RoomRules];
 
     /// Its id on the wire (1 to 4; 0 is none in `0xA1`).
     pub fn id(self) -> u8 {
@@ -32,6 +34,7 @@ impl LobbyPick {
             LobbyPick::Basement => 2,
             LobbyPick::Bunker => 3,
             LobbyPick::Hangar => 4,
+            LobbyPick::RoomRules => 5,
         }
     }
 
@@ -61,7 +64,7 @@ mod tests {
             assert_eq!(LobbyPick::of_start(LOBBY_PICK_BASE + u32::from(pick.id())), Some(pick));
             assert_eq!(LobbyPick::of_id(pick.id()), Some(pick));
         }
-        for start in [LOBBY_PICK_BASE, LOBBY_PICK_BASE + 5, LOBBY_PICK_BASE - 1] {
+        for start in [LOBBY_PICK_BASE, LOBBY_PICK_BASE + 6, LOBBY_PICK_BASE - 1] {
             assert_eq!(LobbyPick::of_start(start), None);
         }
         assert_eq!(LobbyPick::of_id(0), None);

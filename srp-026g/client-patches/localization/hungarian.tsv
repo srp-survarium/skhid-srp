@@ -2734,6 +2734,7 @@ st_srp_lobby_basement	Pince
 st_srp_lobby_bunker	Bunker
 st_srp_lobby_hangar	Hangár
 st_srp_lobby_room	Szoba
+st_srp_lobby_room_rules	Szoba (0.69 szabályok)
 st_srp_lobby_title	Lobbi
 st_srp_login_account_hint	A fiók az első belépéskor jön létre
 st_srp_login_ban_ends	Lejár: %1$s (%2$s múlva).

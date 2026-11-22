@@ -2734,6 +2734,7 @@ st_srp_lobby_basement	Piwnica
 st_srp_lobby_bunker	Bunkier
 st_srp_lobby_hangar	Hangar
 st_srp_lobby_room	Pokój
+st_srp_lobby_room_rules	Pokój (zasady 0.69)
 st_srp_lobby_title	Lobby
 st_srp_login_account_hint	Konto powstaje przy pierwszym logowaniu
 st_srp_login_ban_ends	Kończy się o %1$s (za %2$s).

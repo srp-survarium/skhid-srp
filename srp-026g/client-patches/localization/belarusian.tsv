@@ -2734,6 +2734,7 @@ st_srp_lobby_basement	Падвал
 st_srp_lobby_bunker	Бункер
 st_srp_lobby_hangar	Ангар
 st_srp_lobby_room	Пакой
+st_srp_lobby_room_rules	Пакой (правілы 0.69)
 st_srp_lobby_title	Лобі
 st_srp_login_account_hint	Акаўнт ствараецца пры першым уваходзе
 st_srp_login_ban_ends	Скончыцца а %1$s (праз %2$s).

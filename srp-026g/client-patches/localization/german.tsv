@@ -2734,6 +2734,7 @@ st_srp_lobby_basement	Keller
 st_srp_lobby_bunker	Bunker
 st_srp_lobby_hangar	Hangar
 st_srp_lobby_room	Zimmer
+st_srp_lobby_room_rules	Zimmer (0.69-Regeln)
 st_srp_lobby_title	Lobby
 st_srp_login_account_hint	Konto wird beim ersten Login erstellt
 st_srp_login_ban_ends	Endet um %1$s (in %2$s).

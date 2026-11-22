@@ -2734,6 +2734,7 @@ st_srp_lobby_basement	Sklep
 st_srp_lobby_bunker	Bunkr
 st_srp_lobby_hangar	Hangár
 st_srp_lobby_room	Pokoj
+st_srp_lobby_room_rules	Pokoj (pravidla 0.69)
 st_srp_lobby_title	Lobby
 st_srp_login_account_hint	Účet se vytvoří při prvním přihlášení
 st_srp_login_ban_ends	Skončí v %1$s (za %2$s).

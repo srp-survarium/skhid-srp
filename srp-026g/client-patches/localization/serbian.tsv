@@ -2734,6 +2734,7 @@ st_srp_lobby_basement	Podrum
 st_srp_lobby_bunker	Bunker
 st_srp_lobby_hangar	Hangar
 st_srp_lobby_room	Soba
+st_srp_lobby_room_rules	Soba (pravila 0.69)
 st_srp_lobby_title	Lobi
 st_srp_login_account_hint	Nalog se pravi pri prvoj prijavi
 st_srp_login_ban_ends	Ističe u %1$s (za %2$s).

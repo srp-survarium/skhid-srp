@@ -2734,6 +2734,7 @@ st_srp_lobby_basement	Basement
 st_srp_lobby_bunker	Bunker
 st_srp_lobby_hangar	Hangar
 st_srp_lobby_room	Room
+st_srp_lobby_room_rules	Room (0.69 rules)
 st_srp_lobby_title	Lobby
 st_srp_login_account_hint	Account created on first sign-in
 st_srp_login_ban_ends	Ends at %1$s (in %2$s).

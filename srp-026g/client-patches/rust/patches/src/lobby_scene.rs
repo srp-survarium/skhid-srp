@@ -60,6 +60,8 @@ pub enum Lobby {
     Stk2Bunker,
     /// The Hangar: the 0.46c2 hangar.
     Hangar046,
+    /// The Room lit by the 0.69d converter's rules (a test beside the Room).
+    Camp069Rules,
 }
 
 /// srp's start of a lobby pick (`3B`; its `lobby_pick::LOBBY_PICK_BASE`,
@@ -69,7 +71,7 @@ pub const PICK_BASE: u32 = 2095 * 1000 * 1000;
 
 impl Lobby {
     /// In the window's order (and the ids' 1 to 4).
-    pub const ALL: [Lobby; 4] = [Lobby::Camp069, Lobby::Classic, Lobby::Stk2Bunker, Lobby::Hangar046];
+    pub const ALL: [Lobby; 5] = [Lobby::Camp069, Lobby::Classic, Lobby::Stk2Bunker, Lobby::Hangar046, Lobby::Camp069Rules];
 
     /// Its id: user.cfg's `srp_lobby`, the lobby window's card, srp's
     /// `3B` start (`2 095 000 000 + id`) and `0xA1`'s bytes (0 none).
@@ -79,6 +81,7 @@ impl Lobby {
             Lobby::Classic => 2,
             Lobby::Stk2Bunker => 3,
             Lobby::Hangar046 => 4,
+            Lobby::Camp069Rules => 5,
         }
     }
 
@@ -102,6 +105,7 @@ impl Lobby {
             Lobby::Classic => b"2",
             Lobby::Stk2Bunker => b"3",
             Lobby::Hangar046 => b"4",
+            Lobby::Camp069Rules => b"5",
         }
     }
 
@@ -118,6 +122,7 @@ impl Lobby {
             Lobby::Stk2Bunker => c"lobby_scene/stk2_bunker",
             Lobby::Hangar046 => c"lobby_scene/hangar_046",
             Lobby::Camp069 => c"lobby_scene/camp_069",
+            Lobby::Camp069Rules => c"lobby_scene/camp_069_rules",
         }
     }
 
@@ -130,6 +135,7 @@ impl Lobby {
             Lobby::Stk2Bunker => c"resources/projects/lobby_scene/stk2_bunker/client_project",
             Lobby::Hangar046 => c"resources/projects/lobby_scene/hangar_046/client_project",
             Lobby::Camp069 => c"resources/projects/lobby_scene/camp_069/client_project",
+            Lobby::Camp069Rules => c"resources/projects/lobby_scene/camp_069_rules/client_project",
         }
     }
 
@@ -140,6 +146,7 @@ impl Lobby {
             Lobby::Classic => "day",
             Lobby::Stk2Bunker => "stk2_bunker",
             Lobby::Hangar046 => "hangar_046",
+            Lobby::Camp069Rules => "camp_069_rules",
         }
     }
 }
@@ -714,7 +721,7 @@ mod tests {
             assert_eq!(id, lobby.name());
             assert_eq!(lobby.config().to_str().unwrap(), format!("resources/projects/lobby_scene/{id}/client_project"));
         }
-        assert_eq!(Lobby::ALL.map(Lobby::id), [1, 2, 3, 4]);
+        assert_eq!(Lobby::ALL.map(Lobby::id), [1, 2, 3, 4, 5]);
         for other in [&b""[..], b"0", b"5", b"12", b" 1", b"a"] {
             assert_eq!(Lobby::parse(other), Lobby::Camp069, "{other:?}");
         }
