@@ -394,8 +394,8 @@ the same rules, the same spawn points that already exist". `training-camp-teams-
 | 212 | Team Deathmatch (4) | `v010b_cs_training_camp_level_03_day_4.options`, its row again (`stalker-tdm-hold-1` takes it out; this list puts it back) | `v010b_cs_training_camp/day_teams` |
 | 450 | Freeze Tag (12) | `freeze/v010b_cs_training_camp_level_03_day_4.options`, a copy of 212's as `freeze-tag-1` makes Rudnya's (mode 12, `ui.icon` 4, its names, no ticket rule) | the same |
 
-450 is the first id past those `scripts/mode-maps/make.py` gives the other team maps (Artifact Hunt
-327-349, Freeze Tag 400-449). `make.py` leaves Training Camp out of its team maps (its STALKER
+450 is the first id past those `scripts/mode-maps/make.py` gave the other team maps (Artifact Hunt
+327-350, Freeze Tag 400-449; its `ids.tsv`), and its new ones pass over it (another list's id). `make.py` leaves Training Camp out of its team maps (its STALKER
 ports, `v010b_` projects, are Free for All's or this list's).
 
 - **One pool, no sides.** A respawn point has one team, and the respawn rule fills its three groups

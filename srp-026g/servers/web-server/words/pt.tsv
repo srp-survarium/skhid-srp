@@ -52,8 +52,6 @@ Wiki	Wiki
 Equipment	Equipamento
 Equipment reference	Guia de equipamentos
 pieces	itens
-Every armour piece: protection by body part, weight, what it has built in and what it can roll.	Toda peça de armadura: proteção por parte do corpo, peso, o que vem embutido e o que pode receber.
-Armour (bullets, melee, explosions) and isolation (fire, radiation, electricity, toxins) are the share of damage stopped (×100); worn pieces add up. Over {0} kg a kit slows you, up to −20% speed and +150% sprint stamina at the limit, where you can't sprint.	Armadura (balas, corpo a corpo, explosões) e isolamento (fogo, radiação, eletricidade, toxinas) são a parcela do dano bloqueada (×100); as peças vestidas se somam. Acima de {0} kg o kit deixa você mais lento, até −20% de velocidade e +150% de estamina gasta na corrida no limite, onde não dá para correr.
 Nothing matches.	Nada encontrado.
 Stats	Estatísticas
 Public matches	Partidas públicas
@@ -133,7 +131,7 @@ Start <code>Skhid.bat</code> again. Still failing? Run <code>Skhid-without-updat
 “No connection: …”	“Sem conexão: …”
 Run <code>Skhid-network-setup.cmd</code>.	Execute o <code>Skhid-network-setup.cmd</code>.
 “Blocked on this network: …”	“Bloqueado nesta rede: …”
-Your provider blocks skhid.link: the launcher sets <b>Relay</b> (bottom left) to auto. Press Retry.	Seu provedor bloqueia o skhid.link: o launcher coloca <b>Relay</b> (canto inferior esquerdo) em auto. Clique em Tentar novamente.
+Your provider blocks our server. The launcher has already switched to our relay, a way around the block (<b>Relay: auto</b>, bottom left). Just press <b>Retry</b>.	Seu provedor bloqueia nosso servidor. O launcher já mudou sozinho para o nosso relay, que contorna o bloqueio (<b>Relay: auto</b>, canto inferior esquerdo). Basta clicar em <b>Tentar novamente</b>.
 Nothing works.	Nada funciona.
 Run <code>Skhid-collect-logs.cmd</code> and send the zip it makes to us on Discord: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.	Execute o <code>Skhid-collect-logs.cmd</code> e envie o zip que ele gerar para nós no Discord: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.
 Q:	P:
@@ -142,8 +140,7 @@ If something goes wrong	Se algo der errado
 Download the files	Baixar os arquivos
 Download the game	Baixar o jogo
 The download link is coming soon.	O link de download chega em breve.
-Or the whole game by BitTorrent:	Ou o jogo completo por BitTorrent:
-Without this site, by BitTorrent:	Sem este site, por BitTorrent:
+Can't download? Run {script}: it downloads the whole game into a Survarium folder beside it.	Não consegue baixar? Execute {script}: ele baixa o jogo inteiro para uma pasta Survarium ao lado dele.
 Get the game	Obtenha o jogo
 The link is coming soon.	O link chega em breve.
 Get the original Survarium 0.26g (build 2777) and unpack it.	Obtenha o Survarium 0.26g original (build 2777) e extraia.
@@ -162,7 +159,7 @@ Start it with this command line:	Inicie o jogo com esta linha de comando:
 english	english
 server address	endereço do servidor
 language: english, russian, ukrainian	idioma: english, russian, ukrainian
-Skhid (Ukrainian for “east”) is a small community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.	Skhid (“leste” em ucraniano) é um pequeno servidor comunitário que permite ao cliente Survarium {version} entrar, negociar, formar esquadrões e jogar partidas de novo.
+Skhid (Ukrainian for “east”) is a community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.	Skhid (“leste” em ucraniano) é um servidor comunitário que permite ao cliente Survarium {version} entrar, negociar, formar esquadrões e jogar partidas de novo.
 Project Discord: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>	Discord do projeto: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>
 Early test server.	Servidor em teste inicial.
 It has bugs and may not work fully. Your progress, items and accounts can be lost or reset at any time, and the server may be stopped at any time. By playing you accept this.	Ele tem bugs e pode não funcionar por completo. Seu progresso, itens e contas podem ser perdidos ou zerados a qualquer momento, e o servidor pode ser desligado a qualquer momento. Ao jogar, você aceita isso.

@@ -302,6 +302,14 @@ extern engine_particle_insert
 ; 0x292dc0 survarium::object_particle_visual::remove: particle ECX; pops 0; thiscall, called directly
 ; thiscall: push (and ECX for thiscall) as that convention says
 extern engine_particle_remove
+; void engine_probe_insert(struct object_environment_probe *probe)
+; 0x28ffd0 survarium::object_environment_probe::insert: probe ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_probe_insert
+; void engine_probe_remove(struct object_environment_probe *probe)
+; 0x2904a0 survarium::object_environment_probe::remove: probe ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_probe_remove
 ; void engine_inventory_remove(struct inventory *inventory, unsigned int slot)
 ; 0x2fc680 survarium::inventory::remove_item: inventory ESI, slot EAX; pops 0
 extern engine_inventory_remove
@@ -973,6 +981,10 @@ extern engine_unpin_resource
 ; 0x1a8900 vostok::render::effect_compiler::set_constant_float4: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
 ; thiscall: push (and ECX for thiscall) as that convention says
 extern engine_set_constant_float4
+; void engine_set_constant_float2(const float *value, struct effect_compiler *compiler, const char *name)
+; 0x1d9740 vostok::render::effect_compiler::set_constant_float2: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_set_constant_float2
 ; struct shared_string *engine_shared_string_create(const char *text)
 ; 0xe0b50 vostok::shared_string::create: text ESP+4; pops 4; EAX; stdcall, called directly
 ; stdcall: push (and ECX for thiscall) as that convention says

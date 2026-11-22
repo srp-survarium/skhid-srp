@@ -1001,7 +1001,10 @@ the installation lock):
    its Content-Length plus 64 MB free, else nothing is fetched), flushed,
    read back and hashed, and renamed to its name only when it has the
    list's SHA-256. When every address failed, the run ends. A
-   `.skhid-part` that failed, or was stopped, is deleted.
+   `.skhid-part` that failed, or was stopped, is deleted. The launcher's
+   line says which of them it is at, "(5/69)" after what is left of the
+   file (message `0B`, launcher patch 17; taken back when the downloads
+   end).
 6. The folder is checked against the list as `ready` checks it: no other
    patch file, the downloaded files as they were hashed (by their file ID
    in place; hashed again there if the rename did not keep it), the

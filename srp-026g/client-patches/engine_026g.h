@@ -105,6 +105,7 @@ struct movie_slot;
 struct network_client;
 struct new_sound_propagator;
 struct object_ambient_light;
+struct object_environment_probe;
 struct object_light;
 struct object_particle_visual;
 struct panning_lut;
@@ -442,6 +443,12 @@ void __attribute__((thiscall)) engine_particle_insert(struct object_particle_vis
 
 /* 0x292dc0 survarium::object_particle_visual::remove: particle ECX; pops 0; thiscall, called directly */
 void __attribute__((thiscall)) engine_particle_remove(struct object_particle_visual *particle);
+
+/* 0x28ffd0 survarium::object_environment_probe::insert: probe ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_probe_insert(struct object_environment_probe *probe);
+
+/* 0x2904a0 survarium::object_environment_probe::remove: probe ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_probe_remove(struct object_environment_probe *probe);
 
 /* 0x2fc680 survarium::inventory::remove_item: inventory ESI, slot EAX; pops 0 */
 void engine_inventory_remove(struct inventory *inventory, unsigned int slot);
@@ -1027,6 +1034,9 @@ void engine_unpin_resource(struct pinned_resource *pinned);
 
 /* 0x1a8900 vostok::render::effect_compiler::set_constant_float4: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly */
 void __attribute__((thiscall)) engine_set_constant_float4(const float *value, struct effect_compiler *compiler, const char *name);
+
+/* 0x1d9740 vostok::render::effect_compiler::set_constant_float2: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly */
+void __attribute__((thiscall)) engine_set_constant_float2(const float *value, struct effect_compiler *compiler, const char *name);
 
 /* 0xe0b50 vostok::shared_string::create: text ESP+4; pops 4; EAX; stdcall, called directly */
 struct shared_string *__attribute__((stdcall)) engine_shared_string_create(const char *text);

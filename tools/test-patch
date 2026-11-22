@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# tools/test-patch <setup> [<input>...] [--name <name>] [--exe <name>] [--revision <n>]
+# A test patch of exactly the files that differ from what a local setup's game mounts, in a
+# minute: tools/testpatch.py says how. In the dev shell (its cargo, Python, the exe's toolchain).
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+exec "$root/tools/dev" python3 -I "$root/tools/testpatch.py" "$@"

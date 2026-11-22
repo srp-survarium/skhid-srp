@@ -36,16 +36,18 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
 4. **The manifest row:** `pack <id>@<version> <sha256 of pack.json> <description>` in
    `release/content.tsv`. `pack.json` lists paths, not contents: a rebuild with the same
    file list keeps its sha, so a changed pack for a release gets a new version.
-5. **The content:** `release/build-content <revision> --out <dir>` from the skhid worktree
+5. **The content:** `release/build-content <revision> --slow --out <dir>` from the skhid worktree
    with the packs folder named: `release.env` sets `SKHID_PACKS_DIR` itself, so wrap it,
    ```sh
    # release-modes.env
    . <main checkout>/private/release/release.env
    SKHID_PACKS_DIR=/mnt/hdd/Projects/rudnya-069d/packs-modes   # <id>-<version> -> the pack
    ```
-   and run `SKHID_RELEASE_ENV=<that file> release/build-content 39 --out <content dir>`.
+   and run `SKHID_RELEASE_ENV=<that file> release/build-content 39 --slow --out <content dir>`.
    The folder holds `resources.db.patch_<rev>` and `server-game-data.db`: the coordinator or
    the owner swaps it into a local game; never assemble one by hand.
+   A later fix of the pack's files only (its tables and configs as they were): `tools/test-patch
+   <setup> <packs>/<id>-<version>` packs what differs into the setup in a minute.
 6. **Ids** (check stock, every published patch, every pack and parked branches):
    - `maps_dict` id (204; the server reads maps from the game data, not from code);
    - level, `match_making_params.map_id` (14): names, room tiles and play counts key on it;

@@ -1981,7 +1981,7 @@ fn faq(lang: Lang) -> String {
         ),
         (
             lang.t("“Blocked on this network: …”"),
-            lang.t("Your provider blocks skhid.link: the launcher sets <b>Relay</b> (bottom left) to auto. Press Retry."),
+            lang.t("Your provider blocks our server. The launcher has already switched to our relay, a way around the block (<b>Relay: auto</b>, bottom left). Just press <b>Retry</b>."),
         ),
         (
             lang.t("Nothing works."),
@@ -2036,25 +2036,16 @@ fn home(lang: Lang, stats: Stats) -> String {
         ),
         None => String::new(),
     };
-    // 0.26g: the whole game folder by BitTorrent too, when the ZIP holds a
-    // torrent.
-    let torrent = available_download()
-        .filter(|_| v026g)
-        .and_then(|file| torrent::in_zip(file))
-        .map_or_else(String::new, |torrent| {
-            format!(
-                "<small>{} <a href=\"{}\">.torrent</a> &middot; <a href=\"{}\">magnet</a></small>",
-                lang.t("Or the whole game by BitTorrent:"),
-                torrent::PATH,
-                escape(&torrent.magnet())
-            )
-        });
-    // 0.26g: the script that gets it all without this site, when there is one.
+    // 0.26g: for a browser or an antivirus that refuses the ZIP, the script
+    // that gets it all by itself, when there is one.
     let bootstrap = if v026g && torrent::BOOTSTRAP.is_some() {
+        let script = format!("<a href=\"{}\">Skhid-get.bat</a>", torrent::BOOTSTRAP_PATH);
         format!(
-            "<small>{} <a href=\"{}\">Skhid-get.bat</a></small>",
-            lang.t("Without this site, by BitTorrent:"),
-            torrent::BOOTSTRAP_PATH
+            "<small>{}</small>",
+            lang.tf(
+                "Can't download? Run {script}: it downloads the whole game into a Survarium folder beside it.",
+                &[("script", &script)]
+            )
         )
     } else {
         String::new()
@@ -2145,9 +2136,9 @@ fn home(lang: Lang, stats: Stats) -> String {
         String::new()
     };
     format!(
-        "<section class=card><h1>{}</h1><p>{}</p><p>{}</p><p class=note><b>{}</b> {}</p>{stats}</section> <section class=card><h2>{}</h2><ol> {original}<li>{}<div class=dl>{download}{hash}{torrent}{bootstrap}</div></li> <li>{start}</li> <li>{}</li></ol></section>{faq}",
+        "<section class=card><h1>{}</h1><p>{}</p><p>{}</p><p class=note><b>{}</b> {}</p>{stats}</section> <section class=card><h2>{}</h2><ol> {original}<li>{}<div class=dl>{download}{hash}{bootstrap}</div></li> <li>{start}</li> <li>{}</li></ol></section>{faq}",
         lang.t("Skhid"),
-        lang.tf("Skhid (Ukrainian for “east”) is a small community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.", &[("version", &version)]),
+        lang.tf("Skhid (Ukrainian for “east”) is a community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.", &[("version", &version)]),
         lang.t("Project Discord: <a href=\"https://discord.gg/pxywZfaxRQ\">discord.gg/pxywZfaxRQ</a>"),
         lang.t("Early test server."),
         lang.t("It has bugs and may not work fully. Your progress, items and accounts can be lost or reset at any time, and the server may be stopped at any time. By playing you accept this."),

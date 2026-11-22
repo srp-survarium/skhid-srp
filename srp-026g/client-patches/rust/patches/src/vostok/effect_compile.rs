@@ -442,6 +442,41 @@ pub fn send_tile_uv(ctx: &Context<'_>, value: [f32; 4]) {
     unsafe { raw::engine_set_constant_float4(value.as_ptr(), Some(compiler), c"constant_tile_uv".as_ptr().cast()) }
 }
 
+/// The g-buffer compile's parallax block (`gstage.parallax`): its material
+/// config and its compiler.
+pub struct GstageParallax<'c> {
+    compiler: raw::EffectCompiler,
+    tree: Option<ConfigTable<'c>>,
+}
+
+impl<'c> GstageParallax<'c> {
+    pub fn at(ctx: &'c Context<'_>) -> GstageParallax<'c> {
+        use raw::site::gstage_parallax as site;
+        // SAFETY: the site's EBP is effect_gstage_default_materials::compile's
+        // frame, [EBP+8] its compiler; EBX the compile's config tree,
+        // immutable while the effect compiles.
+        unsafe {
+            let compiler = site::frame(ctx).and_then(|frame| frame.compiler()).expect("the compile's compiler");
+            let tree = site::tree(ctx).and_then(|tree| ConfigValue::read(tree).ok()?.table().ok());
+            GstageParallax { compiler, tree }
+        }
+    }
+
+    /// The material's merged config (its g_stage effect table), if a table.
+    pub fn tree(&self) -> Option<&ConfigTable<'c>> {
+        self.tree.as_ref()
+    }
+
+    /// Sets a float2 constant of the compile: the game's set_constant<float2>,
+    /// which binds it only while building and only when no binding has the name.
+    pub fn send_float2(&self, name: &'static CStr, value: [f32; 2]) {
+        // SAFETY: set_constant<float2> (thiscall: ECX the value, then the
+        // compiler and the name), on the compile's own thread and compiler;
+        // it copies the value and interns the name.
+        unsafe { raw::engine_set_constant_float2(value.as_ptr(), Some(self.compiler), name.as_ptr().cast()) }
+    }
+}
+
 #[cfg(test)]
 impl Switches0d {
     pub fn default_for_test(byte: u8) -> Switches0d {
