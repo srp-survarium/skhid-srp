@@ -256,8 +256,9 @@ pub const DROP_LANDS_ALGO: u32 = 0x5067_0011;
 /// the shares' neighbourhood masks (`RIM_JUMPS_ALGO` 0b10). 000b: [knife edge] a press with width across the way before a
 /// knife edge (`RIM_JUMPS_ALGO` 0b12). 000c: [row 31] a floor overhead with room under it (`overhead`) is no wall and no thin
 /// top to the gap searches (000a was its value before the merge with 000b). 000d: [retarget] each flown gap link keeps the grid
-/// way its press was flown along (`grid::gap::GridWay`).
-pub const GAP_FLIGHTS_ALGO: u32 = 0x5389_000d;
+/// way its press was flown along (`grid::gap::GridWay`). 000e: [backward landing] a flight lands only on a floor ahead of the
+/// take-off along the way its press is flown (`grid::gap_flown` `gap_lands_on`).
+pub const GAP_FLIGHTS_ALGO: u32 = 0x5389_000e;
 /// The same for the taken floors given back where the client's body rests and no floor names the place ([`Body::rest_floors`],
 /// A389), in [`grid_key_with_links`] only for a body that asks for it. A value of its own. 0102: the own-point stand test
 /// (`rest_floors::settle_near`: a standing body on the floor's own point, no push out of the walls, and 0.05-0.10 m around it
