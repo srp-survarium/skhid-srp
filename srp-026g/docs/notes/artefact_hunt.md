@@ -82,23 +82,27 @@ Each one a decision; the owner's are marked, the rest are the port's and open to
   its use shapes the container's collision geometries and its props the container's models and
   collision as the battery project has them, on a copy of the map's Team Deathmatch project
   (its spawns; each base checked on its own team's side). Pack `artefact-hunt-maps` (the configs)
-  and `artefact-hunt-maps-1.json` (projects, maps_dict 327-347), both made by
+  and `artefact-hunt-maps-1.json` (projects, maps_dict 327-350), both made by
   `scripts/mode-maps/make.py`. Rudnya v0.69 too: 0.46c2's Rudnya points are for 0.26's geometry,
-  its bases where the battery containers stand anyway.
+  its bases where the battery containers stand anyway. London likewise since it plays 0.32a4's
+  projects (`london-v032-1`): maps 324-326 keep their ids and play configs of v0.32's own battery
+  mode on copies of its Team Deathmatch projects (`artefact_hunt/v032a_level_09_<weather>_ah`);
+  artefact-hunt-1's London configs and `level_09/<weather>_ah` projects are no row's.
 
   | level | map | weathers | Freeze Tag | Artifact Hunt |
   |---|---|---|---|---|
-  | 1-8 | the stock maps (8: day, evening, prerain) | 3 | 114 (Rudnya day), 350-372 | 300-323 (0.46c2) |
-  | 9 | London | 3 | 373-375 | 324-326 (0.46c2) |
-  | 10 | Vostok Radar Station v0.21 | 3 | 376-378 | 327-329 |
-  | 11 | Mamayev Kurgan v0.21 | 3 | 379-381 | 330-332 |
-  | 12 | Chemical Plant v0.11 | day | 382 | 333 |
-  | 13 | Vostok Radar Station v0.11 | day | 383 | 334 |
-  | 14 | Rudnya v0.69 | day | 384 | 335 |
-  | 25 | School v0.21 | 3 | 385-387 | 336-338 |
-  | 26 | Tarakanovsky Fort v0.21 | 3 | 388-390 | 339-341 |
-  | 29 | Rudnya v0.21 | 3 | 391-393 | 342-344 |
-  | 31 | Chemical Plant v0.21 | 3 | 394-396 | 345-347 |
+  | 1-8 | the stock maps (8: day, evening, prerain) | 3 | 114 (Rudnya day), 400-422 | 300-323 (0.46c2) |
+  | 9 | London (v0.32) | 3 | 423-425 | 324-326 |
+  | 10 | Vostok Radar Station v0.21 | 3 | 426-428 | 327-329 |
+  | 11 | Mamayev Kurgan v0.21 | 3 | 429-431 | 330-332 |
+  | 12 | Chemical Plant v0.11 | day | 432 | 333 |
+  | 13 | Vostok Radar Station v0.11 | day | 433 | 334 |
+  | 14 | Rudnya v0.69 | day | 434 | 335 |
+  | 25 | School v0.21 | 3 | 435-437 | 336-338 |
+  | 26 | Tarakanovsky Fort v0.21 | 3 | 438-440 | 339-341 |
+  | 29 | Rudnya v0.21 | 3 | 441-443 | 342-344 |
+  | 31 | Chemical Plant v0.21 | 3 | 444-446 | 345-347 |
+  | 32 | London v0.42 | 3 | 447-449 | 348-350 |
 - **A mode config a map** (`mode.mode` 13, `mode.rules [93, 91, 481, 94]`; "The exe" says why) with
   0.46c2's `mode.parameters` under their own names, and the map's mode data in world space. What
   reads each key:
