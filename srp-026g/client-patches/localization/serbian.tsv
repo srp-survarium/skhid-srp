@@ -1451,6 +1451,7 @@ st_level_13_name	Radarska stanica Vostok (v0.11)
 st_level_14_name	Rudnja (v0.69)
 st_level_25_name	Škola (v0.21)
 st_level_26_name	Tarakanovski fort (v0.21)
+st_level_27_name	Škola (v0.69)
 st_level_28_name	Radarska stanica Vostok (v0.69)
 st_level_29_name	Rudnja (v0.21)
 st_level_31_name	Hemijska fabrika (v0.21)
@@ -2794,6 +2795,7 @@ st_srp_map_rudnya_v021	Rudnja (v0.21)
 st_srp_map_rudnya_v069	Rudnja (v0.69)
 st_srp_map_school	Škola
 st_srp_map_school_v021	Škola (v0.21)
+st_srp_map_school_v069	Škola (v0.69)
 st_srp_map_soc_ug_depository	Depository
 st_srp_map_soc_ug_station	Station
 st_srp_map_tarakanovsky_fort	Tarakanovski fort

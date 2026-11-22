@@ -1451,6 +1451,7 @@ st_level_13_name	РЛС "Восток" (v0.11)
 st_level_14_name	Рудня (v0.69)
 st_level_25_name	Школа (v0.21)
 st_level_26_name	Тараканаўскі форт (v0.21)
+st_level_27_name	Школа (v0.69)
 st_level_28_name	РЛС "Восток" (v0.69)
 st_level_29_name	Рудня (v0.21)
 st_level_31_name	Хімзавод (v0.21)
@@ -2794,6 +2795,7 @@ st_srp_map_rudnya_v021	Рудня (v0.21)
 st_srp_map_rudnya_v069	Рудня (v0.69)
 st_srp_map_school	Школа
 st_srp_map_school_v021	Школа (v0.21)
+st_srp_map_school_v069	Школа (v0.69)
 st_srp_map_soc_ug_depository	Depository
 st_srp_map_soc_ug_station	Station
 st_srp_map_tarakanovsky_fort	Тараканаўскі форт
