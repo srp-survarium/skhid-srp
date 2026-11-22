@@ -531,6 +531,7 @@ SKHID_GAME_LIST=$T/game.tsv
 SKHID_STOCK_DB=$T/resources.db
 SKHID_RELEASE_LOCK=$T/lock
 SKHID_BACKUP_DIR=$T/backups
+SKHID_DROPBOX=off
 EOF
 export SKHID_RELEASE_ENV=$T/release.env
 

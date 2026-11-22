@@ -131,9 +131,12 @@ committed mirror URLs unless the owner asks to remove them.
 Russia, Dropbox is the address for those players). With the account in
 `release.env` (`SKHID_DROPBOX_APP_KEY`, `SKHID_DROPBOX_APP_SECRET`,
 `SKHID_DROPBOX_REFRESH_TOKEN`, made once with `release/dropbox-upload
---login`), `upload-patch` also puts a new patch on Dropbox
-(`release/dropbox-upload`: the upload, its public link, a whole download
-back against the sha256) and writes that address before the patches
+--login`), `upload-patch` also puts a new patch on Dropbox. It cannot be
+forgotten: without the account `release.sh --resources` stops in its
+preflight and `upload-patch` publishes nothing (`SKHID_DROPBOX=off` in
+`release.env` releases without, on purpose: only on the owner's word).
+The step is `release/dropbox-upload`: the upload, its public link, a whole download
+back against the sha256; then that address is written before the patches
 server's in the patch's row. The owner's order of a file's addresses:
 Google Drive's, Dropbox's, the patches server's, archive.org's (then the
 torrent). The address must be the

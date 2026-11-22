@@ -180,6 +180,23 @@ http_get() {
     curl -sS --max-time "${HTTP_TIMEOUT:-600}" -o "$2" -w '%{http_code}' "$1" || true
 }
 
+# Whether a new patch also goes to Dropbox (release/dropbox-upload), by
+# release.env (load_env first): `on` with the account there (or an access
+# token given), `off` with SKHID_DROPBOX=off, said on purpose. Neither: it
+# was forgotten, nothing is printed, and upload-patch and release.sh stop
+# with DROPBOX_FORGOTTEN: a patch without its Dropbox address leaves the
+# players whose providers cut the patches server without the content.
+dropbox_setting() {
+    if [[ ${SKHID_DROPBOX:-} == off ]]; then
+        echo off
+    elif [[ -n ${SKHID_DROPBOX_TOKEN:-} ]] ||
+        [[ -n ${SKHID_DROPBOX_APP_KEY:-} && -n ${SKHID_DROPBOX_APP_SECRET:-} && -n ${SKHID_DROPBOX_REFRESH_TOKEN:-} ]]; then
+        echo on
+    fi
+}
+# shellcheck disable=SC2034 # used by the scripts that source this
+DROPBOX_FORGOTTEN="no Dropbox account in release.env: a new patch must go to Dropbox too. Set SKHID_DROPBOX_APP_KEY and SKHID_DROPBOX_APP_SECRET there and run release/dropbox-upload --login (once); or say SKHID_DROPBOX=off there to release without, on purpose"
+
 # The most URLs a patch may have (the players' updater takes up to 8).
 MAX_PATCH_URLS=8
 
