@@ -428,7 +428,7 @@ impl World {
             replay_id: session::v026g::replays::ReplayId::new(match_id, std::time::UNIX_EPOCH),
             map_id: made.map().id,
             mode: made.mode(),
-            twist: made.twist(),
+            twist: made.armed(),
             match_level: 0,
             end: MatchEnd::ModeRule,
             winner: Some(0),
@@ -459,6 +459,7 @@ impl World {
                 statistics: Some(PlayerStatistics::default()),
                 pay_statistics: None,
                 supplies: None,
+                weapons: Vec::new(),
             }],
         };
         let terms = Terms::at(session::v026g::quests::now());

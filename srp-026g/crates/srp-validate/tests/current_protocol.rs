@@ -7,8 +7,8 @@ impl GuardDictionary for Data {
     fn item(&self, id: u16) -> Option<bool> {
         self.0.item(id).map(|item| item.is_stack)
     }
-    fn map(&self, id: u8) -> bool {
-        maps::map_mode(id).is_some_and(|map| map.is_playable())
+    fn map(&self, id: u16) -> bool {
+        maps::map_mode(maps::MapId::new(id)).is_some_and(|map| map.is_playable())
     }
 }
 
@@ -29,6 +29,7 @@ fn options(blackout: bool) -> info::MatchOptions {
                 ..info::MatchItem::default()
             }],
             squad: 0,
+            face: survarium::v026g::faces::Face::DEFAULT,
         }],
         // Blackout is its maps' mode (#1243): the options carry its SRPX entry.
         map: if blackout {
@@ -37,7 +38,7 @@ fn options(blackout: bool) -> info::MatchOptions {
                 .and_then(|map| maps::MatchMap::of(map.id))
                 .expect("a Blackout map")
         } else {
-            maps::MatchMap::of(61).unwrap()
+            maps::MatchMap::of(maps::MapId::new(61)).unwrap()
         },
         match_id: 0x1234_5678,
         match_level: 3,
@@ -101,7 +102,7 @@ fn a_free_for_alls_own_sides_and_kill_target_go_together() {
         info::options_bytes(&teams, data.0),
         Err(info::StaticInfoError::Team { player: 0, team: 0 })
     );
-    let mut own = options_on(maps::MatchMap::of(61).unwrap());
+    let mut own = options_on(maps::MatchMap::of(maps::MapId::new(61)).unwrap());
     own.players[0].team = 4;
     assert_eq!(
         info::options_bytes(&own, data.0),
@@ -121,7 +122,7 @@ fn a_free_for_alls_own_sides_and_kill_target_go_together() {
         assert!(messages::options(&bad, &data).is_err(), "{suffix:?}");
         assert!(info::parse_options(&bad, data.0).is_err(), "{suffix:?}");
     }
-    let plain = info::options_bytes(&options_on(maps::MatchMap::of(61).unwrap()), data.0).unwrap();
+    let plain = info::options_bytes(&options_on(maps::MatchMap::of(maps::MapId::new(61)).unwrap()), data.0).unwrap();
     let bad = [&plain[..], entry].concat();
     assert!(messages::options(&bad, &data).is_err());
     assert!(info::parse_options(&bad, data.0).is_err());
@@ -154,6 +155,49 @@ fn current_server_options_and_blackout_are_accepted() {
                 bad.extend(suffix);
                 assert!(messages::options(&bad, &data).is_err());
             }
+        }
+    }
+}
+
+/// The roster's faces (`face-choice.md`): srp's entry `{5, roster, a face a
+/// place}`, last, as the server writes it when a face is not 0. The clients'
+/// check refuses another length than the roster's, every face 0, and the
+/// entry twice; a face the data does not list (the test data has three) is
+/// taken, and read as face 0.
+#[test]
+fn the_faces_entry_is_a_face_a_place_of_the_roster() {
+    use survarium::v026g::faces::Faces;
+    let data = Data(Dictionary::shared());
+    for blackout in [false, true] {
+        let mut options = options(blackout);
+        let mut bob = options.players[0].clone();
+        bob.name = "bob".into();
+        bob.team = 1;
+        bob.face = Faces::shared().face(2).unwrap();
+        options.players.push(bob);
+        let bytes = info::options_bytes(&options, data.0).unwrap();
+        let entry = b"\x05\x02\x00\x02";
+        assert!(bytes.ends_with(entry));
+        assert_eq!(messages::options(&bytes, &data), Ok(2));
+        assert_eq!(info::parse_options(&bytes, data.0).unwrap(), options);
+        // The options to the entry: the block's magic, and Blackout's entry.
+        let before = &bytes[..bytes.len() - entry.len()];
+        let block: &[u8] = if blackout { b"SRPX\x02\x01\x01" } else { b"SRPX" };
+        assert!(before.ends_with(block));
+        let unlisted = [before, &b"\x05\x02\x00\x03"[..]].concat();
+        assert_eq!(messages::options(&unlisted, &data), Ok(2));
+        let read = info::parse_options(&unlisted, data.0).unwrap();
+        assert_eq!(read.players[1].face, survarium::v026g::faces::Face::DEFAULT);
+        for suffix in [
+            &b"\x05\x01\x02"[..],
+            b"\x05\x03\x00\x02\x01",
+            b"\x05\x02\x00",
+            b"\x05\x02\x00\x00",
+            b"\x05\x02\x00\x02\x05\x02\x00\x02",
+        ] {
+            let bad = [before, suffix].concat();
+            assert!(messages::options(&bad, &data).is_err(), "{suffix:?}");
+            assert!(info::parse_options(&bad, data.0).is_err(), "{suffix:?}");
         }
     }
 }
@@ -219,8 +263,57 @@ fn current_emitted_messages_and_late_join_headers_are_accepted() {
     for len in 0..14 {
         assert!(messages::check(messages::id::STATIC_INFO, &prepare[..len]).is_err());
     }
-    let mut bad = prepare; bad[8..12].fill(0);
+    let mut bad = prepare.clone(); bad[8..12].fill(0);
     assert!(messages::check(messages::id::STATIC_INFO, &bad).is_err());
+    // A face but 0: srp's block after the profile, the header as before.
+    let mut faced = options(false).players.remove(0);
+    faced.face = survarium::v026g::faces::Faces::shared().face(1).unwrap();
+    let faced = late_join::Prepare {
+        proposal: late_join::Proposal { match_id: 42, serial: 1, place: 19 },
+        profile: faced,
+    }.encode(Dictionary::shared()).unwrap();
+    assert_eq!(faced, [&prepare[..], b"SRPX\x05\x01\x01"].concat());
+    assert_eq!(messages::check(messages::id::STATIC_INFO, &faced), Ok(()));
+}
+
+/// The test archive with a map 300 more: the map an id over a byte names.
+struct Wide(Data);
+impl GuardDictionary for Wide {
+    fn item(&self, id: u16) -> Option<bool> {
+        self.0.item(id)
+    }
+    fn map(&self, id: u16) -> bool {
+        id == 300 || self.0.map(id)
+    }
+}
+
+/// A map id over a byte (exe patch 154): the options' byte its low byte,
+/// srp's entry `{4, 2, id}` the whole id the client loads, before a
+/// free-for-all's entry as the server writes them. The clients' check takes
+/// the whole id, and refuses another low byte, an id of a byte in the
+/// entry, the entry twice, or the wide id of a map the client lacks.
+#[test]
+fn a_map_id_over_a_byte_is_its_low_byte_and_srps_entry() {
+    let data = Wide(Data(Dictionary::shared()));
+    let plain = info::options_bytes(&options_on(maps::MatchMap::of(maps::MapId::new(61)).unwrap()), data.0.0).unwrap();
+    // The map's byte: the first of the 140 after the profiles.
+    let at = plain.len() - 140;
+    let wide = |byte: u8, block: &[u8]| {
+        let mut bytes = [&plain[..], block].concat();
+        bytes[at] = byte;
+        bytes
+    };
+    assert_eq!(messages::options(&wide(44, b"SRPX\x04\x02\x2c\x01"), &data), Ok(1));
+    assert!(messages::options(&wide(44, b"SRPX\x04\x02\x2d\x01"), &data).is_err(), "map 301");
+    for (byte, block) in [
+        (61, &b"SRPX\x04\x02\x2c\x01"[..]),
+        (61, b"SRPX\x04\x02\x3d\x00"),
+        (44, b"SRPX\x04\x02\x2c\x01\x04\x02\x2c\x01"),
+        (44, b"SRPX\x04\x01\x2c"),
+        (44, b"SRPX"),
+    ] {
+        assert!(messages::options(&wide(byte, block), &data).is_err(), "{byte} {block:?}");
+    }
 }
 
 /// A spectator's 0xE4 (local place 0xFF, #1285) and the 0xEA that ends its

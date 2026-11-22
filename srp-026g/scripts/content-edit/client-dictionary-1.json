@@ -1,0 +1,13 @@
+{
+ "_about": "The client's dictionary as its reader wants it (the owner, 2026-11-21: the console and the logs without lines that tell nothing). maps_dict without the five stock rows whose config the db has never had (114 level.options, 143 test/primitive_1, 144 test/dtb, 150 and 151 test/level_06_dtb1 and 2): items_dictionary_cook::on_map_configs_loaded (0x2C9D18) logged 'Wrong map config. Map id = %u' for each at every start, and no server offers them (static_info.md). items_dict in ascending dict_id: the packs and edit lists append their rows, and on_configs_loaded (0x2C8FC2) logged 'old items dictionary format' (an ERROR) for each id lower than the one before it, 21 at every start, then sorted the table itself; sorted here, the table it makes is the same. The packs come before every edit list; an edit list after this one that adds items_dict rows (add_entry) puts them in order or brings the line back.",
+ "remove_entry": [
+  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "where": {"id": 114, "cfg_mode_name": "level.options"}},
+  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "where": {"id": 143, "cfg_mode_name": "test/primitive_1.options"}},
+  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "where": {"id": 144, "cfg_mode_name": "test/dtb.options"}},
+  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "where": {"id": 150, "cfg_mode_name": "test/level_06_dtb1.options"}},
+  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "where": {"id": 151, "cfg_mode_name": "test/level_06_dtb2.options"}}
+ ],
+ "sort_entries": [
+  {"file": "gameplay/db_static_dictionaries", "list": "items_dict", "key": "dict_id"}
+ ]
+}

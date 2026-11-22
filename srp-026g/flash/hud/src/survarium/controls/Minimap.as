@@ -78,6 +78,8 @@ package survarium.controls
          "level_07":new Map_07(),
          "level_08":new Map_08(),
          "level_09":new Map_09(),
+         "v032a_level_09":new Map_09(),
+         "v044a_level_09":new minimap_v044a_level_09(),
          "v011e_level_04":new minimap_zv11e(),
          "v011e_level_03":new minimap_bv11(),
          "cs_mp_bath":new minimap_cs_mp_bath(),
@@ -85,7 +87,8 @@ package survarium.controls
          "cs_training_camp":new minimap_cs_training_camp(),
          "cs_mp_rembasa":new minimap_cs_mp_rembasa(),
          "soc_ug_station":new minimap_soc_ug_station(),
-         "soc_ug_depository":new minimap_soc_ug_depository()
+         "soc_ug_depository":new minimap_soc_ug_depository(),
+         "cs_mp_firestation":new minimap_cs_mp_firestation()
       };
       
       protected var _objects:Dictionary = new Dictionary(true);
@@ -203,6 +206,12 @@ package survarium.controls
             "posX":30.285,
             "posY":6.97
          };
+         // stalker-maps-2's Fire Station (the frame of render_minimap.py on what a walker reaches, the added ways up too).
+         this._minimapProps.cs_mp_firestation = {
+            "size":73.143,
+            "posX":-8.48,
+            "posY":14.84
+         };
          this._minimapProps.level_05 = {
             "size":90,
             "posX":-1.096,
@@ -228,6 +237,11 @@ package survarium.controls
             "posX":0,
             "posY":-5
          };
+         // London (v0.32), pack london-v032: London's minimap and frame (0.32a4's map_09.png is the same picture).
+         this._minimapProps.v032a_level_09 = this._minimapProps.level_09;
+         // London (v0.42), pack london-v042: 0.44a5's own minimap of the reworked map in London's frame (0.44a5's
+         // hud has the same frame for level_09).
+         this._minimapProps.v044a_level_09 = this._minimapProps.level_09;
          this._minimapProps.level_03_rain = this._minimapProps.level_03;
          this._minimapProps.level_03_evn = this._minimapProps.level_03;
       }

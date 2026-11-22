@@ -1,6 +1,6 @@
 use crate::{RATE, sounds::STATIC_BED};
 #[derive(Clone, Copy)]
-struct Biquad {
+pub(crate) struct Biquad {
     b0: f32,
     b1: f32,
     b2: f32,
@@ -10,13 +10,13 @@ struct Biquad {
     z2: f32,
 }
 #[derive(Clone, Copy)]
-enum Kind {
+pub(crate) enum Kind {
     Low,
     High,
     Peak,
 }
 impl Biquad {
-    fn new(kind: Kind, f: f32, q: f32, gain: f32) -> Self {
+    pub(crate) fn new(kind: Kind, f: f32, q: f32, gain: f32) -> Self {
         let w = 2. * std::f32::consts::PI * f / RATE as f32;
         let c = w.cos();
         let alpha = w.sin() / (2. * q);
@@ -59,7 +59,7 @@ impl Biquad {
             z2: 0.,
         }
     }
-    fn run(&mut self, x: f32) -> f32 {
+    pub(crate) fn run(&mut self, x: f32) -> f32 {
         let y = self.b0 * x + self.z1;
         self.z1 = self.b1 * x - self.a1 * y + self.z2;
         self.z2 = self.b2 * x - self.a2 * y;

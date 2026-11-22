@@ -1,8 +1,8 @@
-# Patch 144: a replay played in the running game as a spectated match
+# Patch 179: a replay played in the running game as a spectated match
 # (replay_viewer.rs; docs/notes/replay-stream.md). Only the decisions: the
 # sites are sites_026g.tsv's, the logic replay_viewer.rs.
 name = "replay_viewer"
-patch = 144
+patch = 179
 uses = ["spectator"]
 
 # An 0xF6: the server's playback and events notes (payload 'R'); the
@@ -23,11 +23,11 @@ site = "close_match.reason"
 handler = "on_close"
 order = 0
 
-# A new match's options (after patches 65, 86, 83, 143 and 142): no replay yet.
+# A new match's options (after patches 65, 86, 83, 178, 142 and 123): no replay yet.
 [[hook]]
 site = "static_info.options_read"
 handler = "on_static_info"
-order = 5
+order = 6
 
 # Every network game's first world loads the replay controls' movie too (the
 # game asks for it only with a replay reader), hidden until a viewer shows it.

@@ -59,7 +59,8 @@ pub struct Header {
     pub made: u64,
     /// Seconds.
     pub length: u32,
-    pub map: u8,
+    /// The `maps_dict` id (over a byte since the maps passed 255).
+    pub map: u16,
     pub map_slug: String,
     pub mode: u8,
     pub score: Option<[u16; 2]>,
@@ -81,7 +82,7 @@ pub struct ReplayFile {
 
 /// `[A-Za-z0-9-]` of `name`, a `-` for each run of anything else, at most
 /// [`MAX_SLUG`]; `map<id>` when nothing is left.
-pub fn slug(name: &str, map: u8) -> String {
+pub fn slug(name: &str, map: u16) -> String {
     let mut out = String::new();
     for c in name.chars() {
         if c.is_ascii_alphanumeric() {
@@ -180,7 +181,7 @@ impl Header {
                 }
                 "made" => made = Some(number(key, value)?),
                 "length" => length = Some(small(key, value, u64::from(u32::MAX))? as u32),
-                "map" => map = Some(small(key, value, 255)? as u8),
+                "map" => map = Some(small(key, value, u64::from(u16::MAX))? as u16),
                 "mode" => mode = Some(small(key, value, 255)? as u8),
                 "map_slug" => {
                     let fine = !value.is_empty()

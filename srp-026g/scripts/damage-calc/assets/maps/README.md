@@ -17,6 +17,10 @@ elevation grid for every map.
 | level_08 | Cologne | 0.1198 | 103-106, 109, 110, 138-140 |
 | v021d_level_03 | Vostok Radar Station (v0.21) | 0.1302 | 166, 152 (ported, live since revision 20) |
 | v021d_level_06 | Mamayev Kurgan (v0.21) | 0.1302 | 175, 153 (ported, live since revision 20) |
+| v021d_level_01 | Rudnya (v0.21) | 0.1693 | 260, 261 (ported, pack maps-021d-rudnya@4) |
+| v021d_level_02 | School (v0.21) | 0.1432 | 174, 176 (ported, pack maps-021d-school-fort@4) |
+| v021d_level_05 | Tarakanovsky Fort (v0.21) | 0.1172 | 177, 178 (ported, pack maps-021d-school-fort@4) |
+| v021d_level_04 | Chemical Plant (v0.21) | 0.1497 | 266, 267 (ported, pack maps-021d-chemical@1) |
 | level_09 | London | 0.1823 | 181-183 (skhid patch 14) |
 | v011e_level_03 | Vostok Radar Station (v0.11) | 0.1302 | 208, 209 (ported, patch 22) |
 | v011e_level_04 | Chemical Plant (v0.11) | 0.1823 | 206, 207 (ported, patch 22) |
@@ -24,6 +28,10 @@ elevation grid for every map.
 | v010b_cs_mp_bath | Experimental Pool | 0.0952 | 42 (STALKER port, patch 57; Free for All) |
 | v010b_cs_mp_military_1 | Military Warehouses | 0.1843 | 43 (STALKER port, patch 57; Free for All) |
 | v010b_cs_training_camp | Training Camp | 0.1038 | 44 (STALKER port, patch 57; Free for All) |
+| v010b_cs_mp_firestation | Fire Station | 0.0952 | 39 (STALKER port, pack stalker-maps-2@2; Free for All) |
+| v010b_soc_ug_station | Station | 0.1811 | 31 (STALKER port, pack stalker-maps@7; Free for All since 2026-11-21) |
+| v032a_level_09 | London (v0.32) | 0.1823 | 181-183, 276-281 (0.32a4 port, pack london-v032@1, in place of level_09) |
+| v044a_level_09 | London (v0.42) | 0.1823 | 290-298 (0.44a5 port, pack london-v042@1) |
 
 All weathers and modes of a level share one image. The mode projects differ only
 in mode props such as battery racks, containers and charging stations; the
@@ -75,6 +83,14 @@ click position back to the 1536 px image first.
   layout. Their geometry comes from the content pack
   `/mnt/hdd/Projects/release-20/packs/maps-021d-7/files`, with the 0.26g db
   supplying the rest.
+- School and Tarakanovsky Fort v0.21 (pack maps-021d-school-fort@4) use project_name `level_02` /
+  `level_05`: native School's and the Fort's HUD frames and bitmaps, their renders in the same frames.
+  School's bitmap and frame are 0.21d's byte for byte. The Fort's bitmap was redrawn for 0.26 with its
+  frame (posX -10 in 0.21d's hud.swf, -1.096 in 0.26g's); under their own frames both bitmaps show the
+  same world (best correlation at a 0 m shift), and the importer places the 0.21d Fort exactly where
+  0.26's is (layout offset 0), so the native frame fits the port. align_check: the native bitmap on the
+  port's render fits at 0.5 m (0.21d's bitmap in the native frame at the search's -8 m edge, its own
+  frame's -8.9 m).
 - The STALKER ports played in Free for All (pack stalker-maps@6, patch 57) have
   their own minimaps and frames in hud.swf, by project_name (`cs_mp_bath`,
   `cs_mp_military_1`, `cs_training_camp`). They have no day_2: their renders are
@@ -101,7 +117,8 @@ Results are stored in `maps.json -> maps.<key>.verification` and in `check_<key>
        mirrored, and 4-44 with a 5 m shift. (London, v011e_level_03 and
        v011e_level_04: 0 fail; controls 52/7/12 mirrored, 9/1/13 shifted.)
      - The STALKER ports (the respawn points of `day_8`: 48, 48 and 53): 0
-       fail; controls 14/11/9 mirrored, 12/12/5 shifted.
+       fail; controls 14/11/9 mirrored, 12/12/5 shifted. Station (120): 0 fail;
+       controls 11 mirrored, 3 shifted.
 2. **Native minimap alignment (`align_<key>`).** The developers' own minimap
    bitmaps were compared with the render's building mask while searching scale
    0.95-1.05 and shift ±8 m.
@@ -146,6 +163,14 @@ Always use `python3 -I`.
     for l in 01 02 03 04 05 06 07 08; do python3 -I extract_level.py $DBGRAB $DB level_$l/day_2 $W/lv/level_$l; done
     PACK=/mnt/hdd/Projects/release-20/packs/maps-021d-7/files
     for l in 03 06; do python3 -I extract_level.py $DBGRAB $DB v021d_level_$l/day_2 $W/lv/v021d_level_$l $PACK; done
+    # Rudnya v0.21: the composed content patch includes its School/Fort dependency and the live shared files.
+    # Native Rudnya's frame (project_name level_01; layout offset 0). $CONTENT_PATCH comes from release/build-content.
+    python3 -I extract_level.py $DBGRAB $DB v021d_level_01/day_2 $W/lv/v021d_level_01 $ALL --patch "$CONTENT_PATCH"
+    # School and Tarakanovsky Fort v0.21 (pack maps-021d-school-fort@4): the pack, and the live patches for the
+    # ported/v021d files it shares with patch 20
+    for l in 02 05; do python3 -I extract_level.py $DBGRAB $DB v021d_level_$l/day_2 $W/lv/v021d_level_$l <packs>/maps-021d-school-fort-4/files $ALL; done
+    # Chemical Plant v0.21 (pack maps-021d-chemical@1) the same way: native Chemical Plant's frame (project_name level_04)
+    python3 -I extract_level.py $DBGRAB $DB v021d_level_04/day_2 $W/lv/v021d_level_04 <packs>/maps-021d-chemical-1/files $ALL
     # the maps a released patch added (London: patch 14; the 0.11e ports: patch 22) are read with the
     # released patches mounted over the db, as the game does (the highest patch with a file wins)
     PATCHES=$(for n in 12 14 17 19 20 21 22; do printf ' --patch %s' <patches>/resources.db.patch_$n; done)
@@ -157,6 +182,14 @@ Always use `python3 -I`.
     # release/patches.tsv over the db; day_8's raw client_project of each goes to $W/db
     ALL=$(grep -v '^#' <skhid-srp>/release/patches.tsv | cut -f1 | while read n; do printf ' --patch %s' <patches>/$n; done)
     for k in v010b_cs_mp_bath v010b_cs_mp_military_1 v010b_cs_training_camp; do python3 -I extract_level.py $DBGRAB $DB $k/day_8 $W/lv/$k $ALL; done
+    # Fire Station (pack stalker-maps-2) the same way, their patch (not yet listed) after $ALL; their bitmaps are FFDec's names in that hud.swf
+    # Station the same way (a quick build of its branch as the patch after $ALL); make_json.py --only
+    # and play_area.py on it alone, merged into maps.json (its other maps' bitmaps have other FFDec ids in that hud.swf)
+    # London (v0.32) (pack london-v032@1): its pack's files over every listed patch; London's bitmap and frame
+    python3 -I extract_level.py $DBGRAB $DB v032a_level_09/day_2 $W/lv/v032a_level_09 <packs>/london-v032-1/files $ALL
+    # London (v0.42) (pack london-v042@1): its pack's files over every listed patch; its bitmap is the hud
+    # movie's source bitmaps/minimap_v044a_level_09.png (0.44a5's own) in London's frame
+    python3 -I extract_level.py $DBGRAB $DB v044a_level_09/day_2 $W/lv/v044a_level_09 <packs>/london-v042-1/files $ALL
     # (extract_level.py before 2026-10-19 lost every surface whose name ends in "_", e.g. level_08's moss
     # and ground cover, level_03's terrain_all; all 13 maps were re-rendered with the fix)
     # 4. render + shade + check + webp (~1 min per map)
@@ -180,4 +213,5 @@ The rasterizer was copied from the playable-map-pack's `render_minimap.py`.
   buildings are not in it. The STALKER ports have no terrain model: their grid
   is the top solid surface (no foliage), so a roof counts as ground there.
 - The ported maps that are not live (194-201) are not included, nor the STALKER
-  ports that are not played (Repair Depot, Station, Depository).
+  ports that are not played (Repair Depot, Depository) or held (Dark Valley,
+  Vehicle Station, Sports Center).

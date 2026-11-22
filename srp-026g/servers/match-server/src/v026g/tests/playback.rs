@@ -241,7 +241,7 @@ fn watching(bench: &mut Bench, session: u32) -> usize {
     bench.clients.push(Client::idle_growing(session));
     bench
         .addrs
-        .push(SocketAddr::from(([127, 0, 0, 1], 45_000 + at as u16)));
+        .push(udp_transport::relay::Peer::direct(SocketAddr::from(([127, 0, 0, 1], 45_000 + at as u16))));
     bench.clients[at].connect();
     assert!(bench.until(1_000, |b| b.clients[at].model.options.is_some()));
     assert_eq!(bench.clients[at].model.local_index, None);
@@ -710,7 +710,7 @@ fn a_viewer_called_back_while_its_world_loads_is_told_once_it_watches() {
     bench.clients.push(Client::idle_growing(WATCHER));
     bench
         .addrs
-        .push(SocketAddr::from(([127, 0, 0, 1], 45_000 + at as u16)));
+        .push(udp_transport::relay::Peer::direct(SocketAddr::from(([127, 0, 0, 1], 45_000 + at as u16))));
     bench.clients[at].connect();
     assert!(bench.until(1_000, |b| b.clients[at].model.options.is_some()));
     assert!(replays.watches().recall(WATCHER_ACCOUNT));
@@ -1345,7 +1345,7 @@ fn connect_watcher(bench: &mut Bench) -> usize {
     bench.clients.push(Client::idle_growing(WATCHER));
     bench
         .addrs
-        .push(SocketAddr::from(([127, 0, 0, 1], 45_000 + at as u16)));
+        .push(udp_transport::relay::Peer::direct(SocketAddr::from(([127, 0, 0, 1], 45_000 + at as u16))));
     bench.clients[at].connect();
     assert!(bench.until(1_000, |b| b.clients[at].model.options.is_some()));
     bench.clients[at].ready();
@@ -1374,7 +1374,7 @@ fn a_slow_load_leaves_the_playback_clock_with_the_games() {
             && carries(datagram, id::SNAPSHOT)
             && !carries(datagram, id::SET_TIME)
     }));
-    bench.addrs.push(SocketAddr::from(([127, 0, 0, 1], 45_000)));
+    bench.addrs.push(udp_transport::relay::Peer::direct(SocketAddr::from(([127, 0, 0, 1], 45_000))));
     bench.clients[at].connect();
     assert!(bench.until(1_000, |b| b.clients[at].model.options.is_some()));
     bench.clients[at].ready();
@@ -1880,7 +1880,7 @@ fn at_8x_a_busy_matchs_viewer_that_stalls_its_acks_is_kept() {
     bench.run(1_000);
     // Past a live spectator's cap (`BACKLOG_MOST`, 2 048).
     assert!(most > 2_048, "{most} messages not acked at most");
-    let addr = SocketAddr::from(([127, 0, 0, 1], 45_000 + at as u16));
+    let addr = udp_transport::relay::Peer::direct(SocketAddr::from(([127, 0, 0, 1], 45_000 + at as u16)));
     let watch = bench.server.replay_watch.as_ref().unwrap();
     assert!(watch.owns(addr));
     assert!(

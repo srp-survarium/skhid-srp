@@ -127,7 +127,7 @@ fn what_the_clients_could_not_hold_is_refused_when_the_match_is_made() {
         Err(CreateError::Roster(21))
     );
     // maps_dict id 11 is a test map the client cannot load: no match names it.
-    assert_eq!(MatchMap::of(11), None);
+    assert_eq!(MatchMap::of(survarium::v026g::maps::MapId::new(11)), None);
     let mut twice = setup(2, MAP_BATTERIES);
     twice.players[1].session_id = twice.players[0].session_id;
     assert_eq!(
@@ -158,7 +158,7 @@ fn blackout_is_the_static_info_entry_on_its_battery_map() {
     for (played, expected) in [
         (blackout, true),
         (MatchMap::of(MAP_BATTERIES).unwrap(), false),
-        (MatchMap::of(62).unwrap(), false),
+        (MatchMap::of(survarium::v026g::maps::MapId::new(62)).unwrap(), false),
     ] {
         let mut made = setup(2, MAP_BATTERIES);
         made.played = survarium::v026g::twist::Played::plain(played);

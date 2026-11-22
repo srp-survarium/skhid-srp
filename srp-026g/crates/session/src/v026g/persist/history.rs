@@ -1,11 +1,10 @@
 //! The match history in srp's SQLite file (`docs/notes/match_history.md`):
 //! every finished match ([`MatchRecord`], made by
 //! [`crate::v026g::rewards::Results::settle`]) and its players, with the
-//! public matches' totals by player and by clan added up as each is
-//! written. [`MatchHistory`] reads them for the site and the lobby, on read-only
-//! connections of its own: only public matches are served to the site,
-//! counted or listed, but a player's own list and a match's events read
-//! every kind.
+//! counted public matches' totals by player and by clan added up as each is
+//! written. [`MatchHistory`] reads them for the site and the lobby, on
+//! read-only connections of its own: only public matches are served to the
+//! site, but a player's own list and a match's events read every kind.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -13,7 +12,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, MutexGuard, TryLockError};
 
 use rusqlite::{Connection, OpenFlags, OptionalExtension, Row, Transaction, params};
-use survarium::v026g::maps::GameMode;
+use survarium::v026g::maps::MapId;
+use survarium::v026g::twist::LobbyMode;
 
 use crate::LockExt;
 use crate::persist::PersistError;
@@ -33,27 +33,27 @@ pub(super) const MIGRATION: &str = "
         game_match_id INTEGER NOT NULL,
         -- That id with the second the match was made (`ReplayId`): its
         -- recording's file stem, one match's alone.
-        replay_id     TEXT NOT NULL,
+        replay_id     TEXT NOT NULL UNIQUE,
         -- Unix seconds.
         ended_at      INTEGER NOT NULL,
         duration_ms   INTEGER NOT NULL,
         -- maps_dict's id.
         map_id        INTEGER NOT NULL,
-        -- Its lobby number (`GameMode::lobby_number`): 6 is Blackout.
+        -- Its lobby number (`LobbyMode::number`): a mode's, or a
+        -- free-for-all's twist's.
         game_mode     INTEGER NOT NULL,
         match_level   INTEGER NOT NULL,
         kind          TEXT NOT NULL CHECK (kind IN ('public', 'private', 'vs_bots')),
         -- A public match's: whether it counts in the totals and top lists
         -- (`Eligibility`); none for another kind.
-        eligibility   TEXT CHECK (eligibility IN ('counted', 'with_bots', 'few_players', 'short')),
-        -- `most_kills`: a free-for-all, won by everyone with `top_kills`.
+        eligibility   TEXT CHECK (eligibility IN
+            ('counted', 'with_bots', 'few_players', 'short', 'no_result')),
+        -- `most_kills`: a free-for-all, which no team wins.
         winner        TEXT NOT NULL
             CHECK (winner IN ('team0', 'team1', 'draw', 'unknown', 'most_kills')),
-        top_kills     INTEGER,
         team0_points  INTEGER NOT NULL,
         team1_points  INTEGER NOT NULL,
-        CHECK ((kind = 'public') = (eligibility IS NOT NULL)),
-        CHECK ((winner = 'most_kills') = (top_kills IS NOT NULL))
+        CHECK ((kind = 'public') = (eligibility IS NOT NULL))
     );
     CREATE INDEX g26_matches_public ON g26_matches (id) WHERE kind = 'public';
     CREATE INDEX g26_matches_by_end ON g26_matches (ended_at);
@@ -64,9 +64,13 @@ pub(super) const MIGRATION: &str = "
         -- The registered clan it was of then, if any.
         clan_id       INTEGER,
         team          INTEGER NOT NULL,
-        -- In its team by score, from 1.
+        -- In its team by score, from 1; of a free-for-all among everyone,
+        -- by kills.
         place         INTEGER NOT NULL,
+        -- Its place in the match's roster.
+        seat          INTEGER NOT NULL,
         presence      TEXT NOT NULL CHECK (presence IN ('finished', 'left')),
+        outcome       TEXT NOT NULL CHECK (outcome IN ('won', 'lost', 'neither')),
         rating        INTEGER NOT NULL,
         score         INTEGER NOT NULL,
         kills         INTEGER NOT NULL,
@@ -83,6 +87,8 @@ pub(super) const MIGRATION: &str = "
         -- Bullets fired and bullets that hit (events 22 and 23).
         shots         INTEGER NOT NULL,
         hits          INTEGER NOT NULL,
+        -- How long it was in the match.
+        played_ms     INTEGER NOT NULL,
         PRIMARY KEY (match_id, account_id)
     ) WITHOUT ROWID;
     CREATE INDEX g26_match_players_by_account ON g26_match_players (account_id, match_id);
@@ -94,6 +100,7 @@ pub(super) const MIGRATION: &str = "
         account_id    INTEGER PRIMARY KEY,
         matches       INTEGER NOT NULL,
         wins          INTEGER NOT NULL,
+        losses        INTEGER NOT NULL,
         score         INTEGER NOT NULL,
         kills         INTEGER NOT NULL,
         deaths        INTEGER NOT NULL,
@@ -105,26 +112,28 @@ pub(super) const MIGRATION: &str = "
         captures      INTEGER NOT NULL,
         artefacts     INTEGER NOT NULL,
         shots         INTEGER NOT NULL,
-        hits          INTEGER NOT NULL
+        hits          INTEGER NOT NULL,
+        played_ms     INTEGER NOT NULL
     );
     CREATE INDEX g26_player_totals_matches ON g26_player_totals (matches);
     CREATE INDEX g26_player_totals_wins ON g26_player_totals (wins);
     CREATE INDEX g26_player_totals_kills ON g26_player_totals (kills);
-    CREATE INDEX g26_player_totals_score ON g26_player_totals (score);
-    CREATE INDEX g26_player_totals_headshots ON g26_player_totals (headshots);
-    CREATE INDEX g26_player_totals_batteries ON g26_player_totals (batteries);
-    CREATE INDEX g26_player_totals_artefacts ON g26_player_totals (artefacts);
+    -- The average score top list: the players with at least 20 matches
+    -- (`SCORE_AVG_MIN_MATCHES`, the same number).
+    CREATE INDEX g26_player_totals_score_avg ON g26_player_totals (CAST(score AS REAL) / matches)
+        WHERE matches >= 20;
     -- The accuracy top list: the players with at least 1000 shots
     -- (`ACCURACY_MIN_SHOTS`, the same number).
     CREATE INDEX g26_player_totals_accuracy ON g26_player_totals (CAST(hits AS REAL) / shots)
         WHERE shots >= 1000;
     -- A match counts once for a clan, however many of its members played:
-    -- a win if one of them was on the winning team; score, kills and the
+    -- a win if members won it and none lost it; score, kills and the
     -- counters are the members' rows added up.
     CREATE TABLE g26_clan_totals (
         clan_id       INTEGER PRIMARY KEY,
         matches       INTEGER NOT NULL,
         wins          INTEGER NOT NULL,
+        losses        INTEGER NOT NULL,
         score         INTEGER NOT NULL,
         kills         INTEGER NOT NULL,
         deaths        INTEGER NOT NULL,
@@ -136,7 +145,8 @@ pub(super) const MIGRATION: &str = "
         captures      INTEGER NOT NULL,
         artefacts     INTEGER NOT NULL,
         shots         INTEGER NOT NULL,
-        hits          INTEGER NOT NULL
+        hits          INTEGER NOT NULL,
+        played_ms     INTEGER NOT NULL
     );
     -- The kits a player used in a match ([`KitLine`]; no bot): one row a
     -- kit, with that kit's own counters.
@@ -161,17 +171,13 @@ pub(super) const MIGRATION: &str = "
         dict_id       INTEGER NOT NULL,
         PRIMARY KEY (match_id, account_id, kit, slot)
     ) WITHOUT ROWID;
-    -- The counted public matches added up by player and item: the matches in
-    -- which a kit it used held the item, and those kits' counters.
+    -- The counted public matches in which a kit the player used held the
+    -- item.
     CREATE TABLE g26_player_items (
         account_id    INTEGER NOT NULL,
         dict_id       INTEGER NOT NULL,
         gear          TEXT NOT NULL CHECK (gear IN ('weapon', 'armour')),
         matches       INTEGER NOT NULL,
-        kills         INTEGER NOT NULL,
-        headshots     INTEGER NOT NULL,
-        shots         INTEGER NOT NULL,
-        hits          INTEGER NOT NULL,
         PRIMARY KEY (account_id, dict_id)
     ) WITHOUT ROWID;
     CREATE INDEX g26_player_items_by_matches ON g26_player_items (account_id, gear, matches);
@@ -179,6 +185,81 @@ pub(super) const MIGRATION: &str = "
     CREATE INDEX g26_accounts_by_name ON g26_accounts (name COLLATE NOCASE);
     CREATE INDEX g26_accounts_by_rating ON g26_accounts (rating);
     CREATE INDEX g26_clan_members_by_account ON g26_clan_members (account_id);
+    ";
+
+/// The schema step that adds what a player did with each weapon, as the
+/// games count it (exe patch 165). A match of before has none.
+pub(super) const WEAPONS_MIGRATION: &str = "
+    -- One row a weapon a player's games counted something of in the match
+    -- ([`WeaponCounts`]), by items_dict id; 0: no weapon known.
+    CREATE TABLE g26_match_weapons (
+        match_id         INTEGER NOT NULL REFERENCES g26_matches(id) ON DELETE CASCADE,
+        account_id       INTEGER NOT NULL,
+        dict_id          INTEGER NOT NULL,
+        kills            INTEGER NOT NULL,
+        headshots        INTEGER NOT NULL,
+        wall_kills       INTEGER NOT NULL,
+        ricochet_kills   INTEGER NOT NULL,
+        -- With it in the hands.
+        deaths           INTEGER NOT NULL,
+        shots            INTEGER NOT NULL,
+        hits             INTEGER NOT NULL,
+        -- In ten-thousandths of a pain pool.
+        damage           INTEGER NOT NULL,
+        -- The kills' distances added up, and the longest, in decimetres.
+        kill_distance_dm INTEGER NOT NULL,
+        longest_kill_dm  INTEGER NOT NULL,
+        held_ms          INTEGER NOT NULL,
+        PRIMARY KEY (match_id, account_id, dict_id)
+    ) WITHOUT ROWID;
+    -- The counted public matches added up by weapon (the longest kill: the
+    -- longest of them); `matches`: those with a row of it.
+    CREATE TABLE g26_player_weapons (
+        account_id       INTEGER NOT NULL,
+        dict_id          INTEGER NOT NULL,
+        matches          INTEGER NOT NULL,
+        kills            INTEGER NOT NULL,
+        headshots        INTEGER NOT NULL,
+        wall_kills       INTEGER NOT NULL,
+        ricochet_kills   INTEGER NOT NULL,
+        deaths           INTEGER NOT NULL,
+        shots            INTEGER NOT NULL,
+        hits             INTEGER NOT NULL,
+        damage           INTEGER NOT NULL,
+        kill_distance_dm INTEGER NOT NULL,
+        longest_kill_dm  INTEGER NOT NULL,
+        held_ms          INTEGER NOT NULL,
+        PRIMARY KEY (account_id, dict_id)
+    ) WITHOUT ROWID;
+    ";
+
+/// The schema step that lowers the average score list's bound from 20
+/// matches to [`SCORE_AVG_MIN_MATCHES`] (the owner, 2026-11-20): its partial
+/// index made anew, the same number.
+pub(super) const SCORE_AVG_BOUND_MIGRATION: &str = "
+    DROP INDEX g26_player_totals_score_avg;
+    CREATE INDEX g26_player_totals_score_avg ON g26_player_totals (CAST(score AS REAL) / matches)
+        WHERE matches >= 5;
+    ";
+
+/// The schema step that keeps the names an account leaves: a row each time
+/// its name changes, whoever changed it (a trigger of `g26_accounts`: no
+/// writer can forget it). The names of before the step are not known.
+pub(super) const NAMES_MIGRATION: &str = "
+    CREATE TABLE g26_account_names (
+        account_id INTEGER NOT NULL,
+        name       TEXT NOT NULL,
+        -- When the account took another (UTC seconds).
+        until      INTEGER NOT NULL,
+        PRIMARY KEY (account_id, until, name)
+    ) WITHOUT ROWID;
+    CREATE INDEX g26_account_names_by_name ON g26_account_names (name COLLATE NOCASE, until);
+    CREATE TRIGGER g26_account_names_keep AFTER UPDATE OF name ON g26_accounts
+    WHEN OLD.name <> NEW.name
+    BEGIN
+        INSERT OR IGNORE INTO g26_account_names (account_id, name, until)
+        VALUES (OLD.account_id, OLD.name, CAST(strftime('%s', 'now') AS INTEGER));
+    END;
     ";
 
 /// Who could join a match.
@@ -222,6 +303,9 @@ pub enum Eligibility {
     FewPlayers,
     /// Played for less than [`Eligibility::MIN_PLAYED_MS`], or never began.
     Short,
+    /// No snapshot of it was trusted: it has no winner and no numbers, and
+    /// paid for none (`rewards`).
+    NoResult,
 }
 
 impl Eligibility {
@@ -235,14 +319,17 @@ impl Eligibility {
     pub const MIN_PLAYED_MS: u32 = 5 * 60_000;
 
     /// A public match with `humans` accounts in it, `bots` whether a bot
-    /// played, `played_ms` its play time (`None`: play never began).
-    pub fn of(bots: bool, humans: usize, played_ms: Option<u32>) -> Self {
+    /// played, `played_ms` its play time (`None`: play never began),
+    /// `trusted` whether its numbers are a trusted snapshot's.
+    pub fn of(bots: bool, humans: usize, played_ms: Option<u32>, trusted: bool) -> Self {
         if bots {
             Self::WithBots
         } else if humans < Self::MIN_HUMANS {
             Self::FewPlayers
         } else if played_ms.is_none_or(|played| played < Self::MIN_PLAYED_MS) {
             Self::Short
+        } else if !trusted {
+            Self::NoResult
         } else {
             Self::Counted
         }
@@ -254,6 +341,7 @@ impl Eligibility {
             Self::WithBots => "with_bots",
             Self::FewPlayers => "few_players",
             Self::Short => "short",
+            Self::NoResult => "no_result",
         }
     }
 
@@ -263,6 +351,7 @@ impl Eligibility {
             "with_bots" => Self::WithBots,
             "few_players" => Self::FewPlayers,
             "short" => Self::Short,
+            "no_result" => Self::NoResult,
             _ => return None,
         })
     }
@@ -276,10 +365,10 @@ pub enum Winner {
     /// Team 1 won.
     SecondTeam,
     Draw,
-    /// No trusted snapshot said (or, in a free-for-all, nobody killed).
+    /// No trusted snapshot said.
     Unknown,
-    /// A free-for-all: everyone with this many kills, the most, won.
-    MostKills(u64),
+    /// A free-for-all: no team wins it, its lines say who did.
+    MostKills,
 }
 
 impl Winner {
@@ -293,43 +382,53 @@ impl Winner {
         }
     }
 
-    /// Whether the player of `line` won the match: its team, or in a
-    /// free-for-all its kills (as `rewards` decides it).
-    pub fn won(self, line: &PlayerLine) -> bool {
-        match self {
-            Self::FirstTeam => line.team == 0,
-            Self::SecondTeam => line.team == 1,
-            Self::MostKills(top) => line.kills == top,
-            Self::Draw | Self::Unknown => false,
-        }
-    }
-
     fn as_str(self) -> &'static str {
         match self {
             Self::FirstTeam => "team0",
             Self::SecondTeam => "team1",
             Self::Draw => "draw",
             Self::Unknown => "unknown",
-            Self::MostKills(_) => "most_kills",
+            Self::MostKills => "most_kills",
         }
     }
 
-    /// `g26_matches.top_kills` of it.
-    fn top_kills(self) -> Option<i64> {
+    fn parse(text: &str) -> Option<Self> {
+        Some(match text {
+            "team0" => Self::FirstTeam,
+            "team1" => Self::SecondTeam,
+            "draw" => Self::Draw,
+            "unknown" => Self::Unknown,
+            "most_kills" => Self::MostKills,
+            _ => return None,
+        })
+    }
+}
+
+/// What a match was for one of its players, said once, when it is settled
+/// (`rewards`), as its rating took it: one who left a match that had a
+/// winner lost it, whatever its team did.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Outcome {
+    Won,
+    Lost,
+    /// A draw, or a match without a known winner.
+    Neither,
+}
+
+impl Outcome {
+    fn as_str(self) -> &'static str {
         match self {
-            Self::MostKills(top) => Some(top.min(i64::MAX as u64) as i64),
-            _ => None,
+            Self::Won => "won",
+            Self::Lost => "lost",
+            Self::Neither => "neither",
         }
     }
 
-    /// From `g26_matches.winner` and `top_kills`.
-    fn parse(text: &str, top_kills: Option<i64>) -> Option<Self> {
-        Some(match (text, top_kills) {
-            ("team0", None) => Self::FirstTeam,
-            ("team1", None) => Self::SecondTeam,
-            ("draw", None) => Self::Draw,
-            ("unknown", None) => Self::Unknown,
-            ("most_kills", Some(top)) => Self::MostKills(u64::try_from(top).ok()?),
+    fn parse(text: &str) -> Option<Self> {
+        Some(match text {
+            "won" => Self::Won,
+            "lost" => Self::Lost,
+            "neither" => Self::Neither,
             _ => return None,
         })
     }
@@ -381,6 +480,11 @@ pub struct Counters {
 /// that a handful of lucky ones does not top it (`g26_player_totals_accuracy`
 /// is the same number).
 pub const ACCURACY_MIN_SHOTS: u64 = 1000;
+/// The fewest counted matches a player's totals need for the average score
+/// top list and the other ratios', so that one good match does not top them
+/// (`g26_player_totals_score_avg` is the same number, as
+/// [`SCORE_AVG_BOUND_MIGRATION`] makes it).
+pub const SCORE_AVG_MIN_MATCHES: u64 = 5;
 
 /// What a kit's counters say of one match, or of the matches added up.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -389,17 +493,6 @@ pub struct KitCounts {
     pub headshots: u64,
     pub shots: u64,
     pub hits: u64,
-}
-
-impl KitCounts {
-    fn plus(self, more: Self) -> Self {
-        Self {
-            kills: self.kills + more.kills,
-            headshots: self.headshots + more.headshots,
-            shots: self.shots + more.shots,
-            hits: self.hits + more.hits,
-        }
-    }
 }
 
 /// What an item in a [`GearSlot`] is.
@@ -464,39 +557,149 @@ pub struct KitLine {
     pub items: Vec<KitItem>,
 }
 
-/// An item's public matches added up for a player: the matches in which a
-/// kit it used held it, and those kits' counters (a kit's, not the item's
-/// own: a kit of two weapons gives both its kills).
+/// How many of a player's counted public matches a kit it used held the
+/// item in. No kills or shots: the game counts those by kit, not by item.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ItemTotals {
     pub dict_id: u16,
     pub matches: u64,
-    pub counts: KitCounts,
 }
 
-/// The step that keeps each line's roster place.
-pub(super) const SEAT_MIGRATION: &str = "
-    -- Its place in the match's roster, which a replay is watched from;
-    -- empty in a line written before they were kept.
-    ALTER TABLE g26_match_players ADD COLUMN seat INTEGER;
-";
+/// What a player did with one weapon, as its games counted it (exe patch
+/// 165, `snapshot::WeaponCounts`): of one match, or of matches added up.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct WeaponCounts {
+    /// Enemies killed with it; of them, those by a headshot, by a bullet
+    /// that had pierced something, and by one that had bounced.
+    pub kills: u64,
+    pub headshots: u64,
+    pub wall_kills: u64,
+    pub ricochet_kills: u64,
+    /// The player's deaths with it in the hands.
+    pub deaths: u64,
+    /// Bullets fired with it and those that hit an enemy, a pellet each.
+    pub shots: u64,
+    pub hits: u64,
+    /// The pain its hits took off enemies, in ten-thousandths of a pain
+    /// pool.
+    pub damage: u64,
+    /// Its kills' distances added up, in decimetres.
+    pub kill_distance_dm: u64,
+    /// Its longest kill, in decimetres.
+    pub longest_kill_dm: u64,
+    /// How long it was in the hands of the player alive.
+    pub held_ms: u64,
+}
+
+impl WeaponCounts {
+    /// The counters in the order of [`WEAPON`].
+    fn values(&self) -> [u64; WEAPON_COLUMNS] {
+        [
+            self.kills,
+            self.headshots,
+            self.wall_kills,
+            self.ricochet_kills,
+            self.deaths,
+            self.shots,
+            self.hits,
+            self.damage,
+            self.kill_distance_dm,
+            self.longest_kill_dm,
+            self.held_ms,
+        ]
+    }
+
+    fn of_values(values: [u64; WEAPON_COLUMNS]) -> Self {
+        let [
+            kills,
+            headshots,
+            wall_kills,
+            ricochet_kills,
+            deaths,
+            shots,
+            hits,
+            damage,
+            kill_distance_dm,
+            longest_kill_dm,
+            held_ms,
+        ] = values;
+        Self {
+            kills,
+            headshots,
+            wall_kills,
+            ricochet_kills,
+            deaths,
+            shots,
+            hits,
+            damage,
+            kill_distance_dm,
+            longest_kill_dm,
+            held_ms,
+        }
+    }
+}
+
+/// What a player's weapons sort by, the largest first.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WeaponRanking {
+    Kills,
+    /// Kills by the deaths with it in the hands.
+    Kd,
+    /// Headshots by kills, hits by shots, the kills' average distance: a
+    /// weapon without a kill (a shot) comes last.
+    HeadshotRate,
+    Accuracy,
+    KillDistance,
+    WallKills,
+    RicochetKills,
+    Held,
+}
+
+impl WeaponRanking {
+    /// The number it sorts by, of `g26_player_weapons`; NULL (the smallest)
+    /// where nothing divides.
+    fn order(self) -> &'static str {
+        match self {
+            Self::Kills => "kills",
+            Self::Kd => "CAST(kills AS REAL) / max(deaths, 1)",
+            Self::HeadshotRate => "CAST(headshots AS REAL) / nullif(kills, 0)",
+            Self::Accuracy => "CAST(hits AS REAL) / nullif(shots, 0)",
+            Self::KillDistance => "CAST(kill_distance_dm AS REAL) / nullif(kills, 0)",
+            Self::WallKills => "wall_kills",
+            Self::RicochetKills => "ricochet_kills",
+            Self::Held => "held_ms",
+        }
+    }
+}
+
+/// A weapon of a player's counted public matches added up.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WeaponTotals {
+    pub dict_id: u16,
+    /// The matches its games counted something of it in.
+    pub matches: u64,
+    pub counts: WeaponCounts,
+}
 
 /// A player's line of one match.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PlayerLine {
     pub team: u8,
-    /// In its team by score, from 1.
+    /// In its team by score, from 1; of a free-for-all among everyone, by
+    /// kills.
     pub place: u8,
-    /// Its place in the match's roster, which a replay is watched from; none
-    /// in a line written before they were kept.
-    pub seat: Option<u8>,
+    /// Its place in the match's roster.
+    pub seat: u8,
     pub presence: Presence,
+    pub outcome: Outcome,
     /// The visible rating after the match.
     pub rating: u16,
     pub score: u64,
     pub kills: u64,
     pub deaths: u64,
     pub counters: Counters,
+    /// How long it was in the match.
+    pub played_ms: u32,
 }
 
 /// One player of a [`MatchRecord`].
@@ -508,6 +711,9 @@ pub struct PlayerRecord {
     pub line: PlayerLine,
     /// The kits it used, by place.
     pub kits: Vec<KitLine>,
+    /// What it did with each weapon, by items_dict id (0: no weapon known);
+    /// empty when its games counted none.
+    pub weapons: BTreeMap<u16, WeaponCounts>,
 }
 
 /// What a match was, whoever played it.
@@ -516,9 +722,9 @@ pub struct MatchInfo {
     /// Unix seconds.
     pub ended_at: u64,
     pub duration_ms: u32,
-    /// maps_dict's id.
-    pub map_id: u8,
-    pub game_mode: GameMode,
+    pub map_id: MapId,
+    /// The mode as the lobby calls it: a free-for-all's twist is one.
+    pub mode: LobbyMode,
     pub match_level: u16,
     pub winner: Winner,
     pub team_points: [u16; 2],
@@ -541,10 +747,14 @@ pub struct MatchRecord {
 pub struct Totals {
     pub matches: u64,
     pub wins: u64,
+    /// The rest were draws or had no known winner.
+    pub losses: u64,
     pub score: u64,
     pub kills: u64,
     pub deaths: u64,
     pub counters: Counters,
+    /// Time in the matches.
+    pub played_ms: u64,
 }
 
 /// A total the top lists sort by.
@@ -553,10 +763,6 @@ pub enum TotalsKey {
     Matches,
     Wins,
     Kills,
-    Score,
-    Headshots,
-    Batteries,
-    Artefacts,
 }
 
 impl TotalsKey {
@@ -566,10 +772,24 @@ impl TotalsKey {
             Self::Matches => "matches",
             Self::Wins => "wins",
             Self::Kills => "kills",
-            Self::Score => "score",
-            Self::Headshots => "headshots",
-            Self::Batteries => "batteries",
-            Self::Artefacts => "artefacts",
+        }
+    }
+}
+
+/// Which end of a sorted list comes first.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Order {
+    /// The largest.
+    #[default]
+    Descending,
+    Ascending,
+}
+
+impl Order {
+    fn sql(self) -> &'static str {
+        match self {
+            Self::Descending => "DESC",
+            Self::Ascending => "ASC",
         }
     }
 }
@@ -582,6 +802,13 @@ pub enum PlayerRanking {
     Totals(TotalsKey),
     /// Hits by shots, of the players with [`ACCURACY_MIN_SHOTS`] or more.
     Accuracy,
+    /// Score a match, of the players with [`SCORE_AVG_MIN_MATCHES`] or more.
+    ScoreAvg,
+    /// Wins by matches, kills by deaths and headshots by kills, of the same
+    /// players.
+    WinRate,
+    Kd,
+    HeadshotRate,
 }
 
 /// A registered clan, as a player's tag links it.
@@ -597,6 +824,13 @@ pub struct Named {
     pub account_id: u32,
     pub name: String,
     pub clan: Option<ClanRef>,
+}
+
+/// A name an account had, and when it took another.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FormerName {
+    pub name: String,
+    pub until: u64,
 }
 
 /// A player's card: who it is now and its totals.
@@ -666,12 +900,30 @@ pub struct TopPlayer {
     pub totals: Totals,
 }
 
+/// A page of the players' top list.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TopPage {
+    pub players: Vec<TopPlayer>,
+    /// Whether the list goes on after them.
+    pub more: bool,
+}
+
 /// One line of the best single-match scores.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BestLine {
     pub player: Named,
     pub summary: MatchSummary,
     pub line: PlayerLine,
+}
+
+/// Everything counted, added up: how many players have a counted match, how
+/// many counted matches there are, and the players' totals together (their
+/// `matches` are lines: a match once a player).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AllTime {
+    pub players: u64,
+    pub matches: u64,
+    pub totals: Totals,
 }
 
 /// A registered clan with its totals.
@@ -713,9 +965,9 @@ pub enum ClanKey<'a> {
     Tag(&'a str),
 }
 
-/// Writes a match with its events and adds a public one to the totals, in
-/// one transaction. A match of a replay id kept already is not written
-/// again: the id is unique, and a failed write is retried.
+/// Writes a match with its events and adds a counted public one to the
+/// totals, in one transaction. A match of a replay id kept already is not
+/// written again: a failed write is retried.
 pub(super) fn record(
     connection: &mut Connection,
     record: &MatchRecord,
@@ -735,23 +987,21 @@ pub(super) fn record(
     let info = &record.info;
     transaction.execute(
         "INSERT INTO g26_matches (game_match_id, replay_id, ended_at, duration_ms, map_id,
-             game_mode, match_level, kind, eligibility, winner, team0_points, team1_points,
-             top_kills)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+             game_mode, match_level, kind, eligibility, winner, team0_points, team1_points)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
         params![
             record.replay_id.match_id(),
             record.replay_id.as_str(),
             info.ended_at.min(i64::MAX as u64) as i64,
             info.duration_ms,
-            info.map_id,
-            info.game_mode.lobby_number(),
+            info.map_id.get(),
+            info.mode.number(),
             info.match_level,
             record.kind.as_str(),
             record.kind.eligibility().map(Eligibility::as_str),
             info.winner.as_str(),
             info.team_points[0],
             info.team_points[1],
-            info.winner.top_kills(),
         ],
     )?;
     let match_id = transaction.last_insert_rowid();
@@ -766,9 +1016,9 @@ pub(super) fn record(
         transaction.execute(
             "INSERT INTO g26_match_players (match_id, account_id, clan_id, team, place, presence,
                  rating, score, kills, deaths, assists, headshots, grenade_kills, melee_kills,
-                 batteries, captures, artefacts, shots, hits, seat)
+                 batteries, captures, artefacts, shots, hits, seat, outcome, played_ms)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16,
-                 ?17, ?18, ?19, ?20)",
+                 ?17, ?18, ?19, ?20, ?21, ?22)",
             params![
                 match_id,
                 player.account_id,
@@ -790,13 +1040,21 @@ pub(super) fn record(
                 counters.shots as i64,
                 counters.hits as i64,
                 line.seat,
+                line.outcome.as_str(),
+                line.played_ms,
             ],
         )?;
         record_kits(&transaction, match_id, player)?;
+        record_weapons(
+            &transaction,
+            match_id,
+            player,
+            counted == Some(Eligibility::Counted),
+        )?;
         match counted {
             None => {}
             Some(Eligibility::Counted) => {
-                let own = Totals::of_match(line, info.winner.won(line));
+                let own = Totals::of_match(line);
                 add_totals(
                     &transaction,
                     "g26_player_totals",
@@ -812,7 +1070,12 @@ pub(super) fn record(
                         .or_insert(own);
                 }
             }
-            Some(Eligibility::WithBots | Eligibility::FewPlayers | Eligibility::Short) => {
+            Some(
+                Eligibility::WithBots
+                | Eligibility::FewPlayers
+                | Eligibility::Short
+                | Eligibility::NoResult,
+            ) => {
                 add_totals(
                     &transaction,
                     "g26_player_totals",
@@ -823,8 +1086,12 @@ pub(super) fn record(
             }
         }
     }
-    for (clan_id, totals) in &clans {
-        add_totals(&transaction, "g26_clan_totals", "clan_id", *clan_id, totals)?;
+    for (clan_id, mut totals) in clans {
+        // Its members on both sides: it neither won nor lost.
+        if totals.wins > 0 && totals.losses > 0 {
+            (totals.wins, totals.losses) = (0, 0);
+        }
+        add_totals(&transaction, "g26_clan_totals", "clan_id", clan_id, &totals)?;
     }
     match_events::record(&transaction, &record.replay_id, &record.events)?;
     transaction.commit()?;
@@ -832,25 +1099,29 @@ pub(super) fn record(
 }
 
 impl Totals {
-    /// A player's line of one match: one match, a win if its team won.
-    fn of_match(line: &PlayerLine, won: bool) -> Self {
+    /// A player's line of one match.
+    fn of_match(line: &PlayerLine) -> Self {
         Self {
             matches: 1,
-            wins: u64::from(won),
+            wins: u64::from(line.outcome == Outcome::Won),
+            losses: u64::from(line.outcome == Outcome::Lost),
             score: line.score,
             kills: line.kills,
             deaths: line.deaths,
             counters: line.counters,
+            played_ms: u64::from(line.played_ms),
         }
     }
 
     /// A clan's one match with another member's line of it added: still
-    /// one match, a win if any member's team won, the rest added up.
+    /// one match, won if any member won it and lost if any lost it (both:
+    /// [`record`] counts neither), the rest added up.
     fn with_member(&self, member: &Self) -> Self {
         let (own, more) = (&self.counters, &member.counters);
         Self {
             matches: 1,
             wins: self.wins.max(member.wins),
+            losses: self.losses.max(member.losses),
             score: self.score + member.score,
             kills: self.kills + member.kills,
             deaths: self.deaths + member.deaths,
@@ -865,6 +1136,7 @@ impl Totals {
                 shots: own.shots + more.shots,
                 hits: own.hits + more.hits,
             },
+            played_ms: self.played_ms + member.played_ms,
         }
     }
 }
@@ -908,44 +1180,84 @@ fn record_kits(
     Ok(())
 }
 
-/// Adds a counted public match to `player`'s item totals: each item once, with
-/// the counters of every kit it used that held it (a kit holding an item
-/// twice counts once).
-fn add_items(transaction: &Transaction, player: &PlayerRecord) -> Result<(), PersistError> {
-    let mut items: BTreeMap<u16, (Gear, KitCounts)> = BTreeMap::new();
-    for kit in &player.kits {
-        let mut held: Vec<(u16, Gear)> = kit
-            .items
-            .iter()
-            .map(|item| (item.dict_id, item.slot.gear()))
-            .collect();
-        held.sort_unstable_by_key(|&(dict_id, _)| dict_id);
-        held.dedup_by_key(|&mut (dict_id, _)| dict_id);
-        for (dict_id, gear) in held {
-            items
-                .entry(dict_id)
-                .and_modify(|(_, counts)| *counts = counts.plus(kit.counts))
-                .or_insert((gear, kit.counts));
-        }
-    }
-    for (dict_id, (gear, counts)) in items {
+/// The counters of a [`WeaponCounts`], as both weapon tables name them
+/// ([`WEAPON_COLUMNS`] of them, [`WeaponCounts::values`]' order).
+const WEAPON: &str = "kills, headshots, wall_kills, ricochet_kills, deaths, shots, hits, damage,
+     kill_distance_dm, longest_kill_dm, held_ms";
+const WEAPON_COLUMNS: usize = 11;
+
+/// Writes what `player` did with each weapon in the match `match_id`, and
+/// adds it to the player's weapons when the match is `counted`.
+fn record_weapons(
+    transaction: &Transaction,
+    match_id: i64,
+    player: &PlayerRecord,
+    counted: bool,
+) -> Result<(), PersistError> {
+    for (&dict_id, counts) in &player.weapons {
+        let [a, b, c, d, e, f, g, h, i, j, k] = counts
+            .values()
+            .map(|value| value.min(i64::MAX as u64) as i64);
         transaction.execute(
-            "INSERT INTO g26_player_items (account_id, dict_id, gear, matches, kills, headshots,
-                 shots, hits)
-             VALUES (?1, ?2, ?3, 1, ?4, ?5, ?6, ?7)
-             ON CONFLICT(account_id, dict_id) DO UPDATE SET
-                 matches = matches + 1, kills = kills + excluded.kills,
-                 headshots = headshots + excluded.headshots, shots = shots + excluded.shots,
-                 hits = hits + excluded.hits",
+            &format!(
+                "INSERT INTO g26_match_weapons (match_id, account_id, dict_id, {WEAPON})
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)"
+            ),
             params![
+                match_id,
                 player.account_id,
                 dict_id,
-                gear.as_str(),
-                counts.kills as i64,
-                counts.headshots as i64,
-                counts.shots as i64,
-                counts.hits as i64,
+                a,
+                b,
+                c,
+                d,
+                e,
+                f,
+                g,
+                h,
+                i,
+                j,
+                k
             ],
+        )?;
+        if counted {
+            transaction.execute(
+                &format!(
+                    "INSERT INTO g26_player_weapons (account_id, dict_id, matches, {WEAPON})
+                     VALUES (?1, ?2, 1, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+                     ON CONFLICT(account_id, dict_id) DO UPDATE SET
+                         matches = matches + 1, kills = kills + excluded.kills,
+                         headshots = headshots + excluded.headshots,
+                         wall_kills = wall_kills + excluded.wall_kills,
+                         ricochet_kills = ricochet_kills + excluded.ricochet_kills,
+                         deaths = deaths + excluded.deaths, shots = shots + excluded.shots,
+                         hits = hits + excluded.hits, damage = damage + excluded.damage,
+                         kill_distance_dm = kill_distance_dm + excluded.kill_distance_dm,
+                         longest_kill_dm = max(longest_kill_dm, excluded.longest_kill_dm),
+                         held_ms = held_ms + excluded.held_ms"
+                ),
+                params![player.account_id, dict_id, a, b, c, d, e, f, g, h, i, j, k],
+            )?;
+        }
+    }
+    Ok(())
+}
+
+/// Adds a counted public match to `player`'s item totals: each item the
+/// kits it used held, once.
+fn add_items(transaction: &Transaction, player: &PlayerRecord) -> Result<(), PersistError> {
+    let held: BTreeMap<u16, Gear> = player
+        .kits
+        .iter()
+        .flat_map(|kit| &kit.items)
+        .map(|item| (item.dict_id, item.slot.gear()))
+        .collect();
+    for (dict_id, gear) in held {
+        transaction.execute(
+            "INSERT INTO g26_player_items (account_id, dict_id, gear, matches)
+             VALUES (?1, ?2, ?3, 1)
+             ON CONFLICT(account_id, dict_id) DO UPDATE SET matches = matches + 1",
+            params![player.account_id, dict_id, gear.as_str()],
         )?;
     }
     Ok(())
@@ -962,11 +1274,13 @@ fn add_totals(
     let counters = &totals.counters;
     transaction.execute(
         &format!(
-            "INSERT INTO {table} ({key}, matches, wins, score, kills, deaths, assists, headshots,
-                 grenade_kills, melee_kills, batteries, captures, artefacts, shots, hits)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
+            "INSERT INTO {table} ({key}, matches, wins, losses, score, kills, deaths, assists,
+                 headshots, grenade_kills, melee_kills, batteries, captures, artefacts, shots, hits,
+                 played_ms)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
              ON CONFLICT({key}) DO UPDATE SET
                  matches = matches + excluded.matches, wins = wins + excluded.wins,
+                 losses = losses + excluded.losses,
                  score = score + excluded.score, kills = kills + excluded.kills,
                  deaths = deaths + excluded.deaths, assists = assists + excluded.assists,
                  headshots = headshots + excluded.headshots,
@@ -975,12 +1289,14 @@ fn add_totals(
                  batteries = batteries + excluded.batteries,
                  captures = captures + excluded.captures,
                  artefacts = artefacts + excluded.artefacts,
-                 shots = shots + excluded.shots, hits = hits + excluded.hits"
+                 shots = shots + excluded.shots, hits = hits + excluded.hits,
+                 played_ms = played_ms + excluded.played_ms"
         ),
         params![
             id,
             totals.matches as i64,
             totals.wins as i64,
+            totals.losses as i64,
             totals.score as i64,
             totals.kills as i64,
             totals.deaths as i64,
@@ -993,6 +1309,7 @@ fn add_totals(
             counters.artefacts as i64,
             counters.shots as i64,
             counters.hits as i64,
+            totals.played_ms as i64,
         ],
     )?;
     Ok(())
@@ -1012,17 +1329,17 @@ const CLAN_JOIN: &str = "LEFT JOIN g26_clan_members cm
 const SUMMARY: &str = "m.id, m.ended_at, m.duration_ms, m.map_id, m.game_mode, m.match_level,
      m.winner, m.team0_points, m.team1_points,
      (SELECT COUNT(*) FROM g26_match_players n WHERE n.match_id = m.id), m.eligibility,
-     m.replay_id, m.top_kills";
-const SUMMARY_COLUMNS: usize = 13;
-/// The columns of [`LINE`].
-const LINE_COLUMNS: usize = 17;
-/// The columns of a [`PlayerLine`] of `p` (seventeen).
+     m.replay_id";
+const SUMMARY_COLUMNS: usize = 12;
+/// The columns of a [`PlayerLine`] of `p` (nineteen).
 const LINE: &str = "p.team, p.place, p.presence, p.rating, p.score, p.kills, p.deaths, p.assists,
      p.headshots, p.grenade_kills, p.melee_kills, p.batteries, p.captures, p.artefacts, p.shots,
-     p.hits, p.seat";
-/// The columns of [`Totals`] of `t` (fourteen).
-const TOTALS: &str = "t.matches, t.wins, t.score, t.kills, t.deaths, t.assists, t.headshots,
-     t.grenade_kills, t.melee_kills, t.batteries, t.captures, t.artefacts, t.shots, t.hits";
+     p.hits, p.seat, p.outcome, p.played_ms";
+/// The columns of [`Totals`] of `t` ([`TOTALS_COLUMNS`]).
+const TOTALS_COLUMNS: usize = 16;
+const TOTALS: &str = "t.matches, t.wins, t.losses, t.score, t.kills, t.deaths, t.assists, t.headshots,
+     t.grenade_kills, t.melee_kills, t.batteries, t.captures, t.artefacts, t.shots, t.hits,
+     t.played_ms";
 /// A match's kits and what they held, of `k` and `i`, by account and
 /// place, then slot (eight columns: account, kit, its four counters, slot,
 /// dict id); `{filter}` narrows `k` further.
@@ -1036,7 +1353,7 @@ fn kits_query(filter: &str) -> String {
     )
 }
 /// A player's items of a gear, most matches first.
-const FAVOURITES: &str = "SELECT dict_id, matches, kills, headshots, shots, hits
+const FAVOURITES: &str = "SELECT dict_id, matches
      FROM g26_player_items WHERE account_id = ?1 AND gear = ?2
      ORDER BY matches DESC, dict_id DESC LIMIT ?3";
 
@@ -1106,6 +1423,11 @@ pub(super) fn bad(what: &str, text: &str) -> rusqlite::Error {
     )
 }
 
+/// A name of `g26_account_names n` the site may say: none an administrator
+/// took from the account.
+const SAID: &str = "NOT EXISTS (SELECT 1 FROM g26_admin_actions x
+     WHERE x.account_id = n.account_id AND x.kind = 'nickname' AND x.before = n.name)";
+
 fn u64_at(row: &Row, index: usize) -> rusqlite::Result<u64> {
     Ok(row.get::<_, Option<i64>>(index)?.unwrap_or(0).max(0) as u64)
 }
@@ -1136,12 +1458,11 @@ fn summary_at(row: &Row, at: usize) -> rusqlite::Result<MatchSummary> {
         info: MatchInfo {
             ended_at: u64_at(row, at + 1)?,
             duration_ms: row.get(at + 2)?,
-            map_id: row.get(at + 3)?,
-            game_mode: GameMode::of_lobby_number(mode)
+            map_id: MapId::new(row.get(at + 3)?),
+            mode: LobbyMode::of_number(mode)
                 .ok_or_else(|| bad("game mode", &mode.to_string()))?,
             match_level: row.get(at + 5)?,
-            winner: Winner::parse(&winner, row.get(at + 12)?)
-                .ok_or_else(|| bad("winner", &winner))?,
+            winner: Winner::parse(&winner).ok_or_else(|| bad("winner", &winner))?,
             team_points: [row.get(at + 7)?, row.get(at + 8)?],
         },
         players: row.get(at + 9)?,
@@ -1152,11 +1473,13 @@ fn summary_at(row: &Row, at: usize) -> rusqlite::Result<MatchSummary> {
 
 fn line_at(row: &Row, at: usize) -> rusqlite::Result<PlayerLine> {
     let presence: String = row.get(at + 2)?;
+    let outcome: String = row.get(at + 17)?;
     Ok(PlayerLine {
         team: row.get(at)?,
         place: row.get(at + 1)?,
         seat: row.get(at + 16)?,
         presence: Presence::parse(&presence).ok_or_else(|| bad("presence", &presence))?,
+        outcome: Outcome::parse(&outcome).ok_or_else(|| bad("outcome", &outcome))?,
         rating: row.get(at + 3)?,
         score: u64_at(row, at + 4)?,
         kills: u64_at(row, at + 5)?,
@@ -1172,6 +1495,7 @@ fn line_at(row: &Row, at: usize) -> rusqlite::Result<PlayerLine> {
             shots: u64_at(row, at + 14)?,
             hits: u64_at(row, at + 15)?,
         },
+        played_ms: row.get(at + 18)?,
     })
 }
 
@@ -1180,20 +1504,22 @@ fn totals_at(row: &Row, at: usize) -> rusqlite::Result<Totals> {
     Ok(Totals {
         matches: u64_at(row, at)?,
         wins: u64_at(row, at + 1)?,
-        score: u64_at(row, at + 2)?,
-        kills: u64_at(row, at + 3)?,
-        deaths: u64_at(row, at + 4)?,
+        losses: u64_at(row, at + 2)?,
+        score: u64_at(row, at + 3)?,
+        kills: u64_at(row, at + 4)?,
+        deaths: u64_at(row, at + 5)?,
         counters: Counters {
-            assists: u64_at(row, at + 5)?,
-            headshots: u64_at(row, at + 6)?,
-            grenade_kills: u64_at(row, at + 7)?,
-            melee_kills: u64_at(row, at + 8)?,
-            batteries: u64_at(row, at + 9)?,
-            capture_hundredths: u64_at(row, at + 10)?,
-            artefacts: u64_at(row, at + 11)?,
-            shots: u64_at(row, at + 12)?,
-            hits: u64_at(row, at + 13)?,
+            assists: u64_at(row, at + 6)?,
+            headshots: u64_at(row, at + 7)?,
+            grenade_kills: u64_at(row, at + 8)?,
+            melee_kills: u64_at(row, at + 9)?,
+            batteries: u64_at(row, at + 10)?,
+            capture_hundredths: u64_at(row, at + 11)?,
+            artefacts: u64_at(row, at + 12)?,
+            shots: u64_at(row, at + 13)?,
+            hits: u64_at(row, at + 14)?,
         },
+        played_ms: u64_at(row, at + 15)?,
     })
 }
 
@@ -1209,10 +1535,11 @@ fn level_of(experience: u32) -> u8 {
 /// members: up to `clans::MAX_MEMBERS`; a list a `keep` filters reads up to
 /// [`MatchHistory::MAX_READ`]).
 ///
-/// The site reads on [`MatchHistory::READERS`] connections (`site()`): a slow request holds one of them, and when all are busy the
-/// next waits. The lobby reads on [`MatchHistory::lobby`], a connection the
-/// site never takes, so no number of requests to the site ever makes a
-/// lobby player wait.
+/// The site reads on [`MatchHistory::READERS`] connections
+/// ([`MatchHistory::site`]): a slow request holds one of them, and when all
+/// are busy the next waits. The lobby reads on [`MatchHistory::lobby`], a
+/// connection the site never takes, so no number of requests to the site
+/// ever makes a lobby player wait.
 pub struct MatchHistory {
     site: HistoryReaders,
     lobby: HistoryReaders,
@@ -1221,6 +1548,8 @@ pub struct MatchHistory {
 impl MatchHistory {
     /// The most rows a list gives.
     pub const MAX_ROWS: usize = 50;
+    /// The most players a page of the top list may come after.
+    pub const MAX_AFTER: usize = 10_000;
     /// The most rows a list that a `keep` filters (`top`, `best`) reads to
     /// find its [`Self::MAX_ROWS`]: the ones `keep` leaves out (the banned,
     /// which the accounts' store knows) are read past.
@@ -1252,10 +1581,10 @@ impl MatchHistory {
     }
 }
 
-
 /// The history's queries, on read-only connections: the site's
-/// (`MatchHistory::site`) or the lobby's ([`MatchHistory::lobby`]).
+/// ([`MatchHistory::site`]) or the lobby's ([`MatchHistory::lobby`]).
 pub struct HistoryReaders {
+    /// A slow request holds one; when all are busy the next waits.
     connections: Vec<Mutex<Connection>>,
     /// The connection a read waits for when all are busy, in turn.
     next: AtomicUsize,
@@ -1310,10 +1639,11 @@ impl HistoryReaders {
 
     /// The account with this in-game name (Latin letters in any case), of
     /// those with a public match: a name is most often still the login, so
-    /// no other account is ever found.
+    /// no other account is ever found. With no account of the name now,
+    /// the one that left it last ([`Self::former_names`]).
     pub fn account_by_name(&self, name: &str) -> Result<Option<u32>, PersistError> {
-        Ok(self
-            .reader()
+        let connection = self.reader();
+        let now = connection
             .query_row(
                 "SELECT a.account_id FROM g26_accounts a
                  JOIN g26_player_totals t ON t.account_id = a.account_id
@@ -1322,7 +1652,49 @@ impl HistoryReaders {
                 [name],
                 |row| row.get(0),
             )
+            .optional()?;
+        if now.is_some() {
+            return Ok(now);
+        }
+        Ok(connection
+            .query_row(
+                &format!(
+                    "SELECT n.account_id FROM g26_account_names n
+                     JOIN g26_player_totals t ON t.account_id = n.account_id
+                     WHERE n.name = ?1 COLLATE NOCASE AND {SAID}
+                     ORDER BY n.until DESC, n.account_id LIMIT 1"
+                ),
+                [name],
+                |row| row.get(0),
+            )
             .optional()?)
+    }
+
+    /// The names the account left that the site may say, the last left
+    /// first, at most `limit`: not one an administrator took from it (the
+    /// audit trail's `nickname` rows), which was taken for a reason, nor
+    /// the one it has again now.
+    pub fn former_names(
+        &self,
+        account_id: u32,
+        limit: usize,
+    ) -> Result<Vec<FormerName>, PersistError> {
+        let connection = self.reader();
+        let mut statement = connection.prepare_cached(&format!(
+            "SELECT n.name, MAX(n.until) FROM g26_account_names n
+             WHERE n.account_id = ?1 AND {SAID}
+                 AND n.name <> (SELECT a.name FROM g26_accounts a WHERE a.account_id = ?1)
+             GROUP BY n.name ORDER BY MAX(n.until) DESC, n.name LIMIT ?2"
+        ))?;
+        let names = statement
+            .query_map(params![account_id, bounded(limit)], |row| {
+                Ok(FormerName {
+                    name: row.get(0)?,
+                    until: u64_at(row, 1)?,
+                })
+            })?
+            .collect::<rusqlite::Result<_>>()?;
+        Ok(names)
     }
 
     /// The account's card; `None` for no account or one without a public
@@ -1399,18 +1771,22 @@ impl HistoryReaders {
     /// own list in the game; they stay out of every other list, the site
     /// and the totals). No kits are read. A match that is not public counts
     /// nowhere: its summary's eligibility reads [`Eligibility::Short`].
-    pub fn own_matches(&self, account_id: u32, limit: usize) -> Result<Vec<(PlayerMatch, OwnKind)>, PersistError> {
+    pub fn own_matches(
+        &self,
+        account_id: u32,
+        limit: usize,
+    ) -> Result<Vec<(PlayerMatch, OwnKind)>, PersistError> {
         let connection = self.reader();
         let summary = SUMMARY.replace("m.eligibility", "COALESCE(m.eligibility, 'short')");
         let mut statement = connection.prepare_cached(&format!(
-            "SELECT {summary}, {LINE}, m.kind
+            "SELECT m.kind, {summary}, {LINE}
              FROM g26_match_players p JOIN g26_matches m ON m.id = p.match_id
              WHERE p.account_id = ?1
              ORDER BY p.match_id DESC LIMIT ?2"
         ))?;
         let rows = statement
             .query_map(params![account_id, bounded(limit)], |row| {
-                let kind: String = row.get(SUMMARY_COLUMNS + LINE_COLUMNS)?;
+                let kind: String = row.get(0)?;
                 let kind = match kind.as_str() {
                     "public" => OwnKind::Public,
                     "private" => OwnKind::Private,
@@ -1418,8 +1794,8 @@ impl HistoryReaders {
                     _ => return Err(bad("match kind", &kind)),
                 };
                 let played = PlayerMatch {
-                    summary: summary_at(row, 0)?,
-                    line: line_at(row, SUMMARY_COLUMNS)?,
+                    summary: summary_at(row, 1)?,
+                    line: line_at(row, 1 + SUMMARY_COLUMNS)?,
                     kits: Vec::new(),
                 };
                 Ok((played, kind))
@@ -1439,7 +1815,6 @@ impl HistoryReaders {
                     Ok(ItemTotals {
                         dict_id: row.get(0)?,
                         matches: u64_at(row, 1)?,
-                        counts: counts_at(row, 2)?,
                     })
                 })?
                 .collect()
@@ -1448,6 +1823,41 @@ impl HistoryReaders {
             weapons: of(Gear::Weapon)?,
             armour: of(Gear::Armour)?,
         })
+    }
+
+    /// The weapons the account fired or killed with in its counted public
+    /// matches, by `by` in `order` (then most kills), at most `limit`.
+    /// Not what the games counted under no weapon (dict id 0), nor an item
+    /// only held.
+    pub fn player_weapons(
+        &self,
+        account_id: u32,
+        by: WeaponRanking,
+        order: Order,
+        limit: usize,
+    ) -> Result<Vec<WeaponTotals>, PersistError> {
+        let connection = self.reader();
+        let mut statement = connection.prepare_cached(&format!(
+            "SELECT dict_id, matches, {WEAPON} FROM g26_player_weapons
+             WHERE account_id = ?1 AND dict_id != 0 AND (kills > 0 OR shots > 0)
+             ORDER BY {} {}, kills DESC, shots DESC, dict_id LIMIT ?2",
+            by.order(),
+            order.sql()
+        ))?;
+        let weapons = statement
+            .query_map(params![account_id, bounded(limit)], |row| {
+                let mut values = [0; WEAPON_COLUMNS];
+                for (index, value) in values.iter_mut().enumerate() {
+                    *value = u64_at(row, 2 + index)?;
+                }
+                Ok(WeaponTotals {
+                    dict_id: row.get(0)?,
+                    matches: u64_at(row, 1)?,
+                    counts: WeaponCounts::of_values(values),
+                })
+            })?
+            .collect::<rusqlite::Result<_>>()?;
+        Ok(weapons)
     }
 
     /// The account's counted public matches that ended at `since` or
@@ -1460,12 +1870,10 @@ impl HistoryReaders {
         let connection = self.reader();
         let mut statement = connection.prepare_cached(
             "SELECT date(m.ended_at, 'unixepoch') AS day, COUNT(*),
-                 SUM(CASE WHEN (m.winner = 'team0' AND p.team = 0)
-                           OR (m.winner = 'team1' AND p.team = 1)
-                           OR (m.winner = 'most_kills' AND p.kills = m.top_kills) THEN 1 ELSE 0 END),
-                 SUM(p.score), SUM(p.kills), SUM(p.deaths), SUM(p.assists), SUM(p.headshots),
-                 SUM(p.grenade_kills), SUM(p.melee_kills), SUM(p.batteries), SUM(p.captures),
-                 SUM(p.artefacts), SUM(p.shots), SUM(p.hits)
+                 SUM(p.outcome = 'won'), SUM(p.outcome = 'lost'), SUM(p.score), SUM(p.kills),
+                 SUM(p.deaths), SUM(p.assists), SUM(p.headshots), SUM(p.grenade_kills),
+                 SUM(p.melee_kills), SUM(p.batteries), SUM(p.captures), SUM(p.artefacts),
+                 SUM(p.shots), SUM(p.hits), SUM(p.played_ms)
              FROM g26_match_players p JOIN g26_matches m ON m.id = p.match_id
              WHERE p.account_id = ?1 AND m.eligibility = 'counted' AND m.ended_at >= ?2
                AND p.match_id >= IFNULL((SELECT MIN(id) FROM g26_matches WHERE ended_at >= ?2),
@@ -1578,7 +1986,8 @@ impl HistoryReaders {
         Ok(rows.collect::<Result<_, _>>()?)
     }
 
-    /// A public match and its players, by team, then place.
+    /// A public match and its players, by team, then place (a
+    /// free-for-all's: each its own team, by roster place).
     pub fn game_match(
         &self,
         id: u64,
@@ -1618,25 +2027,37 @@ impl HistoryReaders {
         Ok(Some((summary, rows.collect::<Result<_, _>>()?)))
     }
 
-    /// The top `limit` players by `by`, of those with a counted public
-    /// match and that `keep` keeps (it is asked of each in order until enough,
-    /// of the first [`MatchHistory::MAX_READ`]).
+    /// The `limit` players after the first `after` (at most
+    /// [`MatchHistory::MAX_AFTER`]) by `by` in `order`, of those with a
+    /// counted public match and that `keep` keeps (it is asked of each in
+    /// order until enough, of [`MatchHistory::MAX_READ`] past `after`), and
+    /// whether one more follows.
     pub fn top(
         &self,
         by: PlayerRanking,
+        order: Order,
+        after: usize,
         limit: usize,
         keep: &dyn Fn(u32) -> bool,
-    ) -> Result<Vec<TopPlayer>, PersistError> {
+    ) -> Result<TopPage, PersistError> {
         let connection = self.reader();
-        let mut statement = connection.prepare_cached(&top_query(by))?;
-        let mut rows = statement.query([MatchHistory::MAX_READ as i64])?;
+        let mut statement = connection.prepare_cached(&top_query(by, order))?;
+        let after = after.min(MatchHistory::MAX_AFTER);
+        let mut rows = statement.query([(after + MatchHistory::MAX_READ) as i64])?;
+        let (limit, mut passed, mut more) = (bounded(limit) as usize, 0, false);
         let mut top = Vec::new();
-        while top.len() < bounded(limit) as usize
-            && let Some(row) = rows.next()?
-        {
+        while let Some(row) = rows.next()? {
             let player = named_at(row, 0)?;
             if !keep(player.account_id) {
                 continue;
+            }
+            if passed < after {
+                passed += 1;
+                continue;
+            }
+            if top.len() == limit {
+                more = true;
+                break;
             }
             top.push(TopPlayer {
                 player,
@@ -1645,7 +2066,7 @@ impl HistoryReaders {
                 totals: totals_at(row, 6)?,
             });
         }
-        Ok(top)
+        Ok(TopPage { players: top, more })
     }
 
     /// The best `limit` single-match scores of counted public matches that
@@ -1680,8 +2101,74 @@ impl HistoryReaders {
         Ok(best)
     }
 
+    /// Each player's counted public matches that ended at `since` or later,
+    /// added up, of the players that `keep` keeps: the day's leaders are
+    /// read from it. As many rows as players of the period (a day's lines
+    /// are read: its matches by `g26_matches_by_end`, each one's players by
+    /// the primary key).
+    pub fn totals_since(
+        &self,
+        since: u64,
+        keep: &dyn Fn(u32) -> bool,
+    ) -> Result<Vec<(Named, Totals)>, PersistError> {
+        let connection = self.reader();
+        let mut statement = connection.prepare_cached(&format!(
+            "SELECT {NAMED}, COUNT(*), SUM(p.outcome = 'won'), SUM(p.outcome = 'lost'),
+                 SUM(p.score), SUM(p.kills), SUM(p.deaths), SUM(p.assists), SUM(p.headshots),
+                 SUM(p.grenade_kills), SUM(p.melee_kills), SUM(p.batteries), SUM(p.captures),
+                 SUM(p.artefacts), SUM(p.shots), SUM(p.hits), SUM(p.played_ms)
+             FROM g26_matches m CROSS JOIN g26_match_players p ON p.match_id = m.id
+             JOIN g26_accounts a ON a.account_id = p.account_id
+             {CLAN_JOIN}
+             WHERE m.ended_at >= ?1 AND m.eligibility = 'counted'
+             GROUP BY a.account_id"
+        ))?;
+        let rows = statement.query_map([since.min(i64::MAX as u64) as i64], |row| {
+            Ok((named_at(row, 0)?, totals_at(row, 4)?))
+        })?;
+        let mut all = Vec::new();
+        for row in rows {
+            let (player, totals) = row?;
+            if keep(player.account_id) {
+                all.push((player, totals));
+            }
+        }
+        Ok(all)
+    }
+
+    /// Everything counted, added up ([`AllTime`]): one pass over the
+    /// players' totals and one over the matches.
+    pub fn all_time(&self) -> Result<AllTime, PersistError> {
+        let connection = self.reader();
+        let columns = TOTALS
+            .split(',')
+            .map(|column| format!("SUM({})", column.trim()))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let (players, totals) = connection.query_row(
+            &format!("SELECT COUNT(*), {columns} FROM g26_player_totals t WHERE t.matches > 0"),
+            [],
+            |row| Ok((u64_at(row, 0)?, totals_at(row, 1)?)),
+        )?;
+        let matches = connection.query_row(
+            "SELECT COUNT(*) FROM g26_matches WHERE eligibility = 'counted'",
+            [],
+            |row| u64_at(row, 0),
+        )?;
+        Ok(AllTime {
+            players,
+            matches,
+            totals,
+        })
+    }
+
     /// The top `limit` registered clans by `by`.
-    pub fn clans(&self, by: TotalsKey, limit: usize) -> Result<Vec<ClanLine>, PersistError> {
+    pub fn clans(
+        &self,
+        by: TotalsKey,
+        order: Order,
+        limit: usize,
+    ) -> Result<Vec<ClanLine>, PersistError> {
         let connection = self.reader();
         let mut statement = connection.prepare_cached(&format!(
             "SELECT c.clan_id, c.name, c.tag, c.experience,
@@ -1690,8 +2177,9 @@ impl HistoryReaders {
                  {TOTALS}
              FROM g26_clan_totals t JOIN g26_clans c ON c.clan_id = t.clan_id
              WHERE c.registered != 0
-             ORDER BY t.{} DESC, t.clan_id LIMIT ?1",
-            by.column()
+             ORDER BY t.{} {}, t.clan_id LIMIT ?1",
+            by.column(),
+            order.sql()
         ))?;
         let rows = statement.query_map([bounded(limit)], clan_line)?;
         Ok(rows.collect::<Result<_, _>>()?)
@@ -1716,9 +2204,8 @@ impl HistoryReaders {
                      ORDER BY c.clan_id LIMIT 1"
                 ),
                 [value],
-                // c.leader: after the five of the clan and the fourteen of
-                // TOTALS.
-                |row| Ok((clan_line(row)?, row.get::<_, u32>(19)?)),
+                // c.leader: after the five of the clan and TOTALS.
+                |row| Ok((clan_line(row)?, row.get::<_, u32>(5 + TOTALS_COLUMNS)?)),
             )
             .optional()?;
         let Some((clan, leader_id)) = found else {
@@ -1769,22 +2256,42 @@ fn clan_line(row: &Row) -> rusqlite::Result<ClanLine> {
     })
 }
 
-/// [`HistoryReaders::top`]'s query by `by`. Accuracy reads the partial index
-/// `g26_player_totals_accuracy`: its expression and its bound are the
-/// migration's, word for word.
-fn top_query(by: PlayerRanking) -> String {
-    let (filter, order) = match by {
-        PlayerRanking::Rating => (
-            "WHERE t.matches > 0".to_owned(),
-            "a.rating DESC, a.account_id".to_owned(),
-        ),
-        PlayerRanking::Totals(key) => (
-            "WHERE t.matches > 0".to_owned(),
-            format!("t.{} DESC, t.account_id", key.column()),
-        ),
+/// [`HistoryReaders::top`]'s query by `by`. Accuracy and the average score
+/// read their partial indexes (`g26_player_totals_accuracy`,
+/// `g26_player_totals_score_avg`): the expressions and the bounds are the
+/// migration's, word for word. The other ratios sort the players with
+/// their matches: a few thousand rows at most.
+fn top_query(by: PlayerRanking, order: Order) -> String {
+    let averaged = format!("WHERE t.matches >= {SCORE_AVG_MIN_MATCHES}");
+    let played = "WHERE t.matches > 0".to_owned();
+    // What is left out, the number sorted by, and what parts equal ones.
+    let (filter, number, tie) = match by {
+        PlayerRanking::Rating => (played, "a.rating".to_owned(), "a.account_id"),
+        PlayerRanking::Totals(key) => (played, format!("t.{}", key.column()), "t.account_id"),
         PlayerRanking::Accuracy => (
             format!("WHERE t.shots >= {ACCURACY_MIN_SHOTS}"),
-            "CAST(t.hits AS REAL) / t.shots DESC, t.account_id".to_owned(),
+            "CAST(t.hits AS REAL) / t.shots".to_owned(),
+            "t.account_id",
+        ),
+        PlayerRanking::ScoreAvg => (
+            averaged,
+            "CAST(t.score AS REAL) / t.matches".to_owned(),
+            "t.account_id",
+        ),
+        PlayerRanking::WinRate => (
+            averaged,
+            "CAST(t.wins AS REAL) / t.matches".to_owned(),
+            "t.account_id",
+        ),
+        PlayerRanking::Kd => (
+            averaged,
+            "CAST(t.kills AS REAL) / max(t.deaths, 1)".to_owned(),
+            "t.account_id",
+        ),
+        PlayerRanking::HeadshotRate => (
+            averaged,
+            "CAST(t.headshots AS REAL) / max(t.kills, 1)".to_owned(),
+            "t.account_id",
         ),
     };
     format!(
@@ -1792,7 +2299,8 @@ fn top_query(by: PlayerRanking) -> String {
          FROM g26_player_totals t JOIN g26_accounts a ON a.account_id = t.account_id
          {CLAN_JOIN}
          {filter}
-         ORDER BY {order} LIMIT ?1"
+         ORDER BY {number} {}, {tie} LIMIT ?1",
+        order.sql()
     )
 }
 
@@ -1827,6 +2335,8 @@ mod tests {
     use crate::persist::DB_FILE;
     use crate::v026g::account::Account;
     use crate::v026g::clans::{Clan, Member};
+    use crate::v026g::moderation::AdminAction;
+    use survarium::v026g::maps::GameMode;
 
     struct TempDir(std::path::PathBuf);
 
@@ -1853,12 +2363,18 @@ mod tests {
         }
     }
 
+    /// A line of a match team 0 won.
     fn line(team: u8, place: u8, score: u64, kills: u64, deaths: u64) -> PlayerLine {
         PlayerLine {
             team,
             place,
-            seat: Some(place),
+            seat: place,
             presence: Presence::Finished,
+            outcome: if team == 0 {
+                Outcome::Won
+            } else {
+                Outcome::Lost
+            },
             rating: 100,
             score,
             kills,
@@ -1874,6 +2390,7 @@ mod tests {
                 shots: 100,
                 hits: 40,
             },
+            played_ms: 600_000,
         }
     }
 
@@ -1902,6 +2419,52 @@ mod tests {
         }
     }
 
+    /// A grenade (dict 400): it kills, and fires no bullet.
+    const GRENADE: u16 = 400;
+
+    /// A player's weapons of a match: the AK with `shots` bullets, the
+    /// pistol, and what its games counted under no weapon.
+    fn weapons(kills: u64, shots: u64) -> BTreeMap<u16, WeaponCounts> {
+        BTreeMap::from([
+            (
+                0,
+                WeaponCounts {
+                    deaths: 2,
+                    hits: 2,
+                    damage: 5_000,
+                    held_ms: 50_000,
+                    ..WeaponCounts::default()
+                },
+            ),
+            (
+                PISTOL,
+                WeaponCounts {
+                    kills: 4,
+                    shots: 20,
+                    hits: 8,
+                    held_ms: 100_000,
+                    ..WeaponCounts::default()
+                },
+            ),
+            (
+                AK,
+                WeaponCounts {
+                    kills,
+                    headshots: 2,
+                    wall_kills: 1,
+                    ricochet_kills: 1,
+                    deaths: 4,
+                    shots,
+                    hits: 30,
+                    damage: 95_000,
+                    kill_distance_dm: 2_500,
+                    longest_kill_dm: 620,
+                    held_ms: 400_000,
+                },
+            ),
+        ])
+    }
+
     /// A public match that counts.
     const PUBLIC: MatchKind = MatchKind::Public(Eligibility::Counted);
 
@@ -1918,8 +2481,8 @@ mod tests {
             info: MatchInfo {
                 ended_at,
                 duration_ms: 845_000,
-                map_id: 3,
-                game_mode: GameMode::Batteries,
+                map_id: MapId::new(3),
+                mode: LobbyMode::Plain(GameMode::Batteries),
                 match_level: 12,
                 winner: Winner::FirstTeam,
                 team_points: [5, 3],
@@ -1933,12 +2496,14 @@ mod tests {
                         kit(0, 10, &[(0, HELMET), (7, AK), (10, PISTOL)]),
                         kit(2, 4, &[(7, PISTOL)]),
                     ],
+                    weapons: weapons(10, 80),
                 },
                 PlayerRecord {
                     account_id: 11,
                     clan_id: None,
                     line: line(1, 1, 100, 6, 14),
                     kits: vec![kit(1, 6, &[(7, AK)])],
+                    weapons: BTreeMap::new(),
                 },
             ],
             events: Vec::new(),
@@ -1982,26 +2547,30 @@ mod tests {
             .position(|step| *step == MIGRATION)
             .expect("the step is in the list");
         {
-            let mut repository = SqliteGameRepository::open(&dir.db()).unwrap();
-            repository.save(10, &Account::new("Alice")).unwrap();
             let connection = Connection::open(dir.db()).unwrap();
-            // Back to the step before: the history's tables gone, and the
-            // later steps' changes undone (`extras`' live watch column).
             connection
                 .execute_batch(
-                    "DROP TABLE g26_match_events;
-                     DROP TABLE g26_match_kit_items; DROP TABLE g26_match_kits;
-                     DROP TABLE g26_player_items; DROP TABLE g26_match_players;
-                     DROP TABLE g26_matches;
-                     DROP TABLE g26_player_totals; DROP TABLE g26_clan_totals;
-                     DROP INDEX g26_accounts_by_name; DROP INDEX g26_accounts_by_rating;
-                     DROP INDEX g26_clan_members_by_account;",
+                    "CREATE TABLE g26_meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL);",
                 )
                 .unwrap();
+            for earlier in &MIGRATIONS[..own] {
+                connection.execute_batch(earlier).unwrap();
+            }
             connection
                 .execute(
-                    "UPDATE g26_meta SET value = ?1 WHERE key = 'schema'",
+                    "INSERT INTO g26_meta (key, value) VALUES ('schema', ?1)",
                     [own as i64],
+                )
+                .unwrap();
+            // The columns of the first step; the later ones have defaults.
+            connection
+                .execute(
+                    "INSERT INTO g26_accounts (
+                        account_id, name, clan_tag, generic_money, premium_money, premium_until,
+                        exp_total, quest_faction, rating, rating_before, active_kit, autobuy,
+                        next_item_id, next_quest_instance, tutorial_step, tutorial_done
+                     ) VALUES (10, 'Alice', '', 777, 0, 0, 0, 0, 1000, 1000, 1, 0, 1, 1, 0, 0)",
+                    [],
                 )
                 .unwrap();
         }
@@ -2021,6 +2590,157 @@ mod tests {
             2
         );
         assert_eq!(history.site().favourites(10, 10).unwrap().weapons.len(), 2);
+        assert_eq!(history.site().player_weapons(10, WeaponRanking::Kills, Order::Descending, 10).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn a_players_weapons_add_up_over_its_counted_public_matches() {
+        let dir = TempDir::new("weapons");
+        let (mut repository, history) = repository(&dir);
+        repository.record_match(&record(PUBLIC, 100)).unwrap();
+        // A longer kill with the AK, and a grenade's (one kill, no shot).
+        let mut second = record(PUBLIC, 200);
+        let alice = &mut second.players[0].weapons;
+        alice.get_mut(&AK).unwrap().longest_kill_dm = 900;
+        alice.remove(&PISTOL);
+        alice.insert(
+            GRENADE,
+            WeaponCounts {
+                kills: 1,
+                ..WeaponCounts::default()
+            },
+        );
+        // An item only held.
+        alice.insert(
+            HELMET,
+            WeaponCounts {
+                held_ms: 4_000,
+                ..WeaponCounts::default()
+            },
+        );
+        repository.record_match(&second).unwrap();
+        // Kept, never added up.
+        for kind in [
+            MatchKind::Private,
+            MatchKind::VsBots,
+            MatchKind::Public(Eligibility::Short),
+        ] {
+            repository.record_match(&record(kind, 300)).unwrap();
+        }
+        let first = weapons(10, 80);
+        assert_eq!(
+            history.site().player_weapons(10, WeaponRanking::Kills, Order::Descending, 10).unwrap(),
+            [
+                WeaponTotals {
+                    dict_id: AK,
+                    matches: 2,
+                    counts: WeaponCounts {
+                        kills: 20,
+                        headshots: 4,
+                        wall_kills: 2,
+                        ricochet_kills: 2,
+                        deaths: 8,
+                        shots: 160,
+                        hits: 60,
+                        damage: 190_000,
+                        kill_distance_dm: 5_000,
+                        longest_kill_dm: 900,
+                        held_ms: 800_000,
+                    },
+                },
+                WeaponTotals {
+                    dict_id: PISTOL,
+                    matches: 1,
+                    counts: first[&PISTOL],
+                },
+                WeaponTotals {
+                    dict_id: GRENADE,
+                    matches: 1,
+                    counts: WeaponCounts {
+                        kills: 1,
+                        ..WeaponCounts::default()
+                    },
+                },
+            ]
+        );
+        assert_eq!(
+            history
+                .site().player_weapons(10, WeaponRanking::Kills, Order::Descending, 1)
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(
+            history
+                .site().player_weapons(99, WeaponRanking::Kills, Order::Descending, 10)
+                .unwrap()
+                .is_empty()
+        );
+        // By any of its numbers, the largest first.
+        let number = |by: WeaponRanking, counts: &WeaponCounts| -> f64 {
+            let ratio = |of: u64, by: u64| {
+                if by == 0 {
+                    -1.0
+                } else {
+                    of as f64 / by as f64
+                }
+            };
+            match by {
+                WeaponRanking::Kills => counts.kills as f64,
+                WeaponRanking::Kd => ratio(counts.kills, counts.deaths.max(1)),
+                WeaponRanking::HeadshotRate => ratio(counts.headshots, counts.kills),
+                WeaponRanking::Accuracy => ratio(counts.hits, counts.shots),
+                WeaponRanking::KillDistance => ratio(counts.kill_distance_dm, counts.kills),
+                WeaponRanking::WallKills => counts.wall_kills as f64,
+                WeaponRanking::RicochetKills => counts.ricochet_kills as f64,
+                WeaponRanking::Held => counts.held_ms as f64,
+            }
+        };
+        for by in [
+            WeaponRanking::Kills,
+            WeaponRanking::Kd,
+            WeaponRanking::HeadshotRate,
+            WeaponRanking::Accuracy,
+            WeaponRanking::KillDistance,
+            WeaponRanking::WallKills,
+            WeaponRanking::RicochetKills,
+            WeaponRanking::Held,
+        ] {
+            let listed = history
+                .site().player_weapons(10, by, Order::Descending, 10)
+                .unwrap();
+            let turned = history
+                .site().player_weapons(10, by, Order::Ascending, 10)
+                .unwrap();
+            assert_eq!(turned.len(), listed.len());
+            assert!(
+                turned
+                    .windows(2)
+                    .all(|pair| number(by, &pair[0].counts) <= number(by, &pair[1].counts)),
+                "{by:?} from the other end: {turned:?}"
+            );
+            assert_eq!(listed.len(), 3, "{by:?}");
+            assert!(
+                listed
+                    .windows(2)
+                    .all(|pair| number(by, &pair[0].counts) >= number(by, &pair[1].counts)),
+                "{by:?}: {listed:?}"
+            );
+        }
+        let rows = |table: &str, account_id: u32| -> i64 {
+            history
+                .site().reader()
+                .query_row(
+                    &format!("SELECT COUNT(*) FROM {table} WHERE account_id = ?1"),
+                    [account_id],
+                    |row| row.get(0),
+                )
+                .unwrap()
+        };
+        // Three weapons and no weapon in four matches, four in the second.
+        assert_eq!(rows("g26_match_weapons", 10), 3 * 4 + 4);
+        // The same with what was counted under no weapon, and the item held.
+        assert_eq!(rows("g26_player_weapons", 10), 5);
     }
 
     #[test]
@@ -2053,14 +2773,29 @@ mod tests {
         assert_eq!(summary.eligibility, Eligibility::Short);
         assert_eq!(players.len(), 2);
         assert_eq!(history.site().player_matches(10, None, 10).unwrap().len(), 1);
-        // The player's own list has its private room's match and the one against bots too,
-        // newest first, each with its kind; no other list and no total has them.
-        repository.record_match(&record(MatchKind::Private, 200)).unwrap();
-        repository.record_match(&record(MatchKind::VsBots, 300)).unwrap();
-        let own: Vec<OwnKind> = history.site().own_matches(10, 10).unwrap().into_iter().map(|(_, kind)| kind).collect();
+        // The player's own list has its private room's match and the one
+        // against bots too, newest first, each with its kind; no other list
+        // and no total has them.
+        repository
+            .record_match(&record(MatchKind::Private, 200))
+            .unwrap();
+        repository
+            .record_match(&record(MatchKind::VsBots, 300))
+            .unwrap();
+        let own: Vec<OwnKind> = history
+            .lobby()
+            .own_matches(10, 10)
+            .unwrap()
+            .into_iter()
+            .map(|(_, kind)| kind)
+            .collect();
         assert_eq!(own, [OwnKind::VsBots, OwnKind::Private, OwnKind::Public]);
-        assert_eq!(history.site().own_matches(10, 2).unwrap().len(), 2);
-        assert_eq!(history.site().player_matches(10, None, 10).unwrap().len(), 1, "public only");
+        assert_eq!(history.lobby().own_matches(10, 2).unwrap().len(), 2);
+        assert_eq!(
+            history.site().player_matches(10, None, 10).unwrap().len(),
+            1,
+            "public only"
+        );
         assert_eq!(history.site().account_by_name("Alice").unwrap(), Some(10));
         assert_eq!(
             history.site().player(10).unwrap().unwrap().totals,
@@ -2069,19 +2804,19 @@ mod tests {
         let everything = |_| true;
         assert!(
             history
-                .site().top(PlayerRanking::Totals(TotalsKey::Kills), 10, &everything)
-                .unwrap()
+                .site().top(PlayerRanking::Totals(TotalsKey::Kills), Order::Descending, 0, 10, &everything)
+                .unwrap().players
                 .is_empty()
         );
         assert!(
             history
-                .site().top(PlayerRanking::Rating, 10, &everything)
-                .unwrap()
+                .site().top(PlayerRanking::Rating, Order::Descending, 0, 10, &everything)
+                .unwrap().players
                 .is_empty()
         );
         assert!(history.site().best(0, 10, &everything).unwrap().is_empty());
         assert!(history.site().player_days(10, 0).unwrap().is_empty());
-        assert!(history.site().clans(TotalsKey::Score, 10).unwrap().is_empty());
+        assert!(history.site().clans(TotalsKey::Matches, Order::Descending, 10).unwrap().is_empty());
         assert_eq!(history.site().favourites(10, 10).unwrap(), Favourites::default());
         // The next one counts.
         repository.record_match(&record(PUBLIC, 200)).unwrap();
@@ -2119,7 +2854,7 @@ mod tests {
     }
 
     #[test]
-    fn favourites_count_matches_and_add_up_the_kits_that_held_them() {
+    fn favourites_count_the_matches_an_item_was_held_in() {
         let dir = TempDir::new("favourites");
         let (mut repository, history) = repository(&dir);
         for (kind, at) in [
@@ -2131,33 +2866,12 @@ mod tests {
             repository.record_match(&record(kind, at)).unwrap();
         }
         let favourites = history.site().favourites(10, 10).unwrap();
-        // The pistol is in both of Alice's kits: one match each time, the
-        // two kits' counters.
-        assert_eq!(
-            favourites.weapons,
-            [
-                ItemTotals {
-                    dict_id: AK,
-                    matches: 2,
-                    counts: KitCounts {
-                        kills: 20,
-                        headshots: 2,
-                        shots: 200,
-                        hits: 80,
-                    },
-                },
-                ItemTotals {
-                    dict_id: PISTOL,
-                    matches: 2,
-                    counts: KitCounts {
-                        kills: 28,
-                        headshots: 4,
-                        shots: 400,
-                        hits: 160,
-                    },
-                },
-            ]
-        );
+        // The pistol is in both of Alice's kits: one match each time.
+        let item = |dict_id| ItemTotals {
+            dict_id,
+            matches: 2,
+        };
+        assert_eq!(favourites.weapons, [item(AK), item(PISTOL)]);
         assert_eq!(favourites.armour.len(), 1);
         assert_eq!(
             (favourites.armour[0].dict_id, favourites.armour[0].matches),
@@ -2262,6 +2976,7 @@ mod tests {
     }
 
     /// More banned players than a list holds above the others: the lists read past them.
+
     #[test]
     fn the_lists_read_past_more_banned_than_they_hold() {
         let dir = TempDir::new("banned");
@@ -2280,6 +2995,7 @@ mod tests {
                     clan_id: None,
                     line: line(0, 1, 1000 + u64::from(account_id), 50, 0),
                     kits: Vec::new(),
+                    weapons: BTreeMap::new(),
                 }
             })
             .collect();
@@ -2288,13 +3004,22 @@ mod tests {
         let names = |top: Vec<TopPlayer>| -> Vec<String> {
             top.into_iter().map(|top| top.player.name).collect()
         };
-        let by_score = PlayerRanking::Totals(TotalsKey::Score);
-        let top = |limit| names(history.site().top(by_score, limit, &keep).unwrap());
+        let by_score = PlayerRanking::Totals(TotalsKey::Kills);
+        let top = |limit| names(history.site().top(by_score, Order::Descending, 0, limit, &keep).unwrap().players);
         assert_eq!(top(10), ["Alice", "Bob"]);
         assert_eq!(top(1), ["Alice"]);
+        // A page says whether the list goes on; the next one starts after it.
+        let page = |after| {
+            let page = history
+                .site().top(by_score, Order::Descending, after, 1, &keep)
+                .unwrap();
+            (names(page.players), page.more)
+        };
+        assert_eq!(page(0), (vec!["Alice".to_owned()], true));
+        assert_eq!(page(1), (vec!["Bob".to_owned()], false));
+        assert_eq!(page(2), (Vec::new(), false));
         let best: Vec<String> = history
-            .site()
-            .best(0, 10, &keep)
+            .site().best(0, 10, &keep)
             .unwrap()
             .into_iter()
             .map(|best| best.player.name)
@@ -2302,7 +3027,7 @@ mod tests {
         assert_eq!(best, ["Alice", "Bob"]);
         // Unfiltered, the banned fill the list.
         assert_eq!(
-            history.site().top(by_score, 100, &|_| true).unwrap().len(),
+            history.site().top(by_score, Order::Descending, 0, 100, &|_| true).unwrap().players.len(),
             MatchHistory::MAX_ROWS
         );
     }
@@ -2324,8 +3049,8 @@ mod tests {
         }
         let top = |history: &MatchHistory| -> Vec<String> {
             history
-                .site().top(PlayerRanking::Accuracy, 10, &|_| true)
-                .unwrap()
+                .site().top(PlayerRanking::Accuracy, Order::Descending, 0, 10, &|_| true)
+                .unwrap().players
                 .into_iter()
                 .map(|top| top.player.name)
                 .collect()
@@ -2334,9 +3059,8 @@ mod tests {
         repository.record_match(&played).unwrap();
         repository.record_match(&played).unwrap();
         assert_eq!(top(&history), ["Alice", "Bob"]);
-        let accurate = history
-            .site().top(PlayerRanking::Accuracy, 1, &|id| id != 10)
-            .unwrap();
+        let accurate = history.site().top(PlayerRanking::Accuracy, Order::Descending, 0, 1, &|id| id != 10)
+            .unwrap().players;
         assert_eq!(accurate[0].player.name, "Bob");
         assert_eq!(accurate[0].totals.matches, 10, "a match is kept once");
     }
@@ -2375,6 +3099,7 @@ mod tests {
             Totals {
                 matches: 2,
                 wins: 2,
+                losses: 0,
                 score: 600,
                 kills: 28,
                 deaths: 12,
@@ -2389,14 +3114,17 @@ mod tests {
                     shots: 200,
                     hits: 80,
                 },
+                played_ms: 1_200_000,
             }
         );
         let bob = history.site().player(11).unwrap().unwrap();
-        assert_eq!((bob.totals.matches, bob.totals.wins), (2, 0));
+        assert_eq!(
+            (bob.totals.matches, bob.totals.wins, bob.totals.losses),
+            (2, 0, 2)
+        );
         assert_eq!(bob.player.clan, None);
 
-        let ids: Vec<u64> = history
-            .site().matches(None, 50, None)
+        let ids: Vec<u64> = history.site().matches(None, 50, None)
             .unwrap()
             .iter()
             .map(|summary| summary.id)
@@ -2522,15 +3250,13 @@ mod tests {
         repository
             .record_match(&record(MatchKind::Private, 600))
             .unwrap();
-        let page: Vec<u64> = history
-            .site().player_matches(10, None, 2)
+        let page: Vec<u64> = history.site().player_matches(10, None, 2)
             .unwrap()
             .iter()
             .map(|played| played.summary.id)
             .collect();
         assert_eq!(page, [5, 4]);
-        let next: Vec<u64> = history
-            .site().player_matches(10, Some(4), 2)
+        let next: Vec<u64> = history.site().player_matches(10, Some(4), 2)
             .unwrap()
             .iter()
             .map(|played| played.summary.id)
@@ -2562,38 +3288,86 @@ mod tests {
         assert_eq!(days[1].0, "1970-01-04");
         let since = history.site().player_days(10, 2 * DAY).unwrap();
         assert_eq!(since.len(), 1);
-        assert_eq!(history.site().player_days(11, 0).unwrap()[0].1.wins, 0);
+        let bob = history.site().player_days(11, 0).unwrap()[0].1;
+        assert_eq!((bob.wins, bob.losses), (0, 2));
     }
 
-    /// A free-for-all is won by everyone with its most kills, whatever its
-    /// team: in the totals, the days, a clan's and as read back.
+    /// A line's outcome, said when the match is settled, is what the totals
+    /// and the days count: one who left lost, and a draw is neither.
     #[test]
-    fn a_free_for_all_is_won_by_its_most_kills() {
-        let dir = TempDir::new("ffa");
+    fn wins_and_losses_are_the_lines_outcomes() {
+        let dir = TempDir::new("outcomes");
         let (mut repository, history) = repository(&dir);
-        let mut ffa = record(PUBLIC, 1000);
-        ffa.info.game_mode = GameMode::FreeForAll;
-        ffa.info.winner = Winner::MostKills(6);
-        ffa.info.team_points = [0, 0];
-        repository.record_match(&ffa).unwrap();
-        // Bob, of team 1, had the 6 kills; Alice's 14 is more than the most
-        // only in this made-up record: it is the stored number that decides.
-        let alice = history.site().player(10).unwrap().unwrap();
-        let bob = history.site().player(11).unwrap().unwrap();
-        assert_eq!((alice.totals.wins, bob.totals.wins), (0, 1));
-        assert_eq!(history.site().player_days(11, 0).unwrap()[0].1.wins, 1);
-        assert_eq!(history.site().player_days(10, 0).unwrap()[0].1.wins, 0);
-        let (summary, _) = history.site().game_match(1).unwrap().unwrap();
-        assert_eq!(summary.info.winner, Winner::MostKills(6));
-        // A winner with no top kills, or top kills with a team's win, is no row.
-        let connection = Connection::open(dir.db()).unwrap();
-        for (winner, top) in [("most_kills", None), ("team0", Some(6))] {
-            let wrong = connection.execute(
-                "UPDATE g26_matches SET winner = ?1, top_kills = ?2 WHERE id = 1",
-                params![winner, top],
-            );
-            assert!(wrong.is_err(), "{winner} {top:?}");
+        // Alice left the match her team won.
+        let mut left = record(PUBLIC, 100);
+        left.players[0].line.presence = Presence::Left;
+        left.players[0].line.outcome = Outcome::Lost;
+        repository.record_match(&left).unwrap();
+        let mut draw = record(PUBLIC, 200);
+        draw.info.winner = Winner::Draw;
+        for player in &mut draw.players {
+            player.line.outcome = Outcome::Neither;
         }
+        repository.record_match(&draw).unwrap();
+        // A free-for-all: Bob had the most kills.
+        let mut ffa = record(PUBLIC, 300);
+        // A twist of it, kept as the lobby calls it.
+        ffa.info.mode = LobbyMode::Racket;
+        ffa.info.winner = Winner::MostKills;
+        ffa.players[0].line.outcome = Outcome::Lost;
+        ffa.players[1].line.outcome = Outcome::Won;
+        repository.record_match(&ffa).unwrap();
+        let of = |id| {
+            let totals = history.site().player(id).unwrap().unwrap().totals;
+            (totals.matches, totals.wins, totals.losses)
+        };
+        assert_eq!(of(10), (3, 0, 2));
+        assert_eq!(of(11), (3, 1, 1));
+        let day = history.site().player_days(10, 0).unwrap()[0].1;
+        assert_eq!((day.matches, day.wins, day.losses), (3, 0, 2));
+        let (summary, players) = history.site().game_match(3).unwrap().unwrap();
+        assert_eq!(summary.info.winner, Winner::MostKills);
+        assert_eq!(summary.info.mode, LobbyMode::Racket);
+        assert_eq!(players[1].line.outcome, Outcome::Won);
+    }
+
+    #[test]
+    fn a_periods_totals_and_all_time_add_up_the_counted_matches() {
+        let dir = TempDir::new("periods");
+        let (mut repository, history) = repository(&dir);
+        for (kind, at) in [
+            (PUBLIC, 100),
+            (PUBLIC, 5_000),
+            (PUBLIC, 6_000),
+            // Neither counts: too short, and not public.
+            (MatchKind::Public(Eligibility::Short), 7_000),
+            (MatchKind::Private, 8_000),
+        ] {
+            repository.record_match(&record(kind, at)).unwrap();
+        }
+        let since = |from, keep: &dyn Fn(u32) -> bool| -> Vec<(String, u64, u64)> {
+            let mut rows: Vec<_> = history
+                .site().totals_since(from, keep)
+                .unwrap()
+                .into_iter()
+                .map(|(player, totals)| (player.name, totals.matches, totals.kills))
+                .collect();
+            rows.sort();
+            rows
+        };
+        assert_eq!(
+            since(5_000, &|_| true),
+            [("Alice".to_owned(), 2, 28), ("Bob".to_owned(), 2, 12)]
+        );
+        assert_eq!(since(5_000, &|id| id != 10), [("Bob".to_owned(), 2, 12)]);
+        assert!(since(9_000, &|_| true).is_empty());
+        let all = history.site().all_time().unwrap();
+        assert_eq!((all.players, all.matches), (2, 3));
+        assert_eq!(
+            (all.totals.matches, all.totals.kills, all.totals.deaths),
+            (6, 60, 60)
+        );
+        assert_eq!(all.totals.played_ms, 6 * 600_000);
     }
 
     #[test]
@@ -2601,23 +3375,21 @@ mod tests {
         let dir = TempDir::new("top");
         let (mut repository, history) = repository(&dir);
         repository.record_match(&record(PUBLIC, 100)).unwrap();
-        let by_kills = history
-            .site().top(PlayerRanking::Totals(TotalsKey::Kills), 10, &|_| true)
-            .unwrap();
+        let by_kills = history.site().top(PlayerRanking::Totals(TotalsKey::Kills), Order::Descending, 0, 10, &|_| true)
+            .unwrap().players;
         let names: Vec<&str> = by_kills
             .iter()
             .map(|top| top.player.name.as_str())
             .collect();
         assert_eq!(names, ["Alice", "Bob"]);
-        let by_rating = history
-            .site().top(PlayerRanking::Rating, 10, &|id| id != 10)
-            .unwrap();
+        let by_rating = history.site().top(PlayerRanking::Rating, Order::Descending, 0, 10, &|id| id != 10)
+            .unwrap().players;
         assert_eq!(by_rating.len(), 1);
         assert_eq!(by_rating[0].player.name, "Bob");
         assert_eq!(
             history
-                .site().top(PlayerRanking::Rating, 1, &|_| true)
-                .unwrap()
+                .site().top(PlayerRanking::Rating, Order::Descending, 0, 1, &|_| true)
+                .unwrap().players
                 .len(),
             1
         );
@@ -2639,7 +3411,7 @@ mod tests {
         repository
             .record_match(&record(MatchKind::Private, 200))
             .unwrap();
-        let clans = history.site().clans(TotalsKey::Score, 10).unwrap();
+        let clans = history.site().clans(TotalsKey::Matches, Order::Descending, 10).unwrap();
         assert_eq!(clans.len(), 1);
         assert_eq!(
             (clans[0].tag.as_str(), clans[0].level, clans[0].members),
@@ -2722,6 +3494,7 @@ mod tests {
             clan_id: Some(7),
             line,
             kits: Vec::new(),
+            weapons: BTreeMap::new(),
         };
         let with = |winner, players: Vec<PlayerRecord>| {
             let mut played = record(PUBLIC, 100);
@@ -2734,6 +3507,7 @@ mod tests {
             clan_id: None,
             line: line(team, 1, 100, 6, 14),
             kits: Vec::new(),
+            weapons: BTreeMap::new(),
         };
         for played in [
             // Three members on the winning team: one match, one win.
@@ -2746,9 +3520,9 @@ mod tests {
                     bob(1),
                 ],
             ),
-            // Members on both teams: one match, a win (one of them won).
+            // Members on both teams: one match, neither won nor lost.
             with(
-                Winner::SecondTeam,
+                Winner::FirstTeam,
                 vec![
                     of_clan(10, line(0, 1, 300, 10, 4)),
                     of_clan(12, line(1, 1, 250, 9, 9)),
@@ -2764,7 +3538,16 @@ mod tests {
                 ],
             ),
             // A draw: one match, no win.
-            with(Winner::Draw, vec![of_clan(12, line(0, 1, 10, 0, 0))]),
+            with(
+                Winner::Draw,
+                vec![of_clan(
+                    12,
+                    PlayerLine {
+                        outcome: Outcome::Neither,
+                        ..line(0, 1, 10, 0, 0)
+                    },
+                )],
+            ),
             // Not public: never counted.
             MatchRecord {
                 kind: MatchKind::Private,
@@ -2779,7 +3562,8 @@ mod tests {
             totals,
             Totals {
                 matches: 4,
-                wins: 2,
+                wins: 1,
+                losses: 1,
                 score: 300 + 200 + 100 + 300 + 250 + 50 + 40 + 10,
                 kills: 14 + 8 + 3 + 10 + 9 + 1 + 2,
                 deaths: 6 + 5 + 7 + 4 + 9 + 10 + 11,
@@ -2794,11 +3578,12 @@ mod tests {
                     shots: 800,
                     hits: 320,
                 },
+                played_ms: 4_800_000,
             }
         );
         // The list of clans and the clan's matches agree with the card.
         assert_eq!(
-            history.site().clans(TotalsKey::Matches, 10).unwrap()[0].totals,
+            history.site().clans(TotalsKey::Matches, Order::Descending, 10).unwrap()[0].totals,
             totals
         );
         let listed = history.site().matches(None, 50, Some(7)).unwrap();
@@ -2807,8 +3592,8 @@ mod tests {
         assert_eq!(ids, [4, 3, 2, 1]);
         // Each member keeps its own matches.
         let matches_of = |id| history.site().player(id).unwrap().unwrap().totals;
-        assert_eq!((matches_of(10).matches, matches_of(10).wins), (3, 1));
-        assert_eq!((matches_of(12).matches, matches_of(12).wins), (3, 2));
+        assert_eq!((matches_of(10).matches, matches_of(10).wins), (3, 2));
+        assert_eq!((matches_of(12).matches, matches_of(12).wins), (3, 1));
         assert_eq!((matches_of(13).matches, matches_of(13).wins), (2, 1));
     }
 
@@ -2941,7 +3726,6 @@ mod tests {
         assert!(!plan.contains("SCAN m"), "{plan}");
     }
 
-    /// The plan of `sql`, its parameters bound to `values`.
     fn plan_of(dir: &TempDir, sql: &str, values: impl rusqlite::Params) -> String {
         let connection = Connection::open(dir.db()).unwrap();
         let mut statement = connection
@@ -2977,22 +3761,134 @@ mod tests {
         }
         let plan = plan_of(&dir, FAVOURITES, params![10, "weapon", 10]);
         assert!(
-            plan.contains("SEARCH g26_player_items USING INDEX g26_player_items_by_matches"),
+            plan.contains("INDEX g26_player_items_by_matches"),
             "{plan}"
         );
         assert!(!plan.contains("TEMP B-TREE"), "{plan}");
     }
 
     #[test]
-    fn the_accuracy_list_reads_its_partial_index() {
+    fn the_accuracy_and_average_score_lists_read_their_partial_indexes() {
         let dir = TempDir::new("accuracy-plan");
         let (_repository, _history) = repository(&dir);
-        let plan = plan_of(&dir, &top_query(PlayerRanking::Accuracy), [10]);
-        assert!(
-            plan.contains("SCAN t USING INDEX g26_player_totals_accuracy"),
-            "{plan}"
+        for (by, index) in [
+            (PlayerRanking::Accuracy, "g26_player_totals_accuracy"),
+            (PlayerRanking::ScoreAvg, "g26_player_totals_score_avg"),
+        ] {
+            let plan = plan_of(&dir, &top_query(by, Order::Descending), [10]);
+            assert!(plan.contains(&format!("SCAN t USING INDEX {index}")), "{plan}");
+            // Only the ties are sorted further, by account.
+            assert!(!plan.contains("USE TEMP B-TREE FOR ORDER BY"), "{plan}");
+        }
+    }
+
+    #[test]
+    fn the_names_an_account_leaves_are_kept() {
+        let dir = TempDir::new("names");
+        let (mut repository, history) = repository(&dir);
+        repository.record_match(&record(PUBLIC, 1_000)).unwrap();
+        let names = |history: &MatchHistory| -> Vec<String> {
+            history
+                .site().former_names(10, 10)
+                .unwrap()
+                .into_iter()
+                .map(|former| former.name)
+                .collect()
+        };
+        // Saved as it is: no name left.
+        repository.save(10, &Account::new("Alice")).unwrap();
+        assert!(names(&history).is_empty());
+        repository.save(10, &Account::new("Alisa")).unwrap();
+        let left = history.site().former_names(10, 10).unwrap();
+        assert_eq!(names(&history), ["Alice"]);
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        assert!(left[0].until <= now && left[0].until + 60 > now, "{left:?}");
+        // Found by the name it left, while nobody has it now.
+        assert_eq!(history.site().account_by_name("alice").unwrap(), Some(10));
+        assert_eq!(history.site().account_by_name("Alisa").unwrap(), Some(10));
+        repository.save(11, &Account::new("Alice")).unwrap();
+        assert_eq!(history.site().account_by_name("Alice").unwrap(), Some(11));
+        assert_eq!(names(&history), ["Alice"]);
+        assert_eq!(
+            history.site().former_names(11, 10).unwrap()[0].name,
+            "Bob",
+            "each account its own"
         );
-        // Only the ties are sorted further, by account.
-        assert!(!plan.contains("USE TEMP B-TREE FOR ORDER BY"), "{plan}");
+        // A name an administrator took from it is not said, nor found by.
+        let mut renamed = Account::new("Alina");
+        renamed.rating = 150;
+        repository
+            .save_admin(
+                10,
+                Some(&renamed),
+                &[AdminAction {
+                    at: now,
+                    admin: "127.0.0.1".to_owned(),
+                    account_id: 10,
+                    account: "Alina".to_owned(),
+                    kind: "nickname".to_owned(),
+                    change: "nickname changed".to_owned(),
+                    reason: "test".to_owned(),
+                    before: "Alisa".to_owned(),
+                    after: "Alina".to_owned(),
+                }],
+            )
+            .unwrap();
+        assert_eq!(names(&history), ["Alice"]);
+        assert_eq!(history.site().account_by_name("Alisa").unwrap(), None);
+        assert_eq!(history.site().former_names(99, 10).unwrap(), []);
+        // A name taken again is the name now, not one left.
+        repository.save(11, &Account::new("Bob")).unwrap();
+        let left: Vec<String> = history
+            .site().former_names(11, 10)
+            .unwrap()
+            .into_iter()
+            .map(|former| former.name)
+            .collect();
+        assert_eq!(left, ["Alice"]);
+    }
+
+    #[test]
+    fn the_average_score_list_needs_its_matches() {
+        let dir = TempDir::new("score-avg");
+        let (mut repository, history) = repository(&dir);
+        let top = |history: &MatchHistory| -> Vec<String> {
+            history
+                .site().top(PlayerRanking::ScoreAvg, Order::Descending, 0, 10, &|_| true)
+                .unwrap().players
+                .into_iter()
+                .map(|top| top.player.name)
+                .collect()
+        };
+        for at in 1..SCORE_AVG_MIN_MATCHES {
+            repository.record_match(&record(PUBLIC, at * 100)).unwrap();
+        }
+        assert!(top(&history).is_empty(), "one match short");
+        repository.record_match(&record(PUBLIC, 9_000)).unwrap();
+        assert_eq!(top(&history), ["Alice", "Bob"]);
+        // The other ratios list the same players, the better first.
+        for by in [
+            PlayerRanking::WinRate,
+            PlayerRanking::Kd,
+            PlayerRanking::HeadshotRate,
+        ] {
+            let listed = history.site().top(by, Order::Descending, 0, 10, &|_| true).unwrap().players;
+            assert_eq!(listed.len(), 2, "{by:?}");
+            let names = |listed: &[TopPlayer]| -> Vec<String> {
+                listed.iter().map(|top| top.player.name.clone()).collect()
+            };
+            let mut turned = history.site().top(by, Order::Ascending, 0, 10, &|_| true).unwrap().players;
+            turned.reverse();
+            assert_eq!(names(&turned), names(&listed), "{by:?} from the other end");
+            let of = |totals: &Totals| match by {
+                PlayerRanking::WinRate => totals.wins as f64 / totals.matches as f64,
+                PlayerRanking::Kd => totals.kills as f64 / totals.deaths.max(1) as f64,
+                _ => totals.counters.headshots as f64 / totals.kills.max(1) as f64,
+            };
+            assert!(of(&listed[0].totals) >= of(&listed[1].totals), "{by:?}");
+        }
     }
 }

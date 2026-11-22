@@ -1,6 +1,6 @@
-//! Patch 144: a replay played in the running game (path A,
-//! docs/notes/replay-stream.md; client_patch.md 3.83). The match server
-//! streams a recording to a game with no place of its own (patch 143) and
+//! Patch 179: a replay played in the running game (path A,
+//! docs/notes/replay-stream.md; client_patch.md 3.99). The match server
+//! streams a recording to a game with no place of its own (patch 178) and
 //! runs its playback; its first playback note (an 0xF6, the
 //! `replay-control` crate) makes the spectator's game a replay's viewer:
 //!
@@ -16,7 +16,7 @@
 //!   the camera stands); Esc leaves, as the game's own leave does (an empty
 //!   0xE0, back to the lobby); the controls' Back asks the server to let the
 //!   game go (its farewell, as at the recording's end). F5, F6 and F2 stay
-//!   patch 143's.
+//!   patch 178's.
 //!
 //! A spectator's game, a live match's too, follows the place its watcher asked
 //! for when the server names it (a view note), and picks no kit: its 1 to 3 and a pick of the
@@ -645,7 +645,7 @@ fn restore(client: &NetworkClient<'_>, act: Act) {
     }
 }
 
-/// `static_info.options_read` (after patches 65, 86, 83, 143 and 142's): a new match starts as
+/// `static_info.options_read` (after patches 65, 86, 83, 178, 142 and 123's): a new match starts as
 /// no replay, with no events. A viewing still on (close_current_match's guard skips the close before
 /// the first tick after the first world, docs/notes/match.md) ends here, whatever the new match
 /// makes the game: its clock would otherwise stay paused or fast in the next real match.
@@ -935,7 +935,7 @@ fn chooser_text<'o, 'k>(kits: Option<impl Iterator<Item = KitData<'k>>>, out: &'
 }
 
 /// `hud.update`(game_world_ui::update_ui, every frame of the hud): a
-/// spectator's camera kept on the place it follows (patch 143's), and a
+/// spectator's camera kept on the place it follows (patch 178's), and a
 /// viewer's controls fed for this frame.
 pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
@@ -1068,7 +1068,7 @@ impl ControlCall {
 
 /// `hud.callback` (after patch 86's): the replay controls in a network
 /// game. A viewer's become requests to the server (play, the bar, the
-/// speed, Back's leave), patch 143's camera (a player, the free view) or the
+/// speed, Back's leave), patch 178's camera (a player, the free view) or the
 /// Moments switch; any other game's are taken with nothing done.
 /// A replay client's, and every other call, go on as the game's.
 pub fn on_hud_call(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnHudCallExit> {

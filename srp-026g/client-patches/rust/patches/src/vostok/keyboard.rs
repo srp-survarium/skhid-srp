@@ -78,6 +78,12 @@ impl Dik {
     pub const F3: Dik = Dik(0x3D);
     pub const F5: Dik = Dik(0x3F);
     pub const F6: Dik = Dik(0x40);
+    /// DIK_RETURN: the main Enter, the console line's commit (the text edit's binding).
+    pub const RETURN: Dik = Dik(0x1C);
+    /// DIK_PRIOR, DIK_NEXT, DIK_END: the arrow block's Page Up, Page Down and End.
+    pub const PAGE_UP: Dik = Dik(0xC9);
+    pub const PAGE_DOWN: Dik = Dik(0xD1);
+    pub const END: Dik = Dik(0xCF);
 
     /// Its code.
     pub fn code(self) -> u8 {
@@ -90,7 +96,7 @@ impl Dik {
     }
 
     /// A key code as the game passes one (a u32): None past the 256 codes.
-    fn of(raw: u32) -> Option<Dik> {
+    pub(super) fn of(raw: u32) -> Option<Dik> {
         u8::try_from(raw).ok().map(Dik)
     }
 }
@@ -105,7 +111,7 @@ pub enum KeyKind {
 }
 
 impl KeyKind {
-    fn of(raw: u32) -> Option<KeyKind> {
+    pub(super) fn of(raw: u32) -> Option<KeyKind> {
         match raw {
             1 => Some(KeyKind::Down),
             2 => Some(KeyKind::Up),
@@ -498,6 +504,37 @@ impl<'t> KeyEvents<'t> {
             return None;
         }
         KeyName::of(buffer)
+    }
+
+    /// The keys that went down in this poll, in the order they did (an
+    /// event's dwData bit 80h: execute's own test, 0x3B9167).
+    pub fn pressed(&self) -> impl Iterator<Item = Dik> + '_ {
+        // SAFETY: the keyboard's buffer, `count` events of it filled by this
+        // poll's GetDeviceData (at most its 40h), on its thread.
+        let events = unsafe { self.keyboard.events() };
+        (0..self.count).filter_map(move |i| {
+            // SAFETY: as above, the event `i` < count, each field read once.
+            let (key, data) = unsafe {
+                let event = events.at(i);
+                (*event.key(), *event.data())
+            };
+            Dik::of(key).filter(|_| data & 0x80 != 0)
+        })
+    }
+
+    /// The game keys' action `key` is bound to (the binder's kind 1, as
+    /// game_world::on_keyboard_action asks it, 0x25CD5F), in a match or
+    /// out of one; none before the game is made or for a key without one.
+    pub fn game_action(&self, key: Dik) -> Option<super::input::Action> {
+        // SAFETY: the engine world's global and its game, alive while the
+        // engine runs (this poll is its tick's), and the game's binder, on
+        // the game's thread.
+        let binder = unsafe { raw::image::engine_world().world()?.game()?.binder() }?;
+        let mut toggle = 0;
+        // SAFETY: the game's live binder, on its thread; the code one the
+        // keyboard gives (get_binded_action compares it, 0x207D50).
+        let action = unsafe { raw::engine_binded_action(Some(binder), 1, u32::from(key.0), &mut toggle) };
+        (action != super::input::Action::NONE.0).then_some(super::input::Action(action))
     }
 
     /// Every event's key becomes the one `moves` says it acts as.

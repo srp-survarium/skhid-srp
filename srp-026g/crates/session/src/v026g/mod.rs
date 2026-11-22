@@ -200,6 +200,17 @@ impl GameAccounts {
         let mut dirty = HashSet::new();
         for (account_id, mut account) in loaded {
             let kept = account.clone();
+            // Saved up to release 68: a scope's record held a variant's dict
+            // id. Each takes its scope's own, before the repairs judge it.
+            let rewritten = items_rules::scope_records_to_own_ids(&mut account);
+            let migrated = (rewritten > 0).then(|| {
+                log::info!(
+                    "0.26g account {account_id}: {rewritten} scope record(s) now hold their \
+                     scope's own dict id (the scope variants are retired)"
+                );
+                dirty.insert(account_id);
+                account.clone()
+            });
             // Kits saved before the covered-slots rule: said once, apart.
             let uncovered = account.uncover_kits();
             if uncovered > 0 {
@@ -218,7 +229,8 @@ impl GameAccounts {
             }
             if account.repair() || uncovered > 0 || merged > 0 {
                 log::warn!("0.26g account {account_id} was not consistent; repaired");
-                for (host, record, why) in items_rules::upgrades_taken_off(&kept, &account) {
+                let before = migrated.as_ref().unwrap_or(&kept);
+                for (host, record, why) in items_rules::upgrades_taken_off(before, &account) {
                     log::warn!(
                         "0.26g account {account_id}: upgrade {} (dict id {}, slot {}) taken off \
                          item {host}: {why}",

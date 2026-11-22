@@ -151,6 +151,9 @@ pub const TOKEN_LIFETIME: Duration = Duration::from_secs(10 * 60);
 pub const TOKEN_DOWNLOADS: u8 = 5;
 /// Live tokens of one account at most.
 pub const TOKENS_PER_ACCOUNT: usize = 3;
+/// Live tokens of the site's visitors at most, one a match ([`Asker::Site`]):
+/// past them a visitor is answered `busy`.
+pub const SITE_TOKENS: usize = 16;
 /// One save ask of an account in this long; another is answered `busy`.
 pub const ASK_EVERY: Duration = Duration::from_secs(2);
 /// Files waiting to be made at most, one for each player of a full match
@@ -456,8 +459,18 @@ impl Answer {
     }
 }
 
+/// Who a saved file is asked for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Asker {
+    /// A player in the lobby, by its account.
+    Player(u32),
+    /// A visitor of the site's match page: nobody signed in
+    /// ([`Replays::ask_for_site`]).
+    Site,
+}
+
 struct Token {
-    account_id: u32,
+    asker: Asker,
     match_id: u32,
     until: Instant,
     downloads_left: u8,
@@ -1096,7 +1109,7 @@ impl Replays {
             return Status::Busy;
         }
         let (status, ready) =
-            self.evaluate(&mut inner, account_id, match_id, revision, played, now);
+            self.evaluate(&mut inner, Asker::Player(account_id), match_id, revision, played, now);
         inner.asks.insert(
             account_id,
             Ask {
@@ -1136,8 +1149,9 @@ impl Replays {
             .checked
             .is_none_or(|at| now.saturating_duration_since(at) >= RECHECK_EVERY);
         if status == Status::Preparing && due {
+            let asker = Asker::Player(account_id);
             let (status, ready) =
-                self.evaluate(&mut inner, account_id, match_id, revision, played, now);
+                self.evaluate(&mut inner, asker, match_id, revision, played, now);
             if let Some(ask) = inner.asks.get_mut(&account_id) {
                 ask.status = status;
                 ask.ready = ready;
@@ -1161,21 +1175,23 @@ impl Replays {
     fn evaluate(
         &self,
         inner: &mut Inner,
-        account_id: u32,
+        asker: Asker,
         match_id: u32,
         revision: Option<u8>,
         played: Option<bool>,
         now: Instant,
     ) -> (Status, Option<Ready>) {
-        match self.look(inner, account_id, match_id, revision, played, now) {
-            Ok((Status::Gone, ready)) => {
-                self.watches.missed(account_id, match_id, now);
-                (Status::Gone, ready)
+        match self.look(inner, asker, match_id, revision, played, now) {
+            Ok((status, ready)) => {
+                // How often a visitor may ask is the web server's to say.
+                if let (Status::Gone, Asker::Player(account_id)) = (status, asker) {
+                    self.watches.missed(account_id, match_id, now);
+                }
+                (status, ready)
             }
-            Ok((status, ready)) => (status, ready),
             Err(refusal) => {
                 log::info!(
-                    "Save: account {account_id} is not given match {match_id:#x} for its game \
+                    "Save: {asker:?} is not given match {match_id:#x} for its game \
                      revision {revision:?}: {refusal:?} (the oldest given: {})",
                     self.oldest
                 );
@@ -1189,7 +1205,7 @@ impl Replays {
     fn look(
         &self,
         inner: &mut Inner,
-        account_id: u32,
+        asker: Asker,
         match_id: u32,
         revision: Option<u8>,
         played: Option<bool>,
@@ -1208,26 +1224,31 @@ impl Replays {
             return Ok((Status::OldGame, None));
         };
         // Who may (`SRP_REPLAY_WATCH`, anyone by default), as for a replay
-        // session.
+        // session; a visitor of the site played nothing.
         let may_watch = |played: bool| {
-            self.watches
-                .settings()
-                .is_none_or(|settings| settings.may_watch(account_id, played))
+            self.watches.settings().is_none_or(|settings| match asker {
+                Asker::Player(account_id) => settings.may_watch(account_id, played),
+                Asker::Site => settings.anyone_may_watch(),
+            })
         };
         if played == Some(false) && !may_watch(false) {
             return Ok((Status::NotYours, None));
         }
         if let Some(sidecar) = self.made(match_id) {
-            if !may_watch(sidecar.account_ids.contains(&account_id)) {
+            let played = match asker {
+                Asker::Player(account_id) => sidecar.account_ids.contains(&account_id),
+                Asker::Site => false,
+            };
+            if !may_watch(played) {
                 return Ok((Status::NotYours, None));
             }
             if let Some(refusal) = refusal_of(&sidecar.revisions, revision, self.oldest) {
                 return Err(refusal);
             }
-            return Ok(match self.issue(inner, account_id, match_id, now) {
+            return Ok(match self.issue(inner, asker, match_id, now) {
                 Some(token) => {
                     log::info!(
-                        "Save: account {account_id} is given match {match_id:#x} ({} bytes), \
+                        "Save: {asker:?} is given match {match_id:#x} ({} bytes), \
                          token {}...",
                         sidecar.size,
                         token_tag(&token)
@@ -1267,8 +1288,7 @@ impl Replays {
                 inner.jobs.push_back(match_id);
                 self.work.notify_all();
                 log::info!(
-                    "Save: match {match_id:#x} is made for account {account_id} (place {} in \
-                     line)",
+                    "Save: match {match_id:#x} is made for {asker:?} (place {} in line)",
                     Self::place_in_line(inner, match_id)
                 );
                 (Status::Preparing, None)
@@ -1279,29 +1299,34 @@ impl Replays {
         })
     }
 
-    /// A token for the account and the match: the account's live one for
-    /// that match if it has one, else a new one while it has fewer than
-    /// [`TOKENS_PER_ACCOUNT`] (a token past its time whose download is still
+    /// A token for the asker and the match: its live one for that match if
+    /// it has one (the site's visitors share theirs), else a new one while
+    /// it has fewer than its most ([`TOKENS_PER_ACCOUNT`], the site's
+    /// [`SITE_TOKENS`]; a token past its time whose download is still
     /// under way counted). `None`: no room, or no randomness.
     fn issue(
         &self,
         inner: &mut Inner,
-        account_id: u32,
+        asker: Asker,
         match_id: u32,
         now: Instant,
     ) -> Option<String> {
         inner.prune_tokens(now);
         if let Some((bytes, _)) = inner.tokens.iter().find(|(_, token)| {
-            token.account_id == account_id && token.match_id == match_id && token.live(now)
+            token.asker == asker && token.match_id == match_id && token.live(now)
         }) {
             return Some(hex(bytes));
         }
         let live = inner
             .tokens
             .values()
-            .filter(|token| token.account_id == account_id)
+            .filter(|token| token.asker == asker)
             .count();
-        if live >= TOKENS_PER_ACCOUNT {
+        let most = match asker {
+            Asker::Player(_) => TOKENS_PER_ACCOUNT,
+            Asker::Site => SITE_TOKENS,
+        };
+        if live >= most {
             return None;
         }
         let mut bytes = [0u8; 16];
@@ -1312,7 +1337,7 @@ impl Replays {
         inner.tokens.insert(
             bytes,
             Token {
-                account_id,
+                asker,
                 match_id,
                 until: now + TOKEN_LIFETIME,
                 downloads_left: TOKEN_DOWNLOADS,
@@ -1321,6 +1346,43 @@ impl Replays {
         );
         Some(hex(&bytes))
     }
+
+    // ------------------------------------------------------- the site
+
+    /// A visitor of the site's match page asks for a match's file. Nobody
+    /// is signed in, so nothing is kept of the ask: each call looks anew
+    /// (the page asks again while it is `preparing`; how often an address
+    /// may is the web server's to say). The first ask for a kept recording
+    /// queues its file, as a player's does. The visitor is taken to run the
+    /// newest game: a recording of games older than the oldest replayable
+    /// is `incompatible`, none is too new.
+    pub fn ask_for_site(&self, match_id: u32, now: Instant) -> Answer {
+        let mut inner = self.inner.locked();
+        let (status, ready) =
+            self.evaluate(&mut inner, Asker::Site, match_id, Some(u8::MAX), None, now);
+        Answer {
+            status,
+            match_id,
+            place: if status == Status::Preparing {
+                Self::place_in_line(&inner, match_id)
+            } else {
+                0
+            },
+            ready,
+        }
+    }
+
+    /// Whether a match has a file to ask for: one made, or a recording
+    /// kept or being written to make it from.
+    pub fn has_recording(&self, match_id: u32, now: Instant) -> bool {
+        if self.save.is_none() {
+            return false;
+        }
+        self.made(match_id).is_some()
+            || self.recorded(&mut self.inner.locked(), match_id, now) != Recorded::No
+    }
+
+    // ------------------------------------------------------- the web page
 
     /// A download of a token's file: the token's one at a time (a `GET` or
     /// a `HEAD`) until the [`Download`] is dropped, so that one account
@@ -1346,7 +1408,8 @@ impl Replays {
         if token.downloading {
             return Err(Refused::Busy);
         }
-        if count {
+        // The site's token is its visitors' together: only its time ends it.
+        if count && matches!(token.asker, Asker::Player(_)) {
             token.downloads_left -= 1;
         }
         token.downloading = true;
@@ -2004,6 +2067,60 @@ mod tests {
         assert_eq!(first.status, Status::Incompatible);
         assert!(first.link().is_none());
         assert!(replays.inner.locked().tokens.is_empty());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// The site's visitors are nobody's account: any match is theirs, one
+    /// token a match for them all, its downloads not counted.
+    #[test]
+    fn a_site_visitor_is_given_any_match_by_the_sites_one_token() {
+        let root = temp("site");
+        let replays = on(&root);
+        let now = Instant::now();
+        assert!(!replays.has_recording(MATCH, now));
+        assert_eq!(replays.ask_for_site(MATCH, now).status, Status::Gone);
+        // A kept recording: the first visitor queues it, once.
+        kept(&replays, MATCH);
+        assert!(replays.has_recording(MATCH, now));
+        let first = replays.ask_for_site(MATCH, now);
+        assert_eq!((first.status, first.place), (Status::Preparing, 1));
+        assert_eq!(replays.ask_for_site(MATCH, now).status, Status::Preparing);
+        assert_eq!(replays.jobs(), [MATCH]);
+        // Made, with ALICE alone in its sidecar: a visitor is given it too.
+        made(&replays, MATCH);
+        let ready = replays.ask_for_site(MATCH, now).ready.unwrap();
+        assert_eq!(
+            replays.ask_for_site(MATCH, now).ready.unwrap().token,
+            ready.token,
+            "the visitors share the one token"
+        );
+        assert_eq!(
+            replays.save_ask(ALICE, MATCH, Some(current()), Some(true), now),
+            Status::Ready
+        );
+        assert_ne!(replays.save_answer(ALICE, now).ready.unwrap().token, ready.token);
+        for _ in 0..TOKEN_DOWNLOADS + 2 {
+            assert_eq!(take(&replays, &ready.token, true, now), Ok(MATCH));
+        }
+        // No more of the site's tokens than its most: the next match is busy.
+        for other in 1..SITE_TOKENS as u32 {
+            made(&replays, MATCH + other);
+            assert_eq!(replays.ask_for_site(MATCH + other, now).status, Status::Ready);
+        }
+        made(&replays, MATCH + 100);
+        assert_eq!(replays.ask_for_site(MATCH + 100, now).status, Status::Busy);
+        // Its time ends it.
+        assert_eq!(
+            take(&replays, &ready.token, true, now + TOKEN_LIFETIME),
+            Err(Refused::Unknown)
+        );
+        // A recording of games older than the oldest replayable is not given.
+        if current() > 1 {
+            made_by(&replays, MATCH, vec![Some(current() - 1)]);
+            let old = replays.ask_for_site(MATCH, now + TOKEN_LIFETIME);
+            assert_eq!(old.status, Status::Incompatible);
+            assert!(old.ready.is_none());
+        }
         let _ = std::fs::remove_dir_all(&root);
     }
 

@@ -26,6 +26,8 @@ USAGE
                                      (`nix develop ./srp-026g -c bash
                                      srp-026g/client-voice/build.sh`)
         [--updater=<updater_skhid.exe>]  defaults to the release build in this repo
+        [--torrent-dll=<skhid_torrent.dll>]  defaults to the one beside the updater
+                                     (client/updater/build.sh puts it there)
         [--extractor=<7zr.exe>]      defaults to the copy in this repo; it must be
                                      the file the updater is built to run
         [--dxvk=<dxvk-3.1.1.tar.gz>] DXVK's release archive; by default the copy in
@@ -95,6 +97,10 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
     <output>/game/binaries/x86/updater_skhid.exe
         the updater (../../client/updater): asks the server which archive
         it offers and installs it when it is another one than the last.
+    <output>/game/binaries/x86/skhid_torrent.dll
+        the updater's BitTorrent (libtorrent; ../../client/updater/torrent-dll): it
+        loads it at run time when the launcher's "Allow torrent" is on; without
+        it (or on Windows before 10) the updater downloads by HTTPS alone.
     <output>/game/binaries/x86/7zr.exe
         7-Zip's standalone extractor, unchanged (../../client/updater/extractor):
         the updater unpacks the original game with it when that is missing,
@@ -187,11 +193,14 @@ import launcher_pages  # noqa: E402
 import patch_launcher_026g as L  # noqa: E402
 
 UPDATER_EXE = os.path.abspath(os.path.join(
-    HERE, "..", "..", "client", "updater", "exe", "target", "i686-win7-windows-msvc", "release", L.UPDATER_NAME))
+    HERE, "..", "..", "client", "updater", "exe", "target", "i686-pc-windows-msvc", "release", L.UPDATER_NAME))
 # The extractor the updater runs, and the size and sha256 the updater is
 # built with (EXTRACTOR in client/updater/logic/src/game.rs; a test here
 # reads them from that file and compares).
 EXTRACTOR_NAME = "7zr.exe"
+TORRENT_DLL_NAME = "skhid_torrent.dll"
+# What the updater asks of it by name (client/updater/exe/src/libtorrent.rs).
+TORRENT_EXPORTS = (b"skt_version", b"skt_session_new", b"skt_add", b"skt_add_magnet", b"skt_poll", b"skt_dht_put")
 EXTRACTOR_EXE = os.path.abspath(os.path.join(HERE, "..", "..", "client", "updater", "extractor", EXTRACTOR_NAME))
 EXTRACTOR_SIZE = 602624
 EXTRACTOR_SHA256 = "256feca8e274e5da655e2a284fabafd9f554365eb164862089dacd4e8276d282"
@@ -211,7 +220,7 @@ DXVK_DLLS = {
 }
 DXVK_CACHE = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache", "skhid", f"dxvk-{DXVK_VERSION}.tar.gz")
 BUGTRAP_DLL = os.path.abspath(os.path.join(
-    HERE, "..", "..", "client", "bugtrap", "target", "i686-win7-windows-msvc", "release", "BugTrap.dll"))
+    HERE, "..", "..", "client", "bugtrap", "target", "i686-pc-windows-msvc", "release", "BugTrap.dll"))
 # Where the original game is had by hand: the patches server's address of its
 # row in release/game.tsv (no download quota), the bytes
 # client/updater/logic/src/game.rs pins (the
@@ -267,7 +276,7 @@ def read_bugtrap(path):
     return data
 
 
-VOICE_DLL = os.path.abspath(os.path.join(HERE, "..", "target-voice", "i686-win7-windows-msvc", "release", "skhid_voice.dll"))
+VOICE_DLL = os.path.abspath(os.path.join(HERE, "..", "target-voice", "i686-pc-windows-msvc", "release", "skhid_voice.dll"))
 # What patch 66 asks of the DLL by name (the shared voice-abi crate).
 VOICE_EXPORTS = (b"sv_version", b"sv_start", b"sv_stop", b"sv_ptt", b"sv_settings", b"sv_hear",
                  b"sv_mute", b"sv_talking", b"sv_slot", b"sv_voice_id", b"sv_test_press", b"sv_test_stop",
@@ -311,6 +320,25 @@ def read_updater(path):
     # for an installer and asks for administrator rights at every start.
     if not any(b"requestedExecutionLevel level=" + quote + b"asInvoker" + quote in data for quote in (b"'", b'"')):
         sys.exit(f"{path}: the updater has no asInvoker manifest")
+    return data
+
+
+def read_torrent_dll(path):
+    """skhid_torrent.dll: a 32-bit x86 DLL with the functions the updater asks for."""
+    try:
+        with open(path, "rb") as dll:
+            data = dll.read()
+    except OSError as e:
+        sys.exit(f"{path}: cannot read skhid_torrent.dll ({e}). Build client/updater/build.sh first, "
+                 "or pass --torrent-dll=<path>.")
+    pe = int.from_bytes(data[0x3c:0x40], "little")
+    if (len(data) < 64 or data[:2] != b"MZ" or pe + 26 > len(data) or data[pe:pe + 4] != b"PE\0\0"
+            or int.from_bytes(data[pe + 4:pe + 6], "little") != 0x14c
+            or not int.from_bytes(data[pe + 22:pe + 24], "little") & 0x2000):
+        sys.exit(f"{path}: expected a 32-bit x86 Windows DLL")
+    missing = [name.decode() for name in TORRENT_EXPORTS if name + b"\0" not in data]
+    if missing:
+        sys.exit(f"{path}: not skhid_torrent.dll: no {', '.join(missing)}")
     return data
 
 
@@ -414,7 +442,7 @@ def bat(server, embedded=False):
         ":not_ready",
         "echo Skhid has not finished updating the game's files (game\\resources.db.patch_*),",
         "echo so the game is not started. Start Skhid.bat (the launcher): it finishes",
-        "echo the update. Details: game\\binaries\\x86\\updater_skhid.log",
+        "echo the update. Details: the newest game\\logs\\updater_skhid.^<date^>.log",
         "pause",
         "exit /b 1",
         "",
@@ -508,8 +536,16 @@ def sh(server, embedded=False, name="play_skhid.sh"):
         b"server=\n", f"server={'' if embedded else server}\n".encode("ascii"), 1)
 
 
-def readme(server, description, files, embedded=False, site=None):
-    """`site`: the bundle has the launcher and its updater, which ask it."""
+def readme(server, description, files, embedded=False, site=None, relay=False):
+    """`site`: the bundle has the launcher and its updater, which ask it.
+    `relay`: a download with a relay, whose launcher has the "Relay" row."""
+    # A provider that blocks the server: the launcher's own row where there
+    # is a relay, else a VPN.
+    blocked = (["Russian) and answer Yes when Windows asks for administrator rights. If",
+                "your provider blocks the server, set Relay, at the launcher's bottom left,",
+                "to auto."] if relay else
+               ["Russian) and answer Yes when Windows asks for administrator rights. In",
+                f"Russia, use a VPN and add the game's .exe files to it: see {VPN_HELP}."])
     lines = [
         "SURVARIUM 0.26g - SKHID COMMUNITY SERVER FILES (UNOFFICIAL)",
         "",
@@ -562,8 +598,7 @@ def readme(server, description, files, embedded=False, site=None):
             "",
             "CANNOT REACH THE SERVER?",
             f"Allow the game in your firewall: run {NETWORK_SETUP} (Windows, in",
-            "Russian) and answer Yes when Windows asks for administrator rights. In",
-            f"Russia, use a VPN and add the game's .exe files to it: see {VPN_HELP}.",
+            *blocked,
             "",
             "STILL NOT WORKING?",
             f"Run {COLLECT_LOGS}: it puts the game's logs and the state of its",
@@ -587,6 +622,9 @@ def readme(server, description, files, embedded=False, site=None):
             "the GNU Lesser General Public License, version 2.1 or later, and comes",
             "WITHOUT ANY WARRANTY: https://www.7-zip.org/license.txt (the licence),",
             "https://www.7-zip.org (the source code), http://www.gnu.org/ (the LGPL).",
+            "skhid_torrent.dll is the updater's BitTorrent, used only while \"Allow torrent\"",
+            "is ticked: libtorrent (https://libtorrent.org, BSD licence) and Boost",
+            "(Boost Software License), built for Windows 10 and later.",
             "",
             "THE LAUNCHER AND ITS UPDATES",
             "launcher_skhid.exe is the game's own launcher, changed to work without an",
@@ -596,8 +634,8 @@ def readme(server, description, files, embedded=False, site=None):
             "replaces the files, the launcher and itself included; nothing else of the",
             "existing game is touched. A missing game is installed from the verified",
             "original archive first. It needs no administrator rights. What it did is in",
-            "game\\binaries\\x86\\updater_skhid.log. If it cannot reach the server but the",
-            "files are complete, PLAY still works.",
+            "game\\logs\\updater_skhid.<date>.log, a file each run. If it cannot",
+            "reach the server but the files are complete, PLAY still works.",
             "The game's language is chosen in its Settings (Language), the launcher's",
             "at its top. A changed play_skhid.bat or play_skhid.sh is kept until the",
             "server offers a newer archive.",
@@ -663,9 +701,11 @@ def main():
     archive = False
     launcher, updater_path, site = True, UPDATER_EXE, None
     extractor_path = EXTRACTOR_EXE
+    torrent_dll_path = None
     dxvk_path = None
     late_join, revision, required = True, None, None
     downloads = []
+    relay = None
     for option in options:
         if option == "--check":
             check = True
@@ -685,12 +725,18 @@ def main():
             mode = option[7:]
         elif option.startswith("--server="):
             server = parse_server(option[9:])
+        elif option.startswith("--relay="):
+            relay = parse_server(option[len("--relay="):])
+            import ipaddress
+            ipaddress.IPv4Address(relay.split(":")[0])
         elif option.startswith("--bugtrap="):
             bugtrap_path = option[len("--bugtrap="):]
         elif option.startswith("--voice="):
             voice_path = option[len("--voice="):]
         elif option.startswith("--updater="):
             updater_path = option[len("--updater="):]
+        elif option.startswith("--torrent-dll="):
+            torrent_dll_path = option[len("--torrent-dll="):]
         elif option.startswith("--extractor="):
             extractor_path = option[len("--extractor="):]
         elif option.startswith("--dxvk="):
@@ -747,6 +793,16 @@ def main():
         ("LINUX.txt", Path(HERE, "LINUX.txt").read_bytes()),
         ("MACOS.txt", Path(HERE, "MACOS.txt").read_bytes()),
     ]
+    if relay:
+        if not launcher or not embedded:
+            sys.exit("--relay requires the full client with its launcher and embedded server")
+        if int(server.rsplit(":", 1)[1]) > 65532 or relay.rsplit(":", 1)[1] != server.rsplit(":", 1)[1]:
+            sys.exit("--relay must use the same login port, with room for lobby, match and voice")
+        files.append((os.path.join("game", EXE_DIR, "updater_skhid.relay"),
+                      (server + "\n" + relay + "\n").encode("ascii")))
+        files = [(name, data.replace(b'start "" survarium_skhid.exe ',
+                                    b'start "" updater_skhid.exe play ')
+                  if name.endswith("play_skhid.bat") else data) for name, data in files]
     launcher_description = None
     if launcher:
         # The launcher: patch_launcher_026g.py refuses anything but the
@@ -757,10 +813,13 @@ def main():
             sys.exit(f"{launcher_path}: the game folder has no launcher (--no-launcher leaves it out)")
         launcher_exe, launcher_description = L.build(
             launcher_path.read_bytes(), Path(L.default_bin()).read_bytes(), site=site,
-            game_exe="survarium_skhid.exe", arguments=game_arguments(server, embedded))
+            game_exe="updater_skhid.exe" if relay else "survarium_skhid.exe",
+            arguments=("play " if relay else "") + game_arguments(server, embedded))
+        torrent_dll_path = torrent_dll_path or os.path.join(os.path.dirname(updater_path), TORRENT_DLL_NAME)
         files += [
             (os.path.join("game", EXE_DIR, L.LAUNCHER_NAME), bytes(launcher_exe)),
             (os.path.join("game", EXE_DIR, L.UPDATER_NAME), read_updater(updater_path)),
+            (os.path.join("game", EXE_DIR, TORRENT_DLL_NAME), read_torrent_dll(torrent_dll_path)),
             (os.path.join("game", EXE_DIR, EXTRACTOR_NAME), read_extractor(extractor_path)),
             (os.path.join("game", EXE_DIR, "updater_skhid.url"), (site + "\r\n").encode("ascii")),
             *((os.path.join("game", EXE_DIR, "dxvk", name), dll) for name, dll in read_dxvk(dxvk_path).items()),
@@ -775,10 +834,10 @@ def main():
             (COLLECT_LOGS, russian_script(COLLECT_LOGS)),
         ]
         files += [(os.path.join("game", EXE_DIR, L.PAGES_DIR, name), data)
-                  for name, data in sorted(launcher_pages.pages(site).items())]
+                  for name, data in sorted(launcher_pages.pages(site, bool(relay)).items())]
     listed = [(name.replace(os.sep, "/"), sha256(data)) for name, data in files]
     files.append(("README.txt", readme(server, description, listed, embedded,
-                                       site if launcher else None)))
+                                       site if launcher else None, bool(relay))))
 
     if not check and archive:
         os.makedirs(os.path.dirname(output), exist_ok=True)

@@ -8,13 +8,13 @@ use binary_config_parser::tree::ConfigValue;
 
 use super::super::dictionary::{self, Dictionary};
 use super::super::game_data::{self, GameData};
-use super::{GAME_MODES_DIR, MapMode, RuleMode};
+use super::{GAME_MODES_DIR, MapId, MapMode, RuleMode};
 
 /// A map a patch adds.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AddedMap {
     /// Its `maps_dict` id.
-    pub id: u8,
+    pub id: MapId,
     /// `cfg_mode_name`.
     pub config: &'static str,
     /// `match_making_params.map_id`, `map_weather_id`, `map_name`.
@@ -27,6 +27,8 @@ pub struct AddedMap {
     pub respawn_points: usize,
     /// Its project's battery containers, as `(id, team)`.
     pub containers: Vec<(i32, i32)>,
+    /// `mode.srp_build`, as `modes.tsv`'s `build` writes it.
+    pub srp_build: Option<&'static str>,
 }
 
 impl AddedMap {
@@ -34,7 +36,7 @@ impl AddedMap {
     /// 17 respawn points.
     pub fn level_12_tdm() -> Self {
         Self {
-            id: 200,
+            id: MapId::new(200),
             config: "level_12_day_4.options",
             level: 12,
             weather: super::weather::DAY,
@@ -42,6 +44,7 @@ impl AddedMap {
             mode: RuleMode::TeamDeathmatch.number(),
             respawn_points: 17,
             containers: Vec::new(),
+            srp_build: None,
         }
     }
 
@@ -49,7 +52,7 @@ impl AddedMap {
     /// (`research_mode.md`): 14 respawn points and no containers.
     pub fn level_12_research() -> Self {
         Self {
-            id: 202,
+            id: MapId::new(202),
             config: "level_12_day_5.options",
             project: "level_12/day_5",
             mode: RuleMode::Research.number(),
@@ -133,6 +136,9 @@ pub fn with_map(map: &AddedMap) -> GameData {
     *entry(making, "map_name") = ConfigValue::String(map.project.into());
     let ui = entry(root, "ui");
     *entry(ui, "map_name") = ConfigValue::String(format!("st_level_{}_name", map.level));
+    if let Some(tag) = map.srp_build {
+        *entry_or_new(root, "srp_build") = ConfigValue::String(tag.into());
+    }
 
     let point = |team: i32| {
         ConfigValue::Named(vec![
@@ -175,7 +181,7 @@ pub fn with_map(map: &AddedMap) -> GameData {
     let mut dictionary_config = ConfigValue::parse(stock.file(dictionary::PATH).unwrap()).unwrap();
     match entry(&mut dictionary_config, "maps_dict") {
         ConfigValue::Indexed(rows) => rows.push(ConfigValue::Named(vec![
-            ("id".into(), ConfigValue::Integer(map.id.into())),
+            ("id".into(), ConfigValue::Integer(map.id.get().into())),
             (
                 "cfg_mode_name".into(),
                 ConfigValue::String(map.config.into()),

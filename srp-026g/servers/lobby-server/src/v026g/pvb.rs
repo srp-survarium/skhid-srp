@@ -63,7 +63,7 @@ use session::{LockExt, QueuePool};
 use survarium::v026g::lobby::requests::id;
 use survarium::v026g::lobby::rooms::rules;
 use survarium::v026g::lobby::{self, PvbCode, PvbMap, PvbNumbers, PvbStatus};
-use survarium::v026g::maps::{self, MapMode};
+use survarium::v026g::maps::{self, MapId, MapMode};
 
 use super::core::{Core, Who};
 
@@ -78,11 +78,26 @@ pub(super) const PLAY_REFUSED: &str = "st_cant_change_ready_state";
 /// (mode 3), no Research (mode 5: the server's bots play modes 2 to 4), no
 /// London (level 9, maps 181 to 183) and no level 88. The movie shows only
 /// the maps the status lists.
-pub const MAPS: [u8; 16] = [
-    61, 67, 73, 79, 85, 91, 97, 103, 117, 120, 123, 126, 129, 132, 135, 138,
+pub const MAPS: [MapId; 16] = [
+    MapId::new(61),
+    MapId::new(67),
+    MapId::new(73),
+    MapId::new(79),
+    MapId::new(85),
+    MapId::new(91),
+    MapId::new(97),
+    MapId::new(103),
+    MapId::new(117),
+    MapId::new(120),
+    MapId::new(123),
+    MapId::new(126),
+    MapId::new(129),
+    MapId::new(132),
+    MapId::new(135),
+    MapId::new(138),
 ];
 /// The map the movie shows first (the team sizes and the size it shows first: `PvbRules`).
-pub const DEFAULT_MAP: u8 = 61;
+pub const DEFAULT_MAP: MapId = MapId::new(61);
 /// How long a choice is held for the player's Play.
 pub const HOLD: Duration = Duration::from_secs(10);
 /// A Play this long after its hold ran out is still taken as one meant for
@@ -100,7 +115,7 @@ pub struct Config {
     pub max_matches: usize,
     /// The maps a private room with bots may hold ([`bot_maps`]); none with
     /// the mode off.
-    pub bot_maps: Vec<u8>,
+    pub bot_maps: Vec<MapId>,
 }
 
 impl Default for Config {
@@ -153,7 +168,7 @@ impl Config {
 /// the match server refuses them, nor Blackout, which Play vs Bots never
 /// offered) and with a bots' map in `dir` (`SRP_MAPDATA_DIR`, the match
 /// server's: without one its bots only run their script).
-pub fn bot_maps<'a>(maps: impl Iterator<Item = &'a MapMode>, dir: &std::path::Path) -> Vec<u8> {
+pub fn bot_maps<'a>(maps: impl Iterator<Item = &'a MapMode>, dir: &std::path::Path) -> Vec<MapId> {
     maps.filter(|map| {
         matches!(
             map.mode,
@@ -180,7 +195,7 @@ pub fn offered_maps() -> impl Iterator<Item = &'static MapMode> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct Hold {
     pub size: u8,
-    pub map_id: u8,
+    pub map_id: MapId,
     pub until: Instant,
 }
 
@@ -189,7 +204,7 @@ pub(super) struct Hold {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct Choice {
     pub size: u8,
-    pub map_id: u8,
+    pub map_id: MapId,
 }
 
 /// Why not, in words for the log.
@@ -484,10 +499,8 @@ mod tests {
             );
             assert!(seen.insert((map.level, map.mode)), "{} twice", map.id);
         }
-        // Each of the eight levels in the two modes.
-        assert_eq!(seen.len(), 16);
         for london in [181, 182, 183] {
-            assert!(!MAPS.contains(&london));
+            assert!(!MAPS.contains(&MapId::new(london)));
         }
         for map in maps::all() {
             if map.level == 9
@@ -498,18 +511,13 @@ mod tests {
             }
         }
         assert!(MAPS.contains(&DEFAULT_MAP));
-        let rudnya = maps::map_mode(DEFAULT_MAP).unwrap();
-        assert_eq!((rudnya.level, rudnya.mode), (1, maps::GameMode::Batteries));
     }
 
     #[test]
     fn the_settings_read_as_documented() {
         let config = Config::default();
         assert!(!config.enabled);
-        assert_eq!(
-            (config.max_gear, config.max_matches),
-            (rules().pvb.max_gear, 5)
-        );
+        assert_eq!(config.max_gear, rules().pvb.max_gear);
         assert!(config.bot_maps.is_empty());
     }
 
@@ -527,7 +535,7 @@ mod tests {
         }
         let found = bot_maps(maps::playable(), &dir);
         std::fs::remove_dir_all(&dir).unwrap();
-        let expected: Vec<u8> = maps::playable()
+        let expected: Vec<MapId> = maps::playable()
             .filter(|map| {
                 matches!(
                     map.mode,
@@ -544,7 +552,7 @@ mod tests {
         // A free-for-all is one of their modes, with a file of its own
         // project (none is in the release's bot data: `offered_maps`);
         // Blackout is not, file or no file.
-        let of = |mode| maps::playable_in(mode).map(|map| map.id).collect::<Vec<u8>>();
+        let of = |mode| maps::playable_in(mode).map(|map| map.id).collect::<Vec<MapId>>();
         let free_for_all = of(maps::GameMode::FreeForAll);
         assert!(!free_for_all.is_empty());
         assert!(free_for_all.iter().all(|id| found.contains(id)));

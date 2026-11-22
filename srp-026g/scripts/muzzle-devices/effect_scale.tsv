@@ -1,0 +1,33 @@
+# The scale of 0.46c2's shot effects on 0.26g's (make_pack.py --write-scale; never edited by hand;
+# docs/notes/attachments-muzzles.md, "The scale"). family: a stock flash, its light's peak in 0.26g and in
+# 0.46c2, their ratio, its fire materials both builds have (brightness here/there). effect: its family (the
+# stock flash most of its fits replace), those fits of all, its light's peak in 0.46c2 and in the pack.
+# material: a fire material the pack brings, its brightness in 0.46c2 and in the pack.
+family	fx/weapons/ak_74	0.8557	0.3771	2.2690	fx/weapons/ak_front 4/1, fx/weapons/ak_side 4/1, fx/weapons/idle_muzle_color 1/1
+family	fx/weapons/fort_17	0.5205	0.0913	5.6995	fx/weapons/fort_muzle_flash 4/1, fx/weapons/tt_33_front_muzzle_flash 4/1
+family	fx/weapons/shotguns	0.8557	0.1007	8.4960	fx/weapons/idle_muzle_color 1/1
+family	fx/weapons/sks	0.8557	0.3394	2.5215	fx/weapons/idle_muzle_color 1/1, fx/weapons/rifles_front 4/1, fx/weapons/sks_side 4/1
+effect	fx/weapons/attach/dtk11	fx/weapons/shotguns	6 of 10	0.1596	1.3564
+effect	fx/weapons/attach/dtk12	fx/weapons/shotguns	6 of 10	0.1753	1.4893
+effect	fx/weapons/attach/dtk1_2	fx/weapons/ak_74	24 of 38	0.1809	0.4105
+effect	fx/weapons/attach/dtk3_7	fx/weapons/sks	25 of 69	0.1827	0.4608
+effect	fx/weapons/attach/dtk4_6	fx/weapons/ak_74	16 of 50	0.1667	0.3783
+effect	fx/weapons/attach/dtk5	fx/weapons/ak_74	12 of 19	0.1667	0.3783
+effect	fx/weapons/attach/dtk8	fx/weapons/shotguns	6 of 10	0.1838	1.5619
+effect	fx/weapons/attach/dtk9	fx/weapons/sks	7 of 14	0.1604	0.4044
+effect	fx/weapons/attach/duckbill	fx/weapons/shotguns	15 of 23	0.0929	0.7891
+effect	fx/weapons/attach/gas_small	fx/weapons/ak_74	61 of 188	-	-
+effect	fx/weapons/attach/pp_arrest1	fx/weapons/fort_17	11 of 17	0.0917	0.5227
+effect	fx/weapons/attach/pp_suppr	fx/weapons/ak_74	22 of 35	0.0995	0.2258
+material	fx/weapons/fat_muzzle	1	4
+material	fx/weapons/front_m_3th	1	4
+material	fx/weapons/m4a1	1	4
+material	fx/weapons/pp_arrestor_front	1	4
+material	fx/weapons/pp_arrestor_side	1	4
+material	fx/weapons/pp_arrestor_side3	1	4
+material	fx/weapons/pp_arrestor_up	1	4
+material	fx/weapons/side_3th	1	4
+material	fx/weapons/side_3th_rot	1	4
+material	fx/weapons/small_side	1	4
+material	fx/weapons/up_gas	1	4
+# fire materials: x4

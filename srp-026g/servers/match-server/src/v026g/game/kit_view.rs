@@ -42,6 +42,7 @@ mod tests {
             name: "p".into(),
             clan_tag: String::new(),
             protection: 0,
+            face: survarium::v026g::faces::Face::DEFAULT,
             kits: vec![kit(1, KIT_USABLE), kit(2, KIT_USABLE), kit(3, 2)],
             items: Vec::new(),
             squad: 0,

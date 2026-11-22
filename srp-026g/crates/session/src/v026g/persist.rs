@@ -16,6 +16,7 @@ use std::sync::{Arc, Mutex};
 use rusqlite::{Connection, OptionalExtension, params};
 
 use super::account::{Account, Item, KIT_SLOTS, Kit, KitSlot, QuestInstance, Upgrade};
+use survarium::v026g::faces::Faces;
 use super::clans::Clan;
 use super::moderation::AdminAction;
 use crate::LockExt;
@@ -34,6 +35,7 @@ mod map_plays;
 pub mod match_events;
 mod mode_intro;
 mod presets;
+mod faces;
 mod results;
 mod room_settings;
 
@@ -155,12 +157,22 @@ const MIGRATIONS: &[&str] = &[
     "",
     // 15: player reports and compliments.
     comments::MIGRATION,
-    // 16: the match history and its totals (`history`).
+    // 16: the shop's "Hide owned" box (`extras`).
+    extras::SHOP_OWNED_MIGRATION,
+    // 17: the PIN of an account's last room made by hand (`room_settings`).
+    room_settings::PIN_MIGRATION,
+    // 18: the match history and its totals (`history`).
     history::MIGRATION,
-    // 17: each match's events (`match_events`).
+    // 19: the face an account chose (`faces`).
+    faces::MIGRATION,
+    // 20: what a player did with each weapon (`history`).
+    history::WEAPONS_MIGRATION,
+    // 21: the average score list from five matches (`history`).
+    history::SCORE_AVG_BOUND_MIGRATION,
+    // 22: the names an account leaves (`history`).
+    history::NAMES_MIGRATION,
+    // 23: each match's events (`match_events`).
     match_events::MIGRATION,
-    // 18: each history line's roster place (`history`).
-    history::SEAT_MIGRATION,
 ];
 
 /// The child tables of an account, children of children first.
@@ -258,7 +270,8 @@ pub trait GameRepository: Send {
     fn record_match(&mut self, _record: &history::MatchRecord) -> Result<(), PersistError> {
         Ok(())
     }
-    /// A reader of the history for the site, on a connection of its own.
+    /// Readers of the history for the site and the lobby, on connections
+    /// of their own.
     /// (A repository that keeps no history: `None`.)
     fn history(&self) -> Result<Option<history::MatchHistory>, PersistError> {
         Ok(None)
@@ -792,6 +805,7 @@ impl GameRepository for SqliteGameRepository {
                         drop_cards: Vec::new(),
                         presets: [None; super::presets::PRESETS],
                         active_preset: super::presets::FIRST_PRESET,
+                        face: Default::default(),
                     },
                 ))
             })?;
@@ -810,6 +824,7 @@ impl GameRepository for SqliteGameRepository {
             account.drop_cards = drop_cards::load(&transaction, account_id)?;
             account.presets = presets::load(&transaction, account_id)?;
             account.active_preset = presets::load_active(&transaction, account_id)?;
+            account.face = faces::load(&transaction, account_id, Faces::shared())?;
             {
                 let mut statement = transaction.prepare_cached(
                     "SELECT skill_id, points FROM g26_skills WHERE account_id = ?1 ORDER BY seq",
@@ -1060,6 +1075,7 @@ fn write_account(
     drop_cards::save(transaction, account_id, &account.drop_cards)?;
     presets::save(transaction, account_id, &account.presets)?;
     presets::save_active(transaction, account_id, account.active_preset)?;
+    faces::save(transaction, account_id, account.face)?;
     for (seq, &(skill_id, points)) in account.skills.iter().enumerate() {
         transaction.execute(
             "INSERT INTO g26_skills (account_id, seq, skill_id, points)
@@ -1218,6 +1234,7 @@ mod tests {
             tiles_off: vec![(2, 1), (4, 3)],
             tiles_on: vec![(10, 1)],
             modes_off: vec![4],
+            pin: Some(7),
         });
         account
     }

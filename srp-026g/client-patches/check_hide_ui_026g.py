@@ -17,7 +17,7 @@ answers root.interface_hidden with a bool:
   0x25CEDB (the replay's toggle) or 0x25CF0D (the key not taken). A replay
   (the movie and a reader) reaches 0x25CEDB in both builds with esi the
   handler and invokes nothing. Any other game, the movie there or not (a
-  network game's hud loads it too, patch 144), is the original's without the
+  network game's hud loads it too, patch 179), is the original's without the
   movie: it reaches 0x25CF0D and invokes nothing; the
   patch asks the hud movie root.interface_hidden and gives the hud movie and
   the icons' root.hide_interface(not that), whatever the cursor (the kits
@@ -34,23 +34,27 @@ answers root.interface_hidden with a bool:
   [[+690h]+108h]+4), until 0x26CCD7 (back from the call), 0x26CCAE (the key
   taken) or 0x26CDD2 (the key to the movie, no action). Scaleform's Invoke
   (0x511600) is a stub that records it and answers root.interface_hidden
-  with a bool. F11 (bound to toggle_replay_ui) invokes root.toggle_interface
+  with a bool. F9 (bound to hide_interface, 19h) invokes root.toggle_interface
   on the movie (no result, no argument) and is taken; without the movie it is
   not. While the movie answers that its interface is hidden, every other key
-  (a window's, F6's Play, Enter) goes to 0x26CDD2; else it comes back at
+  (a window's, F6's Play, Enter, patch 152's F11) goes to 0x26CDD2; else it
+  comes back at
   0x26CCD7 with the original's answer, toggle place and registers;
 - the options' controls: game_options' own functions on a made-up options
   object (its movie, the game, the binder above), GFx objects, the strings'
   look-up, buffer_string's printf and the CRT's sscanf_s stubbed: the rows
   sent to the movie (0x2019E0) are the original's 40, a 41st (19h,
-  st_hide_interface_action, group 2, type 1) and patch 78's 42nd (23h,
-  st_hold_artifact_action); the keys read from the binder (0x201CF0) the
-  original's 40, (19h, kF11) and (23h, kH, its new default); a key kF9 set for 19h
-  (0x2013A0) is kept in the 41st row and in no row of the original; the
-  accept (0x201F20) runs `bind toggle_replay_ui kF9` through the console (the
-  original nothing); the binder's own bind (0x207DC0) binds 19h to kF9, its
-  save (0x207450) writes `bind toggle_replay_ui kF9`, and that line read
-  back binds it again.
+  st_hide_interface_action, group 2, type 1), patch 78's 42nd (23h,
+  st_hold_artifact_action), patch 66's 43rd (37h, st_ptt_nearby_action) and
+  patch 152's 44th and 45th (1Ah, st_screenshot_action; 1Bh,
+  st_screenshot_no_ui_action); the keys read from the binder (0x201CF0) the
+  original's 40, (19h, kF9), (23h, kH, its new default), (37h, kO), (1Ah,
+  kF11) and (1Bh, kF12); a key kF8 set for 19h (0x2013A0) is kept in the 41st
+  row and in no row of the original; the accept (0x201F20) runs `bind
+  hide_interface kF8` through the console (the original nothing); the
+  binder's own bind (0x207DC0) binds 19h to kF8, its save (0x207450) writes
+  `bind hide_interface kF8`, and that line read back binds it again; the
+  line an older build saved, `bind toggle_replay_ui kF11`, binds nothing.
 """
 import struct
 import sys
@@ -84,13 +88,15 @@ REGS = (UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_EBX, UC_X86_R
 GAME = dict(zip(REGS, (0x0A0A0A0A, 0x0C0C0C0C, 0x0D0D0D0D, 0x0B0B0B0B, 0x05050505, 0x0E0E0E0E, 0x0019FF00)))
 HUD_HOLDER, HUD_UI, HUD_MOVIE = 0x20070000, 0x20071000, 0x20072000
 ICONS_HOLDER, ICONS_UI, ICONS_MOVIE = 0x20073000, 0x20074000, 0x20075000
-# The keys bound (DIK code: action id), as the defaults have them: F11
-# toggle_replay_ui (kinds 5), C character (2) and crouch_toggle (5), F friends
+# The keys bound (DIK code: action id), as the defaults have them: F9
+# hide_interface (19h, kinds 5), F11 and F12 patch 152's screenshot and
+# screenshot_no_ui (1Ah, 1Bh, kinds 5), C character (2) and crouch_toggle (5), F friends
 # (2) and melee (5), W forward (5), F6 next_player (5; the lobby's Play at
-# 0x26CDA2), H artefact (5; patch 78's default, nothing in the lobby); Enter
-# nothing.
-F11, C, F, W, H, F6, ENTER = 0x57, 0x2E, 0x21, 0x11, 0x23, 0x40, 0x1C
-BOUND = {0x19: F11, 0x40: C, 0x06: C, 0x44: F, 0x21: F, 0x0B: W, 0x17: F6, 0x23: H}
+# 0x26CDA2), H artefact (5; patch 78's default, nothing in the lobby), O
+# ptt_nearby (8; patch 66's 10 m voice: the entry 37h's own default key);
+# Enter nothing.
+F9, F11, F12, C, F, W, H, F6, ENTER, O = 0x43, 0x57, 0x58, 0x2E, 0x21, 0x11, 0x23, 0x40, 0x1C, 0x18
+BOUND = {0x19: F9, 0x1A: F11, 0x1B: F12, 0x40: C, 0x06: C, 0x44: F, 0x21: F, 0x0B: W, 0x17: F6, 0x23: H, 0x37: O}
 
 
 KEY_NAMES = 0xA74FA0                   # the key names: 88h-byte {name, DIK code, ...}, to a null name
@@ -264,6 +270,7 @@ LOCALIZE, CREATE_OBJECT, CREATE_ARRAY = 0x1FF0F0, 0x511700, 0x511710
 BIND_KEY, BIND_SAVE, LOOKUP = 0x207DC0, 0x207450, 0xEB7C0
 ASSIGN = 0xE4590                       # buffer_string's printf-like assign (eax the string; cdecl format, ...)
 SCANF = 0x422B46                       # the CRT's sscanf_s (cdecl: text, format, then a place and its size each)
+LOG = 0x111ED0                         # the log's line (cdecl; action_name_to_ptr's for a name it does not have, 0x207BAE)
 SENT = 0x201C8B                        # 0x2019E0 after root.set_keybindings, before the keys
 COMMANDS = 0x1F1D66C                   # the console commands' list head
 DEFAULTS_SET = 0x1F1D9D4               # bind_key's "the defaults were set" flag
@@ -298,9 +305,10 @@ class Options(Run):
         self.word(COMMANDS, CONSOLE)
         self.word(DEFAULTS_SET, 1)
         for stub in (STUBS, STUBS + 0x10, STUBS + 0x20, STUBS + 0x30, STUBS + 0x40, LOCALIZE, CREATE_OBJECT,
-                     CREATE_ARRAY, ASSIGN, SCANF):
+                     CREATE_ARRAY, ASSIGN, SCANF, LOG):
             emu.hook_add(UC_HOOK_CODE, self.gfx, begin=stub, end=stub)
         self.objects, self.rows, self.lines, self.handles, self.heap = {}, [], [], 0x100, OUT + 0x1000
+        self.logged = []
 
     def gfx(self, emu, address, size, _):
         sp = emu.reg_read(UC_X86_REG_ESP)
@@ -339,6 +347,9 @@ class Options(Run):
             for i, word in enumerate(words[:2]):
                 emu.mem_write(self.read(sp + 12 + 8 * i), word[:255] + b"\0")
             emu.reg_write(UC_X86_REG_EAX, min(len(words), 2))
+            pops = 0
+        elif address == LOG:                  # the log's line (cdecl, ten arguments): its last, the text's word
+            self.logged.append(self.text(self.read(sp + 40)))
             pops = 0
         elif address == STUBS + 0x40:         # the save's allocator: malloc(size, ...)
             emu.reg_write(UC_X86_REG_EAX, self.heap)
@@ -389,7 +400,7 @@ def main():
         ([(ICONS_MOVIE, "root.hide_interface", (flag,))] if icons else [])
     print("the match (on_keyboard_action's case 19h, 0x25CED1, to 0x25CEDB or 0x25CF0D)")
     # (the replay's controls, the game's replay reader): a replay; a network game, whose hud
-    # has the controls too (patch 144); a match before; a reader with no controls
+    # has the controls too (patch 179); a match before; a reader with no controls
     for controls, reader in ((1, 1), (1, 0), (0, 0), (0, 1)):
         replay = controls and reader
         for movie in (0, 1):
@@ -430,7 +441,7 @@ def main():
 
     print("the lobby (lobby_menu::on_keyboard_action's binder call, 0x26CCD2)")
     asked = ("invoke", MOVIE, b"root.interface_hidden", True, 0, 0)
-    for key, name in ((F11, "F11"), (C, "C"), (F, "F"), (W, "W"), (H, "H"), (F6, "F6"), (ENTER, "Enter")):
+    for key, name in ((F9, "F9"), (F11, "F11"), (C, "C"), (F, "F"), (W, "W"), (H, "H"), (F6, "F6"), (ENTER, "Enter")):
         for movie in (True, False):
             for hidden in (0, 1):
                 a = stock.lobby(key, movie, hidden)
@@ -439,7 +450,7 @@ def main():
                         UC_X86_REG_EBX: LOBBY}
                 kept = all(b[2][reg] == value for reg, value in keep.items())
                 same = a[0] == LOBBY_BACK and a[1] == b[1] == 4 and kept and not a[3] and a[4] == b[4]
-                if key == F11 and movie:
+                if key == F9 and movie:
                     ok = same and a[2][UC_X86_REG_EAX] == 0x49 and b[0] == LOBBY_TAKEN \
                         and b[3] == [("invoke", MOVIE, b"root.toggle_interface", False, 0, 0)]
                     what = "root.toggle_interface invoked, the key taken (0x26ccae)"
@@ -460,12 +471,15 @@ def main():
     a_rows, _ = s_opt.table()
     b_rows, b_calls = p_opt.table()
     new = [{"action_id": 0x19, "group_id": 2, "type": 1, "label": "st_hide_interface_action"},
-           {"action_id": 0x23, "group_id": 2, "type": 1, "label": "st_hold_artifact_action"}]
+           {"action_id": 0x23, "group_id": 2, "type": 1, "label": "st_hold_artifact_action"},
+           {"action_id": 0x37, "group_id": 2, "type": 1, "label": "st_ptt_nearby_action"},
+           {"action_id": 0x1A, "group_id": 2, "type": 1, "label": "st_screenshot_action"},
+           {"action_id": 0x1B, "group_id": 2, "type": 1, "label": "st_screenshot_no_ui_action"}]
     # push-to-talk (47h): the original's row is the chat group's with its key button disabled (type 0);
     # the build's is a game key that can be set
     ptt = [row for row in a_rows if row["action_id"] == 0x47]
     moved = [dict(row, group_id=2, type=1) if row["action_id"] == 0x47 else row for row in a_rows]
-    report(len(a_rows) == 40 and len(b_rows) == 42 and b_rows[:40] == moved and b_rows[40:] == new
+    report(len(a_rows) == 40 and len(b_rows) == 45 and b_rows[:40] == moved and b_rows[40:] == new
            and [(row["group_id"], row["type"]) for row in ptt] == [(1, 0)]
            and [c[2] for c in b_calls] == [b"root.set_keybindings"],
            f"the list sent to the movie (root.set_keybindings): the original's {len(a_rows)} rows, "
@@ -473,23 +487,23 @@ def main():
     s_opt.call(KEYS_FROM_BINDER, [OPTIONS, 1])
     p_opt.call(KEYS_FROM_BINDER, [OPTIONS, 1])
     a_keys, b_keys = s_opt.set_keybind_calls(), p_opt.set_keybind_calls()
-    report(len(a_keys) == 40 and b_keys[:40] == a_keys and b_keys[40:] == [(0x19, "kF11", 1), (0x23, "kH", 1)],
+    report(len(a_keys) == 40 and b_keys[:40] == a_keys and b_keys[40:] == [(0x19, "kF9", 1), (0x23, "kH", 1), (0x37, "kO", 1), (0x1A, "kF11", 1), (0x1B, "kF12", 1)],
            f"the keys from the binder (root.set_keybind): the original's 40, then {b_keys[40:]}")
     for run in (s_opt, p_opt):
-        run.emu.mem_write(OUT, b"kF9\0")
+        run.emu.mem_write(OUT, b"kF8\0")
         run.call(KEY_SET, [OPTIONS, 0x19], {UC_X86_REG_EAX: OUT})
     a_set, b_set = s_opt.set_keybind_calls(), p_opt.set_keybind_calls()
     kept = [s_opt.text(s_opt.read(0xA9DB28 + 0x68 * i + 0x10)) for i in range(40)]
-    report(a_set == b_set == [(0x19, "kF9", 0)] and b"kF9" not in kept
-           and p_opt.text(p_opt.read(linked.symbols["controls"] + 40 * 0x68 + 0x10)) == b"kF9",
-           f"a key set for 19h (kF9, 0x2013A0): shown {b_set} by both, kept in the 41st row; the original "
+    report(a_set == b_set == [(0x19, "kF8", 0)] and b"kF8" not in kept
+           and p_opt.text(p_opt.read(linked.symbols["controls"] + 40 * 0x68 + 0x10)) == b"kF8",
+           f"a key set for 19h (kF8, 0x2013A0): shown {b_set} by both, kept in the 41st row; the original "
            "keeps it in no row")
     for run in (s_opt, p_opt):
         run.lines = []
         run.call(APPLY, [])
-    report(not s_opt.lines and p_opt.lines == [(b"bind", b"toggle_replay_ui kF9")],
+    report(not s_opt.lines and p_opt.lines == [(b"bind", b"hide_interface kF8")],
            f"the apply (0x201F20) runs {p_opt.lines}; the original's runs {s_opt.lines}")
-    f9, f11 = key_entry(original, name=b"kF9"), key_entry(original, name=b"kF11")
+    f8, f9, f11 = (key_entry(original, name=name) for name in (b"kF8", b"kF9", b"kF11"))
     slot = BINDER + 12 * 0x19 + 4
     p_opt.emu.mem_write(OUT + 0x100, p_opt.lines[0][1] + b"\0" if p_opt.lines else b"\0")
     p_opt.call(BIND_KEY, [OUT + 0x100, 0], {UC_X86_REG_ECX: BINDER})
@@ -506,13 +520,22 @@ def main():
         p_opt.word(saved + field, value)
     p_opt.call(BIND_SAVE, [saved], {UC_X86_REG_ECX: command})
     lines = [p_opt.text(p_opt.read(at)) for at in range(OUT + 0x2100, p_opt.read(saved + 4), 4)]
-    p_opt.word(slot, f11)
-    line = next((x for x in lines if x.startswith(b"bind toggle_replay_ui ")), b"")
+    p_opt.word(slot, f9)
+    line = next((x for x in lines if x.startswith(b"bind hide_interface ")), b"")
     p_opt.emu.mem_write(OUT + 0x200, line[len(b"bind "):] + b"\0")
     p_opt.call(BIND_KEY, [OUT + 0x200, 0], {UC_X86_REG_ECX: BINDER})
-    report(bound == f9 and line == b"bind toggle_replay_ui kF9" and p_opt.read(slot) == f9,
-           f"the binder's bind (0x207DC0) binds 19h to kF9; its save (0x207450) writes {line!r} among "
-           f"{len(lines)} lines; read back (bind, after F11 again) it binds kF9")
+    report(bound == f8 and line == b"bind hide_interface kF8" and p_opt.read(slot) == f8,
+           f"the binder's bind (0x207DC0) binds 19h to kF8; its save (0x207450) writes {line!r} among "
+           f"{len(lines)} lines; read back (bind, after F9 again) it binds kF8")
+    # a user.cfg an older build saved: its line for 19h names no action of this build, and F11 stays
+    # the screenshot's
+    shot = BINDER + 12 * 0x1A + 4
+    p_opt.word(slot, f9)
+    p_opt.emu.mem_write(OUT + 0x300, b"toggle_replay_ui kF11\0")
+    p_opt.call(BIND_KEY, [OUT + 0x300, 0], {UC_X86_REG_ECX: BINDER})
+    report(p_opt.read(slot) == f9 and p_opt.read(shot) == f11 and p_opt.logged == [b"toggle_replay_ui"],
+           "an older build's saved `bind toggle_replay_ui kF11` binds nothing: 19h keeps kF9, 1Ah (screenshot) "
+           "kF11; action_name_to_ptr (0x207AD0) logs the name it does not have and gives 0")
 
     if failed:
         sys.exit(f"{failed} case(s) failed")

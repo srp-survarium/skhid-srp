@@ -1,8 +1,49 @@
-# Match history and the stats API (`/api/history/...`)
+# Match history, the stats page (`/stats`) and its API (`/api/history/...`)
 
 What survarium.pro showed of players, matches and clans, kept by srp itself and served as JSON by
 `servers/web-server` for the site's stats page. The history is written in
-`crates/session/src/v026g/persist/history.rs`; the endpoints are `servers/web-server/src/history.rs`.
+`crates/session/src/v026g/persist/history.rs`; the page and the endpoints are
+`servers/web-server/src/history.rs`.
+
+## The page
+
+- `/stats` is a tab of the site's own, beside Home and Wiki (the owner, 2026-11-20: "stats are
+  not part of wiki"), in the wiki's look: a frame the web server gives, which
+  `servers/web-server/stats/history.js` fills from the API when it is viewed.
+- The address says what it shows: `?player=<name>` (its matches, or with `&tab=weapons` its
+  weapons), `?match=<number>`, `?clan=<tag>`, else the
+  leaderboards (`?board=players|clans|best|latest&by=<key>`), under the day's leaders (five
+  lists of five: kills, assists, score, wins, hours; they open up to 20 or 50 each by the buttons
+  at their heading, `&leaders=20|50`, the owner, 2026-11-20) and the all-time totals. Each view is drawn once empty in
+  its final shape, then with its data, so nothing moves while it loads; match lists grow by
+  "Older matches" (`before=`). A list of players or clans sorts by a click on a column's
+  heading (the owner, 2026-11-20), largest first, and smallest first on a second click
+  (`&order=asc`); the players' list has no Level.
+- A player's page says the account's id first in Overall (the owner, 2026-11-20), then its
+  earlier names (the owner, 2026-11-20: "we also need name history"): those it left (fifty at most; the last five shown, the rest behind a `+N` button), the
+  last left first, each with its day on a hover; `?player=` finds a player by a name it left
+  while nobody has that name now.
+- A match's teams (a free-for-all's one list) come by place and sort in the page by a click on
+  a heading, each team alone; they have no Level and no Captures (the owner, 2026-11-20).
+- The tables keep to few numbers (the owner, 2026-11-20): the average score, never the total;
+  headshots as their share of the kills (HS %); no batteries or artefacts (a profile's own panel
+  has them).
+- A player's Weapons list has a row a weapon its games counted (below): kills, K/D (by the
+  deaths with it in the hands), HS %, accuracy, the kills' average distance, kills through
+  cover and by a ricochet, hours in the hands; most kills first, and by any column on a click on its heading (`&by=`), each
+  with its icon. A row leads to the weapon's
+  card in the wiki.
+- A match line shows the weapons of the kits it used (each kit in full, with the kit's own kills
+  and accuracy, on hover). A free-for-all is one list by place. A click anywhere on a row
+  opens what the row is of: the match, the player or the clan; a favourite weapon or armour
+  piece, its card in the wiki. A map's name leads to the map in the wiki's Maps page. A match's
+  two teams are in the Maps page's colours. A match with a replay has one Download: pressed, the
+  replay is prepared if it has to be, and its file then downloads by itself.
+- `scripts/stats/check_history.mjs` exercises it in an isolated Firefox over the site's own
+  endpoints: the preview (`cargo test -p web-server serve_wiki_preview -- --ignored --nocapture`,
+  port 24583) keeps a made-up history (`history::tests::preview`); the script serves it again on
+  port 24584 with each answer 300 ms late. `node scripts/stats/check_history.mjs
+  http://127.0.0.1:24583 9457`.
 
 ## Owner's rules
 
@@ -23,8 +64,9 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   login (`v026g/names.rs`), so an account that never played one is answered as no account (`404`
   for its card by id or name, left out of its clan's members), and counting ids lists no logins.
 - Banned accounts are left out of the top lists and the best scores.
-- Every request is cheap (one vCPU runs the game too): indexed lookups, results of at most 50 rows (`player/days`: up to 90) (a clan card's members: up to 105),
-  totals kept up to date when a match is recorded, never added up per request.
+- Every request is cheap (one vCPU runs the game too): indexed lookups, results of at most 50 rows
+  (`player/days`: up to 90 days; a clan card's members: up to 105), totals kept up to date when a
+  match is recorded, never added up per request. Four requests read at once, the rest wait.
 
 ## What is kept
 
@@ -32,21 +74,32 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   is kept beside it, it is random and repeats across restarts), its `replay_id` (that id with the
   UTC second the match was made, `rec026g_20261014-023456_000000ab`: its recording's file stem
   whether it was recorded or not, so a match stays told apart across restarts), when it ended
-  (Unix seconds), how long it lasted, map, mode, match level, the kind (`public`, `private`,
-  `vs_bots`), the winner (`team0`, `team1`, `draw`, `unknown`, or `most_kills` for a free-for-all, with `top_kills`) and the two teams' points.
+  (Unix seconds), how long it lasted, map, mode (as the lobby calls it, `LobbyMode`: a
+  free-for-all's twist, Racket or a Saloon, is one of its own), match level, the kind (`public`, `private`,
+  `vs_bots`), the winner (`team0`, `team1`, `draw`, `unknown`, or `most_kills` for a free-for-all,
+  which no team wins) and the two teams' points.
 - A public match's eligibility, set when it is written (`history::Eligibility`): `counted`, or why
   not: `with_bots` (a bot played; it moved no rating either), `few_players` (fewer than 6 accounts
   in it, leavers and late joiners counted: `SRP_RECORD_MIN_PLAYERS`' default and a default room's
-  smallest match), `short` (under 5 minutes of play, the warm-up left out). Every public match is
+  smallest match; of the 35 public matches in the live reports of 2026-11-11 one had fewer),
+  `short` (under 5 minutes of play, the warm-up left out), `no_result` (no snapshot of it was
+  trusted: it has no winner and no numbers, and the rewards paid for none). Every public match is
   served; only counted ones go into totals, favourites, days, top lists and best scores. A player
   whose public matches all did not count is still named, with totals of zeros.
 - `g26_match_players`: one row a player who was in the match (finished or left): team, place in
-  its team by score (from 1), its roster place (`seat`, which a replay is watched from; empty in
-  rows written before it was kept), rating after the match, clan at the time, score, kills,
-  deaths and the counters below.
+  its team by score (from 1; of a free-for-all, where each is its own team, among everyone by
+  kills), its roster place (`seat`), rating after the match, clan at the time,
+  score, kills, deaths, the counters below, how long it was in the match, and what the match
+  was for it (`outcome`).
+- A line's `outcome` is said once, when the match is settled (`rewards`), as its rating took it:
+  `won` for one who stayed to the end on the winning team (in a free-for-all: with the most
+  kills), `lost` for everyone else of a match that had a winner (one who left lost whatever its
+  team did), `neither` for a draw or a match without a known winner. Totals keep wins and losses;
+  the rest of the matches were neither.
 - `g26_player_totals`, `g26_clan_totals`: the counted public matches added up, at record time. A public
-  match counts once for a clan if at least one member played in it (its clan at the time), and is a
-  win if at least one of them was on the winning team (members on both teams: a win). Score,
+  match counts once for a clan if at least one member played in it (its clan at the time): a win
+  if members won it and none lost it, a loss if members lost it and none won it (members on both
+  sides: neither). Score,
   kills, deaths and the counters are its members' rows added up, so a clan's `score_avg` is its
   members' score per match together, and its counted matches are those of `matches?clan=` with `eligibility: counted`.
 - Counters (game events, `docs/notes/results.md` §9 and `snapshot_rules.md` §3.1): assists (1),
@@ -67,23 +120,43 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   the kit its account plays, the one the match took. What a kit held is the account's kit as the
   match ended, read before the match is settled. The snapshot's kit in use (`Supplies::kit`) is
   not read: its place is LIKELY only, and a kit that fired, killed or died shows in the counters.
-- `g26_player_items`: the counted public matches added up by player and item, at record time: `matches`
-  (counted public matches in which a kit the player used held the item; once a match however many kits
-  held it) and the kills, headshots, shots and hits of every used kit that held it, with its kind
-  (`weapon` or `armour`, by its slot). These are a kit's counts given to every item of the kit:
-  a kit holding two firearms gives both all its kills and shots, and its armour too. They are
-  not per-weapon numbers and are never shown as such.
+- `g26_player_items`: by player and item, the counted public matches in which a kit the player
+  used held the item (once a match however many kits held it), with its kind (`weapon` or
+  `armour`, by its slot). No kills or shots by item: the game counts those by kit, and a kit's
+  numbers given to each of its items would read as the item's own. In a twist's match (Racket,
+  Saloon) the kits were not the accounts' own: a kit is kept with its counters and no items.
+- `g26_match_weapons` (migration 20): one row a weapon a player's games counted something of in
+  the match (exe patch 165, `kill_weapon.md`; the match result's `PlayerResult::weapons`, from
+  the trusted snapshot), by items_dict id: kills, and of them those by a headshot, by a bullet
+  that had pierced something (`wall_kills`) and by one that had bounced (`ricochet_kills`);
+  deaths with it in the hands; shots and hits (a pellet each); `damage` (the pain its hits took
+  off enemies, in ten-thousandths of a pain pool); the kills' distances added up and the longest
+  (decimetres); `held_ms`, the time it was in the hands of the player alive. Dict id 0 is what
+  the games counted under no weapon (a hit with no bullet, a death or the time with nothing of
+  the inventory in the hands): kept, never served. A match of before the patch, or one with no
+  trusted snapshot, has no rows. Unlike a kit's items, a twist's match has them: they are the
+  weapons that were used.
+- `g26_player_weapons`: those rows of the counted public matches added up by player and weapon,
+  with the matches that had a row of it; the longest kill is the longest of them.
+- `g26_account_names`: a name an account left and when (`until`), written by a trigger of
+  `g26_accounts` on every change of `name`, whoever made it (a rename in the lobby, an
+  administrator's). The names of before migration 22 are not known. The site says none that an
+  administrator took from the account (the audit trail's `nickname` rows): it was taken for a
+  reason.
 - Not kept, as survarium.pro had them: artefact kills (0.26g has none), clan rating (clans have
   none), skills.
+- The lobby reads on a connection of its own (`MatchHistory::lobby()`), which the site's four
+  (`MatchHistory::site()`) never take: no number of requests to the site makes a lobby player
+  wait.
 
 ## Events
 
 `g26_match_events` (`persist/match_events.rs`): what happened in a match, keyed by its `replay_id`
 and written in the same transaction as the match. The match server makes the list
 (`match-server/src/v026g/events.rs`) from the trusted worlds it reads (one asked for every 5 s,
-`Timing::refresh`; more apart where one was not trusted). History and events start with the first
-match after they shipped: older matches are not added from their recordings. No message names a
-kill, a battery or a capture (`kill_weapon.md` 1), so each event is what changed between two
+`Timing::refresh`; more apart where one was not trusted). Events start with the first match after
+migration 23: older matches have none, and none is added from their recordings. No message names
+a kill, a battery or a capture (`kill_weapon.md` 1), so each event is what changed between two
 worlds' shared statistics and rules.
 
 | kind | from | actor | victim | other |
@@ -109,7 +182,7 @@ worlds' shared statistics and rules.
   player's block has no body, and the worlds are seconds from the event), headshot or melee per
   kill, who took a battery out of a container, who captured a unit, Team Deathmatch's tickets
   (they follow the deaths) and Research's points (they grow all the time).
-- Places are the roster's (0 to 19) with their accounts (0: the server's bot).
+- Places are the roster's (a line's `seat`) with their accounts (0: the server's bot).
 - **The lobby** reads them with `MatchHistory::lobby().events(<match server's id>)` (the newest match of
   that id, of any kind: the caller says who may see them), and the side channel's rows are
   `lobby-server/src/v026g/match_events.rs` (`match_events_page`): a head
@@ -131,41 +204,53 @@ Common objects:
 
 - A player: `{"id":1042,"name":"Sheep","clan":{"id":7,"tag":"SKH"}}` (`clan` is `null` without
   one; the current clan, registered ones only).
-- Totals: `{"matches":120,"wins":64,"losses":56,"kills":900,"deaths":700,"assists":210,
+- Totals: `{"matches":120,"wins":64,"losses":52,"kills":900,"deaths":700,"assists":210,
   "score":30500,"headshots":180,"grenade_kills":12,"melee_kills":3,"batteries":40,"captures":5.5,
   "artefacts":25,"shots":52000,"hits":15600,"accuracy":0.3,"kd":1.29,"win_rate":0.533,
-  "score_avg":254.2}`. `kd` = kills / deaths (deaths 0 counts as 1), two decimals; `win_rate`
+  "score_avg":254.2,"played_s":93600}`. `kd` = kills / deaths (deaths 0 counts as 1), two decimals; `win_rate`
   0..1, three decimals; `score_avg` one decimal; `accuracy` = hits / shots (0 with no shot), 0..1,
-  three decimals.
+  three decimals. `matches` - `wins` - `losses` were draws or had no known winner. `played_s`:
+  seconds in those matches.
 - A match: `{"id":5531,"replay_id":"rec026g_20261103-115320_5e1a09c3","ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok",
-  "mode":"Batteries","level":12,"winner":0,"team_points":[5,3],"players":12,
-  "eligibility":"counted"}`. `winner` is 0 or 1, `"draw"`, or `null` when not known and for every free-for-all. `map` and `mode` are `null` for a map the game data no longer
-  has.
-- A player's line of a match: `"team":0,"place":1,"won":true,"left":false,"rating":1180,
+  "map_key":"level_03","mode":"Protective device","rules":2,"level":12,"winner":0,"team_points":[5,3],"players":12,
+  "eligibility":"counted"}`. `winner` is 0 or 1, `"draw"`, `"free_for_all"` (no team wins one:
+  its lines' `outcome` says who did) or `null` when not known. `map`, `map_key` (the map's
+  key in the wiki's Maps page, its project's folder) and `map_icon` (the address of the map's
+  picture as the rooms draw it, by its level and weather: `servers/web-server/src/icons.rs`,
+  cut by the lobby's table `MapRenders.tsv`, which the rooms read too) are `null` for a map the
+  game data no longer has; `mode` is the text the rooms name the mode by ("FFA: Racket"), `rules` its rules' number
+  (the Maps page's mode: the page links a map as `/wiki/maps#<map_key>/<rules>`).
+- A player's line of a match: `"team":0,"place":1,"outcome":"won","left":false,"rating":1180,
   "score":310,"kills":14,"deaths":6,"kd":2.33,"assists":4,"headshots":3,"grenade_kills":1,
   "melee_kills":0,"batteries":2,"captures":0,"artefacts":1,"shots":420,"hits":130,
-  "accuracy":0.31,"kits":[...]`.
+  "accuracy":0.31,"kits":[...]`. `outcome` is `"won"`, `"lost"` or `"neither"`; a line has its
+  `played_s` too.
 - A kit of a line (`kits`, the kits the player used, by place): `{"kit":0,"kills":12,
   "headshots":3,"shots":380,"hits":120,"accuracy":0.316,"weapons":[{"slot":7,"id":155,
-  "name":"AK-74M"},{"slot":10,"id":60,"name":"TT-33"}],"armour":[{"slot":0,"id":301,
+  "key":"ak_74m","name":"AK-74M"},{"slot":10,"id":60,"name":"TT-33"}],"armour":[{"slot":0,"id":301,
   "name":"Helmet"}]}`. `kit` is its place among the player's three kits (0..2); the counters are
   the kit's, not a weapon's; `weapons` and `armour` are by slot, `id` the items_dict id, `name`
   the game data's in `lang` (`null` for an item it no longer has). A match with no trusted
   snapshot has its kit with counters 0.
-- An item's totals (`player/equipment`): `{"id":155,"name":"AK-74M","matches":40,"kills":380,
-  "headshots":70,"shots":12000,"hits":3500,"accuracy":0.292}`: the counted public matches in which a kit
-  the player used held it, and those kits' counters added up (the kit's kills with whatever
-  else it held, not the item's own).
+- An item of `player/equipment`: `{"id":155,"key":"ak_74m","name":"AK-74M","icon":"/wiki/icons/items/ak_74m.webp?v=…","matches":40}`: the
+  counted public matches in which a kit the player used held it. `key` is its items_dict name
+  (`null`, as `name`, for an item the game data no longer has): the page links a favourite to its
+  card in the wiki by it (`/wiki/weapons#wpn_<key>`, `/wiki/equipment#<key>`).
+  `icon` is the address of its lobby icon (`null` without one), in every item of the API; the
+  page draws it left of a favourite's name.
 
 ### `GET /api/history/player?name=<name>` or `?id=<id>`
 
-A player's card. `name` is the in-game name, exact (Latin letters in any case). `404` for an
+A player's card. `name` is the in-game name, exact (Latin letters in any case), or, with no
+player of that name now, one a player left (the last to leave it). `names`: the names
+it left (fifty at most), the last left first, each with `until` (UTC seconds). `404` for an
 account without a public match, as for no account.
 
 ```json
 {"player":{"id":1042,"name":"Sheep","clan":{"id":7,"tag":"SKH"}},
+ "names":[{"name":"Baran","until":1795000000}],
  "level":34,"experience":1234567,"rating":1180,
- "totals":{"matches":120,"wins":64,"losses":56,"kills":900,"deaths":700,"assists":210,"score":30500,
+ "totals":{"matches":120,"wins":64,"losses":52,"kills":900,"deaths":700,"assists":210,"score":30500,
            "headshots":180,"grenade_kills":12,"melee_kills":3,"batteries":40,"captures":5.5,
            "artefacts":25,"shots":52000,"hits":15600,"accuracy":0.3,"kd":1.29,"win_rate":0.533,
            "score_avg":254.2}}
@@ -176,9 +261,9 @@ account without a public match, as for no account.
 A player's public matches, newest first: the match, the player's line and its kits.
 
 ```json
-{"matches":[{"id":5531,"replay_id":"rec026g_20261103-115320_5e1a09c3","ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok",
-             "mode":"Batteries","level":12,"winner":0,"team_points":[5,3],"players":12,
-             "eligibility":"counted","team":0,"place":1,"won":true,"left":false,"rating":1180,"score":310,"kills":14,
+{"matches":[{"id":5531,"replay_id":"rec026g_20261103-115320_5e1a09c3","ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok","map_key":"level_03",
+             "mode":"Protective device","rules":2,"level":12,"winner":0,"team_points":[5,3],"players":12,
+             "eligibility":"counted","team":0,"place":1,"outcome":"won","left":false,"rating":1180,"score":310,"kills":14,
              "deaths":6,"kd":2.33,"assists":4,"headshots":3,"grenade_kills":1,"melee_kills":0,
              "batteries":2,"captures":0,"artefacts":1,"shots":420,"hits":130,"accuracy":0.31,
              "kits":[{"kit":0,"kills":12,"headshots":3,"shots":380,"hits":120,"accuracy":0.316,
@@ -194,14 +279,32 @@ A player's public matches, newest first: the match, the player's line and its ki
 A player's favourite equipment: its most used weapons and armour of its counted public matches, each list
 by matches, most first (ties: the higher id first), at most `limit` (1..50, default 10). Kept up
 to date when a match is recorded (`g26_player_items`). An account without a public match has
-both lists empty, as an unknown one. The counters are kit-level (see "What is kept"): with two
-firearms in a kit, both carry all its kills and shots.
+both lists empty, as an unknown one.
 
 ```json
-{"weapons":[{"id":155,"name":"AK-74M","matches":40,"kills":380,"headshots":70,"shots":12000,
-             "hits":3500,"accuracy":0.292}],
- "armour":[{"id":301,"name":"Helmet","matches":52,"kills":410,"headshots":75,"shots":13100,
-            "hits":3800,"accuracy":0.29}]}
+{"weapons":[{"id":155,"name":"AK-74M","matches":40}],
+ "armour":[{"id":301,"name":"Helmet","matches":52}]}
+```
+
+### `GET /api/history/player/weapons?id=<id>&by=<key>&order=<desc|asc>&limit=<n>`
+
+What a player did with each weapon in its counted public matches, as its games counted it
+(`g26_player_weapons`): the weapons it fired or killed with (a grenade or a trap that killed is
+one), the largest `by` first, or the smallest with `order=asc` (ties: more kills, more shots,
+then the lower id), at most `limit`
+(1..50, default 50). `by`: `kills` (the default), `kd`, `headshot_rate`, `accuracy`,
+`kill_distance` (the average), `wall_kills`, `ricochet_kills`, `held`; a weapon without a kill
+(a shot) is the smallest by a ratio of them. `id`, `key`, `name` and `icon` are the item's, as in `player/equipment`. `deaths` are the player's
+with it in the hands, and `kd` is by them; `damage` is in enemies' whole pain pools;
+`kill_distance_m` is the kills' average (`null` without a kill), `longest_kill_m` the longest;
+`held_s` the time in the hands. An account whose games counted none has an empty list, as an
+unknown one.
+
+```json
+{"by":"kills","order":"desc","weapons":[{"id":155,"key":"ak_74m","name":"AK-74M","matches":40,"kills":310,"deaths":190,
+             "kd":1.63,"headshots":62,"wall_kills":14,"ricochet_kills":2,"shots":9800,"hits":2900,
+             "accuracy":0.296,"damage":402.5,"kill_distance_m":31.3,"longest_kill_m":84.5,
+             "held_s":21400}]}
 ```
 
 ### `GET /api/history/player/days?id=<id>&days=<n>`
@@ -221,8 +324,8 @@ A player's counted public matches added up by day (UTC), oldest first, days with
 The latest public matches, newest first; with `clan`, those a member of that clan played in.
 
 ```json
-{"matches":[{"id":5531,"replay_id":"rec026g_20261103-115320_5e1a09c3","ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok",
-             "mode":"Batteries","level":12,"winner":0,"team_points":[5,3],"players":12,
+{"matches":[{"id":5531,"replay_id":"rec026g_20261103-115320_5e1a09c3","ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok","map_key":"level_03",
+             "mode":"Protective device","rules":2,"level":12,"winner":0,"team_points":[5,3],"players":12,
              "eligibility":"counted"}],
  "next":5530}
 ```
@@ -232,11 +335,11 @@ The latest public matches, newest first; with `clan`, those a member of that cla
 A public match and every player's line with its kits, by team, then place.
 
 ```json
-{"match":{"id":5531,"replay_id":"rec026g_20261103-115320_5e1a09c3","ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok",
-          "mode":"Batteries","level":12,"winner":0,"team_points":[5,3],"players":12,
+{"match":{"id":5531,"replay_id":"rec026g_20261103-115320_5e1a09c3","ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok","map_key":"level_03",
+          "mode":"Protective device","rules":2,"level":12,"winner":0,"team_points":[5,3],"players":12,
           "eligibility":"counted"},
  "players":[{"player":{"id":1042,"name":"Sheep","clan":null},"level":34,
-             "team":0,"place":1,"won":true,"left":false,"rating":1180,"score":310,"kills":14,
+             "team":0,"place":1,"outcome":"won","left":false,"rating":1180,"score":310,"kills":14,
              "deaths":6,"kd":2.33,"assists":4,"headshots":3,"grenade_kills":1,"melee_kills":0,
              "batteries":2,"captures":0,"artefacts":1,"shots":420,"hits":130,"accuracy":0.31,
              "kits":[{"kit":0,"kills":14,"headshots":3,"shots":420,"hits":130,"accuracy":0.31,
@@ -244,17 +347,44 @@ A public match and every player's line with its kits, by team, then place.
                       "armour":[{"slot":0,"id":301,"name":"Helmet"}]}]}]}
 ```
 
-### `GET /api/history/top?by=<key>&limit=<n>`
+`replay` (in the answer, beside `match` and `players`): whether the match has a replay to ask
+for, one made or a recording kept to make it from.
 
-The top players by their totals. `by`: `rating`, `matches`, `wins`, `kills`, `score`, `headshots`,
-`batteries`, `artefacts`, `accuracy` (default `rating`); `limit` 1..50 (default 50). Players with
+### `GET /api/history/replay?id=<match>`
+
+A visitor asks for a public match's replay (`docs/notes/replay_watch.md` 2.1: the same desk the
+lobby's Save asks, `Replays::ask_for_site`). Nobody is signed in, so any public match
+may be asked for (the owner, 2026-11-20; a player's own was a courtesy already), and nothing is
+kept of the ask: the page asks again every two seconds while the answer is `preparing`.
+
+- `{"status":"preparing","place":1}`: its file is being made (`place` in the line; the first ask
+  for a kept recording queues it, one file at a time, 20 waiting at most).
+- `{"status":"ready","url":"/replays/<token>","size":5120000,"sha256":"..."}`: the file is
+  Save's (`.srpreplay`). The token is the site's one of that match, its visitors' together for
+  ten minutes; 16 such matches at most at a time, then `busy`.
+- `{"status":"incompatible"}`: recorded by games older than the oldest replayable revision (the
+  visitor is taken to run the newest game). `gone`, `failed`, `busy`, `off`: as the lobby's
+  (`replays::Status`); `not_yours` where only a match's players may watch
+  (`SRP_REPLAY_WATCH=match`).
+- An address may ask 40 times a minute; past that, `429 {"error":"too many"}`.
+- `404` for an unknown or non-public match.
+
+### `GET /api/history/top?by=<key>&order=<desc|asc>&after=<n>&limit=<n>`
+
+The top players by their totals. `by`: `rating`, `matches`, `wins`, `win_rate`, `kills`, `kd`,
+`score_avg`, `headshot_rate`, `accuracy` (default `rating`); `order`: `desc` (the largest first,
+the default) or `asc`, here and in `clans`; `limit` 1..50 (default 50); `after`: how many
+players of the list come before the page (0..10000, default 0), and `more` says whether one
+follows it (the page's "More players", the owner, 2026-11-20). The
+ratios `score_avg`, `win_rate`, `kd` and `headshot_rate` list only the players
+with at least 5 counted matches (`SCORE_AVG_MIN_MATCHES`; the owner, 2026-11-20: it was 20). Players with
 a counted public match only. `accuracy` lists only the players with at least 1000 shots in their counted public
 matches (`ACCURACY_MIN_SHOTS`; a few lucky shots do not top it), best first; ties by account.
 
 ```json
-{"by":"kills",
+{"by":"kills","order":"desc","after":0,"more":false,
  "players":[{"player":{"id":1042,"name":"Sheep","clan":{"id":7,"tag":"SKH"}},"level":34,
-             "rating":1180,"totals":{"matches":120,"wins":64,"losses":56,"kills":900,"deaths":700,
+             "rating":1180,"totals":{"matches":120,"wins":64,"losses":52,"kills":900,"deaths":700,
              "assists":210,"score":30500,"headshots":180,"grenade_kills":12,"melee_kills":3,
              "batteries":40,"captures":5.5,"artefacts":25,"shots":52000,"hits":15600,
              "accuracy":0.3,"kd":1.29,"win_rate":0.533,"score_avg":254.2}}]}
@@ -268,18 +398,41 @@ accounts left out.
 ```json
 {"period":"day",
  "rows":[{"player":{"id":1042,"name":"Sheep","clan":null},"match":5531,"ended_at":1793500000,
-          "level":12,"map":"Vostok","mode":"Batteries","score":420,"kills":20,"deaths":3}]}
+          "level":12,"map":"Vostok","map_key":"level_03","mode":"Protective device","rules":2,"score":420,"kills":20,"deaths":3}]}
 ```
 
-### `GET /api/history/clans?by=<key>&limit=<n>`
+### `GET /api/history/today?limit=<n>`
 
-Registered clans by their totals. `by`: `matches`, `wins`, `kills`, `score`, `headshots`,
-`batteries`, `artefacts` (default `score`); `limit` 1..50 (default 50).
+The day's leaders: the players' counted public matches that ended since midnight (UTC, `since`)
+added up, the `limit` (1..50, default 5) with the most of each (ties: the older account; nobody
+with none), banned
+accounts left out. A day's lines are read (its matches by their end, each one's players).
 
 ```json
-{"by":"score",
+{"since":1793491200,
+ "leaders":{"kills":[{"player":{"id":1042,"name":"Sheep","clan":null},"value":64}],
+            "assists":[],"score":[],"wins":[],"played_s":[]}}
+```
+
+### `GET /api/history/totals`
+
+Everything counted, added up: the players with a counted match, the counted matches, and those
+players' totals together.
+
+```json
+{"players":812,"matches":5120,"kills":415000,"assists":96000,"shots":21400000,"hits":5560000,
+ "accuracy":0.26,"played_s":41000000}
+```
+
+### `GET /api/history/clans?by=<key>&order=<desc|asc>&limit=<n>`
+
+Registered clans by their totals. `by`: `matches`, `wins`, `kills` (default `matches`); `limit`
+1..50 (default 50).
+
+```json
+{"by":"matches",
  "clans":[{"id":7,"name":"Skhid","tag":"SKH","level":5,"members":18,
-           "totals":{"matches":400,"wins":230,"losses":170,"kills":3100,"deaths":2500,"assists":700,
+           "totals":{"matches":400,"wins":230,"losses":150,"kills":3100,"deaths":2500,"assists":700,
            "score":98000,"headshots":610,"grenade_kills":40,"melee_kills":9,"batteries":150,
            "captures":12.25,"artefacts":90,"shots":180000,"hits":52000,"accuracy":0.289,
            "kd":1.24,"win_rate":0.575,"score_avg":245}}]}
@@ -294,12 +447,12 @@ not; `leader` is `null` when the commander has no public match.
 ```json
 {"clan":{"id":7,"name":"Skhid","tag":"SKH","level":5,"members":18,
          "leader":{"id":1042,"name":"Sheep","clan":{"id":7,"tag":"SKH"}}},
- "totals":{"matches":400,"wins":230,"losses":170,"kills":3100,"deaths":2500,"assists":700,
+ "totals":{"matches":400,"wins":230,"losses":150,"kills":3100,"deaths":2500,"assists":700,
            "score":98000,"headshots":610,"grenade_kills":40,"melee_kills":9,"batteries":150,
            "captures":12.25,"artefacts":90,"shots":180000,"hits":52000,"accuracy":0.289,
            "kd":1.24,"win_rate":0.575,"score_avg":245},
  "members":[{"player":{"id":1042,"name":"Sheep","clan":{"id":7,"tag":"SKH"}},"commander":true,
-             "level":34,"rating":1180,"totals":{"matches":120,"wins":64,"losses":56,"kills":900,
+             "level":34,"rating":1180,"totals":{"matches":120,"wins":64,"losses":52,"kills":900,
              "deaths":700,"assists":210,"score":30500,"headshots":180,"grenade_kills":12,
              "melee_kills":3,"batteries":40,"captures":5.5,"artefacts":25,"shots":52000,
              "hits":15600,"accuracy":0.3,"kd":1.29,"win_rate":0.533,"score_avg":254.2}}]}

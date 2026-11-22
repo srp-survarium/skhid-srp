@@ -365,6 +365,7 @@ mod tests {
             players,
             victory_items: Vec::new(),
             tail: StatisticsTail::default(),
+            weapons: None,
         }
     }
 

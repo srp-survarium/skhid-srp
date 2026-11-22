@@ -21,8 +21,10 @@ served by `servers/web-server/src/maps.rs`.
   that project keeps. One kind of spawn: one swatch, no team in the tooltip. Yellow is not the owner's pick: the
   grey of a point of no team did not read on the minimaps.
 - The markers are the game's own HUD minimap icons (hud.swf `Minimap._icons`), painted in one blue and one red alike
-  (players, containers, ammo stashes: no discs). The battery is the game's electrobox drawn flat (the game has no
-  flat icon of it). Artefacts are their lobby icons alone, no circle.
+  (players, containers, ammo stashes: no discs). The battery is the kill feed's battery icon without its burst (the
+  owner, 2026-11-15: "we can use the same icon on website (without strike)"): the electrobox mesh in three-quarter
+  view, white faces over a dark silhouette, a vector SVG (`make_battery_icon.py`), drawn untinted with the outline.
+  Artefacts are their lobby icons alone, no circle.
 - The site's header: the calculator's look (paper, ink rule, PT Sans Narrow), separators between Home | Wiki,
   the page shown in the accent colour (Home too). The calculator and the maps are sections of the wiki (the owner,
   2026-10-29): listed on its index, each page under a "Wiki / <page>" line; the calculator's page says

@@ -13,7 +13,8 @@
 //! its time is played for the first time.
 
 use super::context::Context;
-use super::world::read;
+use super::types::GameTime;
+use super::world::{read, Player};
 use crate::raw;
 
 /// A step's foot: the event's domain value 0 or 1.
@@ -58,8 +59,9 @@ impl SimTime {
     }
 }
 
-/// Whose steps: the sound effect (one a player object, its +884h), as an
-/// identity only.
+/// Whose steps: the sound effect (the held item's +884h, one an item), or a
+/// player for a patch's own steps ([`StepSource::player`]), as an identity
+/// only.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct StepSource(u32);
 
@@ -67,6 +69,12 @@ impl StepSource {
     #[cfg(test)]
     pub const fn at(address: u32) -> StepSource {
         StepSource(address)
+    }
+
+    /// A player's steps that a patch plays itself (a ladder's rungs): the
+    /// player's address, no effect's.
+    pub fn player(player: &Player<'_>) -> StepSource {
+        StepSource(player.this.address())
     }
 }
 
@@ -91,6 +99,16 @@ pub struct Step {
 }
 
 impl Step {
+    /// A step a patch plays itself (a ladder's rung: `source` the player's,
+    /// `foot` a limb), made in the simulation's tick at `time`, the world
+    /// core's newest played time `newest` (its `maximum_time`): played for
+    /// the first time past it, by the game's rule (on_player_sound_event's
+    /// unsigned compare, 0x2A6488).
+    pub fn new(source: StepSource, foot: Foot, time: GameTime, newest: GameTime) -> Step {
+        let pass = if time.0 > newest.0 { Pass::First } else { Pass::Again { newest: SimTime(newest.0) } };
+        Step { source, foot, time: SimTime(time.0), pass }
+    }
+
     /// The event at `player_sound.step_guard`; None for a rustle, another
     /// object's event or feet not read (the game's own rule decides those).
     pub fn at_guard(ctx: &Context<'_>) -> Option<Step> {
@@ -111,6 +129,53 @@ impl Step {
             let newest = read(core.maximum_time());
             let pass = if time > newest { Pass::First } else { Pass::Again { newest: SimTime(newest) } };
             Some(Step { source: StepSource(effect.address()), foot, time: SimTime(time), pass })
+        }
+    }
+}
+
+
+/// The step log's view (SKHID_STEP_LOG) of a body sound event as the guard
+/// (`player_sound.step_guard`, 0x2A6485, before the time test) sees it,
+/// whatever the guard then does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EventLine {
+    /// The event's domain: 0 and 1 a foot, 2..4 the rustles.
+    pub domain: u8,
+    pub time: u32,
+    /// The core's `maximum_time`.
+    pub newest: u32,
+    /// The event's object is the effect's player.
+    pub ours: bool,
+    /// The effect's feet were read (+44h).
+    pub feet: bool,
+    /// The local player's.
+    pub own: bool,
+    /// The logic state's movement id now.
+    pub movement: Option<u32>,
+    /// The effect's address (the held item's +884h): two lines of one event
+    /// with two addresses are two effects.
+    pub effect: u32,
+}
+
+impl EventLine {
+    pub fn at_guard(ctx: &Context<'_>) -> Option<EventLine> {
+        use raw::site::player_sound_step_guard as site;
+        // SAFETY: the site's effect, event and core, alive for the call; the
+        // player's world, game and network client alive for a match.
+        unsafe {
+            let (effect, event, core) = (site::effect(ctx)?, site::event(ctx)?, site::core(ctx)?);
+            let player = effect.player()?;
+            let local = player.game_world().and_then(|world| world.game()?.network_client()?.local_player());
+            Some(EventLine {
+                domain: read(event.domain()),
+                time: read(event.time()),
+                newest: read(core.maximum_time()),
+                ours: read(event.object()) == player.address(),
+                feet: read(effect.feet()) != 0,
+                own: local == Some(player),
+                movement: effect.logic().and_then(|logic| logic.state()).map(|state| read(state.movement())),
+                effect: effect.address(),
+            })
         }
     }
 }

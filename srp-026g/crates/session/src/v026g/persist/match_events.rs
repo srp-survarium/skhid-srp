@@ -10,10 +10,9 @@ use rusqlite::{Connection, Row, Transaction, params};
 use crate::persist::PersistError;
 use crate::v026g::replays::ReplayId;
 
-/// The schema step after the history's: the events, and one match a
-/// replay id (the events' key).
+/// The schema step that adds the events, keyed by their match's replay id
+/// (unique in `g26_matches`). A match of before has none.
 pub(super) const MIGRATION: &str = "
-    CREATE UNIQUE INDEX g26_matches_by_replay ON g26_matches (replay_id);
     -- The lobby names a match by the match server's id.
     CREATE INDEX g26_matches_by_game_id ON g26_matches (game_match_id);
     CREATE TABLE g26_match_events (

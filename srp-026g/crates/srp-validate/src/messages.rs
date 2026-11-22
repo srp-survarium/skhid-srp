@@ -27,8 +27,8 @@ pub trait Dictionary {
     /// it does not have (`items_dictionary::item_by_id` 0x1F0090 finds
     /// nothing, and the client crashes later).
     fn item(&self, dict_id: u16) -> Option<bool>;
-    /// Whether the client has the map (a maps_dict id).
-    fn map(&self, map_id: u8) -> bool;
+    /// Whether the client has the map (a maps_dict id, up to `u16::MAX`).
+    fn map(&self, map_id: u16) -> bool;
 }
 
 /// The ids srp sends and a client takes. 0xE2 and every id outside
@@ -131,7 +131,7 @@ pub fn check(message: u8, payload: &[u8]) -> Result<(), Refusal> {
         return Err(refuse(0, Reason::NeverSent));
     }
     // The other 0xF6: a replay's playback or events note to a spectator
-    // (patch 144, `replay-control`), taken whole by the patch's own parse.
+    // (patch 179, `replay-control`), taken whole by the patch's own parse.
     if message == id::UPLOAD_REQUEST && replay_control::ServerNote::parse(payload).is_some() {
         return Ok(());
     }
@@ -156,7 +156,7 @@ pub fn check(message: u8, payload: &[u8]) -> Result<(), Refusal> {
         // tests only the time (0x27C652..0x27C67C, 0x2D1489).
         id::PLAYER_ENTERED => place(1),
         // An 0xEA naming no place is the server's farewell to a spectator
-        // (patch 143 ends its match); a player's game passes it to
+        // (patch 178 ends its match); a player's game passes it to
         // `leave_match`, which returns 1 with nothing written
         // (`check_spectator_026g.py`).
         id::PLAYER_LEFT => match payload.get(1).copied().map(LeftPlace::of) {
@@ -184,7 +184,10 @@ pub fn check(message: u8, payload: &[u8]) -> Result<(), Refusal> {
         // The late join's profile proposal (`late_join::Prepare`, every
         // client of the dialect): its magic, the match, the serial, the
         // place, the squad, then the profile, which the late join's own
-        // check takes (`late_join_validate_026g.c`). Here the header: a
+        // check takes (`late_join_validate_026g.c`), and srp's block with
+        // the faces entry of the one place when its face is not 0 (read and
+        // taken off at the dispatch by the faces patch, which steps over the
+        // profile with the items dictionary: `faces.rs`). Here the header: a
         // place the first player cannot have, under 20, a serial not 0.
         id::STATIC_INFO if StaticInfoHead::of(payload) == Some(StaticInfoHead::LateJoinPrepare) => {
             if len < LATE_JOIN_HEADER {
@@ -405,16 +408,13 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
         }
     }
     let at = reader.at();
-    let map = reader.u8().map_err(short)?;
+    let map_byte = reader.u8().map_err(short)?;
     let roster = reader.u8().map_err(short)?;
     if !(1..=MAX_PLAYERS).contains(&usize::from(roster)) {
         return Err(refuse(
             at.saturating_add(1),
             Reason::OptionsRoster { roster },
         ));
-    }
-    if !dictionary.map(map) {
-        return Err(refuse(at, Reason::OptionsMap { map }));
     }
     // The roster's teams: the match's two (0 and 1), or in a free-for-all
     // each place a side of its own ([`crate::own_side`]); never a mix of
@@ -448,43 +448,60 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
     }
     // The squad bytes.
     reader.skip(MAX_PLAYERS).map_err(short)?;
-    // srp appends an SRPX block for a Blackout match (shipped patch 65) and
-    // for a free-for-all (its kill target).
+    // srp appends an SRPX block for a Blackout match (shipped patch 65), for
+    // a free-for-all (its kill target), for a map id over a byte (patch
+    // 154: the whole id, the options' byte its low byte) and for the
+    // roster's faces when one is not face 0 (the faces patch).
     // Keep this in sync with static_info::read_srp_block on the server.
+    let mut wide = None;
     if !reader.is_done() {
         let at = reader.at();
-        let invalid = || {
-            refuse(
-                at,
-                Reason::OptionsTrailing {
-                    len: reader.rest().len(),
-                },
-            )
-        };
+        let trailing = |reader: &Reader| refuse(at, Reason::OptionsTrailing { len: reader.rest().len() });
         if !reader.rest().starts_with(b"SRPX") {
-            return Err(invalid());
+            return Err(trailing(&reader));
         }
         reader.skip(4).map_err(short)?;
-        // One entry, `{tag, len, bytes}`: Blackout's `{2, 1, 1}`, or a
-        // free-for-all's `{3, 2, kills to win}` (a u16, never 0), which only
-        // a roster of own sides has.
-        let at = reader.at();
-        let fits = match reader.rest() {
-            [2, 1, 1] => !own_sides,
-            [3, 2, low, high] => own_sides && (*low, *high) != (0, 0),
-            _ => false,
-        };
-        if !fits {
-            return Err(refuse(
-                at,
-                Reason::OptionsTrailing {
-                    len: reader.rest().len(),
-                },
-            ));
+        // Entries `{tag, len, bytes}`, each tag once: the whole map id's
+        // `{4, 2, id}` (over a byte, its low byte the options' byte),
+        // Blackout's `{2, 1, 1}` or a free-for-all's `{3, 2, kills to win}`
+        // (a u16, never 0), which only a roster of own sides has, and the
+        // faces' `{5, roster, a face a place}` (not every one face 0; a
+        // face the game's data does not list is drawn as face 0).
+        let (mut mode, mut faces) = (false, false);
+        while !reader.is_done() {
+            let fits = match reader.rest() {
+                [4, 2, low, high, ..] => {
+                    let id = u16::from_le_bytes([*low, *high]);
+                    id > u16::from(u8::MAX) && *low == map_byte && wide.replace(id).is_none()
+                }
+                [2, 1, 1, ..] => !own_sides && !core::mem::replace(&mut mode, true),
+                [3, 2, low, high, ..] => {
+                    own_sides && (*low, *high) != (0, 0) && !core::mem::replace(&mut mode, true)
+                }
+                [5, len, entry @ ..] if *len == roster => {
+                    entry
+                        .get(..usize::from(roster))
+                        .is_some_and(|entry| entry.iter().any(|&face| face != 0))
+                        && !core::mem::replace(&mut faces, true)
+                }
+                _ => false,
+            };
+            if !fits {
+                return Err(trailing(&reader));
+            }
+            let [_tag, len] = reader.array().map_err(short)?;
+            reader.skip(usize::from(len)).map_err(short)?;
+        }
+        if !mode && (own_sides || (wide.is_none() && !faces)) {
+            return Err(trailing(&reader));
         }
     } else if own_sides {
         // A free-for-all's options always carry its entry.
         return Err(refuse(reader.at(), Reason::OptionsTrailing { len: 0 }));
+    }
+    let map = wide.unwrap_or(u16::from(map_byte));
+    if !dictionary.map(map) {
+        return Err(refuse(at, Reason::OptionsMap { map }));
     }
     Ok(roster)
 }

@@ -111,6 +111,14 @@ impl WatchSettings {
         }
     }
 
+    /// Whether one who is no account (a visitor of the site) may.
+    pub fn anyone_may_watch(&self) -> bool {
+        match self.access {
+            Access::All => true,
+            Access::Match => false,
+        }
+    }
+
     pub fn from_env() -> Self {
         let var = |name: &str| std::env::var(name).ok().filter(|v| !v.trim().is_empty());
         let access = match var("SRP_REPLAY_WATCH").as_deref().map(str::trim) {

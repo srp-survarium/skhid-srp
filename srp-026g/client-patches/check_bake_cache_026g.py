@@ -20,8 +20,10 @@ sets it. Every site runs from the game's own code:
   stamped with this build's bake format and the patches' fingerprint (the
   check computes its own, in Python, from the tables) keeps its whole DDS
   files and they are in the baker's list (CRC 0, their size, an age each,
-  the list's bytes grown by theirs), a file cut short and the files past 512
-  deleted, the stub not called, the tables read in pages given back, a line
+  the list's bytes grown by theirs), a file cut short deleted, the stub not
+  called, the tables read in pages given back, the list in the baker's own
+  1024 records; 1500 kept files all in the list, moved into 2048 records of
+  pages, 1024 kept files leave it grown (room for the first bake); a line
   to srp_patches.log; a release whose patch has only item stats keeps it; a
   patch with a texture, a decal item or one that cannot be read, another
   format, a stamp of other bytes, no stamp or no folder: deleted (the stub)
@@ -63,6 +65,20 @@ sets it. Every site runs from the game's own code:
   the CRC and eax, ecx, edx, ebx, esi, edi, ebp and esp after it the same;
   and how many instructions each runs on 256 KB;
 - a folder whose delete leaves a file (held open): not stamped;
+- the trim (remove_unwanted_files 0x131F90 from its entry, as
+  process_compression calls it after a bake's push_back: the cook pushed,
+  `ret 4`; GetDiskFreeSpaceExW a stub): records of 3 GiB stay; past it the
+  oldest record with no load under way goes with its file (DeleteFileA of
+  the folder's physical path and its name), the last record in its place
+  with its own path's pointers, the list's bytes less its file's, a line to
+  srp_patches.log; with less than 50 MB free on the drive, down to 50 MB,
+  the loading record left; of two records of one path the first to go
+  leaves the file to the other; a full list (the baker's 1024 records, then
+  2048) moves into pages twice its room, every record kept in its order with
+  its path's pointers into its new self, the storage before untouched and
+  never given back; with no folder known (the game's start not passed) the
+  same, no file deleted; with no pages to be had a full list lets its
+  oldest go; ebx, esi, edi, ebp and the stack kept;
 - an owner that ends otherwise (finish_query 0xF0D00 called as the game
   calls it, stdcall, with an error, or a success nothing shared): the
   function, then each waiting query made again (translate_query 0x12D1D0, a
@@ -89,6 +105,7 @@ FIND_RECORD, TRANSLATE, FINISH, FINISH_BODY = 0x131ED0, 0x12D1D0, 0xF0D00, 0xF0D
 BAKED_SITE, BAKED_BACK, LOADED_SITE, LOADED_BACK = 0x12F18F, 0x12F19A, 0x12DDB4, 0x12DDBF   # past push eax / mov eax,108h
 ALLOCATE, RESOURCE, SET_RESOURCE, RELEASE_TEXTURE, DESTROY_MODEL = 0xE4F90, 0x12DE30, 0xF0080, 0x3BEE00, 0xE0210
 CHECK, CRC_OF, LOG_FILTER, ASSERTION = 0x131B40, 0x3C0F70, 0x111860, 0x113450
+TRIM, STOCK_RECORDS, FOLDER_BYTES, DISK_LOW = 0x131F90, 1024, 3 << 30, 50 << 20
 LOG_FILTER_ON, IS_DEBUGGER_PRESENT = 0x1F1D60C, 0x870194
 NAMES = 0xAC3334
 CRC_STEP, TABLE = 0x42050, 0x1C210                   # the CRC-32 step; the table's maker (0x225FD68)
@@ -96,10 +113,10 @@ BUFFER, CRC_STATE = 0x40000000, 0x31000000 + 0xF0000
 IAT = {"FindFirstFileA": 0x870238, "FindNextFileA": 0x87023C, "FindClose": 0x870228, "CreateFileA": 0x870048,
        "ReadFile": 0x870064, "WriteFile": 0x870108, "CloseHandle": 0x870040, "DeleteFileA": 0x87021C,
        "CreateDirectoryA": 0x870220, "GetTickCount": 0x870090, "GetCurrentThreadId": 0x870118,
-       "VirtualAlloc": 0x87015C, "VirtualFree": 0x870160}
+       "VirtualAlloc": 0x87015C, "VirtualFree": 0x870160, "GetDiskFreeSpaceExW": 0x870174}
 POPS = {"FindFirstFileA": 8, "FindNextFileA": 8, "FindClose": 4, "CreateFileA": 28, "ReadFile": 20,
         "WriteFile": 20, "CloseHandle": 4, "DeleteFileA": 4, "CreateDirectoryA": 8, "GetTickCount": 0,
-        "GetCurrentThreadId": 0, "VirtualAlloc": 16, "VirtualFree": 12}
+        "GetCurrentThreadId": 0, "VirtualAlloc": 16, "VirtualFree": 12, "GetDiskFreeSpaceExW": 16}
 OBJECTS, STACK, STUBS, STOP, PAGES = 0x30000000, 0x31000000, 0x32000000, 0x32100000, 0x70000000
 FOLDER = "c:\\users\\player\\documents\\survarium\\streamed_textures"
 STAMP = "srp_baked_textures.txt"
@@ -214,6 +231,8 @@ class Game:
         self.stop_at = set()
         self.locked = set()                          # files another game holds open: not deleted
         self.unopenable = set()                      # files CreateFileA refuses (shared otherwise)
+        self.disk_free = 100 << 30                   # the drive's free bytes; None: Windows does not say
+        self.no_pages = False                        # VirtualAlloc fails (the address space has no hole)
         emu.hook_add(UC_HOOK_CODE, self.code)
         emu.hook_add(UC_HOOK_INTR, lambda emu, n, _: (self.calls.append(("int3",)), emu.emu_stop()))
 
@@ -307,12 +326,22 @@ class Game:
         if name == "GetTickCount":
             return self.now
         if name == "VirtualAlloc":                   # fresh zeroed pages (64 KiB aligned)
+            if self.no_pages:
+                self.calls.append(("VirtualAlloc", a[1], "failed"))
+                return 0
             at, size = self.pages, (a[1] + 0xFFFF) & ~0xFFFF
             self.pages += size
             self.calls.append(("VirtualAlloc", a[1]))
             return at
         if name == "VirtualFree":
             self.calls.append(("VirtualFree", a[0]))
+            return 1
+        if name == "GetDiskFreeSpaceExW":            # the wide path, the caller's free bytes, two totals
+            root = bytes(self.emu.mem_read(a[0], 16)).decode("utf-16-le").split("\0")[0]
+            self.calls.append((name, root, a[2], a[3]))
+            if self.disk_free is None:
+                return 0
+            self.emu.mem_write(a[1], struct.pack("<Q", self.disk_free))
             return 1
         self.calls.append((name,) + tuple(a[:1]))
         if name == "CreateFileA":
@@ -424,7 +453,7 @@ class Game:
         string = self.string(FOLDER, sp + 0x470)
         regs = {UC_X86_REG_EAX: string, UC_X86_REG_EBX: 0x1111, UC_X86_REG_ESI: 0x2222, UC_X86_REG_EDI: 0x3333,
                 UC_X86_REG_EBP: 0x4444}
-        eip, esp = self.run(START_SITE, sp, regs, until=[START_BACK])
+        eip, esp = self.run(START_SITE, sp, regs, until=[START_BACK], count=200000000)
         kept = all(self.emu.reg_read(r) == v for r, v in regs.items() if r != UC_X86_REG_EAX)
         return eip == START_BACK and esp == sp and kept
 
@@ -494,6 +523,33 @@ class Game:
         eip, esp = self.run(FINISH, sp, regs)
         ok = eip == STOP and esp == sp + 20 and all(self.emu.reg_read(r) == v for r, v in regs.items())
         return ok, self.calls[before:]
+
+    def push(self, name, size, loading=0):
+        """A record at the list's end as the baker's push_back (0x132640) leaves one, of a file of
+        `size` bytes in the folder (its bytes here: one)."""
+        at = self.read(LIST + 4)
+        assert at + RECORD <= self.read(LIST + 8)
+        self.string(PREFIX + name, at)
+        self.emu.mem_write(at + 0x110, b"/")
+        age = self.read(AGES) + 1
+        self.word(AGES, age)
+        for field, value in ((CRC, 0xC0DE0000 + age), (SIZE, size), (AGE, age)):
+            self.word(at + field, value)
+        self.emu.mem_write(at + LOADING, bytes([loading]))
+        self.word(LIST + 4, at + RECORD)
+        self.word(BYTES, self.read(BYTES) + size)
+        self.files[FOLDER + "\\" + name] = b"x"
+        return (PREFIX + name, 0xC0DE0000 + age, size, age, loading, b"/")
+
+    def trim(self):
+        """remove_unwanted_files from its entry as process_compression calls it (0x12F405: the cook
+        pushed): whether it left by its `ret 4`, ebx, esi, edi and ebp kept."""
+        sp = STACK + 0x90000
+        self.word(sp, STOP)
+        self.word(sp + 4, COOK)
+        regs = {UC_X86_REG_EBX: 0x1111, UC_X86_REG_ESI: COOK, UC_X86_REG_EDI: 0x3333, UC_X86_REG_EBP: 0x4444}
+        eip, esp = self.run(TRIM, sp, regs, count=200000000)
+        return eip == STOP and esp == sp + 8 and all(self.emu.reg_read(r) == v for r, v in regs.items())
 
     def check_loaded(self, path, crc):
         """check_loaded_baked_texture (the baker, no resource, the path): its al."""
@@ -637,11 +693,12 @@ def main():
         report(ok and not wiped and records == want and game.read(BYTES) == len(a) + len(b)
                and game.read(AGES) == 2 and FOLDER + "\\cut_s1d.dds" not in game.files
                and FOLDER + "\\notes.txt" in game.files and game.files[FOLDER + "\\" + STAMP] == stamp
-               and len(tables) == 6 and all(c[0] == ("VirtualAlloc", "VirtualFree")[i % 2] for i, c in enumerate(tables)),
+               and len(tables) == 6 and all(c[0] == ("VirtualAlloc", "VirtualFree")[i % 2] for i, c in enumerate(tables))
+               and (game.read(LIST), game.read(LIST + 8)) == (STORAGE, STORAGE + STOCK_RECORDS * RECORD),
                f"a folder stamped with this format and the game data's fingerprint ({stamp.decode().strip()}, the "
                f"three patches' tables read in pages given back after): kept, {[r[0] for r in records]} in the "
                f"list (CRC 0, sizes, ages 1 and 2, {game.read(BYTES)} bytes), the file cut short deleted, the rest "
-               f"left, no delete")
+               f"left, no delete; the list in the baker's own {STOCK_RECORDS} records")
         log = game.files.get("srp_patches.log", b"")
         report(log == b"srp: bake_cache: the baked textures kept: " + stamp,
                f"srp_patches.log: {log.decode().strip()!r}")
@@ -732,12 +789,132 @@ def main():
     game.dirs.add(FOLDER)
     game.files[FOLDER + "\\" + STAMP] = stamp
     small = dds(64, 64, 2048)
-    for i in range(600):
-        game.files[FOLDER + f"\\t{i:03}_s1d.dds"] = small
+    many = 1500
+    for i in range(many):
+        game.files[FOLDER + f"\\t{i:04}_s1d.dds"] = small
     ok = game.start()
     kept = [p for p in game.files if p.endswith(".dds")]
-    report(ok and len(game.records()) == 512 and len(kept) == 512 and game.read(BYTES) == 512 * len(small),
-           "600 kept files: 512 in the list, the 88 after them deleted")
+    begin = game.read(LIST)
+    report(ok and len(game.records()) == many and len(kept) == many and game.read(BYTES) == many * len(small)
+           and begin >= PAGES and game.read(LIST + 8) == begin + 2 * STOCK_RECORDS * RECORD,
+           f"{many} kept files: all in the list, which moved out of the baker's {STOCK_RECORDS} records into "
+           f"{2 * STOCK_RECORDS} of pages")
+
+    game = Game(bytes(built))
+    game.data(data)
+    game.dirs.add(FOLDER)
+    game.files[FOLDER + "\\" + STAMP] = stamp
+    for i in range(STOCK_RECORDS):
+        game.files[FOLDER + f"\\t{i:04}_s1d.dds"] = small
+    ok = game.start()
+    begin = game.read(LIST)
+    report(ok and len(game.records()) == STOCK_RECORDS and begin >= PAGES
+           and game.read(LIST + 8) == begin + 2 * STOCK_RECORDS * RECORD,
+           f"{STOCK_RECORDS} kept files fill the baker's records exactly: the start grows the list (the first "
+           f"bake's push_back comes before any trim)")
+
+    print("the trim (remove_unwanted_files 0x131F90, whole; `ret 4`)")
+    game = Game(bytes(built))
+    game.data(data)
+    game.dirs.add(FOLDER)
+    game.files[FOLDER + "\\" + STAMP] = stamp
+    ok = game.start()
+    part = FOLDER_BYTES // 4
+    loading = game.push("loading_s1d.dds", part, loading=1)
+    b, c, d = (game.push(f"{name}_s1d.dds", part) for name in "bcd")
+    before = len(game.files.get("srp_patches.log", b""))
+    kept = game.trim()
+    report(ok and kept and game.records() == [loading, b, c, d] and game.read(BYTES) == FOLDER_BYTES
+           and not any(call[0] == "DeleteFileA" for call in game.calls)
+           and len(game.files["srp_patches.log"]) == before
+           and ("GetDiskFreeSpaceExW", "c:\\", 0, 0) in game.calls,
+           "four records of 3 GiB: none goes, no file deleted, no line (the drive c:\\ asked for its free bytes); "
+           "`ret 4`, ebx, esi, edi and ebp kept")
+    e = game.push("e_s1d.dds", 5 << 20)
+    kept = game.trim()
+    line = game.files["srp_patches.log"][before:]
+    report(kept and game.records() == [loading, e, c, d] and game.read(BYTES) == 3 * part + (5 << 20)
+           and FOLDER + "\\b_s1d.dds" not in game.files
+           and all(FOLDER + f"\\{name}_s1d.dds" in game.files for name in ("loading", "c", "d", "e"))
+           and line == b"srp: bake_cache: the oldest baked textures let go: 1; the folder holds 2309 MB in 4 "
+                       b"files, at most 3072 MB\r\n",
+           f"a bake of 5 MB more: the oldest record with no load under way goes with its file (the older one "
+           f"is loading), the last record in its place, {game.read(BYTES)} bytes listed; {line.decode().strip()!r}")
+    game.disk_free, game.now, before = DISK_LOW - 1, game.now + 2000, len(game.files["srp_patches.log"])
+    kept = game.trim()
+    line = game.files["srp_patches.log"][before:]
+    report(kept and game.records() == [loading] and game.read(BYTES) == part
+           and [p for p in game.files if p.endswith(".dds")] == [FOLDER + "\\loading_s1d.dds"]
+           and line == b"srp: bake_cache: the oldest baked textures let go: 3; the folder holds 768 MB in 1 "
+                       b"files, at most 50 MB\r\n",
+           f"less than 50 MB free on the drive: down to 50 MB, every record but the loading one gone with its "
+           f"file; {line.decode().strip()!r}")
+    game.disk_free = None
+    f = game.push("f_s1d.dds", part)
+    kept = game.trim()
+    report(kept and game.records() == [loading, f], "Windows does not say the drive's free bytes: as with room")
+
+    game = Game(bytes(built))
+    game.data(data)
+    game.dirs.add(FOLDER)
+    game.files[FOLDER + "\\" + STAMP] = stamp
+    ok = game.start()
+    half = FOLDER_BYTES // 2
+    one, two = game.push("dup_s1d.dds", half), game.push("dup_s1d.dds", half)
+    f = game.push("f_s1d.dds", 5 << 20)
+    kept = game.trim()
+    shared = kept and game.records() == [f, two] and FOLDER + "\\dup_s1d.dds" in game.files
+    g = game.push("g_s1d.dds", half)
+    kept = game.trim()
+    report(ok and shared and kept and game.records() == [f, g] and FOLDER + "\\dup_s1d.dds" not in game.files,
+           "two records of one path (baked twice before either was listed): the older goes, its file stays "
+           "for the other; when the other goes, the file goes")
+
+    game = Game(bytes(built))
+    game.data(data)
+    game.dirs.add(FOLDER)
+    game.files[FOLDER + "\\" + STAMP] = stamp
+    ok = game.start()
+    pushed = [game.push(f"t{i:04}_s1d.dds", 1000) for i in range(STOCK_RECORDS)]
+    stock = bytes(game.emu.mem_read(STORAGE, STOCK_RECORDS * RECORD))
+    kept = game.trim()
+    begin = game.read(LIST)
+    report(ok and kept and game.records() == pushed and game.read(BYTES) == 1000 * STOCK_RECORDS
+           and begin >= PAGES and game.read(LIST + 8) == begin + 2 * STOCK_RECORDS * RECORD
+           and bytes(game.emu.mem_read(STORAGE, STOCK_RECORDS * RECORD)) == stock
+           and not any(call[0] == "DeleteFileA" for call in game.calls),
+           f"the baker's {STOCK_RECORDS} records full, far under 3 GiB: none goes, no file deleted; the list in "
+           f"{2 * STOCK_RECORDS} records of pages, each record in its order with its path's pointers into it, "
+           f"the baker's own storage untouched")
+    pushed += [game.push(f"u{i:04}_s1d.dds", 1000) for i in range(STOCK_RECORDS)]
+    first, calls = game.read(LIST), len(game.calls)
+    kept = game.trim()
+    begin = game.read(LIST)
+    report(kept and game.records() == pushed and begin > first
+           and game.read(LIST + 8) == begin + 4 * STOCK_RECORDS * RECORD
+           and [call for call in game.calls[calls:] if call[0] in ("DeleteFileA", "VirtualAlloc", "VirtualFree")]
+           == [("VirtualAlloc", 4 * STOCK_RECORDS * RECORD)],
+           f"{2 * STOCK_RECORDS} records full: into {4 * STOCK_RECORDS} records of new pages, every record kept, "
+           f"the pages before not given back")
+
+    game = Game(bytes(built))
+    pushed = [game.push(f"t{i:04}_s1d.dds", 1000) for i in range(STOCK_RECORDS)]
+    kept = game.trim()
+    report(kept and game.records() == pushed and game.read(LIST) >= PAGES
+           and FOLDER + "\\t0000_s1d.dds" in game.files
+           and not any(call[0] in ("DeleteFileA", "GetDiskFreeSpaceExW") for call in game.calls),
+           f"no folder known (the game's start not passed: the baker's own {STOCK_RECORDS} records, full): the "
+           f"list grows, no record goes, no file deleted, the drive not asked")
+
+    game = Game(bytes(built))
+    game.no_pages = True
+    pushed = [game.push(f"t{i:04}_s1d.dds", 1000) for i in range(STOCK_RECORDS)]
+    kept = game.trim()
+    report(kept and game.read(LIST) == STORAGE and game.records() == [pushed[-1]] + pushed[1:-1]
+           and game.read(LIST + 4) + RECORD == game.read(LIST + 8)
+           and ("VirtualAlloc", 2 * STOCK_RECORDS * RECORD, "failed") in game.calls,
+           f"no pages to be had: the full list of {STOCK_RECORDS} lets its oldest go (room for the next bake's "
+           f"record: the game's push_back writes it without asking)")
 
     print("the look-up and the texture made (translate_query 0x12D4C5..0x12D4D2, process_compression "
           "0x12F194, on_baked_texture_loaded 0x12DDB9, finish_query 0xF0D00)")

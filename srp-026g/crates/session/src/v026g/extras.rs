@@ -1,6 +1,6 @@
 //! What the lobby's later features keep of an account, beside the
-//! [`Account`](super::account::Account)'s own fields: the live watch
-//! setting and the daily bonus. Kept in its own table
+//! [`Account`](super::account::Account)'s own fields: the daily bonus and
+//! the shop's "Hide owned" box. Kept in its own table
 //! (`g26_extras`, `persist`), one row an account.
 //!
 //! The rules are in [`super::tutorial`], [`super::bonus`] and
@@ -28,6 +28,11 @@ pub struct DailyBonus {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Extras {
     pub bonus: DailyBonus,
+    /// The shop's "Hide owned" box as the account last set it
+    /// (`shop-owned-mark.md`; the owner's of 2026-11-15: "if someone
+    /// clicked it once, after restarting, it should be saved"); unticked
+    /// until then.
+    pub shop_owned: survarium::v026g::lobby::shop_filter::OwnedItems,
 }
 
 impl DailyBonus {

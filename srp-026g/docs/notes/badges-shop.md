@@ -9,8 +9,10 @@ The owner's rules (2026-11-07). Code: `prices::is_badge` and `sellers_of_in`
 - **How:** bought for silver in the shop, like gear: once bought, the player owns the badge.
   Vanity items, so they are priced high.
 - **Rank badges** (`decals_1_1`..`1_8`): sold by everyone (seller 0), no rank needed.
-  1,000,000 silver each: Survivor, Explorer, Veteran, Master, Legend. "Alpha" Squad (`decals_1_2`):
-  10,000,000 (the owner, 2026-11-08).
+  The end game: each costs more than the one before (the owner, 2026-11-16: "way more", "progressively
+  more", Alpha 50 or 100 million): Survivor 2,000,000, Explorer 5,000,000, Veteran 10,000,000,
+  Master 25,000,000, Legend 50,000,000, "Alpha" Squad (`decals_1_2`) 100,000,000. Any can be
+  bought at any time; the ladder is only the prices.
   Literator (`decals_1_1`): 50,000 (the owner, 2026-11-08). Flying Hussars (`decals_1_8`): 20,000.
   0.69d's achievement decals Musician, Boar hunter and Deer hunter (1891-1893, pack decals-069d@2,
   `decals-069d.md`) are badges too: 50,000 each, seller 0, no rank.

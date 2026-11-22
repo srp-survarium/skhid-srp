@@ -56,6 +56,7 @@ fn profile(name: &str, team: u8) -> MatchProfile {
         kits: vec![MatchKit::empty(1, "kit")],
         items: vec![MatchItem::default()],
         squad: 0,
+        face: survarium::v026g::faces::Face::DEFAULT,
     }
 }
 
@@ -277,7 +278,7 @@ fn a_kept_recording_becomes_a_save_file_that_holds_nothing_private() {
     assert_eq!(file.header.match_id, MATCH);
     // 2026-10-15 12:00:00 UTC.
     assert_eq!(file.header.made, 1_792_065_600);
-    assert_eq!(file.header.map, map.id);
+    assert_eq!(file.header.map, map.id.get());
     assert_eq!(file.header.mode, map.mode.lobby_number());
     assert_eq!(file.header.score, None);
     let names: Vec<&str> = file.header.places.iter().map(|p| p.name.as_str()).collect();

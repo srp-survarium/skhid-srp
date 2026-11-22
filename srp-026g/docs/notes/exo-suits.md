@@ -22,6 +22,9 @@ and energy costs to their second-strongest rows):
     five are built in: the three mobility rows above, and weight limit +5 kg (1124) and
     regeneration +15 % (1094), Duty's own two. A suit that had rolled one of those kinds keeps the
     roll beside the built-in one (only new rolls leave out a kind the suit comes with).
+  - 2026-11-14, later (the owner: "for freedom replace stamina regeneration with shooting without
+    scope"): hip-fire dispersion -10 % (1074, the kind's top row) in place of stamina regeneration
+    +10 % (1104).
 - Duty: weight limit +5 kg (1124), regeneration +15 % (1094), the kinds' top rows, beside its item slot, ammo bag, pocket capacity and
   artefact container.
   - Buffed 2026-11-14 (the owner, after the Freedom suit's buff: "make sure duty is fine too, it
@@ -38,3 +41,10 @@ and energy costs to their second-strongest rows):
   (`item_params::MOST_DEFAULT_MODIFICATIONS`, the item's constructor 0x2CB310) and stops at start on a
   ninth; the two buffs above made nine each. Both suits lose regeneration +15 % (1094) (the owner's
   pick), eight each. srp and `srp-check-game-data` refuse an item with more.
+- **Decals** (2026-11-20, the owner: "allow to put decals on stk2 equipment that we added too"): both
+  suits take two decals as a stock vest does (pack `exo-decals@1`: `parameters/decal_available` and
+  an empty `data/decals`), on the body's own surface (`torso_s`: the chest, back and sleeves). The
+  frame, the back unit, the chest disc and the legs are additional models and take none; the
+  helmet, gloves and boots take none, as stock ones. No camouflage. The Freedom body's model is
+  `ported/freedom_026/freedom_exo_torso_s1` since then (Duty's mesh under a file name of its own:
+  the game names baked textures after the model's file name). `stk2-outfits.md`, Decals.

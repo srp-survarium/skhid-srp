@@ -5,7 +5,8 @@
 # move buttons (» «) for a private room's owner only, never for a member, an open room or a room
 # playing its match; its two team columns, a member in the other after a move; no "N v N" and no
 # max level for a private room (its info line, its list row, the facts beside the list); the create
-# window's sliders hidden once a PIN is typed, Max level too; squads' icons (docs/notes/squads.md)
+# window's sliders hidden once a PIN is typed, Max level too; the last room's PIN pretyped, a press on
+# the field putting the caret after it; squads' icons (docs/notes/squads.md)
 # after their names in the room and the list's side panel, ours green, the names not moved; a
 # squad soldier's greyed Join, New room and "IN SQUAD" Play; a playing room's spectators (`V` rows,
 # queue-spectate.md) on one dim line, in the room's footer and under the list's side panel, the

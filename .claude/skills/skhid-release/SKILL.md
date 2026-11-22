@@ -121,7 +121,11 @@ resources.db.patch_<n> (error 2). Please run the Skhid launcher again."
 `release.sh` and `deploy` refuse a ZIP whose exe requires other patches
 than the server data offers. So a patch removed from the list is no longer
 required by the next release's exe, and every patch a release offers must
-be downloadable by every player (add the Drive mirror at publish time).
+be downloadable by every player. New releases use the patches server without
+Google Drive (owner, 2026-11-17). A Drive mirror is optional: add or configure
+one only when the owner requests it. Do not delay a release or ask for a Drive
+exception merely because no Drive uploader is configured. Keep existing
+committed mirror URLs unless the owner asks to remove them.
 
 **Replays, and a change of what a match computes.** A game is given a
 replay only when every game of its recording was of the oldest replayable
@@ -171,10 +175,10 @@ The files players get are an explicit, committed list:
 `release/patches.tsv` (live) and `release/patches-test.tsv` (test), one
 `<name> <sha256> <size> <urls>` row per file, tabs between, the patches in
 revision order. `<urls>` is the file's URLs, one space apart, in the order
-the players' updater tries them: Google Drive's first (the owner's rule,
-2026-11-01), then the patches server's (`$SKHID_PATCHES_URL/<name>`: every
-patch row has it, the release downloads and builds from it), then the
-rest; 1 to 8, none twice. The server data is built of exactly those rows and `/patches` offers
+the players' updater tries them. New rows use the patches server's URL
+(`$SKHID_PATCHES_URL/<name>`: every patch row has it, the release downloads
+and builds from it). Existing rows retain their mirror order; add new
+mirrors only when requested. There are 1 to 8 URLs, none twice. The server data is built of exactly those rows and `/patches` offers
 exactly those (with the mirrors of `mirrors.tsv`, below); a file on the
 patches server that is not listed is offered to no one.
 `release/upload-patch` (and `release.sh --resources`) adds the row when it
@@ -209,8 +213,8 @@ and sha256, and, under the release lock and after a y/N, puts the row
 host through the jump host; `--test` the test environment): srp reads it
 again when it changes and adds its rows to the release's URLs of the file,
 in their order, each after the URLs so far or as the n-th (`--first`, `--at
-<n>`: the place among all the file's URLs, the release's too: a new Google
-Drive link goes `--first`; 8 URLs a file in all). A bad row (a file the release has not, a URL the
+<n>`: the place among all the file's URLs, the release's too; use the requested
+priority for a new mirror, with 8 URLs a file in all). A bad row (a file the release has not, a URL the
 updater would refuse, past 8) is logged by srp and skipped; it never breaks
 `/patches`. `release/add-mirror --remove <file> <url>` takes a row out.
 To build a URL into the next release too (the updater's and the .bat's own
@@ -384,7 +388,17 @@ The order, as it runs:
    --test`, play a match on the test environment (one against bots is
    kept), copy its recording from the test volume's `recordings/`, and
    give `--worlds <folder>`. Then
-   `build-zip` (of the commit checked in step 1); then the **exe patches'
+   `build-zip` (of the commit checked in step 1), `build-torrent` (the
+   torrent of the whole game folder, `skhid-rev<n>.torrent`, signed with the
+   release's key, `private/release/torrent-signing.pem`, and put into the ZIP
+   as `game/torrent/skhid.torrent`: `srp-026g/docs/notes/torrent-downloads.md`;
+   no key, or one that is not the commit's `release/signing.pub`'s pair: the
+   preflight stops; the owner makes it once with `release/make-signing-key`
+   and commits `release/signing.pub`; `--test` signs with the test
+   environment's own pair, `torrent-signing-test.pem` and
+   `release/signing-test.pub`, `make-signing-key --test`, so a test torrent is
+   never a player's; a revision srp came up on once, then rolled back,
+   must build the same ZIP again or it stops: `--revision` the next); then the **exe patches'
    self-test** of that commit started in the background
    (`srp-026g/client-patches/selftest_026g.py`, its Linux part, on
    `$SKHID_GAME`'s `survarium.exe`, in the commit's dev shell with nixpkgs'
@@ -497,6 +511,13 @@ The order, as it runs:
    folder and, from live, to the jump host (`$SKHID_BACKUP_DIR`, default
    `/srv/skhid-backups/srp-db`: folder 700, files 600, a line in
    `SHA256SUMS` there), its sha256 compared on both ends.
+   Live only, after the record (step 8; never `--test`),
+   `release/publish-dht <the torrent>` puts the
+   torrent's signed item on the public DHT (BEP 46: the newest release, for
+   updaters that cannot reach the site; `skhid.dht`, signed by
+   `build-torrent` with the torrent; the release's own libtorrent,
+   `nix build ./srp-026g#skhid-dht`). A failure is a warning, not a stop:
+   every updater that shares puts the same item again; run it again by hand.
 
    **Why the ZIP goes in before the start.** The site is srp26: it answers
    nothing while srp26 is stopped, and from the start on it serves the
@@ -699,14 +720,18 @@ shows the command, unless release.sh, already given the go-ahead, runs it):
 
 | Script | Does | Writes |
 |---|---|---|
-| `release/build-content <rev> --full [--out <folder>] [--tree] [--site] [--manifest] [--no-cache]` | the next content patch of `release/content.tsv`: what differs from players' files (the stock db, the listed patches), each file with why; `server-game-data.db` with it; then, from the same patches, the item tables (srp-item-tables; only changes, each said) and, with `--site`, the site's pages (build-site) | a local folder (with `item-tables/`), the patch cache, the steps' cache (`~/.cache/skhid-release/build-content`: unchanged movies, packs, edit lists and checks are taken from it, the same files; delete it any time; `--no-cache` runs every step; without `--full`, a quick build for local tests: no check of players' files with the patch, no item tables, `QUICK-BUILD` in the folder, which `release.sh`/`upload-patch` refuse: a release always passes `--full`); with `--site`, `--tree`'s site pages |
+| `release/build-content <rev> --full [--out <folder>] [--tree] [--site] [--manifest] [--no-cache]` (local tests: without `--full`, or `--delta-from <earlier folder>`) | the next content patch of `release/content.tsv`: what differs from players' files (the stock db, the listed patches), each file with why; `server-game-data.db` with it; then, from the same patches, the item tables (srp-item-tables; only changes, each said) and, with `--site`, the site's pages (build-site) | a local folder (with `item-tables/`), the patch cache, the steps' cache (`~/.cache/skhid-release/build-content`: a step whose inputs are the same bytes (an edit list: its own bytes, its tool's and the files it reads; the type check: each file's bytes; the server data: its archives; the header lists each key) is taken from it, the same files; delete it any time; `--no-cache` runs every step; without `--full`, a quick build for local tests: no check of players' files with the patch, no item tables, `QUICK-BUILD` in the folder, which `release.sh`/`upload-patch` refuse: a release always passes `--full`; `--delta-from <folder>`, a local test's micro-patch mounted over that earlier build's: only the files the game would see otherwise, the server data only when a file the server reads is in it); with `--site`, `--tree`'s site pages |
 | `release/build-patch <folder> <rev> [--out <file>]` | packs a folder into `resources.db.patch_<rev>` (read back and compared) | a local file | (build-content's step; never by hand)
 | `release/upload-patch [--test] [--dry-run] <file>` | publishes one patch: `.tmp`, sha256 there, `chmod 644`, `mv -n`, GET must be 200 with the sha256, then its row in the list; never replaces one | the patches server, the list |
 | `release/add-mirror [--test] <name> <url>` | another URL of a listed patch: downloaded as the updater does, not a web page, the row's size and sha256, then appended to the row | the list (and the URL cache) |
 | `release/build-server-db [--test] [--out <file>]` | `server-game-data.db` from the stock db and the list's patches (local cache checked by size and SHA-256; missing or invalid files downloaded; every primary URL and mirror checked whole once, then by its first bytes), `srp-game-data build --patch "<file>=<urls>"` | a local file, the patch cache |
 | `release/build-site --tree <checkout> [--with <patch>]` | the Maps tab, the calculator and the skills from the stock db and the list's patches (cached, each sha256 checked), FFDec 26.0.0, dbgrab; each `built-from.tsv` must name exactly those; release.sh runs it in its preflight, by hand it is a local preview (`--tree .`) | the checkout's `servers/web-server/{maps,damage,skills,wiki}/`, the cache |
 | `release/build-zip [--test] [--ref <commit>] [--revision <n>] [--patches <list>] [--work <dir>]` | the players' ZIP from a fresh worktree of origin/main (never this checkout, never `git stash`): `--server`, `--site`, `--revision` (default: the site's exe's + 1; above it), `--required-patches` (every patch of the offered-patch list, or `--patches`'; release.sh passes its list with the new patch: the exe stops at its start without one, patch 49), no resources.db regions; the exe without a server too, both sha256 in `<work>/exe.sha256`; entries against the site's ZIP | a worktree, the ZIP |
-| `release/deploy --zip --server-data --revision [--label] [--dry-run]` | the swap on its own, in a window planned by hand: the release folder, the checks, the rollback on failure | the live host |
+| `release/build-torrent --zip <zip> --out <file> --zip-out <zip> --revision <n> [--public-key] [--test] [--patches <list>]` | the signed torrent of the whole game folder (`srp-026g/docs/notes/torrent-downloads.md`): the original game's files (`$SKHID_GAME`, `$SKHID_STOCK_DB`, each by its pinned sha256), the ZIP's files over them, the list's patches (the patch cache); and the ZIP with it in; prints its info hashes; the same inputs, the same bytes | local files, the patch cache |
+| `release/build-bootstrap [--dry-run] <players' ZIP>` | once for an updater version: the bootstrap's three files (the updater, its `skhid_torrent.dll`, 7zr.exe) published on the patches server at `bootstrap/<sha256>/<name>`, their rows in `release/bootstrap.tsv`, `release/bootstrap.torrent` and `srp-026g/servers/web-server/bootstrap/Skhid-get.bat` (`srp-026g/docs/notes/torrent-downloads.md`, "Bootstrap"); more URLs: `release/add-mirror <name> <url>`, which makes the script again | the patches server, the checkout |
+| `release/publish-dht [--dry-run] [--seconds <n>] <torrent>` | the release's BEP 46 item of a signed torrent on the DHT (its `skhid.dht`, checked with openssl against `release/signing.pub` or `signing-test.pub`), by `skhid-dht` (`srp-026g#skhid-dht`); release.sh runs it after a live release's record (never for `--test`) | the public DHT |
+| `release/make-signing-key [--test]` | once, by the owner: the torrents' Ed25519 key beside `release.env` (mode 600) and `release/signing.pub` to commit (`--test`: the test environment's, `torrent-signing-test.pem` and `release/signing-test.pub`); never replaces one | private/release/, the checkout |
+| `release/deploy --zip --server-data --revision [--label] [--dry-run]` | the swap on its own (a ZIP from it has no torrent unless it was release.sh's), in a window planned by hand: the release folder, the checks, the rollback on failure | the live host |
 | `release/rollback [--test] [--keep-db] [<folder>]` | a release folder's rollback | the target |
 | `release/setup-patches-server [--test] [--check]` | once: the patches folder and Caddy's site block for it (validate and reload; either failing puts the backup back) | the jump host's Caddy |
 

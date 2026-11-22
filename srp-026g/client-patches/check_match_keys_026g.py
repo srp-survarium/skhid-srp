@@ -11,7 +11,7 @@ arena with them; the patch's four entries run from the game's own sites:
   input world's tick calls it (thiscall, the input world, `ret 4`), with
   GetTickCount (its import 0x870090) a stub answering the case's time, from
   each state of kit_keys with the cursor shown and not: CLOSED -> OPENING
-  with the time, OPENING -> OPEN from 300 ms (KIT_KEYS_DELAY) after it, also
+  with the time, OPENING -> OPEN from 1 s (KIT_KEYS_DELAY) after it, also
   over GetTickCount's wrap, CLOSED when not shown; the input world popped,
   ebx esi edi ebp kept. The original's slot is `ret 4` (0x75AF0);
 - the keys: the game world's on_keyboard_action (0x25CD00) is run from its
@@ -32,10 +32,10 @@ arena with them; the patch's four entries run from the game's own sites:
   0x25CF0D from 0x25CD4B: the key's actions are not this patch's). Before
   each tick the hud's cursor is what the game tick before it left (1: the
   kits shown), and GetTickCount the tick's time (from 1000, and from just
-  before its wrap). For each of the keys 1 to 4: pressed 100 and 250 ms
-  after the kits appear, 350 ms after, pressed at 100 ms and held into OPEN,
+  before its wrap). For each of the keys 1 to 4: pressed 100 and 950 ms
+  after the kits appear, 1050 ms after, pressed at 100 ms and held into OPEN,
   held from play into the kits, pressed in the frame they came, in play, and
-  a respawn then a death: a kit is picked only by a press handed out 300 ms
+  a respawn then a death: a kit is picked only by a press handed out 1 s
   or more after the first poll that saw the kits, never by a key held or
   pressed before; every tick hands on_keyboard_action the same keys and kinds as the
   original exe's, which picks nothing (the kits are its movie's clicks), and
@@ -90,7 +90,7 @@ GAME = dict(zip(REGS, (0x0A0A0A0A, HANDLER, 0x0D0D0D0D, 0x0B0B0B0B, 0x05050505, 
 KEPT = (UC_X86_REG_EBX, UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EBP)
 DOWN, UP, HELD = 1, 2, 3               # the keyboard's process (0x3B9AF0): an event down, up; a key down
 CLOSED, OPENING, OPEN = 0, 1, 2        # kit_keys (match_keys_026g.asm)
-DELAY = 300                            # KIT_KEYS_DELAY: ms the keys pick nothing after the kits appear
+DELAY = 1000                           # KIT_KEYS_DELAY: ms the keys pick nothing after the kits appear
 PHASES = {CLOSED: "CLOSED", OPENING: "OPENING", OPEN: "OPEN"}
 
 
@@ -375,22 +375,22 @@ def main():
         # (what, [(ms, the kits shown at the tick, the poll's events)], the tick that picks or None)
         scenarios = [
             ("pressed 100 ms after the kits appear, let go",
-             [(-16, 0, []), (0, 1, []), (100, 1, [d]), (116, 1, [u]), (400, 1, [])], None),
-            ("pressed 250 ms after the kits appear, let go",
-             [(-16, 0, []), (0, 1, []), (250, 1, [d]), (266, 1, [u]), (400, 1, [])], None),
-            ("pressed 350 ms after the kits appear",
-             [(-16, 0, []), (0, 1, []), (350, 1, [d])], 2),
+             [(-16, 0, []), (0, 1, []), (100, 1, [d]), (116, 1, [u]), (1100, 1, [])], None),
+            ("pressed 950 ms after the kits appear, let go",
+             [(-16, 0, []), (0, 1, []), (950, 1, [d]), (966, 1, [u]), (1100, 1, [])], None),
+            ("pressed 1050 ms after the kits appear",
+             [(-16, 0, []), (0, 1, []), (1050, 1, [d])], 2),
             ("pressed 100 ms after the kits appear, held into OPEN, then let go and pressed",
-             [(-16, 0, []), (0, 1, []), (100, 1, [d]), (200, 1, []), (316, 1, []), (400, 1, []), (450, 1, [u]),
-              (500, 1, [d])], 7),
+             [(-16, 0, []), (0, 1, []), (100, 1, [d]), (200, 1, []), (1016, 1, []), (1100, 1, []), (1150, 1, [u]),
+              (1200, 1, [d])], 7),
             ("held from play into the kits, then let go and pressed",
-             [(-32, 0, []), (-16, 0, [d]), (0, 1, []), (350, 1, []), (400, 1, [u]), (450, 1, [d])], 5),
-            ("pressed in the frame the kits came, let go, pressed at 350 ms",
-             [(-16, 0, []), (0, 1, [d]), (16, 1, [u]), (350, 1, [d])], 3),
+             [(-32, 0, []), (-16, 0, [d]), (0, 1, []), (1050, 1, []), (1100, 1, [u]), (1150, 1, [d])], 5),
+            ("pressed in the frame the kits came, let go, pressed at 1050 ms",
+             [(-16, 0, []), (0, 1, [d]), (16, 1, [u]), (1050, 1, [d])], 3),
             ("in play", [(-16, 0, []), (0, 0, [d]), (100, 0, []), (400, 0, [u]), (800, 0, [d, u])], None),
-            ("on the kits, a respawn, a death, a press 100 ms after it, then one 384 ms after",
-             [(-16, 0, []), (0, 1, []), (350, 1, []), (400, 0, []), (416, 1, []), (516, 1, [d]), (532, 1, [u]),
-              (800, 1, [d])], 7),
+            ("on the kits, a respawn, a death, a press 100 ms after it, then one 1084 ms after",
+             [(-16, 0, []), (0, 1, []), (1050, 1, []), (1100, 0, []), (1116, 1, []), (1216, 1, [d]), (1232, 1, [u]),
+              (2200, 1, [d])], 7),
         ]
         for start in (1000, 0xFFFFFF80):  # GetTickCount, and over its wrap
             for what, ticks, picks in scenarios:

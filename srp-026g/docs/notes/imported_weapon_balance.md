@@ -54,8 +54,8 @@ Stock weapons, best **compatible** ammo at each distance, full-health Zubr +8: t
 helmet 83. No weapon rolls, artefacts, drugs, cover or pre-existing injury. The +8 is the
 additive armour modification 1004, not an invented eight-step upgrade multiplier.
 
-`audit.js` calls the existing damage calculator's `bulletAt` and `simulate`: both damage
-and penetration fall with bullet speed, ammunition scales the distances and floor, and
+`audit.js` calls the existing damage calculator's `bulletAt` and `simulate`: damage
+falls with bullet speed (penetration does not, exe patch 173), ammunition scales the distances and floor, and
 head and torso have their actual distinct health pools. The current balance/armour/ammo/
 modification TSVs supply the mutable values. `reference.json` contains extracted body,
 ammo compatibility and drag metadata, with source hashes; it is analysis data, never

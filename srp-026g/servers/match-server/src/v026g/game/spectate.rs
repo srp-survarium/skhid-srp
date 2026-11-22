@@ -39,7 +39,7 @@
 //! server ends nothing in the game (0xFD reaches `close_current_match` as
 //! reason 4, its return, `match.md` section 24), and an 0xEA ends a game's
 //! match only for its own place (0x27C72C: with no local place the handler
-//! returns), so the spectator patch (143, `player_left.local`) takes an 0xEA
+//! returns), so the spectator patch (178, `player_left.local`) takes an 0xEA
 //! naming 0xFF as its game's end: `close_current_match(0)`, the world
 //! ended, no results screen. The silence after it is for a game whose 0xEA
 //! was lost: its match link ends after 5 s of it, the same way (`match.md`
@@ -245,7 +245,7 @@ struct Installing {
 }
 
 pub(crate) struct Spectator {
-    addr: SocketAddr,
+    addr: relay::Peer,
     session_id: u32,
     /// A match's spectator's: behind the match (`None`: a replay's, which
     /// its playback drives).
@@ -380,7 +380,7 @@ impl Game {
     /// back, for the server to turn it away.
     pub(crate) fn watch(
         &mut self,
-        addr: SocketAddr,
+        addr: relay::Peer,
         session_id: u32,
         transport: Transport,
         delay: Duration,
@@ -509,7 +509,7 @@ impl Game {
     /// The spectator at `addr`, if any: one that watches takes its
     /// datagrams; one let go swallows them (silence) unless its game
     /// connects again from there (an 0xD8).
-    pub(crate) fn spectator_at(&self, addr: SocketAddr) -> Option<SpectatorAt> {
+    pub(crate) fn spectator_at(&self, addr: relay::Peer) -> Option<SpectatorAt> {
         self.spectators
             .iter()
             .find(|spectator| spectator.addr == addr)
@@ -518,7 +518,7 @@ impl Game {
 
     /// Forget the spectator at `addr` at once (its address is a new
     /// connection's now).
-    pub(crate) fn drop_spectator(&mut self, addr: SocketAddr) {
+    pub(crate) fn drop_spectator(&mut self, addr: relay::Peer) {
         self.spectators.retain(|spectator| spectator.addr != addr);
     }
 
@@ -570,7 +570,7 @@ impl Game {
     }
 
     /// A datagram from the spectator at `addr`.
-    pub(crate) fn spectator_receive(&mut self, addr: SocketAddr, datagram: &[u8], now: Instant) {
+    pub(crate) fn spectator_receive(&mut self, addr: relay::Peer, datagram: &[u8], now: Instant) {
         let Some(at) = self
             .spectators
             .iter()
@@ -678,7 +678,7 @@ impl Game {
 
     /// The spectators' turn of `Game::poll`: their installs, their syncs,
     /// their timeouts; then their datagrams.
-    pub(super) fn poll_spectators(&mut self, now: Instant) -> Vec<(SocketAddr, Vec<u8>)> {
+    pub(super) fn poll_spectators(&mut self, now: Instant) -> Vec<(relay::Peer, Vec<u8>)> {
         let clock = self.clock(now);
         // Over with no end of its own (everyone left, or nobody came back):
         // the spectators are let go before the match is closed (`is_over`
@@ -888,7 +888,7 @@ impl Spectator {
     /// place it is to follow first, when one was asked; `starts` what its
     /// session had of starts (a game that connects again).
     pub(super) fn connect(
-        addr: SocketAddr,
+        addr: relay::Peer,
         session_id: u32,
         mut transport: Transport,
         roster_size: u8,
@@ -1355,7 +1355,7 @@ impl Spectator {
                         watched.id,
                         self.session_id
                     );
-                    // Its camera is on someone now (patch 143, the world's
+                    // Its camera is on someone now (patch 178, the world's
                     // load): the asked place instead, once.
                     if let Some(place) = self.view.take() {
                         self.note(&replay_control::ServerNote::view(place));
@@ -1369,7 +1369,7 @@ impl Spectator {
     }
 
     /// Its datagrams: none once its farewell has gone (silence).
-    pub(super) fn poll(&mut self, now: Instant) -> Vec<(SocketAddr, Vec<u8>)> {
+    pub(super) fn poll(&mut self, now: Instant) -> Vec<(relay::Peer, Vec<u8>)> {
         if matches!(self.stage, Watch::Leaving { quiet_from, .. } if now >= quiet_from) {
             return Vec::new();
         }

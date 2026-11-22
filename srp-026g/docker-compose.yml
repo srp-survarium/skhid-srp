@@ -41,6 +41,9 @@ services:
       - SRP_LOBBY_PORT=${SRP26_LOBBY_PORT:-2235}
       - SRP_MATCH_PORT=${SRP26_MATCH_PORT:-2236}
       - SRP_VOICE
+      # Authenticated regional relays: WireGuard peer IPv4=public IPv4 pairs.
+      # The host firewall MUST reject these source IPs outside the tunnel.
+      - SRP_RELAYS=${SRP_RELAYS:-}
       # The admin page: on only with a token AND a path (a long random
       # name, served at /<SRP_ADMIN_PATH>), for these addresses only. On the
       # host itself Docker shows the bridge gateway, not 127.0.0.1; behind a
@@ -225,12 +228,18 @@ services:
     restart: unless-stopped
     environment:
       - SRP_WEB_NAMES=${SRP_WEB_DOMAIN:-set-SRP_WEB_DOMAIN.invalid}
-    # A site of all the names, written at start (the root is read-only).
+      - SRP_RELAYS=${SRP_RELAYS:-}
+    # A site of all the names, written at start (the root is read-only). A
+    # relay passes its port 443 here through the tunnel (deploy/relay): the
+    # visitor's address is taken from its PROXY header, from SRP_RELAYS'
+    # tunnel addresses only.
     command:
       - sh
       - -c
       - >-
-        printf '%s {\n\treverse_proxy srp26:8088\n}\n' "$$SRP_WEB_NAMES" > /tmp/Caddyfile
+        relays=$$(printf %s "$$SRP_RELAYS" | sed 's/=[^,]*/\/32/g; s/,/ /g');
+        { [ -z "$$relays" ] || printf '{\n\tservers {\n\t\tlistener_wrappers {\n\t\t\tproxy_protocol {\n\t\t\t\ttimeout 5s\n\t\t\t\tallow %s\n\t\t\t}\n\t\t\ttls\n\t\t}\n\t}\n}\n' "$$relays";
+        printf '%s {\n\t@get_script {\n\t\tpath /Skhid-get.bat\n\t\tfile {\n\t\t\troot /data/skhid-downloads\n\t\t}\n\t}\n\thandle @get_script {\n\t\troot * /data/skhid-downloads\n\t\theader Content-Disposition "attachment; filename=Skhid-get.bat"\n\t\tfile_server\n\t}\n\thandle {\n\t\treverse_proxy srp26:8088\n\t}\n}\n' "$$SRP_WEB_NAMES"; } > /tmp/Caddyfile
         && exec caddy run --config /tmp/Caddyfile --adapter caddyfile
     ports:
       - "${SRP26_HTTPS_PORT:-443}:443/tcp"

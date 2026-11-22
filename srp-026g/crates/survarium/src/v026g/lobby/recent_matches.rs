@@ -20,6 +20,7 @@
 //!     ([`super::push::friend_row`], place 255: the history keeps no roster
 //!     place).
 
+use super::super::dictionary::MapId;
 use super::player_matches::ReplayState;
 use super::push::{Ranked, elo_rows};
 use super::{ServerMessage, WireError};
@@ -62,7 +63,7 @@ impl RecentFilter {
 pub struct RecentMatchRow {
     /// The match server's id: what "Watch" asks by.
     pub match_id: u32,
-    pub map_id: u8,
+    pub map_id: MapId,
     /// The mode's lobby number.
     pub mode: u8,
     /// The teams' points; `None` when no trusted world said them.
@@ -129,7 +130,7 @@ mod tests {
     fn the_longest_row_fits_and_twenty_matches_at_most_are_listed() {
         let row = RecentMatchRow {
             match_id: u32::MAX,
-            map_id: u8::MAX,
+            map_id: MapId::new(u16::MAX),
             mode: u8::MAX,
             score: Some([u16::MAX; 2]),
             players: u8::MAX,
@@ -154,7 +155,7 @@ mod tests {
     fn friends_rows_past_one_answer_are_left_out() {
         let row = RecentMatchRow {
             match_id: 1,
-            map_id: 1,
+            map_id: MapId::new(1),
             mode: 1,
             score: None,
             players: 20,

@@ -325,7 +325,7 @@ fn header_of(
         match_id: replay_id.match_id(),
         made,
         length: end / 1000,
-        map: map.id,
+        map: map.id.get(),
         map_slug: localization::text(Language::English, map.map_name_key)
             .unwrap_or("")
             .to_owned(),

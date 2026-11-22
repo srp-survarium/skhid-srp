@@ -37,6 +37,8 @@ import threading
 import time
 import unittest
 
+import run_logs
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import test_db_patches as wine  # noqa: E402  (imports test_updater's harness on any host)
@@ -213,9 +215,12 @@ class ReplayTest(unittest.TestCase):
         arguments = [*arguments, "quiet"]
         if arguments[0] != "replay" or arguments[-1] != "quiet":
             raise AssertionError(f"refused to start the updater without quiet: {arguments}")
-        log = os.path.join(self.x86, "updater_skhid.log")
-        if os.path.exists(log):
-            os.remove(log)
+        game = os.path.join(self.x86, "survarium_skhid.exe")
+        if os.path.exists(game):
+            with open(game, "rb") as file, open(FAKE_EXE, "rb") as fake:
+                if file.read() != fake.read():
+                    raise AssertionError("refused: the game exe of the test folder is not the stand-in")
+        run_logs.remove(os.path.join(self.game, "logs"))
         command, env = windows([os.path.join(self.x86, "updater_skhid.exe"), *arguments])
         process = subprocess.Popen(command, cwd=self.x86, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:
@@ -248,8 +253,7 @@ class ReplayTest(unittest.TestCase):
             file.write(data)
 
     def log(self):
-        with open(os.path.join(self.x86, "updater_skhid.log"), "rb") as file:
-            return file.read().decode("utf-8", "replace")
+        return run_logs.read(os.path.join(self.game, "logs")).decode("utf-8", "replace")
 
     def assertSaid(self, line, problem, *values):
         self.assertIsNotNone(line, f"no problem logged for {problem}")

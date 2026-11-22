@@ -1,24 +1,191 @@
-//! The site's stats API, `/api/history/...` (`docs/notes/match_history.md`
-//! has every endpoint and its shape): public matches, players, top lists
-//! and clans from the match history srp keeps
-//! ([`session::v026g::persist::history`]). A request is parsed once into an
+//! The site's stats: their page (`/stats`, a tab of its own beside the wiki:
+//! a frame its script fills when it is viewed) and the API the script asks,
+//! `/api/history/...` (`docs/notes/match_history.md` has every endpoint and
+//! its shape): public matches, players, top lists and clans from the match
+//! history srp keeps ([`session::v026g::persist::history`]). A request is parsed once into an
 //! [`Endpoint`]; every answer is one indexed query of at most
 //! [`MatchHistory::MAX_ROWS`] rows (a clan card's members: up to
 //! `clans::MAX_MEMBERS`; `player/days`: up to `MAX_DAYS` days).
 
 use serde_json::{Value, json};
+use std::time::Instant;
+
 use session::SessionStore;
+use session::v026g::replays::{Replays, Status};
 use session::v026g::persist::history::{
-    ClanKey, ClanLine, Counters, Gear, ItemTotals, KitCounts, KitLine, MatchHistory, MatchSummary,
-    Named, PlayerLine, PlayerRanking, Presence, Totals, TotalsKey, Winner,
+    ClanKey, ClanLine, Counters, Gear, HistoryReaders, ItemTotals, KitCounts, KitLine,
+    MatchHistory, MatchInfo, MatchSummary,
+    Named, Order, Outcome, PlayerLine, PlayerRanking, Presence, Totals, TotalsKey,
+    WeaponRanking, WeaponTotals, Winner,
 };
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::maps;
 
-use crate::{ContentType, Game, Lang, Response, decode, launcher, modifiers};
+use crate::icons::{self, IconSet};
+use crate::{ContentType, Game, Lang, Response, decode, launcher, modifiers, wiki, words};
 
 /// Where the API is.
 pub(crate) const PREFIX: &str = "/api/history/";
+/// The ask for a match's replay: the one endpoint that starts work (a
+/// conversion), so the web server says how often an address may ask
+/// (`Web::replay_ask_allowed`).
+pub(crate) const REPLAY: &str = "/api/history/replay";
+/// The stats page.
+pub(crate) const PATH: &str = "/stats";
+/// The page's policy: the wiki's (`damage::POLICY`), and its script may ask
+/// the site for the history's JSON.
+pub(crate) const POLICY: &str = "default-src 'none'; style-src 'unsafe-inline'; \
+    script-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'self'";
+const SCRIPT: &[u8] = include_bytes!("../stats/history.js");
+const SCRIPT_PATH: &str = "/stats/history.js";
+const STYLE: &str = include_str!("../stats/style.css");
+
+/// The page's script's address with its version, so it can be kept for good.
+fn script_url() -> &'static str {
+    static URL: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    URL.get_or_init(|| {
+        let digest: String = openssl::sha::sha256(SCRIPT)[..6]
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        format!("{SCRIPT_PATH}?v={digest}")
+    })
+}
+
+/// The page's own words in `lang`, by the names its script knows them by
+/// (`TEXT` there): the script has no text of its own.
+fn page_text(lang: Lang) -> Value {
+    // A list, not one `json!`: that many fields are past the macro's depth.
+    let words = [
+        ("stats", lang.t("Stats")),
+        ("player", lang.t("Player")),
+        ("clan", lang.t("Clan")),
+        ("match", lang.t("Match")),
+        ("matches", lang.tc("stats", "Matches")),
+        ("find", lang.t("Find")),
+        ("playerName", lang.t("Player name")),
+        ("clanTag", lang.t("Clan tag")),
+        ("matchNumber", lang.t("Match number")),
+        ("players", lang.t("Players")),
+        ("clans", lang.t("Clans")),
+        ("best", lang.t("Best matches")),
+        ("latest", lang.t("Latest matches")),
+        ("hour", lang.t("Hour")),
+        ("day", lang.t("Day")),
+        // A sign, no word.
+        ("rank", "#".to_owned()),
+        ("id", lang.t("ID")),
+        ("formerNames", lang.t("Earlier names")),
+        ("until", lang.t("until {}")),
+        ("level", lang.t("Level")),
+        ("experience", lang.t("Experience")),
+        ("rating", lang.t("Rating")),
+        ("wins", lang.t("Wins")),
+        ("losses", lang.t("Losses")),
+        ("winRate", lang.t("Win rate")),
+        ("kills", lang.t("Kills")),
+        ("deaths", lang.t("Deaths")),
+        ("kd", lang.t("K/D")),
+        ("assists", lang.t("Assists")),
+        ("score", lang.tc("stats", "Score")),
+        ("scoreAvg", lang.t("Avg score")),
+        ("headshots", lang.t("Headshots")),
+        ("grenadeKills", lang.t("Grenade kills")),
+        ("meleeKills", lang.t("Melee kills")),
+        ("batteries", lang.t("Batteries")),
+        ("captures", lang.t("Captures")),
+        ("artefacts", lang.t("Artefacts")),
+        ("members", lang.t("Members")),
+        ("commander", lang.t("Commander")),
+        ("overall", lang.t("Overall")),
+        ("inMatches", lang.t("In matches")),
+        ("last30", lang.t("Last 30 days")),
+        ("ended", lang.t("Ended")),
+        ("duration", lang.t("Duration")),
+        ("map", lang.t("Map")),
+        ("mode", lang.t("Mode")),
+        ("result", lang.t("Result")),
+        ("place", lang.t("Place")),
+        ("team", lang.t("Team")),
+        ("points", lang.t("Points")),
+        ("win", lang.t("Win")),
+        ("loss", lang.t("Loss")),
+        ("draw", lang.t("Draw")),
+        ("left", lang.t("Left")),
+        ("won", lang.t("won")),
+        ("older", lang.t("Older matches")),
+        ("morePlayers", lang.t("More players")),
+        ("hours", lang.t("Hours played")),
+        ("replay", lang.t("Replay")),
+        ("replayPreparing", lang.t("Preparing…")),
+        ("replayFile", lang.t("Download")),
+        ("today", lang.t("Daily leaders")),
+        ("allTime", lang.t("All time")),
+        ("shots", lang.t("Shots fired")),
+        ("accuracy", lang.t("Accuracy")),
+        ("weapons", lang.t("Weapons")),
+        ("weapon", lang.t("Weapon")),
+        ("armour", lang.t("Armour")),
+        ("kit", lang.t("Kit")),
+        ("favourites", lang.t("Favourite equipment")),
+        ("accuracyNote", lang.t("1000+ shots")),
+        ("averageNote", lang.t("5+ matches")),
+        ("headshotRate", lang.t("HS %")),
+        ("avgDistance", lang.t("Avg distance")),
+        ("wallKills", lang.t("Through walls")),
+        ("ricochetKills", lang.t("Ricochets")),
+        ("noWeapons", lang.t("No weapons counted yet.")),
+        ("noMatches", lang.t("No public matches yet.")),
+        ("noPlayer", lang.t("No player with public matches named “{}”.")),
+        ("noClan", lang.t("No clan tagged [{}].")),
+        ("noMatch", lang.t("No public match {}.")),
+        ("noHistory", lang.t("This server keeps no match history.")),
+        ("failed", lang.t("Could not load the stats. Reload the page.")),
+        ("nobody", lang.t("Nobody yet.")),
+    ];
+    let mut text: serde_json::Map<String, Value> = words
+        .into_iter()
+        .map(|(name, word)| (name.to_owned(), Value::String(word)))
+        .collect();
+    text.insert(
+        "replayNo".to_owned(),
+        json!({
+            "incompatible": lang.t("Recorded by an older game version"),
+            "busy": lang.t("Busy, try again in a minute"),
+            "other": lang.t("No replay"),
+        }),
+    );
+    Value::Object(text)
+}
+
+pub(crate) fn file(path: &str) -> Option<(&'static str, &'static [u8])> {
+    (path == SCRIPT_PATH).then_some(("text/javascript; charset=utf-8", SCRIPT))
+}
+
+/// The page's frame under `header`, in the wiki's look. Its script fills it,
+/// as the address says: a player (`?player=<name>`), a match
+/// (`?match=<number>`), a clan (`?clan=<tag>`), else the leaderboards.
+pub(crate) fn page(lang: Lang, header: &str) -> Response {
+    let stats = lang.t("Stats");
+    let body = format!(
+        "<style>{STYLE}</style>\
+         <p class=breadcrumb><a href=\"{PATH}?lang={code}\">{stats}</a><span id=stats-crumb></span></p>\
+         <div class=wiki-heading><div><p class=eyebrow id=stats-eyebrow>{eyebrow}</p>\
+         <h1 id=stats-title>{stats}</h1></div></div>\
+         <div id=stats data-locale={locale}><noscript><p class=wiki-intro>{noscript}</p></noscript></div>\
+         <script type=application/json id=stats-text>{text}</script>\
+         <script src=\"{}\"></script>",
+        script_url(),
+        // The words' language, for the numbers and dates beside them.
+        locale = if words::has(lang) { lang.code() } else { "en" },
+        // Data, not markup: no `<` of a text ends the element.
+        text = page_text(lang).to_string().replace('<', "\\u003c"),
+        code = lang.code(),
+        eyebrow = lang.t("Public matches"),
+        noscript = lang.t("The stats need JavaScript."),
+    );
+    wiki::framed(lang, &stats, &lang.t("Skhid"), header, &body)
+}
 
 /// A page's length when the request names none.
 const PAGE: usize = 15;
@@ -30,6 +197,21 @@ const BEST: usize = 20;
 /// How many weapons and armour pieces a player's favourites list when the
 /// request names no limit.
 const FAVOURITES: usize = 10;
+/// How many of the names a player left its card lists, the last left first.
+const FORMER_NAMES: usize = MatchHistory::MAX_ROWS;
+/// What a leaders' list ranks a player's day by.
+type Leading = fn(&Totals) -> u64;
+/// The day's leaders' lists: each its name and what it ranks by, most first
+/// (ties: the older account), of those above 0.
+const LEADERS: [(&str, Leading); 5] = [
+    ("kills", |totals| totals.kills),
+    ("assists", |totals| totals.counters.assists),
+    ("score", |totals| totals.score),
+    ("wins", |totals| totals.wins),
+    ("played_s", |totals| totals.played_ms / 1000),
+];
+/// How many players a leaders' list names when the request names no limit.
+const LEADERS_EACH: usize = 5;
 const DAY: u64 = 86_400;
 const HOUR: u64 = 3_600;
 
@@ -84,11 +266,29 @@ enum Endpoint {
     PlayerMatches { account_id: u32, page: Page },
     PlayerDays { account_id: u32, days: u64 },
     PlayerEquipment { account_id: u32, limit: usize },
+    PlayerWeapons {
+        account_id: u32,
+        by: WeaponRanking,
+        order: Order,
+        limit: usize,
+    },
     Matches { page: Page, clan: Option<u32> },
     Match(u64),
-    Top { by: PlayerRanking, limit: usize },
+    Replay(u64),
+    Top {
+        by: PlayerRanking,
+        order: Order,
+        after: usize,
+        limit: usize,
+    },
     Best(Period),
-    Clans { by: TotalsKey, limit: usize },
+    Today { limit: usize },
+    AllTime,
+    Clans {
+        by: TotalsKey,
+        order: Order,
+        limit: usize,
+    },
     Clan(ClanName),
 }
 
@@ -116,6 +316,15 @@ impl Refusal {
             content_type: ContentType::Json,
             body: json!({ "error": error }).to_string(),
         }
+    }
+}
+
+/// The answer to an address that asks for replays too often.
+pub(crate) fn too_many() -> Response {
+    Response {
+        status: "429 Too Many Requests",
+        content_type: ContentType::Json,
+        body: json!({ "error": "too many" }).to_string(),
     }
 }
 
@@ -168,6 +377,15 @@ impl Query {
         }
     }
 
+    /// `order`: `desc` (the largest first, the default) or `asc`.
+    fn order(&self) -> Result<Order, Refusal> {
+        match self.text("order") {
+            None | Some("desc") => Ok(Order::Descending),
+            Some("asc") => Ok(Order::Ascending),
+            Some(_) => Err(Refusal::BadRequest),
+        }
+    }
+
     fn page(&self) -> Result<Page, Refusal> {
         Ok(Page {
             before: self.number("before")?,
@@ -181,10 +399,6 @@ fn totals_key(text: &str) -> Option<TotalsKey> {
         "matches" => TotalsKey::Matches,
         "wins" => TotalsKey::Wins,
         "kills" => TotalsKey::Kills,
-        "score" => TotalsKey::Score,
-        "headshots" => TotalsKey::Headshots,
-        "batteries" => TotalsKey::Batteries,
-        "artefacts" => TotalsKey::Artefacts,
         _ => return None,
     })
 }
@@ -194,10 +408,26 @@ fn totals_key_name(key: TotalsKey) -> &'static str {
         TotalsKey::Matches => "matches",
         TotalsKey::Wins => "wins",
         TotalsKey::Kills => "kills",
-        TotalsKey::Score => "score",
-        TotalsKey::Headshots => "headshots",
-        TotalsKey::Batteries => "batteries",
-        TotalsKey::Artefacts => "artefacts",
+    }
+}
+
+/// What a player's weapons sort by, as `by` names it.
+const WEAPON_RANKINGS: [(&str, WeaponRanking); 8] = [
+    ("kills", WeaponRanking::Kills),
+    ("kd", WeaponRanking::Kd),
+    ("headshot_rate", WeaponRanking::HeadshotRate),
+    ("accuracy", WeaponRanking::Accuracy),
+    ("kill_distance", WeaponRanking::KillDistance),
+    ("wall_kills", WeaponRanking::WallKills),
+    ("ricochet_kills", WeaponRanking::RicochetKills),
+    ("held", WeaponRanking::Held),
+];
+
+/// Which end of a list comes first, as `order` names it.
+fn order_name(order: Order) -> &'static str {
+    match order {
+        Order::Descending => "desc",
+        Order::Ascending => "asc",
     }
 }
 
@@ -206,6 +436,10 @@ fn ranking_name(by: PlayerRanking) -> &'static str {
         PlayerRanking::Rating => "rating",
         PlayerRanking::Totals(key) => totals_key_name(key),
         PlayerRanking::Accuracy => "accuracy",
+        PlayerRanking::ScoreAvg => "score_avg",
+        PlayerRanking::WinRate => "win_rate",
+        PlayerRanking::Kd => "kd",
+        PlayerRanking::HeadshotRate => "headshot_rate",
     }
 }
 
@@ -238,18 +472,42 @@ impl Endpoint {
                 account_id: query.required("id")?,
                 limit: query.limit(FAVOURITES)?,
             },
+            "player/weapons" => Self::PlayerWeapons {
+                account_id: query.required("id")?,
+                by: match query.text("by") {
+                    None => WeaponRanking::Kills,
+                    Some(text) => WEAPON_RANKINGS
+                        .iter()
+                        .find(|(name, _)| *name == text)
+                        .ok_or(Refusal::BadRequest)?
+                        .1,
+                },
+                order: query.order()?,
+                limit: query.limit(MatchHistory::MAX_ROWS)?,
+            },
             "matches" => Self::Matches {
                 page: query.page()?,
                 clan: query.number("clan")?,
             },
             "match" => Self::Match(query.required("id")?),
+            "replay" => Self::Replay(query.required("id")?),
             "top" => Self::Top {
                 by: match query.text("by") {
                     None | Some("rating") => PlayerRanking::Rating,
                     Some("accuracy") => PlayerRanking::Accuracy,
+                    Some("score_avg") => PlayerRanking::ScoreAvg,
+                    Some("win_rate") => PlayerRanking::WinRate,
+                    Some("kd") => PlayerRanking::Kd,
+                    Some("headshot_rate") => PlayerRanking::HeadshotRate,
                     Some(text) => {
                         PlayerRanking::Totals(totals_key(text).ok_or(Refusal::BadRequest)?)
                     }
+                },
+                order: query.order()?,
+                after: match query.number::<usize>("after")? {
+                    None => 0,
+                    Some(after) if after <= MatchHistory::MAX_AFTER => after,
+                    Some(_) => return Err(Refusal::BadRequest),
                 },
                 limit: query.limit(MatchHistory::MAX_ROWS)?,
             },
@@ -258,11 +516,16 @@ impl Endpoint {
                 Some("hour") => Period::Hour,
                 Some(_) => return Err(Refusal::BadRequest),
             }),
+            "today" => Self::Today {
+                limit: query.limit(LEADERS_EACH)?,
+            },
+            "totals" => Self::AllTime,
             "clans" => Self::Clans {
                 by: match query.text("by") {
-                    None => TotalsKey::Score,
+                    None => TotalsKey::Matches,
                     Some(text) => totals_key(text).ok_or(Refusal::BadRequest)?,
                 },
+                order: query.order()?,
                 limit: query.limit(MatchHistory::MAX_ROWS)?,
             },
             "clan" => match (query.number("id")?, query.text("tag")) {
@@ -289,7 +552,7 @@ pub(crate) fn response(
     let answer = Endpoint::parse(path, query).and_then(|endpoint| {
         let history = game.accounts.history().ok_or(Refusal::NoHistory)?;
         let banned = |account_id: u32| store.account_ban(account_id).is_some();
-        answer(&endpoint, history, &banned, lang, now)
+        answer(&endpoint, history.site(), game.replays.as_deref(), &banned, lang, now)
     });
     match answer {
         Ok(body) => Response {
@@ -303,7 +566,8 @@ pub(crate) fn response(
 
 fn answer(
     endpoint: &Endpoint,
-    history: &MatchHistory,
+    history: &HistoryReaders,
+    replays: Option<&Replays>,
     banned: &dyn Fn(u32) -> bool,
     lang: Lang,
     now: u64,
@@ -312,11 +576,17 @@ fn answer(
         Endpoint::Player(key) => {
             let account_id = match key {
                 PlayerKey::Id(id) => *id,
-                PlayerKey::Name(name) => history.site().account_by_name(name)?.ok_or(Refusal::NotFound)?,
+                PlayerKey::Name(name) => history.account_by_name(name)?.ok_or(Refusal::NotFound)?,
             };
-            let card = history.site().player(account_id)?.ok_or(Refusal::NotFound)?;
+            let card = history.player(account_id)?.ok_or(Refusal::NotFound)?;
+            let names: Vec<Value> = history
+                .former_names(account_id, FORMER_NAMES)?
+                .iter()
+                .map(|former| json!({ "name": former.name, "until": former.until }))
+                .collect();
             json!({
                 "player": named(&card.player),
+                "names": names,
                 "level": card.level,
                 "experience": card.experience,
                 "rating": card.rating,
@@ -324,16 +594,13 @@ fn answer(
             })
         }
         Endpoint::PlayerMatches { account_id, page } => {
-            let rows = history.site().player_matches(*account_id, page.before, page.limit)?;
+            let rows = history.player_matches(*account_id, page.before, page.limit)?;
             let next = next(page, rows.iter().map(|played| played.summary.id));
             let matches: Vec<Value> = rows
                 .iter()
                 .map(|played| {
                     let mut value = match_summary(&played.summary, lang);
-                    extend(
-                        &mut value,
-                        line_fields(&played.line, played.summary.info.winner),
-                    );
+                    extend(&mut value, line_fields(&played.line));
                     extend(&mut value, json!({ "kits": kits(&played.kits, lang) }));
                     value
                 })
@@ -341,14 +608,13 @@ fn answer(
             json!({ "matches": matches, "next": next })
         }
         Endpoint::PlayerEquipment { account_id, limit } => {
-            let favourites = history.site().favourites(*account_id, *limit)?;
+            let favourites = history.favourites(*account_id, *limit)?;
             let list = |items: &[ItemTotals]| -> Vec<Value> {
                 items
                     .iter()
                     .map(|item| {
                         let mut value = item_ref(item.dict_id, lang);
                         extend(&mut value, json!({ "matches": item.matches }));
-                        extend(&mut value, kit_counts(&item.counts));
                         value
                     })
                     .collect()
@@ -358,11 +624,28 @@ fn answer(
                 "armour": list(&favourites.armour),
             })
         }
+        Endpoint::PlayerWeapons {
+            account_id,
+            by,
+            order,
+            limit,
+        } => {
+            let weapons: Vec<Value> = history
+                .player_weapons(*account_id, *by, *order, *limit)?
+                .iter()
+                .map(|totals| weapon(totals, lang))
+                .collect();
+            let by = WEAPON_RANKINGS
+                .iter()
+                .find(|(_, ranking)| ranking == by)
+                .map(|(name, _)| *name);
+            json!({ "by": by, "order": order_name(*order), "weapons": weapons })
+        }
         Endpoint::PlayerDays { account_id, days } => {
             let today = now - now % DAY;
             let since = today.saturating_sub((days - 1) * DAY);
             let days: Vec<Value> = history
-                .site().player_days(*account_id, since)?
+                .player_days(*account_id, since)?
                 .into_iter()
                 .map(|(day, sum)| {
                     let mut value = json!({ "day": day });
@@ -373,28 +656,63 @@ fn answer(
             json!({ "days": days })
         }
         Endpoint::Matches { page, clan } => {
-            let rows = history.site().matches(page.before, page.limit, *clan)?;
+            let rows = history.matches(page.before, page.limit, *clan)?;
             let next = next(page, rows.iter().map(|summary| summary.id));
             let matches: Vec<Value> = rows.iter().map(|row| match_summary(row, lang)).collect();
             json!({ "matches": matches, "next": next })
         }
         Endpoint::Match(id) => {
-            let (summary, players) = history.site().game_match(*id)?.ok_or(Refusal::NotFound)?;
+            let (summary, players) = history.game_match(*id)?.ok_or(Refusal::NotFound)?;
             let players: Vec<Value> = players
                 .iter()
                 .map(|player| {
                     let mut value =
                         json!({ "player": named(&player.player), "level": player.level });
-                    extend(&mut value, line_fields(&player.line, summary.info.winner));
+                    extend(&mut value, line_fields(&player.line));
                     extend(&mut value, json!({ "kits": kits(&player.kits, lang) }));
                     value
                 })
                 .collect();
-            json!({ "match": match_summary(&summary, lang), "players": players })
+            // Whether the page offers its replay: one made, or a recording
+            // to make it from.
+            let replay = replays.is_some_and(|replays| {
+                replays.has_recording(summary.replay_id.match_id(), Instant::now())
+            });
+            json!({ "match": match_summary(&summary, lang), "players": players, "replay": replay })
         }
-        Endpoint::Top { by, limit } => {
-            let players: Vec<Value> = history
-                .site().top(*by, *limit, &|account_id| !banned(account_id))?
+        Endpoint::Replay(id) => {
+            let (summary, _) = history.game_match(*id)?.ok_or(Refusal::NotFound)?;
+            let asked = match replays {
+                Some(replays) => {
+                    replays.ask_for_site(summary.replay_id.match_id(), Instant::now())
+                }
+                None => return Ok(json!({ "status": Status::Off.word() })),
+            };
+            let mut value = json!({ "status": asked.status.word() });
+            if asked.status == Status::Preparing {
+                extend(&mut value, json!({ "place": asked.place }));
+            }
+            if let Some(ready) = &asked.ready {
+                extend(
+                    &mut value,
+                    json!({
+                        "url": format!("/replays/{}", ready.token),
+                        "size": ready.size,
+                        "sha256": ready.sha256,
+                    }),
+                );
+            }
+            value
+        }
+        Endpoint::Top {
+            by,
+            order,
+            after,
+            limit,
+        } => {
+            let page = history.top(*by, *order, *after, *limit, &|account_id| !banned(account_id))?;
+            let players: Vec<Value> = page
+                .players
                 .iter()
                 .map(|top| {
                     json!({
@@ -405,41 +723,83 @@ fn answer(
                     })
                 })
                 .collect();
-            json!({ "by": ranking_name(*by), "players": players })
+            json!({
+                "by": ranking_name(*by),
+                "order": order_name(*order),
+                "after": after,
+                "more": page.more,
+                "players": players,
+            })
         }
         Endpoint::Best(period) => {
             let rows: Vec<Value> = history
-                .site().best(now.saturating_sub(period.seconds()), BEST, &|account_id| {
+                .best(now.saturating_sub(period.seconds()), BEST, &|account_id| {
                     !banned(account_id)
                 })?
                 .iter()
                 .map(|best| {
-                    let (map, mode) = names(best.summary.info.map_id, lang);
-                    json!({
+                    let mut value = json!({
                         "player": named(&best.player),
                         "match": best.summary.id,
                         "ended_at": best.summary.info.ended_at,
                         "level": best.summary.info.match_level,
-                        "map": map,
-                        "mode": mode,
                         "score": best.line.score,
                         "kills": best.line.kills,
                         "deaths": best.line.deaths,
-                    })
+                    });
+                    extend(&mut value, played(&best.summary.info, lang));
+                    value
                 })
                 .collect();
             json!({ "period": period.name(), "rows": rows })
         }
-        Endpoint::Clans { by, limit } => {
-            let clans: Vec<Value> = history.site().clans(*by, *limit)?.iter().map(clan_line).collect();
-            json!({ "by": totals_key_name(*by), "clans": clans })
+        Endpoint::Today { limit } => {
+            let today = now - now % DAY;
+            let all = history.totals_since(today, &|account_id| !banned(account_id))?;
+            let mut leaders = serde_json::Map::new();
+            for (name, of) in LEADERS {
+                let mut ranked: Vec<&(Named, Totals)> =
+                    all.iter().filter(|(_, totals)| of(totals) > 0).collect();
+                ranked.sort_by_key(|(player, totals)| {
+                    (std::cmp::Reverse(of(totals)), player.account_id)
+                });
+                let rows: Vec<Value> = ranked
+                    .iter()
+                    .take(*limit)
+                    .map(|(player, totals)| json!({ "player": named(player), "value": of(totals) }))
+                    .collect();
+                leaders.insert(name.to_owned(), Value::Array(rows));
+            }
+            json!({ "since": today, "leaders": leaders })
+        }
+        Endpoint::AllTime => {
+            let all = history.all_time()?;
+            let counters = &all.totals.counters;
+            json!({
+                "players": all.players,
+                "matches": all.matches,
+                "kills": all.totals.kills,
+                "assists": counters.assists,
+                "shots": counters.shots,
+                "hits": counters.hits,
+                "accuracy": accuracy(counters.shots, counters.hits),
+                "played_s": all.totals.played_ms / 1000,
+            })
+        }
+        Endpoint::Clans { by, order, limit } => {
+            let clans: Vec<Value> = history
+                .clans(*by, *order, *limit)?
+                .iter()
+                .map(clan_line)
+                .collect();
+            json!({ "by": totals_key_name(*by), "order": order_name(*order), "clans": clans })
         }
         Endpoint::Clan(name) => {
             let key = match name {
                 ClanName::Id(id) => ClanKey::Id(*id),
                 ClanName::Tag(tag) => ClanKey::Tag(tag),
             };
-            let card = history.site().clan(key)?.ok_or(Refusal::NotFound)?;
+            let card = history.clan(key)?.ok_or(Refusal::NotFound)?;
             let members: Vec<Value> = card
                 .members
                 .iter()
@@ -525,7 +885,7 @@ fn counters(counters: &Counters) -> Value {
     })
 }
 
-/// A kit's counters, of one match or added up: a kit's, never one item's.
+/// A kit's counters of one match: a kit's, never one item's.
 fn kit_counts(counts: &KitCounts) -> Value {
     json!({
         "kills": counts.kills,
@@ -536,13 +896,49 @@ fn kit_counts(counts: &KitCounts) -> Value {
     })
 }
 
-/// An item by its dict id, named from the game data in `lang`; `name` is
-/// `null` for an item the game data no longer has.
+/// An item by its dict id, with its items_dict name (`key`: the wiki's
+/// pages open an item by it) and its name in `lang`, from the game data;
+/// both `null` for an item the game data no longer has.
 fn item_ref(dict_id: u16, lang: Lang) -> Value {
-    let name = Dictionary::shared()
-        .item(dict_id)
-        .map(|_| modifiers::item_name(lang, dict_id));
-    json!({ "id": dict_id, "name": name })
+    let item = Dictionary::shared().item(dict_id);
+    json!({
+        "id": dict_id,
+        "key": item.map(|item| item.name.as_str()),
+        "name": item.map(|_| modifiers::item_name(lang, dict_id)),
+        "icon": item.and_then(|item| icons::url(IconSet::Item, &item.name)),
+    })
+}
+
+/// A weapon of a player's counted public matches, as the games counted it
+/// (exe patch 165): the item, the matches it was counted in, and what was
+/// done with it. `deaths` are the player's with it in the hands (`kd` is by
+/// them); `damage` is in enemies' whole pain pools; `kill_distance_m` is the
+/// kills' average (`null` without a kill).
+fn weapon(totals: &WeaponTotals, lang: Lang) -> Value {
+    let counts = &totals.counts;
+    let metres = |decimetres: u64, kills: u64| round(decimetres as f64 / 10.0 / kills as f64, 1);
+    let mut value = item_ref(totals.dict_id, lang);
+    extend(
+        &mut value,
+        json!({
+            "matches": totals.matches,
+            "kills": counts.kills,
+            "deaths": counts.deaths,
+            "kd": kd(counts.kills, counts.deaths),
+            "headshots": counts.headshots,
+            "wall_kills": counts.wall_kills,
+            "ricochet_kills": counts.ricochet_kills,
+            "shots": counts.shots,
+            "hits": counts.hits,
+            "accuracy": accuracy(counts.shots, counts.hits),
+            "damage": round(counts.damage as f64 / 10_000.0, 1),
+            "kill_distance_m": (counts.kills > 0)
+                .then(|| metres(counts.kill_distance_dm, counts.kills)),
+            "longest_kill_m": metres(counts.longest_kill_dm, 1),
+            "held_s": counts.held_ms / 1000,
+        }),
+    );
+    value
 }
 
 /// The kits a player used in a match: each its place, its counters, and
@@ -583,13 +979,14 @@ fn totals(totals: &Totals) -> Value {
     let mut value = json!({
         "matches": totals.matches,
         "wins": totals.wins,
-        "losses": totals.matches.saturating_sub(totals.wins),
+        "losses": totals.losses,
         "kills": totals.kills,
         "deaths": totals.deaths,
         "score": totals.score,
         "kd": kd(totals.kills, totals.deaths),
         "win_rate": per_match(totals.wins, 3),
         "score_avg": per_match(totals.score, 1),
+        "played_s": totals.played_ms / 1000,
     });
     extend(&mut value, counters(&totals.counters));
     value
@@ -600,54 +997,64 @@ fn winner(winner: Winner) -> Value {
         Winner::FirstTeam => json!(0),
         Winner::SecondTeam => json!(1),
         Winner::Draw => json!("draw"),
-        // A free-for-all has no winning team: its winners are the lines' `won`.
-        Winner::Unknown | Winner::MostKills(_) => Value::Null,
+        // No winning team: its lines' outcomes say who won.
+        Winner::MostKills => json!("free_for_all"),
+        Winner::Unknown => Value::Null,
     }
 }
 
-/// The map's and the mode's names in `lang`, from the game data; `null`
-/// for a map it no longer has.
-fn names(map_id: u8, lang: Lang) -> (Option<String>, Option<String>) {
-    match maps::map_mode(map_id) {
-        Some(map) => (
-            Some(launcher::map_name(lang, map)),
-            Some(launcher::mode_name(lang, map)),
-        ),
-        None => (None, None),
-    }
+/// What a match was played on, in `lang`: the map's name, its key in the
+/// wiki's Maps page (its project's folder) and its picture as the rooms draw
+/// it (all `null` for a map the game data no longer has; the picture also
+/// for one the lobby has none of), the mode's name as the rooms name it, and
+/// its rules' number (the Maps page's mode).
+fn played(info: &MatchInfo, lang: Lang) -> Value {
+    let map = maps::map_mode(info.map_id);
+    json!({
+        "map": map.map(|map| launcher::map_name(lang, map)),
+        "map_key": map.and_then(|map| map.project.split('/').next()),
+        "map_icon": map
+            .and_then(|map| icons::url(IconSet::Map, &format!("{}_{}", map.level, map.weather))),
+        "mode": launcher::lobby_mode_name(lang, info.mode),
+        "rules": info.mode.mode().rules().number(),
+    })
 }
 
 fn match_summary(summary: &MatchSummary, lang: Lang) -> Value {
     let info = &summary.info;
-    let (map, mode) = names(info.map_id, lang);
-    json!({
+    let mut value = json!({
         "id": summary.id,
         "replay_id": summary.replay_id.as_str(),
         "ended_at": info.ended_at,
         "duration_s": info.duration_ms.div_ceil(1000),
-        "map_id": info.map_id,
-        "map": map,
-        "mode": mode,
+        "map_id": info.map_id.get(),
         "level": info.match_level,
         "winner": winner(info.winner),
         "team_points": info.team_points,
         "players": summary.players,
         "eligibility": summary.eligibility.as_str(),
-    })
+    });
+    extend(&mut value, played(info, lang));
+    value
 }
 
-/// A player's line of a match whose winner is `winner`.
-fn line_fields(line: &PlayerLine, match_winner: Winner) -> Value {
+/// A player's line of a match.
+fn line_fields(line: &PlayerLine) -> Value {
     let mut value = json!({
         "team": line.team,
         "place": line.place,
-        "won": match_winner.won(line),
+        "outcome": match line.outcome {
+            Outcome::Won => "won",
+            Outcome::Lost => "lost",
+            Outcome::Neither => "neither",
+        },
         "left": line.presence == Presence::Left,
         "rating": line.rating,
         "score": line.score,
         "kills": line.kills,
         "deaths": line.deaths,
         "kd": kd(line.kills, line.deaths),
+        "played_s": line.played_ms / 1000,
     });
     extend(&mut value, counters(&line.counters));
     value
@@ -665,4 +1072,4 @@ fn clan_line(clan: &ClanLine) -> Value {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

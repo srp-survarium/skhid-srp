@@ -12,7 +12,7 @@
 //! failure. Clans are `clans`, items' changes `items`, the premium shop,
 //! the daily bonus, the tutorial and a nickname change `shop`.
 
-use std::net::SocketAddr;
+use udp_transport::relay::Peer;
 use std::time::Instant;
 
 use session::LockExt;
@@ -31,7 +31,7 @@ mod text {
 
 impl Core<'_> {
     /// One request of a signed-in client.
-    pub(super) fn handle(&mut self, addr: SocketAddr, message: ClientMessage, now: Instant) {
+    pub(super) fn handle(&mut self, addr: Peer, message: ClientMessage, now: Instant) {
         use ClientMessage as M;
         let Some(who) = self.who(addr) else {
             return;
@@ -455,6 +455,7 @@ impl Core<'_> {
                 ..
             } => self.important(who, &target_name, kind, &text, now),
             M::Friendship(action) => self.friendship(who, &action, now),
+            M::RoomCreate(create) => self.room_create_text(who, create, now),
             M::Subscribe {
                 channel_ids,
                 language,
@@ -468,7 +469,7 @@ impl Core<'_> {
         }
     }
 
-    pub(super) fn refuse_comment(&mut self, addr: SocketAddr) {
+    pub(super) fn refuse_comment(&mut self, addr: Peer) {
         self.deny(addr, id::PROFILE, text::COMMENT);
     }
 
@@ -655,15 +656,29 @@ impl Core<'_> {
     /// friends' (`recent_matches`), a presets start
     /// (`lobby::presets::PRESETS_FIRST` to `PRESETS_LAST`) with the kit
     /// presets (`presets`), a lobby pick (`lobby::lobby_pick::LOBBY_PICK_BASE`
-    /// and its id: kept, shown back in `0xA1`); any other gets no answer.
+    /// and its id: kept, shown back in `0xA1`), the shop's "Hide owned" box
+    /// (`lobby::shop_filter::SHOP_FILTER_FIRST` and the next two: `shop`),
+    /// a faces start (`lobby::faces::FACES_FIRST` to `FACES_LAST`) with the
+    /// face (`faces`);
+    /// any other gets no answer.
     /// Nothing of the ranking is read, sent or kept for them.
     fn reserved_ranking(&mut self, who: &Who, start: u32, count: u8, now: Instant) {
         if let Some(pick) = lobby::lobby_pick::LobbyPick::of_start(start) {
             self.lobby_pick(who, pick);
             return;
         }
+        if let Some(request) = lobby::shop_filter::shop_filter_request(start) {
+            self.shop_filter(who, request);
+            return;
+        }
         if let Some(request) = lobby::presets::preset_request(start) {
             self.preset_request(who, request);
+            return;
+        }
+        if let Some(request) =
+            lobby::faces::face_request(start, survarium::v026g::faces::Faces::shared())
+        {
+            self.face_request(who, request);
             return;
         }
         if let Some(request) = lobby::rooms::room_request(start, count) {

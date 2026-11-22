@@ -12,11 +12,22 @@
 //!
 //! [`ActiveLayout`] carries the window procedure's layout to the logic
 //! thread: one atomic, written by the window procedure, read by the text.
+//!
+//! The console's text edit types a key with an insert_char_action
+//! (`console.char_typed`, 0x34B4DA): a fixed character, or the first letter
+//! of the key's DirectInput name, never the layout's text. [`ConsoleKey`]
+//! asks the keyboard for the key's text as the chat does
+//! (`swf_input_translator::process_keyboard`, 0x1FDDE1: the input world's
+//! keyboard, translate_text). [`ConsoleShown`] tells the window procedure
+//! the console is open, a text input as the chat is.
 
+use core::marker::PhantomData;
 use core::num::NonZeroU32;
-use core::sync::atomic::{AtomicU32, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
+use super::console::ConsoleChar;
 use super::context::{Context, Reg};
+use super::hook::Thread;
 use crate::raw;
 
 /// A keyboard layout's handle (an HKL): never 0.
@@ -107,6 +118,81 @@ impl<'c, 'm> TextLayout<'c, 'm> {
     /// the replayed `mov edi,eax` hands MapVirtualKeyExA and ToUnicodeEx).
     pub fn type_with(self, hkl: Hkl) {
         self.ctx.set_reg(Reg::Eax, hkl.raw());
+    }
+}
+
+/// Whether the game's console is shown: set by its on_activate and
+/// on_deactivate (`console.opened`, `console.closed`, the logic thread),
+/// read by the window procedure. A `static` of the patch that owns it.
+pub struct ConsoleShown(AtomicBool);
+
+impl ConsoleShown {
+    pub const fn hidden() -> ConsoleShown {
+        ConsoleShown(AtomicBool::new(false))
+    }
+
+    pub fn set(&self, shown: bool) {
+        // One byte, read alone.
+        self.0.store(shown, Ordering::Relaxed);
+    }
+
+    pub fn get(&self) -> bool {
+        self.0.load(Ordering::Relaxed)
+    }
+}
+
+/// A key the console's text edit types (`console.char_typed`, the start of
+/// insert_char_action::execute 0x34B4D0), with the platform keyboard its
+/// input world has.
+pub struct ConsoleKey<'t> {
+    frame: raw::InsertCharFrame,
+    key: u32,
+    keyboard: raw::Keyboard,
+    thread: PhantomData<&'t Thread>,
+}
+
+impl<'t> ConsoleKey<'t> {
+    /// None when the action has no input world, or it or its keyboard is
+    /// not the game's (their vtables): the game's own path then.
+    pub fn at(ctx: &'t Context<'_>) -> Option<ConsoleKey<'t>> {
+        use raw::site::console_char_typed as site;
+        // SAFETY: the context is this site's, inside execute on the logic
+        // thread: EDI the action, alive while it runs, the site's ESP its
+        // frame. The input world and the keyboard are read past their
+        // vtables only, each checked first.
+        let (frame, key, keyboard) = unsafe {
+            let (action, frame) = (site::action(ctx)?, site::frame(ctx)?);
+            let input = action.input()?;
+            if *input.vtable() != raw::image::INPUT_WORLD_VTABLE {
+                return None;
+            }
+            let keyboard = input.keyboard()?;
+            if *keyboard.vtable() != raw::image::KEYBOARD_VTABLE {
+                return None;
+            }
+            (frame, *action.key(), keyboard)
+        };
+        Some(ConsoleKey { frame, key, keyboard, thread: PhantomData })
+    }
+
+    /// The key's text as the chat gets it: the keyboard's translate_text
+    /// (0x3B92D0; its layout patch 107's), if it gives a character the
+    /// console shows.
+    pub fn text(&self) -> Option<ConsoleChar> {
+        let mut text = 0u16;
+        // SAFETY: the input world's platform keyboard, alive while the game
+        // runs, on the logic thread (the chat's caller's); the WCHAR is ours.
+        let typed = unsafe { raw::engine_key_text(Some(self.keyboard), self.key, &mut text) };
+        if typed == 0 {
+            return None;
+        }
+        ConsoleChar::of(text)
+    }
+
+    /// The console types `character` (the site's `typed` exit inserts it).
+    pub fn type_char(self, character: ConsoleChar) {
+        // SAFETY: execute's character, in its frame on this thread.
+        unsafe { *self.frame.typed() = character.byte() };
     }
 }
 

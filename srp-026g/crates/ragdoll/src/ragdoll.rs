@@ -658,7 +658,7 @@ impl Ragdoll {
                     part => Cause::Body {
                         part,
                         direction,
-                        heavy: hit.impulse.length() > tuning::HEAVY_HIT,
+                        heavy: hit.heavy(),
                     },
                 }
             }
@@ -784,7 +784,7 @@ impl Ragdoll {
                 // stay on the ground), capped; a heavy hit throws it
                 let mass: f32 = ragdoll.bodies.iter().map(|b| 1.0 / b.inverse_mass).sum();
                 let level = j.reject(up) * (tuning::BODY_SHARE / mass);
-                let heavy = hit.impulse.length() >= tuning::HEAVY_HIT;
+                let heavy = hit.heavy();
                 let (dv, lift) = if heavy {
                     (level, up * (level.length() * tuning::HEAVY_LIFT))
                 } else {

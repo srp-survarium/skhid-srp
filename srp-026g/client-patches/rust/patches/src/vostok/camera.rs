@@ -5,7 +5,7 @@
 use core::cell::UnsafeCell;
 
 use super::context::{Context, Reg};
-use super::world::{Player, floats};
+use super::world::{Player, floats, write_floats};
 use crate::raw;
 
 /// The camera's player, and whether the view is given its own eye (the
@@ -15,6 +15,15 @@ pub fn eye_player<'t>(ctx: &'t Context<'_>) -> Option<(Player<'t>, bool)> {
     // update_camera runs on its thread.
     let player = Player::of(ctx, unsafe { raw::site::camera_eye::player(ctx) })?;
     Some((player, ctx.reg(Reg::Eax) == player.eye_address()))
+}
+
+/// The eye the view is given at `camera.eye` (EAX's 16 floats, a row-vector
+/// 4x4: the player's +44Ch, or the eye an earlier hook gave instead).
+pub fn given_eye(ctx: &Context<'_>) -> [f32; 16] {
+    // SAFETY: at this site EAX is the transform update_camera hands the
+    // view (its +44Ch, or EYE after look_from): 16 floats, alive and not
+    // written while the hook runs on the game's render thread.
+    unsafe { floats(ctx.reg(Reg::Eax) as usize as *mut f32) }
 }
 
 /// The eye the view is given instead, a row-vector 4x4: kept in [`EYE`],
@@ -48,6 +57,13 @@ pub struct CameraView {
     pub forward: [f32; 3],
 }
 
+/// The camera's player at `camera.viewed`.
+pub fn viewer<'t>(ctx: &'t Context<'_>) -> Option<Player<'t>> {
+    // SAFETY: as viewed: EBX the camera's player, alive while update_camera
+    // runs on its thread.
+    Player::of(ctx, unsafe { raw::site::camera_viewed::player(ctx) })
+}
+
 /// update_camera after the view's update (`camera.viewed`): the view just
 /// written for the camera's player.
 pub fn viewed(ctx: &Context<'_>) -> Option<CameraView> {
@@ -65,5 +81,40 @@ pub fn viewed(ctx: &Context<'_>) -> Option<CameraView> {
             eye: [view[12], view[13], view[14]],
             forward: [view[8], view[9], view[10]],
         })
+    }
+}
+
+/// The camera a scene is drawn from this frame, at `camera.apply`
+/// (base_game_scene::apply_camera's start, EDX its camera_director): the
+/// director's transform and projection, which apply_camera copies into the
+/// scene once the hook returns.
+pub struct Director<'t> {
+    this: raw::CameraDirector,
+    _thread: &'t super::Thread,
+}
+
+impl<'t> Director<'t> {
+    pub fn at_apply(ctx: &'t Context<'_>) -> Option<Director<'t>> {
+        // SAFETY: the context is this site's: EDX the director apply_camera
+        // copies from, alive while it runs on the game's thread.
+        let this = unsafe { raw::site::camera_apply::director(ctx) }?;
+        Some(Director { this, _thread: ctx.thread() })
+    }
+
+    /// The projection the game gave it, a row-vector 4x4.
+    pub fn projection(&self) -> [f32; 16] {
+        // SAFETY: the director's 16 floats at +44h, alive for the hook.
+        unsafe { floats(self.this.projection()) }
+    }
+
+    /// The scene is drawn from `view` (the camera's transform: the rows
+    /// right, up, forward and its place) with `projection` this frame.
+    pub fn look(&mut self, view: [f32; 16], projection: [f32; 16]) {
+        // SAFETY: the director's two runs of 16 floats, which only this
+        // thread writes while apply_camera runs; it reads them after us.
+        unsafe {
+            write_floats(self.this.view(), view);
+            write_floats(self.this.projection(), projection);
+        }
     }
 }

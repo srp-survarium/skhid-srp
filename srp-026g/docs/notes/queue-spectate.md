@@ -81,9 +81,9 @@ dynamic game". Rooms: [rooms.md](rooms.md) (Queue, Late joins). Wire: `lobby.md`
   0xEF..0xF5: its game would index its player table at 0xFF) and nothing of it is taken (inputs,
   kit choices, uploads; its hash reports judge it alone), so it changes nothing a match
   computes: no row in `simulation_changes.tsv`. It is let go by one 0xEA naming place 0xFF (a
-  closed link ends no match in the game, `match.md` §24; patch 143 ends a spectator's on it),
+  closed link ends no match in the game, `match.md` §24; patch 178 ends a spectator's on it),
   then silence.
-- **The exe** (patch 143, `client_patch.md` §3.82), for a game with no place of its own only:
+- **The exe** (patch 178, `client_patch.md` §3.98), for a game with no place of its own only:
   after each world the camera keeps the player it follows (else the first living one), where
   the original looked the local place up and read past the player table; the game builds and
   sends no input for the player it follows (it would drive it in its own world); F6 / F5 (next
@@ -131,7 +131,7 @@ but with nice non-disruptive ux/ui".
   server tells the game once (`replay_control::ServerNote::Recall`, `52 05 <seconds>`) and lets it
   go `RECALL_SECONDS` (5) after the first call, a replay and a live spectator alike
   (`Spectator::recall`; a live one from the lobby's mark, `Matchmaking::recall_watcher`, through
-  the match server's `Game::recall_spectator`, then `stop_watching`). The exe (patch 144, `on_server_note`) hands it
+  the match server's `Game::recall_spectator`, then `stop_watching`). The exe (patch 179, `on_server_note`) hands it
   to the hud (`root.srp_called_back_words`, the running language's `st_srp_rooms_called_back_in`,
   and `root.srp_called_back(seconds)`), which shows one line under the top of the screen, "Your
   room is ready. Returning in 5 s", counted down each second (`CalledBackNotice`); it takes no

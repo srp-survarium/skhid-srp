@@ -6,6 +6,7 @@ Run after build.sh: python tests/check_local_replay.py --wine /path/to/wine
 Uses only a stand-in game. Keeps its temporary directory as evidence.
 """
 import argparse
+import getpass
 import hashlib
 import http.server
 import json
@@ -17,6 +18,8 @@ import subprocess
 import tempfile
 import threading
 import time
+
+import run_logs
 
 
 def main():
@@ -33,14 +36,15 @@ def main():
     x86 = game / 'binaries' / 'x86'
     x86.mkdir(parents=True)
     updater = x86 / 'updater_skhid.exe'
-    fake = here / 'fake_exe/target/i686-win7-windows-msvc/release/fake-exe.exe'
-    shutil.copy2(here.parent / 'exe/target/i686-win7-windows-msvc/release/updater_skhid.exe', updater)
+    fake = here / 'fake_exe/target/i686-pc-windows-msvc/release/fake-exe.exe'
+    shutil.copy2(here.parent / 'exe/target/i686-pc-windows-msvc/release/updater_skhid.exe', updater)
     shutil.copy2(fake, x86 / 'survarium_skhid.exe')
     (x86 / 'updater_skhid.patches').write_text('{}')
     status = x86 / 'updater_skhid.patches.status'
     status.write_text('ready\r\n')
     started = x86 / 'survarium_skhid.exe.started.txt'
-    log = x86 / 'updater_skhid.log'
+    def log():
+        return run_logs.read(game / 'logs').decode('utf-8', 'replace')
 
     def win(path):
         return 'Z:' + str(path).replace('/', '\\')
@@ -54,7 +58,7 @@ def main():
             output.seek(0)
             data = output.read()
         assert done.returncode == expected, (argv, done.returncode, data,
-                                            log.read_text() if log.exists() else '')
+                                            log())
         return data.decode('utf-8', errors='replace')
 
     def expect_game(path):
@@ -69,7 +73,7 @@ def main():
                     started.unlink()
                     return
             time.sleep(.05)
-        raise AssertionError('stand-in game did not start: ' + log.read_text())
+        raise AssertionError('stand-in game did not start: ' + log())
 
     run('wineboot', '-u')
     wineserver = str(Path(args.wine).with_name('wineserver'))
@@ -92,11 +96,11 @@ def main():
         (('open-replay', 'quiet'), 'BadFile'),
     ]:
         run(updater, *argv, expected=1)
-        assert f'FAILED ({problem}' in log.read_text()
+        assert f'FAILED ({problem}' in log()
         assert not started.exists()
     status.write_text('blocked unfinished update\r\n')
     run(updater, 'open-replay', win(file), 'quiet', expected=1)
-    assert 'FAILED (NotReady)' in log.read_text()
+    assert 'FAILED (NotReady)' in log()
     assert not started.exists()
     status.write_text('ready\r\n')
 
@@ -159,6 +163,14 @@ def main():
     finally:
         server.shutdown()
         server.server_close()
+    # The updater keeps the player's route in Documents\survarium: a folder of
+    # the test's own, never the one Wine links to this user's home.
+    documents = root / 'prefix' / 'drive_c' / 'users' / getpass.getuser() / 'Documents'
+    if documents.is_symlink():
+        documents.unlink()
+    (documents / 'survarium').mkdir(parents=True, exist_ok=True)
+    import relay_play
+    relay_play.check(run, updater, x86, started, log, win, documents / 'survarium')
     assert hashlib.sha256(file.read_bytes()).hexdigest() == digest
     (root / 'result.json').write_text(json.dumps({'passed': True, 'updater_sha256':
         hashlib.sha256(updater.read_bytes()).hexdigest()}, indent=2) + '\n')

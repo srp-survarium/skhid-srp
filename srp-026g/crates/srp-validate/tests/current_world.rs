@@ -11,10 +11,12 @@ fn context(places: usize, game_mode: u8, batteries: usize) -> Context<'static> {
         game_mode,
         batteries,
         respawn_points: Some(3),
+        team_2_points: None,
         profiles: None,
         artefacts: None,
         objects: None,
         inventory: None,
+        dict_ids: None,
     }
 }
 
@@ -47,6 +49,7 @@ fn current_statistics_include_battery_progress_and_sparse_held_steps() {
                     batteries
                 ],
                 tail: native::StatisticsTail::default(),
+                weapons: None,
             };
             let bytes = stats.encode();
             assert_eq!(
@@ -132,6 +135,7 @@ fn current_tdm_rules_and_time_are_checked() {
             active_players_mask: 3,
         }),
         research: None,
+        free_for_all: None,
         kills_deaths: vec![
             native::KillsDeaths {
                 kills: 0,

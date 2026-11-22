@@ -764,7 +764,7 @@ impl Playback {
             // Taken at its next turn, or once the world on its way is in.
             Op::Seek(time) => self.sought = Some(time.0),
             // As at the recording's end: its game goes back to the lobby
-            // on the farewell (patch 143), then the session is over.
+            // on the farewell (patch 178), then the session is over.
             Op::Leave => self.spectator.farewell(at, now),
         }
     }
@@ -1002,7 +1002,7 @@ impl Playback {
 
     /// Its turn: what came due goes, it is started from a world when it
     /// waits for one, and the end of the recording lets it go.
-    fn poll(&mut self, now: Instant) -> (Vec<(SocketAddr, Vec<u8>)>, Option<Ended>) {
+    fn poll(&mut self, now: Instant) -> (Vec<(relay::Peer, Vec<u8>)>, Option<Ended>) {
         let session_id = self.spectator.session_id();
         if self.spectator.timed_out(&self.settings.timing, now) {
             log::info!(
@@ -1300,7 +1300,7 @@ pub(crate) struct ReplayWatch {
     reading: Option<Reading>,
     /// Read, their games not here yet: by session.
     ready: HashMap<u32, Prepared>,
-    playbacks: HashMap<SocketAddr, Playback>,
+    playbacks: HashMap<relay::Peer, Playback>,
 }
 
 /// The match server ends (it returns, or `srp` starts it again after a
@@ -1352,7 +1352,7 @@ impl ReplayWatch {
     }
 
     /// The addresses of the games shown a recording.
-    pub(crate) fn addrs(&self) -> impl Iterator<Item = SocketAddr> + '_ {
+    pub(crate) fn addrs(&self) -> impl Iterator<Item = relay::Peer> + '_ {
         self.playbacks.keys().copied()
     }
 
@@ -1363,12 +1363,12 @@ impl ReplayWatch {
             .map(|playback| playback.spectator.session_id())
     }
 
-    pub(crate) fn owns(&self, addr: SocketAddr) -> bool {
+    pub(crate) fn owns(&self, addr: relay::Peer) -> bool {
         self.playbacks.contains_key(&addr)
     }
 
     /// The game at `addr` was let go: silent until it is forgotten.
-    pub(crate) fn is_let_go(&self, addr: SocketAddr) -> bool {
+    pub(crate) fn is_let_go(&self, addr: relay::Peer) -> bool {
         self.playbacks
             .get(&addr)
             .is_some_and(|playback| playback.spectator.is_leaving())
@@ -1376,7 +1376,7 @@ impl ReplayWatch {
 
     /// Forget the game at `addr` at once (its address is a new
     /// connection's now): its session is over.
-    pub(crate) fn forget(&mut self, addr: SocketAddr) {
+    pub(crate) fn forget(&mut self, addr: relay::Peer) {
         if let Some(playback) = self.playbacks.remove(&addr) {
             self.replays.watches().ended(&playback.request);
         }
@@ -1386,7 +1386,7 @@ impl ReplayWatch {
     /// recording when it was sent to watch one; else its transport back.
     pub(crate) fn connect(
         &mut self,
-        addr: SocketAddr,
+        addr: relay::Peer,
         session_id: u32,
         transport: Transport,
         now: Instant,
@@ -1458,7 +1458,7 @@ impl ReplayWatch {
     }
 
     /// A datagram of the game at `addr`.
-    pub(crate) fn receive(&mut self, addr: SocketAddr, datagram: &[u8], now: Instant) {
+    pub(crate) fn receive(&mut self, addr: relay::Peer, datagram: &[u8], now: Instant) {
         let Some(playback) = self.playbacks.get_mut(&addr) else {
             return;
         };
@@ -1475,7 +1475,7 @@ impl ReplayWatch {
 
     /// The turn: the next recording read, each playback's datagrams, and
     /// the sessions that are over told.
-    pub(crate) fn poll(&mut self, now: Instant) -> Vec<(SocketAddr, Vec<u8>)> {
+    pub(crate) fn poll(&mut self, now: Instant) -> Vec<(relay::Peer, Vec<u8>)> {
         self.take_read(now);
         self.read_next(now);
         // A session the lobby gave up (its game never came) keeps nothing.

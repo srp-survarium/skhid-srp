@@ -4,7 +4,8 @@
 
 use std::num::NonZeroU16;
 
-use super::super::dictionary::Dictionary;
+use super::super::dictionary::{Dictionary, MapId};
+use super::super::faces::{Face, Faces};
 use super::super::lzma2;
 use super::super::modifications::Modifications;
 use super::super::prices::PriceItem;
@@ -287,6 +288,12 @@ pub struct OwnAccount {
     pub exp_total: u32,
     pub exp_level_start: u32,
     pub exp_next_level: u32,
+    /// srp's first byte after the rest: the account's face, which the exe
+    /// draws the lobby's character by (`face-choice.md`).
+    pub face: Face,
+    /// srp's second byte: how many faces the game data lists, which the
+    /// exe gives the lobby movie with the face (its Face button).
+    pub faces: Faces,
 }
 
 /// `80`: the lobby has signed the client in (`lobby.md` §2.1). The client
@@ -450,16 +457,22 @@ pub fn own_account(account: &OwnAccount) -> Result<ServerMessage, WireError> {
         .u8(account.level)
         .u32(account.exp_total)
         .u32(account.exp_level_start)
-        .u32(account.exp_next_level);
+        .u32(account.exp_next_level)
+        .u8(account.face.index())
+        .u8(account.faces.count());
     Ok(writer.done(ServerId::Account))
 }
 
 /// `88`: a squad mate's account, the answer to `34 00 <account> <kit>`
-/// (`lobby.md` §2.8).
-pub fn squad_member_account(body: &AccountBody, revision: u32) -> Result<ServerMessage, WireError> {
+/// (`lobby.md` §2.8), then srp's byte: the mate's face (`face-choice.md`).
+pub fn squad_member_account(
+    body: &AccountBody,
+    revision: u32,
+    face: Face,
+) -> Result<ServerMessage, WireError> {
     let mut writer = Writer::new();
     write_account_body(&mut writer, body)?;
-    writer.u32(revision);
+    writer.u32(revision).u8(face.index());
     Ok(writer.done(ServerId::SquadMemberAccount))
 }
 
@@ -731,11 +744,14 @@ pub fn ranking_flush(top: &[Ranked]) -> Option<Result<ServerMessage, WireError>>
 /// never sends one. Only "Player vs Bots" ([`PVB_STATUS_START`],
 /// [`PVB_CHOOSE_BASE`]), the rooms (`rooms::ROOMS_FIRST` to
 /// `rooms::ROOMS_LAST`), the kit presets (`presets::PRESETS_FIRST` to
-/// `presets::PRESETS_LAST`), the replay and save polls ([`REPLAY_START`],
+/// `presets::PRESETS_LAST`), the ask of the shop's "Hide owned" box
+/// (`shop_filter::SHOP_FILTER_FIRST`), the faces (`faces::FACES_FIRST` to
+/// `faces::FACES_LAST`), the replay and save polls ([`REPLAY_START`],
 /// [`SAVE_START`]) and the
 /// player pop-up's matches (`player_matches::PLAYER_MATCHES_START`) are
 /// answered (a lobby pick, `lobby_pick::LOBBY_PICK_BASE` + id, is kept and
-/// shown back in `0xA1`, not answered); every other one gets no answer (the "matches now" list and
+/// shown back in `0xA1`, and the box's click, the next two starts, is kept,
+/// not answered); every other one gets no answer (the "matches now" list and
 /// its JOIN, at 2 000 000 000 and from 2 100 000 000, went with the queue:
 /// the owner's of 2026-10-17).
 pub const RESERVED_START: u32 = 2_000_000_000;
@@ -894,6 +910,10 @@ pub const PVB_STATUS_START: u32 = 2_050_000_000;
 pub const PVB_CHOOSE_BASE: u32 = 2_051_000_000;
 /// The last start of a choice: `PVB_CHOOSE_BASE + 999 999`.
 pub const PVB_CHOOSE_LAST: u32 = PVB_CHOOSE_BASE + 999_999;
+/// A choice's size step: the movie's `PVB_SIZE_STEP`, so a bot map's id is
+/// under it.
+const PVB_SIZE_STEP: u32 = 1000;
+const BOT_MAP_OVER: &str = "a bot map's id over 999";
 /// The first field of [`pvb_status`]'s header row.
 pub const PVB_STATUS_VERSION: &str = "B1";
 /// The first field of the row of a choice's answer.
@@ -956,13 +976,13 @@ pub struct PvbStatus {
     /// The team sizes offered, each side's players.
     pub sizes: Vec<u8>,
     pub default_size: u8,
-    pub default_map: u8,
+    pub default_map: MapId,
 }
 
 /// A map of [`pvb_status`]: one row.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PvbMap {
-    pub map_id: u8,
+    pub map_id: MapId,
     /// `maps::MapMode`'s level and mode.
     pub level: u8,
     pub mode: u8,
@@ -987,6 +1007,9 @@ pub fn pvb_status(
     count: u8,
 ) -> Result<ServerMessage, WireError> {
     at_most("bot maps", maps.len(), PVB_MAP_ROWS)?;
+    if maps.iter().any(|map| pvb_choice_start(0, map.map_id).is_none()) {
+        return Err(WireError::BadValue(BOT_MAP_OVER));
+    }
     let row = |name: String| Ranked {
         name,
         rating: 0,
@@ -1021,34 +1044,36 @@ pub fn pvb_status(
 }
 
 /// What a choice's start asks for: `(size, map_id)`; `None` for a start
-/// that is no choice (outside `PVB_CHOOSE_BASE..=PVB_CHOOSE_LAST`, a size
-/// over 255 or a map id over 255). Whether the server offers it is the
-/// lobby's to say.
-pub fn pvb_choice(start: u32) -> Option<(u8, u8)> {
+/// that is no choice (outside `PVB_CHOOSE_BASE..=PVB_CHOOSE_LAST` or a size
+/// over 255). Whether the server offers it is the lobby's to say.
+pub fn pvb_choice(start: u32) -> Option<(u8, MapId)> {
     if !(PVB_CHOOSE_BASE..=PVB_CHOOSE_LAST).contains(&start) {
         return None;
     }
     let offset = start - PVB_CHOOSE_BASE;
-    let size = u8::try_from(offset / 1000).ok()?;
-    let map_id = u8::try_from(offset % 1000).ok()?;
+    let size = u8::try_from(offset / PVB_SIZE_STEP).ok()?;
+    let map_id = MapId::new(u16::try_from(offset % PVB_SIZE_STEP).ok()?);
     Some((size, map_id))
 }
 
-/// The start a choice of `size` and `map_id` is asked with.
-pub fn pvb_choice_start(size: u8, map_id: u8) -> u32 {
-    PVB_CHOOSE_BASE + u32::from(size) * 1000 + u32::from(map_id)
+/// The start a choice of `size` and `map_id` is asked with; none for a map
+/// the movie's `size × 1000 + map` cannot name (an id over 999).
+pub fn pvb_choice_start(size: u8, map_id: MapId) -> Option<u32> {
+    let map = u32::from(map_id.get());
+    (map < PVB_SIZE_STEP).then(|| PVB_CHOOSE_BASE + u32::from(size) * PVB_SIZE_STEP + map)
 }
 
 /// `91` as the answer to a choice that was granted: one row at its start,
 /// `"B2;ok;<size>;<map_id>"`. A place is held for the asker for a few
 /// seconds; the movie then presses Play for it.
-pub fn pvb_choose_ok(size: u8, map_id: u8) -> Result<ServerMessage, WireError> {
+pub fn pvb_choose_ok(size: u8, map_id: MapId) -> Result<ServerMessage, WireError> {
+    let start = pvb_choice_start(size, map_id).ok_or(WireError::BadValue(BOT_MAP_OVER))?;
     let row = Ranked {
         name: format!("{PVB_CHOOSE_VERSION};ok;{size};{map_id}"),
         rating: 0,
         rating_before: 0,
     };
-    elo_rows(&[(pvb_choice_start(size, map_id), &row)])
+    elo_rows(&[(start, &row)])
 }
 
 /// `91` as the answer to a choice that was refused: one row at the start

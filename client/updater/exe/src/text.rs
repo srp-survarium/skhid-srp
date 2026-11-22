@@ -24,7 +24,7 @@ use crate::install::InstallError;
 use crate::win::{self, Code};
 
 /// The title of the updater's own message boxes.
-pub const TITLE: &str = "Skhid updater";
+pub const TITLE: &str = "Skhid";
 
 /// The last two parts of a path: enough to know the file, short enough for
 /// the launcher's line.
@@ -158,14 +158,14 @@ pub fn repairing(name: &str) -> String {
 }
 
 /// After the first sentence of a server that could not be reached
-/// (`updater_logic::network`): the short form of the box's advice
-/// (`updater_logic::problem`), for the launcher's line and the log.
-const BLOCKED: &str = "A firewall or this network may block it: see Skhid-network-setup.cmd and VPN.txt.";
+/// (`updater_logic::network`), for the launcher's line and the log: the box
+/// (`updater_logic::problem`, `updater_logic::diagnosis`) tells which.
+const UNREACHED: &str = "It may be restarting or offline, or a firewall or this network may block it.";
 
 pub fn http(server: &Url, path: &str, error: &HttpError) -> String {
     let host = &server.host;
     if let Miss::Unreached(failure) = error.miss() {
-        return format!("{} {BLOCKED}", network::english(failure, host));
+        return format!("{} {UNREACHED}", network::english(failure, host));
     }
     match error {
         HttpError::Network(step, code) => match error.miss() {
@@ -268,7 +268,7 @@ pub fn game_download_failed(failures: &str) -> String {
 /// Where to send the log, worded as the crash reporter's
 /// (`client/bugtrap/src/crash_text.rs`): said after every failure the
 /// player ends on ([`reported`]).
-pub const SEND_LOG: &str = "Send game\\binaries\\x86\\updater_skhid.log to #bugreports in \
+pub const SEND_LOG: &str = "Send the newest game\\logs\\updater_skhid.<date>.log to #bugreports in \
                             Discord (tag: install): discord.gg/QUmJg3gBhg";
 
 /// The longest line the launcher shows (`updater_logic::pipe`).
@@ -387,8 +387,8 @@ pub fn patches_held(name: &str) -> String {
 pub fn patches_failed() -> String {
     format!(
         "Skhid could not finish updating the game's patches (game\\resources.db.patch_*); \
-         the reason is in game\\binaries\\x86\\updater_skhid.log. Start the launcher again, \
-         or send that file to the server's operator.{PLAY_OFF}"
+         the reason is in the newest game\\logs\\updater_skhid.<date>.log. Start the \
+         launcher again, or send that file to the server's operator.{PLAY_OFF}"
     )
 }
 
@@ -420,7 +420,7 @@ pub fn patches_download(name: &str, reason: &str) -> String {
 pub fn patches_no_address(name: &str, count: usize, first: &str) -> String {
     format!(
         "game\\{name} could not be downloaded from any of its {count} addresses (each is in \
-         updater_skhid.log). The first: {first}{PLAY_OFF}"
+         updater_skhid.<date>.log). The first: {first}{PLAY_OFF}"
     )
 }
 
@@ -442,7 +442,7 @@ pub fn patches_offline(reason: &str) -> String {
 pub fn patches_not_ready() -> String {
     "Skhid has not finished updating the game's files (game\\resources.db.patch_*), so the \
      game is not started. Start Skhid.bat (the launcher): it finishes the update, or says \
-     what is in the way. Details: game\\binaries\\x86\\updater_skhid.log."
+     what is in the way. Details: the newest game\\logs\\updater_skhid.<date>.log."
         .into()
 }
 
@@ -454,6 +454,26 @@ pub fn behind(have: u8, need: u8) -> String {
         "The server lets in game revision {need} and up; this game is revision {have}, and \
          the update to it is not offered yet (the server is being updated). Click OK: the \
          launcher keeps looking and starts anew with the update.{PLAY_OFF}"
+    )
+}
+
+/// The site was not asked or not reached (`reason`), and the newest release
+/// the DHT named, signed by the release, is `need`; the game exe says
+/// `have`, and the update to it could not be had from peers.
+pub fn behind_signed(have: u8, need: u8, reason: &str) -> String {
+    format!(
+        "Game revision {need} is out; this game is revision {have}, and the update to it \
+         could not be downloaded: no peer gave it, and {reason} Click OK: the launcher keeps \
+         looking and starts anew with the update.{PLAY_OFF}"
+    )
+}
+
+/// The site had not answered when the DHT named revision `revision`, signed
+/// by the release: the update was checked without it.
+pub fn signed_first(server: &Url, revision: u64) -> String {
+    format!(
+        "{} was not waited for: the DHT named revision {revision}, signed by the release, first.",
+        server.host
     )
 }
 

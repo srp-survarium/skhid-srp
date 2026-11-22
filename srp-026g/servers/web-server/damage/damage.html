@@ -12,6 +12,39 @@
 @font-face { font-family: "PT Sans Narrow"; font-weight: 700; font-style: normal; font-display: swap; src: url("/damage/fonts/pt-sans-narrow-bold.woff2?v=6595d92f7c3b") format("woff2"); }
 @font-face { font-family: "PT Mono"; font-weight: 400; font-style: normal; font-display: swap; src: url("/damage/fonts/pt-mono-regular.woff2?v=3124350adfce") format("woff2"); }
 @font-face { font-family: "Carlito"; font-weight: 700; font-style: normal; font-display: swap; src: url("/damage/fonts/carlito-bold.woff2?v=1e90d27fe705") format("woff2"); }
+/* The game-styled rows and cards the damage calculator and the wiki's
+   simulators share (hud.js), in the lobby's colours, both themes. */
+:root { --hud-bg: #24272a; --hud-ink: #bccbcb; --hud-line: #4a5156; --mod-good: #87a816; --mod-bad: #960f0e }
+.gamemods { background: var(--hud-bg); padding: 8px 12px; display: grid; grid-template-columns: 31px max-content minmax(0, 1fr); align-items: center; gap: 4px 10px; font: 700 14px/1.2 "Carlito", Calibri, var(--font-body, sans-serif); color: var(--hud-ink); text-shadow: 0 1px 4px #000 }
+.gmrow { display: contents }
+.gmrow > * { min-height: 31px; display: flex; align-items: center }
+.gmrow > .gico { display: block }
+.gico { width: 31px; height: 31px; object-fit: contain; display: block }
+.gv.good { color: var(--mod-good) } .gv.bad { color: var(--mod-bad) }
+.gsteps { flex-wrap: wrap; gap: 4px }
+.gstep { font: inherit; text-shadow: inherit; min-width: 44px; min-height: 26px; padding: 2px 6px; cursor: pointer;
+  background: transparent; color: var(--hud-ink); border: 1px solid var(--hud-line); opacity: .7;
+  margin: 0; border-radius: 0; text-transform: none; letter-spacing: normal }
+.gstep:hover { opacity: 1 }
+.gstep[aria-pressed=true] { color: var(--mod-good); border-color: var(--mod-good); background: rgba(135, 168, 22, .14); opacity: 1 }
+/* A tile's or label's card: what it gives, on hover or focus (a label's also on a tap) */
+.fxhint { position: relative; display: inline-flex }
+.fxhint > .gamemods { position: absolute; left: 0; top: calc(100% + 6px); z-index: 5; width: max-content; max-width: min(380px, calc(100vw - 110px)); display: none; pointer-events: none; box-shadow: 0 6px 18px rgba(0, 0, 0, .4) }
+.fxhint:hover > .gamemods, .fxtile:focus-visible + .gamemods, .glabel.fxhint:focus-visible > .gamemods, .glabel.fxhint.open > .gamemods, .gico:hover + .fxhint > .gamemods { display: grid }
+/* Away after a click until the pointer comes back, as a tooltip goes (a touch screen has no pointer to leave) */
+@media (hover: hover) { .fxhint.quiet > .gamemods { display: none } }
+.glabel.fxhint { cursor: help }
+.gamemods .gname { grid-column: 1 / -1; font-size: 15px; padding-bottom: 2px }
+.gamemods .gtext { grid-column: 1 / -1; display: block; white-space: normal }
+.gamemods .gtext + .gtext { margin-top: 6px }
+.gamemods.plain { grid-template-columns: max-content minmax(0, 1fr) }
+/* A panel of rows on a phone: the label over its buttons */
+@media (max-width: 560px) {
+  .gamemods.rows { grid-template-columns: 31px minmax(0, 1fr); row-gap: 0 }
+  .gamemods.rows .gmrow > .gico { grid-row: span 2 }
+  .gamemods.rows .gmrow > .gsteps { margin-bottom: 6px }
+}
+
 /* Layout: a range card. Shooter and target face each other across a ruler; the
    hit is traced underneath like a ballistics log, stage by stage. */
 :root {
@@ -34,12 +67,7 @@
   --doll: #d5d1c3;
   --doll-hi: #b4501f;
   --doll-cover: #9aa58a;
-  --hud-bg: #24272a;      /* the HUD's own dark ground, both themes */
-  --hud-ink: #bccbcb;     /* lobby text colour */
-  --hud-line: #4a5156;
   --hud-sel: #ffffff;
-  --mod-good: #87a816;
-  --mod-bad: #960f0e;
   --font-display: "PT Sans Narrow", "Arial Narrow", "Roboto Condensed", sans-serif;
   --font-body: "PT Sans", "Segoe UI", Roboto, sans-serif;
   --font-data: "PT Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
@@ -118,22 +146,6 @@ h3.sub { margin: 0 0 8px; font: 700 .78rem var(--font-display); letter-spacing: 
 #healpick .lbl { margin-right: 6px }
 #healpick .fxhint + .lbl { margin-left: 14px }
 #healpick > .gamemods { max-width: 100% }
-@media (max-width: 560px) {
-  #healpick > .gamemods { grid-template-columns: 31px minmax(0, 1fr); row-gap: 0 }
-  #healpick > .gamemods .gmrow > .gico { grid-row: span 2 }
-  #healpick > .gamemods .gmrow > .gsteps { margin-bottom: 6px }
-}
-/* An item tile's card: what it gives, on hover or focus */
-.fxhint { position: relative; display: inline-flex }
-.fxhint > .gamemods { position: absolute; left: 0; top: calc(100% + 6px); z-index: 5; width: max-content; max-width: min(380px, calc(100vw - 110px)); display: none; pointer-events: none; box-shadow: 0 6px 18px rgba(0, 0, 0, .4) }
-.fxhint:hover > .gamemods, .fxtile:focus-visible + .gamemods, .gico:hover + .fxhint > .gamemods { display: grid }
-/* Away after a click until the pointer comes back, as a tooltip goes (a touch screen has no pointer to leave) */
-@media (hover: hover) { .fxhint.quiet > .gamemods { display: none } }
-.glabel.fxhint { cursor: help }
-.gamemods .gname { grid-column: 1 / -1; font-size: 15px; padding-bottom: 2px }
-.gamemods .gtext { grid-column: 1 / -1; display: block; white-space: normal }
-.gamemods .gtext + .gtext { margin-top: 6px }
-.gamemods.plain { grid-template-columns: max-content minmax(0, 1fr) }
 /* On a phone a tile's card sits under the tiles' row, from its left: a tile may be at the screen's edge */
 @media (max-width: 560px) { .fxrow { position: relative } .fxrow .fxhint { position: static } .fxrow .fxhint > .gamemods { max-width: 100% } }
 .fxrow .chips { margin-left: 8px }
@@ -142,17 +154,6 @@ h3.sub { margin: 0 0 8px; font: 700 .78rem var(--font-display); letter-spacing: 
 .fxtile:hover { opacity: .75 }
 .fxtile[aria-pressed=true] { opacity: 1; border-color: var(--accent); background: var(--panel) }
 .fxtile:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px }
-.gamemods { background: var(--hud-bg); padding: 8px 12px; display: grid; grid-template-columns: 31px max-content minmax(0, 1fr); align-items: center; gap: 4px 10px; font: 700 14px/1.2 "Carlito", Calibri, var(--font-body); color: var(--hud-ink); text-shadow: 0 1px 4px #000 }
-.gmrow { display: contents }
-.gmrow > * { min-height: 31px; display: flex; align-items: center }
-.gmrow > .gico { display: block }
-.gico { width: 31px; height: 31px; object-fit: contain; display: block }
-.gv.good { color: var(--mod-good) } .gv.bad { color: var(--mod-bad) }
-.gsteps { flex-wrap: wrap; gap: 4px }
-.gstep { font: inherit; text-shadow: inherit; min-width: 44px; min-height: 26px; padding: 2px 6px; cursor: pointer;
-  background: transparent; color: var(--hud-ink); border: 1px solid var(--hud-line); opacity: .7 }
-.gstep:hover { opacity: 1 }
-.gstep[aria-pressed=true] { color: var(--mod-good); border-color: var(--mod-good); background: rgba(135, 168, 22, .14); opacity: 1 }
 
 /* Range ruler */
 .ruler { display: grid; gap: 4px }
@@ -460,4 +461,4 @@ tr.click { cursor: pointer } tr.click:hover td { background: color-mix(in srgb, 
     <div class="tablebox"><table id="fulltime"></table></div>
   </section>
 </div>
-<script src="/damage/calc.js?v=37be76781c8d"></script>
+<script src="/damage/calc.js?v=5771d5c82f27"></script>

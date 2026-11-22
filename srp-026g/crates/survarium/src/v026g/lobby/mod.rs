@@ -40,6 +40,7 @@ use std::fmt;
 
 pub mod client_model;
 pub mod client_rules;
+pub mod faces;
 pub mod lobby_pick;
 pub mod player_matches;
 pub mod presets;
@@ -48,6 +49,7 @@ pub mod recent_matches;
 pub mod requests;
 pub mod results;
 pub mod rooms;
+pub mod shop_filter;
 pub mod social;
 pub mod tutorial_model;
 

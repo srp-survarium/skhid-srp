@@ -5,8 +5,8 @@
 //! (`recent_matches`) at `RECENT_MATCHES_START` and the next.
 
 use session::v026g::persist::history::{
-    Counters, Eligibility, MatchInfo, MatchKind, MatchRecord, PlayerLine, PlayerRecord, Presence,
-    Winner,
+    Counters, Eligibility, MatchInfo, MatchKind, MatchRecord, Outcome, PlayerLine, PlayerRecord,
+    Presence, Winner,
 };
 use session::v026g::persist::{GameRepository, SqliteGameRepository};
 use session::v026g::replays::{ReplayId, Replays};
@@ -15,7 +15,9 @@ use survarium::v026g::lobby::player_matches::{
     OWN_MATCHES_START, PLAYER_MATCHES_ASK, PLAYER_MATCHES_START,
 };
 use survarium::v026g::lobby::recent_matches::RECENT_MATCHES_START;
+use survarium::v026g::dictionary::MapId;
 use survarium::v026g::maps::GameMode;
+use survarium::v026g::twist::LobbyMode;
 
 use super::*;
 use crate::v026g::player_matches::{FRIENDS_EVERY, HISTORY_EVERY};
@@ -48,8 +50,8 @@ fn bobs_match(bob: u32, n: u32, kind: MatchKind) -> MatchRecord {
         info: MatchInfo {
             ended_at,
             duration_ms: 600_000,
-            map_id: 3,
-            game_mode: GameMode::Batteries,
+            map_id: MapId::new(3),
+            mode: LobbyMode::Plain(GameMode::Batteries),
             match_level: 5,
             winner: Winner::FirstTeam,
             team_points: [5, 2],
@@ -60,16 +62,18 @@ fn bobs_match(bob: u32, n: u32, kind: MatchKind) -> MatchRecord {
             line: PlayerLine {
                 team: (n % 2) as u8,
                 place: 2,
-                // an even match is of before seats were kept
-                seat: (n % 2 == 1).then_some(4),
+                seat: 4,
                 presence: Presence::Finished,
+                outcome: if n % 2 == 0 { Outcome::Won } else { Outcome::Lost },
                 rating: 100,
                 score: 100,
                 kills: u64::from(n),
                 deaths: 3,
                 counters: Counters::default(),
+                played_ms: 600_000,
             },
             kits: Vec::new(),
+            weapons: std::collections::BTreeMap::new(),
         }],
         events: Vec::new(),
     }
@@ -161,7 +165,7 @@ fn the_tab_lists_the_shown_players_public_matches_newest_first() {
     );
     assert_eq!(
         rows[2],
-        format!("P2;0000010a;255;3;2;1;10;3;{};0", minutes(10))
+        format!("P2;0000010a;4;3;2;1;10;3;{};0", minutes(10))
     );
     assert!(rows.last().unwrap().starts_with("P2;00000102;"));
     // At most what is asked for, and ten.

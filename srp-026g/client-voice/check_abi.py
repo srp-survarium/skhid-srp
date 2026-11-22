@@ -15,7 +15,7 @@ assert len(expected) == 15 and actual == expected, (actual, expected)
 imports = {name.lower() for name in re.findall(r"Import \{\s+Name: (\S+)", text)}
 # As BugTrap, the CRT is static. No codec, GCC, MSVC or UCRT DLL is shipped.
 allowed = {"kernel32.dll", "ntdll.dll", "userenv.dll", "ws2_32.dll", "winmm.dll", "ole32.dll",
-           "advapi32.dll", "bcryptprimitives.dll"}
+           "advapi32.dll", "bcryptprimitives.dll", "api-ms-win-core-synch-l1-2-0.dll"}
 assert imports <= allowed, imports
 assert "Arch: i386" in text, "voice DLL must match the game's Win32 ABI"
 print(f"PASS ABI: {len(actual)} typed exports; Win32; system imports {', '.join(sorted(imports))}")

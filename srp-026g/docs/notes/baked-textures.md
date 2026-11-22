@@ -29,7 +29,7 @@ fixes them; the RE is in `client_patch.md` section 3.57.
 - **Not the cause:** "cook of '' [class 107] failed" is the fresnel query of a surface that has no
   fresnel layer (and, since 2026-11-11, a painted weapon's normal query: the weapon keeps its own). "new id = N" is a texture loaded from the folder (a cache hit), not a bake.
   remove_unwanted_files deletes only past 1 GiB, or past 350/50 MB when the disk has less than 50 MB
-  free.
+  free (3 GiB and 50 MB since 2026-11-12, "The folder's size" below).
 
 ## The rules (patch 70)
 
@@ -60,11 +60,30 @@ fixes them; the RE is in `client_patch.md` section 3.57.
     was kept while the format was 1; since format 2 it is no stamp, and its folder is deleted.
   - `srp_patches.log` gets a line at the start: kept or deleted, and the stamp.
 - At the start, every whole DDS file in the folder goes back into the baker's list. A file cut short
-  is deleted. So are the files past 512 or past 896 MB (the stock 1 GiB limit less 128 MB for the
-  game's own bakes before stock trimming starts; until 2026-11-09 half of it, 512 MB, which deleted
-  half of a 20-player match's folder, 0.9-1 GB in ~500 files, at every start: the next game baked ~400
-  textures again, fps-measure `r54-warm`, 398 bakes against the cold run's 831; stock trimming
-  goes on as before).
+  is deleted. So are the files past 3 GiB less 128 MiB (room for the game's own bakes before the
+  trim lets any go). Until 2026-11-14 also those past 3584 records; until 2026-11-12: 512 files and 896 MB
+  under the stock 1 GiB; until 2026-11-09 512 MB, which deleted half of a 20-player match's folder,
+  0.9-1 GB in ~500 files, at every start: the next game baked ~400 textures again, fps-measure
+  `r54-warm`, 398 bakes against the cold run's 831.
+- **The folder's size: 3 GiB** (2026-11-12). Stock keeps 1 GiB, about one 20-player match's bakes, so
+  a game with its folder kept still baked: the owner's game of 2026-11-12 (revision 56, 28 minutes,
+  one lobby visit and three matches) baked 415 textures, loaded 300 from the folder and deleted 295
+  files, some baked minutes before; players reported the microfreezes of those bakes. Now:
+  - the baker's list has no limit of its own: a full list moves into pages of the patch's own twice
+    its room (1024, 2048, 4096, ...), each record copied with its path's pointers into its new self;
+    the storage it leaves is kept, so a record the game read before stays readable. Stock it is 1024
+    records inside the baker and push_back's assertion past them stops the game: a long session
+    reached them with 418 MB of files (the crash of 2026-11-14, revision 58: 1024 records of 11 KB to
+    1.4 MB, 350 KB the middle one). 3 GiB of such files are some 9000 records, 2.6 MB of pages;
+  - after each bake the oldest records with no load under way go, each with its file, while the
+    list's files are over 3 GiB (a full list whose pages cannot be had lets its oldest go instead)
+    (the game's remove_unwanted_files, whole in
+    Rust: its own walk skipped every other record and, past half the list, read records no longer
+    there). With less than 50 MB free on the folder's drive: down to 50 MB, the game's rule;
+  - `srp_patches.log`, at most a line a second: "bake_cache: the oldest baked textures let go: N;
+    the folder holds M MB in K files, at most 3072 MB".
+  Disk space only: the start lists the files' names and sizes and reads each one's 128-byte header;
+  the textures held in memory are as before (256, 256 MB).
 - A kept file's record has CRC 0. Its first load is used and takes the CRC it read; after that, stock
   rules apply.
 - While a texture's bake or load is under way, another query for the same texture (same file name)
@@ -182,8 +201,20 @@ asynchronous, the cost is the GPU work the game waited for.
   bake's per-save MT is the same as stock's, so the difference is how many saves wait at once. At most
   64 bakes' saves, 128 MB, are pending (`save.freed` 0x10A050 takes each off when its descriptor
   goes); past either, a bake's texture is made and used but not saved, its DDS freed at once, and a
-  line goes out ("used, not saved: N saves not written yet hold M MB of MT"). It is baked again next
-  game.
+  line goes out ("used, not saved: N saves not written yet hold M MB of MT").
+- **A bake not saved is not listed** (2026-11-20). The tail lists every bake it completes
+  (push_back 0x12F3F2), saved or not, and a listed texture is never baked: translate_query asks for
+  its file (0x12D58B), and when the file cannot be read on_baked_texture_loaded fails the query and
+  leaves the record (0x12DB66; only a file with another CRC is erased and baked again, 0x131C9C). So
+  a bake that was used and not saved was asked for from the folder at every later query of its
+  path, for the rest of the game: "cook of 'user_data/streamed_textures/<name>.dds' [class 5]
+  failed", its type queries' "cook of '' [class 107] failed" and the model's "[class 108] failed",
+  and the item drawn without that texture on every model made after the first (a respawn, a kit
+  change, the dropped gun's copy). The owner's game of 2026-11-20 (revision 68, a late join into a
+  16-player match: 115 bakes at once, "56 saves not written yet hold 127 MB"): 210 such misses of
+  three textures in 13 minutes. Now the record of a bake with no save goes right after the tail
+  lists it (`bake.free`), with its bytes; the next query of its path finds none and bakes it, and
+  saves it if the saves have room by then.
 - The managed resources: a bake on the GPU holds its model instance and its levels' stagings (up to
   5.6 MB) until it completes; at most 8 bakes. Level 0 and the mips are let go at the issue, the bake
   targets by on_textures_loaded as stock, and the textures made are the game's. So the patch keeps no
@@ -232,4 +263,4 @@ asynchronous, the cost is the GPU work the game waited for.
   takes an unacked relay as a game out of step (match-server game.rs, its header), so the resync is
   LIKELY the stall's.
 - The replay viewer (a second game sharing the folder) no longer deletes the running game's folder at
-  its start. Both games trim the folder past 1 GiB as before.
+  its start. Both games trim the folder past 3 GiB (each by its own list).

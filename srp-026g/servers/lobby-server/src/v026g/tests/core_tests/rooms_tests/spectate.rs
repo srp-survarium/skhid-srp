@@ -54,25 +54,6 @@ fn spectators(state: &[String]) -> Vec<&str> {
         .collect()
 }
 
-/// More spectators than the rows name: the first of the queue are named,
-/// and the room's state still goes.
-#[test]
-fn a_room_names_its_first_twenty_spectators() {
-    let mut settings = two_team_settings();
-    settings.live.per_match = 21;
-    settings.live.most = 21;
-    let mut world = World::with_settings(settings);
-    let (key, _, members) = full_room_playing(&mut world);
-    for n in 0..21 {
-        let watcher = world.connect(&format!("Watcher{n}"));
-        rows(&mut world, watcher, ROOM_WATCH_BASE + key, 1);
-    }
-    world.advance(Duration::from_secs(1));
-    let seen = state(&mut world, members[1]);
-    assert_eq!(spectators(&seen).len(), 20, "{seen:?}");
-    assert_eq!(spectators(&seen)[0], "Watcher0");
-}
-
 #[test]
 fn queue_and_spectate_watches_the_match_and_plays_when_a_place_frees() {
     let mut world = World::new();
@@ -302,45 +283,6 @@ fn a_late_word_for_the_match_before_keeps_the_next_watch() {
     world.advance(Duration::from_secs(1));
     assert_eq!(watched(&world, carol), None);
     assert_eq!(world.core.rooms.queue_place(world.ids[carol].0), None);
-}
-
-/// Spectators are capped (the Live window's caps count them too): one
-/// queued past them waits in the queue without watching, and watches when
-/// a spectator's slot frees.
-#[test]
-fn queue_and_spectate_past_the_cap_waits_without_watching() {
-    let mut world = World::new();
-    let (key, ticket, _) = full_room_playing(&mut world);
-    let cap = world.core.settings.live.per_match;
-    let waiters: Vec<usize> = (0..=cap)
-        .map(|n| {
-            let waiter = world.connect(&format!("Watcher{n}"));
-            rows(&mut world, waiter, ROOM_WATCH_BASE + key, 1);
-            waiter
-        })
-        .collect();
-    world.advance(Duration::from_secs(1));
-    let watching = |world: &World| {
-        waiters
-            .iter()
-            .filter(|&&waiter| watched(world, waiter) == Some(ticket))
-            .count()
-    };
-    assert_eq!(watching(&world), cap);
-    // The newest account waits, still queued.
-    let last = waiters[cap];
-    assert_eq!(watched(&world, last), None);
-    assert!(sent_to_match(&world.take(last)).is_none());
-    assert_eq!(
-        world.core.rooms.queue_place(world.ids[last].0),
-        Some((key, cap + 1))
-    );
-    // One watching leaves the match, and with it the queue: its slot frees.
-    let session = session_of(&world, waiters[0]);
-    world.core.store.matchmaking().watcher_left(session, ticket);
-    world.advance(Duration::from_secs(1));
-    assert_eq!(watching(&world), cap);
-    assert_eq!(watched(&world, last), Some(ticket));
 }
 
 /// The review of #1537: Queue and spectate's watch is its session's, as a

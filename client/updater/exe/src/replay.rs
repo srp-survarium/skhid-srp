@@ -12,7 +12,7 @@
 //! bytes is kept as it is, without a download). Saved replays are never
 //! deleted; only another match's download left over is. A save starts no
 //! game and shows no box when it succeeds; a problem is one message box in
-//! the game's language. Either way a line goes to `updater_skhid.log`, which
+//! the game's language. Either way a line goes to the run's log, which
 //! names the token by its first 6 hex digits only. A second save waits for
 //! the first's lock ([`LOCK_WAIT_MS`]) before it is refused.
 //!
@@ -80,14 +80,14 @@ pub fn run(arguments: &[String], quiet: bool) -> u32 {
             return FAILED;
         }
     };
-    crate::log::start(format!("{}\\{}", layout.exe_dir, crate::LOG_FILE));
+    crate::log::start(&layout);
     log!(
         "---- updater {} replay started in {}{}",
         env!("CARGO_PKG_VERSION"),
         layout.exe_dir,
         if quiet { " (quiet)" } else { "" }
     );
-    let language = win::game_language();
+    let language = win::documents().as_deref().and_then(win::game_language);
     // The lock is let go when `save` returns: a box left open does not hold
     // the next save.
     match save(&layout, arguments) {
@@ -185,9 +185,9 @@ pub fn run_local(arguments: &[String], quiet: bool) -> u32 {
             return FAILED;
         }
     };
-    crate::log::start(format!("{}\\{}", layout.exe_dir, crate::LOG_FILE));
+    crate::log::start(&layout);
     log!("---- updater local replay started{}", if quiet { " (quiet)" } else { "" });
-    let language = win::game_language();
+    let language = win::documents().as_deref().and_then(win::game_language);
     let Some(file) = updater_logic::local_replay::LocalReplay::parse(arguments) else {
         return tell(quiet, language, &Problem::BadFile);
     };

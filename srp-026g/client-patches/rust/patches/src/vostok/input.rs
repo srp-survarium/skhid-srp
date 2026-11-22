@@ -16,7 +16,7 @@ pub struct Action(pub u32);
 
 impl Action {
     /// toggle_replay_ui, default key F11 (action table entry 0xA74CA8, kinds 5):
-    /// patch 62's hide-the-interface key, and a replay viewer's (patch 144).
+    /// patch 62's hide-the-interface key, and a replay viewer's (patch 179).
     pub const TOGGLE_REPLAY_UI: Action = Action(0x19);
     /// commit_suicide, default key K (action table entry 0xA74D20).
     pub const COMMIT_SUICIDE: Action = Action(0x1F);
@@ -26,8 +26,22 @@ impl Action {
     /// gives it the default key H and a controls row (patch 62's table), and
     /// holding it makes a quick-use key offer that slot's artefact.
     pub const ARTEFACT: Action = Action(0x23);
-    /// ptt (entry 0xA74F8C, kind 8, default P): patch 66's push-to-talk.
+    /// ptt_nearby: the action table's debug entry serialize_player_state
+    /// (0xA74E10, default O), renamed and made a chat key (kind 8) by patch 66:
+    /// push-to-talk of the 10 m voice.
+    pub const PTT_NEARBY: Action = Action(0x37);
+    /// ptt (entry 0xA74F8C, kind 8, default P): patch 66's push-to-talk of
+    /// the radio.
     pub const PTT: Action = Action(0x47);
+    /// screenshot: the action table's entry 0xA74CBC, the game's `torch`,
+    /// which nothing in the game reads; patch 152 names it and gives it F11.
+    pub const SCREENSHOT: Action = Action(0x1A);
+    /// screenshot_no_ui: the entry 0xA74CD0, the game's `night_vision`, as
+    /// unread; patch 152's F12.
+    pub const SCREENSHOT_NO_UI: Action = Action(0x1B);
+    /// The binder's answer for a key without an action (kNOTBINDED; the
+    /// game's own test at 0x23FE39).
+    pub const NONE: Action = Action(0x49);
 }
 
 /// What the input handler holds of an action: its last key event, as

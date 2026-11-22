@@ -65,7 +65,7 @@ fn spectate_as(bench: &mut Bench, session: u32, kind: WatchKind) -> usize {
         .push(Client::growing(session, players, MAP_BATTERIES));
     bench
         .addrs
-        .push(SocketAddr::from(([127, 0, 0, 1], 45_000 + at as u16)));
+        .push(udp_transport::relay::Peer::direct(SocketAddr::from(([127, 0, 0, 1], 45_000 + at as u16))));
     bench.clients[at].connect();
     assert!(bench.until(1_000, |b| b.clients[at].model.options.is_some()));
     bench.clients[at].ready();
@@ -210,7 +210,7 @@ fn a_spectator_never_holds_up_a_late_joiner() {
         .insert(2, Client::growing(session_of(2), 3, MAP_BATTERIES));
     bench
         .addrs
-        .insert(2, SocketAddr::from(([127, 0, 0, 1], 40_002)));
+        .insert(2, udp_transport::relay::Peer::direct(SocketAddr::from(([127, 0, 0, 1], 40_002))));
     bench.join(2);
     assert!(
         bench.until(15_000, |b| b.clients[0].entered().contains(&2)),
@@ -297,7 +297,7 @@ fn a_spectator_called_back_while_its_world_loads_is_told_once_it_watches() {
         .push(Client::growing(SPECTATOR, players, MAP_BATTERIES));
     bench
         .addrs
-        .push(SocketAddr::from(([127, 0, 0, 1], 45_000 + at as u16)));
+        .push(udp_transport::relay::Peer::direct(SocketAddr::from(([127, 0, 0, 1], 45_000 + at as u16))));
     bench.clients[at].connect();
     assert!(bench.until(1_000, |b| b.clients[at].model.options.is_some()));
     assert!(bench.server.store().matchmaking().recall_watcher(SPECTATOR));
@@ -388,7 +388,7 @@ fn a_spectator_of_no_match_here_is_turned_away() {
         .push(Client::growing(SPECTATOR, 2, MAP_BATTERIES));
     bench
         .addrs
-        .push(SocketAddr::from(([127, 0, 0, 1], 45_000 + at as u16)));
+        .push(udp_transport::relay::Peer::direct(SocketAddr::from(([127, 0, 0, 1], 45_000 + at as u16))));
     bench.clients[at].connect();
     assert!(bench.until(2_000, |b| b.clients[at].disconnected));
     assert!(bench.clients[at].model.options.is_none());
@@ -669,7 +669,7 @@ fn a_spectator_coming_back_holds_no_abandoned_match_open() {
         bench.clients.push(Client::growing(SPECTATOR, 2, MAP_BATTERIES));
         bench
             .addrs
-            .push(SocketAddr::from(([127, 0, 0, 1], 46_000 + round)));
+            .push(udp_transport::relay::Peer::direct(SocketAddr::from(([127, 0, 0, 1], 46_000 + round))));
         bench.clients.last_mut().unwrap().connect();
         bench.run_long(5_000);
     }
@@ -851,7 +851,7 @@ fn a_late_join_starts_no_delayed_spectator_again() {
         .insert(2, Client::growing(session_of(2), 3, MAP_BATTERIES));
     bench
         .addrs
-        .insert(2, SocketAddr::from(([127, 0, 0, 1], 40_002)));
+        .insert(2, udp_transport::relay::Peer::direct(SocketAddr::from(([127, 0, 0, 1], 40_002))));
     bench.join(2);
     let at = at + 1;
     assert!(bench.clients[at].prepares_received > 0);
@@ -883,7 +883,7 @@ fn a_spectator_that_never_installs_piles_up_no_installs() {
         .insert(2, Client::growing(session_of(2), 3, MAP_BATTERIES));
     bench
         .addrs
-        .insert(2, SocketAddr::from(([127, 0, 0, 1], 40_002)));
+        .insert(2, udp_transport::relay::Peer::direct(SocketAddr::from(([127, 0, 0, 1], 40_002))));
     bench.join(2);
     bench.run_long(2_000);
     let before = bench.game().spectator_backlog(SPECTATOR).unwrap();
@@ -1103,7 +1103,7 @@ fn a_spectator_connecting_again_and_again_starts_from_a_world_once_a_second() {
             .push(Client::growing(SPECTATOR, players, MAP_BATTERIES));
         bench
             .addrs
-            .push(SocketAddr::from(([127, 0, 0, 1], 45_000 + at as u16)));
+            .push(udp_transport::relay::Peer::direct(SocketAddr::from(([127, 0, 0, 1], 45_000 + at as u16))));
         bench.clients[at].connect();
         assert!(bench.until(1_000, |b| b.clients[at].model.options.is_some()));
         bench.clients[at].ready();
@@ -1171,7 +1171,7 @@ fn a_match_that_ended_keeps_its_spectators_silence() {
     bench.clients.push(Client::growing(SPECTATOR, 2, MAP_TDM));
     bench
         .addrs
-        .push(SocketAddr::from(([127, 0, 0, 1], 45_000 + at as u16)));
+        .push(udp_transport::relay::Peer::direct(SocketAddr::from(([127, 0, 0, 1], 45_000 + at as u16))));
     bench.clients[at].connect();
     assert!(bench.until(1_000, |b| b.clients[at].model.options.is_some()));
     bench.clients[at].ready();

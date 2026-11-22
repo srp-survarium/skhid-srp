@@ -194,8 +194,8 @@ mod tests {
             info: MatchInfo {
                 ended_at: 1,
                 duration_ms: 300_000,
-                map_id: 3,
-                game_mode: GameMode::TeamDeathmatch,
+                map_id: survarium::v026g::dictionary::MapId::new(3),
+                mode: survarium::v026g::twist::LobbyMode::Plain(GameMode::TeamDeathmatch),
                 match_level: 1,
                 winner: Winner::Unknown,
                 team_points: [0, 0],

@@ -289,6 +289,7 @@ pub fn match_result(result: matches::MatchResult) -> rewards::MatchResult {
                 longest_killstreak: player.longest_killstreak,
                 kit_changes: player.kit_changes,
                 supplies: player.supplies,
+                weapons: player.weapons,
             })
             .collect(),
     }
@@ -428,6 +429,11 @@ pub struct Options {
     /// Voice chat (`SRP_VOICE`, default on): the relay on the match port + 1
     /// (`match_server::v026g::voice`).
     pub voice: bool,
+    /// The regional relays (`SRP_RELAYS`), or why the setting is wrong: then
+    /// the servers do not start (fail closed). The login server, the lobby,
+    /// the match server and voice take a peer's address from a PROXY header
+    /// only when it comes from one of these tunnel addresses.
+    pub relays: Result<udp_transport::relay::Relays, String>,
 }
 
 impl Options {
@@ -447,6 +453,8 @@ impl Options {
             sign_in_key: login_server::sealed::key_from_env(),
             bots: session::v026g::bots::from_env(),
             voice: matches::voice::enabled_from_env(),
+            relays: udp_transport::relay::Relays::from_env()
+                .map_err(|error| format!("SRP_RELAYS: {error}")),
         }
     }
 
@@ -461,6 +469,7 @@ impl Options {
             sign_in_key: Ok(login_server::sealed::test_key()),
             bots: Vec::new(),
             voice: false,
+            relays: Ok(udp_transport::relay::Relays::default()),
         }
     }
 }
@@ -515,6 +524,8 @@ impl Stack {
             );
         }
 
+        // A wrong SRP_RELAYS starts nothing (fail closed).
+        let relays = options.relays.clone().map_err(io::Error::other)?;
         // The match server first: the registry tells the port it got.
         let match_socket = UdpSocket::bind(&options.match_bind)?;
         let match_addr = match_socket.local_addr()?;
@@ -548,16 +559,18 @@ impl Stack {
 
         let host: Arc<dyn MatchHost> = Arc::new(RegistryHost(registry.clone()));
         let bind_lobby = {
-            let (store, accounts, results, inbox, replays) = (
+            let (store, accounts, results, inbox, replays, relays) = (
                 store.clone(),
                 accounts.clone(),
                 results.clone(),
                 inbox.clone(),
                 replays.clone(),
+                relays.clone(),
             );
             move |settings: lobby::Settings| {
                 Lobby::bind(
                     settings,
+                    relays.clone(),
                     store.clone(),
                     accounts.clone(),
                     results.clone(),
@@ -592,6 +605,7 @@ impl Stack {
                 min: options.lobby.min_patch_revision,
                 exempt: options.bots.clone(),
             },
+            relays: relays.clone(),
         };
 
         let mut threads = Vec::new();
@@ -601,7 +615,7 @@ impl Stack {
             None => {}
         }
         {
-            let (registry, store, accounts, results, inbox, stop, replays) = (
+            let (registry, store, accounts, results, inbox, stop, replays, relays) = (
                 registry.clone(),
                 store.clone(),
                 accounts.clone(),
@@ -609,6 +623,7 @@ impl Stack {
                 inbox.clone(),
                 stop.clone(),
                 replays.clone(),
+                relays.clone(),
             );
             let mut socket = Some(match_socket);
             let flag = stop.clone();
@@ -628,6 +643,7 @@ impl Stack {
                     registry.clone(),
                     store.clone(),
                     settler,
+                    relays.clone(),
                     &flag,
                     Some(replays.clone()),
                     Some(accounts.clone()),
@@ -649,14 +665,14 @@ impl Stack {
             None => None,
         };
         if let (Some(socket), Some(voice_addr), Some(id_key)) = (voice_socket, voice_addr, id_key) {
-            let (registry, flag) = (registry.clone(), stop.clone());
+            let (registry, flag, relays) = (registry.clone(), stop.clone(), relays.clone());
             let mut socket = Some(socket);
             threads.push(supervise("voice", stop.clone(), move || {
                 let socket = match socket.take() {
                     Some(socket) => socket,
                     None => UdpSocket::bind(voice_addr)?,
                 };
-                matches::voice::run(&socket, registry.clone(), id_key, &flag)
+                matches::voice::run(&socket, registry.clone(), id_key, relays.clone(), &flag)
             }));
         }
         {

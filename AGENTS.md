@@ -1,5 +1,15 @@
 # Agent instructions
 
+## Rust client transition
+
+- For networking and client-runtime migration work, read
+  `srp-026g/docs/PLAN-RUST-CLIENT.md` and the latest entry in
+  `srp-026g/docs/RUST-CLIENT-WORK.md` first. Update the status and handoff with
+  exact evidence; distinguish implemented, tested, played and released.
+- This transition uses the existing Rust arena framework (`rust_patches.md`),
+  generated bindings and hooks. Rust logic belongs in safe modules; native ABI
+  glue remains generated NASM. The arena placement and lock rules below apply.
+
 ## Commits and pull requests
 
 - Do not add `Co-Authored-By: Claude ...` (or any other AI co-author trailer) to commit messages.
@@ -137,3 +147,25 @@ receiving game itself (patch 87), with the same code (`srp-validate`'s typed vie
   suites for shared infrastructure changes that affect them or release validation.
 - Broaden checks only for a concrete dependency or failure; do not repeat passing checks without
   relevant changes. Report validation limits and pre-existing failures without expanding the PR.
+
+## Local test builds
+
+- `tools/test-build <revision> <folder> [exe] [server] [content]` builds what a local test runs (the
+  exe, the debug server, the quick content) at the same time, each as you would by hand; a part
+  nothing changed for costs seconds. Use it instead of a build script of your own. With `--shared`
+  it builds the checkout's commit in one test tree whose cargo target stays warm from test to test:
+  the server compiles only what differs from the commit tested before, and a worktree needs no
+  target folder of its own to be tested.
+- `tools/dev <command...>` is `nix develop ./srp-026g --command <command...>` from a kept shell: 0.1 s
+  instead of 1 to 8 s a call. The release's scripts call `nix develop` themselves.
+- The exe's Rust is kept by what it was built from (`~/.cache/skhid-arena`, every worktree's;
+  `client-patches/README.md`, "A Rust crate as a source"): a build that changes no Rust source takes
+  5 s, a new worktree's first build too. `SRP_ARENA_CACHE=off` builds from source, as the release does.
+- Each worktree has its own cargo target folder; never share one.
+- Content builds are cached per step by the exact bytes each step reads (the header of
+  `release/build-content` lists every key): a quick build of an unchanged tree takes about a minute.
+- For a test of a small content change, build a micro-patch over the test's earlier content:
+  `release/build-content <a revision above it> --delta-from <earlier build folder> --out <folder>`
+  holds only the files that differ; link it as `resources.db.patch_<that revision>` beside the earlier
+  one. Deltas chain; a change a patch cannot make (removing a file the earlier one added) is refused:
+  build it whole. Local tests only: a release builds the whole patch with `--full`.

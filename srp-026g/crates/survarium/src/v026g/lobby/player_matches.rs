@@ -25,6 +25,7 @@
 //!     `replay` is [`ReplayState`] for the asker's game; no row is left out
 //!     by who may watch it (anyone may watch any replay).
 
+use super::super::dictionary::MapId;
 use super::push::{Ranked, elo_rows};
 use super::{ServerMessage, WireError, cut, limits};
 
@@ -93,7 +94,7 @@ pub struct PlayerMatchRow {
     /// The player's place in the match's roster, which "Watch replay" asks
     /// to see: 0xFF when not known (anyone's view).
     pub place: u8,
-    pub map_id: u8,
+    pub map_id: MapId,
     /// The mode's lobby number.
     pub mode: u8,
     pub outcome: Outcome,
@@ -173,7 +174,7 @@ mod tests {
         let row = PlayerMatchRow {
             match_id: u32::MAX,
             place: u8::MAX,
-            map_id: u8::MAX,
+            map_id: MapId::new(u16::MAX),
             mode: u8::MAX,
             outcome: Outcome::Draw,
             kills: u16::MAX,

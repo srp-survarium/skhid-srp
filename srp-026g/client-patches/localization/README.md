@@ -1,9 +1,9 @@
 # Game localization (0.26g)
 
-All ten native game dictionaries live here as UTF-8 TSVs: English, Ukrainian,
-Russian, German, Polish, Serbian Latin, Czech, Hungarian, Finnish and Belarusian
-(Cyrillic, standard orthography). Every file
-has the same 3,139 keys, sorted by full key name. These are the build sources,
+All eleven native game dictionaries live here as UTF-8 TSVs: English, Ukrainian,
+Russian, German, Polish, Serbian Latin, Czech, Hungarian, Finnish, Belarusian
+(Cyrillic, standard orthography) and Croatian. Every file
+has the same 3,404 keys, sorted by full key name. These are the build sources,
 including unchanged weapon names and key labels; there are no separate keep lists
 or per-language dictionary patches. The engine's `original` dictionary is built
 from `russian.tsv`.
@@ -111,6 +111,11 @@ its absence is reported. All registered languages are required by default;
 `--catalog` and `--flash-source` select alternate source directories.
 Exit codes: 0 clean, 1 coverage/content defects, 2 invalid input.
 
+Croatian is translated from the English catalog, including the original item
+and faction names and descriptions; Serbian-specific jokes and Easter eggs
+are not carried over. Model identifiers, keycaps and units stay as written in
+English. Native-speaker review and an in-game layout pass are still needed.
+
 The migration preserves the existing translations and the reviewed Serbian wording.
 It fills the two missing Polish and two missing Ukrainian entries, repairs the
 German `st_reach_level` closing tag and English quest text's invalid encoding,
@@ -128,15 +133,20 @@ it applies at the next start (exe patch 79, `../../docs/notes/language-option.md
 `play_skhid.bat` / `localization=czech` in `play_skhid.sh`) starts the game in it
 and saves it as the choice. The overlay builder accepts `--localization=czech`
 and the other resource names (the scripts' default; none by default). The
-launcher's dropdown keeps its five choices for its own texts. Website and
-launcher UI translations are separate.
+launcher's dropdown offers the same languages; its own UI has five translations
+and uses English for Croatian. Website and launcher UI translations are separate.
 
-To add a language, register its resource name, Flash constant and own name in
-`LANGUAGES` in `localization_026g.py` (and in `CYRILLIC` for a Cyrillic one), run
+To add a language, register its resource name, own name, Windows locale rule and two-letter
+code in `LANGUAGES` in `localization_026g.py` (and in `CYRILLIC` for a Cyrillic one), run
 `python3 localization_026g.py --write` (the exe's table, `languages_026g.rs`), add its
 complete TSV here (with every `st_srp_` text, the Settings' two
-`st_srp_language_option` and `st_srp_language_restart` among them). No Flash source
-changes. The content compiler
+`st_srp_language_option` and `st_srp_language_restart` among them). For most languages the Windows rule is a primary language id; for a language
+sharing one with another, use a tuple of exact LANGIDs instead. Exact matches
+win over primary fallbacks. Croatian is `croatian`, `Hrvatski`,
+`(0x041A, 0x101A)`, `hr`: both Croatian Windows locales select it, while Serbian
+and Bosnian keep the Serbian fallback. An existing saved choice always wins.
+Regenerate the launcher table too and reassemble its `.bin` (see `../launcher/README.md`).
+No Flash source changes. The content compiler
 creates its resource directory automatically. Existing languages retain their
 support files; new languages inherit English EULA and profanity data, which
 are support resources, not translated text.
