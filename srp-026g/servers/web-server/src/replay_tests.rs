@@ -112,6 +112,7 @@ fn web(replays: Option<Arc<Replays>>) -> Web {
             min_patch_revision: 0,
             replays,
             results: Arc::new(session::v026g::rewards::Results::new()),
+            pools: crate::Pools::every_playable(),
         }),
     }
 }

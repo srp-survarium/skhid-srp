@@ -1566,7 +1566,7 @@ st_mode_05_description	Ihre Aufgabe - die Kontrolle über die mobilen Forschungs
 st_mode_05_name	Forschung
 st_mode_08_description	Jeder kämpft für sich allein. Das Match endet, wenn jemand die nötige Zahl an Abschüssen erreicht oder die Zeit abläuft. Es gewinnt der Kämpfer mit den meisten Abschüssen.
 st_mode_08_name	Jeder gegen jeden
-st_mode_12_description	Friere alle Gegner ein. Das erste Team mit 5 Rundensiegen gewinnt. Bleibe 3 Sekunden innerhalb von 2 m eines eingefrorenen Teammitglieds, um es aufzutauen.
+st_mode_12_description	Friere alle Gegner ein. Das erste Team mit 5 Rundensiegen gewinnt. Bleibe 4 Sekunden innerhalb von 2 m eines eingefrorenen Teammitglieds, um es aufzutauen.
 st_mode_12_name	Fang den Frost
 st_mode_13_description	Finde das Artefakt „Schimmer des Waldes“ und liefere es an deine Basis. Sammle 5 Artefakte, um zu gewinnen.
 st_mode_13_name	Artefaktsuche
@@ -2703,8 +2703,8 @@ st_srp_hud_artefact_hunt_sudden_death	Sudden Death
 st_srp_hud_blackout_intro	Blackout: Bringe Batterien zum Gerät deines Teams. HUD und Trefferanzeigen sind für mehr Immersion ausgeblendet. Halte Tab für Munition, Gesundheit und Chat sowie die Ausrüstungswahl nach dem Tod.
 st_srp_hud_blackout_start	Blackout\nBringe Batterien zum Gerät deines Teams.\nHUD und Trefferanzeigen sind ausgeblendet. Halte Tab, um Munition und Gesundheit zu sehen.
 st_srp_hud_freeze_draw	Unentschieden
-st_srp_hud_freeze_frozen	Eingefroren
-st_srp_hud_freeze_help	Friere alle Gegner ein. Das erste Team mit 5 Rundensiegen gewinnt. Bleibe 3 Sekunden innerhalb von 2 m eines eingefrorenen Teammitglieds, um es aufzutauen.
+st_srp_hud_freeze_frozen	Eingefroren (%1$s)
+st_srp_hud_freeze_help	Friere alle Gegner ein. Das erste Team mit 5 Rundensiegen gewinnt. Bleibe 4 Sekunden innerhalb von 2 m eines eingefrorenen Teammitglieds, um es aufzutauen.
 st_srp_hud_freeze_lose	Niederlage — Gegner haben fünf Runden gewonnen.
 st_srp_hud_freeze_round_draw	Unentschieden. Neustart in %1$s s.
 st_srp_hud_freeze_round_lose	Runde verloren. Nächste Runde in %1$s s.

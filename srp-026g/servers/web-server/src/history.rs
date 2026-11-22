@@ -22,7 +22,7 @@ use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::maps;
 
 use crate::icons::{self, IconSet};
-use crate::{ContentType, Game, Lang, Response, decode, launcher, modifiers, wiki, words};
+use crate::{ContentType, Game, Lang, Response, decode, launcher, modifiers, skills, wiki, words};
 
 /// Where the API is.
 pub(crate) const PREFIX: &str = "/api/history/";
@@ -124,6 +124,7 @@ fn page_text(lang: Lang) -> Value {
         ("shots", lang.t("Shots fired")),
         ("accuracy", lang.t("Accuracy")),
         ("weapons", lang.t("Weapons")),
+        ("skills", lang.t("Skills")),
         ("weapon", lang.t("Weapon")),
         ("armour", lang.t("Armour")),
         ("kit", lang.t("Kit")),
@@ -163,17 +164,25 @@ pub(crate) fn file(path: &str) -> Option<(&'static str, &'static [u8])> {
 }
 
 /// The page's frame under `header`, in the wiki's look. Its script fills it,
-/// as the address says: a player (`?player=<name>`), a match
+/// as the address says: a player (`?id=<account>`, or `?player=<name>`), a match
 /// (`?match=<number>`), a clan (`?clan=<tag>`), else the leaderboards.
-pub(crate) fn page(lang: Lang, header: &str) -> Response {
+/// A player's page (the request's `query` asks for one) carries the wiki's
+/// skill trees ([`skills::trees`]) for its Skills tab.
+pub(crate) fn page(lang: Lang, header: &str, query: &str) -> Response {
     let stats = lang.t("Stats");
+    let query = Query::of(query);
+    let trees = if query.text("id").or(query.text("player")).is_some() {
+        format!("<template id=stats-skills>{}</template>", skills::trees(lang))
+    } else {
+        String::new()
+    };
     let body = format!(
         "<style>{STYLE}</style>\
          <p class=breadcrumb><a href=\"{PATH}?lang={code}\">{stats}</a><span id=stats-crumb></span></p>\
          <div class=wiki-heading><div><p class=eyebrow id=stats-eyebrow>{eyebrow}</p>\
          <h1 id=stats-title>{stats}</h1></div></div>\
          <div id=stats data-locale={locale}><noscript><p class=wiki-intro>{noscript}</p></noscript></div>\
-         <script type=application/json id=stats-text>{text}</script>\
+         <script type=application/json id=stats-text>{text}</script>{trees}\
          <script src=\"{}\"></script>",
         script_url(),
         // The words' language, for the numbers and dates beside them.
@@ -590,6 +599,7 @@ fn answer(
                 "level": card.level,
                 "experience": card.experience,
                 "rating": card.rating,
+                "skills": card.skills,
                 "totals": totals(&card.totals),
             })
         }
@@ -1006,7 +1016,8 @@ fn winner(winner: Winner) -> Value {
 /// What a match was played on, in `lang`: the map's name, its key in the
 /// wiki's Maps page (its project's folder) and its picture as the rooms draw
 /// it (all `null` for a map the game data no longer has; the picture also
-/// for one the lobby has none of), the mode's name as the rooms name it, and
+/// for one the lobby has none of), the mode's name as the rooms name it, its
+/// section on the wiki's Modes page, and
 /// its rules' number (the Maps page's mode).
 fn played(info: &MatchInfo, lang: Lang) -> Value {
     let map = maps::map_mode(info.map_id);
@@ -1016,6 +1027,7 @@ fn played(info: &MatchInfo, lang: Lang) -> Value {
         "map_icon": map
             .and_then(|map| icons::url(IconSet::Map, &format!("{}_{}", map.level, map.weather))),
         "mode": launcher::lobby_mode_name(lang, info.mode),
+        "mode_url": crate::modes::url(lang, info.mode),
         "rules": info.mode.mode().rules().number(),
     })
 }

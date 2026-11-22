@@ -1566,7 +1566,7 @@ st_mode_05_description	Your task is to seize control of mobile research units. E
 st_mode_05_name	Research
 st_mode_08_description	Every soldier fights for himself. The match ends when someone reaches the kill target or the time runs out. The soldier with the most kills wins.
 st_mode_08_name	Free for all
-st_mode_12_description	Freeze every opponent. First team to win 5 rounds wins. Stand within 2 m of a frozen teammate for 3 seconds to thaw them.
+st_mode_12_description	Freeze every opponent. First team to win 5 rounds wins. Stand within 2 m of a frozen teammate for 4 seconds to thaw them.
 st_mode_12_name	Freeze Tag
 st_mode_13_description	Find the "Glow of the Forest" artifact and deliver it to your base. Collect 5 artifacts to win.
 st_mode_13_name	Artifact Hunt
@@ -2703,8 +2703,8 @@ st_srp_hud_artefact_hunt_sudden_death	Sudden death
 st_srp_hud_blackout_intro	Blackout: bring batteries to your team’s device. HUD and hitmarkers are hidden for immersion. Hold Tab for ammo, health, chat and kit selection when dead.
 st_srp_hud_blackout_start	Blackout\nBring batteries to your team’s device.\nHUD and hit markers are hidden. Hold Tab to check ammo and health.
 st_srp_hud_freeze_draw	Draw
-st_srp_hud_freeze_frozen	Frozen
-st_srp_hud_freeze_help	Freeze every opponent. First team to win 5 rounds wins. Stand within 2 m of a frozen teammate for 3 seconds to thaw them.
+st_srp_hud_freeze_frozen	Frozen (%1$s)
+st_srp_hud_freeze_help	Freeze every opponent. First team to win 5 rounds wins. Stand within 2 m of a frozen teammate for 4 seconds to thaw them.
 st_srp_hud_freeze_lose	Defeat — opponents won five rounds.
 st_srp_hud_freeze_round_draw	Round drawn. Restarting in %1$s s.
 st_srp_hud_freeze_round_lose	Round lost. Next round in %1$s s.
