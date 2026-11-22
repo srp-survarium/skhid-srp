@@ -46,6 +46,7 @@ pub mod control;
 pub mod crossing;
 pub mod curve;
 pub mod dead_links;
+pub mod death_log;
 pub mod doors;
 pub mod encode;
 pub mod escape;
@@ -1175,6 +1176,10 @@ pub struct Bots {
     features: MatchFeatures,
     /// By place, the time of the last bullet hit its worlds showed, to see a new one ([`Self::bullet_hit`]).
     seen_hits: Vec<u32>,
+    /// [fix-team logging] By place, its statistics' kills by kind at the last world (`death_log::KillCounts`), and the hits its
+    /// body took this life (the life's start, the hits' world ms), for the death record ([`Self::facts`]).
+    kill_kinds: Vec<death_log::KillCounts>,
+    life_hits: Vec<(u32, Vec<u32>)>,
     /// [Gap 9] By place, its statistics' enemy-hit count at the last world, and whether it rose in that world.
     hit_counts: Vec<u32>,
     hit_marked: Vec<bool>,
@@ -1271,6 +1276,8 @@ impl Bots {
             layers: MapLayers::default(),
             features: MatchFeatures::default(),
             seen_hits: Vec::new(),
+            kill_kinds: Vec::new(),
+            life_hits: Vec::new(),
             hit_counts: Vec::new(),
             hit_marked: Vec::new(),
             received: None,
@@ -1901,6 +1908,22 @@ impl Bots {
     /// stagger of its reckoned body ([`kin::SprintGates`], [`kin::SpeedTerms::LegsStagger`]).
     pub fn hits(&mut self, place: Place, hits: &[(u32, f32)]) {
         self.tracker.set_hits(place, hits);
+        // [fix-team logging] The hits of this life, for the death record (`death_log`): a new life starts the list.
+        let life = self.tracker.body(place).and_then(|body| body.fix()).map_or(0, |fix| fix.inserted);
+        if self.life_hits.len() <= place {
+            self.life_hits.resize(place + 1, (0, Vec::new()));
+        }
+        let (start, times) = &mut self.life_hits[place];
+        if *start != life {
+            *start = life;
+            times.clear();
+        }
+        for &(at, _) in hits {
+            if at >= life && !times.contains(&at) {
+                times.push(at);
+            }
+        }
+        times.sort_unstable();
     }
 
     /// [F42] A world's crouch selector state for `place`'s body, made at `at` ([`body::Creep`]).

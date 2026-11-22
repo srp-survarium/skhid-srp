@@ -161,11 +161,23 @@ pub struct Picture<'a> {
     pub targets: &'a [(Target, usize)],
     /// [second taker] The escape from the push's target, when its tick may pick a second taker ([`Push::second_wanted`]).
     pub escape: Option<Escape>,
+    /// [fix-team logging] The enemies alive, where the worlds put them (the truth, not the team's knowledge): the push's lines
+    /// count them by the target. No decision reads them.
+    pub enemies: &'a [Vec3],
 }
 
 impl Picture<'_> {
     fn bot(&self, place: Place) -> Option<&Member> {
         self.bots.iter().find(|b| b.place == place)
+    }
+
+    /// [fix-team logging] By `target`: our live bots within 25 m of it, of them the members of `push`, and the enemies alive
+    /// there (the truth): the push line's counts.
+    fn at_target(&self, target: Target, push: &[Place]) -> (usize, usize, usize) {
+        let near = |at: Vec3| at.distance_xz(target.at()) < ENEMIES_NEAR_M;
+        let ours: Vec<&Member> = self.bots.iter().filter(|b| near(b.at)).collect();
+        let members = ours.iter().filter(|b| push.contains(&b.place)).count();
+        (ours.len(), members, self.enemies.iter().filter(|&&e| near(e)).count())
     }
 
     fn defenders(&self, target: Target) -> Option<usize> {
@@ -286,6 +298,12 @@ impl Event {
     /// the one it left, `p` its picture.
     pub fn line(&self, before: &Push, after: &Push, p: &Picture) -> String {
         let net = |defenders: usize, group: usize| defenders.saturating_sub(group);
+        let counts = |target: Option<Target>, push: &[Place]| {
+            target.map_or_else(String::new, |t| {
+                let (ours, members, theirs) = p.at_target(t, push);
+                format!("; at the target ours {ours} bots ({members} of the push), theirs {theirs} there")
+            })
+        };
         match self {
             Event::Started { target: t, taker, group, defenders } => format!(
                 "push on {} started: taker {taker}, group {group} {:?}, {defenders} defenders known, net {}",
@@ -293,11 +311,15 @@ impl Event {
                 after.members(),
                 net(*defenders, *group)
             ),
+            // [fix-team logging] With the taker and both counts at the target: ours (and of them the push's), the defenders the
+            // team knows and the enemies there.
             Event::Committed { near, defenders, waited } => format!(
-                "push on {} committed: {near} on the taker, {defenders} defenders known, net {}, {}",
+                "push on {} committed: taker {}, {near} on the taker, {defenders} defenders known, net {}, {}{}",
                 before.target().map_or_else(|| "?".to_string(), target_name),
+                after.takers().first().map_or_else(|| "?".to_string(), |(t, _)| t.to_string()),
                 net(*defenders, *near),
-                if *waited { "after the gather time" } else { "gathered" }
+                if *waited { "after the gather time" } else { "gathered" },
+                counts(before.target(), &after.members())
             ),
             Event::Second { second, chance: c, min } => format!(
                 "push on {}: second taker {} on {}, escape {:.2} (at least {min:.2}): cover {} against {} by the target, {} \
@@ -312,22 +334,40 @@ impl Event {
                 c.escape.lanes,
                 c.escape.way_m
             ),
+            // [fix-team logging] What was taken: a steal from their container, or a lying battery.
             Event::Took { carrier } => {
                 let group = before.members();
-                format!("push: {carrier} took a battery, home with {:?}", group.iter().filter(|&&m| m != *carrier).collect::<Vec<_>>())
+                let what = match before.target() {
+                    Some(Target::Container { id, .. }) => format!(" (stole from their container {id})"),
+                    Some(Target::Battery { index, .. }) => format!(" (took battery {index})"),
+                    None => String::new(),
+                };
+                format!(
+                    "push: {carrier} took a battery{what}, home with {:?}",
+                    group.iter().filter(|&&m| m != *carrier).collect::<Vec<_>>()
+                )
             }
             Event::Carried { carrier, home } => {
                 format!("push: {carrier} {}, the push goes on with {:?}", if *home { "brought one home" } else { "lost its battery" }, after.members())
             }
+            // [fix-team logging] With the outcome in words and both counts at the target.
             Event::Ended(why) => {
                 let members = before.members();
                 let alive = members.iter().filter(|&&m| p.bot(m).is_some()).count();
                 let defenders = before.target().and_then(|t| p.defenders(t));
+                let outcome = match why {
+                    End::Home => "gained: the battery home",
+                    End::Lost => "lost the carrier",
+                    End::Outnumbered => "outnumbered",
+                    End::NoTaker => "lost men: no taker left",
+                    End::TargetGone => "the target gone",
+                };
                 format!(
-                    "push{} ended: {why:?} (group {:?}, {alive} alive{})",
+                    "push{} ended: {why:?}, {outcome} (group {:?}, {alive} alive{}{})",
                     before.target().map_or_else(String::new, |t| format!(" on {}", target_name(t))),
                     members,
-                    defenders.map_or_else(String::new, |d| format!(", {d} defenders known, net {}", net(d, alive)))
+                    defenders.map_or_else(String::new, |d| format!(", {d} defenders known, net {}", net(d, alive))),
+                    counts(before.target(), &members)
                 )
             }
         }
@@ -682,7 +722,7 @@ mod tests {
     }
 
     fn picture<'a>(now: u32, bots: &'a [Member], targets: &'a [(Target, usize)]) -> Picture<'a> {
-        Picture { now, behind: true, enemy_carrier: false, bots, home: HOME, targets, escape: None }
+        Picture { now, behind: true, enemy_carrier: false, bots, home: HOME, targets, escape: None, enemies: &[] }
     }
 
     fn commit(target: Target, taker: Place, escorts: Vec<Place>) -> Push {
@@ -761,7 +801,11 @@ mod tests {
         let p = picture(1_000, &gone, &targets);
         let (after, events) = push.clone().next(&p, &rule);
         let line = events[0].line(&push, &after, &p);
-        assert_eq!(line, "push on their container 1 ended: NoTaker (group [5, 4, 3, 2], 0 alive, 2 defenders known, net 2)");
+        assert_eq!(
+            line,
+            "push on their container 1 ended: NoTaker, lost men: no taker left (group [5, 4, 3, 2], 0 alive, 2 defenders known, net \
+             2; at the target ours 0 bots (0 of the push), theirs 0 there)"
+        );
     }
 
     /// A contested lying battery with fewer defenders than their container is the target, its taker on Collect; a battery

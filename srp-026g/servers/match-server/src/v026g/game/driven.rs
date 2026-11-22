@@ -655,9 +655,25 @@ fn world_facts(time: u32, decoded: &Decoded, checked: &world_validation::Checked
     let container_counts = gather
         .map(|gather| gather.containers.iter().map(|c| c.items.len()).collect())
         .unwrap_or_default();
+    // [fix-team logging] Each place's kills by kind, for the death record (`bots::death_log`).
+    let kill_kinds = decoded
+        .statistics
+        .as_ref()
+        .map(|statistics| {
+            statistics
+                .players
+                .iter()
+                .map(|player| {
+                    let sum = |e: usize| player.events[e].iter().map(|&n| u32::from(n)).sum::<u32>();
+                    [sum(event::HEADSHOT_KILL), sum(event::MELEE_KILL), sum(event::GRENADE_KILL), sum(event::SILENT_KILL)]
+                })
+                .collect()
+        })
+        .unwrap_or_default();
     WorldFacts {
         time,
         stats,
+        kill_kinds,
         points,
         batteries,
         marks,

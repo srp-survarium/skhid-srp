@@ -372,6 +372,9 @@ pub struct WorldFacts {
     /// [Gap 2] By place, what the world says it carries (its inventory's `m_carried_item`, srp-validate's
     /// `InventoryHeader::carried`); empty: the world did not say.
     pub holders: Vec<Holding>,
+    /// [fix-team logging] By place, its statistics' kills of the kinds the death record reads (`death_log::KillCounts`:
+    /// headshot, melee, grenade, silent); empty: the world had no statistics.
+    pub kill_kinds: Vec<super::death_log::KillCounts>,
 }
 
 /// [Gap 2] What a world says a place carries ([`WorldFacts::holders`]).
