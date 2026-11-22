@@ -239,26 +239,44 @@ artifact slot to turn it back into equipment slot", and "it should have yelow co
   account and the presets list, whose `K;<kit id>:<state>,...` row says every kit's (0 without the
   skill). The movie asks for the list at every account it is given, so learning, refunding or a
   preset chosen redraws it.
-- **The lobby** (`ContainerSlotMark`, `LocalPaperDoll`): with the skill, the slot is outlined, 2 px
-  of the lobby's yellow (`RoomsLook.YELLOW`, 0xFFD23F; the owner's pick of 2026-11-22; the other
-  he may compare is `RoomsLook.GOLD`, 0xE0A64E, the "chosen" colour), on the first container as the
-  container and on the last pocket as the pocket, over the slot's own look (the locked "Artifact",
-  or the pocket with or without its item). Its hint, the game's tooltip: "Click: pocket" / "Click:
-  artifact container" (`st_srp_loadout_slot_to_pocket`, `_to_container`). A click on the
-  container makes it the pocket; a click on the empty pocket makes it the container; a click on
-  the pocket holding an item is the item's, as any pocket's (the owner's pick of 2026-11-22: empty
-  it first, so a stray click never moves an item). One ask at a time; the server's answer redraws
-  it (a lobby tick, 0.3 to 0.7 s). Checked in Ruffle: `scripts/container-slot/check.sh`.
+- **The lobby** (`ContainerSlotMark`, `LocalPaperDoll`): with the skill, the slot has a soft edge
+  of the lobby's yellow (`RoomsLook.YELLOW`, 0xFFD23F; the owner, "it should have yelow
+  contours", then of the flat 2 px border: "can it be more beatiful not just yellow border"; he
+  picked the soft edge of three looks, 2026-11-22), over the slot's own look (the locked
+  "Artifact", or the pocket with or without its item), on the first container as the container
+  and on the last pocket as the pocket:
+  - a 1 px line all round at half strength (`RoomsLook.YELLOW_HALF`, 0.5);
+  - the yellow glowing into the slot from it (`RoomsLook.YELLOW_GLOW`, 0.16, to nothing): all
+    round, a ninth of the slot's short side deep, as the container; from the bottom up, half the
+    slot's height, as the pocket. So the two states tell apart at a glance: a glowing box, a
+    pocket lit from its bottom;
+  - on the hover the line goes to the full yellow and the glow doubles;
+  - the glow is drawn as gradients, not a GlowFilter (Scaleform renders a filtered object into a
+    bitmap of its own at every change of its alpha, each frame of a fade).
+- **A switch is a cross-fade**, about 130 ms eased, the hover's too, run on the movie's frames.
+  A click shows the other state's look at once and asks srp; the mark stays on its slot until
+  srp's answer (the account, whose new pocket count comes first, then the `K` row); a list that
+  was on its way says the old state and changes nothing meanwhile; no answer in 3 s shows srp's
+  last word again. The slot's own stock frame and label change when the account comes.
+- **Its hint**, the game's tooltip: "Click: pocket" / "Click: artifact container"
+  (`st_srp_loadout_slot_to_pocket`, `_to_container`). A click on the container makes it the
+  pocket; a click on the empty pocket makes it the container; a click on the pocket holding an
+  item is the item's, as any pocket's (the owner's pick of 2026-11-22: empty it first, so a stray
+  click never moves an item). One ask at a time. Checked in Ruffle:
+  `scripts/container-slot/check.sh` (its looks.png and zoom.png: before and after).
 
 ```text
  Container (default)              Pocket (after a click)
  +-----------+ +-----------+      +-----------+ +-----------+
  | medkit x2 | | RGD-5 x1  |      | medkit x2 | | RGD-5 x1  |
  +-----------+ +-----------+      +-----------+ +-----------+
- +-----------+ #===========#      +-----------+ #===========#
- | bandage   | # ARTIFACT  #      | bandage   | #  ITEMS    #
- +-----------+ #===========#      +-----------+ #===========#
- # the yellow outline: one slot, both states
+ +-----------+ +-----------+      +-----------+ +-----------+
+ | bandage   | |:::::::::::|      | bandage   | |           |
+ |           | |: ARTIFACT:|      |           | |   ITEMS   |
+ |           | |:::::::::::|      |           | |:::::::::::|
+ +-----------+ +-----------+      +-----------+ +-----------+
+ the skill's slot: a thin yellow line, the glow (:) all round as the container, from the
+ bottom up as the pocket
 ```
 
 ## Knowledge of Artifacts (512)

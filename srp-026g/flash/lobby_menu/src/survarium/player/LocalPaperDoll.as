@@ -333,9 +333,9 @@ package survarium.player
 
       // Artifact Container's slot of the kit shown, as srp says it (ContainerSlotMark's state),
       // and how to ask for the other (LocalPlayerProfile).
-      public function containerSlot(state:int, ask:Function) : void
+      public function containerSlot(kit:uint, state:int, ask:Function) : void
       {
-         this._containerMark.told(state,ask);
+         this._containerMark.told(kit,state,ask);
          this.placeContainerMark();
       }
 

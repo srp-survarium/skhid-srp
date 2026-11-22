@@ -1630,7 +1630,7 @@ package survarium.player
             return;
          }
          var at:int = this.containerKit();
-         doll.containerSlot(at >= 0 ? int(this._containers[at][1]) : ContainerSlotMark.NONE,this.askContainerSlot);
+         doll.containerSlot(uint(_profileId),at >= 0 ? int(this._containers[at][1]) : ContainerSlotMark.NONE,this.askContainerSlot);
       }
 
       // The kit shown's place among the account's kits (the `K` row's order); -1: not listed.
