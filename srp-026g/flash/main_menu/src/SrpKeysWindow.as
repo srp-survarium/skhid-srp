@@ -40,7 +40,8 @@ package
     // Rebinding is the game's: a press of a row asks the exe for a key as the stock row does (start_bind_key,
     // the menu's "press a key" message, its conflict message, root.set_keybind); a press of a key asks the
     // action selector (`selector`, when the main menu has one) which action it takes, given to the exe as a
-    // press of that key would give it (srp_bind_key "action code"; key_bindings.rs), and without one starts
+    // press of that key would give it (srp_bind_key "action code"; key_bindings.rs), or that it takes none
+    // (srp_unbind_key "code": its rows lose it as a conflict's reassign takes it), and without one starts
     // the stock wait for the key's first action. Either is the Controls tab's change, saved by Apply. The
     // exe's table of keys (root.srp_keys: the binder's keys' names, codes and texts, each row's key name) is
     // asked at the window's opening and after each key set. Esc, the close button or a press beside the
@@ -65,8 +66,9 @@ package
             {colour: 0xA397C4, ids: [0x19, 0x1A, 0x1B, 0x40, 0x41, 0x42, 0x43, 0x44]}];
         // The action selector a key's press asks (the main menu sets it): selector(request, answer), the request
         // {key: the key's name, code, keyName: its text, actions: the rows it has, rows: every row of the window,
-        // kinds: KINDS}, answer(action id) or answer(-1) to leave it.
+        // kinds: KINDS}, answer(action id), answer(UNBIND) to take the key from its rows, answer(-1) to leave it.
         public static var selector:Function = null;
+        public static const UNBIND:int = -2;
 
         // The keyboard, in key units (x, y, width): the main block, the function row over it, the navigation keys
         // and the arrows right of it; by the key binder's names.
@@ -882,6 +884,10 @@ package
                         if (action >= 0)
                         {
                             SrpExe.call("srp_bind_key", action + " " + code);
+                        }
+                        else if (action == UNBIND)
+                        {
+                            SrpExe.call("srp_unbind_key", String(code));
                         }
                     });
                 return;

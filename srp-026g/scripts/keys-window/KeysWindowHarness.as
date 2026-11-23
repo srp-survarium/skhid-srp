@@ -25,7 +25,8 @@ package
     // - a row's press: the stock wait (the menu told with the row, its key box the game's orange), the exe's
     //   answer (root.set_keybind) in the lists and on the keyboard, pending for Apply;
     // - a key's press with a selector: its request (the key, its code and text, its rows, every row, the
-    //   kinds), its answer given to the exe (srp_bind_key "action code") and shown;
+    //   kinds), its answer given to the exe (srp_bind_key "action code") and shown; UNBIND taking the key
+    //   from its rows (srp_unbind_key "code");
     // - a kind's chip dims the keys and rows of the other kinds; Esc, the close button and a press beside the
     //   window close it, the Settings staying;
     // - every dictionary: the title, the chips, the rows' labels and the keys' texts inside their places.
@@ -68,6 +69,7 @@ package
             steps = [[10, setUp], [10, shot("tab")], [10, tabWithoutTexts], [30, withTexts], [10, shot("tab-button")],
                 [30, openWindow], [5, shot("window")], [5, checkWindow], [30, pressRow], [5, shot("binding")],
                 [30, answerRow], [3, checkRebound], [1, shot("rebound")], [30, pressKey], [3, checkPicked],
+                [10, clearKey], [3, checkCleared],
                 [10, focusKind], [5, shot("focus")], [30, unfocus], [5, closings], [5, languages], [5, reopen], [10, end]];
         }
 
@@ -150,7 +152,20 @@ package
                 names[action] = key;
                 menu.set_keybind(action, textOf(key), false);
             }
-            if (name == "srp_keys" || name == "srp_bind_key")
+            if (name == "srp_unbind_key")
+            {
+                var taken:String = null;
+                for each (var held:Array in binder) if (held[1] == int(value)) taken = held[0];
+                for each (var holder:Object in rows)
+                {
+                    if (taken != null && names[holder.action_id] == taken)
+                    {
+                        names[holder.action_id] = "";
+                        menu.set_keybind(holder.action_id, "", false);
+                    }
+                }
+            }
+            if (name == "srp_keys" || name == "srp_bind_key" || name == "srp_unbind_key")
             {
                 var lines:Array = [];
                 for each (var k:Array in binder) lines.push(["K", k[0], k[1], textOf(k[0])].join("\t"));
@@ -399,6 +414,27 @@ package
                 "Z shows the action the selector picked");
             var row:* = body.getChildByName(WINDOW + "_row_78");
             require(texts_of(row).some(function(f:TextField, i:int, a:Array):Boolean { return f.text == textOf("kZ"); }), "its row shows Z");
+        }
+
+        // A press of Z again, the selector answering UNBIND: Z's rows lose it.
+        private function clearKey():void
+        {
+            Object(windowClass()).selector = function(asked:Object, answer:Function):void {
+                request = asked;
+                answer(Object(windowClass()).UNBIND);
+            };
+            calls = [];
+            body.getChildByName(WINDOW + "_key_kZ").dispatchEvent(new MouseEvent(MouseEvent.CLICK));
+            Object(windowClass()).selector = null;
+            require(request.actions.length == 1 && request.actions[0] == rowOfAction(0x4E), "the selector asked with Z's row");
+            require(calls.indexOf("srp_unbind_key 44") != -1, "UNBIND given to the exe: " + calls);
+        }
+
+        private function checkCleared():void
+        {
+            var z:* = body.getChildByName(WINDOW + "_key_kZ");
+            require(!texts_of(z).some(function(f:TextField, i:int, a:Array):Boolean { return f.text.indexOf(rowOfAction(0x4E).label) != -1; }),
+                "Z free again");
         }
 
         private function focusKind():void

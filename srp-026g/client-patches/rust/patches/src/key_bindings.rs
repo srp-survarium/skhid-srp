@@ -12,7 +12,10 @@
 //!   way (`OptionsCall::bind_key`: the movie hears `root.set_keybind`, or the
 //!   game's conflict message shows) and answers `root.srp_keys` again. A row
 //!   or a code the tables do not have, Esc's code, or a key wait already
-//!   running gives nothing.
+//!   running gives nothing;
+//! - `srp_unbind_key` with "code" takes that key from every row that has it,
+//!   as a conflict's accepted reassign does (`OptionsCall::clear_key`), and
+//!   answers `root.srp_keys` again.
 #![forbid(unsafe_code)]
 
 use core::ffi::CStr;
@@ -21,6 +24,7 @@ use crate::vostok::settings::{BindOutcome, OptionsCall};
 
 pub const KEYS: &CStr = c"srp_keys";
 pub const BIND_KEY: &CStr = c"srp_bind_key";
+pub const UNBIND_KEY: &CStr = c"srp_unbind_key";
 
 /// The answer's room: 135 keys and 61 rows take some 4 KiB.
 const ROOM: usize = 0x2000;
@@ -34,6 +38,11 @@ pub fn on_call(call: &OptionsCall<'_>, method: &CStr) -> bool {
             // Given: the movie has heard root.set_keybind or the conflict's message; Waiting or NoMenu: nothing
             // changed. Either way the table below is the rows' now.
             let _: BindOutcome = call.bind_key(row, key);
+        }
+    } else if method == UNBIND_KEY {
+        if let Some(key) = call.string_argument(0).and_then(|text| parse_decimal(text.to_bytes())).and_then(|code| call.binder_key(code))
+        {
+            let _: BindOutcome = call.clear_key(key);
         }
     } else if method != KEYS {
         return false;

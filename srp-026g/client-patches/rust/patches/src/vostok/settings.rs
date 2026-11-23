@@ -405,6 +405,25 @@ impl<'c> OptionsCall<'c> {
         }
         BindOutcome::Given
     }
+
+    /// Takes `key` from every row that has it, as a conflict's accepted reassign takes a key from the rows
+    /// that had it (scaleform_callback's reassign_ok_clicked, 0x1FF8E0..0x1FF8E9: assign_binding of ""
+    /// for each): the rows keep "" for Apply and the movie hears `root.set_keybind` for each.
+    pub fn clear_key(&self, key: BinderKey<'_>) -> BindOutcome {
+        // SAFETY: as bind_key: the menu inside the options' game, alive for the call; assign_binding keeps
+        // "" in the row of an action of the controls and tells the menu's movie, which called.
+        unsafe {
+            let Some(game) = self.options.game() else { return BindOutcome::NoMenu };
+            let menu = game.options();
+            if super::hud_input::AwaitedKey::of(*menu.awaited_action()).is_some() {
+                return BindOutcome::Waiting;
+            }
+            for row in self.control_rows().filter(|row| row.key == key.name) {
+                raw::engine_assign_binding(c"".as_ptr().cast(), Some(menu), row.action);
+            }
+        }
+        BindOutcome::Given
+    }
 }
 
 /// The main menu's movie (the Settings are in it) with the game's

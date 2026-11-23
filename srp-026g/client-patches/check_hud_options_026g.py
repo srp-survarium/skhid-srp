@@ -691,8 +691,10 @@ def key_bindings(stock, ours, expect):
     """The Bindings window's calls (key_bindings.rs): srp_keys answers the binder's keys (its table at
     0xA74FA0: name, code, the dictionary's text) and the controls' rows (action, key; `controls` as
     assign_binding's code points at it); srp_bind_key gives nothing while a key wait runs, without a
-    scene, for a row or code the tables lack or Esc's code, and answers the table again. (A key given
-    runs the game's own process_key_input and finish_binding, as a press does: not run here.)"""
+    scene, for a row or code the tables lack or Esc's code, and answers the table again; srp_unbind_key
+    likewise takes nothing while a wait runs or for a code the binder lacks. (A key given runs the game's
+    own process_key_input and finish_binding, as a press does, a key taken its assign_binding: not run
+    here.)"""
     long_text = lambda r: lambda at: bytes(r.emu.mem_read(at, 0x2000)).split(b"\0")[0]
     ours.text = long_text(ours)
     keys, at = [], 0xA74FA0
@@ -723,9 +725,16 @@ def key_bindings(stock, ours, expect):
         expect(invokes == [(language.MOVIE, "root.srp_keys", (answer,))] and waiting() == state,
                f"srp_bind_key {argument!r} with {why}: nothing given, the wait and the cursor as they were, "
                f"the table answered")
+    for argument, state, why in (("57", (0, 0), "a key wait running"), ("9999", (0x48, 0), "a code the binder lacks"),
+                                 ("x", (0x48, 0), "no number")):
+        ours.word(menu + 0x3C, state[0])
+        ours.word(menu + 0x30, state[1])
+        invokes, count = ours.callback("srp_unbind_key", argument)
+        expect(invokes == [(language.MOVIE, "root.srp_keys", (answer,))] and waiting() == state,
+               f"srp_unbind_key {argument!r} with {why}: nothing taken, the table answered")
     ours.word(menu + 0x3C, 0)
     ours.word(menu + 0x30, 0)
-    for name, argument in (("srp_keys", None), ("srp_bind_key", "4 57")):
+    for name, argument in (("srp_keys", None), ("srp_bind_key", "4 57"), ("srp_unbind_key", "57")):
         stock_invokes, _ = stock.callback(name, argument)
         expect(stock_invokes == [], f"the original ignores {name}")
     del ours.text
