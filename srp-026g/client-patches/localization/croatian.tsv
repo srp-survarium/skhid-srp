@@ -2433,17 +2433,12 @@ st_srp_ban_reason_teamkilling	Ubijanje suigrača.
 st_srp_ban_reason_threats	Prijetnje u stvarnom životu.
 st_srp_controls_assign	Dodijeli
 st_srp_controls_choose	Odabir
-st_srp_controls_fight	Borba
 st_srp_controls_free	Slobodna tipka
-st_srp_controls_interface	Sučelje
-st_srp_controls_items	Predmeti
 st_srp_controls_lobby	Predvorje
 st_srp_controls_loses	%1$s ostaje bez tipke.
-st_srp_controls_movement	Kretanje
 st_srp_controls_moves	%1$s prelazi ovamo s %2$s.
 st_srp_controls_no_match	Nema odgovarajuće radnje.
 st_srp_controls_search	Pretraži radnje
-st_srp_controls_talk	Komunikacija
 st_srp_controls_title	Odaberite radnju
 st_srp_controls_unbind	Ukloni dodjelu
 st_srp_crosshair_dynamic	Dinamični nišan

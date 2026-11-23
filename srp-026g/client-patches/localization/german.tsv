@@ -2433,17 +2433,12 @@ st_srp_ban_reason_teamkilling	Töten von Teamkameraden.
 st_srp_ban_reason_threats	Drohungen im echten Leben.
 st_srp_controls_assign	Zuweisen
 st_srp_controls_choose	Wählen
-st_srp_controls_fight	Kampf
 st_srp_controls_free	Freie Taste
-st_srp_controls_interface	Oberfläche
-st_srp_controls_items	Gegenstände
 st_srp_controls_lobby	Lobby
 st_srp_controls_loses	%1$s hat dann keine Taste.
-st_srp_controls_movement	Bewegung
 st_srp_controls_moves	%1$s wechselt von %2$s hierher.
 st_srp_controls_no_match	Keine passende Aktion.
 st_srp_controls_search	Aktionen suchen
-st_srp_controls_talk	Kommunikation
 st_srp_controls_title	Aktion wählen
 st_srp_controls_unbind	Belegung entfernen
 st_srp_crosshair_dynamic	Dynamisches Visier

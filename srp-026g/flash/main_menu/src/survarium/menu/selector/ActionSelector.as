@@ -17,30 +17,32 @@ package survarium.menu.selector
    import flash.text.TextFieldType;
    import flash.text.TextFormat;
    import flash.ui.Keyboard;
-   import survarium.constants.ActionGroup;
    import survarium.constants.UiSound;
 
    // The Controls' action selector (the owner, 2026-11-23: "selector should be its own thing"): a
    // panel over the menu, opened for one key, that lists every action the player may give a key,
-   // by group in its colour, each with its key now; a search field filters them as one types;
-   // "Unbind" leaves the key with none. Up and Down (Page Up, Page Down) move through the choices,
-   // Enter or a click picks, Esc, the close button or a click outside cancels. The footer shows
-   // what the pick does, and in amber when it moves an action from another key or takes the key
-   // from another action (the game's conflict rule: one lobby action and one of the match a key).
+   // by kind in its colour (SrpKeysWindow.KINDS), each with its key now; a search field filters them
+   // as one types; "Unbind" leaves the key with none. Up and Down (Page Up, Page Down) move through
+   // the choices, Enter or a click picks, Esc, the close button or a click outside cancels. The
+   // footer shows what the pick does, and in amber when it moves an action from another key or takes
+   // the key from another action (the game's conflict rule: one lobby action and one of the match a key).
    //
-   // The host (the Controls window) calls
-   //    open(key, bindings, onPick, onUnbind, onCancel)
-   // with the key's name as the rows name keys, the options' rows (root.set_keybindings' objects:
-   // the key's actions now are the rows whose key is `key`) and three functions, of which exactly
-   // one is called, once, after the panel has closed:
-   //    onPick(actionId:uint)   the action picked for the key
-   //    onUnbind()              the key is to have no action
-   //    onCancel()              nothing changes
-   // and applies the pick through the game's own binding path. close() takes the panel away
-   // calling none (the host closing over it); isOpen says whether it is open.
+   // The Key bindings window (SrpKeysWindow) asks it through SrpKeysWindow.selector, which the main
+   // menu sets to `select`:
+   //    select(request, answer)
+   //    request  {key: the binder's key id ("kSPACE", "mouse1"), keyName: its text, actions: the rows
+   //             bound to it, rows: every row (root.set_keybindings' objects), kinds: SrpKeysWindow.KINDS}
+   //    answer   called once, after the panel has closed: answer(actionId) the action picked for the
+   //             key, answer(UNBIND) the key to have no action, answer(CANCEL) nothing changes
+   // and the window applies it (srp_bind_key). close() takes the panel away answering nothing (the
+   // host closing over it); isOpen says whether it is open.
    public class ActionSelector extends Sprite
    {
 
+      public static const CANCEL:int = -1;
+      
+      public static const UNBIND:int = -2;
+      
       public static const WIDTH:Number = 620;
 
       public static const MAX_HEIGHT:Number = 720;
@@ -138,7 +140,7 @@ package survarium.menu.selector
          }
       }
 
-      public function open(key:String, bindings:Array, onPick:Function, onUnbind:Function, onCancel:Function) : void
+      public function select(request:Object, answer:Function) : void
       {
          if(this.session != null)
          {
@@ -149,7 +151,7 @@ package survarium.menu.selector
             // the exe answers before the call returns (root.srp_controls_texts)
             SrpExe.call("srp_controls_texts",null);
          }
-         this.session = new Session(key,BoundAction.parse(bindings),onPick,onUnbind,onCancel);
+         this.session = new Session(String(request.keyName),BoundAction.parse(request.rows,request.actions),answer);
          visible = true;
          this.build();
          stage.addEventListener(KeyboardEvent.KEY_DOWN,this.onKey,true,1000);
@@ -230,14 +232,7 @@ package survarium.menu.selector
          }
          this.sound(UiSound.CLICK);
          this.close();
-         if(row is ActionRow)
-         {
-            session.onPick(ActionRow(row).action.id);
-         }
-         else
-         {
-            session.onUnbind();
-         }
+         session.answer(row is ActionRow ? int(ActionRow(row).action.id) : UNBIND);
       }
 
       public function cancel() : void
@@ -248,7 +243,7 @@ package survarium.menu.selector
             return;
          }
          this.close();
-         session.onCancel();
+         session.answer(CANCEL);
       }
 
       // ---- the panel
@@ -340,9 +335,9 @@ package survarium.menu.selector
 
       private function buildHeader(t:SelectorTexts) : void
       {
-         var key:String = this.session.key;
-         var now:Array = this.session.actionsOn(key);
-         var cap:Sprite = Paint.keycap(key,KEYCAP,26,now.length > 0 ? int(BoundAction(now[0]).group.colour) : -1);
+         var key:String = this.session.keyName;
+         var now:Array = this.session.onKey();
+         var cap:Sprite = Paint.keycap(key,KEYCAP,26,now.length > 0 ? int(BoundAction(now[0]).colour) : -1);
          cap.name = "_key";
          cap.x = PAD;
          cap.y = PAD;
@@ -369,7 +364,7 @@ package survarium.menu.selector
          for(var i:int = 0; i < now.length; i++)
          {
             var action:BoundAction = now[i];
-            line.graphics.beginFill(action.group.colour);
+            line.graphics.beginFill(action.colour);
             line.graphics.drawCircle(x + 5,15,5);
             line.graphics.endFill();
             var label:TextField = Paint.text(19,Paint.INK);
@@ -505,31 +500,38 @@ package survarium.menu.selector
             this.list.removeChildAt(0);
          }
          var rows:Array = [];
-         var key:String = this.session.key;
+         var key:String = this.session.keyName;
          var words:Array = this.search.text.toLowerCase().split(/\s+/).filter(function(w:String, ... rest):Boolean
          {
             return w.length > 0;
          });
-         var now:Array = this.session.actionsOn(key);
+         var now:Array = this.session.onKey();
          if(now.length > 0 && (words.length == 0 || matches(t.unbind,"",words)))
          {
             rows.push(new UnbindRow(key,t,ROW_WIDTH));
          }
-         for each(var group:ActionGroup in ActionGroup.ALL)
+         // by kind in KINDS' order, the table's order in a kind; a row of no kind last, under no heading
+         var kinds:Array = [];
+         for(var k:int = 0; k < SrpKeysWindow.KINDS.length; k++)
+         {
+            kinds.push(k);
+         }
+         kinds.push(-1);
+         for each(var kind:int in kinds)
          {
             var heading:GroupHeading = null;
             for each(var action:BoundAction in this.session.actions)
             {
-               if(action.group != group || !matches(action.label + " " + t.groups[group.index],action.key,words))
+               if(action.kind != kind || !matches(action.label + " " + (kind == -1 ? "" : t.groups[kind]),action.key,words))
                {
                   continue;
                }
-               if(heading == null)
+               if(heading == null && kind != -1)
                {
-                  heading = new GroupHeading(group,t,ROW_WIDTH);
+                  heading = new GroupHeading(kind,t,ROW_WIDTH);
                   rows.push(heading);
                }
-               rows.push(new ActionRow(action,key,t,ROW_WIDTH));
+               rows.push(new ActionRow(action,t,ROW_WIDTH));
             }
          }
          var y:Number = 0;
@@ -630,12 +632,12 @@ package survarium.menu.selector
          {
             return;
          }
-         var key:String = this.session.key;
+         var key:String = this.session.keyName;
          var pick:Sprite = new Sprite();
          pick.name = "_pick";
          pick.x = PAD;
          pick.y = 16;
-         var colour:uint = row is ActionRow ? ActionRow(row).action.group.colour : Paint.UNBIND;
+         var colour:uint = row is ActionRow ? ActionRow(row).action.colour : Paint.UNBIND;
          var name:TextField = Paint.text(16,row is ActionRow ? Paint.INK : Paint.mix(Paint.UNBIND,Paint.INK,0.3));
          var keyCap:Sprite = Paint.keycap(key,22,12,row is ActionRow ? int(colour) : -1);
          var room:Number = WIDTH - 2 * PAD - 16 - 14 - 28 - keyCap.width;
@@ -665,13 +667,13 @@ package survarium.menu.selector
          if(row is ActionRow)
          {
             var action:BoundAction = ActionRow(row).action;
-            if(action.key != null && action.key != key)
+            if(action.key != null && !action.onKey)
             {
                notes.push(SelectorTexts.format(t.moves,action.label,action.key));
             }
-            if(action.key != key)
+            if(!action.onKey)
             {
-               for each(var other:BoundAction in this.session.actionsOn(key))
+               for each(var other:BoundAction in this.session.onKey())
                {
                   if(action.takesFrom(other))
                   {
@@ -682,7 +684,7 @@ package survarium.menu.selector
          }
          else
          {
-            for each(other in this.session.actionsOn(key))
+            for each(other in this.session.onKey())
             {
                losers.push(other.label);
             }
@@ -953,20 +955,16 @@ package survarium.menu.selector
 import survarium.menu.selector.BoundAction;
 import survarium.menu.selector.SelectorRow;
 
-// The open panel: the key, the actions, the host's three functions, the rows shown, the choice
+// The open panel: the key's text, the actions, the host's answer, the rows shown, the choice
 // highlighted and the list's scroll.
 class Session
 {
 
-   public var key:String;
+   public var keyName:String;
 
    public var actions:Array;
 
-   public var onPick:Function;
-
-   public var onUnbind:Function;
-
-   public var onCancel:Function;
+   public var answer:Function;
 
    public var rows:Array = [];
 
@@ -974,22 +972,20 @@ class Session
 
    public var scroll:Number = 0;
 
-   public function Session(key:String, actions:Array, onPick:Function, onUnbind:Function, onCancel:Function)
+   public function Session(keyName:String, actions:Array, answer:Function)
    {
       super();
-      this.key = key;
+      this.keyName = keyName;
       this.actions = actions;
-      this.onPick = onPick;
-      this.onUnbind = onUnbind;
-      this.onCancel = onCancel;
+      this.answer = answer;
    }
 
    // The key's actions now (a lobby one and one of the match at most, in the table's order).
-   public function actionsOn(key:String) : Array
+   public function onKey() : Array
    {
       return this.actions.filter(function(action:BoundAction, ... rest):Boolean
       {
-         return action.key == key;
+         return action.onKey;
       });
    }
 

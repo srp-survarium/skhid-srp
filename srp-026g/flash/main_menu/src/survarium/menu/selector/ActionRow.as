@@ -4,8 +4,8 @@ package survarium.menu.selector
    import flash.display.Sprite;
    import flash.text.TextField;
 
-   // An action to pick: its group's dot, its label (and "Lobby" for a lobby key), its key now on the
-   // right (tinted when it is the key being edited, a dash when it has none).
+   // An action to pick: its kind's dot, its label (and "Lobby" for a lobby key), its key now on the
+   // right (tinted when it is on the key being edited, a dash when it has none).
    public class ActionRow extends SelectorRow
    {
 
@@ -17,12 +17,12 @@ package survarium.menu.selector
 
       public var keyChip:Sprite;
 
-      public function ActionRow(action:BoundAction, editedKey:String, texts:SelectorTexts, rowWidth:Number)
+      public function ActionRow(action:BoundAction, texts:SelectorTexts, rowWidth:Number)
       {
          super(rowWidth,HEIGHT);
          this.action = action;
          var g:Graphics = marks.graphics;
-         g.beginFill(action.group.colour);
+         g.beginFill(action.colour);
          g.drawCircle(19,HEIGHT / 2,4);
          g.endFill();
          var right:Number;
@@ -37,7 +37,7 @@ package survarium.menu.selector
          }
          else
          {
-            this.keyChip = chip(action.key,action.key == editedKey ? int(action.group.colour) : -1);
+            this.keyChip = chip(action.key,action.onKey ? int(action.colour) : -1);
             right = this.keyChip.x - 14;
          }
          var tag:Sprite = null;
@@ -66,7 +66,7 @@ package survarium.menu.selector
 
       override protected function get accent() : uint
       {
-         return this.action.group.colour;
+         return this.action.colour;
       }
 
       private static function lobbyTag(text:String) : Sprite

@@ -32,7 +32,7 @@ package survarium.menu.selector
 
       public var lobby:String;
 
-      // ActionGroup.ALL's names, by ActionGroup.index
+      // SrpKeysWindow.KINDS' names, by kind (the Key bindings window's own: st_srp_keys_*)
       public var groups:Array;
 
       public function SelectorTexts(values:Array)

@@ -24,7 +24,7 @@ package
       
       public var settings_window:Settings = new SrvSettingsWndow();
 
-      // The Controls' action selector, over the Settings (the Controls window opens it).
+      // The Controls' action selector, over the Settings (the Key bindings window asks it: SrpKeysWindow.selector).
       public var key_action_selector:ActionSelector = new ActionSelector();
       
       protected var layout:Layout;
@@ -43,6 +43,7 @@ package
          addChild(this.settings_window);
          this.settings_window.visible = false;
          addChild(this.key_action_selector);
+         SrpKeysWindow.selector = this.key_action_selector.select;
          var _spr:Sprite = new Sprite();
          stage.addChild(_spr);
          Message.initStage(_spr);

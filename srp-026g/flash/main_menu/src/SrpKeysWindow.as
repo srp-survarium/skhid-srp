@@ -51,6 +51,9 @@ package
                 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59]},
             {colour: 0x5EA3EA, ids: [0x22, 0x37, 0x3F, 0x45, 0x46, 0x47]},
             {colour: 0xA397C4, ids: [0x19, 0x1A, 0x1B, 0x40, 0x41, 0x42, 0x43, 0x44]}];
+        // The action selector a key's press asks (the main menu sets it: ActionSelector.select):
+        // selector(request, answer), request {key, keyName, actions, rows, kinds}, answer(actionId), -1 cancel.
+        public static var selector:Function = null;
         // The stock row (SrvBindKeyListRender): its height (the tab's lists' rowHeight) and its label's left.
         private static const ROW:Number = 30;
         private static const LABEL_X:Number = 65;

@@ -1084,14 +1084,13 @@ pub const TEXTS: [&CStr; 21] = [c"st_srp_options_hud", c"st_srp_hide_quests_opti
 /// title, the search field's hint, Unbind, a free key, the two warnings (an
 /// action moved from its key, the actions the key leaves), no match, the keys'
 /// hints (choose, assign, the stock Cancel), a lobby key's tag, then the five
-/// groups' names (ActionGroup's order).
+/// kinds' names (the Key bindings window's, SrpKeysWindow.KINDS' order).
 pub const CONTROLS_TEXTS: [&CStr; 16] = [c"st_srp_controls_title", c"st_srp_controls_search", c"st_srp_controls_unbind",
                                          c"st_srp_controls_free", c"st_srp_controls_moves", c"st_srp_controls_loses",
                                          c"st_srp_controls_no_match", c"st_srp_controls_choose",
                                          c"st_srp_controls_assign", c"st_cancel", c"st_srp_controls_lobby",
-                                         c"st_srp_controls_movement", c"st_srp_controls_fight",
-                                         c"st_srp_controls_items", c"st_srp_controls_talk",
-                                         c"st_srp_controls_interface"];
+                                         c"st_srp_keys_movement", c"st_srp_keys_combat", c"st_srp_keys_items",
+                                         c"st_srp_keys_talk", c"st_srp_keys_interface"];
 
 /// Answers `method` with the running language's texts of `keys`.
 fn answer_texts<const N: usize>(call: &OptionsCall<'_>, method: &CStr, keys: &[&CStr; N]) {
@@ -1715,7 +1714,7 @@ mod tests {
             assert!(key.to_bytes().starts_with(b"st_srp_") && !TEXTS[i + 1..].contains(key));
         }
         for (i, key) in CONTROLS_TEXTS.iter().enumerate() {
-            assert!(!CONTROLS_TEXTS[i + 1..].contains(key) && !TEXTS.contains(key));
+            assert!(!CONTROLS_TEXTS[i + 1..].contains(key));
         }
         assert!(setting(c"srp_hud_texts").is_none() && setting(c"srp_controls_texts").is_none());
         for list in VulkanList::ALL {

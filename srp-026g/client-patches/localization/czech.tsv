@@ -2433,17 +2433,12 @@ st_srp_ban_reason_teamkilling	Zabíjení spoluhráčů.
 st_srp_ban_reason_threats	Výhrůžky v reálném životě.
 st_srp_controls_assign	Přiřadit
 st_srp_controls_choose	Vybrat
-st_srp_controls_fight	Boj
 st_srp_controls_free	Volná klávesa
-st_srp_controls_interface	Rozhraní
-st_srp_controls_items	Předměty
 st_srp_controls_lobby	Lobby
 st_srp_controls_loses	%1$s zůstane bez klávesy.
-st_srp_controls_movement	Pohyb
 st_srp_controls_moves	%1$s se přesune sem z %2$s.
 st_srp_controls_no_match	Žádná akce neodpovídá.
 st_srp_controls_search	Hledat akce
-st_srp_controls_talk	Komunikace
 st_srp_controls_title	Vyberte akci
 st_srp_controls_unbind	Zrušit přiřazení
 st_srp_crosshair_dynamic	Dynamický zaměřovač

@@ -32,7 +32,7 @@ package
         private var loader:Loader = new Loader();
         private var frames:int = 0;
         private var languages:Array;
-        // What the host was told: each call, ["pick", id], ["unbind"] or ["cancel"].
+        // What the window was answered: each answer's action id, -2 unbind or -1 cancel.
         private var told:Array = [];
         private var asked:int = 0;
         private var failed:String = null;
@@ -83,10 +83,16 @@ package
         private function open(lang:Array, key:String):void
         {
             menu.srp_controls_texts.apply(null, lang[1]);
-            selector.open(key, rows(lang),
-                function(id:uint):void { told.push(["pick", id]); },
-                function():void { told.push(["unbind"]); },
-                function():void { told.push(["cancel"]); });
+            selector.select(request(lang, key), function(id:int):void { told.push(id); });
+        }
+
+        // SrpKeysWindow's request for a key (its press of the key's box): the binder's id, the key's text,
+        // the rows on it, every row, the kinds.
+        private function request(lang:Array, key:String):Object
+        {
+            var all:Array = rows(lang);
+            return {key: "k" + key.toUpperCase(), keyName: key, rows: all, kinds: Object(cls("SrpKeysWindow")).KINDS,
+                actions: all.filter(function(row:Object, ...rest):Boolean { return row.key == key; })};
         }
 
         // root.set_keybindings' objects, as the Settings keep them.
@@ -193,10 +199,10 @@ package
                     settings.x = Math.round((menu.stage.stageWidth - settings.width) / 2);
                     settings.y = Math.round((menu.stage.stageHeight - settings.height) / 2);
                     // the first open asks the exe for the texts, once
-                    selector.open("Q", rows(language("english")), function(id:uint):void {}, function():void {}, function():void {});
+                    selector.select(request(language("english"), "Q"), function(id:int):void {});
                     require(asked == 1, "the first open asks the exe for its texts: " + asked);
                     selector.close();
-                    selector.open("Q", rows(language("english")), function(id:uint):void {}, function():void {}, function():void {});
+                    selector.select(request(language("english"), "Q"), function(id:int):void {});
                     require(asked == 1, "the texts are asked once: " + asked);
                     selector.close();
                     require(!selector.isOpen && !selector.visible, "close() closes it");
@@ -245,13 +251,14 @@ package
             var ActionRow:Class = cls("survarium.menu.selector.ActionRow");
             var UnbindRow:Class = cls("survarium.menu.selector.UnbindRow");
             var GroupHeading:Class = cls("survarium.menu.selector.GroupHeading");
-            var ActionGroup:Object = cls("survarium.constants.ActionGroup");
+            // the main menu gives the window this selector
+            require(Object(cls("SrpKeysWindow")).selector != null, "SrpKeysWindow.selector is set");
             selector.close();
             told = [];
             open(lang, "Q");
             var list:Array = selector.rows;
             require(list[0] is UnbindRow, "a bound key's first row is Unbind");
-            // every row with a key button once, by group in ActionGroup's order, the table's order in a group
+            // every row with a key button once, by kind in KINDS' order, the table's order in a kind
             var ids:Array = [];
             var groups:Array = [];
             for each (var r:* in list)
@@ -275,13 +282,9 @@ package
             var last:int = -1;
             for each (r in actionRows())
             {
-                require(r.action.group.index >= last, "the groups in order");
-                last = r.action.group.index;
+                require(r.action.kind >= last && r.action.kind != -1, "the kinds in order, each row of one");
+                last = r.action.kind;
             }
-            require(ActionGroup.of(0x4D) == ActionGroup.ITEMS && ActionGroup.of(0x37) == ActionGroup.TALK
-                && ActionGroup.of(0x26) == ActionGroup.FIGHT && ActionGroup.of(0x0B) == ActionGroup.MOVEMENT
-                && ActionGroup.of(0x19) == ActionGroup.INTERFACE && ActionGroup.of(SPOT) == ActionGroup.TALK
-                && ActionGroup.of(0x23) == ActionGroup.FIGHT, "ActionGroup.of");
             // the key's action highlighted at the open, and in view
             require(selector.highlighted == rowOf(SPOT), "the key's action is highlighted at the open");
             inView(selector.highlighted);
@@ -314,26 +317,26 @@ package
             // Enter picks the highlighted, once, and goes no further (the Settings stay)
             hover(rowOf(JUMP));
             key(Keyboard.ENTER);
-            require(!selector.isOpen && told.length == 1 && told[0][0] == "pick" && told[0][1] == JUMP, "Enter picks Jump: " + told);
+            require(!selector.isOpen && told.length == 1 && told[0] == JUMP, "Enter picks Jump: " + told);
             require(menu.settings_window.visible, "the Settings stay");
             // Esc cancels, and goes no further
             told = [];
             open(lang, "Q");
             key(Keyboard.ESCAPE);
-            require(!selector.isOpen && told.length == 1 && told[0][0] == "cancel", "Esc cancels: " + told);
+            require(!selector.isOpen && told.length == 1 && told[0] == -1, "Esc cancels: " + told);
             require(menu.settings_window.visible, "Esc closes the selector only");
             // a click on a row picks it
             told = [];
             open(lang, "Q");
             rowOf(CROUCH_TOGGLE).dispatchEvent(new MouseEvent(MouseEvent.CLICK, true));
-            require(told.length == 1 && told[0][1] == CROUCH_TOGGLE, "a click picks: " + told);
+            require(told.length == 1 && told[0] == CROUCH_TOGGLE, "a click picks: " + told);
             // Unbind
             told = [];
             open(lang, "Q");
             hover(selector.rows[0]);
             require(warning() == format(lang[1][5], labelOf(lang, SPOT)), "Unbind's warning: " + warning());
             selector.rows[0].dispatchEvent(new MouseEvent(MouseEvent.CLICK, true));
-            require(told.length == 1 && told[0][0] == "unbind", "Unbind: " + told);
+            require(told.length == 1 && told[0] == -2, "Unbind: " + told);
             // the search
             told = [];
             open(lang, "Q");
@@ -354,11 +357,11 @@ package
             require(actionRows().length == 59, "the search cleared: every action");
             // the backdrop and the close button cancel
             selector.getChildAt(0).dispatchEvent(new MouseEvent(MouseEvent.CLICK, true));
-            require(!selector.isOpen && told.length == 1 && told[0][0] == "cancel", "a click outside cancels: " + told);
+            require(!selector.isOpen && told.length == 1 && told[0] == -1, "a click outside cancels: " + told);
             told = [];
             open(lang, "Q");
             selector.panel.getChildByName("_close").dispatchEvent(new MouseEvent(MouseEvent.CLICK, true));
-            require(!selector.isOpen && told.length == 1 && told[0][0] == "cancel", "the close button cancels: " + told);
+            require(!selector.isOpen && told.length == 1 && told[0] == -1, "the close button cancels: " + told);
             // a free key: no Unbind, the header says free; a pick of an unbound action warns of nothing
             told = [];
             open(lang, "J");
