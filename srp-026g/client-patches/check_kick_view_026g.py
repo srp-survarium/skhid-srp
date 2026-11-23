@@ -48,6 +48,7 @@ class Held:
     def __init__(self, data):
         self.game = rig.Game(data)
         self.hand = None
+        self.ms = 0
         self.game.emu.hook_add(UC_HOOK_CODE, self.hold, begin=rig.UPDATE_CAMERA, end=rig.UPDATE_CAMERA)
 
     def hold(self, emu, *_):
@@ -62,7 +63,9 @@ class Held:
 
     def view(self, vtable=WEAPON_VTABLE, look=0.0, kick=0.0, scope=0):
         self.hand = (vtable, look, kick, scope)
-        view, regs, _ = self.game.update_camera(0)
+        # a second after the frame before: the view's follow of the gun's turn (the same patch) starts anew, at rest
+        self.ms += 1000
+        view, regs, _ = self.game.update_camera(0, ms=self.ms)
         return view, regs
 
 

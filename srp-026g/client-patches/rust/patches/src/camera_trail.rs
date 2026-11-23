@@ -1,59 +1,73 @@
-//! Patch 197: the drawn camera and the aim.
+//! Patch 197: the drawn camera and the aim (docs/notes/muzzle-shots.md).
 //!
 //! The first-person view is the eyes' transform (bone "Item"), which the
 //! mouse, the weapon's kick and the shot clips turn; the gun and its sights
-//! hang on it, and a shot leaves the gun (patch 200). Two things are drawn
-//! apart from that aim here, at update_camera's eye (`camera.eye`, after the
+//! hang on it, and a shot leaves the gun (patch 200). Here the view drawn is
+//! taken apart from that aim, at update_camera's eye (`camera.eye`, after the
 //! ragdoll's and the head clearance's). Only the view moves: the eyes'
-//! transform, the aim, the shots and the worlds are the game's. Nothing a
-//! match computes.
+//! transform, the aim, the gun, the shots and the worlds are the game's.
+//! Nothing a match computes, and nothing between the mouse and the gun.
 //!
-//! **The weapon's kick is the gun's** (the recoil on top of patch 200's shots
-//! from the gun; always): of the lift the kick gives the eye the view takes
-//! `KICK_SHOWN`, from the hip too, and the gun, on the aim, rises over it
-//! and comes back as the kick does. Not while the scope's own view is on.
+//! **The weapon's kick is the gun's**: of the lift the kick gives the eye the
+//! view takes `KICK_SHOWN`, and the gun, on the aim, rises over it and comes
+//! back as the kick does.
 //!
-//! **The view trails the aim** (a prototype, only with `SKHID_CAMERA_TRAIL`
-//! set): inside `DEAD` of where it rests it holds still, past it it follows,
-//! never more than `MOST` behind. The zones are times how far the sight is
-//! raised (patch 172's site tells: `aim_pose::take_aim_progress`), so from
-//! the hip the view rests where the kick's share puts it. With the switch
-//! the aimed gun also shows less of its shot clip (`aim_pose::Kick::Back`):
-//! its sights stay on the aim, and of its kick `BACK_SHARE` back along it.
-//! Not done: with picture-in-picture scopes (patch 198) the frame is not
-//! zoomed while the handler's factor says it is, so the zones are then that
-//! much smaller on the screen than without.
+//! **The gun turns first, the view follows** (the owner, 2026-11-23: "weapons
+//! don't have momentum when turn", "bodycam should have perfected the
+//! technique"). Bodycam's camera motion, as its reproduction in the STALKER
+//! bodycam fork has it (bodycam_reference/camera.cpp, `CameraMotion::Update`):
+//! the control (here: where the view rests) is smoothed; the arms follow the
+//! smoothed control quickly and the camera slowly, the faster the faster the
+//! turn; a turn rolls the view. There the arms carry the gun behind the
+//! control; here the gun stays on the aim, so the mouse moves it at once and
+//! a bullet goes where it points, and the view is drawn as far from the gun
+//! as that camera is from those arms. So on a slow turn the gun swings ahead
+//! over a view that comes after it; on a fast one the view keeps up.
+//!
+//! Neither while the scope's own view is on (the optic's picture is the
+//! screen). The view is never more than `MOST_HIP` off the gun's aim, and
+//! `MOST_AIMED` fully aimed.
 
 #![forbid(unsafe_code)]
 
-use ragdoll::math::{Vec3, abs, atan2, clamp, exp_neg, min, sin_cos, sqrt};
+use ragdoll::math::{Vec3, abs, atan2, clamp, min, sin_cos, sqrt};
 
-use crate::aim_pose::{self, Kick};
+use crate::aim_pose;
 use crate::vostok::world::PlayerId;
-use crate::vostok::{Context, Flow, GameCell, NoExit, camera, clock, renderer, shot};
+use crate::vostok::{Context, Flow, GameCell, NoExit, camera, clock, shot};
 
 const DEGREE: f32 = core::f32::consts::PI / 180.0;
-/// How far the aim turns from the camera before the camera follows (rad,
-/// unzoomed; every zone is times the view's field-of-view factor, so it is
-/// the same size on the screen through a scope).
-const DEAD: Look = Look { yaw: 0.8 * DEGREE, pitch: 0.55 * DEGREE };
-/// Past `DEAD`, the further turn over which the camera's pull grows to full.
-const SOFT: Look = Look { yaw: 1.8 * DEGREE, pitch: 1.2 * DEGREE };
-/// The most the camera is behind the aim.
-const MOST: Look = Look { yaw: 3.0 * DEGREE, pitch: 2.0 * DEGREE };
-/// The share of the way to where it is pulled the camera goes in a second
-/// (1 - e^(-rate t)).
-const RATE: f32 = 14.0;
-/// The share of the gun's own kick back along the view the aimed view shows.
-const BACK_SHARE: f32 = 0.35;
 /// The share of the lift the weapon's kick gives the eye that the view takes;
 /// the gun takes all of it.
 const KICK_SHOWN: f32 = 0.4;
-/// The longest frame the camera steps by (s).
-const LONGEST_FRAME: f32 = 0.1;
+/// The control is smoothed at this rate (1/s): `controlSmoothSpeed`.
+const CONTROL_SMOOTHING: f32 = 25.0;
+/// The arms follow the smoothed control at this rate: `kArmsLagSpeed`.
+const ARMS_LAG: f32 = 20.0;
+/// The camera follows it at a rate between these two (`cameraLagSlowSpeed`,
+/// `cameraLagFastSpeed`), over turns of `SLOW_TURN` to `FAST_TURN` (yaw and
+/// pitch summed; the reference's rates 1 and 2: a rate is 125 degrees a
+/// second), and that rate goes to its target at `CAMERA_LAG_RESPONSE`.
+const CAMERA_LAG: (f32, f32) = (2.0, 16.0);
+const SLOW_TURN: f32 = 125.0 * DEGREE;
+const FAST_TURN: f32 = 250.0 * DEGREE;
+const CAMERA_LAG_RESPONSE: f32 = 5.0;
+/// A lag's longest step (s): `kMaxLagStepSeconds`.
+const LONGEST_LAG_STEP: f32 = 1.0 / 30.0;
+/// A longer frame starts the follow anew (s): `kClassicMaxFrameSeconds`.
+const LONGEST_FRAME: f32 = 0.4;
+/// A turn of `ROLL_TURN` (yaw, a second; the reference's rate 3) rolls the
+/// view `TURN_ROLL` (its 8 degrees, at the fork's head roll share of 0.43),
+/// against the turn; the roll goes to its target at `ROLL_RATE`.
+const TURN_ROLL: f32 = 8.0 * 0.43 * DEGREE;
+const ROLL_TURN: f32 = 375.0 * DEGREE;
+const ROLL_RATE: f32 = 8.0;
+/// The most the view is off the gun's aim, from the hip and fully aimed.
+const MOST_HIP: Look = Look { yaw: 10.0 * DEGREE, pitch: 5.0 * DEGREE };
+const MOST_AIMED: Look = Look { yaw: 3.0 * DEGREE, pitch: 2.0 * DEGREE };
 
 /// A direction, or a pair of angles about the two axes (rad): `yaw` about the
-/// world's up, `pitch` up from the level.
+/// world's up (growing to the right), `pitch` up from the level.
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Look {
     yaw: f32,
@@ -61,6 +75,8 @@ struct Look {
 }
 
 impl Look {
+    const NONE: Look = Look { yaw: 0.0, pitch: 0.0 };
+
     /// The direction `forward` looks; none for no direction.
     fn of(forward: Vec3) -> Option<Look> {
         let forward = forward.direction()?;
@@ -73,59 +89,95 @@ impl Look {
         let ((sin_yaw, cos_yaw), (sin_pitch, cos_pitch)) = (sin_cos(self.yaw), sin_cos(self.pitch));
         Vec3::new(sin_yaw * cos_pitch, sin_pitch, cos_yaw * cos_pitch)
     }
+
+    /// From `self` the share `by` of the way to `to`.
+    fn toward(self, to: Look, by: f32) -> Look {
+        Look { yaw: turn(self.yaw + turn(to.yaw - self.yaw) * by), pitch: self.pitch + (to.pitch - self.pitch) * by }
+    }
+
+    /// `self` less `of`: a turn.
+    fn from(self, of: Look) -> Look {
+        Look { yaw: turn(self.yaw - of.yaw), pitch: self.pitch - of.pitch }
+    }
 }
 
-/// The camera, between frames.
+/// The follow of one player's view, between frames.
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum Trail {
-    /// The switch is not read yet.
-    Unread,
-    /// No trail: the view rests where the kick's share puts it.
-    Off,
-    /// On, with no first-person eye shown last frame.
-    Waiting,
-    /// `player`'s view looked along `look` at `at` (the counter's
-    /// milliseconds, wrapping).
-    Following { player: PlayerId, look: Look, at: u32 },
+struct Rig {
+    player: PlayerId,
+    /// The control last frame, and smoothed.
+    control: Look,
+    smooth: Look,
+    /// Where the arms and the camera are.
+    arms: Look,
+    camera: Look,
+    /// The camera's lag rate (1/s).
+    lag: f32,
+    /// The view off the gun's aim, and its roll (its up leaning left, rad).
+    off: Look,
+    roll: f32,
+    /// The counter's milliseconds of that frame (wrapping).
+    at: u32,
 }
 
-static TRAIL: GameCell<Trail> = GameCell::new(Trail::Unread);
+impl Rig {
+    /// At rest on `control`.
+    fn on(player: PlayerId, control: Look, at: u32) -> Rig {
+        Rig { player, control, smooth: control, arms: control, camera: control, lag: CAMERA_LAG.0, off: Look::NONE, roll: 0.0, at }
+    }
+
+    /// A frame of `dt` s on, under `control`; the view at most `most` off the
+    /// gun. The arms' place of the frame before is the gun's, the camera's of
+    /// this frame the view's, as the reference shows them.
+    fn stepped(self, control: Look, dt: f32, most: Look, at: u32) -> Rig {
+        let turned = control.from(self.control);
+        let (yaw_rate, pitch_rate) = (turned.yaw / dt, turned.pitch / dt);
+        let smooth = self.smooth.toward(control, clamp(dt * CONTROL_SMOOTHING, 0.0, 1.0));
+        let step = min(dt, LONGEST_LAG_STEP);
+        let arms = self.arms.toward(smooth, clamp(step * ARMS_LAG, 0.0, 1.0));
+        let fast = clamp((abs(yaw_rate) + abs(pitch_rate) - SLOW_TURN) / (FAST_TURN - SLOW_TURN), 0.0, 1.0);
+        let lag = self.lag + (CAMERA_LAG.0 + (CAMERA_LAG.1 - CAMERA_LAG.0) * fast - self.lag) * clamp(dt * CAMERA_LAG_RESPONSE, 0.0, 1.0);
+        let behind = self.camera.toward(smooth, clamp(step * lag, 0.0, 1.0)).from(self.arms);
+        let off = Look { yaw: clamp(behind.yaw, -most.yaw, most.yaw), pitch: clamp(behind.pitch, -most.pitch, most.pitch) };
+        let camera = Look { yaw: turn(self.arms.yaw + off.yaw), pitch: self.arms.pitch + off.pitch };
+        let leaning = TURN_ROLL * clamp(yaw_rate / ROLL_TURN, -1.0, 1.0);
+        let roll = self.roll + (leaning - self.roll) * clamp(dt * ROLL_RATE, 0.0, 1.0);
+        Rig { player: self.player, control, smooth, arms, camera, lag, off, roll, at }
+    }
+}
+
+/// No first-person eye was shown last frame, or one player's follow.
+static FOLLOW: GameCell<Option<Rig>> = GameCell::new(None);
 
 /// update_camera's eye (`camera.eye`, after the head clearance's).
 pub fn on_eye(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
-    let state = match TRAIL.get(thread) {
-        Trail::Unread if renderer::environment_set(thread, c"SKHID_CAMERA_TRAIL") => {
-            aim_pose::show(thread, Kick::Back { share: BACK_SHARE });
-            Trail::Waiting
-        }
-        Trail::Unread => Trail::Off,
-        state => state,
-    };
     let eye = camera::given_eye(ctx);
-    let aimed = match camera::eye_player(ctx) {
-        Some((player, true)) => Look::of(row(&eye, 2)).map(|aim| (player.id(), aim, rested(aim, shot::free_kick_lift(player)))),
+    let shown = match camera::eye_player(ctx) {
+        Some((player, true)) if !shot::scope_view(player) => Look::of(row(&eye, 2)).map(|aim| (player, aim)),
         _ => None,
     };
-    let Some((player, aim, rest)) = aimed else {
-        TRAIL.set(thread, if state == Trail::Off { Trail::Off } else { Trail::Waiting });
+    let Some((player, aim)) = shown else {
+        FOLLOW.set(thread, None);
         return Flow::Continue;
     };
-    let look = if state == Trail::Off {
-        TRAIL.set(thread, Trail::Off);
-        rest
-    } else {
-        let zoom = camera::eye_fov_factor(ctx).filter(|factor| factor.is_finite() && *factor > 0.0).map_or(1.0, |factor| min(factor, 1.0));
-        let raised = aim_pose::take_aim_progress(thread);
-        let zoom = zoom * if raised.is_finite() { clamp(raised, 0.0, 1.0) } else { 0.0 };
-        let now = clock::milliseconds(thread);
-        let look = shown(state, player, rest, zoom, now);
-        TRAIL.set(thread, Trail::Following { player, look, at: now });
-        look
+    let rest = rested(aim, shot::free_kick_lift(player));
+    let raised = aim_pose::take_aim_progress(thread);
+    let most = most(if raised.is_finite() { clamp(raised, 0.0, 1.0) } else { 0.0 });
+    let now = clock::milliseconds(thread);
+    let rig = match FOLLOW.get(thread) {
+        Some(rig) if rig.player == player.id() => match now.wrapping_sub(rig.at) as f32 / 1000.0 {
+            dt if dt > LONGEST_FRAME => Rig::on(player.id(), rest, now),
+            dt if dt > 0.0 => rig.stepped(rest, dt, most, now),
+            _ => rig,
+        },
+        _ => Rig::on(player.id(), rest, now),
     };
-    // On the aim (from the hip with no kick always): the eye as it is given.
-    if look != aim {
-        camera::look_from(ctx, turned(&eye, aim, look));
+    FOLLOW.set(thread, Some(rig));
+    let look = Look { yaw: turn(rest.yaw + rig.off.yaw), pitch: rest.pitch + rig.off.pitch };
+    // On the aim and level (a still gun with no kick): the eye as it is given.
+    if look != aim || rig.roll != 0.0 {
+        camera::look_from(ctx, rolled(turned(&eye, aim, look), rig.roll));
     }
     Flow::Continue
 }
@@ -136,53 +188,10 @@ fn rested(aim: Look, lift: f32) -> Look {
     Look { yaw: aim.yaw, pitch: aim.pitch - (1.0 - KICK_SHOWN) * lift }
 }
 
-/// Where `player`'s camera looks this frame: on from where it looked last
-/// frame toward the `aim`, or along the aim for a player it did not follow.
-/// `zoom` sizes the zones: the view's field-of-view factor times how far the
-/// sight is raised (0 from the hip: the view is the aim).
-fn shown(state: Trail, player: PlayerId, aim: Look, zoom: f32, now: u32) -> Look {
-    match state {
-        Trail::Following { player: last, look, at } if last == player => {
-            let dt = clamp(now.wrapping_sub(at) as f32 / 1000.0, 0.0, LONGEST_FRAME);
-            Look {
-                yaw: followed(look.yaw, aim.yaw, Zone::of(|zone| zone.yaw, zoom), dt),
-                pitch: followed(look.pitch, aim.pitch, Zone::of(|zone| zone.pitch, zoom), dt),
-            }
-        }
-        _ => aim,
-    }
-}
-
-/// One axis's zones (rad).
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct Zone {
-    dead: f32,
-    soft: f32,
-    most: f32,
-}
-
-impl Zone {
-    fn of(axis: impl Fn(Look) -> f32, zoom: f32) -> Zone {
-        Zone { dead: axis(DEAD) * zoom, soft: axis(SOFT) * zoom, most: axis(MOST) * zoom }
-    }
-}
-
-/// The camera's angle after `dt` s, from `camera` toward the `aim`: still
-/// while the aim is within `dead`, pulled to `dead` short of it past that
-/// (fully once `soft` further), never more than `most` behind.
-fn followed(camera: f32, aim: f32, zone: Zone, dt: f32) -> f32 {
-    let behind = turn(aim - camera);
-    let past = abs(behind) - zone.dead;
-    let pulled = if past <= 0.0 { 0.0 } else { (behind - clamp(behind, -zone.dead, zone.dead)) * ramp(past / zone.soft) };
-    let next = camera + pulled * (1.0 - exp_neg(RATE * dt));
-    let behind = turn(aim - next);
-    if abs(behind) > zone.most { turn(aim - clamp(behind, -zone.most, zone.most)) } else { turn(next) }
-}
-
-/// 0 to 1 over 0 to 1, level at both ends.
-fn ramp(t: f32) -> f32 {
-    let t = clamp(t, 0.0, 1.0);
-    t * t * (3.0 - 2.0 * t)
+/// The most the view is off the gun's aim with the sight `raised` (0 from
+/// the hip to 1).
+fn most(raised: f32) -> Look {
+    Look { yaw: MOST_HIP.yaw + (MOST_AIMED.yaw - MOST_HIP.yaw) * raised, pitch: MOST_HIP.pitch + (MOST_AIMED.pitch - MOST_HIP.pitch) * raised }
 }
 
 /// An angle between two directions' angles, in -pi..pi.
@@ -211,6 +220,17 @@ fn turned(eye: &[f32; 16], aim: Look, look: Look) -> [f32; 16] {
     view
 }
 
+/// A view rolled about its own forward: its up leaning to its left by `roll`.
+fn rolled(view: [f32; 16], roll: f32) -> [f32; 16] {
+    let forward = row(&view, 2);
+    let mut rolled = view;
+    for at in 0..2 {
+        let axis = about(row(&view, at), forward, roll);
+        rolled[at * 4..at * 4 + 3].copy_from_slice(&[axis.x, axis.y, axis.z]);
+    }
+    rolled
+}
+
 /// `v` turned about the unit `axis` by `angle` (right-handed).
 fn about(v: Vec3, axis: Vec3, angle: f32) -> Vec3 {
     let (sin, cos) = sin_cos(angle);
@@ -226,11 +246,20 @@ fn row(m: &[f32; 16], at: usize) -> Vec3 {
 mod tests {
     use super::*;
 
-    const YAW: Zone = Zone { dead: DEAD.yaw, soft: SOFT.yaw, most: MOST.yaw };
     const FRAME: f32 = 1.0 / 60.0;
+    const AHEAD: Look = Look { yaw: 0.3, pitch: 0.1 };
 
-    fn player(n: u32) -> PlayerId {
-        PlayerId::for_test(n)
+    fn rig() -> Rig {
+        Rig::on(PlayerId::for_test(1), AHEAD, 0)
+    }
+
+    /// The rig after `frames` frames of a turn to the right of `rate` rad/s.
+    fn turning(mut rig: Rig, rate: f32, frames: u32) -> Rig {
+        for _ in 0..frames {
+            let control = Look { yaw: turn(rig.control.yaw + rate * FRAME), pitch: rig.control.pitch };
+            rig = rig.stepped(control, FRAME, MOST_HIP, rig.at + 16);
+        }
+        rig
     }
 
     #[test]
@@ -240,89 +269,93 @@ mod tests {
         let rest = rested(aim, 5.0 * DEGREE);
         assert_eq!(rest.yaw, aim.yaw);
         assert!((rest.pitch - (10.0 - 5.0 * (1.0 - KICK_SHOWN)) * DEGREE).abs() < 1e-6);
-        // From the hip (no zones) the view is that rest at once.
-        let following = Trail::Following { player: player(1), look: aim, at: 0 };
-        assert_eq!(shown(following, player(1), rest, 0.0, 16), rest);
+    }
+
+    #[test]
+    fn a_still_gun_has_the_view_on_it() {
+        let still = turning(rig(), 0.0, 120);
+        assert_eq!((still.off, still.roll), (Look::NONE, 0.0));
+    }
+
+    #[test]
+    fn on_a_slow_turn_the_gun_swings_ahead_of_the_view() {
+        // 20 degrees a second to the right: the view falls behind (to the left of the gun)
+        let half = turning(rig(), 20.0 * DEGREE, 30);
+        assert!(half.off.yaw < -DEGREE && half.off.pitch == 0.0, "{:?}", half.off);
+        let second = turning(half, 20.0 * DEGREE, 30);
+        assert!(second.off.yaw < half.off.yaw && second.off.yaw > -MOST_HIP.yaw, "{:?}", second.off);
+        // and comes up to it once the turn stops
+        let stopped = turning(second, 0.0, 60);
+        assert!(stopped.off.yaw > second.off.yaw * 0.5 && stopped.off.yaw <= 0.0, "{:?}", stopped.off);
+        assert!(turning(stopped, 0.0, 600).off.yaw.abs() < 0.05 * DEGREE);
+    }
+
+    #[test]
+    fn on_a_fast_turn_the_view_keeps_up() {
+        // per degree a second of turn the view is far less behind than on a slow one
+        let slow = turning(rig(), 60.0 * DEGREE, 60);
+        let fast = turning(rig(), 400.0 * DEGREE, 60);
+        assert!(fast.lag > 15.0 && slow.lag == CAMERA_LAG.0, "{} {}", fast.lag, slow.lag);
+        assert!(fast.off.yaw.abs() / 400.0 < 0.25 * slow.off.yaw.abs() / 60.0, "{:?} {:?}", fast.off, slow.off);
+    }
+
+    #[test]
+    fn the_view_is_never_more_than_the_most_off_the_gun() {
+        let long = turning(rig(), 100.0 * DEGREE, 240);
+        assert!((long.off.yaw + MOST_HIP.yaw).abs() < 1e-5, "{:?}", long.off);
+        // the camera is held there, not left further behind: it comes back when the turn ends
+        assert!(turning(long, 0.0, 60).off.yaw > 0.5 * long.off.yaw);
+        let aimed = most(1.0);
+        assert_eq!((most(0.0), aimed), (MOST_HIP, MOST_AIMED));
+        let mut rig = rig();
+        for _ in 0..240 {
+            let control = Look { yaw: rig.control.yaw, pitch: rig.control.pitch + 20.0 * DEGREE * FRAME };
+            rig = rig.stepped(control, FRAME, aimed, rig.at + 16);
+        }
+        assert!((rig.off.pitch + MOST_AIMED.pitch).abs() < 1e-5, "{:?}", rig.off);
+    }
+
+    #[test]
+    fn a_turn_rolls_the_view_against_it() {
+        let right = turning(rig(), 375.0 * DEGREE, 60);
+        assert!((right.roll - TURN_ROLL).abs() < 0.01 * DEGREE, "{}", right.roll);
+        let left = turning(rig(), -200.0 * DEGREE, 60);
+        assert!(left.roll < -0.4 * TURN_ROLL && left.roll > -TURN_ROLL, "{}", left.roll);
+        assert!(turning(right, 0.0, 120).roll.abs() < 0.01 * DEGREE);
+    }
+
+    #[test]
+    fn a_turn_across_the_yaws_seam_is_a_turn() {
+        let seam = Rig::on(PlayerId::for_test(1), Look { yaw: core::f32::consts::PI - 0.01, pitch: 0.0 }, 0);
+        let over = turning(seam, 60.0 * DEGREE, 30);
+        let plain = turning(Rig::on(PlayerId::for_test(1), Look { yaw: 0.0, pitch: 0.0 }, 0), 60.0 * DEGREE, 30);
+        assert!((over.off.yaw - plain.off.yaw).abs() < 1e-4, "{:?} {:?}", over.off, plain.off);
     }
 
     #[test]
     fn a_look_is_its_direction() {
-        for look in [Look { yaw: 0.0, pitch: 0.0 }, Look { yaw: 2.5, pitch: 0.9 }, Look { yaw: -3.0, pitch: -1.0 }] {
-            let back = Look::of(look.forward() * 4.0).unwrap();
-            assert!((back.yaw - look.yaw).abs() < 1e-4 && (back.pitch - look.pitch).abs() < 1e-4, "{look:?} {back:?}");
-        }
+        let look = Look { yaw: 0.7, pitch: -0.3 };
+        let back = Look::of(look.forward()).unwrap();
+        assert!((back.yaw - look.yaw).abs() < 1e-5 && (back.pitch - look.pitch).abs() < 1e-5);
         assert_eq!(Look::of(Vec3::new(0.0, 0.0, 0.0)), None);
     }
 
     #[test]
-    fn the_camera_holds_inside_the_dead_zone() {
-        assert_eq!(followed(0.2, 0.2 + YAW.dead * 0.9, YAW, FRAME), 0.2);
-        assert_eq!(followed(0.2, 0.2 - YAW.dead * 0.9, YAW, FRAME), 0.2);
-    }
-
-    #[test]
-    fn the_camera_follows_to_the_dead_zone_of_a_still_aim() {
-        let aim = 2.0 * DEGREE;
-        let mut camera = 0.0;
-        let first = followed(camera, aim, YAW, FRAME);
-        assert!(first > 0.0 && first < aim, "{first}");
-        for _ in 0..600 {
-            camera = followed(camera, aim, YAW, FRAME);
-        }
-        let behind = aim - camera;
-        assert!((YAW.dead..YAW.dead * 1.3).contains(&behind), "{} deg", behind / DEGREE);
-    }
-
-    #[test]
-    fn the_camera_is_never_more_than_the_most_behind() {
-        let camera = followed(0.0, 0.5, YAW, FRAME);
-        assert!((0.5 - camera - YAW.most).abs() < 1e-6, "{camera}");
-        let across = followed(3.1, -3.1, YAW, FRAME);
-        assert!((turn(-3.1 - across) - YAW.most).abs() < 1e-5, "{across}");
-        assert_eq!(followed(0.0, 0.5, YAW, 0.0), 0.5 - YAW.most);
-    }
-
-    #[test]
-    fn a_zoomed_view_has_smaller_zones() {
-        let zone = Zone::of(|zone| zone.yaw, 0.25);
-        assert!((zone.dead - YAW.dead / 4.0).abs() < 1e-7 && (zone.most - YAW.most / 4.0).abs() < 1e-7);
-        assert_ne!(followed(0.0, YAW.dead * 0.9, zone, FRAME), 0.0);
-    }
-
-    #[test]
-    fn a_new_player_is_shown_along_the_aim() {
-        let aim = Look { yaw: 1.0, pitch: 0.2 };
-        assert_eq!(shown(Trail::Waiting, player(1), aim, 1.0, 5), aim);
-        let other = Trail::Following { player: player(2), look: Look { yaw: 0.0, pitch: 0.0 }, at: 0 };
-        assert_eq!(shown(other, player(1), aim, 1.0, 16), aim);
-        let same = Trail::Following { player: player(1), look: Look { yaw: 0.99, pitch: 0.2 }, at: 0 };
-        assert_eq!(shown(same, player(1), aim, 1.0, 16), Look { yaw: 0.99, pitch: 0.2 });
-    }
-
-    #[test]
     fn the_view_is_the_eye_turned_to_the_look() {
-        let aim = Look { yaw: 0.4, pitch: -0.2 };
-        // an eye along the aim, rolled a little, at a place
-        let level = turned(&IDENTITY, Look { yaw: 0.0, pitch: 0.0 }, aim);
-        assert!((row(&level, 2) - aim.forward()).length() < 1e-6, "{level:?}");
-        let mut eye = level;
-        let (right, up) = (row(&level, 0), row(&level, 1));
-        for (at, axis) in [right * 0.995 + up * 0.0998, up * 0.995 - right * 0.0998].into_iter().enumerate() {
-            eye[at * 4..at * 4 + 3].copy_from_slice(&[axis.x, axis.y, axis.z]);
-        }
-        eye[12..16].copy_from_slice(&[3.0, 4.0, 5.0, 1.0]);
-        assert_eq!(turned(&eye, aim, aim), eye);
-        let look = Look { yaw: 0.43, pitch: -0.17 };
+        let aim = Look { yaw: 0.4, pitch: 0.2 };
+        let forward = aim.forward();
+        let right = Vec3::new(0.0, 1.0, 0.0).cross(forward).direction().unwrap();
+        let up = forward.cross(right);
+        let eye = [right.x, right.y, right.z, 0.0, up.x, up.y, up.z, 0.0, forward.x, forward.y, forward.z, 0.0, 3.0, 2.0, 1.0, 1.0];
+        let look = Look { yaw: 0.35, pitch: 0.17 };
         let view = turned(&eye, aim, look);
-        let (right, up, forward) = (row(&view, 0), row(&view, 1), row(&view, 2));
-        assert!((forward - look.forward()).length() < 1e-6, "{forward:?}");
-        // still a frame of the eye's hand, with the eye's roll and place
-        assert!(right.dot(up).abs() < 1e-6 && right.dot(forward).abs() < 1e-6);
-        let handed = |x: Vec3, y: Vec3, z: Vec3| (x.cross(y) - z).length() < 1e-5;
-        assert_eq!(handed(right, up, forward), handed(row(&eye, 0), row(&eye, 1), row(&eye, 2)));
-        assert!((right.y - row(&eye, 0).y).abs() < 0.01, "the roll: {} from {}", right.y, row(&eye, 0).y);
-        assert_eq!(view[12..16], [3.0, 4.0, 5.0, 1.0]);
+        assert!((row(&view, 2) - look.forward()).length() < 1e-5);
+        assert!(row(&view, 0).y.abs() < 1e-5, "no roll: the right stays level");
+        assert_eq!(view[12..], eye[12..]);
+        assert_eq!(turned(&eye, aim, aim)[..12].iter().zip(&eye[..12]).filter(|(a, b)| (**a - **b).abs() > 1e-6).count(), 0);
+        // rolled: the up leans to the left, the forward stays
+        let leant = rolled(view, 3.0 * DEGREE);
+        assert!((row(&leant, 2) - row(&view, 2)).length() < 1e-6);
+        assert!(row(&leant, 1).dot(row(&view, 0)) < -0.05 && row(&leant, 0).dot(row(&leant, 1)).abs() < 1e-5);
     }
-
-    const IDENTITY: [f32; 16] = [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.];
 }

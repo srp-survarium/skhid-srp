@@ -126,12 +126,39 @@ raises it, a downward turn of the mouse is taken off it first and a controller r
 together, so in the stock game the kick is a turn of the screen.
 
 With the bullet following the gun, the kick is the gun's motion and the eye need not take all of
-it. Patch 197 draws it so, always (its trailing view alone is the prototype behind
-`SKHID_CAMERA_TRAIL`): of the lift the kick gives the eye the view takes 40 % (`KICK_SHOWN`), from
-the hip too; the gun stays on the
+it. Patch 197 draws it so: of the lift the kick gives the eye the view takes 40 % (`KICK_SHOWN`, a
+first value: the owner, asked, "we will iterate on this"), from the hip too; the gun stays on the
 simulation's aim, so it rises over the screen as the kick grows and comes back as the player pulls
 it down. Nothing the simulation computes changes for it: the kick, its numbers and where the
 bullets go are the game's. Not while the scope's own view is on (its picture is the screen).
 
 Not done: the side kick (about 0.1 degree a shot: it scrubs the `recoil_horiz` clip, whose turn
 on the screen is not traced) stays a turn of the view.
+
+## The gun turns first, the view follows (the owner's first play, 2026-11-23)
+
+The owner played the build (the barrel's axis always, the kick's share): "almost good, one thing
+to build on top, weapons don't have momentum when turn, like they do in similar games", "it is
+always bobling right in front of you", "make sure turn momentum looks good", "bodycam should have
+perfected the technique".
+
+Bodycam's technique is in the STALKER bodycam fork as a reproduction of the game's own camera
+motion (`bodycam_reference/camera.cpp`, `CameraMotion::Update`): the mouse turns a control; the
+control is smoothed (25 a second); the arms, which carry the gun, follow it quickly (20 a second)
+and the camera slowly, at 2 a second while the turn is under 125 degrees a second up to 16 over
+250; the view rolls against a turn. So on a slow turn the gun swings far ahead of a view that
+drifts after it, and on a fast one the view keeps up.
+
+Patch 197 draws exactly that relation and nothing else (`camera_trail.rs`): the gun stays on the
+simulation's aim, so the mouse moves it at once and a bullet goes where it points; the view is
+drawn as far from the gun as the reference's camera is from its arms. It is the view's own state,
+a frame's: nothing a match computes, no step of the simulation, no lag of the gun behind the mouse
+(the reference's arms are 90 ms of turn behind the control; a gun that late would be a late shot,
+and a state of the simulation every game would have to agree on). The view is held at most 10
+degrees across and 5 up off the gun from the hip, 3 and 2 fully aimed (the hands are the game's
+first-person rig, not re-posed for a view far off the gun); the roll is the reference's 8 degrees
+at 375 degrees a second of turn, at the fork's share of 0.43.
+
+Asked in the same play: "you should also be able to shoot while sprinting, it is just that weapon
+is not looking straight", "so shots will land where muzzle looks". The second is the rule as
+built. The first is the game's own: a trigger pressed ends the sprint (to do).

@@ -230,6 +230,17 @@ pub fn free_kick_lift(player: Player<'_>) -> f32 {
     }
 }
 
+/// Whether the scope's own view of the gun in `player`'s hands is on: the
+/// optic's picture is the screen (the weapon's +181Eh, weapon::tick 0x244B26).
+pub fn scope_view(player: Player<'_>) -> bool {
+    // SAFETY: as `free_kick_lift`: the live player's held item and, a client
+    // weapon's, its own byte.
+    unsafe {
+        let Some(item) = player.this.held_item() else { return false };
+        read(item.vtable()) == raw::image::WEAPON_VTABLE && read(item.weapon().scope_view()) != 0
+    }
+}
+
 /// The eye's pitch (rad) at a look pitch: the look clips turn bone Item 60
 /// degrees a unit above the level and 67.5 below (look_time_factor_calculator
 /// 0x2FBF90 scrubs them at (pitch + 1) / 2; decoded from the clip).

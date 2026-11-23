@@ -30,17 +30,6 @@ pub fn given_eye(ctx: &Context<'_>) -> [f32; 16] {
     unsafe { floats(ctx.reg(Reg::Eax) as usize as *mut f32) }
 }
 
-/// The camera's player's input handler's field-of-view factor at `camera.eye`
-/// (1 unaimed, less the further the view is zoomed in).
-pub fn eye_fov_factor(ctx: &Context<'_>) -> Option<f32> {
-    // SAFETY: the context is this site's: the camera's player, alive while
-    // update_camera runs on its thread; its handler's +94h is one float.
-    unsafe {
-        let handler = raw::site::camera_eye::player(ctx)?.camera_handler()?;
-        Some(*handler.fov_factor())
-    }
-}
-
 /// The eye the view is given instead, a row-vector 4x4: kept in [`EYE`],
 /// which the view reads after the hook (until the next frame's).
 pub fn look_from(ctx: &mut Context<'_>, eye: [f32; 16]) {
