@@ -129,6 +129,21 @@ impl<'t> GameWorld<'t> {
         unsafe { movie_of(self.this.ui().replay_movie()) }
     }
 
+    /// In a replay, the camera on `place`'s eyes in first person (the replay
+    /// UI's select_player, view 0), when it is not there yet and the place is
+    /// in the match; whether it is there now. A live match: never.
+    pub fn follow_first_person(&self, place: u8) -> bool {
+        let Some(client) = self.network_client().filter(|c| c.playback() == Playback::Replay) else { return false };
+        if client.local_place() == Some(place) {
+            return true;
+        }
+        // SAFETY: the replay client's own select_player (+7Ch, 0x26DF70) on
+        // the game's thread at the frame's end, as the replay movie's
+        // callback calls it; it does nothing for a place not in the match.
+        unsafe { raw::engine_follow_first_person(Some(client.this), Some(self.this), u32::from(place)) };
+        client.local_place() == Some(place)
+    }
+
     /// The places in the match now (the core's, core_active_player 0x2D0AD4);
     /// none without a match.
     pub fn places_in_match(&self) -> Option<Places> {

@@ -87,6 +87,8 @@ def script_of(spec, out, aspect):
         spec = {'poses': spec}
     base = dict(DEFAULTS, **spec.get('capture', {}))
     lines = [f'folder {windows(out)}', f"wait {int(base['wait_ms'])}"]
+    if 'follow' in base:
+        lines.append(f"follow {int(base['follow'])}")
     names = set()
     for raw in spec['poses']:
         raw = {k: v for k, v in raw.items() if v is not None}
@@ -95,6 +97,9 @@ def script_of(spec, out, aspect):
         if not NAME.fullmatch(name) or name in names:
             raise SystemExit(f'pose name {name!r}: letters, digits, _ - . (at most 48), each once')
         names.add(name)
+        if p.get('eyes'):
+            lines.append(f"eyes {name} {int(p['settle_ms'])}")
+            continue
         # The pose's own direction and field of view win over the defaults' (either form).
         look = raw if 'forward' in raw or 'yaw' in raw else p
         if 'forward' in look:
@@ -131,10 +136,11 @@ class Run:
         sur = self.work / 'map.sur'
         tool = SRP / 'target/release/srp-map-sur'
         # Built at every run (nothing to do when current): a stale binary never writes the replay.
-        subprocess.run(['nix', 'develop', str(SRP), '--command', 'cargo', 'build', '--release', '-p',
+        subprocess.run([str(REPO / 'tools/dev'), 'cargo', 'build', '--release', '-p',
                         'match-server', '--bin', 'srp-map-sur'], cwd=SRP, check=True, capture_output=True)
         env = dict(os.environ, SRP_GAME_DATA=str(self.a.game_data))
-        done = subprocess.run([str(tool), str(self.a.map), str(sur), '--minutes', '60'], env=env,
+        hold = ['--hold', self.a.hold, '--aim', str(self.a.aim_ms)] if self.a.hold else []
+        done = subprocess.run([str(tool), str(self.a.map), str(sur), '--minutes', '60', *hold], env=env,
                               capture_output=True, text=True)
         if done.returncode:
             raise SystemExit(done.stderr.strip() or 'srp-map-sur failed')
@@ -234,6 +240,13 @@ EndSection
                              WINEDLLOVERRIDES='mscoree,mshtml,qwave=;winemenubuilder.exe=d;d3d11,dxgi=n,b;'
                                               'winepulse.drv,winealsa.drv,wineoss.drv=d', **SILENT,
                              SKHID_CAPTURE=windows(script))
+        if self.a.uncapped:
+            del self.wine_env['DXVK_FRAME_RATE']
+        for pair in self.a.env:
+            key, _, value = pair.partition('=')
+            if not key.startswith('SKHID_'):
+                raise SystemExit(f'--env {pair}: only SKHID_ switches')
+            self.wine_env[key] = value
         self.started = time.time()
         return self.spawn('client', [WINE, 'survarium_skhid.capture.exe', f'-match_replay={windows(sur)}',
                                      '-mt_allocator=768', '-minimum_resources_memory_size=768'],
@@ -269,6 +282,12 @@ def main():
     ap.add_argument('--runtime', type=Path, default=Path.home() / '.cache/skhid-capture/runtime',
                     help='the capture game folder, its Wine prefix and the run logs (not on /mnt/hdd: Wine needs ":" in names)')
     ap.add_argument('--timeout', type=int, default=900, help='seconds before the game is stopped')
+    ap.add_argument('--hold', help='<gun dict id>[:<optic>[:<rounds>]]: the replay\'s place enters with that gun and '
+                                   'aims it from --aim-ms (srp-map-sur --hold); poses "eyes": true and the defaults\' '
+                                   '"follow": 0 show its eyes')
+    ap.add_argument('--aim-ms', type=int, default=30000)
+    ap.add_argument('--env', action='append', default=[], help='SKHID_<name>=<value> for the game (diagnostics)')
+    ap.add_argument('--uncapped', action='store_true', help='no frame limit (frame times)')
     a = ap.parse_args()
     a.runtime = a.runtime.resolve()
     if ' ' in str(a.runtime):

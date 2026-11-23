@@ -260,20 +260,77 @@ pub fn config(name: &str) -> Option<&'static [u8]> {
     survarium::v026g::game_data::shared().file(&format!("{}{name}", maps::GAME_MODES_DIR))
 }
 
+/// The one place of a map's replay that enters with a gun and aims it
+/// (diagnostics: a capture of the eyes' view of an optic, `scripts/capture`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Holder {
+    pub weapon: u16,
+    /// The optic on it (a scope item's dict id): its record as the lobby
+    /// writes it, `{the optic's item, its dict id, 0, 3}`.
+    pub scope: Option<u16>,
+    pub ammo: Option<u16>,
+    /// When it enters and when it raises the gun to aim (held to the end), ms.
+    pub enter_ms: u32,
+    pub aim_ms: u32,
+}
+
+/// The kit of a [`Holder`]: the gun in slot 7, its rounds in slot 8.
+fn holder_items(holder: &Holder) -> (Vec<static_info::MatchItem>, static_info::MatchKit) {
+    const FIRST_ID: u32 = 100;
+    let gun = static_info::MatchItem {
+        instance_id: FIRST_ID,
+        dict_id: holder.weapon,
+        condition_or_stack: static_info::FULL_CONDITION,
+        upgrades: holder
+            .scope
+            .map(|scope| static_info::Upgrade { id: FIRST_ID + 1, unknown_4: u32::from(scope), unknown_8: 0, param: 3 })
+            .into_iter()
+            .collect(),
+        ..static_info::MatchItem::default()
+    };
+    let mut items = vec![gun];
+    if let Some(scope) = holder.scope {
+        items.push(static_info::MatchItem {
+            instance_id: FIRST_ID + 1,
+            dict_id: scope,
+            condition_or_stack: static_info::FULL_CONDITION,
+            ..static_info::MatchItem::default()
+        });
+    }
+    let mut slots = [None; survarium::v026g::dictionary::PROFILE_SLOTS];
+    slots[7] = Some((0, 1));
+    if let Some(ammo) = holder.ammo {
+        slots[8] = Some((items.len() as u16, 120));
+        items.push(static_info::MatchItem {
+            instance_id: FIRST_ID + 2,
+            dict_id: ammo,
+            condition_or_stack: 120,
+            ..static_info::MatchItem::default()
+        });
+    }
+    let kit = static_info::MatchKit::new(static_info::KIT_USABLE, 1, "kit".into(), slots, [0.0; survarium::v026g::skills::MODIFIERS]);
+    (items, kit)
+}
+
 /// A replay of `map` with nobody in it, `length_ms` long: the world the
 /// game builds fresh from the options and the mode's config, no key frame,
 /// no event (`srp-map-sur`, for captures that start straight in a map:
-/// `scripts/capture`). One roster place, which never enters.
-pub fn of_map(map: maps::MatchMap, length_ms: u32) -> Result<Vec<u8>, String> {
+/// `scripts/capture`). One roster place, which never enters; with a
+/// `holder`, that place enters with its gun and aims it.
+pub fn of_map(map: maps::MatchMap, length_ms: u32, holder: Option<&Holder>) -> Result<Vec<u8>, String> {
     let config = config(map.map().config)
         .ok_or_else(|| format!("the game data has no mode config {}", map.map().config))?;
+    let (items, kit) = match holder {
+        Some(holder) => holder_items(holder),
+        None => (vec![static_info::MatchItem::default()], static_info::MatchKit::empty(1, "kit")),
+    };
     let nobody = static_info::MatchProfile {
         team: if map.mode() == maps::GameMode::FreeForAll { maps::free_for_all_team(0) } else { 0 },
         name: "capture".into(),
         clan_tag: String::new(),
         protection: static_info::NO_PROTECTION,
-        kits: vec![static_info::MatchKit::empty(1, "kit")],
-        items: vec![static_info::MatchItem::default()],
+        kits: vec![kit],
+        items,
         squad: 0,
         face: survarium::v026g::faces::Face::DEFAULT,
     };
@@ -288,7 +345,18 @@ pub fn of_map(map: maps::MatchMap, length_ms: u32) -> Result<Vec<u8>, String> {
         .map_err(|error| format!("the options: {error}"))?;
     let payload = info.payload(0).ok_or("no place 0")?;
     let start = sur::TICK_MS;
-    let body = Writer::new(start).finish(start + length_ms);
+    let mut writer = Writer::new(start);
+    if let Some(holder) = holder {
+        let at = |ms: u32| sur::tick_start(start + ms);
+        let mut enter = Event::at(at(holder.enter_ms));
+        enter.enter = 1;
+        enter.profiles.push((0, 0));
+        writer.push(&enter).map_err(|e| e.to_string())?;
+        let mut aim = Event::at(at(holder.aim_ms.max(holder.enter_ms + sur::TICK_MS)));
+        aim.inputs.push((0, InputValue { rotation: [0; 4], actions: super::drive::key::AIM }));
+        writer.push(&aim).map_err(|e| e.to_string())?;
+    }
+    let body = writer.finish(start + length_ms);
     let parts = Parts { options_lzma2: &payload[1..], body: &body, key_frames: &[], config };
     let file = sur::write(&parts, info.options().len(), Coding::Packed).map_err(|e| e.to_string())?;
     sur::verify(&file)?;
@@ -1608,7 +1676,7 @@ mod tests {
     #[test]
     fn a_maps_replay_is_its_options_and_config_with_nobody_in_it() {
         let map = survarium::v026g::maps::MatchMap::of(battery_map().id).unwrap();
-        let file = of_map(map, 60_000).unwrap();
+        let file = of_map(map, 60_000, None).unwrap();
         let verified = sur::verify(&file).unwrap();
         assert_eq!((verified.start_ms, verified.end_ms, verified.records), (50, 60_050, 2));
         assert!(verified.key_frames.is_empty());

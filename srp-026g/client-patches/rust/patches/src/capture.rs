@@ -12,7 +12,13 @@
 //! folder Z:\path\to\pictures
 //! wait 15000                       # ms from the world's first tick to pose 1
 //! pose <name> <x> <y> <z> <fx> <fy> <fz> <fov> <near> <far> <settle ms>
+//! eyes <name> <settle ms>          # the game's own camera
+//! follow <place>                   # a replay's camera on that place's eyes
 //! ```
+//!
+//! `eyes` and `follow` are diagnostics for a replay whose place enters with
+//! a kit (`srp-map-sur --hold`): the picture is what its eyes see, first
+//! person, as the game draws it.
 //!
 //! A pose is the eye's place, the direction it looks (any length, not
 //! straight up or down), the vertical field of view in degrees and the
@@ -31,7 +37,7 @@
 #![forbid(unsafe_code)]
 
 use core::f32::math::sqrt;
-use core::sync::atomic::{AtomicU8, Ordering};
+use core::sync::atomic::{AtomicU32, AtomicU8, Ordering};
 
 use crate::screenshot;
 use crate::vostok::back_buffer::Output;
@@ -42,6 +48,7 @@ use crate::vostok::log::{self, Piece};
 use crate::vostok::renderer;
 use crate::vostok::system;
 use crate::vostok::trig;
+use crate::vostok::world::GameWorld;
 use crate::vostok::{Context, Flow, Lock, NoExit, Thread};
 
 /// The most poses a script has.
@@ -52,11 +59,18 @@ const FOLDER: usize = 200;
 /// The longest script.
 const SCRIPT: usize = 16 * 1024;
 
-/// One pose.
+/// One pose: a camera of its own, or (None) the game's.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Pose {
     name: [u8; NAME],
     name_len: usize,
+    camera: Option<Camera>,
+    settle_ms: u32,
+}
+
+/// A pose's camera.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Camera {
     eye: [f32; 3],
     forward: [f32; 3],
     /// Vertical, degrees.
@@ -65,26 +79,17 @@ pub struct Pose {
     cotangent: f32,
     near: f32,
     far: f32,
-    settle_ms: u32,
 }
 
 impl Pose {
-    const NONE: Pose = Pose {
-        name: [0; NAME],
-        name_len: 0,
-        eye: [0.0; 3],
-        forward: [0.0, 0.0, 1.0],
-        fov: 60.0,
-        cotangent: 1.0,
-        near: 0.1,
-        far: 1000.0,
-        settle_ms: 0,
-    };
+    const NONE: Pose = Pose { name: [0; NAME], name_len: 0, camera: None, settle_ms: 0 };
 
     fn name(&self) -> &[u8] {
         &self.name[..self.name_len]
     }
+}
 
+impl Camera {
     /// The camera's transform (rows right, up, forward, place) and the
     /// projection at `aspect` (width / height), D3D's left-handed one.
     fn matrices(&self, aspect: f32) -> ([f32; 16], [f32; 16]) {
@@ -120,6 +125,8 @@ pub struct Script {
     wait_ms: u32,
     poses: [Pose; MOST],
     count: usize,
+    /// A replay's place whose eyes the camera follows.
+    follow: Option<u8>,
 }
 
 /// Why a script is refused: what is wrong, and the line (from 1) it is
@@ -131,7 +138,8 @@ pub struct Refused {
 }
 
 impl Script {
-    const EMPTY: Script = Script { folder: [0; FOLDER], folder_len: 0, wait_ms: 0, poses: [Pose::NONE; MOST], count: 0 };
+    const EMPTY: Script =
+        Script { folder: [0; FOLDER], folder_len: 0, wait_ms: 0, poses: [Pose::NONE; MOST], count: 0, follow: None };
 
     fn poses(&self) -> &[Pose] {
         &self.poses[..self.count]
@@ -171,20 +179,30 @@ impl Script {
                         return Err(at("wait <ms>"));
                     }
                 }
-                Some(b"pose") => {
+                Some(b"follow") => {
+                    let place = words.next().and_then(whole).filter(|&p| p < 20).ok_or(at("follow <place 0..19>"))?;
+                    if words.next().is_some() {
+                        return Err(at("follow <place 0..19>"));
+                    }
+                    script.follow = Some(place as u8);
+                }
+                Some(kind @ (b"pose" | b"eyes")) => {
                     if script.count == MOST {
                         return Err(at("more than 64 poses"));
                     }
-                    let pose = pose(&mut words).ok_or(at(
-                        "pose <name> <x> <y> <z> <fx> <fy> <fz> <fov 1..170> <near> <far> <settle ms>",
-                    ))?;
+                    let pose = match kind {
+                        b"pose" => pose(&mut words).ok_or(at(
+                            "pose <name> <x> <y> <z> <fx> <fy> <fz> <fov 1..170> <near> <far> <settle ms>",
+                        ))?,
+                        _ => eyes(&mut words).ok_or(at("eyes <name> <settle ms>"))?,
+                    };
                     if script.poses().iter().any(|p| p.name() == pose.name()) {
                         return Err(at("a pose name twice"));
                     }
                     script.poses[script.count] = pose;
                     script.count += 1;
                 }
-                Some(_) => return Err(at("a line is folder, wait or pose")),
+                Some(_) => return Err(at("a line is folder, wait, pose, eyes or follow")),
             }
         }
         if script.folder_len == 0 {
@@ -197,12 +215,28 @@ impl Script {
     }
 }
 
-fn pose<'a>(words: &mut impl Iterator<Item = &'a [u8]>) -> Option<Pose> {
-    let name = words.next()?;
-    let named = |c: &u8| c.is_ascii_alphanumeric() || matches!(c, b'_' | b'-' | b'.');
-    if name.is_empty() || name.len() > NAME || name[0] == b'.' || !name.iter().all(named) {
+fn named(name: &[u8], camera: Option<Camera>, settle_ms: u32) -> Option<Pose> {
+    let allowed = |c: &u8| c.is_ascii_alphanumeric() || matches!(c, b'_' | b'-' | b'.');
+    if name.is_empty() || name.len() > NAME || name[0] == b'.' || !name.iter().all(allowed) {
         return None;
     }
+    let mut pose = Pose { camera, settle_ms, ..Pose::NONE };
+    pose.name[..name.len()].copy_from_slice(name);
+    pose.name_len = name.len();
+    Some(pose)
+}
+
+fn eyes<'a>(words: &mut impl Iterator<Item = &'a [u8]>) -> Option<Pose> {
+    let name = words.next()?;
+    let settle_ms = whole(words.next()?)?;
+    if words.next().is_some() {
+        return None;
+    }
+    named(name, None, settle_ms)
+}
+
+fn pose<'a>(words: &mut impl Iterator<Item = &'a [u8]>) -> Option<Pose> {
+    let name = words.next()?;
     let mut values = [0.0f32; 9];
     for value in &mut values {
         *value = number(words.next()?)?;
@@ -219,10 +253,7 @@ fn pose<'a>(words: &mut impl Iterator<Item = &'a [u8]>) -> Option<Pose> {
     }
     let half = fov * (core::f32::consts::PI / 360.0);
     let cotangent = trig::cos(half)? / trig::sin(half)?;
-    let mut pose = Pose { eye: [x, y, z], forward: [fx, fy, fz], fov, cotangent, near, far, settle_ms, ..Pose::NONE };
-    pose.name[..name.len()].copy_from_slice(name);
-    pose.name_len = name.len();
-    Some(pose)
+    named(name, Some(Camera { eye: [x, y, z], forward: [fx, fy, fz], fov, cotangent, near, far }), settle_ms)
 }
 
 /// A decimal: an optional sign, digits, an optional point and digits.
@@ -337,6 +368,9 @@ const UNREAD: u8 = 0;
 const OFF: u8 = 1;
 const ON: u8 = 2;
 
+/// When the replay was last asked to follow the script's place (ms).
+static FOLLOW_TRIED: AtomicU32 = AtomicU32::new(0);
+
 /// The world's first tick: the run, from the environment and its script.
 fn start(thread: &Thread, now: u32) -> (Capture, Script) {
     if !renderer::environment_set(thread, c"SKHID_CAPTURE") {
@@ -393,11 +427,19 @@ pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
         }
         _ => {}
     }
-    let exit = RUN.with(thread, |run| {
+    let (exit, follow) = RUN.with(thread, |run| {
         let (next, exit) = run.capture.step(&run.script, Event::Tick { now });
         run.capture = next;
-        exit
+        (exit, run.script.follow)
     });
+    // a place enters some ticks after the start: asked once a second until followed
+    if let Some(place) = follow
+        && now.wrapping_sub(FOLLOW_TRIED.load(Ordering::Relaxed)) >= 1000
+        && let Some(world) = GameWorld::at_after_move(ctx)
+        && !world.follow_first_person(place)
+    {
+        FOLLOW_TRIED.store(now, Ordering::Relaxed);
+    }
     if let Some(code) = exit {
         log::line(&[Piece::Text("capture: over, exit code "), Piece::Dec(code)]);
         system::exit(thread, code);
@@ -411,13 +453,13 @@ pub fn on_camera(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if STARTED.load(Ordering::Acquire) != ON {
         return Flow::Continue;
     }
-    let Some(pose) = RUN.with(ctx.thread(), |run| run.capture.pose().map(|p| run.script.poses[p])) else {
+    let Some(camera) = RUN.with(ctx.thread(), |run| run.capture.pose().and_then(|p| run.script.poses[p].camera)) else {
         return Flow::Continue;
     };
     let Some(mut director) = Director::at_apply(ctx) else { return Flow::Continue };
     let native = director.projection();
     let aspect = if native[0] > 0.0 && native[5] > 0.0 { native[5] / native[0] } else { 16.0 / 9.0 };
-    let (view, projection) = pose.matrices(aspect);
+    let (view, projection) = camera.matrices(aspect);
     director.look(view, projection);
     Flow::Continue
 }
@@ -483,8 +525,8 @@ mod tests {
         assert_eq!((script.count, script.wait_ms), (2, 15000));
         let first = script.poses[0];
         assert_eq!(first.name(), b"nw-high");
-        assert_eq!((first.eye, first.fov, first.settle_ms), ([-72.0, 26.0, 66.0], 73.7, 6000));
-        assert_eq!((script.poses[1].eye, script.poses[1].near), ([1.5, -2.25, 3.0], 0.1));
+        assert_eq!((first.camera.unwrap().eye, first.camera.unwrap().fov, first.settle_ms), ([-72.0, 26.0, 66.0], 73.7, 6000));
+        assert_eq!((script.poses[1].camera.unwrap().eye, script.poses[1].camera.unwrap().near), ([1.5, -2.25, 3.0], 0.1));
         let path = script.path(&script.poses[1]);
         assert!(path.starts_with(b"Z:\\tmp\\out dir\\s.2.png\0"));
     }
@@ -533,7 +575,7 @@ mod tests {
     #[test]
     fn the_view_looks_along_the_pose_with_its_fov() {
         let script = Script::parse(b"folder x\npose a 1 2 3 0 0 2 90 0.5 100.5 0\n").unwrap();
-        let (view, projection) = script.poses[0].matrices(2.0);
+        let (view, projection) = script.poses[0].camera.unwrap().matrices(2.0);
         assert_eq!(&view[..12], &[1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0]);
         assert_eq!(&view[12..], &[1.0, 2.0, 3.0, 1.0]);
         assert!((projection[5] - 1.0).abs() < 1e-6 && (projection[0] - 0.5).abs() < 1e-6);

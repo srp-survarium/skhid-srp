@@ -228,3 +228,4 @@ vtable	slot	va	class	base	basis
 0x00a0b8a4	0x3c	0x003198d0	survarium::damage_zone	survarium::collision_sensor	observed: the client damage_zone sensor's on_objects_entered (damage_zone_core's)
 0x00a0b8a4	0x40	0x00319a10	survarium::damage_zone	survarium::collision_sensor	observed: its erase of lost objects (damage_zone_core's)
 0x00a0b8a4	0x44	0x00319780	survarium::damage_zone	survarium::collision_sensor	observed: its on_objects_left (damage_zone_core's)
+0x009ff344	0x7c	0x0026df70	survarium::replay_network_client	survarium::base_network_client	observed: follow_place_first_person (base_local_network_client), select_player view 0 (0x233EFC); the live network_client vtable 0x9FFB14 has no slot 0x7c (strings follow at 0x9FFB90)
