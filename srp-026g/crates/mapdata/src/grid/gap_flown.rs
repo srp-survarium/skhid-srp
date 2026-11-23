@@ -282,6 +282,7 @@ impl WalkGrid {
         s: &Settings,
         kits: Kits,
         stats: &mut GapStats,
+        memo: &mut Memo,
     ) -> Vec<(OffLink, usize)> {
         use super::gap::Takeoff;
         let key = |l: &OffLink, d: usize| {
@@ -315,41 +316,61 @@ impl WalkGrid {
             }
         }
         let leads = gap_leads();
-        let proven = super::controlled::parallel(&groups, |r| {
+        let ends_of = |r: &std::ops::Range<usize>| -> Vec<(OffLink, usize)> {
             let group = &presses[r.clone()];
-            let ends: &[(OffLink, usize)] = if group.len() <= 2 { group } else { &[group[0], group[group.len() - 1]] };
-            let mut flights = 0;
-            for &(l, d) in ends {
-                let (di, dk) = DIRS[d];
-                let len = ((di * di + dk * dk) as f32).sqrt();
-                let way = (di as f32 / len, dk as f32 / len);
-                // As the flown groups: the floors `a` has a link to already make no landing.
-                let linked: Vec<NodeId> = wide.links[l.from as usize].iter().copied().filter(|&f| f != NONE).collect();
-                let over = self.clip_gap_bottom(wide, solids, l.from, d, l.to) + self.body.step;
-                let lands = |st: &[FlightStep]| self.gap_lands_on(st, l.from, DIRS[d], &linked, over, 2);
-                let p = self.best_press(world, s, l.from, l.to, way, &leads, lands, kits);
-                flights += p.flights;
-                let made = if p.made.is_empty() && p.near {
-                    let sweep = self.best_aimed(world, s, l.from, l.to, way, &lands, kits);
-                    flights += sweep.flights;
-                    sweep.made.into_iter().collect()
-                } else {
-                    p.made
-                };
-                if !made.is_empty() {
-                    let links: Vec<(OffLink, usize)> = made
-                        .into_iter()
+            if group.len() <= 2 { group.to_vec() } else { vec![group[0], group[group.len() - 1]] }
+        };
+        // [incremental grids PR 8] The groups' flights through the job memo (site `gap.clip`, [`gap_clip_job`]); with the memo
+        // off (the default), `parallel` over the same job. Each end's gap bottom ([`Self::clip_gap_bottom`]) and links are
+        // read here, into the job's item.
+        let on = memo.mode() != Mode::Off;
+        let reach_m = GAP_FLOWN_REACH_M;
+        let window_cells = ((reach_m + self.body.radius + self.cell) / self.cell).ceil() as i64;
+        let windows = on.then(|| Windows::of_floors(self));
+        let items: Vec<GapFlownItem> = groups
+            .iter()
+            .map(|r| GapFlownItem {
+                ends: ends_of(r)
+                    .into_iter()
+                    .map(|(l, d)| GapEnd {
+                        a: l.from,
+                        b: l.to,
+                        d,
+                        over: self.clip_gap_bottom(wide, solids, l.from, d, l.to) + self.body.step,
+                        past: 2,
+                        // As the flown groups: the floors `a` has a link to already make no landing.
+                        linked: wide.links[l.from as usize].iter().copied().filter(|&f| f != NONE).collect(),
+                        window: windows.as_ref().map_or(0, |w| w.around(self.cell_of[l.from as usize] as usize, window_cells)),
+                    })
+                    .collect(),
+            })
+            .collect();
+        if on {
+            assert_presses_within(&leads, reach_m, "gap.clip");
+        }
+        let ctx = GapFlownCtx { leads: leads.clone(), kits, reach_m, window_cells, grid: self, world, s };
+        let site = Site { id: "gap.clip", source: crate::source::site("gap.clip") };
+        let ran = memo.run(site, self, &ctx, &items, gap_clip_key, gap_clip_job);
+        if on {
+            report_reach("gap.clip", ran.iter().map(|o| o.reach_m), ran.len(), reach_m, window_cells);
+        }
+        let proven: Vec<(Vec<(OffLink, usize)>, usize)> = groups
+            .iter()
+            .zip(ran)
+            .map(|(r, o)| {
+                let links = o.made.map_or_else(Vec::new, |(end, made)| {
+                    let (l, d) = ends_of(r)[usize::from(end)];
+                    made.into_iter()
                         .map(|m| {
                             let rise = self.height[m.to as usize] - self.height[l.from as usize];
                             let kind = if rise > -self.body.step { LinkKind::GapJump } else { LinkKind::GapDrop };
                             (OffLink { from: l.from, to: m.to, kind, press: m.press, share: m.share, walk: m.walk, aim: m.aim, way: Some(GridWay::of_dir(d)) }, d)
                         })
-                        .collect();
-                    return (links, flights);
-                }
-            }
-            (Vec::new(), flights)
-        });
+                        .collect()
+                });
+                (links, o.flights)
+            })
+            .collect();
         stats.clip_tried += groups.len();
         let mut pairs: std::collections::HashSet<(NodeId, NodeId)> = found.iter().map(|(l, _)| (l.from, l.to)).collect();
         for (made, flights) in proven {
@@ -468,7 +489,7 @@ impl WalkGrid {
                 found.push((OffLink { from: g.a, to, kind, press, share, walk, aim, way: Some(GridWay::of_dir(g.d)) }, g.d));
             }
         }
-        let proven = self.prove_clip_presses(wide, solids, &found, clip, world, s, kits, stats);
+        let proven = self.prove_clip_presses(wide, solids, &found, clip, world, s, kits, stats, memo);
         found.extend(proven);
         found.sort_by_key(|&(l, d)| (l.from, d, l.to));
         let out = self.thin_gap_links(wide, found, stats);
@@ -634,39 +655,114 @@ impl WalkGrid {
             })
             .collect();
         if on {
-            // The press points: the last lead of the line's and the aimed presses, the neighbours' lead and side about it,
-            // and the widest aim's side.
-            let n = jump::neighbourhood();
-            let aim_m = AIMS
-                .iter()
-                .map(|&(side, turn)| Aim::new(side, turn).expect("an aim in range").side_m().abs())
-                .fold(0.0f32, f32::max);
-            let press_m = leads.iter().chain(&AIMED_LEADS).copied().fold(0.0f32, f32::max)
-                + n.iter().map(|n| n.lead.abs()).fold(0.0f32, f32::max)
-                + n.iter().map(|n| n.side.abs()).fold(0.0f32, f32::max)
-                + aim_m;
-            assert!(
-                press_m <= reach_m,
-                "memo: ERROR site gap.flown: a press point {press_m} m from its take-off, past the window's {reach_m} m"
-            );
+            assert_presses_within(leads, reach_m, "gap.flown");
         }
         let ctx = GapFlownCtx { leads: leads.to_vec(), kits, reach_m, window_cells, grid: self, world, s };
         let site = Site { id: "gap.flown", source: crate::source::site("gap.flown") };
         let out = memo.run(site, self, &ctx, &items, gap_flown_key, gap_flown_job);
         if on {
-            let farthest = out.iter().map(|o| o.reach_m).fold(0.0f32, f32::max);
-            eprintln!(
-                "memo: gap.flown: {} groups, the farthest flight {farthest:.2} m from its take-off (window {reach_m} m, \
-                 {window_cells} cells)",
-                out.len()
-            );
-            assert!(
-                farthest <= reach_m,
-                "memo: ERROR site gap.flown: a flight went {farthest} m from its take-off, past the window's {reach_m} m \
-                 (GAP_FLOWN_REACH_M)"
-            );
+            report_reach("gap.flown", out.iter().map(|o| o.reach_m), out.len(), reach_m, window_cells);
         }
         out
+    }
+}
+
+/// [incremental grids PR 7, PR 8] The gap sites' press points within their window: the last lead of the line's and the aimed
+/// presses, the neighbours' lead and side about it, and the widest aim's side. Past it, the build stops.
+fn assert_presses_within(leads: &[f32], reach_m: f32, site: &str) {
+    let n = jump::neighbourhood();
+    let aim_m = AIMS.iter().map(|&(side, turn)| Aim::new(side, turn).expect("an aim in range").side_m().abs()).fold(0.0f32, f32::max);
+    let press_m = leads.iter().chain(&AIMED_LEADS).copied().fold(0.0f32, f32::max)
+        + n.iter().map(|n| n.lead.abs()).fold(0.0f32, f32::max)
+        + n.iter().map(|n| n.side.abs()).fold(0.0f32, f32::max)
+        + aim_m;
+    assert!(press_m <= reach_m, "memo: ERROR site {site}: a press point {press_m} m from its take-off, past the window's {reach_m} m");
+}
+
+/// [incremental grids PR 7, PR 8] A gap site's farthest flight, logged, and the build stopped when it is past the window.
+fn report_reach(site: &str, reaches: impl Iterator<Item = f32>, groups: usize, reach_m: f32, window_cells: i64) {
+    let farthest = reaches.fold(0.0f32, f32::max);
+    eprintln!(
+        "memo: {site}: {groups} groups, the farthest flight {farthest:.2} m from its take-off (window {reach_m} m, {window_cells} cells)"
+    );
+    assert!(
+        farthest <= reach_m,
+        "memo: ERROR site {site}: a flight went {farthest} m from its take-off, past the window's {reach_m} m (GAP_FLOWN_REACH_M)"
+    );
+}
+
+/// [incremental grids PR 8] A clip group's result: the end that made it (its index in the item) and its presses, the flights,
+/// and how far from the take-offs they went.
+#[derive(Clone, Debug, Default)]
+pub(super) struct GapClipOut {
+    made: Option<(u8, Vec<Made>)>,
+    flights: usize,
+    reach_m: f32,
+}
+
+/// [incremental grids PR 8] The clip site's key of a job: as the flown gaps' ([`gap_flown_key`]): each end's floors, way,
+/// gap bottom, links and window.
+fn gap_clip_key(ctx: &GapFlownCtx<'_>, ids: &StableIds, item: &GapFlownItem) -> u128 {
+    gap_flown_key(ctx, ids, item)
+}
+
+/// [incremental grids PR 8] The clip site's job, as `prove_clip_presses` flew a group: its ends in order, each over the line's
+/// presses and, where none made it and a flight came near, the aimed presses ([R83]), until one end makes it.
+fn gap_clip_job(ctx: &GapFlownCtx<'_>, item: &GapFlownItem) -> GapClipOut {
+    let grid = ctx.grid;
+    let reach = std::cell::Cell::new(0.0f32);
+    let mut out = GapClipOut::default();
+    for (i, e) in item.ends.iter().enumerate() {
+        let (di, dk) = DIRS[e.d];
+        let len = ((di * di + dk * dk) as f32).sqrt();
+        let way = (di as f32 / len, dk as f32 / len);
+        let takeoff = grid.position(e.a);
+        let lands = |st: &[FlightStep]| {
+            for f in st {
+                reach.set(reach.get().max(f.feet.distance_xz(takeoff)));
+            }
+            grid.gap_lands_on(st, e.a, DIRS[e.d], &e.linked, e.over, e.past)
+        };
+        let p = grid.best_press(ctx.world, ctx.s, e.a, e.b, way, &ctx.leads, lands, ctx.kits);
+        out.flights += p.flights;
+        let made = if p.made.is_empty() && p.near {
+            let sweep = grid.best_aimed(ctx.world, ctx.s, e.a, e.b, way, &lands, ctx.kits);
+            out.flights += sweep.flights;
+            sweep.made.into_iter().collect()
+        } else {
+            p.made
+        };
+        if !made.is_empty() {
+            out.made = Some((u8::try_from(i).expect("a group's ends fit a byte"), made));
+            break;
+        }
+    }
+    out.reach_m = reach.get();
+    out
+}
+
+/// [incremental grids PR 8] The clip site's results: every field, the floors by their stable ids.
+impl MemoCodec for GapClipOut {
+    const TAG: u32 = 0x4743_4f01;
+    fn encode(&self, out: &mut Codec<'_>) {
+        match &self.made {
+            None => out.put_u8(0),
+            Some((end, made)) => {
+                out.put_u8(1);
+                out.put_u8(*end);
+                made.encode(out);
+            }
+        }
+        out.put_u32(u32::try_from(self.flights).expect("a group's flights fit 32 bits"));
+        out.put_f32(self.reach_m);
+    }
+    fn decode(input: &mut Codec<'_>) -> Option<Self> {
+        let made = match input.u8()? {
+            0 => None,
+            1 => Some((input.u8()?, Vec::<Made>::decode(input)?)),
+            _ => return None,
+        };
+        Some(GapClipOut { made, flights: input.u32()? as usize, reach_m: input.f32()? })
     }
 }
 
@@ -754,12 +850,11 @@ mod tests {
     /// [incremental grids PR 7] A build through the memo is the full build, on `t` from `start`, for every site in `sites`
     /// (each must run with items): byte for byte ([`WalkGrid::digest_full`]) and its off links in memory, every field; a memo
     /// written (`write-only`), taken whole (`use`: every job of every site a hit), and run again and compared (`verify=1`).
-    fn memo_build_is_the_full_build(t: &[Triangle], start: Vec3, sites: &[&str], name: &str) {
+    fn memo_build_is_the_full_build(t: &[Triangle], start: &[Vec3], sites: &[&str], name: &str) -> Vec<crate::grid::memo::SiteStats> {
         use crate::grid::memo::{Memo, Mode, SiteStats};
         let body = Body { gap_flights: true, exe_collision: true, start_witness: true, max_jump: STANDING_JUMP_M, ..Body::client() };
-        let start = [start];
         let dir = std::env::temp_dir().join(format!("srp-memo-{name}-{}", std::process::id()));
-        let build = |memo: &mut Memo| WalkGrid::build_kept_memo(t, None, AREA, 0.25, body, &start, &start, OffMeshLinks::Gaps, memo).0;
+        let build = |memo: &mut Memo| WalkGrid::build_kept_memo(t, None, AREA, 0.25, body, start, start, OffMeshLinks::Gaps, memo).0;
         let full_grid = build(&mut Memo::off());
         let (full, full_off) = (full_grid.digest_full(), full_grid.off_links().to_vec());
         assert!(!full_off.is_empty(), "{name}: off links to compare");
@@ -779,16 +874,65 @@ mod tests {
         let mut used = Memo::new(Mode::Use, dir.clone(), 11);
         let g = build(&mut used);
         check(&used, g, "use", &|s| s.hits == s.items && s.misses == 0 && s.errors == 0);
+        let use_stats = used.stats.clone();
         let mut verified = Memo::new(Mode::Verify { per_million: 1_000_000 }, dir.clone(), 11);
         let g = build(&mut verified);
         check(&verified, g, "verify=1", &|s| s.verified == s.items && s.errors == 0);
         let _ = std::fs::remove_dir_all(dir);
+        use_stats
     }
 
     /// [incremental grids PR 7] The flown gaps through the memo build the full build's grid: the 1 m gap between level blocks.
     #[test]
     fn a_flown_gap_memo_build_is_the_full_build() {
-        memo_build_is_the_full_build(&blocks(2.0, 2.0, 1.0, 0.0), Vec3::new(3.0, 2.0, 5.0), &["gap.flown"], "gap-flown");
+        memo_build_is_the_full_build(&blocks(2.0, 2.0, 1.0, 0.0), &[Vec3::new(3.0, 2.0, 5.0)], &["gap.flown"], "gap-flown");
+    }
+
+    /// [incremental grids PR 8] The clip presses' proof through the memo builds the full build's grid, over the worlds of
+    /// [`no_pressed_link_is_kept_unflown`] that have links (level gaps, a step up and down over a deep gully); the clip site
+    /// has jobs in some.
+    #[test]
+    fn a_clip_press_memo_build_is_the_full_build() {
+        let mut clip_items = 0;
+        // Not the 6 m gap or the step down: they have no off link, so there is nothing to compare.
+        for (a, b, gap) in [(2.0, 2.0, 1.0), (2.0, 2.0, 2.5), (2.0, 2.0, 4.0), (2.0, 2.9, 1.5)] {
+            let t = blocks(a, b, gap, -3.0);
+            let start = [Vec3::new(3.0, a, 5.0), Vec3::new(13.0, b, 5.0)];
+            let stats = memo_build_is_the_full_build(&t, &start, &["gap.flown"], &format!("gap-clip-{a}-{b}-{gap}"));
+            clip_items += stats.iter().filter(|s| s.site == "gap.clip").map(|s| s.items).sum::<usize>();
+        }
+        assert!(clip_items > 0, "the clip site had jobs");
+    }
+
+    /// [incremental grids PR 8] A clip result reads back as it was written: made at either end (share masks that are not the
+    /// lowest bits, a walking press), not made; the flights and the reach.
+    #[test]
+    fn a_clip_press_result_reads_back() {
+        use crate::grid::gap::{Aim, PressLead, Share};
+        use crate::grid::memo::{Codec, MemoCodec, StableIds};
+        let g = grid(&blocks(2.0, 2.0, 1.0, 0.0), true);
+        let ids = StableIds::of(&g).expect("stable floor names");
+        let made = |i: usize| Made {
+            to: (i * 3 % g.len()) as NodeId,
+            press: Takeoff::Sprint(PressLead::from_metres(1.0)),
+            share: Share::landed(2).with_bits(0b0010_1000).expect("two bits"),
+            walk: (i == 0).then_some((PressLead::from_metres(0.1), Share::landed(4).with_bits(0b1111_0000).expect("four bits"))),
+            aim: Aim::new(6, -4).expect("an aim in range"),
+            walker_lands: i == 1,
+        };
+        for out in [
+            GapClipOut { made: Some((1, vec![made(0), made(1)])), flights: 77, reach_m: 5.5 },
+            GapClipOut { made: None, flights: 3, reach_m: 1.0 },
+            GapClipOut::default(),
+        ] {
+            let mut w = Codec::writer(&ids);
+            out.encode(&mut w);
+            let bytes = w.into_bytes();
+            let mut r = Codec::reader(&ids, &bytes);
+            let back = GapClipOut::decode(&mut r).expect("reads back");
+            assert!(r.done());
+            assert_eq!(format!("{back:?}"), format!("{out:?}"));
+        }
     }
 
     /// [incremental grids PR 7] A flown gap result reads back as it was written: made at either end with several presses
