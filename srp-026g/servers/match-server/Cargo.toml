@@ -39,6 +39,8 @@ weapon-pickup = { path = "../../crates/weapon-pickup" }
 libc = { workspace = true }
 
 [dev-dependencies]
+# [body physics] The one model of the client's body: only motion fidelity (tests) uses it until the layers move onto it (S2-S4).
+client-body = { path = "../../crates/client-body" }
 # Sessions without a sign-in, for the tests (`SessionStore::create_session`).
 session = { workspace = true, features = ["test-support"] }
 # A patched copy of the game data (`GameData::laid_over`, `weapons::fixtures`) for the
