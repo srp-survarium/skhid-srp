@@ -181,7 +181,7 @@ impl Memo {
                         if c.cost().most() == 0.0 {
                             count(Ev::CrossingFree);
                         }
-                        if routed.hurt.by_intensity {
+                        if routed.hurt.by_intensity && crate::v026g::bots::hazards::damage_zone_fixes::comparing_full() {
                             let full = RoutedRule { hurt: HurtTest { by_intensity: false, ..routed.hurt }, ..routed };
                             let at_full = crate::v026g::bots::hazards::damage_zone_fixes::quietly(|| {
                                 crossing_to(tactics, to, side, stop_m, armour, full.hurt)

@@ -84,6 +84,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_SUMS_DIR", "unset", "a folder for each cell's `sums` JSON, one file a cell (`<map>-<n>v<n>-s<seed>.json`): logs of builds before `say_whole` (bench.rs) have the `sums:` line cut in two by libtest's \"has been running for over 60 seconds\" line when a cell is slow"),
     s("SRP_BENCH_NOTES", "unset", "a file the carry tally's notes are appended to"),
     s("SRP_BENCH_GATES", "off", "test every fire gate each tick, for the gate tally's counts (no shot changes)"),
+    s("SRP_BENCH_CROSSING_CHEAPER", "off", "price every crossing found a second time at the zones' full hit, for the `dzf_bat_cross_cheaper` count (test-only work in the commander's time; no decision changes); off, that count is 0"),
     s("SRP_WRITE_FLANK_ROUTES", "off", "[A320] a path: `write_flank_routes` (tests/flank_build.rs) writes the flank-route table there"),
     s("SRP_FLANK_INPUT", "unset", "[A320] the flank-route writer's input: the big camp spots and their human wins (`a320_flank_input.py`)"),
     s("SRP_FLANK_LEVELS", "unset: every level of the input", "[A320] the flank-route writer's levels, `level_02,level_05`"),
