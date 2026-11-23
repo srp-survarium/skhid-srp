@@ -426,7 +426,7 @@ def check(data, delta):
 
 def main():
     original = Path(sys.argv[1]).read_bytes()
-    code = (HERE / 'launcher_values_026g.bin').read_bytes()
+    code = L.code()
     patched, _ = L.build(original, code)
     for folder in C.DOCUMENTS_FOLDERS:
         C.use_documents(folder)

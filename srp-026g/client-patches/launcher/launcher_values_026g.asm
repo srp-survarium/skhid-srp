@@ -1,7 +1,7 @@
 ; The values the 0.26g launcher (build 2777) read from the installer's
 ; registry key, worked out from where the launcher itself is.
 ;
-;   nasm -f bin -DCAVE=0x49A000 launcher_values_026g.asm -o launcher_values_026g.bin
+; Assembled at CAVE=0x49A000 by every build (patch_launcher_026g.py, code()).
 ;
 ; The launcher reads five strings of HKLM\Software\Vostok Games\Survarium
 ; through registry_key::get_string (0x14027): `file to execute`, `arguments`
