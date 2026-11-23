@@ -695,3 +695,25 @@ Click a skill to add a rank, right-click to take one back.	Клик добавл
 {n} points	{n} очков	many
 Maximum:	Максимум:
 or	или	skill
+
+# The Maps tab (a page built at a release: scripts/site-texts)
+Player spawns	Точки возрождения
+Battery spawns	Появление батарей
+Chargers	Зарядники
+Containers	Контейнеры
+Research units	Исследовательские установки
+Ammo stashes	Пополнение боеприпасов
+Survarium maps	Карты Survarium
+chargers	зарядники
+Minimap	Миникарта
+From above	Сверху
+{n} active	{n} активных
+{n} batteries to win.	{n} батарей для победы.
+team {n}	команда {n}
+any team	любая команда
+Ammo stash	Пополнение боеприпасов
+Container	Контейнер
+Battery spawn	Появление батареи
+Charger	Зарядник
+Research unit	Установка
+Spawn	Возрождение

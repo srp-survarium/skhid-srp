@@ -1,9 +1,10 @@
 // The Maps tab: one map at a time, its spawns for the chosen mode, every kind toggled on its own.
 // World coordinates throughout: SVG x = world x, SVG y = -z (north up).
 (() => {
-  const UK = (new URLSearchParams(location.search).get("lang") || document.documentElement.lang) === "uk";
-  const T = (en, uk) => (UK ? uk : en);
-  const N = o => (UK ? o.uk : o.en);
+  // The page's words are the server's (site-texts/words.js: T, Tf); the game's names, each
+  // language's (MAPS: {en, uk, ...}).
+  const LANG = document.documentElement.lang;
+  const N = o => o[LANG] ?? o.en;
   const $ = id => document.getElementById(id);
   const SVG = "http://www.w3.org/2000/svg";
   const svgEl = (tag, attrs = {}, ...kids) => {
@@ -24,12 +25,12 @@
   };
 
   const LAYERS = [
-    { key: "respawn", label: T("Player spawns", "Відродження") },
-    { key: "spawners", label: T("Battery spawns", "Батареї") },
-    { key: "stations", label: T("Chargers", "Зарядки") },
-    { key: "containers", label: T("Containers", "Контейнери") },
-    { key: "units", label: T("Research units", "Установки") },
-    { key: "resupply", label: T("Ammo stashes", "Поповнення амуніції") },
+    { key: "respawn", label: T("Player spawns") },
+    { key: "spawners", label: T("Battery spawns") },
+    { key: "stations", label: T("Chargers") },
+    { key: "containers", label: T("Containers") },
+    { key: "units", label: T("Research units") },
+    { key: "resupply", label: T("Ammo stashes") },
     ...Object.entries(MAPS.artefacts).map(([k, a]) => ({ key: "art:" + k, label: N(a.name), icon: a.icon })),
   ];
   const state = {
@@ -46,9 +47,9 @@
   const sameFrame = (a, b) => a.box.every((v, i) => Math.abs(v - b.box[i]) < 2);
   const mode = () => map().modes.find(m => m.key === state.mode) || map().modes[0];
 
-  document.title = T("Survarium maps", "Мапи Survarium");
-  $("title").textContent = T("Maps", "Мапи");
-  $("stamp").textContent = T(`Skhid revision ${MAPS.revision}`, `Схід, ревізія ${MAPS.revision}`);
+  document.title = T("Survarium maps");
+  $("title").textContent = T("Maps");
+  $("stamp").textContent = Tf("Skhid revision {revision}", { revision: MAPS.revision });
 
   // A chip group: one pressed.
   function chips(host, items, current, pick) {
@@ -61,7 +62,7 @@
   const modeName = (m, all) => {
     const same = all.filter(o => N(o.name) === N(m.name));
     if (m.layout) return `${N(m.name)} · ${m.layout + 1}`;
-    return same.length > 1 && m.stations.length ? `${N(m.name)} · ${T("chargers", "зарядки")}` : N(m.name);
+    return same.length > 1 && m.stations.length ? `${N(m.name)} · ${T("chargers")}` : N(m.name);
   };
 
   // The HUD minimap's icons (MAPS.hud). A team's icon is painted in its
@@ -134,7 +135,7 @@
     if (!m.modes.some(o => o.key === state.mode)) state.mode = m.modes[0].key;
     chips($("maps"), MAPS.maps.map(o => [o.key, N(o.name)]), state.map, k => { state.map = k; go(); });
     chips($("modes"), m.modes.map(o => [o.key, modeName(o, m.modes)]), state.mode, k => { state.mode = k; go(); });
-    chips($("views"), [["minimap", T("Minimap", "Мінімапа")], ["render", T("From above", "Згори")]], state.view,
+    chips($("views"), [["minimap", T("Minimap")], ["render", T("From above")]], state.view,
       v => { state.view = v; store.set("view", v); go(); });
     const mo = mode();
     const counts = {
@@ -144,7 +145,7 @@
     };
     $("layers").replaceChildren(...LAYERS.map(l => {
       const n = counts[l.key];
-      const extra = l.key === "stations" && mo.stations_active && mo.stations_active < n ? ` (${T(`${mo.stations_active} active`, `${mo.stations_active} активні`)})` : "";
+      const extra = l.key === "stations" && mo.stations_active && mo.stations_active < n ? ` (${Tf("{n} active", { n: mo.stations_active })})` : "";
       const b = el("button", { type: "button", class: "layer", "aria-pressed": String(state.on[l.key]) },
         l.icon ? el("img", { src: l.icon, alt: "" }) : swatch(l.key, mo), document.createTextNode(l.label), el("b", { text: n + extra }));
       b.hidden = !n;
@@ -152,7 +153,7 @@
       return b;
     }));
     const tdm = !mo.spawners.length && !mo.stations.length;
-    $("note").textContent = mo.batteries && !tdm ? T(`${mo.batteries} batteries to win.`, `${mo.batteries} батарей для перемоги.`) : "";
+    $("note").textContent = mo.batteries && !tdm ? Tf("{n} batteries to win.", { n: mo.batteries }) : "";
   }
 
   // The view box: the play area, the same for maps in one frame.
@@ -185,16 +186,16 @@
     const [bx0, by0, bx1, by1] = img.box;
     kids.push(svgEl("image", { href: img.src, x: bx0, y: by0, width: bx1 - bx0, height: by1 - by0, preserveAspectRatio: "none" }));
     const team = t => (t === 0 ? "var(--team0)" : t === 1 ? "var(--team1)" : "var(--team-x)");
-    const teamName = t => (t === 0 || t === 1 ? T(`team ${t + 1}`, `команда ${t + 1}`) : T("any team", "будь-яка команда"));
+    const teamName = t => (t === 0 || t === 1 ? Tf("team {n}", { n: t + 1 }) : T("any team"));
     const tip = text => svgEl("title", {}, text);
     if (state.on.resupply) for (const [x, z, , t] of mo.resupply)
-      kids.push(svgEl("g", { class: "mk" }, hud("resupply", x, -z, MAPS.hud.resupply.h, u, tintOf(t)), tip(`${T("Ammo stash", "Поповнення амуніції")}, ${teamName(t)}`)));
+      kids.push(svgEl("g", { class: "mk" }, hud("resupply", x, -z, MAPS.hud.resupply.h, u, tintOf(t)), tip(`${T("Ammo stash")}, ${teamName(t)}`)));
     if (state.on.containers) for (const [x, z, , t] of mo.containers)
-      kids.push(svgEl("g", { class: "mk" }, hud("base", x, -z, MAPS.hud.base.h, u, tintOf(t)), tip(`${T("Container", "Контейнер")}, ${teamName(t)}`)));
+      kids.push(svgEl("g", { class: "mk" }, hud("base", x, -z, MAPS.hud.base.h, u, tintOf(t)), tip(`${T("Container")}, ${teamName(t)}`)));
     if (state.on.spawners) for (const [x, z] of mo.spawners)
-      kids.push(svgEl("g", { class: "mk" }, hud("battery", x, -z, 20, u), tip(T("Battery spawn", "Поява батареї"))));
+      kids.push(svgEl("g", { class: "mk" }, hud("battery", x, -z, 20, u), tip(T("Battery spawn"))));
     if (state.on.stations) for (const [x, z] of mo.stations)
-      kids.push(svgEl("g", { class: "mk" }, hud("charger", x, -z, MAPS.hud.charger.h, u), tip(T("Charger", "Зарядка"))));
+      kids.push(svgEl("g", { class: "mk" }, hud("charger", x, -z, MAPS.hud.charger.h, u), tip(T("Charger"))));
     for (const [x, z, , kinds] of m.artefacts) {
       const shown = kinds.filter(k => state.on["art:" + k]);
       shown.forEach((k, i) => {
@@ -205,11 +206,11 @@
       });
     }
     if (state.on.units) for (const [x, z, , cp] of mo.units || [])
-      kids.push(svgEl("g", { class: "mk" }, unitMark(cp, x, -z, 22, u), tip(`${T("Research unit", "Установка")} ${letter(cp)}`)));
+      kids.push(svgEl("g", { class: "mk" }, unitMark(cp, x, -z, 22, u), tip(`${T("Research unit")} ${letter(cp)}`)));
     // The HUD's player triangle, turned the way the player faces at spawn.
     if (state.on.respawn) for (const [x, z, , t, facing] of mo.respawn)
       kids.push(svgEl("g", { class: "mk" }, hud("player", x, -z, MAPS.hud.player.h, u, solo(mo) ? "solo" : tintOf(t), facing),
-        tip(solo(mo) ? T("Spawn", "Відродження") : `${T("Spawn", "Відродження")}, ${teamName(t)}`)));
+        tip(solo(mo) ? T("Spawn") : `${T("Spawn")}, ${teamName(t)}`)));
     svg.replaceChildren(...kids);
   }
 

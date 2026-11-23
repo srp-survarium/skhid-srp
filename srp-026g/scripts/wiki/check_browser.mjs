@@ -530,7 +530,28 @@ try {
       assert.equal(await evaluate("JSON.stringify(pageErrors)"), '[]', `skills, ${lang}: no script errors`);
     }
   }
-  console.log(`PASS: ${total} weapons; image choosers/search/keyboard/mobile, catalogue, full stat comparison, equality/neutral colors, same weapon, simulators: recoil step/scrub/reset, spread by aim, stance, skills, gloves and arms, recoil modifications, help lines (hover, keyboard, tap), EN/UK/RU, the list's columns in RU/DE, the skills' trees in EN/RU/DE/FI, 360 px and CSP.`);
+  // The Maps tab in English and Russian: its words the server's (title, layers, views), a map,
+  // a mode, a view and a layer picked, nothing spilling, no script errors.
+  for (const width of [1280, 640]) {
+    await send('browsingContext.setViewport', {context, viewport: {width, height: 900}, devicePixelRatio: 1});
+    for (const [lang, title] of [['en', 'Maps'], ['ru', 'Карты']]) {
+      await navigate(`/wiki/maps?lang=${lang}`);
+      await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message))");
+      assert.equal(await evaluate("document.querySelector('#title').textContent"), title, `maps, ${lang}: its title`);
+      const marks = () => evaluate("document.querySelectorAll('#map .mk').length");
+      await evaluate("[...document.querySelectorAll('#maps .chip')].at(-1).click()");
+      await evaluate("[...document.querySelectorAll('#modes .chip')].at(-1).click()");
+      await evaluate("[...document.querySelectorAll('#views .chip')].at(-1).click()");
+      const shown = await marks();
+      assert.ok(shown > 0, `maps, ${lang}: the markers drawn`);
+      await evaluate("document.querySelector('#layers .layer').click()");
+      assert.notEqual(await marks(), shown, `maps, ${lang}: a layer toggles`);
+      await evaluate("document.querySelector('#layers .layer').click()");
+      assert.equal(await evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1"), true, `maps, ${lang} at ${width}: no sideways scroll`);
+      assert.equal(await evaluate("JSON.stringify(pageErrors)"), '[]', `maps, ${lang}: no script errors`);
+    }
+  }
+  console.log(`PASS: ${total} weapons; image choosers/search/keyboard/mobile, catalogue, full stat comparison, equality/neutral colors, same weapon, simulators: recoil step/scrub/reset, spread by aim, stance, skills, gloves and arms, recoil modifications, help lines (hover, keyboard, tap), EN/UK/RU, the list's columns in RU/DE, the skills' trees in EN/RU/DE/FI, the Maps tab in EN/RU, 360 px and CSP.`);
   await send('session.end');
 } finally {
   await send('session.end').catch(() => {});

@@ -695,3 +695,25 @@ Click a skill to add a rank, right-click to take one back.	Kattintás: egy fokoz
 {n} points	{n} pont	many
 Maximum:	Maximum:
 or	vagy	skill
+
+# The Maps tab (a page built at a release: scripts/site-texts)
+Player spawns	Éledési pontok
+Battery spawns	Akkumulátorok megjelenése
+Chargers	Töltők
+Containers	Tárolók
+Research units	Kutatóegységek
+Ammo stashes	Lőszerutánpótlás
+Survarium maps	Survarium-pályák
+chargers	töltők
+Minimap	Minitérkép
+From above	Felülről
+{n} active	{n} aktív
+{n} batteries to win.	{n} akkumulátor a győzelemhez.
+team {n}	{n}. csapat
+any team	bármelyik csapat
+Ammo stash	Lőszerutánpótlás
+Container	Tároló
+Battery spawn	Akkumulátor megjelenése
+Charger	Töltő
+Research unit	Kutatóegység
+Spawn	Éledés

@@ -695,3 +695,25 @@ Click a skill to add a rank, right-click to take one back.	Klikkaus lisää aste
 {n} points	{n} pistettä	many
 Maximum:	Enintään:
 or	tai	skill
+
+# The Maps tab (a page built at a release: scripts/site-texts)
+Player spawns	Syntypisteet
+Battery spawns	Akkujen syntypisteet
+Chargers	Laturit
+Containers	Säiliöt
+Research units	Tutkimusyksiköt
+Ammo stashes	Ammustäydennys
+Survarium maps	Survariumin kartat
+chargers	laturit
+Minimap	Minikartta
+From above	Ylhäältä
+{n} active	{n} aktiivista
+{n} batteries to win.	{n} akkua voittoon.
+team {n}	joukkue {n}
+any team	mikä tahansa joukkue
+Ammo stash	Ammustäydennys
+Container	Säiliö
+Battery spawn	Akun syntypiste
+Charger	Laturi
+Research unit	Tutkimusyksikkö
+Spawn	Syntypiste
