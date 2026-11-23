@@ -39,9 +39,6 @@ const LOGGED_FRAMES: u32 = 240;
 const LENS_RADIUS: f32 = 0.45;
 /// The scope's picture, pixels square, with the setting.
 const SCOPE_SIZE: u32 = 512;
-/// The smallest surface of an aimed model taken for its lens, metres of
-/// radius (a reticle's dot is smaller, a glass larger).
-const LEAST_LENS: f32 = 0.008;
 /// The lens probe's optic: a full scope's zoom (the PSO-1's, the ACOG's).
 const PROBE_FOV_FACTOR: f32 = 0.25;
 /// The lens's rim: how sharp its darkening is, how dark it gets.
@@ -856,7 +853,7 @@ pub fn on_foreground(ctx: &mut Context<'_>) -> Flow<NoExit> {
         (false, Some(aimed)) => {
             let thread = ctx.thread();
             let camera = FRAME_CAMERA.with(thread, |camera| *camera);
-            let disc = camera.and_then(|(view, projection)| second_view::lens_on_screen(aimed, &view, &projection, LEAST_LENS));
+            let disc = camera.and_then(|(view, projection)| second_view::lens_on_screen(aimed, &view, &projection));
             LENS_DISC.with(thread, |kept| *kept = disc);
             if let Some(place) = disc {
                 LENS_SURFACE.with(thread, |kept| *kept = Some(place.surface));
@@ -899,6 +896,9 @@ fn log_surfaces(ctx: &Context<'_>, aimed: ModelId, camera: Option<([f32; 16], [f
         let mut note = Note::new("pip:   surface ");
         note.dec(index as u32).text(" radius").milli(surface.radius).text(", centre").point(surface.stored);
         note.text(", in view").point(surface.in_view);
+        if let Some((vertices, indices)) = surface.mesh {
+            note.text(", mesh ").dec(vertices).text("/").dec(indices);
+        }
         match surface.placed {
             Some(at) => note.text(", matrix at").point(at),
             None => note.text(", no matrix"),
@@ -928,7 +928,7 @@ fn log_surfaces(ctx: &Context<'_>, aimed: ModelId, camera: Option<([f32; 16], [f
             .text(", surface ")
             .hex(place.surface)
             .send(),
-        None => Note::new("pip: aim: no surface of the aimed model on the eye's axis: no lens").send(),
+        None => Note::new("pip: aim: no glass (a mesh of 61 vertices, 180 indices) placed on the aimed model: no lens").send(),
     }
 }
 
@@ -994,7 +994,7 @@ fn refuse(thread: &Thread, model: ModelId) {
         log::line(&[
             Piece::Text("pip: no glass of the aimed model "),
             Piece::Hex(model.address()),
-            Piece::Text(" on the eye's axis: today's scope for that optic"),
+            Piece::Text(" (no surface of 61 vertices and 180 indices) placed in 30 frames: today's scope for that optic"),
         ]);
     }
 }

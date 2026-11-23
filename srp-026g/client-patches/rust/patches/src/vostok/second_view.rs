@@ -993,15 +993,23 @@ pub fn set_stage(_: &Thread, stage: Stage, on: bool) -> bool {
 }
 
 /// A surface sphere larger than this is not an eyepiece (a record whose
-/// sphere is not computed yet holds FLT_MAX).
+/// sphere is not placed yet holds FLT_MAX).
 const MOST_LENS: f32 = 0.25;
 
-/// The aimed model's lens on the frame's screen, at `forward.execute_foreground`
-/// (the frame's draw, its first-person models' spheres this frame's, world
-/// space): of its surfaces the camera's axis passes through, the smallest of
-/// at least `least` metres (the eyepiece's glass or the reticle's plane,
-/// not the body nor a dot), projected with the frame's `view` and
-/// `projection`. Its centre and radii in clip space.
+/// The aimed model's glass: every 0.69 optic's `scope_lense_1p_s` is a
+/// fan of 60 triangles about its centre (the pack's meshes, checked for the
+/// ten rifle scopes), its vertex and index counts these; the reticle's,
+/// red dot's and body's are others.
+pub const GLASS_MESH: (u32, u32) = (61, 180);
+
+/// A record's render surface's vertex and index counts (a static one's).
+///
+/// # Safety
+/// The record is a live render_surface_instance.
+unsafe fn mesh_of(record: raw::RenderSurfaceInstance) -> Option<(u32, u32)> {
+    unsafe { record.surface().map(|s| (*s.vertex_count(), *s.index_count())) }
+}
+
 /// The lens on the frame's screen: its centre and radii in clip space, and
 /// the surface record it is (an address: the second view leaves it out).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1011,25 +1019,25 @@ pub struct LensPlace {
     pub surface: u32,
 }
 
-pub fn lens_on_screen(model: ModelId, view: &[f32; 16], projection: &[f32; 16], least: f32) -> Option<LensPlace> {
+/// The aimed model's glass on the frame's screen, at `forward.execute_foreground`
+/// (the frame's draw, the model's spheres placed this frame, world space):
+/// its record of [`GLASS_MESH`], its bound sphere (a flat disc's: its
+/// radius the disc's) projected with the frame's `view` and `projection`.
+/// None before the renderer placed it, or for a model without one.
+pub fn lens_on_screen(model: ModelId, view: &[f32; 16], projection: &[f32; 16]) -> Option<LensPlace> {
     // SAFETY: the model alive (see ModelId) on the render thread, its
     // records its own; each sphere four floats at the record's +10h.
     unsafe {
         let (first, count) = surfaces(model)?;
-        let mut best: Option<(f32, [f32; 3], u32)> = None;
-        for index in 0..count {
-            let sphere = first.at(index).sphere();
-            let (c, r) = ([sphere.read(), sphere.add(1).read(), sphere.add(2).read()], sphere.add(3).read());
-            let v: [f32; 3] = core::array::from_fn(|k| c[0] * view[k] + c[1] * view[4 + k] + c[2] * view[8 + k] + view[12 + k]);
-            let off_axis = v[0] * v[0] + v[1] * v[1];
-            if v[2] <= 0.0 || !(least..=MOST_LENS).contains(&r) || off_axis > r * r || best.is_some_and(|(b, _, _)| b <= r) {
-                continue;
-            }
-            best = Some((r, v, first.at(index).address()));
+        let record = (0..count).map(|index| first.at(index)).find(|&record| mesh_of(record) == Some(GLASS_MESH))?;
+        let sphere = record.sphere();
+        let (c, r) = ([sphere.read(), sphere.add(1).read(), sphere.add(2).read()], sphere.add(3).read());
+        let v: [f32; 3] = core::array::from_fn(|k| c[0] * view[k] + c[1] * view[4 + k] + c[2] * view[8 + k] + view[12 + k]);
+        if v[2] <= 0.0 || !(0.001..=MOST_LENS).contains(&r) {
+            return None;
         }
-        let (r, v, surface) = best?;
         let (x, y) = (v[0] * projection[0] + v[2] * projection[8], v[1] * projection[5] + v[2] * projection[9]);
-        Some(LensPlace { centre: [x / v[2], y / v[2]], radius: [r * projection[0] / v[2], r * projection[5] / v[2]], surface })
+        Some(LensPlace { centre: [x / v[2], y / v[2]], radius: [r * projection[0] / v[2], r * projection[5] / v[2]], surface: record.address() })
     }
 }
 
@@ -1042,6 +1050,8 @@ pub struct SurfaceSeen {
     pub stored: [f32; 3],
     pub in_view: [f32; 3],
     pub placed: Option<[f32; 3]>,
+    /// Its mesh's vertex and index counts.
+    pub mesh: Option<(u32, u32)>,
 }
 
 /// The most surfaces the log shows.
@@ -1063,6 +1073,7 @@ pub fn surfaces_seen(model: ModelId, view: &[f32; 16]) -> ([SurfaceSeen; SEEN], 
                 stored: c,
                 in_view: core::array::from_fn(|k| c[0] * view[k] + c[1] * view[4 + k] + c[2] * view[8 + k] + view[12 + k]),
                 placed: (!matrix.is_null()).then(|| [matrix.add(12).read(), matrix.add(13).read(), matrix.add(14).read()]),
+                mesh: mesh_of(record),
             };
         }
         (seen, count.min(SEEN))
