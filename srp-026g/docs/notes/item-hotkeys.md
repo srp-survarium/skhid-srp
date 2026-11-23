@@ -64,7 +64,9 @@ the next).
 ## How (exe patch 149; `client_patch.md` 3.105)
 
 - **The action table moved** into the arena (`item_hotkeys_026g.asm`): the game's 60 rows and
-  the fourteen. The game's table ends where the key names begin, so it cannot grow in place.
+  the sixteen. The game's table ends where the key names begin, so it cannot grow in place. The
+  rows other patches change are changed there (patch 78's H, patch 152's screenshot keys and F9,
+  patch 66's ptt_nearby); the game's own rows are no longer read.
 - **The key binder's bindings grown**, 48h to 60h: the binder's own allocation made bigger, its
   array grown in place and its game pointer (+360h) moved after it, every reader repointed.
   Ours are ids 4Ah..59h; 48h and 49h stay the game's "none" values.
