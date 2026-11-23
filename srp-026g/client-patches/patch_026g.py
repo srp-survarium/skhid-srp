@@ -2606,9 +2606,8 @@ HIDE_UI_HOOKS = (
     (0x234AE8, bytes.fromhex("e813cb2d00"), "hide_ui_reset", 0xE8),                 # a match's root.reset
 )
 # The options' controls (the same patch): the six functions of game_options
-# that read the table of 28h rows at 0xA9DB28 read `controls` (hide_ui.data,
-# 2Dh rows, the 29h hide_interface, the 2Ah patch 78's artefact, the 2Bh
-# patch 66's ptt_nearby, the 2Ch and 2Dh patch 152's two screenshot keys)
+# that read the table of 28h rows at 0xA9DB28 read `controls` (hide_ui.data:
+# the game's rows and CONTROLS_ADDED, in the order the options list them)
 # instead: (site, its bytes, where in
 # them the address is, the row's field it names) and (site, its bytes, where
 # the count 28h is).
@@ -2643,11 +2642,11 @@ def hide_ui_table_writes(linked):
     return out
 
 
-# The rows `controls` adds after the game's 28h: (action, label key). Patch
+# The rows `controls` adds to the game's 28h: (action, label key). Patch
 # 78's carry key (../docs/notes/held_artefact_transfer.md) is the game's own
 # action `artefact` (23h), which nothing in the game reads; its default H is in
 # its row of the moved action table (patch 149's `actions`, below), the game's
-# row having none. Its row is the 42nd of `controls`. Patch 149's sixteen
+# row having none. Patch 149's sixteen
 # (../docs/notes/item-hotkeys.md) are `actions`' (below).
 CONTROLS_ADDED = ((0x19, "st_hide_interface_action"), (0x23, "st_hold_artifact_action"),
                   (0x37, "st_ptt_nearby_action"), (0x1A, "st_screenshot_action"),
@@ -2786,8 +2785,8 @@ HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
 # debug action whose console command does not exist), which becomes
 # ptt_nearby, kind 8, its default key O kept (in a match only that debug
 # action had it; the lobby's `options`, kind 2, has it too, as C is both
-# crouch_toggle's and the lobby's `character`'s). Its Controls row is the
-# 43rd of `controls` (CONTROLS_ADDED). Its row is in the moved action table
+# crouch_toggle's and the lobby's `character`'s). It has a Controls row
+# (CONTROLS_ADDED), beside the radio's push-to-talk. Its row is in the moved action table
 # (patch 149's `actions`, item_hotkeys_026g.asm). The game's row
 # {name, id, kinds, toggle, default key} of 37h, no longer read:
 VOICE_ACTION = 0xA74E10

@@ -40,15 +40,16 @@ answers root.interface_hidden with a bool:
 - the options' controls: game_options' own functions on a made-up options
   object (its movie, the game, the binder above), GFx objects, the strings'
   look-up, buffer_string's printf and the CRT's sscanf_s stubbed: the rows
-  sent to the movie (0x2019E0) are the original's 40, a 41st (19h,
-  st_hide_interface_action, group 2, type 1), patch 78's 42nd (23h,
-  st_hold_artifact_action), patch 66's 43rd (37h, st_ptt_nearby_action),
-  patch 152's 44th and 45th (1Ah, st_screenshot_action; 1Bh,
-  st_screenshot_no_ui_action) and patch 149's sixteen (patch_026g.py's
-  CONTROLS_ADDED); the keys read from the binder (0x201CF0) the original's
-  40, (19h, kF9), (23h, kH, its new default), (37h, kO), (1Ah, kF11), (1Bh,
-  kF12) and none for the sixteen; a key kF8 set for 19h (0x2013A0) is kept in
-  the 41st row and in no row of the original; the accept (0x201F20) runs
+  sent to the movie (0x2019E0) are the original's 40, 19h
+  (st_hide_interface_action, group 2, type 1), patch 78's 23h
+  (st_hold_artifact_action), patch 66's 37h (st_ptt_nearby_action),
+  patch 152's 1Ah (st_screenshot_action) and 1Bh
+  (st_screenshot_no_ui_action) and patch 149's sixteen (patch_026g.py's
+  CONTROLS_ADDED), in the build's order (each row beside its relatives); the
+  keys read from the binder (0x201CF0), one a row in the rows' order, the
+  original's 40, (19h, kF9), (23h, kH, its new default), (37h, kO), (1Ah,
+  kF11), (1Bh, kF12) and none for the sixteen; a key kF8 set for 19h
+  (0x2013A0) is kept in its row and in no row of the original; the accept (0x201F20) runs
   `bind hide_interface kF8` through the console (the original nothing); the
   binder's own bind (0x207DC0) binds 19h to kF8, its save (0x207450) writes
   `bind hide_interface kF8`, and that line read back binds it again; the
@@ -377,6 +378,11 @@ class Options(Run):
         calls = [call for call in self.calls if call[0] == "invoke"]
         return [values for call, values in zip(calls, self.invoked) if call[2] == b"root.set_keybind"]
 
+    def control_row(self, controls, action):
+        """The address of `controls`' row of `action` (the rows stand in the options' order)."""
+        rows = base.HIDE_UI_ROWS + len(base.CONTROLS_ADDED)
+        return next(at for at in range(controls, controls + 0x68 * rows, 0x68) if self.read(at) == action)
+
 def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
@@ -463,35 +469,39 @@ def main():
     s_opt, p_opt = Options(original), Options(bytes(built))
     a_rows, _ = s_opt.table()
     b_rows, b_calls = p_opt.table()
-    # 41st..45th: patch 62's 19h, patch 78's 23h, patch 66's 37h, patch 152's 1Ah and 1Bh; then patch
-    # 149's sixteen (check_item_hotkeys_026g.py)
+    # patch 62's 19h, patch 78's 23h, patch 66's 37h, patch 152's 1Ah and 1Bh, patch 149's sixteen
+    # (check_item_hotkeys_026g.py); the rows in the build's own order, each beside its relatives
     new = [{"action_id": action, "group_id": 2, "type": 1, "label": label} for action, label in base.CONTROLS_ADDED]
     # push-to-talk (47h): the original's row is the chat group's with its key button disabled (type 0);
     # the build's is a game key that can be set
     ptt = [row for row in a_rows if row["action_id"] == 0x47]
     moved = [dict(row, group_id=2, type=1) if row["action_id"] == 0x47 else row for row in a_rows]
-    report(len(a_rows) == 40 and len(b_rows) == 40 + len(new) and b_rows[:40] == moved and b_rows[40:] == new
+    by_action = lambda rows: sorted(rows, key=lambda row: row["action_id"])
+    report(len(a_rows) == 40 and by_action(b_rows) == by_action(moved + new)
+           and len({row["action_id"] for row in b_rows}) == len(b_rows)
            and [row["action_id"] for row in new[:5]] == [0x19, 0x23, 0x37, 0x1A, 0x1B]
            and [(row["group_id"], row["type"]) for row in ptt] == [(1, 0)]
            and [c[2] for c in b_calls] == [b"root.set_keybindings"],
            f"the list sent to the movie (root.set_keybindings): the original's {len(a_rows)} rows, "
-           f"push-to-talk's (47h) in the game group with type 1, then {b_rows[40:]}")
+           f"push-to-talk's (47h) in the game group with type 1, and {[row['action_id'] for row in new]}, "
+           f"in the order {[row['label'] for row in b_rows]}")
     s_opt.call(KEYS_FROM_BINDER, [OPTIONS, 1])
     p_opt.call(KEYS_FROM_BINDER, [OPTIONS, 1])
     a_keys, b_keys = s_opt.set_keybind_calls(), p_opt.set_keybind_calls()
     unbound = [(action, "", 1) for action, _ in base.CONTROLS_ADDED[5:]]      # patch 149's: no default key
-    report(len(a_keys) == 40 and b_keys[:40] == a_keys
-           and b_keys[40:] == [(0x19, "kF9", 1), (0x23, "kH", 1), (0x37, "kO", 1), (0x1A, "kF11", 1),
-                               (0x1B, "kF12", 1)] + unbound,
-           f"the keys from the binder (root.set_keybind): the original's 40, then {b_keys[40:]}")
+    added_keys = [(0x19, "kF9", 1), (0x23, "kH", 1), (0x37, "kO", 1), (0x1A, "kF11", 1), (0x1B, "kF12", 1)] + unbound
+    report(len(a_keys) == 40 and sorted(b_keys) == sorted(a_keys + added_keys)
+           and [key[0] for key in b_keys] == [row["action_id"] for row in b_rows],
+           f"the keys from the binder (root.set_keybind), a row's each in the rows' order: the original's 40 "
+           f"and {added_keys}")
     for run in (s_opt, p_opt):
         run.emu.mem_write(OUT, b"kF8\0")
         run.call(KEY_SET, [OPTIONS, 0x19], {UC_X86_REG_EAX: OUT})
     a_set, b_set = s_opt.set_keybind_calls(), p_opt.set_keybind_calls()
     kept = [s_opt.text(s_opt.read(0xA9DB28 + 0x68 * i + 0x10)) for i in range(40)]
     report(a_set == b_set == [(0x19, "kF8", 0)] and b"kF8" not in kept
-           and p_opt.text(p_opt.read(linked.symbols["controls"] + 40 * 0x68 + 0x10)) == b"kF8",
-           f"a key set for 19h (kF8, 0x2013A0): shown {b_set} by both, kept in the 41st row; the original "
+           and p_opt.text(p_opt.read(p_opt.control_row(linked.symbols["controls"], 0x19) + 0x10)) == b"kF8",
+           f"a key set for 19h (kF8, 0x2013A0): shown {b_set} by both, kept in its row; the original "
            "keeps it in no row")
     for run in (s_opt, p_opt):
         run.lines = []

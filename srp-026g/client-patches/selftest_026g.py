@@ -1876,24 +1876,23 @@ def test_hide_ui(original, image, before):
     data_block = linked.blocks["hide_ui.data"]
     added = len(P.CONTROLS_ADDED)
     arena_rows = [image.read(controls + 0x68 * i, 0x68) for i in range(count + added)]
-    new_rows = arena_rows[count:]
-    labels = [struct.unpack_from("<I", row, 4)[0] for row in new_rows]
+    # the rows in the options' order: each found by its action
+    heads = {struct.unpack_from("<I", row)[0]: struct.unpack_from("<4I", row) for row in arena_rows}
+    labels = [heads.get(action, (0, 0))[1] for action, _ in P.CONTROLS_ADDED]
     # push-to-talk (47h): the game's row is the chat group's (1) with its key button disabled (type 0);
     # patch 66's key is a game key that can be set (group 2, type 1)
     moved = lambda head: struct.pack("<4I", *struct.unpack("<2I", head[:8]), 2, 1) \
         if head == struct.pack("<4I", 0x47, 0x9FC900, 1, 0) else head
+    expected = [struct.unpack("<4I", moved(row[:16])) for row in original_rows] \
+        + [(action, label, 2, 1) for (action, _), label in zip(P.CONTROLS_ADDED, labels)]
     check(sum(moved(row[:16]) != row[:16] for row in original_rows) == 1 and data_block.va <= controls and controls + 0x68 * (count + added) <= data_block.va + data_block.size
-          and all(arena_rows[i][:16] == moved(original_rows[i][:16]) and arena_rows[i][16:] == empty(controls + 0x68 * i)
-                  for i in range(count))
-          and [struct.unpack_from("<4I", row) for row in new_rows]
-          == [(action, label, 2, 1) for (action, _), label in zip(P.CONTROLS_ADDED, labels)]
-          and all(row[16:] == empty(controls + 0x68 * (count + n)) for n, row in enumerate(new_rows))
+          and len(heads) == count + added and sorted(heads.values()) == sorted(expected)
+          and all(row[16:] == empty(controls + 0x68 * i) for i, row in enumerate(arena_rows))
           and [image.read(label, len(key) + 1) for (_, key), label in zip(P.CONTROLS_ADDED, labels)]
           == [key.encode() + b"\0" for _, key in P.CONTROLS_ADDED],
           f"`controls` ({controls:#x}, hide_ui.data) is the game's 40 rows (push-to-talk's in the game group, "
-          "its key settable), each pointing into itself, a 41st: "
-          "19h, st_hide_interface_action, a 42nd: 23h, st_hold_artifact_action, and a 43rd: 37h, "
-          "st_ptt_nearby_action, group 2, type 1")
+          "its key settable), each pointing into itself, and the added ones (19h st_hide_interface_action, "
+          "23h st_hold_artifact_action, 37h st_ptt_nearby_action, ...), group 2, type 1, in the options' order")
     check("\nedit\tlocalization-1.json\t-\t" in open(os.path.join(HERE, "..", "..", "release", "content.tsv"),
                                                        encoding="utf-8").read(),
           "release/content.tsv makes the label (localization-1.json)")
