@@ -3385,8 +3385,6 @@ va	status	ref_021d	name
 0x001ed430	inferred-medium		survarium::game::on_fullscreen_alttab
 0x001ed450	inferred-medium	0x0015422f	survarium::game::on_alttab
 0x003cfdb0	inferred-medium		vostok::render::res_render_output::apply_fullscreen_state
-0x003cfe20	inferred-medium		vostok::render::res_render_output::goto_fullscreen
-0x003cfe80	inferred-medium	0x00274fc2	vostok::render::res_render_output::minimize
 0x00107260	inferred-high		ptmalloc3::public_mALLINFo
 0x000eb5f0	inferred-high		vostok::memory::pthreads_allocator::total_size
 0x000eb630	inferred-high		vostok::memory::pthreads_allocator::allocated_size

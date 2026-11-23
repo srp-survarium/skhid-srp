@@ -228,6 +228,9 @@ engine_key_text	0x3b92d0	ECX:keyboard ESP+4:key ESP+8:WCHAR	unsigned char engine
 engine_activate_keyboard_layout	0xaeff20	-	unsigned int engine_activate_keyboard_layout(unsigned int layout, unsigned int flags)	import	
 engine_get_window_long_a	0xaefe8c	-	unsigned int engine_get_window_long_a(void *window, unsigned int index)	import	
 engine_set_window_long_a	0xaeff44	-	unsigned int engine_set_window_long_a(void *window, unsigned int index, unsigned int value)	import	
+engine_co_initialize_ex	0xaf0068	-	unsigned int engine_co_initialize_ex(void *reserved, unsigned int flags)	import	
+engine_taskbar_hr_init	ITaskbarList2+0xc	-	unsigned int engine_taskbar_hr_init(void *taskbar)	com	
+engine_taskbar_mark_fullscreen_window	ITaskbarList2+0x20	-	unsigned int engine_taskbar_mark_fullscreen_window(void *taskbar, void *window, unsigned int fullscreen)	com	
 engine_get_module_handle_a	0x87003c	-	void *engine_get_module_handle_a(const char *name)	import	
 engine_backend_reset	0x11b740	EDI:receiver	void engine_backend_reset(struct backend *backend)	thunk	
 engine_match_packet_begin	survarium::match_client+0x18	ECX:client ESP+4:id	struct match_packet *engine_match_packet_begin(struct match_options_holder *client, unsigned int id)	virtual

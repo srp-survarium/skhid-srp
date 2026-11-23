@@ -53,7 +53,7 @@ static LAST: Lock<[Option<Logged>; LOGGED]> = Lock::new([None; LOGGED]);
 
 fn report(thread: &Thread, request: &NoSlot, want: Want, took: Option<Level>) {
     let now = Logged { wanted: want.wanted.mips as u8, took: took.map(|level| level.mips as u8) };
-    let fresh = match LAST.with(thread, |last| last.get_mut(want.texture as usize).map(|at| core::mem::replace(at, Some(now)))) {
+    let fresh = match LAST.with(thread, |last| last.get_mut(want.texture as usize).map(|at| at.replace(now))) {
         Some(before) => before != Some(now),
         None => true,
     };

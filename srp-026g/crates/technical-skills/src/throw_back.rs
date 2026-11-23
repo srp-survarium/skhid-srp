@@ -5,7 +5,8 @@
 //!
 //! - the command is patch 85's pickup input (Use's press, `weapon_pickup`): its marker bit 29 with
 //!   all six quick bits ([`command`], [`encode`]), a pattern neither patch 85's pickups (the first
-//!   20 patterns of two or more bits, 3..=25) nor patch 78's carry commands (one bit) use;
+//!   20 patterns of two or more bits, 3..=25), patch 196's corpse shots (the next 20) nor patch
+//!   78's carry commands (one bit) use;
 //! - the server relays it only from a player one of whose kits has the skill ([`sane`]); the
 //!   client sends it only then, and every game plays it only for a player whose current kit has it;
 //! - the grenade: the nearest live one within [`REACH`] of the player's eye, in sight, whose

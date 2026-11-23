@@ -3733,14 +3733,14 @@ impl Game {
             let oldest = clock.saturating_sub(INPUT_MAX_AGE_MS);
             peer.inputs_seen.retain(|seen| *seen >= oldest);
         }
-        // Client patch 85: a pickup naming no place of the match. The
-        // client never sends one (`weapon_pickup::sane`, its twin).
+        // Client patches 85 and 196: a pickup or a corpse shot naming no place
+        // of the match. The client never sends one (`weapon_pickup::sane`, its twin).
         // Use exactly the recipient's input check before any relay. In
         // particular, unused action bit 30 must not enter another player's
         // simulation or reach its native input reader.
         let refused = match srp_validate::messages::input(input.rotation, input.actions) {
             Err(reason) => Some(reason.to_string()),
-            Ok(()) if !weapon_pickup::sane(input.actions, places) => Some("a pickup of no place of the match".into()),
+            Ok(()) if !weapon_pickup::sane(input.actions, places) => Some("a pickup or corpse shot of no place of the match".into()),
             // Client patch 180: a throw-back (Return to Sender) from a player none of whose kits
             // has the skill; the client sends one only from a kit that has it
             // (`technical_skills::throw_back::sane`, its twin).
