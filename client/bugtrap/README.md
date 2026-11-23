@@ -11,7 +11,8 @@ On a handled crash it writes
 `SRP-crash-YYYYMMDD-HHMMSS-mmm-pPID-tTID-N.dmp` **beside the game EXE**, then
 zips it with recent logs to `SRP-crash-…-N.zip` (see Zipped dumps), before callbacks or the
 dialog. Closing the dialog keeps the file. Existing files are
-never overwritten. If the EXE folder is unwritable, it tries the Windows temporary
+never overwritten. Each folder keeps the newest ten crashes' files (see Old
+crashes). If the EXE folder is unwritable, it tries the Windows temporary
 folder; the dialog shows the filename and folder in separate labeled fields,
 or a failure message. Long folders use middle ellipsis. It uses static text
 without scrollbars; only the crash details (see Crash details) can be
@@ -188,6 +189,35 @@ imports `kernel32.dll`, `user32.dll`, `gdi32.dll`, `shell32.dll` (for the browse
 link, Open folder and the Documents folder of the start-up notice), and `ntdll.dll` and
 `api-ms-win-core-synch-l1-2-0.dll` (the standard library's), no C runtime DLL; it loads `dbghelp.dll` by absolute path from beside the EXE or the Windows
 system directory when capturing a dump.
+
+## Old crashes
+
+A folder keeps the files of its newest ten crashes (`KEEP` in
+`src/crash_files.rs`); nothing tells the player.
+
+- When: at every capture (a crash or `BT_SaveSnapshot`), on the report worker,
+  once this crash's files are written, closed and zipped, and before the
+  callbacks and the dialog.
+- Where: beside the game exe and in the temporary folder, each counted on its
+  own: one listing of `SRP-crash-*` in each, no subfolder.
+- Ours: only names the reporter writes, exactly:
+  `SRP-crash-YYYYMMDD-HHMMSS-mmm-p<pid>-t<tid>-<n>` (the numbers as it
+  writes them, no leading zero) and `.zip`, `.dmp`, `.txt` or `.zip.part`. The
+  files of one name are one crash: a ZIP and its report, a raw dump kept when
+  zipping failed and its report, a report alone (no dump), a full-memory dump
+  (`SKHID_CRASH_DUMP=full`, 1 to 3 GB each) and its report: the full dumps
+  follow the same rule. Anything else (an unpacked ZIP's folder, `… (1).zip`,
+  another case or extension) is not ours and is left.
+- Which go: the crashes are dated by their newest file's last write; the
+  newest ten stay whole and every file of the older ones is deleted, with
+  every `.zip.part` left by a game that died while zipping. The files of
+  this process (its id is in the name: this crash, an earlier snapshot) are
+  never deleted and do not count among the ten.
+- Bounded: up to 512 files of ours are looked at in a folder at one crash
+  (the listing's first; past them, a later crash takes more). A file Windows
+  does not delete (open, read-only, held by an antivirus) is passed over,
+  and an error ends it quietly. The decision is a pure function over the
+  listed names and times, without allocation (`src/crash_files.rs`).
 
 ## Start-up notice: the game cannot save its files
 
@@ -651,6 +681,15 @@ rustc --edition 2024 --test tests/sanitize_tests.rs -o /tmp/sanitize-tests
 rustc --edition 2024 --test tests/run_name_tests.rs -o /tmp/run-name-tests
 /tmp/run-name-tests
 ```
+
+Which old crashes' files go (Old crashes): the names that are ours, ten or
+fewer kept, the oldest going whole, this process's never, a `.zip.part`,
+look-alike names, mixed kinds, two folders apart and the bound:
+
+```sh
+rustc --edition 2024 --test tests/crash_files_tests.rs -o /tmp/crash-files-tests
+/tmp/crash-files-tests
+```
 Python `zipfile` checks every member and its CRC.
 
 The text report of a real, unhandled crash: build `tests/report_probe.cpp`
@@ -694,6 +733,15 @@ display with openbox; `ui_probe.exe` built with MinGW g++): `check_abi.py` and
 By hand, the same `ShellExecuteW` call under Wine returned at once (33, in
 6 ms) and Wine's explorer window showed the folder `Игра-Żółw` with the ZIP
 listed (not highlighted); no Linux program was started.
+
+Run on 2026-11-23 for Old crashes (same setup): `crash_files_tests.rs` (10),
+`check_abi.py` and `check_localization.py` pass. The probe's crash in a folder
+with twelve older crashes of other processes (ZIPs, raw dumps, their
+reports, one `.zip.part`, three look-alike names, an unpacked folder, the
+oldest crash's report read-only) and three in the temporary folder: the
+newest ten old crashes stayed with the new one, the eleventh went whole,
+the twelfth's ZIP went and its read-only report stayed, the `.zip.part` went,
+the look-alikes, the folder and the temporary folder's three were left.
 
 Run on 2026-10-21 (Linux, Wine, Xvfb), the build with the standard library
 and the C runtime linked in, the C++ probes built with `clang-cl` against the
