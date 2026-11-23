@@ -717,3 +717,206 @@ Battery spawn	Pojavljivanje baterije
 Charger	Punjač
 Research unit	Istraživačka jedinica
 Spawn	Pojavljivanje
+
+# The damage calculator (a page built at a release: scripts/site-texts)
+Feet	Stopala	parts
+m/s	m/s	unit
+HP/s	HP/s	unit
+active	aktivan
+passive	pasivan
+Damage ×{damage}, penetration ×{pierce}, before armour: lower penetration makes the armour stop more.	Šteta ×{damage}, probojnost ×{pierce}, prije oklopa: uz manju probojnost oklop zaustavlja više.
+{drug}: {pool} takes ×{k} for {s} s after use ({delay} s to kick in).	{drug}: {pool} prima ×{k} tijekom {s} s nakon uporabe (djeluje nakon {delay} s).
+Inside an anomaly: damage ×{k}, before armour.	U anomaliji: šteta ×{k}, prije oklopa.
+This weapon takes no damage bonuses.	Ovo oružje ne prima bonuse štete.
+Come with the weapon; cannot be changed.	Dolaze s oružjem; ne mogu se mijenjati.
+An item holds at most 3 modifications. Bonuses on one stat add up before they apply.	Predmet ima najviše 3 modifikacije. Bonusi istog svojstva zbrajaju se prije primjene.
+This item takes no armour bonuses.	Ovaj predmet ne prima bonuse oklopa.
+Nothing worn covers the {part}.	Ništa od opreme ne štiti: {part}.
+Drugs	Lijekovi
+Assault rifles	Jurišne puške
+Submachine guns	Kratke strojnice
+Shotguns	Sačmarice
+Bolt-action & sniper rifles	Repetirke i snajperske puške
+Pistols & revolvers	Pištolji i revolveri
+Helmet	Kaciga
+Mask	Maska
+Jacket	Jakna
+Gloves	Rukavice
+Trousers	Hlače
+Boots	Čizme
+Backpack	Ruksak
+Chest & neck	Prsa i vrat
+Right arm	Desna ruka
+Left arm	Lijeva ruka
+Right hand	Desna šaka
+Left hand	Lijeva šaka
+Right leg	Desna noga
+Left leg	Lijeva noga
+Right foot	Desno stopalo
+Left foot	Lijevo stopalo
+Body	Trup
+Pain	Bol
+Infection	Zaraza
+death	smrt
+bleeding	krvarenje
+concussion	potres mozga
+hand injury	ozljeda šake
+leg injury	ozljeda noge
+infection	zaraza
+blindness	sljepoća
+Search	Traži
+— none —	— ništa —
+nothing worn	bez opreme
+back	straga
+front	sprijeda
+after shot	nakon hica
+of	od
+dead	mrtav
+Glass	Staklo
+Car	Automobil
+Plywood	Šperploča
+Tinplate	Lim
+Brick, steel	Opeka, čelik
+Concrete	Beton
+Stone	Kamen
+<none>	<nema>
+armour	oklop
+{n} left	preostalo {n}
+damage	šteta
+penetration	probojnost
+full damage to	puna šteta do
+minimum from	minimum od
+minimum	minimum
+muzzle	početna brzina
+rate	brzina paljbe
+magazine	spremnik
+Gets through: k {k}, D {D} · P {P}.	Probija: k {k}, D {D} · P {P}.
+Does not get through: penetration {P}, armour {A}.	Ne probija: probojnost {P}, oklop {A}.
+here	ovdje
+not here	ne ovdje
+taken by {item}	zauzima: {item}
+Covers the {part}.	Štiti: {part}.
+Does not cover the {part}.	Ne štiti: {part}.
+Click to aim at the {part}.	Kliknite za ciljanje: {part}.
+aim at the {part}	ciljanje: {part}
+Full damage at this range.	Na ovoj udaljenosti šteta je puna.
+Fully fallen off: minimum damage.	Potpuno opala: najmanja šteta.
+Falling off: {share} of the way from minimum to full.	Opada: {share} puta od najmanje do pune.
+Orange band: damage falls from {from} m to {to} m.	Narančasta traka: šteta opada od {from} m do {to} m.
+per shot (all pellets)	po hicu (sva zrna)
+per hit	po pogotku
+{pool} damage {per}	{pool}: šteta {per}
+of {n} {pool} left	od preostalih {n} ({pool})
+of {n} {pool}	od {n} ({pool})
+Hits to kill	Pogodaka za ubojstvo
+dies when {pool} reaches 0	umire kad {pool} padne na 0
+this shot cannot kill	ovaj hitac ne može ubiti
+Time to kill	Vrijeme do ubojstva
+every shot lands, no reload	svi hici pogađaju, bez punjenja
+Leaves the barrel	Izlazi iz cijevi
+Weapon damage × ammo <code>k_damage</code>, weapon pierce × ammo <code>k_arp</code>.	Šteta oružja × <code>k_damage</code> metka, probojnost oružja × <code>k_arp</code> metka.
+Each of the {n} pellets carries this.	Toliko nosi svako od {n} zrna.
+Flies {m} m	Leti {m} m
+Speed {v0} → {v} m/s. Damage slides from full ({full}) to minimum ({min}) by speed between {from} and {to} m: here {share}. Penetration stays.	Brzina {v0} → {v} m/s. Šteta prema brzini opada od pune ({full}) do najmanje ({min}) između {from} i {to} m: ovdje {share}. Probojnost ostaje.
+Through {wall}	Kroz: {wall}
+stopped	zaustavljeno
+Penetration {P}, armour {A}. Damage, penetration and speed × k; then damage no higher than at {v} m/s.	Probojnost {P}, oklop {A}. Šteta, probojnost i brzina × k; zatim šteta ne veća nego pri {v} m/s.
+Penetration {P} is not above armour {A}: the bullet stops.	Probojnost {P} nije veća od oklopa {A}: metak se zaustavlja.
+No armour here, the full amount goes in.	Ovdje nema oklopa: prolazi sve.
+Armour {A} is not above penetration {P}: nothing is stopped.	Oklop {A} nije veći od probojnosti {P}: ništa nije zaustavljeno.
+Armour exceeds penetration by a full 100: the bullet does nothing.	Oklop nadmašuje probojnost za punih 100: metak ne čini ništa.
+Armour {A} − penetration {P} = {gap}% of the damage is stopped.	Oklop {A} − probojnost {P} = zaustavljeno je {gap}% štete.
+Hits {part}	Pogađa: {part}
+Every hit anywhere also drains the shared pain pool. Pain at 0 kills.	Svaki pogodak bilo gdje troši i zajedničku zalihu boli. Bol na 0 ubija.
+Body at 0 kills.	Trup na 0 ubija.
+Head holds only 40: at 0 it kills, below 20 it concusses.	Glava ima samo 40: na 0 ubija, ispod 20 izaziva potres mozga.
+Limbs do not kill by themselves: an empty limb injures, the pain it carries can kill.	Udovi sami ne ubijaju: prazan ud donosi ozljedu, a bol koju nosi može ubiti.
+Second chance	Druga prilika
+The skill leaves the target alive once.	Vještina jednom ostavlja metu na životu.
+× {n} pellets	× {n} zrna
+Each pellet is its own bullet: when several land, their damage adds up.	Svako zrno je zaseban metak: kad ih pogodi nekoliko, šteta se zbraja.
+kills	ubija
+breaks	lomi
+below	ispod
+empty	prazno
+movement	kretanje
+shot	hitac
+Damage over distance	Šteta po udaljenosti
+after armour	nakon oklopa
+Body part	Dio tijela
+Stopped	Zaustavljeno
+Limb	Ud
+Also	Također
+injury	ozljeda
+best ammo	najbolji metak
+default ammo	standardni metak
+Ammo	Metak
+Pen. here	Prob. ovdje
+Damage / hit	Šteta / pog.
+RPM	Brz. paljbe
+Bullet	Metak
+D, P = weapon × ammo, D falling with distance	D, P = oružje × metak, D opada s udaljenošću
+{n} pellets	{n} zrna
+Wall	Zid
+P ≤ A: the bullet stays in the wall · else D, P × (1 − (A / P)²)	P ≤ A: metak ostaje u zidu · inače D, P × (1 − (A / P)²)
+stays in the wall	ostaje u zidu
+each	svaki
+rank	rang
+inside an anomaly	u anomaliji
+D × (1 − (armour − P) / 100)	D × (1 − (oklop − P) / 100)
+{part}, armour {A} − P {P}	{part}, oklop {A} − P {P}
+Pools	Zalihe
+chest, back → body · head, face → head · leg, foot → leg · arm, hand → hand	prsa, leđa → trup · glava, lice → glava · noga, stopalo → noga · ruka, šaka → šaka
+× 1 chest, head, arms · 0.9 legs · 0.8 hands, feet	× 1 prsa, glava, ruke · 0.9 noge · 0.8 šake, stopala
+Death	Smrt
+body, head or pain at 0	trup, glava ili bol na 0
+{n} hits	pogodaka: {n}
+at 0	na 0
+does not kill	ne ubija
+wall armour	oklop zida
+One bullet through several parts: each pool loses only its biggest hit, not the sum (hands 40 + 40, chest 35 → pain −40, not −115).	Jedan metak kroz više dijelova: svaka zaliha gubi samo svoj najveći pogodak, ne zbroj (šake 40 + 40, prsa 35 → bol −40, ne −115).
+full	potpuno
+fixed	liječi
+{s} s without hits	{s} s bez pogodaka
+By itself	Samo od sebe
+ends after {s} s without hits	prestaje nakon {s} s bez pogodaka
+carried	nošen
+activated	aktiviran
+at once, every {s} s	odmah, svakih {s} s
+{delay} s after use, for {s} s	{delay} s nakon uporabe, tijekom {s} s
+stops at {n}	do {n}
+From empty to full	Od nule do punog
+Leg or hand	Noga ili šaka
+No Larkspur	Bez Kokotića
+Starts	Počinje
+Legs, hands	Noge, šake
+Broken leg, hand	Slomljena noga, šaka
+Top-down view of	Pogled odozgo:
+<b>{m} m</b> ({across} across, {sign}{height} height). Click again to start over.	<b>{m} m</b> ({across} vodoravno, {sign}{height} okomito). Kliknite ponovno da počnete iznova.
+Now click the target.	Sada kliknite metu.
+Click the shooter, then the target.	Kliknite strijelca, zatim metu.
+Orange ring: full damage to {from} m; dashed: minimum from {to} m.	Narančasti krug: puna šteta do {from} m; isprekidani: najmanja od {to} m.
+health shown ×100 (body 100, head 40)	zdravlje prikazano ×100 (trup 100, glava 40)
+Shooter	Strijelac
+fires	puca
+Distance to target	Udaljenost do mete
+Wall in front of the target	Zid ispred mete
+Weapon bonuses	Bonusi oružja
+— — HIT — →	— — POGODAK — →
+takes the hit	prima pogodak
+Current pain	Trenutačna bol
+Pain the target already carries from earlier hits. It drains back to none at 10 a second once 8 s pass without a hit.	Bol koju meta već nosi od ranijih pogodaka. Opada do nule za 10 u sekundi kad prođe 8 s bez pogotka.
+Armour bonuses	Bonusi oklopa
+Artefacts, drugs & skills	Artefakti, lijekovi i vještine
+Measure on a map	Izmjeri na karti
+Clear points	Očisti točke
+bullet before armour	metak prije oklopa
+after this armour	nakon ovog oklopa
+Every body part, this shot	Svi dijelovi tijela, ovaj hitac
+Every weapon against this target	Sva oružja protiv ove mete
+Same distance, wall, body part, armour and target effects. Each gun uses its best ammo for this target unless you pick "default ammo". Click a row to load that gun.	Ista udaljenost, zid, dio tijela, oklop i učinci na meti. Svako oružje koristi svoj najbolji metak za ovu metu, osim ako odaberete „standardni metak”. Kliknite redak da učitate to oružje.
+Formula	Formula
+Healing	Liječenje
+Previous shot	Prethodni hitac
+Next shot	Sljedeći hitac
+Damage calculator	Kalkulator štete Survarium	title

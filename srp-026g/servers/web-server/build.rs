@@ -20,8 +20,8 @@ fn main() {
             Some("js") => "text/javascript; charset=utf-8",
             Some("woff2") => "font/woff2",
             Some("webp") => "image/webp",
-            // The page itself and the patches it was built from.
-            _ if ["damage.html", "built-from.tsv"].contains(&path) => continue,
+            // The page itself, its texts and the patches it was built from.
+            _ if ["damage.html", "damage.texts.json", "built-from.tsv"].contains(&path) => continue,
             _ => panic!("damage/{path}: no content type for its extension"),
         };
         out += &format!("(\"/damage/{path}\", \"{kind}\", include_bytes!({file:?}) as &[u8]),");
