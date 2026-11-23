@@ -17,11 +17,12 @@ package
     // root.srp_keys from check.sh's binder table and the rows' keys; srp_bind_key giving a key to a row and
     // telling root.set_keybind, a key other match rows had taken from them), with check.sh's rows (the exe's:
     // hide_ui_026g.asm's `controls` in its order, their default keys) and every dictionary's texts:
-    // - the Controls tab: its key lists hidden; no Bindings button until the exe's texts are there, then in the
-    //   left column under the mouse settings, over Default settings (the right column empty);
+    // - the Controls tab: its game and chat lists hidden, the lobby's in the right column for reading (no press,
+    //   no focus); no Bindings button until the exe's texts are there, then in the left column under the mouse
+    //   settings, over Default settings;
     // - the window over the screen at scale 1: the exe's table asked as it opens; every key the rows have drawn
-    //   with its rows' actions on it (the keyboard, the mouse, or beside the mouse); the lists: every row but the
-    //   chat's once, by kind in the exe's order, the lobby's last, each of a kind; nothing over anything else;
+    //   with its rows' actions on it (the keyboard, the mouse, or beside the mouse); the lists: every match row (not
+    //   the lobby's or the chat's) once, by kind in the exe's order, each of a kind; nothing over anything else;
     // - a row's press: the stock wait (the menu told with the row, its key box the game's orange), the exe's
     //   answer (root.set_keybind) in the lists and on the keyboard, pending for Apply;
     // - a key's press with a selector: its request (the key, its code and text, its rows, every row, the
@@ -248,10 +249,18 @@ package
                 && b.x + b.width <= 297 && defaults.y + defaults.height <= 400,
                 "the button in the left column under Invert mouse, over Default settings: " + b.x + "," + b.y + " " + b.width + ", "
                 + defaults.y);
-            for each (var hidden:* in [c.keysGame, c.keysLobby, c.keysChat, c.s_lobby, c.s_chat_keys])
+            for each (var hidden:* in [c.keysGame, c.keysChat, c.s_chat_keys])
             {
-                require(!hidden.visible, hidden.name + " hidden: the key bindings are the window's alone");
+                require(!hidden.visible, hidden.name + " hidden: the match's key bindings are the window's alone");
             }
+            // the lobby's keys in the right column, where the game's list was, for reading
+            require(c.keysLobby.visible && c.s_lobby.visible && c.keysLobby.x > 297 && c.s_lobby.x > 297
+                && c.keysLobby.y == c.s_lobby.y + (c.keysLobby.y - c.s_lobby.y) && c.keysLobby.y > c.s_lobby.y
+                && c.keysLobby.dataProvider.length == 5,
+                "the lobby's 5 keys under their heading in the right column: " + c.s_lobby.x + "," + c.s_lobby.y + "; "
+                + c.keysLobby.x + "," + c.keysLobby.y);
+            require(!c.keysLobby.mouseEnabled && !c.keysLobby.mouseChildren && !c.keysLobby.focusable,
+                "the lobby's keys take no press nor focus (not bindable)");
             settings.selectIndex(0);
             menu.set_settings(0, []);
             require(!b.visible, "no button on the Gameplay tab");
@@ -302,7 +311,7 @@ package
             var screen:Rectangle = new Rectangle(0, 0, stage.stageWidth, stage.stageHeight);
             var board:Rectangle = panel.getBounds(stage);
             require(screen.containsRect(board), "the window inside the screen: " + board);
-            // the lists: every row but the chat's, by kind (the exe's order inside), the lobby's last
+            // the lists: every match row (not the lobby's or the chat's), by kind (the exe's order inside)
             var shown:Array = children(WINDOW + "_row_");
             var expected:Array = [];
             var row:Object;
@@ -310,7 +319,6 @@ package
             {
                 for each (row in rows) if (row.group_id != CHAT && row.group_id != LOBBY && kindOf(row.action_id) == k) expected.push(row);
             }
-            for each (row in rows) if (row.group_id == LOBBY) expected.push(row);
             require(shown.length == expected.length, "the lists' rows: " + shown.length + " of " + expected.length);
             for (var i:int = 0; i < shown.length; i++)
             {
@@ -319,13 +327,13 @@ package
             }
             for each (row in rows)
             {
-                require(row.group_id == CHAT || kindOf(row.action_id) != -1, "the action " + row.action_id + " (" + row.label
-                    + ") has a kind (SrpKeysWindow.KINDS)");
+                require(row.group_id == CHAT || row.group_id == LOBBY || kindOf(row.action_id) != -1, "the action "
+                    + row.action_id + " (" + row.label + ") has a kind (SrpKeysWindow.KINDS)");
             }
             // every bound row's action on its key
             for each (row in rows)
             {
-                if (row.group_id == CHAT || names[row.action_id] == "") continue;
+                if (row.group_id == CHAT || row.group_id == LOBBY || names[row.action_id] == "") continue;
                 var key:* = body.getChildByName(WINDOW + "_key_" + names[row.action_id]);
                 require(key != null, row.label + "'s key " + names[row.action_id] + " drawn");
                 var all:String = texts_of(key).map(function(f:TextField, i:int, a:Array):String { return f.text; }).join("|");
@@ -407,8 +415,8 @@ package
             body.getChildByName(WINDOW + "_key_kZ").dispatchEvent(new MouseEvent(MouseEvent.CLICK));
             Object(windowClass()).selector = null;
             require(request != null && request.key == "kZ" && request.code == 0x2C && request.keyName == textOf("kZ")
-                && request.actions.length == 0 && request.rows.length == rows.length - 2 && request.kinds.length == 5,
-                "the selector asked with Z, its code and text, no rows, every row but the chat's, the kinds");
+                && request.actions.length == 0 && request.rows.length == rows.length - 7 && request.kinds.length == 5,
+                "the selector asked with Z, its code and text, no rows, the match's rows (not the lobby's or the chat's), the kinds");
             require(calls.indexOf("srp_bind_key 78 44") != -1, "its answer given to the exe: " + calls);
         }
 

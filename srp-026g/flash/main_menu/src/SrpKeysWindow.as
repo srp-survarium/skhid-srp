@@ -22,7 +22,8 @@ package
 
     // Settings > Controls > Bindings (the owner, 2026-11-23: "controls > bindings > some new bigger window in
     // similar style, but which can follow layout we already have"; "so it is visible the whole state"; "we
-    // don't need two"): the key bindings' one place. The Controls tab's lists are hidden; a button in its left
+    // don't need two"): the key bindings' one place. The Controls tab's game and chat lists are hidden (its lobby
+    // list stays in its right column, for reading: "not bindable either way"); a button in its left
     // column under the mouse settings, over Default settings, opens a window in the
     // Settings window's own skin (its frame and title bar: SrpSettingsGround, the title's text, its close
     // button) laid out as the owner's key page: the keyboard and the mouse with every bound key's action
@@ -30,13 +31,12 @@ package
     //
     // - The keyboard: a full-size layout without the numpad (the keys the key binder names, by their names;
     //   a key bound but not drawn shows beside the mouse); each key its dictionary's name in its corner (the
-    //   exe's), a bound key the match's action(s) on it and a lobby-only action smaller under them, tinted by
-    //   its kind (movement, combat, items, communication, interface: KINDS); a free key plain; a key the
+    //   exe's), a bound key the match's action(s) on it, tinted by its kind (movement, combat, items, communication, interface: KINDS); a free key plain; a key the
     //   binder does not name (or Esc) inert. The mouse: its buttons, the wheel's click, up and down, the two
     //   side buttons.
     // - The kinds' chips: the pointer over one dims every key and row of another kind.
-    // - The lists: the rows the exe gives (root.set_keybindings) but the chat's (not bindable), by kind in the
-    //   exe's order, the lobby's last, each row its action and its key.
+    // - The lists: the match's rows the exe gives (root.set_keybindings; not the lobby's or the chat's, which
+    //   are not bound here), by kind in the exe's order, each row its action and its key.
     //
     // Rebinding is the game's: a press of a row asks the exe for a key as the stock row does (start_bind_key,
     // the menu's "press a key" message, its conflict message, root.set_keybind); a press of a key asks the
@@ -67,7 +67,7 @@ package
             {colour: 0x94C451, ids: [0x20, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F, 0x50,
                 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59]},
             {colour: 0x5EA3EA, ids: [0x22, 0x37, 0x3F, 0x47]},
-            {colour: 0xA397C4, ids: [0x19, 0x1A, 0x1B, 0x40, 0x41, 0x42, 0x43, 0x44]}];
+            {colour: 0xA397C4, ids: [0x19, 0x1A, 0x1B]}];
         // The action selector a key's press asks (the main menu sets it): selector(request, answer), the request
         // {key: the key's name, code, keyName: its text, actions: the rows it has, rows: every row of the window,
         // kinds: KINDS}, answer(action id), answer(UNBIND) to take the key from its rows, answer(-1) to leave it.
@@ -357,13 +357,14 @@ package
             }
         }
 
-        // The window's rows: the exe's but the chat's (its keys cannot be set: their key boxes' type 0).
+        // The window's rows: the match's (the lobby's are the tab's to read, the chat's cannot be set: the owner,
+        // 2026-11-23, "not bindable either way").
         private function shownRows():Array
         {
             var out:Array = [];
             for each (var row:Object in keys)
             {
-                if (row.group_id != KeyBindGroup.CHAT)
+                if (row.group_id != KeyBindGroup.CHAT && row.group_id != KeyBindGroup.LOBBY)
                 {
                     out.push(row);
                 }
@@ -371,8 +372,8 @@ package
             return out;
         }
 
-        // The lists' sections, each {heading, kind, rows}: a section per kind (the match's rows of it in the exe's
-        // order), then the lobby's.
+        // The lists' sections, each {heading, kind, rows}: a section per kind (its rows in the exe's order), then
+        // the rows of no kind.
         private function sections():Array
         {
             var out:Array = [];
@@ -381,16 +382,11 @@ package
             {
                 out.push({heading: k < kindNames.length ? kindNames[k] : "", kind: k, rows: []});
             }
-            var lobby:Object = {heading: Settings.get_label("s_lobby"), kind: -1, rows: []};
             var other:Object = {heading: Settings.get_label("s_game"), kind: -1, rows: []};
             for each (var row:Object in shownRows())
             {
                 k = kindOf(row.action_id);
-                if (row.group_id == KeyBindGroup.LOBBY)
-                {
-                    lobby.rows.push(row);
-                }
-                else if (k == -1)
+                if (k == -1)
                 {
                     other.rows.push(row);
                 }
@@ -399,7 +395,7 @@ package
                     out[k].rows.push(row);
                 }
             }
-            out.push(other, lobby);
+            out.push(other);
             return out.filter(function(s:Object, i:int, a:Array):Boolean { return s.rows.length > 0; });
         }
 
@@ -602,9 +598,8 @@ package
             }
         }
 
-        // A key: its name's text in its corner; its rows' actions on it, the match's first, a lobby-only one
-        // smaller under them; tinted by its first row's kind; plain when free, inert when the binder has no such
-        // key (or it is Esc).
+        // A key: its name's text in its corner; its rows' actions on it; tinted by its first row's kind; plain when
+        // free, inert when the binder has no such key (or it is Esc).
         private function cap(name:String, x:Number, y:Number, w:Number, h:Number, rows:Array):void
         {
             var gap:Number = Math.max(3, Math.round(unit * 0.09));
@@ -615,12 +610,8 @@ package
             sprite.x = Math.round(x);
             sprite.y = Math.round(y);
             sprite.mouseChildren = false;
-            var match:Array = [], lobby:Array = [];
-            for each (var row:Object in rows || [])
-            {
-                (row.group_id == KeyBindGroup.LOBBY ? lobby : match).push(row);
-            }
-            var first:Object = match.length > 0 ? match[0] : (lobby.length > 0 ? lobby[0] : null);
+            var match:Array = rows || [];
+            var first:Object = match.length > 0 ? match[0] : null;
             var kind:int = first != null ? kindOf(first.action_id) : -1;
             var view:Object = {name: name, sprite: sprite, kinds: kindsOf(rows), rows: rows || [], w: w - gap, h: h - gap,
                 kind: kind, live: live};
@@ -633,18 +624,7 @@ package
             sprite.addChild(legendField);
             var size:Number = Math.max(9, Math.round(unit * 0.21));
             var top:Number = legendField.height - 2;
-            // a lobby-only action on one line at the foot (over the kind's bar), the match's over it
             var bottom:Number = view.h - 4;
-            if (lobby.length > 0)
-            {
-                var small:TextField = text(Math.max(8, size - 2), 0x9A9DA1, true);
-                small.text = lobby.map(function(r:Object, i:int, a:Array):String { return label(r); }).join(" · ");
-                fitLine(small, view.w - 6);
-                small.x = 3;
-                small.y = bottom - small.height + 2;
-                sprite.addChild(small);
-                bottom = small.y + 1;
-            }
             var actions:String = match.map(function(r:Object, i:int, a:Array):String { return label(r); }).join(" · ");
             if (actions != "")
             {
