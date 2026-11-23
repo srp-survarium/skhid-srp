@@ -25,7 +25,7 @@ use core::ffi::CStr;
 
 use artefact_hunt_rule::{
     Action, After, ArtefactView, BaseDef, Cue, Event, Hud, Line, Message, Params, Place, Position, RawParams,
-    RawShape, Reason, Rule, Shift, Spawner, SuddenShown, Team, Time, View, Viewer, MAX_SHAPES, MAX_SPAWNERS,
+    RawShape, Reason, Rule, Spawner, SuddenShown, Team, Time, View, Viewer, MAX_SHAPES, MAX_SPAWNERS,
     PLAYERS, REACH, along,
 };
 
@@ -526,15 +526,14 @@ pub fn on_completed(_: &OrigTdmRuleCompleted, rule: &mut HuntRule<'_>, time: u32
 
 // ---- the respawn rule ----------------------------------------------------------
 
-/// A death's delay: the wave's time (`Rule::respawn_at`), the native grid
-/// and store after it.
+/// A death's delay: the wave's time (`Rule::respawn_at`, the native delay
+/// and its respawn modifier dropped), the native grid and store after it.
 pub fn on_death_delay(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(mut delay) = DeathDelay::at(ctx) else { return Flow::Continue };
     let Some(world) = delay.world().map(|world| world.key()) else { return Flow::Continue };
     let Some(hunt) = hunt_in(delay.thread(), world) else { return Flow::Continue };
-    let shift = Shift::new(delay.delay() as i32 - delay.respawn_time() as i32);
     let death = Time::from_ms(delay.time());
-    if let Some(at) = hunt.state.respawn_at(&hunt.params, death, shift) {
+    if let Some(at) = hunt.state.respawn_at(&hunt.params, death) {
         delay.set_delay(at.ms().wrapping_sub(death.ms()));
     }
     Flow::Continue
@@ -982,9 +981,7 @@ fn update_icons(ctx: &mut Context<'_>) -> Flow<NoExit> {
         .or_else(|| viewed.and_then(|place| Team::from_raw(world.body(place.get())?.team)));
     let viewer = Viewer { place: viewed, team };
     let now = world.now();
-    let mut hud = hunt.state.hud(&hunt.params, Time::from_ms(now));
-    let due = viewed.and_then(|place| world.respawn_due(place.get())).map(Time::from_ms);
-    hud.wave = hud.wave.map(|wave| wave.seen_by(Time::from_ms(now), due));
+    let hud = hunt.state.hud(&hunt.params, Time::from_ms(now));
     let viewed_carries = viewed.is_some() && hunt.state.carrier() == viewed;
     let values = update_values(&hud, &hunt.params, viewer, viewed_carries);
     let sum = checksum(&values);

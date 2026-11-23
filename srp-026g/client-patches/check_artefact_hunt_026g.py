@@ -536,11 +536,11 @@ def main():
     shifted = delay(death, 12000)
     near = wave - 4000
     near_delay = delay(near, 15000)
-    late = delay(wave - 1000, 12000)
+    near_shifted = delay(near, 12000)
     check("a death's delay is the wave's: the first 15 s from the start after the death's step, 4 s before "
-          "it too; a -20 % modifier 3 s sooner, never into the death's step",
-          got_delay == wave - death and shifted == wave - 3000 - death and near_delay == 4000 and late == 51,
-          f"{got_delay}, {shifted}, wave {wave - death}, 4 s before {near_delay}, modifier 1 s before {late}")
+          "it too; a -20 % modifier (the radio) changes nothing",
+          got_delay == wave - death and shifted == got_delay and near_delay == 4000 and near_shifted == 4000,
+          f"{got_delay}, {shifted}, wave {wave - death}, 4 s before {near_delay}, {near_shifted}")
 
     # 13. Slot 17 through the hud's loop: the points, the clock's seconds.
     hud = run.allocate(0x100)
@@ -625,8 +625,10 @@ def main():
     run.queries = []
     frame()
     item = [("item/artefacts/artefact_shining_forest", 15), ("a", 61), ("b", 61), ("c", 61), ("g", 61), ("gf", 61)]
+    # patch 196's death sound (corpse_shot_dark.rs) is asked at the first match step, before it
+    death_sound = [("animations/death_animation_021d_m", 257)]
     check("the first frame of a hunt asks the item's model, its idle, spawn and destroy particles and the carrier's "
-          "glow (on his body, at his own camera) in one query", run.queries == [item], str(run.queries))
+          "glow (on his body, at his own camera) in one query", run.queries == [death_sound, item], str(run.queries))
     # the query's callback (the game's: cdecl (queries_result, its word)) with
     # the six results 2E0h apart at +12Ch: a model and five particle systems
     answer = run.allocate(0x12C + 6 * 0x2E0)

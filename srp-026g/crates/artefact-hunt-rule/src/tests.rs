@@ -230,7 +230,7 @@ impl Match {
 
     /// When somebody dead now would come back.
     fn respawn(&self) -> Option<Time> {
-        self.rule.respawn_at(&self.params, t(self.now), Shift::NONE)
+        self.rule.respawn_at(&self.params, t(self.now))
     }
 
     fn die(&mut self, raw: u8, x: f32) -> Vec<Action> {
@@ -1077,45 +1077,35 @@ fn the_match_time_ends_in_a_hunt_only() {
 fn respawns_come_in_waves_of_15_s_after_the_deaths_step() {
     let game = Match::started(1);
     // `death` is the event's time: the step before the death's own.
-    let respawn = |death: u32, shift: i32| {
-        let at = game
-            .rule
-            .respawn_at(&game.params, t(START + death), Shift::new(shift));
+    let respawn = |death: u32| {
+        let at = game.rule.respawn_at(&game.params, t(START + death));
         at.expect("a death in play respawns").ms() - START
     };
     // The first wave after the death's step.
-    assert_eq!(respawn(0, 0), 15_000);
-    assert_eq!(respawn(8_001, 0), 15_000);
+    assert_eq!(respawn(0), 15_000);
+    assert_eq!(respawn(8_001), 15_000);
     assert_eq!(
-        respawn(11_000, 0),
+        respawn(11_000),
         15_000,
         "the owner's report: dead 4 s before a wave, back in it (0.46c2: 30 s)"
     );
-    assert_eq!(respawn(14_900, 0), 15_000, "dead in the step before the wave's");
+    assert_eq!(respawn(14_900), 15_000, "dead in the step before the wave's");
     assert_eq!(
-        respawn(14_950, 0),
+        respawn(14_950),
         30_000,
         "dead in the wave's own step, after its respawn tick"
     );
-    assert_eq!(respawn(23_000, 0), 30_000);
-    assert_eq!(respawn(100_000, 0), 105_000);
-    // The modifier's part of 15 s (-20 %: 3 s) moves the wave, never into
-    // the death's step: the native grid takes 12 051 to the step after it.
-    assert_eq!(respawn(0, -3_000), 12_000);
-    assert_eq!(respawn(11_000, -3_000), 12_000);
-    assert_eq!(respawn(12_000, -3_000), 12_051, "wave 15 s - 3 s is the death's step");
-    assert_eq!(respawn(0, 7_500), 22_500);
-    assert_eq!(respawn(0, -15_000), 51);
-    assert_eq!(respawn(1_010, i32::MIN), 1_061);
+    assert_eq!(respawn(23_000), 30_000);
+    assert_eq!(respawn(100_000), 105_000);
     // A death a step before the start (an event's time is the step before).
     assert_eq!(
         game.rule
-            .respawn_at(&game.params, t(START - 50), Shift::NONE),
+            .respawn_at(&game.params, t(START - 50)),
         Some(t(START + 15_000))
     );
     // Before the start and after the end the respawn rule's own time stands.
     assert_eq!(
-        Rule::new(1).respawn_at(&game.params, t(5), Shift::NONE),
+        Rule::new(1).respawn_at(&game.params, t(5)),
         None
     );
     let mut over = Match::at_time(1, 899_950, [1, 0]);
@@ -1137,15 +1127,9 @@ fn the_hud_counts_to_the_wave_a_death_now_would_wait_for() {
     // event's time is the step before).
     for step in (50..=60_000).step_by(50) {
         let shown = left(&game, step).unwrap().0;
-        let at = game.rule.respawn_at(&game.params, t(START + step - 50), Shift::NONE).unwrap();
+        let at = game.rule.respawn_at(&game.params, t(START + step - 50)).unwrap();
         assert_eq!(at.ms() - START, step + shown, "a death in the step at {step}");
     }
-    // A viewer with a respawn to come sees his own (a modifier in it), else the team's.
-    let team = wave(&game, 11_000).unwrap();
-    assert_eq!(team.seen_by(t(START + 11_000), Some(t(START + 12_000))).left_ms, 1_000);
-    assert_eq!(team.seen_by(t(START + 11_000), Some(t(START + 11_000))), team, "his spawn's step");
-    assert_eq!(team.seen_by(t(START + 11_000), Some(t(START + 3_000))), team, "alive since");
-    assert_eq!(team.seen_by(t(START + 11_000), None), team);
     // None in a round's restart (respawns held), back with the next hunt.
     game.point_for(0);
     assert_eq!(wave(&game, game.now - START), None, "the 3 s after a delivery");

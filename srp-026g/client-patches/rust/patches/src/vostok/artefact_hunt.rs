@@ -509,14 +509,6 @@ impl<'t> HuntWorld<'t> {
         Some(hit.point)
     }
 
-    /// When `place` is next spawned (the respawn rule's time, what the game's
-    /// "Respawn in" line counts to), none while it has none.
-    pub fn respawn_due(&self, place: u8) -> Option<u32> {
-        // SAFETY: the live core of this world.
-        let due = unsafe { super::respawn::respawn_time(self.core, place) }?;
-        (due != NO_RESPAWN).then_some(due)
-    }
-
     /// The time rule's start of play (its +12Ch), the rules vector's entry of
     /// type 2.
     pub fn play_start(&self) -> Option<u32> {
@@ -652,17 +644,8 @@ impl<'c, 'm> DeathDelay<'c, 'm> {
     pub fn time(&self) -> u32 {
         self.time
     }
-    /// The delay the native rule computed: its respawn_time with the
-    /// victim's modifier 60, rounded.
-    pub fn delay(&self) -> u32 {
-        self.ctx.reg(Reg::Eax)
-    }
-    /// The mode's respawn_time, ms (rule+114h).
-    pub fn respawn_time(&self) -> u32 {
-        // SAFETY: the live respawn rule's constant.
-        unsafe { read(self.rule.respawn_time()) }
-    }
-    /// The delay the native grid and store then take.
+    /// The delay the native grid and store then take, in place of the
+    /// native rule's (its respawn_time with the victim's modifier 60).
     pub fn set_delay(&mut self, delay: u32) {
         self.ctx.set_reg(Reg::Eax, delay);
     }
