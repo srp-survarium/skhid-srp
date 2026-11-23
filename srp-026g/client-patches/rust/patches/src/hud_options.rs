@@ -1185,6 +1185,9 @@ pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<HudOptionsOnOptionsCallExi
     let Some(call) = OptionsCall::at(ctx) else { return Flow::Continue };
     let thread = ctx.thread();
     let method = call.method();
+    if crate::key_bindings::on_call(&call, method) {
+        return Flow::Exit(HudOptionsOnOptionsCallExit::Done);
+    }
     if method == c"srp_hud_texts" {
         answer_texts(&call, c"root.srp_hud_texts", &TEXTS);
         return Flow::Exit(HudOptionsOnOptionsCallExit::Done);

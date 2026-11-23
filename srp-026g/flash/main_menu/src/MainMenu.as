@@ -149,6 +149,12 @@ package
          this.settings_window.setMicrophone(values);
       }
       
+      // The exe's table of the keys for the Settings' Bindings window (key_bindings.rs, Settings.setBindingKeys).
+      public function srp_keys(table:String) : void
+      {
+         this.settings_window.setBindingKeys(table);
+      }
+      
       // The exe's answer with the Settings' HUD group's texts (patch 83, Settings.setHudTexts).
       public function srp_hud_texts(... values) : void
       {

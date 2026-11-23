@@ -14,14 +14,17 @@ k9	9
 kA	A
 kADD	+
 kAPOSTROPHE	'
+kAPPS	Menu
 kB	B
 kBACK	Backspace
 kBACKSLASH	\\
 kC	C
+kCAPITAL	CapsLock
 kCOMMA	,
 kD	D
 kDECIMAL	.
 kDELETE	Delete
+kDIVIDE	Num/
 kDOWN	Down
 kE	E
 kEND	End
@@ -55,10 +58,14 @@ kL	L
 kLBRACKET	<
 kLCONTROL	LCtrl
 kLEFT	Left
+kLMENU	LAlt
 kLSHIFT	LShift
+kLWIN	LWin
 kM	M
 kMINUS	-
+kMULTIPLY	Num*
 kN	N
+kNEXT	PgDn
 kNUMLOCK	NumLock
 kNUMPAD0	Num0
 kNUMPAD1	Num1
@@ -77,19 +84,23 @@ kO	O
 kP	P
 kPAUSE	Pause
 kPERIOD	.
+kPRIOR	PgUp
 kQ	Q
 kR	R
 kRBRACKET	>
 kRCONTROL	RControl
 kRETURN	Enter
 kRIGHT	Right
+kRMENU	RAlt
 kRSHIFT	RShift
+kRWIN	RWin
 kS	S
 kSCROLL	ScrollLock
 kSEMICOLON	,
 kSLASH	/
 kSPACE	Space
 kSUBTRACT	-
+kSYSRQ	PrtSc
 kT	T
 kTAB	Tab
 kU	U
@@ -2756,7 +2767,7 @@ st_srp_inventory_search_tip_level_example	+10 +11
 st_srp_inventory_sell_duplicates	Prodat duplikáty
 st_srp_inventory_sell_duplicates_ask	Předměty k prodeji: %1$s
 st_srp_item_props_mps	m/s
-st_srp_key_bindings	Přiřazení kláves
+st_srp_key_bindings	Přiřazení
 st_srp_keys_combat	Boj
 st_srp_keys_interface	Rozhraní
 st_srp_keys_items	Předměty

@@ -1,6 +1,7 @@
 package
 {
     import flash.display.DisplayObject;
+    import flash.display.DisplayObjectContainer;
     import flash.display.Loader;
     import flash.display.Sprite;
     import flash.events.Event;
@@ -12,32 +13,45 @@ package
     import flash.system.LoaderContext;
     import flash.text.TextField;
 
-    // The Settings' Controls tab and its "Key bindings" window (SrpKeysWindow) in the rebuilt main menu, with
-    // check.sh's rows (the exe's: hide_ui_026g.asm's `controls` in its order, their default keys) and every
-    // dictionary's texts: no button until the exe's texts are there, then at the foot of the left column
-    // beside Default settings; the window over the screen, inside it with its margin: every row once, in
-    // its group (the match's, the lobby's, the chat's) in the exe's order, each of a kind; whole lists (no
-    // scrolling) side by side, none over another, each key box showing its key; a press of a row's key box
-    // is the stock rebinding (start_bind_key, the menu told to show its "press a key" message), the exe's
-    // answer (root.set_keybind) shown in the window and on the tab, pending for Apply; a kind's chip
-    // dimming the other kinds' rows; Esc, the close button and a press beside the window closing it, the
-    // Settings staying; every dictionary's title and chips in the title's band, its labels on their rows.
-    // Prints "KEYS ..." lines, "KEYS SHOT <name>" for check.sh's screenshots (each state held a second),
+    // Settings > Controls > Bindings (SrpKeysWindow) in the rebuilt main menu, the exe stood in for (SrpExe.standIn:
+    // root.srp_keys from check.sh's binder table and the rows' keys; srp_bind_key giving a key to a row and
+    // telling root.set_keybind, a key other match rows had taken from them), with check.sh's rows (the exe's:
+    // hide_ui_026g.asm's `controls` in its order, their default keys) and every dictionary's texts:
+    // - the Controls tab: no Bindings button until the exe's texts are there, then at the foot of the left column
+    //   beside Default settings;
+    // - the window over the screen at scale 1: the exe's table asked as it opens; every key the rows have drawn
+    //   with its rows' actions on it (the keyboard, the mouse, or beside the mouse); the lists: every row but the
+    //   chat's once, by kind in the exe's order, the lobby's last, each of a kind; nothing over anything else;
+    // - a row's press: the stock wait (the menu told with the row, its key box the game's orange), the exe's
+    //   answer (root.set_keybind) in the lists and on the keyboard, pending for Apply;
+    // - a key's press with a selector: its request (the key, its code and text, its rows, every row, the
+    //   kinds), its answer given to the exe (srp_bind_key "action code") and shown; UNBIND taking the key
+    //   from its rows (srp_unbind_key "code");
+    // - a kind's chip dims the keys and rows of the other kinds; Esc, the close button and a press beside the
+    //   window close it, the Settings staying;
+    // - every dictionary: the title, the chips, the rows' labels and the keys' texts inside their places.
+    // Prints "KEYS ..." lines, "KEYS SHOT <name>" for check.sh's screenshots (each state held a while),
     // "KEYS RESULT pass" or "KEYS RESULT fail: ..." and "KEYS END". No game or server.
     public class KeysWindowHarness extends Sprite
     {
         private static const WINDOW:String = "_srp_keys_window";
-        // check.sh's texts: the window's (title, five kinds, three headings), then the rows' labels.
+        // check.sh's texts: the window's (title, five kinds, three headings), the rows' labels, the binder keys' texts.
         private static const TITLE:int = 0, KINDS:int = 1, HEADINGS:int = 6, LABELS:int = 9;
+        private static const CHAT:int = 1, LOBBY:int = 0;
 
         private var loader:Loader = new Loader();
         private var frames:int = 0;
         private var rows:Array;
         private var texts:Array;
+        private var binder:Array;
+        // The stand-in exe: each row's key name by action, the dictionary it answers in, its calls.
+        private var names:Object;
+        private var language:Array;
+        private var calls:Array = [];
         private var failed:Boolean = false;
-        // The steps: [frames to wait before it, function].
         private var steps:Array;
         private var last:int = 0;
+        private var request:Object = null;
 
         public function KeysWindowHarness()
         {
@@ -53,9 +67,10 @@ package
             addChild(loader);
             loader.load(new URLRequest("main_menu.swf"), new LoaderContext(false, new ApplicationDomain()));
             steps = [[10, setUp], [10, shot("tab")], [10, tabWithoutTexts], [30, withTexts], [10, shot("tab-button")],
-                [30, openWindow], [5, checkWindow], [1, shot("window")], [30, pressKey], [5, shot("binding")],
-                [30, answerKey], [5, shot("rebound")], [30, focusKind], [5, shot("focus")], [30, unfocus],
-                [5, closings], [5, languages], [5, reopen], [10, end]];
+                [30, openWindow], [5, shot("window")], [5, checkWindow], [30, pressRow], [5, shot("binding")],
+                [30, answerRow], [3, checkRebound], [1, shot("rebound")], [30, pressKey], [3, checkPicked],
+                [10, clearKey], [3, checkCleared],
+                [10, focusKind], [5, shot("focus")], [30, unfocus], [5, closings], [5, languages], [5, reopen], [10, end]];
         }
 
         private function get menu():* { return loader.content; }
@@ -65,7 +80,8 @@ package
         private function get window():* { return settings.getChildByName(WINDOW); }
         private function get panel():* { return window.getChildByName(WINDOW + "_panel"); }
         private function get body():* { return panel.getChildByName(WINDOW + "_body"); }
-        private function get chips():* { return panel.getChildByName(WINDOW + "_chips"); }
+        private function get chips():* { return body.getChildByName(WINDOW + "_chips"); }
+        private function windowClass():* { return domainClass("SrpKeysWindow"); }
 
         private function domainClass(name:String):Class
         {
@@ -111,19 +127,80 @@ package
             trace("KEYS END");
         }
 
-        // The Settings as the exe opens them on the Controls tab (labels, rows, the tab's settings), without
-        // the HUD group's texts yet.
+        // The stand-in exe (SrpExe.standIn): srp_keys answers the table; srp_bind_key "action code" gives the key
+        // to the row (the match rows that had it lose it), tells root.set_keybind for each row changed, then
+        // answers the table.
+        private function exe(name:String, value:String):void
+        {
+            calls.push(name + (value != null ? " " + value : ""));
+            if (name == "srp_bind_key")
+            {
+                var parts:Array = value.split(" ");
+                var action:int = int(parts[0]), code:int = int(parts[1]);
+                var key:String = null;
+                for each (var pair:Array in binder) if (pair[1] == code) key = pair[0];
+                if (key == null) return;
+                var target:Object = rowOfAction(action);
+                for each (var row:Object in rows)
+                {
+                    if (row != target && row.group_id == target.group_id && names[row.action_id] == key)
+                    {
+                        names[row.action_id] = "";
+                        menu.set_keybind(row.action_id, "", false);
+                    }
+                }
+                names[action] = key;
+                menu.set_keybind(action, textOf(key), false);
+            }
+            if (name == "srp_unbind_key")
+            {
+                var taken:String = null;
+                for each (var held:Array in binder) if (held[1] == int(value)) taken = held[0];
+                for each (var holder:Object in rows)
+                {
+                    if (taken != null && names[holder.action_id] == taken)
+                    {
+                        names[holder.action_id] = "";
+                        menu.set_keybind(holder.action_id, "", false);
+                    }
+                }
+            }
+            if (name == "srp_keys" || name == "srp_bind_key" || name == "srp_unbind_key")
+            {
+                var lines:Array = [];
+                for each (var k:Array in binder) lines.push(["K", k[0], k[1], textOf(k[0])].join("\t"));
+                for each (var r:Object in rows) lines.push(["A", r.action_id, names[r.action_id]].join("\t"));
+                menu.srp_keys(lines.join("\n") + "\n");
+            }
+        }
+
+        private function textOf(key:String):String
+        {
+            if (key == "") return "";
+            for (var i:int = 0; i < binder.length; i++) if (binder[i][0] == key) return language[LABELS + rows.length + i];
+            return key;
+        }
+
+        private function rowOfAction(action:int):Object
+        {
+            for each (var row:Object in rows) if (row.action_id == action) return row;
+            return null;
+        }
+
         private function setUp():void
         {
             rows = JSON.parse(loaderInfo.parameters.rows) as Array;
             texts = JSON.parse(loaderInfo.parameters.texts) as Array;
-            var english:Array = texts[0];
+            binder = JSON.parse(loaderInfo.parameters.binder) as Array;
+            names = JSON.parse(loaderInfo.parameters.names);
+            language = texts[0];
+            Object(domainClass("SrpExe")).standIn = exe;
             menu.set_labels([{name: "gameplay_options_type", label: "Gameplay"}, {name: "controllers_options_type", label: "Controls"},
                 {name: "video_options_type", label: "Graphics"}, {name: "sound_options_type", label: "Audio"},
                 {name: "settings_label", label: "Settings"}, {name: "button_apply", label: "Apply"},
                 {name: "button_exit", label: "Exit"}, {name: "button_cancel", label: "Cancel"}, {name: "button_ok", label: "OK"},
-                {name: "s_game", label: english[HEADINGS]}, {name: "s_lobby", label: english[HEADINGS + 1]},
-                {name: "s_chat_keys", label: english[HEADINGS + 2]},
+                {name: "s_game", label: language[HEADINGS]}, {name: "s_lobby", label: language[HEADINGS + 1]},
+                {name: "s_chat_keys", label: language[HEADINGS + 2]},
                 {name: "button_default_controls", label: "Default settings"}, {name: "bind_text", label: "Press a key for"}]);
             menu.set_keybindings(rows);
             menu.show_settings(true);
@@ -134,7 +211,6 @@ package
             settings.y = Math.round((stage.stageHeight - 565) / 2);
         }
 
-        // The Controls tab as the exe binds it.
         private function controlsTab():void
         {
             settings.selectIndex(1);
@@ -155,24 +231,22 @@ package
 
         private function tabWithoutTexts():void
         {
-            var c:* = content;
-            require(c.currentFrame == 2, "the Controls tab is frame 2: " + c.currentFrame);
-            require(button != null && !button.visible, "no Key bindings button before the exe's texts");
-            trace("KEYS tab: the game's list shows " + c.keysGame.height / c.keysGame.rowHeight + " of its " + c.keysGame.dataProvider.length
-                + " rows; " + rows.length + " rows in all");
+            require(content.currentFrame == 2, "the Controls tab is frame 2: " + content.currentFrame);
+            require(button != null && !button.visible, "no Bindings button before the exe's texts");
+            trace("KEYS tab: the game's list shows " + content.keysGame.height / content.keysGame.rowHeight + " of its "
+                + content.keysGame.dataProvider.length + " rows; " + rows.length + " rows in all");
         }
 
         private function withTexts():void
         {
-            hudTexts(texts[0]);
+            hudTexts(language);
             var c:* = content;
             var b:* = button;
-            require(b.visible && b.alpha == 1 && b.label == texts[0][TITLE], "the button shows the exe's text: " + b.label);
+            require(b.visible && b.alpha == 1 && b.label == language[TITLE], "the button shows the exe's text: " + b.label);
             var defaults:* = c.button_default_controls;
             require(b.y == defaults.y && b.width == defaults.width && b.x + b.width < defaults.x,
                 "the button beside Default settings, in the left column: " + b.x + "," + b.y + " " + b.width);
-            require(c.keysLobby.y + c.keysLobby.height <= b.y, "the button under the lobby's keys: " + (c.keysLobby.y + c.keysLobby.height)
-                + ", " + b.y);
+            require(c.keysLobby.y + c.keysLobby.height <= b.y, "the button under the lobby's keys");
             settings.selectIndex(0);
             menu.set_settings(0, []);
             require(!b.visible, "no button on the Gameplay tab");
@@ -182,164 +256,203 @@ package
 
         private function openWindow():void
         {
+            calls = [];
             click(button);
             require(window.open && window.visible, "the button opens the window");
+            require(calls.indexOf("srp_keys") != -1, "the window asks the exe for its table: " + calls);
         }
 
-        // The window's lists, in their order.
-        private function windowLists():Array
+        private function children(prefix:String):Array
         {
             var out:Array = [];
             for (var i:int = 0; i < body.numChildren; i++)
             {
-                var child:* = body.getChildAt(i);
-                if (child.hasOwnProperty("dataProvider")) out.push(child);
+                var child:DisplayObject = body.getChildAt(i);
+                if (child.name.indexOf(prefix) == 0) out.push(child);
             }
             return out;
         }
 
-        private function checkWindow():void
+        private function texts_of(sprite:DisplayObjectContainer):Array
         {
-            var lists:Array = windowLists();
-            var shown:Array = [];
-            var list:*;
-            var i:int;
-            for each (list in lists)
+            var out:Array = [];
+            for (var i:int = 0; i < sprite.numChildren; i++)
             {
-                for (i = 0; i < list.dataProvider.length; i++) shown.push(list.dataProvider[i]);
+                var field:TextField = sprite.getChildAt(i) as TextField;
+                if (field != null) out.push(field);
             }
-            // the groups in the window's order (the match's, the lobby's, the chat's), each in the exe's order
-            var expected:Array = [];
-            var row:Object;
-            for each (var group:Function in [function(r:Object):Boolean { return r.group_id != 0 && r.group_id != 1; },
-                function(r:Object):Boolean { return r.group_id == 0; }, function(r:Object):Boolean { return r.group_id == 1; }])
-            {
-                for each (row in rows) if (group(row)) expected.push(row);
-            }
-            require(shown.length == rows.length, "every row in the window: " + shown.length + " of " + rows.length);
-            for (var k:int = 0; k < shown.length; k++)
-            {
-                require(shown[k] === expected[k], "row " + k + ": " + shown[k].label + ", not " + expected[k].label);
-            }
-            for each (row in rows)
-            {
-                require(kindOf(row.action_id) != -1, "the action " + row.action_id + " (" + row.label + ") has a kind (SrpKeysWindow.KINDS)");
-            }
-            var screen:Rectangle = new Rectangle(0, 0, stage.stageWidth, stage.stageHeight);
-            screen.inflate(-20, -20);
-            var board:Rectangle = panel.getBounds(stage);
-            require(screen.containsRect(board), "the window inside the screen: " + board + " in " + screen);
-            var boxes:Array = [];
-            for each (list in lists)
-            {
-                list.validateNow();
-                require(Math.abs(list.height - list.dataProvider.length * list.rowHeight) < 0.1, list.name + " is whole rows, no scrolling");
-                var at:Rectangle = list.getBounds(stage);
-                at = new Rectangle(at.x, at.y, list.width * panel.scaleX, list.height * panel.scaleY);
-                require(board.containsRect(at), list.name + " inside the window: " + at + " in " + board);
-                for each (var other:Rectangle in boxes)
-                {
-                    var meet:Rectangle = other.intersection(at);
-                    require(meet.width < 1 || meet.height < 1, list.name + " over another list: " + at + ", " + other);
-                }
-                boxes.push(at);
-                for (i = 0; i < list.dataProvider.length; i++)
-                {
-                    var r:* = list.getRendererAt(i);
-                    require(r != null && r.data === list.dataProvider[i], list.name + ": row " + i + " drawn");
-                    require(r.btn_key.textField.text == String(r.data.key), list.name + ": " + r.data.label + "'s key box shows "
-                        + r.btn_key.textField.text + ", not " + r.data.key);
-                    require(r.textField.textWidth + 4 <= r.textField.width + 0.5, r.data.label + " fits its row");
-                }
-            }
-            var title:TextField = panel.getChildByName(WINDOW + "_title");
-            require(title.text == String(texts[0][TITLE]).toUpperCase(), "the title is the exe's text: " + title.text);
-            trace("KEYS window: " + lists.length + " lists, " + board.width + "x" + board.height + " at " + board.x + "," + board.y
-                + " (scale " + panel.scaleX + "); every row shown at once");
+            return out;
         }
 
-        // The kind of an action (SrpKeysWindow.KINDS' index), or -1.
         private function kindOf(action:int):int
         {
-            var kinds:Array = Object(domainClass("SrpKeysWindow")).KINDS;
-            for (var k:int = 0; k < kinds.length; k++)
-            {
-                if (kinds[k].ids.indexOf(action) != -1) return k;
-            }
+            var kinds:Array = Object(windowClass()).KINDS;
+            for (var k:int = 0; k < kinds.length; k++) if (kinds[k].ids.indexOf(action) != -1) return k;
             return -1;
         }
 
-        // The window's renderer of the action's row.
-        private function rowOf(action:int):*
+        private function checkWindow():void
         {
-            for each (var list:* in windowLists())
+            require(panel.scaleX == 1, "the window at its own size (scale 1): " + panel.scaleX);
+            var screen:Rectangle = new Rectangle(0, 0, stage.stageWidth, stage.stageHeight);
+            var board:Rectangle = panel.getBounds(stage);
+            require(screen.containsRect(board), "the window inside the screen: " + board);
+            // the lists: every row but the chat's, by kind (the exe's order inside), the lobby's last
+            var shown:Array = children(WINDOW + "_row_");
+            var expected:Array = [];
+            var row:Object;
+            for (var k:int = 0; k < 5; k++)
             {
-                for (var i:int = 0; i < list.dataProvider.length; i++)
+                for each (row in rows) if (row.group_id != CHAT && row.group_id != LOBBY && kindOf(row.action_id) == k) expected.push(row);
+            }
+            for each (row in rows) if (row.group_id == LOBBY) expected.push(row);
+            require(shown.length == expected.length, "the lists' rows: " + shown.length + " of " + expected.length);
+            for (var i:int = 0; i < shown.length; i++)
+            {
+                require(shown[i].name == WINDOW + "_row_" + expected[i].action_id, "row " + i + ": " + shown[i].name + ", not "
+                    + expected[i].label);
+            }
+            for each (row in rows)
+            {
+                require(row.group_id == CHAT || kindOf(row.action_id) != -1, "the action " + row.action_id + " (" + row.label
+                    + ") has a kind (SrpKeysWindow.KINDS)");
+            }
+            // every bound row's action on its key
+            for each (row in rows)
+            {
+                if (row.group_id == CHAT || names[row.action_id] == "") continue;
+                var key:* = body.getChildByName(WINDOW + "_key_" + names[row.action_id]);
+                require(key != null, row.label + "'s key " + names[row.action_id] + " drawn");
+                var all:String = texts_of(key).map(function(f:TextField, i:int, a:Array):String { return f.text; }).join("|");
+                require(all.indexOf(String(row.label).replace(/\s+$/, "")) != -1, names[row.action_id] + " shows " + row.label + ": " + all);
+            }
+            checkPlaces("English");
+            trace("KEYS window: " + board.width + "x" + board.height + " at " + board.x + "," + board.y + "; "
+                + children(WINDOW + "_key_").length + " keys, " + shown.length + " rows");
+        }
+
+        // Nothing over anything else: the keys apart, the rows apart, the keys' and the rows' texts inside them.
+        private function checkPlaces(language:String):void
+        {
+            var boxes:Array = [];
+            for each (var item:DisplayObject in children(WINDOW + "_key_").concat(children(WINDOW + "_row_")))
+            {
+                var at:Rectangle = item.getBounds(body);
+                at.inflate(-1, -1);
+                for each (var other:Rectangle in boxes)
                 {
-                    if (list.dataProvider[i].action_id == action) return list.getRendererAt(i);
+                    var meet:Rectangle = other.intersection(at);
+                    require(meet.width < 1 || meet.height < 1, language + ": " + item.name + " over another: " + at + ", " + other
+                        + " (" + texts_of(item as DisplayObjectContainer).map(function(f:TextField, i:int, a:Array):String {
+                            return f.text + " " + f.getBounds(item); }).join("; ") + ")");
+                }
+                boxes.push(at);
+                var inside:Rectangle = item.getBounds(item);
+                inside.inflate(2, 2);
+                for each (var field:TextField in texts_of(item as DisplayObjectContainer))
+                {
+                    var drawn:Rectangle = new Rectangle(field.x, field.y, Math.min(field.width, field.textWidth + 4), Math.min(field.height, field.textHeight + 4));
+                    require(inside.containsRect(drawn), language + ": " + item.name + "'s text '" + field.text + "' inside it: "
+                        + drawn + " in " + inside);
                 }
             }
-            return null;
         }
 
-        // A press of Jump's key box: the stock row asks the exe for a key (start_bind_key) and tells the menu,
-        // which shows its "press a key" message (MainMenu.onStartKeybind, over everything: its messages' layer
-        // is the stage's top). Loaded by this harness the menu's constructor finds no stage and makes no
-        // message layer, so the message itself is not shown here: the menu hearing the row is what is checked.
+        // A press of Jump's row: the stock wait.
+        private function pressRow():void
+        {
+            var jump:* = body.getChildByName(WINDOW + "_row_4");
+            var heard:Array = [];
+            var listener:Function = function(e:Event):void { heard.push(e.target.data); };
+            menu.addEventListener("startBindKey", listener, true);
+            jump.dispatchEvent(new MouseEvent(MouseEvent.CLICK));
+            menu.removeEventListener("startBindKey", listener, true);
+            require(heard.length == 1 && heard[0] == rowOfAction(4), "the menu hears the row's start of a binding (its message)");
+        }
+
+        // The exe's answer to a key pressed: root.set_keybind, then root.end_keybind; the window asks its table again.
+        private function answerRow():void
+        {
+            names[4] = "kJ";
+            menu.set_keybind(4, textOf("kJ"), false);
+            menu.end_keybind();
+            calls = [];
+        }
+
+        private function checkRebound():void
+        {
+            require(calls.indexOf("srp_keys") != -1, "a key set: the table asked again: " + calls);
+            var j:* = body.getChildByName(WINDOW + "_key_kJ");
+            require(j != null && texts_of(j).some(function(f:TextField, i:int, a:Array):Boolean { return f.text.indexOf(rowOfAction(4).label) != -1; }),
+                "J shows Jump");
+            var space:* = body.getChildByName(WINDOW + "_key_kSPACE");
+            require(!texts_of(space).some(function(f:TextField, i:int, a:Array):Boolean { return f.text.indexOf(rowOfAction(4).label) != -1; }),
+                "Space no longer shows Jump");
+            require(settings.btn_accept.enabled, "the change is pending for Apply");
+        }
+
+        // A press of the free key Z with a selector: it asks, its answer (Use Medikit, 4Eh) given to the exe.
         private function pressKey():void
         {
-            var jump:* = rowOf(4);
-            var heard:Array = [];
-            var listener:Function = function(e:Event):void { heard.push(e.target); };
-            menu.addEventListener("startBindKey", listener, true);
-            jump.btn_key.dispatchEvent(new MouseEvent(MouseEvent.CLICK));
-            menu.removeEventListener("startBindKey", listener, true);
-            require(jump.btn_key.currentLabel == "down_k", "a press of Jump's key box waits for a key: " + jump.btn_key.currentLabel);
-            require(heard.length == 1 && heard[0] == jump, "the menu hears the row's start of a binding (its message)");
+            Object(windowClass()).selector = function(asked:Object, answer:Function):void {
+                request = asked;
+                answer(0x4E);
+            };
+            calls = [];
+            body.getChildByName(WINDOW + "_key_kZ").dispatchEvent(new MouseEvent(MouseEvent.CLICK));
+            Object(windowClass()).selector = null;
+            require(request != null && request.key == "kZ" && request.code == 0x2C && request.keyName == textOf("kZ")
+                && request.actions.length == 0 && request.rows.length == rows.length - 2 && request.kinds.length == 5,
+                "the selector asked with Z, its code and text, no rows, every row but the chat's, the kinds");
+            require(calls.indexOf("srp_bind_key 78 44") != -1, "its answer given to the exe: " + calls);
         }
 
-        // The exe's answer to a key pressed (root.set_keybind, then root.end_keybind).
-        private function answerKey():void
+        private function checkPicked():void
         {
-            menu.set_keybind(4, "J", false);
-            menu.end_keybind();
-            var jump:* = rowOf(4);
-            jump.validateNow();
-            jump.btn_key.validateNow();
-            require(jump.data.key == "J" && jump.btn_key.label == "J", "the window shows the exe's key: " + jump.btn_key.label);
-            var tab:Object = null;
-            for (var i:int = 0; i < content.keysGame.dataProvider.length; i++)
-            {
-                if (content.keysGame.dataProvider[i].action_id == 4) tab = content.keysGame.dataProvider[i];
-            }
-            require(tab != null && tab.key == "J", "the tab's row has it too");
-            require(settings.btn_accept.enabled, "the change is pending for Apply");
+            var z:* = body.getChildByName(WINDOW + "_key_kZ");
+            require(texts_of(z).some(function(f:TextField, i:int, a:Array):Boolean { return f.text.indexOf(rowOfAction(0x4E).label) != -1; }),
+                "Z shows the action the selector picked");
+            var row:* = body.getChildByName(WINDOW + "_row_78");
+            require(texts_of(row).some(function(f:TextField, i:int, a:Array):Boolean { return f.text == textOf("kZ"); }), "its row shows Z");
+        }
+
+        // A press of Z again, the selector answering UNBIND: Z's rows lose it.
+        private function clearKey():void
+        {
+            Object(windowClass()).selector = function(asked:Object, answer:Function):void {
+                request = asked;
+                answer(Object(windowClass()).UNBIND);
+            };
+            calls = [];
+            body.getChildByName(WINDOW + "_key_kZ").dispatchEvent(new MouseEvent(MouseEvent.CLICK));
+            Object(windowClass()).selector = null;
+            require(request.actions.length == 1 && request.actions[0] == rowOfAction(0x4E), "the selector asked with Z's row");
+            require(calls.indexOf("srp_unbind_key 44") != -1, "UNBIND given to the exe: " + calls);
+        }
+
+        private function checkCleared():void
+        {
+            var z:* = body.getChildByName(WINDOW + "_key_kZ");
+            require(!texts_of(z).some(function(f:TextField, i:int, a:Array):Boolean { return f.text.indexOf(rowOfAction(0x4E).label) != -1; }),
+                "Z free again");
         }
 
         private function focusKind():void
         {
             chips.getChildAt(0).dispatchEvent(new MouseEvent(MouseEvent.ROLL_OVER));
-            for each (var list:* in windowLists())
+            for each (var row:* in children(WINDOW + "_row_"))
             {
-                for (var i:int = 0; i < list.dataProvider.length; i++)
-                {
-                    var r:* = list.getRendererAt(i);
-                    var mine:Boolean = kindOf(r.data.action_id) == 0;
-                    require(mine ? r.alpha == 1 : r.alpha < 0.5, r.data.label + (mine ? " shown" : " dimmed") + " over Movement's chip");
-                }
+                var mine:Boolean = kindOf(int(row.name.substr((WINDOW + "_row_").length))) == 0;
+                require(mine ? row.alpha == 1 : row.alpha < 0.5, row.name + (mine ? " shown" : " dimmed") + " over Movement's chip");
             }
+            require(body.getChildByName(WINDOW + "_key_kW").alpha == 1 && body.getChildByName(WINDOW + "_key_kR").alpha < 0.5,
+                "W (Forward) shown, R (Reload) dimmed");
         }
 
         private function unfocus():void
         {
             chips.getChildAt(0).dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
-            for each (var list:* in windowLists())
-            {
-                for (var i:int = 0; i < list.dataProvider.length; i++)
-                {
-                    require(list.getRendererAt(i).alpha == 1, "every row shown again");
-                }
-            }
+            for each (var row:* in children(WINDOW + "_row_")) require(row.alpha == 1, "every row shown again");
         }
 
         // Esc, the close button, a press beside the window: each closes it, the Settings staying.
@@ -359,50 +472,40 @@ package
             require(window.open, "a press on the window keeps it");
         }
 
-        // Every dictionary: the title and the chips on the title's band, apart; every row's label on its row.
+        // Every dictionary: its texts (the window's, the rows' labels, the keys' texts) in their places.
         private function languages():void
         {
-            var worst:String = "";
-            var worstSize:int = 99;
+            var english:Array = rows;
             for each (var row:Array in texts)
             {
+                language = row;
                 hudTexts(row);
-                window.rows(rows.map(function(r:Object, i:int, a:Array):Object {
+                rows = english.map(function(r:Object, i:int, a:Array):Object {
                     var o:Object = {};
                     for (var f:String in r) o[f] = r[f];
                     o.label = row[LABELS + i];
+                    o.key = textOf(names[r.action_id]);
                     return o;
-                }));
-                window.dispatchEvent(new Event(Event.ENTER_FRAME));
+                });
+                window.rows(rows);
+                exe("srp_keys", null);
                 var title:TextField = panel.getChildByName(WINDOW + "_title");
                 var close:* = panel.getChildByName(WINDOW + "_close");
-                require(title.x + title.width + 16 <= chips.x && chips.x + chips.width <= close.x,
-                    row[TITLE] + ": the title, the chips and the close button apart: " + title.width + ", " + chips.x + "-" + (chips.x + chips.width));
-                for each (var list:* in windowLists())
-                {
-                    for (var i:int = 0; i < list.dataProvider.length; i++)
-                    {
-                        var r:* = list.getRendererAt(i);
-                        require(r.textField.text == r.data.label, r.data.label + " drawn: " + r.textField.text);
-                        require(r.textField.textWidth + 4 <= r.textField.width + 0.5, r.data.label + " fits its row ("
-                            + r.textField.textWidth + " of " + r.textField.width + ")");
-                        var size:int = int(r.textField.getTextFormat().size);
-                        if (size < worstSize)
-                        {
-                            worstSize = size;
-                            worst = r.data.label;
-                        }
-                    }
-                }
+                require(title.text == row[TITLE] && title.x + title.width < close.x, row[TITLE] + ": the title before the close button");
+                var band:Rectangle = chips.getBounds(panel);
+                require(band.left >= 0 && band.right <= panel.width, row[TITLE] + ": the chips inside the window");
+                checkPlaces(row[TITLE]);
             }
-            trace("KEYS every dictionary's title, chips and labels fit; the smallest label " + worstSize + " pt (" + worst + ")");
+            trace("KEYS every dictionary's title, chips, labels and keys' texts in their places");
+            rows = english;
+            language = texts[0];
         }
 
-        // The English texts and rows again, for the last state.
         private function reopen():void
         {
-            hudTexts(texts[0]);
+            hudTexts(language);
             window.rows(rows);
+            exe("srp_keys", null);
         }
     }
 }

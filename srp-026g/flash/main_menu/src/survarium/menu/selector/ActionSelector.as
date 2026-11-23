@@ -47,7 +47,8 @@ package survarium.menu.selector
 
       public static const CANCEL:int = -1;
 
-      public static const UNBIND:int = -2;
+      // the Key bindings window's own (its answer to take the key from its rows)
+      public static const UNBIND:int = SrpKeysWindow.UNBIND;
 
       // the Settings window's width (its background art's)
       public static const WIDTH:Number = 650;
