@@ -23,7 +23,7 @@ use super::{Ctx, Intent, Look, Pace, Step, TargetRef};
 use crate::v026g::bots::anomalies::EnergyCore;
 use crate::v026g::bots::nav_log::{self, Kind, PREFIX};
 use crate::v026g::bots::switch_take::{self, CARRIER_SHARE, Forecast, Pace as Gait, Part, RUN_MPS, SPRINT_MPS};
-use crate::v026g::bots::zone_cost::Cost;
+use crate::v026g::bots::zone_cost::{Cost, Reserve};
 use crate::v026g::drive::key;
 
 /// How long the take stands at the battery at most, s: the crossings' take time (`collect::CROSS_TAKE_S`, GUESS: the bench's
@@ -39,6 +39,12 @@ pub const HEADING_IN_M: f32 = 5.0;
 const MOVING_MPS: f32 = 0.3;
 /// The way's next point the straight walk heads for, m along the way ahead of the body.
 const AHEAD_M: f32 = 2.5;
+/// A walk on the way (in or out) has stalled when it made less than this share of its pace's way over [`STALL_WINDOW_MS`],
+/// or stayed on one floor of the way over [`STALL_LEG_MS`]: a straight walk has no stuck or pocket handling of its own
+/// (`Intent::straight`), so the take watches it.
+const STALL_SHARE: f32 = 0.5;
+const STALL_WINDOW_MS: u32 = 1_000;
+const STALL_LEG_MS: u32 = 2_000;
 /// The last stretch of the way in, m: at a walk with the view on the battery, USE pressed when the ray meets it (the client
 /// refuses a use while sprinting, `can_use` 0x300710).
 const LAST_M: f32 = 3.0;
@@ -81,6 +87,44 @@ pub struct Take {
     pub along: usize,
     /// When what is left was last forecast.
     pub checked: u32,
+    /// The pools at the begin: the exit line's loss against the forecast.
+    pub start: Reserve,
+    /// The stall watch of the walk in or out.
+    pub watch: Watch,
+}
+
+/// [stall] A straight walk's progress along the way: since when the window runs and the metres along the way then; the floor
+/// of the way the body is on and since when.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Watch {
+    window: (u32, f32),
+    leg: (usize, u32),
+}
+
+impl Watch {
+    /// Afresh at `now`, the body on floor `along` of the way, `m` metres along it.
+    pub fn from(now: u32, along: usize, m: f32) -> Self {
+        Self { window: (now, m), leg: (along, now) }
+    }
+
+    /// Whether the walk at `mps` stalled ([`STALL_SHARE`]), the body on floor `along`, `m` metres along the way at `now`:
+    /// why, else `None`.
+    pub fn stalled(&mut self, now: u32, along: usize, m: f32, mps: f32) -> Option<&'static str> {
+        if along != self.leg.0 {
+            self.leg = (along, now);
+        } else if now > self.leg.1 + STALL_LEG_MS {
+            return Some("stalled: on one floor of the way over 2 s");
+        }
+        let (since, from) = self.window;
+        if now >= since + STALL_WINDOW_MS {
+            let expected = mps * now.saturating_sub(since) as f32 / 1000.0;
+            if (m - from).abs() < STALL_SHARE * expected {
+                return Some("stalled: under half its pace's way over 1 s");
+            }
+            self.window = (now, m);
+        }
+        None
+    }
 }
 
 /// What a take's step says.
@@ -326,8 +370,21 @@ impl Take {
             let text = line(cx, at, core, "begun", grid.position(plan.way[0]), switch_take::way_m(grid, &plan.way), plan.gait, 0, &plan.forecast);
             cx.lines.push(Kind::ZoneTake, None, text);
         }
-        Self { plan, phase: Phase::In, along: 0, checked: cx.now }
+        Self { plan, phase: Phase::In, along: 0, checked: cx.now, start: cx.budget().reserve, watch: Watch::from(cx.now, 0, 0.0) }
     }
+}
+
+/// The pools lost since `start`, against the plan's forecast `forecast`: the exit line's part.
+fn loss_text(cx: &Ctx, start: Reserve, forecast: Cost) -> String {
+    let now = cx.budget().reserve;
+    format!(
+        "lost body {:.3} head {:.3} infection {:.3} pain {:.3} (enemy fire counts), forecast for the whole plan {}",
+        start.body - now.body,
+        start.head - now.head,
+        start.infection - now.infection,
+        start.pain - now.pain,
+        cost_text(forecast)
+    )
 }
 
 /// The floor of `way` the body at `feet` is at: the nearest within a few floors of `along` (ahead on the way in, back on the
@@ -375,12 +432,37 @@ pub fn step(take: &mut Take, target: TargetRef, cx: &Ctx) -> Next {
     take.along = track(grid, &way, take.along, me, out);
     let entry = grid.position(way[0]);
     let way_m = switch_take::way_m(grid, &way);
+    let along_m = switch_take::way_m(grid, &way[..=take.along.min(way.len() - 1)]);
     let leave = |take: &mut Take, why: &'static str, f: Option<&Forecast>| {
         let (n, others_per_s) = others(cx, core, entry, grid.position(stand_node));
         let f = f.copied().unwrap_or_else(|| forecast_out(cx, core, &way, take.along, others_per_s));
         cx.lines.push(Kind::ZoneTake, None, line(cx, at, core, &format!("walking out: {why}"), entry, way_m, take.plan.gait, n, &f));
         take.phase = Phase::Out { why };
+        take.watch = Watch::from(cx.now, take.along, along_m);
     };
+    // [stall] The way in or out walked by straight steps makes its pace's way, or the take gives it up: in, it walks out;
+    // out, it hands the bot back to the motor at once (its own stuck and pocket handling, its way out of the zone).
+    let mps = match take.phase {
+        Phase::In => match take.plan.gait {
+            Gait::Sprint => SPRINT_MPS,
+            Gait::Run | Gait::Walk => RUN_MPS,
+        },
+        Phase::Out { .. } if carrying => RUN_MPS * CARRIER_SHARE,
+        Phase::Out { .. } => SPRINT_MPS,
+        Phase::Stand { .. } => 0.0,
+    };
+    if mps > 0.0
+        && let Some(stall) = take.watch.stalled(cx.now, take.along, along_m, mps)
+    {
+        if out {
+            let f = forecast_out(cx, core, &way, take.along, 0.0);
+            let what = format!("{stall} on the way out: handed to the motor; {}", loss_text(cx, take.start, take.plan.forecast.cost));
+            cx.lines.push(Kind::ZoneTake, None, line(cx, at, core, &what, entry, way_m, take.plan.gait, 0, &f));
+            return Next::Step(Step::Failed("stalled on the way out of its zone"));
+        }
+        leave(take, stall, None);
+    }
+    let out = matches!(take.phase, Phase::Out { .. });
     if !out {
         if carrying {
             leave(take, "carrying the battery", None);
@@ -423,7 +505,8 @@ pub fn step(take: &mut Take, target: TargetRef, cx: &Ctx) -> Next {
             let dry = here.is_some_and(|node| cx.tactics.hazards.hazard_free(node));
             if take.along == 0 || (dry && take.along < way.len() / 2) {
                 let f = forecast_out(cx, core, &way, 0, 0.0);
-                cx.lines.push(Kind::ZoneTake, None, line(cx, at, core, &format!("out ({why})"), entry, way_m, take.plan.gait, 0, &f));
+                let what = format!("out ({why}); {}", loss_text(cx, take.start, take.plan.forecast.cost));
+                cx.lines.push(Kind::ZoneTake, None, line(cx, at, core, &what, entry, way_m, take.plan.gait, 0, &f));
                 return if carrying { Next::Bring } else { Next::Step(Step::Failed(why)) };
             }
             let (_, to) = ahead(grid, &way, take.along, true);
@@ -475,6 +558,29 @@ pub fn step(take: &mut Take, target: TargetRef, cx: &Ctx) -> Next {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [stall] A walk making its pace goes on; under half its pace's way over 1 s, or one floor over 2 s, is a stall.
+    #[test]
+    fn a_walk_short_of_half_its_pace_or_on_one_floor_stalls() {
+        // 3.5 m/s: 1.75 m a second is half.
+        let mut w = Watch::from(0, 0, 0.0);
+        for (k, t) in (50..=3_000).step_by(50).enumerate() {
+            assert_eq!(w.stalled(t, k + 1, t as f32 / 1000.0 * 3.0, 3.5), None, "{t}");
+        }
+        let mut w = Watch::from(0, 0, 0.0);
+        let mut why = None;
+        for (k, t) in (50..=1_000).step_by(50).enumerate() {
+            why = why.or(w.stalled(t, k + 1, t as f32 / 1000.0 * 1.5, 3.5));
+        }
+        assert_eq!(why, Some("stalled: under half its pace's way over 1 s"));
+        // Making way but held on one floor (a long leg the tracking does not leave): stalled past 2 s.
+        let mut w = Watch::from(0, 4, 0.0);
+        let mut why = None;
+        for t in (50..=2_100).step_by(50) {
+            why = why.or(w.stalled(t, 4, t as f32 / 1000.0 * 3.0, 3.5));
+        }
+        assert_eq!(why, Some("stalled: on one floor of the way over 2 s"));
+    }
     use crate::v026g::bots::plays::tests::Scenario;
     use crate::v026g::bots::tactics::Tactics;
     use crate::v026g::bots::view::Mode;
