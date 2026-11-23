@@ -4084,8 +4084,10 @@ pub(super) mod tests {
         let grid = WalkGrid::build(&triangles, [0.0, 0.0, 30.0, 10.0], 0.25, Body::default()).with_client_walker(&triangles);
         let yaw = -std::f32::consts::FRAC_PI_2;
         let kin = Kinematics { jump_arc: true, ..Kinematics::default() };
-        // The walk of each of the 8 steps after a jump from rest, flown with forward held, the keys `after` from the landing on.
-        let walks_after = |after: u32| {
+        // A jump from rest, flown with forward held; from the decided tick `after_from` on the keys are `after`. The reckoning's
+        // step at a decided tick moves by the keys decided two ticks before ([`StepInput::Previous`]: the step ending at t moves by
+        // the input stamped t-50), so keys decided from the landing's own tick on are the recordings' "from L+50".
+        let fly = |after_from: u32, after: u32| {
             let mut track = BodyTrack::default();
             track.fixed(fix(0, Vec3::new(5.0, 0.0, 5.0), yaw), &kin, Some(&grid));
             for time in (50..=300).step_by(50) {
@@ -4096,10 +4098,17 @@ pub(super) mod tests {
             let mut time = 350;
             while track.estimate().unwrap().arc.is_some() && time < 2_000 {
                 time += 50;
-                track.decided(time, key::FORWARD, (0.0, 0.0), 0.0, &kin, Some(&grid));
+                track.decided(time, if time >= after_from { after } else { key::FORWARD }, (0.0, 0.0), 0.0, &kin, Some(&grid));
             }
+            (track, time)
+        };
+        // The landing's tick, with forward held to it.
+        let (_, landing) = fly(u32::MAX, key::FORWARD);
+        // The walk of each of the 8 steps after the landing, the keys `after` from the landing's tick on.
+        let walks_after = |after: u32| {
+            let (mut track, mut time) = fly(landing, after);
             let landed = *track.estimate().unwrap();
-            assert!(landed.arc.is_none() && time < 2_000, "landed: {landed:?}");
+            assert!(landed.arc.is_none() && time == landing, "landed at the same tick: {time} {landing} {landed:?}");
             assert_eq!(landed.landing_walk.map(|t| (t * 1e3).round()), Some(833.0), "the jump's travel kept for the next step");
             (0..8)
                 .map(|_| {
