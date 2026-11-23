@@ -43,6 +43,8 @@ const SCOPE_SIZE: u32 = 512;
 /// The smallest surface of an aimed model taken for its lens, metres of
 /// radius (a reticle's dot is smaller, a glass larger).
 const LEAST_LENS: f32 = 0.008;
+/// The lens probe's optic: a full scope's zoom (the PSO-1's, the ACOG's).
+const PROBE_FOV_FACTOR: f32 = 0.25;
 /// The lens's rim: how sharp its darkening is, how dark it gets.
 const RIM_SHARPNESS: f32 = 12.0;
 const RIM_DARKNESS: f32 = 0.2;
@@ -341,8 +343,16 @@ pub fn on_draw(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let view = invert_affine(&camera);
     let main = frame.main_view();
     let drawn = match used {
-        Use::Probe | Use::ProbeLens => {
+        Use::Probe => {
             frame.draw_second(&second, &view, &narrowed(&projection, ZOOM), &view, &projection);
+            None
+        }
+        // as a full scope's lens (fov_factor 0.25) of the probe's fixed size: today's magnification
+        Use::ProbeLens => {
+            let uro_fov = second_view::field_of_view(thread);
+            if let Some(lens) = through_lens(&projection, PROBE_FOV_FACTOR, uro_fov, LENS_RADIUS) {
+                frame.draw_second(&second, &view, &lens, &view, &projection);
+            }
             None
         }
         Use::Scopes => {

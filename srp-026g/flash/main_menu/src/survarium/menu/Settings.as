@@ -111,6 +111,12 @@ package survarium.menu
       // the stock Mouse sensitivity slider (layoutControls). A change of either is a change of the
       // tab, saved by Apply.
       protected var _mouse:SrpMouseVertical;
+      
+      // The Graphics tab's "Picture-in-picture scopes" (exe patch 198, docs/notes/pip-scopes.md), the exe's
+      // srp_pip_scopes in user.cfg, under Distance detail.
+      protected var _pipScopes:SrpCheckOption;
+      
+      private static const PIP_OPTION:String = "srp_pip_scopes";
 
       // The gameplay tab's "Field of view" slider (patch 22's uro_fov, kept by exe patch 83), a group
       // of the right column under the HUD group (layoutGameplay). A move is a change of the tab, saved by Apply.
@@ -274,6 +280,13 @@ package survarium.menu
       // its name, label and saved state (shown, so no change is pending).
       public function setCheckOption(values:Array) : void
       {
+         if(values.length > 0 && values[0] == PIP_OPTION)
+         {
+            this._pipScopes.answer(values.slice(1));
+            this.checkChanged(this._pipScopes);
+            this.layoutPipScopes();
+            return;
+         }
          if(values.length > 0 && values[0] == SrpMouseVertical.LOCKED)
          {
             this._mouse.answerLock(values.slice(1));
@@ -639,6 +652,7 @@ package survarium.menu
          this._hitMarkers.revert();
          this._mouse.revert();
          this._fov.revert();
+         this._pipScopes.revert();
          this._renderer.revert();
          this._microphone.revert();
          this.btn_accept.enabled = false;
@@ -688,6 +702,9 @@ package survarium.menu
          this._hitMarkers = new SrpHitMarkerChoice(this.settings_content);
          this._changed[this._hitMarkers.menu] = 0;
          this._hitMarkers.menu.addEventListener(ListEvent.INDEX_CHANGE,this.hitMarkersChanged);
+         this._pipScopes = new SrpCheckOption(this.settings_content,PIP_OPTION,0,0,SrpVideoTab.VIDEO_FRAME);
+         this._changed[this._pipScopes.box] = 0;
+         this._pipScopes.box.addEventListener(Event.SELECT,this.onCheckSelect);
          this._mouse = new SrpMouseVertical(this.settings_content);
          this._changed[this._mouse.check.box] = 0;
          this._changed[this._mouse.slider] = 0;
@@ -712,6 +729,8 @@ package survarium.menu
       protected function create_content(settings:Array) : void
       {
          this._hudGroup.place();
+         this._pipScopes.place();
+         this.layoutPipScopes();
          this._mouse.place();
          this._fov.place();
          this._micTest.place();
@@ -849,6 +868,7 @@ package survarium.menu
          }
          SrpVideoTab.finish(this,this._renderer);
          SrpDistanceDetail.finish(this);
+         this.layoutPipScopes();
          // the HUD group, after the tab's settings are bound (their labels set); the crosshair list
          // over the hit marker list under it, so it opens over it
          this._hitMarkers.place();
@@ -1169,9 +1189,26 @@ package survarium.menu
          c.keysGame.height = Math.floor((c.s_chat_keys.y - GAME_LIST_GAP - c.keysGame.y) / c.keysGame.rowHeight) * c.keysGame.rowHeight;
       }
       
+      // "Picture-in-picture scopes" one row under Distance detail, in its column.
+      protected function layoutPipScopes() : void
+      {
+         var c:MovieClip = this.settings_content;
+         if(c == null || c.currentFrame != SrpVideoTab.VIDEO_FRAME || c["_distance_detail"] == null || c["_motion_blur"] == null)
+         {
+            return;
+         }
+         var row:Number = c["_distance_detail"].y - c["_motion_blur"].y;
+         this._pipScopes.box.x = c["_distance_detail"].x;
+         this._pipScopes.box.y = c["_distance_detail"].y + row;
+      }
+      
       // The option of the HUD group whose checkbox `control` is, or null.
       protected function checkOf(control:Object) : SrpCheckOption
       {
+         if(this._pipScopes != null && this._pipScopes.box == control)
+         {
+            return this._pipScopes;
+         }
          for each(var option:SrpCheckOption in this._hudGroup.options)
          {
             if(option.box == control)
@@ -1300,6 +1337,8 @@ package survarium.menu
          this._changed[this._mouse.slider] = 0;
          this._mouse.revert();
          this._changed[this._fov.slider] = 0;
+         this._changed[this._pipScopes.box] = 0;
+         this._pipScopes.revert();
          this._fov.revert();
          this._changed[this._renderer.menu] = 0;
          this._renderer.revert();
