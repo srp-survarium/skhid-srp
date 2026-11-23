@@ -1026,6 +1026,11 @@ fn fly_pressed(mut at: Estimate, plan: &PressPlan, world: &PressWorld) -> PressO
         }
         at.keys = stay;
     }
+    // [body physics S4] Where the client's body came down: a press lands only if it is up there too. The stay steps hold the walk
+    // keys on a route that walks on (`AfterLanding::WalkOn`), and a body down short on a lower step walks up onto the landing in
+    // them, where the motor, seeing it short at the touchdown, does not walk on (the S4a gate: level_05's two-step riser, down at
+    // 7.22 under the 7.90 landing, walked up by the stay steps; the exe's own verdict is a touchdown on the landing's floor).
+    let touchdown = at.client.map(|_| at.feet);
     // A flight that ended in the air (falling on): its controller falls on, no key, until it is on the ground, and the rest is
     // played from there. The grid's floor under the feet is not the client's where its controller has no ground (the suite's
     // S417: a gap's grid floor past its real edge, the exe fell 5.5 m; S109: a step's face, back to the start floor).
@@ -1073,7 +1078,8 @@ fn fly_pressed(mut at: Estimate, plan: &PressPlan, world: &PressWorld) -> PressO
         (None, Some(kept)) => Vec3::new(at.feet.x, kept.controller.feet().y, at.feet.z),
         (None, None) => at.feet,
     };
-    if grounded && super::motor::is_up(rest, plan.take_off, plan.landing) {
+    let touched_up = touchdown.is_none_or(|feet| super::motor::is_up(feet, plan.take_off, plan.landing));
+    if grounded && touched_up && super::motor::is_up(rest, plan.take_off, plan.landing) {
         return PressOutcome::Lands { rest };
     }
     let (dx, dz) = (plan.landing.x - plan.take_off.x, plan.landing.z - plan.take_off.z);
@@ -5757,5 +5763,41 @@ pub(super) mod tests {
             landed += u32::from(matches!(outcome, PressOutcome::Lands { .. }));
         }
         assert!(landed > 0 && landed < 20, "some timings land and some do not: {landed} of 20");
+    }
+
+    /// [body physics S4] A press lands only if the client's body is up where it comes down: on a two-step riser a standing press comes
+    /// down on the middle step, and the stay steps of a route that walks on (`AfterLanding::WalkOn`) walk it up the next step onto the
+    /// landing; the forecast says short (the S4a gate's level_05 riser: down at 7.22 under the 7.90 landing).
+    #[test]
+    fn a_client_press_down_short_is_short_though_the_walk_on_goes_up() {
+        let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 10.0, 10.0, 0.0).to_vec();
+        triangles.extend(floor(10.0, 0.0, 11.6, 10.0, 0.75));
+        triangles.extend(floor(11.6, 0.0, 20.0, 10.0, 1.45));
+        triangles.extend(pit_wall(10.0, 0.0, 10.0, 0.0, 0.75));
+        triangles.extend(pit_wall(11.6, 0.0, 10.0, 0.75, 1.45));
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default()).with_client_walker(&triangles);
+        let kin = Kinematics { jump_arc: true, ..Kinematics::default() };
+        let mut track = BodyTrack::default();
+        track.fixed(fix(0, Vec3::new(9.8, 0.0, 5.0), -std::f32::consts::FRAC_PI_2), &kin, Some(&grid));
+        for time in (50..=400).step_by(50) {
+            track.decided(time, 0, (0.0, 0.0), 0.0, &kin, Some(&grid));
+        }
+        let at = *track.estimate().unwrap();
+        assert!(at.client.is_some(), "the client's body");
+        let world = PressWorld { kin: &kin, level: 1.0, grid: &grid };
+        let (take_off, landing) = (Vec3::new(9.9, 0.0, 5.0), Vec3::new(12.1, 1.45, 5.0));
+        let plan = |press_in, after| PressPlan { walk: key::FORWARD, press_in, take_off, landing, after };
+        let mut short_walked_up = 0;
+        for press_in in 0..2 {
+            let walk_on = press_forecast(&at, &plan(press_in, AfterLanding::WalkOn), &world);
+            let hold = press_forecast(&at, &plan(press_in, AfterLanding::Hold), &world);
+            let PressOutcome::Short { rest } = hold else { panic!("press {press_in}: down on the middle step: {hold:?}") };
+            assert!((rest.y - 0.75).abs() < 0.1, "press {press_in}: on the middle step: {rest:?}");
+            match walk_on {
+                PressOutcome::Short { rest } => short_walked_up += u32::from(rest.y > 1.3),
+                other => panic!("press {press_in}: down short is short, whatever the stay walk: {other:?}"),
+            }
+        }
+        assert_eq!(short_walked_up, 2, "the stay walk went up the step on both presses");
     }
 }
