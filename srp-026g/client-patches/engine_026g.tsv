@@ -374,6 +374,7 @@ engine_device_create_vertex_shader	ID3D11Device+0x30	-	unsigned int engine_devic
 engine_device_create_pixel_shader	ID3D11Device+0x3c	-	unsigned int engine_device_create_pixel_shader(struct d3d_device *device, const void *code, unsigned int size, void *linkage, struct hw_resource **shader)	com	
 engine_device_create_sampler_state	ID3D11Device+0x5c	-	unsigned int engine_device_create_sampler_state(struct d3d_device *device, const void *desc, struct hw_resource **sampler)	com	
 engine_device_create_blend_state	ID3D11Device+0x50	-	unsigned int engine_device_create_blend_state(struct d3d_device *device, const void *desc, struct hw_resource **state)	com	
+engine_device_create_shader_resource_view	ID3D11Device+0x1c	-	unsigned int engine_device_create_shader_resource_view(struct d3d_device *device, struct hw_resource *resource, const void *desc, struct hw_resource **view)	com	
 engine_context_vs_set_constant_buffers	ID3D11DeviceContext+0x1c	-	void engine_context_vs_set_constant_buffers(struct immediate_context *context, unsigned int first, unsigned int count, struct hw_resource *const *buffers)	com	
 engine_context_ps_set_shader_resources	ID3D11DeviceContext+0x20	-	void engine_context_ps_set_shader_resources(struct immediate_context *context, unsigned int first, unsigned int count, struct hw_resource *const *views)	com	
 engine_context_ps_set_shader	ID3D11DeviceContext+0x24	-	void engine_context_ps_set_shader(struct immediate_context *context, struct hw_resource *shader, void *const *instances, unsigned int count)	com	
@@ -401,6 +402,7 @@ engine_context_ia_get_primitive_topology	ID3D11DeviceContext+0x14c	-	void engine
 engine_context_om_get_render_targets	ID3D11DeviceContext+0x164	-	void engine_context_om_get_render_targets(struct immediate_context *context, unsigned int count, struct hw_resource **views, struct hw_resource **depth)	com	
 engine_context_om_get_blend_state	ID3D11DeviceContext+0x16c	-	void engine_context_om_get_blend_state(struct immediate_context *context, struct hw_resource **state, float *factor, unsigned int *mask)	com	
 engine_context_om_get_depth_stencil_state	ID3D11DeviceContext+0x170	-	void engine_context_om_get_depth_stencil_state(struct immediate_context *context, struct hw_resource **state, unsigned int *stencil)	com	
+engine_view_get_resource	ID3D11View+0x1c	-	void engine_view_get_resource(struct hw_resource *view, struct hw_resource **resource)	com	
 engine_context_rs_get_state	ID3D11DeviceContext+0x178	-	void engine_context_rs_get_state(struct immediate_context *context, struct hw_resource **state)	com	
 engine_context_rs_get_viewports	ID3D11DeviceContext+0x17c	-	void engine_context_rs_get_viewports(struct immediate_context *context, unsigned int *count, void *viewports)	com	
 engine_weapon_first_person	0x243940	EAX:weapon	unsigned char engine_weapon_first_person(struct weapon *weapon)	thunk	

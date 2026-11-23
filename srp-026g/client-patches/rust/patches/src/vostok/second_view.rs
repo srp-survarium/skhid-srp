@@ -546,15 +546,28 @@ pub struct Lens {
     sampler: Held,
     /// Source alpha over the frame: the disc's edge covers its pixels by its share.
     blend: Held,
+    /// The frame's depth as the shader reads it, of the texture last given
+    /// (the view keeps that texture alive, so its address names it).
+    depth: Option<(raw::HwResource, Held)>,
 }
 
 // SAFETY: made and used on the render thread alone.
 unsafe impl Send for Lens {}
 
+/// Whether a lens was drawn against the frame's depth (what of the optic is
+/// in front of its glass covering it) or over everything.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Tested {
+    Depth,
+    Not,
+}
+
 /// Where the lens is drawn: the glass in the frame's view space (its centre
 /// and two radii across its plane, metres), the frame's projection, the
-/// picture's disc on the screen (clip space: centre, radii) and the rim's
-/// darkening (how sharp, how dark).
+/// picture's disc on the screen (clip space: centre, radii), the rim's
+/// darkening (how sharp, how dark) and the depth it is tested at (the
+/// first-person models' depth terms, how far toward the eye, m; then whether
+/// the frame's depth is there to test, set by [`Lens::draw`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Disc {
     pub centre: [f32; 3],
@@ -562,6 +575,7 @@ pub struct Disc {
     pub projection: [f32; 16],
     pub picture: [f32; 4],
     pub rim: [f32; 2],
+    pub depth: [f32; 4],
 }
 
 
@@ -587,7 +601,7 @@ impl Lens {
             let (mut v, mut p, mut c, mut s) = (None, None, None, None);
             let gv = raw::engine_device_create_vertex_shader(device.cast(), vertex.as_ptr().cast(), vertex.len() as u32, null_mut(), &mut v);
             let gp = raw::engine_device_create_pixel_shader(device.cast(), pixel.as_ptr().cast(), pixel.len() as u32, null_mut(), &mut p);
-            // the shader's nine float4, dynamic, a constant buffer, written by the CPU
+            // the shader's ten float4, dynamic, a constant buffer, written by the CPU
             let desc = BufferDesc { bytes: CONSTANTS as u32 * 4, usage: 2, bind: 4, cpu_access: 1 << 16, misc: 0, stride: 0 };
             let gc = raw::engine_device_create_buffer(device.cast(), (&raw const desc).cast(), null(), &mut c);
             // MIN_MAG_MIP_LINEAR, CLAMP, comparison NEVER, every mip
@@ -609,25 +623,38 @@ impl Lens {
             let mut b = None;
             let gb = raw::engine_device_create_blend_state(device.cast(), blend_desc.as_ptr().cast(), &mut b);
             raw::engine_d3d_device_release(device.cast());
-            Some(Lens { vertex: made(gv, v)?, pixel: made(gp, p)?, constants: made(gc, c)?, sampler: made(gs, s)?, blend: made(gb, b)? })
+            Some(Lens {
+                vertex: made(gv, v)?,
+                pixel: made(gp, p)?,
+                constants: made(gc, c)?,
+                sampler: made(gs, s)?,
+                blend: made(gb, b)?,
+                depth: None,
+            })
         };
         lens
     }
 
     /// At `render.flash_ui` (the frame's picture on its back buffer, before
     /// the interface): the second view's picture drawn as `disc` over the
-    /// render target bound now. Every state it sets is put back as it was, so
-    /// the engine's own record of the state stays true. Whether it drew.
-    pub fn draw(&self, ctx: &Context<'_>, second: &SecondView, disc: &Disc) -> bool {
+    /// render target bound now, tested against `depth` (the frame's, of the
+    /// back buffer's size) when given. Every state it sets is put back as it
+    /// was, so the engine's own record of the state stays true. Whether it
+    /// drew, and whether against the frame's depth.
+    pub fn draw(&mut self, ctx: &Context<'_>, second: &SecondView, disc: &Disc, depth: Option<&DepthTarget>) -> Option<Tested> {
         // SAFETY: as composite's.
         let Some(frame_window) = (unsafe { raw::site::render_flash_ui::frame(ctx).and_then(|f| f.window()) }) else {
-            return false;
+            return None;
         };
-        let (Some((_, to)), Some(context)) = (back_buffer(frame_window), immediate_context()) else { return false };
+        let (Some((_, to)), Some(context)) = (back_buffer(frame_window), immediate_context()) else { return None };
         // SAFETY: our window's present texture and its shader view, alive
         // with the window (kept for good).
-        let Some(picture) = (unsafe { second.window.present_texture().and_then(|t| t.view()) }) else { return false };
+        let Some(picture) = (unsafe { second.window.present_texture().and_then(|t| t.view()) }) else { return None };
         let c = Some(context);
+        let depth = depth.filter(|d| (d.width, d.height) == (to.width, to.height)).and_then(|d| self.depth_view(d));
+        let mut disc = *disc;
+        disc.depth[3] = if depth.is_some() { disc.depth[3] } else { 0.0 };
+        let disc = &disc;
         // SAFETY: the immediate context on the render thread, its own
         // thread. Each Get* adds a reference to what it gives, let go after
         // the matching Set* put it back; our objects are alive in self.
@@ -635,7 +662,7 @@ impl Lens {
             let mut mapped = MappedData { data: null_mut(), row_pitch: 0, depth_pitch: 0 };
             // WRITE_DISCARD
             if raw::engine_context_map(c, Some(self.constants.0), 0, 4, 0, (&raw mut mapped).cast()) & 1 << 31 != 0 || mapped.data.is_null() {
-                return false;
+                return None;
             }
             let values = constants(disc, [to.width as f32, to.height as f32]);
             core::ptr::copy_nonoverlapping(values.as_ptr(), mapped.data.cast::<f32>(), values.len());
@@ -648,7 +675,7 @@ impl Lens {
                 if let Some(d) = depth_view {
                     raw::engine_d3d_resource_release(Some(d));
                 }
-                return false;
+                return None;
             };
             let mut layout = None;
             raw::engine_context_ia_get_input_layout(c, &mut layout);
@@ -659,10 +686,10 @@ impl Lens {
             raw::engine_context_vs_get_shader(c, &mut vs, null_mut(), &mut nv);
             raw::engine_context_ps_get_shader(c, &mut ps, null_mut(), &mut np);
             raw::engine_context_gs_get_shader(c, &mut gs, null_mut(), &mut ng);
-            let (mut vcb, mut pcb, mut srv, mut smp) = ([None], [None], [None], [None]);
+            let (mut vcb, mut pcb, mut srv, mut smp) = ([None], [None], [None, None], [None]);
             raw::engine_context_vs_get_constant_buffers(c, 0, 1, vcb.as_mut_ptr());
             raw::engine_context_ps_get_constant_buffers(c, 0, 1, pcb.as_mut_ptr());
-            raw::engine_context_ps_get_shader_resources(c, 0, 1, srv.as_mut_ptr());
+            raw::engine_context_ps_get_shader_resources(c, 0, 2, srv.as_mut_ptr());
             raw::engine_context_ps_get_samplers(c, 0, 1, smp.as_mut_ptr());
             let (mut blend, mut factor, mut mask) = (None, [0f32; 4], 0u32);
             raw::engine_context_om_get_blend_state(c, &mut blend, factor.as_mut_ptr(), &mut mask);
@@ -684,7 +711,7 @@ impl Lens {
             raw::engine_context_gs_set_shader(c, None, null(), 0);
             raw::engine_context_vs_set_constant_buffers(c, 0, 1, [Some(self.constants.0)].as_ptr().cast_mut());
             raw::engine_context_ps_set_constant_buffers(c, 0, 1, [Some(self.constants.0)].as_ptr().cast_mut());
-            raw::engine_context_ps_set_shader_resources(c, 0, 1, [Some(picture)].as_ptr().cast_mut());
+            raw::engine_context_ps_set_shader_resources(c, 0, 2, [Some(picture), depth].as_ptr().cast_mut());
             raw::engine_context_ps_set_samplers(c, 0, 1, [Some(self.sampler.0)].as_ptr().cast_mut());
             raw::engine_context_om_set_blend_state(c, Some(self.blend.0), null(), u32::MAX);
             raw::engine_context_om_set_depth_stencil_state(c, None, 0);
@@ -693,7 +720,7 @@ impl Lens {
             raw::engine_context_draw(c, 4, 0);
 
             // the state as it was
-            raw::engine_context_ps_set_shader_resources(c, 0, 1, [None].as_ptr().cast_mut());
+            raw::engine_context_ps_set_shader_resources(c, 0, 2, [None, None].as_ptr().cast_mut());
             raw::engine_context_om_set_render_targets(c, 1, [Some(target_view)].as_ptr().cast_mut(), depth_view);
             raw::engine_context_ia_set_input_layout(c, layout);
             raw::engine_context_ia_set_primitive_topology(c, topology);
@@ -702,22 +729,49 @@ impl Lens {
             raw::engine_context_gs_set_shader(c, gs, null(), 0);
             raw::engine_context_vs_set_constant_buffers(c, 0, 1, vcb.as_ptr().cast_mut());
             raw::engine_context_ps_set_constant_buffers(c, 0, 1, pcb.as_ptr().cast_mut());
-            raw::engine_context_ps_set_shader_resources(c, 0, 1, srv.as_ptr().cast_mut());
+            raw::engine_context_ps_set_shader_resources(c, 0, 2, srv.as_ptr().cast_mut());
             raw::engine_context_ps_set_samplers(c, 0, 1, smp.as_ptr().cast_mut());
             raw::engine_context_om_set_blend_state(c, blend, factor.as_ptr(), mask);
             raw::engine_context_om_set_depth_stencil_state(c, depth_state, stencil);
             raw::engine_context_rs_set_state(c, raster);
             raw::engine_context_rs_set_viewports(c, count, viewports.as_ptr().cast());
-            for got in [Some(target_view), depth_view, layout, vs, ps, gs, vcb[0], pcb[0], srv[0], smp[0], blend, depth_state, raster].into_iter().flatten() {
+            for got in [Some(target_view), depth_view, layout, vs, ps, gs, vcb[0], pcb[0], srv[0], srv[1], smp[0], blend, depth_state, raster].into_iter().flatten() {
                 raw::engine_d3d_resource_release(Some(got));
             }
         }
-        true
+        Some(if depth.is_some() { Tested::Depth } else { Tested::Not })
+    }
+}
+
+impl Lens {
+    /// The shader's view of `depth`, made once a texture.
+    fn depth_view(&mut self, depth: &DepthTarget) -> Option<raw::HwResource> {
+        if let Some((texture, view)) = &self.depth
+            && *texture == depth.texture.0
+        {
+            return Some(view.0);
+        }
+        let format = depth.read_format()?;
+        let device = device_of(&depth.texture)?;
+        // D3D11_SHADER_RESOURCE_VIEW_DESC: the format, TEXTURE2D, its first mip
+        let desc: [u32; 6] = [format, 4, 0, 1, 0, 0];
+        let mut view = None;
+        // SAFETY: the device's CreateShaderResourceView of a live texture with
+        // a desc of ours; then the device's reference let go.
+        let got = unsafe {
+            let got = raw::engine_device_create_shader_resource_view(device.cast(), Some(depth.texture.0), desc.as_ptr().cast(), &mut view);
+            raw::engine_d3d_device_release(device.cast());
+            got
+        };
+        let view = view.filter(|_| got & 1 << 31 == 0).map(Held)?;
+        let made = view.0;
+        self.depth = Some((depth.texture.0, view));
+        Some(made)
     }
 }
 
 /// The lens shader's constants, float4 by float4 (pip_lens.hlsl's cbuffer).
-const CONSTANTS: usize = 36;
+const CONSTANTS: usize = 40;
 
 fn constants(disc: &Disc, frame: [f32; 2]) -> [f32; CONSTANTS] {
     let mut c = [0.0; CONSTANTS];
@@ -728,6 +782,7 @@ fn constants(disc: &Disc, frame: [f32; 2]) -> [f32; CONSTANTS] {
     c[28..32].copy_from_slice(&disc.picture);
     c[32..34].copy_from_slice(&disc.rim);
     c[34..36].copy_from_slice(&frame);
+    c[36..40].copy_from_slice(&disc.depth);
     c
 }
 
@@ -1036,6 +1091,176 @@ pub fn set_gpu_sync(_: &Thread, on: bool) -> bool {
         let was = *flag != 0;
         *flag = u8::from(on);
         was
+    }
+}
+
+/// The frame's output window, kept by the render thread from the frame's last
+/// draw (the game's own, alive for the game).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FrameWindow(raw::RenderOutputWindow);
+
+// SAFETY: named on the render thread alone.
+unsafe impl Send for FrameWindow {}
+
+/// At `render.flash_ui`: the window the frame draws into.
+pub fn frame_window(ctx: &Context<'_>) -> Option<FrameWindow> {
+    // SAFETY: as composite's.
+    unsafe { raw::site::render_flash_ui::frame(ctx).and_then(|f| f.window()) }.map(FrameWindow)
+}
+
+/// The frame's exposure lent to the second view's eye adaptation, from
+/// `eye.adapt` to `eye.adapted`: what to put back.
+pub struct LentExposure {
+    window: raw::RenderOutputWindow,
+    own: Option<raw::ResTexture>,
+    step: f32,
+}
+
+// SAFETY: made and given back on the render thread, within one call.
+unsafe impl Send for LentExposure {}
+
+impl SecondView {
+    /// At `eye.adapt`, in this view's draw: its eye adaptation takes the frame
+    /// window's last adapted luminance as its own last one, with a time step of
+    /// 0, so it adapts to exactly the frame's (its picture exposed as the frame
+    /// around it, not by what the narrow view sees). [`LentExposure::give_back`]
+    /// at `eye.adapted` puts both back before anything else reads them.
+    pub fn lend_exposure(&self, ctx: &Context<'_>, frame: FrameWindow) -> Option<LentExposure> {
+        // SAFETY: the context is this site's: ESI the live post-process stage
+        // drawing our window; both windows alive (ours for good, the frame's
+        // for the game). The call counts its own references to the texture
+        // while it uses it, so lending the pointer for the call is enough.
+        unsafe {
+            let from = frame.0.adapted_luminance()?;
+            let step = raw::site::eye_adapt::stage(ctx)?.context()?.time_step();
+            let lent = LentExposure { window: self.window, own: self.window.adapted_luminance(), step: *step };
+            self.window.set_adapted_luminance(Some(from));
+            *step = 0.0;
+            Some(lent)
+        }
+    }
+}
+
+impl LentExposure {
+    /// At `eye.adapted`: the window's own last luminance and the draw's time
+    /// step (the motion blur divides by it) back.
+    pub fn give_back(self, ctx: &Context<'_>) {
+        // SAFETY: as lend_exposure's, at the same call's end.
+        unsafe {
+            self.window.set_adapted_luminance(self.own);
+            if let Some(context) = raw::site::eye_adapted::stage(ctx).and_then(|s| s.context()) {
+                *context.time_step() = self.step;
+            }
+        }
+    }
+}
+
+/// The depth the first-person models are drawn at, as terms a, b of the
+/// depth buffer's value a + b / z (z their distance along the view), at
+/// `forward.execute_foreground`: while the game gives them a projection of
+/// their own, its near and far, put in front of the world's by a viewport
+/// of depth 0 to its max; else the frame's (`projection`).
+pub fn foreground_depth(ctx: &Context<'_>, projection: &[f32; 16]) -> [f32; 2] {
+    // SAFETY: the context is this site's: ECX the live forward stage and its
+    // renderer, on the render thread; the image's byte.
+    let own = unsafe {
+        let on = *(raw::image::FOREGROUND_PROJECTION as usize as *const u8) != 0;
+        let renderer = raw::site::forward_execute_foreground::stage(ctx).and_then(|s| s.renderer());
+        renderer.filter(|_| on).map(|r| (*r.foreground_near(), *r.foreground_far(), *r.foreground_depth()))
+    };
+    match own {
+        Some((near, far, most)) if 0.0 < near && near < far && 0.0 < most && most <= 1.0 => {
+            [most * far / (far - near), -most * near * far / (far - near)]
+        }
+        _ => [projection[10], projection[14]],
+    }
+}
+
+/// The frame's depth, which the lens tests against: the texture of a
+/// depth-stencil view, its size, format and samples.
+pub struct DepthTarget {
+    texture: Held,
+    pub width: u32,
+    pub height: u32,
+    pub format: u32,
+    pub samples: u32,
+}
+
+// SAFETY: taken and used on the render thread alone.
+unsafe impl Send for DepthTarget {}
+
+impl DepthTarget {
+    /// The format a shader reads its depth as, of its typeless one (the
+    /// game's depth is R24G8_TYPELESS); none for another or a multisampled one.
+    fn read_format(&self) -> Option<u32> {
+        match (self.format, self.samples) {
+            // R24G8_TYPELESS: R24_UNORM_X8_TYPELESS
+            (44, 1) => Some(46),
+            // R32G8X24_TYPELESS: R32_FLOAT_X8X24_TYPELESS
+            (19, 1) => Some(21),
+            // R32_TYPELESS: R32_FLOAT
+            (39, 1) => Some(41),
+            _ => None,
+        }
+    }
+}
+
+/// A copy of the frame's depth `from` into `kept` (made at its size and
+/// format, made again when they change): the post-process clears the frame's
+/// own before the lens is drawn. Whether it was copied.
+pub fn copy_depth(kept: &mut Option<DepthTarget>, from: &DepthTarget) -> bool {
+    let Some(context) = immediate_context() else { return false };
+    let same = |k: &DepthTarget| (k.width, k.height, k.format, k.samples) == (from.width, from.height, from.format, from.samples);
+    if !kept.as_ref().is_some_and(same) {
+        *kept = None;
+        let Some(device) = device_of(&from.texture) else { return false };
+        // one mip, read by shaders only (the formats' copy is the whole resource's)
+        let desc = Desc {
+            width: from.width,
+            height: from.height,
+            mip_levels: 1,
+            array_size: 1,
+            format: from.format,
+            samples: from.samples,
+            quality: 0,
+            usage: 0,
+            bind: 8,
+            cpu_access: 0,
+            misc: 0,
+        };
+        let mut texture = None;
+        // SAFETY: the device's CreateTexture2D with a desc of ours; then its reference let go.
+        let got = unsafe {
+            let got = raw::engine_device_create_texture2d(device.cast(), (&raw const desc).cast(), null(), &mut texture);
+            raw::engine_d3d_device_release(device.cast());
+            got
+        };
+        let Some(texture) = texture.filter(|_| got & 1 << 31 == 0).map(Held) else { return false };
+        *kept = Some(DepthTarget { texture, width: from.width, height: from.height, format: from.format, samples: from.samples });
+    }
+    let Some(to) = kept else { return false };
+    // SAFETY: two live textures of one size and format, on the render thread's context.
+    unsafe { raw::engine_context_copy_resource(Some(context), Some(to.texture.0), Some(from.texture.0)) };
+    true
+}
+
+/// The render output's own depth (the backend's), which the scene's stages
+/// draw into, the first-person models in front.
+pub fn output_depth() -> Option<DepthTarget> {
+    // SAFETY: the backend's global and its view, the render thread's.
+    unsafe { depth_of(raw::image::backend_global().backend()?.output_depth_view()?) }
+}
+
+/// The texture of a live depth-stencil `view`, a reference of ours.
+fn depth_of(view: raw::HwResource) -> Option<DepthTarget> {
+    // SAFETY: GetResource adds a reference, kept in Held.
+    unsafe {
+        let mut texture = None;
+        raw::engine_view_get_resource(Some(view), &mut texture);
+        let texture = Held(texture?);
+        let mut desc = Desc::default();
+        raw::engine_texture2d_get_desc(Some(texture.0), (&raw mut desc).cast());
+        Some(DepthTarget { texture, width: desc.width, height: desc.height, format: desc.format, samples: desc.samples })
     }
 }
 

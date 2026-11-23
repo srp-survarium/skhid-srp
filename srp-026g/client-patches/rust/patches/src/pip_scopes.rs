@@ -4,7 +4,7 @@
 //! stay (`scope_draw.*`), the frame keeps uro_fov, and the optic's glass shows
 //! the scene drawn a second time from the aim, magnified, with the aimed
 //! model's reticle. Off: today's scopes exactly. Diagnostics:
-//! `SKHID_PIP_LOG=on|picture`; `SKHID_PIP_PROBE=256|512|1024|time|disc`, the
+//! `SKHID_PIP_LOG=on|picture|depth`; `SKHID_PIP_PROBE=256|512|1024|time|disc`, the
 //! second view without a scope (in the frame's corner, timed only, or as a
 //! centred lens).
 //!
@@ -23,7 +23,7 @@ use crate::vostok::log::{self, Piece};
 use crate::vostok::renderer::get_environment;
 use crate::hud_options;
 use crate::pip_lens;
-use crate::vostok::second_view::{self, invert_affine, Disc, Frame, Glass, GpuClock, Keep, Lens, MainView, Marks, ModelId, ReadError, Put, ScopeSite, ScopeWeapon, Scoped, SecondView, Stage, Stage22, UnknownModel, MOST_VERTICES, RING};
+use crate::vostok::second_view::{self, invert_affine, DepthTarget, Disc, Frame, FrameWindow, Glass, LentExposure, GpuClock, Keep, Lens, MainView, Marks, ModelId, ReadError, Put, ScopeSite, ScopeWeapon, Scoped, SecondView, Stage, Stage22, Tested, UnknownModel, MOST_VERTICES, RING};
 use crate::vostok::{
     trig, Context, Flow, Lock, NoExit, OrigRenderFlashUi, PipScopesOnPresentExit, PipScopesOnPreviousWorldExit, PipScopesOnScopeBodyExit,
     PipScopesOnScopeCulledBodyExit, PipScopesOnScopeOpticExit, PipScopesOnScopeShowExit, PipScopesOnScopeSwapExit, PipScopesOnUnmoveExit, Reg, Thread,
@@ -47,6 +47,9 @@ const PROBE_FOV_FACTOR: f32 = 0.25;
 /// The lens's rim: how sharp its darkening is, how dark it gets.
 const RIM_SHARPNESS: f32 = 12.0;
 const RIM_DARKNESS: f32 = 0.2;
+/// How far toward the eye the glass is tested against the frame's depth, m:
+/// clear of the glass's own surface, under any rim in front of it.
+const DEPTH_BIAS: f32 = 0.002;
 
 /// What the second view is for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -158,6 +161,10 @@ static SEEN_AIM: Lock<Option<(ModelId, u32)>> = Lock::new(None);
 /// SKHID_PIP_LOG=picture: the log, and the second view's picture copied into the
 /// frame's top right corner while the lens is drawn.
 static PICTURE_ON: AtomicBool = AtomicBool::new(false);
+
+/// SKHID_PIP_LOG=depth: the log, and the lens showing the frame's depth (red)
+/// against its glass's (green) where it tests them.
+static DEPTH_SHOWN: AtomicBool = AtomicBool::new(false);
 
 /// The second view's passes with a lens, for one log line of its lists.
 static SECOND_SEEN: AtomicU32 = AtomicU32::new(0);
@@ -301,6 +308,36 @@ enum PreviousView {
 
 static PREVIOUS_VIEW: Lock<PreviousView> = Lock::new(PreviousView::Frame { second: None });
 
+/// The frame's window (its last draw's), whose exposure the second view takes.
+static FRAME_WINDOW: Lock<Option<FrameWindow>> = Lock::new(None);
+
+/// The frame's exposure lent to the second view's eye adaptation, for the call.
+static LENT: Lock<Option<LentExposure>> = Lock::new(None);
+
+/// compute_per_pixel_eye_adaptated_luminance's start: the second view's eye
+/// takes the frame's last adapted luminance as its own, unchanged (time step
+/// 0), so the picture is exposed as the frame around it.
+pub fn on_eye_adapt(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if !SECOND_PASS.load(Ordering::Relaxed) {
+        return Flow::Continue;
+    }
+    let thread = ctx.thread();
+    let (picture, frame) = (PICTURE.with(thread, |p| *p), FRAME_WINDOW.with(thread, |w| *w));
+    if let (Some((second, _)), Some(frame)) = (picture, frame) {
+        let lent = second.lend_exposure(ctx, frame);
+        LENT.with(thread, |slot| *slot = lent);
+    }
+    Flow::Continue
+}
+
+/// Its end: the second view's own last luminance and time step back.
+pub fn on_eye_adapted(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Some(lent) = LENT.with(ctx.thread(), Option::take) {
+        lent.give_back(ctx);
+    }
+    Flow::Continue
+}
+
 /// The frame's post-process draws, for the second view's previous view: used
 /// only when it is from the frame draw just before.
 static FRAME_DRAWS: AtomicU32 = AtomicU32::new(0);
@@ -358,6 +395,10 @@ fn whole_frame_step(ctx: &Context<'_>, second_pass: bool) {
 pub fn on_postprocess(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let second_pass = SECOND_PASS.load(Ordering::Relaxed);
+    if !second_pass && AIMED.with(thread, |aimed| aimed.is_some()) {
+        let copied = second_view::output_depth().is_some_and(|from| FRAME_DEPTH.with(thread, |kept| second_view::copy_depth(kept, &from)));
+        DEPTH_COPIED.store(copied, Ordering::Relaxed);
+    }
     whole_frame_step(ctx, second_pass);
     let state = PREVIOUS_VIEW.with(thread, |state| *state);
     if matches!(state, PreviousView::Frame { second: None }) && !second_pass {
@@ -406,6 +447,8 @@ struct Placed {
     projection: [f32; 16],
     /// The picture's disc on the screen, clip space: centre, radii.
     picture: [f32; 4],
+    /// The depth terms the frame drew the optic with.
+    depth: [f32; 2],
 }
 
 static LENS_DISC: Lock<Option<Placed>> = Lock::new(None);
@@ -423,6 +466,14 @@ enum GlassOf {
 
 /// The glass of each idle optic model met (by its instance's address), found once.
 static GLASSES: Lock<([(u32, GlassOf); 16], usize)> = Lock::new(([(0, GlassOf::Unread); 16], 0));
+
+/// A copy of the frame's depth (the render output's) as its post-process
+/// began, for the lens's depth test; whether it is this frame's.
+static FRAME_DEPTH: Lock<Option<DepthTarget>> = Lock::new(None);
+static DEPTH_COPIED: AtomicBool = AtomicBool::new(false);
+
+/// A lens drawn without the frame's depth was logged.
+static UNTESTED_SAID: AtomicBool = AtomicBool::new(false);
 
 /// The size of the last picture the lens was drawn from, pixels square (0: none), for the timing lines.
 static PICTURE_DRAWN: AtomicU32 = AtomicU32::new(0);
@@ -522,8 +573,9 @@ fn read_probe(thread: &Thread) -> Probe {
             SCOPES_FORCED.store(size(&b[..lb]).is_some(), Ordering::Relaxed);
             let mut c = [0u8; 8];
             let lc = get_environment(thread, c"SKHID_PIP_LOG", &mut c);
-            LOG_ON.store(matches!(&c[..lc], b"on" | b"picture"), Ordering::Relaxed);
+            LOG_ON.store(matches!(&c[..lc], b"on" | b"picture" | b"depth"), Ordering::Relaxed);
             PICTURE_ON.store(&c[..lc] == b"picture", Ordering::Relaxed);
+            DEPTH_SHOWN.store(&c[..lc] == b"depth", Ordering::Relaxed);
             *probe = match asked(&a[..la], &b[..lb]) {
                 Asked::Off => Probe::Off,
                 Asked::Timing => Probe::Timing,
@@ -845,6 +897,9 @@ pub fn on_interface(ctx: &mut Context<'_>) -> Flow<NoExit> {
             }
         }
     });
+    if let Some(window) = second_view::frame_window(ctx) {
+        FRAME_WINDOW.with(thread, |kept| *kept = Some(window));
+    }
     if let Some(height) = second_view::frame_height(ctx) {
         FRAME_HEIGHT.with(thread, |kept| *kept = height);
     }
@@ -885,13 +940,29 @@ pub fn on_interface(ctx: &mut Context<'_>) -> Flow<NoExit> {
                     let disc = match LENS_DISC.with(thread, Option::take) {
                         Some(placed) => {
                             LENS_SIZE.with(thread, |size| *size = Some(placed.picture[3]));
-                            Disc { centre: placed.centre, across: placed.across, projection: placed.projection, picture: placed.picture, rim }
+                            let shown = if DEPTH_SHOWN.load(Ordering::Relaxed) { 2.0 } else { 1.0 };
+                            let depth = [placed.depth[0], placed.depth[1], DEPTH_BIAS, shown];
+                            Disc { centre: placed.centre, across: placed.across, projection: placed.projection, picture: placed.picture, rim, depth }
                         }
                         None if used == Use::ProbeLens => probe_disc(aspect, rim),
                         None => return,
                     };
-                    if lens.draw(ctx, &second, &disc) {
+                    let copied = DEPTH_COPIED.swap(false, Ordering::Relaxed);
+                    if LOG_ON.load(Ordering::Relaxed) && SEEN_AIM.with(thread, |seen| seen.is_some_and(|(_, frame)| frame == 30)) {
+                        let mut note = Note::new("pip: the frame's depth copied for the lens");
+                        FRAME_DEPTH.with(thread, |kept| match kept.as_ref().filter(|_| copied) {
+                            Some(t) => note.text(": ").dec(t.width).text(" x ").dec(t.height).text(", format ").dec(t.format).text(", samples ").dec(t.samples),
+                            None => note.text(": none"),
+                        });
+                        note.text(", the lens's depth terms (thousandths)").milli(disc.depth[0]).milli(disc.depth[1]).send();
+                    }
+                    let drawn = FRAME_DEPTH.with(thread, |kept| lens.draw(ctx, &second, &disc, kept.as_ref().filter(|_| copied)));
+                    if drawn.is_some() {
                         PICTURE_DRAWN.store(picture_size, Ordering::Relaxed);
+                    }
+                    if drawn == Some(Tested::Not) && used == Use::Scopes && !UNTESTED_SAID.swap(true, Ordering::Relaxed) {
+                        let why = if copied { "of a size or format the lens cannot read" } else { "not copied" };
+                        log::line(&[Piece::Text("pip: the frame's depth "), Piece::Text(why), Piece::Text(": the lens is drawn over what of the optic is in front of its glass")]);
                     }
                     if PICTURE_ON.load(Ordering::Relaxed) {
                         second_view::composite(ctx, &second, MARGIN);
@@ -1092,7 +1163,10 @@ pub fn on_foreground(ctx: &mut Context<'_>) -> Flow<NoExit> {
             let thread = ctx.thread();
             let camera = DRAWN_CAMERA.with(thread, |camera| *camera);
             let idle = IDLE.with(thread, |idle| *idle);
-            let disc = camera.and_then(|(view, projection)| place_lens(thread, aimed, idle?, &view, &projection));
+            let disc = camera.and_then(|(view, projection)| {
+                let placed = place_lens(thread, aimed, idle?, &view, &projection)?;
+                Some(Placed { depth: second_view::foreground_depth(ctx, &projection), ..placed })
+            });
             LENS_DISC.with(thread, |kept| *kept = disc);
             LENS_SURFACE.with(thread, |kept| *kept = second_view::glass_record(aimed).map(|r| r.address()));
             // an aim's first frame and its thirtieth (its surfaces placed by then)
@@ -1372,6 +1446,7 @@ fn probe_disc(aspect: f32, rim: [f32; 2]) -> Disc {
         projection,
         picture: [0.0, 0.0, LENS_RADIUS / aspect, LENS_RADIUS],
         rim,
+        depth: [projection[10], projection[14], 0.0, 0.0],
     }
 }
 
@@ -1411,6 +1486,7 @@ fn place_lens(thread: &Thread, aimed: ModelId, idle: ModelId, view: &[f32; 16], 
         across: [u.map(|v| v * radius), w.map(|v| v * radius)],
         projection: *projection,
         picture: [at[0], at[1], radius * projection[0] / centre[2], radius * projection[5] / centre[2]],
+        depth: [projection[10], projection[14]],
     })
 }
 

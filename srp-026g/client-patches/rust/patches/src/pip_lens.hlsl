@@ -18,9 +18,15 @@ cbuffer lens : register(b0)
     float4 picture_disc;
     // x how sharp the rim's darkening is, y how dark the rim gets; zw the frame's size, pixels
     float4 rim;
+    // the depth the frame's first-person models were drawn with: x, y the projection's [2][2] and [3][2]
+    // (their own depth range), z how far toward the eye the glass is tested (m): what of the optic is in
+    // front of its rear glass (a rim, an eyecup's lip) covers the picture; w 1 the frame's depth is
+    // bound, 2 shown instead (red the frame's, green the glass's), 0 none
+    float4 depth;
 };
 
 Texture2D picture : register(t0);
+Texture2D<float> frame_depth : register(t1);
 SamplerState linear_clamp : register(s0);
 
 struct v_out
@@ -39,6 +45,7 @@ v_out vs_main(uint id : SV_VertexID)
     float3 p = centre.xyz + corner.x * across0.xyz + corner.y * across1.xyz;
     v_out o;
     o.position = p.x * projection0 + p.y * projection1 + p.z * projection2 + projection3;
+    o.position.z = (depth.x + depth.y / max(p.z - depth.z, 1e-4)) * o.position.w;
     o.local = corner;
     return o;
 }
@@ -51,6 +58,13 @@ float4 ps_main(v_out i) : SV_Target
     float edge = max(fwidth(r), 1e-5);
     float cover = saturate((1.0 - r) / edge);
     clip(cover - 1.0 / 512.0);
+    if (depth.w > 0.5)
+    {
+        float scene = frame_depth.Load(int3(i.position.xy, 0));
+        if (depth.w > 1.5)
+            return float4(saturate((1.0 - scene) * 20.0), saturate((1.0 - i.position.z) * 20.0), 0.0, 1.0);
+        clip(scene - i.position.z);
+    }
     float2 ndc = i.position.xy / rim.zw * float2(2.0, -2.0) + float2(-1.0, 1.0);
     float2 offset = (ndc - picture_disc.xy) / picture_disc.zw;
     float2 uv = offset * float2(0.5, -0.5) + 0.5;

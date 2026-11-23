@@ -99,3 +99,13 @@ handler = "on_scope_optic"
 site = "attachments.hidden"
 handler = "on_weapon_hidden"
 order = 2
+
+# the second view's eye adaptation takes the frame's adapted luminance as
+# its last one, unchanged: its picture exposed as the frame around it
+[[hook]]
+site = "eye.adapt"
+handler = "on_eye_adapt"
+
+[[hook]]
+site = "eye.adapted"
+handler = "on_eye_adapted"
