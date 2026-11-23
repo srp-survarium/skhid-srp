@@ -15,7 +15,7 @@ package survarium.menu.selector
       {
          super(rowWidth,HEIGHT);
          // a circle struck through
-         var g:Graphics = graphics;
+         var g:Graphics = marks.graphics;
          g.lineStyle(2,Paint.UNBIND,1,true);
          g.drawCircle(19,HEIGHT / 2,6.5);
          g.moveTo(19 - 4.6,HEIGHT / 2 + 4.6);

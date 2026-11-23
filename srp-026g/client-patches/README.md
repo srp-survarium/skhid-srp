@@ -4174,8 +4174,9 @@ user.cfg: the hit marker list's `srp_hide_hit_markers` (`off` all, `hits` the ki
 none: the checkbox it was wrote `on`/`off`), and off by default `srp_hide_scores`, `srp_map_names` and
 `srp_hide_crosshair` (the crosshair list's Hidden). The Rust `hud_options` patch registers the saved bools
 and the list's saved string at
-`configs.start`, answers the main menu's `srp_hide_*` calls and `srp_hud_texts` (the group's
-texts) at `options.callback` (after patch 79's hooks there, sharing `vostok::settings` with it), and
+`configs.start`, answers the main menu's `srp_hide_*` calls, `srp_hud_texts` (the group's
+texts) and `srp_controls_texts` (the Controls' action selector's, `CONTROLS_TEXTS`: the movie's
+`survarium/menu/selector`) at `options.callback` (after patch 79's hooks there, sharing `vostok::settings` with it), and
 tells the hud movie the four at `player_icons.update_start` (after patch 65's hook) when the movie
 or a setting changes, and again after each match's or replay's options read (a new hud can be made
 at the last one's address). The hud shows the crosshair's hit markers, the kill's only or

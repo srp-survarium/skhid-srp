@@ -188,6 +188,10 @@ package
                     menu.show_settings(true);
                     // the menu's layout centres the Settings at a stage resize
                     menu.stage.dispatchEvent(new Event(Event.RESIZE));
+                    // and the harness centres it (the stand-in's layout leaves it at the corner)
+                    var settings:* = menu.settings_window;
+                    settings.x = Math.round((menu.stage.stageWidth - settings.width) / 2);
+                    settings.y = Math.round((menu.stage.stageHeight - settings.height) / 2);
                     // the first open asks the exe for the texts, once
                     selector.open("Q", rows(language("english")), function(id:uint):void {}, function():void {}, function():void {});
                     require(asked == 1, "the first open asks the exe for its texts: " + asked);
@@ -263,6 +267,10 @@ package
                 ++offered;
             }
             require(ids.length == offered && offered == 59, "59 actions offered: " + ids.length);
+            // the table's own order (#2590: its rows grouped as the selector's groups)
+            var table:Array = lang[2].filter(function(row:Array, ...rest):Boolean { return row[3] != 0; })
+                .map(function(row:Array, ...rest):uint { return row[0]; });
+            require(ids.join() == table.join(), "the rows in the table's order: " + ids + " / " + table);
             require(groups.length == 5, "five groups: " + groups.length);
             var last:int = -1;
             for each (r in actionRows())
@@ -272,7 +280,8 @@ package
             }
             require(ActionGroup.of(0x4D) == ActionGroup.ITEMS && ActionGroup.of(0x37) == ActionGroup.TALK
                 && ActionGroup.of(0x26) == ActionGroup.FIGHT && ActionGroup.of(0x0B) == ActionGroup.MOVEMENT
-                && ActionGroup.of(0x19) == ActionGroup.INTERFACE, "ActionGroup.of");
+                && ActionGroup.of(0x19) == ActionGroup.INTERFACE && ActionGroup.of(SPOT) == ActionGroup.TALK
+                && ActionGroup.of(0x23) == ActionGroup.FIGHT, "ActionGroup.of");
             // the key's action highlighted at the open, and in view
             require(selector.highlighted == rowOf(SPOT), "the key's action is highlighted at the open");
             inView(selector.highlighted);

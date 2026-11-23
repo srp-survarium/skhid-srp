@@ -15,6 +15,9 @@ package survarium.menu.selector
       public var rowHeight:Number;
 
       protected var back:Shape = new Shape();
+      
+      // the row's own marks (a dot, an icon), over its highlight
+      protected var marks:Shape = new Shape();
 
       public function SelectorRow(rowWidth:Number, rowHeight:Number)
       {
@@ -22,6 +25,7 @@ package survarium.menu.selector
          this.rowWidth = rowWidth;
          this.rowHeight = rowHeight;
          addChild(this.back);
+         addChild(this.marks);
          mouseChildren = false;
          // the whole row takes the mouse, drawn or not (a fill of alpha 0 is not hit)
          graphics.beginFill(0,0.004);

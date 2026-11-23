@@ -87,6 +87,7 @@ Scaleform's Invoke 0x511600 a stub that records each call; translate_text
   after patch 65's hooks); nothing without a hud movie;
   registers and stack as the original's, which invokes nothing.
 """
+import re
 import struct
 import sys
 
@@ -98,6 +99,7 @@ import patch_026g as base
 import check_hide_ui_026g as hide
 import check_blackout_026g as blackout
 import check_language_026g as language
+from localization_026g import CATALOG, read_translations
 
 EXECUTE_BOOL, CC_BOOL_VTABLE = 0xECA30, 0x9E7C4C
 SETTINGS = {"srp_hide_scores": "Hide player scores",
@@ -126,6 +128,11 @@ TEXTS = {"st_srp_options_hud": "HUD:", "st_srp_hide_quests_option": "Hide quests
          "st_srp_vulkan_tear_free_hint": "Keeps the picture whole when vertical sync is off.\n+ No torn lines when turning fast\n- A bit more input delay than plain vsync off",
          "st_srp_vulkan_dedicated_gpu_hint": "Picks the stronger graphics card on laptops.\n+ Better performance on laptops\n- Uses more battery"}
 language.ENGLISH.update({key: text.encode() for key, text in TEXTS.items()})
+# the Controls' action selector's texts, in root.srp_controls_texts' order (hud_options.rs's CONTROLS_TEXTS)
+CONTROLS = re.findall(r'c"(\w+)"', re.search(r'pub const CONTROLS_TEXTS: \[&CStr; \d+\] = \[(.*?)\];',
+                      open("rust/patches/src/hud_options.rs").read(), re.S).group(1))
+CONTROLS_ENGLISH = read_translations(CATALOG / "english.tsv")
+language.ENGLISH.update({key: CONTROLS_ENGLISH[key].encode() for key in CONTROLS})
 language.ENGLISH.update({"st_srp_hit_markers_all": b"All hit markers", "st_srp_hit_markers_kill": b"Kill marker only",
                          "st_srp_hit_markers_hidden": b"Hidden hit markers", "st_srp_hide_scores_option": b"Hide player scores",
                          "st_srp_map_names_option": b"Names on map",
@@ -787,6 +794,15 @@ def main():
            "nothing set or saved")
     stock_invokes, _ = stock.callback("srp_hud_texts")
     expect(stock_invokes == [], "the original ignores srp_hud_texts")
+    before = state()
+    invokes, count = ours.callback("srp_controls_texts")
+    expect(len(CONTROLS) == 16 and invokes == [(language.MOVIE, "root.srp_controls_texts",
+                                                 tuple(CONTROLS_ENGLISH[k][:64] for k in CONTROLS))]
+           and count == 0 and state() == before,
+           "srp_controls_texts: the action selector's 16 texts (title, search, Unbind, free key, the two warnings, "
+           "no match, the keys' hints, Lobby, the five groups), nothing set or saved")
+    stock_invokes, _ = stock.callback("srp_controls_texts")
+    expect(stock_invokes == [], "the original ignores srp_controls_texts")
     invokes, count = ours.callback("srp_language")
     expect([m for _, m, _ in invokes] == ["root.srp_language"] and count == 0,
            "srp_language still reaches patch 79 (its hook before this one)")

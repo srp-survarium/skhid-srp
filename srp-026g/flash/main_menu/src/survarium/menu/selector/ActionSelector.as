@@ -441,6 +441,7 @@ package survarium.menu.selector
          this.search.width = WIDTH - 2 * PAD - 56;
          this.search.height = 26;
          this.search.text = query;
+         this.search.setSelection(query.length,query.length);
          this.search.x = this.placeholder.x = PAD + 40;
          this.search.y = top + Math.round((SEARCH_HEIGHT - 26) / 2);
          this.placeholder.y = this.search.y + 2;

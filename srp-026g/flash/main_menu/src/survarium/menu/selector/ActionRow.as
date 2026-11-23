@@ -21,7 +21,7 @@ package survarium.menu.selector
       {
          super(rowWidth,HEIGHT);
          this.action = action;
-         var g:Graphics = graphics;
+         var g:Graphics = marks.graphics;
          g.beginFill(action.group.colour);
          g.drawCircle(19,HEIGHT / 2,4);
          g.endFill();
