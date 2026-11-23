@@ -2762,6 +2762,12 @@ st_srp_inventory_search_tip_level_example	+10 +11
 st_srp_inventory_sell_duplicates	Sell duplicates
 st_srp_inventory_sell_duplicates_ask	Items to sell: %1$s
 st_srp_item_props_mps	m/s
+st_srp_key_bindings	Key bindings
+st_srp_keys_combat	Combat
+st_srp_keys_interface	Interface
+st_srp_keys_items	Items
+st_srp_keys_movement	Movement
+st_srp_keys_talk	Communication
 st_srp_language_option	Language:
 st_srp_language_restart	Applies after restart.
 st_srp_loadout_block_ammo	Too little ammo for a weapon

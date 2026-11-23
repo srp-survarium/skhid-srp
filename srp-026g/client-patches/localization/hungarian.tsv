@@ -2762,6 +2762,12 @@ st_srp_inventory_search_tip_level_example	+10 +11
 st_srp_inventory_sell_duplicates	Duplikátumok eladása
 st_srp_inventory_sell_duplicates_ask	Eladandó tárgyak: %1$s
 st_srp_item_props_mps	m/s
+st_srp_key_bindings	Billentyűkiosztás
+st_srp_keys_combat	Harc
+st_srp_keys_interface	Felület
+st_srp_keys_items	Tárgyak
+st_srp_keys_movement	Mozgás
+st_srp_keys_talk	Kommunikáció
 st_srp_language_option	Nyelv:
 st_srp_language_restart	Újraindítás után lép életbe.
 st_srp_loadout_block_ammo	Kevés lőszer az egyik fegyverhez
