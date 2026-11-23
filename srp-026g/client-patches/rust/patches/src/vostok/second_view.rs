@@ -715,6 +715,9 @@ pub struct Scoped {
     /// Its aimed model is in the scene (the weapon's +181Dh).
     pub shown: bool,
     pub aimed: Option<ModelId>,
+    /// The eyes' transform (the player's +44Ch, bone Item: where a shot starts
+    /// and goes), the second view's camera: the frame's view may be another.
+    pub eye: [f32; 16],
 }
 
 pub fn scoped(ctx: &Context<'_>) -> Option<Scoped> {
@@ -728,7 +731,8 @@ pub fn scoped(ctx: &Context<'_>) -> Option<Scoped> {
             return None;
         }
         let aimed = optics.aim_model().and_then(|m| m.render_instance().instance()).map(ModelId);
-        Some(Scoped { fov_factor: *optics.fov_factor(), shown: *weapon.scope_in_scene() != 0, aimed })
+        let eye = read16(raw::site::camera_zoom::player(ctx)?.eye());
+        Some(Scoped { fov_factor: *optics.fov_factor(), shown: *weapon.scope_in_scene() != 0, aimed, eye })
     }
 }
 
@@ -870,6 +874,7 @@ pub fn eye_reset(_: &Thread, value: Option<bool>) -> bool {
 pub enum Stage {
     AmbientOcclusion,
     Reflections,
+    SunShadows,
 }
 
 /// The stage's enable byte (render options) set to `on`; what it was.
@@ -881,6 +886,7 @@ pub fn set_stage(_: &Thread, stage: Stage, on: bool) -> bool {
         let byte = match stage {
             Stage::AmbientOcclusion => options.ambient_occlusion(),
             Stage::Reflections => options.reflections(),
+            Stage::SunShadows => options.sun_shadows(),
         };
         let was = *byte != 0;
         *byte = u8::from(on);

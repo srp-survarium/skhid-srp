@@ -143,6 +143,7 @@ struct Kept {
     hiz: bool,
     ambient_occlusion: bool,
     reflections: bool,
+    sun_shadows: bool,
     eye_reset: bool,
 }
 
@@ -153,6 +154,7 @@ fn restore_switches(thread: &Thread) {
         second_view::set_hiz(thread, kept.hiz);
         second_view::set_stage(thread, Stage::AmbientOcclusion, kept.ambient_occlusion);
         second_view::set_stage(thread, Stage::Reflections, kept.reflections);
+        second_view::set_stage(thread, Stage::SunShadows, kept.sun_shadows);
         second_view::eye_reset(thread, Some(kept.eye_reset));
     }
 }
@@ -162,6 +164,8 @@ fn turn_off_switches(thread: &Thread) {
         hiz: second_view::set_hiz(thread, false),
         ambient_occlusion: second_view::set_stage(thread, Stage::AmbientOcclusion, false),
         reflections: second_view::set_stage(thread, Stage::Reflections, false),
+        // the frame's cascades of the last draw, from the same eye, cover the second view's narrower frustum
+        sun_shadows: second_view::set_stage(thread, Stage::SunShadows, false),
         eye_reset: second_view::eye_reset(thread, Some(false)),
     };
     KEPT.with(thread, |slot| *slot = Some(kept));
@@ -370,7 +374,8 @@ pub fn on_draw(ctx: &mut Context<'_>) -> Flow<NoExit> {
             frame.set_projection(&main_projection);
             FRAME_CAMERA.with(thread, |kept| *kept = Some((view, main_projection)));
             if scoped.shown {
-                frame.draw_second(&second, &view, &lens, &view, &main_projection);
+                // from the aim itself: the reticle's centre is where a shot goes
+                frame.draw_second(&second, &invert_affine(&scoped.eye), &lens, &view, &main_projection);
             }
             scoped.aimed.filter(|_| scoped.shown)
         }
