@@ -577,7 +577,7 @@ fn played_run_up(world: &Collision, s: &Settings, press_at: Vec3, heading: (f32,
     let c = *body.controller();
     let f = c.feet();
     (flat(f - press_at).length() <= 0.1 && (f.y - press_at.y).abs() <= 0.35 && !c.jumping && c.on_ground(s))
-        .then_some(RunUp { body: c, speed: v, played: body })
+        .then_some(RunUp { body: c, speed: v, played: body, moving })
 }
 
 /// How a run-up ended ([`run_up`]).
@@ -589,6 +589,9 @@ pub struct RunUp {
     /// [body physics S5a] The client's body it was played with ([`played_run_up`]; its controller is [`Self::body`]): its walk's
     /// blend and input, for a walk that goes on from it ([`climb_flight`]).
     pub played: crate::motion::ClientBody,
+    /// [body physics S5b] The moving steps its walk-up played (a slow press's k; a walk or sprint run-up's 6 + its steady steps):
+    /// the stored run-in's ([`crate::motion::RunIn`], `WalkGrid::run_in`).
+    pub moving: u32,
 }
 
 /// The run-up ending at `press_at` (feet) along `heading` at `speed` m/s (sprinting or not): a body put down 3.5 + 4 steps'
