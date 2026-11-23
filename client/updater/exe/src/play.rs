@@ -1,6 +1,6 @@
 //! PLAY's route selection runs in the updater, before creating the game.
 //! No driver, administrator access, credentials, or game-memory hooks.
-use crate::{exit, install::Layout, log, message_box, patches, retry_box, route, waiting_box, win};
+use crate::{exit, install::Layout, leftover, log, message_box, patches, retry_box, route, waiting_box, win};
 use relay_client::{Config, Selection};
 use updater_logic::diagnosis::Diagnosis;
 use updater_logic::route::Choice;
@@ -110,6 +110,19 @@ fn launch(arguments: &[String], wait: bool, quiet: bool) -> Result<(), Ended> {
         arguments.push(format!("-server={address}"));
     }
     let game = format!("{}\\survarium_skhid.exe", layout.exe_dir);
+    // The launcher's PLAY (not the scripts' `wait`) first closes what an
+    // earlier start of this folder left running; a replay is watched
+    // beside a running game.
+    let replay = arguments.iter().any(|a| a.starts_with("-match_replay="));
+    if !wait && !replay {
+        while !leftover::close(&game) {
+            let language = win::documents().as_deref().and_then(win::game_language);
+            if quiet || !retry_box(crate::text::TITLE, updater_logic::leftover::cannot_close(language)) {
+                return Err(Ended::Told("an earlier game of this folder still runs: not started".into()));
+            }
+            log::log!("play: trying again");
+        }
+    }
     // Use Rust's Windows argument quoting; never assemble an unchecked command
     // line from user-supplied strings. The helper itself runs beside the game.
     let mut game = std::process::Command::new(&game)

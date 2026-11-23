@@ -316,6 +316,27 @@ the tunnel too; Caddy takes it and asks srp for the path alone
 (`tools/check relay-site`).
 Without `updater_skhid.relay` nothing is sent and the box stays hidden.
 
+## A game left running
+
+Before the launcher's PLAY starts the game (`play` without `wait` or
+`-match_replay=`), it closes every `survarium_skhid.exe` an earlier start of
+this folder left running: a process of this Windows session whose image is
+this folder's game exe, the whole path compared whatever the letters' case
+(`logic/src/leftover.rs`, `exe/src/leftover.rs`). Its visible windows get
+WM_CLOSE (the game quits; the crash box, BugTrap's dialog inside the game's
+process, closes and lets it end); what still runs 3 s later is terminated
+and waited for up to 5 s. The log names each one and how it ended
+(`play: earlier game, process <id>: Closed(WhenAsked)`, `Closed(Terminated)`
+or `Failed(...)`). A game of another folder, the play scripts' games and
+other programs are never touched. One that cannot be closed (refused by
+Windows, or still running after it was terminated) is a box in the
+launcher's language with Retry and Cancel, and the game is not started.
+
+**Why.** On 2026-11-23 a player on revision 72 could not aim in matches
+while the menu and the keyboard worked, until he restarted the computer: an
+earlier game that never ended held the mouse (DirectInput, exclusive, which
+the game takes in a match), so the new one got none.
+
 ## The player's boxes
 
 The problems players meet most each have a box of the updater's own

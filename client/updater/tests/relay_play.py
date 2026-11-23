@@ -1,4 +1,5 @@
 """PLAY's route (Automatic, the relay, direct) through real Windows sockets under Wine."""
+import shutil
 import socket
 import threading
 import time
@@ -156,6 +157,7 @@ def check(run, updater, x86, started, log, win, survarium):
         script.join(timeout=30)
         assert not script.is_alive() and not problems, problems
         started.unlink(missing_ok=True)
+        leftovers(run, updater, x86, started, log, win, expect)
     finally:
         config.unlink(missing_ok=True)
         choice.unlink(missing_ok=True)
@@ -164,3 +166,53 @@ def check(run, updater, x86, started, log, win, survarium):
             s.close()
         for t in threads:
             t.join(timeout=2)
+
+
+def leftovers(run, updater, x86, started, log, win, expect):
+    """The launcher's PLAY ends the games an earlier start of this folder left
+    running: one with a window closes when asked; one without (it holds a
+    file) is terminated. A game of another folder is never touched."""
+    game = x86 / 'survarium_skhid.exe'
+    other = x86.parent / 'other' / 'survarium_skhid.exe'
+    other.parent.mkdir(exist_ok=True)
+    shutil.copy2(game, other)
+    games = {}
+    for name, exe, mode, code in [('window', game, 'window', 0), ('left', game, 'hold', 1),
+                                  ('other', other, 'hold', 0)]:
+        held, release, file = (x86 / f'{name}.{part}' for part in ('held', 'release', 'file'))
+        file.write_bytes(b'')
+        held.unlink(missing_ok=True)
+        release.unlink(missing_ok=True)
+        problems = []
+        arguments = [win(held), win(release)] if mode == 'window' else [win(file), win(held), win(release)]
+        def holding(exe=exe, mode=mode, arguments=arguments, code=code, problems=problems):
+            try:
+                run(exe, mode, *arguments, expected=code)
+            except BaseException as error:
+                problems.append(error)
+        thread = threading.Thread(target=holding)
+        thread.start()
+        games[name] = thread, held, release, problems
+    try:
+        for name, (thread, held, _, problems) in games.items():
+            for _ in range(400):
+                if held.exists() or not thread.is_alive():
+                    break
+                time.sleep(.05)
+            assert held.exists(), f'the {name} stand-in did not start: {problems}'
+        started.unlink(missing_ok=True)
+        run(updater, 'play', 'quiet', '-minimum_resources_memory_size=768', '-server=127.0.0.9:1234')
+        expect('127.0.0.9:1234')
+        for name in ['window', 'left']:
+            thread, _, _, problems = games[name]
+            thread.join(timeout=10)
+            assert not thread.is_alive() and not problems, f'the {name} game was not ended: {problems} {log()}'
+        assert '2 earlier game(s) of this folder still run; 1 window(s) asked to close' in log(), log()
+        assert ': Closed(WhenAsked)' in log() and ': Closed(Terminated)' in log(), log()
+        assert games['other'][0].is_alive(), "another folder's game was ended"
+    finally:
+        for _, _, release, _ in games.values():
+            release.write_bytes(b'')
+        for thread, _, _, _ in games.values():
+            thread.join(timeout=30)
+    assert not games['other'][3], games['other'][3]
