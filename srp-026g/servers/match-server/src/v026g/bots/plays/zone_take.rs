@@ -118,7 +118,7 @@ impl Watch {
     pub fn stalled(&mut self, now: u32, along: usize, m: f32, mps: f32) -> Option<&'static str> {
         if along != self.leg.0 {
             self.leg = (along, now);
-        } else if now > self.leg.1.max(self.window.0) + STALL_LEG_MS {
+        } else if now > self.leg.1 + STALL_LEG_MS {
             return Some("stalled: on one floor of the way over 2 s");
         }
         let (since, from) = self.window;
