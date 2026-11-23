@@ -13,6 +13,14 @@ more info and history on what crashes or not."
   of the same stamp (a second program started in the same second, a log's next part) is
   `<kind>.<stamp>_2.log` .. `_99`, past the highest the stamp has: a name a file has, or had
   before it was deleted, is never taken.
+  - **The engine's file is made when it is named** (CREATE_NEW, empty; the engine then opens it
+    create_always), not only when the engine opens it: two games started in the same second (two
+    local clients sharing one game folder) both took the first name and wrote one file, and each
+    one's console was empty. The console (`console_impl::tick` 0x1D0D0) shows the log file by
+    its own count of lines (+4438h) and of bytes written (+4450h), reading from the file's start
+    (`goto_line` 0x112740); with the other game's lines in it, its last lines lie past its own
+    byte count, where `process_next_line` (0x1129A0) reads empty lines. A name another game made
+    after the walk refuses the CREATE_NEW and the next is taken.
 - **Retention:** before a run's file is made, files of its kind are deleted, the least recently
   written first, while there are 100 or more or they hold 500 MiB or more, so a kind keeps at
   most the newest 100 runs or 500 MiB, whichever is smaller. A kind's files are only the names

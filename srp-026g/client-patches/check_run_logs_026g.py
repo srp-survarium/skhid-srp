@@ -31,6 +31,9 @@ appends; the local time is 2026-11-15 14:03:07. Checked:
 - 600 MiB in three run logs: the oldest deleted (400 MiB left, under 500);
 - a name taken (another game started in the same second): `_2`, and the
   patches' log's `_2` likewise, the files there kept as they were;
+- the engine's file made (CREATE_NEW, empty) when it is named, so that a game
+  started in the same second takes the next; a name another game made after
+  the walk (CREATE_NEW refused): the next, `_2`;
 - 120 old patches' logs, and beside the exe the old srp_patches.log /
   srp_patches.old.log and a run log: the 21 oldest run logs deleted, the
   ones beside the exe kept;
@@ -91,14 +94,16 @@ def check(ok, what):
 
 class Disk:
     """Files by full path (the exe's folder is ''): their sizes, last writes (by default in the
-    order of their names) and the ones DeleteFileA refuses (read-only); made files' bytes and
-    the folders CreateDirectoryA was asked for."""
+    order of their names), the ones DeleteFileA refuses (read-only) and the ones another game
+    makes once a walk did not see them (CreateFileA's CREATE_NEW is the first to); made files'
+    bytes and the folders CreateDirectoryA was asked for."""
 
-    def __init__(self, files, written=None, stuck=()):
+    def __init__(self, files, written=None, stuck=(), racing=()):
         self.sizes = dict(files)
         self.written = {path: n for n, path in enumerate(sorted(self.sizes))}
         self.written.update(written or {})
         self.stuck = set(stuck)
+        self.racing = set(racing)       # made by another game between a walk and a create
         self.bytes = {}
         self.deleted, self.made, self.folders = [], [], []
 
@@ -212,7 +217,11 @@ class Game:
                 result = 1
         elif name == "CreateFileA":
             path, disposition = self.text(a[0]), a[4]
-            if disposition == 1 and path in self.disk.sizes:      # CREATE_NEW on a name there
+            if disposition == 1 and path in self.disk.racing:     # another game made it a moment ago
+                self.disk.racing.discard(path)
+                self.disk.sizes[path] = 0
+                result = INVALID
+            elif disposition == 1 and path in self.disk.sizes:    # CREATE_NEW on a name there
                 result = INVALID
             else:
                 self.disk.made.append((path, disposition, a[1], a[2]))
@@ -280,8 +289,8 @@ class Game:
         return self.emu.reg_read(UC_X86_REG_EIP), self.emu.reg_read(UC_X86_REG_ESP) - sp
 
 
-def run(exe, files, path=DOCS + "Survarium_tester.log", written=None, stuck=(), lead=None, then=None):
-    disk = Disk(files, written, stuck)
+def run(exe, files, path=DOCS + "Survarium_tester.log", written=None, stuck=(), lead=None, then=None, racing=()):
+    disk = Disk(files, written, stuck, racing)
     game = Game(exe, disk)
     if lead:
         game.lead = lead
@@ -292,8 +301,13 @@ def run(exe, files, path=DOCS + "Survarium_tester.log", written=None, stuck=(), 
 
 
 def patches_log(disk):
-    made = [(path, disposition) for path, disposition, *_ in disk.made if not path.startswith("c:")]
+    made = [(path, disposition) for path, disposition, *_ in disk.made if "srp_patches." in path]
     return made, {path: disk.bytes[path] for path, _ in made}
+
+
+def engine_files(disk):
+    """The engine's run logs made: (path, disposition, access)."""
+    return [(path, disposition, access) for path, disposition, access, _ in disk.made if "Survarium_" in path]
 
 
 def main():
@@ -331,6 +345,9 @@ def main():
     made, logs = patches_log(disk)
     check(made == [(new_patches, 1)] and not disk.deleted,
           f"the patches' log: {new_patches} made with CREATE_NEW, nothing deleted ({made}, {disk.deleted})")
+    made = engine_files(disk)
+    check(made == [(new_engine, 1, 0x40000000)] and disk.sizes.get(new_engine) == 0,
+          f"the engine's file made empty when it is named, CREATE_NEW ({made})")
     check(disk.folders and set(disk.folders) == {LOGS[:-1]}, f"game\\logs made first ({disk.folders})")
     check(logs.get(new_patches) == b"srp: run_logs: the game's log is the run's, 0 in its old folder and "
                                    b"0 old ones deleted\r\n", f"its line ({logs.get(new_patches)!r})")
@@ -349,7 +366,7 @@ def main():
           f"launcher's log stay ({disk.deleted})")
     check(logs.get(new_patches, b"").endswith(b", 4 in its old folder and 0 old ones deleted\r\n"),
           f"the line counts them ({logs})")
-    access = [(a, s) for p, _, a, s in disk.made]
+    access = [(a, s) for p, _, a, s in disk.made if "srp_patches." in p]
     check(access == [(4, 7)], f"appends only, every sharing ({access})")
 
     print("100 run logs of the user's, and others")
@@ -362,8 +379,8 @@ def main():
     check(fault is None and named == (new_engine, True, True), f"the run's name ({fault or named})")
     check(disk.deleted == [oldest], f"the oldest alone deleted ({disk.deleted})")
     kept = [p for p in disk.sizes if p.startswith(LOGS + "Survarium_tester.2026") and p.endswith(".log")]
-    check(len(kept) == 99 and all(p in disk.sizes for p in others),
-          f"99 kept (100 with the new one), the others untouched ({len(kept)})")
+    check(len(kept) == 100 and new_engine in kept and all(p in disk.sizes for p in others),
+          f"99 kept and the new one, the others untouched ({len(kept)})")
     _, logs = patches_log(disk)
     check(logs.get(new_patches, b"").endswith(b", 0 in its old folder and 1 old ones deleted\r\n"), f"the line counts it ({logs})")
 
@@ -382,6 +399,11 @@ def main():
     check(made == [(LOGS + f"srp_patches.{STAMP}_2.log", 1)] and disk.sizes[new_engine] == 7
           and disk.sizes[new_patches] == 9 and not disk.deleted,
           f"the patches' `_2`, the files there as they were ({made})")
+
+    print("another game started in the same second, its files made after the walk")
+    disk, named, fault = run(built, {}, racing=[new_engine])
+    check(named and named[0] == second and engine_files(disk) == [(second, 1, 0x40000000)],
+          f"the engine's CREATE_NEW refused on the name, the next made: {second} ({named}, {engine_files(disk)})")
 
     print("120 old patches' logs")
     srp = {LOGS + f"srp_patches.2026-10-{day:02}_{hour:02}-00-00.log": 100

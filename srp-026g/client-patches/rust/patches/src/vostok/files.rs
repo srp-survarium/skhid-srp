@@ -36,6 +36,7 @@ const INVALID: usize = usize::MAX;
 const GENERIC_READ: u32 = 1 << 31;
 const GENERIC_WRITE: u32 = 1 << 30;
 const FILE_SHARE_READ: u32 = 1;
+const CREATE_NEW: u32 = 1;
 const CREATE_ALWAYS: u32 = 2;
 const OPEN_EXISTING: u32 = 3;
 const FILE_ATTRIBUTE_NORMAL: u32 = 0x80;
@@ -55,6 +56,12 @@ impl File {
         File::create(path, GENERIC_WRITE, CREATE_ALWAYS)
     }
 
+    /// A new, empty file, for writing; none when a file has the name (or it
+    /// cannot be made).
+    pub fn create_new(path: Path) -> Option<File> {
+        File::create(path, GENERIC_WRITE, CREATE_NEW)
+    }
+
     fn create(path: Path, access: u32, disposition: u32) -> Option<File> {
         // SAFETY: the exe's import (its IAT slot, which the loader filled), a
         // NUL-ended path (Path), no security attributes and no template.
@@ -62,7 +69,7 @@ impl File {
             (raw::engine_create_file_a)(path.ptr(), access, FILE_SHARE_READ, null_mut(), disposition,
                                         FILE_ATTRIBUTE_NORMAL, null_mut())
         };
-        (handle as usize != INVALID).then_some(File(handle))
+        (handle as usize != INVALID).then(|| File(handle))
     }
 
     /// Reads up to `into.len()` bytes: how many it read, none when ReadFile

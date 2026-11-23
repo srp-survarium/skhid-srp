@@ -2513,3 +2513,7 @@ va	status	ref_021d	name
 0x003b9680	observed		vostok::input::platform::mouse::execute
 0x002013a0	reviewed	0x0015f50d	survarium::game_options::assign_binding
 0x00201f20	reviewed	0x0015fb1f	survarium::game_options::apply_key_bindings
+0x001125d0	reviewed	0x000d17c8	vostok::logging::log_file::append
+0x00112740	reviewed	0x000d1909	vostok::logging::log_file::goto_line
+0x001127d0	reviewed	0x000d198b	vostok::logging::log_file::read_next_char
+0x001129a0	reviewed	0x000d1b5f	vostok::logging::log_file::process_next_line<vostok::logging::processor>

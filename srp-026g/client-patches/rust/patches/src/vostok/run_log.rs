@@ -11,7 +11,9 @@
 //!   `Survarium_<user>.2026-11-15_14-03-07.log` and the
 //!   patches' `srp_patches.2026-11-15_14-03-07.log`, both in `game\logs`.
 //! - A name of a stamp is never taken twice: a further file is past the
-//!   highest the stamp has ([`Kind::next_name`]).
+//!   highest the stamp has ([`Kind::next_name`]). A log another program
+//!   opens (the engine's) has its file made when it is named
+//!   ([`Kind::claim_next_name`]), so a game started in the same second sees it.
 //! - Deletion goes by the files' last writes, the least recent first (not
 //!   by the stamps: a clock set back), never a file of the running run's
 //!   stamp, past one Windows does not delete ([`Kind::prune`]).
@@ -27,7 +29,7 @@ use core::sync::atomic::{AtomicU32, Ordering};
 
 use super::clock::{FileTime, LocalTime};
 use super::context::Context;
-use super::files::{self, Find, FindData, Path};
+use super::files::{self, File, Find, FindData, Path};
 use super::hook::Thread;
 use crate::raw;
 
@@ -368,6 +370,20 @@ impl<'a> Kind<'a> {
             }
             seq = seq.next()?;
         }
+    }
+
+    /// [`Kind::next_name`] with its file made at once, empty (CREATE_NEW), for
+    /// a log another program opens later: a game started in the same second
+    /// sees it and takes the next. A name made between the walk and the
+    /// create (that other game) moves on to the next; none when none is made.
+    pub fn claim_next_name(&self, stamp: Stamp) -> Option<Name> {
+        for _ in Seq::FIRST.0..=Seq::LAST.0 {
+            let name = self.next_name(stamp)?;
+            if name.path().and_then(File::create_new).is_some() {
+                return Some(name);
+            }
+        }
+        None
     }
 
     /// The kind's files deleted, the least recently written first, while

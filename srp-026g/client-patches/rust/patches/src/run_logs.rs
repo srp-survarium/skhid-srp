@@ -38,7 +38,10 @@ pub fn on_engine_log(ctx: &mut Context<'_>) -> Flow<NoExit> {
     kind.make_folder();
     let cleared = engine.delete_all();
     let deleted = kind.prune(stamp);
-    let named = kind.next_name(stamp).is_some_and(|run| name.set(&run));
+    // the file made now, not by the engine later: two games started in the same second
+    // otherwise both open one file, and each console (which reads the file by its own
+    // count of lines and bytes) shows the other's lines, or none
+    let named = kind.claim_next_name(stamp).is_some_and(|run| name.set(&run));
     let said: &str = if named { "run_logs: the game's log is the run's, " } else { "run_logs: the game's log keeps its name (no room for the run's), " };
     log::line(&[Piece::Text(said), Piece::Dec(cleared), Piece::Text(" in its old folder and "), Piece::Dec(deleted),
                 Piece::Text(" old ones deleted")]);
