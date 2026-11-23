@@ -17,8 +17,36 @@ const LANE_FLOOR_M: f32 = 0.5;
 /// A goal that moved this much is planned to again, metres.
 pub(super) const REPLAN_MOVED_M: f32 = 2.0;
 /// [N1] A search due while the reckoned body is in the air waits at most this long a flight, ms: a fall's or a sprint jump's
-/// flight is under 1.5 s, and a kept controller that keeps saying "in the air" (a floor the grid lacks) holds no search longer.
+/// flight is under 1.5 s, and a reckoning that keeps saying "in the air" holds no search longer.
 pub(super) const IN_FLIGHT_HOLD_MS: u32 = 1_500;
+
+/// [N1b] The bench's counts of N1's holds (all matches of the run): the holds begun (the reckoning in its own flight), the ticks
+/// held, and the ticks a search went ahead with only the kept controller reading the body in the air (N1 held those before).
+#[cfg(test)]
+pub mod in_flight_counts {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNTS: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
+
+    /// A hold begun.
+    pub fn hold() {
+        COUNTS[0].fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// A tick held.
+    pub fn held_tick() {
+        COUNTS[1].fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// A tick searched with only the kept controller airborne.
+    pub fn kept_only() {
+        COUNTS[2].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn counts() -> [u64; 3] {
+        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
+}
 
 /// A world that puts the body this far from its reckoning plans again.
 pub(super) const REPLAN_ERROR_M: f32 = 2.0;
@@ -1290,22 +1318,38 @@ fn drive_tick_inner(
             let replan = replan || threat_ahead;
             // [N1] A search from mid-air plans from the floor the body is over, or from none ("its start on no floor"), and its
             // "no way" is proof for the plays: the 887 final round's no-way knock-ons after a fall or a drift (S095, S338 searched
-            // in the air). While the reckoned body is in the air on its own (the kept controller's verdict) and a search is due,
-            // none is started, for at most IN_FLIGHT_HOLD_MS a flight, with a line once a flight.
-            let airborne = bot.reckoned_kept.as_ref().is_some_and(body::KeptBody::airborne);
-            if !airborne {
+            // in the air). While the reckoned body is in its own flight and a search is due, none is started, for at most
+            // IN_FLIGHT_HOLD_MS a flight, with a line once a flight.
+            // [N1b] The flight is the reckoning's own (`bot.footing`: a jump arc or a gravity fall under way), not the kept
+            // controller's "left the ground" alone: in the spot suite on d0a561773, 215 of N1's 312 holds had the stand-in body
+            // on the ground (no flight, the feet's height unchanged), 69.7 of the 94.8 s held, and the bench counted every held
+            // tick of a bot with no route as stood. A search due with only the kept controller airborne goes ahead, with a line.
+            let flying = bot.footing == motor::Footing::Air;
+            if !flying {
                 bot.in_flight_since = None;
             }
             let in_flight = replan
-                && airborne
+                && flying
                 && match bot.in_flight_since {
                     Some(since) => time.wrapping_sub(since) < IN_FLIGHT_HOLD_MS,
                     None => {
                         bot.in_flight_since = Some(time);
+                        #[cfg(test)]
+                        in_flight_counts::hold();
                         bot.nav_log.push(super::nav_log::Kind::Fall, time, super::nav_log::in_flight_line(me.feet, at, IN_FLIGHT_HOLD_MS));
                         true
                     }
                 };
+            if replan && !flying && bot.reckoned_kept.as_ref().is_some_and(body::KeptBody::airborne) {
+                #[cfg(test)]
+                in_flight_counts::kept_only();
+                bot.nav_log.push_once(
+                    super::nav_log::Kind::InAir,
+                    u64::from(time / IN_FLIGHT_HOLD_MS),
+                    time,
+                    super::nav_log::kept_only_air_line(me.feet, at),
+                );
+            }
             // A goal with no way lately: not searched again every tick.
             let no_way = bot.no_way.is_some_and(|(goal, until)| {
                 time < until && goal.distance_xz(at) <= REPLAN_MOVED_M
@@ -1397,6 +1441,8 @@ fn drive_tick_inner(
                 };
             } else if replan && in_flight {
                 // [N1] In the air (a fall, a drift's drop, a jump): no search from there; the route it has meanwhile.
+                #[cfg(test)]
+                in_flight_counts::held_tick();
                 no_route = path::NoRoute::Searching;
             } else if waiting || (replan && !searching.may_start(bot.team)) {
                 #[cfg(test)]
