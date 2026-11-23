@@ -3929,6 +3929,10 @@ fn floor_kind(grid: &mapdata::WalkGrid, feet: Vec3) -> motor::Floor {
     }
 }
 
+/// [body physics S4b] A line-up's back or side keys are judged by the lip guard while the feet are within this of the take-off's
+/// height, m ([`guard_keys`]): on the take-off's floor, not up on the landing.
+const LINE_UP_LEVEL_M: f32 = 0.35;
+
 /// [`lip_guard_with`] on the tick's decision.
 fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &Tactics, tuning: &Tuning, time: u32) {
     #[cfg(test)]
@@ -3947,8 +3951,19 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
     // A jump (the route's, a hop) goes off the floor on purpose; [A1b] so does a body let go at a walk-off's release. [press forecast]
     // A body the press forecast stops (no press from this walk-in: it coasts up to `motor::let_go_travel_m` on) is judged as any.
     // [press forecast] A forecast press in its flight is left too (`Motor::press_flight`): the forecast flew it to its landing.
+    // [body physics S4b] A line-up is left only while it walks straight ahead (forward, no back or side key): a line-up whose view
+    // the fight holds on an enemy walks to its point with back and side keys, off the take-off's sides (the S4a gates' batt-m8-s2
+    // bot 7: 0x8a / 0x89 / 0x85 with AIM and FIRE, off the gap take-off at (-2.8, 34.9, 29.9) twice), and is judged as any walk.
+    // Only at the take-off's level (within [`LINE_UP_LEVEL_M`] of the route's take-off near the feet): a body up on the landing,
+    // still lining up, is left as before (tdm-m3-s1: braked to back and left there, it walked off the top it had landed on).
+    let straight = decision.keys & (key::BACK | key::LEFT | key::RIGHT) == 0;
+    let at_take_off = bot
+        .route
+        .as_ref()
+        .and_then(|(route, _)| take_off_near(route, me.feet))
+        .is_some_and(|(_, take_off)| (me.feet.y - take_off.y).abs() <= LINE_UP_LEVEL_M);
     if decision.keys & key::JUMP != 0
-        || (bot.motor.lining_up() && !bot.motor.press_stops())
+        || (bot.motor.lining_up() && !bot.motor.press_stops() && (straight || !at_take_off))
         || bot.motor.letting_go()
         || bot.motor.press_flight()
     {
@@ -4997,6 +5012,40 @@ mod tests {
         let mut bot = Bot::new(1, 0, 0, None, &tuning);
         bot.motor.carrying = true;
         assert_eq!(guarded(&mut bot), key::FORWARD, "a carried jump");
+    }
+
+    /// [body physics S4b] The guard leaves a line-up walking straight ahead at a rim (its take-off's lip), and judges one walking
+    /// there with a side key (a line-up whose view the fight holds elsewhere): held as any walk.
+    #[test]
+    fn the_guard_leaves_a_straight_line_up_only() {
+        let world = slab();
+        let tactics = crate::v026g::bots::tactics::Tactics::new(world.clone(), 1.0);
+        let tuning = crate::v026g::bots::tuning::Tuning::default();
+        let me = on_the_slab(55.4, -std::f32::consts::FRAC_PI_2, 3.5);
+        let guarded = |bot: &mut Bot, keys: u32| {
+            let mut decision = Decision { keys, turn: (0.0, 0.0) };
+            guard_keys(bot, &mut decision, &me, &tactics, &tuning, 1_000);
+            (decision.keys, bot.bench_guard)
+        };
+        let mut bot = Bot::new(1, 0, 0, None, &tuning);
+        bot.motor.test_line_up();
+        assert_eq!(guarded(&mut bot, key::FORWARD), (key::FORWARD, 5), "a line-up straight ahead is left");
+        // The route's jump off the rim: its take-off at the feet's level.
+        let way = |x: f32, y: f32, jump| path::Waypoint { at: Vec3::new(x, y, 33.0), node: 0, jump, low: false };
+        let route = path::Route::new(vec![way(52.0, 2.0, None), way(55.9, 2.0, None), way(57.5, 0.0, Some(path::Leap::Ledge))]);
+        let mut bot = Bot::new(1, 0, 0, None, &tuning);
+        bot.route = Some((route.clone(), route.end()));
+        bot.motor.test_line_up();
+        let (keys, verdict) = guarded(&mut bot, key::FORWARD | key::RIGHT | key::AIM);
+        assert!(verdict != 5 && keys & (key::FORWARD | key::RIGHT) != key::FORWARD | key::RIGHT, "a line-up with a side key is judged: {keys:#x} {verdict}");
+        // Up on a landing a metre over that take-off, still lining up: left (a brake there walked bodies back off the top).
+        let up = PlaceView { feet: me.feet + Vec3::new(0.0, 1.0, 0.0), ..me.clone() };
+        let mut bot = Bot::new(1, 0, 0, None, &tuning);
+        bot.route = Some((route.clone(), route.end()));
+        bot.motor.test_line_up();
+        let mut decision = Decision { keys: key::FORWARD | key::RIGHT, turn: (0.0, 0.0) };
+        guard_keys(&mut bot, &mut decision, &up, &tactics, &tuning, 1_000);
+        assert_eq!((decision.keys, bot.bench_guard), (key::FORWARD | key::RIGHT, 5), "up on the landing: left");
     }
 
     /// [press forecast] The guard leaves a forecast press in its flight (`Motor::press_flight`): the same walk at the same rim, out
