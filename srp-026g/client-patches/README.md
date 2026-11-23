@@ -3534,9 +3534,31 @@ movie (Settings.as) puts each row in its group's list (game, lobby, chat) in the
 and nothing takes a row by its place: the six functions and the movie name a row by its action
 (0x201150 collects the conflicting actions, 0x201248 and 0x2013A0 find a row by its action),
 user.cfg by the action's name. So `controls` lists the game's and the added rows together, each
-beside its relatives: movement; the weapon; grenade, melee, use, drop, hold artefact; the quick
-slots; patch 149's item keys (artefacts, medicines, grenades, the others); the spot, the chat and
-both push-to-talks; hide interface and the screenshots; then the lobby's and the chat's rows.
+beside its relatives: movement; the weapon; melee, use, drop, hold artefact; the items' three
+"next" keys (next grenade, next medkit, next artefact: the owner, 2026-11-23, "should be close
+by"); the quick slots; patch 149's other item keys (artefacts, medicines, grenades, the others);
+the spot, the chat and both push-to-talks; hide interface and the screenshots; then the lobby's
+and the chat's rows.
+
+**Settings > Controls > Bindings** (the owner, 2026-11-23: "so it is visible the whole state"): the
+main menu's window of the keyboard and the mouse with every key's action on it (SrpKeysWindow.as)
+asks the exe two things at `options.callback` (the Rust `key_bindings`, through hud_options' hook).
+`srp_keys` answers `root.srp_keys(table)`: a line per key of the binder's table at 0xA74FA0 (88h-byte
+rows {name, code, ...} to a name of 0, the table 0x201D4D reads: `K`, its name "kSPACE", its code,
+the dictionary's text) and a line per row of the controls (`A`, the action, the row's key as the menu
+has it, +10h: assign_binding 0x2013A0 keeps a key set there, the apply 0x201F40 compares it with
++3Ch); the rows are found as assign_binding finds them, by its table and count (0x2013C0, 0x20140D,
+which this patch points at `controls`). `srp_bind_key "action code"` gives that key to that row as a
+press of it while the menu waits for the row's key: the wait started as start_bind_key starts it
+(+3Ch the action, the cursor movie +10h off the scene [+30h], scaleform_callback 0x1FF899..0x1FF8A9),
+then the key as on_keyboard_action gives one (process_key_input 0x2010E0, finish_binding 0x2015A0 when
+it ends the wait), so the movie hears root.set_keybind or the game's conflict message shows, and
+Apply saves it as any other. A wait already running, no scene, Esc's code (1), or an action or code
+the tables lack gives nothing. `srp_unbind_key "code"` (the action selector's "no action") takes that
+key from every row that has it as a conflict's accepted reassign does (assign_binding of "" for each,
+0x1FF8E0). Each call answers the table. The keycaps' names the dictionaries
+lacked (kSYSRQ PrtSc, kCAPITAL, kLWIN/kRWIN, kLMENU/kRMENU, kAPPS, kPRIOR PgUp, kNEXT PgDn,
+kMULTIPLY, kDIVIDE) are in them now; the stock list shows them too.
 
 **The match.** `on_keyboard_action` (0x25CD00) asks the binder for kind 1 (0x25CD5F) and switches
 on actions 11h..19h (0x25CE1C, the table 0x25CF30); case 19h at 0x25CED1 (`mov esi,[esp+10h] /

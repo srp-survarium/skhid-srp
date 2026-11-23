@@ -65,6 +65,7 @@ pub mod battery_progress;
 pub mod weapon_stats;
 
 pub mod hud_options;
+pub mod key_bindings;
 // patch 167: no white hit marker through walls
 pub mod hit_marker_walls;
 // patch 191: a kill made in a re-simulation keeps its kill marker

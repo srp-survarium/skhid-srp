@@ -129,6 +129,9 @@ package survarium.menu
       // (layoutControls); null until then.
       protected var _controlsSpacing:Object = null;
       
+      // The controls tab's "Bindings" button and its window: the keyboard, the mouse and every key row (SrpKeysWindow).
+      protected var _keysWindow:SrpKeysWindow;
+      
       public function Settings()
       {
          super();
@@ -258,6 +261,13 @@ package survarium.menu
          {
             this.settings_content.keysGame.invalidateData();
          }
+         this._keysWindow.refresh();
+      }
+      
+      // The exe's table of the keys for the Bindings window (root.srp_keys, key_bindings.rs).
+      public function setBindingKeys(table:String) : void
+      {
+         this._keysWindow.answerKeys(table);
       }
       
       // The exe's answer to the Language choice (root.srp_language): the saved
@@ -340,7 +350,8 @@ package survarium.menu
       
       // The HUD group's own texts (root.srp_hud_texts): the heading, "Hide quests", the crosshair
       // list's three choices, "Static minimap"; then the Renderer list's two choices, its note, and
-      // the Vulkan options' button and its five options' hints.
+      // the Vulkan options' button and its five options' hints; then the Key bindings button's text
+      // and its window's five kinds of action (SrpKeysWindow).
       public function setHudTexts(values:Array) : void
       {
          if(values.length >= 15)
@@ -348,6 +359,10 @@ package survarium.menu
             _hudTexts = values;
             this.applyHudTexts();
             this._renderer.texts(values[6],values[7],values[8],values[9],values.slice(10,15));
+         }
+         if(values.length >= 21)
+         {
+            this._keysWindow.texts(values[15],values.slice(16,21));
          }
       }
       
@@ -396,6 +411,7 @@ package survarium.menu
       {
          var messageData:Object;
          this._renderer.close();
+         this._keysWindow.close();
          this._micTest.stop();
          if(this.btn_accept.enabled)
          {
@@ -539,6 +555,7 @@ package survarium.menu
             {
                this.settings_content.keysLobby.height = this.settings_content.keysLobby.dataProvider.length * this.settings_content.keysLobby.rowHeight;
             }
+            this._keysWindow.rows(this._keys);
             // the chat's rows decide where its group stands in the right column
             this.layoutControls();
          }
@@ -706,6 +723,8 @@ package survarium.menu
          this._language = new SrpLanguage(this.settings_content,this.settings_content.s_friends);
          this._changed[this._language.menu] = 0;
          this._language.menu.addEventListener(ListEvent.INDEX_CHANGE,this.languageChanged);
+         this._keysWindow = new SrpKeysWindow(this.settings_content);
+         addChild(this._keysWindow);
          this.tabs.addEventListener(IndexEvent.INDEX_CHANGE,this.takeAction);
       }
       
@@ -715,6 +734,7 @@ package survarium.menu
          this._mouse.place();
          this._fov.place();
          this._micTest.place();
+         this._keysWindow.place();
          this._microphone.place();
          this._renderer.place();
          SrpDistanceDetail.apply(this);
@@ -962,10 +982,11 @@ package survarium.menu
          this.listChanged(this._language.menu,this._language.pending);
       }
       
-      // Esc: the Vulkan options' panel closed, when it is open (MainMenu closes the window otherwise).
+      // Esc: the Key bindings window or the Vulkan options' panel closed, when it is open (MainMenu closes
+      // the Settings window otherwise).
       public function closePanel() : Boolean
       {
-         return this._renderer.close();
+         return this._keysWindow.close() || this._renderer.close();
       }
       
       // A Renderer pick or a Vulkan option changed, the same way.
@@ -1126,6 +1147,10 @@ package survarium.menu
       // right column under the game's, whose list (it scrolls) ends where they begin.
       protected static const GAME_LIST_GAP:Number = 4;
 
+      // The controls tab's left column's right end (its divider), and Invert mouse to the buttons under it.
+      protected static const LEFT_COLUMN_END:Number = 289;
+      protected static const BUTTONS_GAP:Number = 18;
+
       protected function layoutControls() : void
       {
          var c:MovieClip = this.settings_content;
@@ -1167,6 +1192,20 @@ package survarium.menu
          // left under the last one showed as room for one more; the owner, 2026-11-11): as many as
          // fit over the chat's heading, the gap to it the tab's own at most, GAME_LIST_GAP at least
          c.keysGame.height = Math.floor((c.s_chat_keys.y - GAME_LIST_GAP - c.keysGame.y) / c.keysGame.rowHeight) * c.keysGame.rowHeight;
+         // the key bindings are the Bindings window's alone (the owner, 2026-11-23: "we don't need two"): the
+         // tab's lists and their headings hidden, the Bindings button and Default settings in the left column
+         // under Invert mouse ("both options can move to left", "right can be left empty"); the exe still binds
+         // and fills the lists by name: they stay in the timeline
+         for each(var list:String in ["keysGame","keysLobby","keysChat","s_lobby","s_chat_keys","s_game"])
+         {
+            if(c[list] is DisplayObject)
+            {
+               DisplayObject(c[list]).visible = false;
+            }
+         }
+         var invert:Object = c._setter_inverse_mouse;
+         this._keysWindow.layout(c.button_default_controls,c._slider_mouse_sens.x,LEFT_COLUMN_END,
+            invert.y + Math.max(invert.textField.y + invert.textField.textHeight + 4,26) + BUTTONS_GAP);
       }
       
       // The option of the HUD group whose checkbox `control` is, or null.
