@@ -962,6 +962,9 @@ const HOP_STEP_M: f32 = 0.5;
 /// The trail's floors this far to a side of the way, metres, are the
 /// ground about the body.
 const HOP_SIDE_M: f32 = 1.0;
+/// [fix-lip] The route's heights are read this often, metres, between the feet and a drop's take-off ([`Motor::climbs_before`]): a
+/// grid cell.
+const HOP_CLIMB_STEP_M: f32 = 0.25;
 
 /// The walk keys are the set nearest the way to go, and a set is held at
 /// least this many ticks (100 ms) while the way stays within
@@ -5145,9 +5148,16 @@ impl Motor {
         // take-off further behind is a drop the body is past (the combined bench's tdm-m6-s2, a hop kept off 2.31 m past one).
         // The window's end stays where the jumps' is (`from` + 2 `hop_look_m`); a drop leg the feet are on already reads as its take-off.
         let back = (s - mapdata::Body::client().hold_radius()).max(from);
-        let drop_near = route
+        let drop_edge = route
             .next_drop_edge_along(back, from + 2.0 * feel.hop_look_m - back, feel.drop_truth)
             .filter(|&edge| edge >= back);
+        // [fix-lip] But not when the route climbs a hop's rise between the feet and that take-off ([`Self::climbs_before`]): the rise
+        // the body is caught on lies before the drop, and the drop's top is out of reach until it is over it. The combined bench's
+        // tdm-m5-s3 and batt-m5-s2 (d501b9da8): 5 bots held 2-3 s at a 0.35 m lip at (-56.0, 8.4, 11.3) whose top carries a drop's
+        // take-off 0.96 m on, the hop kept off it ("stalls at a step"); the grid's floors on the way are 8.86-8.96 against the
+        // feet's 8.45, and the game's own lip top is 8.735 (the capture, `under_feet_v1.py`). S222's hop was on the drop's top.
+        let climb = drop_edge.is_some_and(|edge| self.climbs_before(route, s, edge, feet));
+        let drop_near = drop_edge.filter(|_| !climb);
         let hop_but_drop = may
             && !self.carrying
             && cooled
@@ -5157,6 +5167,17 @@ impl Motor {
             && self.stalled(feet, held_short_m)
             && self.rises(route, s, feet);
         let hop = hop_but_drop && drop_near.is_none();
+        if hop && climb {
+            hop_off_drops::climbed();
+            self.hop_line = Some(format!(
+                "{}hop over a rise before the route's drop: feet ({:.2}, {:.2}, {:.2}), its take-off {:.2} m on along the route",
+                super::nav_log::PREFIX,
+                feet.x,
+                feet.y,
+                feet.z,
+                drop_edge.map_or(0.0, |edge| edge - s)
+            ));
+        }
         if hop_but_drop && let Some(edge) = drop_near {
             hop_off_drops::kept();
             self.hop_line = Some(format!(
@@ -5182,6 +5203,19 @@ impl Motor {
         } else {
             0
         }
+    }
+
+    /// [fix-lip] Whether the route climbs by a hop's rise ([`Feel::hop_rise_m`]) from the feet to the take-off at `edge` metres along
+    /// it: its highest point from `s` to `edge` (each [`HOP_CLIMB_STEP_M`]), against the feet's height.
+    fn climbs_before(&self, route: &Route, s: f32, edge: f32, feet: Vec3) -> bool {
+        let (low, high) = self.feel.hop_rise_m.get();
+        let height = self.heights();
+        let steps = ((edge - s).max(0.0) / HOP_CLIMB_STEP_M).ceil() as usize;
+        let top = (0..=steps)
+            .map(|k| route.at((s + k as f32 * HOP_CLIMB_STEP_M).min(edge.max(s)), height).y)
+            .fold(f32::NEG_INFINITY, f32::max);
+        let rise = top - feet.y;
+        rise >= low && rise <= high
     }
 
     /// Whether the feet now are well behind the last tick's along the way
@@ -6462,15 +6496,27 @@ pub mod hop_off_drops {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     static KEPT: AtomicU64 = AtomicU64::new(0);
+    static CLIMBED: AtomicU64 = AtomicU64::new(0);
 
     pub fn kept() {
         KEPT.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// [fix-lip] A hop let through by a drop ahead: the route climbs a hop's rise before its take-off.
+    pub fn climbed() {
+        CLIMBED.fetch_add(1, Ordering::Relaxed);
     }
 
     /// The hops kept off so far.
     #[cfg(test)]
     pub fn count() -> u64 {
         KEPT.load(Ordering::Relaxed)
+    }
+
+    /// [fix-lip] The hops let through over a rise before a drop so far.
+    #[cfg(test)]
+    pub fn climbed_count() -> u64 {
+        CLIMBED.load(Ordering::Relaxed)
     }
 }
 
@@ -9784,6 +9830,36 @@ mod tests {
             ]);
             let jumps = reckoned(&mut motor, &mut route, lip, caught(0.0), 100, aiming);
             assert_eq!(jumps, [0, 60], "after a planned jump, aiming {aiming}");
+        }
+    }
+
+    /// [fix-lip] A body caught at the lip (x 5, 0.4 m) with a drop of the route ahead: no hop where the route's heights are flat
+    /// to the drop's take-off (S222: a hop on the drop's top flew the body past its landing), and a hop where the route climbs the
+    /// lip to a take-off on its top ([`Motor::climbs_before`]: the combined bench's map 5 lip, held at its foot).
+    #[test]
+    fn a_hop_is_kept_off_a_drop_unless_the_route_climbs_to_its_take_off() {
+        let mut rng = Rng::new(15);
+        let point = |x: f32, y: f32| Waypoint { at: Vec3::new(x, y, 0.0), node: 0, jump: None, low: false };
+        for aiming in [false, true] {
+            // Flat to the take-off at x 5.6 (the route's progress there when the world puts the body back at 4.6), down 2 m by x 6.
+            let mut flat = Route::new(vec![point(0.0, 0.0), point(5.6, 0.0), point(6.0, -2.0), point(30.0, -2.0)]);
+            let mut motor = Motor::new(Feel::default(), &mut rng);
+            let jumps = reckoned(&mut motor, &mut flat, lip, caught(0.0), 100, aiming);
+            assert!(jumps.is_empty(), "flat to the drop, aiming {aiming}: {jumps:?}");
+            // Up the lip (0.4 m by x 5) to the take-off on its top at x 5.6, down 2.4 m by x 6.
+            let mut up = Route::new(vec![
+                point(0.0, 0.0),
+                point(4.8, 0.0),
+                point(5.0, 0.4),
+                point(5.6, 0.4),
+                point(6.0, -2.0),
+                point(30.0, -2.0),
+            ]);
+            let before = hop_off_drops::climbed_count();
+            let mut motor = Motor::new(Feel::default(), &mut rng);
+            let jumps = reckoned(&mut motor, &mut up, lip, caught(0.0), 100, aiming);
+            assert_eq!(jumps, [30], "up the lip to the drop, aiming {aiming}");
+            assert!(hop_off_drops::climbed_count() > before, "its line's tally");
         }
     }
 
