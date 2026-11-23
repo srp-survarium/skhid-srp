@@ -73,6 +73,8 @@ fn ring_floors() -> usize {
 pub struct Second {
     pub plain: Option<Route>,
     pub body: CrossBody,
+    /// [no-way crossing] Asked by [`wanted_past_shuts`].
+    pub past_shuts: bool,
 }
 
 /// [zone price] The body a crossing is weighed for: its zone budget (`zone_cost::Budget`: the pools that kill and the
@@ -208,6 +210,78 @@ pub fn wanted(
 /// (A282, PROVEN by probe: 16-32 such floors by each edge of Vostok Radar Station's and Mamayev Kurgan's zone batteries).
 pub fn wanted_from_zone(tactics: &Tactics, plain: Option<&Route>, from: NodeId, to: NodeId) -> bool {
     plain.is_none() && tactics.hazards.only_fixed_at(from) && tactics.world.grid.may_reach(from, to)
+}
+
+/// [no-way crossing] Whether a crossing's search is asked though [`wanted`] says no: the plain search from floor `from` to
+/// `to` found no way while the body holds shut landings (`held`: the jumps and drops it gave up, the team's dead links), on
+/// a map with zones on all match, both ends in one piece of the grid. [`wanted`] asks the regions' graph
+/// (`Tactics::only_across_fixed`), which is the grid's with all its links: it reaches the goal over a link those shuts cut,
+/// so it said the plain search failed for something else, and no crossing was searched. Mamayev Kurgan's pit (the bench of
+/// 2026-11-23: tdm-m6 s1-s3, batt-m6-s3; probe on level_06 day 4): in a fire's soft damage on all match (0.04 a second), its
+/// ways out jumps the client does not make from rest. Its bodies stood 24-83 s after their first proven no-way, until a
+/// zone band exit happened to walk them out over the zone's floors. The crossing's own rules then decide ([`choose`]: the
+/// start gate on the pools it takes and `bears`, else the walk out of the ring only, else none).
+pub fn wanted_past_shuts(tactics: &Tactics, plain: Option<&Route>, from: NodeId, to: NodeId, held: bool) -> bool {
+    plain.is_none()
+        && held
+        && tactics.hazards.zones.iter().any(|zone| !zone.switches())
+        && tactics.world.grid.may_reach(from, to)
+}
+
+/// [no-way crossing] A crossing route `route` to `goal` taken by [`wanted_past_shuts`]'s search for a body of `health` at
+/// `time` from `from`, with `held` shut landings: kept in `state` for its end ([`past_shuts_ended`]), and its log line.
+pub fn past_shuts_taken(state: &mut BotState, route: &Route, goal: Vec3, health: f32, from: Vec3, held: usize, time: u32) -> String {
+    #[cfg(test)]
+    past_shuts::count(past_shuts::TAKEN);
+    state.past_shuts = Some(PastShuts { since: time, health, goal });
+    format!(
+        "{}crossing past its shut landings: no way over the allowed floors from {} with {held} shut landings held; a \
+         crossing of {:.1} m to {}, health {health:.3} at its start",
+        super::nav_log::PREFIX,
+        super::nav_log::at(from),
+        route.length(),
+        super::nav_log::at(goal),
+    )
+}
+
+/// [no-way crossing] The end of a crossing [`past_shuts_taken`] kept: the bot's route (its goal `route_goal`) is done or
+/// another. Its log line, with the health at its start and now (`health`) and the feet (`feet`).
+pub fn past_shuts_ended(state: &mut BotState, route_goal: Option<Vec3>, health: f32, feet: Vec3, time: u32) -> Option<String> {
+    let past = state.past_shuts?;
+    if route_goal.is_some_and(|goal| goal.distance_xz(past.goal) <= 0.1 && (goal.y - past.goal.y).abs() <= 0.1) {
+        return None;
+    }
+    state.past_shuts = None;
+    #[cfg(test)]
+    past_shuts::count(past_shuts::ENDED);
+    Some(format!(
+        "{}crossing past its shut landings ended after {} ms at {}: health {:.3} at its start, {health:.3} now",
+        super::nav_log::PREFIX,
+        time.wrapping_sub(past.since),
+        super::nav_log::at(feet),
+        past.health,
+    ))
+}
+
+/// [no-way crossing] The bench's counts of [`wanted_past_shuts`]'s crossings: asked, found, taken, ended.
+#[cfg(test)]
+pub mod past_shuts {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    pub const ASKED: usize = 0;
+    pub const FOUND: usize = 1;
+    pub const TAKEN: usize = 2;
+    pub const ENDED: usize = 3;
+
+    static COUNTS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+
+    pub fn count(kind: usize) {
+        COUNTS[kind].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn counts() -> [u64; 4] {
+        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
 }
 
 /// Whether the line from `a` to `b` passes over a floor a bot of `health`
@@ -581,6 +655,16 @@ pub struct BotState {
     /// The armour it wears against a zone's hits (`zone_cost.rs`), set at the match's start from its kit; it
     /// outlasts a life.
     pub armour: std::sync::Arc<super::zone_cost::ZoneArmour>,
+    /// [no-way crossing] A crossing past its shut landings under way ([`past_shuts_taken`]).
+    pub past_shuts: Option<PastShuts>,
+}
+
+/// [no-way crossing] A crossing [`past_shuts_taken`] kept: when, the health then, and its goal.
+#[derive(Clone, Copy, Debug)]
+pub struct PastShuts {
+    pub since: u32,
+    pub health: f32,
+    pub goal: Vec3,
 }
 
 impl Feature for BotState {
@@ -813,6 +897,46 @@ pub(crate) mod tests {
         let low = fixture(1.0).give_up_left + cost / 2.0;
         assert!(!still_borne(&weak, &route, 0.0, &fixture(low)));
         assert!(still_borne(&weak, &route, route.length(), &fixture(low)));
+    }
+
+    /// [no-way crossing] A plain search that found no way while the body holds shut landings asks the crossing's search though
+    /// the regions may see a way (Mamayev Kurgan's pit: its gap jumps the body gave up); not with no shut held (`wanted`'s call
+    /// alone), not past a plain way found, not on a map with no zone on all match.
+    #[test]
+    fn a_no_way_with_shut_landings_held_asks_the_crossings_search() {
+        let weak = tactics(0.04, 0.0);
+        let grid = &weak.world.grid;
+        let (a, b) = (grid.locate(WEST, 1.5).unwrap(), grid.locate(EAST, 1.5).unwrap());
+        assert!(wanted_past_shuts(&weak, None, a, b, true));
+        assert!(!wanted_past_shuts(&weak, None, a, b, false), "no shut held");
+        let plain = tactics(0.0, 0.0);
+        let pg = &plain.world.grid;
+        let (pa, pb) = (pg.locate(WEST, 1.5).unwrap(), pg.locate(EAST, 1.5).unwrap());
+        let route = plain.route_nodes(pa, pb, 0, Some(0), false, &RouteFilter::open());
+        assert!(route.is_some());
+        assert!(!wanted_past_shuts(&weak, route.as_ref(), a, b, true), "a plain way is kept");
+        assert!(!wanted_past_shuts(&plain, None, pa, pb, true), "no zone on all match");
+    }
+
+    /// [no-way crossing] A crossing past shut landings is kept while the bot's route heads to its goal, and logged with the
+    /// health at its start and at its end, once.
+    #[test]
+    fn a_crossing_past_shut_landings_is_kept_until_its_route_ends() {
+        let plain = tactics(0.0, 0.0);
+        let grid = &plain.world.grid;
+        let (a, b) = (grid.locate(WEST, 1.5).unwrap(), grid.locate(EAST, 1.5).unwrap());
+        let route = plain.route_nodes(a, b, 0, Some(0), false, &RouteFilter::open()).expect("a route");
+        let mut state = BotState::default();
+        let line = past_shuts_taken(&mut state, &route, EAST, 0.9, WEST, 2, 1_000);
+        assert!(line.contains("2 shut landings held") && line.contains("health 0.900 at its start"), "{line}");
+        assert_eq!(past_shuts_ended(&mut state, Some(EAST), 0.8, WEST, 2_000), None, "still heading there");
+        let end = past_shuts_ended(&mut state, None, 0.75, EAST, 5_000).expect("ended");
+        assert!(end.contains("after 4000 ms") && end.contains("health 0.900 at its start, 0.750 now"), "{end}");
+        assert!(state.past_shuts.is_none());
+        assert_eq!(past_shuts_ended(&mut state, None, 0.7, EAST, 6_000), None, "told once");
+        // Another route's goal ends it too.
+        past_shuts_taken(&mut state, &route, EAST, 0.9, WEST, 1, 7_000);
+        assert!(past_shuts_ended(&mut state, Some(WEST), 0.9, WEST, 8_000).is_some());
     }
 
     /// With no zone, the plain route stands and no second search is made.

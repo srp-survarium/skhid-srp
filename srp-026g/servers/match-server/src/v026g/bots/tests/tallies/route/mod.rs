@@ -154,6 +154,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         foliage(),
         grass(),
         self_kills(),
+        past_shuts(),
         drop_shuts(),
         dead_links(),
         keep_off(),

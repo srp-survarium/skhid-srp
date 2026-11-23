@@ -1909,6 +1909,8 @@ fn drive_tick_inner(
                 let cross_body = crossing::CrossBody::of(tuning, view, me, bot.features.stock.pools, &bot.features.crossing.armour);
                 // [take.cross_from_zone] Asked from a zone floor though `wanted` says no.
                 let mut from_zone = false;
+                // [no-way crossing] Asked for a no-way its shut landings may make (`crossing::wanted_past_shuts`).
+                let mut past_shuts = false;
                 if left.is_none()
                     && !escaping
                     && !there
@@ -1926,10 +1928,17 @@ fn drive_tick_inner(
                         from_zone = tuning.take.cross_from_zone.is_some()
                             && crossing::wanted_from_zone(tactics, route.as_ref(), from, to);
                         from_zone
+                    } || {
+                        past_shuts = crossing::wanted_past_shuts(tactics, route.as_ref(), from, to, !hard.landings().is_empty());
+                        past_shuts
                     })
                 {
                     if from_zone {
                         plays::collect::take_counts::count(plays::collect::take_counts::Count::ZoneSearchAsked);
+                    }
+                    #[cfg(test)]
+                    if past_shuts {
+                        crossing::past_shuts::count(crossing::past_shuts::ASKED);
                     }
                     match crossing::start(
                         tactics, from, to, time, side, objective, &cross_body, &hard, floors,
@@ -1938,6 +1947,10 @@ fn drive_tick_inner(
                         Ok(crossing_route) => {
                             if from_zone && crossing_route.is_some() {
                                 plays::collect::take_counts::count(plays::collect::take_counts::Count::ZoneSearchFound);
+                            }
+                            #[cfg(test)]
+                            if past_shuts && crossing_route.is_some() {
+                                crossing::past_shuts::count(crossing::past_shuts::FOUND);
                             }
                             let (kept, line);
                             (route, crossed, kept, line) = crossing::choose(
@@ -1956,6 +1969,19 @@ fn drive_tick_inner(
                             if let Some(line) = line {
                                 bot.nav_log.push(super::nav_log::Kind::Route, time, line);
                             }
+                            if past_shuts && let Some(taken) = route.as_ref() {
+                                let held = hard.landings().len();
+                                let line = crossing::past_shuts_taken(
+                                    &mut bot.features.crossing,
+                                    taken,
+                                    at,
+                                    cross_body.health(),
+                                    me.feet,
+                                    held,
+                                    time,
+                                );
+                                bot.nav_log.push(super::nav_log::Kind::Route, time, line);
+                            }
                         }
                         Err(planning) => {
                             let plain = route.take();
@@ -1964,6 +1990,7 @@ fn drive_tick_inner(
                                 crossing::Second {
                                     plain,
                                     body: cross_body.clone(),
+                                    past_shuts,
                                 },
                             ));
                         }
@@ -2118,6 +2145,11 @@ fn drive_tick_inner(
                 Pace::Cruise | Pace::Arrive => motor::Gait::Cruise,
                 Pace::Walk | Pace::Sneak => motor::Gait::Walk,
             };
+            // [no-way crossing] A crossing past its shut landings: its end (its route done or another), the health then.
+            let route_goal = bot.route.as_ref().map(|&(_, at)| at);
+            if let Some(line) = crossing::past_shuts_ended(&mut bot.features.crossing, route_goal, me.health, me.feet, time) {
+                bot.nav_log.push(super::nav_log::Kind::Route, time, line);
+            }
             match bot.route.as_mut() {
                 Some((route, route_at)) => {
                     // `route_at` is the goal's `at`, copied unchanged where

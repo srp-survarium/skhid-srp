@@ -861,6 +861,20 @@ pub(super) fn grass() -> Box<dyn RouteTopic> {
     )
 }
 
+/// [no-way crossing] The crossings asked for a no-way a body's shut landings may make, found, taken, and ended
+/// (`crossing::past_shuts`).
+pub(super) fn past_shuts() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::crossing::past_shuts::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!(
+                "cross_past_shuts_asked {} cross_past_shuts_found {} cross_past_shuts_taken {} cross_past_shuts_ended {}",
+                d[0], d[1], d[2], d[3]
+            ));
+        },
+    )
+}
+
 /// Bots that killed themselves with nothing left to try, the second tries, and those barred after two
 /// (`stuck::self_kills`).
 pub(super) fn self_kills() -> Box<dyn RouteTopic> {
