@@ -202,7 +202,7 @@ and no cascades of its own     0.5 .. 0.8   0.9 .. 1.1       -        ms GPU
 
 ## 6. Seeing an aimed optic headless (diagnostics)
 
-- `srp-map-sur <map> <out.sur> --hold <gun>[:<optic>[:<rounds>]] [--enter <ms>] [--aim <ms>]`
+- `srp-map-sur <map> <out.sur> --hold <gun>[:<optic>[:<rounds>]] [--enter <ms>] [--aim <ms>] [--move <ms>]`
   (`sur_convert::of_map` with a `Holder`): the map's replay with its one place entering at 1 s with
   one kit, the gun in slot 7 with the optic's record as the lobby writes it
   (`{optic item, its dict id, 0, 3}`), its rounds in slot 8, and the aim key (0x80) held from 30 s to
@@ -351,3 +351,94 @@ still moves to the eye: the glass is really there then (seen headless too: `(0.1
 
 The owner's comment on the match start's orbit camera ("it is just glass you don't see markers",
 "nor it is magnifying") is open with the coordinator: nothing done.
+
+## 10. Round 4 (exe `pip-scopes-4`)
+
+Seen headless with `resources.db.patch_74` and `_75` mounted (the rig: `capture.py --hold ... --move-ms`,
+`srp-map-sur --move`: from then on the place strafes left and right by turns, forward with each, 700 ms
+a strafe, aiming). Pairs: `private/renders/pip-probe/round4/` (README there).
+
+**1. The lens while moving.** Now placed from the real optic as the frame draws it: the idle model's
+own world matrix (a record's +50h) and the drawn scene view's own camera (+3ACh view, +42Ch projection,
+read at the frame's `render.begin`). Headless, standing and strafing, the disc stays on the real
+glass for every kit, and at an aim's first frames (`aim0`) it is where the glass is. Cause of round
+3's offset, by elimination: the aimed glass's bound sphere is not late against its matrix (its
+model-space centre computed each 30 frames stayed constant while strafing); round 3 took the frame's
+camera from the game's thread (`FRAME_CAMERA`, at `game.draw_scene`), which LIKELY runs a frame
+ahead of the render thread in the owner's game (the render thread never idles, the game thread's
+interval equals it). Headless the game thread does not run ahead (the diagnostic line `the drawn
+camera is ... from the one the game's thread queued last` reads 0), so this is not PROVEN; the next
+play log's line says.
+
+**2. The disc is the real rear glass.** Its round from the meshes (section 3). Round 3's disc was the
+aimed model's bound sphere: a flat round's sphere is its box's, the radius times the root of 2 (41 %
+too large: it covered the eyepiece's inner ring). The frame's depth cannot hide what is in front of
+the glass: `$user$position` reads about 26-28 mm for every first-person surface whatever its distance
+(LIKELY: the first-person models are drawn with a projection of their own depth, 0x13E010 under the
+byte 0xA71BC6, near and far from the stage renderer's +A0h/+A4h), so the disc has no depth test. Per kit (the idle model's rear
+glass against the aimed glass in the optic's space, mm; the lens at full aim, its radius in half
+heights and its distance from the eye):
+
+```
+optic (kits)                          rear glass r, z   aimed glass r, z   lens     distance
+Leupold 3-7 (AK-74M)                  19, -116          18, -121           0.325    94
+PSO-1 (SVD)                           11, -172          13, -230           0.145   125
+PSO-1 old (Vityaz)                    16, -151          16, -200           0.200   129
+1P69 Hyperon (Rem 700)                17, -168          17, -166           0.309    89
+Leupold Mk4 (TOZ-122, Vepr)           14, -128          14, -130           0.378    60
+ACOG TA31 / TA01 (AK-74U, SV-98, Uzi, Winchester)
+                                      11, -101          10, -101           0.296    59
+ELCAN SpecterDR (AKMN, SKS)           16,  -76          15,  -75           0.400    66
+PU 3.5x (Mosin)                       15, -108          14, -107           0.194   125
+aperture (RPD, Kiparis)               15,  -35          15,  -35           0.225   107
+```
+
+The content's limit: the two PSO-1s' third-person models have their rear glass 50 to 58 mm deeper
+than the first-person eyepiece the aim was made for, at the bottom of a long rubber eyecup, so their
+lens is small (0.145 and 0.2 half heights against today's full screen); the eyecups and the
+eyepieces of the third-person models are single-sided: while strafing (the eye off the axis) their
+insides show the world through back faces, light shards around the PSO-1's lens (`move1`, `move2`).
+The aperture sight's glass is its own (radius 15 at 107 mm). Every other optic's rear glass is its
+eyepiece's opening within 5 mm of the aimed one.
+
+**3. Brightness.** (a) The centre of the picture (60 px square, standing, the same moment) is 0.71 to
+0.87 times as bright as today's scope's (mean grey 99 to 109 against 120 to 147, every kit; `lum.sh`
+in the rig folder): the second view adapts its own eye to its own picture and lands darker than the
+frame's eye does on today's zoomed view. Not fixed: the picture should take the frame's exposure
+(the second view's draw given the frame window's adapted luminance; one try in round 1 came out
+plainly off). The
+dim green-grey picture was LIKELY the see-through glass of patch 75 (2): drawn in the second view
+from the list +494h (not filtered in round 3), over the whole picture. (b) the optic in view is drawn
+from the same forward-lit first-person list as at the hip (the scan of the lists, section 6): its
+rear face is lit as any surface facing away from a lamp above and ahead.
+
+**4. Circle in circle.** The second view's lists holding the eyes' models were found by a scan of
+the drawn scene view (`SKHID_PIP_LOG`): the idle optic's glass (patch 75, `forward_lighting_no_distort`)
+is on +494h, a vector beside the G-buffer's (stage_visibility fills it, 0x1B792A;
+accumulate_motion_vectors reads both, 0x1B1CE7), which round 3 did not filter. Now filtered at
+`gbuffer.models` with the G-buffer list, before any stage draws: in the second view the eyes'
+first-person surfaces are on no list but the aimed model's reticle; in the frame the aimed model is
+on none. The real glass does not tint the picture: the disc is drawn after the frame.
+
+**5. Cost.** The picture is now the smallest of 512, 768 and 1024 at least as wide as the lens: at
+1440p 512 for the Leupold 3-7, the Hyperon, the ACOGs, the PU, the apertures and the PSO-1s, 768 for
+the Leupold Mk4 and the ELCAN; never 1024 at 1440p (round 3 drew every lens from the 1024 one, its
+first lens guess 648 px). The timing lines split the Present (its call to its return) from
+r_gpu_sync's wait after it (`render.present_done`). Headless (1080p, the rig's 60 fps cap and display
+pacing, a GPU shared with other jobs, 240 frames a line, aimed, 512): the second view 0.8 to 1.4 ms
+of the render thread and 0.45 to 2.3 ms of GPU; the GPU wait after the Present 0.15 to 0.5 ms. At
+960 x 540 uncapped the rig's display still paces every frame (Present 10 to 12 ms), so no interval
+is measured here. The owner's round-3 log: the frame was GPU-bound while aimed (main GPU 6.8 to 7.5
+ms plus the second view's 2.8 to 3.5 ms at 1024 against an interval of 10.2 ms; the frame's CPU grew
+with them, LIKELY DXVK's queue blocking its submissions): with 512 his second view should cost about
+1.5 ms of GPU (his 512 window of round 3: 0.75 to 1.5). The frame's own GPU growth when aimed (5.9
+to 6.8 ms) is not found: LIKELY the real gun, optic and hands now large on the screen in the
+forward-lit first-person pass (today's swap draws only the eyepiece). The next play log says.
+
+Polish from the reference (`stalker-dlss-fg-bodycam-pip`, ideas only): not added this round. Fitting
+and cheap, for a next round: the exit-pupil shadow (a dark crescent that closes in when the eye is
+off the optic's axis; here the eye's offset is known each frame from the glass's place), a softer
+field stop at the rim tied to the magnification, and the picture's exposure taken from the frame's.
+Left out: their objective-mounted camera and off-axis projection (ours stays the eyes' aim, where
+shots go), their near-plane fitting (the second view leaves the first-person models out), their
+stamping of TAA and distortion masks (the disc is drawn after the frame's post-process).
