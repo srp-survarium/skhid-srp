@@ -4,6 +4,7 @@ members = [
   "crates/sign-in-cipher",
   "crates/binary-config-parser",
   "crates/mapdata",
+  "crates/mapdata-srchash",
   "crates/research-rule",
   "crates/resources-db",
   "crates/session",
@@ -67,6 +68,10 @@ serde_json = { version = "1.0.140", features = ["std"] }
 sha2 = "0.10"
 socket2 = { version = "0.5", features = ["all"] }
 thiserror = "2.0.12"
+# `mapdata-srchash`: the source digests of the grid builder, from its items' tokens (the versions Cargo.lock already has).
+proc-macro2 = "1.0.97"
+quote = "1.0.40"
+syn = { version = "2.0.105", features = ["full"] }
 
 env_logger = "0.10"
 log = "0.4"

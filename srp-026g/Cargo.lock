@@ -501,9 +501,19 @@ dependencies = [
  "artefact-carry",
  "binary-config-parser",
  "clap",
+ "mapdata-srchash",
  "resources-db",
  "serde_json",
  "survarium",
+]
+
+[[package]]
+name = "mapdata-srchash"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

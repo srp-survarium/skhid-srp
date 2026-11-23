@@ -14,6 +14,10 @@ resources-db = { workspace = true }
 # The map table (map id -> project) for `mapdata-dump`.
 survarium = { workspace = true }
 
+[build-dependencies]
+# [incremental grids] The source digests baked into `mapdata::source` (`build.rs`).
+mapdata-srchash = { path = "../mapdata-srchash" }
+
 [dev-dependencies]
 serde_json = { workspace = true }
 artefact-carry = { path = "../artefact-carry" }
