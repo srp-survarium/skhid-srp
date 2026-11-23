@@ -731,12 +731,15 @@ release_tag() { printf '026g-rev%s' "$1"; }
 record_branch() { printf 'release/record-rev%s' "$1"; }
 # The changes of what a match computes, by revision (a PR adds `next`).
 SIMULATION_CHANGES=srp-026g/crates/session/src/v026g/simulation_changes.tsv
-# The exe's patch files of srp-026g/client-patches changed from <a> to <b>,
-# one a line: not the notes, tests and checks, nor patch_026g.py when only
-# its REVISION line changed (a record's).
+# The files the exe is built from (tools/check --exe-inputs: client-patches'
+# and the crates its arena builds) changed from <a> to <b>, one a line: not
+# the notes, tests and checks, nor patch_026g.py when only its REVISION line
+# changed (a record's).
 exe_patch_changes() { # <a> <b>
-    local path
-    git -C "$REPO" diff --name-only "$1" "$2" -- srp-026g/client-patches 2>/dev/null | while read -r path; do
+    local path specs
+    specs=$(cd "$REPO" && tools/check --exe-inputs 2>/dev/null) || specs=$'srp-026g/client-patches/**\nsrp-026g/crates/**\ntools/re-kit/v026g/*.tsv'
+    mapfile -t specs <<<"$specs"
+    git -C "$REPO" diff --name-only "$1" "$2" -- "${specs[@]/#/:(glob)}" 2>/dev/null | while read -r path; do
         case ${path##*/} in
         *.md | *.txt | test_* | check_* | selftest_*) continue ;;
         patch_026g.py)
