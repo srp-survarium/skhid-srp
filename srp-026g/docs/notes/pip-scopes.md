@@ -497,3 +497,31 @@ standing, item 2 of section 10). Not the sun's cascades: the second view fitting
 **4. The game thread runs ahead in his game (PROVEN).** His log: `the drawn camera is (mm) from the one
 the game's thread queued last: 0, 6, 15, 26, 0` while moving: round 3's offset of the disc was the
 camera taken from the game's thread (section 10, 1).
+
+**5. The picture size's hysteresis.** Each picture (512, 768, 1024) is its own output window with its
+own anti-aliasing history; a lens near a size, swaying across it, drew from two stale histories by
+turns. Now a smaller picture is taken only once the lens is under 0.85 of it. The flicker of far things
+he saw is not seen in the rig (its place looks at a wall); its LIKELY causes were the second view's
+TAA reprojecting with the frame's camera (1) and this.
+
+**6. His 75 Hz windows are not the lens's.** His log of `pip-scopes-4`: the 13.3 ms windows with the
+Present blocking 5 to 7 ms come and go in the same session, and one of them has no second view drawn at
+all (`second cpu 0`, interval 13335, present 6236): the display path (the compositor or the swap
+chain's present mode) paces those, whatever the lens does. Unpaced, aimed costs 7.1 to 7.7 ms a frame
+against 5.5 unaimed: the frame's GPU 6.2 against 5.3 (the real gun, optic and hands drawn), its render
+thread 5.0 against 3.1, the second view 1.7 to 2.0 ms of CPU and 0.7 of GPU at 512.
+
+**Next (handoff).**
+- The exposure (section 10, 3a). The eye adaptation (0x1B1400) is per output window: the previous
+  adapted luminance at the window targets' +257Ch (or, on a reset, the frame's own measure +275Ch), the
+  adapted one written to +2618h (+261Ch beside it); adapted = lerp(previous, current, dt / T), dt the
+  context's +413Ch read at 0x1B142D. A sound way to give the second view the frame's exposure: in its
+  draw, at the eye adaptation, its previous adapted luminance the frame window's (the targets' +257Ch
+  pointer swapped for the call and put back, the references as the engine counts them) and its dt 0
+  for that call only (set at `postprocess.start`, the whole step put back before the motion blur, which
+  divides by it); then its tone mapping uses the frame's adapted luminance exactly. Read why round 1's
+  copy came out wrong (its log) before.
+- What is in front of the glass (section 10, item 3 of the brief): not started.
+- Polish (exit-pupil shadow, a softer field stop): not started.
+- The light shards around the ACOG's and Leupold's lens while strafing (round 5's `move2`s), as the
+  PSO-1's of round 4: LIKELY the see-through glass of patch 75 or single-sided eyecups, content.
