@@ -3529,6 +3529,15 @@ ausblenden, Ukryj interfejs). The default was the action table's F11 (the option
 the binder's defaults); since patch 152, whose screenshot key F11 is, the entry is named
 `hide_interface` and its default is F9 ("Two keys save a screenshot" below).
 
+**The rows' order** (the owner, 2026-11-23: "in settings many options are not sorted"). The
+movie (Settings.as) puts each row in its group's list (game, lobby, chat) in the table's order,
+and nothing takes a row by its place: the six functions and the movie name a row by its action
+(0x201150 collects the conflicting actions, 0x201248 and 0x2013A0 find a row by its action),
+user.cfg by the action's name. So `controls` lists the game's and the added rows together, each
+beside its relatives: movement; the weapon; grenade, melee, use, drop, hold artefact; the quick
+slots; patch 149's item keys (artefacts, medicines, grenades, the others); the spot, the chat and
+both push-to-talks; hide interface and the screenshots; then the lobby's and the chat's rows.
+
 **The match.** `on_keyboard_action` (0x25CD00) asks the binder for kind 1 (0x25CD5F) and switches
 on actions 11h..19h (0x25CE1C, the table 0x25CF30); case 19h at 0x25CED1 (`mov esi,[esp+10h] /
 cmp dword [esi+18h],0 / jz 0x25CF0D`) does nothing without the replay's movie (the handler's
