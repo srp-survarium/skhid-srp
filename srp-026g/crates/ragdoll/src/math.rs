@@ -266,8 +266,6 @@ impl Quat {
         }
     }
 
-    /// The rotation whose columns (the images of X, Y and Z) are the
-    /// orthonormal, right-handed `x`, `y`, `z`.
     /// The turn of the game's splines' Euler angles `[x, y, z]`, rad (a
     /// clip's bone channels; the offline pose tools read them the same).
     pub fn from_spline_euler([x, y, z]: [f32; 3]) -> Quat {
@@ -281,6 +279,8 @@ impl Quat {
         )
     }
 
+    /// The rotation whose columns (the images of X, Y and Z) are the
+    /// orthonormal, right-handed `x`, `y`, `z`.
     pub fn from_basis(x: Vec3, y: Vec3, z: Vec3) -> Quat {
         let (m00, m11, m22) = (x.x, y.y, z.z);
         let trace = m00 + m11 + m22;
