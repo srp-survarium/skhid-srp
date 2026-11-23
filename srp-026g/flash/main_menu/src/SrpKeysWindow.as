@@ -84,10 +84,10 @@ package
         // The mouse's parts (x, y, width, height in units of the mouse's own box) by the binder's names: the buttons,
         // the wheel's up, click and down between them, the side buttons out on its left.
         private static const MOUSE:Array = [
-            ["mouse1", 0, 0, 1.2, 2.4], ["mouse2", 2.2, 0, 1.2, 2.4],
-            ["mouse_wheel_up", 1.2, 0, 1.0, 0.8], ["mouse3", 1.2, 0.8, 1.0, 0.8], ["mouse_wheel_down", 1.2, 1.6, 1.0, 0.8],
-            ["mouse5", -1.1, 2.7, 1.1, 0.8], ["mouse4", -1.1, 3.5, 1.1, 0.8]];
-        private static const MOUSE_HEIGHT:Number = 4.8;
+            ["mouse1", 0, 0, 1.0, 3.0], ["mouse2", 2.4, 0, 1.0, 3.0],
+            ["mouse_wheel_up", 1.0, 0, 1.4, 1.0], ["mouse3", 1.0, 1.0, 1.4, 1.0], ["mouse_wheel_down", 1.0, 2.0, 1.4, 1.0],
+            ["mouse5", -1.1, 3.25, 1.1, 0.9], ["mouse4", -1.1, 4.15, 1.1, 0.9]];
+        private static const MOUSE_HEIGHT:Number = 5.25;
         // Units: the largest key and the least.
         private static const MAX_UNIT:Number = 64;
         private static const MIN_UNIT:Number = 32;
@@ -99,15 +99,17 @@ package
         // The title and the close button as the Settings window has them (textFieldLabel, btn_close).
         private static const TITLE_Y:Number = 6.75, CLOSE_RIGHT:Number = 34.5, CLOSE_SCALE:Number = 0.756;
         private static const SIDE:Number = 22;              // inside the frame's sides
-        private static const SPACE:Number = 10;             // between the window's parts
+        private static const SPACE:Number = 9;             // between the window's parts
         private static const MARGIN:Number = 12;            // to the screen's edges at the least
-        private static const CHIP_HEIGHT:Number = 24;
+        private static const CHIP_HEIGHT:Number = 22;
         // The lists: a row, a heading, the gap between columns, a column's least width.
         private static const LIST_ROW:Number = 19;
         private static const LIST_HEADING:Number = 24;
         private static const LIST_GAP:Number = 20;
         private static const LIST_COLUMN:Number = 180;
-        private static const KEY_BOX:Number = 52;           // a row's key box
+        private static const KEY_BOX:Number = 52;           // a row's key box at the least
+        private static const KEY_FONT:Number = 11;          // its text's size, every row's the same
+        private static const MIN_ACTION_SIZE:Number = 8;    // the keys' actions' least size
         // The headings' look (the Controls tab's "Lobby:", "Chat:": s_lobby), the stock key box's.
         private static const HEADING_COLOUR:uint = 0xABAAAE;
         private static const INK:uint = 0xDADADA;
@@ -145,6 +147,11 @@ package
         private var keyViews:Array = [];
         private var rowViews:Array = [];
         private var unit:Number = MAX_UNIT;
+        // The lists' key box (as wide as the binder's widest key text at KEY_FONT), the keys' names' and actions'
+        // one size each (the unit's): set by build.
+        private var keyBox:Number = KEY_BOX;
+        private var legendSize:Number = 10;
+        private var actionSize:Number = 10;
 
         public function SrpKeysWindow(content:MovieClip)
         {
@@ -461,10 +468,17 @@ package
             var parts:Array = sections();
             var roomWidth:Number = screenWidth - 2 * MARGIN - FRAME_LEFT - FRAME_RIGHT - 2 * SIDE;
             var roomHeight:Number = screenHeight - 2 * MARGIN;
-            var fixed:Number = FRAME_TOP + SPACE + SPACE + CHIP_HEIGHT + SPACE + SPACE + FRAME_BOTTOM;
+            var fixed:Number = FRAME_TOP + SPACE + SPACE + CHIP_HEIGHT + SPACE + SPACE + SPACE + FRAME_BOTTOM;
             // the lists as many columns as the window's width takes; the keyboard the largest the rest leaves
             var width:Number = Math.min(roomWidth, MAX_WIDTH);
-            var columns:Array = listColumns(parts, Math.max(1, Math.floor((width + LIST_GAP) / (LIST_COLUMN + LIST_GAP))));
+            keyBox = KEY_BOX;
+            var probe:TextField = text(KEY_FONT, 0xFFFFFF, true);
+            for each (var key:Object in binder)
+            {
+                probe.text = String(key.text);
+                keyBox = Math.max(keyBox, Math.ceil(probe.textWidth) + 12);
+            }
+            var columns:Array = listColumns(parts, Math.max(1, Math.floor((width + LIST_GAP) / (LIST_COLUMN + keyBox - KEY_BOX + LIST_GAP))));
             var tallest:Number = 0;
             for each (var column:Array in columns)
             {
@@ -481,8 +495,8 @@ package
             var left:Number = FRAME_LEFT + SIDE;
             var deskWidth:Number = unit * (DESK_UNITS + MOUSE_GAP + MOUSE_UNITS);
             var deskLeft:Number = left + Math.round((width - deskWidth) / 2);
-            drawKeyboard(deskLeft, deskTop);
             drawMouse(deskLeft + unit * (DESK_UNITS + MOUSE_GAP), deskTop);
+            drawCaps(capsOf(deskLeft, deskTop));
             legend(left, chipsTop, width);
             drawLists(columns, left, listTop, width);
             drawFrame(w, h);
@@ -554,37 +568,100 @@ package
             return out;
         }
 
-        private function drawKeyboard(x:Number, y:Number):void
+        // The keys to draw, each [name, x, y, w, h, rows]: the keyboard's, the mouse's, and the bound ones the
+        // keyboard and the mouse do not draw (the numpad's, the mouse's other buttons) under the mouse.
+        private function capsOf(x:Number, y:Number):Array
         {
             var bound:Object = rowsByKey();
             var drawn:Object = {};
+            var out:Array = [];
             for each (var key:Array in KEYBOARD)
             {
                 drawn[key[0]] = true;
-                cap(key[0], x + key[1] * unit, y + key[2] * unit, key[3] * unit, unit, bound[key[0]]);
+                out.push([key[0], x + key[1] * unit, y + key[2] * unit, key[3] * unit, unit, bound[key[0]]]);
             }
+            var mouseX:Number = x + unit * (DESK_UNITS + MOUSE_GAP);
             for each (var part:Array in MOUSE)
             {
                 drawn[part[0]] = true;
+                out.push([part[0], mouseX + part[1] * unit, y + part[2] * unit, part[3] * unit, part[4] * unit, bound[part[0]]]);
             }
-            // the keys bound that the keyboard and the mouse do not draw (the numpad's, the mouse's other buttons):
-            // under the mouse
-            var extraX:Number = x + unit * (DESK_UNITS + MOUSE_GAP);
-            var extraY:Number = y + unit * (MOUSE_HEIGHT + 0.35);
             var n:int = 0;
             for (var name:String in bound)
             {
                 if (!drawn[name])
                 {
-                    cap(name, extraX + (n % 3) * unit, extraY + int(n / 3) * unit, unit, unit, bound[name]);
+                    out.push([name, mouseX + (n % 3) * unit, y + unit * (MOUSE_HEIGHT + 0.35) + int(n / 3) * unit, unit, unit,
+                        bound[name]]);
                     n++;
                 }
             }
+            return out;
         }
 
+        // The keys drawn with one size for every key's name (the unit's) and one for every key's actions (the
+        // owner, 2026-11-23: one size for all, none shrunk alone): the largest, from the names' down to
+        // MIN_ACTION_SIZE, at which every key's actions fit under its name, wrapped by words to its width; at the
+        // least size an action's last lines are cut at its key's foot (the lists under the keyboard have every
+        // action whole).
+        private function drawCaps(caps:Array):void
+        {
+            legendSize = Math.max(9, Math.round(unit * 0.2));
+            var probe:TextField = text(legendSize, INK, true);
+            probe.multiline = probe.wordWrap = true;
+            var room:Function = function(c:Array):Number {
+                probe.defaultTextFormat = sized(probe.defaultTextFormat, legendSize);
+                probe.width = inner(c[3]) - 6;
+                probe.text = legendOf(c[0]);
+                return inner(c[4]) - (probe.textHeight + 2) - 4;
+            };
+            var fits:Function = function(c:Array):Boolean {
+                var actions:String = actionsOf(c[5]);
+                if (actions == "")
+                {
+                    return true;
+                }
+                var height:Number = room(c);
+                probe.defaultTextFormat = sized(probe.defaultTextFormat, actionSize);
+                probe.width = inner(c[3]) - 6;
+                probe.text = actions;
+                return probe.textHeight + 2 <= height;
+            };
+            for (actionSize = legendSize; actionSize > MIN_ACTION_SIZE && !caps.every(
+                function(c:Array, i:int, a:Array):Boolean { return fits(c); }); actionSize--)
+            {
+            }
+            for each (var c:Array in caps)
+            {
+                cap(c[0], c[1], c[2], c[3], c[4], c[5]);
+            }
+        }
+
+        private static function sized(format:TextFormat, size:Number):TextFormat
+        {
+            format.size = size;
+            return format;
+        }
+
+        private function inner(size:Number):Number
+        {
+            return size - Math.max(3, Math.round(unit * 0.09));
+        }
+
+        private function legendOf(name:String):String
+        {
+            var key:Object = binder[name];
+            return key != null ? String(key.text) : name.replace(/^k/, "");
+        }
+
+        private static function actionsOf(rows:Array):String
+        {
+            return (rows || []).map(function(r:Object, i:int, a:Array):String { return label(r); }).join(" · ");
+        }
+
+        // The mouse's shell (its parts are keys: capsOf).
         private function drawMouse(x:Number, y:Number):void
         {
-            var bound:Object = rowsByKey();
             var shell:Shape = new Shape();
             var g:Graphics = shell.graphics;
             g.lineStyle(1, BOX_EDGE_FREE, 1, true);
@@ -592,10 +669,6 @@ package
             g.drawRoundRect(x, y, MOUSE_UNITS * unit, MOUSE_HEIGHT * unit, unit * 2.4, unit * 2.4);
             g.endFill();
             body.addChild(shell);
-            for each (var part:Array in MOUSE)
-            {
-                cap(part[0], x + part[1] * unit, y + part[2] * unit, part[3] * unit, part[4] * unit, bound[part[0]]);
-            }
         }
 
         // A key: its name's text in its corner; its rows' actions on it; tinted by its first row's kind; plain when
@@ -616,19 +689,21 @@ package
             var view:Object = {name: name, sprite: sprite, kinds: kindsOf(rows), rows: rows || [], w: w - gap, h: h - gap,
                 kind: kind, live: live};
             paintCap(view, false);
-            var legendField:TextField = text(Math.max(9, Math.round(unit * 0.2)), first != null ? 0xFFFFFF : 0x8A8D90, true);
-            legendField.text = key != null ? String(key.text) : name.replace(/^k/, "");
-            fitLine(legendField, view.w - 6);
+            var legendField:TextField = text(legendSize, first != null ? 0xFFFFFF : 0x8A8D90, true);
+            legendField.multiline = legendField.wordWrap = true;
+            legendField.width = view.w - 6;
+            legendField.text = legendOf(name);
             legendField.x = 3;
             legendField.y = 1;
             sprite.addChild(legendField);
-            var size:Number = Math.max(9, Math.round(unit * 0.21));
             var top:Number = legendField.height - 2;
-            var bottom:Number = view.h - 4;
-            var actions:String = match.map(function(r:Object, i:int, a:Array):String { return label(r); }).join(" · ");
+            var actions:String = actionsOf(match);
             if (actions != "")
             {
-                var field:TextField = wrapped(actions, view.w - 6, size, INK, bottom - top);
+                var field:TextField = text(actionSize, INK, true);
+                field.multiline = field.wordWrap = true;
+                field.width = view.w - 6;
+                field.text = actions;
                 field.x = 3;
                 field.y = top;
                 sprite.addChild(field);
@@ -820,18 +895,17 @@ package
             field.text = label(row);
             field.x = 0;
             field.y = Math.round((LIST_ROW - field.height) / 2);
-            fitLine(field, width - KEY_BOX - 8);
+            fitLine(field, width - keyBox - 8);
             sprite.addChild(field);
-            var keyField:TextField = text(11, 0xFFFFFF, true);
+            var keyField:TextField = text(KEY_FONT, 0xFFFFFF, true);
             keyField.autoSize = TextFieldAutoSize.NONE;
-            keyField.width = KEY_BOX - 4;
+            keyField.width = keyBox - 4;
             keyField.height = LIST_ROW - 4;
             var centred:TextFormat = keyField.defaultTextFormat;
             centred.align = TextFormatAlign.CENTER;
             keyField.defaultTextFormat = centred;
             keyField.text = row.key != null ? String(row.key) : "";
-            fitLine(keyField, KEY_BOX - 4);
-            keyField.x = width - KEY_BOX + 2;
+            keyField.x = width - keyBox + 2;
             keyField.y = 1;
             sprite.addChild(keyField);
             view.keyField = keyField;
@@ -854,7 +928,7 @@ package
             var waiting:Boolean = awaited == view.row;
             g.lineStyle(1, waiting ? AWAITED : free ? BOX_EDGE_FREE : BOX_EDGE, 1, true);
             g.beginFill(BOX_FILL, 0.9);
-            g.drawRect(view.width - KEY_BOX + 0.5, 1.5, KEY_BOX - 1, LIST_ROW - 4);
+            g.drawRect(view.width - keyBox + 0.5, 1.5, keyBox - 1, LIST_ROW - 4);
             g.endFill();
             g.lineStyle();
             if (view.kind != -1)
@@ -988,34 +1062,6 @@ package
             field.autoSize = TextFieldAutoSize.LEFT;
             field.selectable = false;
             field.mouseEnabled = false;
-            return field;
-        }
-
-        // A text wrapped to `width`, a point smaller at a time (to 8) while it is taller than `room`; on one line
-        // (cut at `width`) when even that is.
-        private function wrapped(value:String, width:Number, size:Number, colour:uint, room:Number):TextField
-        {
-            var field:TextField = text(size, colour, true);
-            field.multiline = true;
-            field.wordWrap = true;
-            field.width = width;
-            field.text = value;
-            while (field.height > room && size > 8)
-            {
-                size--;
-                var format:TextFormat = field.defaultTextFormat;
-                format.size = size;
-                field.defaultTextFormat = format;
-                field.setTextFormat(format);
-                field.width = width;
-            }
-            if (field.height > room)
-            {
-                // on one line, cut at the key's edge, when its lines do not fit even small
-                field = text(Math.max(9, size), colour, true);
-                field.text = value;
-                fitLine(field, width);
-            }
             return field;
         }
 

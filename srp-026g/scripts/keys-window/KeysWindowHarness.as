@@ -344,9 +344,47 @@ package
                 + children(WINDOW + "_key_").length + " keys, " + shown.length + " rows");
         }
 
+        // One size for every key box's text in the lists (none smaller: the owner, 2026-11-23), whole in its box;
+        // one for every key's name and one for every key's actions on the keyboard (the keys an action's lines run
+        // past, cut there, told).
+        private function checkSizes(language:String):void
+        {
+            var size:Function = function(f:TextField):Number { return Number((f.text == "" ? f.defaultTextFormat : f.getTextFormat()).size); };
+            var boxes:Array = [];
+            for each (var row:* in children(WINDOW + "_row_"))
+            {
+                var fields:Array = texts_of(row);
+                var box:TextField = fields[fields.length - 1];
+                require(size(box) == 11, language + ": " + row.name + "'s key box '" + box.text + "' at 11 pt: " + size(box));
+                require(box.textWidth + 4 <= box.width, language + ": '" + box.text + "' whole in its key box ("
+                    + box.textWidth + " of " + box.width + ")");
+                boxes.push(box.width);
+            }
+            // the keys: one size of name, one of actions (none shrunk); an action's lines past the key's foot cut
+            var legends:Array = [], actions:Array = [], cut:Array = [];
+            for each (var key:* in children(WINDOW + "_key_"))
+            {
+                var inKey:Array = texts_of(key);
+                legends.push(size(inKey[0]));
+                if (inKey.length > 1)
+                {
+                    actions.push(size(inKey[1]));
+                    if (inKey[1].y + inKey[1].textHeight > key.height) cut.push(key.name.substr((WINDOW + "_key_").length));
+                }
+            }
+            var one:Function = function(sizes:Array):Boolean {
+                return sizes.every(function(n:Number, i:int, a:Array):Boolean { return n == sizes[0]; });
+            };
+            require(one(boxes) && one(legends) && one(actions), language + ": one width of key box, one size of key name ("
+                + legends[0] + "), one of actions (" + actions[0] + ")");
+            trace("KEYS " + language + ": key boxes " + boxes[0] + " px at 11 pt, key names " + legends[0] + " pt, actions "
+                + actions[0] + " pt" + (cut.length > 0 ? "; actions cut at the foot of " + cut.join(" ") : ""));
+        }
+
         // Nothing over anything else: the keys apart, the rows apart, the keys' and the rows' texts inside them.
         private function checkPlaces(language:String):void
         {
+            checkSizes(language);
             var boxes:Array = [];
             for each (var item:DisplayObject in children(WINDOW + "_key_").concat(children(WINDOW + "_row_")))
             {
