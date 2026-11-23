@@ -604,14 +604,37 @@ measures each frame how far the eye (the view's origin) is off its glass's axis,
 clear circle shifted by it (`PUPIL_GAIN` 6 per radius, a soft edge of 0.35 radius, `PUPIL_SOFT`; both
 consts in pip_scopes.rs, gain 0 turns it off). Logged with `SKHID_PIP_LOG=on` every 30 frames.
 - At a steady aim the eye is on the axis for every kit tried (Leupold 3-7, Mk4, PSO-1: 0.001 radius
-  off): no shadow. As the gun comes up to the eye the lens comes on 0.3 to 0.6 radius off (the scope's
-  view starts at about 0.82 of the aim-in): a few frames dark, then a crescent that opens as the gun
-  settles (`round6/pupil-*`). Strafing moves the eye 0.02 to 0.1 radius off: a faint darkening at one
-  edge, nothing more, as in a real scope held to the eye.
+  off): no shadow. As the gun comes up to the eye the lens's first frame can be 0.3 to 0.6 radius off
+  (the scope's view starts at about 0.82 of the aim-in): that frame dark or a wide crescent; by the next
+  frames the glass is near the axis (`round6/aimin-*`: no crescent seen in the frames captured).
+  Strafing moves the eye 0.02 to 0.1 radius off: at most a faint darkening at one edge. So the shadow
+  is mostly unseen in this game's aim, whose camera stays on the optic's axis; a delayed axis (the
+  eye's offset less its own average over 0.3 s, tried first) showed a crescent opening over 0.2 s
+  after each aim-in, but it was not physical (dark after the glass was already aligned) and was
+  dropped. A larger gain is the one knob if the owner wants it seen more.
 - Not added: a softer field stop (the picture's edge is the rear glass's, already cut by the housing
   in front of it, item 2, and darkened over its outer 8 %) and a glass reflection (nothing in a
   headless look asked for it).
 
+**5. Far things in the picture.** With `--turn 180:10` the held place on Fire Station looks across the
+map at a block of flats (its window grid about 100 m off, wires and poles beside it). Three
+consecutive frames standing and three strafing (`round6/far-*`, `pip-scopes-6` and `-8`): the window
+grid and its edges are steady in both, the frame-to-frame difference of the lens's square (RMSE 0.03
+standing, 0.04 to 0.05 strafing) the same for both, the sway. The flicker the owner saw on
+`pip-scopes-4` is not seen; its two LIKELY causes (TAA reprojected with the frame's camera, the picture
+size's flip between two histories) were fixed in round 5. Not seen: wires against the sky at that
+distance in the lens (the reticle centre was on the facade), and his 75 Hz display.
+
 **The rig.** `srp-map-sur --hold ... --turn <yaw>[:<pitch>]` (`capture.py --turn`): the place turns
 once, a second after it enters (whole degrees, right and up positive), so its view can look across
 the map instead of at a wall.
+
+**Handoff (end of round 6).**
+- `pip-scopes-7`: items 1 and 2. `pip-scopes-8`: and the exit pupil's shadow. His next log says the
+  second view's CPU with the depth copy (a 1920 x 1080 CopyResource a frame while aimed, GPU only).
+- Open: a cheaper sound second view (item 3: its own cascade splits, or a mask of only the cascades
+  drawn); the two PSO-1s' small lens (their real rear glass 50 to 58 mm deeper than the eyepiece the aim
+  was made for: the owner's call); wires against the sky in the lens at a distance (not seen yet).
+- The rig's intermittent startup crash (1 run in about 15) is main's patch 100: a null read in Wine's
+  xaudio2_7 under v_get_voice_details (audio_device.code), reported to the coordinator, not fixed here.
+
