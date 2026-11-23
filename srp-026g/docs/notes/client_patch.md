@@ -3262,6 +3262,17 @@ late join's), and in use again after a rollback that took the hit back.
 QuickSlots keeps the exhausted stack for it and the renderer tints the slot's
 own icon red (ColorTransform 1, 0.3, 0.3) where phase 1 dims it.
 
+Phase 4 (patch 180, Oxygen Rush; the owner, 2026-11-23: "the number countdown
+should become blue", "similar blue to spring activation", "since both are for
+speed"): the slot's item is an oxygen tank (OXYGEN_TANK_VTABLE) of a living
+holder whose boost word (+294h) is on at the holder's stamina clock
+(`technical::oxygen_rush_on`, the end `oxygen_rush_tick` clears). The movie keeps
+the native slot as the game fills it (its `timer`, the tank's air seconds, from
+the item's vtable +48h at update_quick_slot 0x23A265) and draws only that
+countdown in `Colors.SPEED_BOOST`, 0x0066FF: the Spring artefact's activation
+glow (`fx/artifacts/human_spring`'s light, 0, 0.40, 1; artefacts.md, "The stock
+glow"). Phase 0 gives the countdown its own colour back. Nothing new is saved.
+
 ### Lobby weight explanation
 
 `weight_ui_026g.c`/`.asm` live in the linked `weight_ui.code` and
