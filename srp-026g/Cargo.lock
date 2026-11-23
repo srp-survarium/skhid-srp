@@ -343,6 +343,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7360491ce676a36bf9bb3c56c1aa791658183a54d2744120f27285738d90465a"
 
 [[package]]
+name = "ffa-check-points"
+version = "0.1.0"
+dependencies = [
+ "binary-config-parser",
+ "mapdata",
+]
+
+[[package]]
 name = "foldhash"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -880,6 +888,13 @@ dependencies = [
  "technical-skills",
  "weapon-pickup",
  "world-frame",
+]
+
+[[package]]
+name = "stalker-ffa-points"
+version = "0.1.0"
+dependencies = [
+ "mapdata",
 ]
 
 [[package]]

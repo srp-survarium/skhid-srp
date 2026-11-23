@@ -247,7 +247,48 @@ try {
   await choose('.sim-target', '25');
   assert.notEqual(await evaluate("document.querySelector('#recoil-sim .sim-target-body').getAttribute('transform')"), near, 'the distance sizes the target');
   assert.equal(await evaluate("document.querySelector('#recoil-sim .sim-trail').getAttribute('d')"), trail);
-  // The spread's parts: from the hip by default; the stance, skills, gloves
+  // The shot's own motions: each weapon's view from the side with its
+  // bullets; a custom gun's camera wobble moves the view between shots and
+  // its gun kick the sight while aimed, each shown by its layer.
+  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-view svg.sim-side').length"), 1, 'the view from the side');
+  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-side .sim-landed,#recoil-sim .sim-side .sim-bullet').length"), 30, 'each bullet, on the wall or on its way');
+  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-speed option').length"), 3, 'slow motion');
+  const custom = (side, group, key, value) => evaluate(`{const i=document.querySelector('.sim-setup[data-side="${side}"] .sim-custom input[data-group="${group}"][data-key="${key}"]');i.value='${value}';i.dispatchEvent(new Event('change'))}`);
+  const layer = (key, on) => evaluate(`{const i=${sim(`.sim-layer-${key}`)};i.checked=${on};i.dispatchEvent(new Event('change'))}`);
+  const seekTo = time => evaluate(`{const t=${sim('.sim-time')};t.value='${time}';t.dispatchEvent(new Event('input'))}`);
+  const crossY = () => evaluate(`${sim('.sim-view .sim-cross circle')}.getAttribute('cy')`);
+  const setupName = () => evaluate("document.querySelector('.sim-setup[data-side=\"0\"] .sim-setup-name').textContent");
+  assert.equal(await evaluate(`document.querySelector('${row(0, 'aim')} .gstep[aria-pressed=true]').dataset.v`), 'aimed', 'fully aimed first');
+  await seekTo(.07);
+  const unmoved = await crossY();
+  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-gunsight').length"), await evaluate("document.querySelector('#wpn_ak_74m').dataset.recoil.includes('\"gun\"') ? 1 : 0"), 'the sight only with a gun kick');
+  await custom(0, 'camera', 'up', 3);
+  assert.ok((await setupName()).endsWith('custom'), 'a changed value makes the gun custom');
+  assert.ok((await evaluate(`${sim('.sim-legend')}.textContent`)).includes('custom'));
+  assert.notEqual(await crossY(), unmoved, 'the camera wobble turns the view between shots');
+  await layer('camera', false);
+  assert.equal(await crossY(), unmoved, 'without its layer the view is the kick alone');
+  await layer('camera', true);
+  await custom(0, 'gun', 'up', 2);
+  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-gunsight').length"), 1, 'the gun kick moves the sight while aimed');
+  assert.notEqual(await evaluate(`${sim('.sim-gunsight circle')}.getAttribute('cy')`), await crossY(), 'off the view');
+  await layer('gun', false);
+  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-gunsight').length"), 0);
+  await layer('gun', true);
+  await screenshot('simulators-custom');
+  await setRow(0, 'aim', 'hip');
+  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-gunsight').length"), 0, 'from the hip the sights are not looked through');
+  await evaluate("document.querySelector('.sim-setup[data-side=\"0\"] .sim-custom button').click()");
+  assert.equal(await setupName(), 'A · AK-74M', 'the weapon again');
+  assert.equal(await evaluate("document.querySelector('.sim-setup[data-side=\"0\"] .sim-custom input[data-key=\"rpm\"]').value"), '650', 'its fields are the values of the weapon');
+  await layer('recoil', false);
+  assert.equal(await crossY(), await evaluate(`${sim('.sim-origin')}.getAttribute('cy')`), 'without the recoil the view stays');
+  await layer('recoil', true);
+  await custom(0, 'recoil', 'rpm', 300);
+  await evaluate(`${sim('.sim-last')}.click()`);
+  assert.ok(Number(await evaluate(`${sim('.sim-time')}.value`)) > 5, 'a custom fire rate: 30 shots take longer');
+  await evaluate("document.querySelector('.sim-setup[data-side=\"0\"] .sim-custom button').click()");
+  // The spread's parts, from the hip (set above); the stance, skills, gloves
   // and arms change them; fully aimed, none of them does.
   const parts = () => evaluate("[...document.querySelectorAll('#recoil-sim .sim-parts tbody td')].map(td=>td.textContent).join(' ')");
   assert.equal(await parts(), '0.2° 5° 2° 25.2°', 'standing from the hip: base, stance, a shot, at most');
@@ -296,9 +337,9 @@ try {
     for (const key of pieces) await strongest(1, key);
     const [, both] = await ups();
     assert.ok(both < gloves && gloves < b0, `the pieces add up (${both} < ${gloves} < ${b0})`);
-    assert.equal(await parts(), '0.2° 5° 2° 25.2° 0.2° 5° 2° 25.2°', 'recoil leaves the spread');
-    await setRow(0, 'aim', 'aimed');
-    assert.equal(await parts(), '0.2° 0° 0° 0.2° 0.2° 5° 2° 25.2°', 'A\'s aim is A\'s');
+    assert.equal(await parts(), '0.2° 0° 0° 0.2° 0.2° 0° 0° 0.2°', 'recoil leaves the spread');
+    await setRow(0, 'aim', 'hip');
+    assert.equal(await parts(), '0.2° 5° 2° 25.2° 0.2° 0° 0° 0.2°', 'A\'s aim is A\'s');
     await screenshot('simulators-same-weapon');
   }
   // A row's card (what it does): on hover, keyboard focus or a tap.

@@ -29,6 +29,8 @@ members = [
   "servers/web-server",
 
   "scripts/binary-config-cli",      # Parser for binary config files
+  "scripts/ffa-mode/check-points",  # FFA spawn points against the maps' collision
+  "scripts/stalker-maps/ffa-points", # STALKER maps' FFA spawn planner
 ]
 exclude = []
 resolver = "3"

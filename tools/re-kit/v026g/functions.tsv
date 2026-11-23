@@ -2501,3 +2501,5 @@ va	status	ref_021d	name
 0x003cf260	reviewed		sun_shadow_map_size [descriptive]
 0x002f8570	observed		survarium::usable_object::use_initialize
 0x002f85b0	observed		survarium::usable_object::use_finalize
+0x003cfe20	reviewed		vostok::render::res_render_output::goto_fullscreen
+0x003cfe80	reviewed	0x00274fc2	vostok::render::res_render_output::minimize
