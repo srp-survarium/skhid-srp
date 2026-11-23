@@ -33,10 +33,15 @@ pub fn on_configs(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// game::tick (every frame): the slider's share to the sound thread.
+/// game::tick (every frame): the slider's share to the sound thread; none
+/// while patch 196 cuts the game's sounds (the slider's own value untouched).
 pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
-    let level = Volume::new(GAME_VOLUME.get(thread) / 100.0);
+    let level = if crate::corpse_shot_dark::cut(thread) {
+        Volume::SILENT
+    } else {
+        Volume::new(GAME_VOLUME.get(thread) / 100.0)
+    };
     LEVEL.with(thread, |shared| *shared = level);
     Flow::Continue
 }

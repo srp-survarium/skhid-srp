@@ -6786,3 +6786,16 @@ fullscreen for the taskbar (ITaskbarList2::MarkFullscreenWindow, the list made o
 the taskbar under it whenever the game is in front. The window's z-order and styles are not
 touched. Linux desktops do not read that list: not fixed there (`../docs/notes/dxvk-option.md`,
 "The taskbar after Alt+Tab"). Not run in a game.
+
+## A shot into a corpse (patch 196, unreleased)
+
+From 0.5 s after a dead player's ragdoll began, one shot that meets it anywhere (as the shooter's
+game draws it) plays 0.21's death sound at the corpse for everyone near, and blackens the dead
+player's screen and cuts his game's sounds until he lives again; the voice chat and the music stay
+(`../docs/notes/corpse-shot-dark.md`). The shooter's game tells it in an input (patch 78's marker
+with one of the patterns 20..39, `weapon_pickup::corpse_shot`), which every game reads at
+`carry.filter` for the death its victim is dead of at that tick; patch 76's step plays the sound
+(`game_world::play_sound` 0x25B940, the pack `death-sound-021d@1`'s composite) and the local
+player's view: the hud movie's `root.set_dead_black`, and patch 144's Game share 0. No new site:
+patch 76's, 78's and 144's, `player_icons.update_start`, `game.clear_resources` and
+`resources.query_done`. Nothing a match computes. Checked: its transition's test; not run in a game.
