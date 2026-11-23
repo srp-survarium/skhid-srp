@@ -272,7 +272,13 @@ pub struct Holder {
     /// When it enters and when it raises the gun to aim (held to the end), ms.
     pub enter_ms: u32,
     pub aim_ms: u32,
+    /// From then on it strafes while aiming, left and right by turns, forward
+    /// with each (a moving aim), ms.
+    pub move_ms: Option<u32>,
 }
+
+/// How long each strafe of a moving [`Holder`] lasts, ms.
+const STRAFE_MS: u32 = 700;
 
 /// The kit of a [`Holder`]: the gun in slot 7, its rounds in slot 8.
 fn holder_items(holder: &Holder) -> (Vec<static_info::MatchItem>, static_info::MatchKit) {
@@ -355,6 +361,15 @@ pub fn of_map(map: maps::MatchMap, length_ms: u32, holder: Option<&Holder>) -> R
         let mut aim = Event::at(at(holder.aim_ms.max(holder.enter_ms + sur::TICK_MS)));
         aim.inputs.push((0, InputValue { rotation: [0; 4], actions: super::drive::key::AIM }));
         writer.push(&aim).map_err(|e| e.to_string())?;
+        if let Some(move_ms) = holder.move_ms.filter(|&ms| ms > holder.aim_ms) {
+            use super::drive::key::{AIM, FORWARD, LEFT, RIGHT};
+            for (n, ms) in (move_ms..length_ms).step_by(STRAFE_MS as usize).enumerate() {
+                let side = if n % 2 == 0 { LEFT } else { RIGHT };
+                let mut strafe = Event::at(at(ms));
+                strafe.inputs.push((0, InputValue { rotation: [0; 4], actions: AIM | FORWARD | side }));
+                writer.push(&strafe).map_err(|e| e.to_string())?;
+            }
+        }
     }
     let body = writer.finish(start + length_ms);
     let parts = Parts { options_lzma2: &payload[1..], body: &body, key_frames: &[], config };

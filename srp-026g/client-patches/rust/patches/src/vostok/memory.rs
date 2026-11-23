@@ -79,7 +79,7 @@ fn space() -> Space {
 }
 
 /// `[start, end)` is all committed and readable.
-fn all_readable(start: usize, end: usize) -> bool {
+pub(crate) fn all_readable(start: usize, end: usize) -> bool {
     let mut reached = start;
     for info in regions(start, MAX_ARENA_REGIONS) {
         if !readable(info.state, info.protect) {

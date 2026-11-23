@@ -551,14 +551,19 @@ pub struct Lens {
 // SAFETY: made and used on the render thread alone.
 unsafe impl Send for Lens {}
 
-/// Where the lens is drawn: its centre and radii in the frame's clip space,
-/// and its rim's darkening (how sharp, how dark).
+/// Where the lens is drawn: the glass in the frame's view space (its centre
+/// and two radii across its plane, metres), the frame's projection, the
+/// picture's disc on the screen (clip space: centre, radii) and the rim's
+/// darkening (how sharp, how dark).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Disc {
-    pub centre: [f32; 2],
-    pub radius: [f32; 2],
+    pub centre: [f32; 3],
+    pub across: [[f32; 3]; 2],
+    pub projection: [f32; 16],
+    pub picture: [f32; 4],
     pub rim: [f32; 2],
 }
+
 
 fn device_of(texture: &Held) -> Option<*mut c_void> {
     let mut device = null_mut();
@@ -582,8 +587,8 @@ impl Lens {
             let (mut v, mut p, mut c, mut s) = (None, None, None, None);
             let gv = raw::engine_device_create_vertex_shader(device.cast(), vertex.as_ptr().cast(), vertex.len() as u32, null_mut(), &mut v);
             let gp = raw::engine_device_create_pixel_shader(device.cast(), pixel.as_ptr().cast(), pixel.len() as u32, null_mut(), &mut p);
-            // 32 bytes, dynamic, a constant buffer, written by the CPU
-            let desc = BufferDesc { bytes: 32, usage: 2, bind: 4, cpu_access: 1 << 16, misc: 0, stride: 0 };
+            // the shader's nine float4, dynamic, a constant buffer, written by the CPU
+            let desc = BufferDesc { bytes: CONSTANTS as u32 * 4, usage: 2, bind: 4, cpu_access: 1 << 16, misc: 0, stride: 0 };
             let gc = raw::engine_device_create_buffer(device.cast(), (&raw const desc).cast(), null(), &mut c);
             // MIN_MAG_MIP_LINEAR, CLAMP, comparison NEVER, every mip
             let sampler = SamplerDesc {
@@ -632,15 +637,15 @@ impl Lens {
             if raw::engine_context_map(c, Some(self.constants.0), 0, 4, 0, (&raw mut mapped).cast()) & 1 << 31 != 0 || mapped.data.is_null() {
                 return false;
             }
-            let values = [disc.centre[0], disc.centre[1], disc.radius[0], disc.radius[1], disc.rim[0], disc.rim[1], 0.0, 0.0];
+            let values = constants(disc, [to.width as f32, to.height as f32]);
             core::ptr::copy_nonoverlapping(values.as_ptr(), mapped.data.cast::<f32>(), values.len());
             raw::engine_context_unmap(c, Some(self.constants.0), 0);
 
             let mut target = [None];
-            let mut depth = None;
-            raw::engine_context_om_get_render_targets(c, 1, target.as_mut_ptr(), &mut depth);
+            let mut depth_view = None;
+            raw::engine_context_om_get_render_targets(c, 1, target.as_mut_ptr(), &mut depth_view);
             let Some(target_view) = target[0] else {
-                if let Some(d) = depth {
+                if let Some(d) = depth_view {
                     raw::engine_d3d_resource_release(Some(d));
                 }
                 return false;
@@ -689,7 +694,7 @@ impl Lens {
 
             // the state as it was
             raw::engine_context_ps_set_shader_resources(c, 0, 1, [None].as_ptr().cast_mut());
-            raw::engine_context_om_set_render_targets(c, 1, [Some(target_view)].as_ptr().cast_mut(), depth);
+            raw::engine_context_om_set_render_targets(c, 1, [Some(target_view)].as_ptr().cast_mut(), depth_view);
             raw::engine_context_ia_set_input_layout(c, layout);
             raw::engine_context_ia_set_primitive_topology(c, topology);
             raw::engine_context_vs_set_shader(c, vs, null(), 0);
@@ -703,12 +708,27 @@ impl Lens {
             raw::engine_context_om_set_depth_stencil_state(c, depth_state, stencil);
             raw::engine_context_rs_set_state(c, raster);
             raw::engine_context_rs_set_viewports(c, count, viewports.as_ptr().cast());
-            for got in [Some(target_view), depth, layout, vs, ps, gs, vcb[0], pcb[0], srv[0], smp[0], blend, depth_state, raster].into_iter().flatten() {
+            for got in [Some(target_view), depth_view, layout, vs, ps, gs, vcb[0], pcb[0], srv[0], smp[0], blend, depth_state, raster].into_iter().flatten() {
                 raw::engine_d3d_resource_release(Some(got));
             }
         }
         true
     }
+}
+
+/// The lens shader's constants, float4 by float4 (pip_lens.hlsl's cbuffer).
+const CONSTANTS: usize = 36;
+
+fn constants(disc: &Disc, frame: [f32; 2]) -> [f32; CONSTANTS] {
+    let mut c = [0.0; CONSTANTS];
+    c[..3].copy_from_slice(&disc.centre);
+    c[4..7].copy_from_slice(&disc.across[0]);
+    c[8..11].copy_from_slice(&disc.across[1]);
+    c[12..28].copy_from_slice(&disc.projection);
+    c[28..32].copy_from_slice(&disc.picture);
+    c[32..34].copy_from_slice(&disc.rim);
+    c[34..36].copy_from_slice(&frame);
+    c
 }
 
 /// A model of the scene as the render thread compares its surfaces: the
@@ -773,8 +793,8 @@ pub struct Scoped {
     /// The scope's view is on (+181Eh).
     pub scope_view: bool,
     pub aimed: Option<Result<ModelId, UnknownModel>>,
-    /// The idle model's instance (an address, for the log).
-    pub idle: Option<u32>,
+    /// The idle model: the optic in view.
+    pub idle: Option<Result<ModelId, UnknownModel>>,
     /// The eyes' transform (the player's +44Ch, bone Item: where a shot starts
     /// and goes), the second view's camera: the frame's view may be another.
     pub eye: [f32; 16],
@@ -792,7 +812,7 @@ pub fn scoped(ctx: &Context<'_>) -> Option<Scoped> {
         }
         let aimed = optics.aim_model().and_then(|m| m.render_instance().instance()).map(|m| ModelId::parse(m));
         let eye = read16(raw::site::camera_zoom::player(ctx)?.eye());
-        let idle = optics.model().and_then(|m| m.render_instance().instance()).map(|m| m.address());
+        let idle = optics.model().and_then(|m| m.render_instance().instance()).map(|m| ModelId::parse(m));
         Some(Scoped { fov_factor: *optics.fov_factor(), weapon: weapon.address(), scope_view: *weapon.scope_view() != 0, aimed, idle, eye })
     }
 }
@@ -886,7 +906,11 @@ pub fn filter_foreground(ctx: &Context<'_>, at: Stage22, keep: Keep) -> Filtered
                 filtered.foreground = compact(view.foreground_first(), view.foreground_end(), stays);
                 (view.lit_first(), view.lit_end())
             }
-            Stage22::Gbuffer => (view.opaque_first(), view.opaque_end()),
+            Stage22::Gbuffer => {
+                // the other drawn list's first-person surfaces too (an optic's see-through glass is there)
+                filtered.foreground = compact(view.forward_first(), view.forward_end(), |surface| !first_person(surface) || stays(surface));
+                (view.opaque_first(), view.opaque_end())
+            }
         };
         let mut owners = 0;
         let mut seen = 0;
@@ -1075,6 +1099,8 @@ pub struct SurfaceSeen {
     pub placed: Option<[f32; 3]>,
     /// Its mesh's vertex and index counts.
     pub mesh: Option<(u32, u32)>,
+    /// The sphere's centre in the model's own space (by its world matrix).
+    pub local: Option<[f32; 3]>,
 }
 
 /// The most surfaces the log shows.
@@ -1097,6 +1123,7 @@ pub fn surfaces_seen(model: ModelId, view: &[f32; 16]) -> ([SurfaceSeen; SEEN], 
                 in_view: core::array::from_fn(|k| c[0] * view[k] + c[1] * view[4 + k] + c[2] * view[8 + k] + view[12 + k]),
                 placed: (!matrix.is_null()).then(|| [matrix.add(12).read(), matrix.add(13).read(), matrix.add(14).read()]),
                 mesh: mesh_of(record),
+                local: (!matrix.is_null()).then(|| transform_point(&invert_affine(&read16(matrix)), c)),
             };
         }
         (seen, count.min(SEEN))
@@ -1269,4 +1296,375 @@ pub enum Put {
     In,
     Moved,
     Out,
+}
+
+/// A model instance at `address` (an optic's idle model), when the lens reads its class.
+///
+/// # Safety
+/// `address` is a live model instance on this thread.
+pub unsafe fn model_at(model: raw::ModelInstance) -> Result<ModelId, UnknownModel> {
+    unsafe { ModelId::parse(model) }
+}
+
+/// Diagnostics: the vectors of the drawn scene view (at `forward.execute_foreground`)
+/// holding any of `model`'s records: each one's offset, its entries of them, all its entries.
+pub fn lists_holding(ctx: &Context<'_>, model: ModelId) -> ([(u32, u32, u32); 12], usize) {
+    let mut found = [(0, 0, 0); 12];
+    let mut count = 0;
+    // SAFETY: the stage's scene view, 1DE40h bytes; each candidate vector read
+    // only after VirtualQuery says its whole range is committed and readable.
+    unsafe {
+        let Some((first, records)) = surfaces(model) else { return (found, 0) };
+        let first = first.address();
+        let past = first + records as u32 * raw::RenderSurfaceInstance::SIZE as u32;
+        let Some(view) = raw::site::forward_execute_foreground::stage(ctx).and_then(|s| s.context()).and_then(|c| c.scene_view()) else {
+            return (found, 0);
+        };
+        let base = view.address() as usize as *const u32;
+        let words = raw::SceneView::SIZE / 4;
+        for k in 0..words - 1 {
+            let (b, e) = (base.add(k).read(), base.add(k + 1).read());
+            if b == 0 || b % 4 != 0 || e < b || e - b > 1 << 16 || (e - b) % 4 != 0 || e == b {
+                continue;
+            }
+            if !super::memory::all_readable(b as usize, e as usize) {
+                continue;
+            }
+            let entries = (e - b) / 4;
+            let ours = (0..entries).filter(|&i| (first..past).contains(&((b as usize as *const u32).add(i as usize).read()))).count() as u32;
+            if ours > 0 && count < found.len() {
+                found[count] = ((k * 4) as u32, ours, entries);
+                count += 1;
+            }
+        }
+    }
+    (found, count)
+}
+
+/// Diagnostics: a model's record `index` and the first 32 words of its render surface.
+pub fn record_words(model: ModelId, index: usize) -> Option<([u32; 25], [u32; 32])> {
+    // SAFETY: the model alive (see ModelId), its records its own; the surface
+    // read only when readable.
+    unsafe {
+        let (first, count) = surfaces(model)?;
+        if index >= count {
+            return None;
+        }
+        let record = first.at(index);
+        let at = record.address() as usize as *const u32;
+        let words: [u32; 25] = core::array::from_fn(|k| at.add(k).read());
+        let surface = words[0x38 / 4] as usize;
+        if surface == 0 || !super::memory::all_readable(surface, surface + 128) {
+            return Some((words, [0; 32]));
+        }
+        let s = surface as *const u32;
+        Some((words, core::array::from_fn(|k| s.add(k).read())))
+    }
+}
+
+/// The inverse of an affine row-vector transform (rows right, up, forward,
+/// place): a camera's view matrix, a model's world-to-model one.
+pub fn invert_affine(m: &[f32; 16]) -> [f32; 16] {
+    let a = |r: usize, c: usize| m[r * 4 + c];
+    let det = a(0, 0) * (a(1, 1) * a(2, 2) - a(1, 2) * a(2, 1)) - a(0, 1) * (a(1, 0) * a(2, 2) - a(1, 2) * a(2, 0))
+        + a(0, 2) * (a(1, 0) * a(2, 1) - a(1, 1) * a(2, 0));
+    let inv_det = if det.abs() > 1e-12 { 1.0 / det } else { 1.0 };
+    let mut r = [0.0f32; 16];
+    r[0] = (a(1, 1) * a(2, 2) - a(1, 2) * a(2, 1)) * inv_det;
+    r[1] = (a(0, 2) * a(2, 1) - a(0, 1) * a(2, 2)) * inv_det;
+    r[2] = (a(0, 1) * a(1, 2) - a(0, 2) * a(1, 1)) * inv_det;
+    r[4] = (a(1, 2) * a(2, 0) - a(1, 0) * a(2, 2)) * inv_det;
+    r[5] = (a(0, 0) * a(2, 2) - a(0, 2) * a(2, 0)) * inv_det;
+    r[6] = (a(0, 2) * a(1, 0) - a(0, 0) * a(1, 2)) * inv_det;
+    r[8] = (a(1, 0) * a(2, 1) - a(1, 1) * a(2, 0)) * inv_det;
+    r[9] = (a(0, 1) * a(2, 0) - a(0, 0) * a(2, 1)) * inv_det;
+    r[10] = (a(0, 0) * a(1, 1) - a(0, 1) * a(1, 0)) * inv_det;
+    for c in 0..3 {
+        r[12 + c] = -(a(3, 0) * r[c] + a(3, 1) * r[4 + c] + a(3, 2) * r[8 + c]);
+    }
+    r[15] = 1.0;
+    r
+}
+
+/// A point through a row-vector transform.
+pub fn transform_point(m: &[f32; 16], p: [f32; 3]) -> [f32; 3] {
+    core::array::from_fn(|c| p[0] * m[c] + p[1] * m[4 + c] + p[2] * m[8 + c] + m[12 + c])
+}
+
+/// The most vertices read back of a surface (a glass has some tens).
+pub const MOST_VERTICES: usize = 512;
+
+/// A static record's vertex positions in its model's space, read back from
+/// the GPU (its vertex buffer copied into a staging buffer and mapped: a wait
+/// for the GPU, so once per optic). The render thread. None for a surface of
+/// more than [`MOST_VERTICES`] or one not read.
+pub fn positions(_: &Thread, record: raw::RenderSurfaceInstance, out: &mut [[f32; 3]; MOST_VERTICES]) -> Option<usize> {
+    let context = immediate_context()?;
+    // SAFETY: a live record of a model in the scene; its render surface,
+    // geometry and buffers the resource's own (renderer-026g.md 2.2); the
+    // device's Create/Copy/Map on the render thread's immediate context, our
+    // staging buffer released before return; reads within the mapped bytes.
+    unsafe {
+        let surface = record.surface()?;
+        let count = *surface.vertex_count() as usize;
+        if count == 0 || count > MOST_VERTICES {
+            return None;
+        }
+        let geometry = surface.geometry()?;
+        let stride = *geometry.stride() as usize;
+        let vertices = geometry.vertices()?;
+        let buffer = vertices.buffer()?;
+        let offset = *vertices.offset() as usize;
+        // a COM object: its vtable readable (a wrong field would be no object)
+        let object = buffer.address() as usize;
+        if !super::memory::all_readable(object, object + 4) {
+            return None;
+        }
+        let vtable = (object as *const u32).read() as usize;
+        if !super::memory::all_readable(vtable, vtable + 64) {
+            return None;
+        }
+        let mut desc = BufferDesc { bytes: 0, usage: 0, bind: 0, cpu_access: 0, misc: 0, stride: 0 };
+        raw::engine_buffer_get_desc(Some(buffer), (&raw mut desc).cast());
+        let bytes = count * stride;
+        if stride < 12 || (desc.bytes as usize) < offset + bytes {
+            return None;
+        }
+        let mut device = null_mut();
+        raw::engine_device_child_get_device(Some(buffer), &mut device);
+        if device.is_null() {
+            return None;
+        }
+        // STAGING, read by the CPU
+        let staging_desc = BufferDesc { bytes: bytes as u32, usage: 3, bind: 0, cpu_access: 1 << 17, misc: 0, stride: 0 };
+        let mut staging = None;
+        let made = raw::engine_device_create_buffer(device.cast(), (&raw const staging_desc).cast(), null(), &mut staging);
+        raw::engine_d3d_device_release(device.cast());
+        let staging = staging.filter(|_| made & 1 << 31 == 0).map(Held)?;
+        let area = Box3 { left: offset as u32, top: 0, front: 0, right: (offset + bytes) as u32, bottom: 1, back: 1 };
+        raw::engine_context_copy_subresource_region(Some(context), Some(staging.0), 0, 0, 0, 0, Some(buffer), 0, (&raw const area).cast());
+        let mut mapped = MappedData { data: null_mut(), row_pitch: 0, depth_pitch: 0 };
+        // READ, waiting for the copy
+        if raw::engine_context_map(Some(context), Some(staging.0), 0, 1, 0, (&raw mut mapped).cast()) & 1 << 31 != 0 || mapped.data.is_null() {
+            return None;
+        }
+        let base = mapped.data.cast::<u8>();
+        for (index, slot) in out.iter_mut().enumerate().take(count) {
+            let at = base.add(index * stride).cast::<f32>();
+            *slot = [at.read_unaligned(), at.add(1).read_unaligned(), at.add(2).read_unaligned()];
+        }
+        raw::engine_context_unmap(Some(context), Some(staging.0), 0);
+        Some(count)
+    }
+}
+
+/// A round glass of an optic in its model's space: centre, unit normal
+/// (its side toward the eye), radius.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Glass {
+    pub centre: [f32; 3],
+    pub normal: [f32; 3],
+    pub radius: f32,
+}
+
+fn sub(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
+    [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+}
+
+fn dot(a: [f32; 3], b: [f32; 3]) -> f32 {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+fn cross(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
+    [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+}
+
+fn length(a: [f32; 3]) -> f32 {
+    core::f32::math::sqrt(dot(a, a))
+}
+
+fn scaled(a: [f32; 3], k: f32) -> [f32; 3] {
+    [a[0] * k, a[1] * k, a[2] * k]
+}
+
+/// A flat fan's glass (the aimed model's `scope_lense_1p_s`: a centre and
+/// a rim): its centroid, the rim's farthest point, the fan's normal turned
+/// toward `eye` (model space).
+pub fn fan_glass(points: &[[f32; 3]], eye: [f32; 3]) -> Option<Glass> {
+    let n = points.len() as f32;
+    if points.len() < 8 {
+        return None;
+    }
+    let centre = points.iter().fold([0.0; 3], |s, p| [s[0] + p[0] / n, s[1] + p[1] / n, s[2] + p[2] / n]);
+    let radius = points.iter().map(|&p| length(sub(p, centre))).fold(0.0, f32::max);
+    let far = *points.iter().max_by(|a, b| length(sub(**a, centre)).total_cmp(&length(sub(**b, centre))))?;
+    let normal = points
+        .iter()
+        .map(|&p| cross(sub(far, centre), sub(p, centre)))
+        .max_by(|a, b| length(*a).total_cmp(&length(*b)))?;
+    let size = length(normal);
+    if size <= 1e-9 || radius <= 1e-4 {
+        return None;
+    }
+    let normal = scaled(normal, if dot(normal, sub(eye, centre)) < 0.0 { -1.0 / size } else { 1.0 / size });
+    Some(Glass { centre, normal, radius })
+}
+
+/// The flat rounds of `points` across `axis` (a line through `on`, unit
+/// `along` toward the eye): each set of points in one plane across it
+/// (within 0.5 mm), on it (its centre within 3 mm of the line), all of
+/// them on one circle but a centre point. Up to four, each a [`Glass`].
+pub fn rounds_across(points: &mut [[f32; 3]], on: [f32; 3], along: [f32; 3]) -> ([Glass; 4], usize) {
+    const GAP: f32 = 0.001;
+    const FLAT: f32 = 0.0005;
+    let mut found = [Glass { centre: [0.0; 3], normal: along, radius: 0.0 }; 4];
+    let mut count = 0;
+    points.sort_unstable_by(|a, b| dot(sub(*a, on), along).total_cmp(&dot(sub(*b, on), along)));
+    let mut start = 0;
+    while start < points.len() {
+        let mut end = start + 1;
+        while end < points.len() && dot(sub(points[end], points[end - 1]), along) < GAP {
+            end += 1;
+        }
+        let round = &points[start..end];
+        start = end;
+        let first = dot(sub(round[0], on), along);
+        let last = dot(sub(round[round.len() - 1], on), along);
+        if round.len() < 6 || last - first > FLAT {
+            continue;
+        }
+        let n = round.len() as f32;
+        let centre = round.iter().fold([0.0; 3], |s, p| [s[0] + p[0] / n, s[1] + p[1] / n, s[2] + p[2] / n]);
+        let off = sub(centre, on);
+        let across = sub(off, scaled(along, dot(off, along)));
+        let radius = round.iter().map(|&p| length(sub(p, centre))).fold(0.0, f32::max);
+        let one_circle = round.iter().all(|&p| {
+            let r = length(sub(p, centre));
+            r < 0.3 * radius || r > 0.9 * radius
+        });
+        if length(across) > 0.003 || !(0.004..=0.04).contains(&radius) || !one_circle {
+            continue;
+        }
+        if count < found.len() {
+            found[count] = Glass { centre, normal: along, radius };
+            count += 1;
+        }
+    }
+    (found, count)
+}
+
+/// A model's surface records as the lens searches them: each one's record.
+pub fn records(model: ModelId) -> ([Option<raw::RenderSurfaceInstance>; SEEN], usize) {
+    let mut out = [None; SEEN];
+    // SAFETY: as lens_on_screen's.
+    unsafe {
+        let Some((first, count)) = surfaces(model) else { return (out, 0) };
+        for (index, slot) in out.iter_mut().enumerate().take(count) {
+            *slot = Some(first.at(index));
+        }
+        (out, count.min(SEEN))
+    }
+}
+
+/// The aimed model's glass record (its [`GLASS_MESH`]).
+pub fn glass_record(model: ModelId) -> Option<raw::RenderSurfaceInstance> {
+    // SAFETY: as lens_on_screen's.
+    unsafe {
+        let (first, count) = surfaces(model)?;
+        (0..count).map(|index| first.at(index)).find(|&record| mesh_of(record) == Some(GLASS_MESH))
+    }
+}
+
+/// A record's world matrix as the renderer draws it this frame (+50h).
+pub fn world_matrix(record: raw::RenderSurfaceInstance) -> Option<[f32; 16]> {
+    // SAFETY: a live record; its matrix pointer the model's own, 16 floats, or null.
+    unsafe {
+        let matrix = record.transform();
+        (!matrix.is_null()).then(|| read16(matrix))
+    }
+}
+
+
+/// The view the draw at `render.begin` draws (the frame's own, or another).
+pub fn drawn_main(ctx: &Context<'_>) -> Option<MainView> {
+    // SAFETY: as drawn_view's.
+    unsafe { raw::site::render_begin::frame(ctx).and_then(|f| f.view_ref()).and_then(|r| r.view()).map(MainView) }
+}
+
+/// D3D11_BOX.
+#[repr(C)]
+struct Box3 {
+    left: u32,
+    top: u32,
+    front: u32,
+    right: u32,
+    bottom: u32,
+    back: u32,
+}
+
+
+/// Diagnostics: where in the drawn scene view (at `render.begin`) 16 floats
+/// equal to `m`'s first 12 are (within 1e-4): up to four offsets.
+pub fn find_matrix(ctx: &Context<'_>, m: &[f32; 16]) -> ([u32; 4], usize) {
+    let mut found = [0; 4];
+    let mut count = 0;
+    // SAFETY: the drawn view, alive while it is drawn; read within its size.
+    unsafe {
+        let Some(MainView(view)) = drawn_main(ctx) else { return (found, 0) };
+        let base = view.address() as usize as *const f32;
+        let words = raw::SceneView::SIZE / 4;
+        for k in 0..words - 16 {
+            if (0..12).all(|i| (base.add(k + i).read() - m[i]).abs() < 1e-4) && m[..12].iter().any(|v| v.abs() > 1e-3) {
+                if count < found.len() {
+                    found[count] = (k * 4) as u32;
+                    count += 1;
+                }
+            }
+        }
+    }
+    (found, count)
+}
+
+/// The row-vector product `a` then `b`.
+pub fn multiply(a: &[f32; 16], b: &[f32; 16]) -> [f32; 16] {
+    core::array::from_fn(|i| {
+        let (r, c) = (i / 4, i % 4);
+        (0..4).map(|k| a[r * 4 + k] * b[k * 4 + c]).sum()
+    })
+}
+
+/// A direction through a row-vector transform.
+pub fn transform_direction(m: &[f32; 16], d: [f32; 3]) -> [f32; 3] {
+    core::array::from_fn(|c| d[0] * m[c] + d[1] * m[4 + c] + d[2] * m[8 + c])
+}
+
+/// Two unit vectors across `normal` (view space, the normal about along
+/// the view): the first toward the screen's right, the second toward its top,
+/// so a quad of them faces the viewer (the default rasterizer culls the back).
+pub fn across(normal: [f32; 3]) -> ([f32; 3], [f32; 3]) {
+    let u = sub([1.0, 0.0, 0.0], scaled(normal, normal[0]));
+    let u = scaled(u, 1.0 / length(u).max(1e-9));
+    let w = cross(normal, u);
+    (u, if w[1] < 0.0 { scaled(w, -1.0) } else { w })
+}
+
+/// The length of a vector.
+pub fn norm(a: [f32; 3]) -> f32 {
+    length(a)
+}
+
+/// The view and projection matrices the draw at `render.begin` draws with
+/// (its scene view's, set by the commands queued before it).
+pub fn drawn_camera(ctx: &Context<'_>) -> Option<([f32; 16], [f32; 16])> {
+    // SAFETY: the drawn view, alive while it is drawn; 16 floats each.
+    unsafe {
+        let MainView(view) = drawn_main(ctx)?;
+        Some((read16(view.view_matrix()), read16(view.projection_matrix())))
+    }
+}
+
+/// A record's bound sphere's radius (FLT_MAX or 0 before the renderer placed it).
+pub fn sphere_radius(record: raw::RenderSurfaceInstance) -> Option<f32> {
+    // SAFETY: a live record; its sphere four floats at +10h.
+    unsafe { Some(record.sphere().add(3).read()) }
 }

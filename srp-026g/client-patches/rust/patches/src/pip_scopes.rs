@@ -23,7 +23,7 @@ use crate::vostok::log::{self, Piece};
 use crate::vostok::renderer::get_environment;
 use crate::hud_options;
 use crate::pip_lens;
-use crate::vostok::second_view::{self, Disc, Frame, GpuClock, Keep, Lens, LensPlace, MainView, Marks, ModelId, ReadError, Put, ScopeSite, ScopeWeapon, Scoped, SecondView, Stage, Stage22, UnknownModel, RING};
+use crate::vostok::second_view::{self, invert_affine, Disc, Frame, Glass, GpuClock, Keep, Lens, MainView, Marks, ModelId, ReadError, Put, ScopeSite, ScopeWeapon, Scoped, SecondView, Stage, Stage22, UnknownModel, MOST_VERTICES, RING};
 use crate::vostok::{
     trig, Context, Flow, Lock, NoExit, OrigRenderFlashUi, PipScopesOnPresentExit, PipScopesOnScopeBodyExit,
     PipScopesOnScopeCulledBodyExit, PipScopesOnScopeOpticExit, PipScopesOnScopeShowExit, PipScopesOnScopeSwapExit, PipScopesOnUnmoveExit, Reg, Thread,
@@ -37,8 +37,11 @@ const MARGIN: u32 = 16;
 const LOGGED_FRAMES: u32 = 240;
 /// The lens's radius, of the frame's half height.
 const LENS_RADIUS: f32 = 0.45;
-/// The scope's picture, pixels square, with the setting.
+/// The scope's first picture, pixels square, with the setting.
 const SCOPE_SIZE: u32 = 512;
+/// The scope's pictures, pixels square: the one drawn is the smallest at
+/// least as wide as the lens on the screen (the first one the probe's view).
+const PICTURE_SIZES: [u32; 3] = [SCOPE_SIZE, 768, 1024];
 /// The lens probe's optic: a full scope's zoom (the PSO-1's, the ACOG's).
 const PROBE_FOV_FACTOR: f32 = 0.25;
 /// The lens's rim: how sharp its darkening is, how dark it gets.
@@ -101,26 +104,38 @@ static PROBE: Lock<Probe> = Lock::new(Probe::Unread);
 /// is not reentrant: set at its start, read by its sites).
 static SECOND_PASS: AtomicBool = AtomicBool::new(false);
 
-/// The picture a large lens is drawn from: made the first time a lens is
-/// wider on the screen than [`SCOPE_SIZE`] pixels, kept after.
+/// A larger picture of [`PICTURE_SIZES`]: made the first time a lens is
+/// that wide on the screen, kept after.
 #[derive(Clone, Copy)]
-enum Large {
+enum Picture {
     Unwanted,
     Wanted,
     Made(SecondView),
     Failed,
 }
 
-static LARGE: Lock<Large> = Lock::new(Large::Unwanted);
+static PICTURES: Lock<[Picture; 2]> = Lock::new([Picture::Unwanted; 2]);
 
-/// The large picture's size, pixels square: the most a lens draws from.
-const LARGE_SIZE: u32 = 1024;
+/// The picture for a lens `wide` pixels across: the index of [`PICTURE_SIZES`].
+fn picture_for(wide: f32) -> usize {
+    PICTURE_SIZES.iter().position(|&size| size as f32 >= wide).unwrap_or(PICTURE_SIZES.len() - 1)
+}
+
+/// The larger pictures made.
+fn larger_made(thread: &Thread) -> [Option<(SecondView, u32)>; 2] {
+    PICTURES.with(thread, |pictures| {
+        core::array::from_fn(|i| match pictures[i] {
+            Picture::Made(view) => Some((view, PICTURE_SIZES[i + 1])),
+            _ => None,
+        })
+    })
+}
 
 /// The frame's back buffer's height, pixels (render thread, for the game's).
 static FRAME_HEIGHT: Lock<u32> = Lock::new(1080);
 
-/// The view the render thread draws now, of the second views (its picture the lens's).
-static PICTURE: Lock<Option<SecondView>> = Lock::new(None);
+/// The view the render thread draws now, of the second views (its picture the lens's), and its size.
+static PICTURE: Lock<Option<(SecondView, u32)>> = Lock::new(None);
 
 /// SKHID_PIP_SCOPES set: the lens whatever the setting says.
 static SCOPES_FORCED: AtomicBool = AtomicBool::new(false);
@@ -196,6 +211,9 @@ impl Note {
     }
 }
 
+/// The optic's idle model while the lens is drawn: the one in view.
+static IDLE: Lock<Option<ModelId>> = Lock::new(None);
+
 /// The lens is on: the setting (or the variable), and the view made for it.
 fn scopes_active(thread: &Thread, probe: Probe) -> bool {
     matches!(probe, Probe::Made { used: Use::Scopes, .. })
@@ -262,19 +280,48 @@ fn turn_off_switches(thread: &Thread) {
     KEPT.with(thread, |slot| *slot = Some(kept));
 }
 
-/// The frame's view and projection, for the lens's place on its screen.
-static FRAME_CAMERA: Lock<Option<([f32; 16], [f32; 16])>> = Lock::new(None);
+/// The view and projection of the frame the render thread draws now (its
+/// scene view's at its draw's start), for the lens's place on its screen.
+static DRAWN_CAMERA: Lock<Option<([f32; 16], [f32; 16])>> = Lock::new(None);
 
-/// The lens on the frame's screen this frame (clip space: centre, radii).
-static LENS_DISC: Lock<Option<LensPlace>> = Lock::new(None);
+/// The lens this frame: the real optic's rear glass as the frame draws it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Placed {
+    /// The glass in the frame's view space: its centre, two radii across it.
+    centre: [f32; 3],
+    across: [[f32; 3]; 2],
+    projection: [f32; 16],
+    /// The picture's disc on the screen, clip space: centre, radii.
+    picture: [f32; 4],
+}
+
+static LENS_DISC: Lock<Option<Placed>> = Lock::new(None);
+
+/// Where the lens's glass comes from, for an idle optic model.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum GlassOf {
+    /// The idle model's own rear glass (in its space).
+    Own(Glass),
+    /// It has none the lens finds: the aimed model's glass (in the idle model's space).
+    Aimed(Glass),
+    /// Neither read: today's scope for it.
+    Unread,
+}
+
+/// The glass of each idle optic model met (by its instance's address), found once.
+static GLASSES: Lock<([(u32, GlassOf); 16], usize)> = Lock::new(([(0, GlassOf::Unread); 16], 0));
+
+/// The size of the last picture the lens was drawn from, pixels square (0: none), for the timing lines.
+static PICTURE_DRAWN: AtomicU32 = AtomicU32::new(0);
+
 
 /// The aimed model's lens surface the last frame found: the second view
 /// leaves it out (its glass would cover the whole picture).
 static LENS_SURFACE: Lock<Option<u32>> = Lock::new(None);
 
 /// The radius of the lens's last place, of the half height, for the next
-/// second view's field of view.
-static LENS_SIZE: Lock<f32> = Lock::new(LENS_RADIUS);
+/// second view's field of view and its picture's size (None before a lens was placed).
+static LENS_SIZE: Lock<Option<f32>> = Lock::new(None);
 
 /// The render thread's times.
 struct Clock {
@@ -285,8 +332,9 @@ struct Clock {
     /// The frame's second view was drawn (its GPU interval begun).
     second_this_frame: bool,
     last_present: Option<f64>,
-    /// The frame's Present began (its end is renderer::render's end, `render.unmove`).
+    /// The frame's Present began (`render.present_call`) and returned (`render.present_done`).
     present_started: Option<f64>,
+    present_done: Option<f64>,
     /// The game's thread's last scene draw.
     last_game: Option<f64>,
     /// The render thread's last draw's end (`render.unmove`).
@@ -301,6 +349,8 @@ struct Sums {
     frames: u32,
     /// The frame's Present, its call to its return: a wait for the display shows here.
     present: f64,
+    /// r_gpu_sync's wait after it, to renderer::render's end: the GPU finishing the frame.
+    gpu_wait: f64,
     /// The game's thread, from one scene's draw to the next.
     game: f64,
     game_frames: u32,
@@ -326,38 +376,15 @@ static CLOCK: Lock<Clock> = Lock::new(Clock {
     second_this_frame: false,
     last_present: None,
     present_started: None,
+    present_done: None,
     last_game: None,
     last_end: None,
     misses: 0,
-    sums: Sums { frames: 0, present: 0.0, game: 0.0, game_frames: 0, sleeping: 0, ours: 0.0, idle: 0.0, second_cpu: 0.0, main_cpu: 0.0, interval: 0.0, gpu_frames: 0, second_gpu: 0.0, main_gpu: 0.0 },
+    sums: Sums { frames: 0, present: 0.0, gpu_wait: 0.0, game: 0.0, game_frames: 0, sleeping: 0, ours: 0.0, idle: 0.0, second_cpu: 0.0, main_cpu: 0.0, interval: 0.0, gpu_frames: 0, second_gpu: 0.0, main_gpu: 0.0 },
 });
 
 fn timed(probe: Probe) -> bool {
     matches!(probe, Probe::Timing | Probe::Made { .. })
-}
-
-/// The inverse of an affine row-vector transform (rows right, up, forward,
-/// place): the view matrix of a camera.
-fn invert_affine(m: &[f32; 16]) -> [f32; 16] {
-    let a = |r: usize, c: usize| m[r * 4 + c];
-    let det = a(0, 0) * (a(1, 1) * a(2, 2) - a(1, 2) * a(2, 1)) - a(0, 1) * (a(1, 0) * a(2, 2) - a(1, 2) * a(2, 0))
-        + a(0, 2) * (a(1, 0) * a(2, 1) - a(1, 1) * a(2, 0));
-    let inv_det = if det.abs() > 1e-12 { 1.0 / det } else { 1.0 };
-    let mut r = [0.0f32; 16];
-    r[0] = (a(1, 1) * a(2, 2) - a(1, 2) * a(2, 1)) * inv_det;
-    r[1] = (a(0, 2) * a(2, 1) - a(0, 1) * a(2, 2)) * inv_det;
-    r[2] = (a(0, 1) * a(1, 2) - a(0, 2) * a(1, 1)) * inv_det;
-    r[4] = (a(1, 2) * a(2, 0) - a(1, 0) * a(2, 2)) * inv_det;
-    r[5] = (a(0, 0) * a(2, 2) - a(0, 2) * a(2, 0)) * inv_det;
-    r[6] = (a(0, 2) * a(1, 0) - a(0, 0) * a(1, 2)) * inv_det;
-    r[8] = (a(1, 0) * a(2, 1) - a(1, 1) * a(2, 0)) * inv_det;
-    r[9] = (a(0, 1) * a(2, 0) - a(0, 0) * a(2, 1)) * inv_det;
-    r[10] = (a(0, 0) * a(1, 1) - a(0, 1) * a(1, 0)) * inv_det;
-    for c in 0..3 {
-        r[12 + c] = -(a(3, 0) * r[c] + a(3, 1) * r[4 + c] + a(3, 2) * r[8 + c]);
-    }
-    r[15] = 1.0;
-    r
 }
 
 /// The frame's projection narrowed `zoom` times, square, without the frame's
@@ -513,7 +540,8 @@ pub fn on_draw(ctx: &mut Context<'_>) -> Flow<NoExit> {
                 return Flow::Continue;
             };
             let uro_fov = second_view::field_of_view(thread);
-            let size = LENS_SIZE.with(thread, |size| *size);
+            let measured = LENS_SIZE.with(thread, |size| *size);
+            let size = measured.unwrap_or(LENS_RADIUS);
             let (Some(main_projection), Some(lens)) =
                 (unzoomed(&projection, uro_fov), through_lens(&projection, scoped.fov_factor, uro_fov, size))
             else {
@@ -521,18 +549,19 @@ pub fn on_draw(ctx: &mut Context<'_>) -> Flow<NoExit> {
             };
             frame.set_projection(&main_projection);
             set_frame_fov(thread, &main_projection);
-            FRAME_CAMERA.with(thread, |kept| *kept = Some((view, main_projection)));
-            // the picture as wide as the lens on the screen: the large one past SCOPE_SIZE pixels
-            let wide = size * FRAME_HEIGHT.with(thread, |h| *h) as f32 > SCOPE_SIZE as f32 * 1.1;
-            let large = LARGE.with(thread, |large| match *large {
-                Large::Unwanted if wide => {
-                    *large = Large::Wanted;
-                    None
-                }
-                Large::Made(view) if wide => Some(view),
-                _ => None,
-            });
-            let picture = large.unwrap_or(second);
+            // the picture as wide as the lens on the screen, once a lens was measured
+            let wanted = measured.map_or(0, |size| picture_for(size * FRAME_HEIGHT.with(thread, |h| *h) as f32));
+            let (picture, picture_size) = match wanted.checked_sub(1) {
+                None => (second, SCOPE_SIZE),
+                Some(larger) => PICTURES.with(thread, |pictures| match pictures[larger] {
+                    Picture::Made(view) => (view, PICTURE_SIZES[wanted]),
+                    Picture::Unwanted => {
+                        pictures[larger] = Picture::Wanted;
+                        (second, SCOPE_SIZE)
+                    }
+                    Picture::Wanted | Picture::Failed => (second, SCOPE_SIZE),
+                }),
+            };
             let shown = scoped.scope_view && reticle_of(thread, scoped.weapon);
             if shown {
                 // from the aim itself: the reticle's centre is where a shot goes
@@ -550,7 +579,7 @@ pub fn on_draw(ctx: &mut Context<'_>) -> Flow<NoExit> {
                     .text(" ")
                     .hex(model.address())
                     .text(", idle model ")
-                    .hex(scoped.idle.unwrap_or(0))
+                    .hex(scoped.idle.and_then(Result::ok).map_or(0, ModelId::address))
                     .text(", uro_fov")
                     .milli(uro_fov)
                     .text(", last lens radius (half heights)")
@@ -558,10 +587,11 @@ pub fn on_draw(ctx: &mut Context<'_>) -> Flow<NoExit> {
                     .text(", second view fov (degrees)")
                     .milli(fov)
                     .text(", its picture ")
-                    .dec(SCOPE_SIZE)
+                    .dec(picture_size)
                     .text(" px square")
                     .send();
             }
+            IDLE.with(thread, |idle| *idle = scoped.idle.and_then(Result::ok).filter(|_| aimed.is_some()));
             aimed
         }
     };
@@ -582,24 +612,24 @@ pub fn on_draw(ctx: &mut Context<'_>) -> Flow<NoExit> {
 pub fn on_render_begin(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let probe = PROBE.with(thread, |probe| *probe);
-    let large = LARGE.with(thread, |large| match *large {
-        Large::Made(view) => Some(view),
-        _ => None,
-    });
+    let [a, b] = larger_made(thread);
     let drawn = match probe {
-        Probe::Made { second, main, .. } => [Some(second), large]
+        Probe::Made { second, main, .. } => [Some((second, SCOPE_SIZE)), a, b]
             .into_iter()
             .flatten()
-            .find(|view| second_view::drawn_view(ctx, view))
-            .map(|view| (view, main)),
+            .find(|(view, _)| second_view::drawn_view(ctx, view))
+            .map(|picture| (picture, main)),
         _ => None,
     };
-    if let Some((view, main)) = drawn {
+    if let Some((picture, main)) = drawn {
         if let Some(main) = main {
-            second_view::match_environment(thread, &view, main);
+            second_view::match_environment(thread, &picture.0, main);
         }
-        PICTURE.with(thread, |picture| *picture = Some(view));
+        PICTURE.with(thread, |kept| *kept = Some(picture));
         LENS_DUE.store(true, Ordering::Relaxed);
+    } else {
+        let camera = second_view::drawn_camera(ctx);
+        DRAWN_CAMERA.with(thread, |kept| *kept = camera);
     }
     let second = drawn.is_some();
     SECOND_PASS.store(second, Ordering::Relaxed);
@@ -671,18 +701,20 @@ pub fn on_interface(ctx: &mut Context<'_>) -> Flow<NoExit> {
         }
         *probe
     });
-    LARGE.with(thread, |large| {
-        if let Large::Wanted = *large {
-            *large = match second_view::make(thread, LARGE_SIZE) {
-                Ok(view) => {
-                    log::line(&[Piece::Text("pip: second view made, "), Piece::Dec(LARGE_SIZE), Piece::Text(" (a large lens)")]);
-                    Large::Made(view)
-                }
-                Err(_) => {
-                    log::line(&[Piece::Text("pip: no large second view: the lens draws from the 512 one")]);
-                    Large::Failed
-                }
-            };
+    PICTURES.with(thread, |pictures| {
+        for (picture, size) in pictures.iter_mut().zip(&PICTURE_SIZES[1..]) {
+            if let Picture::Wanted = *picture {
+                *picture = match second_view::make(thread, *size) {
+                    Ok(view) => {
+                        log::line(&[Piece::Text("pip: second view made, "), Piece::Dec(*size), Piece::Text(" (a larger lens)")]);
+                        Picture::Made(view)
+                    }
+                    Err(_) => {
+                        log::line(&[Piece::Text("pip: no second view of "), Piece::Dec(*size), Piece::Text(": the lens draws from the 512 one")]);
+                        Picture::Failed
+                    }
+                };
+            }
         }
     });
     if let Some(height) = second_view::frame_height(ctx) {
@@ -703,7 +735,7 @@ pub fn on_interface(ctx: &mut Context<'_>) -> Flow<NoExit> {
             second_view::composite(ctx, &second, MARGIN);
         }
         Probe::Made { second, used: used @ (Use::Scopes | Use::ProbeLens), .. } if LENS_DUE.swap(false, Ordering::Relaxed) => {
-            let second = PICTURE.with(thread, Option::take).unwrap_or(second);
+            let (second, picture_size) = PICTURE.with(thread, Option::take).unwrap_or((second, SCOPE_SIZE));
             LENS.with(thread, |lens| {
                 let lens = match lens {
                     LensState::Unmade => {
@@ -720,14 +752,19 @@ pub fn on_interface(ctx: &mut Context<'_>) -> Flow<NoExit> {
                 };
                 if let LensState::Made(lens) = lens {
                     let aspect = second_view::frame_aspect(ctx).unwrap_or(16.0 / 9.0);
-                    // the eyepiece's own place this frame; the probe's, at the centre
-                    let (centre, radius) = match LENS_DISC.with(thread, Option::take) {
-                        Some(place) => (place.centre, place.radius),
-                        None if used == Use::ProbeLens => ([0.0, 0.0], [LENS_RADIUS / aspect, LENS_RADIUS]),
+                    // the real optic's glass this frame; the probe's, a flat disc at the centre
+                    let rim = [RIM_SHARPNESS, RIM_DARKNESS];
+                    let disc = match LENS_DISC.with(thread, Option::take) {
+                        Some(placed) => {
+                            LENS_SIZE.with(thread, |size| *size = Some(placed.picture[3]));
+                            Disc { centre: placed.centre, across: placed.across, projection: placed.projection, picture: placed.picture, rim }
+                        }
+                        None if used == Use::ProbeLens => probe_disc(aspect, rim),
                         None => return,
                     };
-                    LENS_SIZE.with(thread, |size| *size = radius[1]);
-                    lens.draw(ctx, &second, &Disc { centre, radius, rim: [RIM_SHARPNESS, RIM_DARKNESS] });
+                    if lens.draw(ctx, &second, &disc) {
+                        PICTURE_DRAWN.store(picture_size, Ordering::Relaxed);
+                    }
                     if PICTURE_ON.load(Ordering::Relaxed) {
                         second_view::composite(ctx, &second, MARGIN);
                     }
@@ -828,6 +865,8 @@ fn report(sums: &Sums) {
         Piece::Dec(us(sums.interval, sums.frames)),
         Piece::Text(", present "),
         Piece::Dec(us(sums.present, sums.frames)),
+        Piece::Text(", then the gpu wait "),
+        Piece::Dec(us(sums.gpu_wait, sums.frames)),
         Piece::Text(", game thread "),
         Piece::Dec(us(sums.game, sums.game_frames)),
         Piece::Text(", of it in this draw hook "),
@@ -849,8 +888,25 @@ fn report(sums: &Sums) {
         Piece::Dec(us(sums.second_gpu, sums.gpu_frames)),
         Piece::Text(" ("),
         Piece::Dec(sums.gpu_frames),
-        Piece::Text(" gpu frames)"),
+        Piece::Text(" gpu frames), the last picture "),
+        Piece::Dec(PICTURE_DRAWN.swap(0, Ordering::Relaxed)),
     ]);
+}
+
+/// renderer::render after the frame's Present returned: the Present's own time.
+pub fn on_present_done(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let thread = ctx.thread();
+    if SECOND_PASS.load(Ordering::Relaxed) || !timed(PROBE.with(thread, |probe| *probe)) {
+        return Flow::Continue;
+    }
+    let now = second_view::cpu_ms(thread);
+    CLOCK.with(thread, |clock| {
+        if let Some(started) = clock.present_started.take() {
+            clock.sums.present += now - started;
+            clock.present_done = Some(now);
+        }
+    });
+    Flow::Continue
 }
 
 /// renderer::render's end: the scene's moved models are the frame's own
@@ -864,8 +920,8 @@ pub fn on_unmove(ctx: &mut Context<'_>) -> Flow<PipScopesOnUnmoveExit> {
         let now = second_view::cpu_ms(thread);
         let second = SECOND_PASS.load(Ordering::Relaxed);
         CLOCK.with(thread, |clock| {
-            if !second && let Some(started) = clock.present_started.take() {
-                clock.sums.present += now - started;
+            if !second && let Some(done) = clock.present_done.take() {
+                clock.sums.gpu_wait += now - done;
             }
             clock.last_end = Some(now);
         });
@@ -881,6 +937,18 @@ pub fn on_foreground(ctx: &mut Context<'_>) -> Flow<NoExit> {
         (true, Some(aimed)) => {
             let except = LENS_SURFACE.with(ctx.thread(), |kept| *kept);
             let filtered = second_view::filter_foreground(ctx, Stage22::Forward, Keep::Only { model: aimed, except });
+            if SECOND_SEEN.load(Ordering::Relaxed) == 30 && LOG_ON.load(Ordering::Relaxed) {
+                for (name, model) in [("aimed", Some(aimed)), ("idle", IDLE.with(ctx.thread(), |idle| *idle))] {
+                    let Some(model) = model else { continue };
+                    let (found, count) = second_view::lists_holding(ctx, model);
+                    let mut note = Note::new("pip: second view's lists holding the ");
+                    note.text(name).text(" model (offset, its entries, all):");
+                    for (offset, ours, all) in found.iter().take(count) {
+                        note.text(" ").hex(*offset).text(" ").dec(*ours).text("/").dec(*all);
+                    }
+                    note.send();
+                }
+            }
             if SECOND_SEEN.fetch_add(1, Ordering::Relaxed) == 30 {
                 let mut note = Note::new("pip: second view's first-person lists (forward stage): forward");
                 note.dec(filtered.foreground.0).text(" -> ").dec(filtered.foreground.1).text(", lit ").dec(filtered.lit.0).text(" -> ").dec(filtered.lit.1);
@@ -894,12 +962,11 @@ pub fn on_foreground(ctx: &mut Context<'_>) -> Flow<NoExit> {
         (true, None) => second_view::drop_foreground(ctx),
         (false, Some(aimed)) => {
             let thread = ctx.thread();
-            let camera = FRAME_CAMERA.with(thread, |camera| *camera);
-            let disc = camera.and_then(|(view, projection)| second_view::lens_on_screen(aimed, &view, &projection));
+            let camera = DRAWN_CAMERA.with(thread, |camera| *camera);
+            let idle = IDLE.with(thread, |idle| *idle);
+            let disc = camera.and_then(|(view, projection)| place_lens(thread, aimed, idle?, &view, &projection));
             LENS_DISC.with(thread, |kept| *kept = disc);
-            if let Some(place) = disc {
-                LENS_SURFACE.with(thread, |kept| *kept = Some(place.surface));
-            }
+            LENS_SURFACE.with(thread, |kept| *kept = second_view::glass_record(aimed).map(|r| r.address()));
             // an aim's first frame and its thirtieth (its surfaces placed by then)
             let frame = SEEN_AIM.with(thread, |seen| {
                 let frame = match *seen {
@@ -912,9 +979,12 @@ pub fn on_foreground(ctx: &mut Context<'_>) -> Flow<NoExit> {
             if frame == 0 || frame == 30 {
                 log_surfaces(ctx, aimed, camera, disc);
             }
+            if frame % 30 == 0 && frame <= 900 {
+                log_places(thread, aimed, camera, frame);
+            }
             // its spheres are placed a frame or two after it enters the scene
             if disc.is_none() && frame >= 30 {
-                refuse(thread, aimed);
+                refuse(thread, aimed, "no lens placed in 30 frames of an aim");
             }
             let _ = second_view::filter_foreground(ctx, Stage22::Forward, Keep::AllBut(aimed));
         }
@@ -924,7 +994,7 @@ pub fn on_foreground(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 
 /// The aimed model's surfaces and the lens's place, at an aim's first frame.
-fn log_surfaces(ctx: &Context<'_>, aimed: ModelId, camera: Option<([f32; 16], [f32; 16])>, disc: Option<LensPlace>) {
+fn log_surfaces(ctx: &Context<'_>, aimed: ModelId, camera: Option<([f32; 16], [f32; 16])>, disc: Option<Placed>) {
     if !LOG_ON.load(Ordering::Relaxed) {
         return;
     }
@@ -962,15 +1032,15 @@ fn log_surfaces(ctx: &Context<'_>, aimed: ModelId, camera: Option<([f32; 16], [f
     }
     match disc {
         Some(place) => Note::new("pip: aim: lens at (clip)")
-            .milli(place.centre[0])
-            .milli(place.centre[1])
+            .milli(place.picture[0])
+            .milli(place.picture[1])
             .text(", radii")
-            .milli(place.radius[0])
-            .milli(place.radius[1])
-            .text(", surface ")
-            .hex(place.surface)
+            .milli(place.picture[2])
+            .milli(place.picture[3])
+            .text(", its glass in view (mm)")
+            .point(place.centre)
             .send(),
-        None => Note::new("pip: aim: no glass (a mesh of 61 vertices, 180 indices) placed on the aimed model: no lens").send(),
+        None => Note::new("pip: aim: no lens placed").send(),
     }
 }
 
@@ -986,7 +1056,8 @@ pub fn on_gbuffer(ctx: &mut Context<'_>) -> Flow<NoExit> {
         let except = LENS_SURFACE.with(thread, |kept| *kept);
         let filtered = second_view::filter_foreground(ctx, Stage22::Gbuffer, Keep::Only { model: aimed, except });
         if SECOND_SEEN.load(Ordering::Relaxed) == 30 {
-            let mut note = Note::new("pip: second view's G-buffer list ");
+            let mut note = Note::new("pip: second view's other drawn list ");
+            note.dec(filtered.foreground.0).text(" -> ").dec(filtered.foreground.1).text(", G-buffer list ");
             note.dec(filtered.lit.0).text(" -> ").dec(filtered.lit.1).text(" (").dec(filtered.lit_first_person).text(" first-person, of owners");
             for owner in filtered.owners.iter().filter(|&&o| o != 0) {
                 note.text(" ").hex(*owner);
@@ -1021,7 +1092,7 @@ fn refused(thread: &Thread, model: ModelId) -> bool {
     REFUSED.with(thread, |(list, count)| list[..*count].contains(&model.address()))
 }
 
-fn refuse(thread: &Thread, model: ModelId) {
+fn refuse(thread: &Thread, model: ModelId, why: &'static str) {
     let fresh = REFUSED.with(thread, |(list, count)| {
         if list[..*count].contains(&model.address()) {
             return false;
@@ -1034,9 +1105,11 @@ fn refuse(thread: &Thread, model: ModelId) {
     });
     if fresh {
         log::line(&[
-            Piece::Text("pip: no glass of the aimed model "),
+            Piece::Text("pip: the aimed model "),
             Piece::Hex(model.address()),
-            Piece::Text(" (no surface of 61 vertices and 180 indices) placed in 30 frames: today's scope for that optic"),
+            Piece::Text(": "),
+            Piece::Text(why),
+            Piece::Text(": today's scope for that optic"),
         ]);
     }
 }
@@ -1159,5 +1232,177 @@ mod tests {
         let n = narrowed(&p, 4.0);
         assert_eq!((n[0], n[5], n[8], n[10], n[14]), (4.0, 4.0, 0.0, 1.0, -0.1));
     }
+}
+
+
+/// Diagnostics: where the aimed and idle models' records are this frame (view space, mm).
+fn log_places(thread: &Thread, aimed: ModelId, camera: Option<([f32; 16], [f32; 16])>, frame: u32) {
+    if !LOG_ON.load(Ordering::Relaxed) {
+        return;
+    }
+    let Some((view, _)) = camera else { return };
+    for (name, model) in [("aimed", Some(aimed)), ("idle", IDLE.with(thread, |idle| *idle))] {
+        let Some(model) = model else { continue };
+        let (seen, count) = second_view::surfaces_seen(model, &view);
+        for (index, surface) in seen.iter().take(count).enumerate() {
+            let mut note = Note::new("pip: place f");
+            note.dec(frame).text(" ").text(name).text(" ").dec(index as u32);
+            if let Some((v, i)) = surface.mesh {
+                note.text(" mesh ").dec(v).text("/").dec(i);
+            }
+            note.text(" r").milli(surface.radius).text(" sphere in view").point(surface.in_view);
+            if let Some(at) = surface.placed {
+                note.text(" matrix in view").point(second_view::transform_point(&view, at));
+            }
+            if let Some(local) = surface.local {
+                note.text(" local").point(local);
+            }
+            note.send();
+            if frame == 30 && let Some((words, surface_words)) = second_view::record_words(model, index) {
+                let mut note = Note::new("pip:   record");
+                for word in words {
+                    note.text(" ").hex(word);
+                }
+                note.send();
+                let mut note = Note::new("pip:   its surface");
+                for word in surface_words {
+                    note.text(" ").hex(word);
+                }
+                note.send();
+            }
+        }
+    }
+}
+
+/// The probe's lens: a flat disc at the frame's centre, the probe's size.
+fn probe_disc(aspect: f32, rim: [f32; 2]) -> Disc {
+    // a glass 1 m ahead filling LENS_RADIUS half heights of a 90 degree view
+    let mut projection = [0.0; 16];
+    (projection[0], projection[5], projection[10], projection[11], projection[14]) = (1.0 / aspect, 1.0, 1.0, 1.0, -0.01);
+    Disc {
+        centre: [0.0, 0.0, 1.0],
+        across: [[LENS_RADIUS, 0.0, 0.0], [0.0, LENS_RADIUS, 0.0]],
+        projection,
+        picture: [0.0, 0.0, LENS_RADIUS / aspect, LENS_RADIUS],
+        rim,
+    }
+}
+
+/// The lens this frame: the real optic's rear glass (`idle`'s own, or the
+/// aimed model's in its place) by the world matrix the frame draws the
+/// optic with, seen with the frame's `view` and `projection`. The render
+/// thread, at the frame's foreground stage.
+fn place_lens(thread: &Thread, aimed: ModelId, idle: ModelId, view: &[f32; 16], projection: &[f32; 16]) -> Option<Placed> {
+    let (records, count) = second_view::records(idle);
+    let world = records.iter().take(count).flatten().find_map(|&r| second_view::world_matrix(r))?;
+    let glass = match glass_of(thread, aimed, idle, &world, view)? {
+        GlassOf::Own(glass) | GlassOf::Aimed(glass) => glass,
+        GlassOf::Unread => {
+            refuse(thread, aimed, "its glass was not read");
+            return None;
+        }
+    };
+    let to_view = second_view::multiply(&world, view);
+    let centre = second_view::transform_point(&to_view, glass.centre);
+    let normal = second_view::transform_direction(&to_view, glass.normal);
+    let scale = second_view::norm([to_view[0], to_view[1], to_view[2]]);
+    let radius = glass.radius * scale;
+    let (u, w) = second_view::across(normal);
+    if centre[2] <= 0.0 {
+        return None;
+    }
+    let clip = |p: [f32; 3]| -> [f32; 2] {
+        let w = p[0] * projection[3] + p[1] * projection[7] + p[2] * projection[11] + projection[15];
+        [
+            (p[0] * projection[0] + p[1] * projection[4] + p[2] * projection[8] + projection[12]) / w,
+            (p[0] * projection[1] + p[1] * projection[5] + p[2] * projection[9] + projection[13]) / w,
+        ]
+    };
+    let at = clip(centre);
+    Some(Placed {
+        centre,
+        across: [u.map(|v| v * radius), w.map(|v| v * radius)],
+        projection: *projection,
+        picture: [at[0], at[1], radius * projection[0] / centre[2], radius * projection[5] / centre[2]],
+    })
+}
+
+/// The glass of `idle` (an optic in view), found once: its own rear glass
+/// (the flat round of its surfaces on the aimed glass's axis nearest the
+/// eye), else the aimed model's glass; `world` its world matrix this frame.
+fn glass_of(thread: &Thread, aimed: ModelId, idle: ModelId, world: &[f32; 16], view: &[f32; 16]) -> Option<GlassOf> {
+    if let Some(known) = GLASSES.with(thread, |(list, count)| list[..*count].iter().find(|(a, _)| *a == idle.address()).map(|(_, g)| *g)) {
+        return Some(known);
+    }
+    // not before the aimed glass is placed (its bound sphere set): the next frame's try
+    let found = find_glass(thread, aimed, idle, world, view)?;
+    GLASSES.with(thread, |(list, count)| {
+        if *count < list.len() {
+            list[*count] = (idle.address(), found);
+            *count += 1;
+        }
+    });
+    let mut note = Note::new("pip: the optic ");
+    note.hex(idle.address());
+    match found {
+        GlassOf::Own(g) => {
+            note.text(": its own rear glass, centre (mm)").point(g.centre).text(", radius (mm)").milli(g.radius).send();
+        }
+        // said whatever the log switch: the lens falls back for this optic
+        GlassOf::Aimed(g) => {
+            note.text(": no round glass of its own found, the lens is the aimed model's glass in its place: centre (mm)").point(g.centre).text(", radius (mm)").milli(g.radius);
+            log::line(&note.pieces[..note.len]);
+        }
+        GlassOf::Unread => {}
+    }
+    Some(found)
+}
+
+fn find_glass(thread: &Thread, aimed: ModelId, idle: ModelId, world: &[f32; 16], view: &[f32; 16]) -> Option<GlassOf> {
+    let mut points = [[0.0f32; 3]; MOST_VERTICES];
+    let aimed_record = second_view::glass_record(aimed)?;
+    let aimed_world = second_view::world_matrix(aimed_record)?;
+    let sphere = second_view::sphere_radius(aimed_record).filter(|r| (0.001..0.25).contains(r))?;
+    let Some(read) = second_view::positions(thread, aimed_record, &mut points) else { return Some(GlassOf::Unread) };
+    // the aimed model's space into the idle model's (both at the weapon's +660h, so the same space)
+    let into_idle = second_view::multiply(&aimed_world, &invert_affine(world));
+    let eye_world = invert_affine(view);
+    let eye = second_view::transform_point(&invert_affine(world), [eye_world[12], eye_world[13], eye_world[14]]);
+    for point in points.iter_mut().take(read) {
+        *point = second_view::transform_point(&into_idle, *point);
+    }
+    let Some(aimed_glass) = second_view::fan_glass(&points[..read], eye) else { return Some(GlassOf::Unread) };
+    // read right, the renderer's bound sphere of the flat round is its box's: the radius times the root of 2
+    if !(1.2..1.6).contains(&(sphere / aimed_glass.radius)) {
+        log::line(&[Piece::Text("pip: the aimed glass read back is not of its bound sphere's size")]);
+        return Some(GlassOf::Unread);
+    }
+    let (records, count) = second_view::records(idle);
+    let mut best: Option<(f32, Glass)> = None;
+    for (index, record) in records.iter().take(count).enumerate() {
+        let Some(record) = *record else { continue };
+        let Some(read) = second_view::positions(thread, record, &mut points) else { continue };
+        let (rounds, found) = second_view::rounds_across(&mut points[..read], aimed_glass.centre, aimed_glass.normal);
+        for round in rounds.iter().take(found) {
+            let t = (0..3).map(|k| (round.centre[k] - aimed_glass.centre[k]) * aimed_glass.normal[k]).sum::<f32>();
+            Note::new("pip:   a round of the optic's surface ")
+                .dec(index as u32)
+                .text(" (")
+                .dec(read as u32)
+                .text(" vertices): toward the eye (mm)")
+                .milli(t)
+                .text(", radius (mm)")
+                .milli(round.radius)
+                .send();
+            if best.is_none_or(|(best_t, _)| t > best_t) {
+                best = Some((t, *round));
+            }
+        }
+    }
+    Note::new("pip:   the aimed glass in the optic's space (mm)").point(aimed_glass.centre).text(" radius").milli(aimed_glass.radius).text(", the eye").point(eye).send();
+    Some(match best {
+        Some((_, glass)) => GlassOf::Own(glass),
+        None => GlassOf::Aimed(aimed_glass),
+    })
 }
 

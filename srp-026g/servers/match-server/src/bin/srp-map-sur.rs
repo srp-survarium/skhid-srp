@@ -4,11 +4,12 @@
 //!
 //! ```text
 //! srp-map-sur <maps_dict id> <out.sur> [--minutes <n>]
-//!             [--hold <gun dict id>[:<optic dict id>[:<rounds dict id>]] [--enter <ms>] [--aim <ms>]]
+//!             [--hold <gun dict id>[:<optic dict id>[:<rounds dict id>]] [--enter <ms>] [--aim <ms>] [--move <ms>]]
 //! ```
 //!
 //! With `--hold` (diagnostics) its one place enters with that gun at
-//! `--enter` (1000 ms) and aims it from `--aim` (30000 ms) to the end.
+//! `--enter` (1000 ms) and aims it from `--aim` (30000 ms) to the end;
+//! from `--move` it strafes left and right by turns while aiming.
 //! The map's options and mode config are the game data's (`SRP_GAME_DATA`).
 
 use std::process::ExitCode;
@@ -17,7 +18,7 @@ use match_server::v026g::sur_convert::{self, Holder};
 use survarium::v026g::maps::{MapId, MatchMap};
 
 const USAGE: &str = "usage: srp-map-sur <maps_dict id> <out.sur> [--minutes <n>] \
-                     [--hold <gun>[:<optic>[:<rounds>]] [--enter <ms>] [--aim <ms>]]";
+                     [--hold <gun>[:<optic>[:<rounds>]] [--enter <ms>] [--aim <ms>] [--move <ms>]]";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -46,9 +47,13 @@ fn main() -> ExitCode {
             ammo: ids.get(2).copied(),
             enter_ms: number("enter", 1_000)?,
             aim_ms: number("aim", 30_000)?,
+            move_ms: match options.get("move") {
+                Some(v) => Some(v.parse::<u32>().ok()?),
+                None => None,
+            },
         })
     });
-    let known = options.keys().all(|k| ["minutes", "hold", "enter", "aim"].contains(&k.as_str()));
+    let known = options.keys().all(|k| ["minutes", "hold", "enter", "aim", "move"].contains(&k.as_str()));
     let (true, Some(minutes), [id, out]) = (known, number("minutes", 30), plain.as_slice()) else {
         eprintln!("{USAGE}");
         return ExitCode::from(2);

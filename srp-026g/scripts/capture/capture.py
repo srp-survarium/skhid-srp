@@ -140,6 +140,8 @@ class Run:
                         'match-server', '--bin', 'srp-map-sur'], cwd=SRP, check=True, capture_output=True)
         env = dict(os.environ, SRP_GAME_DATA=str(self.a.game_data))
         hold = ['--hold', self.a.hold, '--aim', str(self.a.aim_ms)] if self.a.hold else []
+        if self.a.hold and self.a.move_ms:
+            hold += ['--move', str(self.a.move_ms)]
         done = subprocess.run([str(tool), str(self.a.map), str(sur), '--minutes', '60', *hold], env=env,
                               capture_output=True, text=True)
         if done.returncode:
@@ -286,6 +288,7 @@ def main():
                                    'aims it from --aim-ms (srp-map-sur --hold); poses "eyes": true and the defaults\' '
                                    '"follow": 0 show its eyes')
     ap.add_argument('--aim-ms', type=int, default=30000)
+    ap.add_argument('--move-ms', type=int, help='with --hold: from then on the place strafes left and right while aiming')
     ap.add_argument('--env', action='append', default=[], help='SKHID_<name>=<value> for the game (diagnostics)')
     ap.add_argument('--uncapped', action='store_true', help='no frame limit (frame times)')
     a = ap.parse_args()
