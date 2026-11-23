@@ -20,9 +20,14 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .weapon-title { display:grid; gap:5px; min-width:0 }
 .weapon-title strong { font:700 1.2rem/1.15 var(--display); overflow-wrap:anywhere }
 .weapon-title>span { color:var(--ink-3); font-size:.76rem }
-.quick-stats { margin:0; display:grid; grid-template-columns:repeat(4,1fr); gap:12px }
-.quick-stats dt { font:700 .66rem var(--display); text-transform:uppercase; color:var(--ink-3); letter-spacing:.06em; margin-bottom:5px }
-.quick-stats dd { margin:0; font:.95rem var(--data); white-space:nowrap }
+/* The same tracks in every row, whatever its texts (minmax(0,…): no column grows with its
+   content), split so that every language's headers fit whole from a 960 px window (the widest,
+   "СКОРОСТРЕЛЬНОСТЬ", 93 px), the damage value's room next. A header is one line, cut with an
+   ellipsis where its column is narrower (its title has it whole), so a row's values share a line;
+   a value wraps in its column (a shotgun's "20 × 10 Schrotkugeln"). */
+.quick-stats { margin:0; display:grid; grid-template-columns:minmax(0,2.1fr) minmax(0,1.5fr) minmax(0,1fr) minmax(0,.9fr); gap:12px }
+.quick-stats dt { font:700 .66rem var(--display); text-transform:uppercase; color:var(--ink-3); letter-spacing:.06em; margin-bottom:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.quick-stats dd { margin:0; font:.95rem var(--data); overflow-wrap:break-word }
 .quick-stats small { display:block; font:.62rem var(--body); margin-top:2px }
 .expand-label { color:var(--accent); font-size:.75rem; text-align:right }
 .expand-label>span { font:1.25rem var(--body); display:inline-block; margin-left:6px }
@@ -263,7 +268,7 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .slot-filter button:focus-visible { outline:2px solid var(--accent); outline-offset:2px }
 .slot-filter .glyph { width:34px; height:18px }
 .gear-tools { grid-template-columns:repeat(auto-fit,minmax(150px,1fr)) }
-.gear .quick-stats { grid-template-columns:repeat(3,1fr) }
+.gear .quick-stats { grid-template-columns:repeat(3,minmax(0,1fr)) }
 .gear-group { margin:22px 0 8px; font-size:1.1rem; border-bottom:1px solid var(--rule); padding-bottom:4px }
 .table-scroll { overflow-x:auto }
 .protection { border-collapse:collapse; font:.82rem var(--data); width:100% }
@@ -350,7 +355,8 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 @media(hover:hover) { .skill:hover .skill-over { display:block } }
 .skill-or { position:absolute; top:0; left:0; font:700 calc(10 * var(--u)) var(--display); text-transform:uppercase; letter-spacing:.06em;
   background:var(--panel); color:var(--bad); border:1px solid var(--bad); border-radius:2px; padding:0 calc(3 * var(--u)) }
-.skill-name { font:700 calc(11 * var(--u))/1.2 var(--body); color:var(--ink); overflow-wrap:normal; word-break:normal; hyphens:manual }
+/* A word too long for its track (Russian "обезболивающее") is hyphenated in the page's language; English and Ukrainian names need none. */
+.skill-name { font:700 calc(11 * var(--u))/1.2 var(--body); color:var(--ink); overflow-wrap:normal; word-break:normal; hyphens:auto }
 .skill.locked .skill-name { color:var(--ink-3) }
 .skill:focus-visible .skill-disc { outline:2px solid var(--accent); outline-offset:-2px; border-radius:50% }
 /* The tooltip (skills.js): out of the page's flow, placed by the script. */

@@ -2,8 +2,13 @@
 // has the bones, the signs and the units): the camera's, in the hands' shot
 // clip, and the gun's in front of the camera, in its own. Neither reads the
 // recoil numbers: each is one curve, played once a shot in 60/rpm seconds.
-// - the camera's turns the view, so the screen moves; it starts from rest, so
-//   the bullet that starts it leaves along the kick's aim alone;
+// - the camera's turns the view, so the screen moves, and the bullets with it:
+//   a bullet leaves along the eye (player+44Ch, instant_fire 0x2E243D) as the
+//   simulation's step before the shot left it (the shot is an animation event
+//   in base_player::tick, the eye is posed after it, assign_physics_transform
+//   0x2D93A0; steps end every 50 ms, atomic_tick 0x2D1E20). A burst's second
+//   shot and on so take the clip's turn late in the pass before; the first
+//   leaves from rest;
 // - the gun's moves the gun and its sights over the view, since patch 172 on
 //   every gun while aimed; the bullet leaves from the camera, not the barrel.
 (() => {
@@ -53,8 +58,26 @@
       return [axis, values[i] + (values[i + 1] - values[i]) * (place - i)];
     }));
   }
+  // How far (0 to 1) `time` is into the pass of the clips the last of
+  // `shots` ([{time}], in order) at or before it started, `interval` seconds
+  // a pass; 1 before the first shot and once the pass is over.
+  function phaseAt(shots, interval, time) {
+    let last = -1;
+    for (const shot of shots) {
+      if (shot.time > time + 1e-9) break;
+      last = shot.time;
+    }
+    return last < 0 ? 1 : (time - last) / interval;
+  }
+  // The end of the simulation's step before the one a shot at `time` falls
+  // in (a shot at a step's very end falls in that step): when the eye it
+  // leaves along was posed.
+  const STEP = .05;
+  const eyeTime = time => (Math.ceil(time / STEP - 1e-9) - 1) * STEP;
   // The camera's turn {up, side} degrees while firing in `aim` (WeaponSpread.AIMS), and the gun's {back mm, up, side degrees}.
   const cameraAt = (motions, aim, phase) => at(motions.camera[aim === 'hip' ? 'hip' : 'aimed'], AXES.camera, phase);
   const gunAt = (motions, phase) => at(motions.gun, AXES.gun, phase);
-  globalThis.WeaponMotions = Object.freeze({AXES, parse, peak, custom, cameraAt, gunAt});
+  // The camera's turn a bullet fired at `time` leaves with.
+  const cameraAtShot = (motions, aim, shots, interval, time) => cameraAt(motions, aim, phaseAt(shots, interval, eyeTime(time)));
+  globalThis.WeaponMotions = Object.freeze({AXES, parse, peak, custom, phaseAt, eyeTime, cameraAt, cameraAtShot, gunAt});
 })();

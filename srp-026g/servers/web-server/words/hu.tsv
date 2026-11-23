@@ -525,3 +525,398 @@ Each kit a gun of another class, with random bonuses and attachments.	Minden fel
 Plain FFA: {0} % of FFA cards.	Sima FFA: az FFA-kártyák {0} %-a.
 {0} % of FFA cards.	Az FFA-kártyák {0} %-a.
 FFA: Roulette	FFA: Rulett
+
+# The wiki's weapons and simulators (pages built at a release: scripts/site-texts)
+Search weapons	Fegyver keresése
+No weapons match.	Nincs megfelelő fegyver.
+lvl {n}	{n}. szint
+Search…	Keresés…
+Search items	Tárgy keresése
+No items match.	Nincs megfelelő tárgy.
+s	mp	unit
+Search rounds	Lőszer keresése
+No rounds match.	Nincs megfelelő lőszer.
+shots	lövés
+up	fel
+side	oldalra
+spread	szórás
+Play	Lejátszás
+Pause	Szünet
+Recoil and spread	Visszarúgás és szórás
+Weapon {side}	Fegyver {side}
+Choose a weapon…	Válassz fegyvert…
+Round	Lőszer
+Clear	Törlés	list
+Choose a weapon; a second one to compare.	Válassz fegyvert; egy másodikat az összehasonlításhoz.
+Aim	Célzás
+From the hip	Csípőből
+Aiming in	Célzás közben
+Fully aimed	Teljes célzás
+Stance	Testhelyzet
+Standing	Állva
+Walking	Járás
+Crouching	Guggolva
+Crouch-walking	Guggolva járás
+Sprinting	Sprint
+Jumping	Ugrás
+Broken arms	Törött karok
+Spread from the hip {v} per rank, sprinting and jumping included. Not while aiming.	Csípőlövés szórása fokozatonként {v}, sprint és ugrás közben is. Célzás közben nem.
+No effect fully aimed.	Teljes célzásnál nincs hatása.
+Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.	Szórás járás közben fokozatonként {v}, csípőből és célzás közben. Guggolva járásnál nem.
+Spread from broken arms {v} per rank.	Szórás törött karokkal fokozatonként {v}.
+This weapon's kick ranges, up and sideways. Not the camera shake.	A fegyver visszarúgásának tartományai, felfelé és oldalra. Nem a kamera rázkódása.
+The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.	A testhelyzet és minden lövés szórása. Sprintnél, ugrásnál és teljes célzásnál nincs hatása.
+Each shot's kick with any weapon: up, sideways and the camera shake.	Minden lövés visszarúgása bármely fegyverrel: felfelé, oldalra és a kamera rázkódása.
+Base	Alap
+A shot	Lövésenként
+At most	Legfeljebb
+Vertical kick	Függőleges visszarúgás
+game units	játékegység
+Horizontal kick	Vízszintes visszarúgás
+Trigger	Ravasz
+Hold	Nyomva tartás
+Click, {n} a second	Kattintás, másodpercenként {n}
+Sample seed	Véletlenmag
+Spread	Szórás
+degrees	fok
+Last shot	Utolsó lövés
+Reset	Visszaállítás
+Timeline	Idővonal
+Crosshair	Célkereszt
+degrees of view	látószögfok
+Target	Célpont
+None	Nincs
+Enemy at {m} m	Ellenség {m} m-re
+Recoil parameters are unavailable for this selection.	Ehhez a választáshoz nem érhetők el a visszarúgás paraméterei.
+Rounds	Lőszerek
+Sniper rifle	Mesterlövészpuska
+Submachine gun	Géppisztoly
+Pistol	Pisztoly
+Shotgun	Sörétes puska
+Assault rifle	Gépkarabély
+Machine gun	Géppuska
+Skhid revision {revision}	Skhid, {revision}. revízió
+Stat	Jellemző
+Better	Jobb
+Worse	Rosszabb
+weapons	fegyver	count
+Compare weapons or expand a row for damage, handling, accuracy, recoil and aim sway.	Hasonlítsd össze a fegyvereket, vagy nyiss le egy sort: sebzés, kezelhetőség, pontosság, visszarúgás és irányzék kilengése.
+Values with the chosen round, the weapon’s standard one first. Upgrades and character bonuses are not included. The game’s card shows the highest damage and the highest penetration among all the weapon’s rounds.	Értékek a választott lőszerrel, elsőként a fegyver alap lőszerével. A fejlesztések és a karakterbónuszok nincsenek beleszámítva. A játék kártyája a fegyver összes lőszere közül a legnagyobb sebzést és a legnagyobb páncélátütést mutatja.
+Find a weapon	Fegyver keresése
+Weapon class	Fegyverosztály
+All classes	Minden osztály
+Damage: high to low	Sebzés: csökkenő
+Fire rate: high to low	Tűzgyorsaság: csökkenő
+Compare weapons	Fegyverek összehasonlítása
+Only differences	Csak az eltérések
+Color better / worse values	Jobb / rosszabb értékek színezése
+Recoil and spread →	Visszarúgás és szórás →
+Choose two weapons to compare. Equal values and neutral traits keep their normal color.	Válassz két fegyvert az összehasonlításhoz. Az egyenlő értékek és a semleges tulajdonságok megtartják a szokásos színüket.
+No differences in the displayed stats.	A megjelenített értékekben nincs eltérés.
+m	m	unit
+kg	kg	unit
+Single shot	Egyes lövés
+Damage & range	Sebzés és lőtávolság
+Damage	Sebzés
+Armor penetration	Páncélátütés
+Full damage up to	Teljes sebzés hatótávja
+Minimum damage from	Minimális sebzés kezdete
+Minimum damage retained	Megmaradó minimális sebzés
+Stopping power	Megállítóerő
+Stamina damage	Állóképesség-sebzés
+Firing & handling	Lövés és kezelhetőség
+rpm	lövés/perc	unit
+Fire rate	Tűzgyorsaság
+Magazine capacity	Tárkapacitás
+Reload time	Újratöltési idő
+Aim time	Célzási idő
+Draw time	Elővételi idő
+Holster time	Elrakási idő
+Movement speed modifier	Mozgási sebesség módosítója
+Base aim zoom	Alap célzási nagyítás
+Fire modes	Tűzmódok
+Accuracy & spread	Pontosság és szórás
+Spread values use the game's own units. Growth and recovery parameters are shown without a better/worse rating.	A szórásértékek a játék saját egységeiben szerepelnek. A növekedési és visszaállási paraméterek jobb/rosszabb értékelés nélkül jelennek meg.
+Base dispersion	Alapszórás
+Hip-fire spread multiplier	Csípőlövés szórásszorzója
+Spread added per shot	Szórásnövekedés lövésenként
+Spread limit	Szóráskorlát
+Spread growth parameter	Szórásnövekedési paraméter
+Spread recovery parameter	Pontosság-visszaállási paraméter
+Recoil	Visszarúgás
+Base kick in game units, not degrees. Horizontal kick is right minus left; variability is its standard deviation. These do not describe an entire burst.	Alap visszarúgás játékegységben, nem fokban. A vízszintes visszarúgás a jobb mínusz a bal; az ingadozás ennek standard eltérése. Ezek nem egy teljes sorozatot írnak le.
+Base vertical kick range	Alap függőleges visszarúgás tartománya
+Horizontal kick range	Vízszintes visszarúgás tartománya
+Horizontal kick variability	Vízszintes ingadozás
+Horizontal bias (− left / + right)	Vízszintes eltolódás (− bal / + jobb)
+Recoil accumulation exponent	Visszarúgás-halmozódási kitevő
+Recovery response (P)	Visszaállási válasz (P)
+Recovery accumulation (I)	Visszaállási halmozódás (I)
+Recovery damping (D)	Visszaállási csillapítás (D)
+Aim sway	Irányzék kilengése
+Horizontal sway	Vízszintes kilengés
+Vertical sway	Függőleges kilengés
+Aim sway period	Kilengési ciklus
+Magazine	Tár
+Set as weapon A	Beállítás A fegyverként
+Set as weapon B	Beállítás B fegyverként
+Automatic	Automata
+{m}-round burst	{m} lövéses sorozat
+pellets	sörét
+No weapons match. Try another name or class.	Nincs megfelelő fegyver. Próbálj más nevet vagy osztályt.
+
+# The wiki's simulators: the shot's motions and the custom gun (pages built at a release: scripts/site-texts)
+Left	Balra	direction
+Right	Jobbra	direction
+Back	Hátra	direction
+where it aims as the shot moves it	hová céloz a lövés hatására
+from the side, the bullet from the eye along the view	oldalról: a lövedék a szemtől a nézés mentén
+custom	saját
+Up	Fel
+Side	Oldalra
+Rate	Tempó
+Power	Kitevő
+Camera wobble	Kameraremegés
+Gun kick	Fegyverrúgás
+Custom gun	Saját fegyver
+Speed	Sebesség
+bullet	lövedék
+sight	irányzék
+hit	találat
+
+# The wiki's skills (a page built at a release: scripts/site-texts)
+Points	Pontok	skills
+matches	meccs	skills
+h	ó	unit
+Tap a skill, then + or −.	Koppints egy képességre, majd a + vagy − gombra.
+Click a skill to add a rank, right-click to take one back.	Kattintás: egy fokozattal több, jobb kattintás: eggyel kevesebb.
+{n} point	{n} pont	one
+{n} points	{n} pont	few
+{n} points	{n} pont	many
+Maximum:	Maximum:
+or	vagy	skill
+
+# The Maps tab (a page built at a release: scripts/site-texts)
+Player spawns	Éledési pontok
+Battery spawns	Akkumulátorok megjelenése
+Chargers	Töltők
+Containers	Tárolók
+Research units	Kutatóegységek
+Ammo stashes	Lőszerutánpótlás
+Survarium maps	Survarium-pályák
+chargers	töltők
+Minimap	Minitérkép
+From above	Felülről
+{n} active	{n} aktív
+{n} batteries to win.	{n} akkumulátor a győzelemhez.
+team {n}	{n}. csapat
+any team	bármelyik csapat
+Ammo stash	Lőszerutánpótlás
+Container	Tároló
+Battery spawn	Akkumulátor megjelenése
+Charger	Töltő
+Research unit	Kutatóegység
+Spawn	Éledés
+
+# The damage calculator (a page built at a release: scripts/site-texts)
+Feet	Lábfejek	parts
+m/s	m/s	unit
+HP/s	ÉP/mp	unit
+active	aktív
+passive	passzív
+Damage ×{damage}, penetration ×{pierce}, before armour: lower penetration makes the armour stop more.	Sebzés ×{damage}, páncélátütés ×{pierce}, a páncél előtt: kisebb páncélátütésnél a páncél többet nyel el.
+{drug}: {pool} takes ×{k} for {s} s after use ({delay} s to kick in).	{drug}: {pool} ×{k} sebzést kap a használat után {s} mp-ig ({delay} mp múlva hat).
+Inside an anomaly: damage ×{k}, before armour.	Anomálián belül: sebzés ×{k}, a páncél előtt.
+This weapon takes no damage bonuses.	Ez a fegyver nem kaphat sebzésbónuszt.
+Come with the weapon; cannot be changed.	A fegyverrel járnak; nem módosíthatók.
+An item holds at most 3 modifications. Bonuses on one stat add up before they apply.	Egy tárgyon legfeljebb 3 módosítás lehet. Az egy jellemzőre szóló bónuszok előbb összeadódnak.
+This item takes no armour bonuses.	Ez a tárgy nem kaphat páncélbónuszt.
+Nothing worn covers the {part}.	Semmilyen viselt tárgy nem védi: {part}.
+Drugs	Szerek
+Assault rifles	Gépkarabélyok
+Submachine guns	Géppisztolyok
+Shotguns	Sörétes puskák
+Bolt-action & sniper rifles	Ismétlő- és mesterlövészpuskák
+Pistols & revolvers	Pisztolyok és revolverek
+Helmet	Sisak
+Mask	Maszk
+Jacket	Kabát
+Gloves	Kesztyű
+Trousers	Nadrág
+Boots	Csizma
+Backpack	Hátizsák
+Chest & neck	Mellkas és nyak
+Right arm	Jobb kar
+Left arm	Bal kar
+Right hand	Jobb kézfej
+Left hand	Bal kézfej
+Right leg	Jobb láb
+Left leg	Bal láb
+Right foot	Jobb lábfej
+Left foot	Bal lábfej
+Body	Test
+Pain	Fájdalom
+Infection	Fertőzés
+death	halál
+bleeding	vérzés
+concussion	agyrázkódás
+hand injury	kézsérülés
+leg injury	lábsérülés
+infection	fertőzés
+blindness	vakság
+Search	Keresés
+— none —	— nincs —
+nothing worn	nincs rajta semmi
+back	hátul
+front	elöl
+after shot	lövés
+of	/
+dead	halott
+Glass	Üveg
+Car	Autó
+Plywood	Rétegelt lemez
+Tinplate	Bádog
+Brick, steel	Tégla, acél
+Concrete	Beton
+Stone	Kő
+<none>	<nincs>
+armour	páncél
+{n} left	{n} maradt
+damage	sebzés
+penetration	páncélátütés
+full damage to	teljes sebzés eddig
+minimum from	minimum ettől
+minimum	minimum
+muzzle	kezdősebesség
+rate	tűzgyorsaság
+magazine	tár
+Gets through: k {k}, D {D} · P {P}.	Átjut: k {k}, D {D} · P {P}.
+Does not get through: penetration {P}, armour {A}.	Nem jut át: páncélátütés {P}, páncél {A}.
+here	itt
+not here	nem itt
+taken by {item}	foglalja: {item}
+Covers the {part}.	Védi: {part}.
+Does not cover the {part}.	Nem védi: {part}.
+Click to aim at the {part}.	Kattints, hogy ide célozz: {part}.
+aim at the {part}	célzás ide: {part}
+Full damage at this range.	Ezen a távolságon teljes a sebzés.
+Fully fallen off: minimum damage.	Teljesen lecsökkent: minimális sebzés.
+Falling off: {share} of the way from minimum to full.	Csökken: a minimumtól a teljes felé {share}.
+Orange band: damage falls from {from} m to {to} m.	Narancs sáv: a sebzés {from} m és {to} m között csökken.
+per shot (all pellets)	lövésenként (minden sörét)
+per hit	találatonként
+{pool} damage {per}	{pool}: sebzés {per}
+of {n} {pool} left	a maradék {n} közül ({pool})
+of {n} {pool}	{n} közül ({pool})
+Hits to kill	Találat az öléshez
+dies when {pool} reaches 0	meghal, amikor 0-ra fogy: {pool}
+this shot cannot kill	ez a lövés nem tud ölni
+Time to kill	Idő az öléshez
+every shot lands, no reload	minden lövés talál, újratöltés nélkül
+Leaves the barrel	Elhagyja a csövet
+Weapon damage × ammo <code>k_damage</code>, weapon pierce × ammo <code>k_arp</code>.	A fegyver sebzése × a lőszer <code>k_damage</code> értéke, a fegyver páncélátütése × a lőszer <code>k_arp</code> értéke.
+Each of the {n} pellets carries this.	Ezt viszi mindegyik sörét ({n} db).
+Flies {m} m	{m} m repül
+Speed {v0} → {v} m/s. Damage slides from full ({full}) to minimum ({min}) by speed between {from} and {to} m: here {share}. Penetration stays.	Sebesség {v0} → {v} m/s. A sebzés a teljestől ({full}) a minimumig ({min}) csökken a sebesség szerint {from} és {to} m között: itt {share}. A páncélátütés nem változik.
+Through {wall}	Át ezen: {wall}
+stopped	megállt
+Penetration {P}, armour {A}. Damage, penetration and speed × k; then damage no higher than at {v} m/s.	Páncélátütés {P}, páncél {A}. A sebzés, a páncélátütés és a sebesség × k; utána a sebzés legfeljebb annyi, mint {v} m/s-nál.
+Penetration {P} is not above armour {A}: the bullet stops.	A páncélátütés ({P}) nem nagyobb a páncélnál ({A}): a golyó megáll.
+No armour here, the full amount goes in.	Itt nincs páncél: a teljes sebzés átmegy.
+Armour {A} is not above penetration {P}: nothing is stopped.	A páncél ({A}) nem nagyobb a páncélátütésnél ({P}): semmi sem nyelődik el.
+Armour exceeds penetration by a full 100: the bullet does nothing.	A páncél teljes 100-zal meghaladja a páncélátütést: a golyó hatástalan.
+Armour {A} − penetration {P} = {gap}% of the damage is stopped.	Páncél {A} − páncélátütés {P} = a sebzés {gap}%-a elnyelődik.
+Hits {part}	Találat: {part}
+Every hit anywhere also drains the shared pain pool. Pain at 0 kills.	Minden találat bárhol a közös fájdalomkészletből is levon. A fájdalom 0-n öl.
+Body at 0 kills.	A test 0-n öl.
+Head holds only 40: at 0 it kills, below 20 it concusses.	A fej csak 40-et bír: 0-n öl, 20 alatt agyrázkódást okoz.
+Limbs do not kill by themselves: an empty limb injures, the pain it carries can kill.	A végtagok maguktól nem ölnek: az üres végtag megsérül, a vele járó fájdalom ölhet.
+Second chance	Második esély
+The skill leaves the target alive once.	A képesség egyszer életben hagyja a célpontot.
+× {n} pellets	× {n} sörét
+Each pellet is its own bullet: when several land, their damage adds up.	Minden sörét külön golyó: ha több talál, a sebzésük összeadódik.
+kills	öl
+breaks	eltör
+below	alatt
+empty	üres
+movement	mozgás
+shot	lövés
+Damage over distance	Sebzés távolság szerint
+after armour	páncél után
+Body part	Testrész
+Stopped	Elnyelt
+Limb	Végtag
+Also	Még
+injury	sérülés
+best ammo	legjobb lőszer
+default ammo	alap lőszer
+Ammo	Lőszer
+Pen. here	Átütés itt
+Damage / hit	Sebzés / találat
+RPM	Lövés/perc
+Bullet	Golyó
+D, P = weapon × ammo, D falling with distance	D, P = fegyver × lőszer, D a távolsággal csökken
+{n} pellets	{n} sörét
+Wall	Fal
+P ≤ A: the bullet stays in the wall · else D, P × (1 − (A / P)²)	P ≤ A: a golyó a falban marad · különben D, P × (1 − (A / P)²)
+stays in the wall	a falban marad
+each	egyenként
+rank	fokozat
+inside an anomaly	anomálián belül
+D × (1 − (armour − P) / 100)	D × (1 − (páncél − P) / 100)
+{part}, armour {A} − P {P}	{part}, páncél {A} − P {P}
+Pools	Készletek
+chest, back → body · head, face → head · leg, foot → leg · arm, hand → hand	mellkas, hát → test · fej, arc → fej · láb, lábfej → láb · kar, kézfej → kéz
+× 1 chest, head, arms · 0.9 legs · 0.8 hands, feet	× 1 mellkas, fej, karok · 0.9 lábak · 0.8 kézfejek, lábfejek
+Death	Halál
+body, head or pain at 0	test, fej vagy fájdalom 0-n
+{n} hits	{n} találat
+at 0	0-n
+does not kill	nem öl
+wall armour	fal páncélja
+One bullet through several parts: each pool loses only its biggest hit, not the sum (hands 40 + 40, chest 35 → pain −40, not −115).	Egy golyó több testrészen át: minden készlet csak a legnagyobb találatát veszíti el, nem az összeget (kézfejek 40 + 40, mellkas 35 → fájdalom −40, nem −115).
+full	teljes
+fixed	gyógyít
+{s} s without hits	{s} mp találat nélkül
+By itself	Magától
+ends after {s} s without hits	{s} mp találat nélkül elmúlik
+carried	felszerelve
+activated	aktiválva
+at once, every {s} s	azonnal, {s} mp-enként
+{delay} s after use, for {s} s	használat után {delay} mp-cel, {s} mp-ig
+stops at {n}	{n}-ig
+From empty to full	Üresből teljesre
+Leg or hand	Láb vagy kéz
+No Larkspur	Szarkaláb nélkül
+Starts	Kezdés
+Legs, hands	Lábak, kezek
+Broken leg, hand	Törött láb, kéz
+Top-down view of	Felülnézet:
+<b>{m} m</b> ({across} across, {sign}{height} height). Click again to start over.	<b>{m} m</b> ({across} vízszintesen, {sign}{height} magasságban). Kattints újra az újrakezdéshez.
+Now click the target.	Most kattints a célpontra.
+Click the shooter, then the target.	Kattints a lövészre, aztán a célpontra.
+Orange ring: full damage to {from} m; dashed: minimum from {to} m.	Narancs kör: teljes sebzés {from} m-ig; szaggatott: minimum {to} m-től.
+health shown ×100 (body 100, head 40)	életerő ×100 (test 100, fej 40)
+Shooter	Lövész
+fires	lő
+Distance to target	Távolság a célpontig
+Wall in front of the target	Fal a célpont előtt
+Weapon bonuses	Fegyverbónuszok
+— — HIT — →	— — TALÁLAT — →
+takes the hit	kapja a találatot
+Current pain	Jelenlegi fájdalom
+Pain the target already carries from earlier hits. It drains back to none at 10 a second once 8 s pass without a hit.	A célpont korábbi találatokból már meglévő fájdalma. Másodpercenként 10-zel fogy nullára, ha 8 mp-ig nem éri találat.
+Armour bonuses	Páncélbónuszok
+Artefacts, drugs & skills	Artefaktumok, szerek és képességek
+Measure on a map	Mérés a pályán
+Clear points	Pontok törlése
+bullet before armour	golyó a páncél előtt
+after this armour	e páncél után
+Every body part, this shot	Minden testrész, ez a lövés
+Every weapon against this target	Minden fegyver e célpont ellen
+Same distance, wall, body part, armour and target effects. Each gun uses its best ammo for this target unless you pick "default ammo". Click a row to load that gun.	Ugyanaz a távolság, fal, testrész, páncél és célponthatások. Minden fegyver a célponthoz legjobb lőszerét használja, hacsak nem választod az „alap lőszer” lehetőséget. Kattints egy sorra a fegyver betöltéséhez.
+Formula	Képlet
+Healing	Gyógyulás
+Previous shot	Előző lövés
+Next shot	Következő lövés
+Damage calculator	Survarium sebzéskalkulátor	title

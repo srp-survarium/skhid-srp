@@ -525,3 +525,398 @@ Each kit a gun of another class, with random bonuses and attachments.	Jedes Kit 
 Plain FFA: {0} % of FFA cards.	Normales FFA: {0} % der FFA-Karten.
 {0} % of FFA cards.	{0} % der FFA-Karten.
 FFA: Roulette	FFA: Roulette
+
+# The wiki's weapons and simulators (pages built at a release: scripts/site-texts)
+Search weapons	Waffen suchen
+No weapons match.	Keine passenden Waffen.
+lvl {n}	Stufe {n}
+Search…	Suchen…
+Search items	Gegenstände suchen
+No items match.	Keine passenden Gegenstände.
+s	s	unit
+Search rounds	Patronen suchen
+No rounds match.	Keine passenden Patronen.
+shots	Schüsse
+up	hoch
+side	seitlich
+spread	Streuung
+Play	Abspielen
+Pause	Pause
+Recoil and spread	Rückstoß und Streuung
+Weapon {side}	Waffe {side}
+Choose a weapon…	Waffe wählen…
+Round	Patrone
+Clear	Leeren	list
+Choose a weapon; a second one to compare.	Wähle eine Waffe, eine zweite zum Vergleich.
+Aim	Zielen
+From the hip	Aus der Hüfte
+Aiming in	Anvisieren
+Fully aimed	Voll anvisiert
+Stance	Haltung
+Standing	Stehen
+Walking	Gehen
+Crouching	Hocken
+Crouch-walking	In der Hocke gehen
+Sprinting	Sprinten
+Jumping	Springen
+Broken arms	Gebrochene Arme
+Spread from the hip {v} per rank, sprinting and jumping included. Not while aiming.	Streuung aus der Hüfte {v} pro Rang, auch beim Sprinten und Springen. Nicht beim Zielen.
+No effect fully aimed.	Keine Wirkung, wenn voll anvisiert.
+Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.	Streuung beim Gehen {v} pro Rang, aus der Hüfte oder beim Anvisieren. Nicht beim Gehen in der Hocke.
+Spread from broken arms {v} per rank.	Streuung durch gebrochene Arme {v} pro Rang.
+This weapon's kick ranges, up and sideways. Not the camera shake.	Rückstoßbereiche dieser Waffe, nach oben und zur Seite. Nicht das Kamerawackeln.
+The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.	Die Streuung der Haltung und die jedes Schusses. Keine Wirkung beim Sprinten, Springen oder voll anvisiert.
+Each shot's kick with any weapon: up, sideways and the camera shake.	Rückstoß jedes Schusses mit jeder Waffe: nach oben, zur Seite und das Kamerawackeln.
+Base	Basis
+A shot	Pro Schuss
+At most	Höchstens
+Vertical kick	Vertikaler Rückstoß
+game units	Spieleinheiten
+Horizontal kick	Horizontaler Rückstoß
+Trigger	Abzug
+Hold	Halten
+Click, {n} a second	Klicken, {n} pro Sekunde
+Sample seed	Seed der Stichprobe
+Spread	Streuung
+degrees	Grad
+Last shot	Letzter Schuss
+Reset	Zurücksetzen
+Timeline	Zeitleiste
+Crosshair	Fadenkreuz
+degrees of view	Grad Sichtfeld
+Target	Ziel
+None	Keins
+Enemy at {m} m	Gegner auf {m} m
+Recoil parameters are unavailable for this selection.	Für diese Auswahl sind keine Rückstoßparameter verfügbar.
+Rounds	Patronen
+Sniper rifle	Scharfschützengewehr
+Submachine gun	Maschinenpistole
+Pistol	Pistole
+Shotgun	Schrotflinte
+Assault rifle	Sturmgewehr
+Machine gun	Maschinengewehr
+Skhid revision {revision}	Skhid, Revision {revision}
+Stat	Wert
+Better	Besser
+Worse	Schlechter
+weapons	Waffen	count
+Compare weapons or expand a row for damage, handling, accuracy, recoil and aim sway.	Vergleiche Waffen oder klappe eine Zeile auf für Schaden, Handhabung, Genauigkeit, Rückstoß und Zielverwackeln.
+Values with the chosen round, the weapon’s standard one first. Upgrades and character bonuses are not included. The game’s card shows the highest damage and the highest penetration among all the weapon’s rounds.	Werte mit der gewählten Patrone, zuerst mit der Standardpatrone der Waffe. Upgrades und Charakterboni sind nicht enthalten. Die Karte im Spiel zeigt den höchsten Schaden und den höchsten Rüstungsdurchschlag aller Patronen der Waffe.
+Find a weapon	Waffe finden
+Weapon class	Waffenklasse
+All classes	Alle Klassen
+Damage: high to low	Schaden: absteigend
+Fire rate: high to low	Feuerrate: absteigend
+Compare weapons	Waffen vergleichen
+Only differences	Nur Unterschiede
+Color better / worse values	Bessere / schlechtere Werte einfärben
+Recoil and spread →	Rückstoß und Streuung →
+Choose two weapons to compare. Equal values and neutral traits keep their normal color.	Wähle zwei Waffen zum Vergleich. Gleiche Werte und neutrale Eigenschaften behalten ihre normale Farbe.
+No differences in the displayed stats.	Keine Unterschiede bei den angezeigten Werten.
+m	m	unit
+kg	kg	unit
+Single shot	Einzelfeuer
+Damage & range	Schaden und Reichweite
+Damage	Schaden
+Armor penetration	Rüstungsdurchschlag
+Full damage up to	Voller Schaden bis
+Minimum damage from	Minimalschaden ab
+Minimum damage retained	Verbleibender Minimalschaden
+Stopping power	Stoppwirkung
+Stamina damage	Ausdauerschaden
+Firing & handling	Schießen und Handhabung
+rpm	Schuss/min	unit
+Fire rate	Feuerrate
+Magazine capacity	Magazinkapazität
+Reload time	Nachladezeit
+Aim time	Zielzeit
+Draw time	Ziehzeit
+Holster time	Wegsteckzeit
+Movement speed modifier	Modifikator der Bewegungsgeschwindigkeit
+Base aim zoom	Basis-Zielzoom
+Fire modes	Feuermodi
+Accuracy & spread	Genauigkeit und Streuung
+Spread values use the game's own units. Growth and recovery parameters are shown without a better/worse rating.	Streuungswerte sind in den Einheiten des Spiels. Parameter für Zunahme und Erholung werden ohne Wertung besser/schlechter gezeigt.
+Base dispersion	Basisstreuung
+Hip-fire spread multiplier	Multiplikator der Hüftfeuer-Streuung
+Spread added per shot	Streuung pro Schuss
+Spread limit	Streuungsgrenze
+Spread growth parameter	Parameter der Streuungszunahme
+Spread recovery parameter	Parameter der Präzisionserholung
+Recoil	Rückstoß
+Base kick in game units, not degrees. Horizontal kick is right minus left; variability is its standard deviation. These do not describe an entire burst.	Basisrückstoß in Spieleinheiten, nicht in Grad. Horizontaler Rückstoß ist rechts minus links; die Schwankung ist seine Standardabweichung. Diese Werte beschreiben keinen ganzen Feuerstoß.
+Base vertical kick range	Bereich des vertikalen Basisrückstoßes
+Horizontal kick range	Bereich des horizontalen Rückstoßes
+Horizontal kick variability	Schwankung des horizontalen Rückstoßes
+Horizontal bias (− left / + right)	Horizontale Tendenz (− links / + rechts)
+Recoil accumulation exponent	Exponent der Rückstoßakkumulation
+Recovery response (P)	Erholungsreaktion (P)
+Recovery accumulation (I)	Erholungsakkumulation (I)
+Recovery damping (D)	Erholungsdämpfung (D)
+Aim sway	Zielverwackeln
+Horizontal sway	Horizontales Verwackeln
+Vertical sway	Vertikales Verwackeln
+Aim sway period	Verwackelperiode
+Magazine	Magazin
+Set as weapon A	Als Waffe A wählen
+Set as weapon B	Als Waffe B wählen
+Automatic	Dauerfeuer
+{m}-round burst	{m}-Schuss-Feuerstoß
+pellets	Schrotkugeln
+No weapons match. Try another name or class.	Keine passenden Waffen. Versuche einen anderen Namen oder eine andere Klasse.
+
+# The wiki's simulators: the shot's motions and the custom gun (pages built at a release: scripts/site-texts)
+Left	Links	direction
+Right	Rechts	direction
+Back	Zurück	direction
+where it aims as the shot moves it	wohin sie unter dem Schuss zielt
+from the side, the bullet from the eye along the view	von der Seite: die Kugel vom Auge entlang der Sicht
+custom	eigene
+Up	Hoch
+Side	Seitlich
+Rate	Rate
+Power	Potenz
+Camera wobble	Kamerawackeln
+Gun kick	Waffenstoß
+Custom gun	Eigene Waffe
+Speed	Tempo
+bullet	Kugel
+sight	Visier
+hit	Treffer
+
+# The wiki's skills (a page built at a release: scripts/site-texts)
+Points	Punkte	skills
+matches	Matches	skills
+h	Std.	unit
+Tap a skill, then + or −.	Tippe auf eine Fähigkeit, dann auf + oder −.
+Click a skill to add a rank, right-click to take one back.	Klick fügt einen Rang hinzu, Rechtsklick nimmt einen zurück.
+{n} point	{n} Punkt	one
+{n} points	{n} Punkte	few
+{n} points	{n} Punkte	many
+Maximum:	Maximum:
+or	oder	skill
+
+# The Maps tab (a page built at a release: scripts/site-texts)
+Player spawns	Spawns der Spieler
+Battery spawns	Batterie-Spawns
+Chargers	Ladestationen
+Containers	Container
+Research units	Forschungseinheiten
+Ammo stashes	Munitionsnachschub
+Survarium maps	Survarium-Karten
+chargers	Ladestationen
+Minimap	Minikarte
+From above	Von oben
+{n} active	{n} aktiv
+{n} batteries to win.	{n} Batterien zum Sieg.
+team {n}	Team {n}
+any team	jedes Team
+Ammo stash	Munitionsnachschub
+Container	Container
+Battery spawn	Batterie-Spawn
+Charger	Ladestation
+Research unit	Forschungseinheit
+Spawn	Spawn
+
+# The damage calculator (a page built at a release: scripts/site-texts)
+Feet	Füße	parts
+m/s	m/s	unit
+HP/s	LP/s	unit
+active	aktiv
+passive	passiv
+Damage ×{damage}, penetration ×{pierce}, before armour: lower penetration makes the armour stop more.	Schaden ×{damage}, Rüstungsdurchschlag ×{pierce}, vor der Rüstung: Mit weniger Rüstungsdurchschlag hält die Rüstung mehr ab.
+{drug}: {pool} takes ×{k} for {s} s after use ({delay} s to kick in).	{drug}: {pool} nimmt ×{k} Schaden, {s} s lang nach der Einnahme (wirkt nach {delay} s).
+Inside an anomaly: damage ×{k}, before armour.	In einer Anomalie: Schaden ×{k}, vor der Rüstung.
+This weapon takes no damage bonuses.	Diese Waffe erhält keine Schadensboni.
+Come with the weapon; cannot be changed.	Gehören zur Waffe; nicht änderbar.
+An item holds at most 3 modifications. Bonuses on one stat add up before they apply.	Ein Gegenstand hat höchstens 3 Modifikationen. Boni auf denselben Wert addieren sich, bevor sie wirken.
+This item takes no armour bonuses.	Dieser Gegenstand erhält keine Rüstungsboni.
+Nothing worn covers the {part}.	Keine angelegte Ausrüstung schützt: {part}.
+Drugs	Präparate
+Assault rifles	Sturmgewehre
+Submachine guns	Maschinenpistolen
+Shotguns	Schrotflinten
+Bolt-action & sniper rifles	Repetier- und Scharfschützengewehre
+Pistols & revolvers	Pistolen und Revolver
+Helmet	Helm
+Mask	Maske
+Jacket	Jacke
+Gloves	Handschuhe
+Trousers	Hose
+Boots	Stiefel
+Backpack	Rucksack
+Chest & neck	Brust und Hals
+Right arm	Rechter Arm
+Left arm	Linker Arm
+Right hand	Rechte Hand
+Left hand	Linke Hand
+Right leg	Rechtes Bein
+Left leg	Linkes Bein
+Right foot	Rechter Fuß
+Left foot	Linker Fuß
+Body	Körper
+Pain	Schmerz
+Infection	Infektion
+death	Tod
+bleeding	Blutung
+concussion	Gehirnerschütterung
+hand injury	Handverletzung
+leg injury	Beinverletzung
+infection	Infektion
+blindness	Blindheit
+Search	Suche
+— none —	— keine —
+nothing worn	nichts angelegt
+back	hinten
+front	vorne
+after shot	nach Schuss
+of	von
+dead	tot
+Glass	Glas
+Car	Auto
+Plywood	Sperrholz
+Tinplate	Blech
+Brick, steel	Ziegel, Stahl
+Concrete	Beton
+Stone	Stein
+<none>	<keine>
+armour	Rüstung
+{n} left	{n} übrig
+damage	Schaden
+penetration	Rüstungsdurchschlag
+full damage to	voller Schaden bis
+minimum from	Minimum ab
+minimum	Minimum
+muzzle	Mündungsgeschw.
+rate	Feuerrate
+magazine	Magazin
+Gets through: k {k}, D {D} · P {P}.	Dringt durch: k {k}, D {D} · P {P}.
+Does not get through: penetration {P}, armour {A}.	Dringt nicht durch: Rüstungsdurchschlag {P}, Rüstung {A}.
+here	hier
+not here	nicht hier
+taken by {item}	belegt durch {item}
+Covers the {part}.	Schützt: {part}.
+Does not cover the {part}.	Schützt nicht: {part}.
+Click to aim at the {part}.	Klicke zum Zielen: {part}.
+aim at the {part}	zielen: {part}
+Full damage at this range.	Voller Schaden auf diese Entfernung.
+Fully fallen off: minimum damage.	Ganz abgefallen: Minimalschaden.
+Falling off: {share} of the way from minimum to full.	Fällt ab: {share} des Wegs vom Minimal- zum vollen Schaden.
+Orange band: damage falls from {from} m to {to} m.	Orangefarbenes Band: Der Schaden fällt von {from} m bis {to} m ab.
+per shot (all pellets)	pro Schuss (alle Schrotkugeln)
+per hit	pro Treffer
+{pool} damage {per}	{pool}: Schaden {per}
+of {n} {pool} left	von {n} verbleibenden ({pool})
+of {n} {pool}	von {n} ({pool})
+Hits to kill	Treffer bis zum Kill
+dies when {pool} reaches 0	stirbt, wenn {pool} 0 erreicht
+this shot cannot kill	dieser Schuss kann nicht töten
+Time to kill	Zeit bis zum Kill
+every shot lands, no reload	jeder Schuss trifft, kein Nachladen
+Leaves the barrel	Verlässt den Lauf
+Weapon damage × ammo <code>k_damage</code>, weapon pierce × ammo <code>k_arp</code>.	Schaden der Waffe × <code>k_damage</code> der Patrone, Rüstungsdurchschlag der Waffe × <code>k_arp</code> der Patrone.
+Each of the {n} pellets carries this.	Das gilt für jede der {n} Schrotkugeln.
+Flies {m} m	Fliegt {m} m
+Speed {v0} → {v} m/s. Damage slides from full ({full}) to minimum ({min}) by speed between {from} and {to} m: here {share}. Penetration stays.	Geschwindigkeit {v0} → {v} m/s. Der Schaden sinkt je nach Geschwindigkeit zwischen {from} und {to} m von voll ({full}) bis minimal ({min}): hier {share}. Der Rüstungsdurchschlag bleibt.
+Through {wall}	Durch {wall}
+stopped	gestoppt
+Penetration {P}, armour {A}. Damage, penetration and speed × k; then damage no higher than at {v} m/s.	Rüstungsdurchschlag {P}, Rüstung {A}. Schaden, Rüstungsdurchschlag und Geschwindigkeit × k; danach Schaden nicht höher als bei {v} m/s.
+Penetration {P} is not above armour {A}: the bullet stops.	Rüstungsdurchschlag {P} liegt nicht über Rüstung {A}: Die Kugel bleibt stecken.
+No armour here, the full amount goes in.	Hier keine Rüstung: Alles geht durch.
+Armour {A} is not above penetration {P}: nothing is stopped.	Rüstung {A} liegt nicht über Rüstungsdurchschlag {P}: Nichts wird abgewehrt.
+Armour exceeds penetration by a full 100: the bullet does nothing.	Die Rüstung übersteigt den Rüstungsdurchschlag um volle 100: Die Kugel bewirkt nichts.
+Armour {A} − penetration {P} = {gap}% of the damage is stopped.	Rüstung {A} − Rüstungsdurchschlag {P} = {gap}% des Schadens abgewehrt.
+Hits {part}	Trifft: {part}
+Every hit anywhere also drains the shared pain pool. Pain at 0 kills.	Jeder Treffer, egal wo, zehrt auch am gemeinsamen Schmerz-Pool. Schmerz auf 0 tötet.
+Body at 0 kills.	Körper auf 0 tötet.
+Head holds only 40: at 0 it kills, below 20 it concusses.	Der Kopf hat nur 40: Auf 0 tötet er, unter 20 gibt es eine Gehirnerschütterung.
+Limbs do not kill by themselves: an empty limb injures, the pain it carries can kill.	Gliedmaßen töten nicht von selbst: Eine leere Gliedmaße bringt eine Verletzung, ihr Schmerz kann töten.
+Second chance	Zweite Chance
+The skill leaves the target alive once.	Die Fähigkeit lässt das Ziel einmal am Leben.
+× {n} pellets	× {n} Schrotkugeln
+Each pellet is its own bullet: when several land, their damage adds up.	Jede Schrotkugel ist eine eigene Kugel: Treffen mehrere, addiert sich ihr Schaden.
+kills	tötet
+breaks	bricht
+below	unter
+empty	leer
+movement	Bewegung
+shot	Schuss
+Damage over distance	Schaden nach Entfernung
+after armour	nach Rüstung
+Body part	Körperteil
+Stopped	Abgewehrt
+Limb	Gliedmaße
+Also	Auch
+injury	Verletzung
+best ammo	beste Patrone
+default ammo	Standardpatrone
+Ammo	Patrone
+Pen. here	Durchschl. hier
+Damage / hit	Schaden / Treffer
+RPM	Schuss/min
+Bullet	Kugel
+D, P = weapon × ammo, D falling with distance	D, P = Waffe × Patrone, D sinkt mit der Entfernung
+{n} pellets	{n} Schrotkugeln
+Wall	Wand
+P ≤ A: the bullet stays in the wall · else D, P × (1 − (A / P)²)	P ≤ A: Die Kugel bleibt in der Wand · sonst D, P × (1 − (A / P)²)
+stays in the wall	bleibt in der Wand
+each	je
+rank	Rang
+inside an anomaly	in einer Anomalie
+D × (1 − (armour − P) / 100)	D × (1 − (Rüstung − P) / 100)
+{part}, armour {A} − P {P}	{part}, Rüstung {A} − P {P}
+Pools	Pools
+chest, back → body · head, face → head · leg, foot → leg · arm, hand → hand	Brust, Rücken → Körper · Kopf, Gesicht → Kopf · Bein, Fuß → Bein · Arm, Hand → Hand
+× 1 chest, head, arms · 0.9 legs · 0.8 hands, feet	× 1 Brust, Kopf, Arme · 0.9 Beine · 0.8 Hände, Füße
+Death	Tod
+body, head or pain at 0	Körper, Kopf oder Schmerz auf 0
+{n} hits	{n} Treffer
+at 0	bei 0
+does not kill	tötet nicht
+wall armour	Rüstung der Wand
+One bullet through several parts: each pool loses only its biggest hit, not the sum (hands 40 + 40, chest 35 → pain −40, not −115).	Eine Kugel durch mehrere Teile: Jeder Pool verliert nur seinen größten Treffer, nicht die Summe (Hände 40 + 40, Brust 35 → Schmerz −40, nicht −115).
+full	voll
+fixed	geheilt
+{s} s without hits	{s} s ohne Treffer
+By itself	Von selbst
+ends after {s} s without hits	endet nach {s} s ohne Treffer
+carried	getragen
+activated	aktiviert
+at once, every {s} s	sofort, alle {s} s
+{delay} s after use, for {s} s	{delay} s nach Einnahme, {s} s lang
+stops at {n}	bis {n}
+From empty to full	Von leer bis voll
+Leg or hand	Bein oder Hand
+No Larkspur	Ohne Lebknochen
+Starts	Beginnt
+Legs, hands	Beine, Hände
+Broken leg, hand	Gebrochenes Bein, gebrochene Hand
+Top-down view of	Draufsicht:
+<b>{m} m</b> ({across} across, {sign}{height} height). Click again to start over.	<b>{m} m</b> ({across} waagrecht, {sign}{height} Höhe). Klicke erneut, um neu zu beginnen.
+Now click the target.	Klicke jetzt auf das Ziel.
+Click the shooter, then the target.	Klicke auf den Schützen, dann auf das Ziel.
+Orange ring: full damage to {from} m; dashed: minimum from {to} m.	Orangefarbener Ring: voller Schaden bis {from} m; gestrichelt: Minimum ab {to} m.
+health shown ×100 (body 100, head 40)	Gesundheit ×100 angezeigt (Körper 100, Kopf 40)
+Shooter	Schütze
+fires	schießt
+Distance to target	Entfernung zum Ziel
+Wall in front of the target	Wand vor dem Ziel
+Weapon bonuses	Waffenboni
+— — HIT — →	— — TREFFER — →
+takes the hit	wird getroffen
+Current pain	Aktueller Schmerz
+Pain the target already carries from earlier hits. It drains back to none at 10 a second once 8 s pass without a hit.	Schmerz, den das Ziel schon von früheren Treffern hat. Er sinkt um 10 pro Sekunde auf null, sobald 8 s ohne Treffer vergangen sind.
+Armour bonuses	Rüstungsboni
+Artefacts, drugs & skills	Artefakte, Präparate und Fähigkeiten
+Measure on a map	Auf einer Karte messen
+Clear points	Punkte löschen
+bullet before armour	Kugel vor der Rüstung
+after this armour	nach dieser Rüstung
+Every body part, this shot	Jedes Körperteil, dieser Schuss
+Every weapon against this target	Jede Waffe gegen dieses Ziel
+Same distance, wall, body part, armour and target effects. Each gun uses its best ammo for this target unless you pick "default ammo". Click a row to load that gun.	Gleiche Entfernung, Wand, Körperteil, Rüstung und Zieleffekte. Jede Waffe nutzt ihre beste Patrone für dieses Ziel, außer du wählst „Standardpatrone“. Klicke auf eine Zeile, um diese Waffe zu laden.
+Formula	Formel
+Healing	Heilung
+Previous shot	Vorheriger Schuss
+Next shot	Nächster Schuss
+Damage calculator	Survarium-Schadensrechner	title

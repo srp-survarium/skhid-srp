@@ -1,3 +1,15 @@
+// The page's own words in the reader's language (site-texts/README.md): the web server fills the
+// page's <script type="application/json" id="page-words"> with every text its script asks for
+// with T, Tc (a context first) and Tf (a template and its places), from words/<code>.tsv. Each
+// takes its English text as a literal (the server and the words test find them so); English is
+// what a text has no row for.
+const PAGE_WORDS = JSON.parse(document.getElementById("page-words").textContent);
+// (None calls another: each call in a script is a text's.)
+const Tc = (context, english) => PAGE_WORDS[context]?.[english] ?? english;
+const T = english => PAGE_WORDS[""]?.[english] ?? english;
+const Tf = (english, values) => (PAGE_WORDS[""]?.[english] ?? english)
+  .replace(/\{(\w+)\}/g, (place, name) => (name in values ? String(values[name]) : place));
+
 globalThis.CAMERA_SHAKE = {"period_frames":225,"pitch":[-0.252,-0.238,-0.189,-0.107,-0.023,0.043,0.09,0.122,0.143,0.151,0.158,0.179,0.209,0.241,0.267,0.287,0.301,0.312,0.319,0.323,0.325,0.286,0.219,0.158,0.108,0.068,0.039,0.018,0.004,-0.004,-0.007,0.018,0.052,0.088,0.118,0.141,0.158,0.17,0.178,0.182,0.185,0.142,0.064,-0.005,-0.063,-0.109,-0.143,-0.167,-0.182,-0.191,-0.195,-0.175,-0.145,-0.117,-0.094,-0.076,-0.063,-0.053,-0.047,-0.044,-0.043,-0.043,-0.044,-0.045,-0.046,-0.048,-0.049,-0.049,-0.049,-0.049,-0.05,-0.056,-0.065,-0.074,-0.081,-0.087,-0.091,-0.093,-0.095,-0.096,-0.098,-0.099,-0.1,-0.101,-0.102,-0.103,-0.104,-0.105,-0.106,-0.106,-0.106,-0.083,-0.046,-0.012,0.016,0.038,0.054,0.066,0.074,0.078,0.08,0.028,-0.063,-0.145,-0.214,-0.267,-0.307,-0.336,-0.355,-0.366,-0.37,-0.28,-0.125,0.019,0.136,0.227,0.297,0.348,0.38,0.397,0.403,0.402,0.398,0.393,0.389,0.385,0.382,0.379,0.378,0.378,0.38,0.382,0.387,0.392,0.396,0.4,0.402,0.404,0.405,0.406,0.406,0.306,0.144,-0.007,-0.127,-0.221,-0.292,-0.344,-0.378,-0.397,-0.403,-0.372,-0.319,-0.271,-0.231,-0.2,-0.177,-0.16,-0.149,-0.143,-0.14,-0.173,-0.228,-0.278,-0.32,-0.352,-0.377,-0.395,-0.406,-0.413,-0.415,-0.307,-0.124,0.047,0.185,0.29,0.371,0.43,0.468,0.489,0.497,0.408,0.253,0.109,-0.007,-0.097,-0.165,-0.215,-0.248,-0.266,-0.273,-0.206,-0.088,0.019,0.107,0.176,0.228,0.265,0.289,0.302,0.308,0.244,0.135,0.034,-0.049,-0.114,-0.163,-0.198,-0.221,-0.234,-0.24,-0.243,-0.244,-0.246,-0.247,-0.249,-0.25,-0.251,-0.251,-0.252,-0.252,-0.253,-0.253,-0.253,-0.252],"yaw":[0.081,0.069,0.027,-0.043,-0.115,-0.174,-0.216,-0.245,-0.262,-0.271,-0.275,-0.251,-0.215,-0.181,-0.155,-0.136,-0.121,-0.111,-0.105,-0.101,-0.1,-0.069,-0.014,0.035,0.075,0.107,0.13,0.147,0.158,0.164,0.167,0.187,0.22,0.251,0.277,0.297,0.313,0.323,0.33,0.334,0.338,0.343,0.349,0.357,0.364,0.368,0.37,0.372,0.373,0.374,0.375,0.377,0.379,0.38,0.379,0.378,0.375,0.373,0.372,0.372,0.373,0.374,0.376,0.377,0.376,0.375,0.373,0.37,0.369,0.369,0.368,0.355,0.335,0.317,0.301,0.289,0.279,0.273,0.269,0.267,0.263,0.251,0.224,0.197,0.173,0.153,0.137,0.125,0.117,0.113,0.11,0.108,0.104,0.097,0.088,0.08,0.074,0.07,0.066,0.064,0.062,0.061,0.058,0.054,0.05,0.046,0.043,0.041,0.041,0.041,0.037,0.022,-0.005,-0.033,-0.056,-0.073,-0.087,-0.097,-0.104,-0.106,-0.11,-0.127,-0.157,-0.188,-0.215,-0.237,-0.254,-0.267,-0.275,-0.28,-0.28,-0.274,-0.262,-0.25,-0.241,-0.235,-0.23,-0.227,-0.224,-0.223,-0.224,-0.226,-0.229,-0.232,-0.235,-0.237,-0.239,-0.24,-0.241,-0.241,-0.243,-0.258,-0.282,-0.305,-0.326,-0.342,-0.353,-0.361,-0.369,-0.372,-0.37,-0.364,-0.355,-0.346,-0.339,-0.336,-0.334,-0.332,-0.331,-0.331,-0.33,-0.316,-0.298,-0.28,-0.266,-0.258,-0.251,-0.246,-0.243,-0.243,-0.239,-0.223,-0.197,-0.172,-0.15,-0.133,-0.121,-0.112,-0.107,-0.103,-0.1,-0.096,-0.09,-0.085,-0.084,-0.085,-0.087,-0.088,-0.089,-0.089,-0.09,-0.064,-0.027,0.007,0.032,0.051,0.063,0.072,0.077,0.08,0.082,0.083,0.084,0.084,0.084,0.083,0.082,0.082,0.081,0.081,0.081,0.081,0.081,0.081,0.081]};
 // Model of 0.26g recoil: shot 0x331C50, ramp 0x331F82, tick 0x331A50,
 // recovery 0x3321E0. Matches bots/recoil.rs at 50 ms ticks. With it, from
@@ -196,8 +208,13 @@ globalThis.CAMERA_SHAKE = {"period_frames":225,"pitch":[-0.252,-0.238,-0.189,-0.
 // has the bones, the signs and the units): the camera's, in the hands' shot
 // clip, and the gun's in front of the camera, in its own. Neither reads the
 // recoil numbers: each is one curve, played once a shot in 60/rpm seconds.
-// - the camera's turns the view, so the screen moves; it starts from rest, so
-//   the bullet that starts it leaves along the kick's aim alone;
+// - the camera's turns the view, so the screen moves, and the bullets with it:
+//   a bullet leaves along the eye (player+44Ch, instant_fire 0x2E243D) as the
+//   simulation's step before the shot left it (the shot is an animation event
+//   in base_player::tick, the eye is posed after it, assign_physics_transform
+//   0x2D93A0; steps end every 50 ms, atomic_tick 0x2D1E20). A burst's second
+//   shot and on so take the clip's turn late in the pass before; the first
+//   leaves from rest;
 // - the gun's moves the gun and its sights over the view, since patch 172 on
 //   every gun while aimed; the bullet leaves from the camera, not the barrel.
 (() => {
@@ -247,10 +264,28 @@ globalThis.CAMERA_SHAKE = {"period_frames":225,"pitch":[-0.252,-0.238,-0.189,-0.
       return [axis, values[i] + (values[i + 1] - values[i]) * (place - i)];
     }));
   }
+  // How far (0 to 1) `time` is into the pass of the clips the last of
+  // `shots` ([{time}], in order) at or before it started, `interval` seconds
+  // a pass; 1 before the first shot and once the pass is over.
+  function phaseAt(shots, interval, time) {
+    let last = -1;
+    for (const shot of shots) {
+      if (shot.time > time + 1e-9) break;
+      last = shot.time;
+    }
+    return last < 0 ? 1 : (time - last) / interval;
+  }
+  // The end of the simulation's step before the one a shot at `time` falls
+  // in (a shot at a step's very end falls in that step): when the eye it
+  // leaves along was posed.
+  const STEP = .05;
+  const eyeTime = time => (Math.ceil(time / STEP - 1e-9) - 1) * STEP;
   // The camera's turn {up, side} degrees while firing in `aim` (WeaponSpread.AIMS), and the gun's {back mm, up, side degrees}.
   const cameraAt = (motions, aim, phase) => at(motions.camera[aim === 'hip' ? 'hip' : 'aimed'], AXES.camera, phase);
   const gunAt = (motions, phase) => at(motions.gun, AXES.gun, phase);
-  globalThis.WeaponMotions = Object.freeze({AXES, parse, peak, custom, cameraAt, gunAt});
+  // The camera's turn a bullet fired at `time` leaves with.
+  const cameraAtShot = (motions, aim, shots, interval, time) => cameraAt(motions, aim, phaseAt(shots, interval, eyeTime(time)));
+  globalThis.WeaponMotions = Object.freeze({AXES, parse, peak, custom, phaseAt, eyeTime, cameraAt, cameraAtShot, gunAt});
 })();
 
 // Calculator-style chooser: lobby icons, class groups, level ordering,
@@ -258,9 +293,10 @@ globalThis.CAMERA_SHAKE = {"period_frames":225,"pitch":[-0.252,-0.238,-0.189,-0.
 // The hidden select owns the selection, including URL and catalogue updates.
 // `weapons` are the elements offered (the weapons page's rows, or the
 // modifiers page's item entries and the weapons page's rounds, which carry
-// their name in data-title); `offer(ids)` narrows them to those ids.
-function WikiWeaponPicker(select, weapons, tr, collator, words = {
-  search: tr('Search weapons', 'Пошук зброї'), none: tr('No weapons match.', 'Зброю не знайдено.')}) {
+// their name in data-title); `offer(ids)` narrows them to those ids. Its
+// words are the page's (site-texts/words.js).
+function WikiWeaponPicker(select, weapons, collator, words = {
+  search: T('Search weapons'), none: T('No weapons match.')}) {
   const host = document.getElementById(`${select.id}-picker`);
   const make = (tag, attrs = {}, ...children) => {
     const element = document.createElement(tag);
@@ -274,14 +310,14 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
     const source = weapon?.querySelector('img');
     return source ? make('img', {src: source.src, alt: '', width: 54, height: 26, loading: 'lazy'}) : make('span', {class: 'noimg'});
   };
-  const level = weapon => make('small', {}, tr(`lvl ${weapon.dataset.level}`, `рів. ${weapon.dataset.level}`));
+  const level = weapon => make('small', {}, Tf('lvl {n}', {n: weapon.dataset.level}));
   const button = make('button', {type: 'button', class: 'wpick-btn', id: `${select.id}-btn`,
     'aria-haspopup': 'listbox', 'aria-expanded': 'false', 'aria-controls': `${select.id}-list`,
     'aria-labelledby': `${select.id}-label ${select.id}-value`});
   const list = make('div', {class: 'wpick-list', role: 'listbox', id: `${select.id}-list`, 'aria-labelledby': `${select.id}-label`});
   const search = make('input', {type: 'search', class: 'wpick-search', role: 'combobox', autocomplete: 'off',
     'aria-controls': list.id, 'aria-expanded': 'false', 'aria-autocomplete': 'list',
-    'aria-label': words.search, placeholder: tr('Search…', 'Пошук…')});
+    'aria-label': words.search, placeholder: T('Search…')});
   const empty = make('p', {class: 'wpick-empty', role: 'status'}, words.none);
   const popup = make('div', {class: 'wpick-pop', hidden: ''}, search, list, empty);
   host.append(button, popup);
@@ -374,14 +410,14 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
 // ...), kept in the address (a, b, ra, rb; a round only when not its
 // weapon's default, the first of `roundsOf`) and in the language link.
 // `changed()` runs after each choice; `refresh()` once the page is ready.
-function WikiWeaponSlots(weapons, roundsOf, tr, collator, changed) {
+function WikiWeaponSlots(weapons, roundsOf, collator, changed) {
   const pickers = ['a', 'b'].map(side => document.getElementById(`compare-${side}`));
   const roundPickers = ['a', 'b'].map(side => document.getElementById(`compare-${side}-round`));
   // Every round's chooser entry (its icon, name and level).
   const roundEntries = [...document.querySelectorAll('#round-options > div')];
-  const roundWords = {search: tr('Search rounds', 'Пошук набоїв'), none: tr('No rounds match.', 'Набоїв не знайдено.')};
-  const choosers = pickers.map(select => WikiWeaponPicker(select, weapons, tr, collator));
-  const roundChoosers = roundPickers.map(select => WikiWeaponPicker(select, roundEntries, tr, collator, roundWords));
+  const roundWords = {search: T('Search rounds'), none: T('No rounds match.')};
+  const choosers = pickers.map(select => WikiWeaponPicker(select, weapons, collator));
+  const roundChoosers = roundPickers.map(select => WikiWeaponPicker(select, roundEntries, collator, roundWords));
   const known = new Set(weapons.map(weapon => weapon.id));
   // A slot's rounds: its weapon's, keeping the chosen round when the new
   // weapon fires it too; a dash without a weapon.
@@ -485,7 +521,6 @@ const HUD = (() => {
   if (!sim) return;
   const weapons = [...document.querySelectorAll('#weapon-options > div')];
   const collator = new Intl.Collator(document.documentElement.lang, {numeric: true, sensitivity: 'base'});
-  const tr = (en, uk) => document.documentElement.lang === 'uk' ? uk : en;
   const byId = new Map(weapons.map(element => [element.id, element]));
   // Each weapon's rounds, its default first: [{id, name, spread}].
   const roundsOf = new Map(weapons.map(element => [element.id, JSON.parse(element.dataset.rounds)]));
@@ -550,12 +585,7 @@ const HUD = (() => {
   // How far (0 to 1) `time` is into the pass of the clips the series' last
   // shot started; 1 before its first shot and once the pass is over.
   function passAt(series, time) {
-    let last = -1;
-    for (const event of series.events) {
-      if (event.time > time + 1e-9) break;
-      last = event.time;
-    }
-    return last < 0 ? 1 : (time - last) / series.interval;
+    return WeaponMotions.phaseAt(series.events, series.interval, time);
   }
   // The view at `time`, where a bullet would leave: with `layers.recoil` the
   // kick between its 50 ms frames and the shake at its own moment (its clip
@@ -606,11 +636,11 @@ const HUD = (() => {
       const time = simulation.time;
       find('.sim-last').disabled = time >= lastShot() - .001;
       timeInput.value = time;
-      find('.sim-time-label').textContent = `${time.toFixed(2)} ${tr('s', 'с')}`;
+      find('.sim-time-label').textContent = `${time.toFixed(2)} ${Tc('unit', 's')}`;
       const legend = find('.sim-legend'); legend.replaceChildren();
       for (const series of simulation.series) {
         const point = sample(series, time), label = sides.length > 1 ? `${series.side ? 'B' : 'A'} · ` : '';
-        legend.append(node('p', `${label}${series.title} · ${tr('shots', 'постріли')} ${series.events.filter(event => event.time <= time + 1e-9).length}/${series.shots} · ${tr('up', 'вгору')} ${point.vertical.toFixed(3)} · ${tr('side', 'убік')} ${point.horizontal.toFixed(3)} · ${tr('spread', 'розкид')} ${point.spread.toFixed(2)}°`, `series-${series.side}`));
+        legend.append(node('p', `${label}${series.title} · ${T('shots')} ${series.events.filter(event => event.time <= time + 1e-9).length}/${series.shots} · ${T('up')} ${point.vertical.toFixed(3)} · ${T('side')} ${point.horizontal.toFixed(3)} · ${T('spread')} ${point.spread.toFixed(2)}°`, `series-${series.side}`));
       }
       for (const axis of ['vertical', 'horizontal']) {
         const svg = find(`.sim-${axis}`); svg.replaceChildren();
@@ -664,9 +694,12 @@ const HUD = (() => {
       const distance = Number(find('.sim-target').value) || 0, body = distance ? bodyDegrees(distance) : 0;
       // The aim (kick and shake), each bullet's hit and the spread around the
       // aim, in degrees of view: the view holds them all.
+      // A bullet's hit: the view at its shot, the camera's clip as the step
+      // before the shot left the eye (motions.js), and its own tilt in the spread.
       const hit = (series, event) => {
         const point = viewAt(series, event.time, on);
-        return {side: point.side + event.bullet.side, up: point.up + event.bullet.up};
+        const eye = on.camera ? WeaponMotions.cameraAtShot(series.motions, series.aim, series.events, series.interval, event.time) : {side: 0, up: 0};
+        return {side: point.side + eye.side + event.bullet.side, up: point.up + eye.up + event.bullet.up};
       };
       // The path drawn every 1/240 s, fine enough for the shake and a clip's pass.
       const steps = series => Array.from({length: Math.floor(series.duration * 240) + 1}, (_, i) => i / 240);
@@ -683,8 +716,8 @@ const HUD = (() => {
         return [x(point.side), y(point.up)];
       };
       const views = simulation.series.map(series => {
-        const svg = svgNode('svg', {viewBox:'0 0 300 300', role:'img', 'aria-label':`${series.title}: ${tr('where it aims as the shot moves it', 'куди цілиться під дією пострілу')}`});
-        const from = svgNode('svg', {viewBox:'0 0 300 110', role:'img', class:'sim-side', 'aria-label':`${series.title}: ${tr('from the side, the bullet from the eye along the view', 'збоку, куля від ока вздовж погляду')}`});
+        const svg = svgNode('svg', {viewBox:'0 0 300 300', role:'img', 'aria-label':`${series.title}: ${T('where it aims as the shot moves it')}`});
+        const from = svgNode('svg', {viewBox:'0 0 300 110', role:'img', class:'sim-side', 'aria-label':`${series.title}: ${T('from the side, the bullet from the eye along the view')}`});
         const view = document.createElement('div'); view.className = 'sim-view';
         if (simulation.series.length > 1) view.append(node('p', `${series.side ? 'B' : 'A'} · ${series.title}`, `sim-view-name series-${series.side}`));
         view.append(svg, from);
@@ -753,14 +786,14 @@ const HUD = (() => {
     // to the last shot; the settling after it stays on the plots.
     function stop() {
       if (playing) cancelAnimationFrame(playing.frame);
-      playing = null; playButton.textContent = tr('Play', 'Відтворити');
+      playing = null; playButton.textContent = T('Play');
     }
     function play() {
       if (simulation.kind !== 'ready') return;
       const last = Math.max(...simulation.series.flatMap(series => series.events).map(event => event.time));
       const from = simulation.time >= last - .001 ? 0 : simulation.time, start = performance.now();
       const speed = Number(find('.sim-speed').value) || 1;
-      playButton.textContent = tr('Pause', 'Пауза');
+      playButton.textContent = T('Pause');
       const tick = now => {
         if (simulation.kind !== 'ready') { stop(); return; }
         // A frame's timestamp can precede the press: never before `from`.
@@ -830,19 +863,19 @@ const HUD = (() => {
   // peaks by axis (WeaponMotions.custom). A value the visitor left is absent.
   const custom = panels.map(() => ({recoil: {}, camera: {}, gun: {}}));
   const isCustom = side => Object.values(custom[side]).some(values => Object.keys(values).length > 0);
-  const titleOf = (side, id) => isCustom(side) ? `${name(id)} · ${tr('custom', 'власна')}` : name(id);
+  const titleOf = (side, id) => isCustom(side) ? `${name(id)} · ${T('custom')}` : name(id);
   // Its fields, a group a motion (named as its layer): [key, label, step].
-  const up = tr('Up', 'Вгору'), sideways = tr('Side', 'Убік');
+  const up = T('Up'), sideways = T('Side');
   const FIELDS = [
-    ['recoil', tr('Recoil', 'Відбій'), [
-      ['rpm', tr('Rate', 'Темп'), 1],
+    ['recoil', T('Recoil'), [
+      ['rpm', T('Rate'), 1],
       ['min_top_recoil', `${up} min`, .01], ['max_top_recoil', `${up} max`, .01],
-      ['min_left_recoil', `${tr('Left', 'Ліворуч')} min`, .01], ['max_left_recoil', `${tr('Left', 'Ліворуч')} max`, .01],
-      ['min_right_recoil', `${tr('Right', 'Праворуч')} min`, .01], ['max_right_recoil', `${tr('Right', 'Праворуч')} max`, .01],
-      ['recoil_power', tr('Power', 'Степінь'), .01],
+      ['min_left_recoil', `${Tc('direction', 'Left')} min`, .01], ['max_left_recoil', `${Tc('direction', 'Left')} max`, .01],
+      ['min_right_recoil', `${Tc('direction', 'Right')} min`, .01], ['max_right_recoil', `${Tc('direction', 'Right')} max`, .01],
+      ['recoil_power', T('Power'), .01],
       ['compensation_proportional_gain', 'P', .1], ['compensation_integral_gain', 'I', .1], ['compensation_derivational_gain', 'D', .1]]],
-    ['camera', tr('Camera wobble', 'Хитання камери'), [['up', `${up} °`, .01], ['side', `${sideways} °`, .01]]],
-    ['gun', tr('Gun kick', 'Поштовх зброї'), [['back', `${tr('Back', 'Назад')} mm`, .1], ['up', `${up} °`, .01], ['side', `${sideways} °`, .01]]],
+    ['camera', T('Camera wobble'), [['up', `${up} °`, .01], ['side', `${sideways} °`, .01]]],
+    ['gun', T('Gun kick'), [['back', `${Tc('direction', 'Back')} mm`, .1], ['up', `${up} °`, .01], ['side', `${sideways} °`, .01]]],
   ];
   // A field's value on the weapon itself (a motion's: its curve's peak).
   function own(id, group, key) {
@@ -867,7 +900,7 @@ const HUD = (() => {
     panel.append(box);
     // The custom gun's fields, each the weapon's value until changed.
     const fields = HUD.el('details', {class: 'sim-custom'});
-    fields.append(node('summary', tr('Custom gun', 'Власна зброя')));
+    fields.append(node('summary', T('Custom gun')));
     for (const [group, heading, keys] of FIELDS) {
      const grid = HUD.el('div', {class: 'sim-custom-fields'});
      fields.append(node('p', heading, 'sim-custom-group'), grid);
@@ -886,7 +919,7 @@ const HUD = (() => {
       field.append(input); grid.append(field);
      }
     }
-    const reset = node('button', tr('Reset', 'Скинути')); reset.type = 'button';
+    const reset = node('button', T('Reset')); reset.type = 'button';
     reset.addEventListener('click', () => { fill(side, slots.sides()[side].id); simulation.refresh(); });
     fields.append(reset); panel.append(fields);
   });
@@ -898,7 +931,7 @@ const HUD = (() => {
   }
   const shownIds = panels.map(() => null);
   const simulation = RecoilSim(sim, stateOf), empty = document.querySelector('#compare-empty');
-  const slots = WikiWeaponSlots(weapons, roundsOf, tr, collator, () => {
+  const slots = WikiWeaponSlots(weapons, roundsOf, collator, () => {
     const sides = slots.sides().map((chosen, side) => ({...chosen, side})).filter(({id}) => id);
     sim.hidden = sides.length === 0; empty.hidden = sides.length !== 0;
     panels.forEach((panel, side) => {

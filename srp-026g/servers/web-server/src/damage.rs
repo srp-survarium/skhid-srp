@@ -9,6 +9,7 @@
 use std::io::Write;
 use std::net::{Shutdown, TcpStream};
 
+use crate::built::{Built, Script};
 use crate::{ContentType, Lang, Response};
 
 /// The page's address.
@@ -27,14 +28,21 @@ pub(crate) const FONTS: &str = "/damage/fonts/";
 pub(crate) fn font_faces() -> &'static str {
     static FACES: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     FACES.get_or_init(|| {
-        PAGE.lines()
+        include_str!("../damage/damage.html")
+            .lines()
             .filter(|line| line.starts_with("@font-face"))
             .collect()
     })
 }
 
-/// The page, with `{{LANG}}` and `<!--SITE-HEADER-->` to fill.
-const PAGE: &str = include_str!("../damage/damage.html");
+/// The page, with `{{LANG}}` and `<!--SITE-HEADER-->` to fill, its texts in every language's
+/// places (`crate::built`), and its script, whose words it gives.
+static SCRIPT: Script = Script::new(include_bytes!("../damage/calc.js"));
+static PAGE: Built = Built::new(
+    include_str!("../damage/damage.html"),
+    include_str!("../damage/damage.texts.json"),
+    &SCRIPT,
+);
 
 /// The files the page loads: address, content type, bytes. Every file of
 /// `../damage/` but the page and its record (`../build.rs` lists them). The
@@ -72,6 +80,7 @@ pub(crate) fn page(lang: Lang, header: &str) -> Response {
         status: "200 OK",
         content_type: ContentType::Html,
         body: PAGE
+            .page(lang)
             .replacen("{{LANG}}", lang.code(), 1)
             .replacen("<!--SITE-HEADER-->", header, 1),
     }

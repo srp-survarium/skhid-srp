@@ -8,7 +8,6 @@
   if (!sim) return;
   const weapons = [...document.querySelectorAll('#weapon-options > div')];
   const collator = new Intl.Collator(document.documentElement.lang, {numeric: true, sensitivity: 'base'});
-  const tr = (en, uk) => document.documentElement.lang === 'uk' ? uk : en;
   const byId = new Map(weapons.map(element => [element.id, element]));
   // Each weapon's rounds, its default first: [{id, name, spread}].
   const roundsOf = new Map(weapons.map(element => [element.id, JSON.parse(element.dataset.rounds)]));
@@ -73,12 +72,7 @@
   // How far (0 to 1) `time` is into the pass of the clips the series' last
   // shot started; 1 before its first shot and once the pass is over.
   function passAt(series, time) {
-    let last = -1;
-    for (const event of series.events) {
-      if (event.time > time + 1e-9) break;
-      last = event.time;
-    }
-    return last < 0 ? 1 : (time - last) / series.interval;
+    return WeaponMotions.phaseAt(series.events, series.interval, time);
   }
   // The view at `time`, where a bullet would leave: with `layers.recoil` the
   // kick between its 50 ms frames and the shake at its own moment (its clip
@@ -129,11 +123,11 @@
       const time = simulation.time;
       find('.sim-last').disabled = time >= lastShot() - .001;
       timeInput.value = time;
-      find('.sim-time-label').textContent = `${time.toFixed(2)} ${tr('s', 'с')}`;
+      find('.sim-time-label').textContent = `${time.toFixed(2)} ${Tc('unit', 's')}`;
       const legend = find('.sim-legend'); legend.replaceChildren();
       for (const series of simulation.series) {
         const point = sample(series, time), label = sides.length > 1 ? `${series.side ? 'B' : 'A'} · ` : '';
-        legend.append(node('p', `${label}${series.title} · ${tr('shots', 'постріли')} ${series.events.filter(event => event.time <= time + 1e-9).length}/${series.shots} · ${tr('up', 'вгору')} ${point.vertical.toFixed(3)} · ${tr('side', 'убік')} ${point.horizontal.toFixed(3)} · ${tr('spread', 'розкид')} ${point.spread.toFixed(2)}°`, `series-${series.side}`));
+        legend.append(node('p', `${label}${series.title} · ${T('shots')} ${series.events.filter(event => event.time <= time + 1e-9).length}/${series.shots} · ${T('up')} ${point.vertical.toFixed(3)} · ${T('side')} ${point.horizontal.toFixed(3)} · ${T('spread')} ${point.spread.toFixed(2)}°`, `series-${series.side}`));
       }
       for (const axis of ['vertical', 'horizontal']) {
         const svg = find(`.sim-${axis}`); svg.replaceChildren();
@@ -187,9 +181,12 @@
       const distance = Number(find('.sim-target').value) || 0, body = distance ? bodyDegrees(distance) : 0;
       // The aim (kick and shake), each bullet's hit and the spread around the
       // aim, in degrees of view: the view holds them all.
+      // A bullet's hit: the view at its shot, the camera's clip as the step
+      // before the shot left the eye (motions.js), and its own tilt in the spread.
       const hit = (series, event) => {
         const point = viewAt(series, event.time, on);
-        return {side: point.side + event.bullet.side, up: point.up + event.bullet.up};
+        const eye = on.camera ? WeaponMotions.cameraAtShot(series.motions, series.aim, series.events, series.interval, event.time) : {side: 0, up: 0};
+        return {side: point.side + eye.side + event.bullet.side, up: point.up + eye.up + event.bullet.up};
       };
       // The path drawn every 1/240 s, fine enough for the shake and a clip's pass.
       const steps = series => Array.from({length: Math.floor(series.duration * 240) + 1}, (_, i) => i / 240);
@@ -206,8 +203,8 @@
         return [x(point.side), y(point.up)];
       };
       const views = simulation.series.map(series => {
-        const svg = svgNode('svg', {viewBox:'0 0 300 300', role:'img', 'aria-label':`${series.title}: ${tr('where it aims as the shot moves it', 'куди цілиться під дією пострілу')}`});
-        const from = svgNode('svg', {viewBox:'0 0 300 110', role:'img', class:'sim-side', 'aria-label':`${series.title}: ${tr('from the side, the bullet from the eye along the view', 'збоку, куля від ока вздовж погляду')}`});
+        const svg = svgNode('svg', {viewBox:'0 0 300 300', role:'img', 'aria-label':`${series.title}: ${T('where it aims as the shot moves it')}`});
+        const from = svgNode('svg', {viewBox:'0 0 300 110', role:'img', class:'sim-side', 'aria-label':`${series.title}: ${T('from the side, the bullet from the eye along the view')}`});
         const view = document.createElement('div'); view.className = 'sim-view';
         if (simulation.series.length > 1) view.append(node('p', `${series.side ? 'B' : 'A'} · ${series.title}`, `sim-view-name series-${series.side}`));
         view.append(svg, from);
@@ -276,14 +273,14 @@
     // to the last shot; the settling after it stays on the plots.
     function stop() {
       if (playing) cancelAnimationFrame(playing.frame);
-      playing = null; playButton.textContent = tr('Play', 'Відтворити');
+      playing = null; playButton.textContent = T('Play');
     }
     function play() {
       if (simulation.kind !== 'ready') return;
       const last = Math.max(...simulation.series.flatMap(series => series.events).map(event => event.time));
       const from = simulation.time >= last - .001 ? 0 : simulation.time, start = performance.now();
       const speed = Number(find('.sim-speed').value) || 1;
-      playButton.textContent = tr('Pause', 'Пауза');
+      playButton.textContent = T('Pause');
       const tick = now => {
         if (simulation.kind !== 'ready') { stop(); return; }
         // A frame's timestamp can precede the press: never before `from`.
@@ -353,19 +350,19 @@
   // peaks by axis (WeaponMotions.custom). A value the visitor left is absent.
   const custom = panels.map(() => ({recoil: {}, camera: {}, gun: {}}));
   const isCustom = side => Object.values(custom[side]).some(values => Object.keys(values).length > 0);
-  const titleOf = (side, id) => isCustom(side) ? `${name(id)} · ${tr('custom', 'власна')}` : name(id);
+  const titleOf = (side, id) => isCustom(side) ? `${name(id)} · ${T('custom')}` : name(id);
   // Its fields, a group a motion (named as its layer): [key, label, step].
-  const up = tr('Up', 'Вгору'), sideways = tr('Side', 'Убік');
+  const up = T('Up'), sideways = T('Side');
   const FIELDS = [
-    ['recoil', tr('Recoil', 'Відбій'), [
-      ['rpm', tr('Rate', 'Темп'), 1],
+    ['recoil', T('Recoil'), [
+      ['rpm', T('Rate'), 1],
       ['min_top_recoil', `${up} min`, .01], ['max_top_recoil', `${up} max`, .01],
-      ['min_left_recoil', `${tr('Left', 'Ліворуч')} min`, .01], ['max_left_recoil', `${tr('Left', 'Ліворуч')} max`, .01],
-      ['min_right_recoil', `${tr('Right', 'Праворуч')} min`, .01], ['max_right_recoil', `${tr('Right', 'Праворуч')} max`, .01],
-      ['recoil_power', tr('Power', 'Степінь'), .01],
+      ['min_left_recoil', `${Tc('direction', 'Left')} min`, .01], ['max_left_recoil', `${Tc('direction', 'Left')} max`, .01],
+      ['min_right_recoil', `${Tc('direction', 'Right')} min`, .01], ['max_right_recoil', `${Tc('direction', 'Right')} max`, .01],
+      ['recoil_power', T('Power'), .01],
       ['compensation_proportional_gain', 'P', .1], ['compensation_integral_gain', 'I', .1], ['compensation_derivational_gain', 'D', .1]]],
-    ['camera', tr('Camera wobble', 'Хитання камери'), [['up', `${up} °`, .01], ['side', `${sideways} °`, .01]]],
-    ['gun', tr('Gun kick', 'Поштовх зброї'), [['back', `${tr('Back', 'Назад')} mm`, .1], ['up', `${up} °`, .01], ['side', `${sideways} °`, .01]]],
+    ['camera', T('Camera wobble'), [['up', `${up} °`, .01], ['side', `${sideways} °`, .01]]],
+    ['gun', T('Gun kick'), [['back', `${Tc('direction', 'Back')} mm`, .1], ['up', `${up} °`, .01], ['side', `${sideways} °`, .01]]],
   ];
   // A field's value on the weapon itself (a motion's: its curve's peak).
   function own(id, group, key) {
@@ -390,7 +387,7 @@
     panel.append(box);
     // The custom gun's fields, each the weapon's value until changed.
     const fields = HUD.el('details', {class: 'sim-custom'});
-    fields.append(node('summary', tr('Custom gun', 'Власна зброя')));
+    fields.append(node('summary', T('Custom gun')));
     for (const [group, heading, keys] of FIELDS) {
      const grid = HUD.el('div', {class: 'sim-custom-fields'});
      fields.append(node('p', heading, 'sim-custom-group'), grid);
@@ -409,7 +406,7 @@
       field.append(input); grid.append(field);
      }
     }
-    const reset = node('button', tr('Reset', 'Скинути')); reset.type = 'button';
+    const reset = node('button', T('Reset')); reset.type = 'button';
     reset.addEventListener('click', () => { fill(side, slots.sides()[side].id); simulation.refresh(); });
     fields.append(reset); panel.append(fields);
   });
@@ -421,7 +418,7 @@
   }
   const shownIds = panels.map(() => null);
   const simulation = RecoilSim(sim, stateOf), empty = document.querySelector('#compare-empty');
-  const slots = WikiWeaponSlots(weapons, roundsOf, tr, collator, () => {
+  const slots = WikiWeaponSlots(weapons, roundsOf, collator, () => {
     const sides = slots.sides().map((chosen, side) => ({...chosen, side})).filter(({id}) => id);
     sim.hidden = sides.length === 0; empty.hidden = sides.length !== 0;
     panels.forEach((panel, side) => {

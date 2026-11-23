@@ -14,7 +14,7 @@ const RULES = (() => {
     const out = [];
     for (let i = 0; i < (active ? 1 : count); i++) {
       out.push({
-        name: `${nm(o)} ${active ? T("active", "активний") : T("passive", "пасивний")}${count > 1 && !active ? ` #${i + 1}` : ""}`,
+        name: `${nm(o)} ${active ? T("active") : T("passive")}${count > 1 && !active ? ` #${i + 1}` : ""}`,
         parts: o.protected_locations, types: [o.hit_type],
         fn(D, P) {
           let nd;
@@ -23,8 +23,7 @@ const RULES = (() => {
             nd = D - Math.min(mode.absorb_total, D - want);
           } else nd = (D + mode.damage_add) * mode.damage_mul;
           const np = (P + mode.armor_piercing_add) * mode.armor_piercing_mul;
-          return { D: nd, P: np, note: T(`Damage ×${mode.damage_mul}, penetration ×${mode.armor_piercing_mul}, before armour: lower penetration makes the armour stop more.`,
-            `Пошкодження ×${mode.damage_mul}, бронебійність ×${mode.armor_piercing_mul}, до броні: з меншою бронебійністю броня зупиняє більше.`) };
+          return { D: nd, P: np, note: Tf("Damage ×{damage}, penetration ×{pierce}, before armour: lower penetration makes the armour stop more.", { damage: mode.damage_mul, pierce: mode.armor_piercing_mul }) };
         },
       });
     }
@@ -43,8 +42,7 @@ const RULES = (() => {
           fn(D, P) {
             const nd = D < p.threshold ? 0 : (D - p.threshold) * p.hit_coeff;
             const pool = POOLS[p.pool] || p.pool, total = drug.activation_delay_s + drug.activity_s;
-            return { D: nd, P, note: T(`${nm(drug)}: ${pool} takes ×${p.hit_coeff} for ${total} s after use (${drug.activation_delay_s} s to kick in).`,
-              `${nm(drug)}: ${pool.toLowerCase()} отримує ×${p.hit_coeff} протягом ${total} с після вживання (діє через ${drug.activation_delay_s} с).`) };
+            return { D: nd, P, note: Tf("{drug}: {pool} takes ×{k} for {s} s after use ({delay} s to kick in).", { drug: nm(drug), pool: pool.toLowerCase(), k: p.hit_coeff, s: total, delay: drug.activation_delay_s }) };
           },
         });
       }
@@ -60,7 +58,7 @@ const RULES = (() => {
     const k = +Math.max(0, 1 - clamp(rank, 0, s.ranks) * s.step).toFixed(2);
     return [{
       name: nm(s), parts: Object.keys(PARTS),
-      fn(D, P) { return { D: D * k, P, note: T(`Inside an anomaly: damage ×${k}, before armour.`, `В аномалії: пошкодження ×${k}, до броні.`) }; },
+      fn(D, P) { return { D: D * k, P, note: Tf("Inside an anomaly: damage ×{k}, before armour.", { k }) }; },
     }];
   }
 
@@ -87,7 +85,7 @@ const RULES = (() => {
     const n = prop.mod_type === 1 ? `${v >= 0 ? "+" : "−"}${Math.abs(v)}` : `${v >= 0 ? "+" : "−"}${Math.round(Math.abs(v) * 100)}%`;
     return n;
   };
-  const label = prop => (LANG === "uk" && prop.label_uk) || prop.label;
+  const label = prop => loc(prop, "label");
   const good = (prop, v) => (prop.direction === 0 && v < 0) || (prop.direction === 1 && v > 0);
   const icon = m => {
     const src = DATA.mod_icons && DATA.mod_icons[m.icon];
@@ -125,9 +123,9 @@ const RULES = (() => {
 
   // Covered parts in the doll's order, a left and right of the same armour
   // as one ("Arms 50").
-  const PAIRS = [["right_forearm", "left_forearm", ["Arms", "Руки"]], ["right_arm", "left_arm", ["Hands", "Кисті"]],
-    ["right_hip", "left_hip", ["Legs", "Ноги"]], ["right_foot", "left_foot", ["Feet", "Стопи"]]];
-  const partsName = parts => parts.length > 1 ? T(...PAIRS.find(([r]) => r === parts[0])[2]) : PARTS[parts[0]];
+  const PAIRS = [["right_forearm", "left_forearm", T("Arms")], ["right_arm", "left_arm", T("Hands")],
+    ["right_hip", "left_hip", T("Legs")], ["right_foot", "left_foot", Tc("parts", "Feet")]];
+  const partsName = parts => parts.length > 1 ? PAIRS.find(([r]) => r === parts[0])[2] : PARTS[parts[0]];
   function protParts(cover) {
     const v = p => (cover[p] || {}).ranged || 0;
     const out = [];
@@ -148,7 +146,7 @@ const RULES = (() => {
     const box = el("div", { class: icons ? "gamemods" : "gamemods plain" }, el("span", { class: "gname", text: name }));
     for (const l of lines)
       box.append(el("div", { class: "gmrow fixed" }, icons ? icon(l) : null, el("span", { class: "glabel", text: `${label(l)}:` }),
-        el("span", { class: l.good == null ? "gv" : l.good ? "gv good" : "gv bad", text: (LANG === "uk" && l.value_uk) || l.value })));
+        el("span", { class: l.good == null ? "gv" : l.good ? "gv good" : "gv bad", text: loc(l, "value") })));
     return box;
   }
   // An artefact's: the game's own words at its pickup (the passive) and at
@@ -156,7 +154,7 @@ const RULES = (() => {
   function artefactCard(a, seconds = (a.active || {}).duration_s) {
     const box = el("div", { class: "gamemods" });
     for (const k of ["pickup_hint", "activation_hint"]) {
-      const said = (LANG === "uk" && a[k + "_uk"]) || a[k];
+      const said = loc(a, k);
       if (said) box.append(el("span", { class: "gtext", text: said.replace("%s", seconds) }));
     }
     return box;
@@ -170,7 +168,7 @@ const RULES = (() => {
     const s = (DATA.skills || {})[key]; if (!s) return null;
     const src = DATA.skill_icons && DATA.skill_icons[s.id];
     const box = el("div", { class: "gamemods" }, el("span", { class: "gname", text: nm(s) }),
-      el("span", { class: "gtext" }, `${(LANG === "uk" && s.description_uk) || s.description} `, el("span", { class: "gv good", text: (LANG === "uk" && s.rank_uk) || s.rank })));
+      el("span", { class: "gtext" }, `${loc(s, "description")} `, el("span", { class: "gv good", text: loc(s, "rank") })));
     const given = n => sign + (unit ? +(n * s.step).toFixed(2) + unit : `${Math.round(n * s.step * 100)}%`);
     return stepsRow(src ? el("img", { class: "gico", src, alt: "" }) : el("span", { class: "gico" }), nm(s),
       Array.from({ length: s.ranks }, (_, i) => [i + 1, given(i + 1)]), picks, key, onChange, box);
@@ -243,9 +241,9 @@ const RULES = (() => {
       state.wmods = state.wmods || {};
       const w = DATA.weapons[state.weapon];
       state.wmods[state.weapon] = state.wmods[state.weapon] || {};
-      if (!modControls(wbox, w, state.wmods[state.weapon], update)) wbox.append(el("span", { class: "note", text: T("This weapon takes no damage bonuses.", "Ця зброя не має бонусів пошкодження.") }));
-      else if (w.mod_types.default.length) wbox.append(el("span", { class: "note", text: T("Come with the weapon; cannot be changed.", "Ідуть зі зброєю; змінити не можна.") }));
-      else wbox.append(el("span", { class: "note", text: T("An item holds at most 3 modifications. Bonuses on one stat add up before they apply.", "Предмет має щонайбільше 3 модифікації. Бонуси на одну характеристику додаються.") }));
+      if (!modControls(wbox, w, state.wmods[state.weapon], update)) wbox.append(el("span", { class: "note", text: T("This weapon takes no damage bonuses.") }));
+      else if (w.mod_types.default.length) wbox.append(el("span", { class: "note", text: T("Come with the weapon; cannot be changed.") }));
+      else wbox.append(el("span", { class: "note", text: T("An item holds at most 3 modifications. Bonuses on one stat add up before they apply.") }));
       // The items on the part being hit: their bonuses are the ones that count.
       const abox = document.getElementById("amods"); abox.innerHTML = "";
       state.amods = state.amods || {};
@@ -270,9 +268,9 @@ const RULES = (() => {
         abox.append(el("div", { class: "aitem" }, src ? el("img", { src, alt: "" }) : null,
           el("div", {}, el("span", { class: "lbl", text: `${label}: ${nm(item)}` }), prot)));
         if (!modControls(abox, item, state.amods[key], () => { paintProt(); update(); }))
-          abox.append(el("span", { class: "note", text: T("This item takes no armour bonuses.", "Цей предмет не має бонусів броні.") }));
+          abox.append(el("span", { class: "note", text: T("This item takes no armour bonuses.") }));
       }
-      if (!covering) abox.append(el("span", { class: "note", text: T(`Nothing worn covers the ${part}.`, `Ніщо вдягнене не захищає: ${part}.`) }));
+      if (!covering) abox.append(el("span", { class: "note", text: Tf("Nothing worn covers the {part}.", { part }) }));
     },
     targetEffects(state) {
       const fx = state.fx || {};
@@ -314,22 +312,22 @@ const RULES = (() => {
           });
           return c;
         };
-        const activeText = () => `${T("active", "активний")} ×${ART.onyx.active.damage_mul}, `
-          + `${ART.onyx.active.duration_s + Math.max(0, (state.fx.onyx || 1) - 1) * ONYX_EXTRA_S} ${T("s", "с")}`;
+        const activeText = () => `${T("active")} ×${ART.onyx.active.damage_mul}, `
+          + `${ART.onyx.active.duration_s + Math.max(0, (state.fx.onyx || 1) - 1) * ONYX_EXTRA_S} ${Tc("unit", "s")}`;
         const act = chip("active", activeText());
         // Each tile's card: the Onyx's words, the active's seconds for that many.
         row(nm(ART.onyx), ...slots.map((s, i) => hinted(s, artefactCard(ART.onyx, ART.onyx.active.duration_s + i * ONYX_EXTRA_S))), el("span", { class: "chips" },
-          chip("passive", `${T("passive", "пасивний")} ×${ART.onyx.passive.damage_mul}`), act));
+          chip("passive", `${T("passive")} ×${ART.onyx.passive.damage_mul}`), act));
       }
       const shielding = Object.entries(DATA.drugs || {}).filter(([, d]) => d.damage_protection.some(p => p.hit_type === "ranged"));
       if (shielding.length) {
         state.fx.drugs = state.fx.drugs || {};
-        row(T("Drugs", "Препарати"), ...shielding.map(([key, d]) => hinted(tile(key, nm(d), !!state.fx.drugs[key],
+        row(T("Drugs"), ...shielding.map(([key, d]) => hinted(tile(key, nm(d), !!state.fx.drugs[key],
           function () { state.fx.drugs[key] = !state.fx.drugs[key]; this.setAttribute("aria-pressed", String(state.fx.drugs[key])); update(); }), card(nm(d), d.card || []))));
       }
       state.fx.skills = state.fx.skills || {};
       const forest = skillRow("forest_protection", "−", null, state.fx.skills, update);
-      if (forest) box.append(el("div", { class: "field" }, el("span", { class: "lbl", text: T("Skills", "Навички") }), el("div", { class: "gamemods" }, forest)));
+      if (forest) box.append(el("div", { class: "field" }, el("span", { class: "lbl", text: T("Skills") }), el("div", { class: "gamemods" }, forest)));
     },
   };
 })();
