@@ -531,7 +531,20 @@ pub fn step(take: &mut Take, target: TargetRef, cx: &Ctx) -> Next {
             && cx.me.seen_at >= pressed + hold_ms()
         {
             // A world past the press and the hold, and no carry: the use started nothing (an ended use starts whole again at
-            // a new press, 0x2D88B1; no second hold was forecast).
+            // a new press, 0x2D88B1; no second hold was forecast). Its trace: the press's time, the world's, the eye's reach now.
+            cx.lines.push(
+                Kind::ZoneTake,
+                None,
+                format!(
+                    "{PREFIX}zone take battery at {}: the use started nothing: pressed at {pressed}, world at {}, hold {} ms, feet {} ({:.2} m across, eye {:.2} m from it)",
+                    nav_log::at(at),
+                    cx.me.seen_at,
+                    hold_ms(),
+                    nav_log::at(me),
+                    me.distance_xz(at),
+                    (cx.me.eye() - at).length()
+                ),
+            );
             leave(take, "the use started nothing (a world past the press and the hold shows no carry)", None);
         } else if take.pressed.is_none()
             && let Phase::Stand { since } = take.phase
