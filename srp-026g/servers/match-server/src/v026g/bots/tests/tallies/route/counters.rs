@@ -913,8 +913,8 @@ pub(super) fn dead_links() -> Box<dyn RouteTopic> {
         || super::super::dead_links::tally::counts().to_vec(),
         |d, line| {
             line.ends.push(format!(
-                "dead_link_failures {} dead_links_shut {} dead_links_made {} dead_links_opened {} dead_links_kept_spent {}",
-                d[0], d[1], d[2], d[3], d[4]
+                "dead_link_failures {} dead_links_shut {} dead_links_made {} dead_links_opened {} dead_links_kept_spent {} dead_links_proof_spent {}",
+                d[0], d[1], d[2], d[3], d[4], d[5]
             ));
         },
     )

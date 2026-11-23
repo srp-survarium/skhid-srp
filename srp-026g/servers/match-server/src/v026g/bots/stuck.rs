@@ -800,8 +800,32 @@ impl Stuck {
     /// way, and the search without them (`unstick.drop_shut_last_resort`, [`Self::last_resort`]) is what proves it, as for its
     /// own drops. The first bench of the switch counted them as proof: "no way" 1,738 -> 3,062 over 8 cells (z +1.3), as
     /// a search whose last resort went on to the next polls was taken for proof meanwhile.
+    ///
+    /// [jump loop v2] A dead link over a jump this body's motor gave up ([`Self::is_spent`]) is no such link: the last resort keeps
+    /// it shut for this body, so it is no way for this body as its own jump's shut is, and the search is the proof. #2501 kept
+    /// them shut with no proof: the body's last resort gave none, its no-way proved nothing, and it searched the same goal every
+    /// think (the confirm bench of 2026-11-23, its leave-one-out: no way 2,524 against 258 without it in batt-m3-s2, 3,242
+    /// against 1,620 in tdm-m6-s2).
     pub fn no_way_is_proof(&self, time: u32) -> bool {
-        !self.shut_landings(time).any(|shut| shut.kind == ShutKind::Drop || shut.lasts == Lasts::Match)
+        let proof = !self
+            .shut_landings(time)
+            .any(|shut| shut.kind == ShutKind::Drop || (shut.lasts == Lasts::Match && !self.is_spent(&shut)));
+        #[cfg(test)]
+        if proof && self.shut_landings(time).any(|shut| shut.lasts == Lasts::Match && self.is_spent(&shut)) {
+            super::dead_links::tally::count(super::dead_links::tally::PROOF_SPENT);
+        }
+        proof
+    }
+
+    /// [jump loop] Whether `shut` is a jump's landing this body's motor gave up ([`Self::spent`]): a route over it ends at once.
+    pub fn is_spent(&self, shut: &Shut) -> bool {
+        shut.kind == ShutKind::Jump && self.spent.iter().any(|&at| on_landing(at, shut.landing))
+    }
+
+    /// [jump loop v2] The landings of the jumps this body's motor gave up ([`Self::spent`]), for a filter made apart from it
+    /// (a zone's way out, `RouteFilter::landings_opened`).
+    pub fn spent_landings(&self) -> Vec<Vec3> {
+        self.spent.clone()
     }
 
     /// The landings given up that every search keeps off at `time`: its own, then the match's dead links.
@@ -819,10 +843,9 @@ impl Stuck {
     /// ([`JUMP_SHUT_MS`]). The combined checks of 2026-11-23 (level_06 TDM, seed 3, traced): two bots in one pit, every
     /// search "no way", 80 routes ended "jump failed" within 500 ms of being given, one bot every 10-13 s for 120 s.
     pub fn last_resort(&self, landings: &[Shut]) -> Option<Vec<Shut>> {
-        let spent = |shut: &Shut| shut.kind == ShutKind::Jump && self.spent.iter().any(|&at| on_landing(at, shut.landing));
-        let lifted = |shut: &Shut| shut.kind == ShutKind::Drop || (shut.lasts == Lasts::Match && !spent(shut));
+        let lifted = |shut: &Shut| shut.kind == ShutKind::Drop || (shut.lasts == Lasts::Match && !self.is_spent(shut));
         #[cfg(test)]
-        if landings.iter().any(|shut| shut.lasts == Lasts::Match && spent(shut)) {
+        if landings.iter().any(|shut| shut.lasts == Lasts::Match && self.is_spent(shut)) {
             super::dead_links::tally::count(super::dead_links::tally::KEPT_SPENT);
         }
         landings.iter().any(lifted).then(|| landings.iter().copied().filter(|shut| !lifted(shut)).collect())
@@ -1010,6 +1033,12 @@ impl Shut {
     pub fn covers(&self, point: Vec3) -> bool {
         on_landing(self.landing, point)
     }
+}
+
+/// [jump loop v2] Whether `shut` is a jump's landing among `spent` (`Stuck::spent_landings`): [`Stuck::is_spent`] for a filter
+/// made apart from the body.
+pub fn spent_covers(spent: &[Vec3], shut: &Shut) -> bool {
+    shut.kind == ShutKind::Jump && spent.iter().any(|&at| on_landing(at, shut.landing))
 }
 
 /// Whether floor `point` is on `landing`: within [`LANDING_SHUT_M`] across (the motor takes a jump or a drop 0.3 m from the
@@ -1853,6 +1882,28 @@ mod tests {
         assert_eq!(mate.last_resort(&landings), Some(Vec::new()), "a mate's last resort lifts it");
         stuck.link_made(take_off, landing);
         assert_eq!(stuck.last_resort(&landings), Some(Vec::new()), "up it: its tries begin again");
+    }
+
+    /// [jump loop v2] A body whose only shut is a dead link over a jump its motor gave up: its no-way is proof (the last resort
+    /// would keep that link shut: the same search), so the play gives the goal up; a mate holding the same dead link has no proof
+    /// (its last resort lifts it), nor the body once a world shows it up the jump; and a zone's way out made apart from the body
+    /// (`spent_covers` over `spent_landings`) keeps that landing shut for it alone.
+    #[test]
+    fn a_dead_link_over_a_jump_this_body_gave_up_is_a_no_way_proof() {
+        let (take_off, landing) = (Vec3::new(6.8, 13.8, -1.3), Vec3::new(5.3, 13.9, 0.2));
+        let dead = vec![Shut::for_match(ShutKind::Jump, landing)];
+        let mut stuck = Stuck::default();
+        stuck.failed_jump(131_950, take_off, Some(landing));
+        stuck.share_dead(dead.clone());
+        let later = 131_950 + JUMP_SHUT_MS + 1;
+        assert!(stuck.no_way_is_proof(later), "its own spent link: proof");
+        assert!(spent_covers(&stuck.spent_landings(), &dead[0]), "a way out keeps it shut");
+        let mut mate = Stuck::default();
+        mate.share_dead(dead.clone());
+        assert!(!mate.no_way_is_proof(later), "a mate's dead link: its last resort proves it");
+        assert!(!spent_covers(&mate.spent_landings(), &dead[0]), "a mate's way out lifts it");
+        stuck.link_made(take_off, landing);
+        assert!(!stuck.no_way_is_proof(later), "up it: no longer spent");
     }
 
     /// F4: a forward jump up the ledge a stuck body is held by, else the

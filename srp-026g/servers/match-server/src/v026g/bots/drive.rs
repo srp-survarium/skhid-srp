@@ -314,7 +314,7 @@ pub(super) fn zone_way_out(
     let landings = bot.stuck.shut_landings(time).collect();
     let hard = traps::filter(bot, landings, Some(from));
     // [A390] By any way when its pool falls (`crossing::escape_borne`): the landings it gave up open again.
-    let (out, line) = crossing::escape_borne(tactics, from, None, time, bot.side, objective, &hard, body);
+    let (out, line) = crossing::escape_borne(tactics, from, None, time, bot.side, objective, &hard, body, &bot.stuck.spent_landings());
     if let Some(line) = line {
         bot.nav_log.push(super::nav_log::Kind::Route, time, line);
     }
@@ -1586,8 +1586,9 @@ fn drive_tick_inner(
                 let mut route = if escaping {
                     // [A390] By any way when its pool falls (`crossing::escape_borne`): the landings it gave up open again.
                     let body = crossing::CrossBody::of(tuning, view, me, bot.features.stock.pools, &bot.features.crossing.armour);
+                    let spent = bot.stuck.spent_landings();
                     let (route, line) = ends.map_or((None, None), |(from, _)| {
-                        crossing::escape_borne(tactics, from, Some(at), time, side, objective, &hard, &body)
+                        crossing::escape_borne(tactics, from, Some(at), time, side, objective, &hard, &body, &spent)
                     });
                     if let Some(line) = line {
                         bot.nav_log.push(super::nav_log::Kind::Route, time, line);

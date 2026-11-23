@@ -229,14 +229,16 @@ pub mod tally {
     pub const OPENED: usize = 3;
     /// [jump loop] A last resort that kept a dead link shut for a body whose motor gave the jump up (`Stuck::last_resort`).
     pub const KEPT_SPENT: usize = 4;
+    /// [jump loop v2] A no-way taken as proof with a dead link shut over a jump the body's motor gave up (`Stuck::no_way_is_proof`).
+    pub const PROOF_SPENT: usize = 5;
 
-    static COUNTS: [AtomicU64; 5] = [const { AtomicU64::new(0) }; 5];
+    static COUNTS: [AtomicU64; 6] = [const { AtomicU64::new(0) }; 6];
 
     pub fn count(kind: usize) {
         COUNTS[kind].fetch_add(1, Ordering::Relaxed);
     }
 
-    pub fn counts() -> [u64; 5] {
+    pub fn counts() -> [u64; 6] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
