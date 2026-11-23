@@ -317,25 +317,45 @@ pub fn fly_as(
     while !flying.landed() {
         steps.push(flying.step(world, s, c, heading, air));
     }
-    // [body physics S5a] The ground steps are the client's body's ([`crate::motion::ClientBody::landed`]): one step at the flight's
-    // last travel whatever the keys, then the keys' blend from it (let go: none; held: forward, and the sprint for a sprint press),
-    // the flight's cap its walk cap.
+    // [body physics S5a] The ground steps are the client's body's ([`landed_steps`]): one step at the flight's last travel whatever
+    // the keys, then the keys' blend from it (let go: none; held: forward; the sprint state is down through a sprint jump's landing,
+    // owner-5 `owner-5-sprint-after-landing-20261115.md` §1, so a held sprint walks at the walk cap), the flight's cap its walk cap.
+    let held = if keys.held_after { crate::motion::keys::FORWARD } else { 0 };
+    landed_steps(world, s, c, heading, cap, flying.last_travel(), &[(held, ground_steps)], landing, &mut steps);
+    steps
+}
+
+/// [body physics S5a] The ground steps after a flight's landing step, flown with the controller `c` facing along `heading`: the
+/// client's body in its landing substate ([`crate::motion::ClientBody::landed`], its last travel `travel`) ticked with each `(keys,
+/// steps)` of `script` in turn, at the walk cap `cap`; each step pushed onto `steps` numbered on from `landing`, `c` left where they
+/// end.
+#[allow(clippy::too_many_arguments)]
+fn landed_steps(
+    world: &Collision,
+    s: &Settings,
+    c: &mut Controller,
+    heading: (f32, f32),
+    cap: f32,
+    travel: f32,
+    script: &[(u32, u32)],
+    landing: u32,
+    steps: &mut Vec<FlightStep>,
+) {
     use crate::motion::{self, ClientBody, Input, Kin, Pass};
-    let held = match press {
-        _ if !keys.held_after => 0,
-        Press::Sprint { .. } => motion::keys::FORWARD | motion::keys::SPRINT,
-        Press::Walk { .. } => motion::keys::FORWARD,
-    };
     let yaw = motion::yaw_of(heading);
     let kin = Kin { level: cap / WALK_CAP_MS, legs_broken: false };
-    let mut body = ClientBody::landed(*c, yaw, flying.last_travel(), held);
+    let first = script.first().map_or(0, |&(keys, _)| keys);
+    let mut body = ClientBody::landed(*c, yaw, travel, first);
     let pass = Pass { world, settings: s };
-    for m in 1..=ground_steps {
-        let tick = body.tick(&pass, kin, Input { keys: held, yaw });
-        steps.push(FlightStep { n: landing + m, feet: tick.feet, in_jump: tick.in_jump, on_ground: tick.on_ground });
+    let mut m = 0;
+    for &(keys, n) in script {
+        for _ in 0..n {
+            m += 1;
+            let tick = body.tick(&pass, kin, Input { keys, yaw });
+            steps.push(FlightStep { n: landing + m, feet: tick.feet, in_jump: tick.in_jump, on_ground: tick.on_ground });
+        }
     }
     *c = *body.controller();
-    steps
 }
 
 /// [A388 step 3] A jump flown one step at a time ([`fly_as`] is a loop over it): each step's heading and air control are the caller's
@@ -575,22 +595,9 @@ pub fn held_flight(world: &Collision, s: &Settings, b: &mut Controller, heading:
     while !flying.landed() {
         steps.push(flying.step(world, s, b, heading, air));
     }
-    let last_travel = flying.last_travel();
-    let way = Vec3::new(heading.0, 0.0, heading.1);
-    let mut held = last_travel;
-    for m in 1..=HELD_STEPS {
-        held = match press {
-            Press::Sprint { .. } => cap,
-            Press::Walk { .. } => last_travel + (cap - last_travel) * (m.min(6) as f32 / 6.0),
-        };
-        walk_step(b, world, s, way * (held * DT), false);
-        steps.push(FlightStep { n: landing + m, feet: b.feet(), in_jump: b.jumping, on_ground: b.on_ground(s) });
-    }
-    for m in 1..=STAY_STEPS {
-        let speed = held * (1.0 - m.min(6) as f32 / 6.0);
-        walk_step(b, world, s, way * (speed * DT), false);
-        steps.push(FlightStep { n: landing + HELD_STEPS + m, feet: b.feet(), in_jump: b.jumping, on_ground: b.on_ground(s) });
-    }
+    // [body physics S5a] The client's body's ground steps ([`landed_steps`]): forward held, then let go.
+    let script = [(crate::motion::keys::FORWARD, HELD_STEPS), (0, STAY_STEPS)];
+    landed_steps(world, s, b, heading, cap, flying.last_travel(), &script, landing, &mut steps);
     steps
 }
 
