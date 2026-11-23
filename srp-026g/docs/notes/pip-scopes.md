@@ -134,7 +134,9 @@ the frame's draw, CPU    3.4 .. 4.8       3.0 .. 3.6   2.8 .. 3.4   3.3 .. 3.7  
   lens's (one frame behind while the eyepiece grows during the aim-in).
   - The first lens probe (`SKHID_PIP_PROBE=disc`, the earlier captures) squeezed a quarter of the
     frame's field into a disc of 0.45 half heights: 1.8x on screen, wrong. It now uses the same rule
-    (a full scope's angle, r = 0.45): MAGNIFICATION_CAPTURE.
+    (a full scope's angle, r = 0.45). In the capture (its frame 58.7 degrees high, so 3.94x expected) the
+    world in the disc matches the frame's centre at 3.95x (`fire-station-nw-high-lens-disc-magnified.png`,
+    the best of scales 2.8 to 4.8 by mean difference).
 - **The reticle** is the aimed model's own, drawn in the second view: today's reticle at today's
   angular size, cut to the lens; its centre the second view's centre, the shot's direction.
 - **The lens's picture** is drawn over the frame as a disc, after the frame's post-process and
