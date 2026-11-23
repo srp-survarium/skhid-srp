@@ -6,7 +6,7 @@ use super::world::{floats, read};
 use super::{Context, Thread};
 use crate::raw;
 use ragdoll::math::Vec3;
-use srp_validate::world::freeze::{Body, Condition, PLAYERS, Phase, RADIUS};
+use srp_validate::world::freeze::{Body, Condition, PLAYERS, RADIUS};
 use srp_validate::{Place, Team};
 
 #[derive(Clone, Copy)]
@@ -143,30 +143,6 @@ fn player_at(core: raw::CoreWorld, place: Place) -> Option<raw::Player> {
     }
 }
 
-/// A place's current player as the native world has it.
-#[derive(Clone, Copy)]
-enum Seat {
-    /// No current player (not in the match).
-    Empty,
-    /// In the match, its player out of the world: entered (or came back) and not spawned yet.
-    /// It must spawn at its entry time. Every world load puts every active place's player into
-    /// the world, one out of it with link 0 (game_world_core::deserialize 0x2D2D51: no models, no
-    /// player effect +F540h, no tick lists), and the next removal with 1 then reads a null
-    /// effect (0x2DE36D): the respawn tick's at the restart, or the respawn rule's leave handler
-    /// (0x316BE0), which removes without asking (the crash of 2026-11-22, a rejoin in the pause).
-    Entering,
-    /// In the world: a body, fighting or frozen.
-    InWorld,
-}
-fn seat(core: raw::CoreWorld, place: Place) -> Seat {
-    match player_at(core, place) {
-        None => Seat::Empty,
-        // SAFETY: the roster's live current player of the place.
-        Some(player) if unsafe { read(player.inserted()) } == 0 => Seat::Entering,
-        Some(_) => Seat::InWorld,
-    }
-}
-
 pub struct Player<'t> {
     native: raw::Player,
     _thread: &'t Thread,
@@ -217,7 +193,7 @@ impl<'t> Player<'t> {
             self.native.world_core().is_some_and(|core| Play::of(core).in_play())
         }
     }
-    pub fn hold(&mut self, time: u32, phase: Phase) {
+    pub fn hold(&mut self, time: u32) {
         // SAFETY: this hook owns and skips the tick. Advance its clock so
         // thaw never gives weapons/movement several seconds of elapsed time,
         // and the gun in hand's too (its own +5A4h, the tick 0x2E09EF): its
@@ -231,17 +207,13 @@ impl<'t> Player<'t> {
             {
                 item.weapon().last_tick().write(time);
             }
-            // A fresh spawn must remain non-lethal so the rule can see
-            // every spawn completed. Its input/tick stay held meanwhile.
-            if phase != Phase::Restarting {
-                self.native.pending_death().write(1);
-            }
+            // A frozen player who came back spawned fresh: lethal again.
+            self.native.pending_death().write(1);
         }
     }
 }
 
 pub struct World<'t> {
-    rule: raw::PlayerRespawnRuleBase,
     core: raw::CoreWorld,
     time: u32,
     elapsed: u16,
@@ -259,7 +231,6 @@ impl<'t> World<'t> {
                 return None;
             }
             Some(Self {
-                rule,
                 core,
                 time: read(frame.time()),
                 elapsed: u16::try_from(read(frame.elapsed())).expect("a simulation step's milliseconds"),
@@ -299,14 +270,9 @@ impl<'t> World<'t> {
     pub fn elapsed(&self) -> u16 {
         self.elapsed
     }
-    /// The new round: every place in the roster is due at this step, so this
-    /// very tick takes out and spawns each, alive or frozen, through the
-    /// native remove/spawn/kit setup (31697F..3169BE).
-    pub fn restart(&mut self) {
-        for place in Place::all().filter(|place| player_at(self.core, *place).is_some()) {
-            // SAFETY: the rule's twenty-entry schedule.
-            unsafe { self.rule.times().add(place.index()).write(self.time) };
-        }
+    /// The step's time.
+    pub fn time(&self) -> u32 {
+        self.time
     }
     /// A thaw's credit for `place`, as for a kill ([`ScoreEvent::THAW`]): in its cell of the kit it
     /// plays, the scoreboard told, at the rule's tick in every game alike.
@@ -326,18 +292,6 @@ impl<'t> World<'t> {
     pub fn set_round_countdown(&mut self, on: bool) {
         // SAFETY: the respawn rule's live core, on the simulation's thread.
         unsafe { super::round_countdown::set(self.core, on) }
-    }
-    /// The place's native respawn time cancelled (u32::MAX: unscheduled, and no respawn
-    /// countdown on the hud, 0x316C35), unless the place is entering: its entry spawn always
-    /// runs natively ([`Seat::Entering`]).
-    pub fn cancel(&mut self, place: Place) {
-        match seat(self.core, place) {
-            Seat::InWorld | Seat::Empty => {
-                // SAFETY: the rule's twenty-entry schedule.
-                unsafe { self.rule.times().add(place.index()).write(u32::MAX) };
-            }
-            Seat::Entering => {}
-        }
     }
     pub fn clear(&self, from: Place, to: Place) -> bool {
         clear(self.core, from, to)
@@ -365,6 +319,13 @@ impl<'t> World<'t> {
             stats.winner().write(winner.map_or(2, |team| team.index() as u8));
         }
     }
+}
+
+/// The team of `place`'s player, its profile's.
+pub(super) fn team(core: raw::CoreWorld, place: Place) -> Option<Team> {
+    let player = player_at(core, place)?;
+    // SAFETY: the roster's live current player of the place and its profile.
+    unsafe { u8::try_from(read(player.profile()?.team())).ok().and_then(Team::of) }
 }
 
 /// Whether the static world leaves a clear line between two bodies' chests,
@@ -406,6 +367,24 @@ pub(super) fn clear(core: raw::CoreWorld, from: Place, to: Place) -> bool {
     }
 }
 
+/// A body of the match this frame: the bones a glow on him follows, and his simulated transform
+/// (row-major 4x4).
+#[derive(Clone, Copy)]
+pub struct FrozenBody {
+    bones: super::carry_runtime::Bones,
+    pub transform: [f32; 16],
+}
+impl FrozenBody {
+    /// Whose bones: a glow played on other bones (another player object of the place) is played
+    /// again on these.
+    pub fn id(&self) -> BodyId {
+        BodyId(self.bones)
+    }
+}
+/// The bones a glow follows, as an identity: the play holds them, so no other body has them.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct BodyId(super::carry_runtime::Bones);
+
 /// The frozen glow as this game draws it (never in the simulation: the load moment of its
 /// resources differs per game, so an effect added from it would enter each game's world at
 /// another tick): the game world's scene, and the frozen bodies' matrices from the world.
@@ -429,20 +408,21 @@ impl<'t> GlowScene<'t> {
         // SAFETY: the live core of the hook's world.
         unsafe { Play::of(self.core).in_play() }
     }
-    /// The body at `place`, inserted and alive: its simulated transform (row-major 4x4).
-    pub fn body(&self, place: Place) -> Option<[f32; 16]> {
+    /// The body at `place`, inserted and alive.
+    pub fn body(&self, place: Place) -> Option<FrozenBody> {
         let player = player_at(self.core, place)?;
         // SAFETY: the roster's current player of the place, live for the hook.
         unsafe {
             if read(player.inserted()) == 0 || read(player.alive()) == 0 {
                 return None;
             }
-            Some(floats::<16>(player.transform()))
+            Some(FrozenBody { bones: super::carry_runtime::Bones::of(player), transform: floats::<16>(player.transform()) })
         }
     }
-    pub fn play(&self, particle: super::resources::KeptParticle, at: &[f32; 16]) {
+    /// `particle` played at `at` on `body`: its body-shaped emitters follow his bones.
+    pub fn play(&self, particle: super::resources::KeptParticle, at: &[f32; 16], body: FrozenBody) {
         // SAFETY: a particle system kept for the process; the live scene.
-        unsafe { self.scene.play_particle(particle.0, at) }
+        unsafe { self.scene.play_particle(particle.0, at, body.bones) }
     }
     pub fn move_to(&self, particle: super::resources::KeptParticle, at: &[f32; 16]) {
         // SAFETY: as play.

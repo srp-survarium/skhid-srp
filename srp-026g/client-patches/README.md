@@ -6591,10 +6591,12 @@ Two teams, best of nine: first to five round wins. A lethal hit freezes the
 player in place, skipping normal death/ragdoll teardown. A living teammate
 within 2 metres and across a clear line of sight thaws them after 4 continuous
 seconds; a frozen body thaws by itself after 120 s (no credit). A team's last one
-fighting is on the other team's minimap and Tab map. A team wipe scores a round; after a five-second pause the native team
-spawn path resets the players. The pause and the restart play the match start's countdown
-(the warmup camera, patch 31's kits: a kit picked then is spawned at the restart), with Artifact
-Hunt's code (`round_countdown`). No artifact rescue in this first version.
+fighting is on the other team's minimap and Tab map. A team wipe scores a round; the round ends and
+the next one starts as Artifact Hunt's, by the same code (the rules' `artefact_hunt_rule::Restart`,
+the exe's `round_countdown::respawn_tick`): 3 s of play, the 1 s fade whose end respawns everyone
+through the native team spawn path, the 5 s countdown at the spawns (the match start's: the warmup
+camera, patch 31's kits, a switch a life); the match point ends the match after its 3 s. No artifact
+rescue in this first version.
 
 Mode 12, initially on Rudnya day (`freeze-tag-1.json`). The stock team score
 bars, collection progress widget and blocked-hit sound provide the feedback.
@@ -6602,16 +6604,17 @@ A frozen player's name is drawn ice blue in the player icons movie (his own
 colour back on thaw; `tools/check freeze-names`), and each game draws the
 frozen glow `fx/artifacts/human_frozen` (pack freeze-tag-glow: the Spring
 activation glow in ice blue, fainter) on his body as scene particles from the
-world's state, never in the simulation, shrinking to 15 % of its size as a
+world's state, never in the simulation, on his skeleton (his hit model and model, as
+the effects' presenter plays a living player's glow, 0x2AC290), shrinking to 15 % of its size as a
 teammate thaws him (`game_world.after_move`, order 6, and `game_world.deactivate`, order 4).
 The shared world parser owns the versioned round state, including scores,
 frozen places and progress. See [the rules and native lifecycle](../docs/notes/freeze-tag.md).
 `tools/check freeze-native` exercises the installed hooks, HUD calls and
 rollback. Frozen players reuse the native pre-match orbit and wheel zoom;
 thaw restores their previous camera. Two sites are shared with Artifact Hunt and patch 78, chained by order:
-`respawn.tick` (0x316826: in play a frozen body's death respawn is cancelled,
-between rounds and after the match what falls due is held, the restart makes
-every place due at once) and `carry.input` (0x2D86E0: a held body's input leaves
+`respawn.tick` (0x316826: a frozen or lethal body's death respawn is void,
+then Artifact Hunt's path: the countdown's kit switches, what falls due in the
+3 s and the fade held, the fade's end making every place due at once) and `carry.input` (0x2D86E0: a held body's input leaves
 through the function's `ret 8` before patch 78 sees it). An actual local match
 remains pending.
 ## Artifact Hunt, mode 13 (patch 171, unreleased)

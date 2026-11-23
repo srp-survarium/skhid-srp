@@ -72,8 +72,8 @@ va	name	location	role	basis
 0x00022660	vostok::render::scene_renderer::play_particle_system	stack+12	by-value particle resource pointer slot copied then released	inferred
 0x00022660	vostok::render::scene_renderer::play_particle_system	stack+16	first matrix source forwarded to two-buffer command	inferred
 0x00022660	vostok::render::scene_renderer::play_particle_system	stack+20	second matrix source forwarded to two-buffer command	inferred
-0x00022660	vostok::render::scene_renderer::play_particle_system	stack+24	first attachment resource reference captured for play command; exact type unasserted	inferred
-0x00022660	vostok::render::scene_renderer::play_particle_system	stack+28	second attachment resource reference captured for play command; exact type unasserted	inferred
+0x00022660	vostok::render::scene_renderer::play_particle_system	stack+24	the animated object a body-shaped emitter follows: a resource_ptr<collision::animated_object> slot (0.21d PDB signature), 0 none; particle_game_effect_presenter::play_effect gives a player's +498h (0x2AC29D)	observed
+0x00022660	vostok::render::scene_renderer::play_particle_system	stack+28	the skeleton a body-shaped (animated domain) emitter takes its bones from: a resource_ptr<render::skeleton_model_instance> slot (0.21d PDB signature; particle_engine::get_bone_matrix's), 0 none (the emitters start at the matrix's origin); play_effect gives a player's model +F290h (0x2AC291)	observed
 0x00022860	vostok::render::scene_renderer::stop_particle_system	stack+4	scene_renderer receiver	inferred
 0x00022860	vostok::render::scene_renderer::stop_particle_system	stack+8	scene resource reference	inferred
 0x00022860	vostok::render::scene_renderer::stop_particle_system	stack+12	particle resource reference	inferred
@@ -6475,7 +6475,7 @@ va	name	location	role	basis
 0x002dda80	survarium::game_effect_player::resolve_link	stack+8	the game_effect_ptr_wrapper just read	observed
 0x002e5cf0	survarium::game_effect_ptr_wrapper::deserialize	ESI	the reader	observed
 0x002e5cf0	survarium::game_effect_ptr_wrapper::deserialize	stack+4	the game_effect_ptr_wrapper	observed
-0x002ac290	survarium::particle_game_effect_presenter::play_effect	EAX	the presented player (presenter+8)	observed
+0x002ac290	survarium::particle_game_effect_presenter::play_effect	EAX	the presented player (presenter+8): the effect played at his simulated transform (his +118h interface's slot 28h, 0x1F17C0: +40Ch) twice, with his hit model (+498h) and model (+F290h) as the play's attachments	observed
 0x002ac290	survarium::particle_game_effect_presenter::play_effect	stack+4	the particle presenter	observed
 0x002ac290	survarium::particle_game_effect_presenter::play_effect	stack+8	the effect entry (18h bytes; +0Ch the particle instance)	observed
 0x002ac310	survarium::particle_game_effect_presenter::update_effect	EAX	the particle presenter	observed

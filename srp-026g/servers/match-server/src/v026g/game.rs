@@ -137,9 +137,6 @@ mod live;
 mod start;
 use late_join::{Admission, LoadingProfile};
 
-/// Freeze Tag's match ends this long after the snapshot of its final win at most.
-const FREEZE_TAG_END_DELAY_MS: u32 = 2_000;
-
 /// A tick is final this long after it: the server's event horizon.
 const HORIZON_MS: u32 = 250;
 /// Inputs further ahead than this are dropped (the client moves them back).
@@ -4399,6 +4396,13 @@ impl Game {
             let rule = decoded.rules.as_ref()?.artefact_hunt.as_ref()?.rule(params)?;
             rule.result().map(|(_, over)| over.at().ms())
         });
+        // Freeze Tag's is its rule's too, at the end of its last round's
+        // restart time, as Artifact Hunt's.
+        let freeze_end = decoded
+            .rules
+            .as_ref()
+            .and_then(|read| read.freeze_tag.as_ref()?.finished_at())
+            .map(|at| at.ms());
         let over = playing
             && match self.game_mode() {
                 RuleMode::TeamDeathmatch => decoded
@@ -4412,7 +4416,7 @@ impl Game {
                         )
                     }),
                 RuleMode::Research => research_end.is_some(),
-                RuleMode::FreezeTag => decoded.rules.as_ref().and_then(|read| read.freeze_tag).is_some_and(|rule| rule.complete()),
+                RuleMode::FreezeTag => freeze_end.is_some(),
                 RuleMode::ArtefactHunt => hunt_end.is_some(),
                 RuleMode::FreeForAll => decoded.rules.as_ref().is_some_and(|read| {
                     rules::ffa_finished(
@@ -4432,14 +4436,11 @@ impl Game {
         if over && self.mode_end_at.is_none() {
             // The rule's own end is at most the delay after the tick that
             // reached the goal, which is this snapshot's or an earlier one.
-            // Freeze Tag's last freeze is seen a moment, not the end delay's 3 s (the owner,
-            // 2026-11-22: "after a second or two").
-            let delay = match self.game_mode() {
-                RuleMode::FreezeTag => self.settings.timing.end_delay_ms.min(FREEZE_TAG_END_DELAY_MS),
-                _ => self.settings.timing.end_delay_ms,
-            };
-            let delayed = snapshot.time + delay;
-            let at = research_end.or(hunt_end).map_or(delayed, |end| end.min(delayed));
+            let delayed = snapshot.time + self.settings.timing.end_delay_ms;
+            let at = research_end
+                .or(hunt_end)
+                .or(freeze_end)
+                .map_or(delayed, |end| end.min(delayed));
             log::info!(
                 "Match {:#x}: the mode's rule has its end at {} ms (standing {standing:?}); the \
                  match is over at {at} ms",
@@ -5493,21 +5494,21 @@ impl Game {
         rules.and_then(|rules| rules.freeze_tag.as_ref()).map_or(0, |rule| rule.round_starts())
     }
 
-    /// Artifact Hunt's kit switches of the player at `index` in its rounds'
-    /// countdowns (patch 31's switch, a life for supplies each, as a kit
-    /// choice before play is), as its rule counts them in the last trusted
-    /// snapshot; 0 in the modes without rounds.
+    /// The kit switches of the player at `index` in the rounds' countdowns
+    /// (patch 31's switch, a life for supplies each, as a kit choice before
+    /// play is), as the rule with rounds counts them in the last trusted
+    /// snapshot (`artefact_hunt_rule::Lives`, Artifact Hunt's and Freeze
+    /// Tag's); 0 in the modes without rounds.
     fn round_kit_switches(&self, index: usize) -> u16 {
-        let Some(params) = self.formed.played.map().artefact_hunt else {
-            return 0;
-        };
-        let Some(place) = u8::try_from(index).ok().and_then(artefact_hunt_rule::Place::new) else {
-            return 0;
-        };
-        self.state
-            .as_ref()
-            .and_then(|state| state.rules.as_ref()?.artefact_hunt.as_ref()?.rule(params))
-            .map_or(0, |rule| rule.kit_switches(place))
+        let rules = self.state.as_ref().and_then(|state| state.rules.as_ref());
+        if let Some(params) = self.formed.played.map().artefact_hunt {
+            return rules
+                .and_then(|rules| rules.artefact_hunt.as_ref()?.rule(params))
+                .map_or(0, |rule| rule.lives().kit_switches(index));
+        }
+        rules
+            .and_then(|rules| rules.freeze_tag.as_ref())
+            .map_or(0, |rule| rule.lives().kit_switches(index))
     }
 
     /// End the match: the result is kept for the lobby, and every client

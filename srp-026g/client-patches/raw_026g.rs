@@ -405,8 +405,8 @@ unsafe extern "stdcall" {
     pub fn engine_shared_string_create(text: *const u8) -> Option<SharedString>;
     /// 0xe0ae0 vostok::shared_string::destroy: string ESP+4; pops 4; stdcall, called directly
     pub fn engine_shared_string_destroy(string: Option<SharedString>);
-    /// 0x22660 vostok::render::scene_renderer::play_particle_system: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20, first_attachment ESP+24, second_attachment ESP+28; pops 28; stdcall, called directly
-    pub fn engine_play_particle_system(renderer: Option<SceneRenderer>, scene: Option<SceneReference>, particle: Option<ParticleSystem>, first_matrix: *const f32, second_matrix: *const f32, first_attachment: *const u32, second_attachment: *const u32);
+    /// 0x22660 vostok::render::scene_renderer::play_particle_system: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20, animated_object ESP+24, skeleton ESP+28; pops 28; stdcall, called directly
+    pub fn engine_play_particle_system(renderer: Option<SceneRenderer>, scene: Option<SceneReference>, particle: Option<ParticleSystem>, first_matrix: *const f32, second_matrix: *const f32, animated_object: *mut Option<HitModel>, skeleton: *mut Option<PlayerModel>);
     /// 0x229d0 vostok::render::scene_renderer::remove_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12; pops 12; stdcall, called directly
     pub fn engine_remove_particle_system(renderer: Option<SceneRenderer>, scene: Option<SceneReference>, particle: *mut Option<ParticleSystem>);
     /// 0x22b30 vostok::render::scene_renderer::update_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20; pops 20; stdcall, called directly
@@ -1827,7 +1827,7 @@ impl Player {
         unsafe { self.0.byte_add(0x44c).cast::<f32>().as_ptr() }
     }
 
-    /// +0x498 (ptr<survarium::hit_model>): the hit model (activate_physics 0x2D9930 adds its +12Ch to the world)
+    /// +0x498 (ptr<survarium::hit_model>): the hit model (activate_physics 0x2D9930 adds its +12Ch to the world); a particle effect's animated object (play_effect 0x2AC29D)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
@@ -1836,7 +1836,7 @@ impl Player {
         unsafe { self.0.byte_add(0x498).cast::<Option<HitModel>>().read_volatile() }
     }
 
-    /// +0x498 (ptr<survarium::hit_model>): the hit model (activate_physics 0x2D9930 adds its +12Ch to the world)
+    /// +0x498 (ptr<survarium::hit_model>): the hit model (activate_physics 0x2D9930 adds its +12Ch to the world); a particle effect's animated object (play_effect 0x2AC29D)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
@@ -1845,7 +1845,7 @@ impl Player {
         unsafe { self.0.byte_add(0x498).cast::<Option<HitModel>>().write_volatile(value) }
     }
 
-    /// +0xf290 (ptr<survarium::player_model>): its model (mt_draw 0x247716)
+    /// +0xf290 (ptr<survarium::player_model>): its model (mt_draw 0x247716); the skeleton model instance a particle effect on him takes its bones from (play_effect 0x2AC291)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
@@ -1854,7 +1854,7 @@ impl Player {
         unsafe { self.0.byte_add(0xf290).cast::<Option<PlayerModel>>().read_volatile() }
     }
 
-    /// +0xf290 (ptr<survarium::player_model>): its model (mt_draw 0x247716)
+    /// +0xf290 (ptr<survarium::player_model>): its model (mt_draw 0x247716); the skeleton model instance a particle effect on him takes its bones from (play_effect 0x2AC291)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).

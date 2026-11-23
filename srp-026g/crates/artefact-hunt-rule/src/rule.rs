@@ -8,9 +8,7 @@
 //! | 2 waiting for the artefact | [`Round::Hunt`] with [`Artefact::Waiting`] |
 //! | 3 spawned, 5 dropped | [`Artefact::Lying`] at a [`Spot`] |
 //! | 4 picked | [`Artefact::Carried`] |
-//! | 6 brought | [`Round::Brought`]: the 3 s after a delivery, respawns held |
-//! | 7 transition to a new round | [`Round::Fade`]: the 1 s fade; at its end everyone respawns |
-//! | 8 round countdown | [`Round::Countdown`]: everyone frozen at the spawns |
+//! | 6 brought, 7 transition to a new round, 8 round countdown | [`Round::Restart`]: the shared [`Restart`] (Freeze Tag's too) |
 //! | 10 finished successfully | [`Stage::Over`] |
 //!
 //! Sudden death is a [`Clock`] of the rounds that can have it: the hunt and
@@ -19,8 +17,9 @@
 //! delivery are always of the match time.
 
 use crate::geometry::Position;
-use crate::params::{FADE, Params};
-use crate::roster::{PLAYERS, Place, Roster, Sides, Team};
+use crate::params::Params;
+use crate::restart::{Lives, Restart, Spawning, Step};
+use crate::roster::{Place, Roster, Sides, Team};
 use crate::time::{Ms, Time};
 use crate::way::Way;
 
@@ -145,16 +144,11 @@ pub enum Artefact {
 pub enum Round {
     /// States 2 to 5: the artefact's life.
     Hunt { clock: Clock, artefact: Artefact },
-    /// State 6, until `until`: play goes on, nobody respawns. What follows
-    /// is [`After`], decided by the delivery (`until` less
-    /// `time_before_new_round`).
-    Brought { until: Time },
-    /// State 7, until `until`: the screen fades; at its end every player,
-    /// alive or dead, respawns. `sudden` is sudden death's start when it
-    /// is on (it turns on with the fade).
-    Fade { until: Time, sudden: Option<Time> },
-    /// State 8, until `until`: everyone stands frozen at his team's spawns.
-    Countdown { until: Time, clock: Clock },
+    /// States 6 to 8, after a delivery: what follows its 3 s is [`After`],
+    /// decided by the delivery (their deadline less `time_before_new_round`);
+    /// the fade carries sudden death's start when it is on (it turns on with
+    /// the fade), the countdown the next round's clock.
+    Restart(Restart<Option<Time>, Clock>),
 }
 
 /// What follows the 3 s after a delivery: one test, at the delivery.
@@ -250,12 +244,7 @@ pub struct Rule {
     pub(crate) rng: Rng,
     /// Each at most the goal.
     pub(crate) score: [u8; 2],
-    /// The rounds started after the first: each a respawn of everyone (a
-    /// fade's end).
-    pub(crate) round_starts: u16,
-    /// By place: the kit switches in a round's countdown (each a life for
-    /// supplies, as a round start is).
-    pub(crate) kit_switches: [u16; PLAYERS],
+    pub(crate) lives: Lives,
     pub(crate) sides: Sides,
     pub(crate) stage: Stage,
 }
@@ -347,20 +336,6 @@ impl Actions {
     }
 }
 
-/// What the respawn rule does with the places due at a step: asked at its
-/// tick, before the rule's own tick of the step.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Spawning {
-    /// As the respawn rule has them.
-    Native,
-    /// Nobody spawns: a place due now is due no more (0.46c2's respawns
-    /// off, rule+0x220, in states 6 and 7).
-    Held,
-    /// The round starts: every place of the roster spawns now, alive or
-    /// dead (0x785C40).
-    Everyone,
-}
-
 /// The phase for the hud: 0.46c2's state ids.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Phase {
@@ -437,8 +412,7 @@ impl Rule {
         Rule {
             rng: Rng::seeded(seed),
             score: [0; 2],
-            round_starts: 0,
-            kit_switches: [0; PLAYERS],
+            lives: Lives::NONE,
             sides: Sides::EMPTY,
             stage: Stage::Idle,
         }
@@ -455,7 +429,11 @@ impl Rule {
     /// How many rounds started after the match's first: each one a life of
     /// every player in the match then (the fade's end respawns everyone).
     pub const fn round_starts(&self) -> u16 {
-        self.round_starts
+        self.lives.round_starts()
+    }
+
+    pub const fn lives(&self) -> &Lives {
+        &self.lives
     }
 
     pub const fn sides(&self) -> &Sides {
@@ -497,6 +475,14 @@ impl Rule {
         }
     }
 
+    /// The round's restart, while one is on.
+    fn restart(&self) -> Option<Restart<Option<Time>, Clock>> {
+        match self.round() {
+            Some(Round::Restart(restart)) => Some(*restart),
+            _ => None,
+        }
+    }
+
     /// Who carries the artefact: slowed, no sprint, glowing, marked for both teams.
     pub fn carrier(&self) -> Option<Place> {
         match self.round() {
@@ -516,13 +502,12 @@ impl Rule {
                 Round::Hunt {
                     clock: Clock::Sudden(_),
                     ..
-                } | Round::Countdown {
-                    clock: Clock::Sudden(_),
-                    ..
-                } | Round::Fade {
-                    sudden: Some(_),
-                    ..
-                }
+                } | Round::Restart(
+                    Restart::Countdown {
+                        next: Clock::Sudden(_),
+                        ..
+                    } | Restart::Fade { next: Some(_), .. }
+                )
             )
         )
     }
@@ -535,10 +520,10 @@ impl Rule {
                     clock: Clock::Sudden(sudden),
                     ..
                 }
-                | Round::Countdown {
-                    clock: Clock::Sudden(sudden),
+                | Round::Restart(Restart::Countdown {
+                    next: Clock::Sudden(sudden),
                     ..
-                },
+                }),
             ) => sudden.fallen,
             _ => Roster::EMPTY,
         }
@@ -558,30 +543,26 @@ impl Rule {
     /// Whether every player's input is held: the round's countdown (0.46c2
     /// flag 4 of state 8, 0x7B0BA0).
     pub fn frozen(&self) -> bool {
-        matches!(self.round(), Some(Round::Countdown { .. }))
+        self.restart().is_some_and(|restart| restart.frozen())
     }
 
     /// Whether a round is about to start: its fade and its countdown, which
     /// the game plays as the match start's own countdown (the warmup camera,
     /// patch 31's kit choice).
     pub fn round_countdown(&self) -> bool {
-        matches!(self.round(), Some(Round::Fade { .. } | Round::Countdown { .. }))
+        self.restart().is_some_and(|restart| restart.round_countdown())
     }
 
     /// `place`'s kit switches in a round's countdown.
     pub fn kit_switches(&self, place: Place) -> u16 {
-        self.kit_switches.get(place.index()).copied().unwrap_or(0)
+        self.lives.kit_switches(place.index())
     }
 
     /// What the respawn rule does at `now`, a step whose rule tick is still
-    /// to come: the same test the tick makes ends the fade.
+    /// to come ([`Restart::spawning`]).
     pub fn spawning(&self, now: Time) -> Spawning {
-        match self.round() {
-            Some(Round::Brought { .. }) => Spawning::Held,
-            Some(Round::Fade { until, .. }) if now.reached(*until) => Spawning::Everyone,
-            Some(Round::Fade { .. }) => Spawning::Held,
-            _ => Spawning::Native,
-        }
+        self.restart()
+            .map_or(Spawning::Native, |restart| restart.spawning(now))
     }
 
     /// When a player dead at `death` comes back while the match is played
@@ -670,11 +651,11 @@ impl Rule {
                 clock: Clock::Sudden(sudden),
                 ..
             }
-            | Round::Countdown {
-                clock: Clock::Sudden(sudden),
+            | Round::Restart(Restart::Countdown {
+                next: Clock::Sudden(sudden),
                 ..
-            } => Some(sudden.from),
-            Round::Fade { sudden, .. } => sudden,
+            }) => Some(sudden.from),
+            Round::Restart(Restart::Fade { next, .. }) => next,
             _ => None,
         };
         if let Some(from) = sudden_from {
@@ -714,17 +695,20 @@ impl Rule {
                 artefact: Artefact::Carried { .. },
                 ..
             } => (Phase::Carried, None),
-            Round::Brought { until } => {
-                let after = after(params, play.start, until, self.score);
-                if let After::SuddenDeath { .. } = after {
-                    hud.sudden_death = SuddenShown::Armed;
+            Round::Restart(restart) => {
+                let timer = Some((restart.until(), restart.length(params.restart)));
+                match restart {
+                    Restart::Decided { until } => {
+                        let after = after(params, play.start, until, self.score);
+                        if let After::SuddenDeath { .. } = after {
+                            hud.sudden_death = SuddenShown::Armed;
+                        }
+                        hud.after = Some(after);
+                        (Phase::Brought, timer)
+                    }
+                    Restart::Fade { .. } => (Phase::Fade, timer),
+                    Restart::Countdown { .. } => (Phase::Countdown, timer),
                 }
-                hud.after = Some(after);
-                (Phase::Brought, Some((until, params.before_new_round)))
-            }
-            Round::Fade { until, .. } => (Phase::Fade, Some((until, FADE))),
-            Round::Countdown { until, .. } => {
-                (Phase::Countdown, Some((until, params.round_countdown)))
             }
         };
         hud.phase = phase;
@@ -804,10 +788,8 @@ impl Rule {
                 self.deliver(params, place, now, ground, actions)
             }
             Event::KitSwitched { place } => {
-                if self.round_countdown()
-                    && let Some(count) = self.kit_switches.get_mut(place.index())
-                {
-                    *count = count.saturating_add(1);
+                if let Some(restart) = self.restart() {
+                    self.lives.kit_switched(&restart, place.index());
                 }
             }
         }
@@ -823,10 +805,10 @@ impl Rule {
                         clock: Clock::Sudden(sudden),
                         ..
                     }
-                    | Round::Countdown {
-                        clock: Clock::Sudden(sudden),
+                    | Round::Restart(Restart::Countdown {
+                        next: Clock::Sudden(sudden),
                         ..
-                    },
+                    }),
                 ..
             }) => Some(sudden),
             _ => None,
@@ -976,9 +958,7 @@ impl Rule {
             }),
             Clock::Regular => Stage::Play(Play {
                 start,
-                round: Round::Brought {
-                    until: now.after(params.before_new_round),
-                },
+                round: Round::Restart(Restart::decided(now, params.restart)),
             }),
         };
     }
@@ -1036,43 +1016,35 @@ impl Rule {
                 };
                 play(Round::Hunt { clock, artefact })
             }
-            Round::Brought { until } if now.reached(until) => {
-                match after(params, start, until, self.score) {
-                    After::End => over(if timed_out {
-                        Reason::TimeOut
-                    } else {
-                        Reason::Collected
+            Round::Restart(restart) => {
+                // Everyone respawned at the fade's end: nobody has fallen yet.
+                let clock = |sudden: Option<Time>| match sudden {
+                    Some(from) => Clock::Sudden(Sudden {
+                        from,
+                        fallen: Roster::EMPTY,
                     }),
-                    After::NewRound => play(Round::Fade {
-                        until: now.after(FADE),
-                        sudden: None,
-                    }),
-                    // The transition state turns it on (0x7B1004).
-                    After::SuddenDeath { from } => play(Round::Fade {
-                        until: now.after(FADE),
-                        sudden: Some(from),
-                    }),
+                    None => Clock::Regular,
+                };
+                match restart.step(now, params.restart, &mut self.lives, clock) {
+                    Step::Stays(restart) | Step::Started(restart) => play(Round::Restart(restart)),
+                    Step::Decided { until } => match after(params, start, until, self.score) {
+                        After::End => over(if timed_out {
+                            Reason::TimeOut
+                        } else {
+                            Reason::Collected
+                        }),
+                        After::NewRound => play(Round::Restart(Restart::fade(now, None))),
+                        // The transition state turns it on (0x7B1004).
+                        After::SuddenDeath { from } => {
+                            play(Round::Restart(Restart::fade(now, Some(from))))
+                        }
+                    },
+                    Step::Next(clock) => {
+                        let artefact = self.wait(params, now);
+                        play(Round::Hunt { clock, artefact })
+                    }
                 }
             }
-            Round::Fade { until, sudden } if now.reached(until) => {
-                self.round_starts = self.round_starts.saturating_add(1);
-                play(Round::Countdown {
-                    until: now.after(params.round_countdown),
-                    // Everyone respawned: nobody has fallen yet.
-                    clock: match sudden {
-                        Some(from) => Clock::Sudden(Sudden {
-                            from,
-                            fallen: Roster::EMPTY,
-                        }),
-                        None => Clock::Regular,
-                    },
-                })
-            }
-            Round::Countdown { until, clock } if now.reached(until) => {
-                let artefact = self.wait(params, now);
-                play(Round::Hunt { clock, artefact })
-            }
-            other => play(other),
         }
     }
 }
@@ -1087,14 +1059,14 @@ fn wave_from(params: &Params, passed: u32) -> u32 {
 }
 
 fn after(params: &Params, start: Time, until: Time, score: [u8; 2]) -> After {
-    let delivered = Time::from_ms(until.ms().wrapping_sub(params.before_new_round.get()));
+    let delivered = Time::from_ms(until.ms().wrapping_sub(params.restart.decided().get()));
     // Less match time left than `time_needed_to_continue_match`.
     let late = delivered.elapsed(start) > params.rounds_until.get();
     if score[0] >= params.goal || score[1] >= params.goal || (late && score[0] != score[1]) {
         After::End
     } else if late {
         After::SuddenDeath {
-            from: until.after(params.round_countdown),
+            from: until.after(params.restart.countdown()),
         }
     } else {
         After::NewRound
