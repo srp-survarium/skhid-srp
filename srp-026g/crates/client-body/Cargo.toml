@@ -1,0 +1,13 @@
+[package]
+name = "client-body"
+version.workspace = true
+edition.workspace = true
+
+# [body physics S1] The one model of the 0.26g client's body (keys -> walk -> the exe's walk tick), for the builder, the motor,
+# the reckoning and the bench stand-in. Its own crate on mapdata until the builder uses it (src/lib.rs says why).
+
+[lints]
+workspace = true
+
+[dependencies]
+mapdata = { path = "../mapdata" }

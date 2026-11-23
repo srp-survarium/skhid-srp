@@ -19,6 +19,8 @@ log = { workspace = true }
 serde = { workspace = true }
 # The maps the server's bots path on (`v026g::bots::maps`).
 mapdata = { path = "../../crates/mapdata" }
+# [body physics] The one model of the client's body (motion fidelity measures it).
+client-body = { path = "../../crates/client-body" }
 # SHA-256 of a replay file (`v026g::replay`): its sidecar, the updater's check.
 openssl = { workspace = true }
 serde_json = { workspace = true }

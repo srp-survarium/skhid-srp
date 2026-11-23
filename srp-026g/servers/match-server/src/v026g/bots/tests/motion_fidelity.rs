@@ -68,6 +68,8 @@ const ENTRY_POINTS: &[(&str, &str)] = &[
 
 /// The `mapdata` crate's sources, from this crate's manifest folder.
 const MAPDATA: &str = "../../crates/mapdata/src/";
+/// The shared model of the client's body (the `client-body` crate): the one place the entry points are called from once the layers move.
+const SHARED_MODEL: &str = "../../crates/client-body/src";
 
 /// The source trees the guard reads, from this crate's manifest folder.
 const TREES: &[&str] = &["src", "../../crates/mapdata/src"];
@@ -118,8 +120,8 @@ fn count_calls() -> BTreeMap<(String, String), usize> {
     for file in files {
         let text = std::fs::read_to_string(&file).unwrap_or_else(|e| panic!("{}: {e}", file.display()));
         let rel = file.strip_prefix(root).unwrap_or(&file).to_string_lossy().replace('\\', "/");
-        // This file names the entry points; it calls none of them.
-        if rel.ends_with("bots/tests/motion_fidelity.rs") {
+        // This file names the entry points; it calls none of them. The shared model (the `client-body` crate) is where they belong.
+        if rel.ends_with("bots/tests/motion_fidelity.rs") || rel.starts_with(SHARED_MODEL) {
             continue;
         }
         for line in text.lines() {
@@ -474,6 +476,61 @@ fn walk_truth() {
                     }
                 }
             }
+        }
+        // [S1] The shared model's walk (the `client-body` crate: the same layers and the sprint start's group rate blend), at the game's
+        // input and yaw (keys t-50, the yaw before), against the reckoning's at the same: every step, and the steps within six
+        // after a forward-to-sprint change.
+        let mut shared: BTreeMap<(&str, Class), Tally> = BTreeMap::new();
+        for (&place, steps) in &chains {
+            let Some(&level) = levels.get(&place) else { continue };
+            let mut kin_blend = Blend::default();
+            let mut blend = client_body::WalkBlend::still();
+            let mut run = 0usize;
+            let mut since_jump = usize::MAX;
+            let mut since_sprint = usize::MAX;
+            let mut prev: Option<TruthStep> = None;
+            for (at, s) in steps.iter().enumerate() {
+                if prev.is_none_or(|p| p.t + 50 != s.t) {
+                    let local = game_local(s.walk, s.yaw);
+                    kin_blend = Blend::at(local);
+                    blend = client_body::WalkBlend::at(local, client_body::Clip::OnSite);
+                    run = 0;
+                }
+                let yaw = prev.map_or(s.yaw, |p| p.yaw);
+                let last_keys = prev.and_then(|p| p.act[2]);
+                prev = Some(*s);
+                since_jump = if s.jumping { 0 } else { since_jump.saturating_add(1) };
+                let (Some(keys), Some(cap_keys)) = (s.act[2], s.act[3]) else {
+                    kin_blend = Blend::at(game_local(s.walk, s.yaw));
+                    blend = client_body::WalkBlend::at(game_local(s.walk, s.yaw), client_body::Clip::OnSite);
+                    run = 0;
+                    continue;
+                };
+                since_sprint = if last_keys.is_some_and(|k| !client_body::sprints(k)) && client_body::sprints(keys) {
+                    0
+                } else {
+                    since_sprint.saturating_add(1)
+                };
+                let kin_model = model_step(&kin, &mut kin_blend, keys, cap_keys, level, yaw);
+                let local = blend.tick(client_body::target_local(keys, level), client_body::clip_of(keys));
+                let v = client_body::to_world(client_body::capped(local, cap_keys, level), yaw);
+                let model = [v[0] * 0.05, v[1] * 0.05];
+                run += 1;
+                if run <= WARM_STEPS || since_jump <= AFTER_JUMP_STEPS {
+                    continue;
+                }
+                let class = class_of(steps, at, 1);
+                for (who, m) in [("reckoning", kin_model), ("shared", model)] {
+                    let gap = (m[0] - s.walk[0]).hypot(m[1] - s.walk[1]);
+                    shared.entry((who, class)).or_default().add(gap);
+                    if since_sprint < 6 {
+                        shared.entry((if who == "shared" { "shared, sprint start" } else { "reckoning, sprint start" }, class)).or_default().add(gap);
+                    }
+                }
+            }
+        }
+        for ((who, class), t) in &shared {
+            eprintln!("MOTION walk-truth model {who} {class:?}: {}", t.line());
         }
         eprintln!("MOTION walk-truth {path}: places {} with a level {}; skipped {skipped:?}", chains.len(), levels.len());
         for (vi, v) in VARIANTS.iter().enumerate() {

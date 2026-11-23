@@ -3,6 +3,7 @@ members = [
   "crates/ban-reason",
   "crates/sign-in-cipher",
   "crates/binary-config-parser",
+  "crates/client-body",
   "crates/mapdata",
   "crates/mapdata-srchash",
   "crates/research-rule",
