@@ -923,3 +923,33 @@ Healing	Gyógyulás
 Previous shot	Előző lövés
 Next shot	Következő lövés
 Damage calculator	Survarium sebzéskalkulátor	title
+# The wiki's artefacts (src/artefacts.rs)
+Every artefact: what it gives carried and fired, how copies stack, where it is found.	Minden artefaktum: mit ad hordva és aktiválva, hogyan adódnak össze a példányok, hol található.
+Artefact	Artefaktum
+Passive	Passzív
+Active	Aktív
+Active time	Hatásidő
+Cooldown	Újratöltés
+Skill	Képesség
+Rules	Szabályok
+Where	Lelőhelyek
+Movement speed	Mozgási sebesség
+Stamina regeneration	Energia-visszatöltődés
+Stamina use	Energiafogyasztás
+Slowdown from hits	Lassulás találatoktól
+Against	Ellen
+Body parts	Testrészek
+Penetration	Átütés
+Health	Életerő
+Cures injuries	Sérüléseket gyógyít
+Regeneration	Regeneráció
+Regeneration delay	Regeneráció késleltetése
+Regenerates up to	Regenerálódik eddig
+HP	ÉP	unit
+Passive: while carried in a container, from pickup to death; a death leaves them in that kit's containers.	Passzív: amíg tárolóban hordod, a felvételtől a halálig; halál után a felszerelés tárolóiban maradnak.
+Active: an artefact's key fires every ready copy of its kind.	Aktív: egy artefaktum gombja a fajtája minden kész példányát aktiválja.
+Spring's and Larkspur's actives add to their passive; an active Onyx replaces its passive.	A Rugó és a Szarkaláb aktívja hozzáadódik a passzívjukhoz; az aktív Ónix felváltja a passzívját.
+Firing restarts the whole cooldown of the kind's copies still cooling.	Az aktiválás újraindítja a fajta még töltődő példányainak teljes újratöltését.
+Copies of a kind add up, Onyx's passive multiplies; at most 4 of a kind count.	Egy fajta példányai összeadódnak, az Ónix passzívja szorzódik; fajtánként legfeljebb 4 számít.
+Onyx fired together reduce a hit once, 1 s longer for each other copy.	Az együtt aktivált Ónixok egyszer csökkentik a találatot, minden további példányért 1 mp-cel tovább.
+Different kinds work side by side, each with its own key and cooldown.	A különböző fajták egymás mellett hatnak, mindegyik saját gombbal és újratöltéssel.

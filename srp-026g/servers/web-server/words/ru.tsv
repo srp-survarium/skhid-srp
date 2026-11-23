@@ -923,3 +923,33 @@ Healing	Лечение
 Previous shot	Предыдущий выстрел
 Next shot	Следующий выстрел
 Damage calculator	Калькулятор урона Survarium	title
+# The wiki's artefacts (src/artefacts.rs)
+Every artefact: what it gives carried and fired, how copies stack, where it is found.	Каждый артефакт: что он даёт при себе и при активации, как складываются копии, где его найти.
+Artefact	Артефакт
+Passive	Пассивный
+Active	Активный
+Active time	Время действия
+Cooldown	Перезарядка
+Skill	Навык
+Rules	Правила
+Where	Где
+Movement speed	Скорость передвижения
+Stamina regeneration	Регенерация энергии
+Stamina use	Расход энергии
+Slowdown from hits	Замедление от попаданий
+Against	Против
+Body parts	Части тела
+Penetration	Бронебойность
+Health	Здоровье
+Cures injuries	Лечит травмы
+Regeneration	Регенерация
+Regeneration delay	Задержка регенерации
+Regenerates up to	Восстанавливается до
+HP	ОЗ	unit
+Passive: while carried in a container, from pickup to death; a death leaves them in that kit's containers.	Пассив: пока артефакт в контейнере, от подбора до смерти; после смерти они остаются в контейнерах этого комплекта.
+Active: an artefact's key fires every ready copy of its kind.	Активация: клавиша артефакта активирует все готовые копии этого вида.
+Spring's and Larkspur's actives add to their passive; an active Onyx replaces its passive.	Активация Пружины и Живокоста добавляется к их пассиву; активный Оникс заменяет свой пассив.
+Firing restarts the whole cooldown of the kind's copies still cooling.	Активация заново запускает всю перезарядку копий этого вида, которые ещё перезаряжаются.
+Copies of a kind add up, Onyx's passive multiplies; at most 4 of a kind count.	Копии одного вида складываются, пассив Оникса перемножается; действуют не больше 4 одного вида.
+Onyx fired together reduce a hit once, 1 s longer for each other copy.	Ониксы, активированные вместе, уменьшают попадание один раз и действуют на 1 с дольше за каждую другую копию.
+Different kinds work side by side, each with its own key and cooldown.	Разные виды действуют вместе, у каждого своя клавиша и перезарядка.

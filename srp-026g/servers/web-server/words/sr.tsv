@@ -923,3 +923,33 @@ Healing	Lečenje
 Previous shot	Prethodni hitac
 Next shot	Sledeći hitac
 Damage calculator	Kalkulator štete Survarium	title
+# The wiki's artefacts (src/artefacts.rs)
+Every artefact: what it gives carried and fired, how copies stack, where it is found.	Svaki artefakt: šta daje kad se nosi i kad se aktivira, kako se kopije slažu, gde se nalazi.
+Artefact	Artefakt
+Passive	Pasivni
+Active	Aktivni
+Active time	Trajanje
+Cooldown	Hlađenje
+Skill	Veština
+Rules	Pravila
+Where	Gde
+Movement speed	Brzina kretanja
+Stamina regeneration	Obnova energije
+Stamina use	Potrošnja energije
+Slowdown from hits	Usporavanje od pogodaka
+Against	Protiv
+Body parts	Delovi tela
+Penetration	Probojnost
+Health	Zdravlje
+Cures injuries	Leči povrede
+Regeneration	Regeneracija
+Regeneration delay	Kašnjenje regeneracije
+Regenerates up to	Obnavlja se do
+HP	HP	unit
+Passive: while carried in a container, from pickup to death; a death leaves them in that kit's containers.	Pasiv: dok se nosi u kontejneru, od podizanja do smrti; posle smrti ostaju u kontejnerima tog kompleta.
+Active: an artefact's key fires every ready copy of its kind.	Aktivacija: taster artefakta aktivira svaku spremnu kopiju te vrste.
+Spring's and Larkspur's actives add to their passive; an active Onyx replaces its passive.	Aktivacija Federa i Živokosta dodaje se njihovom pasivu; aktivni Oniks zamenjuje svoj pasiv.
+Firing restarts the whole cooldown of the kind's copies still cooling.	Aktivacija ponovo pokreće celo hlađenje kopija te vrste koje se još hlade.
+Copies of a kind add up, Onyx's passive multiplies; at most 4 of a kind count.	Kopije iste vrste se sabiraju, pasiv Oniksa se množi; računaju se najviše 4 iste vrste.
+Onyx fired together reduce a hit once, 1 s longer for each other copy.	Oniksi aktivirani zajedno smanjuju pogodak jednom, 1 s duže za svaku drugu kopiju.
+Different kinds work side by side, each with its own key and cooldown.	Različite vrste deluju jedna pored druge, svaka sa svojim tasterom i hlađenjem.

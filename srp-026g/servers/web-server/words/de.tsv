@@ -923,3 +923,33 @@ Healing	Heilung
 Previous shot	Vorheriger Schuss
 Next shot	Nächster Schuss
 Damage calculator	Survarium-Schadensrechner	title
+# The wiki's artefacts (src/artefacts.rs)
+Every artefact: what it gives carried and fired, how copies stack, where it is found.	Jedes Artefakt: was es getragen und aktiviert gibt, wie sich Kopien stapeln, wo es zu finden ist.
+Artefact	Artefakt
+Passive	Passiv
+Active	Aktiv
+Active time	Wirkdauer
+Cooldown	Abklingzeit
+Skill	Fähigkeit
+Rules	Regeln
+Where	Fundorte
+Movement speed	Laufgeschwindigkeit
+Stamina regeneration	Ausdauerregeneration
+Stamina use	Ausdauerverbrauch
+Slowdown from hits	Verlangsamung durch Treffer
+Against	Gegen
+Body parts	Körperteile
+Penetration	Durchschlag
+Health	Gesundheit
+Cures injuries	Heilt Verletzungen
+Regeneration	Regeneration
+Regeneration delay	Regenerationsverzögerung
+Regenerates up to	Regeneriert bis
+HP	LP	unit
+Passive: while carried in a container, from pickup to death; a death leaves them in that kit's containers.	Passiv: solange es in einem Behälter getragen wird, vom Aufheben bis zum Tod; nach dem Tod bleiben sie in den Behältern dieses Kits.
+Active: an artefact's key fires every ready copy of its kind.	Aktiv: Die Taste eines Artefakts aktiviert jede bereite Kopie seiner Art.
+Spring's and Larkspur's actives add to their passive; an active Onyx replaces its passive.	Das Aktiv von Feder und Lebknochen kommt zu ihrem Passiv hinzu; ein aktiver Onyx ersetzt sein Passiv.
+Firing restarts the whole cooldown of the kind's copies still cooling.	Eine Aktivierung startet die ganze Abklingzeit der noch abklingenden Kopien dieser Art neu.
+Copies of a kind add up, Onyx's passive multiplies; at most 4 of a kind count.	Kopien einer Art addieren sich, das Passiv von Onyx multipliziert sich; höchstens 4 einer Art zählen.
+Onyx fired together reduce a hit once, 1 s longer for each other copy.	Zusammen aktivierte Onyx verringern einen Treffer einmal, je weitere Kopie 1 s länger.
+Different kinds work side by side, each with its own key and cooldown.	Verschiedene Arten wirken nebeneinander, jede mit eigener Taste und Abklingzeit.

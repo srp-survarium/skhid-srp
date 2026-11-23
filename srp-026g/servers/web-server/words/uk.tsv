@@ -923,3 +923,33 @@ Healing	Лікування
 Previous shot	Попередній постріл
 Next shot	Наступний постріл
 Damage calculator	Калькулятор шкоди Survarium	title
+# The wiki's artefacts (src/artefacts.rs)
+Every artefact: what it gives carried and fired, how copies stack, where it is found.	Кожен артефакт: що дає при собі й після активації, як складаються копії, де його знайти.
+Artefact	Артефакт
+Passive	Пасивний
+Active	Активний
+Active time	Час дії
+Cooldown	Перезарядка
+Skill	Навичка
+Rules	Правила
+Where	Де
+Movement speed	Швидкість руху
+Stamina regeneration	Відновлення енергії
+Stamina use	Витрата енергії
+Slowdown from hits	Сповільнення від влучань
+Against	Проти
+Body parts	Частини тіла
+Penetration	Пробиття
+Health	Здоров'я
+Cures injuries	Лікує травми
+Regeneration	Регенерація
+Regeneration delay	Затримка регенерації
+Regenerates up to	Відновлюється до
+HP	ОЗ	unit
+Passive: while carried in a container, from pickup to death; a death leaves them in that kit's containers.	Пасив: поки артефакт у контейнері, від підбору до смерті; після смерті вони лишаються в контейнерах цього комплекту.
+Active: an artefact's key fires every ready copy of its kind.	Активація: клавіша артефакта активує всі готові копії цього виду.
+Spring's and Larkspur's actives add to their passive; an active Onyx replaces its passive.	Активація Пружини й Живокосту додається до їхнього пасиву; активний Онікс замінює свій пасив.
+Firing restarts the whole cooldown of the kind's copies still cooling.	Активація заново запускає всю перезарядку копій цього виду, що ще перезаряджаються.
+Copies of a kind add up, Onyx's passive multiplies; at most 4 of a kind count.	Копії одного виду додаються, пасив Онікса множиться; діють щонайбільше 4 одного виду.
+Onyx fired together reduce a hit once, 1 s longer for each other copy.	Онікси, активовані разом, зменшують влучання один раз і діють на 1 с довше за кожну іншу копію.
+Different kinds work side by side, each with its own key and cooldown.	Різні види діють разом, кожен зі своєю клавішею і перезарядкою.

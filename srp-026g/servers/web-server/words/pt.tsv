@@ -923,3 +923,33 @@ Healing	Cura
 Previous shot	Tiro anterior
 Next shot	Próximo tiro
 Damage calculator	Calculadora de dano do Survarium	title
+# The wiki's artefacts (src/artefacts.rs)
+Every artefact: what it gives carried and fired, how copies stack, where it is found.	Cada artefato: o que dá carregado e ativado, como as cópias se acumulam, onde é encontrado.
+Artefact	Artefato
+Passive	Passivo
+Active	Ativo
+Active time	Duração
+Cooldown	Recarga
+Skill	Habilidade
+Rules	Regras
+Where	Onde
+Movement speed	Velocidade de movimento
+Stamina regeneration	Regeneração de energia
+Stamina use	Consumo de energia
+Slowdown from hits	Lentidão por acertos
+Against	Contra
+Body parts	Partes do corpo
+Penetration	Penetração
+Health	Vida
+Cures injuries	Cura ferimentos
+Regeneration	Regeneração
+Regeneration delay	Atraso da regeneração
+Regenerates up to	Regenera até
+HP	HP	unit
+Passive: while carried in a container, from pickup to death; a death leaves them in that kit's containers.	Passivo: enquanto carregado num contêiner, da coleta até a morte; após a morte ficam nos contêineres desse kit.
+Active: an artefact's key fires every ready copy of its kind.	Ativo: a tecla de um artefato ativa todas as cópias prontas do seu tipo.
+Spring's and Larkspur's actives add to their passive; an active Onyx replaces its passive.	O ativo da Fonte e da Espora soma-se ao passivo; um Ônix ativo substitui o seu passivo.
+Firing restarts the whole cooldown of the kind's copies still cooling.	Ativar reinicia a recarga inteira das cópias do tipo que ainda estão recarregando.
+Copies of a kind add up, Onyx's passive multiplies; at most 4 of a kind count.	Cópias de um tipo se somam, o passivo do Ônix se multiplica; contam no máximo 4 de um tipo.
+Onyx fired together reduce a hit once, 1 s longer for each other copy.	Ônix ativados juntos reduzem um acerto uma vez, 1 s a mais por cada outra cópia.
+Different kinds work side by side, each with its own key and cooldown.	Tipos diferentes funcionam lado a lado, cada um com sua tecla e recarga.

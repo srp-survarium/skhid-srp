@@ -144,7 +144,7 @@ fn set_key(item: &Item, params: &ItemParams) -> String {
 }
 
 /// A part's name, both sides together.
-fn part_name(lang: Lang, part: BodyPart) -> String {
+pub(crate) fn part_name(lang: Lang, part: BodyPart) -> String {
     match part {
         BodyPart::Brain => lang.t("Head"),
         BodyPart::Face => lang.t("Face"),
@@ -157,7 +157,7 @@ fn part_name(lang: Lang, part: BodyPart) -> String {
     }
 }
 
-fn hit_name(lang: Lang, hit: HitType) -> String {
+pub(crate) fn hit_name(lang: Lang, hit: HitType) -> String {
     match hit {
         HitType::Ranged => lang.t("Bullets"),
         HitType::Slash => lang.t("Melee"),

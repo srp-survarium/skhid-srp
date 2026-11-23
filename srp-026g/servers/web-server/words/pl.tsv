@@ -923,3 +923,33 @@ Healing	Leczenie
 Previous shot	Poprzedni strzał
 Next shot	Następny strzał
 Damage calculator	Kalkulator obrażeń Survarium	title
+# The wiki's artefacts (src/artefacts.rs)
+Every artefact: what it gives carried and fired, how copies stack, where it is found.	Każdy artefakt: co daje noszony i aktywowany, jak sumują się kopie, gdzie go znaleźć.
+Artefact	Artefakt
+Passive	Pasywny
+Active	Aktywny
+Active time	Czas działania
+Cooldown	Odnowienie
+Skill	Umiejętność
+Rules	Zasady
+Where	Gdzie
+Movement speed	Szybkość ruchu
+Stamina regeneration	Regeneracja energii
+Stamina use	Zużycie energii
+Slowdown from hits	Spowolnienie od trafień
+Against	Przeciw
+Body parts	Części ciała
+Penetration	Penetracja
+Health	Zdrowie
+Cures injuries	Leczy urazy
+Regeneration	Regeneracja
+Regeneration delay	Opóźnienie regeneracji
+Regenerates up to	Regeneruje do
+HP	HP	unit
+Passive: while carried in a container, from pickup to death; a death leaves them in that kit's containers.	Pasyw: gdy jest noszony w pojemniku, od podniesienia do śmierci; po śmierci zostają w pojemnikach tego zestawu.
+Active: an artefact's key fires every ready copy of its kind.	Aktywacja: klawisz artefaktu aktywuje każdą gotową kopię tego rodzaju.
+Spring's and Larkspur's actives add to their passive; an active Onyx replaces its passive.	Aktywacja Sprężyny i Żywokostu dodaje się do ich pasywu; aktywny Onyks zastępuje swój pasyw.
+Firing restarts the whole cooldown of the kind's copies still cooling.	Aktywacja uruchamia od nowa całe odnowienie kopii tego rodzaju, które jeszcze się odnawiają.
+Copies of a kind add up, Onyx's passive multiplies; at most 4 of a kind count.	Kopie jednego rodzaju sumują się, pasyw Onyksu się mnoży; liczą się najwyżej 4 jednego rodzaju.
+Onyx fired together reduce a hit once, 1 s longer for each other copy.	Onyksy aktywowane razem zmniejszają trafienie raz, o 1 s dłużej za każdą kolejną kopię.
+Different kinds work side by side, each with its own key and cooldown.	Różne rodzaje działają obok siebie, każdy z własnym klawiszem i odnowieniem.

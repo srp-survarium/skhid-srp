@@ -923,3 +923,33 @@ Healing	Parannus
 Previous shot	Edellinen laukaus
 Next shot	Seuraava laukaus
 Damage calculator	Survariumin vahinkolaskuri	title
+# The wiki's artefacts (src/artefacts.rs)
+Every artefact: what it gives carried and fired, how copies stack, where it is found.	Jokainen artefakti: mitä se antaa kannettuna ja aktivoituna, miten kappaleet pinoutuvat, mistä sen löytää.
+Artefact	Artefakti
+Passive	Passiivinen
+Active	Aktiivinen
+Active time	Vaikutusaika
+Cooldown	Latausaika
+Skill	Taito
+Rules	Säännöt
+Where	Löytöpaikat
+Movement speed	Liikkumisnopeus
+Stamina regeneration	Energian palautuminen
+Stamina use	Energian kulutus
+Slowdown from hits	Osumien hidastus
+Against	Vastaan
+Body parts	Ruumiinosat
+Penetration	Läpäisy
+Health	Terveys
+Cures injuries	Parantaa vammat
+Regeneration	Palautuminen
+Regeneration delay	Palautumisen viive
+Regenerates up to	Palautuu enintään
+HP	HP	unit
+Passive: while carried in a container, from pickup to death; a death leaves them in that kit's containers.	Passiivi: kun sitä kannetaan säiliössä, poiminnasta kuolemaan; kuoleman jälkeen ne jäävät sen varustuksen säiliöihin.
+Active: an artefact's key fires every ready copy of its kind.	Aktiivi: artefaktin näppäin aktivoi jokaisen valmiin saman lajin kappaleen.
+Spring's and Larkspur's actives add to their passive; an active Onyx replaces its passive.	Jousen ja Ritarinkannuksen aktiivi lisätään niiden passiiviin; aktiivinen Onyksi korvaa passiivinsa.
+Firing restarts the whole cooldown of the kind's copies still cooling.	Aktivointi käynnistää uudelleen koko latausajan saman lajin vielä latautuvilta kappaleilta.
+Copies of a kind add up, Onyx's passive multiplies; at most 4 of a kind count.	Saman lajin kappaleet lasketaan yhteen, Onyksin passiivi kertautuu; enintään 4 samaa lajia lasketaan.
+Onyx fired together reduce a hit once, 1 s longer for each other copy.	Yhdessä aktivoidut Onyksit vähentävät osumaa kerran, 1 s pidempään jokaista muuta kappaletta kohden.
+Different kinds work side by side, each with its own key and cooldown.	Eri lajit toimivat rinnakkain, kullakin oma näppäin ja latausaika.
