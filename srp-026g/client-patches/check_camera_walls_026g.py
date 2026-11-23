@@ -21,8 +21,14 @@ performance counter is a clock of ours (1000 ticks a second).
   no delegate).
 - A new orbit (after a frame in the first person) with a wall across it:
   the view's turn is the original's, its eye at once 0.2 m in front of the
-  wall on the way to the original's eye; a wall nearer than 0.2 m to the
-  pivot puts the eye at it.
+  wall on the way to the original's eye.
+- A new orbit with a wall nearer than 0.95 m (no room for the eye 0.75 m
+  out, out of the body): the view raised about its right row (the eye over
+  the head, looking down at the pivot as the orbit does), the eye 0.75 m
+  out or more and on the pivot's side of the wall.
+- An orbit that turns where its way has no such room: the view of the frame
+  before, bit for bit (0.69d's camera keeps its place); back on a free way,
+  the eye on it 0.75 m out or more, let out as above.
 - An orbit going on: a wall that comes has the eye in front of it at once,
   one that goes lets it out by 1 - e^(-3 t) of the way in t s.
 - An orbit that turns: a second ray, where its way will be 0.3 s on at the
@@ -58,7 +64,7 @@ SP = STACK + 0x8000
 REGS = (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_ESI, UC_X86_REG_EDI,
         UC_X86_REG_EBP, UC_X86_REG_ESP)
 STEADY = dict(zip(REGS[:7], (0x0A0A0A0A, 0x0B0B0B0B, 0x0C0C0C0C, 0x0D0D0D0D, 0x05050505, 0x0E0E0E0E, 0x0019FF00)))
-MARGIN, UP, IN_RATE, OUT_RATE, LEAD = 0.2, 1.4, 10.0, 3.0, 0.3
+MARGIN, UP, IN_RATE, OUT_RATE, LEAD, NEAREST = 0.2, 1.4, 10.0, 3.0, 0.3, 0.75
 
 # the player: turned 30 degrees about up, its feet at (100, 5, -50)
 C, S = math.cos(math.radians(30)), math.sin(math.radians(30))
@@ -87,6 +93,11 @@ def dot(a, b):
 def unit(a):
     n = math.sqrt(dot(a, a))
     return tuple(x / n for x in a)
+
+
+def same(a, b):
+    """Two views alike but for the rounding of the eye put back on the pivot."""
+    return max(abs(x - y) for x, y in zip(a, b)) < 1e-5
 
 
 class Game:
@@ -220,14 +231,54 @@ def main():
     def on_way(view):
         return math.dist(unit(sub(view[12:15], PIVOT)), way) < 1e-4
 
-    for at in (1.5, 2.9, 3.1, 0.1):
+    for at in (1.5, 2.9, 3.1):
         ours.update_camera(0)                                    # the orbit ends: the next is new
-        expect = max(0.0, at - MARGIN)
+        expect = at - MARGIN
         o_view, o_regs, rays = ours.update_camera(3, wall=wall_at(at))
         check(o_view[:12] == s_view[:12] and o_view[15] == s_view[15] and abs(eye_out(o_view) - expect) < 1e-3
-              and (expect == 0 or on_way(o_view)) and o_regs == s_regs and len(rays) == 1,
+              and on_way(o_view) and o_regs == s_regs and len(rays) == 1,
               f"a new orbit, a wall {at} m out: the eye at once {expect:.2f} m out on the original's way, "
               "its turn the original's")
+
+    def raised(view, wall):
+        """The view turned about the original's right row, its eye over the
+        original's, NEAREST out or more, on the pivot's side of `wall`, on
+        the orbit's back of the view (-forward + 0.2 right)."""
+        rows = (view[0:3], view[4:7], view[8:11])
+        right, forward, eye = rows[0], rows[2], view[12:15]
+        orthonormal = all(abs(dot(rows[i], rows[j]) - (i == j)) < 1e-4 for i in range(3) for j in range(3))
+        back = unit(tuple(-f + 0.2 * r for f, r in zip(forward, right)))
+        return (right == s_view[0:3] and orthonormal and eye[1] > s_view[13] + 0.1
+                and eye_out(view) >= NEAREST - 1e-4 and dot(sub(eye, wall[0]), wall[1]) > 0
+                and math.dist(unit(sub(eye, PIVOT)), back) < 1e-3)
+
+    behind = unit((way[0], 0.0, way[2]))
+    upright = tuple(p + b * 0.3 for p, b in zip(PIVOT, behind)), tuple(-b for b in behind)
+    for wall, what in ((wall_at(0.6), "a wall 0.6 m out across the way"), (upright, "an upright wall 0.3 m behind")):
+        ours.update_camera(0)
+        o_view, o_regs, rays = ours.update_camera(3, wall=wall)
+        check(raised(o_view, wall) and o_regs == s_regs and len(rays) > 1,
+              f"a new orbit, {what} (no room for the eye {NEAREST} m out): the view raised, "
+              f"the eye {eye_out(o_view):.2f} m out, {o_view[13] - PIVOT[1]:.2f} m over the pivot, in front of the wall")
+        o_again, _, _ = ours.update_camera(3, wall=wall)
+        check(same(o_again, o_view), "the next frame: that view held")
+
+    # an orbit going on turns to where its way has no room: the frame before's view, held
+    ours.update_camera(0)
+    o_free, _, _ = ours.update_camera(3, ms=12000)
+    c_view, _, _ = stock.update_camera(3, yaw=0.75)
+    corner = unit(sub(c_view[12:15], PIVOT))
+    tight = (tuple(p + c * 0.5 for p, c in zip(PIVOT, corner)), tuple(-c for c in corner))
+    walled = lambda n: tight if math.dist(ours.rays[n][2], corner) < 1e-3 else None   # only rays on that way
+    o_view, o_regs, rays = ours.update_camera(3, wall=walled, ms=12016, yaw=0.75)
+    check(o_free == s_view and same(o_view, o_free) and o_regs == s_regs
+          and any(math.dist(r[2], corner) < 1e-3 for r in rays) and len(rays) >= 2,
+          "a turn to a way 0.5 m from a wall: the view of the frame before")
+    o_view, _, _ = ours.update_camera(3, wall=walled, ms=12032, yaw=0.75)
+    check(same(o_view, o_free), "and held while the way has no room")
+    o_view, _, _ = ours.update_camera(3, ms=12048)
+    check(on_way(o_view) and NEAREST - 1e-4 <= eye_out(o_view) < distance - 0.5,
+          f"back on a free way: the eye on it, {eye_out(o_view):.2f} m out, let out from there")
     ours.update_camera(0)
     o_view, _, rays = ours.update_camera(3, wall=wall_at(distance + MARGIN + 0.05))
     check(o_view == s_view and len(rays) == 1, "a wall past the eye and its margin: the original's view")
