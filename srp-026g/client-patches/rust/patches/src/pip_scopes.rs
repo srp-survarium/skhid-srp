@@ -223,6 +223,10 @@ enum LensState {
 
 static LENS: Lock<LensState> = Lock::new(LensState::Unmade);
 
+/// r_gpu_sync as the second view's draw found it: put back at its end
+/// (`render.unmove`, past the wait it skips).
+static GPU_SYNC_KEPT: Lock<Option<bool>> = Lock::new(None);
+
 /// The switches the second view's draw turns off, as it found them: put back
 /// after it (at its Present, or the next draw's start should it end early).
 #[derive(Clone, Copy)]
@@ -285,6 +289,8 @@ struct Clock {
     present_started: Option<f64>,
     /// The game's thread's last scene draw.
     last_game: Option<f64>,
+    /// The render thread's last draw's end (`render.unmove`).
+    last_end: Option<f64>,
     sums: Sums,
     /// GPU reads that failed, logged up to 8.
     misses: u32,
@@ -298,6 +304,12 @@ struct Sums {
     /// The game's thread, from one scene's draw to the next.
     game: f64,
     game_frames: u32,
+    /// Game ticks with the logic's 10 ms sleep on (the game's +4E38h).
+    sleeping: u32,
+    /// The game thread's time in this patch's draw hook (the second view queued).
+    ours: f64,
+    /// The render thread from a draw's end (renderer::render past its Present) to the next draw's start.
+    idle: f64,
     second_cpu: f64,
     main_cpu: f64,
     interval: f64,
@@ -315,8 +327,9 @@ static CLOCK: Lock<Clock> = Lock::new(Clock {
     last_present: None,
     present_started: None,
     last_game: None,
+    last_end: None,
     misses: 0,
-    sums: Sums { frames: 0, present: 0.0, game: 0.0, game_frames: 0, second_cpu: 0.0, main_cpu: 0.0, interval: 0.0, gpu_frames: 0, second_gpu: 0.0, main_gpu: 0.0 },
+    sums: Sums { frames: 0, present: 0.0, game: 0.0, game_frames: 0, sleeping: 0, ours: 0.0, idle: 0.0, second_cpu: 0.0, main_cpu: 0.0, interval: 0.0, gpu_frames: 0, second_gpu: 0.0, main_gpu: 0.0 },
 });
 
 fn timed(probe: Probe) -> bool {
@@ -454,8 +467,8 @@ pub fn on_zoom(ctx: &mut Context<'_>) -> Flow<NoExit> {
 pub fn on_draw(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let mut probe = read_probe(thread);
-    if timed(probe) {
-        let now = second_view::cpu_ms(thread);
+    let entered = timed(probe).then(|| second_view::cpu_ms(thread));
+    if let Some(now) = entered {
         CLOCK.with(thread, |clock| {
             if let Some(last) = clock.last_game.replace(now) {
                 clock.sums.game += now - last;
@@ -474,6 +487,9 @@ pub fn on_draw(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let scoped = scoped.filter(|scoped| matches!(scoped.aimed, Some(Ok(model)) if !refused(thread, model)));
     let Probe::Made { second, used, .. } = probe else { return Flow::Continue };
     let Some(frame) = Frame::at(ctx) else { return Flow::Continue };
+    if frame.logic_sleeps() {
+        CLOCK.with(thread, |clock| clock.sums.sleeping += 1);
+    }
     let (camera, projection) = (frame.camera(), frame.projection());
     let view = invert_affine(&camera);
     let main = frame.main_view();
@@ -555,6 +571,10 @@ pub fn on_draw(ctx: &mut Context<'_>) -> Flow<NoExit> {
             *kept = main;
         }
     });
+    if let Some(entered) = entered {
+        let now = second_view::cpu_ms(thread);
+        CLOCK.with(thread, |clock| clock.sums.ours += now - entered);
+    }
     Flow::Continue
 }
 
@@ -584,12 +604,20 @@ pub fn on_render_begin(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let second = drawn.is_some();
     SECOND_PASS.store(second, Ordering::Relaxed);
     restore_switches(thread);
+    if let Some(was) = GPU_SYNC_KEPT.with(thread, Option::take) {
+        second_view::set_gpu_sync(thread, was);
+    }
     if second {
         turn_off_switches(thread);
+        let was = second_view::set_gpu_sync(thread, false);
+        GPU_SYNC_KEPT.with(thread, |kept| *kept = Some(was));
     }
     if timed(probe) {
         let now = second_view::cpu_ms(thread);
         CLOCK.with(thread, |clock| {
+            if let Some(end) = clock.last_end.take() {
+                clock.sums.idle += now - end;
+            }
             let slot = clock.frame as usize % RING;
             if second {
                 clock.second_this_frame = true;
@@ -802,6 +830,15 @@ fn report(sums: &Sums) {
         Piece::Dec(us(sums.present, sums.frames)),
         Piece::Text(", game thread "),
         Piece::Dec(us(sums.game, sums.game_frames)),
+        Piece::Text(", of it in this draw hook "),
+        Piece::Dec(us(sums.ours, sums.game_frames)),
+        Piece::Text(" (the logic's 10 ms sleep on in "),
+        Piece::Dec(sums.sleeping),
+        Piece::Text(" of "),
+        Piece::Dec(sums.game_frames),
+        Piece::Text(")"),
+        Piece::Text(", render thread between draws "),
+        Piece::Dec(us(sums.idle, sums.frames)),
         Piece::Text(", main cpu "),
         Piece::Dec(us(sums.main_cpu, sums.frames)),
         Piece::Text(" gpu "),
@@ -820,12 +857,17 @@ fn report(sums: &Sums) {
 /// draw's to forget (its motion vectors and shadow caches), never ours.
 pub fn on_unmove(ctx: &mut Context<'_>) -> Flow<PipScopesOnUnmoveExit> {
     let thread = ctx.thread();
-    if !SECOND_PASS.load(Ordering::Relaxed) && timed(PROBE.with(thread, |probe| *probe)) {
+    if let Some(was) = GPU_SYNC_KEPT.with(thread, Option::take) {
+        second_view::set_gpu_sync(thread, was);
+    }
+    if timed(PROBE.with(thread, |probe| *probe)) {
         let now = second_view::cpu_ms(thread);
+        let second = SECOND_PASS.load(Ordering::Relaxed);
         CLOCK.with(thread, |clock| {
-            if let Some(started) = clock.present_started.take() {
+            if !second && let Some(started) = clock.present_started.take() {
                 clock.sums.present += now - started;
             }
+            clock.last_end = Some(now);
         });
     }
     if SECOND_PASS.load(Ordering::Relaxed) { Flow::Exit(PipScopesOnUnmoveExit::Kept) } else { Flow::Continue }

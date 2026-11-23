@@ -147,6 +147,12 @@ impl<'t> Frame<'t> {
         Some(Frame { game, scene, _thread: ctx.thread() })
     }
 
+    /// The game's logic sleeps 10 ms before each tick (its +4E38h, 0x1A06C).
+    pub fn logic_sleeps(&self) -> bool {
+        // SAFETY: a byte of the live game, on its thread.
+        unsafe { *self.game.logic_sleeps() != 0 }
+    }
+
     /// The camera's transform (rows right, up, forward, place) this frame.
     pub fn camera(&self) -> [f32; 16] {
         // SAFETY: the scene's 16 floats at +0Ch, apply_camera's this frame.
@@ -951,6 +957,23 @@ pub fn frame_aspect(ctx: &Context<'_>) -> Option<f32> {
     let window = unsafe { raw::site::render_flash_ui::frame(ctx).and_then(|f| f.window()) }?;
     let (_, desc) = back_buffer(window)?;
     (desc.height > 0).then(|| desc.width as f32 / desc.height as f32)
+}
+
+/// r_gpu_sync, the wait for the GPU at the end of each draw (renderer::render
+/// 0x13DDCC, after the Present), set to `on`; what it was. The render thread,
+/// around the second view's draw: the frame's own draw keeps its wait, so a
+/// frame still ends synchronised as today, and the second view's picture is
+/// not waited for alone (a second wait a frame made the CPU and the GPU take
+/// turns, and in the rig it was where the frame waited for the display).
+pub fn set_gpu_sync(_: &Thread, on: bool) -> bool {
+    // SAFETY: the console variable's byte in .data, read by the render thread
+    // at each draw's end.
+    unsafe {
+        let flag = raw::image::GPU_SYNC as usize as *mut u8;
+        let was = *flag != 0;
+        *flag = u8::from(on);
+        was
+    }
 }
 
 /// The eye adaptation's reset flag (the next adaptation starts from the

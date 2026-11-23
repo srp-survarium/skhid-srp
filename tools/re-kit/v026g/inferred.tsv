@@ -3729,3 +3729,4 @@ va	status	ref_021d	name
 0x0023c750	inferred-medium		survarium::game_world_ui::place_object_icon [descriptive]
 0x002d3700	inferred-medium		survarium::game_world_core::drop_world_events_after
 0x0015e470	inferred-high		vostok::render::environment_properties::operator= (ESI the destination, EDI the source; its one caller engine::world::set_environment_properties 0x118F41, onto a scene view +118h)
+0x001ed870	inferred-medium		survarium::game::logic_sleeps (game vtable 0x9FAC8C +18h: returns the byte +4E38h; engine_world::logic_tick 0x1A048 sleeps 10 ms when it is set)
