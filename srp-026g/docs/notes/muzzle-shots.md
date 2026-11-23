@@ -16,6 +16,9 @@ looks, there shots go, with simulation with recoil being the next thing on top."
   - While the sight is raised or lowered: between the two, by the aim's progress.
 - **The spread** is the game's, around that way, and the kick and the camera's own motions turn
   the eye and the hands as they did: the gun's pose is made from both.
+- **A gun not held ready** (its barrel more than 5 degrees off the eye's line: a sprint's pose,
+  the hands between two poses) fires as the game always did, from the eye along its line. The
+  hands' clips were not made as ballistics; a gun held ready is 0.5 to 2.4 degrees off (below).
 - **A wall between the eye and the muzzle:** the shot leaves the eye instead (along the same
   way), so it meets that wall. No bullet starts beyond what the barrel pokes through.
 - **Who:** every player, in every game, computed in the simulation from the simulation's own
@@ -40,13 +43,36 @@ where no sight is looked through.
   to 50 ms old), which in a burst carried the hands clip's camera turn of the pass before (the
   H&K 416, the M4A1: up to 0.67 degrees). Those bullets now go where the sights show.
 - **Bots** aim their view. From 10 m on they fire down the sights (`bots/reflex.rs`,
-  `ads_near_m`), where a shot's way is the eye's line as before. Nearer, or running for cover,
-  they fire from the hip: those shots now go where their gun looks, and so do the ones fired
-  while the sight is still coming up. Their aim does not take the gun's line yet: how far the
-  hip pose turns it from the view is not measured (`SKHID_SHOT_LOG` gives it in a game).
+  `ads_near_m`), where a shot's way is the eye's line as before. Nearer (15 % of their near
+  targets) or running for cover they fire from the hip: there a bot turns its view by the gun's
+  measured line and muzzle place (`hip_line_deg`, `hip_muzzle_m`, `hip_turn`), so that the gun's
+  line is on its aim.
 - **Replays** of games before the revision that ships this play out otherwise: a row in
   `simulation_changes.tsv`.
 - **Peeking:** a bullet no longer clears a ledge the eye sees over and the barrel does not.
+
+## Measured on real matches' memory
+
+Three full-memory dumps of the owner's game inside matches (2026-11-20 and 2026-11-22, 33 held
+guns) and two in the lobby. The game's own `compute_bone_matrix` was run under Unicorn on each
+dump's memory for every held gun's bones, and patch 200's rig made of them
+(`private/scope-shot-045/muzzle-shots/dump_pose.py`).
+
+- **The bone function as the patch calls it gives the game's own values.** Bone Item times the
+  player's transform is the eye the game kept (+44Ch) to 0.0 mm and 0.000 degrees, for every
+  player of a match.
+- **The hip pose is what the game draws.** For the players drawn in the first person the rig's
+  fire point is the one `weapon::draw` kept (the weapon's +620h): 0.0 cm apart in the lobby, 0.7
+  and 1.8 cm in a match (a frame's motion between the two).
+- **A gun held ready from the hip** (eleven guns): its barrel is 0.5 to 2.4 degrees off the eye's
+  line, on average 1.0 right and 0.3 down; its muzzle 10 to 15 cm right of the eye, 8 to 16 cm
+  under it and 44 to 92 cm ahead. So from the hip a bullet lands right of the screen's centre:
+  about 13 cm, plus 1.7 cm a metre. The HUD's crosshair shows it.
+- **A gun not held ready points elsewhere:** a sprinting player's 54 to 58 degrees left and down,
+  some states' 73 degrees up, a dead player's 125. Hence the rule of a gun not held ready: a shot
+  fired as the hands come out of such a pose is the game's own. **Not known:** how often that
+  is (a trigger pressed in a sprint fires at once, by the bots' model of the cadence);
+  `SKHID_SHOT_LOG` in a game tells.
 
 ## Recoil, on top (the owner: "simulation with recoil being the next thing")
 

@@ -32,6 +32,10 @@
 //! (`player_icons.update_start`, `srp_crosshair_at`) when it moves. Drawing
 //! only.
 //!
+//! A gun not held ready (its barrel more than 5 degrees off the eye's line:
+//! a sprint's pose, the hands between two poses) has no muzzle here: its
+//! shot is the game's own, from the eye, and the crosshair is not moved.
+//!
 //! `SKHID_SHOT_LOG` set in the game's environment (read once, after a
 //! frame's simulation) writes a line a shot to the patches' log: how far the
 //! sight is raised, how far the shot's way is from the eyes' copy's and
@@ -282,13 +286,23 @@ pub struct Muzzle {
     pub along: Vec3,
 }
 
+/// The cosine of the most a held gun's barrel is off the eye's line and the
+/// gun still held ready: 5 degrees. In real matches' memory guns held ready
+/// were 0.5 to 2.4 degrees off, a sprinting player's 54 and more.
+const READY: f32 = 0.996_194_7;
+
 impl Pose {
     /// The muzzle: at the fire point; looking along the barrel from the hip
     /// and along the eye's line fully aimed (the sights are on it then), by
-    /// the sight's raising between. None for a gun or an eye with no way.
+    /// the sight's raising between. None for a gun or an eye with no way,
+    /// and for a gun not held ready (a sprint's pose, the hands between two
+    /// poses): its shot is the game's own, from the eye.
     pub fn muzzle(&self) -> Option<Muzzle> {
         let fire = product(&self.barrel, &self.gun);
         let (barrel, eye) = ((row(&fire, 2) * -1.0).direction()?, row(&self.eye, 2).direction()?);
+        if barrel.dot(eye) < READY {
+            return None;
+        }
         let raised = if self.raised.is_finite() { self.raised.clamp(0.0, 1.0) } else { 0.0 };
         let along = (barrel * (1.0 - raised) + eye * raised).direction()?;
         let place = row(&fire, 3);
@@ -421,15 +435,26 @@ mod tests {
     }
 
     fn pose(raised: f32) -> Pose {
-        Pose { eye: at(0.0, 1.5, 0.0), gun: product(&gun(0.1), &at(0.0, 1.5, 0.0)), barrel: barrel(), raised }
+        Pose { eye: at(0.0, 1.5, 0.0), gun: product(&gun(0.05), &at(0.0, 1.5, 0.0)), barrel: barrel(), raised }
+    }
+
+    #[test]
+    fn a_gun_not_held_ready_has_no_muzzle() {
+        // Turned 5.7 degrees from the eye's line, and a sprint's 54.
+        for sine in [0.1, 0.81] {
+            let low = Pose { gun: product(&gun(sine), &at(0.0, 1.5, 0.0)), ..pose(0.0) };
+            assert_eq!(low.muzzle(), None, "{sine}");
+        }
+        // 4.6 degrees: held ready.
+        assert!(Pose { gun: product(&gun(0.08), &at(0.0, 1.5, 0.0)), ..pose(0.0) }.muzzle().is_some());
     }
 
     #[test]
     fn from_the_hip_the_shot_goes_along_the_barrel() {
         let muzzle = pose(0.0).muzzle().unwrap();
         // 0.6 along the turned gun from 0.05 right and 0.1 under the eye
-        assert!((muzzle.place - Vec3::new(0.05 - 0.06, 1.4, 0.6 * 0.994_987_4)).length() < 1e-6, "{muzzle:?}");
-        assert!((muzzle.along - Vec3::new(-0.1, 0.0, 0.994_987_4)).length() < 1e-6, "{muzzle:?}");
+        assert!((muzzle.place - Vec3::new(0.05 - 0.03, 1.4, 0.6 * 0.998_749_2)).length() < 1e-6, "{muzzle:?}");
+        assert!((muzzle.along - Vec3::new(-0.05, 0.0, 0.998_749_2)).length() < 1e-6, "{muzzle:?}");
     }
 
     #[test]

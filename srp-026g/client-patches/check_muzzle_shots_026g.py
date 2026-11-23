@@ -23,7 +23,8 @@ aim locator on the root, its fire point on the body; an aim offset.
   the Item bone; from the fire point, along the eye's line.
 - Half raised: between them (the turn along its arc, the place along the line).
 - A wall between the eye and the muzzle: from the eye, the same way.
-- A bare weapon_core, a user with no tree, a gun whose skeleton lacks the
+- A gun not held ready (its barrel more than 5 degrees off the eye's line),
+  a bare weapon_core, a user with no tree, a gun whose skeleton lacks the
   locator's bone, a user with no `Weapon` bone: the copy is the eye's, bit
   for bit.
 - The bones are asked as the game asks them: the user's own animation player,
@@ -106,7 +107,8 @@ def unit(v):
 
 HALF_TURN = (-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1)
 WORLD = matrix(turn_y=0.7, place=(100.0, 6.5, -50.0))                     # the user in the world
-HAND = matrix(0.12, math.pi + 0.2, (0.18, 1.32, 0.31))                    # the Weapon bone, the user's space
+HAND = matrix(0.15, math.pi, (0.18, 1.32, 0.31))                          # the Weapon bone, the user's space: held ready, 2 degrees off the eye's line
+LOW = matrix(0.12, math.pi + 0.2, (0.18, 1.32, 0.31))                     # not held ready: 9.7 degrees off
 ITEM = matrix(-0.15, 0.03, (0.0, 1.62, 0.13))                            # the Item bone: the eyes
 EYE = product(matrix(-0.4, 0.05, (0.0, 1.6, 0.1)), WORLD)                # the copy the game makes: an older eye
 AIM_OFFSET = matrix(place=(0.0, 0.0, -0.11))
@@ -207,7 +209,7 @@ class Game:
             self.u32(record + 8, at + 0x110 + BONE * (n + 1))
         return [at + 0x110 + BONE * n for n in range(len(names))]
 
-    def shot(self, raised, vtable=WEAPON_VTABLE, tree=True, user_bones=("object_movement", "Root", "Weapon", "Item"),
+    def shot(self, raised, hand=HAND, vtable=WEAPON_VTABLE, tree=True, user_bones=("object_movement", "Root", "Weapon", "Item"),
              gun_bones=("object_movement", "root", "offset"), wall=False):
         """A shot of a new weapon: (the copy in the frame at the call, the registers there)."""
         emu = self.emu
@@ -227,7 +229,7 @@ class Game:
         self.put(USER + 0x44C, EYE)
         self.u32(USER + 0xE850, TREE if tree else 0)
         user = dict(zip(user_bones, self.skeleton(SKELETON, user_bones, NAMES)))
-        self.bones.update({user.get("Weapon"): (HAND, SKELETON, USER), user.get("Item"): (ITEM, SKELETON, USER)})
+        self.bones.update({user.get("Weapon"): (hand, SKELETON, USER), user.get("Item"): (ITEM, SKELETON, USER)})
         gun = self.skeleton(GUN_SKELETON, gun_bones, NAMES + 0x800)
         self.bones.update({record: (pose, GUN_SKELETON, WEAPON) for record, pose in zip(gun[1:], (GUN_ROOT, GUN_BODY))})
         emu.mem_write(SP - 0x100, bytes(0x300))
@@ -328,6 +330,11 @@ def main():
         s_out, s_regs = stock.shot(0.5, **shot)
         o_out, o_regs = ours.shot(0.5, **shot)
         check(o_out == eye and o_out == s_out and o_regs == s_regs, f"{what}: the eye's copy bit for bit, the registers the original's")
+    # Not held ready from the hip (9.7 degrees off the eye's line): the game's own shot.
+    s_out, s_regs = stock.shot(0.0, hand=LOW)
+    o_out, o_regs = ours.shot(0.0, hand=LOW)
+    check(o_out == eye and o_out == s_out and o_regs == s_regs,
+          "a gun not held ready: the eye's copy bit for bit, the registers the original's")
     if failed:
         sys.exit(f"{failed} check(s) failed")
     print("all checks passed")

@@ -231,6 +231,14 @@ pub struct CombatTuning {
     /// on, nearer with this chance (drawn per target).
     pub ads_near_m: f32,
     pub ads_near_chance: f32,
+    /// [hip] From the hip a shot leaves the gun along its barrel, not the
+    /// view (exe patch 200, `docs/notes/muzzle-shots.md`): the gun's line
+    /// from the view's (degrees right, up) and the muzzle from the eye
+    /// (m right, up), the means over eleven guns held ready in three real
+    /// matches' memory. A bot firing from the hip turns its view by them,
+    /// so that the gun's line is on its aim.
+    pub hip_line_deg: (f32, f32),
+    pub hip_muzzle_m: (f32, f32),
     /// Standing to aim at a seen target, the legs step side to side: runs
     /// of `strafe_run_ms` one way then the other, a still moment of
     /// `strafe_still_ms` between with `strafe_still_chance`; a hit turns
@@ -391,6 +399,8 @@ impl Default for CombatTuning {
             recoil_pull: 1.0,
             ads_near_m: 10.0,
             ads_near_chance: 0.85,
+            hip_line_deg: (1.0, -0.3),
+            hip_muzzle_m: (0.13, -0.10),
             strafe_run_ms: (250, 700),
             strafe_still_chance: 0.5,
             strafe_still_ms: (150, 450),
@@ -745,6 +755,16 @@ fn off_by(me: &PlaceView, point: Vec3, error: (f32, f32)) -> f32 {
     wrap(want_yaw - me.yaw)
         .abs()
         .max((want_pitch - me.pitch).abs())
+}
+
+/// [hip] The turn of the view (yaw, pitch; a yaw grows to the left) that lays
+/// the hip-held gun's line on a point `distance` m ahead: against the line's
+/// own turn from the view and the muzzle's place beside the eye.
+fn hip_turn(c: &CombatTuning, distance: f32) -> (f32, f32) {
+    let distance = distance.max(1.0);
+    let right = c.hip_line_deg.0.to_radians() + (c.hip_muzzle_m.0 / distance).atan();
+    let up = c.hip_line_deg.1.to_radians() + (c.hip_muzzle_m.1 / distance).atan();
+    (right, -up)
 }
 
 /// Play 7: whether a peek from `spot` is another angle on `enemy` than the
@@ -2063,6 +2083,19 @@ impl Reflex {
             self.error.0 * fade + self.wander.0 + floor * (rng.unit() - 0.5),
             self.error.1 * fade + self.wander.1 + floor * 0.5 * (rng.unit() - 0.5),
         );
+        // Down the sights at him, unless it runs for cover; with a bolt
+        // action crouched (drawn per target), with anything else the side
+        // step while it stands to aim. [hip] From the hip the view is
+        // turned so that the gun's line, not the view's, is on him.
+        let distance = point.distance_xz(me.feet);
+        let running = legs.is_some_and(|l| l.run);
+        let sights = !running && (distance >= c.ads_near_m || self.ads_near);
+        let error = if sights {
+            error
+        } else {
+            let turn = hip_turn(c, distance);
+            (error.0 + turn.0, error.1 + turn.1)
+        };
         // [recoil] The kick's rise of the view this tick, taken back by the
         // turn (any weapon); what is not taken back lifts the view and the
         // shot with it.
@@ -2088,7 +2121,6 @@ impl Reflex {
         // other at every cycle of its own (players press again as soon as
         // the weapon takes it); the weapon's trigger turns that into
         // presses and counts the rounds.
-        let distance = point.distance_xz(me.feet);
         let within = off <= aim.fire_within_deg.to_radians();
         let mut wants = false;
         if fire_allowed
@@ -2113,11 +2145,7 @@ impl Reflex {
             }
         }
         let fire = self.trigger(wants, fire_allowed, now, c);
-        // Down the sights at him, unless it runs for cover; with a bolt
-        // action crouched (drawn per target), with anything else the side
-        // step while it stands to aim.
-        let running = legs.is_some_and(|l| l.run);
-        if !running && (distance >= c.ads_near_m || self.ads_near) {
+        if sights {
             keys |= key::AIM;
         }
         let mut strafe = 0;
@@ -2781,6 +2809,19 @@ mod tests {
         let (over, _) = kicked_fight("support", 20.0, &lifted, 200);
         let highest = over.iter().copied().fold(f32::NEG_INFINITY, f32::max);
         assert!(highest > 0.8, "{highest}");
+    }
+
+    #[test]
+    fn from_the_hip_the_view_is_turned_left_and_up_of_the_aim() {
+        let c = CombatTuning::default();
+        // At 5 m: the line 1.0 degree right and the muzzle 13 cm right of
+        // the eye (1.49 degrees), 0.3 down and 10 cm under it (1.15).
+        let (yaw, pitch) = hip_turn(&c, 5.0);
+        assert!((yaw.to_degrees() - 2.49).abs() < 0.01, "{yaw}");
+        assert!((pitch.to_degrees() - 1.45).abs() < 0.01, "{pitch}");
+        // Far off the muzzle's place is nothing: the line's own turn stays.
+        let (yaw, pitch) = hip_turn(&c, 1000.0);
+        assert!((yaw.to_degrees() - 1.0).abs() < 0.01 && (pitch.to_degrees() - 0.3).abs() < 0.01);
     }
 
     #[test]

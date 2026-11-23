@@ -6385,8 +6385,12 @@ The HUD's crosshair is put where the own player's gun looks (the hud movie's `sr
 `check_muzzle_shots_026g.py` (`tools/check muzzle-shots`) runs instant_fire from its copy to its
 call of get_dispersed_bullet_direction in both exes, the bone function and the ray stood in for:
 the hip, full aim, half raised, a wall, and the cases left as the original's bit for bit. Not run
-in a game: the hip pose's own angle to the view, the bots' aim (they fire from the hip and aim
-their view) and the crosshair on a screen are unseen.
+in a game with a shot fired: the crosshair on a screen and two games in step are unseen.
+
+A gun not held ready (its barrel more than 5 degrees off the eye's line: a sprint's pose, the hands
+between two poses) is left the game's own shot, from the eye. Measured on three real matches'
+memory (`../docs/notes/muzzle-shots.md`): held ready a gun is 0.5 to 2.4 degrees off, sprinting 54
+and more. The server's bots turn their view by the measured line when they fire from the hip.
 
 ## The drawn view trails the aim (patch 197, a prototype, unreleased)
 
