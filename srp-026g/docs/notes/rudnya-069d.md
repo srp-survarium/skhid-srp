@@ -72,6 +72,16 @@ comparison: "the way rudnya is is fine"; not in work):
   term (its `dot_normal` cutoff and power, carried in its `attenuation_power` for
   `three-maps-021-lighting@13`'s 8 `ambient_light.ps` programs), so a wall turned from a fill
   light's centre is lit as in 0.69d (the bus stop's slab wall had nothing, 2.4 of 0.69d's 27).
+- Pack @7 (the tester's second batch, 2026-11-23): a box fill light draws 0.69d's own box
+  falloff, side width and `gradient_attenuation` (full at the door or window, nothing at the
+  far face), a cylinder is drawn as a cylinder in the box around it (both carried in
+  `attenuation_power` for `three-maps-021-lighting@14`'s 4 box `ambient_light.ps` programs);
+  drawn as plain boxes, the church floor, the barn loft and the apiary deck had uniform bright
+  rectangles and the belfry's near-black darkener a black square round the bell opening. A
+  vertex blend takes a template of its own technique and tiled-mask switch, so 6 more of the
+  68 blends draw their own numbers (the sheds' rusty roof sheets drew rust all over; their
+  rust patches now follow 0.69d's, the rust itself still more saturated than 0.69d's); the 4
+  alpha-tested ones of technique 1 without a mask stay on their category's template.
 - Spawns (team deathmatch): 0.69d's team-deathmatch points as they are, 405 (team 0: 313,
   team 1: 92); each point's own check radii; their invulnerability time 6 s as the rest of the
   map (maps.tsv; 0.69d's 3 s until then). The owner may revisit it: these are free spawns, up to
