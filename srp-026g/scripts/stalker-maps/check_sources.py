@@ -39,9 +39,8 @@ def main():
     fence = check_training_arena.arena.outline()
     # Every point is inside the base's fence, and stands on what its row says: a raised floor of
     # the tables (an island, a tower's stairs, a cabin) with a way down, or, GROUND of them, the
-    # ground. 8 and 19 of the first plan are where they were.
+    # ground.
     assert all(check_training_arena.inside_of(fence, p['x'], p['z']) for p in authored)
-    assert authored[8]['y'] > 20 and authored[19]['y'] > 15
     raised = []
     for p in authored:
         on = m.stands_on(p)

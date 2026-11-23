@@ -96,7 +96,7 @@
 //! [`RELAY_USEFUL_MS`]).
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
-use std::net::SocketAddr;
+use udp_transport::relay;
 use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -691,7 +691,7 @@ use refused_worlds::{Judged, Refusers, Removal, Round, UploadStanding, Verdict};
 use world_receipts::{Received, WorldReceipts};
 
 struct Peer {
-    addr: SocketAddr,
+    addr: relay::Peer,
     session_id: u32,
     transport: Transport,
     stage: Stage,
@@ -710,6 +710,8 @@ struct Peer {
     /// `Carrier::key`): each once, however often the client resends it.
     reports_heard: BTreeSet<(u8, u8, u8)>,
     executable: super::executable::Receiver,
+    /// Its game's code blocks (client patch 125), after the executable.
+    code: super::executable::Blocks,
     /// The sync generation of the last 0xE5/0xE8 sent to it: 0xFF once it
     /// is ready, as the client's own.
     generation: Generation,
@@ -1065,12 +1067,7 @@ impl Game {
         let walkers = driven::Walkers::new(&formed, &settings);
         // Once for the match: a private room's (a PIN) and one against bots
         // remove nobody.
-        let kind = match (formed.private, formed.vs_bots) {
-            (true, _) => afk::MatchKind::PrivateRoom,
-            (false, true) => afk::MatchKind::VsBots,
-            (false, false) => afk::MatchKind::Public,
-        };
-        let afk = Watch::new(settings.anti_afk, kind);
+        let afk = Watch::new(settings.anti_afk, formed.kind);
         log_unread_kits(&formed, 0);
         Self {
             id: formed.match_id,
@@ -1138,12 +1135,17 @@ impl Game {
             "mode": map.mode.rules().number(),
             "match_level": self.formed.match_level,
             "growing_roster": self.formed.growing_roster,
-            "vs_bots": self.formed.vs_bots,
+            "vs_bots": self.formed.kind.vs_bots(),
             "initial_players": self.formed.initial_players,
             "late_inputs": format!("{:?}", self.settings.late_inputs),
             "places": self.places_note(0),
         });
-        self.recording = Some(recorder.open(self.id, self.formed.vs_bots, header, now));
+        self.recording = Some(recorder.open(
+            &self.formed.replay_id,
+            self.formed.kind.vs_bots(),
+            header,
+            now,
+        ));
     }
 
     /// The places from `from` on, for a recording.
@@ -1325,7 +1327,7 @@ impl Game {
     }
 
     /// The roster place of the client at `addr`.
-    pub fn peer_index(&self, addr: SocketAddr) -> Option<usize> {
+    pub fn peer_index(&self, addr: relay::Peer) -> Option<usize> {
         self.peers
             .iter()
             .position(|peer| peer.as_ref().is_some_and(|peer| peer.addr == addr))
@@ -1358,7 +1360,7 @@ impl Game {
     pub fn attach(
         &mut self,
         index: usize,
-        addr: SocketAddr,
+        addr: relay::Peer,
         session_id: u32,
         revision: u8,
         mut transport: Transport,
@@ -1411,6 +1413,7 @@ impl Game {
             world_receipts: WorldReceipts::default(),
             reports_heard: BTreeSet::new(),
             executable: super::executable::Receiver::default(),
+            code: super::executable::Blocks::default(),
             generation: Generation::AT_READY,
             set_times: VecDeque::new(),
             time_confirmed: false,
@@ -1528,11 +1531,20 @@ impl Game {
         let Some(carrier) = Carrier::parse(payload) else { return true };
         if carrier.match_id != super::registry::static_id(self.id) { return true; }
         let (Some(peer), Some(place)) = (self.peers.get_mut(index).and_then(Option::as_mut), self.formed.places.get(index)) else { return true };
-        if matches!(peer.stage, Stage::Gone | Stage::Connecting) { peer.executable.cancel(); return true; }
+        if matches!(peer.stage, Stage::Gone | Stage::Connecting) { peer.executable.cancel(); peer.code.cancel(); return true; }
         if peer.executable.identity().is_none() && let Upload::Offer(identity) = carrier.upload {
             log::info!(target: super::client_report::MODULES, "{} (account {}), match {:#x}, executable sha256 {} size {}", place.name, place.account_id, self.id, identity, identity.size());
         }
-        if let Some((sha256, answer)) = peer.executable.receive(carrier.upload, now, self.settings.released_executable) {
+        if peer.code.starts(&carrier.upload) && let Upload::Code(identity) = carrier.upload {
+            log::info!(target: super::client_report::MODULES, "{} (account {}), match {:#x}, code sha256 {} size {}", place.name, place.account_id, self.id, identity, identity.size());
+        }
+        let code = match carrier.upload {
+            Upload::Code(_) => true,
+            Upload::Data { sha256, .. } => peer.code.holds(sha256),
+            Upload::Offer(_) => false,
+        };
+        let answer = if code { peer.code.receive(carrier.upload, now) } else { peer.executable.receive(carrier.upload, now, self.settings.released_executable) };
+        if let Some((sha256, answer)) = answer {
             let reply = Reply { match_id: carrier.match_id, sha256, answer };
             // Only a peer that offered this protocol ever receives its E4 reply.
             // Lost application replies are retried by the client's next offer.
@@ -3685,6 +3697,7 @@ impl Game {
         let late_inputs = self.settings.late_inputs;
         let reach = self.late_relay_reach(index);
         let places = u8::try_from(self.players()).unwrap_or(u8::MAX);
+        let kits = self.formed.profiles.get(index).map(|profile| profile.kits.as_slice()).unwrap_or_default();
         let Some(peer) = self.peers[index].as_mut() else {
             return;
         };
@@ -3720,14 +3733,24 @@ impl Game {
             let oldest = clock.saturating_sub(INPUT_MAX_AGE_MS);
             peer.inputs_seen.retain(|seen| *seen >= oldest);
         }
-        // Client patch 85: a pickup naming no place of the match. The
-        // client never sends one (`weapon_pickup::sane`, its twin).
+        // Client patches 85 and 196: a pickup or a corpse shot naming no place
+        // of the match. The client never sends one (`weapon_pickup::sane`, its twin).
         // Use exactly the recipient's input check before any relay. In
         // particular, unused action bit 30 must not enter another player's
         // simulation or reach its native input reader.
         let refused = match srp_validate::messages::input(input.rotation, input.actions) {
             Err(reason) => Some(reason.to_string()),
-            Ok(()) if !weapon_pickup::sane(input.actions, places) => Some("a pickup of no place of the match".into()),
+            Ok(()) if !weapon_pickup::sane(input.actions, places) => Some("a pickup or corpse shot of no place of the match".into()),
+            // Client patch 180: a throw-back (Return to Sender) from a player none of whose kits
+            // has the skill; the client sends one only from a kit that has it
+            // (`technical_skills::throw_back::sane`, its twin).
+            Ok(()) if !technical_skills::throw_back::sane(
+                input.actions,
+                kits.iter().map(|kit| kit.modifiers[technical_skills::MODIFIER]),
+            ) =>
+            {
+                Some("a throw-back without Return to Sender in a kit".into())
+            }
             Ok(()) => None,
         };
         if let Some(why) = refused {
@@ -3915,7 +3938,12 @@ impl Game {
             }
         }
         peer.placed_profiles.push_back((time, relayed_time));
-        self.note_kit_choice(index, relayed_time);
+        // A kit choice only: client patch 180's Dead Man's Switch is a profile input of a value
+        // of its own, which changes no kit in any game.
+        use technical_skills::dead_mans_switch::ProfileInput;
+        if matches!(ProfileInput::parse(value), ProfileInput::Kit(_)) {
+            self.note_kit_choice(index, relayed_time);
+        }
         let what = Relayed::Profile {
             tick: relayed_tick,
             value,
@@ -3978,7 +4006,7 @@ impl Game {
     fn relay_to_others(&mut self, index: usize, what: &Relayed, time: u32, now: Instant) {
         // A solo human's inputs have no recipient. Keep the accepted
         // action after rejection/retiming, not the unchecked inbound packet.
-        if self.formed.vs_bots
+        if self.formed.kind.vs_bots()
             && !self.formed.places[index].driven
             && let Some(recording) = self.recording.as_mut()
         {
@@ -4361,6 +4389,20 @@ impl Game {
                 rules::research_finished(research.points, self.formed.played.map().resources_count)
             })
             .and_then(|research| research.end);
+        // Artifact Hunt's end is its rule's Over, at its own time
+        // (`artefact_hunt.md`, "The end is the server's"); its bytes passed
+        // the world check with the same parameters.
+        let hunt_end = self.formed.played.map().artefact_hunt.and_then(|params| {
+            let rule = decoded.rules.as_ref()?.artefact_hunt.as_ref()?.rule(params)?;
+            rule.result().map(|(_, over)| over.at().ms())
+        });
+        // Freeze Tag's is its rule's too, at the end of its last round's
+        // restart time, as Artifact Hunt's.
+        let freeze_end = decoded
+            .rules
+            .as_ref()
+            .and_then(|read| read.freeze_tag.as_ref()?.finished_at())
+            .map(|at| at.ms());
         let over = playing
             && match self.game_mode() {
                 RuleMode::TeamDeathmatch => decoded
@@ -4374,6 +4416,8 @@ impl Game {
                         )
                     }),
                 RuleMode::Research => research_end.is_some(),
+                RuleMode::FreezeTag => freeze_end.is_some(),
+                RuleMode::ArtefactHunt => hunt_end.is_some(),
                 RuleMode::FreeForAll => decoded.rules.as_ref().is_some_and(|read| {
                     rules::ffa_finished(
                         read.kills_deaths.iter().map(|record| record.kills),
@@ -4393,7 +4437,10 @@ impl Game {
             // The rule's own end is at most the delay after the tick that
             // reached the goal, which is this snapshot's or an earlier one.
             let delayed = snapshot.time + self.settings.timing.end_delay_ms;
-            let at = research_end.map_or(delayed, |end| end.min(delayed));
+            let at = research_end
+                .or(hunt_end)
+                .or(freeze_end)
+                .map_or(delayed, |end| end.min(delayed));
             log::info!(
                 "Match {:#x}: the mode's rule has its end at {} ms (standing {standing:?}); the \
                  match is over at {at} ms",
@@ -4444,6 +4491,13 @@ impl Game {
                 {
                     return Err(format!("tickets {:?} of {tickets}", standing.points));
                 }
+            } else if let Some(params) = self.formed.played.map().artefact_hunt {
+                // A delivery each, the goal at most (the rule holds its scores
+                // there, and the world check the statistics to them).
+                let goal = u16::from(params.goal());
+                if standing.points.iter().any(|team| *team > goal) {
+                    return Err(format!("artefacts {:?} of {goal}", standing.points));
+                }
             } else if self.game_mode() == RuleMode::Research {
                 let goal = self.formed.played.map().resources_count;
                 let most = goal.min(1 + played / MIN_MS_PER_RESEARCH_POINT);
@@ -4452,6 +4506,11 @@ impl Game {
                         "research points {:?} of {goal} after {played} ms",
                         standing.points
                     ));
+                }
+            } else if self.game_mode() == RuleMode::FreezeTag {
+                let wins = srp_validate::world::freeze::WINS;
+                if standing.points.iter().any(|team| *team > u16::from(wins)) {
+                    return Err(format!("round wins {:?} of {wins}", standing.points));
                 }
             } else {
                 let batteries = self.batteries() as u32;
@@ -5014,6 +5073,7 @@ impl Game {
                 ));
         peer.stage = Stage::Gone;
         peer.executable.cancel();
+        peer.code.cancel();
         peer.held.clear();
         peer.reassembler.clear();
         log::info!(
@@ -5299,14 +5359,15 @@ impl Game {
             let payment = super::reward_caps::Payment::of(
                 played,
                 &self.kill_pairs,
-                self.game_mode(),
-                self.formed.vs_bots,
+                super::reward_caps::Objectives::of(self.formed.played.map()),
+                self.formed.kind.vs_bots(),
             );
             for cut in &payment.objectives {
                 log::info!(
-                    "Match {:#x}: place {}'s Research capture/neutralisation score {}, paid {}",
+                    "Match {:#x}: place {}'s objective score (mode {}) {}, paid {}",
                     self.id,
                     cut.place,
+                    self.game_mode(),
                     cut.scored,
                     cut.paid
                 );
@@ -5386,13 +5447,18 @@ impl Game {
                     kills: record.map_or(counted(event::KILL), |record| record.kills),
                     deaths: record.map_or(counted(event::DEATH), |record| record.deaths),
                     longest_killstreak: self.best_streaks[index],
-                    kit_changes: self.kit_changes[index],
+                    kit_changes: self.kit_changes[index].saturating_add(self.round_kit_switches(index)),
                     supplies: state.and_then(|state| state.supplies.get(index).cloned().flatten()),
+                    weapons: statistics
+                        .and_then(|statistics| statistics.weapons.as_ref()?.get(index))
+                        .cloned()
+                        .unwrap_or_default(),
                 }
             })
             .collect();
         MatchResult {
             match_id: self.id,
+            replay_id: self.formed.replay_id.clone(),
             map_id: self.formed.played.map().id,
             mode: self.formed.played.mode(),
             twist: self.formed.played.armed(),
@@ -5400,6 +5466,7 @@ impl Game {
             end,
             winner: standing.map(|standing| standing.winner),
             team_points: standing.map_or([0, 0], |standing| standing.points),
+            round_starts: self.round_starts(),
             duration_ms: clock,
             played_ms: self
                 .rule
@@ -5408,9 +5475,40 @@ impl Game {
             trusted_snapshot_ms: state.map(|state| state.time),
             trusted_by: state.map_or(0, |state| state.vouchers),
             players,
-            vs_bots: self.formed.vs_bots,
-            private: self.formed.private,
+            vs_bots: self.formed.kind.vs_bots(),
+            private: self.formed.kind.private(),
         }
+    }
+
+    /// The round starts of the match's rule with rounds as it counts them in
+    /// the last trusted snapshot: Artifact Hunt's (with its map's
+    /// parameters), Freeze Tag's (every restart, a double wipe's replay too);
+    /// 0 before one, and in the modes without rounds.
+    fn round_starts(&self) -> u16 {
+        let rules = self.state.as_ref().and_then(|state| state.rules.as_ref());
+        if let Some(params) = self.formed.played.map().artefact_hunt {
+            return rules
+                .and_then(|rules| rules.artefact_hunt.as_ref()?.rule(params))
+                .map_or(0, |rule| rule.round_starts());
+        }
+        rules.and_then(|rules| rules.freeze_tag.as_ref()).map_or(0, |rule| rule.round_starts())
+    }
+
+    /// The kit switches of the player at `index` in the rounds' countdowns
+    /// (patch 31's switch, a life for supplies each, as a kit choice before
+    /// play is), as the rule with rounds counts them in the last trusted
+    /// snapshot (`artefact_hunt_rule::Lives`, Artifact Hunt's and Freeze
+    /// Tag's); 0 in the modes without rounds.
+    fn round_kit_switches(&self, index: usize) -> u16 {
+        let rules = self.state.as_ref().and_then(|state| state.rules.as_ref());
+        if let Some(params) = self.formed.played.map().artefact_hunt {
+            return rules
+                .and_then(|rules| rules.artefact_hunt.as_ref()?.rule(params))
+                .map_or(0, |rule| rule.lives().kit_switches(index));
+        }
+        rules
+            .and_then(|rules| rules.freeze_tag.as_ref())
+            .map_or(0, |rule| rule.lives().kit_switches(index))
     }
 
     /// End the match: the result is kept for the lobby, and every client
@@ -5476,9 +5574,9 @@ impl Game {
     }
 
     /// Advance the match, and return the datagrams to send.
-    pub fn poll(&mut self, now: Instant) -> Vec<(SocketAddr, Vec<u8>)> {
+    pub fn poll(&mut self, now: Instant) -> Vec<(relay::Peer, Vec<u8>)> {
         for peer in self.peers.iter_mut().flatten() {
-            if peer.stage == Stage::Gone { peer.executable.cancel(); } else { peer.executable.expire(now); }
+            if peer.stage == Stage::Gone { peer.executable.cancel(); peer.code.cancel(); } else { peer.executable.expire(now); peer.code.expire(now); }
         }
         self.poll_roster(now);
         let clock = self.clock(now);
@@ -5919,10 +6017,20 @@ impl Game {
             return;
         }
         // The rule's own arithmetic wraps before its state began.
-        let limit_reached = clock
+        let late = clock
             .checked_sub(END_GRACE_MS)
-            .filter(|time| self.rule.start.is_some_and(|start| *time >= start))
-            .is_some_and(|time| self.rule.completed(time));
+            .filter(|time| self.rule.start.is_some_and(|start| *time >= start));
+        let limit_reached = late.is_some_and(|time| match self.formed.played.map().artefact_hunt {
+            // Artifact Hunt plays past the time rule's end (rounds, sudden
+            // death): its end is the rule's. Only a match whose worlds never
+            // showed it by the latest end the rule can have (its horizon
+            // from the start) is stopped here.
+            Some(params) if self.rule.state == rules::state::IN_PROCESS => self
+                .rule
+                .start
+                .is_some_and(|start| time - start >= params.horizon()),
+            _ => self.rule.completed(time),
+        });
         if self.ending.is_none() && limit_reached {
             log::info!("Match {:#x}: time is up at {clock} ms", self.id);
             self.ending = Some((now, MatchEnd::TimeLimit));
@@ -6032,7 +6140,7 @@ impl Game {
     }
 
     /// A match of one player against the server's bots
-    /// ([`Formed::vs_bots`]) whose player plays (in the match, its world
+    /// ([`Formed::kind`]) whose player plays (in the match, its world
     /// given) and has been asked for its world for `Timing::pvb_stall`
     /// with none uploaded is over, as one everyone left
     /// (`MatchEnd::Deserted`): the bots see the world only through that
@@ -6044,7 +6152,7 @@ impl Game {
     /// against bots with more players in it (a private room's with bots)
     /// has the rules of any match: its other players upload the world.
     fn check_pvb_stall(&mut self, now: Instant) {
-        if !self.formed.vs_bots || self.finished_at.is_some() || self.ending.is_some() {
+        if !self.formed.kind.vs_bots() || self.finished_at.is_some() || self.ending.is_some() {
             return;
         }
         let players = (0..self.formed.places.len())

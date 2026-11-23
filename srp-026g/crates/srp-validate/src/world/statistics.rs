@@ -31,6 +31,10 @@
 //! `m_team_victory_items`, u8 `m_winner_team`, u32
 //! `m_active_in_match_players_mask`.
 //!
+//! After the tail, exe patch 165's per-weapon counts ([`Weapons`], their
+//! layout and domains in `weapons.rs`); a world of a game that keeps none
+//! ends with the tail.
+//!
 //! The domains, each read once:
 //!
 //! - an events mask names the 28 events only, and holds every bit of the
@@ -66,6 +70,7 @@
 
 use core::num::{NonZeroU8, NonZeroU32};
 
+use super::weapons::{self, Totals, Weapons};
 use super::{Context, Section, battery_records};
 use crate::reader::{Reader, Short};
 use crate::{Finite, KITS, MAX_PLAYERS, Part, Place, Places, Positive, Reason, Refusal, Team};
@@ -240,6 +245,26 @@ impl PlayerStatistics {
     /// `last_hit_enemy_id`; 0xFF is none.
     pub fn last_hit_enemy(&self) -> Option<Place> {
         self.last_hit_enemy
+    }
+
+    /// The record's counts that the place's weapons add up to
+    /// ([`Totals`]): the event's three kits added as the record carries
+    /// them, a byte each for the kills, headshots and deaths.
+    fn totals(&self) -> Totals {
+        let sum = |event: usize| {
+            self.events
+                .iter()
+                .filter_map(|kit| kit.count(event))
+                .fold(0u16, u16::wrapping_add)
+        };
+        // `as`: a one-byte event's count is its byte.
+        Totals {
+            kills: sum(0) as u8,
+            headshots: sum(15) as u8,
+            deaths: sum(2) as u8,
+            shots: sum(22),
+            hits: sum(23),
+        }
     }
 
     /// `u8( killstreak )`.
@@ -457,7 +482,18 @@ impl Tail {
         })
     }
 
-    /// `m_team_points`: batteries, tickets or research points by mode.
+    /// A tail of these points and leader, for tests.
+    #[cfg(test)]
+    pub(crate) fn of(team_points: [u16; 2], winner_team: Winner) -> Self {
+        Self {
+            team_points,
+            team_victory_items: [0; 2],
+            winner_team,
+            active_in_match_players_mask: 0,
+        }
+    }
+
+    /// `m_team_points`: batteries, tickets, research points or artefacts by mode.
     pub fn team_points(&self) -> [u16; 2] {
         self.team_points
     }
@@ -494,6 +530,9 @@ pub struct Statistics<'a> {
     /// needs of a record, kept by the parse so that the rule does not read
     /// every record again.
     last_hit_enemies: [Option<Place>; MAX_PLAYERS],
+    /// Exe patch 165's counts; `None`: the game that wrote the world keeps
+    /// none.
+    weapons: Option<Weapons<'a>>,
 }
 
 impl<'a> Statistics<'a> {
@@ -523,16 +562,18 @@ impl<'a> Statistics<'a> {
             |reader: &Reader, from: usize| bytes.get(from..reader.at()).unwrap_or_default();
         let mut players: [&[u8]; MAX_PLAYERS] = [&[]; MAX_PLAYERS];
         let mut last_hit_enemies = [None; MAX_PLAYERS];
-        for (place, (player, enemy)) in players
+        let mut totals = [Totals::default(); MAX_PLAYERS];
+        for (place, ((player, enemy), totals)) in players
             .iter_mut()
             .zip(last_hit_enemies.iter_mut())
+            .zip(totals.iter_mut())
             .take(places)
             .enumerate()
         {
             let from = reader.at();
-            *enemy = PlayerStatistics::read(&mut reader, place)
-                .map_err(fault)?
-                .last_hit_enemy;
+            let read = PlayerStatistics::read(&mut reader, place).map_err(fault)?;
+            *enemy = read.last_hit_enemy;
+            *totals = read.totals();
             *player = record(&reader, from);
         }
         let mut statuses: [&[u8]; MAX_BATTERIES] = [&[]; MAX_BATTERIES];
@@ -542,8 +583,22 @@ impl<'a> Statistics<'a> {
             *status = record(&reader, from);
         }
         let tail = Tail::read(&mut reader).map_err(fault)?;
-        if !reader.is_done() {
-            return Err(unread);
+        let weapons = |fault| match fault {
+            weapons::Fault::Unread => unread,
+            weapons::Fault::Version(version) => refuse(Reason::StatisticsField {
+                record: "weapons",
+                index: usize::from(version),
+                field: "version",
+            }),
+            weapons::Fault::Field { place, field } => refuse(Reason::StatisticsField {
+                record: "weapons",
+                index: place,
+                field,
+            }),
+        };
+        let counted = Weapons::read(reader.rest(), places).map_err(weapons)?;
+        if let Some(counted) = &counted {
+            counted.agree(&totals).map_err(weapons)?;
         }
         Ok(Self {
             players,
@@ -552,6 +607,7 @@ impl<'a> Statistics<'a> {
             battery_count: batteries,
             tail,
             last_hit_enemies,
+            weapons: counted,
         })
     }
 
@@ -582,13 +638,36 @@ impl<'a> Statistics<'a> {
     pub fn tail(&self) -> Tail {
         self.tail
     }
+
+    /// Exe patch 165's per-weapon counts; `None`: the world's game keeps
+    /// none.
+    pub fn weapons(&self) -> Option<Weapons<'a>> {
+        self.weapons
+    }
 }
 
-/// The statistics read ([`Statistics::read`]), and each place's last hit
-/// enemy a place of the match.
+/// The statistics read ([`Statistics::read`]), each place's last hit
+/// enemy a place of the match, and each weapon counted an item of the
+/// dictionary where the context has it.
 pub fn statistics(section: &Section, context: &Context) -> Result<(), Refusal> {
     let places = context.places;
     let read = Statistics::read(section, places, battery_records(context))?;
+    if let (Some(weapons), Some(dict_ids)) = (read.weapons(), context.dict_ids) {
+        for (place, weapons) in weapons.places().enumerate() {
+            let known = |id: weapons::DictId| dict_ids.binary_search(&id.get()).is_ok();
+            if !weapons.counts().iter().filter_map(|counts| counts.weapon()).all(known) {
+                return Err(Refusal::new(
+                    Part::Statistics,
+                    section.at,
+                    Reason::StatisticsField {
+                        record: "weapons",
+                        index: place,
+                        field: "dict_id (no item of the dictionary)",
+                    },
+                ));
+            }
+        }
+    }
     for (place, enemy) in read.last_hit_enemies().enumerate() {
         if let Some(enemy) = enemy
             && enemy.index() >= places

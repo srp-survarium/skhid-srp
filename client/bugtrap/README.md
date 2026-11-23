@@ -11,19 +11,20 @@ On a handled crash it writes
 `SRP-crash-YYYYMMDD-HHMMSS-mmm-pPID-tTID-N.dmp` **beside the game EXE**, then
 zips it with recent logs to `SRP-crash-…-N.zip` (see Zipped dumps), before callbacks or the
 dialog. Closing the dialog keeps the file. Existing files are
-never overwritten. If the EXE folder is unwritable, it tries the Windows temporary
+never overwritten. Each folder keeps the newest ten crashes' files (see Old
+crashes). If the EXE folder is unwritable, it tries the Windows temporary
 folder; the dialog shows the filename and folder in separate labeled fields,
 or a failure message. Long folders use middle ellipsis. It uses static text
 without scrollbars; only the crash details (see Crash details) can be
 selected. The layout follows the original C++
 `IDD_SIMPLE_DLG`: an explicit 8-point Tahoma font with smoothing, white message panel, thin divider,
-and gray footer with Open Discord, Copy and Close buttons. The panel is taller to fit
+and gray footer with Open Discord, Open folder, Copy and Close buttons. The panel is taller to fit
 the dump details; the original Mail and More controls are omitted. The original
 green beetle icon (`vostok/sources/BugTrap/res/Bug.ico`) is embedded in the DLL
 and used in both the message panel and the localized Survarium window title.
-Both button labels are centered horizontally and vertically. Open Discord uses
-the same measured character advances for painting, avoiding the caption offset
-seen under Wine.
+All button labels are centered horizontally and vertically. Open Discord and
+Open folder use the same measured character advances for painting, avoiding
+the caption offset seen under Wine.
 
 Open Discord opens [SRP Discord](https://discord.gg/QUmJg3gBhg) in the default
 browser, only when clicked. The dialog tells the player to find the named file
@@ -31,6 +32,18 @@ in the displayed folder and send it to **#bugreports**. This applies to both a
 ZIP and a raw dump kept after compression failed. If saving failed, it asks
 them to describe the crash in that channel instead. A browser-launch failure
 shows the invite address and manual instructions.
+
+Open folder, only when clicked, shows the saved file (the ZIP, the raw dump
+kept when compression failed, the text report when no dump was saved, or a
+full dump's report) selected in its folder, the game's or the temporary one:
+`explorer.exe /select,"<path>"` from the Windows folder, through
+`ShellExecuteW` (already imported for the browser link). Explorer runs as a
+process of its own, so a slow shell cannot hold the dialog. If it cannot be
+started, the folder is opened alone; if that fails too, nothing else happens.
+Without a file (saving failed, or a full dump with no report) the button is
+not there and Copy takes its place. Under Wine (11.8 Staging) Wine's own
+explorer window opens the folder, letters outside ASCII included, with the
+file listed; it does not call the Linux file manager.
 
 The whole dialog (title, status, file/folder labels, instructions, buttons and
 errors) is localized in English, Russian, Ukrainian, German and Polish. It
@@ -71,7 +84,7 @@ Events:    1530 recorded, the last 1024 kept: match 2 world 61 started 1 death 1
            the last 200, seconds before the crash:
   -2.036 s  world: 4500 ms, 900 bytes packed, loaded, local place 3
   -1.536 s  death: place 4, life 2, at 61000 ms
-Game log:  last 20 lines of the newest Survarium*.log in Documents\Survarium
+Game log:  last 20 lines of the newest Survarium*.log in game\logs
 ...
 Patch log: last 100 lines of srp_patches.2026-11-15_14-03-07.log
 srp: ...
@@ -128,16 +141,16 @@ srp: ...
   The world's sections have no hook of their own (game_world_core's
   deserialize reads them in one function), so a section is not named.
 - Dump: saved, or why not, with the Windows error.
-- Game log: the last 20 lines of the newest (last written) `Survarium*.log`
-  in Documents\Survarium, the crashed run's `Survarium_<user>.<stamp>.log`
+- Game log: the last 20 lines of the newest (last written) run's `Survarium*.log`
+  in `game\logs` (none there: none), the crashed run's `Survarium_<user>.<stamp>.log`
   (see Recent logs) (its last 8 KiB), from the first line that starts a
   record (a cut inside a sensitive record's continuation lines would not be
   caught), through the same credential filter as the ZIP's logs; the file
   name is not written (it holds the account name).
 - Patch log: the last 100 lines of the crashed run's client patches' log
-  beside the exe (`vostok/log.rs`; its last 24 KiB), the same way, and its
-  name: the newest (last written) `srp_patches.<stamp>[_<n>].log`, else the
-  `srp_patches.log` of before the runs were named; each of its `srp: ` lines
+  in `game\logs` (`vostok/log.rs`; its last 24 KiB), the same way, and its
+  name: the newest (last written) `srp_patches.<stamp>[_<n>].log` (none there:
+  none); each of its `srp: ` lines
   is a record of its own for the filter.
 - Every read of the game's memory goes through `ReadProcessMemory`: a
   damaged pointer gives no line, not a second crash. The stack scan reads
@@ -173,9 +186,38 @@ All file and folder calls of this DLL are the Windows wide (W) calls.
 Nothing is uploaded automatically. Email/upload entry points fail with
 `ERROR_NOT_SUPPORTED`, and legacy support destinations are discarded. The DLL
 imports `kernel32.dll`, `user32.dll`, `gdi32.dll`, `shell32.dll` (for the browser
-link and the Documents folder of the start-up notice), and `ntdll.dll` and
+link, Open folder and the Documents folder of the start-up notice), and `ntdll.dll` and
 `api-ms-win-core-synch-l1-2-0.dll` (the standard library's), no C runtime DLL; it loads `dbghelp.dll` by absolute path from beside the EXE or the Windows
 system directory when capturing a dump.
+
+## Old crashes
+
+A folder keeps the files of its newest ten crashes (`KEEP` in
+`src/crash_files.rs`); nothing tells the player.
+
+- When: at every capture (a crash or `BT_SaveSnapshot`), on the report worker,
+  once this crash's files are written, closed and zipped, and before the
+  callbacks and the dialog.
+- Where: beside the game exe and in the temporary folder, each counted on its
+  own: one listing of `SRP-crash-*` in each, no subfolder.
+- Ours: only names the reporter writes, exactly:
+  `SRP-crash-YYYYMMDD-HHMMSS-mmm-p<pid>-t<tid>-<n>` (the numbers as it
+  writes them, no leading zero) and `.zip`, `.dmp`, `.txt` or `.zip.part`. The
+  files of one name are one crash: a ZIP and its report, a raw dump kept when
+  zipping failed and its report, a report alone (no dump), a full-memory dump
+  (`SKHID_CRASH_DUMP=full`, 1 to 3 GB each) and its report: the full dumps
+  follow the same rule. Anything else (an unpacked ZIP's folder, `… (1).zip`,
+  another case or extension) is not ours and is left.
+- Which go: the crashes are dated by their newest file's last write; the
+  newest ten stay whole and every file of the older ones is deleted, with
+  every `.zip.part` left by a game that died while zipping. The files of
+  this process (its id is in the name: this crash, an earlier snapshot) are
+  never deleted and do not count among the ten.
+- Bounded: up to 512 files of ours are looked at in a folder at one crash
+  (the listing's first; past them, a later crash takes more). A file Windows
+  does not delete (open, read-only, held by an antivirus) is passed over,
+  and an error ends it quietly. The decision is a pure function over the
+  listed names and times, without allocation (`src/crash_files.rs`).
 
 ## Start-up notice: the game cannot save its files
 
@@ -286,7 +328,7 @@ pointers; not yet measured on Windows: see Dump contents).
   from fixed locations (never from an arbitrary working directory or recursive
   scan): Windows Documents/Survarium and the game EXE's folder. For the standard
   `game/binaries/x86` installation layout, also `game/`, the installation root,
-  and its `temp/` folder. Matching is case-insensitive: `Survarium.log`,
+  its `temp/` folder, and `game/logs/` (the run logs, beside `game/torrent/`). Matching is case-insensitive: `Survarium.log`,
   `Survarium_*.log`, `Survarium.journal`, `Survarium_*.journal`,
   `updater_skhid.log`, `launcher_skhid.log`, `launcher.log`, and every run's
   log (below). This covers the
@@ -296,9 +338,9 @@ pointers; not yet measured on Windows: see Dump contents).
   files are excluded. Directories and reparse points are excluded when Windows
   reports them as such; Wine may expose host symlinks as ordinary files.
 - Every run's logs: since the runs' logs are named (2026-11-15), each start of
-  the game writes `Survarium_<user>.<stamp>.log` (Documents\Survarium) and
-  `srp_patches.<stamp>.log` (beside the EXE), each start of the updater
-  `updater_skhid.<stamp>.log`; `<stamp>` is the start in local time,
+  the game writes `Survarium_<user>.<stamp>.log` (in `game\logs`; Documents\Survarium before 2026-11-17) and
+  `srp_patches.<stamp>.log` (in `game\logs`; beside the EXE before 2026-11-17), each start of the updater
+  `updater_skhid.<stamp>.log` (in `game\logs` too); `<stamp>` is the start in local time,
   `YYYY-MM-DD_HH-MM-SS`, with `_<n>` (2 to 99) for a further file of the same
   stamp (a second start in the same second, the patches' log past 8 MiB). The
   writers keep each kind's newest 100 files or 500 MB. `src/run_name.rs` reads
@@ -307,10 +349,10 @@ pointers; not yet measured on Windows: see Dump contents).
   names stay matched as above. So the ZIP has the crashed run's logs and the
   runs' before it, newest first, within the bounds below.
 - The client patches' log of the crashed run: the newest (last written)
-  `srp_patches.<stamp>[_<n>].log` beside the EXE (`vostok/log.rs`), or, when
-  there is none, `srp_patches.log` (the one of before the runs were named,
-  which also gets the lines logged before a run's start: none in the game).
-  It comes first, as `logs/game-exe/<its name>`, whatever its age: its last
+  `srp_patches.<stamp>[_<n>].log` in `game\logs` (`vostok/log.rs`), or, when
+  there is none, none is taken (never the old `srp_patches.log`, which the
+  updater deletes).
+  It comes first, as `logs/game-logs/<its name>` whatever its age: its last
   2 MiB, from the first whole line in them (`collection.txt` says from which
   byte), under the same filter and budgets. Its `srp: ` lines are each a
   record of their own for the filter. The earlier runs' `srp_patches.<stamp>.log`
@@ -556,7 +598,11 @@ partial report, failed save, a capture refused as an antivirus refuses it
 Cyrillic and Polish letters, failed browser launch and failed dialog creation,
 plus automatic locale selection with absent or conflicting game-language options.
 It measures text against control bounds, checks translated labels
-and buttons, and intercepts the browser call so no browser or network is used.
+and buttons and that the footer's buttons stand in one row without overlapping,
+and intercepts the browser and Explorer calls so no browser, Explorer or network
+is used. It clicks Open folder and checks that Explorer is asked to select the
+file the dialog names (with Explorer refused, browser-failure, that the folder
+alone is opened), and that the button is absent when there is no file.
 In each, it presses Copy and reads the clipboard back (the code block, no
 log lines), and checks the text report beside the dump, or in its place.
 An optional second argument saves dialog screenshots as BMPs for inspection.
@@ -616,13 +662,14 @@ original) on the probe's command
 line) come out as UTF-8 with their transcoded lines counted; a control byte
 in a cp1251 line still omits the source, and a cp1251 credential record is
 still removed with its continuation.
-Runs' logs: of three `srp_patches.<stamp>[_2].log` the newest comes first by
-its own name (`logs/game-exe/srp_patches.<stamp>.log`), the other two, the
-game's two runs (a user name holding a synthetic secret) and the updater's
-run as sources named `source-NN.<kind>.<stamp>.txt` in newest order, the old
+Runs' logs: of three `srp_patches.<stamp>[_2].log` in `game\logs` the newest
+comes first by its own name (`logs/game-logs/srp_patches.<stamp>.log`), the
+other two, the game's two runs (a user name holding a synthetic secret), the
+updater's run in `game\logs` and an older run's patches' log left beside the
+exe as sources named `source-NN.<kind>.<stamp>.txt` in newest order, the old
 `updater_skhid.log` as `source-NN.txt`, `srp_patches.old.log` and the old
-`srp_patches.log` not; with no run's patch log the old `srp_patches.log` is the
-crashed run's.
+`srp_patches.log` not; with no run's patch log in `game\logs` none is
+taken.
 A short successful read followed by premature EOF must also roll back the
 source even though filtered output has a different size. Host-only boundary,
 encoding and read-failure tests, and the runs' names (each kind, `_<n>`,
@@ -633,6 +680,15 @@ rustc --edition 2024 --test tests/sanitize_tests.rs -o /tmp/sanitize-tests
 /tmp/sanitize-tests
 rustc --edition 2024 --test tests/run_name_tests.rs -o /tmp/run-name-tests
 /tmp/run-name-tests
+```
+
+Which old crashes' files go (Old crashes): the names that are ours, ten or
+fewer kept, the oldest going whole, this process's never, a `.zip.part`,
+look-alike names, mixed kinds, two folders apart and the bound:
+
+```sh
+rustc --edition 2024 --test tests/crash_files_tests.rs -o /tmp/crash-files-tests
+/tmp/crash-files-tests
 ```
 Python `zipfile` checks every member and its CRC.
 
@@ -651,12 +707,13 @@ or not (the scan once hung there), and checks the report beside the ZIP and in i
 exception line, the address inside the faulting function as module+offset,
 the caller on the stack scan, the other lines, and the log tail with a
 password's record and its continuation removed and the records after it kept.
-The game log is the newest of a run's `Survarium_tester.<stamp>.log` and an
-older `Survarium_tester.log`. It also puts a 3 MB
-`srp_patches.2026-11-15_14-03-07.log` beside the probe, with an older run's
-and an old `srp_patches.log`, and checks the UTC header with its offset, the
+The game log is the run's `Survarium_tester.<stamp>.log` in `game\logs`, not a later-written
+unstamped `Survarium_tester.log` in Documents. It also puts a 3 MB
+`srp_patches.2026-11-15_14-03-07.log` in `game\logs` (the probe in
+`game\binaries\x86`), with an older run's there and an old `srp_patches.log`
+beside the probe, and checks the UTC header with its offset, the
 report's last 100 patch-log lines under that file's name (a token's line
-removed), and the ZIP's `logs/game-exe/srp_patches.2026-11-15_14-03-07.log`:
+removed), and the ZIP's `logs/game-logs/srp_patches.2026-11-15_14-03-07.log`:
 at most 2 MiB, from a whole line, ending with the file's last line. (Nix's MinGW g++ links
 mcfgthread: add `-L` of `nixpkgs#pkgsCross.mingw32.windows.mcfgthreads`'s
 `lib`.)
@@ -669,6 +726,22 @@ Run on 2026-11-15 for the runs' logs (Linux, Wine 11.8 Staging, the probes
 built with Nix's MinGW g++): `check_logs.py` and `check_report.py` pass,
 `check_abi.py` passes, and so do the host tests (`sanitize_tests.rs`,
 `run_name_tests.rs`); the other checks were not run again.
+
+Run on 2026-11-22 for Open folder (Linux, Wine Staging 11.8, an Xorg dummy
+display with openbox; `ui_probe.exe` built with MinGW g++): `check_abi.py` and
+`check_localization.py` (62 dialogs) pass; the other checks were not run again.
+By hand, the same `ShellExecuteW` call under Wine returned at once (33, in
+6 ms) and Wine's explorer window showed the folder `Игра-Żółw` with the ZIP
+listed (not highlighted); no Linux program was started.
+
+Run on 2026-11-23 for Old crashes (same setup): `crash_files_tests.rs` (10),
+`check_abi.py` and `check_localization.py` pass. The probe's crash in a folder
+with twelve older crashes of other processes (ZIPs, raw dumps, their
+reports, one `.zip.part`, three look-alike names, an unpacked folder, the
+oldest crash's report read-only) and three in the temporary folder: the
+newest ten old crashes stayed with the new one, the eleventh went whole,
+the twelfth's ZIP went and its read-only report stayed, the `.zip.part` went,
+the look-alikes, the folder and the temporary folder's three were left.
 
 Run on 2026-10-21 (Linux, Wine, Xvfb), the build with the standard library
 and the C runtime linked in, the C++ probes built with `clang-cl` against the

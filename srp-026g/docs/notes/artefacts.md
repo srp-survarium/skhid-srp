@@ -26,6 +26,18 @@ Client patch 54 (README section 54, client_patch.md section 3.51) and the table
   (in their passive or active, container order); a fifth (Artifact Container) is never fired and
   stays ready, so its active adds nothing (and it gives no passive).
 - A copy on its cooldown or already active does nothing on that press; it is not fired later.
+- A press that fires a copy starts the cooldown of every other copy of that kind on its cooldown
+  again, the whole of it (the owner, 2026-11-22: "if you get new artifact, you can still activate
+  it, but this resets timer on other artis of the same type"). So a kind is used once a cooldown,
+  however many copies and whenever they were taken.
+  - The report (a player, revision 49): one Onyx taken and fired, then another taken and fired:
+    each cooled down on its own and the two were fired in turns, an Onyx twice as often (three or
+    four, three or four times).
+  - A copy still active is left as it is: it ends and cools down on its own, and the next press
+    that fires another starts its cooldown again.
+  - A press that fires nothing (every copy cooling or active) starts no cooldown again.
+  - Firing the copy that is ready first, while another has seconds left, costs that other its
+    whole cooldown: waiting for both fires them together.
 - The key of a copy that is not ready still fires the ready ones of its kind.
 - Different kinds have their own keys and cooldowns: Onyx, Spring and Lifebone fire on their own.
 - Every game of the match computes this the same way (the press is an input).
@@ -91,6 +103,21 @@ active")
   54 makes the active's time left; the hud writes it in. (%s, not `{s}`: the game's localizer (0x1FEF90, every text set_parameterized_message shows) makes `{NAME}` the key of the action NAME (`{USE}`) and any other name nothing, and drops a `}` after a character; the
   owner's first test showed "for  s.".)
 
+## The stock glow (0.26g, static reading)
+
+- The item config's `data/effect` names `gameplay/effects/effect_<name>.options` (the cook
+  0x2EC760): one particle effect, type 114, `time_to_finish` 5.
+- Particle systems and light colours (RGB): Lifebone `human_zhivokost` 0.10 0.77 0.00; Spring
+  `human_spring` 0.00 0.40 1.00; Onyx `human_onix` 1.00 0.48 0.00.
+- Each has 10 emitters on the body; `up_light` makes about 20 point lights a second, each about
+  1.7 s, radius about 1.2, no shadows.
+- The press: `artefact_base::action` 0x313300 (state 3 -> 4) -> 0x313350 ->
+  `game_effect_emitter::emit` 0x329050 / `game_effect_player::add` 0x2DE090 on the carrier.
+- It ends when the state leaves 4 (the calculator 0x313640); the living particles fade.
+- Load: `artefact_base::deserialize` 0x313760 links the effect again, or plays it again for an
+  artefact in state 4: late joiners see it.
+- Patch 54: each copy fired plays its own effect.
+
 ## Your own glow (the owner, 2026-10-25: "you see yourself shining (hands and body if you look
 down) when you use artifact? Note that your vision should still be clear")
 
@@ -144,6 +171,8 @@ down) when you use artifact? Note that your vision should still be clear")
 - Version 13: the leg quarters one particle effect of view 2 each, without the point light and the
   haze (what the carrier saw is what everyone sees), no first-person twin; Forest Protection's smoke
   emitters' Rate and MaxParticles x1.5.
+- Version 15 (14 is the open #1586's): Forest Protection's first-person twin plays its smoke too,
+  beside the rays, at three quarters of the third person's rate (artefact-skills.md).
 - History: version 1 (a lighter copy) and version 2 (with `up_light`'s lights at x0.35) showed
   too little in the first person; version 3, the stock glow without the head, was tested by the
   owner and approved (2026-10-25: "this version is good"). Version 4 is the same files.

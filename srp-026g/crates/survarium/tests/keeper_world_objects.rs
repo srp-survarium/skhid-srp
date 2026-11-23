@@ -40,6 +40,8 @@ fn every_maps_world_with_the_keeper_pool_passes_the_objects_check() {
             artefacts: None,
             objects: Some(&objects),
             inventory: None,
+            dict_ids: None,
+            artefact_hunt: None,
         };
         let section = Section { at: 0, bytes: &bytes };
         assert_eq!(srp_validate::world::objects(&section, &context), Ok(()), "{}", map.project);

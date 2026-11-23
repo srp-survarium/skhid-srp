@@ -4,19 +4,20 @@
 //! the room's size, 20 at the most); a private room's owner starts one alone.
 
 use std::collections::HashSet;
+use survarium::v026g::maps::MapId;
 
 use super::*;
 use crate::v026g::MatchSetup;
 
 /// The free-for-alls of the test data.
-fn free_for_alls() -> Vec<u8> {
+fn free_for_alls() -> Vec<MapId> {
     maps::playable_in(maps::GameMode::FreeForAll)
         .map(|map| map.id)
         .collect()
 }
 
 /// A lobby whose match pool is `pool`.
-fn world_of(pool: Vec<u8>) -> World {
+fn world_of(pool: Vec<MapId>) -> World {
     let mut settings = Settings::local("127.0.0.1:0");
     settings.maps = pool;
     World::with_settings(settings)
@@ -48,15 +49,15 @@ fn accounts(world: &World, members: &[usize]) -> HashSet<u32> {
     members.iter().map(|&member| world.ids[member].0).collect()
 }
 
-/// The room's pool has two maps of two teams and a free-for-all: its vote's
-/// third card is the free-for-all (the owner's of 2026-11-12), the first two
-/// the others. The members vote for it, and the match is that map's with
+/// The room's pool has two maps of two teams and a free-for-all: its vote
+/// shows the three, the free-for-all on any card (the owner's of
+/// 2026-11-22). The members vote for it, and the match is that map's with
 /// each of them in it, in no squad. One who comes while it is played, its
 /// places not all given, goes into it.
 #[test]
 fn a_room_whose_vote_wins_a_free_for_all_card_plays_it_with_each_ready_member() {
     let free_for_all = free_for_alls()[0];
-    let mut world = world_of(vec![61, 117, free_for_all]);
+    let mut world = world_of(vec![MapId::new(61), MapId::new(117), free_for_all]);
     let alice = world.connect("Alice");
     let bob = world.connect("Bob");
     let carol = world.connect("Carol");
@@ -69,10 +70,14 @@ fn a_room_whose_vote_wins_a_free_for_all_card_plays_it_with_each_ready_member() 
     let voting = state(&mut world, alice);
     assert_eq!(header(&voting)[PHASE], "3", "the vote");
     let offered = cards(&voting);
-    assert!(offered[..2].contains(&61) && offered[..2].contains(&117), "{offered:?}");
-    assert_eq!(offered[2..], [free_for_all], "{offered:?}");
+    let mut sorted = offered.clone();
+    sorted.sort_unstable();
+    let mut pool = vec![MapId::new(61), MapId::new(117), free_for_all];
+    pool.sort_unstable();
+    assert_eq!(sorted, pool, "{offered:?}");
+    let card = offered.iter().position(|&id| id == free_for_all).unwrap() as u32;
     for index in [alice, bob, carol] {
-        rows(&mut world, index, ROOM_VOTE_BASE + 2, 1);
+        rows(&mut world, index, ROOM_VOTE_BASE + card, 1);
     }
     let ticket = room_match_starts(&mut world, &[alice, bob, carol], VOTE_AND_WAIT);
     assert_eq!(world.host.made.locked().len(), 1);
@@ -82,7 +87,7 @@ fn a_room_whose_vote_wins_a_free_for_all_card_plays_it_with_each_ready_member() 
     assert_eq!(seated(&setup), accounts(&world, &[alice, bob, carol]));
     assert!(setup.players.iter().all(|player| player.profile.squad == 0));
     assert_eq!(setup.room_minimum, Some(2));
-    assert!(!setup.private && !setup.vs_bots);
+    assert_eq!(setup.kind, session::v026g::match_kind::MatchKind::Normal);
     let room = world.core.rooms.get(key).unwrap();
     assert!(matches!(room.stage, Stage::InMatch { .. }));
     assert_eq!(room.in_match.len(), 3);
@@ -181,7 +186,7 @@ fn a_room_with_bots_fills_a_free_for_all_as_a_match_of_two_teams() {
     assert_eq!(bots, 14);
     // The members first, the bots after them.
     assert!(setup.players[..2].iter().all(|player| !player.driven));
-    assert!(setup.vs_bots && !setup.private);
+    assert_eq!(setup.kind, session::v026g::match_kind::MatchKind::VsBots);
 }
 
 /// A private room's owner starts a free-for-all alone: a match of one, the
@@ -196,7 +201,10 @@ fn a_private_rooms_owner_starts_a_free_for_all_alone() {
     assert_eq!(setup.players.len(), 1);
     assert_eq!(setup.players[0].account_id, world.ids[owner].0);
     assert_eq!(setup.room_minimum, Some(1));
-    assert!(setup.private && !setup.vs_bots);
+    assert_eq!(
+        setup.kind,
+        session::v026g::match_kind::MatchKind::PrivateRoom
+    );
     assert!(matches!(
         world.core.rooms.get(key).unwrap().stage,
         Stage::InMatch { .. }

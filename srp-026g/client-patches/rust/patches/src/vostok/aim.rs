@@ -1,0 +1,134 @@
+//! The aimed gun at `hands_ik.aim_alignment` (sites_026g.tsv): process_hands_ik
+//! 0x2959D0 in the first person with the aim's progress above 0, about to
+//! call calculate_aim_alignment 0x244D40, which makes the gun's aim locator
+//! (the weapon's +7A8h, on a bone of the gun or on none) the camera.
+
+use core::marker::PhantomData;
+
+use super::context::Context;
+use super::world::{floats, write_floats};
+use crate::raw;
+
+/// A weapon state's id (+124h) of the three idle classes.
+const IDLE: u32 = 3;
+/// A locator's bone index for none (calculate_locator 0x243C05).
+const NO_BONE: u16 = 0xFFFF;
+
+/// A bone of the gun's skeleton, by its index in the gun's bones.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Bone(u16);
+
+#[cfg(test)]
+impl GunId {
+    pub fn test(id: u32) -> GunId {
+        GunId(id)
+    }
+}
+
+impl Bone {
+    /// A locator's bone index: None for the index that means no bone.
+    pub fn parse(index: u16) -> Option<Bone> {
+        (index != NO_BONE).then_some(Bone(index))
+    }
+}
+
+/// How a gun's aim locator is placed (a row-vector 4x4).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum AimLocator {
+    /// On a bone: the camera follows that bone as the clips move it.
+    OnBone { bone: Bone, place: [f32; 16] },
+    /// On no bone: a place in the gun's model, whatever its bones do.
+    Posed { place: [f32; 16] },
+}
+
+/// Which weapon a gun is (its address: a key, never read through), for as
+/// long as it lives; a later weapon may be made at the same one.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GunId(u32);
+
+/// The gun whose aim the hands are about to be aligned to.
+pub struct AimedGun<'c> {
+    weapon: raw::Weapon,
+    bones: raw::Float4x4,
+    site: PhantomData<&'c ()>,
+}
+
+/// The gun's bones while its idle clip alone poses them.
+pub struct IdleBones<'g>(&'g raw::Float4x4);
+
+impl<'c> AimedGun<'c> {
+    pub fn at_alignment(ctx: &'c Context<'_>) -> Option<AimedGun<'c>> {
+        use raw::site::hands_ik_aim_alignment as site;
+        // SAFETY: the context is this site's: process_hands_ik's frame holds
+        // the user's held weapon (kept at 0x295A09, tested at 0x295A0F) and
+        // ECX its bones' matrices of this frame (loaded at 0x295A9C), both
+        // alive while mt_draw's bone pass runs on this thread.
+        let (weapon, bones) = unsafe { (site::frame(ctx)?.weapon()?, site::bones(ctx)?) };
+        Some(AimedGun { weapon, bones, site: PhantomData })
+    }
+
+    pub fn id(&self) -> GunId {
+        GunId(self.weapon.address())
+    }
+
+    pub fn locator(&self) -> AimLocator {
+        // SAFETY: the live weapon's own locator, read on the one thread
+        // that reads it (calculate_aim_alignment, called next).
+        let (index, place) = unsafe {
+            let locator = self.weapon.aim_locator();
+            (*locator.bone(), floats(locator.offset()))
+        };
+        match Bone::parse(index) {
+            Some(bone) => AimLocator::OnBone { bone, place },
+            None => AimLocator::Posed { place },
+        }
+    }
+
+    /// The gun's bones, when what poses them this frame is its idle clip
+    /// alone: the weapon is in its idle state and its user's mixing tree
+    /// holds exactly one animation of this gun (the idle state's item clip;
+    /// a clip fading out, at any weight, is a second one). The game's own
+    /// state changes give the tree its new target in the same call
+    /// (select_animations 0x2D9690), so an idle weapon's tree holds its idle
+    /// clip; a world loaded from another game has both as that game sent them.
+    pub fn idle_bones(&self) -> Option<IdleBones<'_>> {
+        // SAFETY: the live weapon, its state and its user, and the tree the
+        // engine mixed this gun's bones from in this same pass
+        // (update_bones_matrices 0x2FF60F..0x2FF63E): its animation records
+        // and their nodes are alive and unchanged while the pass runs.
+        let mixed = unsafe {
+            if *self.weapon.state()?.id() != IDLE {
+                return None;
+            }
+            let tree = self.weapon.user()?.animation_tree()?;
+            let animations = tree.animations()?;
+            let mut mixed = 0u32;
+            for n in 0..*tree.animation_count() as usize {
+                if *animations.at(n).node()?.animated_object() == self.weapon.address() {
+                    mixed += 1;
+                }
+            }
+            mixed
+        };
+        (mixed == 1).then_some(IdleBones(&self.bones))
+    }
+
+    /// The aim locator placed in the gun's model, on no bone.
+    pub fn pose_locator(&mut self, place: [f32; 16]) {
+        // SAFETY: as `locator`; the write is whole before its one reader runs.
+        unsafe {
+            let locator = self.weapon.aim_locator();
+            write_floats(locator.offset(), place);
+            *locator.bone() = NO_BONE;
+        }
+    }
+}
+
+impl IdleBones<'_> {
+    /// A bone's matrix in the gun's model (a row-vector 4x4).
+    pub fn bone(&self, bone: Bone) -> [f32; 16] {
+        // SAFETY: the index is the aim locator's, which calculate_locator
+        // indexes these same matrices with (0x243C73) when left on its bone.
+        unsafe { floats(self.0.at(usize::from(bone.0)).value()) }
+    }
+}

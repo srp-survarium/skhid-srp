@@ -45,7 +45,7 @@ release/build-site --tree . [--with <resources.db.patch_<n>>]
 or, without that file, this tab on its own:
 
 ```
-nix build --impure -o py --expr 'with import <nixpkgs>{}; python3.withPackages(p:[p.pillow])'
+nix build --impure -o py --expr 'with import <nixpkgs>{}; python3.withPackages(p:[p.pillow p.numpy])'
 nix shell nixpkgs#jdk21 -c py/bin/python3 -I srp-026g/scripts/maps-tab/build.py \
   --stock "$SKHID_STOCK_DB" --patches <folder with the list's patches> \
   --dbgrab tools/re-kit/common/dbgrab/target/release/dbgrab --ffdec <ffdec-cli.jar> \
@@ -75,7 +75,7 @@ What comes from where:
 | Free for All's spawns | of its own project (`<weather>_8`, a copy of Team Deathmatch's), the team-2 respawn points alone: each player spawns there and nowhere else (exe patch 142, `docs/notes/ffa.md`). The two teams' points the copy keeps are not shown. The page draws a mode with no team's spawn as one kind: one colour, one swatch, no team in the tooltip |
 | Research units | the mode config's `parameters.capture_zones` (`cp_id`, `position`), shown where the mode's `rules` have Research's (480; `docs/notes/research_mode.md`) |
 | ammo stashes | `client_objects`: each `resupply_zone`'s collision zone, by team |
-| marker icons | `hud.swf` `Minimap._icons` (`PlayerBlue`, `Base`, `SpawnIcon`, `ResupplyIcon`), as SVG (FFDec), with each one's lightness and opacity so the page paints them in one blue and one red; the battery (the game's electrobox) is drawn flat after the real one, as the game has no flat icon of it (only a 96x64 photo-like one and an 11x9 glyph) |
+| marker icons | `hud.swf` `Minimap._icons` (`PlayerBlue`, `Base`, `SpawnIcon`, `ResupplyIcon`), as SVG (FFDec), with each one's lightness and opacity so the page paints them in one blue and one red; the battery: the kill feed's battery icon without its burst (the game's electrobox mesh, `models/weapons/electrobox.skinned_model/render/electrobox_s/converted_model`, in three-quarter view), traced as a vector SVG by `scripts/kill-feed-icons/make_battery_icon.py` (the owner, 2026-11-15: "we can use the same icon on website (without strike)") |
 | spawn facing | the respawn point's rotation: yaw = y, or pi - y when x and z are pi; forward (-sin yaw, cos yaw) in x/z (on every map the points face the enemy's side) |
 | artefact spawns | `client_objects`: each `artefact_container`'s collision zone, its artefacts from the `generic_anomaly_core` that lists it; names from `st_<artefact>_pickup_hint` |
 | minimap and its frame | `flash_movies/hud.swf`, `survarium.controls.Minimap` (`_minimapProps`, `_levels`) by the project's `project_name`, as the HUD picks it (exported with FFDec) |

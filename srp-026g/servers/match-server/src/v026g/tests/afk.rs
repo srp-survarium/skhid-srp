@@ -7,15 +7,16 @@ use survarium::v026g::match_msgs::rules::state;
 use super::{Bench, MAP_BATTERIES, session_of, setup};
 use crate::v026g::afk::Setting;
 use crate::v026g::{IdleRemoved, Settings};
+use session::v026g::match_kind::MatchKind;
 
 /// Six players, all alive in every world; `bots` places are test bots'.
-fn bench_of(settings: Settings, private: bool, bots: &[usize]) -> Bench {
-    bench_with_count(6, settings, private, bots)
+fn bench_of(settings: Settings, kind: MatchKind, bots: &[usize]) -> Bench {
+    bench_with_count(6, settings, kind, bots)
 }
 
-fn bench_with_count(count: usize, settings: Settings, private: bool, bots: &[usize]) -> Bench {
+fn bench_with_count(count: usize, settings: Settings, kind: MatchKind, bots: &[usize]) -> Bench {
     let mut setup = setup(count, MAP_BATTERIES);
-    setup.private = private;
+    setup.kind = kind;
     let mut bench = Bench::with_setup(setup, settings, bots, &[], false);
     alive(&mut bench, vec![true; count]);
     bench.join_all();
@@ -82,7 +83,7 @@ fn removed(bench: &Bench, place: usize) -> bool {
 
 #[test]
 fn a_player_without_input_for_three_minutes_of_play_is_removed() {
-    let mut bench = bench_of(Settings::default(), false, &[]);
+    let mut bench = bench_of(Settings::default(), MatchKind::Normal, &[]);
     // The countdown does not count: 20 s and more passed since the join.
     let play_at = until_play(&mut bench);
     play(&mut bench, 175_000, &[1, 2, 3, 4, 5]);
@@ -115,7 +116,7 @@ fn a_player_without_input_for_three_minutes_of_play_is_removed() {
 
 #[test]
 fn an_input_starts_the_three_minutes_again() {
-    let mut bench = bench_of(Settings::default(), false, &[]);
+    let mut bench = bench_of(Settings::default(), MatchKind::Normal, &[]);
     until_play(&mut bench);
     play(&mut bench, 120_000, &[1, 2, 3, 4, 5]);
     // One turn of the view.
@@ -129,7 +130,7 @@ fn an_input_starts_the_three_minutes_again() {
 
 #[test]
 fn time_dead_does_not_count() {
-    let mut bench = bench_of(Settings::default(), false, &[]);
+    let mut bench = bench_of(Settings::default(), MatchKind::Normal, &[]);
     until_play(&mut bench);
     // Player 0 is dead in every world from here on, and never respawns.
     alive(&mut bench, [false, true, true, true, true, true]);
@@ -140,7 +141,7 @@ fn time_dead_does_not_count() {
 
 #[test]
 fn time_its_game_is_not_heard_does_not_count() {
-    let mut bench = bench_of(Settings::default(), false, &[]);
+    let mut bench = bench_of(Settings::default(), MatchKind::Normal, &[]);
     let play_at = until_play(&mut bench);
     play(&mut bench, 100_000, &[1, 2, 3, 4, 5]);
     // Its game shows no running simulation for two minutes (no hash
@@ -162,7 +163,7 @@ fn time_its_game_is_not_heard_does_not_count() {
 
 #[test]
 fn a_private_rooms_match_removes_nobody() {
-    let mut bench = bench_of(Settings::default(), true, &[]);
+    let mut bench = bench_of(Settings::default(), MatchKind::PrivateRoom, &[]);
     until_play(&mut bench);
     play(&mut bench, 400_000, &[]);
     assert!(bench.clients.iter().all(|client| !client.told_to_leave));
@@ -175,7 +176,7 @@ fn the_setting_off_removes_nobody() {
         anti_afk: Setting::Off,
         ..Settings::default()
     };
-    let mut bench = bench_of(settings, false, &[]);
+    let mut bench = bench_of(settings, MatchKind::Normal, &[]);
     until_play(&mut bench);
     play(&mut bench, 400_000, &[]);
     assert!(bench.clients.iter().all(|client| !client.told_to_leave));
@@ -185,7 +186,7 @@ fn the_setting_off_removes_nobody() {
 #[test]
 fn a_bot_is_never_removed() {
     // Place 2 is a test bot's: it never gives an input.
-    let mut bench = bench_of(Settings::default(), false, &[2]);
+    let mut bench = bench_of(Settings::default(), MatchKind::Normal, &[2]);
     until_play(&mut bench);
     play(&mut bench, 400_000, &[0, 1, 3, 4, 5]);
     assert!(bench.clients.iter().all(|client| !client.told_to_leave));
@@ -211,7 +212,7 @@ fn a_match_against_bots_removes_nobody() {
 
 #[test]
 fn a_player_who_leaves_is_no_idle_removal() {
-    let mut bench = bench_of(Settings::default(), false, &[]);
+    let mut bench = bench_of(Settings::default(), MatchKind::Normal, &[]);
     until_play(&mut bench);
     play(&mut bench, 30_000, &[0, 1, 2, 3, 4, 5]);
     // By its own word (0xE0): it leaves, nobody is told it was idle.
@@ -224,7 +225,7 @@ fn a_player_who_leaves_is_no_idle_removal() {
 #[test]
 fn four_or_fewer_humans_are_exempt_even_with_a_test_bot() {
     for (count, bots) in [(2, &[][..]), (4, &[][..]), (5, &[4][..])] {
-        let mut bench = bench_with_count(count, Settings::default(), false, bots);
+        let mut bench = bench_with_count(count, Settings::default(), MatchKind::Normal, bots);
         until_play(&mut bench);
         play(&mut bench, 400_000, &[]);
         assert!(bench.clients.iter().all(|client| !client.told_to_leave));
@@ -235,7 +236,7 @@ fn four_or_fewer_humans_are_exempt_even_with_a_test_bot() {
 
 #[test]
 fn simultaneous_afk_kicks_stop_at_four_remaining_humans() {
-    let mut bench = bench_of(Settings::default(), false, &[]);
+    let mut bench = bench_of(Settings::default(), MatchKind::Normal, &[]);
     until_play(&mut bench);
     play(&mut bench, 400_000, &[]);
     assert_eq!(bench.idle_removed.try_iter().count(), 2);
@@ -252,7 +253,7 @@ fn simultaneous_afk_kicks_stop_at_four_remaining_humans() {
 
 #[test]
 fn a_departure_pauses_enforcement_when_only_four_remain() {
-    let mut bench = bench_with_count(5, Settings::default(), false, &[]);
+    let mut bench = bench_with_count(5, Settings::default(), MatchKind::Normal, &[]);
     until_play(&mut bench);
     play(&mut bench, 100_000, &[1, 2, 3, 4]);
     bench.clients[4].leave();

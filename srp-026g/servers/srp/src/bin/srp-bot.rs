@@ -24,7 +24,8 @@ place in the match, stays to the end without playing, takes the results
 and presses Play again.
 
   srp-bot [--server HOST:PORT] [--name NAME] [--password PASSWORD]
-          [--count N] [--once] [--kit ID] [--drive] [--revision N]
+          [--count N] [--once] [--kit ID] [--drive[=shots]] [--suicide-after S]
+          [--revision N]
 
   --server    the login server, as the game's -server= (default
               127.0.0.1:1234; or SRP_BOT_SERVER)
@@ -43,9 +44,18 @@ server logs it at its start.
               the late join's); only 5 or later plays in rooms
   --kit ID    press Play with this kit id (default: the kit the account
               plays)
+  --drive=shots  in a match, stand where it spawned and fire a second every
+              few seconds, reloading (srp::drive::shots): for another client
+              to watch its gun
+  --suicide-after S  (test only, with --drive) S seconds after it has the
+              world, its next input carries the suicide bit, once: its body
+              and gun lie where it stood
   --drive     in a match, send inputs: a fixed script (walk, turn a quarter,
               walk, sprint, crouch, fire, reload, weapon 2, turn back),
               again and again; each input is printed (srp::drive)
+
+SRP_GAME_DATA: use the same server-game-data.db as the local server.
+Without it the bot uses the embedded test archive.
 
 The server must name the bots' accounts: SRP_BOT_ACCOUNTS=bot-1,bot-2
 (testing only: never on a public server).
@@ -83,7 +93,8 @@ fn main() {
     let mut count = 1_usize;
     let mut once = false;
     let mut kit = None;
-    let mut drive = false;
+    let mut drive = None;
+    let mut suicide_after = None;
     let mut revision = survarium::v026g::match_msgs::late_join::PATCH_REVISION;
 
     let mut args = std::env::args().skip(1);
@@ -123,7 +134,19 @@ fn main() {
                     .unwrap_or_else(|_| fail("--revision must be 0 to 255"));
             }
             "--once" => once = true,
-            "--drive" => drive = true,
+            "--suicide-after" => {
+                let seconds: u64 = value("--suicide-after")
+                    .parse()
+                    .unwrap_or_else(|_| fail("--suicide-after takes whole seconds"));
+                suicide_after = Some(std::time::Duration::from_secs(seconds));
+            }
+            "--drive" => {
+                drive = Some(match inline.as_deref() {
+                    None => srp::drive::Script::Stage0,
+                    Some("shots") => srp::drive::Script::Shots,
+                    Some(_) => fail("--drive takes no value or `shots`"),
+                })
+            }
             "--help" | "-h" => {
                 print!("{USAGE}");
                 return;
@@ -135,6 +158,14 @@ fn main() {
         fail("the name must be 1 to 255 bytes");
     }
     let password = password.unwrap_or_else(|| DEFAULT_PASSWORD.to_owned());
+
+    // Use the same catalogue as the local server before the client model reads
+    // any tables. The embedded test archive cannot describe ported/live items.
+    if env(survarium::v026g::game_data::GAME_DATA_ENV).is_some()
+        && let Err(error) = survarium::v026g::game_data::init()
+    {
+        fail(&format!("SRP_GAME_DATA: {error}"));
+    }
 
     let names = bot::names(&name, count);
     println!(
@@ -155,6 +186,7 @@ fn main() {
             kit,
             drive,
             revision,
+            suicide_after,
         })
         .collect();
     let print: bot::Print = Arc::new(|line| println!("{} {line}", clock()));

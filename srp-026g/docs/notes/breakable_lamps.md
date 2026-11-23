@@ -10,14 +10,18 @@ not change the bullet's trajectory or the map's collision mesh.
 The content list covers levels 02–08, all their day/evening/rain variants
 and modes 2–5, London (level_09) in modes 2–5, plus the v0.11 Vostok and
 Chemical Plant and v0.21 Vostok and Mamayev Kurgan day variants in modes 2
-and 4: 96 projects, 2,487 fixtures and 857 linked lights. It covers bare
+and 4: 96 projects, 2,649 fixtures and 857 linked lights. It covers bare
 bulbs, ceiling lamps, white wall lamps, red alarm lamps, green lamps
-with/without wires and fluorescent fixtures (tubes, ceiling grids, hanging
-double tubes). Streetlights and other fixture models are not yet configured.
+with/without wires, fluorescent fixtures (tubes, ceiling grids, hanging
+double tubes) and lit kerosene lamps. Streetlights and other fixture models
+are not yet configured.
 Fixtures with no glass to break stay scenery: empty fluorescent fittings
 (`fluor_lamp_base`, `lamp_big_03`, a `lamp_midle_04` without tubes) and
 v0.11's `lamp_midle_0N`, older meshes than the stock broken housings. It
-does not darken baked lights, sunlight, environment probes or ambient light.
+does not darken baked lights, sunlight or a room's ambient lights. A lit
+alarm lamp's red glow, an ambient light of its own, goes out with it
+(below), and so does a tube lamp's share of the room probe its light is
+baked into, on London (v0.32) and London (v0.42) (Room probes, below).
 
 ## Content
 
@@ -25,6 +29,15 @@ does not darken baked lights, sunlight, environment probes or ambient light.
 in `release/content.tsv`. `scripts/breakable-lamps/make_edits.py` authored it
 from the manifest's base projects plus Research, using model bounds from
 those same layers (including the ported models).
+Its input is every project as the manifest's rows above the list leave it
+(the base, the packs, and the earlier edit lists: the 0.21 weathers' own
+geometry, `v021d-weather-geometry-1.json`, comes just before it). A pack that
+copies a lamp day into another weather (London's rain and evening, the 0.21
+maps' rain and evening) carries the day's broken models and table: the
+generator authors such a project over them and replaces its table
+(`remove_key`, then the new value) only where the rule now binds otherwise
+(London's weathers, Fort's and Chemical Plant's v0.21 weathers: their
+kerosene lamps, and London's battery modes' extra hanging lamp).
 The list adds the broken visuals and a project-root `srp_lamps` table:
 
 - `version = 3`, `break_material`: the glass material id read from
@@ -46,6 +59,33 @@ The list adds the broken visuals and a project-root `srp_lamps` table:
 - Nearby light/cone assignments are explicit in the list, not guessed at
   runtime. Authoring rejects ambiguous assignments. Overlapping bulb and cover
   meshes, such as level_06's ceiling fixture, are one lamp.
+- A lit kerosene lamp (London 11, Tarakanovsky Fort 9, level_04 1, and the
+  0.21 ports' copies of the models: Fort v0.21 9, Chemical Plant v0.21 1; the
+  owner's `2026-11-15-20-44-11.png`) is three things: a frame
+  (`stand_group_batlamp`, standing or on a rope, or `wall_group_nailed_batlamp`),
+  its lit glass, a model of its own (`..._glass_emit`), and its flame, a
+  particle object (`fx/lights/oil_lamp`) inside the glass, which lights the
+  place too: there is no light object. The glass is an intact visual with no
+  broken one and the frame a housing, as the lit tubes above; the flame
+  within 0.4 m of the fixture is listed in a `particles` table, as `lights`
+  (`LANTERN_GLASS`, `FLAME`, `FLAME_REACH`). A break hides the glass, puts the
+  flame out and bursts along the glass (0.27 m: two bursts). A frame without
+  the lit glass is an unlit lamp, scenery. A survey of every map project
+  (2026-11-20) found three more flame fixtures, all scenery: the Fort's (and
+  Fort v0.21's) one hanging chain lamp (`ceiling_group_chain_lamp`), whose
+  flame burns in a model with its glass in its own mesh, so there is no glass
+  to hide and no broken model; `stand_group_oil_lamp` (level_02, the Fort,
+  School v0.21), never lit (no flame); and the Fort's wall torches
+  (`wall_group_torch_emit`, six on each map), an open flame with no glass.
+- A lit alarm lamp (`alarm_red_light`) has no light object: it glows through
+  a red ambient light beside it. Its row lists it in an `ambient_lights`
+  table, as `lights` (exact positions, names for review); the other rows have
+  no such table. Authoring gives a lit alarm fixture every red ambient light
+  within 2.5 m of it (`LIT_ALARMS`, `ALARM_GLOW_REACH`, `is_red`): Vector's
+  one (0.6 m away) and level_05's six at five lamps (up to 2.4 m), in all
+  their variants. The rooms' grey and coloured fills near other lamps are
+  not a lamp's and stay. The owner's `2026-11-15-20-23-12.png` (Vector, the
+  alarm lamp at 10.68, 15.37, -6.34 broken, its red light left) was this.
 - Lit tubes that are models of their own (`fx/lamp2` and its two flicker
   variants, three in a tubeless `lamp_midle_04` housing on Vector and London)
   are intact visuals with no broken one: breaking hides them. The housing is
@@ -78,6 +118,100 @@ Build this resource-porter pack into
 `$SKHID_PACKS_DIR/breakable-lamps-2`, then use `release/build-content` normally.
 No release patch is assembled by the authoring tools.
 
+## Room probes
+
+In a ported map most of a room's light is its environment probe's, whose
+cubemap the donor's editor baked with the lamps on. Nothing in the donors
+ties a probe or an ambient light to a lamp: 0.44a5's and 0.32a4's lamp group
+holds its point light and its sparks alone, their ambient lights are each
+weather's fill set (`ambient_light_day`, `ambient_evening_light`: sky-blue
+and grey, none in a tube lamp's reach), and a probe has no owner field. The
+owner's `2026-11-22-05-55-19.png` (London (v0.42), the tower's corridor,
+lamp at 1.5, 16.8, 0.4 broken) was this: no ambient light within 9 m, the
+corridor drawn by `gerkin(4)`, whose light is some 60 % its lavender tube's.
+
+`scripts/breakable-lamps/probe_light.py` splits a probe's light by colour.
+Its light is the mean of its irradiance cubemap (`_diffuse.dds`) as 0.26g's
+shader reads it (RGBM); it is fitted as a mix of the lamp's colour (its
+light object's) and the room's light without lamps (the mean colour of the
+project's probes that hold no lamp's light). A diffuse probe whose volume
+holds the light of one lamp alone, and whose light is at least 40 % that
+lamp's (`LAMP_SHARE`), is that lamp's: its row lists it in a `probes` table
+(exact position, name, `keeps`: the share of its light not the lamp's, at
+least 0.15, `KEEPS_FLOOR`). The two colours must differ by 8 degrees
+(`SPLIT_ANGLE`): a warm bulb or a kerosene flame (no light object) is the
+daylight's colour and splits nothing. London (v0.42)'s day projects bind 5
+probes (`gerkin(4)` keeps 0.43, `gerkin(5)`, `hall(2)`, `hall_2_floor(3)`,
+`(11)`), London (v0.32)'s day, rain and evening 5 to 7.
+
+London (v0.42)'s rain light is as blue as the tubes: no split. The lamp and
+the probes (their names, places and boxes) are the same in every weather
+(checked on both Londons), so where a weather's own split cannot be made the
+day's lamp light in the probe of that name and place is taken out of the
+weather's, where some of every channel is left: London (v0.42)'s rain binds 5
+probes so. What is left need not have the room's colour: the rain is as blue
+as the lamp (which is why its own split cannot be made), and the neighbours'
+floor below keeps the room from going darker than the rooms beside it. (Until
+the owner's 2026-11-22-07-52-13.png the rest had to be within `SPLIT_ANGLE`
+of the room's colour, which left out `hall(2)`, the stone building's opened
+first-floor room, 14 degrees off: it keeps 0.41 now.) Its evening bake
+carries no lamp (taking the day's lamp out leaves negative light) and its
+own split binds nothing.
+
+That room stays brighter than the rain outside with its lamp lit or broken:
+both Londons' rain light it with `ambient_light(14)`, a fill of radius 9 and
+intensity 2 (adding its whole warm-white colour, 255, 223, 225), the
+strongest rain fill there. It is not a lamp's: its centre is outside the
+room's probe, in the facade's opening, 5.7 m from the tube, of another colour
+than the tube's, and the rain sets have no fill tied to a lamp. Whether 0.26g
+adds it as 0.44a5 and 0.32a4 do is not checked yet (the reference rig, in
+rain, at that spot).
+
+The fill lights inside a lamp's room probe (ambient lights, additive in
+London: intensity above 1) are its room's baked light too and go out with
+it, in the row's `ambient_lights` table (a fill in two lamps' probes is the
+nearest lamp's): London (v0.32)'s rain 3 (`ambient_light(125)` in `gerkin(5)`
+was one of the two pools the owner saw in rain_4's office,
+2026-11-22-06-30-46.png), its evening 1, London (v0.42)'s day and rain 1. A
+fill outside any lamp's probe (the other pool there, `ambient_light(124)`, in
+`gerkin(13)`, which holds no lamp) stays: the weathers' fill sets light rooms
+with no lamp alike. The rule binds 4 probes on Vostok (v0.11) too, whose list
+(`breakable-lamps-1.json`) is not regenerated yet.
+
+A broken lamp's probe stays drawn, with its `diffuse_multiplier` and
+`specular_multiplier` (+3F0h, +3F4h, read by `insert`) times `keeps`: the
+registry takes it out and puts it back with the other multipliers
+(`drive_probe`), and gives it back its own when the lamp is whole again or
+the project goes. One multiplier dims the probe's light, not its colour: the
+lamp's tint stays in what is left. A probe in the boxes of two lamps (a
+room's or a building's) is left as it is.
+
+A dimmed probe is never darker than what is drawn beside it, where its room
+goes on into the next (`neighbour_light`): the probes that overlap it
+without holding all of it (not one under it, a building's), at most twice
+its radius, laid over one another as the renderer does (largest first, each
+by its smoothstep alpha), just outside its box at its middle height. Its
+`keeps` is at least their light over its own. The split alone took London
+(v0.32) evening's corridor probe `gerkin(4)` to 0.26 of 0.33 (0.085) between
+`gerkin(1)`, `(2)`, `(3)` and `gerkin_hall_centre` at 0.11 to 0.13: its box
+showed as a dark rectangle, and the corridor beyond it as a lit patch (the
+owner's 2026-11-22-07-16-06.png). It keeps 0.38 now, their 0.12. A probe the
+lamp-free rooms beside are as bright as (London (v0.42)'s
+`hall_2_floor(3)`, darker than them with its lamp on) keeps all of it.
+
+The renderer draws the visible probes largest sort key first. A render
+probe's key is its radius plus a number in [0, 0.1) its constructor makes from
+its heap address (+380h, 0x1C2F30..0x1C2FA6, added by `set_properties`
+0x1C370F), so probes of one radius come in an order of the run. A neighbour of the dimmed probe's radius that overlaps it
+(London (v0.32)'s `bkg_building_all_floor_low_32(7)` over the top half metre
+of `hall_2_floor(4)`'s room, 0.124 against the dimmed 0.049: the owner's
+bright strip under the ceiling, 2026-11-22-06-31-49.png) shows through where
+it happens to be drawn later. While dimmed, the probe's radius (+3ECh) is
+0.1 less (`DRAWN_OVER`): its key is below every key of its radius, whatever
+the numbers, so it is drawn over its equals. (#2400's 1 mm did that in about
+half the runs.) A box probe's volume and falloff are its transform and side
+width, not its radius; London binds box probes only.
+
 ## Rust implementation and ownership
 
 `client-patches/rust/patches/src/lamps.rs` and `lamps/model.rs` implement the
@@ -101,6 +235,25 @@ and presentation bindings. An uninstalled `ProjectPlan` borrows the insertion
 hook. Every visual index, exact light position, native type, unique owner
 and capacity is checked before committing any vtable change. Scenery without
 metadata requires none of the lamp-specific scene or physics inputs.
+
+The registry binds five native kinds, each by its own table: render visuals
+(0xA029B4), `object_light` (0xA0ADEC), `object_ambient_light` (0xA0AC4C),
+`object_particle_visual` (0xA0AFAC, the table of the object at +0) and
+`object_environment_probe` (0xA0ABEC: insert 0x28FFD0, remove 0x2904A0 at
+slots 8 and 9, `this` in ECX, the translation at +140h; insert hands its
+properties to `scene_renderer::update_environment_probe` under its render id
++3E4h, remove takes that id out).
+The ambient light has `object_light`'s layout where the patch reads it: ten
+methods with insert and remove at slots 8 and 9 (0x290930, 0x290AE0: `this`
+in ECX, nothing on the stack), the translation at +140h. Its insert hands
+its transform, colour, intensity and radius to
+`scene_renderer::update_ambient_light` under its render id (+154h); its
+remove takes that id out. The particle object is the same again (insert
+0x292CC0, remove 0x292DC0): its insert plays its system (+158h) at its
+transform through `scene_renderer::play_particle_system` and, when it has a
+track (+160h), registers its tick with the scene; its remove takes the
+instance out and unregisters the tick. The registry calls each kind's own
+two methods, and never the renderer directly.
 
 The native insertion hook is `simple_game_project::insert` (0x285750): ECX
 is the project, its first stack argument the physics world. Scene +98h is
@@ -247,8 +400,8 @@ The reader's `{begin, cursor, byte_count}` is bounded before reading the suffix;
 wrong magic/count or truncated data is rejected before changing any lamp.
 Invalid project metadata is rejected before any native vtable changes.
 Metadata naming objects the map does not have (a visual index past the
-map's visuals or of another kind, a light position no light or two lights
-have, one object bound twice) leaves that project without lamps, with the
+map's visuals or of another kind, a light or ambient light position none or
+two of the map have, one object bound twice) leaves that project without lamps, with the
 game's own vtables, and logs the reason to `srp_patches.log`: every client
 loads the same content, so all agree. Malformed metadata still aborts.
 History errors are reported after releasing the registry lock.
@@ -260,7 +413,7 @@ the release workflow's responsibility; this feature does not change `REVISION`.
 ## Verification
 
 `check_lamps_026g.py <original exe>` runs native config lookup, project
-iteration/vtable dispatch, visual/light methods, bullet history and installed
+iteration/vtable dispatch, visual, light and ambient light methods, bullet history and installed
 hooks in Unicorn. It covers all 96 authored variants, hits, occlusion, the shard bursts on
 the glass lines of Mamayev Kurgan's plafon (3), London's tubes (6, one fixture
 turned 54 degrees) and School's and Vector's fluorescent fixtures (10, from a

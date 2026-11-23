@@ -20,6 +20,7 @@ package survarium.controls
    import survarium.constants.ItemCategory;
    import survarium.constants.QuickSlotSize;
    import survarium.data.LocalizationData;
+   import survarium.upgrade.UpgradeWindow;
    
    public class ItemCompare extends MovieClip
    {
@@ -267,7 +268,8 @@ package survarium.controls
             var modifierProp:Object;
             var propValue:Number;
             var modifierDescription:Object;
-            var modifierList:Object = owner.modifiers;
+            // held Alt, a weapon's fitted device and grip count as its rolls (UpgradeWindow.withFitted)
+            var modifierList:Object = effects != null && owner.isWeapon ? UpgradeWindow.withFitted(owner) : owner.modifiers;
             if(modifierList)
             {
                for each(modifierEntry in modifierList)
@@ -336,8 +338,9 @@ package survarium.controls
             _diff.indicator.setChange(null,null);
          }
          // What one unit takes of a pocket (docs/notes/one-pocket-a-type.md, "The pocket's units
-         // shown"): 1, the RGD-5's 2, a booster's whole pocket; less is better. The first row.
-         var depth:int = pocketDepth(this._primary);
+         // shown"): 1, the RGD-5's 2, a Bear Trap trap's 1.5, a booster's whole pocket; less is
+         // better. The first row.
+         var depth:Number = pocketDepth(this._primary);
          if(depth > 0 && index < indicators)
          {
             modifier_value = 0;
@@ -353,7 +356,7 @@ package survarium.controls
          // Held Alt over a medicine: under its own lines, what the medical skills do while it is
          // active or as it heals (MatchEffects.medicineSkillLines). They keep their rows: with
          // more to show than the card's rows, it is the stat rows before the weight that go.
-         var skillLines:Array = effects != null && medical ? effects.medicineSkillLines(this._primary) : [];
+         var skillLines:Array = effects == null ? [] : medical ? effects.medicineSkillLines(this._primary) : effects.technicalSkillLines(this._primary);
          for each(var s:Object in fitted(cardRows(ownOnly),ammoDetails,weaponDetails,indicators - index - skillLines.length))
          {
             if(ammoDetails || weaponDetails && s.prop_id == 24) continue;
@@ -392,19 +395,17 @@ package survarium.controls
                }
             }
          }
-         // Held Alt over a medicine: below its own lines, what the medical skills do while it is
-         // active or as it heals (MatchEffects.medicineSkillLines), "100 -> in a match" in %.
-         if(effects != null && medical)
+         // Held Alt: below its own lines, what the skills do with it (MatchEffects.medicineSkillLines,
+         // technicalSkillLines), "100 -> in a match" in %, or a value with its own postfix.
+         for each(var line:Object in skillLines)
          {
-            for each(var line:Object in skillLines)
-            {
-               if(index == indicators) break;
-               modifier_value = 0;
-               initIndicatorValues(this._indicator[index],{prop_id:-1,prop_name:line.name,postfix:"%",min_value:0,max_value:200,
-                  direction:line.higherIsBetter ? PropertyDirection.HIGHER_IS_BETTER : PropertyDirection.LOWER_IS_BETTER},line.after,line.after);
-               _diff.indicator.setChange(MatchEffects.change(line.before,line.after,2) + "%",MatchEffects.verdict(line.before,line.after,line.higherIsBetter));
-               index++;
-            }
+            if(index == indicators) break;
+            var linePostfix:String = line.postfix != null ? line.postfix : "%";
+            modifier_value = 0;
+            initIndicatorValues(this._indicator[index],{prop_id:-1,prop_name:line.name,postfix:linePostfix,min_value:0,max_value:200,
+               direction:line.higherIsBetter ? PropertyDirection.HIGHER_IS_BETTER : PropertyDirection.LOWER_IS_BETTER},line.after,line.after);
+            _diff.indicator.setChange(MatchEffects.change(line.before,line.after,2) + linePostfix,MatchEffects.verdict(line.before,line.after,line.higherIsBetter));
+            index++;
          }
          while(index < indicators)
          {
@@ -462,7 +463,7 @@ package survarium.controls
                }
             }
          }
-         var theirs:int = pocketDepth(this._secondary);
+         var theirs:Number = pocketDepth(this._secondary);
          index = 0;
          while(theirs > 0 && index < indicators)
          {
@@ -561,12 +562,12 @@ package survarium.controls
 
       // The pocket units one of `item` takes: all of them (MAX_POCKET_UNITS) for an item that
       // fills a pocket; 0 for an item that goes in no pocket.
-      private static function pocketDepth(item:Object) : int
+      private static function pocketDepth(item:Object) : Number
       {
          if(item == null || item.category != ItemCategory.MEDKITS && item.category != ItemCategory.BOOBY_TRAPS && item.category != ItemCategory.GRENADES)
             return 0;
          if(item.quickSlotItemSize == QuickSlotSize.WHOLE) return PlayerInfo.MAX_POCKET_UNITS;
-         return item.quickSlotItemSize == QuickSlotSize.PAIR ? 2 : 1;
+         return PlayerInfo.itemUnits(item.category,item.quickSlotItemSize);
       }
    }
 }

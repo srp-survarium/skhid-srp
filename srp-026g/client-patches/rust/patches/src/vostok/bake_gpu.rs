@@ -30,7 +30,7 @@ use core::marker::PhantomData;
 use core::ops::{Add, AddAssign, Range};
 use core::ptr::{null, NonNull};
 
-use super::baker::{Model, Texture, TextureKind};
+use super::baker::{List, Model, Texture, TextureKind};
 use super::clock;
 use super::context::{Context, Reg};
 use super::hook::Thread;
@@ -1236,6 +1236,17 @@ enum Save {
     Held(Pending),
 }
 
+impl Save {
+    /// Whether the tail made no descriptor for the DDS: nothing writes the
+    /// bake's file.
+    fn unwritten(self) -> bool {
+        match self {
+            Save::Skipped | Save::Held(_) => true,
+            Save::Pending | Save::Owned => false,
+        }
+    }
+}
+
 /// A completion under way on its thread: its levels read back, the call
 /// made (its prologue not reached yet), or in its tail.
 #[derive(Clone, Copy)]
@@ -1421,8 +1432,8 @@ fn tail(thread: &Thread) -> Option<(NonNull<u8>, Save)> {
 /// the device manager wrote it), and the device manager's queue is the
 /// load's reads': in the 2026-11-09 match load (458 bakes in 11 s, 774 MB of
 /// DDS) MT went to 99.3% and the game crashed. Past either bound a bake's
-/// texture is made and used, not saved (its DDS freed at once): baked again
-/// next game.
+/// texture is made and used, not saved (its DDS freed at once) and not
+/// listed ([`free`]): baked again the next time it is asked for.
 pub const SAVES: usize = 64;
 pub const SAVE_BYTES: u32 = 128 << 20;
 
@@ -1562,14 +1573,27 @@ pub fn save(ctx: &mut Context<'_>) -> bool {
     true
 }
 
-/// `bake.free`, the tail about to free the DDS to the render allocator: a
-/// resumed bake's DDS is MT memory (a descriptor's, or [`Claim::tail`]
-/// frees it), so EBX 0 skips that free.
+/// `bake.free`, the tail past its record's push_back (0x12F3F2), about to
+/// count the record's bytes (0x12F3FE) and to free the DDS to the render
+/// allocator: a resumed bake's DDS is MT memory (a descriptor's, or
+/// [`Claim::tail`] frees it), so EBX 0 skips that free. A bake with no save
+/// ([`Save::unwritten`]) has no file and will have none: its record, the
+/// list's last, goes with its bytes (which the tail then counts: the list's
+/// bytes as before the bake). Listed, every later query of its path asked
+/// for the file, failed (on_baked_texture_loaded 0x12DB66 leaves the record
+/// of a file that cannot be read where it is) and left its item without
+/// that texture for the rest of the game; not listed, the next query bakes
+/// it, and saves it if the saves have room by then.
 pub fn free(ctx: &mut Context<'_>) {
-    if let Some((dds, _)) = tail(ctx.thread())
-        && ctx.reg(Reg::Ebx) == dds.as_ptr() as usize as u32
+    let Some((dds, save)) = tail(ctx.thread()) else { return };
+    if ctx.reg(Reg::Ebx) != dds.as_ptr() as usize as u32 {
+        return;
+    }
+    ctx.set_reg(Reg::Ebx, 0);
+    if save.unwritten()
+        && let Some(record) = List::newest()
     {
-        ctx.set_reg(Reg::Ebx, 0);
+        record.remove();
     }
 }
 

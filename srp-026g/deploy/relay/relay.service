@@ -1,0 +1,29 @@
+[Unit]
+Description=Skhid regional game relay
+Requires=wg-quick@skhid-relay.service
+After=network-online.target wg-quick@skhid-relay.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+DynamicUser=yes
+EnvironmentFile=/etc/skhid-relay/relay.env
+ExecStart=/opt/skhid-relay/run --public ${RELAY_PUBLIC} --backend ${RELAY_BACKEND}
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_UNIX
+CapabilityBoundingSet=
+MemoryMax=192M
+TasksMax=512
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

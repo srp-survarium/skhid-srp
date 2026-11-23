@@ -155,6 +155,8 @@ st_ak74u_description	Укороченная модификация автома�
 st_ak74u_name	АКC-74У
 st_ak74u_premium_description	Укороченная модификация автомата АК74 под боеприпас 5.45х39. Благодаря своим размерам, широко использовался десантниками, МВД и охранными структурами. Поддерживает одиночный и автоматический режим стрельбы. Премиум-версия в особом камуфляже.
 st_ak74u_premium_name	АКС-74У "Корсар"
+st_ak_zenit_rk2_foregrip_desc	Отдача -3%. Время прицеливания +1%.
+st_ak_zenit_rk2_foregrip_name	Тактическая рукоять Зенит РК-2
 st_akmn_description	Автомат Калашникова модернизированный под 7.62×39мм патрон. Благодаря мощному патрону не теряет своей актуальности и в на ше время. Поддерживает одиночный и автоматический режим стрельбы.
 st_akmn_name	АКМ
 st_akmn_premium_2_description	Автомат Калашникова модернизированный под 7.62×39мм патрон. Благодаря мощному патрону не теряет своей актуальности и в на ше время. Поддерживает одиночный и автоматический режим стрельбы. Премиум-версия в особом камуфляже.
@@ -265,6 +267,16 @@ st_artcontainer_time_corr_perc_name	Время поиска
 st_artefact_activated_message	Артефакт активирован
 st_artefact_booster_description	Вторая версия прибора, изобретенного умельцами для извлечения артефактов. Благодаря встроенному погасителю аномальной активности артефакта позволяет ускорить процесс экстракции.
 st_artefact_booster_name	Артефакт-мастер
+st_artefact_hunt_draw	Ничья. Время вышло
+st_artefact_hunt_enemy_delivered	Команда противника доставила артефакт
+st_artefact_hunt_lost_collected	Поражение. Все артефакты собраны
+st_artefact_hunt_lost_time_out	Поражение. Время вышло
+st_artefact_hunt_lost_wiped	Поражение. Ваша команда выбыла
+st_artefact_hunt_team_delivered	Ваша команда доставила артефакт
+st_artefact_hunt_won_collected	Победа! Все артефакты собраны
+st_artefact_hunt_won_time_out	Победа! Время вышло
+st_artefact_hunt_won_wiped	Победа! Команда противника выбыла
+st_artefact_hunt_you_picked	Вы подобрали артефакт
 st_artefact_no_free_slots	Нет свободных слотов, чтобы взять артефакт!
 st_artefact_search_failed	Артефакт не найден
 st_artefact_search_success	Вы достали артефакт!
@@ -707,6 +719,7 @@ st_character_decals_4_72_name	Флаг Анголы
 st_character_decals_4_73_name	Флаг Нигерии
 st_character_decals_4_74_name	Флаг ЮАР
 st_character_decals_4_75_name	Флаг Уэльса
+st_character_decals_4_76_name	Флаг Косово
 st_character_decals_4_7_name	Флаг Литвы
 st_character_decals_4_8_name	Флаг Эстонии
 st_character_decals_4_9_name	Флаг Молдовы
@@ -746,6 +759,7 @@ st_character_decals_5_3_name	Герб Украины
 st_character_decals_5_40_name	Герб Ирландии
 st_character_decals_5_41_name	Герб Хорватии
 st_character_decals_5_42_name	Герб Боснии и Герцеговины
+st_character_decals_5_43_name	Герб Косово
 st_character_decals_5_4_name	Герб Беларуси
 st_character_decals_5_5_name	Герб Казахстана
 st_character_decals_5_6_name	Герб Латвии
@@ -883,9 +897,13 @@ st_crosshair_static_option	Статический прицел
 st_crosshair_type_option	Выбор прицела
 st_crouch_action	Присесть (удерж.)
 st_crouch_toggle_action	Присесть
+st_cs_mp_atp_name	АТП
 st_cs_mp_bath_name	Бассейн
+st_cs_mp_darkvalley_name	Тёмная долина
+st_cs_mp_firestation_name	Пожарная станция
 st_cs_mp_military_1_name	Армейские склады
 st_cs_mp_rembasa_name	Ремонтная база
+st_cs_mp_sport_center_name	Спортивный центр
 st_cs_training_camp_name	Тренировочный лагерь
 st_ct_max_members_count_error	Ошибка добавления. В клановой команде уже находится максимальное количество игроков.
 st_current_value	\nТекущее значение:
@@ -1123,6 +1141,10 @@ st_exp_reward_match	Получено опыта за матч
 st_exp_reward_premium	Бонус за премиум
 st_experience	Опыт
 st_experience_modifier	Получаемый опыт
+st_fabdefence_miki_foregrip_desc	Отдача -3%. Время прицеливания +1%.
+st_fabdefence_miki_foregrip_name	Рукоять FAB-Defense MIKI
+st_fabdefence_ptk_foregrip_desc	Отдача -3.5%. Время прицеливания +1.2%.
+st_fabdefence_ptk_foregrip_name	Рукоять FAB-Defense PTK
 st_face_069d_balaclava_3_hole_desc	Вязаная балаклава с прорезями для глаз и рта. Тёплая и скрывает лицо.
 st_face_069d_balaclava_3_hole_name	Трёхдырочная балаклава
 st_face_069d_balaclava_desc	Облегающая армейская балаклава с одной прорезью для глаз, сделанная для ношения под шлемом.
@@ -1207,6 +1229,8 @@ st_fn_minimi_description	Бельгийский ручной пулемет по
 st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Бельгийское оружие самообороны под боеприпас 5.7х28. Создано FN Herstal около 1990 года вместе с собственным патроном; «буллпап» с магазином на 50 патронов вдоль верха оружия. Служит в спецназе и полиции многих стран. Огонь: одиночный и автоматический.
 st_fn_p90_name	FN P90
+st_fort401_foregrip_desc	Отдача -3.5%. Время прицеливания +1.2%.
+st_fort401_foregrip_name	Штатная рукоять Форт-401
 st_fort_17_description	Украинский самозарядный пистолет под калибр 9х18. В серийное производство запущен в 2004 году. Использовался внутренними войсками и некоторыми спецподразделениями. Оснащен магазином на 12 патронов.
 st_fort_17_name	Форт 17
 st_fort_401_description	Украинский ручной пулемёт, патрон: 7,62x51. Лицензионный Negev из Винницы, питание из короба на 100 патронов.
@@ -1230,6 +1254,8 @@ st_friendly_user_compliment	Дружелюбный
 st_friends_online	Друзья онлайн
 st_friends_signin_notification_option	Оповещать о появлении друзей в сети
 st_fullscreen_option	Полноэкранный режим
+st_gandp_ris_foregrip_desc	Отдача -3%. Время прицеливания +1%.
+st_gandp_ris_foregrip_name	Рукоять G&P RIS
 st_general_volume_option	Общий
 st_generic_money_name	Рубли
 st_geometry_quality_option	Качество геометрии
@@ -1276,6 +1302,8 @@ st_hud_tutorial_frame_6_text_1	В бой!
 st_hud_tutorial_frame_6_text_2	Вы завершили базовый курс\nбоевой подготовки. Удачи!
 st_hud_tutorial_frame_6_text_3	Ваша награда:
 st_ignored	Черный список
+st_imi_fsg2_foregrip_desc	Отдача -2.5%. Время прицеливания +0.8%.
+st_imi_fsg2_foregrip_name	Рукоять FSG2
 st_in_develepoment_hint	В процессе разработки
 st_ingame_volume_option	Игра
 st_injury_penalty_description	Штраф дисперсии при ранении рук:
@@ -1415,12 +1443,17 @@ st_level_05_name	Таракановский форт
 st_level_06_name	Мамаев курган
 st_level_07_name	Лаборатория "Вектор"
 st_level_08_name	Кельн
-st_level_09_name	Лондон
+st_level_09_name	Лондон (v0.32)
 st_level_10_name	РЛС "Восток" (v0.21)
 st_level_11_name	Мамаев курган (v0.21)
 st_level_12_name	Химзавод (v0.11)
 st_level_13_name	РЛС "Восток" (v0.11)
 st_level_14_name	Рудня (v0.69)
+st_level_25_name	Школа (v0.21)
+st_level_26_name	Таракановский форт (v0.21)
+st_level_29_name	Рудня (v0.21)
+st_level_31_name	Химзавод (v0.21)
+st_level_32_name	Лондон (v0.42)
 st_lifebone_activation_hint	Живокост активирован! Все критические повреждения вылечены! Здоровье восстановлено!
 st_lifebone_pickup_hint	Артефакт Живокост. Повышает регенерацию здоровья.
 st_lightning_quality_option	Качество освещения
@@ -1431,7 +1464,7 @@ st_login_menu_accept	Принять
 st_login_menu_cancel	Отмена
 st_login_menu_status_access_level_restriction	Уровень доступа недостаточен для входа.
 st_login_menu_status_connecting	Авторизация...
-st_login_menu_status_error_connection	Нет связи с сервером Skhid. Разрешите игру в брандмауэре (Skhid-network-setup.cmd). В России включите VPN и добавьте в него .exe-файлы игры (VPN.txt).
+st_login_menu_status_error_connection	Нет связи с сервером Skhid. Запустите игру через лаунчер: он покажет причину.
 st_login_menu_status_invalid_user_or_password	Неправильный никнейм или пароль
 st_login_menu_status_invalid_version	Вы используете устаревшую версию игры.
 st_login_menu_status_sign_in_already_online	Пользователь уже в игре
@@ -1445,8 +1478,13 @@ st_m4a1_description	Американский карабин под боепри�
 st_m4a1_name	М4А1
 st_magnum_description	Шестизарядный револьвер калибра .357 Магнум. Впервые был представлен в 1955 году. Некоторые считают, что это один из лучших представителей своего класса. Отличается мягким спуском и высокой точность.
 st_magnum_name	Кольт Питон
+st_magpul_afg1_foregrip_desc	Отдача -3.5%. Время прицеливания +1.2%.
+st_magpul_afg1_foregrip_name	Рукоять AFG-1
 st_maintenance	Началось техническое обслуживание серверов. Приложение будет закрыто.
 st_map	Карта
+st_map_hint_13_1	Найдите артефакт "Сияние Леса"
+st_map_hint_13_2	Принесите "Сияние Леса" на базу
+st_map_hint_13_3	Соберите 5 артефактов, чтобы победить
 st_match_items_found	Найдено
 st_match_making_level	Уровень матча
 st_match_rewards	Награда за бой
@@ -1469,6 +1507,8 @@ st_match_settings_checkbox_training_match	Тренировочный бой
 st_match_settings_checkbox_training_match_hint	Режим тренировочной комнаты
 st_match_settings_clan_match	Клановый бой
 st_match_time_is_up	Время матча истекло!
+st_mauser_m712_foregrip_desc	Отдача -3.5%. Время прицеливания +1.2%.
+st_mauser_m712_foregrip_name	Рукоять Mauser M.712
 st_max_carried_weight_description	Переносимый вес:
 st_max_carried_weight_name	Силач
 st_max_carried_weight_ultimate_description	Переносимый вес больше не влияет на скорость передвижения, но вы не можете спринтовать.
@@ -1525,6 +1565,10 @@ st_mode_05_description	Ваша задача - захватить контрол
 st_mode_05_name	Исследование
 st_mode_08_description	Каждый сам за себя. Матч заканчивается, когда кто-то наберёт нужное число убийств или истечёт время. Побеждает боец с наибольшим числом убийств.
 st_mode_08_name	Все против всех
+st_mode_12_description	Заморозьте всех противников. Побеждает команда, выигравшая 5 раундов. Стойте в пределах 2 м от замороженного союзника 4 секунды, чтобы разморозить его.
+st_mode_12_name	Заморозка
+st_mode_13_description	Найдите артефакт "Сияние Леса" и принесите его на базу. Соберите 5 артефактов, чтобы победить.
+st_mode_13_name	Охота за артефактом
 st_modification_screen_edit_decal_hint	Чтобы изменить размер и положение нашивки, кликните на ее слот
 st_modification_screen_hint	Перетяните камуфляж или нашивку из вашего инвентаря в соответствующий слот модификации предмета
 st_modified	Модифицировано
@@ -1574,6 +1618,114 @@ st_multiplicative_stamina_spending_modifier	Затраты энергии
 st_munition	Снаряжение
 st_music_volume_option	Музыка
 st_must_be_in_clan_team	Вы должны быть активным членом клановой команды.
+st_muzzle_aek919k_m12x1l_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_aek919k_m12x1l_muzzlebrake_name	Дульный тормоз AEK-919K, M12x1L
+st_muzzle_akmsu_m24x15_muzzlebrake_description	
+st_muzzle_akmsu_m24x15_muzzlebrake_name	Пламегаситель AKMSU, M24x1.5
+st_muzzle_aks74u_m24x15_muzzlebrake_description	
+st_muzzle_aks74u_m24x15_muzzlebrake_name	Пламегаситель AKS-74U, M24x1.5
+st_muzzle_aws_rapira_m24x15_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_aws_rapira_m24x15_muzzlebrake_name	Дульный тормоз Rapira, M24x1.5
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description	
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_name	Пламегаситель ROFH, M14x1L
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_name	Пламегаситель ROFH, M16x1L
+st_muzzle_custom_01_doublevert_m22x075_choke_description	Дисперсия -20 %. Время прицеливания +2.5 %.
+st_muzzle_custom_01_doublevert_m22x075_choke_name	Чок Custom 01, M22x0.75 O/U
+st_muzzle_custom_01_duckbill_description	Дисперсия -15 %. Время прицеливания +1.9 %.
+st_muzzle_custom_01_duckbill_name	Утиный клюв Custom 01, M22x0.75
+st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_name	Дульный тормоз Custom 01, M14x1L
+st_muzzle_custom_01_m22x075_choke_description	Дисперсия -20 %. Время прицеливания +2.5 %.
+st_muzzle_custom_01_m22x075_choke_name	Чок Custom 01, M22x0.75
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Дульный тормоз Custom 01, M30x1
+st_muzzle_custom_02_duckbill_description	Дисперсия -15 %. Время прицеливания +1.9 %.
+st_muzzle_custom_02_duckbill_name	Утиный клюв Custom 02, M22x0.75
+st_muzzle_custom_02_m14x1l_firearrestor_description	
+st_muzzle_custom_02_m14x1l_firearrestor_name	Пламегаситель Custom 02, M14x1L
+st_muzzle_custom_02_m24x15_firearrestor_description	
+st_muzzle_custom_02_m24x15_firearrestor_name	Пламегаситель Custom 02, M24x1.5
+st_muzzle_custom_03_duckbill_description	Дисперсия -15 %. Время прицеливания +1.9 %.
+st_muzzle_custom_03_duckbill_name	Утиный клюв Custom 03, M22x0.75
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_description	
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_name	Пламегаситель Custom 03, M14x1L
+st_muzzle_custom_04_i05x28_clamp_firearrestor_description	
+st_muzzle_custom_04_i05x28_clamp_firearrestor_name	Пламегаситель Custom 04, 1/2"x28
+st_muzzle_custom_04_i06x24_clamp_firearrestor_description	
+st_muzzle_custom_04_i06x24_clamp_firearrestor_name	Пламегаситель Custom 04, 5/8"x24
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_description	
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_name	Пламегаситель Custom 04, M14x1L
+st_muzzle_custom_doublevert_01_duckbill_description	Дисперсия -15 %. Время прицеливания +1.9 %.
+st_muzzle_custom_doublevert_01_duckbill_name	Утиный клюв Custom 01, M22x0.75 O/U
+st_muzzle_custom_doublevert_02_duckbill_description	Дисперсия -15 %. Время прицеливания +1.9 %.
+st_muzzle_custom_doublevert_02_duckbill_name	Утиный клюв Custom 02, M22x0.75 O/U
+st_muzzle_custom_doublhor_01_duckbill_description	Дисперсия -15 %. Время прицеливания +1.9 %.
+st_muzzle_custom_doublhor_01_duckbill_name	Утиный клюв Custom 01, M22x0.75 SxS
+st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_name	Дульный тормоз T-Brake, 1/2"x28
+st_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_name	Дульный тормоз T-Brake, M14x1L
+st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_name	Дульный тормоз Defcon 1, 1/2"x28
+st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_name	Дульный тормоз Defcon 1, M16x1L
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_name	Дульный тормоз Defcon 1, M30x1
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Дисперсия -16 %. Время прицеливания +2 %.
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_name	Дульный тормоз Guns.ru, M22x0.75
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_description	Дисперсия -16 %. Время прицеливания +2 %.
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_name	Дульный тормоз Kochevnik, M22x0.75
+st_muzzle_kkm_i05x28_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_kkm_i05x28_muzzlebrake_name	Дульный тормоз KKM, 1/2"x28
+st_muzzle_lantac_dragon_i05x28_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_lantac_dragon_i05x28_muzzlebrake_name	Дульный тормоз Dragon, 1/2"x28
+st_muzzle_lantac_dragon_i06x24_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_lantac_dragon_i06x24_muzzlebrake_name	Дульный тормоз Dragon, 5/8"x24
+st_muzzle_lantac_drakon_m14x1l_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_lantac_drakon_m14x1l_muzzlebrake_name	Дульный тормоз Dragon, M14x1L
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_description	
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_name	Пламегаситель NightBrake, 1/2"x28
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_description	
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_name	Пламегаситель NightBrake, 5/8"x24
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description	
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_name	Пламегаситель NightBrake, M12x1L
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_name	Пламегаситель NightBrake, M14x1L
+st_muzzle_polychoke_ventedcollar_m22x075_choke_description	Дисперсия -20 %. Время прицеливания +2.5 %.
+st_muzzle_polychoke_ventedcollar_m22x075_choke_name	Чок Polychoke, M22x0.75
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Дисперсия -16 %. Время прицеливания +2 %.
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_name	Дульный тормоз Ilgynag K01, M22x0.75
+st_muzzle_redheat_krymske2_m24x15_firearrestor_description	
+st_muzzle_redheat_krymske2_m24x15_firearrestor_name	Пламегаситель Krymsk-2, M24x1.5
+st_muzzle_redheat_shturm_m14x1l_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_redheat_shturm_m14x1l_muzzlebrake_name	Дульный тормоз Shturm, M14x1L
+st_muzzle_redheat_shturm_m24x15_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_redheat_shturm_m24x15_muzzlebrake_name	Дульный тормоз Shturm, M24x1.5
+st_muzzle_remington_doublehor_m22x075_choke_description	Дисперсия -20 %. Время прицеливания +2.5 %.
+st_muzzle_remington_doublehor_m22x075_choke_name	Чок Remington, M22x0.75 SxS
+st_muzzle_remington_doublevert_m22x075_choke_description	Дисперсия -20 %. Время прицеливания +2.5 %.
+st_muzzle_remington_doublevert_m22x075_choke_name	Чок Remington, M22x0.75 O/U
+st_muzzle_remington_m22x075_choke_description	Дисперсия -20 %. Время прицеливания +2.5 %.
+st_muzzle_remington_m22x075_choke_name	Чок Remington, M22x0.75
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_name	Пламегаситель Dynacomp, M24x1.5
+st_muzzle_stone_shurhit_m22x075_choke_description	Дисперсия -20 %. Время прицеливания +2.5 %.
+st_muzzle_stone_shurhit_m22x075_choke_name	Чок Sure-Hit, M22x0.75
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_name	Пламегаситель TT-419, M22x0.75
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_description	
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_name	Пламегаситель Antidote, M14x1L
+st_muzzle_zenit_dtk2_m24x15_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_zenit_dtk2_m24x15_muzzlebrake_name	Дульный тормоз Zenit DTK-2, M24x1.5
+st_muzzle_zenit_dtk3_m24x15_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_zenit_dtk3_m24x15_muzzlebrake_name	Дульный тормоз Zenit DTK-3, M24x1.5
+st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_name	Дульный тормоз Zenit DTK-4, M24x1.5 clamp
+st_muzzle_zenit_dtk4_m24x15_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_zenit_dtk4_m24x15_muzzlebrake_name	Дульный тормоз Zenit DTK-4, M24x1.5
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_description	
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_name	Пламегаситель Zenit DTK-4, M30x1
 st_my_place	Мой рейтинг
 st_neostead_description	Южноафриканское помповое ружье 12 калибра. Создано в 90-х Тони Неофиту по схеме «буллпап»; два трубчатых магазина над стволом, для перезарядки цевье подается вперед. 12 патронов. Только одиночный огонь.
 st_neostead_name	NeoStead 2000
@@ -1605,7 +1757,9 @@ st_novice_026_helmet_desc	Вязаная шапка сталкера-нович�
 st_novice_026_helmet_name	Вязаная шапка новичка
 st_of	из
 st_ok	Ок
+st_on_destroyed_victory_artefact	Артефакт уничтожен
 st_on_enemy_theft_item	Противник украл батарею с вашей базы, остановите его!
+st_on_spawn_victory_artefact	Артефакт появился
 st_on_spawn_victory_item	Батарея заряжена! Принесите ее на базу.
 st_one_handed	Вспомогательное
 st_online_store	Купить золото
@@ -1693,6 +1847,8 @@ st_picatinny_scope_medium_name	Оптика / коллиматоры
 st_pickup_item	Поднять ({USE})
 st_ping_postfix	мс.
 st_pkp_pecheneg_description	Российский единый пулемет под боеприпас 7.62х54R. Создан в ЦНИИТочМаш на основе ПКМ, на вооружении с 2001 года; тяжелый ствол с принудительным охлаждением позволяет вести длинные очереди без замены. Лента на 100 патронов. Огонь: одиночный и автоматический.
+st_pkp_pecheneg_foregrip_desc	Отдача -3.5%. Время прицеливания +1.2%.
+st_pkp_pecheneg_foregrip_name	Рукоять ПКП
 st_pkp_pecheneg_name	ПКП "Печенег"
 st_place	Место
 st_play_button	Играть
@@ -1777,8 +1933,9 @@ st_profile_selection_warning	+20 секунд времени возрожден�
 st_profile_warning_weapon	Профиль не активен: нет оружия
 st_profile_warning_weapon_ammo	Профиль не активен: недостаточно патронов в рюкзаке
 st_profile_warning_weapon_ammo_in_inv	Профиль не активен: недостаточно патронов на складе
-st_ptt_action	Говорить (удерживать)
+st_ptt_action	Говорить по рации
 st_ptt_button_option	PTT
+st_ptt_nearby_action	Говорить рядом
 st_put_item	Положить ({USE})
 st_quest_change_warning	Внимание! При смене задания лояльность группировки к вам понизится!
 st_quest_completed	Задание выполнено!
@@ -1986,6 +2143,7 @@ st_rgd5_name	Граната РГД-5
 st_rgo_descr	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_rgo_name	РГО
 st_right_strafe_action	Шаг вправо
+st_round_restart_in	До рестарта раунда осталось
 st_rpd_description	ОПИСАНИЕ НЕ ГОТОВО
 st_rpd_name	РПД
 st_rpk_description	ОПИСАНИЕ НЕ ГОТОВО
@@ -2088,6 +2246,8 @@ st_scavengers_win_x_games_obj	Выиграть боев:
 st_science_medkit_description	Полностью лечит руки, ноги, тело и голову. Восстанавливает 50% боли. Излечивает отравление и лучевую болезнь.
 st_science_medkit_name	Научная аптечка
 st_scientists_faction	Институт
+st_screenshot_action	Снимок экрана
+st_screenshot_no_ui_action	Снимок без интерфейса
 st_search_label	Поиск
 st_search_range	Уровень матча
 st_second_weapon_action	Оружие 2
@@ -2109,10 +2269,16 @@ st_shop	Магазин
 st_shop_label	Магазин
 st_shop_scope_1p69_hyperon_description	Четырехкратный оптический прицел
 st_shop_scope_1p69_hyperon_name	Оптический прицел Зенит "Гиперон", x4
+st_shop_scope_acog_ta01_description	Четырехкратный оптический прицел
+st_shop_scope_acog_ta01_name	Оптический прицел TA01, x4
 st_shop_scope_acog_ta31_description	Четырехкратный оптический прицел
 st_shop_scope_acog_ta31_name	Оптический прицел TA31, x4
 st_shop_scope_aimpoint_compm4_description	Шведский коллиматорный прицел с точкой 2 MOA и батареей, которой хватает до восьми лет непрерывной работы. Принят на вооружение армии США как M68 CCO; крепится на планку Пикатинни.
-st_shop_scope_aimpoint_compm4_name	Коллиматор CompM4
+st_shop_scope_aimpoint_compm4_name	Коллиматор CompM4, x2
+st_shop_scope_aperture_description	Трехкратный оптический прицел
+st_shop_scope_aperture_name	Оптический прицел Aperture, x3
+st_shop_scope_belomo_pk01_description	Коллиматорный прицел с двукратным увеличением.
+st_shop_scope_belomo_pk01_name	Коллиматор ПК-01ВИ, x2
 st_shop_scope_cobra_ekp_8_description	Российский коллиматорный прицел с четырьмя сменными красными прицельными марками. Позволяет быстро целиться с обоими открытыми глазами; крепится на боковую планку оружия семейства Калашникова.
 st_shop_scope_cobra_ekp_8_name	Коллиматор Кобра ЭКП-8
 st_shop_scope_docter_description	Компактный немецкий открытый коллиматорный прицел с красной точкой. Лёгкий и быстрый в прицеливании; создан для гладкоствольного оружия, пистолетов и компактного оружия.
@@ -2121,10 +2287,18 @@ st_shop_scope_elcan_specterdr_description	Четырехкратный опти�
 st_shop_scope_elcan_specterdr_name	Оптический прицел SpecterDR, x4
 st_shop_scope_eotech_552_description	Американский голографический прицел: кольцо 65 MOA с точкой 1 MOA в центре, питание от батарей AA. Быстрый на ближней и средней дистанции; крепится на планку Пикатинни.
 st_shop_scope_eotech_552_name	Коллиматор EOTech 552
+st_shop_scope_eotech_xps2_description	Коллиматорный прицел для быстрого прицеливания.
+st_shop_scope_eotech_xps2_name	Коллиматор EOTech XPS2
+st_shop_scope_hensoldt_rsas_description	Коллиматорный прицел с двукратным увеличением.
+st_shop_scope_hensoldt_rsas_name	Коллиматор RSA-S, x2
+st_shop_scope_leupold_3_7_description	Шестикратный оптический прицел
+st_shop_scope_leupold_3_7_name	Оптический прицел Leupold 3-7, x6
 st_shop_scope_leupold_deltapoint_description	Компактный американский коллиматорный прицел с красной треугольной прицельной маркой. Создан для пистолетов и лёгкого оружия; настолько мал, что не мешает.
 st_shop_scope_leupold_deltapoint_name	Коллиматор Leupold DeltaPoint
 st_shop_scope_leupold_mk4_description	Четырехкратный оптический прицел
 st_shop_scope_leupold_mk4_name	Оптический прицел Leupold MK4, x4
+st_shop_scope_ncstar_4_description	Коллиматорный прицел для быстрого прицеливания.
+st_shop_scope_ncstar_4_name	Коллиматор NcSTAR 4
 st_shop_scope_pso_1_description	Четырехкратный оптический прицел
 st_shop_scope_pso_1_name	Оптический прицел ПСО-1, x4
 st_shop_scope_pso_1_old_description	Четырехкратный оптический прицел
@@ -2234,11 +2408,14 @@ st_srp_artefact_532_description	Нет урона от падения, пока 
 st_srp_artefact_532_name	Оникс II
 st_srp_artefact_533_description	Активация Живокоста полностью восстанавливает выносливость.
 st_srp_artefact_533_name	Живокост II
+st_srp_artefact_534_description	После смерти артефакты комплекта переходят в комплект, в котором вы возрождаетесь, сколько поместится в его контейнеры.
+st_srp_artefact_534_name	Курьер
 st_srp_artefact_541_description	Пассивные эффекты ваших артефактов действуют и на живых союзников в радиусе 9 м.
 st_srp_artefact_541_name	Резонанс
 st_srp_artefact_542_description	Активированные артефакты действуют и на живых союзников в радиусе 6 м. "Они сияют, а ты блистаешь"
 st_srp_artefact_542_name	Каскад
 st_srp_artefact_points	 ед.
+st_srp_attach_unfit	Не сочетается с дульным устройством или рукояткой оружия.
 st_srp_attachments	Обвес
 st_srp_ban_reason_account_trading	Продажа или попытка продажи учётной записи.
 st_srp_ban_reason_administration	Решение администрации.
@@ -2511,14 +2688,29 @@ st_srp_equipment069_snow_20_legs_7_desc	Описание пока недосту
 st_srp_equipment069_snow_20_legs_7_name	Штаны "Снег-20"
 st_srp_equipment069_snow_20_torso_7_desc	Описание пока недоступно.
 st_srp_equipment069_snow_20_torso_7_name	Бронежилет "Снег-20"
+st_srp_face	Лицо
+st_srp_face_card	Лицо %1$s
+st_srp_grip_slot	Рукоятка
 st_srp_hide_quests_option	Скрыть задания
 st_srp_hide_scores_option	Скрыть очки игроков
 st_srp_hit_markers_all	Все хитмаркеры
 st_srp_hit_markers_hidden	Скрытые хитмаркеры
 st_srp_hit_markers_kill	Только при убийстве
 st_srp_hud_add_friend	Добавить в друзья
+st_srp_hud_artefact_hunt_carrying	Вы несёте артефакт
+st_srp_hud_artefact_hunt_sudden_death	Внезапная смерть
 st_srp_hud_blackout_intro	Блэкаут: несите батареи к устройству своей команды. Интерфейс и маркеры попаданий скрыты для погружения. Удерживайте Tab: боезапас, здоровье, чат; после смерти — выбор комплекта.
 st_srp_hud_blackout_start	Блэкаут\nНесите батареи к устройству своей команды.\nИнтерфейс и маркеры попаданий скрыты. Удерживайте Tab, чтобы увидеть боезапас и здоровье.
+st_srp_hud_freeze_draw	Ничья
+st_srp_hud_freeze_frozen	Заморожен (%1$s)
+st_srp_hud_freeze_help	Заморозьте всех противников. Побеждает команда, выигравшая 5 раундов. Стойте в пределах 2 м от замороженного союзника 4 секунды, чтобы разморозить его.
+st_srp_hud_freeze_lose	Поражение — противники выиграли пять раундов.
+st_srp_hud_freeze_round_draw	Ничья в раунде. Повтор через %1$s с.
+st_srp_hud_freeze_round_lose	Раунд проигран. Следующий через %1$s с.
+st_srp_hud_freeze_round_win	Раунд выигран. Следующий через %1$s с.
+st_srp_hud_freeze_standing	В бою: ваша команда %1$s — противники %2$s
+st_srp_hud_freeze_thawing	Размораживание союзника…
+st_srp_hud_freeze_win	Победа — выиграно пять раундов.
 st_srp_hud_friend_not_sent	Заявка в друзья не отправлена
 st_srp_hud_friend_sent	Заявка в друзья отправлена
 st_srp_hud_mute_hide	Скрыть чат
@@ -2539,7 +2731,7 @@ st_srp_inv_fuse_time	Время запала
 st_srp_inv_material_pierce	Пробивает
 st_srp_inv_pellets	Дробин
 st_srp_inv_pocket_units	Место в кармане
-st_srp_inv_pocket_units_whole	∞
+st_srp_inv_pocket_units_whole	Все
 st_srp_inv_stamina_damage	Урон выносливости
 st_srp_inv_throw_speed	Скорость броска
 st_srp_inventory_search	Поиск
@@ -2569,6 +2761,10 @@ st_srp_loadout_sell_and	 и
 st_srp_loadout_sell_item	%1$s
 st_srp_loadout_sell_many	Используется в комплектах %1$s. Продать?
 st_srp_loadout_sell_one	Используется в комплекте %1$s. Продать?
+st_srp_loadout_slot_skill	Слот: %1$s
+st_srp_loadout_slot_to_container	Правый клик: контейнер для артефакта
+st_srp_loadout_slot_to_pocket	Правый клик: карман
+st_srp_loadout_slot_to_weapon	Правый клик: второе оружие
 st_srp_loadout_title	Комплект
 st_srp_loadout_unfit	не для боя
 st_srp_lobby_basement	Подвал
@@ -2581,21 +2777,30 @@ st_srp_login_ban_ends	Закончится в %1$s (через %2$s).
 st_srp_login_ban_forever	Бан бессрочный.
 st_srp_map_chemical_plant	Химзавод
 st_srp_map_chemical_plant_v011	Химзавод (v0.11)
+st_srp_map_chemical_plant_v021	Химзавод (v0.21)
 st_srp_map_cologne	Кельн
+st_srp_map_cs_mp_atp	АТП
 st_srp_map_cs_mp_bath	Бассейн
+st_srp_map_cs_mp_darkvalley	Тёмная долина
+st_srp_map_cs_mp_firestation	Пожарная станция
 st_srp_map_cs_mp_military_1	Армейские склады
 st_srp_map_cs_mp_rembasa	Ремонтная база
+st_srp_map_cs_mp_sport_center	Спортивный центр
 st_srp_map_cs_training_camp	Тренировочный лагерь
-st_srp_map_london	Лондон
+st_srp_map_london	Лондон (v0.32)
+st_srp_map_london_v042	Лондон (v0.42)
 st_srp_map_mamayev_kurgan	Мамаев курган
 st_srp_map_mamayev_kurgan_v021	Мамаев курган (v0.21)
 st_srp_map_names_option	Имена на карте
 st_srp_map_rudnya	Рудня
+st_srp_map_rudnya_v021	Рудня (v0.21)
 st_srp_map_rudnya_v069	Рудня (v0.69)
 st_srp_map_school	Школа
+st_srp_map_school_v021	Школа (v0.21)
 st_srp_map_soc_ug_depository	Хранилище
 st_srp_map_soc_ug_station	Станция
 st_srp_map_tarakanovsky_fort	Таракановский форт
+st_srp_map_tarakanovsky_fort_v021	Таракановский форт (v0.21)
 st_srp_map_vector	Лаборатория "Вектор"
 st_srp_map_vostok	РЛС "Восток"
 st_srp_map_vostok_v011	РЛС "Восток" (v0.11)
@@ -2634,24 +2839,29 @@ st_srp_medical_312_description	Бонус к здоровью, восстана�
 st_srp_medical_312_name	Медицинская подготовка
 st_srp_medical_313_description	Бонус к здоровью, восстанавливаемому аптечками и бинтами в приседе:
 st_srp_medical_313_name	В укрытие
+st_srp_medical_314_description	Пока действует антитоксин, снижение времени прицеливания:
+st_srp_medical_314_name	Зоркий глаз
 st_srp_medical_321_description	Бонус к скорости передвижения при здоровье ниже 30:
 st_srp_medical_321_name	Адреналин
 st_srp_medical_322_description	Каждый карман с медикаментами вмещает ещё один предмет.
 st_srp_medical_322_name	Дополнительные медикаменты
 st_srp_medical_323_description	Пока действует обезболивающее, снижение останавливающей силы вражеских попаданий:
 st_srp_medical_323_name	Непоколебимый
+st_srp_medical_324_description	Когда антитоксин начинает действовать, восстановление энергии:
+st_srp_medical_324_name	Второе дыхание
 st_srp_medical_331_description	Заменяет ячейку дополнительного оружия дополнительным карманом для припасов.
 st_srp_medical_331_name	Карман для припасов
 st_srp_medical_332_description	Бонус к максимальному здоровью рук и ног:
 st_srp_medical_332_name	Крепкие кости
-st_srp_medical_333_description	Пока действует обезболивающее, снижение раскачивания прицела:
+st_srp_medical_333_description	Пока действует антитоксин, бонус к скорости перезарядки:
 st_srp_medical_333_name	Концентрация
 st_srp_medical_342_description	Снижение урона, получаемого от союзников:
 st_srp_medical_342_name	Братья по оружию
 st_srp_medical_seconds	 s
+st_srp_medicine_aim_time	Время прицеливания
 st_srp_medicine_crouched_healing	Лечение в приседе
 st_srp_medicine_hit_slow	Замедление от пуль
-st_srp_medicine_sight_sway	Раскачивание
+st_srp_medicine_reload_speed	Темп перезарядки
 st_srp_medicine_sprint_stamina	Энергия на спринт
 st_srp_melee_knockback	Отбрасывание прикладом
 st_srp_mic_test	Проверить микрофон
@@ -2661,17 +2871,24 @@ st_srp_mic_test_playing	Воспроизведение %1$s
 st_srp_mic_test_recording	Запись %1$s
 st_srp_microphone	Микрофон
 st_srp_microphone_default	По умолчанию
+st_srp_mode_artefact_hunt	Охота за артефактом
 st_srp_mode_blackout	Защитное устройство: блэкаут
 st_srp_mode_chargers	Защитное устройство: зарядники
 st_srp_mode_cowboy	FFA: Салун
 st_srp_mode_cowboy_winchester	FFA: Салун (Винчестер)
 st_srp_mode_free_for_all	Все против всех
+st_srp_mode_freeze_tag	Заморозка
 st_srp_mode_protective_device	Защитное устройство
 st_srp_mode_racket	FFA: Движ
 st_srp_mode_research	Исследование
+st_srp_mode_roulette_high	FFA: Рулетка
+st_srp_mode_roulette_low	FFA: Рулетка
+st_srp_mode_roulette_mid	FFA: Рулетка
 st_srp_mode_team_deathmatch	Командный бой
 st_srp_mouse_lock_option	Зафиксировать вертикальную чувствительность
 st_srp_mouse_vertical_option	Вертикальная чувствительность
+st_srp_muzzle_slot	Дульная насадка
+st_srp_no_muzzle_flash	Без вспышки
 st_srp_optics	Оптика
 st_srp_options_hud	Интерфейс боя:
 st_srp_pierce_brick	Кирпич, сталь
@@ -2728,10 +2945,10 @@ st_srp_replay_not_yours	Смотреть можно только повторы 
 st_srp_replay_off	Повторы на этом сервере отключены.
 st_srp_replay_old_game	Ваша версия игры не воспроизводит повторы. Обновите игру: запустите её снова через лаунчер.
 st_srp_replay_place_in_line	Место в очереди: %1$s. Ожидание: %2$s с.
-st_srp_replay_ready	Повтор этого матча готов.\n\nОн загружается с сервера матча, который хранит достоверную запись матча. Откроется второе окно игры и воспроизведёт его; лобби останется открытым.\n\nВ повторе нажмите F11 для управления: игроки, камера, перемотка, скорость.
-st_srp_replay_ready_size	Повтор этого матча: %1$s.\n\nОн загружается с сервера матча, который хранит достоверную запись матча. Откроется второе окно игры и воспроизведёт его; лобби останется открытым.\n\nВ повторе нажмите F11 для управления: игроки, камера, перемотка, скорость.
+st_srp_replay_ready	Повтор этого матча готов.\n\nОн загружается с сервера матча, который хранит достоверную запись матча. Откроется второе окно игры и воспроизведёт его; лобби останется открытым.\n\nВ повторе нажмите F9 для управления: игроки, камера, перемотка, скорость.
+st_srp_replay_ready_size	Повтор этого матча: %1$s.\n\nОн загружается с сервера матча, который хранит достоверную запись матча. Откроется второе окно игры и воспроизведёт его; лобби останется открытым.\n\nВ повторе нажмите F9 для управления: игроки, камера, перемотка, скорость.
 st_srp_replay_size	%1$s,%2$s МБ
-st_srp_replay_starting	Запускаем повтор: откроется второе окно игры, лобби останется открытым. Если что-то пойдёт не так, программа обновления покажет, что случилось.\n\nВ повторе нажмите F11 для управления.
+st_srp_replay_starting	Запускаем повтор: откроется второе окно игры, лобби останется открытым. Если что-то пойдёт не так, программа обновления покажет, что случилось.\n\nВ повторе нажмите F9 для управления.
 st_srp_replay_still_preparing	Повтор ещё готовится. Сервер продолжает его создавать; откройте «Смотреть повтор» ещё раз через минуту.
 st_srp_replay_title	Смотреть повтор
 st_srp_replay_waiting	Ожидание: %1$s с.
@@ -2835,7 +3052,7 @@ st_srp_rooms_voting	Голосование
 st_srp_rooms_waiting	Ждём игроков
 st_srp_rooms_waiting_owner	Ждём, пока создатель начнёт.
 st_srp_rooms_waiting_short	Ожидание
-st_srp_scope_screen_hint	Перетяните прицел из вашего инвентаря в слот модификации оружия
+st_srp_scope_screen_hint	Перетяните прицел, дульное устройство или рукоятку из вашего инвентаря в его слот
 st_srp_scope_slot	Прицел
 st_srp_shop_not_owned	Скрыть имеющиеся
 st_srp_shop_not_owned_hint	Показывать только то, чего у вас нет
@@ -2843,6 +3060,51 @@ st_srp_skills	Навыки
 st_srp_speed_label	Скорость
 st_srp_speed_title	Скорость движения: %1$s
 st_srp_static_minimap_option	Статическая миникарта
+st_srp_technical_401_description	Скорость подбора батареи и пополнения у ящика с боеприпасами:
+st_srp_technical_401_name	Ловкие руки
+st_srp_technical_402_description	Время жизни дымового облака:
+st_srp_technical_402_name	Густой дым
+st_srp_technical_403_description	Пока включён кислородный баллон, раскачивание и разброс оружия:
+st_srp_technical_403_name	Ровное дыхание
+st_srp_technical_404_description	Урон от своих гранат и гранат союзников:
+st_srp_technical_404_name	Выучка
+st_srp_technical_411_description	Скорость обезвреживания капканов:
+st_srp_technical_411_name	Сапёр
+st_srp_technical_412_description	Слышен звук чеки, когда враг рядом готовит гранату.
+st_srp_technical_412_name	Чуткий слух
+st_srp_technical_413_description	С кислородным баллоном в комплекте:
+st_srp_technical_413_name	Карман у баллона
+st_srp_technical_414_description	С кислородным баллоном в комплекте:
+st_srp_technical_414_name	Глубокие карманы
+st_srp_technical_422_description	Подберите живую гранату рядом клавишей использования и бросьте её обратно. Запал продолжает гореть.
+st_srp_technical_422_name	Обратно отправителю
+st_srp_technical_423_description	Обезвреженный тобой капкан, свой или вражеский, попадает в твой карман, если там есть место.
+st_srp_technical_423_name	Трофейный капкан
+st_srp_technical_431_description	Пока включён кислородный баллон, расход энергии на спринт:
+st_srp_technical_431_name	Глубокое дыхание
+st_srp_technical_432_description	После гибели нажмите клавишу броска, чтобы уронить свою дымовую гранату там, где вы упали.
+st_srp_technical_432_name	Мёртвая рука
+st_srp_technical_433_description	Ваши капканы, в которые стреляли, снова открываются через:
+st_srp_technical_433_name	Перевзвод
+st_srp_technical_441_description	Ваш дым слегка зелёный и отравляет врагов внутри; кислородный баллон защищает. Дымовая граната занимает 1,5 места в кармане. Токсичный урон:
+st_srp_technical_441_name	Ядовитый дым
+st_srp_technical_442_description	После каждых 20 с непрерывной работы кислородного баллона и когда он пустеет: +10% к скорости на 20 с и полная энергия.
+st_srp_technical_442_name	Кислородный рывок
+st_srp_technical_443_description	Убийство вашей гранатой возвращает одну гранату.
+st_srp_technical_443_name	Мародёр
+st_srp_technical_444_description	Ваш капкан ломает ноги попавшему в него. Капкан занимает 1,5 места в кармане.
+st_srp_technical_444_name	Медвежий капкан
+st_srp_technical_445_description	С кислородным баллоном в комплекте: ещё один контейнер для артефакта.
+st_srp_technical_445_name	Контейнер в баллоне
+st_srp_technical_disarm_speed	Скорость разминирования
+st_srp_technical_friendly_blast	Урон от своих гранат
+st_srp_technical_oxygen_rush	Скорость после 20 с баллона и в конце
+st_srp_technical_per_second	 в секунду
+st_srp_technical_pocket_size	 к размеру карманов
+st_srp_technical_pockets	 карм.
+st_srp_technical_rearm	Снова открывается после выстрела
+st_srp_technical_smoke_duration	Длительность дыма
+st_srp_technical_toxic_damage	Токсичный урон
 st_srp_unit_days	%1$s д
 st_srp_unit_hours	%1$s ч
 st_srp_unit_kg	%1$s кг
@@ -2931,6 +3193,7 @@ st_stamina_spending_speed_description	Потребление энергии:
 st_stamina_spending_speed_name	Выносливость
 st_start_chat_action	Чат
 st_start_match_welcome_message	Найдите батареи и доставьте их на базу!
+st_start_match_welcome_message_13	Охота за артефактом. Доставьте артефакт на базу своей команды
 st_start_match_welcome_message_2	Найдите и защитите места зарядки батарей!
 st_start_match_welcome_message_3	Уничтожьте как можно больше противников!
 st_start_match_welcome_message_5	Найдите и захватите исследовательские установки!
@@ -3025,6 +3288,8 @@ st_toz66_description	Обрез охотничей двустволки под �
 st_toz66_name	ТОЗ-66
 st_trap_damage	Урон от ловушки
 st_treasure_map_advert	Используйте карту схрона, чтобы найти больше предметов
+st_troy_modular_foregrip_desc	Отдача -3.5%. Время прицеливания +1.2%.
+st_troy_modular_foregrip_name	Рукоять Troy Modular
 st_tt_description	Тульский Токарева образца 1933 года под боеприпас 7.62х25мм. Разработан в 30-х годах двадцатого столетия и является первым самозарядным армейский пистолетом СССР. Магазин вмещает 8 патронов. 
 st_tt_name	ТТ-33
 st_turn_down_action	

@@ -84,6 +84,10 @@ name = "artefact-carry"
 version = "0.1.0"
 
 [[package]]
+name = "artefact-hunt-rule"
+version = "0.1.0"
+
+[[package]]
 name = "autocfg"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -488,6 +492,7 @@ dependencies = [
  "openssl",
  "session",
  "sign-in-cipher",
+ "udp-transport",
  "vostok",
 ]
 
@@ -513,6 +518,7 @@ dependencies = [
 name = "match-server"
 version = "0.1.0"
 dependencies = [
+ "artefact-hunt-rule",
  "crc32fast",
  "libc",
  "log",
@@ -524,7 +530,9 @@ dependencies = [
  "skhid-voice",
  "srp-validate",
  "survarium",
+ "technical-skills",
  "udp-transport",
+ "voice-abi",
  "vostok",
  "weapon-pickup",
  "world-frame",
@@ -855,7 +863,9 @@ dependencies = [
  "match-server",
  "openssl",
  "session",
+ "socket2",
  "survarium",
+ "udp-transport",
  "vostok",
  "web-server",
 ]
@@ -865,7 +875,9 @@ name = "srp-validate"
 version = "0.1.0"
 dependencies = [
  "artefact-carry",
+ "artefact-hunt-rule",
  "survarium",
+ "technical-skills",
  "weapon-pickup",
  "world-frame",
 ]
@@ -887,6 +899,7 @@ name = "survarium"
 version = "0.1.0"
 dependencies = [
  "artefact-carry",
+ "artefact-hunt-rule",
  "binary-config-parser",
  "encoding_rs",
  "log",
@@ -895,8 +908,10 @@ dependencies = [
  "serde",
  "serde_json",
  "srp-validate",
+ "technical-skills",
  "udp-transport",
  "weapon-kit",
+ "weapon-modules",
  "weapon-pickup",
 ]
 
@@ -909,6 +924,13 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "technical-skills"
+version = "0.1.0"
+dependencies = [
+ "weapon-pickup",
 ]
 
 [[package]]
@@ -1002,6 +1024,10 @@ name = "weapon-kit"
 version = "0.1.0"
 
 [[package]]
+name = "weapon-modules"
+version = "0.1.0"
+
+[[package]]
 name = "weapon-pickup"
 version = "0.1.0"
 
@@ -1012,7 +1038,9 @@ dependencies = [
  "log",
  "openssl",
  "resources-db 0.1.0",
+ "serde_json",
  "session",
+ "srp-validate",
  "survarium",
  "vostok",
 ]

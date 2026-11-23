@@ -44,11 +44,68 @@ pub struct Bundle {
     pub cfg: String,
 }
 
+/// A `maps_dict` id: the map and mode a match names. The file's ids are
+/// 32-bit; srp's go up to `u16::MAX`. The match options carry its low byte,
+/// and srp's block the whole id when it is over a byte (exe patch 154,
+/// [`super::match_msgs::static_info`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(transparent)]
+pub struct MapId(u16);
+
+impl MapId {
+    pub const fn new(id: u16) -> Self {
+        Self(id)
+    }
+
+    pub const fn get(self) -> u16 {
+        self.0
+    }
+
+    /// The match options' `u8 map_id`: the id, or its low byte with the
+    /// whole id in srp's block ([`Self::over_a_byte`]).
+    pub const fn low_byte(self) -> u8 {
+        self.0.to_le_bytes()[0]
+    }
+
+    /// Whether the options' byte cannot hold the id.
+    pub const fn over_a_byte(self) -> bool {
+        self.0 > u8::MAX as u16
+    }
+}
+
+impl From<u8> for MapId {
+    fn from(id: u8) -> Self {
+        Self(u16::from(id))
+    }
+}
+
+impl TryFrom<i32> for MapId {
+    type Error = std::num::TryFromIntError;
+
+    fn try_from(id: i32) -> Result<Self, Self::Error> {
+        u16::try_from(id).map(Self)
+    }
+}
+
+impl std::fmt::Display for MapId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl std::str::FromStr for MapId {
+    type Err = std::num::ParseIntError;
+
+    fn from_str(text: &str) -> Result<Self, Self::Err> {
+        text.parse().map(Self)
+    }
+}
+
 /// A row of `maps_dict`: the id a match names its map and mode by, and the
 /// file under `gameplay/game_modes/` it stands for ([`super::maps`]).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Map {
-    pub id: u8,
+    pub id: MapId,
     pub cfg_mode_name: String,
 }
 
@@ -384,15 +441,11 @@ mod tests {
 
         let ak = dictionary.item(3).unwrap();
         assert_eq!(ak.name, "ak_74m");
-        assert_eq!((ak.category, ak.base_cost), (8, 47500));
+        assert_eq!(ak.category, 8);
         assert!(!ak.is_stack && !ak.is_premium);
         assert_eq!(ak.cfg_name, "gameplay/items/weapons/wpn_ak_74m.options");
         let aks = dictionary.item_named("ak_74u").unwrap();
-        assert_eq!((aks.dict_id, aks.category, aks.base_cost), (13, 8, 12920));
-        assert_eq!(
-            dictionary.item_named("scav_oxygen_1").unwrap().base_cost,
-            2380
-        );
+        assert_eq!((aks.dict_id, aks.category), (13, 8));
         // 0.21d's id 73 is gone.
         assert!(dictionary.item(73).is_none());
     }
@@ -536,7 +589,7 @@ mod tests {
         );
         assert_eq!(dictionary.bundles[13].id, 14);
 
-        let map = |id| dictionary.maps.iter().find(|map| map.id == id).unwrap();
+        let map = |id| dictionary.maps.iter().find(|map| map.id == MapId::new(id)).unwrap();
         assert_eq!(map(61).cfg_mode_name, "level_01_day_2.options");
         assert_eq!(map(109).cfg_mode_name, "level_08_prerain_2.options");
         assert_eq!(map(140).cfg_mode_name, "level_08_prerain_4.options");
@@ -601,44 +654,5 @@ mod tests {
         ] {
             assert!(parse(value).is_err());
         }
-    }
-
-    #[test]
-    fn a_copy_names_another_plain_item_of_its_category() {
-        // The AK-74M (3, a rifle) said to be a copy of `like`.
-        let copy_of = |like: &str| {
-            let mut root = ConfigValue::parse(super::super::game_data::file(PATH)).unwrap();
-            let ConfigValue::Named(sections) = &mut root else {
-                panic!("a named table")
-            };
-            let (_, items) = sections
-                .iter_mut()
-                .find(|(n, _)| n == "items_dict")
-                .unwrap();
-            let ConfigValue::Indexed(items) = items else {
-                panic!("a list")
-            };
-            let entry = items.iter_mut().find(|e| e.i32_at("dict_id") == Ok(3));
-            let Some(ConfigValue::Named(keys)) = entry else {
-                panic!("the AK-74M")
-            };
-            keys.push(("srp_like".into(), ConfigValue::String(like.into())));
-            Dictionary::parse(&root.to_bytes().unwrap()).map(|d| d.item(3).unwrap().like)
-        };
-        assert_eq!(copy_of("ak_74n"), Ok(Some(306)));
-        for (like, why) in [
-            ("ak_74m", "is not another plain item of its category"),
-            ("scav_torso_4", "is not another plain item of its category"),
-            (
-                "ak_74n_premium",
-                "is not another plain item of its category",
-            ),
-            ("no_such_item", "is no item"),
-        ] {
-            let error = copy_of(like).unwrap_err().0;
-            assert!(error.contains(why), "{like}: {error}");
-        }
-        assert_eq!(Dictionary::shared().item(338).unwrap().like, Some(306));
-        assert_eq!(Dictionary::shared().item(3).unwrap().like, None);
     }
 }

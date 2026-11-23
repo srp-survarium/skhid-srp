@@ -106,12 +106,21 @@ pub struct Config {
     pub once: bool,
     /// The kit to press Play with; `None` for the one the account plays.
     pub kit: Option<u32>,
-    /// In a match, send the inputs of the stage 0 script (`srp::drive`).
-    pub drive: bool,
+    /// In a match, send the inputs of this script (`srp::drive`).
+    pub drive: Option<drive::Script>,
     /// The patch revision its sign-in says: one that speaks the late join
     /// (5 and later; only such a game plays in rooms).
     pub revision: u8,
+    /// Test only (`srp-bot --suicide-after`): this long after it has the
+    /// world, its next scripted input also carries the suicide bit (24, what
+    /// the K key sends), once, so its body and gun lie where it stood for
+    /// another client to look at. With `drive`. No script has the bit
+    /// (`drive::key::NEVER`), and the match server's own bots never get it.
+    pub suicide_after: Option<Duration>,
 }
+
+/// The suicide bit of an input's actions (client patch 34's K key).
+const SUICIDE: u32 = 0x0100_0000;
 
 /// SHA-1 as the client prints it: 40 lower-case hex characters.
 fn sha1_hex(bytes: &[u8]) -> Vec<u8> {
@@ -180,10 +189,22 @@ pub fn sign_in_with_revision(
     password: &str,
     revision: u8,
 ) -> io::Result<SignIn> {
+    let stream = TcpStream::connect_timeout(&login, LOGIN_TIMEOUT)?;
+    sign_in_over(stream, server_key, user_name, password, revision)
+}
+
+/// [`sign_in_with_revision`] over a connection the caller made (from an
+/// address of its choosing, say).
+pub fn sign_in_over(
+    mut stream: TcpStream,
+    server_key: ServerPublicKey,
+    user_name: &str,
+    password: &str,
+    revision: u8,
+) -> io::Result<SignIn> {
     let too_long = |what: &str| io::Error::other(format!("the {what} is longer than 255 bytes"));
     let name_len = u8::try_from(user_name.len()).map_err(|_| too_long("user name"))?;
     let password_len = u8::try_from(password.len()).map_err(|_| too_long("password"))?;
-    let mut stream = TcpStream::connect_timeout(&login, LOGIN_TIMEOUT)?;
     stream.set_read_timeout(Some(LOGIN_TIMEOUT))?;
     stream.set_write_timeout(Some(LOGIN_TIMEOUT))?;
     let mut message = vec![0x01, name_len];
@@ -235,6 +256,8 @@ struct MatchLink {
     status_at: Instant,
     /// The input script, with `drive`.
     drive: Option<Drive>,
+    /// When its next scripted input carries the suicide bit (`suicide_after`).
+    suicide_at: Option<Instant>,
     /// Its inputs the server dropped (0xF1) or moved (0xEF).
     dropped: u32,
     moved: u32,
@@ -667,7 +690,8 @@ impl Bot {
                             faults_told: 0,
                             relays: 0,
                             status_at: now + STATUS_EVERY,
-                            drive: drive.then(|| Drive::new(drive::stage_0())),
+                            drive: drive.map(|script| Drive::new(script.parts())),
+                            suicide_at: None,
                             dropped: 0,
                             moved: 0,
                         }
@@ -832,6 +856,7 @@ impl Bot {
         }
         if !link.synced && client.model.is_synced() {
             link.synced = true;
+            link.suicide_at = self.config.suicide_after.map(|after| now + after);
             say(&format!(
                 "has the time (0xE5, answered) and the world: its clock is at {} ms. It stays, \
                  sends {}no hashes and no world, to the match's end",
@@ -848,7 +873,13 @@ impl Bot {
         {
             let clock = client.clock();
             for sent in drive.due(clock) {
-                client.send_input(sent.input);
+                let mut input = sent.input;
+                if link.suicide_at.is_some_and(|at| now >= at) {
+                    link.suicide_at = None;
+                    input.actions |= SUICIDE;
+                    say("its next input carries the suicide bit (--suicide-after)");
+                }
+                client.send_input(input);
                 say(&format!(
                     "input for {} ms (tick {}, clock {clock} ms): keys {:#x}{}{}",
                     sent.time,

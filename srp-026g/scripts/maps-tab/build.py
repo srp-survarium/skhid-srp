@@ -55,7 +55,9 @@ HERE = Path(__file__).resolve().parent
 SRP = HERE.parents[1]
 sys.path.insert(0, str(SRP / "scripts" / "released-game"))
 from released import LIST, die, extract, offered, revision as revision_of, write_built_from  # noqa: E402
-from game_maps import FREE_FOR_ALL, WANTED, hud_minimaps, load, playable  # noqa: E402
+from game_maps import BUILDS, FREE_FOR_ALL, WANTED, hud_minimaps, load, playable  # noqa: E402
+sys.path.insert(0, str(SRP / "scripts" / "kill-feed-icons"))
+import make_battery_icon  # noqa: E402
 
 TYPES = {"js": "text/javascript; charset=utf-8", "webp": "image/webp", "svg": "image/svg+xml"}
 # The rule classes (a mode config's `rules`) that use the battery objects
@@ -76,11 +78,11 @@ def version(blob):
     return hashlib.sha256(blob).hexdigest()[:12]
 
 
-# The HUD's own icons, frame 1 of each class: the minimap's (Minimap._icons)
-# and the battery, the game's render of it that the HUD shows a carrier
-# (SrvContainerSymbol: the game calls the battery a container).
-HUD_ICONS = {"player": "PlayerBlue", "base": "Base", "charger": "SpawnIcon", "resupply": "ResupplyIcon",
-             "battery": "SrvContainerSymbol"}
+# The HUD's own icons, frame 1 of each class: the minimap's (Minimap._icons).
+HUD_ICONS = {"player": "PlayerBlue", "base": "Base", "charger": "SpawnIcon", "resupply": "ResupplyIcon"}
+# The battery's: the kill feed's battery (its mesh in three-quarter view, no
+# burst; scripts/kill-feed-icons/make_battery_icon.py), as a vector SVG.
+BATTERY_MESH = "models/weapons/electrobox.skinned_model/render/electrobox_s/converted_model"
 
 
 def lightness(svg):
@@ -119,13 +121,21 @@ def hud_icons(args, raw, work, out):
         svg = re.sub(r'\s(ffdec:\w+)="[^"]*"', "", path.read_text())
         width = float(re.search(r'<svg[^>]*\swidth="([\d.]+)', svg).group(1))
         height = float(re.search(r'<svg[^>]*\sheight="([\d.]+)', svg).group(1))
-        # Centred on the point (the symbols' own origins differ: the battery's
-        # is its corner).
+        # Centred on the point (the symbols' own origins differ).
         ax, ay = width / 2, height / 2
         (out / "icons" / f"hud_{name}.svg").write_text(svg)
         light, opaque = lightness(svg)
         icons[name] = {"src": f"{SITE}/icons/hud_{name}.svg?v={version(svg.encode())}",
                        "w": width, "h": height, "ax": ax, "ay": ay, "light": light, "opaque": opaque}
+    mesh = raw / BATTERY_MESH.replace("/", "__")
+    if not mesh.is_file() or hashlib.sha256(mesh.read_bytes()).hexdigest() != make_battery_icon.MODEL_SHA256:
+        die(f"{BATTERY_MESH}: missing, or not the mesh make_battery_icon.py draws")
+    svg = make_battery_icon.marker(mesh.read_bytes())
+    (out / "icons" / "battery.svg").write_text(svg)
+    width = float(re.search(r'<svg[^>]*\swidth="([\d.]+)', svg).group(1))
+    height = float(re.search(r'<svg[^>]*\sheight="([\d.]+)', svg).group(1))
+    icons["battery"] = {"src": f"{SITE}/icons/battery.svg?v={version(svg.encode())}",
+                        "w": width, "h": height, "ax": width / 2, "ay": height / 2, "light": 1.0, "opaque": 1.0}
     return icons
 
 
@@ -250,7 +260,7 @@ def main():
         raw = tmp / "raw"
         if not (args.work and raw.is_dir()):
             raw.mkdir(parents=True, exist_ok=True)
-            extract(args.dbgrab, args.stock, rows, args.patches, WANTED, raw)
+            extract(args.dbgrab, args.stock, rows, args.patches, WANTED + [BATTERY_MESH], raw)
         texts = localization(raw)
         text = lambda key: {lang: texts[lang].get(key, key) for lang in texts}
         dictionary = load(raw, "gameplay/db_static_dictionaries")
@@ -268,11 +278,12 @@ def main():
         out.mkdir(parents=True, exist_ok=True)
         data_maps, missing = [], []
         used_artefacts = set()
-        for folder in sorted(maps, key=lambda f: (f.startswith("v"), f)):
+        # By build, as the room list (BUILDS), each build's maps by folder.
+        for folder in sorted(maps, key=lambda f: (BUILDS.index(maps[f]["build"]), f)):
             m = maps[folder]
             modes, project_name, artefacts = [], None, None
-            for mode_id in sorted(m["modes"]):
-                mm = m["modes"][mode_id]
+            for mode_id, layout in sorted(m["modes"]):
+                mm = m["modes"][mode_id, layout]
                 seen = None
                 for path in mm["projects"]:
                     project = load(raw, f"projects/{path}/client_project")
@@ -298,7 +309,9 @@ def main():
                 # [x, z, y, cp_id], by cp_id (0, 1, 2: A, B, C).
                 seen["units"] = (sorted((xzy(zone) + [zone.get("cp_id", 0)] for zone in p.get("capture_zones") or []),
                                         key=lambda unit: unit[3]) if RESEARCH in rules else [])
-                modes.append({"mode": mode_id, "ids": sorted(mm["ids"]), "name": text(mm["mode_name"]),
+                # A mode's other layout (Research's units elsewhere) is a choice of its own: "5.2".
+                modes.append({"key": f"{mode_id}.{layout + 1}" if layout else str(mode_id), "layout": layout,
+                              "mode": mode_id, "ids": sorted(mm["ids"]), "name": text(mm["mode_name"]),
                               "stations_active": p.get("spawn_points_count"), "batteries": p.get("victory_items_count"),
                               **seen})
             for a in artefacts:

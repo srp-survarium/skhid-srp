@@ -27,11 +27,11 @@
 //! until the place's next death. [`Corpses::gun`] is where a place's dropped
 //! gun is, on its ragdoll or alone.
 
-use crate::camera::EyeFollow;
+use crate::camera::{EyeFollow, HeadView};
 use crate::math::{Pose, Vec3};
 use crate::ragdoll::{
     Cause, DriverBones, GunShape, HeadwearShape, Knock, Level, LoneGun, Motion, Ragdoll, Skeleton,
-    Start, StartReport, driver_bones,
+    Start, StartReport, Sweep, driver_bones,
 };
 use crate::shot::{Hit, RECENT, Shot, ShotHit};
 use crate::skeleton::{BONE_COUNT, Bone, HEAD, PARTS, Part};
@@ -105,6 +105,7 @@ impl Death {
             hits: [Hit {
                 point: Vec3::ZERO,
                 impulse: Vec3::ZERO,
+                blow: None,
             }; RECENT],
             hit_count: 0,
             load: [0.0; PARTS],
@@ -242,13 +243,11 @@ impl Slot {
             }
             Slot::Ragdoll { ragdoll, clip } => {
                 *clip = Some(Part::ALL.map(|p| game(p.bone())));
-                let (parts, gun) = ragdoll.poses();
-                ragdoll.rig().draw(&parts, gun, out);
+                ragdoll.draw(out);
                 Drawn::Ragdoll
             }
             Slot::Settled { ragdoll, bones, .. } => {
-                let (parts, gun) = ragdoll.poses();
-                ragdoll.rig().draw(&parts, gun, out);
+                ragdoll.draw(out);
                 *bones = Given::Drawn;
                 Drawn::Ragdoll
             }
@@ -276,25 +275,24 @@ impl Slot {
     pub fn draw_alone(&self, skeleton: &mut Skeleton) -> Drawn {
         match self {
             Slot::Ragdoll { ragdoll, .. } | Slot::Settled { ragdoll, .. } => {
-                let (parts, gun) = ragdoll.poses();
-                ragdoll.rig().draw(&parts, gun, skeleton);
+                ragdoll.draw(skeleton);
                 Drawn::Ragdoll
             }
             Slot::Free | Slot::Dying { .. } => Drawn::Game,
         }
     }
 
-    /// The camera's bone on the drawn head (the eye, "Item") and the ground
-    /// the head rests on, while a ragdoll draws the body.
-    fn eye(&self) -> Option<(Pose, Option<(Vec3, Vec3)>)> {
+    /// The camera's bone on the drawn head (the eye, "Item"), the skull and
+    /// the ground the head rests on, while a ragdoll draws the body.
+    fn eye(&self) -> Option<HeadView> {
         let mut skeleton = [Pose::IDENTITY; BONE_COUNT];
         let ragdoll = self.body()?;
-        let (parts, gun) = ragdoll.poses();
-        ragdoll.rig().draw(&parts, gun, &mut skeleton);
-        Some((
-            ragdoll.rig().eye(skeleton[HEAD.index()]),
-            ragdoll.head_ground(),
-        ))
+        ragdoll.draw(&mut skeleton);
+        Some(HeadView {
+            eye: ragdoll.rig().eye(skeleton[HEAD.index()]),
+            skull: ragdoll.skull(),
+            ground: ragdoll.head_ground(),
+        })
     }
 
     /// The ragdoll drawn, moving or settled.
@@ -573,7 +571,7 @@ impl Corpses {
                 self.advance(place, slot, death, frame, level);
             }
         }
-        self.follow(frame);
+        self.follow(frame, level);
         for place in 0..MAX_PLACES {
             self.bounds[place] = match self.places[place] {
                 Corpse::Body { slot, .. } => self.pool[slot.index()].body().map(Ragdoll::bounds),
@@ -690,10 +688,12 @@ impl Corpses {
     }
 
     /// The local player's camera: on its own ragdoll's head.
-    fn follow(&mut self, frame: &Frame<'_>) {
+    fn follow(&mut self, frame: &Frame<'_>, level: &mut impl Level) {
         let target = frame.local.and_then(|place| match self.place(place) {
             Corpse::Body { death, slot } => {
-                self.pool[slot.index()].eye().map(|eye| (place, death, eye))
+                let body = &self.pool[slot.index()];
+                let still = matches!(body, Slot::Settled { .. });
+                body.eye().map(|eye| (place, death, eye, still))
             }
             Corpse::Alive | Corpse::Canned { .. } => None,
         });
@@ -706,9 +706,15 @@ impl Corpses {
                     mut follow,
                     ..
                 },
-                Some((p, d, (raw, ground))),
+                Some((p, d, head, still)),
             ) if place == p && death == d => {
-                let eye = follow.follow(raw, frame.up, ground, frame.dt);
+                // a settled head does not move: the last ray holds, and a
+                // settled body asks the level nothing
+                let eye = if still {
+                    follow.follow(head, frame.up, &mut Unasked, frame.dt)
+                } else {
+                    follow.follow(head, frame.up, level, frame.dt)
+                };
                 Eye::Following {
                     place,
                     death,
@@ -716,9 +722,9 @@ impl Corpses {
                     eye,
                 }
             }
-            (_, Some((place, death, (raw, ground)))) => {
-                let mut follow = EyeFollow::new(raw, frame.up);
-                let eye = follow.follow(raw, frame.up, ground, 0.0);
+            (_, Some((place, death, head, _))) => {
+                let mut follow = EyeFollow::new(head.eye, frame.up);
+                let eye = follow.follow(head, frame.up, level, 0.0);
                 Eye::Following {
                     place,
                     death,
@@ -727,6 +733,15 @@ impl Corpses {
                 }
             }
         };
+    }
+}
+
+/// The level as a settled body's camera sees it: never asked.
+struct Unasked;
+
+impl Level for Unasked {
+    fn sweep(&mut self, _: Vec3, _: Vec3, _: f32) -> Sweep {
+        Sweep::Deferred
     }
 }
 

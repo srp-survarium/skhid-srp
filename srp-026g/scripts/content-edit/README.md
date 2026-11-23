@@ -401,7 +401,8 @@ batteries, batteries with chargers, Team Deathmatch and Research). Each of the s
 loses its core, artefact container, damage zone and the two collision geometries: 35 entries per
 project. The damage zones own their idle sound and particles. The decorative rock piles stay.
 The battery modes also lose the two old outdoor spawn-protection zones and their boxes; each
-spawn point keeps its own 6 seconds of invulnerability.
+spawn point keeps its original invulnerability: 6 seconds in batteries, batteries with chargers
+and Research, and 3 seconds in Team Deathmatch.
 
 The 20 spawn points come from the owner's map-editor placement. `set_entry` changes only their
 positions and rotations, retaining their names, order, teams and other properties. All four
@@ -431,6 +432,20 @@ same content by `release/build-site`.
 `feat/dynamic-anomalies` (not shipped) removes the same seven anomalies for timed ones, and
 PR #369's `sponge/spots.tsv` selects their containers. Both must drop their London entries
 before they can ship on top of this list.
+
+## rifle-scopes-1.json (2026-10-26; the variants' part retired 2026-11-21)
+
+| change | why |
+|---|---|
+| `data/fov_factor` 0.8 -> 0.5 in the Aimpoint CompM4's item and its 25 variants (its name with x2 is in `../../client-patches/localization/*.tsv`) | the owner (2026-10-26): the CompM4 at x2, as 0.46c2 and 0.69d0 have it (the coordinator's pick: the item itself, so its owners get x2) |
+
+Its 184 `items_compatibility` rows are `scope-modules-1.json`'s now. The 25 variants are retired
+with every scope variant (`../../docs/notes/attachments-scopes.md`, "The variants retired"); their
+rows stay here, and `scope-centering-1.json` stays whole, because `release/build-content` cannot
+take an edit off a file: a file no row makes is never packed again. `scope-fits-1.json` and
+`scope-coverage-1.json` are gone: their compatibility rows are `scope-modules-1.json`'s, and their
+`addons { mount: 1 }` placeholders (a variant's type-3 modifier needed a table with a child) are
+not needed by a scope item's modification, which adds to `data`.
 
 ## weapon-camo-031-1.json (2026-11-01)
 
@@ -501,3 +516,20 @@ and stops when one differs. On the players' files (the stock db and the patches 
 release/patches.tsv up to 49): 40 files edited (39 rounds), 0 unexpected differences; each weapon's
 best round: 82 Concrete, 11 Plywood, 7 Brick, 2 Stone (the VSSKs' VPS), 1 Tinplate. Presentation
 only: no simulation change.
+
+## scope-modules-1.json (2026-11-21)
+
+Made by `../scope-fits/modules_edit.py` from the record of the weapon-modules pack's build
+(resource-porter's `port-modules`, its `modules-069d.json`); make it again with every version of the
+pack, not this file (`modules_edit.py --check`, `tools/check scope-modules`, says when it is not the
+listed pack's). It names
+the pack's models, so it comes after the pack
+(`../../docs/notes/attachments-scopes.md`).
+
+| change | why |
+|---|---|
+| each shop scope item's `data/idle_model` and `data/aimed_model` (the optics of the record) | one pair of models an optic, 0.69d0's own, their origin the optic's slot: the modules table places them on every gun; the items showed one variant's pair before |
+| each shop scope item's modification, now 994000 + its dict id (it was 991000 + it): its `[srp_scope_noop]` set 0 stays first (no key changes its type) and two modifiers follow: a type 3 add of `[srp_scope, <its dict id>]` to the weapon's `data` and a type 0 set of the weapon's `parameters/aim_offset` to 0 | an upgrade record of a scope now holds the scope item's own dict id; the game fits the scope from `data/srp_scope` (patch 161) and the eye is the table's alone |
+| an `items_compatibility` row (`compatibility_<scope><weapon>`) for each pair of the table, but the 169 whose row a base patch's dictionary has (`../scope-fits/released-pairs.tsv` less `retired-variants.tsv`) | the lobby movie greys a scope by these rows |
+
+A view-only change: no simulation row.

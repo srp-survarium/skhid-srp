@@ -24,7 +24,8 @@
 //!      (`respawns + 1` times the most a kit's slots hold of the item: a
 //!      life takes at most its slots' counts out of the store, 0x2FCC4A;
 //!      a respawn is a death or a kit change before play began, which the
-//!      games of patch 31 make a respawn in place);
+//!      games of patch 31 make a respawn in place, and in Artifact Hunt a
+//!      round start, which respawns everyone);
 //!    - for ammo, never more than the bullets the statistics counted
 //!      (event 22), except buckshot, whose round flies as ten bullets (its
 //!      config's `buckshot: 10`) while it is not known whether the counter
@@ -141,7 +142,7 @@ fn used_by_counters(account: &Account, shots: &[u32], buckshot: Option<u16>) -> 
 /// id, units)`. `supplies` is the player's block of the last trusted
 /// snapshot, `shots[kit]` the bullets its counters say each kit fired,
 /// `respawns` how often it began a new life: its deaths and its kit
-/// changes before play began, `twist` the twist the match armed its kits
+/// changes before play began (and an Artifact Hunt's round starts), `twist` the twist the match armed its kits
 /// with: then they were not the account's, without a block the counters
 /// prove nothing of its stacks, and the ammo the twist gives
 /// ([`Armed::gives`]) is nobody's, never charged though the account owns
@@ -154,6 +155,10 @@ pub fn used(
     respawns: u32,
     twist: Option<Armed>,
 ) -> Vec<(u16, u32)> {
+    // Roulette's kits held nothing of the account's (`survarium::v026g::roulette`).
+    if matches!(twist, Some(Armed::Roulette(_))) {
+        return Vec::new();
+    }
     let dictionary = Dictionary::shared();
     let buckshot = dictionary.item_named(BUCKSHOT).map(|item| item.dict_id);
     let block = supplies.filter(|supplies| !supplies.alive || supplies.inventory_read);
@@ -484,20 +489,21 @@ mod tests {
         let (mut account, _, ammo) = rifleman(300);
         account.generic_money = 1_000;
         let rounds = dict("ammo_5.45x39_7n6m");
-        // 45 used: two clips of 30 at 30 silver (its `base_cost`).
+        let clip = survarium::v026g::prices::price(rounds).unwrap().cost;
+        // 45 used: two clips of 30.
         let settled = settle(&mut account, &[(rounds, 45)]);
         assert_eq!(settled.bought, [(rounds, 60)]);
         assert_eq!(settled.spent.autobuy_ammo, [(60, rounds)]);
         assert!(settled.spent.autobuy_consumables.is_empty());
         assert_eq!(account.item(ammo).unwrap().condition_or_stack, 315);
-        assert_eq!(account.generic_money, 940);
+        assert_eq!(account.generic_money, 1_000 - 2 * clip);
         // Silver for one clip only.
-        account.generic_money = 50;
+        account.generic_money = clip + clip / 2;
         let settled = settle(&mut account, &[(rounds, 90)]);
         assert_eq!(settled.bought, [(rounds, 30)]);
         assert_eq!(settled.spent.autobuy_ammo, [(30, rounds)]);
         assert_eq!(account.item(ammo).unwrap().condition_or_stack, 255);
-        assert_eq!(account.generic_money, 20);
+        assert_eq!(account.generic_money, clip / 2);
         // No silver: nothing bought, nothing listed.
         account.generic_money = 0;
         let settled = settle(&mut account, &[(rounds, 30)]);
@@ -521,7 +527,7 @@ mod tests {
         assert_eq!(settled.bought, [(rounds, 30)]);
         assert_eq!(account.item(ammo).unwrap().condition_or_stack, 300);
         assert_eq!(account.item(kits).unwrap().condition_or_stack, 3);
-        assert_eq!(account.generic_money, 970);
+        assert_eq!(account.generic_money, 1_000 - survarium::v026g::prices::price(rounds).unwrap().cost);
     }
 
     #[test]

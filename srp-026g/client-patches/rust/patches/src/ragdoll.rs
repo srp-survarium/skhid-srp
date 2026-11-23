@@ -71,7 +71,8 @@ const LEVEL_MASK: u32 = 0x02 | 0x08 | 0x200;
 // ray_test takes them as u16
 const _: () = assert!(LEVEL_GROUP <= 0xFFFF && LEVEL_MASK <= 0xFFFF);
 /// The level's rays a frame, for all ragdolls (a ray is a few microseconds).
-const RAYS_A_FRAME: u32 = 160;
+/// (two an end of a moving body: under it and beside it.)
+const RAYS_A_FRAME: u32 = 320;
 const UP: Vec3 = Vec3::Y;
 /// The living hits kept between a frame's bullets and its step.
 const LIVING_HITS: usize = 32;
@@ -209,8 +210,7 @@ enum Clock {
 }
 
 /// A bullet's round as the trace says it: the ammo's mass and muzzle speed
-/// (its identity), its speed at the hit, its segment, its id and shooter,
-/// and whether it is a gun-stock hit.
+/// (its identity), its speed at the hit, its segment, its id and shooter.
 #[derive(Clone, Copy)]
 struct Round {
     mass: f32,
@@ -219,7 +219,6 @@ struct Round {
     segment: u32,
     bullet: u32,
     shooter: u8,
-    gun_stock: bool,
 }
 
 /// A shot's push on a corpse, for the next step.
@@ -439,18 +438,17 @@ fn seen(
     (Seen::Dead(death), Some(index))
 }
 
-/// A living hit as its death takes it: a gun-stock hit is knocked back by
-/// its shooter's kit (MELEE_KNOCKBACK: the Anomalous Force Protein in a
-/// pocket, its built-in modification 1330, +15); every other hit as it came.
-/// Every client knows every kit, so each draws the same.
+/// A living hit as its death takes it: a melee hit is knocked back by its
+/// shooter's kit (MELEE_KNOCKBACK: the Anomalous Force Protein in a pocket,
+/// its built-in modification 1330, +15) and, a battery strike, by its own
+/// half of the protein's on top; every other hit as it came. Every client
+/// knows every kit and every carried battery, so each draws the same.
 fn pushed(living: &Living, client: &NetworkClient<'_>) -> Hit {
     let Living { hit, round, .. } = *living;
-    if !round.gun_stock || round.shooter == u8::MAX {
-        return hit;
-    }
-    let shooter = client.player(u32::from(round.shooter));
-    let knockback = shooter.and_then(|p| p.kit_modifier(ModifierIndex::MELEE_KNOCKBACK));
-    knockback.map_or(hit, |k| Hit { impulse: knocked_back(hit.impulse, k), ..hit })
+    let Some(blow) = hit.blow else { return hit };
+    let shooter = (round.shooter != u8::MAX).then(|| client.player(u32::from(round.shooter))).flatten();
+    let kit = shooter.and_then(|p| p.kit_modifier(ModifierIndex::MELEE_KNOCKBACK)).unwrap_or(0.0);
+    Hit { impulse: knocked_back(hit.impulse, blow, kit), ..hit }
 }
 
 /// Record the native death event without changing simulation state.
@@ -472,13 +470,23 @@ pub fn on_step(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let world = GameWorld::at_after_move(ctx);
     let key = world.as_ref().and_then(crate::vostok::gun_cook::world_key);
-    let client = world.and_then(|world| world.network_client());
+    let client = world.as_ref().and_then(|world| world.network_client());
     let guns = STATE.with(thread, |state| {
         if state.world != key {
             state.world = key;
             state.corpses.reset();
         }
         step(state, client.as_ref(), thread);
+        // patch 196: the corpse shots told, played at the corpses as drawn here
+        if let Some(world) = &world {
+            let own = client.as_ref().map_or(crate::corpse_shot_dark::Own::Living, crate::corpse_shot_dark::Own::of);
+            crate::corpse_shot_dark::after_step(thread, world, state.time, own, |place, death| {
+                match state.corpses.place(usize::from(place.get())) {
+                    Corpse::Body { death: d, slot } if d == death => state.corpses.slot(slot).body().map(|b| b.skull()),
+                    Corpse::Alive | Corpse::Body { .. } | Corpse::Canned { .. } => None,
+                }
+            });
+        }
         // each place's dropped gun, for patch 85's drops drawn as their copies
         core::array::from_fn(|place| state.corpses.gun(place)
             .map(|(death, pose)| crate::weapon_pickup::DroppedGun { life: death.0, transform: matrix_of(pose) }))
@@ -493,11 +501,17 @@ fn step(state: &mut State, client: Option<&NetworkClient<'_>>, thread: &Thread) 
     let living = core::mem::replace(&mut state.shots.living, [None; LIVING_HITS]);
     // the pushes of the shots since the last step (the bullets' threads
     // are done: the simulation's move has returned)
+    let own_place = client.and_then(|client| client.local_place());
     for push in state.shots.pushes.iter_mut() {
-        if let Some(p) = push.take()
-            && let Some(knock) = state.corpses.push(p.place, p.death, p.part, p.point, p.impulse)
-            && (knock.push > SPIKE_PUSH || knock.speed > SPIKE_SPEED)
+        let Some(p) = push.take() else { continue };
+        let Some(knock) = state.corpses.push(p.place, p.death, p.part, p.point, p.impulse) else { continue };
+        // patch 196: the local player's own bullet in a corpse
+        if let Some(client) = client
+            && own_place == Some(p.round.shooter)
         {
+            crate::corpse_shot_dark::hit(thread, p.place, p.death, knock.age, client.places());
+        }
+        if knock.push > SPIKE_PUSH || knock.speed > SPIKE_SPEED {
             spike_of_push(&mut state.trace, thread, state.time, p.place, &p.round, &knock);
         }
     }
@@ -604,8 +618,7 @@ fn step(state: &mut State, client: Option<&NetworkClient<'_>>, thread: &Thread) 
 fn spike_of_death(file: &mut TraceState, thread: &Thread, time: f32, place: usize, round: Option<&Round>,
                   r: &StartReport) {
     let body: f32 = Part::ALL.iter().map(|p| p.mass()).sum();
-    let none = Round { mass: f32::NAN, muzzle: f32::NAN, speed: f32::NAN, segment: 0, bullet: 0, shooter: 0,
-                       gun_stock: false };
+    let none = Round { mass: f32::NAN, muzzle: f32::NAN, speed: f32::NAN, segment: 0, bullet: 0, shooter: 0 };
     let round = round.unwrap_or(&none);
     trace_line(file, thread, |w| {
         w.text("spike,");
@@ -780,7 +793,6 @@ fn bullet(ray: &BulletRay<'_>, thread: &Thread) {
         segment: ray.segment(),
         bullet: ray.id(),
         shooter: shooter.unwrap_or(u8::MAX),
-        gun_stock: ray.gun_stock(),
     };
     let push = |direction: Vec3| impulse(direction, round.mass, round.speed);
     // a living player hit: kept for its death's push, once a bullet
@@ -788,7 +800,7 @@ fn bullet(ray: &BulletRay<'_>, thread: &Thread) {
         && let Some(point) = ray.struck()
         && let Some(unit) = direction.direction()
     {
-        let living = Living { body, hit: Hit { point: vec3(point), impulse: push(unit) }, round };
+        let living = Living { body, hit: Hit { point: vec3(point), impulse: push(unit), blow: ray.melee() }, round };
         STATE.with(thread, |state| take_living(&mut state.shots, key(LIVING, body.key()), living));
     }
     if !ANY_BODIES.load(Ordering::Acquire) {

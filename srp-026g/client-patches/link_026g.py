@@ -2,13 +2,15 @@
 """The arena's linker: `.srpx` built from its patches' C and NASM sources
 (client_patch.md section 0.3, README "The arena").
 
-    python link_026g.py --write
-        links patch_026g.py's ARENA from its sources and writes
-        arena_026g.lock.json: the linked arena's SHA-256, its blocks and
-        symbols, and what built it
-    python link_026g.py --check
-        says whether the lock is what the sources give here (the self-test
-        and every build compare the same)
+    python link_026g.py
+        links patch_026g.py's ARENA from its sources: each block's VA and
+        size, the arena's SHA-256 and what built it
+    python link_026g.py --symbols
+        every global symbol's VA (two trees' outputs diffed: what moved)
+    python link_026g.py --generate
+        only writes the generated sources (patch_026g.py's
+        generate_sources, which every link runs first): for cargo and
+        rust-analyzer in rust/ without a build
     python link_026g.py --sizes
         each block's bytes, pages and languages, each Rust patch's bytes
         (its module's symbols), and the arena against its limit
@@ -39,10 +41,14 @@ defines or one defined twice (ld); a block with nothing in it; an arena past
 its limit. CC, LD and NASM (or NASM_DIR, the folder of nasm) name other tools
 than `cc`, `ld` and `nasm`; `nix develop ./srp-026g` has them.
 
-The lock: the arena is built from source by every build (the self-test's,
-the release's), and the bytes must be the lock's: a change of a source is
-followed by `--write` (and the lock's diff shows what moved), and an
-unexpected change (another compiler, another NASM) stops the build.
+The arena is built from source by every build (the self-test's, the
+release's); a release records its SHA-256 and stops when the arena of the
+exe it ships is not the one its self-test ran on (release/release.sh).
+
+A local build takes what rustc made of a crate before from
+~/.cache/skhid-arena when nothing it was made from changed ("the cache of
+what rustc built" below); SRP_ARENA_CACHE=off, the release's and the
+self-test's, compiles everything.
 """
 import collections
 import hashlib
@@ -53,11 +59,10 @@ import re
 import shutil
 import struct
 import subprocess
-import sys
 import tempfile
+import time
 
 HERE = Path(__file__).resolve().parent
-LOCK = HERE / "arena_026g.lock.json"
 KINDS = ("code", "data", "state")
 # What gcc gets for a C source (Research's flags since patch 53).
 CFLAGS = ["-m32", "-Os", "-std=c11", "-ffreestanding", "-fno-pic", "-fno-builtin", "-fno-stack-protector",
@@ -336,7 +341,7 @@ def source_digest(source):
 # What rustc gets for a Rust crate (`Cargo.toml` source), and for the `core`
 # it is built against: the game's i686, no position-independent code, size
 # first, aborts, one codegen unit, no debug information, the paths in the
-# bytes made relative (the lock does not depend on the folder). No cargo:
+# bytes made relative (they do not depend on the folder). No cargo:
 # `-Zbuild-std` resolves the whole standard library's workspace (proc_macro's
 # crates.io dependencies among them), which needs the network or a warm cache;
 # rustc alone builds `core` from the toolchain's rust-src, offline.
@@ -380,34 +385,172 @@ def rustc(tools, args, what, env_extra=None):
         raise LinkError(f"rustc {what} failed:\n{(done.stdout + done.stderr).strip()}")
 
 
+# ---- the cache of what rustc built ------------------------------------------
+# The Rust crates are most of a build's time (fat LTO, one codegen unit: 23 s
+# of a 28 s build), and most builds change none of them. What rustc made is
+# kept by what it was made from, for every worktree (the bytes do not depend
+# on the folder): ~/.cache/skhid-arena, or
+# SRP_ARENA_CACHE's folder; SRP_ARENA_CACHE=off builds everything from source,
+# as the release and the self-test do. A kept output is taken only when
+# rustc, its flags, the crates it links (by their bytes), every file rustc
+# read for it (its dep-info: modules, include!, include_str!, include_bytes!)
+# and every environment variable it read (env!, option_env!) are the same.
+CACHE_DAYS = 30                                # an output not taken for so long is deleted
+
+
+def cache_root():
+    """The cache's folder; None when it is off."""
+    named = os.environ.get("SRP_ARENA_CACHE")
+    if named == "off":
+        return None
+    if named:
+        return Path(named)
+    return Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "skhid-arena"
+
+
+def tool_identity(tools):
+    """What names the compiler exactly: its verbose version and where it is
+    (a Nix store path names its build)."""
+    done = subprocess.run([tools["rustc"], "-vV"], capture_output=True, text=True)
+    return [done.stdout, first_line([tools["rustc"], "--print", "sysroot"])]
+
+
+def portable(path):
+    """A file's name in the cache: relative to srp-026g when inside it."""
+    path = Path(path)
+    if not path.is_absolute():                            # as rustc's remapped paths name it
+        return str(path)
+    try:
+        return "srp-026g/" + str(path.resolve().relative_to(HERE.parent))
+    except ValueError:
+        return str(path)
+
+
+def unportable(name):
+    return HERE.parent / name[len("srp-026g/"):] if name.startswith("srp-026g/") else Path(name)
+
+
+def dep_info(text):
+    """({file: SHA-256}, {variable: value as dep-info writes it, or None}) of
+    a rustc dep-info file: every file the compiler read (each has a line of
+    its own, `<file>:`) and every environment variable."""
+    files, env = {}, {}
+    for line in text.splitlines():
+        if line.startswith("# env-dep:"):
+            name, equals, value = line[len("# env-dep:"):].partition("=")
+            env[name] = value if equals else None
+        elif line.endswith(":") and not line.startswith("#"):
+            name = portable(line[:-1].replace("\\ ", " "))
+            files[name] = file_digest(unportable(name))
+    return files, env
+
+
+def env_as_dep_info(name):
+    """A variable's value now, as dep_info() gives it."""
+    value = os.environ.get(name)
+    return None if value is None else value.replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r")
+
+
+def file_digest(path):
+    try:
+        return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def rustc_built(tools, args, what, out, identity, env_extra=None):
+    """rustc `args` with its output in `out`: taken from the cache when the
+    same compiler was given the same `identity` (its arguments without the
+    folders, the crates it links by their bytes) and read the same files and
+    environment; built and kept otherwise."""
+    root = cache_root()
+    if root is None:
+        rustc(tools, [*args, "-o", str(out)], what, env_extra)
+        return
+    key = hashlib.sha256(json.dumps([tool_identity(tools), identity], sort_keys=True).encode()).hexdigest()
+    folder = root / "rustc" / key
+    entries = sorted(folder.glob("*.json"), key=lambda p: -p.stat().st_mtime) if folder.is_dir() else []
+    for entry in entries:
+        try:
+            kept = json.loads(entry.read_text())
+            body = entry.with_suffix(".bin").read_bytes()
+        except (OSError, ValueError):
+            continue
+        if hashlib.sha256(body).hexdigest() != kept.get("sha256"):
+            continue
+        if all(file_digest(unportable(name)) == digest for name, digest in kept["files"].items()) \
+                and all(env_as_dep_info(name) == value for name, value in kept["env"].items()):
+            out.write_bytes(body)
+            os.utime(entry)
+            return
+    deps = out.with_name(out.name + ".d")
+    started = time.time()
+    rustc(tools, [*args, f"--emit=link={out},dep-info={deps}"], what, env_extra)
+    files, env = dep_info(deps.read_text())
+    deps.unlink()
+    if not files or None in files.values():
+        raise LinkError(f"rustc {what}: its dep-info names no file, or one that is not there")
+    if any(unportable(name).stat().st_mtime > started - 2 for name in files):
+        return                                # a file written while rustc ran: which bytes it read is not known
+    body = out.read_bytes()
+    kept = {"what": what, "sha256": hashlib.sha256(body).hexdigest(), "files": files, "env": env}
+    name = hashlib.sha256(json.dumps(kept, sort_keys=True).encode()).hexdigest()[:24]
+    folder.mkdir(parents=True, exist_ok=True)
+    for suffix, data in ((".bin", body), (".json", json.dumps(kept, indent=1).encode())):   # the .json last: it names a whole entry
+        with tempfile.NamedTemporaryFile(dir=folder, delete=False) as partial:
+            partial.write(data)
+        os.replace(partial.name, folder / (name + suffix))
+    prune_cache(root)
+
+
+def prune_cache(root):
+    """Deletes the outputs no build took for CACHE_DAYS."""
+    old = time.time() - CACHE_DAYS * 86400
+    for entry in (root / "rustc").glob("*/*.json"):
+        try:
+            if entry.stat().st_mtime < old:
+                entry.with_suffix(".bin").unlink(missing_ok=True)
+                entry.unlink(missing_ok=True)
+                if not any(entry.parent.iterdir()):
+                    entry.parent.rmdir()
+        except OSError:
+            pass
+
+
 def rust_sysroot(tools):
-    """A sysroot of our own for i686 (built once a toolchain, in
-    srp-026g/target-arena): core from the toolchain's rust-src with RUSTFLAGS,
-    and the empty compiler_builtins."""
+    """A sysroot of our own for i686 (built once a toolchain, in the cache's
+    folder, or in srp-026g/target-arena when it is off): core from the
+    toolchain's rust-src with RUSTFLAGS, and the empty compiler_builtins."""
     version = first_line([tools["rustc"], "--version"])
     toolchain_root = first_line([tools["rustc"], "--print", "sysroot"])
     key = hashlib.sha256(repr((version, toolchain_root, RUSTFLAGS, COMPILER_BUILTINS_STUB)).encode()).hexdigest()[:16]
-    root = HERE.parent / "target-arena" / f"sysroot-{key}"
+    root = (cache_root() or HERE.parent / "target-arena") / f"sysroot-{key}"
     lib = root / "lib" / "rustlib" / RUST_TARGET / "lib"
     if (lib / "libcompiler_builtins.rlib").is_file():
         return root
     core = Path(toolchain_root) / "lib" / "rustlib" / "src" / "rust" / "library" / "core" / "src" / "lib.rs"
     if not core.is_file():
         raise LinkError(f"{core}: no rust-src in the toolchain (the dev shell's has it)")
-    building = root.with_name(root.name + ".building")
-    shutil.rmtree(building, ignore_errors=True)
-    blib = building / "lib" / "rustlib" / RUST_TARGET / "lib"
-    blib.mkdir(parents=True)
-    remap = [f"--remap-path-prefix={toolchain_root}=rustc"]
-    rustc(tools, ["--edition", RUST_EDITION, "--crate-name", "core", "--crate-type", "rlib", *RUSTFLAGS, *remap,
-                  "-Zforce-unstable-if-unmarked", str(core), "-o", str(blib / "libcore.rlib")], "core")
-    stub = building / "compiler_builtins.rs"
-    stub.write_text(COMPILER_BUILTINS_STUB)
-    rustc(tools, ["--edition", RUST_EDITION, "--crate-name", "compiler_builtins", "--crate-type", "rlib", *RUSTFLAGS,
-                  "--sysroot", str(building), str(stub), "-o", str(blib / "libcompiler_builtins.rlib")],
-          "compiler_builtins")
-    shutil.rmtree(root, ignore_errors=True)
-    building.rename(root)
+    root.parent.mkdir(parents=True, exist_ok=True)
+    building = Path(tempfile.mkdtemp(prefix=root.name + ".building-", dir=root.parent))   # a build of its own: two may run
+    try:
+        blib = building / "lib" / "rustlib" / RUST_TARGET / "lib"
+        blib.mkdir(parents=True)
+        remap = [f"--remap-path-prefix={toolchain_root}=rustc"]
+        rustc(tools, ["--edition", RUST_EDITION, "--crate-name", "core", "--crate-type", "rlib", *RUSTFLAGS, *remap,
+                      "-Zforce-unstable-if-unmarked", str(core), "-o", str(blib / "libcore.rlib")], "core")
+        stub = building / "compiler_builtins.rs"
+        stub.write_text(COMPILER_BUILTINS_STUB)
+        rustc(tools, ["--edition", RUST_EDITION, "--crate-name", "compiler_builtins", "--crate-type", "rlib",
+                      *RUSTFLAGS, "--sysroot", str(building), str(stub),
+                      "-o", str(blib / "libcompiler_builtins.rlib")], "compiler_builtins")
+        try:
+            building.rename(root)
+        except OSError:                                   # another build made it meanwhile
+            if not (lib / "libcompiler_builtins.rlib").is_file():
+                raise
+    finally:
+        shutil.rmtree(building, ignore_errors=True)
     return root
 
 
@@ -426,12 +569,25 @@ def build_crate(manifest, tools, out):
     rustc against rust_sysroot(): the crates it names by path as rlibs, then
     it with fat LTO (one object; the archive's core and compiler_builtins
     members are left out: a symbol the crate would need from them is an
-    undefined symbol, which the link refuses)."""
+    undefined symbol, which the link refuses). Each of them built once for
+    the same inputs (rustc_built)."""
     sysroot = rust_sysroot(tools)
     toolchain_root = first_line([tools["rustc"], "--print", "sysroot"])
     remap = [f"--remap-path-prefix={HERE.parent}=srp-026g", f"--remap-path-prefix={toolchain_root}=rustc"]
     with tempfile.TemporaryDirectory(prefix="srp-rust-") as folder:
-        built, externs = set(), []
+        built, externs, linked = set(), [], []
+
+        def compile_crate(name, root, kind, target):
+            """rustc for one crate; its identity in the cache: everything
+            given to rustc but the folders, and the bytes of the rlibs it
+            links (in the order given)."""
+            lto = ["-C", "lto=fat"] if kind == "staticlib" else []
+            identity = {"edition": RUST_EDITION, "name": name, "type": kind, "flags": [*RUSTFLAGS, *lto],
+                        "remap": ["srp-026g", "rustc"], "sysroot": sysroot.name, "root": portable(root),
+                        "externs": list(linked)}
+            rustc_built(tools, ["--edition", RUST_EDITION, "--crate-name", name, "--crate-type", kind, *RUSTFLAGS,
+                                *remap, *lto, "--sysroot", str(sysroot), "-L", folder, *externs, str(root)],
+                        name, target, identity)
 
         def rlib(path):
             name, root, deps = crate_of(path)
@@ -441,17 +597,15 @@ def build_crate(manifest, tools, out):
                 return
             built.add(name)
             target = Path(folder) / f"lib{name}.rlib"
-            rustc(tools, ["--edition", RUST_EDITION, "--crate-name", name, "--crate-type", "rlib", *RUSTFLAGS, *remap,
-                          "--sysroot", str(sysroot), "-L", folder, *externs, str(root), "-o", str(target)], name)
+            compile_crate(name, root, "rlib", target)
             externs.extend(["--extern", f"{name}={target}"])
+            linked.append([name, hashlib.sha256(target.read_bytes()).hexdigest()])
 
         name, root, deps = crate_of(manifest)
         for dep in deps:
             rlib(dep)
         archive = Path(folder) / f"lib{name}.a"
-        rustc(tools, ["--edition", RUST_EDITION, "--crate-name", name, "--crate-type", "staticlib", *RUSTFLAGS, *remap,
-                      "-C", "lto=fat", "--sysroot", str(sysroot), "-L", folder, *externs, str(root),
-                      "-o", str(archive)], name)
+        compile_crate(name, root, "staticlib", archive)
         own = [body for member, body in ar_members(archive.read_bytes(), archive.name)
                if member.endswith(".o") and f".{name}." in member]
         if len(own) != 1:
@@ -575,37 +729,6 @@ def block_bytes(linked, name):
     return linked.image[block.va - linked.va:block.va - linked.va + block.size]
 
 
-# ---- the lock ------------------------------------------------------------
-
-def lock_of(linked):
-    return {"generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
-            "va": f"{linked.va:#x}", "size": linked.size, "sha256": linked.sha256,
-            "blocks": {b.name: {"kind": b.kind, "va": f"{b.va:#x}", "size": b.size} for b in linked.blocks.values()},
-            "symbols": {name: f"{value:#x}" for name, value in linked.symbols.items()},
-            "built_with": linked.built_with}
-
-
-def lock_differs(linked, kept):
-    """None when `kept` (a lock) is the linked arena's; else why not."""
-    if kept is None:
-        return "there is no lock"
-    mine = lock_of(linked)
-    if all(kept.get(k) == mine[k] for k in ("va", "size", "sha256", "blocks", "symbols")):
-        return None
-    blocks = sorted({n for n in set(mine["blocks"]) | set(kept.get("blocks", {}))
-                     if mine["blocks"].get(n) != kept.get("blocks", {}).get(n)})
-    return (f"the linked arena is {mine['sha256']} ({mine['size']:#x} bytes), the lock's {kept.get('sha256')}"
-            + (f"; blocks that differ: {', '.join(blocks)}" if blocks else "")
-            + f"; built here with {mine['built_with']}, the lock with {kept.get('built_with')}")
-
-
-def read_lock(path=LOCK):
-    try:
-        return json.loads(Path(path).read_text())
-    except FileNotFoundError:
-        return None
-
-
 def rust_path(name):
     """The path of a Rust symbol (legacy mangling, `_ZN` .. `E`, the hash
     left out): ["patches", "suicide_key", "hook"]; [name] when unmangled."""
@@ -672,28 +795,24 @@ def main():
     import argparse
     import patch_026g as base
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--write", action="store_true")
-    parser.add_argument("--check", action="store_true")
-    parser.add_argument("--sizes", action="store_true")
+    what = parser.add_mutually_exclusive_group()
+    for option in ("--symbols", "--generate", "--sizes"):
+        what.add_argument(option, action="store_true")
     args = parser.parse_args()
-    if args.write + args.check + args.sizes != 1:
-        parser.error("--write, --check or --sizes")
-    try:
-        linked = link(base.ARENA, base.ARENA_VA, base.ARENA_LIMIT)
-    except LinkError as error:
-        sys.exit(f"link_026g: {error}")
+    if args.generate:
+        base.generate_sources()
+        return
+    linked = base.arena()
     if args.sizes:
         print(sizes_text(base.ARENA, linked, base.ARENA_LIMIT, base.RUST_PATCHES))
-        return
-    for block in linked.blocks.values():
-        print(f"  {block.name:<16} {block.kind:<5} {block.va:#x} {block.size:#7x} bytes")
-    if args.write:
-        LOCK.write_text(json.dumps(lock_of(linked), indent=2) + "\n", newline="\n")
-        print(f"{LOCK.name}: {linked.size:#x} bytes at {linked.va:#x}, SHA-256 {linked.sha256}")
-        return
-    why = lock_differs(linked, read_lock())
-    print(f"{LOCK.name}: " + ("current" if why is None else f"NOT what the sources give here: {why}"))
-    raise SystemExit(0 if why is None else 1)
+    elif args.symbols:
+        for name, va in linked.symbols.items():
+            print(f"{va:#x} {name}")
+    else:
+        for block in linked.blocks.values():
+            print(f"  {block.name:<16} {block.kind:<5} {block.va:#x} {block.size:#7x} bytes")
+        print(f"the arena: {linked.size:#x} bytes at {linked.va:#x}, SHA-256 {linked.sha256}; built with "
+              + ", ".join(linked.built_with.values()))
 
 
 if __name__ == "__main__":

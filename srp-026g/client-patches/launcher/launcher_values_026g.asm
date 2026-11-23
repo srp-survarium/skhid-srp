@@ -1,7 +1,7 @@
 ; The values the 0.26g launcher (build 2777) read from the installer's
 ; registry key, worked out from where the launcher itself is.
 ;
-;   nasm -f bin -DCAVE=0x49A000 launcher_values_026g.asm -o launcher_values_026g.bin
+; Assembled at CAVE=0x49A000 by every build (patch_launcher_026g.py, code()).
 ;
 ; The launcher reads five strings of HKLM\Software\Vostok Games\Survarium
 ; through registry_key::get_string (0x14027): `file to execute`, `arguments`
@@ -238,8 +238,9 @@ install_status:
 ;   pick_language     0x19A08  the button's click: a menu of every language (it opened
 ;                              the five-row drop-down)
 ;
-; The game finds its folder as SHGetFolderPathA(CSIDL_PERSONAL) + "\survarium"
-; (client_patch.md, the user folder); so does this, with the same function.
+; user.cfg is in SHGetFolderPath(CSIDL_PERSONAL) + "\survarium", the game's
+; folder (client_patch.md, the user folder); paths are UTF-16 here, so that a
+; Documents folder outside the ANSI code page works.
 
 IAT_CloseHandle         equ 0x3B098
 IAT_ReadFile            equ 0x3B0EC
@@ -247,14 +248,12 @@ IAT_WriteFile           equ 0x3B0F8
 IAT_GetProcessHeap      equ 0x3B118
 IAT_HeapFree            equ 0x3B238
 IAT_HeapAlloc           equ 0x3B23C
-IAT_CreateFileA         equ 0x3B254
 IAT_GetModuleHandleA    equ 0x3B258
 IAT_GetProcAddress      equ 0x3B1D8
 IAT_GetLastError        equ 0x3B218
-IAT_DeleteFileA         equ 0x3B110
-IAT_SHGetFolderPathA    equ 0x3B2BC
-IAT_SHCreateDirectoryExA equ 0x3B2C0
 IAT_GetWindowRect       equ 0x3B394
+IAT_GetFileAttributesW  equ 0x3B1BC
+IAT_CreateFileW         equ 0x3B12C
 
 LANGUAGE_GLOBAL         equ 0x4819C     ; the index get_language_code reads
 LANGUAGE_SELECTED       equ 0x19A20     ; language_menu::language_selected({menu, index})
@@ -263,8 +262,7 @@ MENU_WINDOW             equ 0x4         ; language_menu: its window
 MENU_SETTINGS           equ 0x154       ; language_menu: the settings
 
 CFG_SIZE                equ 0x10000     ; a user.cfg up to this is read (the game's is ~3 KB)
-PATH_SIZE               equ 320         ; MAX_PATH and the two names after it
-KEY_LENGTH              equ 12          ; "localization"
+PATH_SIZE               equ 640         ; bytes: MAX_PATH and the names after it, UTF-16
 CSIDL_PERSONAL          equ 5
 TPM_FLAGS               equ 0x180       ; TPM_RETURNCMD | TPM_NONOTIFY
 MF_CHECKED              equ 8
@@ -288,6 +286,32 @@ language_entries:                       ; patch_launcher_026g.py: 8 bytes each, 
         jmp     near save_language
         align   8, db 0xCC
         jmp     near pick_language
+        align   8, db 0xCC
+                                        ; then TORRENT_HOOKS, in this order ("Allow torrent", at the end)
+        jmp     near panel_made
+        align   8, db 0xCC
+        jmp     near box_made
+        align   8, db 0xCC
+        jmp     near panel_restored
+        align   8, db 0xCC
+        jmp     near torrent_click
+        align   8, db 0xCC
+        jmp     near label_made
+        align   8, db 0xCC
+                                        ; then RELAY_HOOKS ("Relay", patch 16)
+        jmp     near relay_made
+        align   8, db 0xCC
+        jmp     near relay_click
+        align   8, db 0xCC
+        jmp     near restart_text
+        align   8, db 0xCC
+                                        ; then COUNT_HOOKS ("(5/69)", patch 17)
+        jmp     near count_text
+        align   8, db 0xCC
+                                        ; and the dispatch table's entries of messages 0A and 0B
+        jmp     near route_message
+        align   8, db 0xCC
+        jmp     near count_message
         align   8, db 0xCC
 
 ; eax = index -> eax = its label (UTF-16). Called in place of
@@ -328,50 +352,65 @@ language_page:
         ret
 
 ; edi = a PATH_SIZE buffer, dl = 1 to make the folder -> the path of user.cfg
-; in it (ANSI), eax = 1; eax = 0 when there is no Documents folder.
+; in it, eax = 1; eax = 0 when there is no Documents folder. edi kept.
 config_path:
         push    esi
-        movzx   esi, dl
+        push    edi
+        movzx   eax, dl
+        push    eax                     ; [esp]: make the folder
+        lea     esi, [ebx + shell32_name]
+        lea     edi, [ebx + folder_path_name]
+        call    procedure               ; SHGetFolderPathW: not imported
+        mov     edi, [esp + 4]
+        test    eax, eax
+        jz      .fail
         push    edi
         push    0
         push    0
         push    CSIDL_PERSONAL
         push    0
-        call    [ebx + IAT_SHGetFolderPathA]
+        call    eax
         test    eax, eax
         jnz     .fail
         mov     ecx, edi
-.end:   cmp     byte [ecx], 0
+.end:   cmp     word [ecx], 0
         je      .folder
-        inc     ecx
+        add     ecx, 2
         jmp     .end
 .folder:
         lea     edx, [ebx + folder_name]
         call    append
-        test    esi, esi
-        jz      .file
+        cmp     dword [esp], 0
+        je      .file
         push    ecx
+        lea     esi, [ebx + shell32_name]
+        lea     edi, [ebx + make_folder_name]
+        call    procedure               ; SHCreateDirectoryExW
+        mov     edi, [esp + 8]
+        test    eax, eax
+        jz      .made
         push    0
         push    edi
         push    0
-        call    [ebx + IAT_SHCreateDirectoryExA]        ; or it is there already
-        pop     ecx
+        call    eax                     ; or it is there already
+.made:  pop     ecx
 .file:  lea     edx, [ebx + file_name]
         call    append
         mov     eax, 1
-        pop     esi
-        ret
+        jmp     .out
 .fail:  xor     eax, eax
+.out:   add     esp, 4
+        pop     edi
         pop     esi
         ret
 
-; The zero-ended text at edx to ecx, its zero included; ecx = that zero.
-append: mov     al, [edx]
-        mov     [ecx], al
-        test    al, al
+; The zero-ended UTF-16 text at edx to ecx, its zero included; ecx = that zero.
+append: mov     ax, [edx]
+        mov     [ecx], ax
+        test    ax, ax
         jz      .done
-        inc     edx
-        inc     ecx
+        add     edx, 2
+        add     ecx, 2
         jmp     append
 .done:  ret
 
@@ -397,7 +436,7 @@ load_config:
         push    3                       ; FILE_SHARE_READ | FILE_SHARE_WRITE
         push    0x80000000              ; GENERIC_READ
         push    edi
-        call    [ebx + IAT_CreateFileA]
+        call    [ebx + IAT_CreateFileW]
         cmp     eax, -1
         je      .no_file
         push    eax                     ; the handle
@@ -436,31 +475,34 @@ load_config:
         inc     edx                     ; there, but not to be read
         ret
 
-; esi = the file, ecx = its length -> eax = the start of its `localization`
-; line or -1; then edx = the value's start, edi = its end, ebp = the line's
-; end (its CR or LF, or the length). Offsets in the file.
+; esi = the file, ecx = its length, [esp+4] = a key (its length in a byte,
+; then its letters: `setting_key`, `torrent_key`); `ret 4` -> eax = the
+; start of the key's line or -1; then edx = the value's start, edi = its
+; end, ebp = the line's end (its CR or LF, or the length). Offsets in the
+; file.
 find_setting:
         xor     eax, eax
 .line:  cmp     eax, ecx
         jae     .none
-        lea     edx, [eax + KEY_LENGTH]
+        mov     edi, [esp + 4]
+        movzx   edx, byte [edi]
+        add     edx, eax                ; past the key
         cmp     edx, ecx
         jae     .next
         push    ecx
         push    esi
         lea     esi, [esi + eax]
-        lea     edi, [ebx + setting_key]
-        mov     ecx, KEY_LENGTH
+        movzx   ecx, byte [edi]
+        inc     edi
         repe    cmpsb
         pop     esi
         pop     ecx
         jne     .next
-        mov     dl, [esi + eax + KEY_LENGTH]
-        cmp     dl, ' '
-        je      .blank
-        cmp     dl, 9
+        movzx   edi, byte [esi + edx]
+        cmp     edi, ' '
+        je      .skip
+        cmp     edi, 9
         jne     .next
-.blank: lea     edx, [eax + KEY_LENGTH]
 .skip:  cmp     edx, ecx                ; the blanks before the value
         jae     .value
         cmp     byte [esi + edx], ' '
@@ -487,7 +529,7 @@ find_setting:
         je      .found
         inc     ebp
         jmp     .rest
-.found: ret
+.found: ret     4
 .next:  cmp     eax, ecx                ; past the next LF
         jae     .none
         cmp     byte [esi + eax], 10
@@ -497,7 +539,7 @@ find_setting:
 .after: inc     eax
         jmp     .line
 .none:  mov     eax, -1
-        ret
+        ret     4
 
 ; edx = a name, ecx = its length -> eax = its index in LANGUAGES, or -1.
 match_name:
@@ -561,6 +603,8 @@ reload_language:
         call    load_config
         test    esi, esi
         jz      .locale
+        lea     eax, [ebx + setting_key]
+        push    eax
         call    find_setting
         cmp     eax, -1
         je      .free
@@ -582,34 +626,168 @@ reload_language:
         test    eax, eax
         jz      .english
         call    eax                     ; GetUserDefaultLCID
-        and     eax, 0x3FF              ; its primary language
-        xor     ecx, ecx
-.each:  cmp     ecx, LANGUAGE_COUNT
-        jae     .english
-        cmp     ax, [ebx + language_windows + ecx*2]
+        lea     esi, [ebx + language_windows]
+        mov     ecx, WINDOWS_RULE_COUNT
+.each:  movzx   edx, word [esi]          ; exact LANGID first, then primary
+        and     edx, eax
+        cmp     dx, [esi + 2]
         je      .this
-        inc     ecx
-        jmp     .each
-.this:  mov     eax, ecx
+        add     esi, 6
+        loop    .each
+        jmp     .english
+.this:  movzx   eax, word [esi + 4]      ; registered language index
         jmp     .set
 .english:
         xor     eax, eax
 .set:   add     esp, PATH_SIZE
         mov     ecx, [esp + 28]         ; pushad's eax: the settings
         mov     [ecx + SETTINGS_LANGUAGE], eax
+        mov     eax, ecx
+        call    reload_torrent          ; and "Allow torrent", from the same file
+        popad
+        ret
+
+; eax = the settings: "Allow torrent" (settings+0 current, +1 last saved) is
+; on only for user.cfg's `enable_torrent_seeding on` once the one-time reset
+; is done, in the place of the registry's `download_type`. Every register kept.
+reload_torrent:
+        pushad
+        DELTA
+        call    torrent_reset
+        sub     esp, PATH_SIZE
+        push    0                       ; off
+        test    eax, eax
+        jz      .set                    ; no reset: the line is not the player's
+        lea     edi, [esp + 4]
+        xor     edx, edx
+        call    config_path
+        test    eax, eax
+        jz      .set
+        call    load_config
+        test    esi, esi
+        jz      .set
+        lea     eax, [ebx + torrent_key]
+        push    eax
+        call    find_setting
+        cmp     eax, -1
+        je      .free
+        sub     edi, edx                ; the value's length
+        cmp     edi, 2
+        jne     .free
+        cmp     word [esi + edx], 'on'
+        jne     .free
+        mov     dword [esp], 1
+.free:  call    free_buffer
+.set:   pop     eax
+        add     esp, PATH_SIZE
+        mov     ecx, [esp + 28]         ; pushad's eax: the settings
+        mov     [ecx], al
+        mov     [ecx + 1], al
+        popad
+        ret
+
+; The one-time reset: the original game saved `enable_torrent_seeding on` for
+; every player. RESET_NAME beside user.cfg (both are the Windows user's) says
+; the line was written `off` once; it is made first and removed again when the
+; line cannot be written, so the next start tries again. -> eax = 1 when the
+; reset is done; every other register kept.
+torrent_reset:
+        pushad
+        DELTA
+        sub     esp, PATH_SIZE
+        mov     edi, esp
+        xor     edx, edx
+        call    marker_path
+        test    eax, eax
+        jz      .done
+        push    edi
+        call    [ebx + IAT_GetFileAttributesW]
+        cmp     eax, -1
+        jne     .reset                  ; there: done before
+        call    [ebx + IAT_GetLastError]
+        cmp     eax, 2                  ; ERROR_FILE_NOT_FOUND
+        je      .make
+        cmp     eax, 3                  ; ERROR_PATH_NOT_FOUND: no folder yet
+        jne     .not
+.make:  mov     dl, 1
+        call    marker_path
+        test    eax, eax
+        jz      .done
+        push    0
+        push    0x80                    ; FILE_ATTRIBUTE_NORMAL
+        push    1                       ; CREATE_NEW
+        push    0
+        push    0
+        push    0x40000000              ; GENERIC_WRITE
+        push    edi
+        call    [ebx + IAT_CreateFileW]
+        cmp     eax, -1
+        je      .not
+        push    eax
+        call    [ebx + IAT_CloseHandle]
+        lea     eax, [ebx + off_text]
+        push    eax
+        lea     eax, [ebx + torrent_key]
+        push    eax
+        call    save_setting
+        test    eax, eax
+        jnz     .reset
+        mov     ebp, edi
+        lea     esi, [ebx + kernel32_name]
+        lea     edi, [ebx + delete_name]
+        call    procedure
+        test    eax, eax
+        jz      .not
+        push    ebp
+        call    eax                     ; DeleteFileW(the marker)
+.not:   xor     eax, eax
+        jmp     .done
+.reset: mov     eax, 1
+.done:  add     esp, PATH_SIZE
+        mov     [esp + 28], eax         ; popad's eax
+        popad
+        ret
+
+; edi = a PATH_SIZE buffer, dl = 1 to make the folder -> RESET_NAME's path
+; beside user.cfg, eax = 1; eax = 0 when there is no Documents folder.
+marker_path:
+        call    config_path
+        test    eax, eax
+        jz      .done
+        mov     ecx, edi                ; user.cfg's name becomes RESET_NAME
+.end:   cmp     word [ecx], 0
+        je      .back
+        add     ecx, 2
+        jmp     .end
+.back:  sub     ecx, 2
+        cmp     word [ecx], 0x5C
+        jne     .back
+        add     ecx, 2
+        lea     edx, [ebx + reset_name]
+        call    append
+        mov     eax, 1
+.done:  ret
+
+; al = "Allow torrent" -> user.cfg's `enable_torrent_seeding` line `on` or
+; `off`, as the game writes it; eax = 1 when written, else 0. Every other
+; register kept.
+save_torrent:
+        pushad
+        DELTA
+        lea     ecx, [ebx + off_text]
+        test    al, al
+        jz      .save
+        lea     ecx, [ebx + on_text]
+.save:  push    ecx
+        lea     eax, [ebx + torrent_key]
+        push    eax
+        call    save_setting
+        mov     [esp + 28], eax         ; popad's eax
         popad
         ret
 
 ; settings::save_language(settings), `ret 4`: user.cfg's `localization` line
-; becomes the settings' language (added when there is none; the file made
-; when there is none). A file that cannot be read whole is left as it is.
-; Written beside it and renamed over it, so it is never left half written.
-SAVE_PATH               equ 0           ; locals, after `sub esp`: the path
-SAVE_NEW                equ PATH_SIZE   ; the path of the new file
-SAVE_NAME               equ 2*PATH_SIZE ; the language's name
-SAVE_OUT                equ 2*PATH_SIZE + 4   ; the new file's buffer
-SAVE_LOCALS             equ 2*PATH_SIZE + 16
-
+; becomes the settings' language.
 save_language:
         pushad
         DELTA
@@ -617,10 +795,39 @@ save_language:
         mov     eax, [eax + SETTINGS_LANGUAGE]
         cmp     eax, LANGUAGE_COUNT
         jae     .out
-        sub     esp, SAVE_LOCALS
         shl     eax, 4
         lea     eax, [ebx + language_names + eax]
-        mov     [esp + SAVE_NAME], eax
+        push    eax
+        lea     eax, [ebx + setting_key]
+        push    eax
+        call    save_setting
+.out:   popad
+        ret     4
+
+; save_setting(key, value), `ret 8` -> eax = 1 when written, else 0:
+; user.cfg's line of the key (as find_setting takes it) becomes
+; `<key> <value>` (value: zero-ended ASCII),
+; replaced where it is, added at the end when there is none, the file (and
+; its folder) made when there is none. A file that cannot be read whole is
+; left as it is. Written beside it and renamed over it, so it is never left
+; half written.
+SAVE_PATH               equ 0           ; locals, after `sub esp`: the path
+SAVE_NEW                equ PATH_SIZE   ; the path of the new file
+SAVE_VALUE              equ 2*PATH_SIZE ; the value
+SAVE_OUT                equ 2*PATH_SIZE + 4   ; the new file's buffer
+SAVE_KEY                equ 2*PATH_SIZE + 8   ; the key
+SAVE_DONE               equ 2*PATH_SIZE + 12  ; 1 once written
+SAVE_LOCALS             equ 2*PATH_SIZE + 16
+
+save_setting:
+        pushad
+        DELTA
+        sub     esp, SAVE_LOCALS
+        mov     eax, [esp + SAVE_LOCALS + 36]
+        mov     [esp + SAVE_KEY], eax
+        mov     eax, [esp + SAVE_LOCALS + 40]
+        mov     [esp + SAVE_VALUE], eax
+        mov     dword [esp + SAVE_DONE], 0
         lea     edi, [esp + SAVE_PATH]
         mov     dl, 1
         call    config_path
@@ -641,6 +848,7 @@ save_language:
         test    eax, eax
         jz      .free_in
         push    ecx
+        push    dword [esp + 4 + SAVE_KEY]
         call    find_setting            ; eax line, edx value, edi value end, ebp line end
         pop     ecx
         push    ecx                     ; [esp] = the length, while the new text is made
@@ -694,7 +902,7 @@ save_language:
         push    0
         push    0x40000000              ; GENERIC_WRITE
         push    edi
-        call    [ebx + IAT_CreateFileA]
+        call    [ebx + IAT_CreateFileW]
         cmp     eax, -1
         je      .free_out
         mov     esi, eax
@@ -727,31 +935,41 @@ save_language:
         push    ecx
         lea     ecx, [esp + 8 + SAVE_NEW]
         push    ecx
-        call    eax                     ; MoveFileExA(new, path)
+        call    eax                     ; MoveFileExW(new, path)
         test    eax, eax
-        jnz     .free_out
-.drop:  lea     ecx, [esp + SAVE_NEW]
+        jz      .drop
+        mov     dword [esp + SAVE_DONE], 1
+        jmp     .free_out
+.drop:  lea     esi, [ebx + kernel32_name]
+        lea     edi, [ebx + delete_name]
+        call    procedure
+        test    eax, eax
+        jz      .free_out
+        lea     ecx, [esp + SAVE_NEW]
         push    ecx
-        call    [ebx + IAT_DeleteFileA]
+        call    eax                     ; DeleteFileW(new)
 .free_out:
         mov     esi, [esp + SAVE_OUT]
         call    free_buffer
         jmp     .done
 .free_in:
         call    free_buffer
-.done:  add     esp, SAVE_LOCALS
-.out:   popad
-        ret     4
+.done:  mov     eax, [esp + SAVE_DONE]
+        add     esp, SAVE_LOCALS
+        mov     [esp + 28], eax         ; popad's eax
+        popad
+        ret     8
 
-; edi = where -> "localization <name>" there, edi after it. The name is at
-; [esp + 4 (this call) + 4 (the length pushed) + SAVE_NAME].
+; edi = where -> "<key> <value>" there, edi after it. The key and the value
+; are at [esp + 4 (this call) + 4 (the length pushed) + SAVE_KEY, SAVE_VALUE].
 .line:  push    esi
-        lea     esi, [ebx + setting_key]
-        mov     ecx, KEY_LENGTH
+        mov     esi, [esp + 12 + SAVE_KEY]
+        movzx   ecx, byte [esi]
+        inc     esi
         rep     movsb
         mov     byte [edi], ' '
         inc     edi
-        mov     esi, [esp + 12 + SAVE_NAME]
+        mov     esi, [esp + 12 + SAVE_VALUE]
 .name:  lodsb
         test    al, al
         jz      .named
@@ -851,18 +1069,1022 @@ pick_language:
         popad
         ret
 
-setting_key:    db 'localization'
-folder_name:    db '\survarium', 0
-file_name:      db '\user.cfg', 0
-new_suffix:     db '.new', 0
+; ---------------------------------------------------------------------------
+; "Allow torrent" on the main window (patch 15; README.md there has the
+; sites): YouTube's control, out of sight since patch 8, is the box, with the
+; settings window's pictures and text. The text is painted into the bottom
+; panel's picture whenever that picture is made anew (`panel_made`,
+; `panel_restored`). The box's pictures are made opaque over the panel
+; (`bake_box`): under Wine a transparent control keeps what its window last
+; showed, so an unticked box would keep the check. The text is clickable too:
+; Twitter's control lies over it, showing the panel's own pixels there
+; (`bake_label`, `label_made`), and its click is the box's.
+;
+; The setting is user.cfg's `enable_torrent_seeding on` / `off`, kept as the
+; language is (`reload_torrent`, `save_torrent`). A click writes the line
+; first; only a written line changes the box and tells the updater (1A).
+
+TRANSPARENT_CONTROL     equ 0x12548     ; transparent_control::transparent_control
+IMAGE_WINDOW            equ 0x12140     ; image_window::image_window
+SET_PICTURE             equ 0x125CE     ; transparent_control: eax = it, ecx = its picture (and repaint)
+COPY_PICTURE            equ 0x12BE0     ; (destination, source, &point), eax = the rectangle; cdecl
+                                        ;   (AlphaBlend: the source's alpha over the destination)
+CROP_PICTURE            equ 0x12051     ; (bitmap), eax = a rectangle of it -> a new bitmap of it; cdecl
+FUNCTION0_CALL          equ 0x17522     ; boost::function0::operator(), eax = the function
+SETTINGS_TORRENT_CHANGED equ 0x28       ; settings: the "download type changed" callback
+LOAD_STRING             equ 0x137A8     ; load_string(id, buffer, size), cdecl
+MAKE_FONT               equ 0x11CC7     ; [esi] = CreateFontW(height, weight, face); ret 0Ch
+DRAW_TEXT               equ 0x137C3     ; into a picture: (text, bitmap, &font, colour, format,
+                                        ;   left, right margin, top); cdecl
+IAT_DeleteObject        equ 0x3B07C
+CALIBRI                 equ 0x3F480     ; L"Calibri", the settings window's font
+BOX_RECT                equ 0x458A4     ; the box's place in the panel: left, top (YouTube's rect)
+LABEL_RECT              equ 0x458C4     ; the text's: Twitter's rect, all four static
+
+FORM_PANEL_PICTURE      equ 0xEC        ; launcher_form: the bottom panel's picture (HBITMAP)
+FORM_UNTICKED           equ 0x140       ; the box's pictures: YouTube's first, second
+FORM_UNTICKED_HOVER     equ 0x14C
+FORM_PRESSED            equ 0x158       ; YouTube's third
+FORM_TICKED             equ 0x164       ; Facebook's first
+FORM_BOX                equ 0x648       ; YouTube's control
+FORM_LABEL_PICTURES     equ 0x188       ; Twitter's three pictures, 0Ch apart
+FORM_SETTINGS           equ 0xB40       ; settings_window (form+6E8h) + 458h: the settings
+CONTROL_HOVER           equ 0xC         ; transparent_control: the picture under the pointer
+CONTROL_OPAQUE          equ 0x24        ;   BitBlt, not AlphaBlend
+
+TORRENT_TEXT            equ 0xD3        ; "Allow torrent"
+TEXT_CHARS              equ 64
+TEXT_HEIGHT             equ 18          ; the settings window's text, where it is beside its box
+TEXT_RIGHT              equ 25          ;   (0x1C38E, 0x3A96C): 25 pixels right of the box's left,
+TEXT_DOWN               equ 1           ;   1 below its top
+FONT_BOLD               equ 700
+WHITE                   equ 0xFFFFFF
+LABEL_FONT              equ 0           ; paint_label's locals
+LABEL_TEXT              equ 4
+LABEL_LOCALS            equ 4 + 2*TEXT_CHARS
+
+; eax = the form: the box's text painted into the panel's picture. Every
+; register kept.
+paint_label:
+        pushad
+        mov     esi, eax                ; the form
+        DELTA
+        sub     esp, LABEL_LOCALS
+        push    TEXT_CHARS
+        lea     eax, [esp + 4 + LABEL_TEXT]
+        push    eax
+        push    TORRENT_TEXT
+        call    LOAD_STRING
+        add     esp, 12
+        push    esi
+        lea     esi, [esp + 4 + LABEL_FONT]
+        lea     eax, [ebx + CALIBRI]
+        push    eax
+        push    FONT_BOLD
+        push    TEXT_HEIGHT
+        call    MAKE_FONT
+        pop     esi
+        mov     eax, [ebx + BOX_RECT + 4]
+        add     eax, TEXT_DOWN
+        push    eax                     ; top
+        push    0                       ; right margin
+        mov     eax, [ebx + BOX_RECT]
+        add     eax, TEXT_RIGHT
+        push    eax                     ; left
+        push    0                       ; DT_LEFT | DT_TOP, as the settings window's
+        push    WHITE
+        lea     eax, [esp + 20 + LABEL_FONT]
+        push    eax
+        push    dword [esi + FORM_PANEL_PICTURE]
+        lea     eax, [esp + 28 + LABEL_TEXT]
+        push    eax
+        call    DRAW_TEXT
+        add     esp, 32
+        call    relay_text              ; and the relay box's (patch 16), while it is shown
+        test    eax, eax
+        jz      .font
+        mov     ecx, [ebx + RELAY_RECT + 4]
+        add     ecx, TEXT_DOWN
+        push    ecx                     ; top
+        push    0                       ; right margin
+        mov     ecx, [ebx + RELAY_RECT]
+        add     ecx, TEXT_RIGHT
+        push    ecx                     ; left
+        push    0
+        push    WHITE
+        lea     ecx, [esp + 20 + LABEL_FONT]
+        push    ecx
+        push    dword [esi + FORM_PANEL_PICTURE]
+        push    eax
+        call    DRAW_TEXT
+        add     esp, 32
+.font:  push    dword [esp + LABEL_FONT]
+        call    [ebx + IAT_DeleteObject]
+        add     esp, LABEL_LOCALS
+        popad
+        ret
+
+; eax = the form: each of the box's four pictures replaced by itself over
+; the panel's picture where the box is (BOX_RECT): opaque, of the box's
+; size. The PNG's bitmap is deleted; the form deletes the new one as it did
+; the PNG's (0x1B328). Every register kept. `bake_relay_box`: the same for
+; the relay box (patch 16).
+BAKE_RECT               equ 0           ; locals: 0, 0, the box's width, height
+BAKE_POINT              equ 16          ; 0, 0
+BAKE_AT                 equ 24          ; the box's rect in the panel
+BAKE_LOCALS             equ 28
+
+bake_box:
+        pushad
+        mov     esi, eax                ; the form
+        DELTA
+        lea     ecx, [ebx + BOX_RECT]
+        lea     edx, [ebx + box_pictures]
+        mov     eax, 4
+        call    bake_pictures
+        popad
+        ret
+
+bake_relay_box:
+        pushad
+        mov     esi, eax                ; the form
+        DELTA
+        lea     ecx, [ebx + RELAY_RECT]
+        lea     edx, [ebx + relay_pictures]
+        mov     eax, 3
+        call    bake_pictures
+        popad
+        ret
+
+; esi = the form, ebx = DELTA, ecx = the box's rect, edx = its pictures'
+; places in the form, eax = how many. ebp, edi changed too.
+bake_pictures:
+        mov     ebp, eax
+        sub     esp, BAKE_LOCALS
+        mov     [esp + BAKE_AT], ecx
+        xor     eax, eax
+        mov     [esp + BAKE_RECT], eax
+        mov     [esp + BAKE_RECT + 4], eax
+        mov     [esp + BAKE_POINT], eax
+        mov     [esp + BAKE_POINT + 4], eax
+        mov     eax, [ecx + 8]
+        sub     eax, [ecx]
+        mov     [esp + BAKE_RECT + 8], eax
+        mov     eax, [ecx + 12]
+        sub     eax, [ecx + 4]
+        mov     [esp + BAKE_RECT + 12], eax
+        mov     edi, edx
+.each:  push    dword [esi + FORM_PANEL_PICTURE]
+        mov     eax, [esp + 4 + BAKE_AT]
+        call    CROP_PICTURE            ; the panel where the box is
+        add     esp, 4
+        test    eax, eax
+        jz      .next                   ; none: the PNG's stays
+        mov     edx, [edi]
+        push    eax                     ; the new bitmap, kept
+        lea     ecx, [esp + 4 + BAKE_POINT]
+        push    ecx
+        push    dword [esi + edx]       ; the PNG's
+        push    eax
+        lea     eax, [esp + 16 + BAKE_RECT]
+        call    COPY_PICTURE            ; the PNG over it
+        add     esp, 12
+        mov     edx, [edi]
+        push    dword [esi + edx]
+        call    [ebx + IAT_DeleteObject]
+        pop     eax
+        mov     edx, [edi]
+        mov     [esi + edx], eax
+.next:  add     edi, 4
+        dec     ebp
+        jnz     .each
+        add     esp, BAKE_LOCALS
+        ret
+
+box_pictures:   dd FORM_UNTICKED, FORM_UNTICKED_HOVER, FORM_PRESSED, FORM_TICKED
+relay_pictures: dd FORM_RELAY_BUTTON, FORM_RELAY_HOVER, FORM_RELAY_PRESSED
+
+; eax = the form, its text painted: each of Twitter's three pictures replaced
+; by the panel's picture where the text is (LABEL_RECT), the PNG's deleted.
+; Every register kept.
+bake_label:
+        pushad
+        mov     esi, eax                ; the form
+        DELTA
+        mov     edi, FORM_LABEL_PICTURES
+        mov     ebp, 3
+.each:  push    dword [esi + FORM_PANEL_PICTURE]
+        lea     eax, [ebx + LABEL_RECT]
+        call    CROP_PICTURE
+        add     esp, 4
+        test    eax, eax
+        jz      .next                   ; none: the PNG's stays
+        xchg    eax, [esi + edi]
+        push    eax
+        call    [ebx + IAT_DeleteObject]
+.next:  add     edi, 0xC
+        dec     ebp
+        jnz     .each
+        popad
+        ret
+
+; In place of image_window::image_window for the bottom panel (0x1AD78):
+; ebx = the form; edi, esi and the stack are image_window's. The pictures
+; are loaded (0x1AAFC..) and not yet given to their controls (0x1ADE2..).
+panel_made:
+        mov     eax, ebx
+        call    paint_label
+        call    bake_box
+        call    bake_label
+        call    bake_relay_box
+        jmp     IMAGE_WINDOW
+
+; In place of transparent_control::transparent_control for YouTube's
+; control, the box (0x1AE1F): ebx = the form, ebp its constructor's frame
+; ([ebp+0Ch] = the settings); edi, esi and the eight arguments on the stack
+; are the control's. Ticked, its picture and the one under the pointer are
+; the ticked one.
+box_made:
+        mov     eax, [ebp + 0Ch]
+        cmp     byte [eax], 0
+        je      .made
+        mov     eax, [ebx + FORM_TICKED]
+        mov     [esp + 4 + 12], eax     ; its picture
+        mov     [esp + 4 + 16], eax     ; under the pointer
+.made:  jmp     TRANSPARENT_CONTROL
+
+; In place of transparent_control::transparent_control for Twitter's
+; control, over the text (0x1AEA3): made with its eight arguments, then
+; opaque, so that it shows its pictures (the panel there) exactly.
+label_made:
+%rep 8
+        push    dword [esp + 32]
+%endrep
+        call    TRANSPARENT_CONTROL
+        mov     byte [eax + CONTROL_OPAQUE], 1
+        ret     32
+
+; In place of the copy of the panel's picture from its resource in
+; set_status_texts (0x1B4D9): the copy (its three arguments copied, eax the
+; rectangle), then the box's text again. edi = the form.
+panel_restored:
+        push    dword [esp + 12]
+        push    dword [esp + 12]
+        push    dword [esp + 12]
+        call    COPY_PICTURE
+        add     esp, 12
+        mov     eax, edi
+        jmp     paint_label
+
+; The box's click (cdecl, the form): YouTube's click handler (0x1BD03)
+; jumps here, and Twitter's (the text's, 0x1BD29) to it.
+torrent_click:
+        push    ebx
+        push    esi
+        mov     ebx, [esp + 12]         ; the form
+        mov     esi, [ebx + FORM_SETTINGS]
+        cmp     byte [esi], 0
+        sete    al
+        push    eax
+        call    save_torrent
+        test    eax, eax
+        pop     eax
+        jz      .done                   ; not saved: the box stays as it is
+        mov     [esi], al
+        mov     [esi + 1], al           ; saved
+        cmp     dword [esi + SETTINGS_TORRENT_CHANGED], 0
+        je      .show
+        lea     eax, [esi + SETTINGS_TORRENT_CHANGED]
+        call    FUNCTION0_CALL          ; 1A while the updater is connected
+.show:  mov     ecx, [ebx + FORM_UNTICKED]
+        mov     edx, [ebx + FORM_UNTICKED_HOVER]
+        cmp     byte [esi], 0
+        je      .picture
+        mov     ecx, [ebx + FORM_TICKED]
+        mov     edx, ecx
+.picture:
+        lea     eax, [ebx + FORM_BOX]
+        mov     [eax + CONTROL_HOVER], edx
+        call    SET_PICTURE
+.done:  pop     esi
+        pop     ebx
+        ret
+
+; ---------------------------------------------------------------------------
+; "Relay" (patch 16; README.md there has the sites): VK's control, out of
+; sight since patch 8, is a button under "Allow torrent" with the settings
+; gear's pictures (the launcher's own, off its top panel since patch 8), and
+; beside it a text painted into the panel as that box's is: "Relay: auto",
+; "Relay: on", "Relay: off", and in auto what the probe picked, "Relay: auto
+; (on)" or "(off)". Three states, so no tick box (the owner, 2026-11-20). The
+; updater owns the route (client/updater, updater_logic::route): its message
+; 0A says what the row shows (RELAY_VIEW: 1 auto probing, 2 auto direct, 3
+; auto relay, 4 auto neither, 5 on, 6 off). A click on the button opens a
+; menu of the three, the chosen one checked, as the language's menu is; a
+; pick sends the updater 22h, 23h or 24h (auto, on, off), which it answers
+; with the next 0A. Until the first 0A (an updater without a relay, or an
+; older one) the button and its text stay hidden. A tooltip (comctl32's)
+; says what the relay is, the three choices and the row's now.
+;
+; Its state is in .data past the launcher's last variable (its VirtualSize
+; made 0x6810 by patch_launcher_026g.py; the page was there, zero, unused):
+; the launcher (for the pipe), the view, the tooltip and the button it is for.
+
+RELAY_STATE             equ 0x4A800
+RELAY_LAUNCHER          equ RELAY_STATE         ; the launcher, from 0A
+RELAY_VIEW              equ RELAY_STATE + 4     ; byte: 0 hidden, 1..6
+RELAY_TIP               equ RELAY_STATE + 8     ; the tooltip's window
+RELAY_TIP_TOOL          equ RELAY_STATE + 12    ; the button's window it is for
+RELAY_RECT              equ 0x458D4     ; the button's place in the panel (VK's rect)
+FORM_RELAY_BOX          equ 0x6C0       ; VK's control
+FORM_RELAY_BUTTON       equ 0x1AC       ; VK's pictures: first, second, third
+FORM_RELAY_HOVER        equ 0x1B8
+FORM_RELAY_PRESSED      equ 0x1C4
+REFRESH_STATUS          equ 0x16811     ; launcher::refresh_status, esi = the launcher
+MESSAGE_DONE            equ 0x16093     ; on_updater_message's end
+SEND_SIMPLE             equ 0x1749F     ; send_simple_message(launcher, id): al = sent; ret 8
+PIPE_STATE              equ 0x2B70      ; launcher: 3 while the updater is connected
+ROUTE_CHOSEN            equ 0x22        ; 22h auto, 23h on, 24h off
+VIEWS                   equ 6
+RELAY_LANGUAGES         equ 5
+SW_HIDE                 equ 0
+SW_SHOWNA               equ 8
+TTM_ACTIVATE            equ 0x401
+TTM_SETDELAYTIME        equ 0x403
+TTM_SETMAXTIPWIDTH      equ 0x418
+TTM_ADDTOOLW            equ 0x432
+TTM_UPDATETIPTEXTW      equ 0x439
+TTDT_AUTOPOP            equ 2
+TIP_INFO                equ 0           ; relay_tip's locals: TOOLINFOW (its first 44 bytes)
+TIP_SEND                equ 44          ; SendMessageW
+TIP_TEXT                equ 48
+TIP_CHARS               equ 640
+TIP_LOCALS              equ TIP_TEXT + 2*TIP_CHARS
+
+; on_updater_message's jump for message 0A (the dispatch table's entry):
+; ebx = the launcher, the message after its id at [esp+18h]. Every register
+; as it was; on to the handlers' common end.
+route_message:
+        pushad
+        mov     esi, ebx                ; the launcher
+        mov     eax, [esp + 32 + 0x18]
+        movzx   edi, byte [eax]         ; the view
+        DELTA
+        lea     eax, [edi - 1]
+        cmp     eax, VIEWS
+        jae     .out                    ; 1..6 only
+        mov     [ebx + RELAY_LAUNCHER], esi
+        mov     eax, edi
+        mov     [ebx + RELAY_VIEW], al
+        mov     eax, [esi + LAUNCHER_FORM]
+        test    eax, eax
+        jz      .out
+        call    relay_apply
+        call    REFRESH_STATUS          ; the panel's picture anew, the row's text with it
+.out:   popad
+        jmp     MESSAGE_DONE
+
+; In place of transparent_control::transparent_control for VK's control, the
+; box (0x1AEE5): made with its eight arguments, then shown as the view says
+; (a window made again, in another language, keeps it).
+relay_made:
+%rep 8
+        push    dword [esp + 32]
+%endrep
+        call    TRANSPARENT_CONTROL
+        push    eax
+        mov     eax, ebx                ; the form
+        call    relay_apply
+        pop     eax
+        ret     32
+
+; The button's click (cdecl, the form): VK's click handler (0x1BD3C) jumps
+; here. A menu of the three, auto, on and off, the chosen one checked, under
+; the button, as the language's (`pick_language`); a pick is 22h, 23h or 24h
+; to the updater, which answers with the new view. Nothing while the row is
+; hidden or no updater is connected. The tooltip is off while the menu is
+; open: the pointer rests on the button, and the tooltip came up over the
+; menu (seen in the launcher, 2026-11-20).
+RELAY_CREATE            equ 0           ; locals: CreatePopupMenu
+RELAY_APPEND            equ 4           ; AppendMenuW
+RELAY_TRACK             equ 8           ; TrackPopupMenu
+RELAY_DESTROY           equ 12          ; DestroyMenu
+RELAY_MENU              equ 16          ; the menu made
+RELAY_BUTTON            equ 20          ; the button's rectangle: left, top, right, bottom
+RELAY_LOCALS            equ 36
+RELAY_ROWS              equ 3
+
+relay_click:
+        pushad
+        DELTA
+        mov     ebp, [esp + 36]         ; the form
+        sub     esp, RELAY_LOCALS
+        mov     eax, [ebx + RELAY_LAUNCHER]
+        test    eax, eax
+        jz      .done
+        cmp     byte [ebx + RELAY_VIEW], 0
+        je      .done
+        cmp     dword [eax + PIPE_STATE], 3
+        jne     .done
+        lea     esi, [ebx + user32_name]
+        lea     edi, [ebx + create_name]
+        call    procedure
+        mov     [esp + RELAY_CREATE], eax
+        lea     edi, [ebx + append_name]
+        call    procedure
+        mov     [esp + RELAY_APPEND], eax
+        lea     edi, [ebx + track_name]
+        call    procedure
+        mov     [esp + RELAY_TRACK], eax
+        lea     edi, [ebx + destroy_name]
+        call    procedure
+        mov     [esp + RELAY_DESTROY], eax
+        cmp     dword [esp + RELAY_CREATE], 0
+        je      .done
+        cmp     dword [esp + RELAY_APPEND], 0
+        je      .done
+        cmp     dword [esp + RELAY_TRACK], 0
+        je      .done
+        cmp     dword [esp + RELAY_DESTROY], 0
+        je      .done
+        call    [esp + RELAY_CREATE]
+        mov     [esp + RELAY_MENU], eax
+        test    eax, eax
+        jz      .done
+        call    relay_language
+        lea     edi, [eax + eax*2]      ; the language's three rows
+        movzx   edx, byte [ebx + RELAY_VIEW]
+        sub     edx, 4                  ; the row chosen: 1 on (view 5), 2 off (6),
+        jg      .rows
+        xor     edx, edx                ;   0 auto (1..4)
+.rows:  xor     esi, esi
+.row:   push    edx                     ; kept over the call
+        lea     eax, [edi + esi]
+        mov     eax, [ebx + relay_rows + eax*4]
+        add     eax, ebx
+        push    eax                     ; its text
+        lea     eax, [esi + 1]
+        push    eax                     ; the command: row + 1
+        xor     eax, eax
+        cmp     esi, edx
+        jne     .unchecked
+        mov     eax, MF_CHECKED
+.unchecked:
+        push    eax
+        push    dword [esp + 16 + RELAY_MENU]
+        call    [esp + 20 + RELAY_APPEND]
+        pop     edx
+        inc     esi
+        cmp     esi, RELAY_ROWS
+        jb      .row
+        xor     ecx, ecx
+        call    relay_tip_active
+        lea     eax, [esp + RELAY_BUTTON]
+        push    eax
+        push    dword [ebp + FORM_RELAY_BOX + 4]
+        call    [ebx + IAT_GetWindowRect]
+        push    0
+        push    dword [ebp + FORM_RELAY_BOX + 4]
+        push    0
+        push    dword [esp + 12 + RELAY_BUTTON + 12]    ; bottom
+        push    dword [esp + 16 + RELAY_BUTTON]         ; left
+        push    TPM_FLAGS
+        push    dword [esp + 24 + RELAY_MENU]
+        call    [esp + 28 + RELAY_TRACK]
+        mov     esi, eax                ; 0, or the row + 1
+        push    dword [esp + RELAY_MENU]
+        call    [esp + 4 + RELAY_DESTROY]
+        mov     ecx, 1
+        call    relay_tip_active
+        test    esi, esi
+        jz      .done
+        add     esi, ROUTE_CHOSEN - 1
+        push    esi
+        push    dword [ebx + RELAY_LAUNCHER]
+        call    SEND_SIMPLE
+.done:  add     esp, RELAY_LOCALS
+        popad
+        ret
+
+; ecx = 1 or 0: the row's tooltip, if it is made, on or off (TTM_ACTIVATE;
+; off hides it at once). ebx = DELTA; eax, ecx, edx changed.
+relay_tip_active:
+        push    ecx
+        lea     edx, [ebx + send_name]
+        call    user32_proc
+        pop     ecx
+        test    eax, eax
+        jz      .done
+        mov     edx, [ebx + RELAY_TIP]
+        test    edx, edx
+        jz      .done
+        push    0
+        push    ecx
+        push    TTM_ACTIVATE
+        push    edx
+        call    eax                     ; SendMessageW
+.done:  ret
+
+; In place of load_string's call for the status line of the launcher's
+; states 6 and 7 (refresh_status 0x1687C; cdecl: the id, the buffer, its
+; size, 128 characters; esi = the launcher). "Server maintenance..."
+; (MAINTENANCE_TEXT) while the updater counts the seconds to its next try
+; (its message 13h, the launcher's RETRY_SECONDS; 0: it counts none): the
+; server restarts, said with the count in the row's language. Any other
+; text is load_string's own.
+MAINTENANCE_TEXT        equ 0xB2
+RETRY_SECONDS           equ 0x2BA0      ; launcher: message 13h's byte
+
+restart_text:
+        cmp     dword [esp + 4], MAINTENANCE_TEXT
+        jne     near LOAD_STRING
+        cmp     byte [esi + RETRY_SECONDS], 0
+        je      near LOAD_STRING
+        push    ebx
+        push    edi
+        push    ebp
+        DELTA
+        call    relay_language
+        mov     ebp, eax
+        mov     ecx, [esp + 12 + 8]     ; the buffer
+        mov     edx, [ebx + restart_before + ebp*4]
+        add     edx, ebx
+        call    append
+        movzx   eax, byte [esi + RETRY_SECONDS]
+        mov     edi, 10
+        push    0                       ; under the digits
+.split: xor     edx, edx
+        div     edi
+        add     edx, '0'
+        push    edx
+        test    eax, eax
+        jnz     .split
+.digit: pop     eax
+        test    eax, eax
+        jz      .after
+        mov     [ecx], ax
+        add     ecx, 2
+        jmp     .digit
+.after: mov     edx, [ebx + restart_after + ebp*4]
+        add     edx, ebx
+        call    append
+        mov     eax, 1
+        pop     ebp
+        pop     edi
+        pop     ebx
+        ret
+
+; Patch 17: which file of how many is being downloaded, "(5/69)" after the
+; downloading line's "... left". The updater says it (message 0B: two
+; 16-bit numbers, the file and how many; 0 of 0: none), kept past the relay
+; row's state in .data.
+FILE_COUNT              equ RELAY_STATE + 16    ; word: the file; word: of how many (0: none)
+COUNT_ROOM              equ 16                  ; characters of " (65535/65535)" and its zero
+
+; on_updater_message's jump for message 0B (the dispatch table's entry):
+; the message after its id at [esp+18h]. A file past the last is none.
+; Every register as it was; on to the handlers' common end.
+count_message:
+        pushad
+        mov     eax, [esp + 32 + 0x18]
+        mov     eax, [eax]
+        movzx   ecx, ax                 ; the file
+        dec     ecx
+        shr     eax, 16                 ; of how many
+        cmp     ecx, eax
+        jb      .keep
+        xor     eax, eax
+        xor     ecx, ecx
+        dec     ecx
+.keep:  inc     ecx
+        shl     eax, 16
+        or      eax, ecx
+        DELTA
+        mov     [ebx + FILE_COUNT], eax
+        popad
+        jmp     MESSAGE_DONE
+
+; In place of load_string's call for "%s left" of the downloading line
+; (refresh_status 0x16ADF; cdecl: the id, the buffer, its size in
+; characters): load_string's own, then " (5/69)" after it while the updater
+; counts files. eax is load_string's; ecx, edx changed, as it may.
+count_text:
+        push    dword [esp + 12]
+        push    dword [esp + 12]
+        push    dword [esp + 12]
+        call    LOAD_STRING
+        add     esp, 12
+        push    eax
+        push    ebx
+        push    edi
+        DELTA
+        mov     edi, [ebx + FILE_COUNT]
+        test    edi, 0xFFFF0000
+        jz      .done
+        mov     ecx, [esp + 12 + 8]     ; the buffer
+        mov     edx, [esp + 12 + 12]    ; its size
+        sub     edx, COUNT_ROOM
+        jbe     .done
+.end:   cmp     word [ecx], 0
+        je      .room
+        add     ecx, 2
+        dec     edx
+        jnz     .end
+        jmp     .done                   ; no room after the text
+.room:  mov     dword [ecx], ' ' | ('(' << 16)
+        add     ecx, 4
+        movzx   eax, di
+        call    count_digits
+        mov     word [ecx], '/'
+        add     ecx, 2
+        mov     eax, edi
+        shr     eax, 16
+        call    count_digits
+        mov     dword [ecx], ')'        ; and the zero
+.done:  pop     edi
+        pop     ebx
+        pop     eax
+        ret
+
+; eax = a number -> its decimal digits (UTF-16) at ecx; ecx = past them.
+; eax, edx changed.
+count_digits:
+        push    ebx
+        mov     ebx, 10
+        push    0                       ; under the digits
+.split: xor     edx, edx
+        div     ebx
+        add     edx, '0'
+        push    edx
+        test    eax, eax
+        jnz     .split
+.digit: pop     eax
+        test    eax, eax
+        jz      .out
+        mov     [ecx], ax
+        add     ecx, 2
+        jmp     .digit
+.out:   pop     ebx
+        ret
+
+; ebx = DELTA -> eax = the relay row's language: 0 English, 1 Russian, 2
+; Ukrainian, 3 German, 4 Polish (the launcher's texts' LANGID; English for
+; any other). ecx, edx changed.
+relay_language:
+        mov     eax, [ebx + LANGUAGE_GLOBAL]
+        cmp     eax, LANGUAGE_COUNT
+        jb      .known
+        xor     eax, eax
+.known: movzx   eax, word [ebx + language_ui + eax*2]
+        xor     edx, edx
+.each:  inc     edx
+        cmp     edx, RELAY_LANGUAGES
+        jae     .english
+        cmp     ax, [ebx + relay_langids + edx*2]
+        jne     .each
+        mov     eax, edx
+        ret
+.english:
+        xor     eax, eax
+        ret
+
+; ebx = DELTA -> eax = the row's text (UTF-16), or 0 while it is hidden.
+; ecx, edx changed.
+relay_text:
+        movzx   ecx, byte [ebx + RELAY_VIEW]
+        xor     eax, eax
+        test    ecx, ecx
+        jz      .done
+        push    ecx
+        call    relay_language
+        pop     ecx
+        imul    eax, eax, VIEWS
+        lea     eax, [eax + ecx - 1]
+        mov     eax, [ebx + relay_labels + eax*4]
+        add     eax, ebx
+.done:  ret
+
+; edx = a function of user32 (its name, ASCII) -> eax = it, or 0. ebx =
+; DELTA; ecx, edx changed.
+user32_proc:
+        push    esi
+        push    edi
+        lea     esi, [ebx + user32_name]
+        mov     edi, edx
+        call    procedure
+        pop     edi
+        pop     esi
+        ret
+
+; eax = the form: the button as RELAY_VIEW says: hidden while 0; else its
+; tooltip, shown (its row's text is the panel's, `paint_label`). Every
+; register kept.
+relay_apply:
+        pushad
+        mov     esi, eax                ; the form
+        DELTA
+        lea     edi, [esi + FORM_RELAY_BOX]
+        movzx   eax, byte [ebx + RELAY_VIEW]
+        mov     ebp, SW_HIDE
+        test    eax, eax
+        jz      .show
+        call    relay_tip
+        mov     ebp, SW_SHOWNA
+.show:  lea     edx, [ebx + show_name]
+        call    user32_proc
+        test    eax, eax
+        jz      .done
+        push    ebp
+        push    dword [edi + 4]         ; the button's window
+        call    eax                     ; ShowWindow
+.done:  popad
+        ret
+
+; edi = the button (shown), ebx = DELTA: its tooltip, made once for its window
+; (and the one of a box made before it destroyed), its text what the relay
+; is and what the row is now. eax, ecx, edx, esi, ebp changed.
+relay_tip:
+        sub     esp, TIP_LOCALS
+        lea     edx, [ebx + send_name]
+        call    user32_proc
+        test    eax, eax
+        jz      .out
+        mov     [esp + TIP_SEND], eax
+        ; The text: what the relay is, then what the row is now.
+        call    relay_language
+        mov     esi, eax
+        lea     ecx, [esp + TIP_TEXT]
+        mov     edx, [ebx + relay_tips + esi*4]
+        add     edx, ebx
+        call    append
+        movzx   eax, byte [ebx + RELAY_VIEW]
+        dec     eax
+        imul    esi, esi, VIEWS
+        add     esi, eax
+        mov     edx, [ebx + relay_now + esi*4]
+        add     edx, ebx
+        call    append
+        ; TOOLINFOW: the button's window is the tool, its parent the window.
+        lea     edx, [ebx + parent_name]
+        call    user32_proc
+        test    eax, eax
+        jz      .out
+        push    dword [edi + 4]
+        call    eax                     ; GetParent
+        mov     [esp + TIP_INFO + 8], eax
+        mov     dword [esp + TIP_INFO], 44              ; cbSize (TTTOOLINFOW_V2_SIZE)
+        mov     dword [esp + TIP_INFO + 4], 0x11        ; TTF_IDISHWND | TTF_SUBCLASS
+        mov     eax, [edi + 4]
+        mov     [esp + TIP_INFO + 12], eax              ; uId
+        xor     eax, eax
+        mov     [esp + TIP_INFO + 16], eax              ; rect
+        mov     [esp + TIP_INFO + 20], eax
+        mov     [esp + TIP_INFO + 24], eax
+        mov     [esp + TIP_INFO + 28], eax
+        mov     [esp + TIP_INFO + 32], eax              ; hinst
+        mov     [esp + TIP_INFO + 40], eax              ; lParam
+        lea     eax, [esp + TIP_TEXT]
+        mov     [esp + TIP_INFO + 36], eax              ; lpszText
+        mov     eax, [edi + 4]
+        cmp     eax, [ebx + RELAY_TIP_TOOL]
+        jne     .make
+        cmp     dword [ebx + RELAY_TIP], 0
+        je      .make
+        lea     eax, [esp + TIP_INFO]
+        push    eax
+        push    0
+        push    TTM_UPDATETIPTEXTW
+        push    dword [ebx + RELAY_TIP]
+        call    [esp + 16 + TIP_SEND]
+        jmp     .out
+.make:  mov     eax, [ebx + RELAY_TIP]  ; an earlier button's (the window made again)
+        test    eax, eax
+        jz      .new
+        lea     edx, [ebx + destroy_window_name]
+        call    user32_proc
+        test    eax, eax
+        jz      .new
+        push    dword [ebx + RELAY_TIP]
+        call    eax                     ; DestroyWindow
+.new:   xor     eax, eax
+        mov     [ebx + RELAY_TIP], eax
+        mov     [ebx + RELAY_TIP_TOOL], eax
+        call    common_controls
+        test    eax, eax
+        jz      .out
+        lea     edx, [ebx + create_window_name]
+        call    user32_proc
+        test    eax, eax
+        jz      .out
+        push    0                       ; lpParam
+        push    0                       ; hInstance
+        push    0                       ; hMenu
+        push    dword [esp + 12 + TIP_INFO + 8]         ; the button's parent
+        push    0x80000000              ; CW_USEDEFAULT: height, width, y, x
+        push    0x80000000
+        push    0x80000000
+        push    0x80000000
+        push    0x80000003              ; WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP
+        push    0
+        lea     ecx, [ebx + tooltips_class]
+        push    ecx
+        push    8                       ; WS_EX_TOPMOST
+        call    eax                     ; CreateWindowExW
+        test    eax, eax
+        jz      .out
+        mov     [ebx + RELAY_TIP], eax
+        mov     ecx, [edi + 4]
+        mov     [ebx + RELAY_TIP_TOOL], ecx
+        push    360
+        push    0
+        push    TTM_SETMAXTIPWIDTH
+        push    eax
+        call    [esp + 16 + TIP_SEND]
+        push    30000                   ; shown 30 s
+        push    TTDT_AUTOPOP
+        push    TTM_SETDELAYTIME
+        push    dword [ebx + RELAY_TIP]
+        call    [esp + 16 + TIP_SEND]
+        lea     eax, [esp + TIP_INFO]
+        push    eax
+        push    0
+        push    TTM_ADDTOOLW
+        push    dword [ebx + RELAY_TIP]
+        call    [esp + 16 + TIP_SEND]
+.out:   add     esp, TIP_LOCALS
+        ret
+
+; ebx = DELTA -> eax = 1 once comctl32 is loaded and its tooltip class
+; registered (InitCommonControlsEx, ICC_BAR_CLASSES), else 0. ecx, edx, esi
+; changed; edi kept.
+common_controls:
+        push    edi
+        lea     esi, [ebx + kernel32_name]
+        lea     edi, [ebx + load_library_name]
+        call    procedure
+        test    eax, eax
+        jz      .no
+        lea     ecx, [ebx + comctl32_wide]
+        push    ecx
+        call    eax                     ; LoadLibraryW
+        test    eax, eax
+        jz      .no
+        lea     esi, [ebx + comctl32_name]
+        lea     edi, [ebx + init_controls_name]
+        call    procedure
+        test    eax, eax
+        jz      .no
+        push    4                       ; dwICC: ICC_BAR_CLASSES
+        push    8                       ; dwSize
+        push    esp
+        call    eax                     ; InitCommonControlsEx
+        add     esp, 8
+        mov     eax, 1
+        jmp     .out
+.no:    xor     eax, eax
+.out:   pop     edi
+        ret
+
+relay_langids:  dw 0x0409, 0x0419, 0x0422, 0x0407, 0x0415
+
+; The texts, every language of the launcher's own (English for the others).
+; Short: the row's in the panel left of the status line (x 200), the widest
+; ("Релей: авто (увімк)") about 140 pixels from x 53.
+        align   4, db 0
+relay_labels:   dd lbl_en_auto, lbl_en_auto_off, lbl_en_auto_on, lbl_en_auto, lbl_en_on, lbl_en_off
+                dd lbl_ru_auto, lbl_ru_auto_off, lbl_ru_auto_on, lbl_ru_auto, lbl_ru_on, lbl_ru_off
+                dd lbl_ru_auto, lbl_uk_auto_off, lbl_uk_auto_on, lbl_ru_auto, lbl_uk_on, lbl_uk_off
+                dd lbl_en_auto, lbl_de_auto_off, lbl_de_auto_on, lbl_en_auto, lbl_de_on, lbl_de_off
+                dd lbl_en_auto, lbl_pl_auto_off, lbl_pl_auto_on, lbl_en_auto, lbl_pl_on, lbl_pl_off
+relay_rows:     dd row_en_auto, row_en_on, row_en_off
+                dd row_ru_auto, row_ru_on, row_ru_off
+                dd row_uk_auto, row_uk_on, row_uk_off
+                dd row_de_auto, row_de_on, row_de_off
+                dd row_pl_auto, row_pl_on, row_pl_off
+relay_tips:     dd tip_en, tip_ru, tip_uk, tip_de, tip_pl
+restart_before: dd restart_en, restart_ru, restart_uk, restart_de, restart_pl
+restart_after:  dd seconds_en, seconds_ru, seconds_ru, seconds_en, seconds_en
+relay_now:      dd now_en_1, now_en_2, now_en_3, now_en_4, now_en_5, now_en_6
+                dd now_ru_1, now_ru_2, now_ru_3, now_ru_4, now_ru_5, now_ru_6
+                dd now_uk_1, now_uk_2, now_uk_3, now_uk_4, now_uk_5, now_uk_6
+                dd now_de_1, now_de_2, now_de_3, now_de_4, now_de_5, now_de_6
+                dd now_pl_1, now_pl_2, now_pl_3, now_pl_4, now_pl_5, now_pl_6
+
+lbl_en_auto:     dw __utf16__('Relay: auto'), 0
+lbl_en_auto_off: dw __utf16__('Relay: auto (off)'), 0
+lbl_en_auto_on:  dw __utf16__('Relay: auto (on)'), 0
+lbl_en_on:       dw __utf16__('Relay: on'), 0
+lbl_en_off:      dw __utf16__('Relay: off'), 0
+lbl_ru_auto:     dw __utf16__('Релей: авто'), 0
+lbl_ru_auto_off: dw __utf16__('Релей: авто (выкл)'), 0
+lbl_ru_auto_on:  dw __utf16__('Релей: авто (вкл)'), 0
+lbl_ru_on:       dw __utf16__('Релей: вкл'), 0
+lbl_ru_off:      dw __utf16__('Релей: выкл'), 0
+lbl_uk_auto_off: dw __utf16__('Релей: авто (вимк)'), 0
+lbl_uk_auto_on:  dw __utf16__('Релей: авто (увімк)'), 0
+lbl_uk_on:       dw __utf16__('Релей: увімк'), 0
+lbl_uk_off:      dw __utf16__('Релей: вимк'), 0
+lbl_de_auto_off: dw __utf16__('Relay: auto (aus)'), 0
+lbl_de_auto_on:  dw __utf16__('Relay: auto (an)'), 0
+lbl_de_on:       dw __utf16__('Relay: an'), 0
+lbl_de_off:      dw __utf16__('Relay: aus'), 0
+lbl_pl_auto_off: dw __utf16__('Relay: auto (wył.)'), 0
+lbl_pl_auto_on:  dw __utf16__('Relay: auto (wł.)'), 0
+lbl_pl_on:       dw __utf16__('Relay: wł.'), 0
+lbl_pl_off:      dw __utf16__('Relay: wył.'), 0
+
+row_en_auto:    dw __utf16__('Auto: only when blocked'), 0
+row_en_on:      dw __utf16__('On: always through the relay'), 0
+row_en_off:     dw __utf16__('Off: never'), 0
+row_ru_auto:    dw __utf16__('Авто: только при блокировке'), 0
+row_ru_on:      dw __utf16__('Вкл: всегда через релей'), 0
+row_ru_off:     dw __utf16__('Выкл: никогда'), 0
+row_uk_auto:    dw __utf16__('Авто: лише при блокуванні'), 0
+row_uk_on:      dw __utf16__('Увімк: завжди через релей'), 0
+row_uk_off:     dw __utf16__('Вимк: ніколи'), 0
+row_de_auto:    dw __utf16__('Auto: nur bei Sperre'), 0
+row_de_on:      dw __utf16__('An: immer über das Relay'), 0
+row_de_off:     dw __utf16__('Aus: nie'), 0
+row_pl_auto:    dw __utf16__('Auto: tylko przy blokadzie'), 0
+row_pl_on:      dw __utf16__('Wł.: zawsze przez relay'), 0
+row_pl_off:     dw __utf16__('Wył.: nigdy'), 0
+
+restart_en:     dw __utf16__('The server is restarting. Next try in '), 0
+restart_ru:     dw __utf16__('Сервер перезапускается. Повтор через '), 0
+restart_uk:     dw __utf16__('Сервер перезапускається. Повтор через '), 0
+restart_de:     dw __utf16__('Der Server startet neu. Nächster Versuch in '), 0
+restart_pl:     dw __utf16__('Serwer uruchamia się ponownie. Kolejna próba za '), 0
+seconds_en:     dw __utf16__(' s.'), 0
+seconds_ru:     dw __utf16__(' с.'), 0
+
+tip_en: dw __utf16__(`The relay is a second server that forwards your game when your provider blocks ours.\r\nAuto: through the relay only when the direct way is blocked.\r\nOn: always through the relay (a bit more ping).\r\nOff: never.\r\nClick the gear to choose.\r\n\r\nNow: `), 0
+tip_ru: dw __utf16__(`Релей — второй сервер: он передаёт вашу игру, когда провайдер блокирует наш.\r\nАвто: через релей, только если прямой путь заблокирован.\r\nВкл: всегда через релей (пинг чуть выше).\r\nВыкл: никогда.\r\nНажмите на шестерёнку, чтобы выбрать.\r\n\r\nСейчас: `), 0
+tip_uk: dw __utf16__(`Релей — другий сервер: він передає вашу гру, коли провайдер блокує наш.\r\nАвто: через релей, лише коли прямий шлях заблоковано.\r\nУвімк: завжди через релей (пінг трохи вищий).\r\nВимк: ніколи.\r\nНатисніть на шестерню, щоб вибрати.\r\n\r\nЗараз: `), 0
+tip_de: dw __utf16__(`Das Relay ist ein zweiter Server, der dein Spiel weiterleitet, wenn dein Anbieter unseren sperrt.\r\nAuto: über das Relay nur, wenn der direkte Weg gesperrt ist.\r\nAn: immer über das Relay (etwas mehr Ping).\r\nAus: nie.\r\nKlicke auf das Zahnrad, um zu wählen.\r\n\r\nJetzt: `), 0
+tip_pl: dw __utf16__(`Relay to drugi serwer, który przekazuje twoją grę, gdy dostawca blokuje nasz.\r\nAuto: przez relay tylko wtedy, gdy droga bezpośrednia jest zablokowana.\r\nWł.: zawsze przez relay (nieco wyższy ping).\r\nWył.: nigdy.\r\nKliknij koło zębate, aby wybrać.\r\n\r\nTeraz: `), 0
+
+now_en_1:       dw __utf16__('auto, checking...'), 0
+now_en_2:       dw __utf16__('auto: direct.'), 0
+now_en_3:       dw __utf16__('auto: through the relay.'), 0
+now_en_4:       dw __utf16__('auto: the server does not answer.'), 0
+now_en_5:       dw __utf16__('on: through the relay.'), 0
+now_en_6:       dw __utf16__('off: direct.'), 0
+now_ru_1:       dw __utf16__('авто, проверка...'), 0
+now_ru_2:       dw __utf16__('авто: напрямую.'), 0
+now_ru_3:       dw __utf16__('авто: через релей.'), 0
+now_ru_4:       dw __utf16__('авто: сервер не отвечает.'), 0
+now_ru_5:       dw __utf16__('вкл: через релей.'), 0
+now_ru_6:       dw __utf16__('выкл: напрямую.'), 0
+now_uk_1:       dw __utf16__('авто, перевірка...'), 0
+now_uk_2:       dw __utf16__('авто: напряму.'), 0
+now_uk_3:       dw __utf16__('авто: через релей.'), 0
+now_uk_4:       dw __utf16__('авто: сервер не відповідає.'), 0
+now_uk_5:       dw __utf16__('увімк: через релей.'), 0
+now_uk_6:       dw __utf16__('вимк: напряму.'), 0
+now_de_1:       dw __utf16__('Auto, prüfe...'), 0
+now_de_2:       dw __utf16__('Auto: direkt.'), 0
+now_de_3:       dw __utf16__('Auto: über das Relay.'), 0
+now_de_4:       dw __utf16__('Auto: der Server antwortet nicht.'), 0
+now_de_5:       dw __utf16__('An: über das Relay.'), 0
+now_de_6:       dw __utf16__('Aus: direkt.'), 0
+now_pl_1:       dw __utf16__('auto, sprawdzam...'), 0
+now_pl_2:       dw __utf16__('auto: bezpośrednio.'), 0
+now_pl_3:       dw __utf16__('auto: przez relay.'), 0
+now_pl_4:       dw __utf16__('auto: serwer nie odpowiada.'), 0
+now_pl_5:       dw __utf16__('wł.: przez relay.'), 0
+now_pl_6:       dw __utf16__('wył.: bezpośrednio.'), 0
+
+setting_key:    db 12, 'localization'
+torrent_key:    db 22, 'enable_torrent_seeding'
+on_text:        db 'on', 0
+off_text:       db 'off', 0
+        align   2, db 0
+comctl32_wide:  dw __utf16__('comctl32.dll'), 0
+tooltips_class: dw __utf16__('tooltips_class32'), 0
+reset_name:     dw __utf16__('launcher_skhid.torrent_reset'), 0
+folder_name:    dw __utf16__('\survarium'), 0
+file_name:      dw __utf16__('\user.cfg'), 0
+new_suffix:     dw __utf16__('.new'), 0
+shell32_name:   db 'shell32.dll', 0
+folder_path_name: db 'SHGetFolderPathW', 0
+make_folder_name: db 'SHCreateDirectoryExW', 0
+delete_name:    db 'DeleteFileW', 0
 kernel32_name:  db 'kernel32.dll', 0
 user32_name:    db 'user32.dll', 0
 lcid_name:      db 'GetUserDefaultLCID', 0
-move_name:      db 'MoveFileExA', 0
+move_name:      db 'MoveFileExW', 0
 create_name:    db 'CreatePopupMenu', 0
 append_name:    db 'AppendMenuW', 0
 track_name:     db 'TrackPopupMenu', 0
 destroy_name:   db 'DestroyMenu', 0
+show_name:      db 'ShowWindow', 0
+parent_name:    db 'GetParent', 0
+send_name:      db 'SendMessageW', 0
+create_window_name: db 'CreateWindowExW', 0
+destroy_window_name: db 'DestroyWindow', 0
+load_library_name: db 'LoadLibraryW', 0
+comctl32_name:  db 'comctl32.dll', 0
+init_controls_name: db 'InitCommonControlsEx', 0
 
         align   2, db 0
 %include "launcher_languages_026g.inc"

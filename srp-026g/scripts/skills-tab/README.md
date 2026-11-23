@@ -24,6 +24,9 @@ every branch of the skill tree as the lobby draws it.
   trees counts the points, which is the level the build needs, and that level in matches and hours
   (the server's levels section); each branch's heading its own points. The build is kept in the
   address (`#101.5,103.2`) to share.
+- A player's skills (the stats page's Skills tab, `servers/web-server/src/history.rs`): the same
+  trees and script on that page, the trees carrying the player's build (`data-build`). The
+  script then draws that build as it is and changes nothing; there is no bar.
 - A tree is never squeezed: a card that does not fit goes to the next row; on a phone the whole
   tree scales down.
 - English and Ukrainian, like the rest of the wiki; the site's colours and type around the

@@ -28,6 +28,7 @@
 use binary_config_parser::tree::{ConfigError, ConfigValue};
 use srp_validate::world::{Anomaly, ArtefactItem, Artefacts, Group, Held, Map, State, Uses};
 
+pub use super::dictionary::MapId;
 use super::dictionary::Dictionary;
 use super::game_data::{GameData, GameDataError};
 use super::item_params::ItemClass;
@@ -60,16 +61,25 @@ pub enum RuleMode {
     /// respawn points (content edit ffa-1) the free-for-all exe patch spawns
     /// each player at.
     FreeForAll = 8,
+    /// Team Freeze Tag; state follows the native respawn rule.
+    FreezeTag = 12,
+    /// Artifact Hunt: one artefact at a time brought to one's own base, in
+    /// rounds, the first team to the goal wins; rule 481
+    /// (`crates/artefact-hunt-rule`, `docs/notes/artefact_hunt.md`). The
+    /// match ends at the rule's end, never at the time rule's.
+    ArtefactHunt = 13,
 }
 
 impl RuleMode {
     /// The modes a match can be.
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 7] = [
         Self::Batteries,
         Self::TimedBatteries,
         Self::TeamDeathmatch,
         Self::Research,
         Self::FreeForAll,
+        Self::FreezeTag,
+        Self::ArtefactHunt,
     ];
 
     /// The mode of a config's `mode.mode`, if srp plays it.
@@ -98,7 +108,8 @@ impl RuleMode {
             Self::TimedBatteries => &[93, 91, 89, 94],
             Self::TeamDeathmatch => &[93, 91, 90, 94],
             Self::Research => &[93, 91, 480, 94],
-            Self::FreeForAll => &[93, 91, 94],
+            Self::FreeForAll | Self::FreezeTag => &[93, 91, 94],
+            Self::ArtefactHunt => &[93, 91, 481, 94],
         }
     }
 
@@ -137,10 +148,12 @@ pub enum GameMode {
     TeamDeathmatch,
     Research,
     FreeForAll,
+    FreezeTag,
     /// "Protective device: blackout" (`docs/notes/blackout.md`): the rules
     /// of [`BLACKOUT_RULES`], the static info's Blackout entry (exe patch
     /// 65) and its own pay.
     Blackout,
+    ArtefactHunt,
 }
 
 /// srp's variants of a config's rules, by `mode.srp_variant`, and the
@@ -172,7 +185,9 @@ impl GameMode {
             Self::TeamDeathmatch => RuleMode::TeamDeathmatch,
             Self::Research => RuleMode::Research,
             Self::FreeForAll => RuleMode::FreeForAll,
+            Self::FreezeTag => RuleMode::FreezeTag,
             Self::Blackout => BLACKOUT_RULES,
+            Self::ArtefactHunt => RuleMode::ArtefactHunt,
         }
     }
 
@@ -192,13 +207,15 @@ impl GameMode {
     }
 
     /// Every mode.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 8] = [
         Self::Batteries,
         Self::TimedBatteries,
         Self::TeamDeathmatch,
         Self::Research,
         Self::FreeForAll,
+        Self::FreezeTag,
         Self::Blackout,
+        Self::ArtefactHunt,
     ];
 }
 
@@ -211,6 +228,8 @@ impl From<RuleMode> for GameMode {
             RuleMode::TeamDeathmatch => Self::TeamDeathmatch,
             RuleMode::Research => Self::Research,
             RuleMode::FreeForAll => Self::FreeForAll,
+            RuleMode::FreezeTag => Self::FreezeTag,
+            RuleMode::ArtefactHunt => Self::ArtefactHunt,
         }
     }
 }
@@ -222,7 +241,7 @@ pub struct MatchMap(&'static MapMode);
 
 impl MatchMap {
     /// A `maps_dict` id, if a match can be played on it.
-    pub fn of(map_id: u8) -> Option<Self> {
+    pub fn of(map_id: MapId) -> Option<Self> {
         map_mode(map_id).filter(|map| map.is_playable()).map(Self)
     }
 
@@ -243,14 +262,25 @@ pub mod weather {
     pub const EVENING: u8 = 3;
     pub const NIGHT: u8 = 4;
     pub const PRERAIN: u8 = 5;
+
+    /// Where a weather stands among a map's weathers in a list: day, evening,
+    /// rain, as the stock maps' ids have them, whatever a ported map's ids are.
+    pub fn list_place(weather: u8) -> u8 {
+        match weather {
+            DAY => 0,
+            EVENING => 1,
+            RAIN => 2,
+            other => other,
+        }
+    }
 }
 
 /// One `maps_dict` id and its `gameplay/game_modes/` config, with what the
 /// server reads of its project. A parameter the config lacks is 0.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MapMode {
-    /// The `maps_dict` id: the match options' `u8 map_id`.
-    pub id: u8,
+    /// The `maps_dict` id ([`MapId`]).
+    pub id: MapId,
     /// `cfg_mode_name`, the file under `gameplay/game_modes/`.
     pub config: &'static str,
     /// `mode.name`.
@@ -264,6 +294,8 @@ pub struct MapMode {
     pub weather: u8,
     /// `match_making_params.map_name`: the project under `projects/`.
     pub project: &'static str,
+    /// The build its scene comes from ([`Build::of`]).
+    pub build: Build,
     /// Whether the game data has that project's `client_project`.
     pub has_project: bool,
     /// `ui.loading_screen_id` and `ui.icon`.
@@ -299,6 +331,16 @@ pub struct MapMode {
     pub resources_count: u32,
     /// A free-for-all: the kills that win (`kills_to_win`, 30).
     pub kills_to_win: u32,
+    /// A free-for-all played with a twist only, never plain (srp's `mode.srp_twists_only`,
+    /// refused on another mode's config; the owner, 2026-11-22, of Military Warehouses: "should
+    /// not be playable on general ffa, only ffa: racket and other variants"): a room's card on it
+    /// draws a twist ([`super::twist::draw`]), a private room's pool, whose free-for-all is plain,
+    /// leaves it out.
+    pub twists_only: bool,
+    /// Artifact Hunt: its rule's parameters, as the game's rule reads them
+    /// from the same config ([`artefact_hunt_params`]). Some exactly when
+    /// `mode` is [`GameMode::ArtefactHunt`].
+    pub artefact_hunt: Option<&'static artefact_hunt_rule::Params>,
     /// How many respawn points the project has: every entry of its
     /// `server_objects.respawn_points`, whatever its team or layer, is
     /// loaded (`player_respawn_rule_cook` 0x2C6910), so this is how many
@@ -332,8 +374,67 @@ impl MapMode {
     /// mp_bath, mp_military_1, mp_training_camp and mp_rembasa, the SoC Station and Depository),
     /// in every mode.
     pub fn is_stalker(&self) -> bool {
-        self.project.starts_with("v010b_")
+        self.build == Build::Stalker
     }
+}
+
+/// The build a map's scene comes from, in the order lists show them (the owner,
+/// 2026-11-19: 0.26 maps, 0.11, 0.21, 0.69, the STALKER maps; 2026-11-20: the two
+/// Londons, 0.32's and 0.42's rework, after the 0.21 maps).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Build {
+    V026,
+    V011,
+    V021,
+    V032,
+    V042,
+    V069,
+    Stalker,
+}
+
+impl Build {
+    /// The build a tag names: a ported project's prefix, its donor build
+    /// (`v021d_level_03`), or a config's `srp_build`, the build its map's
+    /// name shows (`v032`: "London (v0.32)").
+    fn of_tag(tag: &str) -> Option<Self> {
+        match tag {
+            "v011e" => Some(Self::V011),
+            "v021d" => Some(Self::V021),
+            "v032" => Some(Self::V032),
+            "v042" => Some(Self::V042),
+            "v069d" => Some(Self::V069),
+            "v010b" => Some(Self::Stalker),
+            _ => None,
+        }
+    }
+
+    /// A config's build: its `mode.srp_build` (`modes.tsv`'s `build`) where
+    /// it has one, whatever its project is called (London's projects keep the
+    /// native `level_09`; the reworked London's prefix is its donor's, a
+    /// later build than the 0.42 it is listed as); else its project's prefix.
+    /// A project with no build's prefix is 0.26g's; a prefix that reads as a
+    /// build (`v044a_`) and is none of these needs the config's `srp_build`.
+    pub fn of(srp_build: Option<&str>, project: &str) -> Result<Self, ConfigError> {
+        let none_of = |what: &str, tag: &str| {
+            ConfigError(format!("{what} {tag} of {project} is none of srp's builds"))
+        };
+        if let Some(tag) = srp_build {
+            return Self::of_tag(tag).ok_or_else(|| none_of("`srp_build`", tag));
+        }
+        match project.split_once('_') {
+            Some((prefix, _)) if reads_as_a_build(prefix) => Self::of_tag(prefix)
+                .ok_or_else(|| none_of("without an `srp_build`, the prefix", prefix)),
+            _ => Ok(Self::V026),
+        }
+    }
+}
+
+/// Whether a project's prefix is a build's name (`v021d`), not a level's own
+/// (`level`).
+fn reads_as_a_build(prefix: &str) -> bool {
+    prefix
+        .strip_prefix('v')
+        .is_some_and(|rest| rest.starts_with(|c: char| c.is_ascii_digit()))
 }
 
 /// A number of a game mode config; a missing one is 0.
@@ -345,6 +446,125 @@ fn int<T: TryFrom<i32>>(table: Option<&ConfigValue>, key: &str) -> Result<T, Con
             .ok_or_else(|| ConfigError(format!("`{key}` is not a number")))?,
     };
     T::try_from(number).map_err(|_| ConfigError(format!("`{key}` = {number} is out of range")))
+}
+
+/// Artifact Hunt's rule parameters from its mode config (`mode`), as the
+/// game's rule reads them (`artefact_hunt.md`, "Data"): `parameters`' whole
+/// seconds and `score` as ints; `artefact_hunt.spawners[].position`,
+/// `artefact_hunt.bases[] {team, position, shapes[] {type, position, axis_x,
+/// axis_y, axis_z, half}}` and `artefact_hunt.item`'s `drop_lift` and
+/// `usable_radius` in their own types (ints, float3s, floats). A key of
+/// another type, or values [`artefact_hunt_rule::Params::parse`] refuses,
+/// stop the data: the game would stop on the same config, or read another
+/// number from it.
+pub fn artefact_hunt_params(
+    mode: &ConfigValue,
+) -> Result<artefact_hunt_rule::Params, ConfigError> {
+    use artefact_hunt_rule::{BaseDef, ParamError, Params, RawParams, RawShape, Spawner};
+    let parameters = mode.req("parameters")?;
+    let seconds = |key: &str| -> Result<u32, ConfigError> {
+        match parameters.get(key) {
+            Some(ConfigValue::Integer(value)) => u32::try_from(*value)
+                .map_err(|_| ConfigError(format!("`parameters.{key}` = {value} is below 0"))),
+            Some(_) => Err(ConfigError(format!("`parameters.{key}` is not an int"))),
+            None => Err(ConfigError(format!("missing key `parameters.{key}`"))),
+        }
+    };
+    let hunt = mode.req("artefact_hunt")?;
+    let float3 = |table: &ConfigValue, key: &str, what: &str| match table.get(key) {
+        Some(ConfigValue::Float3(value)) => Ok(*value),
+        _ => Err(ConfigError(format!("{what}'s `{key}` is not a float3"))),
+    };
+    let item = hunt.req("item")?;
+    let float = |key: &str| match item.get(key) {
+        Some(ConfigValue::Float(value)) => Ok(*value),
+        _ => Err(ConfigError(format!("`artefact_hunt.item.{key}` is not a float"))),
+    };
+    let (drop_lift, usable_radius) = (float("drop_lift")?, float("usable_radius")?);
+    let raw = RawParams {
+        match_time: seconds("match_time")?,
+        time_needed_to_continue_match: seconds("time_needed_to_continue_match")?,
+        draw_additional_time: seconds("draw_additional_time")?,
+        time_before_new_round: seconds("time_before_new_round")?,
+        round_countdown_time: seconds("round_countdown_time")?,
+        score: seconds("score")?,
+        respawn_time: seconds("respawn_time")?,
+        time_needed_to_respawn: seconds("time_needed_to_respawn")?,
+        vi_spawn_time: seconds("vi_spawn_time")?,
+        vi_spawn_variation: seconds("vi_spawn_variation")?,
+        vi_not_picked_ttl: seconds("vi_not_picked_ttl")?,
+        vi_dropped_ttl: seconds("vi_dropped_ttl")?,
+        drop_lift,
+        usable_radius,
+    };
+    let int = |table: &ConfigValue, key: &str, what: &str| match table.get(key) {
+        Some(ConfigValue::Integer(value)) => u32::try_from(*value)
+            .map_err(|_| ConfigError(format!("{what}'s `{key}` is {value}"))),
+        _ => Err(ConfigError(format!("{what}'s `{key}` is not an int"))),
+    };
+    let spawners = hunt
+        .req("spawners")?
+        .children()
+        .into_iter()
+        .map(|spawner| Ok(Spawner { position: float3(spawner, "position", "a spawner")? }))
+        .collect::<Result<Vec<_>, ConfigError>>()?;
+    let shapes = hunt
+        .req("bases")?
+        .children()
+        .into_iter()
+        .map(|base| {
+            base.req("shapes")?
+                .children()
+                .into_iter()
+                .map(|shape| {
+                    let what = "a base's shape";
+                    Ok(RawShape {
+                        kind: int(shape, "type", what)?,
+                        position: float3(shape, "position", what)?,
+                        axes: [
+                            float3(shape, "axis_x", what)?,
+                            float3(shape, "axis_y", what)?,
+                            float3(shape, "axis_z", what)?,
+                        ],
+                        half: float3(shape, "half", what)?,
+                    })
+                })
+                .collect::<Result<Vec<_>, ConfigError>>()
+        })
+        .collect::<Result<Vec<_>, ConfigError>>()?;
+    let bases = hunt
+        .req("bases")?
+        .children()
+        .into_iter()
+        .zip(&shapes)
+        .map(|(base, shapes)| {
+            Ok(BaseDef {
+                team: int(base, "team", "a base")?,
+                position: float3(base, "position", "a base")?,
+                shapes,
+            })
+        })
+        .collect::<Result<Vec<_>, ConfigError>>()?;
+    Params::parse(&raw, &spawners, &bases).map_err(|error| {
+        let key = match error {
+            ParamError::MatchTime => "parameters.match_time",
+            ParamError::TimeNeededToContinueMatch => "parameters.time_needed_to_continue_match",
+            ParamError::DrawAdditionalTime => "parameters.draw_additional_time",
+            ParamError::TimeBeforeNewRound => "parameters.time_before_new_round",
+            ParamError::RoundCountdownTime => "parameters.round_countdown_time",
+            ParamError::Score => "parameters.score",
+            ParamError::RespawnTime => "parameters.respawn_time",
+            ParamError::TimeNeededToRespawn => "parameters.time_needed_to_respawn",
+            ParamError::ViSpawnTime => "parameters.vi_spawn_time",
+            ParamError::ViNotPickedTtl => "parameters.vi_not_picked_ttl",
+            ParamError::ViDroppedTtl => "parameters.vi_dropped_ttl",
+            ParamError::DropLift => "artefact_hunt.item.drop_lift",
+            ParamError::UsableRadius => "artefact_hunt.item.usable_radius",
+            ParamError::Spawners => "artefact_hunt.spawners",
+            ParamError::Bases => "artefact_hunt.bases",
+        };
+        ConfigError(format!("Artifact Hunt's rule refuses its `{key}`"))
+    })
 }
 
 fn leak_str(text: &str) -> &'static str {
@@ -669,7 +889,7 @@ impl MapMode {
     /// (`None`). The strings are leaked: the rows live as long as the
     /// process.
     pub fn from_config(
-        id: u8,
+        id: MapId,
         cfg_mode_name: &str,
         config: &ConfigValue,
         project: Option<&ConfigValue>,
@@ -714,6 +934,21 @@ impl MapMode {
             return Ok(None);
         };
         let rule_mode = game_mode.rules();
+        let twists_only = match mode.get("srp_twists_only") {
+            None => false,
+            Some(value) => value
+                .as_bool()
+                .ok_or_else(|| ConfigError("`srp_twists_only` is not a bool".into()))?,
+        };
+        if twists_only && game_mode != GameMode::FreeForAll {
+            return Err(ConfigError(format!(
+                "`srp_twists_only` is a free-for-all's, and it is mode {rule_mode}"
+            )));
+        }
+        let artefact_hunt = match rule_mode {
+            RuleMode::ArtefactHunt => Some(&*Box::leak(Box::new(artefact_hunt_params(mode)?))),
+            _ => None,
+        };
         let objects = project
             .map(|project| {
                 ProjectObjects::from_project(project, rule_mode.has_batteries(), data, dictionary)
@@ -725,6 +960,8 @@ impl MapMode {
                 container_teams: None,
                 world_objects: &NO_WORLD_OBJECTS,
             });
+        let project_name = text(making, "map_name")?;
+        let srp_build = Some(text(Some(mode), "srp_build")?).filter(|tag| !tag.is_empty());
         let row = Self {
             id,
             config: leak_str(cfg_mode_name),
@@ -732,7 +969,8 @@ impl MapMode {
             mode: game_mode,
             level: int(making, "map_id")?,
             weather: int(making, "map_weather_id")?,
-            project: text(making, "map_name")?,
+            project: project_name,
+            build: Build::of(srp_build, project_name)?,
             has_project: project.is_some(),
             loading_screen_id: int(ui, "loading_screen_id")?,
             icon: int(ui, "icon")?,
@@ -755,6 +993,8 @@ impl MapMode {
             tickets_count: int(p, "tickets_count")?,
             resources_count: int(p, "resources_count")?,
             kills_to_win: int(p, "kills_to_win")?,
+            twists_only,
+            artefact_hunt,
             respawn_points: objects.respawn_points,
             solo_respawn_points: objects.solo_respawn_points,
             container_teams: objects
@@ -855,7 +1095,7 @@ pub fn derive(data: &GameData, dictionary: &Dictionary) -> Result<Vec<MapMode>, 
 }
 
 /// The config of a `maps_dict` id, if the client has one.
-pub fn map_mode(id: u8) -> Option<&'static MapMode> {
+pub fn map_mode(id: MapId) -> Option<&'static MapMode> {
     let all = all();
     all.binary_search_by_key(&id, |map| map.id)
         .ok()
@@ -891,8 +1131,8 @@ mod tests {
     use srp_validate::world::Artefact;
     use super::*;
 
-    fn ids(mode: GameMode) -> Vec<u8> {
-        playable_in(mode).map(|map| map.id).collect()
+    fn ids(mode: GameMode) -> Vec<u16> {
+        playable_in(mode).map(|map| map.id.get()).collect()
     }
 
     #[test]
@@ -901,8 +1141,8 @@ mod tests {
         // (`scripts/content-edit/blackout-mode-1.json`: ids from 219).
         let blackout: Vec<&MapMode> = playable_in(GameMode::Blackout).collect();
         assert_eq!(blackout.len(), playable_in(GameMode::Batteries).count());
-        let ids: Vec<u8> = blackout.iter().map(|map| map.id).collect();
-        assert_eq!(ids, (219..=242).collect::<Vec<u8>>());
+        let ids: Vec<u16> = blackout.iter().map(|map| map.id.get()).collect();
+        assert_eq!(ids, (219..=242).collect::<Vec<u16>>());
         for map in blackout {
             let twin = find(map.level, map.weather, GameMode::Batteries).unwrap();
             assert_eq!(map.config, format!("blackout/{}", twin.config));
@@ -913,7 +1153,7 @@ mod tests {
             assert_eq!(map.container_teams, twin.container_teams);
             assert_eq!(MatchMap::of(map.id).unwrap().mode(), GameMode::Blackout);
         }
-        assert_eq!(MatchMap::of(11), None, "a test map the client cannot load");
+        assert_eq!(MatchMap::of(MapId::new(11)), None, "a test map the client cannot load");
     }
 
     #[test]
@@ -935,9 +1175,9 @@ mod tests {
     #[test]
     fn the_whitelist_is_that_of_the_notes() {
         // modes_maps.md §8.
-        let mode_2: Vec<u8> = (61..=105).step_by(2).chain([109]).collect();
-        let mode_3: Vec<u8> = (62..=106).step_by(2).chain([110]).collect();
-        let mode_4: Vec<u8> = (117..=140).collect();
+        let mode_2: Vec<u16> = (61..=105).step_by(2).chain([109]).collect();
+        let mode_3: Vec<u16> = (62..=106).step_by(2).chain([110]).collect();
+        let mode_4: Vec<u16> = (117..=140).collect();
         assert_eq!(ids(GameMode::Batteries), mode_2);
         assert_eq!(ids(GameMode::TimedBatteries), mode_3);
         assert_eq!(ids(GameMode::TeamDeathmatch), mode_4);
@@ -946,11 +1186,11 @@ mod tests {
         assert_eq!(ids(GameMode::FreeForAll), ffa_ids());
         assert_eq!(playable().count(), 72 + 24 + 24);
         for bad in [11, 45, 107, 108, 114, 115].into_iter().chain(141..=151) {
-            assert!(playable().all(|map| map.id != bad), "{bad}");
+            assert!(playable().all(|map| map.id.get() != bad), "{bad}");
         }
         // 114 and 143..=151 have no config at all; 141 and 142 are of mode 0.
         for missing in [114, 141, 142].into_iter().chain(143..=151) {
-            assert!(map_mode(missing).is_none(), "{missing}");
+            assert!(map_mode(MapId::new(missing)).is_none(), "{missing}");
         }
         // 15 ids a level: 3 weathers × 3 modes, and in each weather Blackout
         // and a free-for-all.
@@ -974,11 +1214,12 @@ mod tests {
         }
         // The ids without a row: the ten whose config the db lacks, and
         // 141 and 142, of mode 0.
-        let missing: Vec<u8> = dictionary
+        let missing: Vec<u16> = dictionary
             .maps
             .iter()
             .map(|entry| entry.id)
             .filter(|&id| map_mode(id).is_none())
+            .map(MapId::get)
             .collect();
         assert_eq!(missing, [114, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151]);
         // A playable id's config name spells its level, weather and mode,
@@ -1007,20 +1248,20 @@ mod tests {
 
     #[test]
     fn spot_checks() {
-        let map = map_mode(61).unwrap();
+        let map = map_mode(MapId::new(61)).unwrap();
         assert_eq!((map.level, map.weather, map.mode), (1, weather::DAY, GameMode::Batteries));
         assert_eq!(map.project, "level_01/day_2");
         assert_eq!(map.rules, [93, 91, 88, 94]);
-        let map = map_mode(109).unwrap();
+        let map = map_mode(MapId::new(109)).unwrap();
         assert_eq!((map.level, map.weather, map.mode), (8, weather::PRERAIN, GameMode::Batteries));
         assert_eq!(map.loading_screen_id, 25);
-        assert_eq!(find(8, weather::PRERAIN, GameMode::TeamDeathmatch).unwrap().id, 140);
-        assert_eq!(find(1, weather::EVENING, GameMode::TimedBatteries).unwrap().id, 64);
-        assert_eq!(find(4, weather::RAIN, GameMode::TeamDeathmatch).unwrap().id, 128);
+        assert_eq!(find(8, weather::PRERAIN, GameMode::TeamDeathmatch).unwrap().id, MapId::new(140));
+        assert_eq!(find(1, weather::EVENING, GameMode::TimedBatteries).unwrap().id, MapId::new(64));
+        assert_eq!(find(4, weather::RAIN, GameMode::TeamDeathmatch).unwrap().id, MapId::new(128));
         // Level 8 has no rain, and its night has no project.
         assert!(find(8, weather::RAIN, GameMode::Batteries).is_none());
         assert!(find(8, weather::NIGHT, GameMode::Batteries).is_none());
-        assert!(!map_mode(107).unwrap().has_project);
+        assert!(!map_mode(MapId::new(107)).unwrap().has_project);
         // Loading screens, static_info.md §4.
         assert_eq!(find(5, weather::EVENING, GameMode::Batteries).unwrap().loading_screen_id, 14);
         assert_eq!(find(7, weather::DAY, GameMode::TeamDeathmatch).unwrap().loading_screen_id, 18);
@@ -1051,7 +1292,8 @@ mod tests {
                 RuleMode::TimedBatteries => (&[93, 91, 89, 94], 0),
                 RuleMode::TeamDeathmatch => (&[93, 91, 90, 94], 2),
                 RuleMode::FreeForAll => (&[93, 91, 94], 2),
-                RuleMode::Research => panic!("the test data has no Research"),
+                RuleMode::Research | RuleMode::FreezeTag => panic!("the test data has no Research or Freeze Tag"),
+                RuleMode::ArtefactHunt => panic!("the test data has no Artifact Hunt"),
             };
             assert_eq!(map.rules, rules, "{}", map.id);
             assert_eq!(map.icon, icon, "{}", map.id);
@@ -1117,36 +1359,48 @@ mod tests {
         }
     }
 
+    /// A map's build is its data's: its configs' `srp_build` (`modes.tsv`),
+    /// as London's (`level_09`) and the reworked London's (a donor's prefix
+    /// no build of srp's has) say theirs, else its project's prefix. Lists
+    /// show the 0.21 maps, London (v0.32), London (v0.42), then 0.69 (the
+    /// owner, 2026-11-20).
     #[test]
-    fn the_projects_give_what_srp_had_by_hand() {
-        // The test data: 0.26g's maps, levels 1 to 8, all 72, Blackout's 24
-        // and the free-for-alls' 24.
-        assert_eq!(playable().count(), 72 + 24 + 24);
-        as_before(all(), true);
-        // Spot checks: level_04's Team Deathmatch has 75 points of its own
-        // (39 of layer `tdm`), level_02's 31 (one of team 2), and the
-        // free-for-all's own copy of each those and its own.
-        let level_04 = find(4, weather::RAIN, GameMode::TeamDeathmatch).unwrap();
-        assert_eq!((level_04.respawn_points, level_04.solo_respawn_points), (75, 0));
-        let level_04 = find(4, weather::RAIN, GameMode::FreeForAll).unwrap();
-        assert_eq!((level_04.respawn_points, level_04.solo_respawn_points), (75 + 30, 30));
-        let level_02 = find(2, weather::DAY, GameMode::TeamDeathmatch).unwrap();
-        assert_eq!((level_02.respawn_points, level_02.solo_respawn_points), (31, 1));
-        let level_02 = find(2, weather::DAY, GameMode::FreeForAll).unwrap();
-        assert_eq!((level_02.respawn_points, level_02.solo_respawn_points), (31 + 25, 1 + 25));
+    fn a_maps_build_is_its_srp_build_or_its_prefix() {
+        let added = |id, level, project: &'static str, srp_build| fixtures::AddedMap {
+            id: MapId::new(id),
+            config: leak_str(&format!("{}.options", project.replace('/', "_"))),
+            level,
+            project,
+            srp_build,
+            ..fixtures::AddedMap::level_12_tdm()
+        };
+        let build_of = |map: &fixtures::AddedMap| {
+            fixtures::table_of(&fixtures::with_map(map))
+                .map(|table| table.iter().find(|row| row.id == map.id).unwrap().build)
+        };
+        let v069 = added(200, 14, "v069d_level_01/day_4", None);
+        let reworked = added(201, 32, "v044a_level_09/day_4", Some("v042"));
+        let london = added(202, 9, "level_09/day_4", Some("v032"));
+        let v021 = added(203, 10, "v021d_level_03/day_4", None);
+        let mut builds =
+            [&v069, &reworked, &london, &v021].map(|map| (build_of(map).unwrap(), map.level));
+        builds.sort();
         assert_eq!(
-            find(7, weather::DAY, GameMode::TimedBatteries).unwrap().container_teams,
-            Some([0, 1])
+            builds,
+            [
+                (Build::V021, 10),
+                (Build::V032, 9),
+                (Build::V042, 32),
+                (Build::V069, 14)
+            ]
         );
-        // Without a project, nothing: level_08 at night.
-        let night = map_mode(107).unwrap();
-        assert_eq!((night.respawn_points, night.container_teams), (0, None));
-        // The names are the localizations' keys.
-        let map = map_mode(61).unwrap();
-        assert_eq!(
-            (map.map_name_key, map.mode_name_key),
-            ("st_level_01_name", "st_mode_02_name")
-        );
+        // With no `srp_build`: a level's own project is 0.26g's, a build's
+        // prefix that is none of srp's is refused, as an unknown `srp_build` is.
+        let unmarked = build_of(&added(204, 9, "level_09/day_4", None)).unwrap();
+        assert_eq!(unmarked, Build::V026);
+        assert!(all().iter().all(|map| map.build == Build::V026));
+        assert!(build_of(&added(205, 32, "v044a_level_09/day_4", None)).is_err());
+        assert!(build_of(&added(206, 9, "level_09/day_4", Some("v031"))).is_err());
     }
 
     #[test]
@@ -1177,20 +1431,37 @@ mod tests {
         assert_eq!(map.respawn_points, 17);
         assert_eq!(map.container_teams, None);
         // It is played in mode 4 only.
-        let playable_in = |game_mode: GameMode| -> Vec<u8> {
+        let playable_in = |game_mode: GameMode| -> Vec<u16> {
             table
                 .iter()
                 .filter(|map| map.is_playable() && map.mode == game_mode)
-                .map(|map| map.id)
+                .map(|map| map.id.get())
                 .collect()
         };
-        assert!(playable_in(GameMode::TeamDeathmatch).contains(&added.id));
+        assert!(playable_in(GameMode::TeamDeathmatch).contains(&added.id.get()));
         assert_eq!(playable_in(GameMode::TeamDeathmatch).len(), 25);
         for game_mode in [GameMode::Batteries, GameMode::TimedBatteries] {
-            assert!(!playable_in(game_mode).contains(&added.id));
+            assert!(!playable_in(game_mode).contains(&added.id.get()));
             assert_eq!(playable_in(game_mode), ids(game_mode));
         }
         assert_eq!(table.iter().filter(|map| map.is_playable()).count(), 73 + 24 + 24);
+    }
+
+    /// The data's ids are 32-bit: one over a byte is a map as any other
+    /// (the client loads it whole with exe patch 154); one over `u16::MAX`
+    /// stops the server.
+    #[test]
+    fn a_map_id_over_a_byte_is_played_from_its_data() {
+        let added = fixtures::AddedMap {
+            id: MapId::new(300),
+            ..fixtures::AddedMap::level_12_tdm()
+        };
+        let table = fixtures::table_of(&fixtures::with_map(&added)).unwrap();
+        let map = table.iter().find(|map| map.id == added.id).unwrap();
+        assert!(map.is_playable());
+        assert!(map.id.over_a_byte());
+        assert_eq!(map.id.low_byte(), 44);
+        assert!(MapId::try_from(65_536).is_err());
     }
 
     #[test]
@@ -1238,11 +1509,86 @@ mod tests {
     }
 
     #[test]
+    fn freeze_tag_uses_two_team_spawns_without_tickets_or_ffa_twists() {
+        let added = fixtures::AddedMap {
+            mode: RuleMode::FreezeTag.number(),
+            ..fixtures::AddedMap::level_12_tdm()
+        };
+        let table = fixtures::table_of(&fixtures::with_map(&added)).unwrap();
+        let map = table.iter().find(|map| map.id == added.id).unwrap();
+        assert!(map.is_playable());
+        assert_eq!(map.mode, GameMode::FreezeTag);
+        assert_eq!(map.rules, [93, 91, 94]);
+        assert_eq!(map.respawn_points, added.respawn_points);
+        assert_eq!(GameMode::FreezeTag.lobby_number(), 12);
+        for twist in [9, 10, 11] {
+            assert_eq!(GameMode::of_lobby_number(twist), None);
+        }
+    }
+
+    #[test]
+    fn an_artefact_hunt_map_is_played_from_its_data() {
+        // As the pack adds its maps: rule 481, an id over a byte, the rule's
+        // parameters read from the config, nothing of the map kept in code.
+        let added = fixtures::AddedMap::level_12_artefact_hunt();
+        let table = fixtures::table_of(&fixtures::with_map(&added)).unwrap();
+        let map = *table.iter().find(|map| map.id == added.id).unwrap();
+        assert!(map.is_playable());
+        assert_eq!(
+            (map.level, map.mode, map.project, map.mode.lobby_number()),
+            (12, GameMode::ArtefactHunt, "level_12/day_ah", 13)
+        );
+        assert_eq!(map.rules, [93, 91, 481, 94]);
+        assert_eq!((map.respawn_points, map.container_teams), (16, None));
+        let params = map.artefact_hunt.expect("its rule's parameters");
+        assert_eq!((params.goal(), params.match_time().get()), (5, 900_000));
+        assert_eq!(params.spawner_count(), 2);
+        // Every other map has none.
+        assert!(table.iter().filter(|row| row.id != added.id).all(|row| row.artefact_hunt.is_none()));
+        assert_eq!(GameMode::of_config(13, None), Ok(Some(GameMode::ArtefactHunt)));
+    }
+
+    #[test]
+    fn an_artefact_hunt_config_the_rule_refuses_stops_the_data() {
+        let mode = || ConfigValue::Named(fixtures::artefact_hunt_mode());
+        assert!(artefact_hunt_params(&mode()).is_ok());
+        let changed = |path: &[&str], value: Option<ConfigValue>| {
+            let mut config = mode();
+            let mut table = &mut config;
+            for key in &path[..path.len() - 1] {
+                let ConfigValue::Named(entries) = table else { panic!() };
+                table = &mut entries.iter_mut().find(|(name, _)| name == key).unwrap().1;
+            }
+            let ConfigValue::Named(entries) = table else { panic!() };
+            let last = path[path.len() - 1];
+            entries.retain(|(name, _)| name != last);
+            entries.extend(value.map(|value| (last.to_owned(), value)));
+            artefact_hunt_params(&config).unwrap_err().0
+        };
+        // The game reads the seconds as ints: a float is another number.
+        let float = changed(&["parameters", "respawn_time"], Some(ConfigValue::Float(15.0)));
+        assert!(float.contains("`parameters.respawn_time` is not an int"), "{float}");
+        let negative = changed(&["parameters", "score"], Some(ConfigValue::Integer(-1)));
+        assert!(negative.contains("below 0"), "{negative}");
+        let missing = changed(&["parameters", "vi_dropped_ttl"], None);
+        assert!(missing.contains("parameters.vi_dropped_ttl"), "{missing}");
+        // The rule's own refusals name the key.
+        let goal = changed(&["parameters", "score"], Some(ConfigValue::Integer(256)));
+        assert!(goal.contains("refuses its `parameters.score`"), "{goal}");
+        let none = changed(&["artefact_hunt", "spawners"], Some(ConfigValue::Indexed(Vec::new())));
+        assert!(none.contains("`artefact_hunt.spawners`"), "{none}");
+        let one = changed(&["artefact_hunt", "bases"], Some(ConfigValue::Indexed(Vec::new())));
+        assert!(one.contains("`artefact_hunt.bases`"), "{one}");
+        let lift = changed(&["artefact_hunt", "item", "drop_lift"], Some(ConfigValue::Integer(0)));
+        assert!(lift.contains("drop_lift` is not a float"), "{lift}");
+    }
+
+    #[test]
     fn a_map_whose_project_the_server_cannot_play_stops_it() {
         // Batteries on a map without its two containers, or with two of
         // one team; a map without a respawn point.
         let batteries = |containers: Vec<(i32, i32)>, respawn_points| fixtures::AddedMap {
-            id: 201,
+            id: MapId::new(201),
             config: "level_12_day_2.options",
             project: "level_12/day_2",
             mode: RuleMode::Batteries.number(),
@@ -1269,7 +1615,7 @@ mod tests {
         // With them: played, its containers' teams by id.
         let table =
             fixtures::table_of(&fixtures::with_map(&batteries(vec![(1, 0), (0, 1)], 12))).unwrap();
-        let map = table.iter().find(|map| map.id == 201).unwrap();
+        let map = table.iter().find(|map| map.id == MapId::new(201)).unwrap();
         assert!(map.is_playable());
         assert_eq!(
             (map.respawn_points, map.container_teams),
@@ -1282,7 +1628,7 @@ mod tests {
             ..fixtures::AddedMap::level_12_tdm()
         };
         let table = fixtures::table_of(&fixtures::with_map(&tdm)).unwrap();
-        let map = table.iter().find(|map| map.id == 200).unwrap();
+        let map = table.iter().find(|map| map.id == MapId::new(200)).unwrap();
         assert!(map.is_playable());
         assert_eq!(map.container_teams, None);
         // A config of a mode srp does not play has no row, whatever its
@@ -1293,7 +1639,7 @@ mod tests {
             ..fixtures::AddedMap::level_12_tdm()
         };
         let table = fixtures::table_of(&fixtures::with_map(&other)).unwrap();
-        assert!(table.iter().all(|map| map.id != 200));
+        assert!(table.iter().all(|map| map.id != MapId::new(200)));
     }
 
     fn env_path(name: &str) -> std::path::PathBuf {
@@ -1328,7 +1674,7 @@ mod tests {
 
     /// The free-for-alls' ids (content edit ffa-1) the test data has: levels
     /// 1 to 8 in their three weathers (London's, 163, is a patch's).
-    fn ffa_ids() -> Vec<u8> {
+    fn ffa_ids() -> Vec<u16> {
         (46..=60).chain(154..=162).collect()
     }
 
@@ -1351,9 +1697,12 @@ mod tests {
             // MAX_POINTS): a map past them would leave its last points unused.
             assert!(map.solo_respawn_points <= 128, "{} {}", map.config, map.solo_respawn_points);
             // The STALKER maps' Team Deathmatch is not offered (no dictionary
-            // row: stalker-tdm-hold-1): nothing to compare with.
+            // row: stalker-tdm-hold-1) but Training Camp's, which plays a copy
+            // of Free for All's project (training-camp-teams-1): nothing to
+            // compare with.
             let Some(tdm) = table.iter().find(|other| {
                 other.mode == GameMode::TeamDeathmatch
+                    && !other.is_stalker()
                     && (other.level, other.weather) == (map.level, map.weather)
             }) else {
                 continue;
@@ -1385,36 +1734,6 @@ mod tests {
         free_for_alls_play_on_their_own_projects(all(), 24);
     }
 
-    /// Built data with both FFA edit lists, including London and all five ports.
-    /// Rudnya: all 56 of the owner's picks and 4 roof spawns (ffa-rudnya-picks-1);
-    /// every other map twice the spawns it had (ffa-cover-maps-1: London 32,
-    /// its 22 kept, 6 central and 4 in the underpass, and 32 new; docs/notes/ffa.md).
-    #[test]
-    #[ignore = "needs SRP_TEST_GAME_DATA from build-content with both FFA edit lists"]
-    fn the_released_free_for_alls_play_on_their_own_projects() {
-        let data = GameData::open(&env_path("SRP_TEST_GAME_DATA")).unwrap();
-        let maps = fixtures::table_of(&data).unwrap();
-        free_for_alls_play_on_their_own_projects(&maps, 33);
-        let ports: Vec<_> = maps.iter()
-            .filter(|m| m.mode == GameMode::FreeForAll && m.level >= 9)
-            .map(|m| (m.id, m.level, m.solo_respawn_points))
-            .collect();
-        assert_eq!(ports, [
-            (42, 15, 28), (43, 16, 48), (44, 17, 47), (163, 9, 64),
-            (164, 10, 73), (165, 11, 66), (167, 12, 44), (168, 13, 73), (169, 14, 44)
-        ]);
-        // Levels 2 to 8, the same in each weather.
-        for map in maps.iter().filter(|m| m.mode == GameMode::FreeForAll && (2..=8).contains(&m.level)) {
-            let twice = [49, 75, 60, 48, 68, 58, 46][usize::from(map.level) - 2];
-            assert_eq!(map.solo_respawn_points, twice, "{}", map.config);
-        }
-        let rudnya: Vec<_> = maps.iter()
-            .filter(|m| m.mode == GameMode::FreeForAll && m.level == 1)
-            .map(|m| (m.id, m.solo_respawn_points))
-            .collect();
-        assert_eq!(rudnya, [(46, 60), (47, 60), (48, 60)]);
-    }
-
     /// The live game data: 0.26g's archive (`SRP_TEST_RESOURCES_DB`) with
     /// skhid's patches (`SRP_TEST_SKHID_PATCHES`, by spaces: patch 12 and
     /// patch 14, London) over it. The maps of 0.26g, levels 1 to 8, have
@@ -1426,9 +1745,9 @@ mod tests {
         let data = live_data(&[]);
         let table = fixtures::table_of(&data).unwrap();
         let played: Vec<&MapMode> = table.iter().filter(|map| map.is_playable()).collect();
-        let stock: Vec<u8> = playable().map(|map| map.id).collect();
+        let stock: Vec<MapId> = playable().map(|map| map.id).collect();
         let mut expected = stock.clone();
-        expected.extend([181, 182, 183]);
+        expected.extend([181, 182, 183].map(MapId::new));
         assert_eq!(
             played.iter().map(|map| map.id).collect::<Vec<_>>(),
             expected
@@ -1470,398 +1789,10 @@ mod tests {
         }
     }
 
-    /// Revision 17's balance change: the SVD (items_dict 63, the only item
-    /// of `wpn_svd.options`) does 10 damage points less, 110 to 100: the
-    /// game stores 1.1 and 1.0 (`parameters.bullet_damage`; the lobby's
-    /// damage line, `ui_desc.props_list` prop 1, says 110 and 100). Every
-    /// other weapon and ammo config is as the live data has it (the SVD's
-    /// 7.62x54 ammo is shared and unchanged). srp reads no damage: the game
-    /// computes it, and the server data carries the file.
-    #[test]
-    #[ignore = "needs 0.26g's resources.db, skhid's patches and revision 17's patch"]
-    fn revision_17_svd_does_10_damage_points_less() {
-        use super::super::dictionary::{self, Dictionary};
-        let before = live_data(&[]);
-        let after = live_data(&[env_path("SRP_TEST_PATCH_17")]);
-        let dictionary = Dictionary::parse(after.file(dictionary::PATH).unwrap()).unwrap();
-        let svd: Vec<_> = dictionary
-            .items
-            .iter()
-            .filter(|item| item.cfg_name == "gameplay/items/weapons/wpn_svd.options")
-            .collect();
-        assert_eq!(
-            svd.iter()
-                .map(|item| (item.dict_id, item.name.as_str()))
-                .collect::<Vec<_>>(),
-            [(63, "svd")]
-        );
-        let damage = |data: &GameData| {
-            let config =
-                ConfigValue::parse(data.file("gameplay/items/weapons/wpn_svd.options").unwrap())
-                    .unwrap();
-            let shown = config
-                .req("ui_desc")
-                .unwrap()
-                .req("props_list")
-                .unwrap()
-                .children()
-                .into_iter()
-                .find(|prop| prop.i32_at("prop_id").unwrap() == 1)
-                .unwrap()
-                .str_at("prop_value")
-                .unwrap()
-                .to_owned();
-            (
-                config
-                    .req("parameters")
-                    .unwrap()
-                    .f32_at("bullet_damage")
-                    .unwrap(),
-                shown,
-            )
-        };
-        assert_eq!(damage(&before), (1.1, "110".to_owned()));
-        assert_eq!(damage(&after), (1.0, "100".to_owned()));
-        for item in &dictionary.items {
-            if item.cfg_name.starts_with("gameplay/items/weapons/") && item.dict_id != 63 {
-                assert_eq!(
-                    before.file(&item.cfg_name),
-                    after.file(&item.cfg_name),
-                    "{}",
-                    item.cfg_name
-                );
-            }
-        }
-    }
-
-    /// Weapon balance 1 (`scripts/content-edit/weapon-balance-1.json`, the
-    /// patch at `SRP_TEST_PATCH_WEAPON_BALANCE_1` over the live data): each
-    /// listed weapon's `parameters` value and the lobby card's text of it
-    /// (`ui_desc.props_list`: prop 1 damage x100, 3 armour piercing x100, 4
-    /// rate of fire) change as listed, and nothing else; the SVD's magazine
-    /// holds 5 rounds, still an int, and its description says so in every
-    /// language; every weapon card has a magazine line (prop 134, a new line
-    /// of `ui_properties` named in every language) after its rate of fire;
-    /// the items' misspelt
-    /// `stamina_regenation_speed_modifier` is spelt as the exe reads it, with
-    /// its value, in every item config and in the modifications' paths. srp
-    /// reads only the magazine (the bots' guns); the game computes the rest,
-    /// and the server data carries the files.
-    #[test]
-    #[ignore = "needs 0.26g's resources.db, skhid's patches and the weapon balance 1 patch"]
-    fn weapon_balance_1_changes_only_its_values() {
-        use super::super::dictionary::{self, Dictionary};
-        const OLD: &str = "stamina_regenation_speed_modifier";
-        const NEW: &str = "stamina_regeneration_speed_modifier";
-        // (weapon, key, live, new); the card's text is the value x100, or
-        // the rate of fire itself.
-        let changes: &[(&str, &str, f32, f32)] = &[
-            ("kriss_vector", "bullet_pierce", 0.45, 0.25),
-            ("kriss_vector", "bullet_damage", 0.45, 0.42),
-            ("fn_p90", "bullet_pierce", 0.55, 0.30),
-            ("mp7", "bullet_pierce", 0.55, 0.30),
-            ("mp7", "bullet_damage", 0.35, 0.40),
-            ("mp7_silencer", "bullet_pierce", 0.55, 0.30),
-            ("mp7_silencer", "bullet_damage", 0.35, 0.40),
-            ("mp7_silencer_special", "bullet_pierce", 0.55, 0.30),
-            ("mp7_silencer_special", "bullet_damage", 0.35, 0.40),
-            ("hk416", "bullet_pierce", 0.45, 0.34),
-            ("m4a1", "bullet_pierce", 0.42, 0.32),
-            ("msbs_carbine", "bullet_pierce", 0.42, 0.32),
-            ("fn_fnc", "bullet_pierce", 0.40, 0.30),
-            ("fn_fnc", "bullet_damage", 0.45, 0.50),
-            ("pkp_pecheneg", "bullet_pierce", 0.60, 0.45),
-            ("vz58", "bullet_pierce", 0.30, 0.40),
-            ("valmet", "bullet_pierce", 0.30, 0.40),
-            ("soc_vepr", "bullet_pierce", 0.30, 0.40),
-            ("kedr", "bullet_pierce", 0.10, 0.20),
-            ("aek_919k", "bullet_pierce", 0.10, 0.20),
-            ("sr2m", "rounds_per_minute", 900.0, 800.0),
-            ("sr3m", "rounds_per_minute", 900.0, 800.0),
-            ("sr3m", "bullet_damage", 0.55, 0.45),
-            ("sr3m_premium", "rounds_per_minute", 900.0, 800.0),
-            ("sr3m_premium", "bullet_damage", 0.55, 0.45),
-            ("val", "bullet_damage", 0.55, 0.50),
-            ("a9_91", "bullet_damage", 0.55, 0.50),
-            ("vss", "bullet_damage", 0.55, 0.50),
-            ("vss_premium", "bullet_damage", 0.55, 0.50),
-            ("vsk_94", "bullet_damage", 0.55, 0.50),
-            ("vsk_94_premium", "bullet_damage", 0.55, 0.50),
-            ("pp2000", "rounds_per_minute", 750.0, 680.0),
-            ("mosin_nagant", "bullet_damage", 1.0, 1.1),
-            ("mosin_nagant", "bullet_pierce", 0.35, 0.40),
-            ("toz_122", "bullet_damage", 1.1, 1.2),
-            ("svd", "magazine_capacity", 10.0, 5.0),
-        ];
-        let prop = |key: &str| match key {
-            "bullet_damage" => Some(1),
-            "bullet_pierce" => Some(3),
-            "rounds_per_minute" => Some(4),
-            _ => None,
-        };
-        let shown = |key: &str, value: f32| {
-            if key == "rounds_per_minute" {
-                format!("{value}")
-            } else {
-                format!("{}", (value * 100.0).round())
-            }
-        };
-        let before = live_data(&[]);
-        let after = live_data(&[env_path("SRP_TEST_PATCH_WEAPON_BALANCE_1")]);
-        let dictionary = Dictionary::parse(after.file(dictionary::PATH).unwrap()).unwrap();
-        let mut renamed = 0;
-        let mut magazines = 0;
-        let mut seen = std::collections::BTreeSet::new();
-        for item in &dictionary.items {
-            let path = item.cfg_name.as_str();
-            if !path.starts_with("gameplay/items/") || !seen.insert(path) {
-                continue;
-            }
-            let (Some(old), Some(new)) = (before.file(path), after.file(path)) else {
-                continue;
-            };
-            let old = ConfigValue::parse(old).unwrap();
-            let new = ConfigValue::parse(new).unwrap();
-            let name = path.rsplit('/').next().unwrap();
-            let weapon = name
-                .strip_prefix("wpn_")
-                .and_then(|n| n.strip_suffix(".options"));
-            let mine: Vec<_> = changes
-                .iter()
-                .filter(|change| Some(change.0) == weapon)
-                .collect();
-            for (key, value) in old.entries() {
-                let mut value = value.clone();
-                let mut text = None;
-                if key == "parameters" {
-                    let mut entries = value.entries().to_vec();
-                    for (k, v) in &mut entries {
-                        if k == OLD {
-                            *k = NEW.into();
-                            renamed += 1;
-                        }
-                        if let Some(change) = mine.iter().find(|change| change.1 == k.as_str()) {
-                            assert_eq!(v.as_f32(), Some(change.2), "{path} {k}");
-                            *v = ConfigValue::Float(change.3);
-                        }
-                    }
-                    value = ConfigValue::Named(entries);
-                    let got = new.req("parameters").unwrap();
-                    for (k, v) in value.entries() {
-                        let want = mine.iter().find(|change| change.1 == k.as_str());
-                        let have = got.get(k).unwrap_or_else(|| panic!("{path} {k}"));
-                        match want {
-                            Some(change) => assert_eq!(have.as_f32(), Some(change.3), "{path} {k}"),
-                            None => assert_eq!(have, v, "{path} {k}"),
-                        }
-                    }
-                    assert_eq!(got.entries().len(), value.entries().len(), "{path}");
-                    continue;
-                }
-                // A weapon card gets a magazine line (prop 134) after its
-                // rate of fire, with the magazine the weapon has now.
-                let magazine = new
-                    .get("parameters")
-                    .and_then(|p| p.get("magazine_capacity"))
-                    .and_then(ConfigValue::as_f32);
-                let lines = value.get("props_list").map(ConfigValue::children);
-                let rate = lines.as_ref().and_then(|lines| {
-                    lines
-                        .iter()
-                        .position(|p| p.i32_at("prop_id").ok() == Some(4))
-                });
-                if key == "ui_desc"
-                    && let (Some(magazine), Some(rate)) = (magazine, rate)
-                {
-                    let mut entries = value.entries().to_vec();
-                    for (k, v) in &mut entries {
-                        if k == "props_list" {
-                            let mut lines: Vec<ConfigValue> =
-                                v.children().into_iter().cloned().collect();
-                            lines.insert(
-                                rate + 1,
-                                ConfigValue::Named(vec![
-                                    (
-                                        "prop_value".into(),
-                                        ConfigValue::String(format!("{magazine}")),
-                                    ),
-                                    ("prop_id".into(), ConfigValue::Integer(134)),
-                                ]),
-                            );
-                            *v = ConfigValue::Indexed(lines);
-                        }
-                    }
-                    value = ConfigValue::Named(entries);
-                    magazines += 1;
-                }
-                if key == "ui_desc" && !mine.is_empty() {
-                    let props = new.req("ui_desc").unwrap().req("props_list").unwrap();
-                    text = Some(props.clone());
-                    for change in mine.iter().filter(|change| prop(change.1).is_some()) {
-                        let entry = props
-                            .children()
-                            .into_iter()
-                            .find(|p| Some(p.i32_at("prop_id").unwrap()) == prop(change.1))
-                            .unwrap();
-                        assert_eq!(
-                            entry.str_at("prop_value").unwrap(),
-                            shown(change.1, change.3),
-                            "{path} {}",
-                            change.1
-                        );
-                    }
-                }
-                let got = new.get(key).unwrap_or_else(|| panic!("{path} {key}"));
-                if let Some(props) = text {
-                    // The card's other lines are the live ones.
-                    let old_props = value.req("props_list").unwrap().children();
-                    assert_eq!(old_props.len(), props.children().len(), "{path}");
-                    for (o, n) in old_props.iter().zip(props.children()) {
-                        let id = o.i32_at("prop_id").unwrap();
-                        if !mine.iter().any(|change| prop(change.1) == Some(id)) {
-                            assert_eq!(*o, n, "{path} prop {id}");
-                        }
-                    }
-                } else {
-                    assert_eq!(got, &value, "{path} {key}");
-                }
-            }
-        }
-        assert!(renamed > 200, "{renamed} items had the misspelt key");
-        assert_eq!(magazines, 83, "weapon cards with a magazine line");
-        // The card lines' table has the magazine line: the bullets-in-pack
-        // line's keys (comparable, more is better), its own id, name and top.
-        let lines = |data: &GameData| {
-            let file = data
-                .file("gameplay/static_game_parameters.options")
-                .unwrap();
-            let config = ConfigValue::parse(file).unwrap();
-            config.req("ui_properties").unwrap().clone()
-        };
-        let (old_lines, new_lines) = (lines(&before), lines(&after));
-        let (old_lines, new_lines) = (old_lines.children(), new_lines.children());
-        assert_eq!(new_lines.len(), old_lines.len() + 1);
-        assert!(old_lines.iter().zip(&new_lines).all(|(o, n)| o == n));
-        let like = old_lines
-            .iter()
-            .find(|line| line.i32_at("prop_id").ok() == Some(16))
-            .unwrap();
-        let want: Vec<(String, ConfigValue)> = like
-            .entries()
-            .iter()
-            .map(|(k, v)| {
-                let v = match k.as_str() {
-                    "prop_id" => ConfigValue::Integer(134),
-                    "prop_name" => ConfigValue::String("st_inv_magazine_size".into()),
-                    "min_value" => ConfigValue::String("0".into()),
-                    "max_value" => ConfigValue::String("100".into()),
-                    _ => v.clone(),
-                };
-                (k.clone(), v)
-            })
-            .collect();
-        assert_eq!(new_lines.last().unwrap().entries(), want.as_slice());
-        // The modifications and the defect that change it name the key as
-        // the exe reads it.
-        let walk = |config: &ConfigValue| -> Vec<String> {
-            fn strings(value: &ConfigValue, out: &mut Vec<String>) {
-                match value {
-                    ConfigValue::String(s) => out.push(s.clone()),
-                    _ => value.children().into_iter().for_each(|c| strings(c, out)),
-                }
-            }
-            let mut out = Vec::new();
-            strings(config, &mut out);
-            out
-        };
-        let path = "gameplay/items/modifications/modifications.options";
-        let old = walk(&ConfigValue::parse(before.file(path).unwrap()).unwrap());
-        let new = walk(&ConfigValue::parse(after.file(path).unwrap()).unwrap());
-        assert_eq!(old.iter().filter(|s| *s == OLD).count(), 6);
-        assert_eq!(new.iter().filter(|s| *s == OLD).count(), 0);
-        assert_eq!(new.iter().filter(|s| *s == NEW).count(), 6);
-        let fixed: Vec<String> = old
-            .iter()
-            .map(|s| if s == OLD { NEW.into() } else { s.clone() })
-            .collect();
-        assert_eq!(fixed, new);
-        // The SVD's magazine stays an int, as the bots' guns read it.
-        let svd = ConfigValue::parse(
-            after
-                .file("gameplay/items/weapons/wpn_svd.options")
-                .unwrap(),
-        )
-        .unwrap();
-        assert_eq!(
-            svd.req("parameters").unwrap().get("magazine_capacity"),
-            Some(&ConfigValue::Integer(5))
-        );
-        // Its description, in each language, says 5 rounds where it said 10;
-        // every other text is the live one. The server data has no texts:
-        // they are read in the patches (the live one is the newest patch's).
-        // The texts are UTF-8 and the reader decodes Windows-1251, so the
-        // words found are ASCII ones (the text compares the same either way).
-        let read_in = |archive: &std::path::Path, path: &str| {
-            let file = std::io::BufReader::new(std::fs::File::open(archive).unwrap());
-            resources_db::Archive::new(file)
-                .unwrap()
-                .read(path)
-                .unwrap()
-        };
-        let live: Vec<std::path::PathBuf> = std::iter::once(env_path("SRP_TEST_RESOURCES_DB"))
-            .chain(
-                std::env::var("SRP_TEST_SKHID_PATCHES")
-                    .unwrap()
-                    .split_whitespace()
-                    .map(std::path::PathBuf::from),
-            )
-            .collect();
-        // The card's magazine line is named in each language.
-        for (language, from, to, label) in [
-            (
-                "english",
-                "supply: 10 rounds",
-                "supply: 5 rounds",
-                "Magazine",
-            ),
-            ("german", "r 10 Patronen", "r 5 Patronen", "Magazin"),
-            ("polish", "w 10-nabojowy", "w 5-nabojowy", "Magazynek"),
-            ("russian", " 10 ", " 5 ", "Магазин"),
-            ("original", " 10 ", " 5 ", "Магазин"),
-            ("ukrainian", " 10 ", " 5 ", "Магазин"),
-        ] {
-            let path = format!("localization/{language}/localization");
-            let old = live.iter().rev().find_map(|db| read_in(db, &path)).unwrap();
-            let new = read_in(&env_path("SRP_TEST_PATCH_WEAPON_BALANCE_1"), &path).unwrap();
-            let old = ConfigValue::parse(&old).unwrap();
-            let new = ConfigValue::parse(&new).unwrap();
-            let (old, new) = (old.req("strings").unwrap(), new.req("strings").unwrap());
-            assert_eq!(old.entries().len() + 1, new.entries().len(), "{path}");
-            let label = encoding_rs::WINDOWS_1251.decode(label.as_bytes()).0;
-            assert_eq!(
-                new.get("st_inv_magazine_size"),
-                Some(&ConfigValue::String(label.into_owned())),
-                "{path}"
-            );
-            for (key, value) in old.entries() {
-                let got = new.get(key).unwrap_or_else(|| panic!("{path} {key}"));
-                if key == "st_svd_description" {
-                    let ConfigValue::String(text) = value else {
-                        panic!("{path} {key}")
-                    };
-                    assert_eq!(text.matches(from).count(), 1, "{path}");
-                    assert_eq!(got, &ConfigValue::String(text.replace(from, to)), "{path}");
-                } else {
-                    assert_eq!(got, value, "{path} {key}");
-                }
-            }
-        }
-    }
-
     #[test]
     fn a_maps_world_objects_are_its_lone_damage_zones_resupplies_and_anomalies() {
         // level_01/day_2: its two damage zones are its anomalies' own.
-        let map = map_mode(61).unwrap();
+        let map = map_mode(MapId::new(61)).unwrap();
         assert_eq!(map.project, "level_01/day_2");
         let objects = map.world_objects;
         assert_eq!((objects.damage_zones, objects.resupply_zones), (0, 2));
@@ -1884,7 +1815,7 @@ mod tests {
         assert_eq!(cores, [[Artefact::Lifebone; 10], [Artefact::Spring; 10]]);
         // level_02/evening_2: three lone zones, and the fruit anomaly's
         // seven states.
-        let map = map_mode(69).unwrap();
+        let map = map_mode(MapId::new(69)).unwrap();
         assert_eq!(map.project, "level_02/evening_2");
         assert_eq!(map.world_objects.damage_zones, 3);
         let states: Vec<usize> = map.world_objects.anomalies.iter().map(|a| a.states.len()).collect();
@@ -1908,6 +1839,8 @@ mod tests {
                 artefacts: None,
                 objects: Some(&objects),
                 inventory: None,
+                dict_ids: None,
+                artefact_hunt: None,
             };
             let section = srp_validate::world::Section { at: 0, bytes: &bytes };
             assert_eq!(srp_validate::world::objects(&section, &context), Ok(()), "{}", map.project);

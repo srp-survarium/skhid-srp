@@ -469,7 +469,7 @@ HINT, HINT_AFTER, HINT_AVAILABLE = 0x2F80E4, 0x2F80EA, 0x2F8116
 RESUPPLY, RESUPPLY_AFTER = 0x2F81B8, 0x2F81BE
 CLIENT_RESUPPLY, CLIENT_RESUPPLY_AFTER = 0x2954EF, 0x2954F5
 NEW_SPANS = {SAVE_SITE: 6, LOAD_SITE: 6, REMOVE_SITE: 6, CAN_USE: 6, HINT: 6, RESUPPLY: 6, CLIENT_RESUPPLY: 6,
-             0x2D7650: 5, 0x2D76D0: 6, 0x32C148: 7, 0x32BE12: 7, 0x32BDBA: 5}
+             0x2D7650: 5, 0x2D76D0: 6, 0x32C148: 7, 0x32BE12: 7, 0x32BDBA: 5, 0x321CA0: 6}
 WRITE_U8, DEACTIVATE, FORGET, SET_USER, INITIALIZE, ACTIVATE, ACTIVE_PLAYER = (
     0x1F3DE0, 0x244860, 0x3919E0, 0x2445E0, 0x2449E0, 0x244610, 0x2D0AB0)
 SET_OWNER = 0x243590                        # inventory_item::set_owner: the item's +250h/+254h (ret 8)
@@ -2243,11 +2243,52 @@ def bullet_record(patched, original):
     o.word(o_bullet + 0xC, o_gun + 0x10)
     out, _ = o.lohook(ORDINAL, ORDINAL_CALL, {UC_X86_REG_EDI: o_bullet, UC_X86_REG_ECX: 16})
     assert out[UC_X86_REG_ECX] & 0xFF == 16, "the original passes it on unchecked"
+
+    # A record whose shooter has no gun in its slot (a bullet in flight when a swap moved its gun into a
+    # cooked inventory names the donor's 10): the loader reads a null gun (0x2E2753, 2026-11-17). The
+    # deserialize loop's record (0x321CA0) is passed over, 69 bytes, no bullet made; one with a gun goes on.
+    RECORD_SITE, RECORD_ALLOC, RECORD_SKIP = 0x321CA0, 0x321CA6, 0x321CFC
+
+    def load_record(item_of, slot=10, place=4):
+        """Where the loop goes for a record of `place` naming `slot`, the shooter's slot holding
+        `item_of(r)` (0: empty), the engine's get_player answering the shooter; the reader's step."""
+        r = Pick(patched)
+        player, inventory = r.blk(0x200), r.blk(0x200)
+        r.word(player + 0x10C, inventory)
+        item = item_of(r)
+        if item:
+            r.word(inventory + 0x10C + 4 * slot, item)
+        engine, vtable, get_player = r.blk(8), r.blk(0x40), r.blk(16)
+        r.emu.mem_write(get_player, b"\xB8" + struct.pack("<I", player) + b"\xC2\x04\x00")  # mov eax,player; ret 4
+        r.word(vtable + 0x24, get_player)
+        r.word(engine, vtable)
+        manager = r.blk(0x100)
+        r.word(manager + 0x90, engine)
+        r.word(manager + 0x80, 0x5A5A5A5A)
+        data = bytearray(69 * 2)
+        data[63], data[65] = place, slot
+        at, reader = r.blk(len(data)), r.blk(12)
+        r.emu.mem_write(at, bytes(data))
+        for off, value in ((0, at), (4, at), (8, len(data))):
+            r.word(reader + off, value)
+        out, _ = r.lohook(RECORD_SITE, RECORD_ALLOC, {UC_X86_REG_EDI: manager, UC_X86_REG_EBX: reader},
+                          stops=(RECORD_ALLOC, RECORD_SKIP))
+        return r.stopped, r.read(reader + 4) - at, out[UC_X86_REG_ESI], r.log
+
+    went, step, esi, _ = load_record(lambda r: r.gun() + 0x10)
+    assert (went, step, esi) == (RECORD_ALLOC, 0, 0x5A5A5A5A), (hex(went), step, hex(esi))
+    went, step, _, log = load_record(lambda r: 0)
+    assert (went, step) == (RECORD_SKIP, 69), (hex(went), step)
+    assert any("a loaded bullet of place 4 names its slot 10, which has no gun: not made" in l for l in log), log
+    went, step, _, _ = load_record(lambda r: r.stack(30), slot=7)
+    assert (went, step) == (RECORD_SKIP, 69), "an item that is not a gun is no gun"
     print("ok a bullet's record after a swap: the original writes the quiet byte only for multi-pellet ammo and "
           "reads it by the loading gun's (a rifle's record with a shotgun in the slot: written 0, read 1, out of "
           "step); patched it is always written and read (rifle to shotgun, shotgun to rifle, and the swap-free "
           "rifle and shotgun alike: in step), the struck material stored as before; an ordinal past the loading "
-          "gun's ammo is its count (none), one within is kept, where the original passes 16 on")
+          "gun's ammo is its count (none), one within is kept, where the original passes 16 on; a record whose "
+          "shooter has no gun in its slot (empty, or an item that is not a gun) is passed over, 69 bytes, no "
+          "bullet made, logged; one with a gun goes on to the allocation, the replaced mov done")
 
 
 def stage2(patched, original):

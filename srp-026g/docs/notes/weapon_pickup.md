@@ -680,6 +680,17 @@ cooked gun).
   (`bullet.load_ordinal`) an ordinal at or past the loading gun's ammo
   count is that count, its own none (+53Ch). A record is one byte longer
   for a one-pellet ammo; the server keeps the bullets' section opaque.
+- **A record whose slot is empty** (the 0x2E2753 crash, rev62,
+  2026-11-17): the slot a record names is the gun's own (+254h) at the
+  save, so a bullet in flight when a swap moved its gun into a cooked
+  inventory names that inventory's slot (the donor's 10), which the shooter
+  may have empty; the loader read a null gun. `bullets.load_record` (the
+  deserialize loop, 0x321CA0) looks the record's shooter up as the loader
+  does (the engine's get_player, 0x1F7660) and passes a record with no gun
+  in its slot over (69 bytes, no bullet made, a log line). That game then
+  lacks one bullet the others have until it lands, so its world hash may
+  differ for that while (a resync). The gun itself outlives its bullets: a
+  copy once in hands is kept until its holder is destroyed.
 - **The bound** (the owner's): 20 places x 3 kits x 2 weapon slots = 120
   recipes at most (40..60 in practice); another copy of a recipe only while
   all of its copies are in use, at most 60 at once (two held a player, one
@@ -968,7 +979,9 @@ policy, the cache, the log) over `vostok/gun_cook.rs` (the cook).
   `death hook: place P life L at T ms` and `its body left the world: ...` are
   said once for each death and removal: a rollback runs both hooks again at
   each tick it simulates again (the owner's log of 2026-11-09: 13 064 and
-  7 977 such lines in its last 3 MB).
+  7 977 such lines in its last 3 MB). Once a life (2026-11-21): keyed by the
+  time as well, a rollback that replays the removal at other ticks said it
+  again at each (a local match of 2026-11-21: 106 lines for one respawn).
 - **Checked:** `check_weapon_pickup_026g.py` (Unicorn) runs the death, the
   frame's step and the destruction of the built exe with the game's own
   profile code, match_options, boost binder and invoker: the query and its
@@ -1068,9 +1081,9 @@ match client's packet pool, `match_client_impl` 0x385910, filling while the game
 symptom.)
 
 A frozen game's backtrace (winedbg) shows arena addresses (the `.srpx` arena at 0xA42D000). The
-block is the one of `arena_026g.lock.json` whose `va`/`size` hold it; the lock keeps only global
-symbols, so for the function link the arena again (the same sources give the same bytes, which
-`--check` proves) and take the nearest symbol below, locals too:
+block is the one `python link_026g.py` prints whose VA and size hold it; it prints only global
+symbols (`--symbols`), so for the function link the arena again (the same sources give the same
+bytes: compare its SHA-256 with the release's record) and take the nearest symbol below, locals too:
 
     cd srp-026g/client-patches && nix develop .. --command python -c "import sys, link_026g as l, \
     patch_026g as b; x = l.link(b.ARENA, b.ARENA_VA, b.ARENA_LIMIT); a = int(sys.argv[1], 16); \

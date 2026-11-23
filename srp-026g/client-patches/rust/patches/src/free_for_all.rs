@@ -9,8 +9,9 @@
 //!   inside the enemy radius, 20 m) and has no point given
 //!   earlier at this tick inside that radius is eligible. Closer when few
 //!   (the owner, 2026-11-15): the eligible points, nearest to a living
-//!   player first, are cut to their nearest max(3, ceil(eligible x players
-//!   / 10)), players the places in the match (the world core's); a match of
+//!   player first (those 30 m away or more before nearer ones, 2026-11-23),
+//!   are cut to their nearest max(3, ceil(eligible x players / 10)),
+//!   players the places in the match (the world core's); a match of
 //!   10 or more, or one with nobody living, keeps them all. A deterministic
 //!   integer mix of match time and player place chooses from those.
 //!   With no safe point, choose among the five best-separated points from
@@ -107,6 +108,17 @@ fn turn(time: u32, place: u8, count: usize) -> usize {
 const FULL_MATCH: usize = 10;
 /// A match of few players still chooses among this many nearest points.
 const NEAR_POINTS: usize = 3;
+/// A match of few takes the nearest points at least this far from everyone
+/// living (squared, 30 m; the owner, 2026-11-23: "change it to 30m"); nearer
+/// ones, the farthest of them first, only when too few are that far.
+const NEAR_DISTANCE_SQUARED: f32 = 30.0 * 30.0;
+
+/// A clear point's place in a match of few's order, by its squared distance
+/// to the nearest living: those at [`NEAR_DISTANCE_SQUARED`] or more first,
+/// each group the nearest to 30 m first.
+fn near_order(distance: f32) -> (bool, f32) {
+    (distance < NEAR_DISTANCE_SQUARED, (distance - NEAR_DISTANCE_SQUARED).abs())
+}
 
 /// How many of `eligible` clear points, nearest to the living first, a match
 /// of `players` chooses among: ceil(eligible x players / [`FULL_MATCH`]), at
@@ -121,9 +133,9 @@ fn near_count(eligible: usize, players: usize) -> usize {
 /// A point passes when it is not chosen yet, no point chosen before at this
 /// tick is inside its enemy radius, and `clear` (the game's test against the
 /// living) holds for the player's side. He takes one of the [`near_count`]
-/// that pass nearest to `living` (the squared distance to the nearest, equal
-/// ones by the point's index) for the match's `players` (the places in it),
-/// by [`turn`]: in a match of few, a point just outside someone's radius.
+/// that pass in [`near_order`] of their distance to the nearest of `living`
+/// (equal ones by the point's index) for the match's `players` (the places in
+/// it), by [`turn`]: in a match of few, a point just past 30 m from someone.
 /// When that is all of them (a full match), or with nobody living (the
 /// match's start), one of all that pass, in map order, as before. With none
 /// passing, he chooses among the five best-separated points (the squared
@@ -200,7 +212,10 @@ fn plan(
             let near = if living.is_empty() { held } else { near_count(held, players) };
             let safe = &mut safe[..held];
             if near < held {
-                safe.sort_unstable_by(|a, b| a.1.total_cmp(&b.1).then(a.0.cmp(&b.0)));
+                safe.sort_unstable_by(|a, b| {
+                    let (a_near, b_near) = (near_order(a.1), near_order(b.1));
+                    a_near.0.cmp(&b_near.0).then(a_near.1.total_cmp(&b_near.1)).then(a.0.cmp(&b.0))
+                });
             }
             safe[turn(time, player.place, near)].0
         };
@@ -1017,6 +1032,19 @@ mod tests {
         assert_eq!(seen_of(2, &points, &[[0.0; 3], [1000.0, 0.0, 0.0]]), [1, 3, 6]);
         let points: Vec<_> = [-50.0, 50.0, 100.0, -50.0, 50.0].into_iter().map(at).collect();
         assert_eq!(seen_of(2, &points, &living), [0, 1, 3]);
+    }
+
+    #[test]
+    fn a_match_of_few_spawns_30_m_away_first() {
+        // A 20 m radius: 22, 25, 28 and 40 m from the living all clear.
+        let points: Vec<_> = [22.0, 25.0, 28.0, 40.0, 31.0]
+            .into_iter().map(|x| Point { position: [x, 0.0, 0.0], enemy_radius: 20.0 }).collect();
+        let living = [[0.0; 3]];
+        // Two players, three points: 31 and 40 m, then 28 m (the farthest under 30).
+        assert_eq!(seen_of(2, &points, &living), [2, 3, 4]);
+        // Eight, four points: then 25 m.
+        assert_eq!(seen_of(8, &points, &living), [1, 2, 3, 4]);
+        assert_eq!([900.0, 961.0, 784.0, 484.0].map(near_order), [(false, 0.0), (false, 61.0), (true, 116.0), (true, 416.0)]);
     }
 
     #[test]

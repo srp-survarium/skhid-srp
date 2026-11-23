@@ -4,7 +4,7 @@ their modes, and each project's HUD minimap. Shared by the Maps tab
 (srp-026g/scripts/maps-tab/build.py) and the top-down renders
 (srp-026g/scripts/damage-calc/assets/maps/tools/build_maps.py).
 
-    maps = playable(raw)                      # {folder: {"map_name", "modes": {mode: {...}}}}
+    maps = playable(raw)                      # {folder: {"map_name", "build", "modes": {(mode, layout): {...}}}}
     minimaps = hud_minimaps(ffdec, raw, work)  # {project_name: (frame, bitmap png)}
 """
 import os
@@ -26,6 +26,10 @@ MODES = (2, 3, 4, 5, FREE_FOR_ALL)
 # What a build must extract for these.
 WANTED = ["client_project", "gameplay/game_modes/", "gameplay/db_static_dictionaries",
           "localization/english/localization", "localization/ukrainian/localization", "flash_movies/hud.swf"]
+# The builds a map's scene comes from, in the order lists show them (crates/survarium/src/v026g/maps.rs,
+# `Build`): its configs' `mode.srp_build` where they have one (v032, v042: the two Londons, whatever
+# their projects are called), else a ported project's prefix; a project with neither is 0.26g's.
+BUILDS = ("v026g", "v011e", "v021d", "v032", "v042", "v069d", "v010b")
 
 
 def load(raw, path):
@@ -43,8 +47,10 @@ def playable(raw):
     variants (`mode.srp_variant`: Blackout's configs are mode 2, under
     their own ids) and whose project (`match_making_params.map_name`)
     exists. Of each map: the name key
-    (`map_name`) and per mode the ids, their projects and configs, the mode's
-    name key, parameters and rules."""
+    (`map_name`) and per mode and layout the ids, their projects and configs,
+    the mode's name key, parameters and rules. A layout is a mode's configs
+    of the same Research units (`parameters.capture_zones`): 0 the first the
+    dictionary gives, which every mode without units has alone."""
     dictionary = load(raw, "gameplay/db_static_dictionaries")
     maps = defaultdict(lambda: {"modes": defaultdict(lambda: {"ids": [], "projects": [], "configs": []})})
     for entry in dictionary["maps_dict"]:
@@ -58,7 +64,12 @@ def playable(raw):
         folder = project_path.split("/")[0]
         m = maps[folder]
         m["map_name"] = mode["ui"]["map_name"]
-        entry_mode = m["modes"][mode["mode"]]
+        m["build"] = build_of(mode, folder)
+        units = [zone.get("position") for zone in (mode.get("parameters") or {}).get("capture_zones") or []]
+        layouts = m.setdefault("layouts", {}).setdefault(mode["mode"], [])
+        if units not in layouts:
+            layouts.append(units)
+        entry_mode = m["modes"][mode["mode"], layouts.index(units)]
         entry_mode["ids"].append(entry["id"])
         entry_mode["projects"].append(project_path)
         entry_mode["configs"].append({"id": entry["id"], "config": entry["cfg_mode_name"], "name": mode.get("name"),
@@ -70,6 +81,17 @@ def playable(raw):
     if not maps:
         die("no playable map in the data")
     return maps
+
+
+def build_of(mode, folder):
+    """A config's build, one of BUILDS (maps.rs `Build::of`)."""
+    tag = mode.get("srp_build")
+    prefix = folder.split("_")[0]
+    if not tag and not re.match(r"v\d", prefix):
+        return "v026g"
+    if (tag or prefix) not in BUILDS[1:]:
+        die(f"{folder}: {'srp_build' if tag else 'without an srp_build, the prefix'} {tag or prefix} is none of srp's builds")
+    return tag or prefix
 
 
 def _number(text):

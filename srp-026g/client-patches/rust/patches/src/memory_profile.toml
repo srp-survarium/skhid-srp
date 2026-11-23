@@ -5,6 +5,7 @@
 # bytes there, and on_start writes the jumps only when the profile is on.
 name = "memory_profile"
 patch = 127
+uses = ["geometry_share"]
 
 # allocate_region after every allocator's heap is made: the switch read once
 [[hook]]

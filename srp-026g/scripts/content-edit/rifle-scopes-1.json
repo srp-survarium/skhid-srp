@@ -1,0 +1,161 @@
+{
+ "_about": "The Aimpoint CompM4 at x2 as 0.46c2 and 0.69d0 have it (the owner, 2026-10-26; srp-026g/docs/notes/weapon_scopes.md, section 6): data/fov_factor 0.8 -> 0.5 on its shop item, and on 25 of its variants, which are retired (docs/notes/attachments-scopes.md) but stay as players have them: release/build-content cannot take an edit off a file. The list's 184 items_compatibility rows are scope-modules-1.json's now.",
+ "set": [
+  {
+   "file": "gameplay/items/scopes/shop_scope_aimpoint_compm4.options",
+   "path": "data/fov_factor",
+   "from": 0.8,
+   "to": 0.5
+  },
+  {
+   "file": "gameplay/items/scopes/fit_a_545_aimpoint_compm4.options",
+   "path": "data/fov_factor",
+   "from": 0.8,
+   "to": 0.5
+  },
+  {
+   "file": "gameplay/items/scopes/fit_ak_12_aimpoint_compm4.options",
+   "path": "data/fov_factor",
+   "from": 0.8,
+   "to": 0.5
+  },
+  {
+   "file": "gameplay/items/scopes/fit_ash_12_aimpoint_compm4.options",
+   "path": "data/fov_factor",
+   "from": 0.8,
+   "to": 0.5
+  },
+  {
+   "file": "gameplay/items/scopes/fit_benelli_m4_aimpoint_compm4.options",
+   "path": "data/fov_factor",
+   "from": 0.8,
+   "to": 0.5
+  },
+  {
+   "file": "gameplay/items/scopes/fit_mp_153_aimpoint_compm4.options",
+   "path": "data/fov_factor",
+   "from": 0.8,
+   "to": 0.5
+  },
+  {
+   "file": "gameplay/items/scopes/fit_pp2000_aimpoint_compm4.options",
+   "path": "data/fov_factor",
+   "from": 0.8,
+   "to": 0.5
+  },
+  {
+   "file": "gameplay/items/scopes/fit_rem_870_aimpoint_compm4.options",
+   "path": "data/fov_factor",
+   "from": 0.8,
+   "to": 0.5
+  },
+  {
+   "file": "gameplay/items/scopes/fit_rpd_aimpoint_compm4.options",
+   "path": "data/fov_factor",
+   "from": 0.8,
+   "to": 0.5
+  },
+  {
+   "file": "gameplay/items/scopes/fit_socom16_aimpoint_compm4.options",
+   "path": "data/fov_factor",
+   "from": 0.8,
+   "to": 0.5
+  },
+  {
+   "file": "gameplay/items/scopes/fit_sr2m_aimpoint_compm4.options",
+   "path": "data/fov_factor",
+   "from": 0.8,
+   "to": 0.5
+  },
+  {
+   "file": "gameplay/items/scopes/fit_ump45_aimpoint_compm4.options",
+   "path": "data/fov_factor",
+   "from": 0.8,
+   "to": 0.5
+  },
+  {
+   "file": "gameplay/items/scopes/fit_vityaz_aimpoint_compm4.options",
+   "path": "data/fov_factor",
+   "from": 0.8,
+   "to": 0.5
+  },
+  {
+   "file": "gameplay/items/scopes/fitn_aimpoint_compm4_ak_12_premium.options",
+   "path": "data/fov_factor",
+   "from": 0.8,
+   "to": 0.5
+  },
+  {
+   "file": "gameplay/items/scopes/fitn_aimpoint_compm4_fn_fnc.options",
+   "path": "data/fov_factor",
+   "from": 0.8,
+   "to": 0.5
+  },
+  {
+   "file": "gameplay/items/scopes/fitn_aimpoint_compm4_fn_p90.options",
+   "path": "data/fov_factor",
+   "from": 0.8,
+   "to": 0.5
+  },
+  {
+   "file": "gameplay/items/scopes/fitn_aimpoint_compm4_hk416.options",
+   "path": "data/fov_factor",
+   "from": 0.8,
+   "to": 0.5
+  },
+  {
+   "file": "gameplay/items/scopes/fitn_aimpoint_compm4_kedr.options",
+   "path": "data/fov_factor",
+   "from": 0.8,
+   "to": 0.5
+  },
+  {
+   "file": "gameplay/items/scopes/fitn_aimpoint_compm4_kriss_vector.options",
+   "path": "data/fov_factor",
+   "from": 0.8,
+   "to": 0.5
+  },
+  {
+   "file": "gameplay/items/scopes/fitn_aimpoint_compm4_m4a1.options",
+   "path": "data/fov_factor",
+   "from": 0.8,
+   "to": 0.5
+  },
+  {
+   "file": "gameplay/items/scopes/fitn_aimpoint_compm4_mp7.options",
+   "path": "data/fov_factor",
+   "from": 0.8,
+   "to": 0.5
+  },
+  {
+   "file": "gameplay/items/scopes/fitn_aimpoint_compm4_mp7_silencer.options",
+   "path": "data/fov_factor",
+   "from": 0.8,
+   "to": 0.5
+  },
+  {
+   "file": "gameplay/items/scopes/fitn_aimpoint_compm4_msbs_carbine.options",
+   "path": "data/fov_factor",
+   "from": 0.8,
+   "to": 0.5
+  },
+  {
+   "file": "gameplay/items/scopes/fitn_aimpoint_compm4_valmet.options",
+   "path": "data/fov_factor",
+   "from": 0.8,
+   "to": 0.5
+  },
+  {
+   "file": "gameplay/items/scopes/fitn_aimpoint_compm4_vepr_12.options",
+   "path": "data/fov_factor",
+   "from": 0.8,
+   "to": 0.5
+  },
+  {
+   "file": "gameplay/items/scopes/fitn_aimpoint_compm4_vepr_12_premium.options",
+   "path": "data/fov_factor",
+   "from": 0.8,
+   "to": 0.5
+  }
+ ]
+}

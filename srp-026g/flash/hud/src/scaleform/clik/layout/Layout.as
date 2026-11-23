@@ -479,8 +479,9 @@ package scaleform.clik.layout
          {
             return;
          }
-         var lData:LayoutData = null;
-         lData = spr["layoutData"];
+         // a sprite of a sealed class without one (a plain Sprite): none (Scaleform says undefined,
+         // Flash and Ruffle throw)
+         var lData:LayoutData = "layoutData" in spr ? spr["layoutData"] : null;
          if(lData != null && (lData.layoutIdentifier == null || lData.layoutIdentifier == this.identifier))
          {
             this.insertIntoSortedVector(spr,this._managedSprites);

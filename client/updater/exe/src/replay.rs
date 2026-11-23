@@ -61,7 +61,7 @@ pub fn run(arguments: &[String], quiet: bool) -> u32 {
             return FAILED;
         }
     };
-    crate::log::start(&layout.exe_dir);
+    crate::log::start(&layout);
     log!(
         "---- updater {} replay started in {}{}",
         env!("CARGO_PKG_VERSION"),
@@ -124,7 +124,7 @@ pub fn run_local(arguments: &[String], quiet: bool) -> u32 {
             return FAILED;
         }
     };
-    crate::log::start(&layout.exe_dir);
+    crate::log::start(&layout);
     log!("---- updater local replay started{}", if quiet { " (quiet)" } else { "" });
     let language = win::documents().as_deref().and_then(win::game_language);
     let Some(file) = updater_logic::local_replay::LocalReplay::parse(arguments) else {
@@ -252,17 +252,17 @@ fn download(server: &Url, request: &Request, part: &str) -> Result<(), Problem> 
         // More than the link says: not this replay.
         Err(HttpError::TooLarge) => return Err(Problem::Damaged),
         // get_stream follows no redirect, reads no type and asks for no
-        // part: Html, Redirects, BadRedirect and BadRange are the files of
+        // part: Html, Redirects, BadRedirect, BadRange and PastEnd are the files of
         // a list's (get_file) and never come here.
         Err(
             error @ (HttpError::Network(..)
             | HttpError::Cut { .. }
             | HttpError::Stopped
-            | HttpError::Slow(_)
             | HttpError::Html(..)
             | HttpError::Redirects
             | HttpError::BadRedirect(_)
-            | HttpError::BadRange),
+            | HttpError::BadRange
+            | HttpError::PastEnd(_)),
         ) => {
             log!("replay: {error:?}");
             return Err(Problem::Network(host));

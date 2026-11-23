@@ -573,7 +573,11 @@ fn the_local_players_camera_follows_its_ragdoll_and_stops_at_the_respawn() {
             (eye.position - last).length() < 0.15,
             "a jump of the camera"
         );
-        assert!(eye.position.y > 0.15);
+        // on the hidden head, never trailing it (a camera off the head shows
+        // the body headless), and above the ground
+        let head = part_pose(&corpses, 1, Part::Head).position;
+        assert!((eye.position - head).length() < 0.3, "off the head: {eye:?} {head:?}");
+        assert!(eye.position.y > 0.07);
         last = eye.position;
     }
     // someone else's place: no camera
@@ -901,6 +905,7 @@ fn a_lying_body_comes_to_rest_and_stays_still_on_every_surface() {
         death.hits[0] = crate::shot::Hit {
             point: Vec3::new(0.0, 1.3, -0.12),
             impulse: crate::shot::impulse(Vec3::Z, 0.02, 800.0),
+            blow: None,
         };
         death.hit_count = 1;
         let d = [Seen::Dead(death)];

@@ -45,7 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::set_logger(&Logger).map_err(|e| e.to_string())?;
     log::set_max_level(log::LevelFilter::Debug);
     let port: u16 = std::env::args().nth(1).unwrap_or("2249".into()).parse()?;
-    let map_id: u8 = std::env::args().nth(2).unwrap_or("61".into()).parse()?;
+    let map_id: survarium::v026g::maps::MapId = std::env::args().nth(2).unwrap_or("61".into()).parse()?;
     let newcomer_loadout = match std::env::args().nth(3) {
         Some(index) if index != "starter" => loadouts::Loadouts::shared()
             .usable()
@@ -68,8 +68,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map(|place| player(place, loadouts::starter()))
             .collect(),
         score_weights: None,
-        vs_bots: false,
-        private: false,
+        kind: session::v026g::match_kind::MatchKind::Normal,
         room_minimum: None,
     })?;
     let store = Arc::new(SessionStore::with_repository(

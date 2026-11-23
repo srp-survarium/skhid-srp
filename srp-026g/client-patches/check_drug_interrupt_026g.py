@@ -10,7 +10,9 @@ drug he is using (docs/notes/drug-interrupt.md).
    (0x33D390) stubbed to record its calls: a ranged hit stops each healing
    drug in use in the victim's slots, in slot order, as set_active(0, drug,
    the hit's time), whether in its use time or its active time; nothing for
-   a drug not in use, the painkiller (no influences), an item of another
+   a drug not in use, the painkiller (no influences), the antitoxin (its
+   influences heal the infection pool alone: the live config's one record,
+   or the medkit template's seven at 0 beside it), an item of another
    vtable, a victim without an inventory, any other hit type (1..7) or one
    the game has no name for (8); the replayed `mov edi,esi / cmp dword
    [edi+40h],0` (EDI, ZF either way), every other register, the stack and
@@ -60,7 +62,15 @@ GAME = {UC_X86_REG_EAX: 0x0A0A0A0A, UC_X86_REG_ECX: 0x0C0C0C0C, UC_X86_REG_EDX: 
         UC_X86_REG_EBX: 0x0B0B0B0B, UC_X86_REG_ESI: 0x05050505, UC_X86_REG_EDI: 0x0E0E0E0E,
         UC_X86_REG_EBP: 0x0019FF00}
 REGS = tuple(GAME)
-HEALS, PROTECTS = 7, 0                    # influences: the medkit's seven, the painkiller's none
+# data/influences as the game keeps them (medkit +280h the records, 14h each: the pool's name inline,
+# what it heals a second at +10h; +288h their count): (pool, amount) each.
+TEMPLATE = ("head", "body", "pain", "left_hand", "right_hand", "left_leg", "right_leg")
+HEALS = tuple((pool, 0.25) for pool in TEMPLATE)                       # a medkit, the bandages
+SCIENCE = HEALS + (("infection", 0.3),)                                # the science medkit: the body too
+PROTECTS = ()                                                          # the painkiller: none
+ANTITOXIN = (("infection", 0.05),)                                     # gameplay/items/drugs/antitoxin.options
+ANTITOXIN_OVER_TEMPLATE = tuple((pool, 0.0) for pool in TEMPLATE) + ANTITOXIN
+RECORDS = 0x400                           # a made-up drug's records, in its own block
 
 
 class Run:
@@ -82,6 +92,13 @@ class Run:
 
     def word(self, at, value):
         self.emu.mem_write(at, struct.pack("<I", value & 0xFFFFFFFF))
+
+    def influences(self, drug, records):
+        for i, (pool, amount) in enumerate(records):
+            self.emu.mem_write(drug + RECORDS + 0x14 * i, pool.encode() + b"\0")
+            self.emu.mem_write(drug + RECORDS + 0x14 * i + 0x10, struct.pack("<f", amount))
+        self.word(drug + 0x280, drug + RECORDS if records else 0)
+        self.emu.mem_write(drug + 0x288, bytes([len(records)]))
 
     def read(self, at, size=4):
         return struct.unpack("<I", self.emu.mem_read(at, 4))[0] if size == 4 else bytes(self.emu.mem_read(at, size))
@@ -141,7 +158,7 @@ class Hook(Run):
         self.emu.mem_write(PLAYER + 0x33C, b"\x01")
         self.word(OTHER, 0xA00000)
         self.emu.mem_write(OTHER + 0x2B0, b"\x01")
-        self.emu.mem_write(OTHER + 0x288, bytes([HEALS]))
+        self.emu.mem_write(OTHER + 0x288, bytes([len(HEALS)]))
         for i, drug in enumerate(drugs):
             at = DRUGS + 0x1000 * i
             if drug == "other":
@@ -150,7 +167,7 @@ class Hook(Run):
                 active, influences, delay, remaining = drug
                 self.word(at, MEDKIT_VTABLE)
                 self.emu.mem_write(at + 0x2B0, bytes([active]))
-                self.emu.mem_write(at + 0x288, bytes([influences]))
+                self.influences(at, influences)
                 self.word(at + 0x2AC, delay)
                 self.word(at + 0x2A8, remaining)
                 self.word(INVENTORY + 0x10C + 4 * i, at)
@@ -196,7 +213,7 @@ class Game(Run):
         self.word(WORLD + 0x188A4, drug + 0x268)
         self.word(WORLD + 0x188A8, drug + 0x268)
         self.word(drug + 0x284, TOTALS)
-        self.emu.mem_write(drug + 0x288, b"\x02")
+        self.influences(drug, HEALS[:2])
         self.emu.mem_write(TOTALS, struct.pack("<ff", 0.25, 0.5))
         self.word(drug + 0x29C, duration)
         self.emu.mem_write(drug + 0x2A0, struct.pack("<f", 1.0))
@@ -279,6 +296,23 @@ def main():
     h.setup(slots, time=4242)
     assert h.hit() == [("set_active", 0, DRUGS, 4242), ("set_active", 0, DRUGS + 0x5000, 4242)]
     print("  ok two in use: both, in slot order; not one out of use, the painkiller, another item")
+
+    for label, drug in [("in its use time", (1, ANTITOXIN, 900, 15000)),
+                        ("in its active time", (1, ANTITOXIN, 0, 7000)),
+                        ("the first active tick not yet", (1, ANTITOXIN, 0, 15000)),
+                        ("its records after the medkit template's at 0", (1, ANTITOXIN_OVER_TEMPLATE, 0, 7000))]:
+        h.setup([None, drug], time=777)
+        assert h.hit() == [], label
+        assert h.read(DRUGS + 0x1000 + 0x2B0, 1) == b"\x01", label
+    print("  ok a ranged hit leaves an antitoxin in use: no set_active, its use flag (what the medical"
+          " tree's antitoxin skills read) set as before")
+
+    h.setup([(1, ANTITOXIN, 0, 7000), (1, SCIENCE, 0, 1200), (1, PROTECTS, 0, 5000), healing], time=88)
+    assert h.hit() == [("set_active", 0, DRUGS + 0x1000, 88), ("set_active", 0, DRUGS + 0x3000, 88)]
+    h.setup([(1, tuple((pool, 0.0) for pool in TEMPLATE), 0, 1200)], time=89)
+    assert h.hit() == [("set_active", 0, DRUGS, 89)]
+    print("  ok beside an antitoxin: the science medkit (the infection pool and the body) and a medkit stop,"
+          " the antitoxin and the painkiller go on; records that heal nothing are no antitoxin")
 
     for weapon in (0, 0x55):
         h.setup([healing], weapon=weapon)

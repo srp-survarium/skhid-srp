@@ -380,7 +380,8 @@ def model(points, due, living, time, last=None, players=20):
     update (None: nobody has spawned); neither the pool nor the fallback
     offers them, unless every point of the map is one of them. players: the
     places in the match; the pool is cut to its nearest max(3, ceil(n x
-    players / 10)) to the living, nearest first; when that is all, or with
+    players / 10)) to the living, nearest first (those 30 m away or more
+    first, then the nearer ones, the farthest of them first); when that is all, or with
     nobody living, it stays whole in map order."""
     def d2(a, b):
         return sum((x - y) ** 2 for x, y in zip(a, b))
@@ -396,7 +397,9 @@ def model(points, due, living, time, last=None, players=20):
         best = sorted(range(len(points)), key=lambda j: (-rank[j], j))[:5]
         near = max(3, -(-len(passing) * players // 10))
         if living and near < len(passing):
-            nearest = lambda j: (min(d2(points[j][0], o) for o in living), j)
+            def nearest(j):
+                d = min(d2(points[j][0], o) for o in living)
+                return d < 900, abs(d - 900), j
             passing = sorted(passing, key=nearest)[:near]
         pool = passing or [j for j in best if j not in excluded]
         mixed = (time + place * 0x9e3779b9) & 0xffffffff

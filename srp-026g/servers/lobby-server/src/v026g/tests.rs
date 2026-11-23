@@ -5,6 +5,7 @@
 //! - `udp_tests`: the whole server over real localhost UDP.
 
 use super::test_client as client;
+use survarium::v026g::maps::MapId;
 
 mod core_tests;
 mod udp_tests;
@@ -188,10 +189,13 @@ fn the_maps_played_are_playable_ones_of_the_modes_asked_for() {
         parse_modes("6,8"),
         Some(vec![maps::GameMode::Blackout, maps::GameMode::FreeForAll])
     );
+    // Freeze Tag is 12 and Artifact Hunt 13; 7 (Scarcity's) is no mode yet.
+    assert_eq!(parse_modes("12, 13"), Some(vec![maps::GameMode::FreezeTag, maps::GameMode::ArtefactHunt]));
+    assert_eq!(parse_modes("7"), None);
     // 0.21d's modes 0 and 1 are none of 0.26g's; nothing is not a list.
     assert_eq!(parse_modes("1,2"), None);
     assert_eq!(parse_modes(""), None);
-    assert_eq!(parse_maps(" 61 ,62"), Some(vec![61, 62]));
+    assert_eq!(parse_maps(" 61 ,62"), Some(vec![MapId::new(61), MapId::new(62)]));
     assert_eq!(parse_maps("61,x"), None);
 
     let all = map_pool(&[Batteries, TimedBatteries, TeamDeathmatch], &[]);
@@ -209,11 +213,11 @@ fn the_maps_played_are_playable_ones_of_the_modes_asked_for() {
     );
     // A list keeps only what can be played in the modes: the broken and
     // test ids of the dictionary never get in.
-    assert_eq!(map_pool(&[Batteries, TimedBatteries, TeamDeathmatch], &[all[0], 11, 45, 250]), [all[0]]);
+    assert_eq!(map_pool(&[Batteries, TimedBatteries, TeamDeathmatch], &[all[0], MapId::new(11), MapId::new(45), MapId::new(250)]), [all[0]]);
     assert!(map_pool(&[TeamDeathmatch], &[all[0]]).len() <= 1);
 
     // The default: every mode, Blackout's maps and the free-for-alls too
-    // (the test data has no Research maps), by id.
+    // (the test data has no Research or Artifact Hunt maps), by id.
     let settings = Settings::local("127.0.0.1:0");
     let blackout = map_pool(&[maps::GameMode::Blackout], &[]);
     assert!(!blackout.is_empty());

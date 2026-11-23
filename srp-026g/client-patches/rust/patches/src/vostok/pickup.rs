@@ -1648,8 +1648,8 @@ fn affine_inverse(m: &[f32; 16]) -> Option<[f32; 16]> {
 /// # Safety
 /// `inventory` is a live cooked inventory of ours, its gun the game's in no
 /// way (not registered, not in hands).
-pub(in crate::vostok) unsafe fn place_lying(inventory: raw::Inventory, slot: WeaponSlot, transform: &[f32; 16],
-                                            ours: Models) -> Models {
+pub(in crate::vostok) unsafe fn place_lying(thread: Option<&Thread>, inventory: raw::Inventory, slot: WeaponSlot,
+                                            transform: &[f32; 16], ours: Models) -> Models {
     use super::carry_runtime::Scene;
     unsafe {
         let Some((_, gun)) = cooked_gun(inventory, slot) else { return ours };
@@ -1666,6 +1666,10 @@ pub(in crate::vostok) unsafe fn place_lying(inventory: raw::Inventory, slot: Wea
         if ours.has(Models::BODY) && scope.is_none() {
             Scene::as_world(model);
             scene.present(model, transform);
+            // its fitted parts (patch 161) move with it
+            if let Some(thread) = thread {
+                super::attachments::lie(thread, weapon, &scene, transform, None);
+            }
             return ours;
         }
         // The bind pose: each bone the inverse of its inverse bind (the
@@ -1688,6 +1692,10 @@ pub(in crate::vostok) unsafe fn place_lying(inventory: raw::Inventory, slot: Wea
             scene.skin(model, bones);
             now |= Models::BODY;
         }
+        // its fitted parts (patch 161), each where it stands in that pose
+        if let Some(thread) = thread {
+            super::attachments::lie(thread, weapon, &scene, transform, Some(bones));
+        }
         if let Some(scope) = scope {
             let mut at = [0.0f32; 16];
             raw::engine_weapon_locator(at.as_mut_ptr(), Some(weapon.scope_locator()), transform.as_ptr(),
@@ -1707,12 +1715,20 @@ pub(in crate::vostok) unsafe fn place_lying(inventory: raw::Inventory, slot: Wea
 ///
 /// # Safety
 /// As [`place_lying`]'s.
-pub(in crate::vostok) unsafe fn remove_lying(inventory: raw::Inventory, slot: WeaponSlot, ours: Models) {
+pub(in crate::vostok) unsafe fn remove_lying(thread: Option<&Thread>, inventory: raw::Inventory, slot: WeaponSlot,
+                                             ours: Models) {
     use super::carry_runtime::Scene;
     unsafe {
         let Some((_, gun)) = cooked_gun(inventory, slot) else { return };
         let weapon = gun.weapon();
         let Some(scene) = weapon.world().and_then(|world| Scene::of_world(world)) else { return };
+        // its fitted parts (patch 161) with the body; without a thread (the
+        // inventory's own end) the weapon's release takes them out
+        if let Some(thread) = thread
+            && ours.has(Models::BODY)
+        {
+            super::attachments::out_of_scene(thread, weapon, &scene);
+        }
         if ours.has(Models::BODY) && let Some(model) = weapon.model() {
             scene.remove(model);
         }
@@ -1765,6 +1781,51 @@ pub fn clamp_bullet_ordinal(ctx: &mut Context<'_>) {
     };
     if ordinal > count {
         ctx.set_reg8(super::Reg::Ecx, count);
+    }
+}
+
+/// A bullet record's length: fixed, the quiet byte always in it (srp-validate's `RECORD`).
+const BULLET_RECORD: usize = 69;
+
+/// The record at `bullets.load_record`'s reader, as the loader would read it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BulletRecord {
+    /// The shooter has a gun in the record's slot: the loader reads it.
+    Armed,
+    /// Its shooter (+3Fh) has no gun in its slot (+41h): passed over.
+    Unarmed { place: u8, slot: u8 },
+}
+
+/// `bullets.load_record`: the loader takes the record's shooter by place
+/// (0x32BD4E) and reads its slot's item as a gun (0x32BDA1, 0x2E2750), with
+/// no check of either. A bullet still in flight when a pickup's swap moved
+/// its gun is saved with the gun's new slot (+254h, 0x32C0B5), the cooked
+/// inventory's, which the shooter may have empty: the loader read a null gun
+/// (the 0x2E2753 crash of 2026-11-17). Such a record is passed over, the
+/// reader past it and no bullet made; this game's world then differs from
+/// the others' by that bullet until it lands (a resync).
+pub fn load_record(ctx: &Context<'_>) -> BulletRecord {
+    // SAFETY: the loop's manager and reader; the world's check (patch 87)
+    // passed the section, so a whole record is at the cursor and its slot is
+    // 7 or 10; the player the loader's own lookup gives, its slot's item
+    // read as a weapon only after its active object's vtable says so.
+    unsafe {
+        let (Some(manager), Some(reader)) =
+            (raw::site::bullets_load_record::manager(ctx), raw::site::bullets_load_record::reader(ctx)) else {
+            return BulletRecord::Armed;
+        };
+        let at = reader.cursor();
+        let (place, slot) = (read(at.add(63)), read(at.add(65)));
+        let armed = manager.engine()
+            .and_then(|engine| raw::engine_bullet_player(Some(engine), u32::from(place)))
+            .and_then(|player| player.inventory())
+            .and_then(|inventory| inventory.slots().at(usize::from(slot)).item())
+            .is_some_and(|item| read(item.active_object().vtable()) == raw::image::WEAPON_VTABLE);
+        if armed {
+            return BulletRecord::Armed;
+        }
+        reader.set_cursor(at.add(BULLET_RECORD));
+        BulletRecord::Unarmed { place, slot }
     }
 }
 

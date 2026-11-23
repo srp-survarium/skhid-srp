@@ -1,0 +1,15 @@
+{
+  "capture": {
+    "size": "1920x1080",
+    "hfov": 100,
+    "settle_ms": 6000,
+    "user_cfg": {"r_texture_quality": "2", "r_shadow_quality": "3", "r_lighting_quality": "2", "r_shading_quality": "2",
+                 "r_decorations_quality": "2", "r_post_process_quality": "2", "r_ambient_occlusion_quality": "3",
+                 "r_ssdo": "on", "r_particles_quality": "2", "r_geometry_quality": "1", "r_motion_blur_quality": "0",
+                 "r_max_anisotropic": "16", "r_antialiasing_method": "2"}
+  },
+  "poses": [
+    {"name": "nw-high", "position": [-72, 26, 66], "yaw": 128.9, "pitch": -12.8},
+    {"name": "s-high", "position": [-8, 30, -50], "yaw": 0.0, "pitch": -19.7}
+  ]
+}

@@ -77,6 +77,13 @@ pub struct GameWorldUi<'t> {
 }
 
 impl<'t> GameWorldUi<'t> {
+    /// The hud's game world (+18h).
+    pub fn game_world(&self, thread: &'t Thread) -> Option<super::world::GameWorld<'t>> {
+        // SAFETY: the live ui's world, alive while the hud is.
+        let world = unsafe { self.this.world() }?;
+        Some(super::world::GameWorld::of(world, thread))
+    }
+
     /// At `player_icons.update_start`.
     pub fn at_update_icons(ctx: &'t Context<'_>) -> Option<GameWorldUi<'t>> {
         // SAFETY: the context is this site's: update_player_icons' frame, its
@@ -91,6 +98,14 @@ impl<'t> GameWorldUi<'t> {
         // SAFETY: the context is this site's: initialize_match's ui in ESI,
         // alive while it runs on the game's thread.
         let this = unsafe { raw::site::player_icons_enemy_ids::ui(ctx) }?;
+        Some(GameWorldUi { this, thread: PhantomData })
+    }
+
+    /// At `hud.initialize_match` (0x234880, once a match, before its first frame).
+    pub fn at_initialize_match(ctx: &'t Context<'_>) -> Option<GameWorldUi<'t>> {
+        // SAFETY: the context is this site's: initialize_match's first argument by its ESP, the
+        // hud, alive while it runs on the game's thread.
+        let this = unsafe { raw::site::hud_initialize_match::frame(ctx)?.ui() }?;
         Some(GameWorldUi { this, thread: PhantomData })
     }
 
@@ -110,6 +125,40 @@ impl<'t> GameWorldUi<'t> {
     pub fn viewed_place(&self) -> Option<Place> {
         // SAFETY: the ui is alive for the hook; a byte of its hud state.
         Place::new(u32::from(unsafe { read(self.this.viewed_place()) }))
+    }
+
+    /// The teams' points in the hud state (+90h, +92h), which update_ui sends as the score bars
+    /// (root.set_game_progress, the viewed team's first). A mode without a rule that fills them
+    /// (Freeze Tag) writes them itself: nothing clears them at a new match, so the last match's
+    /// stayed (the owner, 2026-11-22: "freeze tag counter doesn't reset after prev game").
+    pub fn set_team_points(&self, points: [u16; 2]) {
+        // SAFETY: the ui is alive for the hook, on the game's thread; two u16 of its hud state.
+        unsafe {
+            self.this.team_zero_points().write(points[0]);
+            self.this.team_one_points().write(points[1]);
+        }
+    }
+
+    /// Freeze Tag's rescue reach, from the HUD's current player to a
+    /// frozen teammate. The same static-world query the rule uses.
+    pub fn freeze_reachable(&self, from: srp_validate::Place, target: srp_validate::Place) -> bool {
+        // SAFETY: the UI's owning match remains live for its update hook.
+        // The hud outlives the match world (the results), and nothing is in reach then.
+        let core = unsafe { self.this.world().and_then(|w| w.pvp_match()).map(|m| m.core()) };
+        core.is_some_and(|core| super::freeze::clear(core, from, target))
+    }
+
+    /// Freeze Tag: the team of `place`'s player (its profile's), when it has one in the match.
+    pub fn freeze_team(&self, place: srp_validate::Place) -> Option<srp_validate::Team> {
+        // SAFETY: as freeze_reachable.
+        let core = unsafe { self.this.world().and_then(|w| w.pvp_match()).map(|m| m.core()) };
+        core.and_then(|core| super::freeze::team(core, place))
+    }
+
+    /// The match's world time (its core's last step), which its rule's times are of.
+    pub fn now(&self) -> Option<u32> {
+        // SAFETY: the ui's world and its match core live for this hook.
+        unsafe { Some(read(self.this.world()?.pvp_match()?.core().time())) }
     }
 
     /// The exact deadline against the completed simulation clock. The
@@ -193,13 +242,12 @@ pub struct Movie<'t> {
 /// unsigned int, a string; with the managed bit, a string its node holds.
 const GFX_BOOL: u32 = 2;
 pub(super) const GFX_UINT: u32 = 4;
+pub(super) const GFX_NUMBER: u32 = 5;
 pub(super) const GFX_STRING: u32 = 6;
 pub(super) const GFX_MANAGED: u32 = 0x40;
 
 /// Up to this many strings in one Invoke.
 pub const MAX_STRINGS: usize = 64;
-/// Up to this many plain unsigned values in one Invoke.
-pub const MAX_UINTS: usize = 4;
 /// The longest text a GFx argument may be here.
 pub(super) const TEXT_LIMIT: usize = 0x200;
 
@@ -333,11 +381,11 @@ impl Movie<'_> {
         self.invoke(c"root.set_parameterized_message", &mut arguments)
     }
 
-    /// Plain unsigned GFx values, at most [`MAX_UINTS`]; whether the movie took them.
-    pub fn invoke_uints(&self, method: &CStr, values: &[u32]) -> bool {
-        let mut arguments = [const { raw::GfxValueStorage::zeroed() }; MAX_UINTS];
-        let count = values.len().min(MAX_UINTS);
-        for (room, &value) in arguments.iter_mut().zip(&values[..count]) {
+    /// Plain unsigned GFx values, every one (the room is sized by their
+    /// count); whether the movie took them.
+    pub fn invoke_uints<const N: usize>(&self, method: &CStr, values: &[u32; N]) -> bool {
+        let mut arguments = [const { raw::GfxValueStorage::zeroed() }; N];
+        for (room, &value) in arguments.iter_mut().zip(values) {
             let gfx = room.handle();
             // SAFETY: our own value.
             unsafe {
@@ -345,6 +393,25 @@ impl Movie<'_> {
                 *gfx.value() = value;
             }
         }
-        self.invoke(method, &mut arguments[..count])
+        self.invoke(method, &mut arguments)
+    }
+}
+
+impl Movie<'_> {
+    /// GFx Numbers (type 5, an f64 each), every one (the room is sized by
+    /// their count); whether the movie took them.
+    pub fn invoke_numbers<const N: usize>(&self, method: &CStr, values: &[f64; N]) -> bool {
+        let mut arguments = [const { raw::GfxValueStorage::zeroed() }; N];
+        for (room, &value) in arguments.iter_mut().zip(values) {
+            let gfx = room.handle();
+            let bits = value.to_bits();
+            // SAFETY: our own value: its type and the f64's two words.
+            unsafe {
+                *gfx.kind() = GFX_NUMBER;
+                *gfx.value() = bits as u32;
+                *gfx.value_high() = (bits >> 32) as u32;
+            }
+        }
+        self.invoke(method, &mut arguments)
     }
 }
