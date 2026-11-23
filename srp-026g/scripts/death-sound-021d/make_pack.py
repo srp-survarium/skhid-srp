@@ -9,16 +9,18 @@ usage: python3 -I make_pack.py --donor <folder> --out <packs folder>/death-sound
          manifest's `pack` row (release/content.tsv)
 
 0.21d's death sound as others heard it at the body, `animations/death_animation_m` (the torso's
-second sound in gameplay/bodyparts, played at frame 5 of the death clip): a composite of a body
-fall and a male scream at once, each a random take of its collection. 0.26g keeps the same
-composite with other screams, and never plays it (its death clips have no sound event). Here it is
-0.21d's at new paths, so nothing of 0.26g's changes:
+second sound in gameplay/bodyparts, played at frame 5 of the death clip), is a composite of a body
+fall (its thud 1.1 s in) and a male scream at once, each a random take of its collection. 0.26g
+keeps the same composite with other screams, and never plays it (its death clips have no sound
+event). Here it is its scream alone (the owner, 2026-11-23: the drop cut out; version 1 had the
+fall too), 0.21d's at new paths, so nothing of 0.26g's changes:
 
-- the samples byte for byte (Vorbis 44.1 kHz mono and their RMS caches), their `.raw_options` as
-  0.21d's but for the distance preset's name;
-- the presets 0.21d's (`body_fall`: silent from 5 m, `death_scream_close`: from 9 m; 0.26g's own of
-  those names reach 10 and 15 m), as `body_fall_021d` and `death_scream_close_021d`;
-- the collections and the composite 0.21d's, their items' names the new ones.
+- the scream's takes byte for byte (Vorbis 44.1 kHz mono and their RMS caches: voice only, no
+  impact in any), their `.raw_options` as 0.21d's but for the distance preset's name;
+- the preset 0.21d's (`death_scream_close`: silent from 9 m; 0.26g's own reaches 15 m), as
+  `death_scream_close_021d`;
+- the collection 0.21d's, its items' names the new ones; the composite 0.21d's without its fall
+  item, its scream item's name the new one.
 """
 import argparse
 import hashlib
@@ -30,23 +32,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lobby-bulb"))
 from make_pack import parse, serialize, T_NAMED, T_INDEXED, T_STR  # noqa: E402  (the binary config codec)
 
 PACK_ID = "death-sound-021d"
-VERSION = "1"
+VERSION = "2"
 DEATH = "animations/death/"
 NEW = DEATH + "v021d/"
 # each take: (0.21d's sample, its new name, its preset); its three files' sha256 (ogg, rms, options)
 TAKES = [
-    (DEATH + "default_fall/death_animation_01_m", "fall_01_m", "body_fall",
-     "f29af8c69993395a5ff0d2a0a6e54af589dee72f51d891066ee71b5fc7cf7c49",
-     "2db6127a585fe78db5e221cf3fe59529500bcd001004917f5ed999ad48a17fb4",
-     "7d5d16d9494d84395a0fbd8382d9598faa9cb0fb73c478871cdd83f41876b2fc"),
-    (DEATH + "default_fall/death_animation_02_m", "fall_02_m", "body_fall",
-     "d49359ef725f6e99f280eb3693e92a51977a6e2914c064205a0d00f752a4a16c",
-     "97c9ce9ea7046e3ba39effea729636b42e87b52c3329b56b33175b8a7e856b9b",
-     "7d5d16d9494d84395a0fbd8382d9598faa9cb0fb73c478871cdd83f41876b2fc"),
-    (DEATH + "default_fall/death_animation_03_m", "fall_03_m", "body_fall",
-     "0afc66502bfe375eebffbe4863b920f61a3abbd13974961018b91a3d22109156",
-     "9f1b1479b2d129db30a031d4840d8e9b3e333575d5c9369db7f7adf1b85bb4b1",
-     "7d5d16d9494d84395a0fbd8382d9598faa9cb0fb73c478871cdd83f41876b2fc"),
     (DEATH + "male_scream/death_01_m", "scream_01_m", "death_scream_close",
      "b80ad1581421b93532a5a32d7aeb906eaf671eb05fce5deee1cfd4b074a4837b",
      "d04b70724130e1b648990fa84f572c9de3db159e5e6607d9bfa9eb511c6426e1",
@@ -66,18 +56,16 @@ TAKES = [
 ]
 # each preset: its .spl's sha256
 PRESETS = {
-    "body_fall": "dbe2892481633d91ea1c49fc404bf0869325bd59f1511680a2da5928add7baba",
     "death_scream_close": "a01535ea343210ddcb815bbbc33cb85bd5719b8762a9307151a8f9cab7f2d281",
 }
 # each collection: (0.21d's, the new one, the folder of its takes, its sha256)
 COLLECTIONS = [
-    (DEATH + "death_fall_m", "animations/death/v021d_fall_m", "default_fall",
-     "a0c4e7c415b797634b3e71e4f59aa004887cb2a87343d0c4fc18514e898357fe"),
     (DEATH + "death_male_scream_m", "animations/death/v021d_scream_m", "male_scream",
      "0b6ea1faf7153a05c583171c6ece41385dfa4d0991decd65ad757e152dad1002"),
 ]
+# 0.21d's composite, the new one (the name exe patch 196 plays), its sha256, its item left out
 COMPOSITE = ("animations/death_animation_m", "animations/death_animation_021d_m",
-             "9f60f5db2fda0f1960c487bb35a30752cc7899ec7df5a1bcc2d4448398789d63")
+             "9f60f5db2fda0f1960c487bb35a30752cc7899ec7df5a1bcc2d4448398789d63", DEATH + "death_fall_m")
 SUFFIX = "_021d"
 
 
@@ -115,6 +103,16 @@ def renamed(config, table, names):
     return serialize(out)
 
 
+def without(config, item):
+    """the composite `config` without its sound item `item` (every other byte's meaning kept)."""
+    t, [(name, (ct, fields))] = parse(bytearray(config))
+    it, items = dict(fields)["sound_items"]
+    kept = [i for i in items if dict(i[1])["filename"] != (T_STR, item)]
+    if len(kept) != len(items) - 1:
+        sys.exit(f"{name}: no item {item}")
+    return serialize((t, [(name, (ct, [(k, (it, kept) if k == "sound_items" else v) for k, v in fields]))]))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--donor", required=True, type=Path)
@@ -135,17 +133,17 @@ def main():
         data = read(a.donor, f"sounds/collections/{old}.sound_collection", want)
         mine = {k: v for k, v in takes.items() if k.startswith(f"{DEATH}{folder}/")}
         files[f"sounds/collections/{new}.sound_collection"] = renamed(data, "collection", mine)
-    old, new, want = COMPOSITE
+    old, new, want, fall = COMPOSITE
     files[f"sounds/composite/{new}.composite_sound"] = renamed(
-        read(a.donor, f"sounds/composite/{old}.composite_sound", want), "composite_sound",
+        without(read(a.donor, f"sounds/composite/{old}.composite_sound", want), fall), "composite_sound",
         {o: n for o, n, *_ in COLLECTIONS})
     for path, data in files.items():
         (a.out / "files" / path).parent.mkdir(parents=True, exist_ok=True)
         (a.out / "files" / path).write_bytes(data)
     pack = {
         "format_version": 1, "id": PACK_ID, "version": VERSION, "target_build": "0.26g",
-        "description": "0.21d's death sound heard at the body (its death_animation_m: a body fall and a male "
-                       "scream at once, 0.21d's takes and distance presets) at new paths, "
+        "description": "0.21d's death scream heard at the body (its death_animation_m without its body fall: "
+                       "the male scream, 0.21d's takes and distance preset) at new paths, "
                        "sounds/composite/animations/death_animation_021d_m, for exe patch 196",
         "operations": [{"op": "add_file", "path": path} for path in sorted(files)],
         "notes": ["made by srp-026g/scripts/death-sound-021d/make_pack.py from 0.21d's resources.db "
