@@ -9,6 +9,74 @@ release that made it what it is now.
 
 ---
 
+## 23 Nov, 04:20 — TODO: the owner's words (update required)
+
+<!-- Revision 72 (026g-rev72), released 2026-11-23 04:20 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2438 Courier: the dead kit's artefacts found in its slots (they never moved)
+- TODO: #2439 Freeze Tag: only the frozen stop in the pause between rounds
+- TODO: #2443 Modes page: fewer lines (rooms, Roulette)
+- TODO: #2440 Artifact Container: a kit's slot made a pocket again by a click
+- TODO: #2468 Patch 101: a foot step in a state with no foot material is dropped (crash in step_manager::on_step)
+- TODO: #2469 Patch 193: material_pair takes an id past its 128 materials as the default (no read past its tables)
+- TODO: #2474 Stats: a weapon's kills per minute
+- TODO: #2472 Updater: a patch download that broke off goes on from its bytes
+- TODO: #2473 Updater: a slow address is left for the fastest one, from the bytes on disk
+- TODO: #2478 Artifact Hunt: the next respawn wave beside the match time
+- TODO: #2479 The score bars start from the match's own score (Freeze Tag, and every mode at a match's start)
+- TODO: #2422 The ported maps' ambient occlusion at native strength (ported-maps-ao-1, london-v042@7, london-v032@4)
+- TODO: #2490 Patch 195: a use's progress bar ends with the use (stuck "Progress" bar after a death)
+- TODO: #2451 Patch 192: a damage zone and its players out of step no longer move memory
+- TODO: #2455 Freeze Tag: the pause's countdown with the kits, and no view drift after a thaw
+- TODO: #2477 Technical skills: Last Gasp becomes Oxygen Rush, after 20 s of tank use and at its run-out (simulation and world-format change)
+- TODO: #2493 Technical skills: a Bear Trap trap takes 1.5 pocket units, three in five (simulation change)
+- TODO: #2495 Crash reporter: an Open folder button that shows the saved report
+- TODO: #2494 Stats: the leaders' names are not cut
+- TODO: #2475 Grenade markers: teammates' smoke and toxic smoke get their own marks (patch 194)
+- TODO: #2480 Technical skills: Tank Container (445), an artifact container with an oxygen tank (simulation change)
+- TODO: #2496 London (v0.32): the red team's spawns at the owner's picks, facing the way out
+- TODO: #2476 Deep Pockets and Supply Pocket: a kit's pocket made the second weapon slot again by a click
+- TODO: #2491 Training Camp: the team project as day_tdm, a name the client loads (map 212 crash)
+- TODO: #2442 Patch 191: a kill made in a re-simulation keeps its kill marker
+- TODO: #2444 Patch 100: flush a stopped voice only after the running processing pass (Wine sound loss)
+- TODO: #1576 Patch 132: the camera before the start stays out of the walls
+- TODO: #2500 Technical skills: a Toxic Smoke grenade takes 1.5 pocket units (simulation change)
+- TODO: #2505 Freeze Tag: the frozen glow covers the whole body
+- TODO: #2507 Freeze Tag's rounds end and start as Artifact Hunt's, by its code
+- TODO: #2509 Rooms: the big-pool draft test sized from the pool's pieces (fails on main)
+- TODO: #2508 Ragdoll death camera: stay in the head, out of walls
+- TODO: #2512 Client patches: generated files are made by the build, not committed
+- TODO: #2513 Ragdoll: the fingers let go of the grip
+- TODO: #2514 tools/test-build: a part whose build failed is FAILED, and copies nothing
+- TODO: #2518 Freeze Tag: a player's saved tag by its state, not team + 2 (srp-validate's clippy)
+- TODO: #2454 Site words: Russian and Belarusian
+- TODO: #2520 Generated files: the exe's inputs in one place, builds without an arena need no toolchain
+- TODO: #2452 Site words: Polish, Czech, Croatian, Serbian
+- TODO: #2453 Site words: German, Finnish, Hungarian
+- TODO: #2521 Crash reporter: keeps the newest ten crashes' files
+- TODO: #2377 Artifact Hunt: the same box on every base (artefact-hunt-maps@2)
+- TODO: #2522 Site words: every language must have every text (the test names what is missing)
+- TODO: #2523 Freeze Tag: the rule's saved bytes at their documented places (the writer shifted every field since #2507)
+- TODO: #2519 Patch 196: a shot into a corpse plays 0.21's death sound there and puts its player in the dark
+- TODO: #2527 Web server: the history tests expect a match's mode_url
+- TODO: #2528 World round trip: the four codec sites of patches 115 and 122 named with their checks
+- TODO: #2529 Patches crate: Clippy clean again, and its own check row
+- TODO: #1554 AGENTS.md: a clear safe/unsafe boundary, and work holistically
+- TODO: #2533 Rudnya (v0.69) @5: smoothness maps drawn as maps, the blends' own numbers, 0.69d's cut of a blend by its second layer
+- TODO: #2096 Free for All: with few players, respawn near someone (30 m away first)
+- TODO: #2536 Patch 83: the taskbar goes under a fullscreen game after Alt+Tab (Windows)
+- TODO: #2531 vostok-layout: compare with the released map as it is since revision 57
+- TODO: #2539 Updater tests: play_skhid.bat without a language, and the patch suite in updater-replays
+- TODO: #2532 build-content's callers: the step API of #2355 and #2382
+- TODO: #2526 Squads: a squad made in a room brings its new mate in
+- TODO: #2524 re-kit: the animation player's tree and mt_draw's tick of a not alive player
+- TODO: #2541 The FFA point checkers join the srp workspace: no lock of their own to go stale
+- TODO: #2516 Ragdoll: a shot into a corpse's head takes its helmet off
+- TODO: #2542 Wiki simulators: a shot's three motions (recoil, camera wobble, gun kick), the view from the side and a custom gun
+- TODO: #2545 stats-page: the stats page's browser check in tools/check
+- TODO: #2546 v021d-weather: the day-source export by rule, the donor from its db, lamps with cube maps, the listed lighting pack
+- TODO: #2547 Wiki weapons and simulators in every language (built pages filled at request time)
+
 ## 22 Nov, 13:29 — TODO: the owner's words (update required)
 
 <!-- Revision 71 (026g-rev71), released 2026-11-22 13:29 UTC. To be worded for players; what it shipped: -->
