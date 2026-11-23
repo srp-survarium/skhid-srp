@@ -11,10 +11,11 @@
 //!
 //! The ray's hit gives the pull the eye wants: how far in from the orbit it
 //! must be to stay `MARGIN` short of the hit (the near plane is 0.05 m). The
-//! pull shown goes to it smoothly, never at once (the level's meshes are
-//! detailed, and a ray that meets a bar or a branch near the player would
-//! otherwise throw the eye in and out): in at `IN_RATE`, out at the slower
-//! `OUT_RATE`, a share of what is left each second. The pull is taken from
+//! pull shown goes in to it at once, so the eye is never shown behind a wall
+//! (eased in, it was for a few frames: the owner, 2026-11-23), and back out
+//! smoothly at `OUT_RATE`, a share of what is left each second (the level's
+//! meshes are detailed, and a ray that leaves a bar or a branch near the
+//! player would otherwise throw the eye out again). The pull is taken from
 //! the distance the wheel keeps (+354h, not changed), so the wheel moves the
 //! eye at once as before. A new orbit (the warmup's first frame, another
 //! player) starts at the pull it wants.
@@ -36,10 +37,8 @@ const GROUP: u32 = 0x10;
 const MASK: u32 = 0x08;
 /// How far in front of a hit the eye stays (m), beyond the near plane.
 const MARGIN: f32 = 0.2;
-/// The share of the rest of the way the pull goes in a second, toward a
-/// wall (in) and back out: 1 - e^(-rate t) of it after t s (in: 95 % in
-/// 0.37 s; out: in 1 s).
-const IN_RATE: f32 = 8.0;
+/// The share of the rest of the way the pull goes back out in a second:
+/// 1 - e^(-rate t) of it after t s (95 % in 1 s). In, it goes at once.
 const OUT_RATE: f32 = 3.0;
 /// The longest frame the pull steps by (s): a stall moves it no further.
 const LONGEST_FRAME: f32 = 0.1;
@@ -103,14 +102,14 @@ fn wanted_pull(distance: f32, hit: Option<f32>) -> f32 {
     }
 }
 
-/// The pull shown this frame: a new orbit's at once, else moved toward
-/// `wanted` by the time since the last frame.
+/// The pull shown this frame: `wanted` at once for a new orbit and for a
+/// pull further in, else moved out toward it by the time since the last
+/// frame.
 fn step(state: Pull, player: PlayerId, wanted: f32, now: u32) -> Pull {
     let pull = match state {
-        Pull::On { player: p, pull, at } if p == player => {
+        Pull::On { player: p, pull, at } if p == player && wanted < pull => {
             let dt = clamp(now.wrapping_sub(at) as f32 / 1000.0, 0.0, LONGEST_FRAME);
-            let rate = if wanted > pull { IN_RATE } else { OUT_RATE };
-            let pull = wanted + (pull - wanted) * exp_neg(rate * dt);
+            let pull = wanted + (pull - wanted) * exp_neg(OUT_RATE * dt);
             if wanted == 0.0 && pull < NO_PULL { 0.0 } else { pull }
         }
         _ => wanted,
@@ -151,17 +150,13 @@ mod tests {
     }
 
     #[test]
-    fn the_pull_goes_in_and_out_smoothly() {
+    fn the_pull_goes_in_at_once_and_out_smoothly() {
         let start = Pull::On { player: player(1), pull: 0.0, at: 1000 };
-        // a wall comes: in by 1 - e^(-0.8) of the way in 100 ms, never at once
-        let s = step(start, player(1), 2.0, 1100);
-        assert!((pull(s) - 2.0 * (1.0 - exp_neg(0.8))).abs() < 1e-4, "{s:?}");
-        let mut s = s;
-        for t in 0..5 {
-            s = step(s, player(1), 2.0, 1116 + 16 * t);
-        }
-        assert!(pull(s) > 1.0 && pull(s) < 2.0);
-        // it goes: out more slowly, down to none
+        // a wall comes, then a nearer one: in at once, whatever the frame
+        let s = step(start, player(1), 2.0, 1016);
+        assert_eq!(pull(s), 2.0);
+        assert_eq!(pull(step(s, player(1), 2.5, 1016)), 2.5);
+        // it goes: out slowly, down to none
         let out = step(Pull::On { player: player(1), pull: 2.0, at: 0 }, player(1), 0.0, 100);
         assert!((pull(out) - 2.0 * exp_neg(0.3)).abs() < 1e-4, "{out:?}");
         let mut s = out;
@@ -172,13 +167,13 @@ mod tests {
     }
 
     #[test]
-    fn a_stall_or_a_clock_going_back_moves_it_at_most_a_frame() {
-        let s = Pull::On { player: player(1), pull: 0.0, at: 1000 };
-        let stalled = pull(step(s, player(1), 2.0, 61_000));
-        assert!((stalled - 2.0 * (1.0 - exp_neg(IN_RATE * LONGEST_FRAME))).abs() < 1e-4);
+    fn a_stall_or_a_clock_going_back_moves_it_out_at_most_a_frame() {
+        let s = Pull::On { player: player(1), pull: 2.0, at: 1000 };
+        let stalled = pull(step(s, player(1), 0.0, 61_000));
+        assert!((stalled - 2.0 * exp_neg(OUT_RATE * LONGEST_FRAME)).abs() < 1e-4);
         // the counter wraps: a step "back" is a long frame
-        assert!(pull(step(s, player(1), 2.0, 999)) <= stalled + 1e-6);
+        assert!(pull(step(s, player(1), 0.0, 999)) >= stalled - 1e-6);
         // the same millisecond: no move
-        assert_eq!(pull(step(s, player(1), 2.0, 1000)), 0.0);
+        assert_eq!(pull(step(s, player(1), 0.0, 1000)), 2.0);
     }
 }

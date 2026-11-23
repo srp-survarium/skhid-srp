@@ -23,8 +23,8 @@ performance counter is a clock of ours (1000 ticks a second).
   the view's turn is the original's, its eye at once 0.2 m in front of the
   wall on the way to the original's eye; a wall nearer than 0.2 m to the
   pivot puts the eye at it.
-- An orbit going on: a wall that comes pulls the eye in by 1 - e^(-8 t) of
-  the way in t s, one that goes lets it out by 1 - e^(-3 t).
+- An orbit going on: a wall that comes has the eye in front of it at once,
+  one that goes lets it out by 1 - e^(-3 t) of the way in t s.
 - The first person (0) and a spectator (4): the view is the original's (the
   eyes' transform), no ray of the orbit's (patch 158's own, from under the eye,
   with nothing in its way).
@@ -55,7 +55,7 @@ SP = STACK + 0x8000
 REGS = (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_ESI, UC_X86_REG_EDI,
         UC_X86_REG_EBP, UC_X86_REG_ESP)
 STEADY = dict(zip(REGS[:7], (0x0A0A0A0A, 0x0B0B0B0B, 0x0C0C0C0C, 0x0D0D0D0D, 0x05050505, 0x0E0E0E0E, 0x0019FF00)))
-MARGIN, UP, IN_RATE, OUT_RATE = 0.2, 1.4, 8.0, 3.0
+MARGIN, UP, OUT_RATE = 0.2, 1.4, 3.0
 
 # the player: turned 30 degrees about up, its feet at (100, 5, -50)
 C, S = math.cos(math.radians(30)), math.sin(math.radians(30))
@@ -232,9 +232,9 @@ def main():
     ours.update_camera(3, ms=5000)
     wanted = distance - (1.5 - MARGIN)
     o_view, o_regs, _ = ours.update_camera(3, wall=wall_at(1.5), ms=5100)
-    pulled = wanted * (1 - math.exp(-IN_RATE * 0.1))
+    pulled = wanted
     check(abs(eye_out(o_view) - (distance - pulled)) < 2e-3 and on_way(o_view) and o_regs == s_regs,
-          f"a wall comes: in 100 ms the eye {pulled:.3f} of {wanted:.3f} m in (1 - e^-0.8), not at once")
+          f"a wall comes: the eye {pulled:.3f} m in at once, in front of it")
     o_view, _, _ = ours.update_camera(3, ms=5200)
     left = pulled * math.exp(-OUT_RATE * 0.1)
     check(abs(eye_out(o_view) - (distance - left)) < 2e-3 and on_way(o_view),

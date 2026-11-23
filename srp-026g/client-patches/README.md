@@ -5970,10 +5970,11 @@ update_camera's view update (0x1F3650), in the orbit modes only (not the first p
 spectator), a ray goes from the pivot (the player's place raised 1.4 m) toward the eye with the
 lobby camera's filter (the level's collision that bullets hit). Its hit gives the pull the eye
 wants: in from the orbit to 0.2 m in front of the hit (the near plane is 0.05 m), at the pivot when
-the wall is nearer than that. The pull shown goes there smoothly, never at once, so that a ray
-meeting a bar or a branch of the detailed meshes does not throw the eye in and out (the owner,
-2026-11-09): in by 1 - e^(-8 t) of the way in t s (95 % in 0.37 s), out by 1 - e^(-3 t) (in 1 s). A
-new orbit (the warmup's first frame) starts at the pull it wants. The pull is taken from the
+the wall is nearer than that. The pull shown goes in at once, so the eye is never shown behind a
+wall (eased in, it was for a few frames: the owner, 2026-11-23), and back out smoothly, by
+1 - e^(-3 t) of the way in t s (in 1 s), so that a ray leaving a bar or a branch of the detailed
+meshes does not throw the eye out again (the owner, 2026-11-09). A new orbit (the warmup's first
+frame) starts at the pull it wants. The pull is taken from the
 wheel's distance, which is kept, so the wheel moves the eye at once as before. Nothing in the way:
 the game's view, untouched. Nothing a match computes. `../docs/notes/client_patch.md` section 3.103
 has the evidence.
@@ -5981,9 +5982,11 @@ has the evidence.
 Checked: `check_camera_walls_026g.py` runs update_camera from its start in both exes, a frame a
 call (the game's own orbit code; ray_test a plane or nothing, the performance counter a clock of
 its own): no wall, the original's view and registers bit for bit, one ray; a new orbit with a wall,
-the eye at once in front of it with the original's turn; a wall that comes or goes in an orbit, the
-eye moved by the rates above, and the original's view again once the wall has gone; the first
-person, a spectator and a player without a physics world, the original's. **Not run in a game.**
+the eye at once in front of it with the original's turn; a wall that comes in an orbit, the eye in
+front of it at once; one that goes, the eye out by the rate above, and the original's view again
+once the wall has gone; the first person, a spectator and a player without a physics world, the
+original's. Run in a game (the owner, 2026-11-23, the eased-in version: "almost good", the eye
+briefly behind a wall; in at once since).
 ## Texture streaming's bookkeeping in Rust (patch 137, unreleased)
 
 Two functions the render thread runs every frame took about 8 % of it in the profiles of the owner's live
