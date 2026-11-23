@@ -387,13 +387,31 @@ fn loss_text(cx: &Ctx, start: Reserve, forecast: Cost) -> String {
     )
 }
 
-/// The floor of `way` the body at `feet` is at: the nearest within a few floors of `along` (ahead on the way in, back on the
-/// way out).
+/// How far along the way from its last floor the body is looked for, m: more than a sprint covers between two of the play's
+/// steps (the floors are 0.25 m apart; a window of floors lagged a sprinting body, and the point ahead fell behind it).
+const TRACK_M: f32 = 8.0;
+
+/// The floor of `way` the body at `feet` is at: the nearest within [`TRACK_M`] of `along` along the way (ahead on the way
+/// in, back on the way out).
 fn track(grid: &mapdata::WalkGrid, way: &[NodeId], along: usize, feet: Vec3, out: bool) -> usize {
-    let (lo, hi) = if out { (along.saturating_sub(8), along) } else { (along, (along + 8).min(way.len() - 1)) };
-    (lo..=hi)
-        .min_by(|&a, &b| (grid.position(way[a]) - feet).length().total_cmp(&(grid.position(way[b]) - feet).length()))
-        .unwrap_or(along)
+    let along = along.min(way.len() - 1);
+    let gap = |i: usize| (grid.position(way[i]) - feet).length();
+    let (mut best, mut best_d) = (along, gap(along));
+    let (mut i, mut walked) = (along, 0.0);
+    loop {
+        let next = if out { i.checked_sub(1) } else { (i + 1 < way.len()).then_some(i + 1) };
+        let Some(next) = next else { break };
+        walked += (grid.position(way[next]) - grid.position(way[i])).length();
+        if walked > TRACK_M {
+            break;
+        }
+        i = next;
+        let d = gap(i);
+        if d < best_d {
+            (best, best_d) = (i, d);
+        }
+    }
+    best
 }
 
 /// The point [`AHEAD_M`] along `way` from floor `from`, toward its end (`out`: toward its start).
@@ -454,6 +472,19 @@ pub fn step(take: &mut Take, target: TargetRef, cx: &Ctx) -> Next {
     if mps > 0.0
         && let Some(stall) = take.watch.stalled(cx.now, take.along, along_m, mps)
     {
+        // The stall's trace: the feet, the floor of the way and where the next straight step went.
+        cx.lines.push(
+            Kind::ZoneTake,
+            None,
+            format!(
+                "{PREFIX}zone take battery at {}: {stall}: feet {}, floor {} of {} ({along_m:.1} of {way_m:.1} m), heading for {}",
+                nav_log::at(at),
+                nav_log::at(me),
+                take.along,
+                way.len(),
+                nav_log::at(ahead(grid, &way, take.along, out).1)
+            ),
+        );
         if out {
             let f = forecast_out(cx, core, &way, take.along, 0.0);
             let what = format!("{stall} on the way out: handed to the motor; {}", loss_text(cx, take.start, take.plan.forecast.cost));
