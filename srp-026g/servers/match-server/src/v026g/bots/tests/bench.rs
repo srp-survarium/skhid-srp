@@ -2767,6 +2767,10 @@ pub(crate) fn real_bot_cost() {
                 "kept edges so far: left the floor {left}, the walker's ground under the feet {ground}, no floor under it {held}; the column's floor not the square's {}",
                 crate::v026g::bots::body::kept_edges::column_differs_count()
             );
+            let [climbed, falls, fell_landed, handed, no_climb_in_air] = super::standin_jump::kept_moves::counts();
+            eprintln!(
+                "stand-in kept moves so far: climbs {climbed}, steps in the air over the lattice's walk that climbed nothing {no_climb_in_air}; falls {falls} (landed {fell_landed}, handed back {handed})"
+            );
             let gate = crate::v026g::bots::drive::press_gate::counts();
             eprintln!("jump press gate so far: let through {}, dropped in the air {}, held through a crouch {}", gate[0], gate[1], gate[2]);
             let saved = crate::v026g::bots::stamina::counts::saved_worlds();

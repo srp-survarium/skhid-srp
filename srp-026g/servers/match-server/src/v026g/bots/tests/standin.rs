@@ -1621,7 +1621,7 @@ impl Game {
                             // step, `SRP_BENCH_STAND_IN_KEPT_CLIMB`): the body goes on the floor at the controller's height.
                             if super::standin_jump::stand_in_kept_climb()
                                 && let Some(top) = body.kept.map(|kept| kept.height())
-                                && let Some((up, at)) = super::standin_jump::kept_climb(grid, step.to, top, feet)
+                                && let Some((up, at)) = super::standin_jump::kept_climb(grid, step.to, top, feet, step.airborne)
                             {
                                 super::standin_jump::kept_moves::count(super::standin_jump::kept_moves::Kind::Climbed);
                                 (node, feet) = (up, at);
