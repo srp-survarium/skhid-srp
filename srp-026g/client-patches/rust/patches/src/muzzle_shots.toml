@@ -1,0 +1,11 @@
+# Patch 200: a shot leaves the gun's muzzle, the way the gun looks
+# (muzzle_shots.rs; docs/notes/muzzle-shots.md). Only the decisions: the site
+# and the handler.
+name = "muzzle_shots"
+patch = 200
+
+# instant_fire after its copy of the user's eyes' transform, before the
+# spread: EAX the copy, EBX the weapon
+[[hook]]
+site = "weapon.shot_origin"
+handler = "on_shot"
