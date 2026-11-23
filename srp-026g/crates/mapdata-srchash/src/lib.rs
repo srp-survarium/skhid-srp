@@ -40,6 +40,7 @@ pub const MEMO_SITES: &[(&str, &[&str])] = &[
     ("world", &["Collision::build_exe"]),
     ("rim.line", &["rim_line_job", "rim_line_key", "RimLineOut", "RimLineItem", "RimLineCtx", "Windows::of_floors", "Memo::run"]),
     ("rim.aimed", &["rim_aimed_job", "rim_aimed_key", "RimAimedOut", "RimAimedItem", "RimAimedCtx", "Windows::of_floors", "Memo::run"]),
+    ("gap.flown", &["gap_flown_job", "gap_flown_key", "GapFlownOut", "GapFlownItem", "GapEnd", "GapFlownCtx", "Windows::of_floors", "Memo::run"]),
 ];
 
 /// A 128-bit digest of bytes, eight a word whatever the writes' sizes, the count last. Two lanes of the word mixer

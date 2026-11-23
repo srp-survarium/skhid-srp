@@ -1994,7 +1994,7 @@ impl WalkGrid {
             (OffMeshLinks::None, _) => Vec::new(),
             (OffMeshLinks::Gaps, Some(world)) if body.gap_flights => {
                 let off;
-                (off, thin_tops) = grid.gap_links_flown(&wide, &solids, world, &s, &mut stats.gaps);
+                (off, thin_tops) = grid.gap_links_flown(&wide, &solids, world, &s, &mut stats.gaps, memo);
                 off
             }
             (OffMeshLinks::Gaps, _) => grid.gap_links(&wide, &solids, &mut stats.gaps),
