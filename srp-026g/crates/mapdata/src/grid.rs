@@ -97,6 +97,7 @@ pub mod gap;
 mod gap_flown;
 pub mod held_floors;
 mod line_tops;
+pub mod memo;
 mod rest_floors;
 pub mod timing;
 pub use gap::{Aim, GapStats, GridWay, Mask, OffLink, OffMeshLinks, PressLead, Share, SpeedBand, TakeoffWindow};
