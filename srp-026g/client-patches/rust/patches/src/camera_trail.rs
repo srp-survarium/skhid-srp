@@ -169,7 +169,7 @@ pub fn on_eye(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let rest = rested(aim, lift);
     // What the follow follows: the input's aim alone.
     let (yaw, pitch) = shot::input_aim(player);
-    let control = Look { yaw: turn(yaw % core::f32::consts::TAU), pitch };
+    let control = Look { yaw: wrapped(yaw), pitch };
     let raised = aim_pose::take_aim_progress(thread);
     let most = most(if raised.is_finite() { clamp(raised, 0.0, 1.0) } else { 0.0 });
     let now = clock::milliseconds(thread);
@@ -200,6 +200,13 @@ fn rested(aim: Look, lift: f32) -> Look {
 /// the hip to 1).
 fn most(raised: f32) -> Look {
     Look { yaw: MOST_HIP.yaw + (MOST_AIMED.yaw - MOST_HIP.yaw) * raised, pitch: MOST_HIP.pitch + (MOST_AIMED.pitch - MOST_HIP.pitch) * raised }
+}
+
+/// Any angle as a direction's, in -pi..pi (the player's yaw grows with every
+/// turn; no remainder: the arena has no libm).
+fn wrapped(angle: f32) -> f32 {
+    use core::f32::consts::TAU;
+    if angle.is_finite() { turn(angle - (angle / TAU) as i32 as f32 * TAU) } else { 0.0 }
 }
 
 /// An angle between two directions' angles, in -pi..pi.
@@ -338,6 +345,15 @@ mod tests {
         let over = turning(seam, 60.0 * DEGREE, 30);
         let plain = turning(Rig::on(PlayerId::for_test(1), Look { yaw: 0.0, pitch: 0.0 }, 0), 60.0 * DEGREE, 30);
         assert!((over.off.yaw - plain.off.yaw).abs() < 1e-4, "{:?} {:?}", over.off, plain.off);
+    }
+
+    #[test]
+    fn a_yaw_of_many_turns_is_its_direction() {
+        use core::f32::consts::{PI, TAU};
+        for (angle, direction) in [(0.3, 0.3), (TAU + 0.3, 0.3), (-5.0 * TAU - 0.3, -0.3), (PI + 0.1, -PI + 0.1), (9.0 * TAU + PI + 0.1, -PI + 0.1)] {
+            assert!((wrapped(angle) - direction).abs() < 1e-4, "{angle}: {}", wrapped(angle));
+        }
+        assert_eq!(wrapped(f32::NAN), 0.0);
     }
 
     #[test]
