@@ -275,8 +275,8 @@ mod tests {
     fn a_text_is_its_languages_or_english() {
         assert_eq!(Lang::Uk.t("Home"), "Головна");
         assert_eq!(Lang::En.t("Home"), "Home");
-        // A language whose file lacks it, and a text no file has.
-        assert_eq!(Lang::Fi.t("Home"), "Home");
+        // A text the files lack (none has this one).
+        assert_eq!(Lang::Fi.t("no such text"), "no such text");
         assert_eq!(Lang::Uk.t("no such text"), "no such text");
         // Two meanings of one English text.
         assert_ne!(Lang::Uk.t("Ban"), Lang::Uk.tc("button", "Ban"));
