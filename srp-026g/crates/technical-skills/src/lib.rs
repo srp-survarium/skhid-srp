@@ -52,7 +52,9 @@ pub enum Stack {
 pub enum StackUnits {
     /// Its own (the item's config).
     Own,
-    /// One and a half: two in three of the pocket's units (Toxic Smoke, Bear Trap).
+    /// One and a half: two in three of the pocket's units, at least one (Toxic Smoke's grenade,
+    /// Bear Trap's trap). The RGD-5's two units are its own (its config's `pocket_units` 2), not a
+    /// skill's.
     OneAndHalf,
 }
 
