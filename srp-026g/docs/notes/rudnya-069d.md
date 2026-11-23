@@ -65,7 +65,13 @@ comparison: "the way rudnya is is fine"; not in work):
   its own atmosphere model gives at the map's density; the cause is not found.
 - Outdoor shade is darker than 0.69d's (the sun to ambient balance is about twice 0.69d's).
 - No cloud shadows: 0.69d dims its sun by its clouds' shadows (0.27 to 0.93 as they turn, 0.64
-  on average on Rudnya); 0.26g's own sky shadows exist but were not carried over.
+  on average on Rudnya). They are converted and seen in the game (resource-porter #87, #88,
+  drafts) but wait for 0.69d's sky brightness: with them alone the ground of wide views under a
+  cloud went darker than today, the exposure held by 0.26g's sky (about 1.5 times 0.69d's).
+- Pack @6 (after the tester's reports of 2026-11-22): each fill light draws 0.69d's own facing
+  term (its `dot_normal` cutoff and power, carried in its `attenuation_power` for
+  `three-maps-021-lighting@13`'s 8 `ambient_light.ps` programs), so a wall turned from a fill
+  light's centre is lit as in 0.69d (the bus stop's slab wall had nothing, 2.4 of 0.69d's 27).
 - Spawns (team deathmatch): 0.69d's team-deathmatch points as they are, 405 (team 0: 313,
   team 1: 92); each point's own check radii; their invulnerability time 6 s as the rest of the
   map (maps.tsv; 0.69d's 3 s until then). The owner may revisit it: these are free spawns, up to

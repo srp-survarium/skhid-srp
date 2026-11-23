@@ -100,7 +100,8 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
   - probes: the donor's own volumes, cubes and SH with their `multiplier` and full
     rotation, the largest also as the map-wide sphere;
   - ambient lights: 0.26g's own ambient lights (an intensity above 1 adds light; the colour
-    is packed with red in the low byte), with the donor's falloff and facing fitted;
+    is packed with red in the low byte), with the donor's falloff fitted and its facing term
+    (cutoff, power) carried exactly in `attenuation_power` for the lighting pack's programs;
   - exposure, grading and tone curve: the donor's, as an exposure profile of the lighting
     pack (`three-maps-021-lighting`, its `exposure_profiles` row with the numbers the
     build's "tone:" note prints; the scene's `mie_fog_base_height` is the marker) and the
