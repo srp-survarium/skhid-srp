@@ -1,0 +1,8 @@
+# Patch 196: mt_draw does not tick the animation player of a not alive player that has no
+# animation tree (draw_no_tree.rs; the site is sites_026g.tsv's).
+name = "draw_no_tree"
+patch = 196
+
+[[hook]]
+site = "player_draw.dead_tick"
+handler = "on_dead_tick"

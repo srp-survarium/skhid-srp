@@ -94,6 +94,8 @@ pub mod shot_protection;
 pub mod grenade_icons;
 pub mod footsteps;
 pub mod zone_guards;
+// patch 196: a player drawn before his first spawn is not ticked with no animation tree
+pub mod draw_no_tree;
 // patch 153: a step on a walker-only floor finds its ground
 pub mod step_ground;
 

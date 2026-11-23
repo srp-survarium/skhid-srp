@@ -330,6 +330,13 @@ pub(in crate::vostok) unsafe fn held_battery(player: raw::Player) -> Option<raw:
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PlayerId(u32);
 
+impl PlayerId {
+    /// Its address, for the log.
+    pub fn address(self) -> u32 {
+        self.0
+    }
+}
+
 #[cfg(test)]
 impl PlayerId {
     /// A made-up player's, for a patch's host tests.

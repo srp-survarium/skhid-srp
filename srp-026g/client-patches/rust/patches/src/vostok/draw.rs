@@ -165,3 +165,45 @@ impl<'t> DrawnBones<'t> {
         post_headwear(&self.player, &matrices, extra)
     }
 }
+
+/// A not alive player mt_draw is about to tick (at `player_draw.dead_tick`): its animation player
+/// has a tree, or none (a place's player never spawned: the constructor's time -1, so the tick's
+/// time test passes, and animation_player::tick reads the tree it does not have).
+pub enum DeadTick {
+    Animated,
+    NoTree(Unanimated),
+}
+
+/// A not alive player with no animation tree, as the log line says it.
+#[derive(Clone, Copy)]
+pub struct Unanimated {
+    pub id: super::world::PlayerId,
+    pub place: u8,
+    pub kit: u8,
+    /// Its simulation time (+324h): -1 when it never spawned nor was loaded.
+    pub time: u32,
+    /// Its life's spawn time (+328h).
+    pub spawned: u32,
+    pub inserted: bool,
+}
+
+impl DeadTick {
+    pub fn at(ctx: &Context<'_>) -> DeadTick {
+        // SAFETY: the context is this site's: the player mt_draw draws (EBX), alive while it
+        // does, on its thread; its tree pointer, kit and time are its own fields.
+        let player = Player::of(ctx, unsafe { raw::site::player_draw_dead_tick::player(ctx) })
+            .expect("mt_draw's player (EBX)");
+        if unsafe { player.this.animation_tree() }.is_some() {
+            return DeadTick::Animated;
+        }
+        DeadTick::NoTree(Unanimated {
+            id: player.id(),
+            place: player.place(),
+            // SAFETY: as above.
+            kit: unsafe { read(player.this.kit()) },
+            time: unsafe { read(player.this.time()) },
+            spawned: player.spawned(),
+            inserted: player.inserted(),
+        })
+    }
+}
