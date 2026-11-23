@@ -275,7 +275,14 @@ pub enum Mode<'a> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Fresh {
     /// Never in hands here (a late join's, a resync's cook): set_user and
-    /// initialize, as a switch would before its activate.
+    /// initialize, as a switch would before its activate (initialize reads
+    /// the user, 0x2E2B88), then the user cleared as the holster's
+    /// deactivate(1) leaves it ([`holstered`]): the reader set_users the
+    /// held object itself (0x2DB67B) before the inventory. A gun's state
+    /// past its first fields is read only while it has a user (0x2E35B1),
+    /// and every game writes a holstered pick without one: a user left set
+    /// read a holstered pick's bytes on into the next item's (the reports of
+    /// 2026-11-18 and 2026-11-20, body_part_parameters' affects_count assert).
     Yes,
     /// Already in hands here (a rollback re-installs it): no weapon call of
     /// ours. The game's reader set_users it and activates it once the
@@ -283,7 +290,8 @@ pub enum Fresh {
     /// as for any gun of its own; it never initializes one. (83Lb41 also
     /// set_user'd and initialized it, resetting its logic to the initial
     /// state and entering it, outside any switch: the crashes all followed
-    /// such a re-install.)
+    /// such a re-install.) One not held now has its user cleared
+    /// ([`holstered`]), as every game's holstered pick has none.
     No,
 }
 
@@ -836,11 +844,39 @@ fn place(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponSlot, i
             Mode::Load(Fresh::Yes) => {
                 raw::engine_weapon_set_user(Some(gun), Some(p));
                 raw::engine_weapon_initialize(Some(gun));
+                holstered(w);
             }
+            // Not in hands here: whatever user it kept is no holster's (a
+            // pick fresh-installed before this one and put away at a removal
+            // without a deactivate, the 2026-11-16 18:11 report's resync).
+            Mode::Load(Fresh::No) if held != Some(gun) => holstered(w),
             Mode::Load(Fresh::No) => {}
         }
         Ok(Installed { cook, own, slot, own_gun: ItemId::of(own_gun), own_wear: Wear::of(read(own_item.condition())),
                        gun: ItemId::of(gun), moved, saved, cooked: cooked_binding, id })
+    }
+}
+
+/// `w`'s user cleared as weapon_core::deactivate's flag 1 clears it
+/// (0x2E2EAC..0x2E2EE0, the native holster): its dispersion's two views of
+/// the user, its callback nodes' user and its own (+8h). What set_user gave
+/// its user animations and +594h, +598h stay, as they do there. Nothing else
+/// of deactivate runs: the gun was never activated (no event channel of it
+/// in the animation player, no model of it shown).
+///
+/// # Safety
+/// `w` is a live weapon, on the game's thread.
+unsafe fn holstered(w: raw::Weapon) {
+    unsafe {
+        *w.dispersion_user() = 0;
+        *w.dispersion_user_state() = 0;
+        w.set_callbacks_user(None);
+        let mut node = w.callbacks();
+        while let Some(n) = node {
+            n.set_user(None);
+            node = n.next();
+        }
+        w.set_user(None);
     }
 }
 

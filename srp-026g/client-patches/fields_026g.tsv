@@ -1413,6 +1413,12 @@ survarium::weapon	melee_data	0x53C	u32	the gun-stock hit's bullet data (melee/da
 survarium::weapon	melee_distance	0x578	f32	melee/data/distance (1.7 m): the gun-stock bullet's speed, the eye's forward times it (0x33AB9B)
 survarium::victory_item_core	user_animations	0x1AC	ptr<survarium::user_animations>	its carrier's clip set (gameplay/victory_items/default.user_animations), ticked with it (victory_item_core::tick 0x301250); +20h its posture now (selected_animations 0x3012C1)
 survarium::weapon	user	0x8	ptr<survarium::player>	its user (weapon_core::set_user 0x2E2996); 0 once deactivated (0x2E2EE0), as a gun is while its player carries a battery; the bullet's constructor reads it through the gun's vtable +7Ch (0x2E43A0) and melee damage (0x2E1CFD)
+survarium::weapon	dispersion_user	0x3FC	u32	the dispersion calculator's (+3F8h) view of its user, user+1F8h (weapon_core::set_user 0x2E29C5; 0 with none); 0 once deactivated (weapon_core::deactivate's flag 1, 0x2E2EAC)
+survarium::weapon	dispersion_user_state	0x400	u32	its second view, user+234h (set_user 0x2E29D1; 0 with none); 0 once deactivated (0x2E2EB2)
+survarium::weapon	callbacks	0x290	ptr<survarium::weapon_callback>	its animation callback nodes' list (set_user 0x2E29F9, deactivate 0x2E2EB8): each node's +1Ch is +2C4h
+survarium::weapon	callbacks_user	0x2C4	ptr<survarium::player>	the user its callback nodes get (set_user 0x2E29F3); 0 once deactivated (0x2E2EBE)
+survarium::weapon_callback	next	0x4	ptr<survarium::weapon_callback>	the list's next node (set_user 0x2E2A0C, deactivate 0x2E2ED9)
+survarium::weapon_callback	user	0x1C	ptr<survarium::player>	the weapon's user as the node has it, its +2C4h (set_user 0x2E2A09, deactivate 0x2E2ED6)
 survarium::reload_state	weapon	0x120	ptr<survarium::weapon>	a reload state's weapon: the four reload states' get_weapon_lexeme read modifier 13 on its user's kit, [[+120h]+8] (0x30E23D, 0x30F600, 0x30FEEA, 0x3110B8)
 survarium::weapon	user_animations	0x278	ptr<survarium::user_animations>	its clip set (weapon_core 0x30AAE1); +20h its posture now, 0 while the gun is deactivated; read by the shot's stance (vtable +7Ch, 0x2E43B0)
 survarium::user_animations	posture	0x20	ptr<survarium::posture_state>	the posture state now of its machine (+10h the list's count, +18h its head): 0x2E43B6, 0x301450; 0 for a deactivated gun's

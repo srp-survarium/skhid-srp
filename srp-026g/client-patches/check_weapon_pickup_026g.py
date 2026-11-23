@@ -620,10 +620,33 @@ class Pick(Run):
         else:
             name = {DEACTIVATE: "deactivate", SET_USER: "set_user", ACTIVATE: "activate"}[address]
             self.native.append((name, ecx, arg(1)))
+            if address == SET_USER or (address == DEACTIVATE and arg(1)):
+                # The user and its views, as weapon_core::set_user writes them (0x2E2990) and
+                # deactivate(1) clears them (0x2E2EAC..0x2E2EE0).
+                self.user_fields(ecx, arg(1) if address == SET_USER else 0)
             if address == DEACTIVATE:
                 # Where the gun is when it is put away: its owner inventory and slot (item +250h, +254h).
                 self.put_away.append((ecx, self.read(ecx + 0x10 + 0x250), self.read(ecx + 0x10 + 0x254)))
             self.ret(4)
+
+    def user_fields(self, gun, user):
+        """+8h the user, +3FCh/+400h its views (user+1F8h, +234h), +2C4h and each +290h node's +1Ch."""
+        self.word(gun + 8, user)
+        self.word(gun + 0x3FC, user and user + 0x1F8)
+        self.word(gun + 0x400, user and user + 0x234)
+        self.word(gun + 0x2C4, user)
+        node = self.read(gun + 0x290)
+        while node:
+            self.word(node + 0x1C, user)
+            node = self.read(node + 4)
+
+    def user_of(self, gun):
+        """What of a user the gun holds: +8h, +3FCh, +400h, +2C4h, then its nodes' +1Ch."""
+        nodes, node = [], self.read(gun + 0x290)
+        while node:
+            nodes.append(self.read(node + 0x1C))
+            node = self.read(node + 4)
+        return [self.read(gun + o) for o in (8, 0x3FC, 0x400, 0x2C4)] + nodes
 
     def configs(self, emu, address, *_):
         """EAX the table, EDI (child) or ESI (has) the key."""
@@ -669,6 +692,10 @@ class Pick(Run):
         self.emu.mem_write(gun + 0x5E4, bytes([CAPACITY, loaded]))
         self.emu.mem_write(gun + 0x5E9, bytes([double_handed]))
         self.emu.mem_write(gun + 0x5F0, bytes([1, chamber, 0, 0, 1]))
+        # Two animation callback nodes (+290h, each +4h the next): set_user gives each the user.
+        first, second = self.blk(0x20), self.blk(0x20)
+        self.word(gun + 0x290, first)
+        self.word(first + 4, second)
         return gun
 
     def stack(self, count):
@@ -1076,6 +1103,7 @@ def late_join(patched):
 
 PLAYER_MADE_SITE, PLAYER_MADE_AFTER = 0x202DD0, 0x202DD6
 WORLD_LOAD_SITE, WORLD_LOAD_AFTER = 0x27C0D0, 0x27C0D9      # world_load.unpacked, before the load call
+WORLD_LOAD_REFUSED = 0x27C1E0                               # its exit for a world not loaded: the epilogue
 GET_ACTIVE_PLAYER = 0x27A9C0
 
 
@@ -1141,7 +1169,9 @@ def load_world(r, world):
     for off, value in ((-0x24, 0), (-0x20, at), (-0x1C, 0x8000), (-0x18, len(world))):
         r.word(frame + off, value)
     r.lohook(WORLD_LOAD_SITE, WORLD_LOAD_AFTER, {UC_X86_REG_EDI: CLIENT, UC_X86_REG_EBP: frame, UC_X86_REG_ESI: at,
-                                                 UC_X86_REG_EDX: len(world), UC_X86_REG_ECX: CORE})
+                                                 UC_X86_REG_EDX: len(world), UC_X86_REG_ECX: CORE},
+             stops=(WORLD_LOAD_AFTER, WORLD_LOAD_REFUSED))
+    return r.stopped == WORLD_LOAD_AFTER
 
 
 def late_join_after_player_made(patched):
@@ -1183,7 +1213,7 @@ def late_join_after_player_made(patched):
 
     # The 0xE8: cooked before the load, then read with no cook and no wait.
     r, cooked, gun = joiner()
-    load_world(r, world_with({3: b"\0\0" + loaded}))
+    assert load_world(r, world_with({3: b"\0\0" + loaded})), ("the world loaded", r.log)
     assert len(r.queries) == 1, ("one cook before the load", r.log)
     assert any("a world to load names the gun of place 6 kit 1 slot 10, which this client has no idle copy of" in l
                for l in r.log), r.log
@@ -1193,19 +1223,34 @@ def late_join_after_player_made(patched):
     assert r.queries == [] and r.slot(r.inventory, 10) == gun + 0x10, r.log
     assert r.slot(cooked, 10) == r.own_gun + 0x10
     assert r.native == [("set_user", gun, r.picker), ("initialize", gun)], ("a fresh cook: set_user + initialize", r.native)
+    # Then the user cleared as the holster's deactivate(1) leaves it: a gun's state past its first
+    # fields is read only with a user (0x2E35B1), and every game writes a holstered pick without one
+    # (the 2026-11-18 and 11-20 reports: slot 8's stack read as slot 7's in-hand fields). The reader
+    # set_users the held object itself (0x2DB67B).
+    assert r.user_of(gun) == [0] * 6, ("a fresh pick holstered", [hex(v) for v in r.user_of(gun)])
     assert not any("NOT installed" in l for l in r.log), r.log
     assert r.save(r.picker) == loaded, "the state matches the record"
     # A world whose records name only guns this client has: nothing cooked.
     r.queries = []
-    load_world(r, world_with({3: b"\0\0" + loaded}))
+    assert load_world(r, world_with({3: b"\0\0" + loaded}))
     assert r.queries == [], r.log
+    # Its removal (a respawn) puts it away while another is held: no deactivate, so a user it had
+    # stays; a resync's record naming it again re-installs it with no weapon call, and a gun not
+    # held then has its user cleared (the 2026-11-16 18:11 report: the stale user of a fresh install).
+    r.user_fields(gun, r.picker)
+    r.remove(r.picker)
+    assert r.user_of(gun)[0] == r.picker
+    r.load(r.picker, loaded)
+    assert r.slot(r.inventory, 10) == gun + 0x10 and r.native == [], (r.native, r.log)
+    assert r.user_of(gun) == [0] * 6, ("a re-installed pick not held holstered", [hex(v) for v in r.user_of(gun)])
     # Several guns named, none made in time: one deadline for them all (2 s from the first wait, each look of
     # the clock a quarter of a second), each logged loudly; the reader then waits for its own (refused here).
     r, cooked, gun = joiner()
     r.on_dispatch = None
     r.roster[7] = PLAYER
     several = record(slot7=(DIED + 800, 7, KIT, 1), slot10=pick)
-    load_world(r, world_with({3: b"\0\0" + several}))
+    world = world_with({3: b"\0\0" + several})
+    assert not load_world(r, world), ("a world naming guns not made is not loaded", r.log)
     assert len(r.queries) == 2, r.log
     import re
     waits = [int(m.group(1)) for l in r.log for m in [re.search(r"waited for the gun of place \d+ kit 1 slot 10: "
@@ -1215,8 +1260,16 @@ def late_join_after_player_made(patched):
     assert len(waits) == 2 and waits[0] >= 2000 and held_for <= 2.5, ("one deadline for all", waits, r.log)
     assert sum("NOT made before the world's load: the gun of place" in l and "not made in time" in l
                for l in r.log) == 2, r.log
+    assert any("the world is not loaded, a new one is asked for" in l for l in r.log), r.log
+    # The cooks go on and are made by the next world, which loads with them: nothing asked again.
+    for query in r.queries:
+        r.complete(query, r.cooked_gun()[0])
+    r.queries = []
+    assert load_world(r, world), ("the next world loads once its guns are made", r.log)
+    assert r.queries == [], ("the copies of the world not loaded are kept", r.log)
     print("ok several guns named and none made: one deadline for the 0xE8 handler (%.2f s waited in all, not 2 s "
-          "a gun), each logged NOT made before the load" % held_for)
+          "a gun), each logged NOT made, the world not loaded; the next world, its guns made, loads with no "
+          "cook" % held_for)
     print("ok a late join's first world with its players made this frame (player_cook.ready): the gun a record "
           "names that this client never cooked is cooked at the 0xE8 handler before the load, the reader installs "
           "it with no wait (fresh: set_user + initialize), the state saved is the record; a world naming only kept "
@@ -1427,7 +1480,7 @@ def no_cook_in_a_tick(patched):
     cooked, gun, _ = j.cooked_gun()
     j.on_dispatch, j.queries = cooked, []
     opened = record(drop=("open", 1, A_GUN))
-    load_world(j, world_with({PLACE: b"\0\0" + opened}))
+    assert load_world(j, world_with({PLACE: b"\0\0" + opened})), j.log
     assert len(j.queries) == 1 and any("a world to load has the open drop" in l for l in j.log), j.log
     j.load(PLAYER, opened)
     j.queries = []
@@ -1519,7 +1572,7 @@ def a_departed_donors_gun_is_cooked(patched):
     cooked, gun, _ = j.cooked_gun()
     j.on_dispatch, j.queries = cooked, []
     in_world, j.roster = j.roster, {}
-    load_world(j, world_with({3: b"\0\0" + loaded}))
+    assert load_world(j, world_with({3: b"\0\0" + loaded})), j.log
     j.roster = in_world
     assert len(j.queries) == 1, ("the departed place's gun cooked before the load", j.log)
     j.load(j.picker, loaded)
@@ -1585,7 +1638,7 @@ def an_open_drops_gun_is_not_idle(patched):
     d_open = record(drop=("open", 1, A_GUN))
     cooked, gun, _ = j.cooked_gun()
     j.on_dispatch, j.queries = cooked, []
-    load_world(j, world_with({3: b"\0\0" + a_holds, PLACE: b"\0\0" + d_open}))
+    assert load_world(j, world_with({3: b"\0\0" + a_holds, PLACE: b"\0\0" + d_open})), j.log
     assert len(j.queries) == 1, ("another copy cooked for A's pick before the load", j.log)
     j.load(j.picker, a_holds)
     j.reader(PICK_ID)
@@ -2959,7 +3012,7 @@ def join(patched, at, states, order=(3, 4, 5)):
     players = {3: b.p, 4: c.p, 5: PLAYER}
     guns = [r.dressed_gun() for _ in range(4)]
     r.queue(*[cooked for cooked, _, _ in guns])
-    load_world(r, world_with({place: b"\0\0" + rec for place, rec in states.items()}))
+    assert load_world(r, world_with({place: b"\0\0" + rec for place, rec in states.items()})), r.log
     asked = len(r.queries)
     r.queries = []
     for place in order:

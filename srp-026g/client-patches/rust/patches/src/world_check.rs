@@ -9,6 +9,7 @@ use srp_validate::{world, Part, Refusal, MAX_PLAYERS};
 use crate::vostok::breadcrumbs::{self, Crumb, Reading};
 use crate::vostok::log::{refusal as log_refusal, Piece};
 use crate::vostok::{Context, Flow, Thread, WorldCheckOnRawExit, WorldCheckOnUnpackedExit, WorldLoad};
+use crate::weapon_pickup::Prepared;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Match {
@@ -102,18 +103,21 @@ fn check(thread: &Thread, load: Option<WorldLoad<'_>>) -> bool {
     let hunt = crate::artefact_hunt::params(thread);
     let parsed = parse(load.state(), load.match_context(), hunt.as_ref());
     let state = load.state();
+    breadcrumbs::reading(load.thread(), Reading::World);
+    // Patch 85: a world whose records name a gun not made here is not loaded either.
+    let verdict = parsed.map(|frame| crate::weapon_pickup::before_world_load(&load, frame.native()));
     breadcrumbs::record(load.thread(), Crumb::World {
         time: state.get(..4).map_or(0, |t| u32::from_le_bytes([t[0], t[1], t[2], t[3]])),
         bytes: state.len() as u32,
         packed: load.packed(),
         local: load.network_client().local_profile(),
-        loaded: parsed.is_ok(),
+        loaded: verdict == Ok(Prepared::Ready),
     });
-    breadcrumbs::reading(load.thread(), Reading::World);
-    match parsed {
-        Ok(frame) => {
-            crate::weapon_pickup::before_world_load(&load, frame.native());
-            true
+    match verdict {
+        Ok(Prepared::Ready) => true,
+        Ok(Prepared::NotReady) => {
+            load.discard();
+            false
         }
         Err(error) => {
             let len = load.state().len();
