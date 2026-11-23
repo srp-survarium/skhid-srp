@@ -120,16 +120,20 @@ the frame's draw, CPU    3.4 .. 4.8       3.0 .. 3.6   2.8 .. 3.4   3.3 .. 3.7  
   the mouse sensitivity, which scales with it, is today's for the same optic.
 - **The lens's place** is the aimed model's glass on the frame's screen, each frame: of that model's
   surface records (behind the pointer at +298h of a static instance; at +62D4h of a skeleton one) the
-  smallest bound sphere (world space, +10h) of 8 mm to 25 cm of radius that the frame's view axis
-  passes through: the glass (`scope_lense_1p_s`, a flat disc), not the reticle's plane (larger), the
-  red dot (smaller) or the eyepiece's body. Its centre and radius projected with the frame's own view
-  and projection (`second_view::lens_on_screen`, at `forward.execute_foreground`). The glass sits
-  in the real optic's eyepiece (the Leupold 3-7's 1p glass: 18.6 mm of radius, 90 mm from the eye at
-  full aim, its idle model's rear glass 20 mm and 5 mm further), so the disc is the eyepiece's
-  opening. A record's sphere is placed by the renderer a frame or two after the model enters the
-  scene (before, it holds FLT_MAX): no lens those frames. **An aimed model with no such glass in 30
-  frames of an aim is refused**: today's scope for that optic for the rest of the run, one log line.
-  An aimed model of another class than static or skeleton: today's scope, one log line.
+  one whose render surface has 61 vertices and 180 indices (+10h, +14h of a static render surface):
+  every 0.69 optic's `scope_lense_1p_s` is a fan of 60 triangles about its centre (the pack's
+  meshes, the ten rifle scopes), and no reticle, red dot or body of theirs has those counts. The
+  record's bound sphere (world space, +10h; a flat disc's, so its radius the disc's) projected with
+  the frame's own view and projection (`second_view::lens_on_screen`, at
+  `forward.execute_foreground`) is the disc. A first rule, the smallest sphere of at least 8 mm on
+  the eye's axis, took the PSO-1's reticle (10 mm) for its glass (18 mm): seen headless. The glass
+  sits in the real optic's eyepiece (the Hyperon's: 18.6 mm of radius, 90 mm from the eye at full
+  aim; the PSO-1's 18 mm at 67 mm, inside its long eyecup), so the disc is the eyepiece's opening. A
+  record's sphere is placed by the renderer a frame or two after the model enters the scene (before,
+  it holds FLT_MAX): no lens those frames. **An aimed model with no such glass placed in 30 frames of
+  an aim is refused**: today's scope for that optic for the rest of the run, one log line naming it
+  (the log's surface lines give each surface's counts). An aimed model of another class than static
+  or skeleton: today's scope, one log line.
 - **The second view's camera is the aim itself**, the eyes' transform (the player's +44Ch, bone
   Item), read at update_camera, not the frame's camera: a bullet takes its start and its direction
   from it (weapon_core::instant_fire copies its 16 dwords at 0x2E2440..0x2E2453 and hands them to
@@ -253,8 +257,20 @@ screen-wide, showing the scope's own insides.** Causes, each PROVEN headless:
 The owner then asked why it has to be "a transition from one fake gun to another": the design
 changed to no swap (section 3).
 
-**The frame rate while a magnified optic was held (rounds 1 and 2):** 13.3 ms a frame against 5.3,
-whether the second view drew or not; the owner's display runs at 74.96 Hz (niri, HDMI-A-1), so
-those frames waited for the display. Not reproduced headless (an X11 dummy display, its presentation
-the rig's limit). The timing line's `present` and `game thread` (section 6) say where the wait is in
-the next round.
+**The frame rate while a magnified optic was held (rounds 1 and 2):** 13.3 ms a frame against 5.3;
+the owner's display runs at 74.96 Hz (niri, HDMI-A-1), so those frames waited for the display. Found
+headless (an X11 dummy display whose Present itself waits for its display, so every run there is at
+about that rate; the timing lines of section 6 say where each frame waits):
+
+
+
+- Every renderer::render ends, after its Present, with a wait for the GPU to finish its draw
+  (r_gpu_sync, a console byte at 0xA71BF7, on by default: event_query::wait 0x3CF4B0 at 0x13DE1F).
+  The second view's draw is a renderer::render too: its wait made a second CPU-GPU sync each frame,
+  and in the rig the frame's wait for the display moved there (the frame's Present stopped waiting,
+  the second view's tail took the 10 ms). The game's thread and our own hook wait for nothing
+  (2 microseconds a frame in the hook; the logic's own 10 ms sleep, game+4E38h, never on).
+- **Fixed:** the second view's draw turns r_gpu_sync off and puts it back at its end
+  (`render.unmove`); the frame's own draw keeps its wait, so a frame ends synchronised as today
+  (r_gpu_sync 0 is a setting the engine supports). Headless, the wait is the frame's Present's again
+  with the lens. Whether this was all of the owner's 75 Hz is for the next play test's timing lines.
