@@ -18,11 +18,19 @@ PACKS = {'maps-021d-weathers-2': {'03': (170, 171, 172, 173), '06': (179, 180, 2
          'maps-021d-chemical-weathers-3': {'04': (268, 269, 270, 271)}}
 MAPS = {level: ids for maps in PACKS.values() for level, ids in maps.items()}
 DAY_MARKERS = (-32281, -32195, -32198, -32187, -32196, -32287)
-LIGHTING_PACK = 'three-maps-021-lighting-9'
+LIGHTING_PACK = 'three-maps-021-lighting'
+
+
+def listed(ident):
+    """The folder name of the version of pack `ident` that release/content.tsv lists."""
+    versions = [row.split('\t')[1].split('@')[1] for row in (ROOT / 'release/content.tsv').read_text().splitlines()
+                if row.startswith(f'pack\t{ident}@')]
+    assert len(versions) == 1, f'{ident}: {len(versions)} rows in release/content.tsv'
+    return f'{ident}-{versions[0]}'
 
 
 def check(packs, source):
-    lighting = packs / LIGHTING_PACK
+    lighting = packs / listed(LIGHTING_PACK)
     weathers = [packs / name for name in PACKS]
     for folder in (*weathers, lighting):
         manifest = folder / 'pack.json'
