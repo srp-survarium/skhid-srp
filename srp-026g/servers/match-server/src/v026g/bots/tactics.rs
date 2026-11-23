@@ -1787,6 +1787,23 @@ impl Tactics {
         objective: bool,
         max: usize,
     ) -> bool {
+        self.ringed_for(from, time, side, objective, max, |_| true)
+    }
+
+    /// [no-way crossing] [`Self::ringed`] for a body that takes no link onto a floor `open` shuts (the landings of the jumps
+    /// and drops it gave up, the team's dead links: `RouteFilter::hard_open`): such a link is no way out of the patch, nor
+    /// its wall. Mamayev Kurgan's pit: its ways out of the fire's ring are gap jumps the client does not make from rest; with
+    /// them shut the body is ringed, with them open it is not.
+    #[allow(clippy::too_many_arguments)]
+    pub fn ringed_for(
+        &self,
+        from: NodeId,
+        time: u32,
+        side: Option<i32>,
+        objective: bool,
+        max: usize,
+        open: impl Fn(NodeId) -> bool,
+    ) -> bool {
         let grid = &self.world.grid;
         let at = grid.position(from);
         let mut seen = std::collections::HashSet::from([from]);
@@ -1794,7 +1811,7 @@ impl Tactics {
         let mut walled = false;
         while let Some(n) = queue.pop() {
             for (b, _) in grid.links(n) {
-                if seen.contains(&b) {
+                if seen.contains(&b) || !open(b) {
                     continue;
                 }
                 if self.allowed_from(b, time, side, objective, at) {

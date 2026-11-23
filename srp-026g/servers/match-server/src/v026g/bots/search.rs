@@ -599,8 +599,15 @@ impl Bots {
             .get(pending.place)
             .and_then(|bot| bot.as_ref())
             .is_some_and(|bot| long_kept(bot.features.crossing.long_kept, pending.goal, time));
-        // [no-way crossing] A crossing taken for a no-way its shut landings may make (`crossing::wanted_past_shuts`).
+        // [no-way crossing] A crossing taken for a no-way its shut landings may make (`crossing::wanted_past_shuts`), or one
+        // asked that took nothing.
         let mut past_shuts_taken = false;
+        let mut past_shuts_nothing = false;
+        let held_off = self
+            .bots
+            .get(pending.place)
+            .and_then(|bot| bot.as_ref())
+            .is_some_and(|bot| crossing::past_shuts_held_off(&bot.features.crossing, time));
         if let Some(second) = pending.second.take() {
             #[cfg(test)]
             if second.past_shuts && route.is_some() {
@@ -618,6 +625,7 @@ impl Bots {
                 objective,
             );
             past_shuts_taken = past_shuts && route.is_some();
+            past_shuts_nothing = past_shuts && route.is_none();
         } else {
             // None round the spots it got stuck at: through them.
             if route.is_none() && filter.has_soft() {
@@ -641,7 +649,7 @@ impl Bots {
                     from_zone = from_zone_on && crossing::wanted_from_zone(tactics, route.as_ref(), from, to);
                     from_zone
                 } || {
-                    past_shuts = crossing::wanted_past_shuts(tactics, route.as_ref(), from, to, !filter.landings().is_empty());
+                    past_shuts = crossing::wanted_past_shuts(tactics, route.as_ref(), from, to, time, side, objective, &filter, held_off);
                     past_shuts
                 })
             {
@@ -674,6 +682,7 @@ impl Bots {
                             objective,
                         );
                         past_shuts_taken = past_shuts && route.is_some();
+                        past_shuts_nothing = past_shuts && route.is_none();
                     }
                     Err(planning) => {
                         pending.planning = planning;
@@ -706,6 +715,9 @@ impl Bots {
             }
             if let Some(line) = crossing_line.take() {
                 bot.nav_log.push(super::nav_log::Kind::Route, time, line);
+            }
+            if past_shuts_nothing {
+                crossing::past_shuts_took_nothing(&mut bot.features.crossing, time);
             }
             if past_shuts_taken && let Some(taken) = route.as_ref() {
                 let from_at = tactics.world.grid.position(from);

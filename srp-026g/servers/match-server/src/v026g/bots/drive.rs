@@ -1929,7 +1929,8 @@ fn drive_tick_inner(
                             && crossing::wanted_from_zone(tactics, route.as_ref(), from, to);
                         from_zone
                     } || {
-                        past_shuts = crossing::wanted_past_shuts(tactics, route.as_ref(), from, to, !hard.landings().is_empty());
+                        let held_off = crossing::past_shuts_held_off(&bot.features.crossing, time);
+                        past_shuts = crossing::wanted_past_shuts(tactics, route.as_ref(), from, to, time, side, objective, &hard, held_off);
                         past_shuts
                     })
                 {
@@ -1968,6 +1969,9 @@ fn drive_tick_inner(
                             }
                             if let Some(line) = line {
                                 bot.nav_log.push(super::nav_log::Kind::Route, time, line);
+                            }
+                            if past_shuts && route.is_none() {
+                                crossing::past_shuts_took_nothing(&mut bot.features.crossing, time);
                             }
                             if past_shuts && let Some(taken) = route.as_ref() {
                                 let held = hard.landings().len();

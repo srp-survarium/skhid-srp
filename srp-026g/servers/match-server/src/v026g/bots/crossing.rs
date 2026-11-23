@@ -221,11 +221,50 @@ pub fn wanted_from_zone(tactics: &Tactics, plain: Option<&Route>, from: NodeId, 
 /// ways out jumps the client does not make from rest. Its bodies stood 24-83 s after their first proven no-way, until a
 /// zone band exit happened to walk them out over the zone's floors. The crossing's own rules then decide ([`choose`]: the
 /// start gate on the pools it takes and `bears`, else the walk out of the ring only, else none).
-pub fn wanted_past_shuts(tactics: &Tactics, plain: Option<&Route>, from: NodeId, to: NodeId, held: bool) -> bool {
-    plain.is_none()
-        && held
+///
+/// Only for a body ringed for itself ([`Tactics::ringed_for`] with `hard`'s shuts: at most [`RING_M2`] of floors, walled
+/// by zones on all match): asked for every no-way with a shut held, it cost the bench a third more floors searched (the
+/// gate of 2026-11-23: 849 asks, 531 of them on Vostok Radar Station's batteries, none found there), for 61 crossings
+/// taken. And not while `held_off` (an ask that took nothing, [`past_shuts_held_off`]).
+#[allow(clippy::too_many_arguments)]
+pub fn wanted_past_shuts(
+    tactics: &Tactics,
+    plain: Option<&Route>,
+    from: NodeId,
+    to: NodeId,
+    time: u32,
+    side: Option<i32>,
+    objective: bool,
+    hard: &RouteFilter,
+    held_off: bool,
+) -> bool {
+    let grid = &tactics.world.grid;
+    let asked = plain.is_none()
+        && !held_off
+        && !hard.landings().is_empty()
         && tactics.hazards.zones.iter().any(|zone| !zone.switches())
-        && tactics.world.grid.may_reach(from, to)
+        && grid.may_reach(from, to);
+    if !asked {
+        return false;
+    }
+    let ringed = tactics.ringed_for(from, time, side, objective, ring_floors(), |n| hard.hard_open(grid, n));
+    #[cfg(test)]
+    if !ringed {
+        past_shuts::count(past_shuts::NOT_RINGED);
+    }
+    ringed
+}
+
+/// [no-way crossing] Whether [`wanted_past_shuts`]'s asks are held off in `state` at `time` (an ask that took nothing,
+/// [`past_shuts_took_nothing`]).
+pub fn past_shuts_held_off(state: &BotState, time: u32) -> bool {
+    state.past_shuts_held_off.is_some_and(|until| time < until)
+}
+
+/// [no-way crossing] An ask of [`wanted_past_shuts`] took nothing at `time` (no crossing found, or none borne): none again for
+/// [`LONG_RETRY_MS`], the long crossing's own pause.
+pub fn past_shuts_took_nothing(state: &mut BotState, time: u32) {
+    state.past_shuts_held_off = Some(time + LONG_RETRY_MS);
 }
 
 /// [no-way crossing] A crossing route `route` to `goal` taken by [`wanted_past_shuts`]'s search for a body of `health` at
@@ -263,7 +302,8 @@ pub fn past_shuts_ended(state: &mut BotState, route_goal: Option<Vec3>, health: 
     ))
 }
 
-/// [no-way crossing] The bench's counts of [`wanted_past_shuts`]'s crossings: asked, found, taken, ended.
+/// [no-way crossing] The bench's counts of [`wanted_past_shuts`]'s crossings: asked, found, taken, ended; the no-ways with a
+/// shut held whose body was not ringed for itself.
 #[cfg(test)]
 pub mod past_shuts {
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -272,14 +312,15 @@ pub mod past_shuts {
     pub const FOUND: usize = 1;
     pub const TAKEN: usize = 2;
     pub const ENDED: usize = 3;
+    pub const NOT_RINGED: usize = 4;
 
-    static COUNTS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+    static COUNTS: [AtomicU64; 5] = [const { AtomicU64::new(0) }; 5];
 
     pub fn count(kind: usize) {
         COUNTS[kind].fetch_add(1, Ordering::Relaxed);
     }
 
-    pub fn counts() -> [u64; 4] {
+    pub fn counts() -> [u64; 5] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
@@ -657,6 +698,8 @@ pub struct BotState {
     pub armour: std::sync::Arc<super::zone_cost::ZoneArmour>,
     /// [no-way crossing] A crossing past its shut landings under way ([`past_shuts_taken`]).
     pub past_shuts: Option<PastShuts>,
+    /// [no-way crossing] Until when [`wanted_past_shuts`] is not asked ([`past_shuts_took_nothing`]).
+    pub past_shuts_held_off: Option<u32>,
 }
 
 /// [no-way crossing] A crossing [`past_shuts_taken`] kept: when, the health then, and its goal.
@@ -907,15 +950,33 @@ pub(crate) mod tests {
         let weak = tactics(0.04, 0.0);
         let grid = &weak.world.grid;
         let (a, b) = (grid.locate(WEST, 1.5).unwrap(), grid.locate(EAST, 1.5).unwrap());
-        assert!(wanted_past_shuts(&weak, None, a, b, true));
-        assert!(!wanted_past_shuts(&weak, None, a, b, false), "no shut held");
+        // A landing shut far off (a jump it gave up elsewhere): held, but the body is not ringed.
+        let far = RouteFilter::shutting_landings(vec![super::super::stuck::Shut::jump(Vec3::new(60.0, 0.0, 5.0))]);
+        assert!(!wanted_past_shuts(&weak, None, a, b, 0, Some(0), false, &far, false), "not ringed: no search");
+        // In the patch the weak zone rings, holding a landing it gave up (anywhere): asked.
+        let ringed = tactics(0.0, 0.04);
+        let rg = &ringed.world.grid;
+        let inside = rg.locate(Vec3::new(20.0, 0.0, 10.0), 1.5).unwrap();
+        let goal = rg.locate(EAST, 1.5).unwrap();
+        let open = RouteFilter::open();
+        assert!(ringed.ringed_for(inside, 0, Some(0), false, ring_floors(), |n| open.hard_open(rg, n)), "the patch is ringed");
+        let held = RouteFilter::shutting_landings(vec![super::super::stuck::Shut::jump(Vec3::new(60.0, 0.0, 5.0))]);
+        assert!(wanted_past_shuts(&ringed, None, inside, goal, 0, Some(0), false, &held, false));
+        assert!(!wanted_past_shuts(&ringed, None, inside, goal, 0, Some(0), false, &open, false), "no shut held");
+        assert!(!wanted_past_shuts(&ringed, None, inside, goal, 0, Some(0), false, &held, true), "held off");
         let plain = tactics(0.0, 0.0);
         let pg = &plain.world.grid;
         let (pa, pb) = (pg.locate(WEST, 1.5).unwrap(), pg.locate(EAST, 1.5).unwrap());
         let route = plain.route_nodes(pa, pb, 0, Some(0), false, &RouteFilter::open());
         assert!(route.is_some());
-        assert!(!wanted_past_shuts(&weak, route.as_ref(), a, b, true), "a plain way is kept");
-        assert!(!wanted_past_shuts(&plain, None, pa, pb, true), "no zone on all match");
+        assert!(!wanted_past_shuts(&ringed, route.as_ref(), inside, goal, 0, Some(0), false, &held, false), "a plain way is kept");
+        assert!(!wanted_past_shuts(&plain, None, pa, pb, 0, Some(0), false, &held, false), "no zone on all match");
+        // An ask that took nothing holds the next ones off for LONG_RETRY_MS.
+        let mut state = BotState::default();
+        assert!(!past_shuts_held_off(&state, 1_000));
+        past_shuts_took_nothing(&mut state, 1_000);
+        assert!(past_shuts_held_off(&state, 1_000 + LONG_RETRY_MS - 1));
+        assert!(!past_shuts_held_off(&state, 1_000 + LONG_RETRY_MS));
     }
 
     /// [no-way crossing] A crossing past shut landings is kept while the bot's route heads to its goal, and logged with the
