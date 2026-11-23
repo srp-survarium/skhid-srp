@@ -928,17 +928,14 @@ mod tests {
     /// Whether a jump pressed `d` m before the face of a `top` ledge with `press`, run up 2 m, stands on the top 4 ground steps
     /// after the landing step.
     fn lands(top: f32, d: f32, gait: Option<Gait>) -> bool {
-        use crate::grid::controlled::{body_at, Stance, WalkStart};
         let world = ledge(top);
         let s = settings();
         let at = Vec3::new(5.0 - d, 0.0, 0.0);
         let steps = match gait {
             Some(g) => run_and_fly(&world, &s, at, (1.0, 0.0), g, 10),
-            None => {
-                let mut c = body_at(&world, WalkStart::Clear, Stance::Standing, at);
-                settle(&mut c, &world, &s);
-                Some(fly(&world, &s, &mut c, (1.0, 0.0), Press::Walk { speed: 0.0 }, Keys::BOT, 10))
-            }
+            // A standing body: a run-up of no steps (put and come to rest at the point).
+            None => played_run_up(&world, &s, at, (1.0, 0.0), WALK_CAP_MS, 0, 0)
+                .map(|mut r| fly(&world, &s, &mut r.body, (1.0, 0.0), Press::Walk { speed: 0.0 }, Keys::BOT, 10)),
         };
         steps.is_some_and(|steps| {
             let end = steps.last().unwrap().feet;
@@ -997,7 +994,6 @@ mod tests {
     #[test]
     #[ignore]
     fn compare_with_the_rig() {
-        use crate::grid::controlled::{body_at, Stance, WalkStart};
         let var = |k: &str| std::env::var(k).unwrap_or_else(|_| panic!("set {k}"));
         let map = crate::MapData::from_bytes(&std::fs::read(var("RIG_MAP")).unwrap()).unwrap();
         // `RIG_WORLD=walker`: the map's walker triangles with the grid's caster (the world the grid's checks run on).
@@ -1033,11 +1029,7 @@ mod tests {
             let leg = if w[8] == "l" { Leg::Left } else { Leg::Right };
             let keys = Keys { air_forward: w[10] == "fwd", held_after: w[11] == "held" };
             let start = match w[7] {
-                "stand" => {
-                    let mut c = body_at(&world, WalkStart::Clear, Stance::Standing, feet);
-                    settle(&mut c, &world, &s);
-                    Some(RunUp { body: c, speed: 0.0 })
-                }
+                "stand" => played_run_up(&world, &s, feet, heading, WALK_CAP_MS, 0, 0),
                 "walk" => run_up(&world, &s, feet, heading, WALK_CAP_MS, false),
                 _ => run_up(&world, &s, feet, heading, 5.0, true),
             };
