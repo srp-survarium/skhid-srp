@@ -164,6 +164,13 @@ and the camera slowly, at 2 a second while the turn is under 125 degrees a secon
 250; the view rolls against a turn. So on a slow turn the gun swings far ahead of a view that
 drifts after it, and on a fast one the view keeps up.
 
+The owner's second play, of the first build of it: "almost good camera is bobbling though", "the
+weapon also throws the camera it seems", "which makes it a bit painful". That build fed the follow
+the eye's whole motion; the steps' bob and the breath then moved the view and the gun out of step,
+and the kick went through the lag and came back late. Since then the control is the input's aim
+alone (the player's yaw, +490h, and the eye's pitch of its look pitch, +48Ch): the kick's share and
+what the clips add to the eye move the view as they did before the follow.
+
 Patch 197 draws exactly that relation and nothing else (`camera_trail.rs`): the gun stays on the
 simulation's aim, so the mouse moves it at once and a bullet goes where it points; the view is
 drawn as far from the gun as the reference's camera is from its arms. It is the view's own state,
@@ -198,12 +205,13 @@ so a fire begun in a sprint keeps it and one begun outside starts none. A match 
 otherwise: a row in `simulation_changes.tsv`. `check_sprint_fire_026g.py` (`tools/check
 sprint-fire`) runs the five tests in both exes.
 
-Not done, and not seen in a game:
-- **The hands.** The fire states' clip pair (0x30E800, 0x30F830) always brings its fire hands
-  clip, so in a sprint the gun likely comes up to the fire pose over sprinting legs. Keeping the
-  sprint's arms (the owner's "weapon is not looking straight") means answering as the idle state
-  does in a sprint (no hands), and then the gun's fire clip, which runs in the hands clip's time,
-  needs a speed of its own: not established.
+Played by the owner the same day (355 shots logged, no crash): 25 shots left a gun 54 to 56
+degrees off the eye's line, its muzzle 40 to 65 cm left of the eye and 47 to 57 cm under it: the
+sprint's pose. So the hands stay in the sprint's clips while the weapon fires, and the shot goes
+where the muzzle points, as asked; the fire state's own hands clip does not bring the gun up (the
+reading of the exe expected it might).
+
+Not done:
 - Aim, a reload and a grenade still wait for the sprint's end; a jump is refused while the fire
   state runs; a bolt or pump gun's chambering ends the sprint.
 - The bots let SPRINT go as they fire (`bots/mod.rs`), so they never do it.
