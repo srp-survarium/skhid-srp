@@ -1337,7 +1337,6 @@ va	status	ref_021d	name
 0x0023f9d0	inferred-medium	0x00180abc	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf0<void,survarium::damage_sound_effect>,boost::_bi::list1<boost::_bi::value<survarium::damage_sound_effect *> > > >::manager
 0x0023fb40	inferred-medium	0x00180b98	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf3<void,survarium::damage_sound_effect,char const *,enum survarium::hit_affects_type_enum,enum survarium::affect_event_type_enum>,boost::_bi::list4<boost::_bi::value<survarium::damage_sound_effect *>,boost::arg<1>,boost::arg<2>,boost::arg<3> > > >::manager
 0x0023fca0	inferred-medium	0x0017e9a0	survarium::player_input_handler::`scalar deleting destructor'
-0x002422b0	inferred-medium		survarium::player_input_handler::update_inverted_view
 0x002425c0	inferred-medium	0x0017f882	vostok::buffer_vector<enum survarium::game_action_id>::push_back
 0x00242900	inferred-medium	0x00180cfa	survarium::game_camera::get_projection_matrix
 0x00242950	inferred-medium	0x0018457c	survarium::base_network_client::base_network_client
@@ -3730,3 +3729,4 @@ va	status	ref_021d	name
 0x0023c430	inferred-medium		survarium::game_world_ui::hide_grenade_icons [descriptive]
 0x0023c470	inferred-medium		survarium::game_world_ui::show_trap_icons [descriptive]
 0x0023c750	inferred-medium		survarium::game_world_ui::place_object_icon [descriptive]
+0x002d3700	inferred-medium		survarium::game_world_core::drop_world_events_after

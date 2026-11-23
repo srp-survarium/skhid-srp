@@ -2761,8 +2761,10 @@ st_srp_loadout_sell_and	 і
 st_srp_loadout_sell_item	%1$s
 st_srp_loadout_sell_many	Використовується в комплектах %1$s. Продати?
 st_srp_loadout_sell_one	Використовується в комплекті %1$s. Продати?
-st_srp_loadout_slot_to_container	Клік: контейнер для артефакту
-st_srp_loadout_slot_to_pocket	Клік: кишеня
+st_srp_loadout_slot_skill	Слот: %1$s
+st_srp_loadout_slot_to_container	Правий клік: контейнер для артефакту
+st_srp_loadout_slot_to_pocket	Правий клік: кишеня
+st_srp_loadout_slot_to_weapon	Правий клік: друга зброя
 st_srp_loadout_title	Комплект
 st_srp_loadout_unfit	не для бою
 st_srp_lobby_basement	Підвал
@@ -3084,7 +3086,7 @@ st_srp_technical_432_description	Після загибелі натисніть 
 st_srp_technical_432_name	Мертва рука
 st_srp_technical_433_description	Ваші капкани, в які стріляли, знову відкриваються через:
 st_srp_technical_433_name	Перезвід
-st_srp_technical_441_description	Ваш дим трохи зелений і отруює ворогів усередині; кисневий балон захищає. У кишеню вміщується вдвічі менше димових гранат. Токсична шкода:
+st_srp_technical_441_description	Ваш дим трохи зелений і отруює ворогів усередині; кисневий балон захищає. Димова граната займає 1,5 місця в кишені. Токсична шкода:
 st_srp_technical_441_name	Отруйний дим
 st_srp_technical_442_description	Після кожних 20 с безперервної роботи кисневого балона і коли він порожніє: +10% до швидкості на 20 с і повна енергія.
 st_srp_technical_442_name	Кисневий ривок

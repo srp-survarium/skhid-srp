@@ -52,10 +52,8 @@ pub enum Stack {
 pub enum StackUnits {
     /// Its own (the item's config).
     Own,
-    /// One and a half: two in three of the pocket's units (Bear Trap).
+    /// One and a half: two in three of the pocket's units (Toxic Smoke, Bear Trap).
     OneAndHalf,
-    /// Two: half the pocket's units (Toxic Smoke, as the RGD-5).
-    Two,
 }
 
 /// Row II's either/or pair: what an oxygen tank in the kit adds to its pockets.
@@ -450,12 +448,12 @@ impl Skills {
         self.bear_trap
     }
 
-    /// Toxic Smoke (441): a grenade of such a kit takes two of a pocket's units, as the RGD-5
-    /// does. Bear Trap (444): a trap takes one and a half (the owner, 2026-11-22: "so you could take
-    /// 3 traps").
+    /// Toxic Smoke (441): a grenade of such a kit takes one and a half of a pocket's units (the
+    /// owner, 2026-11-23: "do the same with toxic smokes"); Bear Trap (444): a trap does (2026-11-22:
+    /// "so you could take 3 traps").
     pub fn stack_units(self, stack: Stack) -> StackUnits {
         match stack {
-            Stack::Grenades if self.toxic_smoke.0 > 0 => StackUnits::Two,
+            Stack::Grenades if self.toxic_smoke.0 > 0 => StackUnits::OneAndHalf,
             Stack::Traps if self.bear_trap => StackUnits::OneAndHalf,
             _ => StackUnits::Own,
         }
@@ -500,7 +498,7 @@ mod tests {
         assert_eq!(s.rearm_ms(), Some(20_000));
         assert_eq!(Skills::parse(packed(&[(433, 1)])).unwrap().rearm_ms(), Some(30_000));
         assert_eq!(Skills::default().rearm_ms(), None);
-        assert_eq!((s.stack_units(Stack::Grenades), s.stack_units(Stack::Traps)), (StackUnits::Two, StackUnits::OneAndHalf));
+        assert_eq!((s.stack_units(Stack::Grenades), s.stack_units(Stack::Traps)), (StackUnits::OneAndHalf, StackUnits::OneAndHalf));
         let none = Skills::default();
         assert_eq!((none.stack_units(Stack::Grenades), none.stack_units(Stack::Traps)), (StackUnits::Own, StackUnits::Own));
         assert_eq!(s.pack(), value);

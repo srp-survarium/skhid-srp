@@ -2761,8 +2761,10 @@ st_srp_loadout_sell_and	 i
 st_srp_loadout_sell_item	Komplet %1$s
 st_srp_loadout_sell_many	Koristi se u %1$s. Svejedno prodati?
 st_srp_loadout_sell_one	Koristi se u kompletu %1$s. Svejedno prodati?
-st_srp_loadout_slot_to_container	Klik: spremnik za artefakte
-st_srp_loadout_slot_to_pocket	Klik: džep
+st_srp_loadout_slot_skill	Mjesto: %1$s
+st_srp_loadout_slot_to_container	Desni klik: spremnik za artefakte
+st_srp_loadout_slot_to_pocket	Desni klik: džep
+st_srp_loadout_slot_to_weapon	Desni klik: drugo oružje
 st_srp_loadout_title	Komplet
 st_srp_loadout_unfit	ne može igrati
 st_srp_lobby_basement	Podrum
@@ -3084,7 +3086,7 @@ st_srp_technical_432_description	Nakon smrti pritisnite tipku za bacanje da ispu
 st_srp_technical_432_name	Prekidač mrtvaca
 st_srp_technical_433_description	Vaše zamke u koje je pucano ponovno se otvaraju nakon:
 st_srp_technical_433_name	Ponovno postavljanje
-st_srp_technical_441_description	Vaš dim je zelenkast i truje neprijatelje u njemu; boca s kisikom štiti. U džep stane upola manje dimnih granata. Otrovna šteta:
+st_srp_technical_441_description	Vaš dim je zelenkast i truje neprijatelje u njemu; boca s kisikom štiti. Dimna granata zauzima 1,5 mjesta u džepu. Otrovna šteta:
 st_srp_technical_441_name	Otrovni dim
 st_srp_technical_442_description	Nakon svakih 20 s neprekidnog korištenja boce s kisikom i kad se isprazni: +10% brzine na 20 s i puna energija.
 st_srp_technical_442_name	Kisikov nalet

@@ -34,8 +34,8 @@ package survarium.rooms
         // players did not know they were in one): the top menu's tab and
         // the switch to a better room in this, Play turned red (it leaves).
         public static const YELLOW:uint = 0xFFD23F;
-        // The yellow at reduced strengths, for the mark on Artifact Container's slot
-        // (ContainerSlotMark): its edge at rest, and its glow's start.
+        // The yellow at reduced strengths, for the marks on the perks' slots
+        // (PerkSlotMark): its edge at rest, and its glow's start.
         public static const YELLOW_HALF:Number = 0.5;
         public static const YELLOW_GLOW:Number = 0.16;
         // The colours as transforms, for drawn parts (the tab's icon, the

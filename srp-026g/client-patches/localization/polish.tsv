@@ -2761,8 +2761,10 @@ st_srp_loadout_sell_and	 i
 st_srp_loadout_sell_item	%1$s
 st_srp_loadout_sell_many	Używany w zestawach %1$s. Sprzedać?
 st_srp_loadout_sell_one	Używany w zestawie %1$s. Sprzedać?
-st_srp_loadout_slot_to_container	Kliknij: pojemnik na artefakt
-st_srp_loadout_slot_to_pocket	Kliknij: kieszeń
+st_srp_loadout_slot_skill	Miejsce: %1$s
+st_srp_loadout_slot_to_container	Prawy przycisk: pojemnik na artefakt
+st_srp_loadout_slot_to_pocket	Prawy przycisk: kieszeń
+st_srp_loadout_slot_to_weapon	Prawy przycisk: druga broń
 st_srp_loadout_title	Zestaw
 st_srp_loadout_unfit	nie do gry
 st_srp_lobby_basement	Piwnica
@@ -3084,7 +3086,7 @@ st_srp_technical_432_description	Po śmierci naciśnij klawisz rzutu, aby upuśc
 st_srp_technical_432_name	Przycisk martwego człowieka
 st_srp_technical_433_description	Twoje pułapki, w które strzelano, otwierają się ponownie po:
 st_srp_technical_433_name	Ponowne uzbrojenie
-st_srp_technical_441_description	Twój dym jest lekko zielony i truje wrogów w środku; butla tlenowa chroni. W kieszeni mieści się o połowę mniej granatów dymnych. Obrażenia toksyczne:
+st_srp_technical_441_description	Twój dym jest lekko zielony i truje wrogów w środku; butla tlenowa chroni. Granat dymny zajmuje 1,5 miejsca w kieszeni. Obrażenia toksyczne:
 st_srp_technical_441_name	Trujący dym
 st_srp_technical_442_description	Po każdych 20 s ciągłego używania butli tlenowej i gdy się opróżni: +10% szybkości na 20 s i pełna energia.
 st_srp_technical_442_name	Tlenowy zryw

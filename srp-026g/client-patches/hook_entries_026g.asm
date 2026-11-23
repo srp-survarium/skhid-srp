@@ -4415,6 +4415,45 @@ weapon_flight_on_view_replay:
     db 0xd9, 0x83, 0xb4, 0x00, 0x00, 0x00
     jmp 0x2840f8
 
+; 0x1f3650 update_camera after the view's update (0x1F364B: update_inverted_view 0x2422B0, patch 46's death_view in our exe) wrote the handler's view (+48h), at mov edx,[ebx+0F478h]: EBX the camera's player ([ebx+0F470h] its handler; update_camera returned at 0x1F3497 for any other player); the frame's +10h the orbit's pivot in the modes but 0 and 4: lohook -> camera_walls_on_viewed
+global camera_walls_on_viewed
+extern hook_camera_walls_on_viewed_chain
+camera_walls_on_viewed:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_camera_walls_on_viewed_chain
+    mov edx, camera_walls_on_viewed_replay
+    cmp eax, 0
+    je camera_walls_on_viewed_go
+    mov edx, 0x1f3656
+    cmp eax, 1
+    je camera_walls_on_viewed_go
+    ud2
+camera_walls_on_viewed_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+camera_walls_on_viewed_replay:
+    db 0x8b, 0x93, 0x78, 0xf4, 0x00, 0x00
+    jmp 0x1f3656
+
 ; 0x23ddd0 base_game_scene::apply_camera's start (sub esp,40h / push ebx / mov ebx,[esp+48h]; ret 4, the scene its stack argument): EDX the camera_director whose view (+4h) and projection (+44h) it copies into the scene (+0Ch, +4Ch) for the frame's draw; its one caller camera_director::apply (0x2434F6), every frame of every scene with a camera: lohook -> capture_on_camera
 global capture_on_camera
 extern hook_capture_on_camera
@@ -4531,45 +4570,6 @@ language_on_configs_start_go:
 language_on_configs_start_replay:
     db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
     jmp 0x1ea216
-
-; 0x1f3650 update_camera after the view's update (0x1F364B: update_inverted_view 0x2422B0, patch 46's death_view in our exe) wrote the handler's view (+48h), at mov edx,[ebx+0F478h]: EBX the camera's player ([ebx+0F470h] its handler; update_camera returned at 0x1F3497 for any other player): lohook -> console_where_on_viewed
-global console_where_on_viewed
-extern hook_console_where_on_viewed_chain
-console_where_on_viewed:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_console_where_on_viewed_chain
-    mov edx, console_where_on_viewed_replay
-    cmp eax, 0
-    je console_where_on_viewed_go
-    mov edx, 0x1f3656
-    cmp eax, 1
-    je console_where_on_viewed_go
-    ud2
-console_where_on_viewed_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-console_where_on_viewed_replay:
-    db 0x8b, 0x93, 0x78, 0xf4, 0x00, 0x00
-    jmp 0x1f3656
 
 ; 0x13d9c1 renderer::render 0x13D010 at its depth-tested debug lines (taken while the cc_bool 0xA71DB7, on by default, is set; 0x13D97E), right after the scene's on_draw_scene(true) (boost function 0x205E0 at 0x13D9BC) and before the scene's own queued lines go to system_renderer::draw_lines with technique 0 (0x13DA08): mov edi,[esp+1Ch] / mov edx,[edi+6334C4h]; the render thread, the depth target and the view the scene's, so a draw_aabb there is drawn as the game's own debug lines: lohook -> collision_view_on_debug_lines
 global collision_view_on_debug_lines
@@ -8992,6 +8992,48 @@ keyboard_layout_on_console_char_go:
 keyboard_layout_on_console_char_replay:
     db 0x8b, 0x47, 0x04, 0xf6, 0x80, 0xac, 0x02, 0x00, 0x00, 0x30
     jmp 0x34b4e4
+
+; 0x2337fa on_kill_cross_event (0x233770, from process_kill_cross_events 0x1FB6C0, each world event after the last kill-cross time) once it handled the event in EDI (a kill by the drawn player drew the kill marker at 0x2337D9): cmp byte [esp+14h],0 (sealed), then the write of the event's time (+24h) into the last kill-cross time (EBX, game_world+564h) at 0x233801; kept is past it (pop esi, 0x233806): lohook -> kill_cross_on_walked
+global kill_cross_on_walked
+extern hook_kill_cross_on_walked
+kill_cross_on_walked:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_kill_cross_on_walked
+    mov edx, kill_cross_on_walked_replay
+    cmp eax, 0
+    je kill_cross_on_walked_go
+    mov edx, 0x2337ff
+    cmp eax, 1
+    je kill_cross_on_walked_go
+    mov edx, 0x233806
+    cmp eax, 2
+    je kill_cross_on_walked_go
+    ud2
+kill_cross_on_walked_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+kill_cross_on_walked_replay:
+    db 0x80, 0x7c, 0x24, 0x14, 0x00
+    jmp 0x2337ff
 
 ; 0x32d627 check_collision after the bullet's ray_test (movq of its result; EAX the result, EDI the bullet): lohook -> subtick_hits_on_ray
 global subtick_hits_on_ray

@@ -764,31 +764,30 @@ fn the_items_the_presets_use_are_listed_for_the_sale_question() {
     assert!(uses(&account).iter().all(|(_, presets)| presets & 2 == 0));
 }
 
-/// A preset is its kits, Artifact Container's slot too (the owner's pick, 2026-11-22): each
-/// preset's kit keeps its own, and a preset put on gives its kits theirs.
+/// A preset is its kits, the perks' slots too (the owner's pick, 2026-11-22): each preset's kit
+/// keeps its own choices, and a preset put on gives its kits theirs.
 #[test]
-fn each_presets_kit_keeps_its_container_slot() {
-    use crate::v026g::account::{ARTIFACT_CONTAINER, ContainerSlot};
+fn each_presets_kit_keeps_its_perk_slots() {
+    use crate::v026g::account::{ARTIFACT_CONTAINER, DEEP_POCKETS, KitPerks, PerkSlot, SlotPerk};
+    let pocket = KitPerks::ALL_TAKEN.with(SlotPerk::ArtifactContainer, PerkSlot::Declined);
+    let weapon = KitPerks::ALL_TAKEN.with(SlotPerk::WeaponPocket, PerkSlot::Declined);
     let mut account = alice();
-    account.skills = vec![(ARTIFACT_CONTAINER, 1)];
-    account.kits[0].container = ContainerSlot::Pocket;
+    account.skills = vec![(ARTIFACT_CONTAINER, 1), (DEEP_POCKETS, 1)];
+    account.kits[0].perks = pocket;
     let revision = account.kits[0].revision;
 
     choose(&mut account, 2, NOW).unwrap();
-    assert!(account.kits.iter().all(|kit| kit.container == ContainerSlot::Container));
+    assert!(account.kits.iter().all(|kit| kit.perks == KitPerks::ALL_TAKEN));
     assert_ne!(account.kits[0].revision, revision);
     assert_eq!(
-        account.presets[0].map(|preset| preset.containers),
-        Some([ContainerSlot::Pocket, ContainerSlot::Container, ContainerSlot::Container])
+        account.presets[0].map(|preset| preset.perks),
+        Some([pocket, KitPerks::ALL_TAKEN, KitPerks::ALL_TAKEN])
     );
-    account.kits[2].container = ContainerSlot::Pocket;
+    account.kits[2].perks = weapon;
 
     choose(&mut account, 1, NOW).unwrap();
-    assert_eq!(account.kits[0].container, ContainerSlot::Pocket);
-    assert_eq!(account.kits[2].container, ContainerSlot::Container);
-    // Preset 2 held nothing but its third kit's pocket: kept all the same.
-    assert_eq!(
-        account.presets[1].map(|preset| preset.containers[2]),
-        Some(ContainerSlot::Pocket)
-    );
+    assert_eq!(account.kits[0].perks, pocket);
+    assert_eq!(account.kits[2].perks, KitPerks::ALL_TAKEN);
+    // Preset 2 held nothing but its third kit's second weapon slot: kept all the same.
+    assert_eq!(account.presets[1].map(|preset| preset.perks[2]), Some(weapon));
 }

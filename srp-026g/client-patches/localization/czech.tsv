@@ -2761,8 +2761,10 @@ st_srp_loadout_sell_and	 a
 st_srp_loadout_sell_item	Výbava %1$s
 st_srp_loadout_sell_many	Použito v: %1$s. Přesto prodat?
 st_srp_loadout_sell_one	Používá se ve výbavě %1$s. Přesto prodat?
-st_srp_loadout_slot_to_container	Klik: kontejner na artefakt
-st_srp_loadout_slot_to_pocket	Klik: kapsa
+st_srp_loadout_slot_skill	Slot: %1$s
+st_srp_loadout_slot_to_container	Pravé tlačítko: kontejner na artefakt
+st_srp_loadout_slot_to_pocket	Pravé tlačítko: kapsa
+st_srp_loadout_slot_to_weapon	Pravé tlačítko: druhá zbraň
 st_srp_loadout_title	Výbava
 st_srp_loadout_unfit	nelze hrát
 st_srp_lobby_basement	Sklep
@@ -3084,7 +3086,7 @@ st_srp_technical_432_description	Po smrti stiskni klávesu hodu a upusť svůj k
 st_srp_technical_432_name	Spínač mrtvého muže
 st_srp_technical_433_description	Tvé pasti, do kterých se střílelo, se znovu otevřou po:
 st_srp_technical_433_name	Natažení
-st_srp_technical_441_description	Tvůj kouř je lehce zelený a otravuje nepřátele uvnitř; kyslíková láhev chrání. Do kapsy se vejde polovina kouřových granátů. Toxické poškození:
+st_srp_technical_441_description	Tvůj kouř je lehce zelený a otravuje nepřátele uvnitř; kyslíková láhev chrání. Kouřový granát zabere 1,5 místa v kapse. Toxické poškození:
 st_srp_technical_441_name	Jedovatý kouř
 st_srp_technical_442_description	Po každých 20 s nepřetržitého používání kyslíkové láhve a když se vyprázdní: +10% rychlosti na 20 s a plná energie.
 st_srp_technical_442_name	Kyslíkový nápor

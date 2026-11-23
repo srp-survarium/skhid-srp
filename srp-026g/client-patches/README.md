@@ -155,6 +155,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/use_scan.rs`, `src/use_scan/rule.rs`, `src/use_scan.toml`, `src/vostok/use_scan.rs`, `check_use_scan_026g.py` | Patch 23 and the use scan it lives in: `base_player::detect_usable_object` (0x2D84C0) whole in Rust, a lohook at its start leaving by its `ret 8` (section 23); the rule (`rule.rs`) is pure, the game's calls `vostok`'s; patch 85 asks it whether Use is the game's |
 | `rust/patches/src/subtick_hits.rs`, `src/subtick_hits.toml`, `src/vostok/ray_test.rs`, `check_subtick_hits_026g.py` | Patch 103: a bullet meets a player where he stood at the ms it crossed him, not where the 50 ms step left him (`../docs/notes/subtick_bullet_hits.md`); one lohook first in `bullet.ray_traced`'s chain; its check runs the game's own ray test (ray_test, rayTest, rayTestSingle) in both exes on made-up bodies (needs Unicorn) |
 | `rust/patches/src/input_check.rs`, `src/input_check.toml`, `src/vostok/input.rs`, `check_input_check_026g.py` | Patch 99: a world takes no player input whose rotation no client makes (a NaN, an infinity, 1024 radians or more), as 0.27d's change_input refuses one: a lohook at change_input<player_input>'s start (0x1FAB50); its check runs that start on made-up inputs, the original beside (needs Unicorn) |
+| `rust/patches/src/camera_walls.rs`, `src/camera_walls.toml`, `src/vostok/camera.rs` (`Orbit`), `check_camera_walls_026g.py` | Patch 132: the orbit camera (the warmup's before the start) stays on the player's side of the level, in front of the first wall between the pivot and the eye, smoothly: a lohook after update_camera's view update (0x1F3650); its check runs update_camera from its start, the original beside, ray_test a stand-in (needs Unicorn) |
 | `check_mouse_buttons_026g.py` | Patch 102 (`MOUSE_BUTTONS` in `patch_026g.py`): a side mouse button (mouse4..mouse8) is no left click in the lobby, login, options and match menus; its check runs the five handlers in both exes (needs Unicorn) |
 | `rust/patches/src/mouse_pitch.rs`, `src/mouse_pitch.toml`, `src/vostok/mouse.rs`, `check_mouse_pitch_026g.py` | Patch 112: the mouse look's pitch with 16:9's h/w at every window while "Lock vertical sensitivity" is ticked, 1:1 at the vertical slider's value when unticked (user.cfg's `srp_mouse_vertical_locked`, `srp_mouse_vertical`); a lohook at on_mouse_move's pitch step, the two variables, the Settings' calls and the death camera's entry; its check runs on_mouse_move in both exes at 4:3 to 32:9, off and on, and the Settings' calls (needs Unicorn) |
 | `rust/patches/src/footsteps.rs`, `src/footsteps.toml`, `src/vostok/footstep.rs`, `check_footsteps_026g.py` | Patch 101: a footstep that only a re-simulation makes (another player's late input) is heard instead of dropped; one lohook in on_player_sound_event's time test; and a foot step in a logic state with no foot material (movement 0: on site, dead) is dropped at on_foot_step's read of it (0x2A6545), which read the word before the boots' table (a rev71 crash in step_manager::on_step); its check runs the handler in both exes (needs Unicorn) |
@@ -233,6 +234,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_fall_gravity_026g.py` | Patch 72: free fall takes gravity for the step's dt (`FALL_GRAVITY`, two sites rewritten in place in step_down, 0x7E6E6 and 0x7E720): a tick the world steps in parts (each precise input) no longer gives a falling player a whole tick of speed at every part; its check runs step_down's free fall on a made-up controller: whole ticks bit for bit the original's, a tick in 2, 5 or 2 uneven parts one tick of gravity in all (needs Unicorn) |
 | `check_step_parts_026g.py` | Patches 166 and 168: patch 166, a part of a tick moves a body at rest (`STEP_PARTS`, one branch of updateAction, 0x7B76B): updateAction and player_step under Unicorn on open ground, whole ticks and moving bodies bit for bit the original's, a body from rest at the sum of its parts' displacements under one cut, a burst's cuts, 50 cuts a second and 1 ms parts, never ahead of whole ticks; a body asked nothing untouched. Patch 168: every part of a walking body made however short, a body from rest at whole ticks' place under every cut, a body creeping under 63 mm/s at rest in parts as in ticks; the speed store kept in a part and written by the step that ends a tick, the registers, stack and x87 stack as the original's. See "A part of a tick moves a body at rest (patch 166)" and "A part of a tick: its least walk and the speed read from it (patch 168)". |
 | `rust/patches/src/hit_marker_walls.rs`, `src/hit_marker_walls.toml`, `src/vostok/hit_marker.rs`, `check_hit_marker_walls_026g.py` | Patch 167: no white hit marker for a hit through a wall (`../docs/notes/hit-marker-walls.md`): three lohooks, check_collision once try_pierce let a bullet through (`bullet.pierced`, 0x32D88A: a round through a surface whose material's armor is not 0 is noted by its id and fire time; glass, foliage, cloth and paper have 0), player::generate_hit_event's store of the shooter's collector (`damage_collector.hit`, 0x1F3D76: the shooter's mark, walled or clear) and draw_damage_collector once it took its copy (`damage_collector.draw`, 0x238272: no invoke while the collector shows a walled hit); the kill's marker is another call, left as it is; its check runs the three sites in both exes on made-up bullets, players and a hud (needs Unicorn) |
+| `rust/patches/src/kill_cross.rs`, `src/kill_cross.toml`, `src/vostok/world_event.rs`, `check_hit_marker_walls_026g.py` | Patch 191: a kill first simulated in a re-simulation keeps its kill marker (`../docs/notes/kill-marker.md`): one lohook (`sites_026g.tsv` `kill_cross.walked`, in on_kill_cross_event 0x233770) lets only a kill (world event type 0) move the kill marker walk's last time (game_world+564h); its check walks event lists as a world load leaves them through the game's walker in the patched exe beside the original (needs Unicorn) |
 | `check_pierce_distance_026g.py` | Patch 173: a bullet's armour penetration does not fall with distance (`PIERCE_DISTANCE`, update_bullet_position's store of the piercing, 0x32F174): update_bullet_position in a level's bounds for five weapon/round floors, damage bit for bit the original's, piercing kept where the original lowers it (needs Unicorn) |
 | `check_pierce_walls_026g.py` | Patch 175: every wall costs a bullet something (`PIERCE_WALLS`, try_pierce's k in place, 0x32D99E): try_pierce against static geometry for nine walls by fourteen piercings, the original's k = 1 - (1 - clamp((P - A) / A, 0, 1))^2 and the build's 1 - (A / P)^2, damage and piercing x k, the same bullets stopped (needs Unicorn) |
 | `rust/patches/src/tick_parts.rs`, `src/tick_parts.toml`, `src/vostok/controller.rs` (`Step`, `IdleTest`, `SpeedMeasure`) | Patch 168: a part of a tick walks, and says a player's speed, as a whole tick does (`../docs/notes/fall_damage.md`, "A part of a tick: its least walk and the speed read from it"): two lohooks, can_skeep_player_step's least walk asked of a part at its tick's worth (`controller.idle_walk`, 0x7C823: a part's walk squared over (dt / 0.05) squared, so no part of a walking body is skipped) and assign_physics_transform's store of m_linear_horizontal_speed skipped unless the step ends a tick (`player.speed_measured`, 0x2D9541: a jump begun in a cut tick reads what an uncut one reads); whole ticks bit for bit; a simulation change (`../docs/notes/client_patch.md` section 3.93); checked by `check_step_parts_026g.py` |
@@ -4907,6 +4909,15 @@ makes every voice again; this patch does the same for 0.26g.
   buffers queued again in order (a flushed one, which the game makes at every detach_voice and a
   dead or stopped engine never ends, is ended by the rebuild itself and never played again), the
   game's pointers unchanged.
+- A stopped voice is flushed only after the processing pass running ends (the engine callback
+  counts the passes). Wine's XAudio2 (FAudio 26.02, Wine 11.8) lets the voice's locks go around
+  each voice callback while it decodes. detach_voice's Stop and FlushSourceBuffers, run during
+  that time, empty the buffer list under the pass. The pass then reads the next of a null list
+  (`xaudio2_7.dll+0xE8DD`, read of 0x2C), and XAudio2's thread dies: no game sound from then on,
+  and "can't allocate sound_instance_proxy" in the log (the owner's game, 2026-11-20 and 11-22).
+  A pass that starts after the Stop does not mix the voice. The wait is a quarter second at most;
+  after that the flush goes ahead as before and the log says so. The rebuild stops the old
+  sources and waits for the running pass the same way before it destroys them.
 
 New engine-function rows: `engine_xaudio2_create` (0x5A640, cdecl), `engine_process_sound_orders`
 (0x59DD0, stdcall), the imports `engine_co_create_instance` (the delay-loaded slot 0xAF0064),
@@ -5946,6 +5957,41 @@ snapshot, nothing called and no lock taken: the resources (managed) allocator's 
 and Scaleform's heaps (the Flash UI) by name, with what each holds and uses. Nothing a match computes. Details: `../docs/notes/memory-profile.md`. Checked with
 `check_memory_profile_026g.py` (Unicorn) and the patch crate's tests.
 
+## The camera before the start stays out of the walls (patch 132, unreleased)
+
+Before the start the camera orbits the player (patch 31: a drag turns it, the wheel brings it
+nearer or further, 1.5 to 4.6 m). The game places it without looking at the level
+(update_inverted_view 0x2422B0), so at many spawns of many maps it was inside a wall, or on the far
+side of a thin one, and the player saw the wall's inside or the room behind it. The lobby's camera
+has always had a ray for this (0x2844D0); the match's orbit had none.
+
+**The patch** (the Rust patch `camera_walls`, one lohook, `sites_026g.tsv` `camera.viewed`, first of its handlers): after
+update_camera's view update (0x1F3650), in the orbit modes only (not the first person, not a
+spectator), a ray goes from the pivot (the player's place raised 1.4 m) toward the eye with the
+lobby camera's filter (the level's collision that bullets hit). Its hit gives the pull the eye
+wants: in from the orbit to 0.2 m in front of the hit (the near plane is 0.05 m), at the pivot when
+the wall is nearer than that. The eye is never shown behind that wall: a pull short of what it
+needs is made up at once (only eased in, the eye was behind it for a few frames: the owner,
+2026-11-23). So that this seldom has to happen, the pull starts early and goes in smoothly: while
+the orbit turns, a second ray goes where its way will be 0.3 s on at the turn since the last frame
+(31 degrees off at most), and the pull that wall would need is wanted already, approached by
+1 - e^(-10 t) of the way in t s (95 % in 0.3 s). Back out the pull goes by 1 - e^(-3 t) (in 1 s),
+so that a ray leaving a bar or a branch of the detailed meshes does not throw the eye out again
+(the owner, 2026-11-09). A new orbit (the warmup's first frame) starts at the pull it needs. The
+pull is taken from the
+wheel's distance, which is kept, so the wheel moves the eye at once as before. Nothing in the way:
+the game's view, untouched. Nothing a match computes. `../docs/notes/client_patch.md` section 3.103
+has the evidence.
+
+Checked: `check_camera_walls_026g.py` runs update_camera from its start in both exes, a frame a
+call (the game's own orbit code; ray_test a plane or nothing, the performance counter a clock of
+its own): no wall, the original's view and registers bit for bit, one ray; a new orbit with a wall,
+the eye at once in front of it with the original's turn; a wall that comes in an orbit, the eye in
+front of it at once; one that goes, the eye out by the rate above, and the original's view again
+once the wall has gone; a turning orbit, the second ray where the way will be, and a wall only it
+meets pulling the eye in by the rate above; the first person, a spectator and a player without a
+physics world, the original's. Run in a game (the owner, 2026-11-23: eased in, "almost good", the
+eye briefly behind a wall; the ray ahead since).
 ## Texture streaming's bookkeeping in Rust (patch 137, unreleased)
 
 Two functions the render thread runs every frame took about 8 % of it in the profiles of the owner's live
@@ -6488,7 +6534,7 @@ crate, which srp shares. Rust modules `technical_skills` and its siblings (`tech
   its frame: time, killer, source).
 - Bear Trap (444) at `medical.wound` (0x32A28B, order 2; the site's ESI is the hit): a leg's pool
   hit by a trap set of a skilled holder is stored as 0.
-- Toxic Smoke's halved pockets and Bear Trap's 1.5-unit traps are srp's (`KitLayout::share`) and the lobby's
+- Toxic Smoke's and Bear Trap's 1.5-unit grenades and traps are srp's (`KitLayout::share`) and the lobby's
   (`PlayerInfo.pocketUnits`); nothing of them in the exe.
 - Sharp Ears (412, `technical_sharp_ears`): at `weapon_sound.made` (order 2) an enemy's pin pull also
   plays a long-range copy of its sound (content edit technical-sharp-ears-1) through
@@ -6717,3 +6763,16 @@ Blackout, 2026-11-22). A lohook at `set_using_progress_message`'s start (`use_pr
 0x23A430) forgets the key each frame a use shows its progress: the first prompt after the use is given
 again and replaces the bar (`../docs/notes/client_patch.md` section 3.101). The hud alone. Checked
 with `check_use_prompt_026g.py` (Unicorn; `tools/check use-prompt`); not run in a game.
+
+## The kill marker of a re-simulated kill (patch 191, unreleased)
+
+A kill that this game first simulates in a re-simulation keeps its red kill marker
+(`../docs/notes/kill-marker.md`). game_world's tick walks the world's events after the last
+kill-cross time (0x1FB6C0). `on_kill_cross_event` (0x233770) draws the marker for the drawn
+player's kill, then wrote the time of every event, of any type, as the last. A world load drops the
+events after its time and re-simulates them, but the last time stays. So a kill made again at or
+before a hit (the same shot's predicted one too) or a battery's user walked before the load got no
+marker. The Rust `kill_cross` hook (`kill_cross.walked`, 0x2337FA) leaves through `kept`, past the
+write, for any event that is not a kill. A kill shown is still not shown again. The hud's alone:
+nothing a match computes or a world holds changes. Checked with `check_hit_marker_walls_026g.py`
+(Unicorn; `tools/check hit-marker-walls`). Not run in a game.

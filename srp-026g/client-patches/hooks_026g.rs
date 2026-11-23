@@ -3291,6 +3291,51 @@ pub extern "C" fn hook_lobby_scene_on_tick(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- camera_walls (patch 132) ----
+
+/// The entry `camera_walls_on_viewed` (0x1f3650, update_camera after the view's update (0x1F364B: update_inverted_view 0x2422B0, patch 46's death_view in our exe) wrote the handler's view (+48h), at mov edx,[ebx+0F478h]: EBX the camera's player ([ebx+0F470h] its handler; update_camera returned at 0x1F3497 for any other player); the frame's +10h the orbit's pivot in the modes but 0 and 4) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_camera_walls_on_viewed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `camera_walls_on_viewed` calls this, from the game's jump at 0x1f3650,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::camera_walls::on_viewed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- console_where (patch 133) ----
+
+/// The entry `console_where_on_viewed` (0x1f3650, update_camera after the view's update (0x1F364B: update_inverted_view 0x2422B0, patch 46's death_view in our exe) wrote the handler's view (+48h), at mov edx,[ebx+0F478h]: EBX the camera's player ([ebx+0F470h] its handler; update_camera returned at 0x1F3497 for any other player); the frame's +10h the orbit's pivot in the modes but 0 and 4) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_console_where_on_viewed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `console_where_on_viewed` calls this, from the game's jump at 0x1f3650,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::console_where::on_viewed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- collision_view (patch 156) ----
+
+/// The entry `collision_view_on_viewed` (0x1f3650, update_camera after the view's update (0x1F364B: update_inverted_view 0x2422B0, patch 46's death_view in our exe) wrote the handler's view (+48h), at mov edx,[ebx+0F478h]: EBX the camera's player ([ebx+0F470h] its handler; update_camera returned at 0x1F3497 for any other player); the frame's +10h the orbit's pivot in the modes but 0 and 4) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_collision_view_on_viewed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `collision_view_on_viewed` calls this, from the game's jump at 0x1f3650,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::collision_view::on_viewed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- capture (patch 176) ----
 
 /// The entry `capture_on_camera` (0x23ddd0, base_game_scene::apply_camera's start (sub esp,40h / push ebx / mov ebx,[esp+48h]; ret 4, the scene its stack argument): EDX the camera_director whose view (+4h) and projection (+44h) it copies into the scene (+0Ch, +4Ch) for the frame's draw; its one caller camera_director::apply (0x2434F6), every frame of every scene with a camera) calls this with the saved machine.
@@ -3465,36 +3510,6 @@ pub extern "C" fn hook_collision_view_on_configs(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::collision_view::on_configs(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- console_where (patch 133) ----
-
-/// The entry `console_where_on_viewed` (0x1f3650, update_camera after the view's update (0x1F364B: update_inverted_view 0x2422B0, patch 46's death_view in our exe) wrote the handler's view (+48h), at mov edx,[ebx+0F478h]: EBX the camera's player ([ebx+0F470h] its handler; update_camera returned at 0x1F3497 for any other player)) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_console_where_on_viewed(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `console_where_on_viewed` calls this, from the game's jump at 0x1f3650,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::console_where::on_viewed(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- collision_view (patch 156) ----
-
-/// The entry `collision_view_on_viewed` (0x1f3650, update_camera after the view's update (0x1F364B: update_inverted_view 0x2422B0, patch 46's death_view in our exe) wrote the handler's view (+48h), at mov edx,[ebx+0F478h]: EBX the camera's player ([ebx+0F470h] its handler; update_camera returned at 0x1F3497 for any other player)) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_collision_view_on_viewed(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `collision_view_on_viewed` calls this, from the game's jump at 0x1f3650,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::collision_view::on_viewed(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -6013,6 +6028,26 @@ pub extern "C" fn hook_keyboard_layout_on_console_char(frame: &mut Frame) -> u32
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::keyboard_layout::on_console_char(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- kill_cross (patch 191) ----
+
+/// The named exits of kill_cross::on_walked (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum KillCrossOnWalkedExit { Kept }
+/// The entry `kill_cross_on_walked` (0x2337fa, on_kill_cross_event (0x233770, from process_kill_cross_events 0x1FB6C0, each world event after the last kill-cross time) once it handled the event in EDI (a kill by the drawn player drew the kill marker at 0x2337D9): cmp byte [esp+14h],0 (sealed), then the write of the event's time (+24h) into the last kill-cross time (EBX, game_world+564h) at 0x233801; kept is past it (pop esi, 0x233806)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_kill_cross_on_walked(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `kill_cross_on_walked` calls this, from the game's jump at 0x2337fa,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::kill_cross::on_walked(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
@@ -9860,6 +9895,17 @@ pub extern "C" fn hook_weapon_flight_on_view_chain(frame: &mut Frame) -> u32 {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn hook_camera_walls_on_viewed_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_camera_walls_on_viewed(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_console_where_on_viewed(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_collision_view_on_viewed(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn hook_screenshot_on_interface_chain(frame: &mut Frame) -> u32 {
     let flow = hook_screenshot_on_interface(frame);
     if flow != 0 { return flow; }
@@ -9887,15 +9933,6 @@ pub extern "C" fn hook_language_on_configs_start_chain(frame: &mut Frame) -> u32
     let flow = hook_game_volume_on_configs(frame);
     if flow != 0 { return flow; }
     let flow = hook_collision_view_on_configs(frame);
-    if flow != 0 { return flow; }
-    0
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_console_where_on_viewed_chain(frame: &mut Frame) -> u32 {
-    let flow = hook_console_where_on_viewed(frame);
-    if flow != 0 { return flow; }
-    let flow = hook_collision_view_on_viewed(frame);
     if flow != 0 { return flow; }
     0
 }

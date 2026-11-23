@@ -25931,6 +25931,30 @@ impl LogState {
     }
 }
 
+/// A survarium::update_camera_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UpdateCameraFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl UpdateCameraFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x10 (f32): player::update_camera's local [esp+10h], in the modes but 0 and 4 the transform the orbit turns about (16 f32, from 0x1F3609): the player's +40Ch with its place raised 1.4 m (0xA2DC68) along its own up row (+41Ch); not written in modes 0 and 4
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn pivot(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x10).cast::<f32>().as_ptr() }
+    }
+}
+
 /// A vostok::file_open_options (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -33961,6 +33985,30 @@ impl UseProgressFrame {
     }
 }
 
+/// A survarium::world_event (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WorldEvent(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl WorldEvent {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x18 (u32): the event's type: 0 a kill (generate_killed_event, 0x2DA3A8), 1 a victory item's user (0x300B4A, 0x301004), 2 a hit (generate_hit_event, 0x2DA054); game_world_core::new_world_event 0x2D43B0 makes the node, the world's list from core+12744h
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn kind(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x18).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A survarium::bullet_manager_engine (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -39207,7 +39255,7 @@ pub mod site {
         }
     }
 
-    /// camera.viewed (0x1f3650): update_camera after the view's update (0x1F364B: update_inverted_view 0x2422B0, patch 46's death_view in our exe) wrote the handler's view (+48h), at mov edx,[ebx+0F478h]: EBX the camera's player ([ebx+0F470h] its handler; update_camera returned at 0x1F3497 for any other player)
+    /// camera.viewed (0x1f3650): update_camera after the view's update (0x1F364B: update_inverted_view 0x2422B0, patch 46's death_view in our exe) wrote the handler's view (+48h), at mov edx,[ebx+0F478h]: EBX the camera's player ([ebx+0F470h] its handler; update_camera returned at 0x1F3497 for any other player); the frame's +10h the orbit's pivot in the modes but 0 and 4
     pub mod camera_viewed {
         #[allow(unused_imports)]
         use super::*;
@@ -39219,6 +39267,15 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Player)
+        }
+
+        /// the site's ESP: a survarium::update_camera_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<UpdateCameraFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(UpdateCameraFrame)
         }
     }
 
@@ -42372,6 +42429,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn slot(machine: &impl Machine) -> u32 {
             machine.register(Register::Ebx)
+        }
+    }
+
+    /// kill_cross.walked (0x2337fa): on_kill_cross_event (0x233770, from process_kill_cross_events 0x1FB6C0, each world event after the last kill-cross time) once it handled the event in EDI (a kill by the drawn player drew the kill marker at 0x2337D9): cmp byte [esp+14h],0 (sealed), then the write of the event's time (+24h) into the last kill-cross time (EBX, game_world+564h) at 0x233801; kept is past it (pop esi, 0x233806)
+    pub mod kill_cross_walked {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::world_event (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn event(machine: &impl Machine) -> Option<WorldEvent> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(WorldEvent)
         }
     }
 }
