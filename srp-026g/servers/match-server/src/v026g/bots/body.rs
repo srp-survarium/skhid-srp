@@ -133,7 +133,24 @@ pub struct Estimate {
     pub client: Option<client_body::ClientBody>,
     /// [body physics S3] A forward press the client's body takes after its next step (the keys of the input that pressed it): its
     /// input stream runs one input behind the estimate's ticks, as a world shows the body ([`client_steps`]).
-    pub client_due: Option<u32>,
+    pub client_due: Option<ClientPress>,
+}
+
+/// [body physics S4] A forward press the client's body takes after its next step ([`Estimate::client_due`]): the pressing input's
+/// keys, and for a sprint jump the leg and the first air frame it flies (the client's own pick: the reckoning flies the left leg at
+/// 6.57, 13 of the 16 traced; the press forecast flies all six, `mapdata::controller::jump::sprint_variants`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ClientPress {
+    pub keys: u32,
+    pub leg: mapdata::controller::jump::Leg,
+    pub first_air_frame: f32,
+}
+
+impl ClientPress {
+    /// The press of `keys` as the reckoning flies it.
+    pub fn of(keys: u32) -> Self {
+        Self { keys, leg: mapdata::controller::jump::Leg::Left, first_air_frame: mapdata::controller::jump::SPRINT_FIRST_AIR_FRAMES[0] }
+    }
 }
 
 impl Estimate {
@@ -910,9 +927,8 @@ pub(crate) const PRESS_FLIGHT_STEPS: u32 = 19;
 pub fn press_chain(at: &Estimate, keys: u32, ticks: u32, world: &PressWorld) -> Vec<Estimate> {
     let PressWorld { kin, level, grid } = *world;
     let mut out = Vec::with_capacity(ticks as usize + 1);
-    // [body physics S3] The press forecast steps by the reckoning's lattice steps and `FlownJump` until S4: from the client body's
-    // controller (`kept`, its feet and blend mirrored by [`client_steps`]), not the body itself.
-    let mut at = Estimate { client: None, ..*at };
+    // [body physics S4] The reckoning's own body, the client's where it has one ([`client_walks`]).
+    let mut at = *at;
     out.push(at);
     for _ in 0..ticks {
         at = advance(at, Tick { time: at.time + TICK_MS, keys, turn: (0.0, 0.0), kick: 0.0, jump: JumpGate::Open, legs_broken: false }, kin, level, Some(grid), None, Role::Press, false);
@@ -932,6 +948,26 @@ pub fn press_forecast(at: &Estimate, plan: &PressPlan, world: &PressWorld) -> Pr
     let mut at = *press_chain(at, walk, plan.press_in, world).last().expect("the chain holds its start");
     let tick = |at: &Estimate, keys: u32| Tick { time: at.time + TICK_MS, keys, turn: (0.0, 0.0), kick: 0.0, jump: JumpGate::Open, legs_broken: false };
     at = advance(at, tick(&at, walk | key::JUMP), kin, level, Some(grid), None, Role::Press, false);
+    // [body physics S4] The client's body: the press waits for its next step ([`ClientPress`]); a sprint press is flown at each of
+    // the client's six variants, and lands only when every one lands (as below).
+    if at.client.is_some() {
+        let Some(press) = at.client_due else {
+            return PressOutcome::NoFlight;
+        };
+        if !client_body::sprints(press.keys) {
+            return fly_pressed(at, plan, world);
+        }
+        let mut landed = None;
+        for (leg, first_air_frame) in mapdata::controller::jump::sprint_variants() {
+            match fly_pressed(Estimate { client_due: Some(ClientPress { leg, first_air_frame, ..press }), ..at }, plan, world) {
+                PressOutcome::Lands { rest } => {
+                    landed.get_or_insert(rest);
+                }
+                missed => return missed,
+            }
+        }
+        return PressOutcome::Lands { rest: landed.expect("six variants flown") };
+    }
     let Some(Jump::Flown(flown)) = at.arc else {
         return PressOutcome::NoFlight;
     };
@@ -966,11 +1002,11 @@ fn fly_pressed(mut at: Estimate, plan: &PressPlan, world: &PressWorld) -> PressO
         AfterLanding::WalkOn => walk,
     };
     let mut steps = 0;
-    while at.arc.is_some() && steps < PRESS_FLIGHT_STEPS {
+    while at.in_jump() && steps < PRESS_FLIGHT_STEPS {
         at = advance(at, tick(&at, air), kin, level, Some(grid), None, Role::Press, false);
         steps += 1;
     }
-    if at.arc.is_some() {
+    if at.in_jump() {
         return PressOutcome::NotDown { at: at.feet };
     }
     // [landing walk] The keys after the landing are the landing tick's own input, as the builder's scoring flights let go at the
@@ -978,6 +1014,23 @@ fn fly_pressed(mut at: Estimate, plan: &PressPlan, world: &PressWorld) -> PressO
     // push the walk on toward the cap for a step after the landing's own (the gate bench's level_03 rim: 0.12 m further onto the
     // top, which the let-go client slid back off). The landing tick's step was the flight's, whatever its input.
     at.keys = stay;
+    // [body physics S4] The client's body falls on by its own steps, no key, until it is down.
+    if at.client.is_some() {
+        let mut steps = 0;
+        while at.fall != Fall::Ground && steps < PRESS_FALL_STEPS {
+            at = advance(at, tick(&at, 0), kin, level, Some(grid), None, Role::Press, false);
+            steps += 1;
+        }
+        if at.fall != Fall::Ground {
+            return PressOutcome::NotDown { at: at.feet };
+        }
+        at.keys = stay;
+    }
+    // [body physics S4] Where the client's body came down: a press lands only if it is up there too. The stay steps hold the walk
+    // keys on a route that walks on (`AfterLanding::WalkOn`), and a body down short on a lower step walks up onto the landing in
+    // them, where the motor, seeing it short at the touchdown, does not walk on (the S4a gate: level_05's two-step riser, down at
+    // 7.22 under the 7.90 landing, walked up by the stay steps; the exe's own verdict is a touchdown on the landing's floor).
+    let touchdown = at.client.map(|_| at.feet);
     // A flight that ended in the air (falling on): its controller falls on, no key, until it is on the ground, and the rest is
     // played from there. The grid's floor under the feet is not the client's where its controller has no ground (the suite's
     // S417: a gap's grid floor past its real edge, the exe fell 5.5 m; S109: a step's face, back to the start floor).
@@ -1012,18 +1065,21 @@ fn fly_pressed(mut at: Estimate, plan: &PressPlan, world: &PressWorld) -> PressO
     let mut grounded = true;
     for _ in 0..mapdata::controller::jump::STAY_STEPS {
         at = advance(at, tick(&at, stay), kin, level, Some(grid), None, Role::Press, false);
-        grounded &= at.fall == Fall::Ground && at.arc.is_none();
+        grounded &= at.fall == Fall::Ground && !at.in_jump();
     }
-    if at.fall != Fall::Ground || at.arc.is_some() {
+    if at.fall != Fall::Ground || at.in_jump() {
         return PressOutcome::NotDown { at: at.feet };
     }
     // [landing walk] The rest's height is the kept controller's, the client's own: the reckoned feet stay on the grid's floor, which a
     // body sliding back off a sloped rim has left (the gate bench's level_03 rim: the grid's 1.84 against the exe's 1.66 and falling).
-    let rest = match at.kept {
-        Some(kept) => Vec3::new(at.feet.x, kept.controller.feet().y, at.feet.z),
-        None => at.feet,
+    let rest = match (at.client, at.kept) {
+        // [body physics S4] The client's body's feet are its controller's.
+        (Some(_), _) => at.feet,
+        (None, Some(kept)) => Vec3::new(at.feet.x, kept.controller.feet().y, at.feet.z),
+        (None, None) => at.feet,
     };
-    if grounded && super::motor::is_up(rest, plan.take_off, plan.landing) {
+    let touched_up = touchdown.is_none_or(|feet| super::motor::is_up(feet, plan.take_off, plan.landing));
+    if grounded && touched_up && super::motor::is_up(rest, plan.take_off, plan.landing) {
         return PressOutcome::Lands { rest };
     }
     let (dx, dz) = (plan.landing.x - plan.take_off.x, plan.landing.z - plan.take_off.z);
@@ -2154,7 +2210,7 @@ impl BodyTrack {
         feet: Vec3,
         (kin, level): (&Kinematics, f32),
         grid: &WalkGrid,
-        (arc, due): (&mut Option<Jump>, &mut Option<u32>),
+        (arc, due): (&mut Option<Jump>, &mut Option<ClientPress>),
     ) -> Option<client_body::ClientBody> {
         let taken: Vec<Tick> = self.ticks.iter().filter(|tick| tick.time <= fix.time).map(|tick| self.as_taken(*tick, kin)).collect();
         let legs_broken = taken.last().is_some_and(|tick| tick.time == fix.time && tick.legs_broken);
@@ -2203,7 +2259,7 @@ impl BodyTrack {
             let walker = super::client_walker::GridWalker(grid);
             *arc = None;
             match fix.time.saturating_sub(pressed) / TICK_MS {
-                0 => *due = Some(press),
+                0 => *due = Some(ClientPress::of(press)),
                 ticks => {
                     let leg = (mapdata::controller::jump::Leg::Left, mapdata::controller::jump::SPRINT_FIRST_AIR_FRAMES[0]);
                     body.resume_jump(&walker, (press, speed), ck, leg, ticks - 1).ok()?;
@@ -2618,7 +2674,7 @@ fn advance(
             // anew where the clip lands ([`client_walks`]).
             if client_walker.is_some() && at.client.is_some() {
                 if super::jump_arc::Direction::of(tick.keys) == super::jump_arc::Direction::Forward {
-                    at.client_due = Some(tick.keys);
+                    at.client_due = Some(ClientPress::of(tick.keys));
                     return finish(at, tick, kin, event);
                 }
                 at.client = None;
@@ -2696,7 +2752,8 @@ fn client_walks<'g>(at: &Estimate, kin: &Kinematics, role: Role, grid: Option<&'
     let steps_it = match role {
         Role::Reckoning => true,
         Role::Forecast => kin.forecast_step == ForecastStep::Kept,
-        Role::Press => false,
+        // [body physics S4] The press forecast plays the client's body when the estimate it forecasts from has one (the reckoning's).
+        Role::Press => at.client.is_some(),
     };
     grid.filter(|grid| kin.reckoning_body == ReckoningBody::Client && steps_it && at.arc.is_none() && grid.has_client_walker())
 }
@@ -2732,11 +2789,11 @@ fn client_steps(at: &mut Estimate, tick: Tick, level: f32, grid: &WalkGrid, step
     let Some(t) = last else { return };
     at.feet = t.feet;
     at.velocity = [(t.feet.x - before.x) / TICK_S, (t.feet.z - before.z) / TICK_S];
-    if let Some(keys) = at.client_due.take() {
-        let (leg, frame) = (mapdata::controller::jump::Leg::Left, mapdata::controller::jump::SPRINT_FIRST_AIR_FRAMES[0]);
-        if body.press_forward(keys, at.velocity[0].hypot(at.velocity[1]), ck, leg, frame).is_ok() && role == Role::Reckoning {
-            flown_jumps::count(if client_body::sprints(keys) { flown_jumps::Kind::Sprint } else { flown_jumps::Kind::Short });
-        }
+    if let Some(ClientPress { keys, leg, first_air_frame }) = at.client_due.take()
+        && body.press_forward(keys, at.velocity[0].hypot(at.velocity[1]), ck, leg, first_air_frame).is_ok()
+        && role == Role::Reckoning
+    {
+        flown_jumps::count(if client_body::sprints(keys) { flown_jumps::Kind::Sprint } else { flown_jumps::Kind::Short });
     }
     timer.stop(role.clock());
     at.node = grid.locate(t.feet, LOCATE_M).or(at.node);
@@ -5650,5 +5707,97 @@ pub(super) mod tests {
             let resumed = run(Some(world_at));
             assert!((resumed - whole).length() < 1e-4, "a world at {world_at}: {resumed:?} against {whole:?}");
         }
+    }
+
+    /// [body physics S4] With the client's body, the press forecast is the reckoning's own steps to the bit: on `press_gap`'s pit,
+    /// each press timing 0..20 forecast ends (its rest, or its feet still in the air) where the reckoning ends, playing the same keys
+    /// (the walk, the press, forward in the air, let go at the landing tick, falling on, the stay steps).
+    #[test]
+    fn a_client_press_forecast_is_the_reckonings_own_steps() {
+        let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 10.0, 10.0, 0.0).to_vec();
+        triangles.extend(floor(10.0, 0.0, 11.2, 10.0, -1.0));
+        triangles.extend(floor(11.2, 0.0, 20.0, 10.0, 0.0));
+        triangles.extend(pit_wall(10.0, 0.0, 10.0, -1.0, 0.0));
+        triangles.extend(pit_wall(11.2, 0.0, 10.0, -1.0, 0.0));
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default()).with_client_walker(&triangles);
+        let kin = Kinematics { jump_arc: true, ..Kinematics::default() };
+        assert_eq!(kin.reckoning_body, ReckoningBody::Client, "the default");
+        let mut track = BodyTrack::default();
+        track.fixed(fix(0, Vec3::new(6.0, 0.0, 5.0), -std::f32::consts::FRAC_PI_2), &kin, Some(&grid));
+        for time in (50..=400).step_by(50) {
+            track.decided(time, key::FORWARD, (0.0, 0.0), 0.0, &kin, Some(&grid));
+        }
+        let at = *track.estimate().unwrap();
+        assert!(at.client.is_some(), "the client's body");
+        let world = PressWorld { kin: &kin, level: 1.0, grid: &grid };
+        let tick = |at: &Estimate, keys: u32| Tick { time: at.time + TICK_MS, keys, turn: (0.0, 0.0), kick: 0.0, jump: JumpGate::Open, legs_broken: false };
+        let step = |at: Estimate, keys: u32| advance(at, tick(&at, keys), &kin, 1.0, Some(&grid), None, Role::Reckoning, false);
+        let mut landed = 0;
+        for press_in in 0..20 {
+            let outcome = press_forecast(&at, &gap_plan(key::FORWARD, press_in), &world);
+            let end = end_of(outcome).unwrap_or_else(|| panic!("press {press_in}: no flight"));
+            let mut r = at;
+            for _ in 0..press_in {
+                r = step(r, key::FORWARD);
+            }
+            r = step(r, key::FORWARD | key::JUMP);
+            assert!(r.in_jump() && r.arc.is_none(), "press {press_in}: the client's body flies it: {r:?}");
+            let mut n = 0;
+            while r.in_jump() && n < PRESS_FLIGHT_STEPS {
+                r = step(r, key::FORWARD);
+                n += 1;
+            }
+            r.keys = 0;
+            let mut n = 0;
+            while r.fall != Fall::Ground && n < PRESS_FALL_STEPS {
+                r = step(r, 0);
+                n += 1;
+            }
+            r.keys = 0;
+            if r.fall == Fall::Ground && !r.in_jump() {
+                for _ in 0..mapdata::controller::jump::STAY_STEPS {
+                    r = step(r, 0);
+                }
+            }
+            assert_eq!(end, r.feet, "press {press_in}: the forecast ends where the reckoning does ({outcome:?})");
+            landed += u32::from(matches!(outcome, PressOutcome::Lands { .. }));
+        }
+        assert!(landed > 0 && landed < 20, "some timings land and some do not: {landed} of 20");
+    }
+
+    /// [body physics S4] A press lands only if the client's body is up where it comes down: on a two-step riser a standing press comes
+    /// down on the middle step, and the stay steps of a route that walks on (`AfterLanding::WalkOn`) walk it up the next step onto the
+    /// landing; the forecast says short (the S4a gate's level_05 riser: down at 7.22 under the 7.90 landing).
+    #[test]
+    fn a_client_press_down_short_is_short_though_the_walk_on_goes_up() {
+        let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 10.0, 10.0, 0.0).to_vec();
+        triangles.extend(floor(10.0, 0.0, 11.6, 10.0, 0.75));
+        triangles.extend(floor(11.6, 0.0, 20.0, 10.0, 1.45));
+        triangles.extend(pit_wall(10.0, 0.0, 10.0, 0.0, 0.75));
+        triangles.extend(pit_wall(11.6, 0.0, 10.0, 0.75, 1.45));
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default()).with_client_walker(&triangles);
+        let kin = Kinematics { jump_arc: true, ..Kinematics::default() };
+        let mut track = BodyTrack::default();
+        track.fixed(fix(0, Vec3::new(9.8, 0.0, 5.0), -std::f32::consts::FRAC_PI_2), &kin, Some(&grid));
+        for time in (50..=400).step_by(50) {
+            track.decided(time, 0, (0.0, 0.0), 0.0, &kin, Some(&grid));
+        }
+        let at = *track.estimate().unwrap();
+        assert!(at.client.is_some(), "the client's body");
+        let world = PressWorld { kin: &kin, level: 1.0, grid: &grid };
+        let (take_off, landing) = (Vec3::new(9.9, 0.0, 5.0), Vec3::new(12.1, 1.45, 5.0));
+        let plan = |press_in, after| PressPlan { walk: key::FORWARD, press_in, take_off, landing, after };
+        let mut short_walked_up = 0;
+        for press_in in 0..2 {
+            let walk_on = press_forecast(&at, &plan(press_in, AfterLanding::WalkOn), &world);
+            let hold = press_forecast(&at, &plan(press_in, AfterLanding::Hold), &world);
+            let PressOutcome::Short { rest } = hold else { panic!("press {press_in}: down on the middle step: {hold:?}") };
+            assert!((rest.y - 0.75).abs() < 0.1, "press {press_in}: on the middle step: {rest:?}");
+            match walk_on {
+                PressOutcome::Short { rest } => short_walked_up += u32::from(rest.y > 1.3),
+                other => panic!("press {press_in}: down short is short, whatever the stay walk: {other:?}"),
+            }
+        }
+        assert_eq!(short_walked_up, 2, "the stay walk went up the step on both presses");
     }
 }
