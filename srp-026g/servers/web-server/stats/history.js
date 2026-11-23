@@ -236,10 +236,11 @@
   // hands. WEAPONS empty rows while loading, and without an `id` yet; a
   // list sorted anew stays until the new one is here.
   const WEAPONS = 5;
-  const WEAPON_KEYS = ['kills', 'kd', 'headshot_rate', 'accuracy', 'kill_distance', 'wall_kills', 'ricochet_kills', 'held'];
+  const WEAPON_KEYS = ['kills', 'kd', 'kills_per_minute', 'headshot_rate', 'accuracy', 'kill_distance', 'wall_kills', 'ricochet_kills', 'held'];
   function weaponList(id) {
     const columns = [[TEXT.weapon, item => itemCell(item, wikiWeapon(item)), 'l', '', () => itemCell(null)],
-      [TEXT.kills, item => n(item.kills), '', 'kills'], [TEXT.kd, item => kd(item.kd), '', 'kd'], [TEXT.headshotRate, headshotRate, '', 'headshot_rate'],
+      [TEXT.kills, item => n(item.kills), '', 'kills'], [TEXT.kd, item => kd(item.kd), '', 'kd'],
+      [TEXT.killsPerMinute, item => kd(item.kills_per_minute), '', 'kills_per_minute'], [TEXT.headshotRate, headshotRate, '', 'headshot_rate'],
       [TEXT.accuracy, aim, '', 'accuracy'],
       [TEXT.avgDistance, item => item.kill_distance_m === null ? '—' : metres.format(item.kill_distance_m), '', 'kill_distance'],
       [TEXT.wallKills, item => n(item.wall_kills), '', 'wall_kills'], [TEXT.ricochetKills, item => n(item.ricochet_kills), '', 'ricochet_kills'],
@@ -554,13 +555,15 @@
     const sizes = el('div', {className: 'slot-filter stats-sizes', role: 'group', ariaLabel: TEXT.today});
     const lists = el('div', {className: 'stats-leaders'});
     const box = el('div', {}, el('div', {className: 'stats-heading-row'}, el('h2', {className: 'stats-heading'}, TEXT.today), sizes), lists);
+    // A name too long for its list is cut short: whole in its title.
+    const named = player => { const name = playerLink(player); name.title = name.textContent; return name; };
     const draw = data => {
       const of = key => data && (data.leaders[key] || []).map((row, rank) => ({...row, rank}));
       const longest = Math.max(LEADER_SIZES[0], ...LEADERS.map(([key]) => (of(key) || []).length));
       lists.replaceChildren(...LEADERS.map(([key, label]) => {
         const rows = of(key);
-        const list = table([[TEXT.rank, row => n(row.rank + 1)], [TEXT.player, row => playerLink(row.player), 'l'],
-          [TEXT[label], row => value(key, row.value)]], rows, longest, '', openPlayer);
+        const list = table([[TEXT.rank, row => n(row.rank + 1)], [TEXT.player, row => named(row.player), 'l'],
+          [el('span', {className: 'stats-over'}, TEXT[label]), row => value(key, row.value)]], rows, longest, '', openPlayer);
         if (rows) list.blank(longest - rows.length);
         return list;
       }));

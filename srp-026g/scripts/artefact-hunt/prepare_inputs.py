@@ -195,9 +195,6 @@ def main():
             files['live/' + path] = live.read(path)
             project = bcw.loads(files['live/' + path])['mode']['match_making_params']['map_name']
             files[f'live/projects/{project}/client_project'] = live.read(f'projects/{project}/client_project')
-            # the Batteries project, whose props the boxes' stands are (make_pack.py, STANDS)
-            path = f'projects/level_{level}/{project.rsplit("/", 1)[1][:-2]}_2/client_project'
-            files['live/' + path] = live.read(path)
         roots = list(ASSETS) + [f'sounds/collections/vo/{voice}/artifact_hunt/{line}.sound_collection'
                                 for voice in VOICES for line in LINES]
         for path, data in closure(donor, live.paths(), roots).items():

@@ -367,6 +367,8 @@ unsafe extern "C" {
     pub fn engine_register_hunt_cook(cook: *mut c_void);
     /// 0x313900 survarium::game_match_rule_base::game_match_rule_base: rule EAX, type ESP+4; pops 4; EAX
     pub fn engine_hunt_rule_base(rule: *mut c_void, r#type: u32) -> *mut c_void;
+    /// 0x23bea0 survarium::game_world_ui::set_hud_icon_type: ui ESP+4, id ESP+8, type ESP+12; pops 12
+    pub fn engine_set_hud_icon_type(ui: *mut c_void, id: u32, r#type: u32);
 }
 
 #[allow(dead_code)]
@@ -397,8 +399,8 @@ unsafe extern "stdcall" {
     pub fn engine_shared_string_create(text: *const u8) -> *mut c_void;
     /// 0xe0ae0 vostok::shared_string::destroy: string ESP+4; pops 4; stdcall, called directly
     pub fn engine_shared_string_destroy(string: *mut c_void);
-    /// 0x22660 vostok::render::scene_renderer::play_particle_system: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20, first_attachment ESP+24, second_attachment ESP+28; pops 28; stdcall, called directly
-    pub fn engine_play_particle_system(renderer: *mut c_void, scene: *mut c_void, particle: *mut c_void, first_matrix: *const f32, second_matrix: *const f32, first_attachment: *const u32, second_attachment: *const u32);
+    /// 0x22660 vostok::render::scene_renderer::play_particle_system: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20, animated_object ESP+24, skeleton ESP+28; pops 28; stdcall, called directly
+    pub fn engine_play_particle_system(renderer: *mut c_void, scene: *mut c_void, particle: *mut c_void, first_matrix: *const f32, second_matrix: *const f32, animated_object: *const *mut c_void, skeleton: *const *mut c_void);
     /// 0x229d0 vostok::render::scene_renderer::remove_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12; pops 12; stdcall, called directly
     pub fn engine_remove_particle_system(renderer: *mut c_void, scene: *mut c_void, particle: *const *mut c_void);
     /// 0x22b30 vostok::render::scene_renderer::update_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20; pops 20; stdcall, called directly

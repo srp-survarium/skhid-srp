@@ -25,7 +25,7 @@ use core::ffi::CStr;
 
 use artefact_hunt_rule::{
     Action, After, ArtefactView, BaseDef, Cue, Event, Hud, Line, Message, Params, Place, Position, RawParams,
-    RawShape, Reason, Rule, Shift, Spawner, Spawning, SuddenShown, Team, Time, View, Viewer, MAX_SHAPES, MAX_SPAWNERS,
+    RawShape, Reason, Rule, Shift, Spawner, SuddenShown, Team, Time, View, Viewer, MAX_SHAPES, MAX_SPAWNERS,
     PLAYERS, REACH, along,
 };
 
@@ -553,32 +553,23 @@ pub fn on_respawn_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 fn respawn_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(tick) = RespawnTick::at(ctx) else { return Flow::Continue };
-    let Some(world) = tick.world().map(|world| world.key()) else { return Flow::Continue };
-    let Some(hunt) = hunt_in(ctx.thread(), world) else { return Flow::Continue };
-    // A round about to start: patch 31's kit switch (its state test leaves a
-    // round's countdown to this tick), each a life for supplies, counted.
-    if hunt.state.round_countdown() {
-        let world_now = tick.world();
-        for place in (0..PLAYERS as u8).filter_map(Place::new) {
-            if tick.switch_kit(place.get()) {
-                HUNT.with(ctx.thread(), |hunt| {
-                    if let (Some(hunt), Some(world)) = (hunt.as_mut(), world_now.as_ref()) {
-                        step(world, hunt, Event::KitSwitched { place });
-                    }
-                });
-                if hunt_log(ctx.thread()) {
-                    log::line(&[Piece::Text("artefact_hunt: tick "), Piece::Dec(tick.time()), Piece::Text(" game "),
-                                Piece::Dec(crate::vostok::gun_cook::process_id()), Piece::Text(": place "),
-                                Piece::Dec(u32::from(place.get())), Piece::Text(" switches kit in the round countdown")]);
-                }
+    let Some(world) = tick.world() else { return Flow::Continue };
+    let Some(hunt) = hunt_in(ctx.thread(), world.key()) else { return Flow::Continue };
+    let spawning = hunt.state.spawning(Time::from_ms(tick.time()));
+    // Patch 31's state test leaves a round's countdown to this tick.
+    crate::round_countdown::respawn_tick(&tick, hunt.state.round_countdown(), spawning, 0, |place| {
+        let Some(place) = Place::new(place) else { return };
+        HUNT.with(ctx.thread(), |hunt| {
+            if let Some(hunt) = hunt.as_mut() {
+                step(&world, hunt, Event::KitSwitched { place });
             }
+        });
+        if hunt_log(ctx.thread()) {
+            log::line(&[Piece::Text("artefact_hunt: tick "), Piece::Dec(tick.time()), Piece::Text(" game "),
+                        Piece::Dec(crate::vostok::gun_cook::process_id()), Piece::Text(": place "),
+                        Piece::Dec(u32::from(place.get())), Piece::Text(" switches kit in the round countdown")]);
         }
-    }
-    match hunt.state.spawning(Time::from_ms(tick.time())) {
-        Spawning::Native => {}
-        Spawning::Held => tick.hold_due(),
-        Spawning::Everyone => tick.everyone_now(),
-    }
+    });
     Flow::Continue
 }
 
@@ -850,8 +841,8 @@ fn seconds(ms: u32) -> u32 {
     ms.div_ceil(1000)
 }
 
-/// The update call's 28 values ("HUD calls").
-fn update_values(hud: &Hud, params: &Params, viewer: Viewer, viewed_carries: bool) -> [f64; 28] {
+/// The update call's 30 values ("HUD calls").
+fn update_values(hud: &Hud, params: &Params, viewer: Viewer, viewed_carries: bool) -> [f64; 30] {
     let own = viewer.team.unwrap_or(Team::Zero);
     let own_team = viewer.team.map_or(3.0, |team| team.index() as f64);
     let (artefact, x, z, carrier, carrier_team) = match hud.artefact {
@@ -878,6 +869,7 @@ fn update_values(hud: &Hud, params: &Params, viewer: Viewer, viewed_carries: boo
         SuddenShown::On => 2.0,
     };
     let phase = hud.phase as u8;
+    let (wave, wave_total) = hud.wave.map_or((0, 0), |wave| (wave.left_ms, wave.total_ms));
     [
         own_team,
         f64::from(hud.score[0]),
@@ -900,6 +892,8 @@ fn update_values(hud: &Hud, params: &Params, viewer: Viewer, viewed_carries: boo
         carrier,
         carrier_team,
         f64::from(u8::from(viewed_carries)),
+        f64::from(wave),
+        f64::from(wave_total),
         2.0,
         b0[0], b0[1], b0[2],
         b1[0], b1[1], b1[2],
@@ -907,9 +901,9 @@ fn update_values(hud: &Hud, params: &Params, viewer: Viewer, viewed_carries: boo
 }
 
 /// A checksum of what the movie was told: the ms values as whole seconds.
-fn checksum(values: &[f64; 28]) -> u32 {
+fn checksum(values: &[f64; 30]) -> u32 {
     values.iter().enumerate().fold(0u32, |sum, (i, &value)| {
-        let value = if matches!(i, 5 | 8) { f64::from(seconds(value as u32)) } else { value };
+        let value = if matches!(i, 5 | 8 | 21) { f64::from(seconds(value as u32)) } else { value };
         let bits = value.to_bits();
         (sum.rotate_left(7) ^ (bits as u32)).rotate_left(11) ^ ((bits >> 32) as u32)
     })
@@ -1382,7 +1376,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_update_has_28_values_in_the_contracts_order() {
+    fn the_update_has_30_values_in_the_contracts_order() {
         let spawners = [Spawner { position: [1.0, 0.0, 2.0] }];
         let crate_shape = [RawShape { kind: 1, position: [0.0, 0.5, 0.0], axes: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], half: [0.5; 3] }];
         let bases = [
@@ -1403,8 +1397,9 @@ mod tests {
         assert_eq!(values[3], 5.0);
         assert_eq!(values[4], 0.0, "before the start");
         assert_eq!((values[15], values[18], values[19]), (0.0, 255.0, 2.0));
-        assert_eq!(values[21], 2.0);
-        assert_eq!(values[22..28], [0.0, 0.0, -5.0, 1.0, 50.0, 7.0]);
+        assert_eq!(values[21..23], [0.0, 0.0], "no wave before the start");
+        assert_eq!(values[23], 2.0);
+        assert_eq!(values[24..30], [0.0, 0.0, -5.0, 1.0, 50.0, 7.0]);
         let none = Viewer { place: None, team: None };
         assert_eq!(update_values(&hud, &params, none, false)[0], 3.0);
         // Phase ids are 0.46c2's.

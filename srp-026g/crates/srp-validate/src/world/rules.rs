@@ -1204,7 +1204,10 @@ pub fn rules(section: &Section, context: &Context) -> Result<(), Refusal> {
         return refuse(Reason::RespawnTimePast { place, places });
     }
     match read.mode_rule() {
-        ModeRule::FreezeTag(_) => Ok(()),
+        ModeRule::FreezeTag(rule) => match freeze_tag_fault(rule, read.timelimit().current_time_ms()) {
+            Some(reason) => refuse(reason),
+            None => Ok(()),
+        },
         ModeRule::Tdm(tdm) => {
             if tdm.alive_players().past(places).is_some()
                 || tdm.active_players().past(places).is_some()
@@ -1242,6 +1245,24 @@ pub fn rules(section: &Section, context: &Context) -> Result<(), Refusal> {
             }
         }
     }
+}
+
+/// What in Freeze Tag's rule its own bytes cannot say against the world's
+/// time `now` (the timelimit's): a round's restart part ends after it, by the
+/// part's whole length at most (each part is timed from the step that entered
+/// it, the world's last at the latest); the match ended at it or before.
+fn freeze_tag_fault(rule: &super::freeze::FreezeTag, now: u32) -> Option<Reason> {
+    use super::freeze::{Phase, TIMING};
+    let now = artefact_hunt_rule::Time::from_ms(now);
+    let fits = match rule.phase() {
+        Phase::Playing => true,
+        Phase::Restart { restart, .. } => restart
+            .until()
+            .since(now)
+            .is_some_and(|left| left > 0 && left <= restart.length(TIMING).get()),
+        Phase::Finished { at, .. } => now.since(at).is_some(),
+    };
+    (!fits).then_some(Reason::FreezeTagTime)
 }
 
 /// What in Artifact Hunt's rule its own bytes cannot say against the rest of
@@ -1528,9 +1549,16 @@ mod tests {
         let mut bodies = [Body::Absent; PLAYERS];
         bodies[0] = Body::Present { team: Team::First, position: [0.0; 3], condition: Condition::Fighting };
         bodies[1] = Body::Present { team: Team::Second, position: [10.0; 3], condition: Condition::Lethal };
-        freeze.step(&bodies, &[[false; PLAYERS]; PLAYERS], 50);
+        freeze.step(artefact_hunt_rule::Time::from_ms(TIME), &bodies, &[[false; PLAYERS]; PLAYERS], 50);
         let block = freeze.bytes();
         assert_eq!(check(&block, mode::FREEZE_TAG, Some(3)), Ok(()));
+        // The round's 3 s from the world's time: a deadline past them, or
+        // reached, is no world's.
+        for (until, ok) in [(TIME + 3000, true), (TIME + 1, true), (TIME + 3001, false), (TIME, false)] {
+            let mut moved = block;
+            moved[5..9].copy_from_slice(&until.to_le_bytes());
+            assert_eq!(check(&moved, mode::FREEZE_TAG, Some(3)).is_ok(), ok, "{until}");
+        }
         let bytes = bytes(&block);
         let read = Rules::read(&Section { at: 0, bytes: &bytes }, &context(mode::FREEZE_TAG, Some(3))).unwrap();
         assert_eq!(read.mode_rule(), &ModeRule::FreezeTag(freeze));
@@ -1540,7 +1568,7 @@ mod tests {
         // A third participant outside this match's two-place roster.
         bodies[2] = bodies[0];
         freeze = FreezeTag::EMPTY;
-        freeze.step(&bodies, &[[false; PLAYERS]; PLAYERS], 50);
+        freeze.step(artefact_hunt_rule::Time::from_ms(TIME), &bodies, &[[false; PLAYERS]; PLAYERS], 50);
         assert_eq!(reason(check(&freeze.bytes(), mode::FREEZE_TAG, Some(3))), Some(Reason::NoFreezeTagRule));
     }
 

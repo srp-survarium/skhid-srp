@@ -319,6 +319,7 @@ global engine_register_hunt_cook
 global engine_hunt_rule_base
 global engine_player_remove
 global engine_spawn_player
+global engine_set_hud_icon_type
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -440,7 +441,7 @@ engine_set_constant_float4 equ 0x1a8900   ; 0x1a8900 vostok::render::effect_comp
 engine_set_constant_float2 equ 0x1d9740   ; 0x1d9740 vostok::render::effect_compiler::set_constant_float2: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
 engine_shared_string_create equ 0xe0b50   ; 0xe0b50 vostok::shared_string::create: text ESP+4; pops 4; EAX; stdcall, called directly
 engine_shared_string_destroy equ 0xe0ae0   ; 0xe0ae0 vostok::shared_string::destroy: string ESP+4; pops 4; stdcall, called directly
-engine_play_particle_system equ 0x22660   ; 0x22660 vostok::render::scene_renderer::play_particle_system: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20, first_attachment ESP+24, second_attachment ESP+28; pops 28; stdcall, called directly
+engine_play_particle_system equ 0x22660   ; 0x22660 vostok::render::scene_renderer::play_particle_system: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20, animated_object ESP+24, skeleton ESP+28; pops 28; stdcall, called directly
 engine_remove_particle_system equ 0x229d0   ; 0x229d0 vostok::render::scene_renderer::remove_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12; pops 12; stdcall, called directly
 engine_update_particle_system equ 0x22b30   ; 0x22b30 vostok::render::scene_renderer::update_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20; pops 20; stdcall, called directly
 engine_tdm_cook_create equ 0x2063f0   ; 0x2063f0 survarium::tdm_rule_cook::create_resource: cook ECX, query ESP+4; pops 4; EAX; thiscall, called directly
@@ -3538,6 +3539,23 @@ engine_hunt_rule_base:
     push dword [esp + 24]   ; type -> 4
     mov eax, [esp + 24]   ; rule
     call 0x313900
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_set_hud_icon_type:
+    ; 0x23bea0 survarium::game_world_ui::set_hud_icon_type: ui ESP+4, id ESP+8, type ESP+12; pops 12
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; type -> 12
+    push dword [esp + 28]   ; id -> 8
+    push dword [esp + 28]   ; ui -> 4
+    call 0x23bea0
     pop edi
     pop esi
     pop ebx

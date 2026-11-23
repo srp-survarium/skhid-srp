@@ -110,7 +110,7 @@ unsafe fn set_cloud(grenade: raw::GrenadeCore, value: Option<Cloud>) {
 ///
 /// # Safety
 /// `grenade` is a live grenade of a live stack.
-unsafe fn thrower(grenade: raw::GrenadeCore) -> Option<raw::Player> {
+pub(super) unsafe fn thrower(grenade: raw::GrenadeCore) -> Option<raw::Player> {
     // SAFETY: the stack's item and its owning inventory and holder, alive with it.
     unsafe { Some(grenade.stack()?.item().inventory()?.holder()?.player()) }
 }
@@ -120,7 +120,7 @@ unsafe fn thrower(grenade: raw::GrenadeCore) -> Option<raw::Player> {
 ///
 /// # Safety
 /// As [`thrower`].
-unsafe fn smoke_grenade(grenade: raw::GrenadeCore) -> bool {
+pub(super) unsafe fn smoke_grenade(grenade: raw::GrenadeCore) -> bool {
     // SAFETY: the stack's configured field.
     unsafe { grenade.stack().is_some_and(|set| read(set.splash_max_damage()) == 0.0) }
 }

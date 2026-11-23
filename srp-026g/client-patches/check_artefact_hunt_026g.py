@@ -333,6 +333,15 @@ def main():
     run.word(rules + 4, rule)
     run.word(CORE + research.RULES + 4, rules + 8)
 
+    # The hud state's points from the match's first frame (before its start): a last match's 7:3 is
+    # written over with the hunt's 0:0 (the owner, 2026-11-22: "make sure arthunt also resets it").
+    first_hud = run.allocate(0x100)
+    run.emu.mem_write(first_hud + 0x90, struct.pack("<2H", 7, 3))
+    run.call(0x2D36B0, args=(CORE, first_hud, 0), until=0x2D36E2)
+    check("driven: slot 17 through fill_match_hud_state's loop before the match's start: 0 / 0 over a "
+          "last match's 7 / 3", run.read(first_hud + 0x90, 2) == 0 and run.read(first_hud + 0x92, 2) == 0,
+          f"{run.read(first_hud + 0x90, 2)} / {run.read(first_hud + 0x92, 2)}")
+
     # 4. Who is in: slot 8 through the world's loop. As in the game (the
     # 2026-11-21 test: nobody was ever in the match), team 1's players have
     # no team yet when slot 8 comes: the tick takes them in.

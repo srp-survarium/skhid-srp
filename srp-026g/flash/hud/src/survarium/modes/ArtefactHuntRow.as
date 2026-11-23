@@ -2,6 +2,7 @@ package survarium.modes
 {
    import flash.display.Graphics;
    import flash.display.Shape;
+   import flash.geom.Rectangle;
    import flash.text.TextField;
    import survarium.controls.ResearchUnits;
    import survarium.controls.TopRow;
@@ -15,7 +16,8 @@ package survarium.modes
    //   watched one's) larger, "You carry the artifact" under it.
    // Under that, while sudden death is on or comes with the next round, "Sudden death"; then the
    // round's own countdowns (0.46c2's "Round restarts in" and its pre-round text): the 3 s after a
-   // delivery that a new round follows, and the round's 5 s at the spawns. Drawn from the last
+   // delivery that a new round follows, and the round's 5 s at the spawns. Beside the match time
+   // above them, the next respawn wave (ArtefactHuntWave). Drawn from the last
    // update (draw) and the time since it came (tick, every frame): nothing kept of earlier ones.
    public class ArtefactHuntRow extends TopRow
    {
@@ -43,11 +45,19 @@ package survarium.modes
 
       protected var _carrierName:String = "";
 
+      public var wave:ArtefactHuntWave;
+
+      // The match time's label now (the indicator's frames may make it anew).
+      protected var _clock:Function;
+
       // `captionFont`, `bannerFont`: labels of the movie whose embedded fonts the texts take
-      // (Research's timers' and the pre-match countdown's).
-      public function ArtefactHuntRow(captionFont:TextField, bannerFont:TextField)
+      // (Research's timers' and the pre-match countdown's); `clock`: the match time's label.
+      public function ArtefactHuntRow(captionFont:TextField, bannerFont:TextField, clock:Function)
       {
          super();
+         this._clock = clock;
+         this.wave = new ArtefactHuntWave(captionFont);
+         addChild(this.wave);
          addChild(this._pip);
          this._caption = ArtefactHuntLook.text(captionFont,16);
          this._sudden = ArtefactHuntLook.text(captionFont,16,ArtefactHuntLook.SUDDEN);
@@ -80,6 +90,7 @@ package survarium.modes
          {
             return;
          }
+         this.wave.draw(s,now,this.clockBox());
          this.drawPip(s,now);
          var y:Number = (RADIUS + RING) * this._pip.scaleY + GAP;
          y = this.line(this._sudden,s.sudden != ArtefactHuntState.SUDDEN_OFF ?
@@ -87,6 +98,25 @@ package survarium.modes
          y = this.line(this._caption,this.caption(s,now),y);
          this._caption.textColor = this.captionColour(s);
          this.line(this._banner,this.banner(s,now),y + 2);
+      }
+
+      // The match time's text in the row's units, from its left to its right and from its top to its
+      // digits' baseline; null while it is not shown.
+      protected function clockBox() : Rectangle
+      {
+         var clock:* = this._clock();
+         if(clock == null || clock.stage == null || !clock.visible || parent == null || clock.textField == null
+            || clock.textField.text.length == 0)
+         {
+            return null;
+         }
+         var field:TextField = clock.textField;
+         var box:Rectangle = field.getBounds(this);
+         var k:Number = box.width / field.width;
+         var wide:Number = (field.textWidth + 4) * k;
+         var align:String = field.getTextFormat().align;
+         var x:Number = align == "left" ? box.x : (align == "right" ? box.right - wide : box.x + (box.width - wide) / 2);
+         return new Rectangle(x,box.y,wide,(2 + field.getLineMetrics(0).ascent) * k);
       }
 
       protected function drawPip(s:ArtefactHuntState, now:int) : void
@@ -183,7 +213,7 @@ package survarium.modes
       // The texts shown now, for checks.
       public function get texts() : Object
       {
-         return {sudden:this._sudden.visible ? this._sudden.text : "",caption:this._caption.visible ? this._caption.text : "",
+         return {wave:this.wave.visible ? this.wave.text : "",sudden:this._sudden.visible ? this._sudden.text : "",caption:this._caption.visible ? this._caption.text : "",
             banner:this._banner.visible ? this._banner.text : ""};
       }
 

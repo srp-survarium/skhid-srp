@@ -661,7 +661,8 @@ impl<'c, 'm> DeathDelay<'c, 'm> {
 }
 
 /// The respawn rule's tick after its prologue (0x316826), before it reads
-/// any place's time.
+/// any place's time: what a mode played in rounds does there
+/// (`crate::round_countdown::respawn_tick`, Artifact Hunt's and Freeze Tag's).
 pub struct RespawnTick<'t> {
     rule: raw::PlayerRespawnRuleBase,
     time: u32,
@@ -720,19 +721,17 @@ impl<'t> RespawnTick<'t> {
         true
     }
 
-    /// Every place due now is due no more, but an entering one: a place in the match whose
-    /// player is out of the world (entered or came back, not spawned yet) spawns at its entry
-    /// time. Held out, every world load would put it half into the world (link 0: no models, no
-    /// player effect +F540h) and its next removal with 1 read a null effect at 0x2DE36D (the
-    /// round's start, or the respawn rule's leave handler 0x316BE0), as Freeze Tag's of 2026-11-22.
+    /// Whether `place` is entering: in the match, its player out of the world (entered or came
+    /// back, not spawned yet). It spawns at its entry time, never held or voided: held out, every
+    /// world load would put it half into the world (link 0: no models, no player effect +F540h)
+    /// and its next removal with 1 read a null effect at 0x2DE36D (the round's start, or the
+    /// respawn rule's leave handler 0x316BE0), as Freeze Tag's of 2026-11-22.
+    fn entering(&self, place: u8) -> bool {
+        self.world().and_then(|world| world.player(place)).is_some_and(|player| !player.inserted())
+    }
+    /// Every place due now is due no more, but an entering one.
     pub fn hold_due(&self) {
-        let world = self.world();
-        for place in 0..PLACES {
-            let entering = world.as_ref().and_then(|world| world.player(place))
-                .is_some_and(|player| !player.inserted());
-            if entering {
-                continue;
-            }
+        for place in (0..PLACES).filter(|place| !self.entering(*place)) {
             // SAFETY: the rule's twenty respawn times (+138h).
             unsafe {
                 let at = self.rule.times().add(usize::from(place));
@@ -740,6 +739,14 @@ impl<'t> RespawnTick<'t> {
                     at.write_volatile(NO_RESPAWN);
                 }
             }
+        }
+    }
+    /// `place` has no native time (-1: no respawn, and none on the hud, 0x316C35), but an
+    /// entering one.
+    pub fn void(&self, place: u8) {
+        if place < PLACES && !self.entering(place) {
+            // SAFETY: the rule's twenty respawn times, the place below twenty.
+            unsafe { self.rule.times().add(usize::from(place)).write_volatile(NO_RESPAWN) };
         }
     }
     /// Every place of the match is due now: this tick takes out and spawns
@@ -864,7 +871,7 @@ impl<'t> ArtefactScene<'t> {
     /// `particle` played at `matrix`.
     pub fn play_at(&self, particle: super::resources::KeptParticle, matrix: &[f32; 16]) {
         // SAFETY: as play.
-        unsafe { self.scene.play_particle(particle.0, matrix) }
+        unsafe { self.scene.play_particle(particle.0, matrix, super::carry_runtime::Bones::NONE) }
     }
     /// The model at `at`, added or moved there.
     pub fn show(&self, model: super::resources::KeptModel, at: [f32; 3]) {
@@ -883,7 +890,7 @@ impl<'t> ArtefactScene<'t> {
     }
     pub fn play(&self, particle: super::resources::KeptParticle, at: [f32; 3]) {
         // SAFETY: a particle system kept for the process; the live scene.
-        unsafe { self.scene.play_particle(particle.0, &placed(at)) }
+        unsafe { self.scene.play_particle(particle.0, &placed(at), super::carry_runtime::Bones::NONE) }
     }
     pub fn stop(&self, particle: super::resources::KeptParticle) {
         // SAFETY: as play.

@@ -44,6 +44,7 @@ use core::ffi::CStr;
 
 use crate::geometry::Position;
 use crate::params::Params;
+use crate::restart::{Lives, Restart};
 use crate::roster::{PLAYERS, Place, Roster, Sides, Team};
 use crate::rule::{Artefact, Clock, Over, Play, Reason, Rng, Round, Rule, Spot, Stage, Sudden};
 use crate::time::Time;
@@ -241,7 +242,7 @@ impl Rule {
     /// The body, then each place's kit switches in a round's countdown.
     fn all(&self, put: &mut dyn FnMut(Field)) {
         self.body(put);
-        for (name, &count) in SWITCHES.iter().zip(&self.kit_switches) {
+        for (name, &count) in SWITCHES.iter().zip(&self.lives.every_kit_switch()) {
             u32(put, name, u32::from(count));
         }
     }
@@ -250,7 +251,7 @@ impl Rule {
         u32(put, c"m_random", self.rng.state());
         u8(put, c"m_score[0]", self.score[0]);
         u8(put, c"m_score[1]", self.score[1]);
-        u32(put, c"m_round_starts", u32::from(self.round_starts));
+        u32(put, c"m_round_starts", u32::from(self.lives.round_starts()));
         u32(put, c"m_sides[0]", self.sides.of(Team::Zero).bits());
         u32(put, c"m_sides[1]", self.sides.of(Team::One).bits());
         let Play { start, round } = match self.stage {
@@ -301,13 +302,13 @@ impl Rule {
                     }
                 }
             }
-            Round::Brought { until } => {
+            Round::Restart(Restart::Decided { until }) => {
                 u8(put, c"m_round", BROUGHT);
                 u32(put, c"m_until", until.ms());
             }
-            Round::Fade { until, sudden } => {
+            Round::Restart(Restart::Fade { until, next }) => {
                 u8(put, c"m_round", FADE);
-                match sudden {
+                match next {
                     None => u8(put, c"m_clock", REGULAR),
                     Some(from) => {
                         u8(put, c"m_clock", SUDDEN);
@@ -316,7 +317,7 @@ impl Rule {
                 }
                 u32(put, c"m_until", until.ms());
             }
-            Round::Countdown { until, clock } => {
+            Round::Restart(Restart::Countdown { until, next: clock }) => {
                 u8(put, c"m_round", COUNTDOWN);
                 clock_fields(put, &clock);
                 u32(put, c"m_until", until.ms());
@@ -383,8 +384,7 @@ impl Rule {
         let rule = Rule {
             rng,
             score,
-            round_starts: round_starts as u16,
-            kit_switches,
+            lives: Lives::new(round_starts as u16, kit_switches),
             sides,
             stage,
         };
@@ -434,19 +434,22 @@ fn round_starts_fit(count: u32, score: [u8; 2], stage: &Stage) -> bool {
             return count <= points && count.saturating_add(2) >= points;
         }
         Stage::Play(Play { round, .. }) => {
-            let restarting = matches!(round, Round::Brought { .. } | Round::Fade { .. });
+            let restarting = matches!(
+                round,
+                Round::Restart(Restart::Decided { .. } | Restart::Fade { .. })
+            );
             let wiped = match round {
                 Round::Hunt {
                     clock: Clock::Sudden(_),
                     ..
                 }
-                | Round::Countdown {
-                    clock: Clock::Sudden(_),
-                    ..
-                }
-                | Round::Fade {
-                    sudden: Some(_), ..
-                } => score[0] != score[1],
+                | Round::Restart(
+                    Restart::Countdown {
+                        next: Clock::Sudden(_),
+                        ..
+                    }
+                    | Restart::Fade { next: Some(_), .. },
+                ) => score[0] != score[1],
                 _ => false,
             };
             points.checked_sub(u32::from(restarting) + u32::from(wiped))
@@ -586,17 +589,17 @@ fn read_play(
                 },
             }
         }
-        BROUGHT => Round::Brought {
+        BROUGHT => Round::Restart(Restart::Decided {
             until: times.read(input)?,
-        },
-        FADE => Round::Fade {
+        }),
+        FADE => Round::Restart(Restart::Fade {
             until: times.read(input)?,
-            sudden: sudden.map(|sudden| sudden.from),
-        },
-        _ => Round::Countdown {
+            next: sudden.map(|sudden| sudden.from),
+        }),
+        _ => Round::Restart(Restart::Countdown {
             until: times.read(input)?,
-            clock,
-        },
+            next: clock,
+        }),
     };
     Ok(Play { start, round })
 }

@@ -68,7 +68,6 @@ sys.path.insert(0, str(HERE.parent / 'research-mode'))
 import bcw  # noqa: E402
 import dxt  # noqa: E402
 import floors  # noqa: E402
-import stands  # noqa: E402
 from prepare_inputs import STAGES, maps, sha256  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location('research_make_pack', HERE.parent / 'research-mode' / 'make_pack.py')
@@ -76,7 +75,7 @@ research = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(research)
 
 PACK_ID = 'artefact-hunt'
-VERSION = '7'
+VERSION = '5'
 EDITS = 'artefact-hunt-1.json'
 # `mode.mode`, the lobby's number of the mode too (maps::GameMode::lobby_number is the rules'
 # number): 2 to 5 and 8 are modes, 6 Blackout, 7 Scarcity's (#1083), 9 to 11 the lobby's numbers of
@@ -107,15 +106,6 @@ BOX_HALF, BOX_HEIGHT = (0.606, 0.616), 1.152
 # How far a box's foot may be off the floor under it (m): the owner saw 0.14 m (level_04's boxes,
 # 2026-11-21: "its bottom edge does not touch the floor and its shadow is offset").
 BOX_SNAP = 0.02
-# What a box stands on where 0.46c2 does not set it on the floor: props of 0.26g's Batteries project
-# at that place, which 0.46c2 kept (the owner, 2026-11-22: "all maps with arthunt used to have small
-# concrete stands under the container"): the concrete slabs on level 06, pallets on 02 and 04, the bed
-# on 08. A base's stands are 0.46c2's props of these models within STAND_REACH (m, across) of its box
-# and not over its foot; each goes in as the Batteries project has it (its model and collision). On rough
-# ground the box stands on concrete (slab_bases, stands.py): 0.46c2's own, else Mamayev's slab.
-STANDS = ('props/garbage/concrete_plita1', 'props/garbage/concrete_plita2', 'props/garage/pallet',
-          'level/08/furniture/bed')
-STAND_REACH = 1.6
 # The mode's texts a config names (texts.tsv has them in the 12 languages).
 NAME_KEY, DESCRIPTION_KEY = f'st_mode_{MODE:02}_name', f'st_mode_{MODE:02}_description'
 HINT_KEYS = [f'st_map_hint_{MODE}_{n}' for n in (1, 2, 3)]
@@ -441,14 +431,10 @@ def mode_data(project, where):
         box = min(boxes, key=lambda e: math.dist(e['position'], container['position']))
         if math.dist(box['position'], container['position']) > 3:
             sys.exit(f"{where}: no box within 3 m of {container['full_name']}")
-        stands = [{'model': e['model_name'], 'position': tuple(e['position'])} for e in project['render_visuals']
-                  if e['model_name'] in STANDS and e['position'][1] <= box['position'][1]
-                  and math.hypot(e['position'][0] - box['position'][0], e['position'][2] - box['position'][2]) < STAND_REACH]
         bases.append({'team': container['team'], 'position': tuple(container['position']), 'shapes': shapes,
                       'box': {'position': tuple(box['position']), 'rotation': tuple(v + 0.0 for v in box['rotation'])},
                       'solids': sorted((e['model_name'], e['cgroup'], e['cmask']) for e in solids
-                                       if math.dist(e['position'], box['position']) < 1e-3),
-                      'stands': stands})
+                                       if math.dist(e['position'], box['position']) < 1e-3)})
     if [base['team'] for base in bases] != [0, 1] or len(boxes) != 2 or bases[0]['box'] == bases[1]['box']:
         sys.exit(f'{where}: not two bases, one a team, each with its box')
     for base in bases:
@@ -467,75 +453,12 @@ def mode_data(project, where):
     return {'spawners': spawners, 'bases': bases, 'spawns': spawns, 'resupply': resupply}
 
 
-def stand_entries(data, battery, where):
-    """Each base's stands as the map's Batteries project has them, at 0.46c2's place: its render
-    visual and its collision objects (0.26g's own: the pallet has no walker mesh, one collision of
-    both groups)."""
-    for base in data['bases']:
-        visuals, solids = [], []
-        for stand in base['stands']:
-            here = [e for e in battery['render_visuals']
-                    if e.get('visual_name') == stand['model'] and math.dist(e['position'], stand['position']) < 1e-3]
-            if len(here) != 1:
-                sys.exit(f"{where}: team {base['team']}'s stand {stand['model']} at {spot(stand['position'])} is not "
-                         f"once in the Batteries project")
-            visuals += here
-            solids += [e for e in battery['collision_objects']
-                       if e['lib_name'].startswith(f"resources/models/{stand['model']}.model/")
-                       and math.dist(e['position'], stand['position']) < 1e-3]
-        base['stand_visuals'], base['stand_solids'] = visuals, solids
-        if len(solids) < len(visuals):
-            sys.exit(f"{where}: team {base['team']}: a stand without its collision in the Batteries project")
-
-
-def lift(base, foot):
-    """A base with its box's foot at height `foot`: the box, the base and its use shapes go up as one."""
-    delta = foot - base['box']['position'][1]
-    base['box']['position'] = (base['box']['position'][0], f32(foot), base['box']['position'][2])
-    base['position'] = (base['position'][0], f32(base['position'][1] + delta), base['position'][2])
-    for shape in base['shapes']:
-        shape['position'] = (shape['position'][0], f32(shape['position'][1] + delta), shape['position'][2])
-
-
-def slab_bases(data, world, points, where, said):
-    """stands.py's slab under each box on rough ground: 0.46c2's own concrete stays, its pallets there give
-    way to the slab; on a built floor 0.46c2's stands stay and a bare box gets none."""
-    for base in data['bases']:
-        box = base['box']
-        floor = stands.ground(world, BOX, box['position'], box['rotation'])
-        if floor is None:
-            sys.exit(f"{where}: team {base['team']}'s box has no floor under a point of its footprint")
-        why = stands.rough(floor)
-        own = sorted({s['model'] for s in base['stands']})
-        if why is None:
-            said.add(f"{where}: team {base['team']}: a built floor ({', '.join(floor[2])}), "
-                     + (f"0.46c2's stands kept ({', '.join(own)})" if own else 'no stand'))
-            continue
-        if own and all(m.startswith('props/garbage/concrete_') for m in own):
-            said.add(f"{where}: team {base['team']}: rough ground, {why}: 0.46c2's concrete kept ({', '.join(own)})")
-            continue
-        foot, place, outline, cut, covered = stands.place(world, BOX, box['position'], box['rotation'], floor[0], points)
-        visual, solids = stands.entries(place, vector)
-        lift(base, foot)
-        base['stands'] = [{'model': stands.SLAB, 'position': place['position']}]
-        base['stand_visuals'], base['stand_solids'] = [visual], solids
-        said.add(f"{where}: team {base['team']}: rough ground, {why}: "
-                 + (f"0.46c2's {', '.join(own)} replaced by " if own else '')
-                 + f"{stands.SLAB} x{stands.SCALE} at {spot(place['position'])}, the box's foot at {foot:.3f} "
-                   f"({foot - floor[0]:.2f} m over the floor's highest point under it"
-                 + (')' if foot - floor[0] > stands.FLUSH + 1e-3 else ', flush: raised it would cut into what stands by)'))
-        if covered:
-            said.add(f"{where}: team {base['team']}'s slab covers {', '.join(covered)}")
-
-
 def moved(data, level, moves, said):
     """`data` with the level's rows of moves.tsv applied."""
     data = copy.deepcopy(data)
     for kind, index, place, why in moves.get(level, []):
         if kind == 'base':
             base = data['bases'][index]
-            if base['stands']:
-                sys.exit(f'moves.tsv: level_{level} base {index} stands on 0.46c2\'s stands, which stay where 0.46c2 has them')
             delta = [place[i] - base['box']['position'][i] for i in range(3)]
             base['box']['position'] = place
             base['position'] = tuple(f32(base['position'][i] + delta[i]) for i in range(3))
@@ -671,12 +594,6 @@ def project_edits(edits, source, target, live, data, where, said):
             edits['add_entry'].append({'files': file, 'list': 'collision_objects', 'after': last_solid, 'like': solid,
                                        'expected_files': 1,
                                        'values': {'lib_name': lib_name, 'cgroup': cgroup, 'cmask': cmask, **place}})
-        for key, entries, like, after in (('render_visuals', base['stand_visuals'], visual, last_visual),
-                                          ('collision_objects', base['stand_solids'], solid, last_solid)):
-            for entry in entries:
-                edits['add_entry'].append({'files': file, 'list': key, 'after': after, 'like': like, 'expected_files': 1,
-                                           'values': {k: vector(v) if isinstance(v, (list, tuple)) else v
-                                                      for k, v in entry.items()}})
 
 
 def check_project(built, live, data, where):
@@ -701,20 +618,11 @@ def check_project(built, live, data, where):
                         if e['lib_name'].startswith(f'resources/models/{BOX}.model/') and tuple(e['position']) == place[0])
         if solids != base['solids']:
             sys.exit(f"{where}: team {base['team']}'s box has not its two collision objects")
-    stands = {'render_visuals': [e for b in data['bases'] for e in b['stand_visuals']],
-              'collision_objects': [e for b in data['bases'] for e in b['stand_solids']]}
     for key in built:
         if key in ('render_visuals', 'collision_objects'):
             rest = [e for e in built[key] if BOX not in e['lib_name']]
-            for entry in stands[key]:
-                same = [e for e in rest if e.keys() == entry.keys()
-                        and all(math.dist(e[k], entry[k]) < 1e-5 if isinstance(entry[k], (list, tuple)) else e[k] == entry[k]
-                                for k in entry)]
-                if not same:
-                    sys.exit(f"{where}: {key}: the stand {entry['lib_name']} at {spot(entry['position'])} is not there")
-                rest.remove(same[0])
             if rest != live[key]:
-                sys.exit(f'{where}: {key} differ from the map\'s own by more than the boxes and their stands')
+                sys.exit(f'{where}: {key} differ from the map\'s own by more than the boxes')
         elif key != 'server_objects' and built[key] != live[key]:
             sys.exit(f'{where}: {key} is not the map\'s own')
     if {k: v for k, v in built['server_objects'].items() if k != 'respawn_points'} != \
@@ -884,10 +792,8 @@ def fit_report(folder, projects):
             world = floors.World(mapdata, points + [s[0] for s in mapdata['spawns']])
             found = []
             for base in data['bases']:
-                # A box on its stands stands as 0.46c2 has it: the stands are in no 0.26g Team
-                # Deathmatch project's floors.
                 found.append(('base', base['team'], f"team {base['team']}'s box", base['box']['position'],
-                              None if base['stands'] else box_fit(world, base['box']['position'], base['box']['rotation'])))
+                              box_fit(world, base['box']['position'], base['box']['rotation'])))
             for index, spawner in enumerate(data['spawners']):
                 team = in_box(spawner['position'], data['bases'], 0.0, 0.0, -0.05)
                 wrong = f"IN team {team}'s BOX" if team is not None else lying_fit(world, spawner['position'])
@@ -990,8 +896,8 @@ def main():
     args = parser.parse_args()
     if args.catalog:
         return catalog(args.catalog, args.write)
-    if not args.inputs or not args.out or not args.mapdata:
-        parser.error('--inputs, --out and --mapdata (the bases\' floors, stands.py), or --catalog')
+    if not args.inputs or not args.out:
+        parser.error('--inputs and --out, or --catalog')
     if args.out.exists():
         sys.exit(f'{args.out}: already there')
     check = research.rotation(research.ROTATION_CHECK[0])
@@ -1028,7 +934,6 @@ def main():
 
     edits = {'_about': '', 'copy': [], 'add_entry': [], 'remove_entry': [], 'append_entry': []}
     entries, projects, per_map, checked = [], [], [], []
-    grounds = {}
     parameters = None
     for number, (level, theirs, config_weather, folder) in enumerate(maps()):
         where = f'level_{level}/{folder}_ah'
@@ -1042,15 +947,7 @@ def main():
             sys.exit(f'{where}: 0.46c2\'s parameters differ from the other maps\'')
         parameters = donor_config['mode']['parameters']
         data = mode_data(bcw.loads(inputs.read(f'donor/projects/{donor_project}/client_project')), where)
-        stand_entries(data, bcw.loads(inputs.read(f'live/projects/level_{level}/{folder}_2/client_project')), where)
         data = moved(data, level, moves, said)
-        mapdata = floors.load(args.mapdata / f'level_{level}_{folder}_4.mapdata')
-        key = hashlib.sha256(repr(sorted(mapdata['placements'])).encode()).hexdigest()
-        if key not in grounds:
-            grounds[key] = stands.Floors(mapdata, [b['box']['position'] for b in data['bases']])
-        points = ([(f'artefact spawn point {i}', s['position']) for i, s in enumerate(data['spawners'])]
-                  + [(f'respawn point {i}', s['position']) for i, s in enumerate(data['spawns'])])
-        slab_bases(data, grounds[key], points, where, said)
         data['item'] = item
         live = bcw.loads(inputs.read(f'live/projects/{source}/client_project'))
         name = f'level_{level}_{config_weather}_ah'
@@ -1082,9 +979,7 @@ def main():
         'project, projects/level_0N/<weather>_ah/, a copy of the map\'s Team Deathmatch project as every row above '
         'leaves it, with 0.46c2\'s Artifact Hunt respawn points in the place of Team Deathmatch\'s (each made like a '
         'point of the project) and the two bases\' box (item/storage_device/box_atlant8c of the pack artefact-hunt: '
-        'its model, its collision and its walker collision), and what 0.46c2 sets a box on: the props of the map\'s '
-        'Batteries project there, as that project has them (the concrete slabs of level 06, pallets of 02 and 04, '
-        'the bed of 08); a maps_dict row each config of the pack, ids '
+        'its model, its collision and its walker collision); a maps_dict row each config of the pack, ids '
         f'{FIRST_MAP_ID}-{FIRST_MAP_ID + len(entries) - 1}. The mode configs and the assets are the pack\'s.')
 
     pack = {

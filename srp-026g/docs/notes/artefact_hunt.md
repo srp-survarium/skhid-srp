@@ -31,17 +31,26 @@ the mode. This note is the specification: the rules below are 0.46c2's; where 0.
 - **Delivery:** the use key on one's own team's base container while carrying. No put time. The
   team scores 1.
 - **Rounds** (the owner, 2026-11-21: with one base a team, the mode is played in rounds, as
-  0.46c2). A delivery ends the round:
-  1. 3 s (`time_before_new_round`): play goes on, nobody respawns; the hud counts "Round restarts in".
-  2. If a team has 5, the match ends here.
-  3. 1 s: the screen fades; every player, alive or dead, is set to respawn.
-  4. 5 s (`round_countdown_time`): everyone stands at his team's spawns, frozen.
-  5. The next round: the 50 to 70 s wait again.
-  The scores and the match time carry over.
+  0.46c2). A delivery ends the round; the scores and the match time carry over.
+- **A round's end and the next round,** the same in Artifact Hunt and Freeze Tag by one code
+  (`artefact_hunt_rule::Restart`, the exe's `round_countdown::respawn_tick`; the owner,
+  2026-11-23: "I expect the round to end exactly in the same manner in both"):
+  1. 3 s (`time_before_new_round`): play goes on, nobody respawns; the hud counts them down.
+  2. If that was the match point, the match ends here (the rule's end, which the match server
+     takes as it is).
+  3. 1 s: the screen fades; at its end every player, alive or dead, respawns at his team's spawns
+     (a round start: a life of everyone).
+  4. 5 s (`round_countdown_time`): everyone stands at his team's spawns, his input held: the match
+     start's countdown (the warmup camera, patch 31's kits; a kit switch is a life).
+  5. The next round.
+  A player who enters in any of them spawns at his entry (freeze-tag.md, "No place out of the
+  world"); before the fade's end, it respawns him with everyone.
 - **No new round** with less than 90 s of match time left (`time_needed_to_continue_match`): the
   match ends (scores differ) or goes to sudden death (equal).
 - **Respawn in a round:** in waves every 15 s (`respawn_time`) counted from the match start, never
   sooner than 7 s after the death (`time_needed_to_respawn`); the player's respawn modifier applies.
+  The hud counts to the next wave beside the match time, for everyone (srp's addition: "HUD calls",
+  "The respawn wave").
 - **Match time** 900 s (`match_time`). When it runs out: the higher score wins at once; equal scores:
   sudden death.
 - **Sudden death,** 180 s (`draw_additional_time`): no respawns; a team with nobody left gives the
@@ -78,8 +87,9 @@ Each one a decision; the owner's are marked, the rest are the port's and open to
   `<w>_ah`; its `_v1`.. variants are other layouts of the same maps and are left out).
   Every other team map (the owner, 2026-11-21: "let's add artifact hunt to all other non FFA-only
   maps too"), which 0.46c2 never had, takes its own battery mode's: the artefact's spawn points
-  are its battery spawners' items, lifted by `drop_lift`; a team's base the stock maps' box at its
-  battery container's place and turn ("One box everywhere" below), on a copy of the map's Team Deathmatch project
+  are its battery spawners' items, lifted by `drop_lift`; a team's base its battery container,
+  its use shapes the container's collision geometries and its props the container's models and
+  collision as the battery project has them, on a copy of the map's Team Deathmatch project
   (its spawns; each base checked on its own team's side). Pack `artefact-hunt-maps` (the configs)
   and `artefact-hunt-maps-1.json` (projects, maps_dict 327-350), both made by
   `scripts/mode-maps/make.py` (each map's id kept in its `ids.tsv`: a new map's is the next free one). Rudnya v0.69 too: 0.46c2's Rudnya points are for 0.26's geometry,
@@ -131,34 +141,7 @@ Each one a decision; the owner's are marked, the rest are the port's and open to
     folders), not a single sound (found while building patch 171; the pack ships them so).
 - **A project a map:** 0.26g's own project of the map with 0.46c2's mode spawns
   (`server_objects.respawn_points`) and the two bases' box as a prop; nothing of 0.46c2's reworked
-  geometry or anomalies.
-  - **The boxes' stands.** 0.46c2's Artifact Hunt projects carry 0.26g's Batteries props one for
-    one, and seven of its boxes stand on them, not on the floor: the concrete slabs of Mamayev
-    Kurgan (`props/garbage/concrete_plita1` x 1.2 under team 0's, `concrete_plita2` x 1.3 under
-    team 1's, 0.50 m over the ground), pallets (`props/garage/pallet`, two a box) on School and
-    Chemical Plant, the bed (`level/08/furniture/bed`) under Cologne's team 0. Each is in the
-    project as the map's Batteries project has it (its model and collision: 0.26g's pallet has no
-    walker mesh, one collision of both groups), and those boxes, their bases and use shapes are at
-    0.46c2's height on them (pack @6; @3 to @5 had put them on the floor, 0.04 to 0.50 m lower).
-    0.46c2 has no stand model of its own: on the other levels its box stands on the floor, and
-    Batteries' other props by the bases (shelves, cables, generators) are not taken.
-  - **Concrete on rough ground** (the owner, 2026-11-22: "I wish we could put them everywhere",
-    "essentially everywhere it stands on rough ground"; `scripts/artefact-hunt/stands.py`, used by
-    both makers, pack @7 and artefact-hunt-maps @2). Rough ground: the walker floor under the
-    footprint is a terrain model, or it varies more than 0.10 m. There the box stands on concrete:
-    0.46c2's own (Mamayev); else Mamayev's `concrete_plita2` x0.8, whose flat top (a 2.5 x 1.3 m
-    rectangle at that scale) goes under the footprint. The box, its base, use shapes and props go
-    0.30 m over the floor's highest point, or flush (0.04 m, as Mamayev's team 0) where the raised
-    slab's visible part would cut into another model or cover a spawn point (on the cluttered
-    Batteries bases). 0.46c2's pallets on rough ground give way to the slab. On a built floor (a
-    building's, a street's, a platform) a box keeps 0.46c2's stands or none.
-  - **One box everywhere** (the owner, 2026-11-23: "you should use exactly the same prop for storing
-    artifact"): the other team maps' bases are the stock maps' `box_atlant8c` too, at their Batteries
-    container's place and turn (the container and the props by it give way), its use shape the box,
-    and the concrete rule as above; a box that stands where the container did on what the Batteries
-    mode set it on (v0.21 Mamayev's slab) keeps that. A Team Deathmatch respawn point under a box is
-    taken out of the copy (Rudnya v0.69 had one where its container stands).
-  A round start respawns a whole team at once: a team with fewer free
+  geometry or anomalies. A round start respawns a whole team at once: a team with fewer free
   points than players spawns the rest a step (50 ms) later each, as the native rule does
   ("Respawns"); 8 points a team (16 players) spawn everyone in the same step.
 - **Known difference: no "not for the first spawn" points.** 0.46c2 keeps some of its points out
@@ -281,9 +264,9 @@ says what of this design is built, and what turned out otherwise).
   states 1 and 2 only, and `rule_completed` (0x318360, true in state 3 after `match_time`) is read by
   nothing in the client (modes_maps.md 11, correction). So the rule goes on by itself: sudden death
   and rounds past 900 s need no native change.
-- **A round** is `Round::Hunt` (0.46c2's states 2 to 5); a delivery ends it: `Round::Brought` 3 s
-  (state 6), `Round::Fade` 1 s (state 7), `Round::Countdown` 5 s (state 8), then a new hunt with the
-  50 to 70 s wait. Each state's time counts from the step that entered it, as 0.46c2's state
+- **A round** is `Round::Hunt` (0.46c2's states 2 to 5); a delivery ends it: `Round::Restart`, the
+  shared `Restart` (Freeze Tag's too): `Decided` 3 s (state 6), `Fade` 1 s (state 7), `Countdown`
+  5 s (state 8), then a new hunt with the 50 to 70 s wait. Each state's time counts from the step that entered it, as 0.46c2's state
   machine (its `initialize` keeps the start, 0x7B0BA0; one transition a step).
 - **What follows a delivery** (`After`): decided once, at the delivery (the specification's one
   departure: 0.46c2 tests the time again 3 s later, 0x785CF0): a team at `score`, or the scores
@@ -353,7 +336,8 @@ The native respawn rule (91) keeps its points and its spawn; four things are ask
     points; one without a free point the next step (the native +50 ms), inside the countdown;
   - `Native` otherwise.
   The site is `respawn.tick` (`survarium::respawn_tick_frame`), one row shared with Freeze Tag:
-  its handler is order 0, this one order 1, both before the native compare of the places' times.
+  its handler is order 0, this one order 1, both before the native compare of the places' times,
+  and both the one path `round_countdown::respawn_tick` (the kit switches, then `Spawning`).
 - **What a round start resets** is what a respawn after a death resets, for everyone, and nothing
   else (PROVEN, `base_player::initialize` 0x2DAC00, the spawn's): alive, no pending death, the
   input zero (+32Ch, +330h, 0x2DAC8D..0x2DAC99), the damage model (`damage_model::reset` 0x2E5290:
@@ -685,7 +669,7 @@ The code is `client_patch.md` "Artifact Hunt (patch 171)"; checked by `check_art
     should run there"): for the Fade and the Countdown the rule makes the core's time state 4
     (`HuntWorld::set_round_countdown`, in its tick and its deserialize, after the time rule's);
     the state, its setter and the camera test are `vostok::round_countdown` and the patch module
-    `round_countdown`, shared with Freeze Tag's pause and restart since the merge (`freeze-tag.md`
+    `round_countdown`, shared with Freeze Tag's rounds (the same restart since 2026-11-23) (`freeze-tag.md`
     "With Artifact Hunt"); `time_rule.camera_state` (0x267AE6) gives the client time rule's camera test the countdown's 2
     while it is 4, so the native 0x27B1A0 switches to the warmup camera and back, and patch 31's
     kits show by +1F1C60h as before the start. The time rule's own state, start and end are
@@ -850,10 +834,10 @@ re-simulation undoes: Research has the same exposure.
   1 to 3 taken, 4 by Freeze Tag's worktree: 5), and `hud.initialize_match` 0x234880 to forget what
   was shown. The viewed place is the hud state's first byte (ui+24h, the watched player in a
   replay; 0FFh none), his team the profile's.
-- **`root.artefact_hunt_update(...)`:** 28 values, every one a GFx Number (type 5, as Research's
+- **`root.artefact_hunt_update(...)`:** 30 values, every one a GFx Number (type 5, as Research's
   sender; `vostok::ui::Movie` needs an `invoke_numbers`), from `Rule::hud` and the viewer. Sent
-  when a checksum over them changes (the four ms values taken as whole seconds, rounded up) and
-  every 60 frames; the movie runs its own timers between.
+  when a checksum over them changes (the ms left of #5, #8 and #21 taken as whole seconds, rounded
+  up) and every 60 frames; the movie runs its own timers between.
 
   | # | value | domain |
   |---|---|---|
@@ -873,8 +857,10 @@ re-simulation undoes: Research has the same exposure.
   | 18 | carrier's place | 0..19; 255 none |
   | 19 | carrier's team | 0, 1; 2 none |
   | 20 | the viewed player carries | 0, 1 |
-  | 21 | bases | 2 |
-  | 22..27 | a base: team, x, -z | team 0's first |
+  | 21 | ms to the next respawn wave | 1..#22 in a hunt out of sudden death; else 0 |
+  | 22 | a wave's whole length, ms | `respawn_time` (15000) with #21; else 0 |
+  | 23 | bases | 2 |
+  | 24..29 | a base: team, x, -z | team 0's first |
 
   The movie draws from it: the scores (its own branch for game type 13; `set_game_type(13)` is
   native), the minimap's artefact while lying and the bases (its own highlighted with #20), as
@@ -884,6 +870,43 @@ re-simulation undoes: Research has the same exposure.
   `show_fade_animation(1.0, true)`), the countdown's "Awaiting match start: 00:05" with #5 in
   phase 8 (0.46c2's pregame text: `st_final_countdown`, the exe's own key, in the movie's pregame
   box), and what #10 announces.
+- **The respawn wave** (#21, #22; the owner, 2026-11-22: "for art hunt since respawns there are
+  timer based, this timer should also be visible", "exactly like in dirty bomb", "a smaller timer
+  after the main one"). `Rule::hud`'s `wave`: in a round's hunt out of sudden death, the time from
+  now to the first multiple of `respawn_time` from the match's start after now (the arithmetic of
+  `Rule::respawn_at`, one function: a wave of this very step has come, the respawn rule's tick
+  being before the hud's); `None` before the start, in the 3 s, the fade and the countdown (respawns
+  held), in sudden death and once over. The game spawns a wave at the simulation step at or after
+  it (the 50 ms grid): the hud is at most a step early. Display only: nothing a match computes
+  changes. The movie counts down between updates and goes on to the next wave at 0 (the waves
+  repeat until an update says none): no timer of its own.
+  - **What is shown** (decided by the owner, 2026-11-22: "exactly like in dirty bomb", "There it is
+    a smaller timer after the main one", "yes, let's go 1", out of ten looks drawn): a smaller
+    number of seconds right after the match time, on its baseline, in the row's font, white with
+    its dark edge (`ArtefactHuntWave`, owned by the row); the bars move apart by its widest ("00")
+    so that the time and it stay centred between them, and close again while no wave comes.
+  - **Every team's wave, not a player's.** Both teams share one wave clock (from the match's
+    start), so one number serves both. A dead player's own time stays the game's respawn line under
+    the row (`root.set_respawn_time` from the respawn rule's own time: the 7 s least time and his
+    modifier in it): dead in time for the coming wave with no modifier, the two say the same; dead
+    less than 7 s before it, his line says the wave after (the wave number shows 3, his line 00:18);
+    with a modifier his line is shifted by it. This is Dirty Bomb's split too (below): the wave
+    timer is the team's, the death screen says one's own.
+  - **No number that will not happen:** hidden before the start, in a round's restart, in sudden
+    death (its "Sudden death" line says why) and at the end.
+  - **Spectators and replays** see the same number (it is nobody's), beside the same match time;
+    the respawn line is the watched player's, as ever.
+  - **Dirty Bomb** (Splash Damage, 2015), the reference. Its Stopwatch mode spawns both teams in
+    waves at the same moments (25 s then), and the wave countdown is a small timer at the match
+    timer in the top-left corner, for everyone ("look at the top left corner, there is a timer";
+    "if you look to the left of the game timer, you can see when you and your enemies will be
+    spawning": forums.splashdamage.com/t/spawn-timer/222338); in its Objective mode the teams'
+    waves are offset (hard to read for the enemy's, the same thread). The players' wish before it
+    was a "small hud element" for the next wave (forums.splashdamage.com/t/thoughts-on-dirty-bombs-
+    spawn-system/142749). The owner's description, "a smaller timer after the main one", places it
+    after the match time here; one forum post puts it to the left. Not confirmed from a source:
+    what a dead player sees there (recalled: a large "respawning in N" line, as 0.26g's own line).
+  - Research and the other modes have no waves (the native respawn rule's per-death time).
 - **Native calls that go on by themselves:** `root.set_game_progress` (0x2364C0, from hud+90h, +92h:
   slot 17 writes the scores there, u16), `root.set_match_time` (from hud+4, above),
   `root.set_respawn_time` (0x236C30 from the respawn rule's own time, 0x316C20: a wave shows by
