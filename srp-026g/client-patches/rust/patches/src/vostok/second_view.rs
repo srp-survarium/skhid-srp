@@ -318,13 +318,11 @@ pub fn composite(ctx: &Context<'_>, second: &SecondView, margin: u32) -> bool {
     true
 }
 
-/// D3D11_QUERY_TIMESTAMP and _TIMESTAMP_DISJOINT.
-const TIMESTAMP: u32 = 0;
-const TIMESTAMP_DISJOINT: u32 = 1;
+/// D3D11_QUERY_TIMESTAMP and _TIMESTAMP_DISJOINT (D3D11_QUERY: event, occlusion, then these).
+const TIMESTAMP: u32 = 2;
+const TIMESTAMP_DISJOINT: u32 = 3;
 /// D3D11_ASYNC_GETDATA_DONOTFLUSH.
 const DO_NOT_FLUSH: u32 = 1;
-/// E_INVALIDARG.
-const E_INVALIDARG: u32 = (0x8007 << 16) | 0x57;
 
 /// GPU timestamps of a frame's marks, `RING` frames in flight.
 pub struct GpuClock {
@@ -430,14 +428,9 @@ impl GpuClock {
         // D3D11_QUERY_DATA_TIMESTAMP_DISJOINT: u64 frequency, BOOL disjoint (padded to 16).
         let mut disjoint = [0u32; 4];
         // SAFETY: GetData of a query of ours into room of its data's size.
-        // 16 bytes as MSVC lays it out; a GCC-built runtime (DXVK) may take 12
-        let get = |size: u32, data: &mut [u32; 4]| unsafe {
-            raw::engine_context_get_data(Some(context), Some(frame.disjoint.0), data.as_mut_ptr().cast(), size, DO_NOT_FLUSH)
+        let got = unsafe {
+            raw::engine_context_get_data(Some(context), Some(frame.disjoint.0), disjoint.as_mut_ptr().cast(), 16, DO_NOT_FLUSH)
         };
-        let mut got = get(16, &mut disjoint);
-        if got == E_INVALIDARG {
-            got = get(12, &mut disjoint);
-        }
         if got != 0 || disjoint[2] != 0 {
             return Err(ReadError::Disjoint { got, disjoint: disjoint[2] });
         }
