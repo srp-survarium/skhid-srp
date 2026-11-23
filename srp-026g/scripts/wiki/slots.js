@@ -3,14 +3,14 @@
 // ...), kept in the address (a, b, ra, rb; a round only when not its
 // weapon's default, the first of `roundsOf`) and in the language link.
 // `changed()` runs after each choice; `refresh()` once the page is ready.
-function WikiWeaponSlots(weapons, roundsOf, tr, collator, changed) {
+function WikiWeaponSlots(weapons, roundsOf, collator, changed) {
   const pickers = ['a', 'b'].map(side => document.getElementById(`compare-${side}`));
   const roundPickers = ['a', 'b'].map(side => document.getElementById(`compare-${side}-round`));
   // Every round's chooser entry (its icon, name and level).
   const roundEntries = [...document.querySelectorAll('#round-options > div')];
-  const roundWords = {search: tr('Search rounds', 'Пошук набоїв'), none: tr('No rounds match.', 'Набоїв не знайдено.')};
-  const choosers = pickers.map(select => WikiWeaponPicker(select, weapons, tr, collator));
-  const roundChoosers = roundPickers.map(select => WikiWeaponPicker(select, roundEntries, tr, collator, roundWords));
+  const roundWords = {search: T('Search rounds'), none: T('No rounds match.')};
+  const choosers = pickers.map(select => WikiWeaponPicker(select, weapons, collator));
+  const roundChoosers = roundPickers.map(select => WikiWeaponPicker(select, roundEntries, collator, roundWords));
   const known = new Set(weapons.map(weapon => weapon.id));
   // A slot's rounds: its weapon's, keeping the chosen round when the new
   // weapon fires it too; a dash without a weapon.

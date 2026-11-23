@@ -16,7 +16,11 @@ whose items take it lists those items. Reliability is left out: items wear
 nothing.
 
 The weapons section is a searchable weapon catalogue with class filters,
-sorting and expandable weapon stats, in EN/UK.
+sorting and expandable weapon stats. Both pages are one copy for every language
+(`weapons.html`, `simulators.html`, each with its `.texts.json`): their words
+are the site's (`servers/web-server/words/`), filled in by the server, and the
+names of weapons, rounds, skills and modifications the game's in each language
+(`scripts/site-texts/README.md`).
 Two selected weapons share a stat comparison; it, and each weapon card, link to
 the simulators with the same weapons and rounds. Comparison
 colors follow each stat's direction, stay neutral for equal displayed values,

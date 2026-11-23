@@ -525,3 +525,161 @@ Each kit a gun of another class, with random bonuses and attachments.	V každé 
 Plain FFA: {0} % of FFA cards.	Obyčejné FFA: {0} % karet FFA.
 {0} % of FFA cards.	{0} % karet FFA.
 FFA: Roulette	FFA: Ruleta
+
+# The wiki's weapons and simulators (pages built at a release: scripts/site-texts)
+Search weapons	Hledat zbraně
+No weapons match.	Žádné zbraně nenalezeny.
+lvl {n}	úr. {n}
+Search…	Hledat…
+Search items	Hledat předměty
+No items match.	Žádné předměty nenalezeny.
+s	s	unit
+Search rounds	Hledat náboje
+No rounds match.	Žádné náboje nenalezeny.
+shots	výstřely
+up	nahoru
+side	do strany
+spread	rozptyl
+Play	Přehrát
+Pause	Pozastavit
+Recoil and spread	Zpětný ráz a rozptyl
+Weapon {side}	Zbraň {side}
+Choose a weapon…	Vyberte zbraň…
+Round	Náboj
+Clear	Smazat	list
+Choose a weapon; a second one to compare.	Vyberte zbraň; druhou pro porovnání.
+Aim	Míření
+From the hip	Od boku
+Aiming in	Zamiřování
+Fully aimed	Plné zamíření
+Stance	Postoj
+Standing	Ve stoje
+Walking	Chůze
+Crouching	V přikrčení
+Crouch-walking	Chůze v přikrčení
+Sprinting	Sprint
+Jumping	Skok
+Broken arms	Zlomené ruce
+Spread from the hip {v} per rank, sprinting and jumping included. Not while aiming.	Rozptyl od boku {v} za stupeň, včetně sprintu a skoku. Ne při míření.
+No effect fully aimed.	Při plném zamíření nepůsobí.
+Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.	Rozptyl při chůzi {v} za stupeň, od boku i při zamiřování. Ne při chůzi v přikrčení.
+Spread from broken arms {v} per rank.	Rozptyl kvůli zlomeným rukám {v} za stupeň.
+This weapon's kick ranges, up and sideways. Not the camera shake.	Rozsahy rázu této zbraně, nahoru a do strany. Ne otřes kamery.
+The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.	Rozptyl z postoje a z každého výstřelu. Nepůsobí při sprintu, skoku ani při plném zamíření.
+Each shot's kick with any weapon: up, sideways and the camera shake.	Ráz každého výstřelu z jakékoli zbraně: nahoru, do strany a otřes kamery.
+Base	Základní
+A shot	Za výstřel
+At most	Nejvýše
+Vertical kick	Svislý ráz
+game units	herní jednotky
+Horizontal kick	Vodorovný ráz
+Trigger	Spoušť
+Hold	Držet
+Click, {n} a second	Klikat, {n} za sekundu
+Sample seed	Semínko vzorku
+Spread	Rozptyl
+degrees	stupně
+Last shot	Poslední výstřel
+Reset	Resetovat
+Timeline	Časová osa
+Crosshair	Zaměřovací kříž
+degrees of view	stupně zorného pole
+Target	Cíl
+None	Žádný
+Enemy at {m} m	Nepřítel na {m} m
+Recoil parameters are unavailable for this selection.	Parametry zpětného rázu pro tento výběr nejsou k dispozici.
+Rounds	Náboje
+Sniper rifle	Odstřelovačská puška
+Submachine gun	Samopal
+Pistol	Pistole
+Shotgun	Brokovnice
+Assault rifle	Útočná puška
+Machine gun	Kulomet
+Skhid revision {revision}	Skhid, revize {revision}
+Stat	Parametr
+Better	Lepší
+Worse	Horší
+weapons	zbraní	count
+Compare weapons or expand a row for damage, handling, accuracy, recoil and aim sway.	Porovnávejte zbraně nebo rozbalte řádek pro poškození, ovladatelnost, přesnost, zpětný ráz a chvění mířidel.
+Values with the chosen round, the weapon’s standard one first. Upgrades and character bonuses are not included. The game’s card shows the highest damage and the highest penetration among all the weapon’s rounds.	Hodnoty se zvoleným nábojem, nejdřív se standardním nábojem zbraně. Vylepšení a bonusy postavy nejsou započteny. Karta ve hře ukazuje nejvyšší poškození a nejvyšší průbojnost ze všech nábojů zbraně.
+Find a weapon	Najít zbraň
+Weapon class	Třída zbraně
+All classes	Všechny třídy
+Damage: high to low	Poškození: od nejvyššího
+Fire rate: high to low	Kadence: od nejvyšší
+Compare weapons	Porovnání zbraní
+Only differences	Jen rozdíly
+Color better / worse values	Barevně odlišit lepší / horší hodnoty
+Recoil and spread →	Zpětný ráz a rozptyl →
+Choose two weapons to compare. Equal values and neutral traits keep their normal color.	Vyberte dvě zbraně k porovnání. Stejné hodnoty a neutrální vlastnosti si ponechají běžnou barvu.
+No differences in the displayed stats.	Zobrazené parametry se neliší.
+m	m	unit
+kg	kg	unit
+Single shot	Jednotlivá střelba
+Damage & range	Poškození a dostřel
+Damage	Poškození
+Armor penetration	Průbojnost
+Full damage up to	Plné poškození do
+Minimum damage from	Minimální poškození od
+Minimum damage retained	Zachované poškození
+Stopping power	Zastavovací účinek
+Stamina damage	Poškození výdrže
+Firing & handling	Střelba a ovladatelnost
+rpm	ran/min	unit
+Fire rate	Kadence
+Magazine capacity	Kapacita zásobníku
+Reload time	Doba přebíjení
+Aim time	Doba míření
+Draw time	Doba tasení
+Holster time	Doba schování
+Movement speed modifier	Modifikátor rychlosti pohybu
+Base aim zoom	Základní zvětšení
+Fire modes	Režimy střelby
+Accuracy & spread	Přesnost a rozptyl
+Spread values use the game's own units. Growth and recovery parameters are shown without a better/worse rating.	Hodnoty rozptylu jsou v herních jednotkách. Parametry růstu a obnovy jsou uvedeny bez hodnocení lepší/horší.
+Base dispersion	Základní rozptyl
+Hip-fire spread multiplier	Násobitel rozptylu od boku
+Spread added per shot	Rozptyl za výstřel
+Spread limit	Mez rozptylu
+Spread growth parameter	Parametr růstu rozptylu
+Spread recovery parameter	Parametr obnovy přesnosti
+Recoil	Zpětný ráz
+Base kick in game units, not degrees. Horizontal kick is right minus left; variability is its standard deviation. These do not describe an entire burst.	Základní ráz v herních jednotkách, ne ve stupních. Vodorovný ráz je pravý minus levý; kolísání je jeho směrodatná odchylka. Nepopisují celou dávku.
+Base vertical kick range	Rozsah základního svislého rázu
+Horizontal kick range	Rozsah vodorovného rázu
+Horizontal kick variability	Kolísání vodorovného rázu
+Horizontal bias (− left / + right)	Vodorovný sklon (− vlevo / + vpravo)
+Recoil accumulation exponent	Exponent hromadění zpětného rázu
+Recovery response (P)	Odezva obnovy (P)
+Recovery accumulation (I)	Akumulace obnovy (I)
+Recovery damping (D)	Tlumení obnovy (D)
+Aim sway	Chvění mířidel
+Horizontal sway	Vodorovné chvění
+Vertical sway	Svislé chvění
+Aim sway period	Perioda chvění mířidel
+Magazine	Zásobník
+Set as weapon A	Nastavit jako zbraň A
+Set as weapon B	Nastavit jako zbraň B
+Automatic	Automatická střelba
+{m}-round burst	Dávka po {m}
+pellets	broků
+No weapons match. Try another name or class.	Žádné zbraně nenalezeny. Zkuste jiný název nebo třídu.
+
+# The wiki's simulators: the shot's motions and the custom gun (pages built at a release: scripts/site-texts)
+Left	Vlevo	direction
+Right	Vpravo	direction
+Back	Dozadu	direction
+where it aims as the shot moves it	kam míří pod vlivem výstřelu
+from the side, the bullet from the eye along the view	z boku: střela od oka podél pohledu
+custom	vlastní
+Up	Nahoru
+Side	Do strany
+Rate	Kadence
+Power	Mocnina
+Camera wobble	Kývání kamery
+Gun kick	Kopnutí zbraně
+Custom gun	Vlastní zbraň
+Speed	Rychlost
+bullet	střela
+sight	mířidla
+hit	zásah

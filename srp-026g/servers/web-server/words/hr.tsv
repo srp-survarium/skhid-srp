@@ -525,3 +525,161 @@ Each kit a gun of another class, with random bonuses and attachments.	U svakom k
 Plain FFA: {0} % of FFA cards.	Obični FFA: {0} % FFA karata.
 {0} % of FFA cards.	{0} % FFA karata.
 FFA: Roulette	FFA: Rulet
+
+# The wiki's weapons and simulators (pages built at a release: scripts/site-texts)
+Search weapons	Traži oružje
+No weapons match.	Nema odgovarajućeg oružja.
+lvl {n}	raz. {n}
+Search…	Traži…
+Search items	Traži predmete
+No items match.	Nema odgovarajućih predmeta.
+s	s	unit
+Search rounds	Traži metke
+No rounds match.	Nema odgovarajućih metaka.
+shots	hitci
+up	gore
+side	bočno
+spread	rasipanje
+Play	Reproduciraj
+Pause	Pauza
+Recoil and spread	Trzaj i rasipanje
+Weapon {side}	Oružje {side}
+Choose a weapon…	Odaberite oružje…
+Round	Metak
+Clear	Očisti	list
+Choose a weapon; a second one to compare.	Odaberite oružje; drugo za usporedbu.
+Aim	Ciljanje
+From the hip	S boka
+Aiming in	Ulazak u ciljanje
+Fully aimed	Potpuno ciljanje
+Stance	Stav
+Standing	Stojeći
+Walking	Hodanje
+Crouching	Čučanj
+Crouch-walking	Hodanje u čučnju
+Sprinting	Sprint
+Jumping	Skok
+Broken arms	Slomljene ruke
+Spread from the hip {v} per rank, sprinting and jumping included. Not while aiming.	Rasipanje s boka {v} po rangu, uključujući sprint i skok. Ne pri ciljanju.
+No effect fully aimed.	Ne djeluje pri potpunom ciljanju.
+Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.	Rasipanje pri hodanju {v} po rangu, s boka ili pri ulasku u ciljanje. Ne pri hodanju u čučnju.
+Spread from broken arms {v} per rank.	Rasipanje zbog slomljenih ruku {v} po rangu.
+This weapon's kick ranges, up and sideways. Not the camera shake.	Rasponi trzaja ovog oružja, gore i u stranu. Ne podrhtavanje kamere.
+The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.	Rasipanje od stava i od svakog hica. Ne djeluje pri sprintu, skoku ni potpunom ciljanju.
+Each shot's kick with any weapon: up, sideways and the camera shake.	Trzaj svakog hica iz bilo kojeg oružja: gore, u stranu i podrhtavanje kamere.
+Base	Osnovno
+A shot	Po hitcu
+At most	Najviše
+Vertical kick	Okomiti trzaj
+game units	jedinice igre
+Horizontal kick	Vodoravni trzaj
+Trigger	Okidač
+Hold	Držati
+Click, {n} a second	Klikati, {n} u sekundi
+Sample seed	Sjeme uzorka
+Spread	Rasipanje
+degrees	stupnjevi
+Last shot	Zadnji hitac
+Reset	Poništi
+Timeline	Vremenska crta
+Crosshair	Nišan
+degrees of view	stupnjevi vidnog polja
+Target	Meta
+None	Nema
+Enemy at {m} m	Neprijatelj na {m} m
+Recoil parameters are unavailable for this selection.	Parametri trzaja nisu dostupni za ovaj odabir.
+Rounds	Metci
+Sniper rifle	Snajperska puška
+Submachine gun	Kratka strojnica
+Pistol	Pištolj
+Shotgun	Sačmarica
+Assault rifle	Jurišna puška
+Machine gun	Strojnica
+Skhid revision {revision}	Skhid, revizija {revision}
+Stat	Svojstvo
+Better	Bolje
+Worse	Lošije
+weapons	kom. oružja	count
+Compare weapons or expand a row for damage, handling, accuracy, recoil and aim sway.	Usporedite oružje ili proširite redak za štetu, rukovanje, preciznost, trzaj i njihanje pri ciljanju.
+Values with the chosen round, the weapon’s standard one first. Upgrades and character bonuses are not included. The game’s card shows the highest damage and the highest penetration among all the weapon’s rounds.	Vrijednosti s odabranim metkom, najprije sa standardnim metkom oružja. Nadogradnje i bonusi lika nisu uključeni. Kartica u igri prikazuje najveću štetu i najveću probojnost među svim metcima oružja.
+Find a weapon	Pronađite oružje
+Weapon class	Klasa oružja
+All classes	Sve klase
+Damage: high to low	Šteta: od najveće
+Fire rate: high to low	Brzina paljbe: od najveće
+Compare weapons	Usporedba oružja
+Only differences	Samo razlike
+Color better / worse values	Oboji bolje / lošije vrijednosti
+Recoil and spread →	Trzaj i rasipanje →
+Choose two weapons to compare. Equal values and neutral traits keep their normal color.	Odaberite dva oružja za usporedbu. Jednake vrijednosti i neutralna svojstva zadržavaju uobičajenu boju.
+No differences in the displayed stats.	Nema razlika u prikazanim svojstvima.
+m	m	unit
+kg	kg	unit
+Single shot	Pojedinačno
+Damage & range	Šteta i domet
+Damage	Šteta
+Armor penetration	Probojnost oklopa
+Full damage up to	Puna šteta do
+Minimum damage from	Najmanja šteta od
+Minimum damage retained	Zadržana najmanja šteta
+Stopping power	Zaustavna moć
+Stamina damage	Šteta izdržljivosti
+Firing & handling	Paljba i rukovanje
+rpm	met./min	unit
+Fire rate	Brzina paljbe
+Magazine capacity	Kapacitet spremnika
+Reload time	Vrijeme punjenja
+Aim time	Vrijeme ciljanja
+Draw time	Vrijeme izvlačenja
+Holster time	Vrijeme spremanja
+Movement speed modifier	Modifikator brzine kretanja
+Base aim zoom	Osnovno povećanje pri ciljanju
+Fire modes	Načini paljbe
+Accuracy & spread	Preciznost i rasipanje
+Spread values use the game's own units. Growth and recovery parameters are shown without a better/worse rating.	Vrijednosti rasipanja iskazane su u jedinicama same igre. Parametri rasta i oporavka prikazani su bez ocjene bolje/lošije.
+Base dispersion	Osnovno rasipanje
+Hip-fire spread multiplier	Množitelj rasipanja s boka
+Spread added per shot	Rasipanje po hitcu
+Spread limit	Granica rasipanja
+Spread growth parameter	Parametar rasta rasipanja
+Spread recovery parameter	Parametar oporavka rasipanja
+Recoil	Trzaj
+Base kick in game units, not degrees. Horizontal kick is right minus left; variability is its standard deviation. These do not describe an entire burst.	Osnovni trzaj u jedinicama igre, ne u stupnjevima. Vodoravni trzaj je desno minus lijevo; odstupanje je njegova standardna devijacija. Ovo ne opisuje cijeli rafal.
+Base vertical kick range	Raspon osnovnog okomitog trzaja
+Horizontal kick range	Raspon vodoravnog trzaja
+Horizontal kick variability	Odstupanje vodoravnog trzaja
+Horizontal bias (− left / + right)	Vodoravni pomak (− lijevo / + desno)
+Recoil accumulation exponent	Eksponent nakupljanja trzaja
+Recovery response (P)	Odziv oporavka (P)
+Recovery accumulation (I)	Nakupljanje oporavka (I)
+Recovery damping (D)	Prigušenje oporavka (D)
+Aim sway	Njihanje pri ciljanju
+Horizontal sway	Vodoravno njihanje
+Vertical sway	Okomito njihanje
+Aim sway period	Period njihanja pri ciljanju
+Magazine	Spremnik
+Set as weapon A	Postavi kao oružje A
+Set as weapon B	Postavi kao oružje B
+Automatic	Automatski
+{m}-round burst	Rafal od {m} metaka
+pellets	zrna
+No weapons match. Try another name or class.	Nema odgovarajućeg oružja. Pokušajte s drugim nazivom ili klasom.
+
+# The wiki's simulators: the shot's motions and the custom gun (pages built at a release: scripts/site-texts)
+Left	Lijevo	direction
+Right	Desno	direction
+Back	Natrag	direction
+where it aims as the shot moves it	kamo cilja pod djelovanjem hica
+from the side, the bullet from the eye along the view	sa strane: metak od oka duž pogleda
+custom	vlastito
+Up	Gore
+Side	U stranu
+Rate	Tempo
+Power	Eksponent
+Camera wobble	Njihanje kamere
+Gun kick	Trzaj oružja
+Custom gun	Vlastito oružje
+Speed	Brzina
+bullet	metak
+sight	nišan
+hit	pogodak

@@ -525,3 +525,161 @@ Each kit a gun of another class, with random bonuses and attachments.	У кож�
 Plain FFA: {0} % of FFA cards.	Звычайны FFA: {0} % картак FFA.
 {0} % of FFA cards.	{0} % картак FFA.
 FFA: Roulette	FFA: Рулетка
+
+# The wiki's weapons and simulators (pages built at a release: scripts/site-texts)
+Search weapons	Пошук зброі
+No weapons match.	Зброя не знойдзена.
+lvl {n}	узр. {n}
+Search…	Пошук…
+Search items	Пошук прадметаў
+No items match.	Прадметы не знойдзены.
+s	с	unit
+Search rounds	Пошук патронаў
+No rounds match.	Патроны не знойдзены.
+shots	стрэлы
+up	уверх
+side	убок
+spread	раскід
+Play	Прайграць
+Pause	Паўза
+Recoil and spread	Аддача і раскід
+Weapon {side}	Зброя {side}
+Choose a weapon…	Выберыце зброю…
+Round	Патрон
+Clear	Ачысціць	list
+Choose a weapon; a second one to compare.	Выберыце зброю; другую — для параўнання.
+Aim	Прыцэл
+From the hip	Ад сцягна
+Aiming in	Прыцэльванне
+Fully aimed	Поўнае прыцэльванне
+Stance	Становішча
+Standing	Стоячы
+Walking	Хада
+Crouching	У прысядзе
+Crouch-walking	Хада ў прысядзе
+Sprinting	Спрынт
+Jumping	Скачок
+Broken arms	Зламаныя рукі
+Spread from the hip {v} per rank, sprinting and jumping included. Not while aiming.	Раскід ад сцягна {v} за ранг, у тым ліку падчас спрынту і скачка. Не пры прыцэльванні.
+No effect fully aimed.	Не дзейнічае пры поўным прыцэльванні.
+Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.	Раскід пры хадзе {v} за ранг, ад сцягна і пры прыцэльванні. Не пры хадзе ў прысядзе.
+Spread from broken arms {v} per rank.	Раскід ад зламаных рук {v} за ранг.
+This weapon's kick ranges, up and sideways. Not the camera shake.	Межы аддачы гэтай зброі, уверх і ўбок. Не трасянне камеры.
+The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.	Раскід ад становішча і ад кожнага стрэлу. Не дзейнічае падчас спрынту, скачка і пры поўным прыцэльванні.
+Each shot's kick with any weapon: up, sideways and the camera shake.	Аддача кожнага стрэлу з любой зброі: уверх, убок і трасянне камеры.
+Base	Базавы
+A shot	За стрэл
+At most	Найбольшы
+Vertical kick	Аддача ўверх
+game units	адзінкі гульні
+Horizontal kick	Аддача ўбок
+Trigger	Спуск
+Hold	Утрымліваць
+Click, {n} a second	Націскаць, {n} за секунду
+Sample seed	Зерне выбаркі
+Spread	Раскід
+degrees	градусы
+Last shot	Апошні стрэл
+Reset	Скінуць
+Timeline	Шкала часу
+Crosshair	Прыцэл
+degrees of view	градусы агляду
+Target	Мэта
+None	Няма
+Enemy at {m} m	Вораг на {m} м
+Recoil parameters are unavailable for this selection.	Параметры аддачы для выбранай зброі недаступныя.
+Rounds	Патроны
+Sniper rifle	Снайперская вінтоўка
+Submachine gun	Пісталет-кулямёт
+Pistol	Пісталет
+Shotgun	Драбавік
+Assault rifle	Штурмавая вінтоўка
+Machine gun	Кулямёт
+Skhid revision {revision}	Skhid, рэвізія {revision}
+Stat	Характарыстыка
+Better	Лепш
+Worse	Горш
+weapons	адз. зброі	count
+Compare weapons or expand a row for damage, handling, accuracy, recoil and aim sway.	Параўноўвайце зброю або разгортвайце радок, каб убачыць шкоду, кіравальнасць, дакладнасць, аддачу і разгойдванне прыцэла.
+Values with the chosen round, the weapon’s standard one first. Upgrades and character bonuses are not included. The game’s card shows the highest damage and the highest penetration among all the weapon’s rounds.	Значэнні з выбраным патронам, спачатку са стандартным для зброі. Мадыфікацыі і бонусы персанажа не ўлічаны. Картка ў гульні паказвае найбольшую шкоду і найбольшую бранябойнасць сярод усіх патронаў зброі.
+Find a weapon	Знайсці зброю
+Weapon class	Клас зброі
+All classes	Усе класы
+Damage: high to low	Шкода: па змяншэнні
+Fire rate: high to low	Хуткастрэльнасць: па змяншэнні
+Compare weapons	Параўнанне зброі
+Only differences	Толькі адрозненні
+Color better / worse values	Вылучаць лепшыя / горшыя значэнні
+Recoil and spread →	Аддача і раскід →
+Choose two weapons to compare. Equal values and neutral traits keep their normal color.	Выберыце дзве адзінкі зброі для параўнання. Аднолькавыя значэнні і нейтральныя ўласцівасці захоўваюць звычайны колер.
+No differences in the displayed stats.	Адрозненняў у паказаных характарыстыках няма.
+m	м	unit
+kg	кг	unit
+Single shot	Адзіночны
+Damage & range	Шкода і далёкасць
+Damage	Шкода
+Armor penetration	Бранябойнасць
+Full damage up to	Поўная шкода да
+Minimum damage from	Мінімальная шкода ад
+Minimum damage retained	Рэшта шкоды
+Stopping power	Спыняльная сіла
+Stamina damage	Шкода вынослівасці
+Firing & handling	Стральба і кіравальнасць
+rpm	стрэл./хв	unit
+Fire rate	Хуткастрэльнасць
+Magazine capacity	Умяшчальнасць магазіна
+Reload time	Час перазарадкі
+Aim time	Час прыцэльвання
+Draw time	Час даставання
+Holster time	Час прыбірання
+Movement speed modifier	Мадыфікатар хуткасці перамяшчэння
+Base aim zoom	Базавае павелічэнне прыцэла
+Fire modes	Рэжымы стральбы
+Accuracy & spread	Дакладнасць і раскід
+Spread values use the game's own units. Growth and recovery parameters are shown without a better/worse rating.	Значэнні раскіду падаюцца ў адзінках гульні. Параметры росту і аднаўлення паказаны без ацэнкі «лепш/горш».
+Base dispersion	Базавы раскід
+Hip-fire spread multiplier	Множнік раскіду ад сцягна
+Spread added per shot	Раскід ад стрэлу
+Spread limit	Мяжа раскіду
+Spread growth parameter	Параметр росту раскіду
+Spread recovery parameter	Параметр аднаўлення дакладнасці
+Recoil	Аддача
+Base kick in game units, not degrees. Horizontal kick is right minus left; variability is its standard deviation. These do not describe an entire burst.	Базавая аддача ў адзінках гульні, не ў градусах. Аддача ўбок — управа мінус улева; зменлівасць — яе стандартнае адхіленне. Гэта не апісвае ўсю чаргу.
+Base vertical kick range	Дыяпазон базавай аддачы ўверх
+Horizontal kick range	Дыяпазон аддачы ўбок
+Horizontal kick variability	Ваганні аддачы ўбок
+Horizontal bias (− left / + right)	Зрух убок (− улева / + управа)
+Recoil accumulation exponent	Паказчык назапашвання аддачы
+Recovery response (P)	Рэакцыя аднаўлення (P)
+Recovery accumulation (I)	Назапашванне аднаўлення (I)
+Recovery damping (D)	Згасанне аднаўлення (D)
+Aim sway	Разгойдванне прыцэла
+Horizontal sway	Разгойдванне ў бакі
+Vertical sway	Разгойдванне ўверх-уніз
+Aim sway period	Перыяд разгойдвання прыцэла
+Magazine	Магазін
+Set as weapon A	Выбраць як зброю A
+Set as weapon B	Выбраць як зброю B
+Automatic	Аўтаматычны
+{m}-round burst	Чарга па {m}
+pellets	шрацін
+No weapons match. Try another name or class.	Зброя не знойдзена. Паспрабуйце іншую назву або клас.
+
+# The wiki's simulators: the shot's motions and the custom gun (pages built at a release: scripts/site-texts)
+Left	Улева	direction
+Right	Управа	direction
+Back	Назад	direction
+where it aims as the shot moves it	куды цэліцца пад дзеяннем стрэлу
+from the side, the bullet from the eye along the view	збоку: куля ад вока ўздоўж позірку
+custom	сваё
+Up	Уверх
+Side	Убок
+Rate	Тэмп
+Power	Ступень
+Camera wobble	Хістанне камеры
+Gun kick	Штуршок зброі
+Custom gun	Свая зброя
+Speed	Хуткасць
+bullet	куля
+sight	прыцэл
+hit	трапленне

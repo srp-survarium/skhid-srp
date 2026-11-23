@@ -70,19 +70,33 @@ def r(value, digits=6):
 strings = load("localization__english__localization.json")["strings"]
 
 
-# Ukrainian names beside the English ones, where the game has them.
-uk_path = os.path.join(source, "localization__ukrainian__localization.json")
-strings_uk = load("localization__ukrainian__localization.json")["strings"] if os.path.exists(uk_path) else {}
+# The other languages' names beside the English ones (`<field>_<code>`), where the game has
+# them: its dictionaries, in the site's languages (site-texts/texts.py LANGUAGES).
+LANGUAGES = {"uk": "ukrainian", "ru": "russian", "de": "german", "pl": "polish", "sr": "serbian", "cs": "czech",
+             "hu": "hungarian", "fi": "finnish", "be": "belarusian", "hr": "croatian", "pt": "portuguese"}
+strings_in = {code: load(f"localization__{folder}__localization.json")["strings"]
+              if os.path.exists(os.path.join(source, f"localization__{folder}__localization.json")) else {}
+              for code, folder in LANGUAGES.items()}
+strings_uk = strings_in["uk"]
 
 
 def text(key):
     return strings.get(key, key).strip()
 
 
-def text_uk(key):
-    """The Ukrainian string, or None where the game has none."""
-    value = strings_uk.get(key, "").strip()
+def text_in(code, key):
+    """The string in language `code`, or None where the game has none."""
+    value = strings_in[code].get(key, "").strip()
     return value or None
+
+
+def text_uk(key):
+    return text_in("uk", key)
+
+
+def texts(field, key):
+    """`key`'s string in each other language, as `<field>_<code>`."""
+    return {f"{field}_{code}": text_in(code, key) for code in LANGUAGES}
 
 
 def nonzero_modifiers(params):
@@ -94,7 +108,7 @@ def ui(cfg):
     names = desc.get("text_descriptions", {})
     return {
         "name": text(names.get("name", "")),
-        "name_uk": text_uk(names.get("name", "")),
+        **texts("name", names.get("name", "")),
         "description": text(names.get("description", "")),
         "icon": desc.get("icon"),
     }
@@ -290,9 +304,9 @@ RELEVANT = ("parameters/bullet_damage", "parameters/bullet_pierce", "parameters/
 presets = {str(d) for item in weapons.values() for d in item["default_modifications"]}
 ui_props = {}
 for q in rows(load("gameplay__static_game_parameters.options.json").get("ui_properties", [])):
-    ui_props[q["prop_id"]] = {"label": text(q.get("prop_name", "")), "label_uk": text_uk(q.get("prop_name", "")), "mod_type": q.get("mod_type", 2),
+    ui_props[q["prop_id"]] = {"label": text(q.get("prop_name", "")), **texts("label", q.get("prop_name", "")), "mod_type": q.get("mod_type", 2),
                               "direction": q.get("direction", 1), "postfix": text(q["postfix"]) if q.get("postfix") else "",
-                              "postfix_uk": text_uk(q["postfix"]) if q.get("postfix") else None}
+                              **{f"postfix_{c}": text_in(c, q["postfix"]) if q.get("postfix") else None for c in LANGUAGES}}
 
 
 def card_line(prop_id, value, icon=None, bonus=False):
@@ -306,8 +320,8 @@ def card_line(prop_id, value, icon=None, bonus=False):
         number = f"{'+' if v >= 0 else '−'}{abs(v):g}" if bonus else f"{v:g}"
         return number + ("" if not postfix else postfix if postfix == "%" else " " + postfix)
 
-    line = {"label": p.get("label"), "label_uk": p.get("label_uk"),
-            "value": said(p.get("postfix")), "value_uk": said(p.get("postfix_uk") or p.get("postfix"))}
+    line = {"label": p.get("label"), **{f"label_{c}": p.get(f"label_{c}") for c in LANGUAGES},
+            "value": said(p.get("postfix")), **{f"value_{c}": said(p.get(f"postfix_{c}") or p.get("postfix")) for c in LANGUAGES}}
     if icon is not None:
         line["icon"] = icon
     if bonus:
@@ -386,7 +400,7 @@ if rolled:
     kind = kinds.pop()
     takes = {a["slot"] for a in armour.values() if a["available_modifications_mask"][kind - 1:kind] == "1"}
     prop = ui_props.get(rows(rolled[0]["ui_desc"]["props_list"])[0]["prop_id"], {})
-    gear = {"label": prop.get("label"), "label_uk": prop.get("label_uk"), "icon": rolled[0]["ui_desc"].get("icon"),
+    gear = {"label": prop.get("label"), **{f"label_{c}": prop.get(f"label_{c}") for c in LANGUAGES}, "icon": rolled[0]["ui_desc"].get("icon"),
             "slots": sorted(takes), "grades": [{"id": str(m["id"]), "value": regeneration_of(m)["speed"]} for m in rolled]}
 # A booster's built-in bonuses, while it is in a pocket.
 boosters = {}
@@ -399,7 +413,7 @@ for file in files("gameplay__items__boosters__"):
         for k, v in regeneration_of(every_mod.get(d, {})).items():
             total[k] = r(total.get(k, 0) + v)
     if total:
-        boosters[key_of(file)] = {"name": ui(cfg)["name"], "name_uk": ui(cfg)["name_uk"], **total, "card": card}
+        boosters[key_of(file)] = {"name": ui(cfg)["name"], **{f"name_{c}": ui(cfg)[f"name_{c}"] for c in LANGUAGES}, **total, "card": card}
 # The skills the page counts, by their ids in the tree: the medical ones that
 # change recovery (docs/notes/medical-skills.md) and Forest Protection, which
 # changes a hit (docs/notes/artefact-skills.md); rules.js has what each does.
@@ -486,7 +500,7 @@ for s in sorted(skills_tree, key=lambda s: s["id"]):
     if any(levels):
         assert len(levels) == s["levels_amount"], f"skill {s['id']}: {len(levels)} levels, {s['levels_amount']} ranks"
         ranks = [{m: r(sum(level.get(m, 0) for level in levels[:n])) for m in set().union(*levels[:n])} for n in range(len(levels) + 1)]
-        sim_skills.append({"id": s["id"], "name": text(s["ui"]["name"]), "name_uk": text_uk(s["ui"]["name"]), "ranks": ranks})
+        sim_skills.append({"id": s["id"], "name": text(s["ui"]["name"]), **texts("name", s["ui"]["name"]), "ranks": ranks})
 weapon_cfgs = {key_of(f): load(f) for f in files("gameplay__items__weapons__wpn_")}
 armour_cfgs = {f: load(f) for f in files("gameplay__items__armour__")}
 
@@ -527,13 +541,13 @@ for kind, table in (("mod", mods_cfg["modifications"]), ("defect", mods_cfg["def
             # whose items roll it, or come with it.
             rolls = {f.split("__")[3] for f in rollers(armour_cfgs, kind, m)}
             slots = sorted({f.split("__")[3] for f in takers(armour_cfgs, kind, m)}, key=list(SLOT_NAMES).index)
-            row |= {"kit": kit, "slots": [{"slot": x, "name": text(SLOT_NAMES[x]), "name_uk": text_uk(SLOT_NAMES[x]), "rolls": x in rolls}
+            row |= {"kit": kit, "slots": [{"slot": x, "name": text(SLOT_NAMES[x]), **texts("name", SLOT_NAMES[x]), "rolls": x in rolls}
                                           for x in slots]}
         if kick:
             if kick.keys() != KICK or len(set(kick.values())) != 1 or kit:
                 sys.exit(f"modification {m['id']}: kick {kick}: not one scale of the six ranges")
             row |= {"kick": next(iter(kick.values())), "weapons": takers(weapon_cfgs, kind, m),
-                    "slots": [{"slot": "weapon", "name": text("st_filter_weapons"), "name_uk": text_uk("st_filter_weapons"), "rolls": True}]}
+                    "slots": [{"slot": "weapon", "name": text("st_filter_weapons"), **texts("name", "st_filter_weapons"), "rolls": True}]}
         sim_mods.append(row)
 simulators = {"stance": {k: r(v) for k, v in player["character_dispersion_params"].items()},
               "skill_influence": {k: r(v) for k, v in player["character_dispersion_skill_influence"].items()},

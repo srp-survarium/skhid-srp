@@ -12,7 +12,7 @@ log = { workspace = true }
 openssl = { workspace = true }
 # The URLs the players' updater takes (`server::is_url`), for `mirrors.tsv`.
 resources-db = { workspace = true }
-# The stats API's answers (`history`).
+# The stats API's answers (`history`), the built pages' tables (`built`).
 serde_json = { workspace = true }
 # Freeze Tag's rule (`srp_validate::world::freeze`), for the wiki's modes.
 srp-validate = { workspace = true }

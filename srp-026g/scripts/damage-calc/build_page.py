@@ -111,6 +111,7 @@ if icons_dir:
                      for name in os.listdir(icons_dir) if name.endswith(".webp")}
 
 if revision:
+    data["revision"] = int(revision)
     data["stamp"] = f"Skhid revision {revision}"
     data["stamp_uk"] = f"Схід, ревізія {revision}"
 engine = read("engine.js").split('if (typeof module !== "undefined")')[0]
