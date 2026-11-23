@@ -4784,7 +4784,7 @@ tester's reports of 2026-11-23). The whole of it: `probe-tiers-069d.md`.
 - **What changes:** the local probes of a 0.69d map (Rudnya v0.69's 62). Every other scene and probe
   draws as before. Rendering only: nothing a match computes or a world holds changes (no
   `simulation_changes.tsv` row, no world format change). Needs the lighting pack's programs: the exe
-  patch, three-maps-021-lighting@16 and rudnya-069d@8 ship together.
+  patch, three-maps-021-lighting@16 and the map's pack (rudnya-069d@9, its local probes marked) ship together.
 - **Checked:** `cargo test -p patches probe_tiers` (the rounds, the transitions, the gate). Captures
   (patch 176) of the reports page's views and the kept poses before and after, and of unmarked maps
   with and without the patch and the content (probe-tiers-069d.md). No Unicorn check.
