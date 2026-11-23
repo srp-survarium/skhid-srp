@@ -1431,8 +1431,10 @@ fn spot_suite_run() {
     let [walker, over] = super::standin_jump::walker_landings::counts();
     eprintln!("stand-in falls: {walker} came down on the client's walker ground over the grid's floor ({:.2} m over it in all)", over as f32 / 100.0);
     // [stand-in fidelity] The stand-in's climbs and falls by its kept controller (`standin_jump::kept_moves`).
-    let [climbed, falls, fell_landed, handed] = super::standin_jump::kept_moves::counts();
-    eprintln!("stand-in kept controller: {climbed} climbs, {falls} falls ({fell_landed} landed, {handed} handed to the stand-in's fall)");
+    let [climbed, falls, fell_landed, handed, no_climb_in_air] = super::standin_jump::kept_moves::counts();
+    eprintln!(
+        "stand-in kept controller: {climbed} climbs, {falls} falls ({fell_landed} landed, {handed} handed to the stand-in's fall), {no_climb_in_air} steps in the air over the lattice's walk climbed nothing"
+    );
 }
 
 /// [standin-fidelity] A drop the bot pressed (a route jump down from A) whose body came down 3.4 m off the landing is tagged; one
