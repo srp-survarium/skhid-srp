@@ -303,6 +303,22 @@ copies (`fx/artifacts/<name>_ice`, constant_emissive (0.62, 0.88, 1.0) x
 half its intensity: the owner's pick of the previews' variants ("a is good",
 2026-11-21). Spring's own files are unchanged.
 
+It covers the whole body (the owner, 2026-11-23: "just make the glow cover the
+whole body, not just legs"). Almost every emitter of the Spring glow is
+body-shaped (an animated domain: points on chosen bones), and the engine takes
+those bones from the skeleton the play is given. The first build played it with
+two empty attachments, so every such emitter started at the matrix's origin and
+the glow was a small light at the feet. It is now played as the effects'
+presenter plays a living player's Spring glow (`particle_game_effect_presenter::
+play_effect` 0x2AC290): with the frozen player's hit model (+498h, the
+`collision::animated_object`) and his model (+F290h, the
+`render::skeleton_model_instance` that `particle_engine::get_bone_matrix` reads)
+as `scene_renderer::play_particle_system`'s (0x22660) last two arguments (the
+0.21d PDB's signature). The play holds them, and a later move changes only the
+matrix, so each place's glow remembers the player object it was played on and is
+played again on another one (`GLOWING`). `tools/check freeze-native` checks the
+play's attachments, the move and the removal.
+
 The thaw shrinks it (the owner: "would be nice if the glow was reducing as the
 player was unfrozen", "so others could deem the freeze state by look"; of the
 first build's four strengths swapped a quarter at a time: "it just disappears a
@@ -320,7 +336,9 @@ spawned and alive, through the matrix each frame, so the cloud's spread and
 motion scale at once; a world-space emitter (`distortion`) takes it only at a
 particle's birth. A sprite's size is added after the matrix (view-aligned,
 `input.size`), so the sprites keep their size, and the point light keeps its
-intensity: the glow gathers to the body's middle rather than dims. The
+intensity: the glow gathers to the body's middle rather than dims. On his
+bones, a particle is born on the body at whatever the scale; whether the cloud
+still gathers to the middle through the thaw is to be seen in a match. The
 pack's `human_frozen_70`, `_40` and `_15` and their materials are no longer
 played (to drop from the pack in its next version).
 

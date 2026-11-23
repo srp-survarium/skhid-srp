@@ -20,8 +20,11 @@ STATS = ffa.DATA + 0x60000
 CAMERA_INPUT = ffa.DATA + 0x96000
 CAMERA_STACK = 0x36000000
 # The frozen glow's particle query (a frame's draw asks it): the game's query_resources stubbed and
-# recorded, never answered, so nothing of the glow is drawn here (it is presentation only).
+# recorded; one test answers it and checks what the scene renderer is given (its play, move and
+# remove stubbed: pops 28, 20, 12).
 QUERY = 0xE5B60
+PLAY_PARTICLE, MOVE_PARTICLE, REMOVE_PARTICLE = 0x22660, 0x22B30, 0x229D0
+GLOW = 0x38000000            # the test's renderer (its scene renderer at +200064h) and particle systems
 WEAPON_VTABLE = 0xA04174   # the client weapon's (fields_026g.tsv survarium::image weapon_vtable)
 # A world player of its own size (the harness's players are 1000h), for player::insert and
 # player::remove themselves: their fields run to +0F540h, the player effect.
@@ -44,6 +47,9 @@ class Run(ffa.Run):
         self.emu.hook_add(UC_HOOK_CODE, self.camera_director, begin=0x243510, end=0x243510)
         self.queries = []
         self.emu.hook_add(UC_HOOK_CODE, self.on_query, begin=QUERY, end=QUERY)
+        self.particles = []
+        for at in (PLAY_PARTICLE, MOVE_PARTICLE, REMOVE_PARTICLE):
+            self.emu.hook_add(UC_HOOK_CODE, self.on_particle, begin=at, end=at)
         self.emu.mem_map(WHOLE, 0x20000)
         self.pairs = None
         for at in (BASE_INSERT, BASE_REMOVE, CLIENT_REMOVE):
@@ -83,6 +89,22 @@ class Run(ffa.Run):
         paths = [(self.text(self.read(requests + 8 * i)).decode(), self.read(requests + 8 * i + 4)) for i in range(count)]
         self.queries.append((paths, bytes(emu.mem_read(self.read(sp + 4), 0x20)), self.read(sp + 12)))
         self.leave(emu, 0)
+
+    def on_particle(self, emu, address, *_):
+        """The scene renderer's play (its particle, the matrix's translation and the two attachment
+        slots' values: the animated object and the skeleton model instance), move and remove."""
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        arg = lambda n: self.read(sp + 4 * n)
+        if address == PLAY_PARTICLE:
+            at = struct.unpack("<3f", emu.mem_read(arg(4) + 48, 12))
+            self.particles.append(("play", arg(3), at, self.read(arg(6)), self.read(arg(7))))
+            self.leave(emu, 28)
+        elif address == MOVE_PARTICLE:
+            self.particles.append(("move", self.read(arg(3))))
+            self.leave(emu, 20)
+        else:
+            self.particles.append(("remove", self.read(arg(3))))
+            self.leave(emu, 12)
 
     def camera_director(self, emu, *_):
         # Execute both real game_world camera switches; only their external
@@ -385,6 +407,50 @@ def main():
     r.word(ffa.CORE + 0x18FE4, 4)  # A round's countdown is the native camera's: ours leaves it.
     assert r.camera() == 3 and len(r.camera_calls) == calls
     assert kits.check_limits(bytes(patched), True) == 7
+
+    # The frozen glow on the frozen body's bones (the owner, 2026-11-23: "just make the glow cover the
+    # whole body, not just legs"): played as the effects' presenter plays a player's effect (0x2AC290),
+    # with his hit model (+498h) and his model (+F290h), so its body-shaped emitters follow his
+    # skeleton instead of all starting at his feet.
+    r.emu.mem_map(GLOW, 0x300000)
+    renderer, scene_renderer, systems = GLOW, GLOW + 0x200100, [GLOW + 0x210000 + 0x100 * i for i in range(20)]
+    r.word(ffa.UI_GAME + 0x5360, renderer)
+    r.word(renderer + 0x200064, scene_renderer)
+    hit_model, model = 0x0BAD0498, 0x0BADF290
+    r.start()
+    r.word(ffa.player(0) + 0x498, hit_model)
+    r.word(ffa.player(0) + 0xF290, model)
+    r.word(CAMERA_INPUT + 0x358, 2)
+    # asked once, at the first frame of a Freeze Tag match above, never answered until now
+    assert [paths for paths, _, _ in r.queries] == [[("fx/artifacts/human_frozen", 61)] * 20], r.queries
+    tag = 2                              # the particles' query word (resources.rs PARTICLES_WORD)
+    answer = GLOW + 0x220000
+    r.word(answer + 0x38, 20)
+    for i, system in enumerate(systems):
+        r.word(answer + 0x12C + 0x2E0 * i, system)
+    sp = CAMERA_STACK + 0xFE000          # the query's callback: cdecl (queries_result, its word)
+    r.emu.mem_write(sp, struct.pack("<3I", ffa.RETURN, answer, tag))
+    r.run(base.arena().symbols["freeze_tag_on_loaded"], (ffa.RETURN,), sp, hide.GAME)
+    assert r.stopped == ffa.RETURN
+    assert all(r.read(system + 0xD0) == 1 for system in systems), "each system kept once"
+    r.particles.clear()
+    r.camera()
+    assert r.particles == [], "nobody frozen: no glow"
+    r.lethal(0)
+    r.tick(100)
+    r.camera()
+    feet = struct.unpack("<3f", r.emu.mem_read(ffa.player(0) + 0x43C, 12))
+    assert r.particles == [("play", systems[0], feet, hit_model, model)], r.particles
+    assert r.read(systems[0] + 0xD0) == 2, "the play takes its reference"
+    r.particles.clear()
+    r.camera()
+    assert r.particles == [("move", systems[0])], r.particles
+    r.particles.clear()
+    r.word(ffa.CORE + 0x18FE4, 1)  # out of play: the glow leaves the scene
+    r.camera()
+    assert r.particles == [("remove", systems[0])], r.particles
+    print("ok the frozen glow is played on the frozen body's hit model and model (his bones), moved with him, "
+          "removed out of play")
 
     # The gun in hand keeps the clock while held: its first tick after a thaw no longer steps the
     # whole freeze at once (the owner, 2026-11-22: "after unfreezing there are problems with mouse").
