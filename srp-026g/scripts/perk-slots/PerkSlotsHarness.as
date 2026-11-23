@@ -20,6 +20,10 @@ package {
  //   pocket (red, where it was), srp's answer moving nothing, the pocket's item sent back with its
  //   slot shaken; a click on the red pocket takes it again; the open weapon slot keeps its own
  //   click.
+ // - Kits given whole, as patch 199's exe gives them (one call, the counts in it). The paper doll
+ //   never sends an item back: from three pockets and a container to another kit's four, a medkit
+ //   in the fourth is kept; the same kit with a pocket fewer does not show it; an exe without the
+ //   patch (the items, then the counts) shows it once the counts come.
  // Every language's hints. Then the looks before and after: Artifact Container's slot at three
  // times (zoom.png; before, the first flat 2 px border), the weapon perk's slots at their size
  // (weapon.png; before, the red lock alone). The slot labels are the stock English (english.tsv).
@@ -35,6 +39,9 @@ package {
   private var lobby:Object, profile:Object, doll:Object, Profile:Object, Mark:Object;
   private var stock:Object={};
   private var asked:Array=[];
+  private var relocated:Array=[];
+  private var descriptor:Object, inventory:Object;
+  private static const MEDKIT:int=219, MEDKIT_ID:int=50, QUICK_4:int=16;
   private var failures:Array=[];
   private var step:int=0, wait:int=0, frames:int=0;
   private var zoom:Bitmap, weapon:Bitmap;
@@ -83,12 +90,15 @@ package {
     // The requests the profile's perk switch sends (kit x 10 + perk x 2 + state), as perk:state.
     profile.perkSwitch.send=function(r:int):void {var perk:int=int((r%10-1)/2);asked.push(perk+":"+(r%10-perk*2));};
     lobby.addChild(profile);
-    var inventory:*=new (C("SrvInventoryReskin"))();
+    inventory=new (C("SrvInventoryReskin"))();
     inventory.name="inventory_list";
     lobby.inventory_list=inventory;
     lobby.addChild(inventory);
     inventory.x=W*3;
-    inventory.registerItemDescriptor(new (C("survarium.data.ItemDescriptor"))("perk-slots-check"));
+    descriptor=new (C("survarium.data.ItemDescriptor"))("perk-slots-check");
+    inventory.registerItemDescriptor(descriptor);
+    // The relocations the panel asks of the exe, as item:source slot.
+    profile._relocateFunction=function(moves:Array):void {for each(var r:Object in moves) relocated.push(r.id+":"+r.sourceSlot);};
     profile.registerInventory(inventory);
     var shop:*=new (C("survarium.controls.GangShop"))();
     profile.paperDoll.ammoControl=new (C("survarium.ammo.AmmoShareControll"))();
@@ -109,8 +119,16 @@ package {
   }
   private function slot(quick:int):DisplayObject {return doll.getSlotAt(12+quick) as DisplayObject;}
   private function weaponSlot():DisplayObject {return doll.getSlotAt(WEAPON_2) as DisplayObject;}
-  // The kit shown: its id and its pockets and containers, as the exe fills the panel.
+  // The kit shown: its id and its pockets and containers, as the exe fills the panel (patch 199:
+  // one call, the counts in it).
   private function kit(id:int,pockets:int,containers:int):void {profile.fillProfileItems({profileId:id,items:[],item_slots:pockets,artifact_slots:containers});}
+  // Kit `id` with a medkit in the fourth pocket, whole as patch 199 gives it.
+  private function medkitKit(id:int,pockets:int,containers:int):void {profile.fillProfileItems({profileId:id,items:[{itemId:MEDKIT_ID,slotId:QUICK_4,condition_or_stack:4}],item_slots:pockets,artifact_slots:containers});}
+  private function fourth():Object {return doll.getSlotAt(QUICK_4);}
+  private function keptMedkit(how:String):void {
+   check(relocated.length==0,how+": no pocket's item sent back: "+relocated);
+   check(fourth().visible && fourth().enabled && fourth().data!=null && int(fourth().data.itemId)==MEDKIT_ID,how+": the fourth pocket shows its medkit");
+  }
   private function list(k:String):void {
    var rows:Array=["P2;L;0;0;1;0;-1","1;1;0","2;0;-1","3;0;-1","4;0;-1","5;0;-1",k];
    var out:Array=[];for(var i:int=0;i<rows.length;i++) out.push({place:2090000000+i,nickname:rows[i],rating:0,change:0});
@@ -501,6 +519,41 @@ package {
      case 21:
       check(on(m,slot(3)),"another kit shown while a switch is asked: drawn at once: "+layout());
       answer("K;1:1:0,2:1:2,3:0:1",12,true);
+      // Kit 2 with three pockets and a container, then kit 1 with four, a medkit in the fourth.
+      descriptor.setItemsDictionary([{dictId:MEDKIT,category:C("survarium.constants.ItemCategory").MEDKITS,name:"Medkit",level:1,icon_row:1,icon_column:1,is_stack:true,modifiers:[],item_properties:[]}]);
+      inventory.fillSellers([]);
+      inventory.sellersTabPage.selectedIndex=0;
+      inventory.toggleShopMode(false);
+      inventory.filterItems(null);
+      inventory.optionControl.checkbox_all_traders.selected=true;
+      inventory.setupShopItems([]);
+      inventory.setupBundleData([]);
+      inventory.setupInventoryData([{id:MEDKIT_ID,dictId:MEDKIT,faction_id:0,condition_or_stack:20,modifiers:[],rarity_level:0,repair_time:0,reroll_time:0,is_attached_to:0}]);
+      kit(2,3,1);list("K;1:0:0,2:0:0,3:0:0");
+      break;
+     case 22:
+      relocated.length=0;
+      medkitKit(1,4,0);
+      break;
+     case 23:
+      keptMedkit("another kit, given whole");
+      // The same kit with a pocket fewer (a smaller backpack, as the exe shows it before srp's
+      // answer): the medkit not shown, and nothing asked (srp empties the pocket itself).
+      medkitKit(1,3,0);
+      break;
+     case 24:
+      check(relocated.length==0 && !fourth().visible,"a pocket fewer: not shown, nothing sent back: "+relocated);
+      // An exe without patch 199: the items alone first, drawn on the last kit's counts, then the
+      // counts. Nothing is sent back; the counts' draw shows the medkit.
+      kit(2,3,1);
+      profile.fillProfileItems({profileId:1,items:[{itemId:MEDKIT_ID,slotId:QUICK_4,condition_or_stack:4}]});
+      check(relocated.length==0,"the items alone, on the last kit's counts: nothing sent back: "+relocated);
+      profile.updateSlots(0,4);
+      break;
+     case 25:
+      keptMedkit("the items, then the counts");
+      break;
+     case 26:
       kit(2,0,1);
       planSheets();
       break;

@@ -4646,3 +4646,38 @@ code is (`rust/patches/src/artefact_hunt.rs`, `artefact_hunt.toml`, `src/vostok/
 **The eye in the body** (the owner, 2026-11-23, of revision 72: "camera can still go inside the character (sometimes they are tucked in a corner, where to the back no free space is available)"). The pull had no floor: a wall 0.2 to 0.6 m behind the pivot (the place raised 1.4 m, about the neck) put the eye 0 to 0.4 m from it, inside the capsule (0.76 m wide) and the model drawn round it. **0.69d** (retail exe, `tools/re-kit/v069d/functions.tsv`) has the same orbit: third_person_view_camera_controller's pivot is the player's transform raised (0, 1.4, 0) (0x2002AE6D0), its eye pivot + distance × (0.2 right − forward) (0x2002AE430), its ray from the pivot toward the eye, the distance + 0.2 long, group 10h mask 8, the distance cut 0.2 m short of the hit (0x2002AE080); and its tick (0x2002AE3B0) places the camera only when that distance is above 0.75 m (0x2009E5D0C), else leaves it where it was. The kill camera's preview (0x2002AE7A0) takes the least of two rays (at its angles and turned by 0.1 and 0.5 rad) and, below 0.75 m, places the camera at the last angles that had the room. **Now**: the eye is never nearer the pivot than 0.75 m (or the orbit's distance, if less): where the way has that room, the pull is the same but no deeper; where it has not, the pose shown the frame before (its turn, and its eye from the pivot: a `Pose`, kept in `Pull::On`) is held, tested again by a ray along its own way (as 0.69d's preview, the pose at the room that ray finds); where that has none either (a new orbit in a corner), the game's view turned about the level's up (a yaw: the pitch, the eye's height and distance kept) by 15 degrees to one side and the other, nearest first, up to 180, the first whose ray finds the room (the owner, 2026-11-23, of a first version that raised the eye over the head instead: "shouldn't camera just move sideways for first view?"). None with it: the pose with the most room, in front of its wall. The pull goes on in the hold (the wall on the way's), so a way that has the room again starts the eye at 0.75 m and lets it out as after a wall. Rays a frame: one or two; with no room one more, and the turns' up to 23 when the hold has none. Its ray meets neither players (824h/3) nor hit models (40h/11h) nor grenades (818h/8). Nothing a match computes: the view alone (camera_director::apply and the renderer read +48h; no simulation code does).
 
 **Checked**: `check_camera_walls_026g.py` (Unicorn) runs update_camera from its start in the original and the build on a made-up player (turned 30 degrees, a yaw, a pitch and a distance of 3 m), a frame a call, ray_test a plane square to the way or nothing, the performance counter a clock of its own: with nothing in the way the view and the registers at camera_director::apply are the original's bit for bit, one ray as above; a new orbit with a wall at 1.5, 2.9 or 3.1 m has the eye at once 0.2 m in front of it, at 0.1 m at the pivot, past 3.26 m nothing; in an orbit going on, a wall that comes has the eye in front of it in that frame, and when it goes the pull keeps e^(-0.3) of itself in the next 100 ms; a turn of 0.01 rad of yaw in 10 ms sends the second ray where the way will be in 0.3 s, and a wall only that ray meets pulls the eye in by 1 - e^(-0.1) of what it would need, one ray again and the eye going out once the turn ends, the original's view again bit for bit after a while; modes 0 and 4 and a player without a physics world are the original's with no ray. `cargo test -p patches camera_walls` checks the rule and the steps. RUN in a game (the first version, 2026-11-09: in front of the walls, but jumping; the eased one, 2026-11-23: briefly behind a wall); the ray ahead started for the owner that night.
+
+### 3.104 The kit shown, in one call (written 2026-11-23, README patch 199) — PROVEN in the code and under Unicorn; not run in a game
+
+`lobby_menu::on_profile_changed` (0x222330) is the one place the exe shows the lobby movie a kit,
+and the only caller of `root.fill_player_profile_items` and `root.update_profile_slots_count` (one
+reference to each name in `.text`). It runs on a status from srp (`on_client_status_received`,
+0x21D813: the sign-in, a kit or preset switch, Play, a perk switch's answer) and on a move srp
+accepted (`process_succeeded_inventory_action`, 0x2762BE). It gives the kit in two calls. First
+the items value ([esp+58h], its `profileId` and `items`) at 0x222A23. Then it works out the
+counts: the pockets from modifier 0Fh into lobby_menu+3121h (0x222AE5), the containers from
+modifier 0Eh into [esp+0Fh] (0x222B09), the two held to six quick slots (0x222B18..0x222B5A). It
+gives those at 0x222CD6 (containers, pockets), a call that names no kit. Between them are only
+local branches, so both always run, in that order. The value lives until the function's end
+(released at 0x222F11).
+
+Revision 72's lobby drew the items at once, on the counts of the kit shown before. Pockets that
+kit lacked or had as containers sent their items back (`PaperDollBase.handleQuickSlots`,
+`dropSlot`), and srp took them off the kit (bug report 2026-11-23).
+
+Patch 199 gives the movie the kit in one call:
+
+- A lohook before the items' Invoke (`lobby_menu.profile_items`, 0x222A07) exits past it
+  (0x222A28; EAX, its result, is not read there).
+- A lohook before the counts' Invoke (`lobby_menu.profile_counts`, 0x222CA1; also the target of
+  the je at 0x222C7A) sets the items value's `item_slots` (the pockets, [esp+10h]) and
+  `artifact_slots` (the containers, [esp+0Fh]) with the AS3 interface's SetMember (0x7C6A20). It
+  gives that value to `root.fill_player_profile_items` and exits past the counts' Invoke
+  (0x222CDB).
+- The stock `PlayerProfileBase.fillProfileItems` opens the paper doll's slots from those two
+  members before it sets the items.
+- A value of no AS3 movie gets no members: the items are given alone and the stock counts' call
+  follows.
+
+`check_profile_kit_026g.py` runs both sites to their Invokes' next instruction in both exes
+(`tools/check profile-kit`). Only the lobby: nothing a match computes.

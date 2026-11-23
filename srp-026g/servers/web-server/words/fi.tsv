@@ -717,6 +717,9 @@ Battery spawn	Akun syntypiste
 Charger	Laturi
 Research unit	Tutkimusyksikkö
 Spawn	Syntypiste
+Glow of the Forest	Metsän Hohde
+Bases	Tukikohdat
+Base	Tukikohta	hunt
 
 # The damage calculator (a page built at a release: scripts/site-texts)
 Feet	Jalkaterät	parts

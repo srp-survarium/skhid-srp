@@ -226,7 +226,7 @@ package survarium.player
       }
 
       // What an oxygen tank's card lists with its built-in bonuses, as the modifications of the same
-      // kind show it ({icon, prop_id, value}): the pockets or the pocket size Tank Pocket or Tank
+      // kind show it ({icon, prop_id, value}; the card puts them among its own in BonusOrder): the pockets or the pocket size Tank Pocket or Tank
       // Depth adds to a kit that wears it (1031 "Item slots", icon 3, prop 10; 1171 pocket size,
       // icon 17, prop 117); Steady Breath's sway (the boosters' "Sight sway", icon 39, prop 125)
       // and dispersion (1070's accuracy, icon 7, prop 101), -10 % a rank; Deep Breaths' sprint

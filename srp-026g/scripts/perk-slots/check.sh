@@ -17,7 +17,7 @@ lobby=$(readlink -f "$1")
 harness_work "${2:-}"
 "${PYTHON:-python3}" "$here/../localization-check/harness_text.py" "$work"
 harness_compile "$here/PerkSlotsHarness.as" 3400,1500 -source-path+="$work"
-"${PYTHON:-python3}" "$here/../medical-cards/ruffle_movie.py" "$lobby" "$work/lobby_menu.swf"
+"${PYTHON:-python3}" "$here/../medical-cards/ruffle_movie.py" "$lobby" "$work/lobby_menu.swf" --slider-labels
 cp "$here/../../client-patches/localization/english.tsv" "$work/"
 harness_display 3400x1500 imagemagick
 HARNESS_TIMEOUT=240 harness_run ruffle.log -p low --width 3400 --height 1500 PerkSlotsHarness.swf
