@@ -581,8 +581,13 @@ chooses each.
   kit 3 takes one and dies into kit 1, which has three containers: kit 1 holds three. Kit 1 with
   two dies into kit 2 with one container: one moves, one stays in kit 1.
 - A respawn in the same kit moves nothing (the game keeps its artefacts: setup_from_profile's
-  on_taken switches their passives on again). The countdown's kit change moves nothing either:
-  only an artefact a death switched off (state 5) moves.
+  on_taken switches their passives on again).
+- A kit left alive gives too (the owner, 2026-11-23: "courier perk doesn't work in round based
+  modes", "it does work in tdm though"): in Artifact Hunt and Freeze Tag a kit changes in the
+  round's countdown (patch 31's switch where the player stands) or at the round's start (the
+  fade's end spawns everyone, a survivor in the kit he picked), both with the kit alive; a match
+  start's countdown switch, in every mode, is the same. Until then only an artefact a death
+  switched off (state 5) moved, so nothing moved there.
 - Row IV, column 4, 15 points, one rank: modifier 40 bit 14 (`artefact-skills-1.json`'s last
   entry). Icon 0.69d0 anomaly/10 (a hooded figure holding an artefact close; my pick, first
   chosen for the parked Hidden Stash, which would take another).
@@ -594,11 +599,14 @@ chooses each.
   - `courier.spawned` (0x316EAB, the spawn's last pops): the new kit initialised (vtable+1Ch:
     initialize clears its modifier lists, setup_from_profile sets its container range and links
     its own artefacts) and in the world (vtable+20h). With the bit in the new kit, the old kit's
-    container artefacts in state 5 go, in container order, into the new kit's empty containers.
+    container artefacts go, in container order, into the new kit's empty containers.
   - The old kit's container range is gone by the spawn (PROVEN): the respawn rule's tick takes a
-    dead player still in the world out of it before its spawn (0x316999..0x3169A0: vtable+24h with
-    1, player::remove 0x1F2870 -> base_player::remove 0x2DA790), whose unload_to_profile 0x2FD2D0
-    ends with +168h 0 and +16Ch 0 (0x2FDBE8..0x2FDBF2); its slots keep their items, and the next
+    player still in the world out of it before its spawn, dead or alive (0x316999..0x3169A0:
+    vtable+24h with 1, player::remove 0x1F2870 -> base_player::remove 0x2DA790), as patch 31's
+    switch does (`RespawnTick::switch_kit`, `kit_change_026g.asm`); for a living one remove_alive
+    0x2D99C0 writes alive (+33Ch) 0 and touches no artefact. Its unload_to_profile 0x2FD2D0 calls
+    none of an artefact's functions and ends with +168h 0 and +16Ch 0 (0x2FDBE8..0x2FDBF2); its
+    slots keep their items, and the next
     spawn in that kit sets the range again (0x2FD29F). So the old kit's artefacts are found in its
     23 slots: an item of the world's registered artefacts (+18940h) whose owner and slot are that
     slot's, in slot order (a range is a run of slots, so the containers' order). Revision 69 read
@@ -606,23 +614,30 @@ chooses each.
     0xf62d810b, Chemical Plant, 2026-11-22: place 10's static info has bit 14 (22509), its Spring
     in kit 0 slot 16 went to state 5 at the death at 210 s and stayed there in every world after
     the respawn into kit 1 at 218 s; no `courier:` line in the owner's log).
-- The move (`Inventory::take_from_dead_kit`): the old slot emptied as remove_item (0x2FC680) does
-  but without on_removed (vtable+34h, 0x313490): the death already unlinked the passive
-  (artefact_base::tick 0x3132E5: vtable+84h, then state 5, for an amount above 0, 0x2FFDD0; an
-  artefact whose amount reaches 0 is removed from its container by end_active 0x31359B..0x3135A9,
-  so every artefact a container holds goes there), and a second unlink is not harmless (Spring's
-  vostok::intrusive_list::unlink 0x2D5D00 on a node no longer linked empties its list's head).
-  So: owner 0, slot 23, state 0 (as on_removed leaves it), the slot and its reference released,
-  the old kit's weight to recalculate; then the game's own take_artefact (as a pickup: set_item,
-  on_taken links the passive, state 3). A free container keeps take_artefact off its eviction.
+- The move (`Inventory::take_from_kit`), by the artefact's state (+280h, `Held`):
+  - 3 or 4 (the kit left alive: its passive still linked into that kit's player's lists, which
+    only that kit's next initialize clears): the game's remove_item (0x2FC680), whose on_removed
+    (vtable+34h, 0x313490) ends an active (vtable+88h), unlinks the passive once (vtable+84h) and
+    writes 0, then set_owner, the slot and its reference, the weight.
+  - 5 (a death's): the old slot emptied as remove_item does but without on_removed: the death
+    already unlinked the passive (artefact_base::tick 0x3132E5: vtable+84h, then state 5, for an
+    amount above 0, 0x2FFDD0; an artefact whose amount reaches 0 is removed from its container by
+    end_active 0x31359B..0x3135A9, so every artefact a container holds goes there), and a second
+    unlink is not harmless (Spring's vostok::intrusive_list::unlink 0x2D5D00 on a node no longer
+    linked empties its list's head). So: owner 0, slot 23, state 0 (as on_removed leaves it), the
+    slot and its reference released, the old kit's weight to recalculate.
+  - Then the game's own take_artefact (as a pickup: set_item, on_taken links the passive, state
+    3). A free container keeps take_artefact off its eviction.
 - What a world carries is unchanged: a moved artefact's record is its owner (place, kit) and slot,
   as after any pickup; `keeper::reconcile` keeps every kit's slots the world's after a load.
 - Changes what a match computes: a `next` row of `simulation_changes.tsv`.
 - Check: `client-patches/check_artefact_courier_026g.py` (Unicorn on the built exe: the owner's two
   runs through the game's take_artefact, on_holder_death, artefact_base::tick, the dead kit's
   unload_to_profile before each spawn (as the respawn rule's tick removes it) and the spawn's two
-  sites; each moved artefact in its new container, state 3, unlinked once and linked once; nothing
-  without the bit, in the same kit, or from another place; it fails on revision 69's build) and
+  sites; each moved artefact in its new container, state 3, unlinked once and linked once; a kit
+  left alive (alive 0 as remove_alive writes it, the artefact in state 3) gives its artefact
+  through remove_item, unlinked once by on_removed; nothing without the bit, in the same kit, or
+  from another place; it fails on revision 69's build) and
   `artefact_courier`'s tests.
 
 ## Spring II (531)

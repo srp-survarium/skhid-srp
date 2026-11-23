@@ -177,6 +177,26 @@ def as_many_as_fit(data):
     print('Courier: kit 0 (two) into kit 1 (one container): the first moves, the other stays in kit 0: PASS')
 
 
+def left_alive(data):
+    """A kit left alive (patch 31's switch in a countdown, a round's start): base_player::remove's
+    remove_alive (0x2D99C0) writes alive 0 and its unload_to_profile leaves the artefact linked
+    (state 3); it moves as remove_item takes it (on_removed unlinks it once), then the take."""
+    g = Courier(data)
+    _, inv0, _ = g.kit(8, 0, containers=1)
+    _, inv1, _ = g.kit(8, 1, containers=2)
+    g.emu.mem_write(g.entry(8) + 0xC, b'\x00')
+    a = g.take(8, 0, 'Spring')
+    g.emu.mem_write(g.kits[(8, 0)][0] + 0x33C, b'\x00')
+    g.respawn(8, 1)
+    assert g.held(8, 1) == [a, 0] and g.held(8, 0) == [0], (g.held(8, 1), g.held(8, 0))
+    assert g.read(a + 0x250) == inv1 and g.state(a) == 3
+    assert g.read(inv0 + 0x184) & 0xFF == 1, "the old kit's weight to recalculate"
+    assert (g.unlinks.count(a), g.links.count(a)) == (1, 2), 'unlinked by on_removed, linked by each take'
+    assert 'srp: courier: place 8 kit 0 -> kit 1: 1 artefacts moved, 0 left' in g.lines, g.lines
+    print("Courier: a kit left alive (a countdown's switch): its artefact moves, unlinked once by on_removed "
+          'and linked by the take: PASS')
+
+
 def nothing(data):
     g = Courier(data)
     # No skill.
@@ -214,6 +234,7 @@ def main():
                             open(base.late_join_bin(), 'rb').read())
     owners_runs(patched)
     as_many_as_fit(patched)
+    left_alive(patched)
     nothing(patched)
 
 
