@@ -63,9 +63,18 @@ comparison: "the way rudnya is is fine"; not in work):
   resource-porter's `docs/survarium-069d-to-026.md` has what was read of both.
 - 0.69d's sky probe on Rudnya (and on its other maps with cloud shadows) is 0.60-0.69 of what
   its own atmosphere model gives at the map's density; the cause is not found.
-- Outdoor shade is darker than 0.69d's (the sun to ambient balance is about twice 0.69d's).
-- No cloud shadows: 0.69d dims its sun by its clouds' shadows (0.27 to 0.93 as they turn, 0.64
-  on average on Rudnya); 0.26g's own sky shadows exist but were not carried over.
+- Pack @6 (after the tester's reports of 2026-11-22: "plank wall is too dark", "slab wall is too
+  dark"): 0.69d's cloud shadows on the sun are drawn (0.26g's sky shadows with the clouds'
+  panorama, `three-maps-021-lighting@13`'s programs running 0.69d's `cloud_shadows.ps` behind the
+  marker): the sun goes and comes back over about a minute on the whole map as in 0.69d (0.27 to
+  0.93 of it over the map as the clouds turn, locally down to nothing; the earlier "outdoor shade
+  about twice as dark" was the full sun against the same sky light). Fill lights draw 0.69d's
+  wrapped facing term (its `dot_normal` cutoff and power, carried in the light's
+  `attenuation_power` for the same pack's 8 `ambient_light.ps` programs), so a wall turned from a
+  fill light's centre is lit as in 0.69d (the bus stop's wall: 2.4 -> 17 of 0.69d's 27, region
+  mean 0-255). The tester's plank wall: 21.5 -> 47 of 0.69d's 58.
+- Left as it is: a frame mostly of sky is exposed for 0.26g's sky, brighter against the scene
+  than 0.69d's, so what stands under it reads darker (the barn's roof: 72 against 0.69d's 94).
 - Spawns (team deathmatch): 0.69d's team-deathmatch points as they are, 405 (team 0: 313,
   team 1: 92); each point's own check radii; their invulnerability time 6 s as the rest of the
   map (maps.tsv; 0.69d's 3 s until then). The owner may revisit it: these are free spawns, up to
