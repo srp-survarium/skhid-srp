@@ -6,7 +6,6 @@
   if (!sim) return;
   const weapons = [...document.querySelectorAll('#weapon-options > div')];
   const collator = new Intl.Collator(document.documentElement.lang, {numeric: true, sensitivity: 'base'});
-  const tr = (en, uk) => document.documentElement.lang === 'uk' ? uk : en;
   const byId = new Map(weapons.map(element => [element.id, element]));
   // Each weapon's rounds, its default first: [{id, name, spread}].
   const roundsOf = new Map(weapons.map(element => [element.id, JSON.parse(element.dataset.rounds)]));
@@ -97,11 +96,11 @@
       const time = simulation.time;
       find('.sim-last').disabled = time >= lastShot() - .001;
       timeInput.value = time;
-      find('.sim-time-label').textContent = `${time.toFixed(2)} ${tr('s', 'с')}`;
+      find('.sim-time-label').textContent = `${time.toFixed(2)} ${Tc('unit', 's')}`;
       const legend = find('.sim-legend'); legend.replaceChildren();
       for (const series of simulation.series) {
         const point = sample(series, time), label = sides.length > 1 ? `${series.side ? 'B' : 'A'} · ` : '';
-        legend.append(node('p', `${label}${name(series.id)} · ${tr('shots', 'постріли')} ${series.events.filter(event => event.time <= time + 1e-9).length}/${series.shots} · ${tr('up', 'вгору')} ${point.vertical.toFixed(3)} · ${tr('side', 'убік')} ${point.horizontal.toFixed(3)} · ${tr('spread', 'розкид')} ${point.spread.toFixed(2)}°`, `series-${series.side}`));
+        legend.append(node('p', `${label}${name(series.id)} · ${T('shots')} ${series.events.filter(event => event.time <= time + 1e-9).length}/${series.shots} · ${T('up')} ${point.vertical.toFixed(3)} · ${T('side')} ${point.horizontal.toFixed(3)} · ${T('spread')} ${point.spread.toFixed(2)}°`, `series-${series.side}`));
       }
       for (const axis of ['vertical', 'horizontal']) {
         const svg = find(`.sim-${axis}`); svg.replaceChildren();
@@ -173,7 +172,7 @@
         return [x(point.side), y(point.up)];
       };
       const views = simulation.series.map(series => {
-        const svg = svgNode('svg', {viewBox:'0 0 300 300', role:'img', 'aria-label':`${name(series.id)}: ${tr('where it aims as the recoil moves it', 'куди цілиться під дією відбою')}`});
+        const svg = svgNode('svg', {viewBox:'0 0 300 300', role:'img', 'aria-label':`${name(series.id)}: ${T('where it aims as the recoil moves it')}`});
         const view = document.createElement('div'); view.className = 'sim-view';
         if (simulation.series.length > 1) view.append(node('p', `${series.side ? 'B' : 'A'} · ${name(series.id)}`, `sim-view-name series-${series.side}`));
         view.append(svg);
@@ -217,13 +216,13 @@
     // to the last shot; the settling after it stays on the plots.
     function stop() {
       if (playing) cancelAnimationFrame(playing.frame);
-      playing = null; playButton.textContent = tr('Play', 'Відтворити');
+      playing = null; playButton.textContent = T('Play');
     }
     function play() {
       if (simulation.kind !== 'ready') return;
       const last = Math.max(...simulation.series.flatMap(series => series.events).map(event => event.time));
       const from = simulation.time >= last - .001 ? 0 : simulation.time, start = performance.now();
-      playButton.textContent = tr('Pause', 'Пауза');
+      playButton.textContent = T('Pause');
       const tick = now => {
         if (simulation.kind !== 'ready') { stop(); return; }
         // A frame's timestamp can precede the press: never before `from`.
@@ -302,7 +301,7 @@
     panel.append(box);
   });
   const simulation = RecoilSim(sim, stateOf), empty = document.querySelector('#compare-empty');
-  const slots = WikiWeaponSlots(weapons, roundsOf, tr, collator, () => {
+  const slots = WikiWeaponSlots(weapons, roundsOf, collator, () => {
     const sides = slots.sides().map((chosen, side) => ({...chosen, side})).filter(({id}) => id);
     sim.hidden = sides.length === 0; empty.hidden = sides.length !== 0;
     panels.forEach((panel, side) => {

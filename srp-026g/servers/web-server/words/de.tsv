@@ -525,3 +525,145 @@ Each kit a gun of another class, with random bonuses and attachments.	Jedes Kit 
 Plain FFA: {0} % of FFA cards.	Normales FFA: {0} % der FFA-Karten.
 {0} % of FFA cards.	{0} % der FFA-Karten.
 FFA: Roulette	FFA: Roulette
+
+# The wiki's weapons and simulators (pages built at a release: scripts/site-texts)
+Search weapons	Waffen suchen
+No weapons match.	Keine passenden Waffen.
+lvl {n}	Stufe {n}
+Search…	Suchen…
+Search items	Gegenstände suchen
+No items match.	Keine passenden Gegenstände.
+s	s	unit
+Search rounds	Patronen suchen
+No rounds match.	Keine passenden Patronen.
+shots	Schüsse
+up	hoch
+side	seitlich
+spread	Streuung
+where it aims as the recoil moves it	wohin sie zielt, während der Rückstoß sie bewegt
+Play	Abspielen
+Pause	Pause
+Recoil and spread	Rückstoß und Streuung
+Weapon {side}	Waffe {side}
+Choose a weapon…	Waffe wählen…
+Round	Patrone
+Clear	Leeren	list
+Choose a weapon; a second one to compare.	Wähle eine Waffe, eine zweite zum Vergleich.
+Aim	Zielen
+From the hip	Aus der Hüfte
+Aiming in	Anvisieren
+Fully aimed	Voll anvisiert
+Stance	Haltung
+Standing	Stehen
+Walking	Gehen
+Crouching	Hocken
+Crouch-walking	In der Hocke gehen
+Sprinting	Sprinten
+Jumping	Springen
+Broken arms	Gebrochene Arme
+Spread from the hip {v} per rank, sprinting and jumping included. Not while aiming.	Streuung aus der Hüfte {v} pro Rang, auch beim Sprinten und Springen. Nicht beim Zielen.
+No effect fully aimed.	Keine Wirkung, wenn voll anvisiert.
+Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.	Streuung beim Gehen {v} pro Rang, aus der Hüfte oder beim Anvisieren. Nicht beim Gehen in der Hocke.
+Spread from broken arms {v} per rank.	Streuung durch gebrochene Arme {v} pro Rang.
+This weapon's kick ranges, up and sideways. Not the camera shake.	Rückstoßbereiche dieser Waffe, nach oben und zur Seite. Nicht das Kamerawackeln.
+The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.	Die Streuung der Haltung und die jedes Schusses. Keine Wirkung beim Sprinten, Springen oder voll anvisiert.
+Each shot's kick with any weapon: up, sideways and the camera shake.	Rückstoß jedes Schusses mit jeder Waffe: nach oben, zur Seite und das Kamerawackeln.
+Base	Basis
+A shot	Pro Schuss
+At most	Höchstens
+Vertical kick	Vertikaler Rückstoß
+game units	Spieleinheiten
+Horizontal kick	Horizontaler Rückstoß
+Modelled kick, recovery, spread and camera shake (from the hip), with no mouse compensation. The plots are in the weapons’ kick units; the crosshair view is in degrees of view (upward exactly as the game does, sideways estimated), with each bullet’s hit and the spread circle.	Modelliert sind Rückstoß, Erholung, Streuung und Kamerawackeln (aus der Hüfte), ohne Ausgleich mit der Maus. Die Diagramme sind in den Rückstoßeinheiten der Waffen; das Fadenkreuz in Grad Sichtfeld (nach oben genau wie im Spiel, seitlich geschätzt), mit dem Treffer jeder Kugel und dem Streukreis.
+Trigger	Abzug
+Hold	Halten
+Click, {n} a second	Klicken, {n} pro Sekunde
+Sample seed	Seed der Stichprobe
+A full magazine; with two weapons, as many shots as the smaller magazine holds, each at its own fire rate. Random samples use the same seed for comparison; they are not recorded game shots.	Ein volles Magazin; bei zwei Waffen so viele Schüsse, wie das kleinere Magazin fasst, jede mit ihrer eigenen Feuerrate. Die Zufallsstichproben nutzen zum Vergleich denselben Seed; es sind keine aufgezeichneten Schüsse aus dem Spiel.
+Spread	Streuung
+degrees	Grad
+Last shot	Letzter Schuss
+Reset	Zurücksetzen
+Timeline	Zeitleiste
+Crosshair	Fadenkreuz
+degrees of view	Grad Sichtfeld
+Target	Ziel
+None	Keins
+Enemy at {m} m	Gegner auf {m} m
+Recoil parameters are unavailable for this selection.	Für diese Auswahl sind keine Rückstoßparameter verfügbar.
+Rounds	Patronen
+Sniper rifle	Scharfschützengewehr
+Submachine gun	Maschinenpistole
+Pistol	Pistole
+Shotgun	Schrotflinte
+Assault rifle	Sturmgewehr
+Machine gun	Maschinengewehr
+Skhid revision {revision}	Skhid, Revision {revision}
+Stat	Wert
+Better	Besser
+Worse	Schlechter
+weapons	Waffen	count
+Compare weapons or expand a row for damage, handling, accuracy, recoil and aim sway.	Vergleiche Waffen oder klappe eine Zeile auf für Schaden, Handhabung, Genauigkeit, Rückstoß und Zielverwackeln.
+Values with the chosen round, the weapon’s standard one first. Upgrades and character bonuses are not included. The game’s card shows the highest damage and the highest penetration among all the weapon’s rounds.	Werte mit der gewählten Patrone, zuerst mit der Standardpatrone der Waffe. Upgrades und Charakterboni sind nicht enthalten. Die Karte im Spiel zeigt den höchsten Schaden und den höchsten Rüstungsdurchschlag aller Patronen der Waffe.
+Find a weapon	Waffe finden
+Weapon class	Waffenklasse
+All classes	Alle Klassen
+Damage: high to low	Schaden: absteigend
+Fire rate: high to low	Feuerrate: absteigend
+Compare weapons	Waffen vergleichen
+Only differences	Nur Unterschiede
+Color better / worse values	Bessere / schlechtere Werte einfärben
+Recoil and spread →	Rückstoß und Streuung →
+Choose two weapons to compare. Equal values and neutral traits keep their normal color.	Wähle zwei Waffen zum Vergleich. Gleiche Werte und neutrale Eigenschaften behalten ihre normale Farbe.
+No differences in the displayed stats.	Keine Unterschiede bei den angezeigten Werten.
+m	m	unit
+kg	kg	unit
+Single shot	Einzelfeuer
+Damage & range	Schaden und Reichweite
+Damage	Schaden
+Armor penetration	Rüstungsdurchschlag
+Full damage up to	Voller Schaden bis
+Minimum damage from	Minimalschaden ab
+Minimum damage retained	Verbleibender Minimalschaden
+Stopping power	Stoppwirkung
+Stamina damage	Ausdauerschaden
+Firing & handling	Schießen und Handhabung
+rpm	Schuss/min	unit
+Fire rate	Feuerrate
+Magazine capacity	Magazinkapazität
+Reload time	Nachladezeit
+Aim time	Zielzeit
+Draw time	Ziehzeit
+Holster time	Wegsteckzeit
+Movement speed modifier	Modifikator der Bewegungsgeschwindigkeit
+Base aim zoom	Basis-Zielzoom
+Fire modes	Feuermodi
+Accuracy & spread	Genauigkeit und Streuung
+Spread values use the game's own units. Growth and recovery parameters are shown without a better/worse rating.	Streuungswerte sind in den Einheiten des Spiels. Parameter für Zunahme und Erholung werden ohne Wertung besser/schlechter gezeigt.
+Base dispersion	Basisstreuung
+Hip-fire spread multiplier	Multiplikator der Hüftfeuer-Streuung
+Spread added per shot	Streuung pro Schuss
+Spread limit	Streuungsgrenze
+Spread growth parameter	Parameter der Streuungszunahme
+Spread recovery parameter	Parameter der Präzisionserholung
+Recoil	Rückstoß
+Base kick in game units, not degrees. Horizontal kick is right minus left; variability is its standard deviation. These do not describe an entire burst.	Basisrückstoß in Spieleinheiten, nicht in Grad. Horizontaler Rückstoß ist rechts minus links; die Schwankung ist seine Standardabweichung. Diese Werte beschreiben keinen ganzen Feuerstoß.
+Base vertical kick range	Bereich des vertikalen Basisrückstoßes
+Horizontal kick range	Bereich des horizontalen Rückstoßes
+Horizontal kick variability	Schwankung des horizontalen Rückstoßes
+Horizontal bias (− left / + right)	Horizontale Tendenz (− links / + rechts)
+Recoil accumulation exponent	Exponent der Rückstoßakkumulation
+Recovery response (P)	Erholungsreaktion (P)
+Recovery accumulation (I)	Erholungsakkumulation (I)
+Recovery damping (D)	Erholungsdämpfung (D)
+Aim sway	Zielverwackeln
+Horizontal sway	Horizontales Verwackeln
+Vertical sway	Vertikales Verwackeln
+Aim sway period	Verwackelperiode
+Magazine	Magazin
+Set as weapon A	Als Waffe A wählen
+Set as weapon B	Als Waffe B wählen
+Automatic	Dauerfeuer
+{m}-round burst	{m}-Schuss-Feuerstoß
+pellets	Schrotkugeln
+No weapons match. Try another name or class.	Keine passenden Waffen. Versuche einen anderen Namen oder eine andere Klasse.

@@ -525,3 +525,145 @@ Each kit a gun of another class, with random bonuses and attachments.	Cada kit c
 Plain FFA: {0} % of FFA cards.	FFA normal: {0} % das cartas de FFA.
 {0} % of FFA cards.	{0} % das cartas de FFA.
 FFA: Roulette	FFA: Roleta
+
+# The wiki's weapons and simulators (pages built at a release: scripts/site-texts)
+Search weapons	Buscar armas
+No weapons match.	Nenhuma arma encontrada.
+lvl {n}	nív. {n}
+Search…	Buscar…
+Search items	Buscar itens
+No items match.	Nenhum item encontrado.
+s	s	unit
+Search rounds	Buscar munições
+No rounds match.	Nenhuma munição encontrada.
+shots	tiros
+up	cima
+side	lado
+spread	dispersão
+where it aims as the recoil moves it	para onde a arma aponta conforme o recuo a move
+Play	Reproduzir
+Pause	Pausar
+Recoil and spread	Recuo e dispersão
+Weapon {side}	Arma {side}
+Choose a weapon…	Escolha uma arma…
+Round	Munição
+Clear	Limpar	list
+Choose a weapon; a second one to compare.	Escolha uma arma; e uma segunda para comparar.
+Aim	Mira
+From the hip	Da cintura
+Aiming in	Mirando
+Fully aimed	Mira completa
+Stance	Postura
+Standing	Em pé
+Walking	Andando
+Crouching	Agachado
+Crouch-walking	Andando agachado
+Sprinting	Correndo
+Jumping	Pulando
+Broken arms	Braços quebrados
+Spread from the hip {v} per rank, sprinting and jumping included. Not while aiming.	Dispersão da cintura {v} por rank, inclusive correndo e pulando. Não ao mirar.
+No effect fully aimed.	Sem efeito com a mira completa.
+Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.	Dispersão ao andar {v} por rank, da cintura ou mirando. Não andando agachado.
+Spread from broken arms {v} per rank.	Dispersão com braços quebrados {v} por rank.
+This weapon's kick ranges, up and sideways. Not the camera shake.	Faixas de recuo desta arma, para cima e para os lados. Não inclui o tremor da câmera.
+The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.	Dispersão da postura e de cada tiro. Sem efeito correndo, pulando ou com a mira completa.
+Each shot's kick with any weapon: up, sideways and the camera shake.	Recuo de cada tiro com qualquer arma: para cima, para os lados e o tremor da câmera.
+Base	Base
+A shot	Por tiro
+At most	Máximo
+Vertical kick	Recuo vertical
+game units	unidades do jogo
+Horizontal kick	Recuo horizontal
+Modelled kick, recovery, spread and camera shake (from the hip), with no mouse compensation. The plots are in the weapons’ kick units; the crosshair view is in degrees of view (upward exactly as the game does, sideways estimated), with each bullet’s hit and the spread circle.	Modelo do recuo, da recuperação, da dispersão e do tremor da câmera (da cintura), sem compensação com o mouse. Os gráficos estão nas unidades de recuo das armas; a vista da mira está em graus de visão (para cima exatamente como no jogo, para os lados estimado), com o impacto de cada bala e o círculo de dispersão.
+Trigger	Gatilho
+Hold	Segurar
+Click, {n} a second	Clicar, {n} por segundo
+Sample seed	Semente da amostra
+A full magazine; with two weapons, as many shots as the smaller magazine holds, each at its own fire rate. Random samples use the same seed for comparison; they are not recorded game shots.	Um carregador cheio; com duas armas, tantos tiros quanto cabem no carregador menor, cada uma na sua taxa de fogo. As amostras aleatórias usam a mesma semente para comparação; não são tiros gravados do jogo.
+Spread	Dispersão
+degrees	graus
+Last shot	Último tiro
+Reset	Redefinir
+Timeline	Linha do tempo
+Crosshair	Mira
+degrees of view	graus de visão
+Target	Alvo
+None	Nenhum
+Enemy at {m} m	Inimigo a {m} m
+Recoil parameters are unavailable for this selection.	Parâmetros de recuo indisponíveis para esta seleção.
+Rounds	Munições
+Sniper rifle	Rifle de precisão
+Submachine gun	Submetralhadora
+Pistol	Pistola
+Shotgun	Escopeta
+Assault rifle	Rifle de assalto
+Machine gun	Metralhadora
+Skhid revision {revision}	Skhid, revisão {revision}
+Stat	Atributo
+Better	Melhor
+Worse	Pior
+weapons	armas	count
+Compare weapons or expand a row for damage, handling, accuracy, recoil and aim sway.	Compare armas ou expanda uma linha para ver dano, manuseio, precisão, recuo e balanço da mira.
+Values with the chosen round, the weapon’s standard one first. Upgrades and character bonuses are not included. The game’s card shows the highest damage and the highest penetration among all the weapon’s rounds.	Valores com a munição escolhida, começando pela padrão da arma. Modificações e bônus do personagem não são considerados. O card do jogo mostra o maior dano e a maior penetração entre todas as munições da arma.
+Find a weapon	Encontrar arma
+Weapon class	Classe da arma
+All classes	Todas as classes
+Damage: high to low	Dano: do maior ao menor
+Fire rate: high to low	Taxa de fogo: da maior à menor
+Compare weapons	Comparar armas
+Only differences	Só as diferenças
+Color better / worse values	Colorir valores melhores / piores
+Recoil and spread →	Recuo e dispersão →
+Choose two weapons to compare. Equal values and neutral traits keep their normal color.	Escolha duas armas para comparar. Valores iguais e características neutras mantêm a cor normal.
+No differences in the displayed stats.	Nenhuma diferença nos atributos exibidos.
+m	m	unit
+kg	kg	unit
+Single shot	Disparo único
+Damage & range	Dano e alcance
+Damage	Dano
+Armor penetration	Penetração
+Full damage up to	Dano total até
+Minimum damage from	Dano mínimo a partir de
+Minimum damage retained	Dano mínimo retido
+Stopping power	Poder de parada
+Stamina damage	Dano à estamina
+Firing & handling	Disparo e manuseio
+rpm	tiros/min	unit
+Fire rate	Taxa de fogo
+Magazine capacity	Capacidade do carregador
+Reload time	Tempo de recarga
+Aim time	Tempo de mira
+Draw time	Tempo para sacar
+Holster time	Tempo para guardar
+Movement speed modifier	Modificador de velocidade de movimento
+Base aim zoom	Zoom base da mira
+Fire modes	Modos de disparo
+Accuracy & spread	Precisão e dispersão
+Spread values use the game's own units. Growth and recovery parameters are shown without a better/worse rating.	Os valores de dispersão usam as unidades do próprio jogo. Os parâmetros de aumento e recuperação aparecem sem avaliação de melhor/pior.
+Base dispersion	Dispersão base
+Hip-fire spread multiplier	Multiplicador da dispersão da cintura
+Spread added per shot	Dispersão por tiro
+Spread limit	Limite de dispersão
+Spread growth parameter	Parâmetro de aumento da dispersão
+Spread recovery parameter	Parâmetro de recuperação da dispersão
+Recoil	Recuo
+Base kick in game units, not degrees. Horizontal kick is right minus left; variability is its standard deviation. These do not describe an entire burst.	Recuo base em unidades do jogo, não em graus. O recuo horizontal é direita menos esquerda; a variação é o seu desvio padrão. Estes valores não descrevem uma rajada inteira.
+Base vertical kick range	Faixa do recuo vertical base
+Horizontal kick range	Faixa do recuo horizontal
+Horizontal kick variability	Variação do recuo horizontal
+Horizontal bias (− left / + right)	Tendência horizontal (− esquerda / + direita)
+Recoil accumulation exponent	Expoente de acúmulo do recuo
+Recovery response (P)	Resposta da recuperação (P)
+Recovery accumulation (I)	Acúmulo da recuperação (I)
+Recovery damping (D)	Amortecimento da recuperação (D)
+Aim sway	Balanço da mira
+Horizontal sway	Balanço horizontal
+Vertical sway	Balanço vertical
+Aim sway period	Período do balanço da mira
+Magazine	Carregador
+Set as weapon A	Definir como arma A
+Set as weapon B	Definir como arma B
+Automatic	Automático
+{m}-round burst	Rajada de {m} tiros
+pellets	bagos
+No weapons match. Try another name or class.	Nenhuma arma encontrada. Tente outro nome ou classe.

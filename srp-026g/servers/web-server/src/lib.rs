@@ -42,6 +42,7 @@
 //! [`run_026g`] the 0.26g one ([`v026g`]: the 0.26g accounts, the lobby told
 //! of every change, `-server=`). `srp` starts the 0.26g one.
 
+mod built;
 mod damage;
 mod equipment;
 mod history;
@@ -158,8 +159,8 @@ enum Lang {
     Pt,
 }
 
-/// A language the pages built at a release are written in (the wiki's
-/// weapons, simulators and skills: `release/build-site`).
+/// A language the skills page, built at a release (`release/build-site`), is
+/// written in.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Written {
     En,

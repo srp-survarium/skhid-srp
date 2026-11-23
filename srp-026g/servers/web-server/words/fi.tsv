@@ -525,3 +525,145 @@ Each kit a gun of another class, with random bonuses and attachments.	Jokaisessa
 Plain FFA: {0} % of FFA cards.	Tavallinen FFA: {0} % FFA-korteista.
 {0} % of FFA cards.	{0} % FFA-korteista.
 FFA: Roulette	FFA: Ruletti
+
+# The wiki's weapons and simulators (pages built at a release: scripts/site-texts)
+Search weapons	Hae aseita
+No weapons match.	Aseita ei löytynyt.
+lvl {n}	taso {n}
+Search…	Hae…
+Search items	Hae esineitä
+No items match.	Esineitä ei löytynyt.
+s	s	unit
+Search rounds	Hae patruunoita
+No rounds match.	Patruunoita ei löytynyt.
+shots	laukaukset
+up	ylös
+side	sivulle
+spread	hajonta
+where it aims as the recoil moves it	mihin ase osoittaa rekyylin liikuttamana
+Play	Toista
+Pause	Tauko
+Recoil and spread	Rekyyli ja hajonta
+Weapon {side}	Ase {side}
+Choose a weapon…	Valitse ase…
+Round	Patruuna
+Clear	Tyhjennä	list
+Choose a weapon; a second one to compare.	Valitse ase; toinen vertailuun.
+Aim	Tähtäys
+From the hip	Lonkalta
+Aiming in	Tähtäykseen siirtyminen
+Fully aimed	Täysi tähtäys
+Stance	Asento
+Standing	Seisten
+Walking	Kävellen
+Crouching	Kyykyssä
+Crouch-walking	Kyykyssä kävellen
+Sprinting	Sprintaten
+Jumping	Hypätessä
+Broken arms	Murtuneet kädet
+Spread from the hip {v} per rank, sprinting and jumping included. Not while aiming.	Lonkkatulen hajonta {v} kultakin asteelta, myös sprintatessa ja hypätessä. Ei tähdätessä.
+No effect fully aimed.	Ei vaikutusta täydessä tähtäyksessä.
+Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.	Kävellessä hajonta {v} kultakin asteelta, lonkalta tai tähtäykseen siirryttäessä. Ei kyykyssä kävellessä.
+Spread from broken arms {v} per rank.	Murtuneiden käsien hajonta {v} kultakin asteelta.
+This weapon's kick ranges, up and sideways. Not the camera shake.	Tämän aseen rekyylin vaihteluvälit ylös ja sivulle. Ei kameran tärinää.
+The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.	Asennon ja jokaisen laukauksen hajonta. Ei vaikutusta sprintatessa, hypätessä eikä täydessä tähtäyksessä.
+Each shot's kick with any weapon: up, sideways and the camera shake.	Jokaisen laukauksen rekyyli millä tahansa aseella: ylös, sivulle ja kameran tärinä.
+Base	Perus
+A shot	Laukauksesta
+At most	Enintään
+Vertical kick	Pystyrekyyli
+game units	pelin yksiköt
+Horizontal kick	Vaakarekyyli
+Modelled kick, recovery, spread and camera shake (from the hip), with no mouse compensation. The plots are in the weapons’ kick units; the crosshair view is in degrees of view (upward exactly as the game does, sideways estimated), with each bullet’s hit and the spread circle.	Mallinnettu rekyyli, palautuminen, hajonta ja kameran tärinä (lonkalta), ilman hiirellä kompensointia. Kuvaajat ovat aseiden rekyyliyksiköissä; tähtäinnäkymä on näkymän asteissa (ylöspäin täsmälleen kuten pelissä, sivuttain arvioituna), ja siinä näkyvät jokaisen luodin osuma ja hajontaympyrä.
+Trigger	Liipaisin
+Hold	Pidä pohjassa
+Click, {n} a second	Napsauta {n} kertaa sekunnissa
+Sample seed	Satunnaissiemen
+A full magazine; with two weapons, as many shots as the smaller magazine holds, each at its own fire rate. Random samples use the same seed for comparison; they are not recorded game shots.	Täysi lipas; kahdella aseella niin monta laukausta kuin pienempään lippaaseen mahtuu, kumpikin omalla tulinopeudellaan. Satunnaisotokset käyttävät vertailun vuoksi samaa siementä; ne eivät ole pelistä tallennettuja laukauksia.
+Spread	Hajonta
+degrees	asteet
+Last shot	Viimeinen laukaus
+Reset	Nollaa
+Timeline	Aikajana
+Crosshair	Tähtäin
+degrees of view	näkymän asteet
+Target	Kohde
+None	Ei mitään
+Enemy at {m} m	Vihollinen {m} m:n päässä
+Recoil parameters are unavailable for this selection.	Rekyylin parametreja ei ole saatavilla tälle valinnalle.
+Rounds	Patruunat
+Sniper rifle	Tarkkuuskivääri
+Submachine gun	Konepistooli
+Pistol	Pistooli
+Shotgun	Haulikko
+Assault rifle	Rynnäkkökivääri
+Machine gun	Konekivääri
+Skhid revision {revision}	Skhid, revisio {revision}
+Stat	Arvo
+Better	Parempi
+Worse	Huonompi
+weapons	asetta	count
+Compare weapons or expand a row for damage, handling, accuracy, recoil and aim sway.	Vertaa aseita tai avaa rivi nähdäksesi vahingon, käsittelyn, tarkkuuden, rekyylin ja tähtäimen heilunnan.
+Values with the chosen round, the weapon’s standard one first. Upgrades and character bonuses are not included. The game’s card shows the highest damage and the highest penetration among all the weapon’s rounds.	Arvot valitulla patruunalla, aseen vakiopatruuna ensin. Parannuksia ja hahmon bonuksia ei ole huomioitu. Pelin kortti näyttää suurimman vahingon ja suurimman panssarinläpäisyn kaikista aseen patruunoista.
+Find a weapon	Etsi ase
+Weapon class	Aseluokka
+All classes	Kaikki luokat
+Damage: high to low	Vahinko: suurimmasta pienimpään
+Fire rate: high to low	Tulinopeus: suurimmasta pienimpään
+Compare weapons	Aseiden vertailu
+Only differences	Vain erot
+Color better / worse values	Väritä paremmat / huonommat arvot
+Recoil and spread →	Rekyyli ja hajonta →
+Choose two weapons to compare. Equal values and neutral traits keep their normal color.	Valitse kaksi asetta vertailtavaksi. Samat arvot ja neutraalit ominaisuudet säilyttävät tavallisen värinsä.
+No differences in the displayed stats.	Näytetyissä arvoissa ei ole eroja.
+m	m	unit
+kg	kg	unit
+Single shot	Kertatuli
+Damage & range	Vahinko ja kantama
+Damage	Vahinko
+Armor penetration	Panssarinläpäisy
+Full damage up to	Täyden vahingon kantama
+Minimum damage from	Vähimmäisvahinko alkaa
+Minimum damage retained	Säilyvä vähimmäisvahinko
+Stopping power	Pysäytysvoima
+Stamina damage	Kestävyysvahinko
+Firing & handling	Ampuminen ja käsittely
+rpm	ls/min	unit
+Fire rate	Tulinopeus
+Magazine capacity	Lippaan koko
+Reload time	Latausaika
+Aim time	Tähtäysaika
+Draw time	Esillenottoaika
+Holster time	Poislaittoaika
+Movement speed modifier	Liikenopeuden kerroin
+Base aim zoom	Tähtäyksen perussuurennus
+Fire modes	Tulimuodot
+Accuracy & spread	Tarkkuus ja hajonta
+Spread values use the game's own units. Growth and recovery parameters are shown without a better/worse rating.	Hajonnan arvot ovat pelin omissa yksiköissä. Kasvun ja palautumisen parametrit näytetään ilman parempi/huonompi-arviota.
+Base dispersion	Perushajonta
+Hip-fire spread multiplier	Lonkkatulen hajonnan kerroin
+Spread added per shot	Hajonta laukausta kohden
+Spread limit	Hajonnan raja
+Spread growth parameter	Hajonnan kasvun parametri
+Spread recovery parameter	Tarkkuuden palautumisen parametri
+Recoil	Rekyyli
+Base kick in game units, not degrees. Horizontal kick is right minus left; variability is its standard deviation. These do not describe an entire burst.	Perusrekyyli pelin yksiköissä, ei asteissa. Vaakarekyyli on oikea miinus vasen; vaihtelu on sen keskihajonta. Nämä eivät kuvaa koko sarjaa.
+Base vertical kick range	Pystyrekyylin perusvaihteluväli
+Horizontal kick range	Vaakarekyylin vaihteluväli
+Horizontal kick variability	Vaakarekyylin vaihtelu
+Horizontal bias (− left / + right)	Vaakapoikkeama (− vasemmalle / + oikealle)
+Recoil accumulation exponent	Rekyylin kertymän eksponentti
+Recovery response (P)	Palautumisen vaste (P)
+Recovery accumulation (I)	Palautumisen kertymä (I)
+Recovery damping (D)	Palautumisen vaimennus (D)
+Aim sway	Tähtäimen heilunta
+Horizontal sway	Vaakasuora heilunta
+Vertical sway	Pystysuora heilunta
+Aim sway period	Tähtäimen heiluntajakso
+Magazine	Lipas
+Set as weapon A	Aseeksi A
+Set as weapon B	Aseeksi B
+Automatic	Sarjatuli
+{m}-round burst	{m} laukauksen sarja
+pellets	haulia
+No weapons match. Try another name or class.	Aseita ei löytynyt. Kokeile toista nimeä tai luokkaa.

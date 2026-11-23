@@ -27,10 +27,12 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 SRP = HERE.parents[1]
 sys.path.insert(0, str(SRP / "scripts" / "released-game"))
+sys.path.insert(0, str(SRP / "scripts" / "site-texts"))
 from released import LIST, extract, offered, revision, write_built_from  # noqa: E402
+from texts import DICTIONARIES  # noqa: E402
 
-# What the calculator reads of the game.
-WANTED = ["gameplay/", "localization/english/localization", "localization/ukrainian/localization",
+# What the calculator reads of the game: its configs, every language's dictionary, the lobby's.
+WANTED = ["gameplay/", *DICTIONARIES,
           "localization/flash_movies_localizations.options", "flash_movies/lobby_menu.swf",
           "game_materials/game.materials"]
 SITE = SRP / "servers" / "web-server" / "damage"

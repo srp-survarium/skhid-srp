@@ -8,8 +8,9 @@
   const count = document.querySelector('[data-count]');
   const empty = document.querySelector('#weapons-empty');
   const collator = new Intl.Collator(document.documentElement.lang, {numeric: true, sensitivity: 'base'});
+  // The classes in the reader's order (the page is one for every language).
+  category.append(...[...category.options].slice(1).sort((a, b) => collator.compare(a.text, b.text)));
   const normalize = text => text.normalize('NFKC').toLocaleLowerCase().replace(/[\s\-–—]+/g, '');
-  const tr = (en, uk) => document.documentElement.lang === 'uk' ? uk : en;
   const byId = new Map(weapons.map(element => [element.id, element]));
   const differenceOnly = document.querySelector('#only-differences'), colors = document.querySelector('#compare-colors');
   const tableHost = document.querySelector('#compare-table');
@@ -60,7 +61,7 @@
     if (!a || !b) return;
     const table = node('table', undefined, 'weapon-comparison');
     const head = node('thead'), header = node('tr');
-    const corner = node('th', tr('Stat', 'Характеристика')); corner.scope = 'col'; header.append(corner);
+    const corner = node('th', T('Stat')); corner.scope = 'col'; header.append(corner);
     for (const [id, round, side] of [[a, roundA, 'A'], [b, roundB, 'B']]) {
       const cell = node('th'); cell.scope = 'col';
       const image = byId.get(id).querySelector('img');
@@ -86,7 +87,7 @@
           const value = node('td', entry.text, verdict > 0 ? 'better' : verdict < 0 ? 'worse' : '');
           if (verdict) {
             const marker = node('span', verdict > 0 ? ' ↑' : ' ↓', 'comparison-marker');
-            marker.setAttribute('aria-label', verdict > 0 ? tr('Better', 'Краще') : tr('Worse', 'Гірше'));
+            marker.setAttribute('aria-label', verdict > 0 ? T('Better') : T('Worse'));
             value.append(marker);
           }
           line.append(value);
@@ -100,7 +101,7 @@
 
   // The slots' recoil and spread: the simulators page with the same choice.
   const simulate = document.querySelector('#compare-simulate');
-  const slots = WikiWeaponSlots(weapons, roundsOf, tr, collator, () => {
+  const slots = WikiWeaponSlots(weapons, roundsOf, collator, () => {
     renderComparison();
     simulate.search = location.search;
   });
@@ -111,7 +112,7 @@
     let chooser = null;
     weapon.addEventListener('toggle', () => {
       if (!weapon.open || chooser) return;
-      chooser = WikiWeaponPicker(select, slots.roundEntries, tr, collator, slots.roundWords);
+      chooser = WikiWeaponPicker(select, slots.roundEntries, collator, slots.roundWords);
       chooser.offer(roundsOf.get(weapon.id).map(round => round.id)); chooser.paint();
     });
     select.addEventListener('change', () => {

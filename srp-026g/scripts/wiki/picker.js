@@ -3,9 +3,10 @@
 // The hidden select owns the selection, including URL and catalogue updates.
 // `weapons` are the elements offered (the weapons page's rows, or the
 // modifiers page's item entries and the weapons page's rounds, which carry
-// their name in data-title); `offer(ids)` narrows them to those ids.
-function WikiWeaponPicker(select, weapons, tr, collator, words = {
-  search: tr('Search weapons', 'Пошук зброї'), none: tr('No weapons match.', 'Зброю не знайдено.')}) {
+// their name in data-title); `offer(ids)` narrows them to those ids. Its
+// words are the page's (site-texts/words.js).
+function WikiWeaponPicker(select, weapons, collator, words = {
+  search: T('Search weapons'), none: T('No weapons match.')}) {
   const host = document.getElementById(`${select.id}-picker`);
   const make = (tag, attrs = {}, ...children) => {
     const element = document.createElement(tag);
@@ -19,14 +20,14 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
     const source = weapon?.querySelector('img');
     return source ? make('img', {src: source.src, alt: '', width: 54, height: 26, loading: 'lazy'}) : make('span', {class: 'noimg'});
   };
-  const level = weapon => make('small', {}, tr(`lvl ${weapon.dataset.level}`, `рів. ${weapon.dataset.level}`));
+  const level = weapon => make('small', {}, Tf('lvl {n}', {n: weapon.dataset.level}));
   const button = make('button', {type: 'button', class: 'wpick-btn', id: `${select.id}-btn`,
     'aria-haspopup': 'listbox', 'aria-expanded': 'false', 'aria-controls': `${select.id}-list`,
     'aria-labelledby': `${select.id}-label ${select.id}-value`});
   const list = make('div', {class: 'wpick-list', role: 'listbox', id: `${select.id}-list`, 'aria-labelledby': `${select.id}-label`});
   const search = make('input', {type: 'search', class: 'wpick-search', role: 'combobox', autocomplete: 'off',
     'aria-controls': list.id, 'aria-expanded': 'false', 'aria-autocomplete': 'list',
-    'aria-label': words.search, placeholder: tr('Search…', 'Пошук…')});
+    'aria-label': words.search, placeholder: T('Search…')});
   const empty = make('p', {class: 'wpick-empty', role: 'status'}, words.none);
   const popup = make('div', {class: 'wpick-pop', hidden: ''}, search, list, empty);
   host.append(button, popup);

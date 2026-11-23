@@ -1,0 +1,2602 @@
+[
+{
+"word": "Wiki"
+},
+{
+"word": "Simulators"
+},
+{
+"word": "Recoil and spread"
+},
+{
+"word": "Weapon {side}",
+"places": {
+"side": "A"
+}
+},
+{
+"word": "Choose a weapon…"
+},
+{
+"game": {
+"en": "9A-91",
+"uk": "9А-91",
+"ru": "9А-91",
+"de": "9A-91",
+"pl": "9A-91",
+"sr": "9A-91",
+"cs": "9A-91",
+"hu": "9A-91",
+"fi": "9A-91",
+"be": "9А-91",
+"hr": "9A-91",
+"pt": "9A-91"
+}
+},
+{
+"game": {
+"en": "A-545",
+"uk": "А-545",
+"ru": "А-545",
+"de": "A-545",
+"pl": "A-545",
+"sr": "A-545",
+"cs": "A-545",
+"hu": "A-545",
+"fi": "A-545",
+"be": "А-545",
+"hr": "A-545",
+"pt": "A-545"
+}
+},
+{
+"game": {
+"en": "AEK-919K \"Kashtan\"",
+"uk": "АЕК-919К \"Каштан\"",
+"ru": "АЕК-919К \"Каштан\"",
+"de": "AEK-919K \"Kashtan\"",
+"pl": "AEK-919K Kasztan",
+"sr": "AEK-919K \"Kashtan\"",
+"cs": "AEK-919K \"Kashtan\"",
+"hu": "AEK-919K \"Kashtan\"",
+"fi": "AEK-919K \"Kashtan\"",
+"be": "АЕК-919К \"Каштан\"",
+"hr": "AEK-919K \"Kashtan\"",
+"pt": "AEK-919K \"Kashtan\""
+}
+},
+{
+"game": {
+"en": "AK-12",
+"uk": "АК-12",
+"ru": "АК-12",
+"de": "AK-12",
+"pl": "AK-12",
+"sr": "AK-12",
+"cs": "AK-12",
+"hu": "AK-12",
+"fi": "AK-12",
+"be": "АК-12",
+"hr": "AK-12",
+"pt": "AK-12"
+}
+},
+{
+"game": {
+"en": "AK-12M1",
+"uk": "АК-12М1",
+"ru": "АК-12М1",
+"de": "AK-12M1",
+"pl": "AK-12M1",
+"sr": "AK-12M1",
+"cs": "AK-12M1",
+"hu": "AK-12M1",
+"fi": "AK-12M1",
+"be": "АК-12М1",
+"hr": "AK-12M1",
+"pt": "AK-12M1"
+}
+},
+{
+"word": "(premium)"
+},
+{
+"game": {
+"en": "AK-74M",
+"uk": "АК-74М",
+"ru": "АК-74М",
+"de": "AK-74M",
+"pl": "AK-74M",
+"sr": "AK-74M",
+"cs": "AK-74M",
+"hu": "AK-74M",
+"fi": "AK-74M",
+"be": "АК-74М",
+"hr": "AK-74M",
+"pt": "AK-74M"
+}
+},
+{
+"game": {
+"en": "AK-74N",
+"uk": "АК-74Н",
+"ru": "АК-74Н",
+"de": "AK-74N",
+"pl": "AK-74N",
+"sr": "AK-74N",
+"cs": "AK-74N",
+"hu": "AK-74N",
+"fi": "AK-74N",
+"be": "АК-74Н",
+"hr": "AK-74N",
+"pt": "AK-74N"
+}
+},
+{
+"game": {
+"en": "AKM",
+"uk": "АКМ",
+"ru": "АКМ",
+"de": "AKM",
+"pl": "AKM",
+"sr": "AKM",
+"cs": "AKM",
+"hu": "AKM",
+"fi": "AKM",
+"be": "АКМ",
+"hr": "AKM",
+"pt": "AKM"
+}
+},
+{
+"game": {
+"en": "AKM \"Avenger\"",
+"uk": "АКМ \"Месник\"",
+"ru": "АКМ \"Мститель\"",
+"de": "AKM \"Rächer\"",
+"pl": "AKM \"Mściciel\"",
+"sr": "AKM \"Avenger\"",
+"cs": "AKM \"Avenger\"",
+"hu": "AKM \"Avenger\"",
+"fi": "AKM \"Avenger\"",
+"be": "АКМ \"Мсцівец\"",
+"hr": "AKM \"Avenger\"",
+"pt": "AKM \"Vingador\""
+}
+},
+{
+"game": {
+"en": "AKM '65",
+"uk": "АКМ зраз. 65р.",
+"ru": "АКМ обр. 65г.",
+"de": "AKM '65",
+"pl": "AKM '65",
+"sr": "AKM '65",
+"cs": "AKM '65",
+"hu": "AKM '65",
+"fi": "AKM '65",
+"be": "АКМ узор. 65 г.",
+"hr": "AKM '65",
+"pt": "AKM '65"
+}
+},
+{
+"game": {
+"en": "AKMSU",
+"uk": "АКМСУ",
+"ru": "АКМСУ",
+"de": "AKMSU",
+"pl": "AKMSU",
+"sr": "AKMSU",
+"cs": "AKMSU",
+"hu": "AKMSU",
+"fi": "AKMSU",
+"be": "АКМСУ",
+"hr": "AKMSU",
+"pt": "AKMSU"
+}
+},
+{
+"game": {
+"en": "AKS-74U",
+"uk": "АКC-74У",
+"ru": "АКC-74У",
+"de": "AKS-74U",
+"pl": "AKS-74U",
+"sr": "AKS-74U",
+"cs": "AKS-74U",
+"hu": "AKS-74U",
+"fi": "AKS-74U",
+"be": "АКС-74У",
+"hr": "AKS-74U",
+"pt": "AKS-74U"
+}
+},
+{
+"game": {
+"en": "AKS-74U Corsair",
+"uk": "АКС-74У \"Корсар\"",
+"ru": "АКС-74У \"Корсар\"",
+"de": "AKS-74U \"der Korsar\"",
+"pl": "AKS-74U Korsar",
+"sr": "AKS-74U Corsair",
+"cs": "AKS-74U Corsair",
+"hu": "AKS-74U Corsair",
+"fi": "AKS-74U Corsair",
+"be": "АКС-74У \"Карсар\"",
+"hr": "AKS-74U Corsair",
+"pt": "AKS-74U \"Corsário\""
+}
+},
+{
+"game": {
+"en": "APS",
+"uk": "АПС",
+"ru": "АПС",
+"de": "APS",
+"pl": "APS",
+"sr": "APS",
+"cs": "APS",
+"hu": "APS",
+"fi": "APS",
+"be": "АПС",
+"hr": "APS",
+"pt": "APS"
+}
+},
+{
+"game": {
+"en": "AS \"Val\"",
+"uk": "АС \"Вал\"",
+"ru": "АС \"Вал\"",
+"de": "AS \"Wal\"",
+"pl": "AS \"Wał\"",
+"sr": "AS \"Val\"",
+"cs": "AS \"Val\"",
+"hu": "AS \"Val\"",
+"fi": "AS \"Val\"",
+"be": "АС \"Вал\"",
+"hr": "AS \"Val\"",
+"pt": "AS \"Val\""
+}
+},
+{
+"game": {
+"en": "Ash-12",
+"uk": "АШ-12",
+"ru": "АШ-12",
+"de": "ASh-12",
+"pl": "ASh-12",
+"sr": "Ash-12",
+"cs": "Ash-12",
+"hu": "Ash-12",
+"fi": "Ash-12",
+"be": "АШ-12",
+"hr": "Ash-12",
+"pt": "Ash-12"
+}
+},
+{
+"game": {
+"en": "Benelli M4 Super 90",
+"uk": "Benelli M4 Super 90",
+"ru": "Benelli M4 Super 90",
+"de": "Benelli M4 Super 90",
+"pl": "Benelli M4 Super 90",
+"sr": "Benelli M4 Super 90",
+"cs": "Benelli M4 Super 90",
+"hu": "Benelli M4 Super 90",
+"fi": "Benelli M4 Super 90",
+"be": "Benelli M4 Super 90",
+"hr": "Benelli M4 Super 90",
+"pt": "Benelli M4 Super 90"
+}
+},
+{
+"game": {
+"en": "Beretta 93R",
+"uk": "Beretta 93R",
+"ru": "Beretta 93R",
+"de": "Beretta 93R",
+"pl": "Beretta 93R",
+"sr": "Beretta 93R",
+"cs": "Beretta 93R",
+"hu": "Beretta 93R",
+"fi": "Beretta 93R",
+"be": "Beretta 93R",
+"hr": "Beretta 93R",
+"pt": "Beretta 93R"
+}
+},
+{
+"game": {
+"en": "CZ 75",
+"uk": "CZ 75",
+"ru": "CZ 75",
+"de": "CZ 75",
+"pl": "CZ 75",
+"sr": "CZ 75",
+"cs": "CZ 75",
+"hu": "CZ 75",
+"fi": "CZ 75",
+"be": "CZ 75",
+"hr": "CZ 75",
+"pt": "CZ 75"
+}
+},
+{
+"game": {
+"en": "Colt M1911",
+"uk": "Colt M1911",
+"ru": "Colt M1911",
+"de": "Colt M1911",
+"pl": "Colt M1911",
+"sr": "Colt M1911",
+"cs": "Colt M1911",
+"hu": "Colt M1911",
+"fi": "Colt M1911",
+"be": "Colt M1911",
+"hr": "Colt M1911",
+"pt": "Colt M1911"
+}
+},
+{
+"game": {
+"en": "Colt Python",
+"uk": "Кольт Пітон",
+"ru": "Кольт Питон",
+"de": "Colt Phyton",
+"pl": "Colt Python",
+"sr": "Colt Python",
+"cs": "Colt Python",
+"hu": "Colt Python",
+"fi": "Colt Python",
+"be": "Кольт Пітон",
+"hr": "Colt Python",
+"pt": "Colt Python"
+}
+},
+{
+"game": {
+"en": "FAMAS",
+"uk": "FAMAS",
+"ru": "FAMAS",
+"de": "FAMAS",
+"pl": "FAMAS",
+"sr": "FAMAS",
+"cs": "FAMAS",
+"hu": "FAMAS",
+"fi": "FAMAS",
+"be": "FAMAS",
+"hr": "FAMAS",
+"pt": "FAMAS"
+}
+},
+{
+"game": {
+"en": "FN FNC",
+"uk": "FN FNC",
+"ru": "FN FNC",
+"de": "FN FNC",
+"pl": "FN FNC",
+"sr": "FN FNC",
+"cs": "FN FNC",
+"hu": "FN FNC",
+"fi": "FN FNC",
+"be": "FN FNC",
+"hr": "FN FNC",
+"pt": "FN FNC"
+}
+},
+{
+"game": {
+"en": "FN Minimi",
+"uk": "FN Minimi",
+"ru": "FN Minimi",
+"de": "FN Minimi",
+"pl": "FN Minimi",
+"sr": "FN Minimi",
+"cs": "FN Minimi",
+"hu": "FN Minimi",
+"fi": "FN Minimi",
+"be": "FN Minimi",
+"hr": "FN Minimi",
+"pt": "FN Minimi"
+}
+},
+{
+"game": {
+"en": "FN P90",
+"uk": "FN P90",
+"ru": "FN P90",
+"de": "FN P90",
+"pl": "FN P90",
+"sr": "FN P90",
+"cs": "FN P90",
+"hu": "FN P90",
+"fi": "FN P90",
+"be": "FN P90",
+"hr": "FN P90",
+"pt": "FN P90"
+}
+},
+{
+"game": {
+"en": "FN SCAR-H",
+"uk": "FN SCAR-H",
+"ru": "FN SCAR-H",
+"de": "FN SCAR-H",
+"pl": "FN SCAR-H",
+"sr": "FN SCAR-H",
+"cs": "FN SCAR-H",
+"hu": "FN SCAR-H",
+"fi": "FN SCAR-H",
+"be": "FN SCAR-H",
+"hr": "FN SCAR-H",
+"pt": "FN SCAR-H"
+}
+},
+{
+"game": {
+"en": "Fort 17",
+"uk": "Форт 17",
+"ru": "Форт 17",
+"de": "Fort 17",
+"pl": "Fort 17",
+"sr": "Fort 17",
+"cs": "Fort 17",
+"hu": "Fort 17",
+"fi": "Fort 17",
+"be": "Форт 17",
+"hr": "Fort 17",
+"pt": "Fort 17"
+}
+},
+{
+"game": {
+"en": "Fort-401",
+"uk": "Форт-401",
+"ru": "Форт-401",
+"de": "Fort-401",
+"pl": "Fort-401",
+"sr": "Fort-401",
+"cs": "Fort-401",
+"hu": "Fort-401",
+"fi": "Fort-401",
+"be": "Форт-401",
+"hr": "Fort-401",
+"pt": "Fort-401"
+}
+},
+{
+"game": {
+"en": "Franchi SPAS-12",
+"uk": "Franchi SPAS-12",
+"ru": "Franchi SPAS-12",
+"de": "Franchi SPAS-12",
+"pl": "Franchi SPAS-12",
+"sr": "Franchi SPAS-12",
+"cs": "Franchi SPAS-12",
+"hu": "Franchi SPAS-12",
+"fi": "Franchi SPAS-12",
+"be": "Franchi SPAS-12",
+"hr": "Franchi SPAS-12",
+"pt": "Franchi SPAS-12"
+}
+},
+{
+"game": {
+"en": "Glock 17",
+"uk": "Glock 17",
+"ru": "Glock 17",
+"de": "Glock 17",
+"pl": "Glock 17",
+"sr": "Glock 17",
+"cs": "Glock 17",
+"hu": "Glock 17",
+"fi": "Glock 17",
+"be": "Glock 17",
+"hr": "Glock 17",
+"pt": "Glock 17"
+}
+},
+{
+"game": {
+"en": "H&K 416A5",
+"uk": "H&K 416А5",
+"ru": "H&K 416А5",
+"de": "H&K 416A5",
+"pl": "H&K 416A5",
+"sr": "H&K 416A5",
+"cs": "H&K 416A5",
+"hu": "H&K 416A5",
+"fi": "H&K 416A5",
+"be": "H&K 416А5",
+"hr": "H&K 416A5",
+"pt": "H&K 416A5"
+}
+},
+{
+"game": {
+"en": "H&K G3SG/1",
+"uk": "H&K G3SG/1",
+"ru": "H&K G3SG/1",
+"de": "H&K G3SG/1",
+"pl": "H&K G3SG/1",
+"sr": "H&K G3SG/1",
+"cs": "H&K G3SG/1",
+"hu": "H&K G3SG/1",
+"fi": "H&K G3SG/1",
+"be": "H&K G3SG/1",
+"hr": "H&K G3SG/1",
+"pt": "H&K G3SG/1"
+}
+},
+{
+"game": {
+"en": "H&K MP5",
+"uk": "H&K MP5",
+"ru": "H&K MP5",
+"de": "H&K MP5",
+"pl": "H&K MP5",
+"sr": "H&K MP5",
+"cs": "H&K MP5",
+"hu": "H&K MP5",
+"fi": "H&K MP5",
+"be": "H&K MP5",
+"hr": "H&K MP5",
+"pt": "H&K MP5"
+}
+},
+{
+"game": {
+"en": "H&K MP7",
+"uk": "H&K MP7",
+"ru": "H&K MP7",
+"de": "H&K MP7",
+"pl": "H&K MP7",
+"sr": "H&K MP7",
+"cs": "H&K MP7",
+"hu": "H&K MP7",
+"fi": "H&K MP7",
+"be": "H&K MP7",
+"hr": "H&K MP7",
+"pt": "H&K MP7"
+}
+},
+{
+"game": {
+"en": "H&K MP7A1",
+"uk": "H&K MP7A1",
+"ru": "H&K MP7A1",
+"de": "H&K MP7A1",
+"pl": "H&K MP7A1",
+"sr": "H&K MP7A1",
+"cs": "H&K MP7A1",
+"hu": "H&K MP7A1",
+"fi": "H&K MP7A1",
+"be": "H&K MP7A1",
+"hr": "H&K MP7A1",
+"pt": "H&K MP7A1"
+}
+},
+{
+"game": {
+"en": "H&K MP7A1 \"Legend\"",
+"uk": "H&K MP7A1 \"Легенда\"",
+"ru": "H&K MP7A1 \"Легенда\"",
+"de": "H&K MP7A1 \"Legende\"",
+"pl": "H&K MP7A1 \"Legenda\"",
+"sr": "H&K MP7A1 \"Legend\"",
+"cs": "H&K MP7A1 \"Legend\"",
+"hu": "H&K MP7A1 \"Legend\"",
+"fi": "H&K MP7A1 \"Legend\"",
+"be": "H&K MP7A1 \"Легенда\"",
+"hr": "H&K MP7A1 \"Legend\"",
+"pt": "H&K MP7A1 \"Lenda\""
+}
+},
+{
+"game": {
+"en": "H&K UMP45",
+"uk": "H&K UMP45",
+"ru": "H&K UMP45",
+"de": "H&K UMP45",
+"pl": "H&K UMP45",
+"sr": "H&K UMP45",
+"cs": "H&K UMP45",
+"hu": "H&K UMP45",
+"fi": "H&K UMP45",
+"be": "H&K UMP45",
+"hr": "H&K UMP45",
+"pt": "H&K UMP45"
+}
+},
+{
+"game": {
+"en": "KRISS Vector",
+"uk": "KRISS Vector",
+"ru": "KRISS Vector",
+"de": "KRISS Vector",
+"pl": "KRISS Vector",
+"sr": "KRISS Vector",
+"cs": "KRISS Vector",
+"hu": "KRISS Vector",
+"fi": "KRISS Vector",
+"be": "KRISS Vector",
+"hr": "KRISS Vector",
+"pt": "KRISS Vector"
+}
+},
+{
+"game": {
+"en": "KS-23M",
+"uk": "КС-23М",
+"ru": "КС-23М",
+"de": "KS-23M",
+"pl": "KS-23M",
+"sr": "KS-23M",
+"cs": "KS-23M",
+"hu": "KS-23M",
+"fi": "KS-23M",
+"be": "КС-23М",
+"hr": "KS-23M",
+"pt": "KS-23M"
+}
+},
+{
+"game": {
+"en": "L85A2",
+"uk": "L85A2",
+"ru": "L85A2",
+"de": "L85A2",
+"pl": "L85A2",
+"sr": "L85A2",
+"cs": "L85A2",
+"hu": "L85A2",
+"fi": "L85A2",
+"be": "L85A2",
+"hr": "L85A2",
+"pt": "L85A2"
+}
+},
+{
+"game": {
+"en": "M4A1",
+"uk": "М4А1",
+"ru": "М4А1",
+"de": "M4A1",
+"pl": "M4A1",
+"sr": "M4A1",
+"cs": "M4A1",
+"hu": "M4A1",
+"fi": "M4A1",
+"be": "М4А1",
+"hr": "M4A1",
+"pt": "M4A1"
+}
+},
+{
+"game": {
+"en": "MP-153 Baikal",
+"uk": "MP-153 \"Байкал\"",
+"ru": "МР-153 \"Байкал\"",
+"de": "MP-153 \"Baikal\"",
+"pl": "MP-153 \"Bajkał\"",
+"sr": "MP-153 Baikal",
+"cs": "MP-153 Baikal",
+"hu": "MP-153 Baikal",
+"fi": "MP-153 Baikal",
+"be": "МР-153 \"Байкал\"",
+"hr": "MP-153 Baikal",
+"pt": "MP-154 \"Baikal\""
+}
+},
+{
+"game": {
+"en": "MP-27M \"Thunderbolt\"",
+"uk": "МР-27М \"Громобій\"",
+"ru": "МР-27М \"Громобой\"",
+"de": "MP-27 \"Donnerschlag\"",
+"pl": "MP-27 \"Błyskawica\"",
+"sr": "MP-27M \"Thunderbolt\"",
+"cs": "MP-27M \"Thunderbolt\"",
+"hu": "MP-27M \"Thunderbolt\"",
+"fi": "MP-27M \"Thunderbolt\"",
+"be": "МР-27М \"Грамабой\"",
+"hr": "MP-27M \"Thunderbolt\"",
+"pt": "MP-27M \"Raio\""
+}
+},
+{
+"game": {
+"en": "MP-27M Lancaster",
+"uk": "MP-27M \"Ланкастер\"",
+"ru": "МР-27М \"Ланкастер\"",
+"de": "MP-27M \"Lankaster\"",
+"pl": "MR-27M \"Lancaster\"",
+"sr": "MP-27M Lancaster",
+"cs": "MP-27M Lancaster",
+"hu": "MP-27M Lancaster",
+"fi": "MP-27M Lancaster",
+"be": "МР-27М \"Ланкастэр\"",
+"hr": "MP-27M Lancaster",
+"pt": "MP-27M Lancaster"
+}
+},
+{
+"game": {
+"en": "MP-443 Grach",
+"uk": "МР-443 «Грач»",
+"ru": "МР-443 «Грач»",
+"de": "MP-443 Gratsch",
+"pl": "MP-443 Gracz",
+"sr": "MP-443 Grach",
+"cs": "MP-443 Grach",
+"hu": "MP-443 Grach",
+"fi": "MP-443 Grach",
+"be": "МР-443 «Грач»",
+"hr": "MP-443 Grach",
+"pt": "MP-443 Grach"
+}
+},
+{
+"game": {
+"en": "MSBS Radon",
+"uk": "MSBS Radon",
+"ru": "MSBS Radon",
+"de": "MSBS Radon",
+"pl": "MSBS Radon",
+"sr": "MSBS Radon",
+"cs": "MSBS Radon",
+"hu": "MSBS Radon",
+"fi": "MSBS Radon",
+"be": "MSBS Radon",
+"hr": "MSBS Radon",
+"pt": "MSBS Radon"
+}
+},
+{
+"game": {
+"en": "Mauser M.712",
+"uk": "Маузер M.712",
+"ru": "Маузер M.712",
+"de": "Mauser M.712",
+"pl": "Mauser M.712",
+"sr": "Mauser M.712",
+"cs": "Mauser M.712",
+"hu": "Mauser M.712",
+"fi": "Mauser M.712",
+"be": "Маўзер M.712",
+"hr": "Mauser M.712",
+"pt": "Mauser M.712"
+}
+},
+{
+"game": {
+"en": "Mosin carbine",
+"uk": "Карабін Мосіна",
+"ru": "Карабин Мосина",
+"de": "Mosin Karabin",
+"pl": "Karabin Mosin",
+"sr": "Mosin karabin",
+"cs": "Karabina Mosin",
+"hu": "Moszin karabély",
+"fi": "Mosin-karbiini",
+"be": "Карабін Мосіна",
+"hr": "Karabin Mosin",
+"pt": "Carabina Mosin"
+}
+},
+{
+"game": {
+"en": "NeoStead 2000",
+"uk": "NeoStead 2000",
+"ru": "NeoStead 2000",
+"de": "NeoStead 2000",
+"pl": "NeoStead 2000",
+"sr": "NeoStead 2000",
+"cs": "NeoStead 2000",
+"hu": "NeoStead 2000",
+"fi": "NeoStead 2000",
+"be": "NeoStead 2000",
+"hr": "NeoStead 2000",
+"pt": "NeoStead 2000"
+}
+},
+{
+"game": {
+"en": "NeoStead 2000 M2",
+"uk": "NeoStead 2000 М2",
+"ru": "NeoStead 2000 М2",
+"de": "NeoStead 2000 M2",
+"pl": "NeoStead 2000 M2",
+"sr": "NeoStead 2000 M2",
+"cs": "NeoStead 2000 M2",
+"hu": "NeoStead 2000 M2",
+"fi": "NeoStead 2000 M2",
+"be": "NeoStead 2000 М2",
+"hr": "NeoStead 2000 M2",
+"pt": "NeoStead 2000 M2"
+}
+},
+{
+"game": {
+"en": "OTs-02 Kiparis",
+"uk": "ОЦ-02 Кипарис",
+"ru": "ОЦ-02 Кипарис",
+"de": "OTS-02 Kiparis",
+"pl": "OC-02 \"Cyprys\"",
+"sr": "OTs-02 Kiparis",
+"cs": "OTs-02 Kiparis",
+"hu": "OTs-02 Kiparis",
+"fi": "OTs-02 Kiparis",
+"be": "ОЦ-02 Кіпарыс",
+"hr": "OTs-02 Kiparis",
+"pt": "OTs-02 Kiparis"
+}
+},
+{
+"game": {
+"en": "OTs-14 \"Groza\"",
+"uk": "ОЦ-14 \"Гроза\"",
+"ru": "ОЦ-14 \"Гроза\"",
+"de": "OZ-14 \"Grosa\"",
+"pl": "OC-14 \"Groza\"",
+"sr": "OC-14 \"Groza\"",
+"cs": "OC-14 \"Groza\"",
+"hu": "OC-14 \"Groza\"",
+"fi": "OTs-14 \"Groza\"",
+"be": "АЦ-14 \"Навальніца\"",
+"hr": "OTs-14 „Groza”",
+"pt": "OTs-14 \"Groza\""
+}
+},
+{
+"game": {
+"en": "PKP \"Pecheneg\"",
+"uk": "ПКП \"Печеніг\"",
+"ru": "ПКП \"Печенег\"",
+"de": "PKP \"Pecheneg\"",
+"pl": "PKP Pieczenieg",
+"sr": "PKP \"Pecheneg\"",
+"cs": "PKP \"Pecheneg\"",
+"hu": "PKP \"Pecheneg\"",
+"fi": "PKP \"Pecheneg\"",
+"be": "ПКП \"Печанег\"",
+"hr": "PKP \"Pecheneg\"",
+"pt": "PKP \"Pecheneg\""
+}
+},
+{
+"game": {
+"en": "PM",
+"uk": "ПМ",
+"ru": "ПМ",
+"de": "PM",
+"pl": "PM",
+"sr": "PM",
+"cs": "PM",
+"hu": "PM",
+"fi": "PM",
+"be": "ПМ",
+"hr": "PM",
+"pt": "PM"
+}
+},
+{
+"game": {
+"en": "PP-19-01 Vityaz",
+"uk": "ПП-19-01 \"Витязь\"",
+"ru": "ПП-19-01 \"Витязь\"",
+"de": "PP-19-01 Vityaz",
+"pl": "PP-19-01 \"Witiaź\"",
+"sr": "PP-19-01 Vityaz",
+"cs": "PP-19-01 Vityaz",
+"hu": "PP-19-01 Vityaz",
+"fi": "PP-19-01 Vityaz",
+"be": "ПП-19-01 \"Віцязь\"",
+"hr": "PP-19-01 Vityaz",
+"pt": "PP-19-01 Vityaz"
+}
+},
+{
+"game": {
+"en": "PP-2000",
+"uk": "ПП-2000",
+"ru": "ПП-2000",
+"de": "PP-2000",
+"pl": "PP-2000",
+"sr": "PP-2000",
+"cs": "PP-2000",
+"hu": "PP-2000",
+"fi": "PP-2000",
+"be": "ПП-2000",
+"hr": "PP-2000",
+"pt": "PP-2000"
+}
+},
+{
+"game": {
+"en": "PP-91 \"Kedr\"",
+"uk": "ПП-91 \"Кедр\"",
+"ru": "ПП-91 \"Кедр\"",
+"de": "PP-91 \"Kedr\"",
+"pl": "PP-91 Kedr",
+"sr": "PP-91 \"Kedr\"",
+"cs": "PP-91 \"Kedr\"",
+"hu": "PP-91 \"Kedr\"",
+"fi": "PP-91 \"Kedr\"",
+"be": "ПП-91 \"Кедр\"",
+"hr": "PP-91 \"Kedr\"",
+"pt": "PP-91 \"Kedr\""
+}
+},
+{
+"game": {
+"en": "PPSH-41",
+"uk": "ПКШ-41",
+"ru": "ППШ-41",
+"de": "PPSH-41",
+"pl": "PPSz-41",
+"sr": "PPSH-41",
+"cs": "PPSH-41",
+"hu": "PPSH-41",
+"fi": "PPSH-41",
+"be": "ППШ-41",
+"hr": "PPSH-41",
+"pt": "PPSH-41"
+}
+},
+{
+"game": {
+"en": "PPSH-41 \"Drum\"",
+"uk": "ППШ-41 «Диск»",
+"ru": "ППШ-41 «Диск»",
+"de": "PPSH-41 „Trommel“",
+"pl": "PPSz-41 „Bęben”",
+"sr": "PPSH-41 „Doboš“",
+"cs": "PPSH-41 „Buben“",
+"hu": "PPSH-41 „Dob”",
+"fi": "PPSH-41 ”Rumpu”",
+"be": "ППШ-41 «Дыск»",
+"hr": "PPSH-41 „Bubanj”",
+"pt": "PPSH-41 \"Tambor\""
+}
+},
+{
+"game": {
+"en": "Pancor Jackhammer",
+"uk": "Pancor Jackhammer",
+"ru": "Pancor Jackhammer",
+"de": "Pancor Jackhammer",
+"pl": "Pancor Jackhammer",
+"sr": "Pancor Jackhammer",
+"cs": "Pancor Jackhammer",
+"hu": "Pancor Jackhammer",
+"fi": "Pancor Jackhammer",
+"be": "Pancor Jackhammer",
+"hr": "Pancor Jackhammer",
+"pt": "Pancor Jackhammer"
+}
+},
+{
+"game": {
+"en": "RPD",
+"uk": "РПД",
+"ru": "РПД",
+"de": "RPD",
+"pl": "RPD",
+"sr": "RPD",
+"cs": "RPD",
+"hu": "RPD",
+"fi": "RPD",
+"be": "РПД",
+"hr": "RPD",
+"pt": "RPD"
+}
+},
+{
+"game": {
+"en": "RPK-74M",
+"uk": "РПК-74М",
+"ru": "РПК-74М",
+"de": "RPK-74M",
+"pl": "RPK-74M",
+"sr": "RPK-74M",
+"cs": "RPK-74M",
+"hu": "RPK-74M",
+"fi": "RPK-74M",
+"be": "РПК-74М",
+"hr": "RPK-74M",
+"pt": "RPK-74M"
+}
+},
+{
+"game": {
+"en": "Remington 700",
+"uk": "Remington 700",
+"ru": "Remington 700",
+"de": "Remington 700",
+"pl": "Remington 700",
+"sr": "Remington 700",
+"cs": "Remington 700",
+"hu": "Remington 700",
+"fi": "Remington 700",
+"be": "Remington 700",
+"hr": "Remington 700",
+"pt": "Remington 700"
+}
+},
+{
+"game": {
+"en": "Remington 700 \"Executioner\"",
+"uk": "Remington 700 \"Кат\"",
+"ru": "Remington 700 \"Палач\"",
+"de": "Remington 700 \"Henker\"",
+"pl": "Remington 700 \"Oprawca\"",
+"sr": "Remington 700 \"Executioner\"",
+"cs": "Remington 700 \"Executioner\"",
+"hu": "Remington 700 \"Executioner\"",
+"fi": "Remington 700 \"Executioner\"",
+"be": "Remington 700 \"Кат\"",
+"hr": "Remington 700 \"Executioner\"",
+"pt": "Remingtom 700 \"Executor\""
+}
+},
+{
+"game": {
+"en": "Remington 870",
+"uk": "Remington 870",
+"ru": "Remington 870",
+"de": "Remington 870",
+"pl": "Remington 870",
+"sr": "Remington 870",
+"cs": "Remington 870",
+"hu": "Remington 870",
+"fi": "Remington 870",
+"be": "Remington 870",
+"hr": "Remington 870",
+"pt": "Remington 870"
+}
+},
+{
+"game": {
+"en": "SKS",
+"uk": "СКС",
+"ru": "СКС",
+"de": "SKS",
+"pl": "SKS",
+"sr": "SKS",
+"cs": "SKS",
+"hu": "SKS",
+"fi": "SKS",
+"be": "СКС",
+"hr": "SKS",
+"pt": "SKS"
+}
+},
+{
+"game": {
+"en": "SKS \"Arrow Head\"",
+"uk": "СКС \"Стріла\"",
+"ru": "СКС \"Стрела\"",
+"de": "SKS \"Pfeilspitze\"",
+"pl": "SKS \"Grot\"",
+"sr": "SKS \"Arrow Head\"",
+"cs": "SKS \"Arrow Head\"",
+"hu": "SKS \"Arrow Head\"",
+"fi": "SKS \"Arrow Head\"",
+"be": "СКС \"Страла\"",
+"hr": "SKS \"Arrow Head\"",
+"pt": "SKS \"Arrow Head\""
+}
+},
+{
+"game": {
+"en": "SKS-MF",
+"uk": "СКС-МФ",
+"ru": "СКС-МФ",
+"de": "SKS-MF",
+"pl": "SKS-MF",
+"sr": "SKS-MF",
+"cs": "SKS-MF",
+"hu": "SKS-MF",
+"fi": "SKS-MF",
+"be": "СКС-МФ",
+"hr": "SKS-MF",
+"pt": "SKS-MF"
+}
+},
+{
+"game": {
+"en": "SOCOM 16",
+"uk": "SOCOM 16",
+"ru": "SOCOM 16",
+"de": "SOCOM 16",
+"pl": "SOCOM 16",
+"sr": "SOCOM 16",
+"cs": "SOCOM 16",
+"hu": "SOCOM 16",
+"fi": "SOCOM 16",
+"be": "SOCOM 16",
+"hr": "SOCOM 16",
+"pt": "SOCOM 16"
+}
+},
+{
+"game": {
+"en": "SOK-94",
+"uk": "СОК-94",
+"ru": "СОК-94",
+"de": "SOK-94",
+"pl": "SOK-94",
+"sr": "SOK-94",
+"cs": "SOK-94",
+"hu": "SOK-94",
+"fi": "SOK-94",
+"be": "СОК-94",
+"hr": "SOK-94",
+"pt": "SOK-94"
+}
+},
+{
+"game": {
+"en": "SR-2M \"Veresk\"",
+"uk": "СР-2М \"Верес\"",
+"ru": "СР-2М \"Вереск\"",
+"de": "SR-2M \"Veresk\"",
+"pl": "SR-2M \"Wrzos\"",
+"sr": "SR-2M \"Veresk\"",
+"cs": "SR-2M \"Veresk\"",
+"hu": "SR-2M \"Veresk\"",
+"fi": "SR-2M \"Veresk\"",
+"be": "СР-2М \"Верас\"",
+"hr": "SR-2M \"Veresk\"",
+"pt": "SR-2M \"Veresk\""
+}
+},
+{
+"game": {
+"en": "SR-3M \"Vikhr\"",
+"uk": "СР-3М \"Вихор\"",
+"ru": "СР-3М \"Вихрь\"",
+"de": "SR-3M \"Vikhr\"",
+"pl": "SR-3M \"Wichr\"",
+"sr": "SR-3M \"Vikhr\"",
+"cs": "SR-3M \"Vikhr\"",
+"hu": "SR-3M \"Vikhr\"",
+"fi": "SR-3M \"Vikhr\"",
+"be": "СР-3М \"Віхор\"",
+"hr": "SR-3M \"Vikhr\"",
+"pt": "SR-3M \"Vikhr\""
+}
+},
+{
+"game": {
+"en": "SV-1367 Dusk",
+"uk": "СВ-1367 \"Захід\"",
+"ru": "СВ-1367 \"Закат\"",
+"de": "SV-1367 \"Abenddämmerung\"",
+"pl": "SW-1367 Zakat",
+"sr": "SV-1367 Dusk",
+"cs": "SV-1367 Dusk",
+"hu": "SV-1367 Dusk",
+"fi": "SV-1367 Dusk",
+"be": "СВ-1367 \"Захад\"",
+"hr": "SV-1367 Dusk",
+"pt": "SV-1367 \"Dusk\""
+}
+},
+{
+"game": {
+"en": "SV-98",
+"uk": "СВ-98",
+"ru": "СВ-98",
+"de": "SV-98",
+"pl": "SW-98",
+"sr": "SV-98",
+"cs": "SV-98",
+"hu": "SV-98",
+"fi": "SV-98",
+"be": "СВ-98",
+"hr": "SV-98",
+"pt": "SV-98"
+}
+},
+{
+"game": {
+"en": "SVD",
+"uk": "СВД",
+"ru": "СВД",
+"de": "SVD",
+"pl": "SWD",
+"sr": "SVD",
+"cs": "SVD",
+"hu": "SVD",
+"fi": "SVD",
+"be": "СВД",
+"hr": "SVD",
+"pt": "SVD"
+}
+},
+{
+"game": {
+"en": "SVU",
+"uk": "СВУ",
+"ru": "СВУ",
+"de": "SWU",
+"pl": "SWU",
+"sr": "SVU",
+"cs": "SVU",
+"hu": "SZVU",
+"fi": "SVU",
+"be": "СВУ",
+"hr": "SVU",
+"pt": "SVU"
+}
+},
+{
+"game": {
+"en": "Saiga-12K",
+"uk": "Сайга-12К",
+"ru": "Сайга-12К",
+"de": "Saiga-12K",
+"pl": "Saiga-12K",
+"sr": "Saiga-12K",
+"cs": "Saiga-12K",
+"hu": "Saiga-12K",
+"fi": "Saiga-12K",
+"be": "Сайга-12К",
+"hr": "Saiga-12K",
+"pt": "Saiga-12K"
+}
+},
+{
+"game": {
+"en": "Saiga-12S",
+"uk": "Сайга-12С",
+"ru": "Сайга-12С",
+"de": "Saiga-12S",
+"pl": "Saiga-12S",
+"sr": "Saiga-12S",
+"cs": "Saiga-12S",
+"hu": "Saiga-12S",
+"fi": "Saiga-12S",
+"be": "Сайга-12С",
+"hr": "Saiga-12S",
+"pt": "Saiga-12S"
+}
+},
+{
+"game": {
+"en": "TOZ-122",
+"uk": "ТОЗ-122",
+"ru": "ТОЗ-122",
+"de": "TOZ-122",
+"pl": "TOZ-122",
+"sr": "TOZ-122",
+"cs": "TOZ-122",
+"hu": "TOZ-122",
+"fi": "TOZ-122",
+"be": "ТОЗ-122",
+"hr": "TOZ-122",
+"pt": "TOZ-122"
+}
+},
+{
+"game": {
+"en": "TOZ-34",
+"uk": "ТОЗ-34",
+"ru": "ТОЗ-34",
+"de": "TOZ-34",
+"pl": "TOZ-34",
+"sr": "TOZ-34",
+"cs": "TOZ-34",
+"hu": "TOZ-34",
+"fi": "TOZ-34",
+"be": "ТОЗ-34",
+"hr": "TOZ-34",
+"pt": "TOZ-34"
+}
+},
+{
+"game": {
+"en": "TOZ-66",
+"uk": "ТОЗ-66",
+"ru": "ТОЗ-66",
+"de": "TOZ-66",
+"pl": "TOZ-66",
+"sr": "TOZ-66",
+"cs": "TOZ-66",
+"hu": "TOZ-66",
+"fi": "TOZ-66",
+"be": "ТОЗ-66",
+"hr": "TOZ-66",
+"pt": "TOZ-66"
+}
+},
+{
+"game": {
+"en": "TT-33",
+"uk": "TT-33",
+"ru": "ТТ-33",
+"de": "TT-33",
+"pl": "TT-33",
+"sr": "TT-33",
+"cs": "TT-33",
+"hu": "TT-33",
+"fi": "TT-33",
+"be": "ТТ-33",
+"hr": "TT-33",
+"pt": "TT-33"
+}
+},
+{
+"game": {
+"en": "UZI \"Shadow\"",
+"uk": "УЗІ \"Тінь\"",
+"ru": "УЗИ \"Тень\"",
+"de": "UZI \"Schatten\"",
+"pl": "UZI \"Cień\"",
+"sr": "UZI \"Shadow\"",
+"cs": "UZI \"Shadow\"",
+"hu": "UZI \"Shadow\"",
+"fi": "UZI \"Shadow\"",
+"be": "УЗІ \"Цень\"",
+"hr": "UZI \"Shadow\"",
+"pt": "UZI \"Sombra\""
+}
+},
+{
+"game": {
+"en": "Uzi",
+"uk": "Узі",
+"ru": "Узи",
+"de": "Uzi",
+"pl": "Uzi",
+"sr": "Uzi",
+"cs": "Uzi",
+"hu": "Uzi",
+"fi": "Uzi",
+"be": "Узі",
+"hr": "Uzi",
+"pt": "Uzi"
+}
+},
+{
+"game": {
+"en": "VHS-2",
+"uk": "VHS-2",
+"ru": "VHS-2",
+"de": "VHS-2",
+"pl": "VHS-2",
+"sr": "VHS-2",
+"cs": "VHS-2",
+"hu": "VHS-2",
+"fi": "VHS-2",
+"be": "VHS-2",
+"hr": "VHS-2",
+"pt": "VHS-2"
+}
+},
+{
+"game": {
+"en": "VSK-94",
+"uk": "ТСК-94",
+"ru": "ВСК-94",
+"de": "VSK-94",
+"pl": "WSK-94",
+"sr": "VSK-94",
+"cs": "VSK-94",
+"hu": "VSK-94",
+"fi": "VSK-94",
+"be": "ВСК-94",
+"hr": "VSK-94",
+"pt": "VSK-94"
+}
+},
+{
+"game": {
+"en": "VSK-94 Guardian",
+"uk": "ВСК-94 \"Хранитель\"",
+"ru": "ВСК-94 \"Хранитель\"",
+"de": "VSK-94 \"der Hüter\"",
+"pl": "WSK-94 Chranitel",
+"sr": "VSK-94 Guardian",
+"cs": "VSK-94 Guardian",
+"hu": "VSK-94 Guardian",
+"fi": "VSK-94 Guardian",
+"be": "ВСК-94 \"Захавальнік\"",
+"hr": "VSK-94 Guardian",
+"pt": "VSK-94 \"Guardião\""
+}
+},
+{
+"game": {
+"en": "VSS \"Vintorez\"",
+"uk": "ВСС \"Гвинторіз\"",
+"ru": "ВСС \"Винторез\"",
+"de": "VSS \"Vintorez\"",
+"pl": "WSS \"Wintoriez\"",
+"sr": "VSS \"Vintorez\"",
+"cs": "VSS \"Vintorez\"",
+"hu": "VSS \"Vintorez\"",
+"fi": "VSS \"Vintorez\"",
+"be": "ВСС \"Вінтарэз\"",
+"hr": "VSS \"Vintorez\"",
+"pt": "VSS \"Vintorez\""
+}
+},
+{
+"game": {
+"en": "VSSK \"Vychlop\"",
+"uk": "ВССК Вихлоп",
+"ru": "ВССК \"Выхлоп\"",
+"de": "VKS \"Auspuff\"",
+"pl": "WSSK Wychłop",
+"sr": "VSSK \"Vychlop\"",
+"cs": "VSSK \"Vychlop\"",
+"hu": "VSSK \"Vychlop\"",
+"fi": "VSSK \"Vychlop\"",
+"be": "ВССК \"Выхлап\"",
+"hr": "VSSK \"Vychlop\"",
+"pt": "VSSK \"Vychlop\""
+}
+},
+{
+"game": {
+"en": "Valmet Rk.62",
+"uk": "Valmet Rk.62",
+"ru": "Valmet Rk.62",
+"de": "Valmet Rk.62",
+"pl": "Valmet Rk.62",
+"sr": "Valmet Rk.62",
+"cs": "Valmet Rk.62",
+"hu": "Valmet Rk.62",
+"fi": "Valmet Rk.62",
+"be": "Valmet Rk.62",
+"hr": "Valmet Rk.62",
+"pt": "Valmet Rk.62"
+}
+},
+{
+"game": {
+"en": "Vepr",
+"uk": "Вепр",
+"ru": "Вепр",
+"de": "Wildschwein",
+"pl": "Wiepr",
+"sr": "Vepr",
+"cs": "Vepr",
+"hu": "Vepr",
+"fi": "Vepr",
+"be": "Вепр",
+"hr": "Vepr",
+"pt": "Vepr"
+}
+},
+{
+"game": {
+"en": "Vepr Wanderer",
+"uk": "Вепр \"Блукач\"",
+"ru": "Вепр \"Скиталец\"",
+"de": "Vepr \"Der Wanderer\"",
+"pl": "Wepr Skitalec",
+"sr": "Vepr Wanderer",
+"cs": "Vepr Wanderer",
+"hu": "Vepr Wanderer",
+"fi": "Vepr Wanderer",
+"be": "Вепр \"Вандроўнік\"",
+"hr": "Vepr Wanderer",
+"pt": "Vepr \"Andarilho\""
+}
+},
+{
+"game": {
+"en": "Vepr-12",
+"uk": "Вепр-12",
+"ru": "Вепрь-12",
+"de": "Vepr-12",
+"pl": "Vepr-12",
+"sr": "Vepr-12",
+"cs": "Vepr-12",
+"hu": "Vepr-12",
+"fi": "Vepr-12",
+"be": "Вепр-12",
+"hr": "Vepr-12",
+"pt": "Vepr-12"
+}
+},
+{
+"game": {
+"en": "Vepr-12 Molot",
+"uk": "Вепр-12 \"Молот\"",
+"ru": "Вепрь-12 \"Молот\"",
+"de": "Wildschwein-12 \"Hammer\"",
+"pl": "Wepr-12 Molot",
+"sr": "Vepr-12 Molot",
+"cs": "Vepr-12 Molot",
+"hu": "Vepr-12 Molot",
+"fi": "Vepr-12 Molot",
+"be": "Вепр-12 \"Молат\"",
+"hr": "Vepr-12 Molot",
+"pt": "Vepr-12 \"Molot\""
+}
+},
+{
+"game": {
+"en": "Winchester Model 1894",
+"uk": "Winchester 1894",
+"ru": "Winchester 1894",
+"de": "Winchester 1894",
+"pl": "Winchester 1894",
+"sr": "Winchester Model 1894",
+"cs": "Winchester Model 1894",
+"hu": "Winchester Model 1894",
+"fi": "Winchester Model 1894",
+"be": "Winchester 1894",
+"hr": "Winchester Model 1894",
+"pt": "Winchester 1894"
+}
+},
+{
+"game": {
+"en": "vz. 58 P",
+"uk": "vz. 58 P",
+"ru": "vz. 58 P",
+"de": "vz. 58 P",
+"pl": "vz. 58 P",
+"sr": "vz. 58 P",
+"cs": "vz. 58 P",
+"hu": "vz. 58 P",
+"fi": "vz. 58 P",
+"be": "vz. 58 P",
+"hr": "vz. 58 P",
+"pt": "VZ. 58 P"
+}
+},
+{
+"word": "Round"
+},
+{
+"word": "Weapon {side}",
+"places": {
+"side": "B"
+}
+},
+{
+"word": "Clear",
+"context": "list"
+},
+{
+"word": "Choose a weapon; a second one to compare."
+},
+{
+"word": "Aim"
+},
+{
+"word": "From the hip"
+},
+{
+"word": "Aiming in"
+},
+{
+"word": "Fully aimed"
+},
+{
+"word": "Stance"
+},
+{
+"word": "Standing"
+},
+{
+"word": "Walking"
+},
+{
+"word": "Crouching"
+},
+{
+"word": "Crouch-walking"
+},
+{
+"word": "Sprinting"
+},
+{
+"word": "Jumping"
+},
+{
+"word": "Broken arms"
+},
+{
+"game": {
+"en": "Accuracy",
+"uk": "Точність",
+"ru": "Точность",
+"de": "Genauigkeit",
+"pl": "Celność",
+"sr": "Preciznost",
+"cs": "Přesnost",
+"hu": "Pontosság",
+"fi": "Tarkkuus",
+"be": "Дакладнасць",
+"hr": "Preciznost",
+"pt": "Precisão"
+}
+},
+{
+"word": "Spread from the hip {v} per rank, sprinting and jumping included. Not while aiming.",
+"places": {
+"v": "−4%"
+}
+},
+{
+"word": "No effect fully aimed."
+},
+{
+"game": {
+"en": "Firm grip",
+"uk": "Тверда рука",
+"ru": "Крепкий хват",
+"de": "Stark Halten",
+"pl": "Twardy orzech",
+"sr": "Čvrst stisak",
+"cs": "Pevný úchop",
+"hu": "Biztos fogás",
+"fi": "Vakaa ote",
+"be": "Цвёрдая рука",
+"hr": "Čvrst hvat",
+"pt": "Pegada firme"
+}
+},
+{
+"word": "Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.",
+"places": {
+"v": "−4%"
+}
+},
+{
+"game": {
+"en": "Equanimity",
+"uk": "Незворушність",
+"ru": "Невозмутимость",
+"de": "Gelassenheit",
+"pl": "Spokój",
+"sr": "Pribranost",
+"cs": "Vyrovnanost",
+"hu": "Higgadtság",
+"fi": "Tyyneys",
+"be": "Незварушнасць",
+"hr": "Staloženost",
+"pt": "Equanimidade"
+}
+},
+{
+"word": "Spread from broken arms {v} per rank.",
+"places": {
+"v": "−20%"
+}
+},
+{
+"game": {
+"en": "Weapon recoil, weapons",
+"uk": "Віддача зброї, зброя",
+"ru": "Отдача оружия, оружие",
+"de": "Waffenrückstoß, waffe",
+"pl": "Odrzut broni, broń",
+"sr": "Trzaj oružja, oružje",
+"cs": "Zpětný ráz, zbraně",
+"hu": "Visszarúgás, fegyverek",
+"fi": "Rekyyli, aseet",
+"be": "Аддача зброі, зброя",
+"hr": "Trzaj oružja, oružje",
+"pt": "Recuo da arma, armas"
+}
+},
+{
+"word": "This weapon's kick ranges, up and sideways. Not the camera shake."
+},
+{
+"game": {
+"en": "−2%",
+"uk": "−2%",
+"ru": "−2%",
+"de": "−2%",
+"pl": "−2%",
+"sr": "−2%",
+"cs": "−2%",
+"hu": "−2%",
+"fi": "−2%",
+"be": "−2%",
+"hr": "−2%",
+"pt": "−2%"
+}
+},
+{
+"game": {
+"en": "−4%",
+"uk": "−4%",
+"ru": "−4%",
+"de": "−4%",
+"pl": "−4%",
+"sr": "−4%",
+"cs": "−4%",
+"hu": "−4%",
+"fi": "−4%",
+"be": "−4%",
+"hr": "−4%",
+"pt": "−4%"
+}
+},
+{
+"game": {
+"en": "−6%",
+"uk": "−6%",
+"ru": "−6%",
+"de": "−6%",
+"pl": "−6%",
+"sr": "−6%",
+"cs": "−6%",
+"hu": "−6%",
+"fi": "−6%",
+"be": "−6%",
+"hr": "−6%",
+"pt": "−6%"
+}
+},
+{
+"game": {
+"en": "−8%",
+"uk": "−8%",
+"ru": "−8%",
+"de": "−8%",
+"pl": "−8%",
+"sr": "−8%",
+"cs": "−8%",
+"hu": "−8%",
+"fi": "−8%",
+"be": "−8%",
+"hr": "−8%",
+"pt": "−8%"
+}
+},
+{
+"game": {
+"en": "−10%",
+"uk": "−10%",
+"ru": "−10%",
+"de": "−10%",
+"pl": "−10%",
+"sr": "−10%",
+"cs": "−10%",
+"hu": "−10%",
+"fi": "−10%",
+"be": "−10%",
+"hr": "−10%",
+"pt": "−10%"
+}
+},
+{
+"game": {
+"en": "Dispersion off the hip, gloves",
+"uk": "Розкид від стегна, рукавички",
+"ru": "Разброс от бедра, перчатки",
+"de": "Streuung der Hüfte, handschuhe",
+"pl": "Rozrzut strzału z biodra, rękawice",
+"sr": "Rasipanje pri paljbi sa boka, rukavice",
+"cs": "Rozptyl od boku, rukavice",
+"hu": "Csípőlövés szórása, kesztyűk",
+"fi": "Lonkkatulen hajonta, käsineet",
+"be": "Раскід ад сцягна, пальчаткі",
+"hr": "Rasipanje pri paljbi s boka, rukavice",
+"pt": "Dispersão da cintura, luvas"
+}
+},
+{
+"word": "The stance's spread and each shot's. No effect sprinting, jumping or fully aimed."
+},
+{
+"game": {
+"en": "Weapon recoil, gloves",
+"uk": "Віддача зброї, рукавички",
+"ru": "Отдача оружия, перчатки",
+"de": "Waffenrückstoß, handschuhe",
+"pl": "Odrzut broni, rękawice",
+"sr": "Trzaj oružja, rukavice",
+"cs": "Zpětný ráz, rukavice",
+"hu": "Visszarúgás, kesztyűk",
+"fi": "Rekyyli, käsineet",
+"be": "Аддача зброі, пальчаткі",
+"hr": "Trzaj oružja, rukavice",
+"pt": "Recuo da arma, luvas"
+}
+},
+{
+"word": "Each shot's kick with any weapon: up, sideways and the camera shake."
+},
+{
+"game": {
+"en": "Dispersion off the hip, body armor",
+"uk": "Розкид від стегна, бронежилет",
+"ru": "Разброс от бедра, бронежилет",
+"de": "Streuung der Hüfte, panzerweste",
+"pl": "Rozrzut strzału z biodra, pancerz",
+"sr": "Rasipanje pri paljbi sa boka, pancir",
+"cs": "Rozptyl od boku, brnění",
+"hu": "Csípőlövés szórása, testpáncélok",
+"fi": "Lonkkatulen hajonta, suojaliivit",
+"be": "Раскід ад сцягна, бронекамізэлька",
+"hr": "Rasipanje pri paljbi s boka, oklop",
+"pt": "Dispersão da cintura, coletes"
+}
+},
+{
+"game": {
+"en": "Weapon recoil, body armor",
+"uk": "Віддача зброї, бронежилет",
+"ru": "Отдача оружия, бронежилет",
+"de": "Waffenrückstoß, panzerweste",
+"pl": "Odrzut broni, pancerz",
+"sr": "Trzaj oružja, pancir",
+"cs": "Zpětný ráz, brnění",
+"hu": "Visszarúgás, testpáncélok",
+"fi": "Rekyyli, suojaliivit",
+"be": "Аддача зброі, бронекамізэлька",
+"hr": "Trzaj oružja, oklop",
+"pt": "Recuo da arma, coletes"
+}
+},
+{
+"word": "Base"
+},
+{
+"word": "A shot"
+},
+{
+"word": "At most"
+},
+{
+"word": "Vertical kick"
+},
+{
+"word": "game units"
+},
+{
+"word": "Horizontal kick"
+},
+{
+"word": "Modelled kick, recovery, spread and camera shake (from the hip), with no mouse compensation. The plots are in the weapons’ kick units; the crosshair view is in degrees of view (upward exactly as the game does, sideways estimated), with each bullet’s hit and the spread circle."
+},
+{
+"word": "Trigger"
+},
+{
+"word": "Hold"
+},
+{
+"word": "Click, {n} a second",
+"places": {
+"n": "4"
+}
+},
+{
+"word": "Click, {n} a second",
+"places": {
+"n": "2"
+}
+},
+{
+"word": "Click, {n} a second",
+"places": {
+"n": "1"
+}
+},
+{
+"word": "Sample seed"
+},
+{
+"word": "A full magazine; with two weapons, as many shots as the smaller magazine holds, each at its own fire rate. Random samples use the same seed for comparison; they are not recorded game shots."
+},
+{
+"word": "Spread"
+},
+{
+"word": "degrees"
+},
+{
+"word": "Play"
+},
+{
+"word": "Last shot"
+},
+{
+"word": "Reset"
+},
+{
+"word": "Timeline"
+},
+{
+"word": "Crosshair"
+},
+{
+"word": "degrees of view"
+},
+{
+"word": "Target"
+},
+{
+"word": "None"
+},
+{
+"word": "Enemy at {m} m",
+"places": {
+"m": "5"
+}
+},
+{
+"word": "Enemy at {m} m",
+"places": {
+"m": "10"
+}
+},
+{
+"word": "Enemy at {m} m",
+"places": {
+"m": "25"
+}
+},
+{
+"word": "Recoil parameters are unavailable for this selection."
+},
+{
+"word": "Rounds"
+},
+{
+"game": {
+"en": ".30-30 Winchester",
+"uk": ".30-30 Вінчестер",
+"ru": ".30-30 Винчестер",
+"de": ".30-30 Winchester",
+"pl": "30-30 Winchester",
+"sr": ".30-30 Winchester",
+"cs": ".30-30 Winchester",
+"hu": ".30-30 Winchester",
+"fi": ".30-30 Winchester",
+"be": ".30-30 Вінчэстар",
+"hr": ".30-30 Winchester",
+"pt": ".30-30 Winchester"
+}
+},
+{
+"game": {
+"en": ".357 Magnum",
+"uk": ".357 Magnum",
+"ru": ".357 Magnum",
+"de": ".357 Magnum",
+"pl": ".357 Magnum",
+"sr": ".357 Magnum",
+"cs": ".357 Magnum",
+"hu": ".357 Magnum",
+"fi": ".357 Magnum",
+"be": ".357 Magnum",
+"hr": ".357 Magnum",
+"pt": ".357 Magnum"
+}
+},
+{
+"game": {
+"en": "12.7x54 ПТ",
+"uk": "12.7x54 ПТ",
+"ru": "12.7x54 ПТ",
+"de": "12.7x54 PT",
+"pl": "12.7x54 PT",
+"sr": "12.7x54 PT",
+"cs": "12.7x54 PT",
+"hu": "12.7x54 PT",
+"fi": "12.7x54 PT",
+"be": "12.7x54 ПТ",
+"hr": "12.7x54 PT",
+"pt": "12.7x54 PT"
+}
+},
+{
+"game": {
+"en": "12.7x54 VPS",
+"uk": "12.7x54 ВПС",
+"ru": "12.7x54 ВПС",
+"de": "12:7x54 VPS",
+"pl": "12.7x54 WPS",
+"sr": "12.7x54 VPS",
+"cs": "12.7x54 VPS",
+"hu": "12.7x54 VPS",
+"fi": "12.7x54 VPS",
+"be": "12.7x54 ВПС",
+"hr": "12.7x54 VPS",
+"pt": "12.7x54 VPS"
+}
+},
+{
+"game": {
+"en": "12.7x55",
+"uk": "12.7x55",
+"ru": "12.7x55",
+"de": "12.7x55",
+"pl": "12.7x55",
+"sr": "12.7x55",
+"cs": "12.7x55",
+"hu": "12.7x55",
+"fi": "12.7x55",
+"be": "12.7x55",
+"hr": "12.7x55",
+"pt": "12.7x55"
+}
+},
+{
+"game": {
+"en": "12x70, smallshot",
+"uk": "12x70, дріб",
+"ru": "12x70, дробь",
+"de": "12x70, Schrotkugel",
+"pl": "12x70, Śrutowa",
+"sr": "12x70, sačma",
+"cs": "12x70, broky",
+"hu": "12x70, sörét",
+"fi": "12x70, haulit",
+"be": "12x70, шрот",
+"hr": "12x70, sitna sačma",
+"pt": "12x70, chumbo"
+}
+},
+{
+"game": {
+"en": "12x70, smallshot",
+"uk": "12х70, картеч",
+"ru": "12x70, картечь",
+"de": "12x70, Kartätsche",
+"pl": "12x70, Śrutowa",
+"sr": "12x70, sačma",
+"cs": "12x70, hrubé broky",
+"hu": "12x70, kartács",
+"fi": "12x70, haulit",
+"be": "12x70, картэч",
+"hr": "12x70, sitna sačma",
+"pt": "12x70, chumbo"
+}
+},
+{
+"game": {
+"en": "12x70, slug",
+"uk": "12х70, жакан",
+"ru": "12x70, жакан",
+"de": "12x70, Jacques",
+"pl": "12x70, breneka",
+"sr": "12x70, jedinačno zrno",
+"cs": "12x70, jednotná střela",
+"hu": "12x70, golyós",
+"fi": "12x70, täyteinen",
+"be": "12x70, жакан",
+"hr": "12x70, jedinačno zrno",
+"pt": "12x70, balote"
+}
+},
+{
+"game": {
+"en": "23x75R, smallshot",
+"uk": "23x75R, дріб",
+"ru": "23x75R, дробь",
+"de": "23x75R, Schrotkugel",
+"pl": "23x75R, Śrutowa",
+"sr": "23x75R, sačma",
+"cs": "23x75R, broky",
+"hu": "23x75R, sörét",
+"fi": "23x75R, haulit",
+"be": "23x75R, шрот",
+"hr": "23x75R, sitna sačma",
+"pt": "23x75R, chumbo"
+}
+},
+{
+"game": {
+"en": "4.6x30",
+"uk": "4.6x30",
+"ru": "4.6x30",
+"de": "4.6x30",
+"pl": "4.6x30",
+"sr": "4.6x30",
+"cs": "4.6x30",
+"hu": "4.6x30",
+"fi": "4.6x30",
+"be": "4.6x30",
+"hr": "4.6x30",
+"pt": "4.6x30"
+}
+},
+{
+"game": {
+"en": ".45 ACP",
+"uk": ".45 ACP",
+"ru": ".45 ACP",
+"de": ".45 ACP",
+"pl": ".45 ACP",
+"sr": ".45 ACP",
+"cs": ".45 ACP",
+"hu": ".45 ACP",
+"fi": ".45 ACP",
+"be": ".45 ACP",
+"hr": ".45 ACP",
+"pt": ".45 ACP"
+}
+},
+{
+"game": {
+"en": "5.45x39 7N10",
+"uk": "5.45x39 7Н10",
+"ru": "5.45x39 7Н10",
+"de": "5.45x39 7N10",
+"pl": "5.45x39 7N10",
+"sr": "5.45x39 7N10",
+"cs": "5.45x39 7N10",
+"hu": "5.45x39 7N10",
+"fi": "5.45x39 7N10",
+"be": "5.45x39 7Н10",
+"hr": "5.45x39 7N10",
+"pt": "5.45x39 7N10"
+}
+},
+{
+"game": {
+"en": "5.45x39 7N22",
+"uk": "5.45x39 7Н22",
+"ru": "5.45x39 7Н22",
+"de": "5.45x39 7N22",
+"pl": "5.45x39 7N22",
+"sr": "5.45x39 7N22",
+"cs": "5.45x39 7N22",
+"hu": "5.45x39 7N22",
+"fi": "5.45x39 7N22",
+"be": "5.45x39 7Н22",
+"hr": "5.45x39 7N22",
+"pt": "5.45x39 7N22"
+}
+},
+{
+"game": {
+"en": "5.45x39 7N6M",
+"uk": "5.45x39 7Н6М",
+"ru": "5.45x39 7Н6М",
+"de": "5.45x39 7N6M",
+"pl": "5.45x39 7N6M",
+"sr": "5.45x39 7N6M",
+"cs": "5.45x39 7N6M",
+"hu": "5.45x39 7N6M",
+"fi": "5.45x39 7N6M",
+"be": "5.45x39 7Н6М",
+"hr": "5.45x39 7N6M",
+"pt": "5.45x39 7N6M"
+}
+},
+{
+"game": {
+"en": "5.56x45",
+"uk": "5.56x45",
+"ru": "5.56x45",
+"de": "5.56x45",
+"pl": "5.56x45",
+"sr": "5.56x45",
+"cs": "5.56x45",
+"hu": "5.56x45",
+"fi": "5.56x45",
+"be": "5.56x45",
+"hr": "5.56x45",
+"pt": "5.56x45"
+}
+},
+{
+"game": {
+"en": "5.56x45 belt",
+"uk": "5.56x45 стрічка",
+"ru": "5.56x45 лента",
+"de": "5,56x45 Gurt",
+"pl": "5,56x45 taśma",
+"sr": "5,56x45 redenik",
+"cs": "5.56x45 pás",
+"hu": "5.56x45 heveder",
+"fi": "5.56x45 vyö",
+"be": "5.56x45 стужка",
+"hr": "5.56x45, redenik",
+"pt": "Fita 5.56x45"
+}
+},
+{
+"game": {
+"en": "5.7x28",
+"uk": "5.7х28",
+"ru": "5.7х28",
+"de": "5.7x28",
+"pl": "5.7x28",
+"sr": "5.7x28",
+"cs": "5.7x28",
+"hu": "5.7x28",
+"fi": "5.7x28",
+"be": "5.7х28",
+"hr": "5.7x28",
+"pt": "5.7x28"
+}
+},
+{
+"game": {
+"en": "6.5x39 Grendel",
+"uk": "6.5x39 Grendel",
+"ru": "6.5x39 Grendel",
+"de": "6.5x39 Grendel",
+"pl": "6.5x39 Grendel",
+"sr": "6.5x39 Grendel",
+"cs": "6.5x39 Grendel",
+"hu": "6.5x39 Grendel",
+"fi": "6.5x39 Grendel",
+"be": "6.5x39 Grendel",
+"hr": "6.5x39 Grendel",
+"pt": "6.5x39 Grendel"
+}
+},
+{
+"game": {
+"en": "7.62x25",
+"uk": "7.62x25",
+"ru": "7.62x25",
+"de": "7.62x25",
+"pl": "7.62x25",
+"sr": "7.62x25",
+"cs": "7.62x25",
+"hu": "7.62x25",
+"fi": "7.62x25",
+"be": "7.62x25",
+"hr": "7.62x25",
+"pt": "7.62x25"
+}
+},
+{
+"game": {
+"en": "7.62x39",
+"uk": "7.62х39",
+"ru": "7.62х39",
+"de": "7.62x39",
+"pl": "7.62x39",
+"sr": "7.62x39",
+"cs": "7.62x39",
+"hu": "7.62x39",
+"fi": "7.62x39",
+"be": "7.62х39",
+"hr": "7.62x39",
+"pt": "7.62x39"
+}
+},
+{
+"game": {
+"en": "7.62x39 7N23",
+"uk": "7.62х39 7H23",
+"ru": "7.62х39 7H23",
+"de": "7.62x39 7N23",
+"pl": "7.62x39 7N23",
+"sr": "7.62x39 7N23",
+"cs": "7.62x39 7N23",
+"hu": "7.62x39 7N23",
+"fi": "7.62x39 7N23",
+"be": "7.62х39 7Н23",
+"hr": "7.62x39 7N23",
+"pt": "7.62x39 7N23"
+}
+},
+{
+"game": {
+"en": "7.62х39 RPD",
+"uk": "7.62х39 РПД",
+"ru": "7.62х39 РПД",
+"de": "7.62x39 PRD",
+"pl": "7.62х39 RPD",
+"sr": "7.62x39 RPD",
+"cs": "7.62x39 RPD",
+"hu": "7.62x39 RPD",
+"fi": "7.62x39 RPD",
+"be": "7.62х39 РПД",
+"hr": "7.62x39 RPD",
+"pt": "7.62x39 RPD"
+}
+},
+{
+"game": {
+"en": "7.62x51",
+"uk": "7.62x51",
+"ru": "7.62x51",
+"de": "7.62x51",
+"pl": "7.62x51",
+"sr": "7.62x51",
+"cs": "7.62x51",
+"hu": "7.62x51",
+"fi": "7.62x51",
+"be": "7.62x51",
+"hr": "7.62x51",
+"pt": "7.62x51"
+}
+},
+{
+"game": {
+"en": "7.62x51, 20-round magazine",
+"uk": "7.62x51, магазин на 20",
+"ru": "7.62x51, магазин на 20",
+"de": "7,62x51, 20-Schuss-Magazin",
+"pl": "7,62x51, magazynek na 20",
+"sr": "7,62x51, okvir od 20",
+"cs": "7.62x51, zásobník na 20",
+"hu": "7.62x51, 20 lőszeres tár",
+"fi": "7.62x51, 20 patruunan lipas",
+"be": "7.62x51, магазін на 20",
+"hr": "7.62x51, spremnik za 20 metaka",
+"pt": "7.62x51, carregador de 20 balas"
+}
+},
+{
+"game": {
+"en": "7.62x51 M59",
+"uk": "7.62x51 M59",
+"ru": "7.62x51 M59",
+"de": "7.62x51 M59",
+"pl": "7.62x51 M59",
+"sr": "7.62x51 M59",
+"cs": "7.62x51 M59",
+"hu": "7.62x51 M59",
+"fi": "7.62x51 M59",
+"be": "7.62x51 M59",
+"hr": "7.62x51 M59",
+"pt": "7.62x51 M59"
+}
+},
+{
+"game": {
+"en": "7.62x51, belt",
+"uk": "7.62x51, стрічка",
+"ru": "7.62x51, лента",
+"de": "7,62x51, Gurt",
+"pl": "7,62x51, taśma",
+"sr": "7,62x51, redenik",
+"cs": "7,62x51, pás",
+"hu": "7,62x51, heveder",
+"fi": "7,62x51, vyö",
+"be": "7.62x51, стужка",
+"hr": "7.62x51, redenik",
+"pt": "7.62x51, fita"
+}
+},
+{
+"game": {
+"en": "7.62x51 AP SCAR-H, 20-round pack",
+"uk": "7.62x51 ББ SCAR-H, 20 набоїв",
+"ru": "7.62x51 ББ SCAR-H, 20 патронов",
+"de": "7,62x51 AP SCAR-H, 20 Schuss",
+"pl": "7,62x51 AP SCAR-H, 20 nabojów",
+"sr": "7,62x51 AP SCAR-H, 20 metaka",
+"cs": "7,62x51 AP SCAR-H, 20 nábojů",
+"hu": "7,62x51 AP SCAR-H, 20 lőszer",
+"fi": "7.62x51 AP SCAR-H, 20 patruunaa",
+"be": "7.62x51 ББ SCAR-H, 20 патронаў",
+"hr": "7.62x51 AP SCAR-H, pakiranje od 20 metaka",
+"pt": "7.62x51 AP SCAR-H, pacote de 20 cartuchos"
+}
+},
+{
+"game": {
+"en": "7.62х54 7N1",
+"uk": "7.62х54 7Н1",
+"ru": "7.62х54 7Н1",
+"de": "7.62x54 7N1",
+"pl": "7.62х54 7N1",
+"sr": "7.62x54 7N1",
+"cs": "7.62x54 7N1",
+"hu": "7.62x54 7N1",
+"fi": "7.62x54 7N1",
+"be": "7.62х54 7Н1",
+"hr": "7.62x54 7N1",
+"pt": "7.62x54 7N1"
+}
+},
+{
+"game": {
+"en": "7.62x54 7N13",
+"uk": "7.62x54 7Н13",
+"ru": "7.62x54 7Н13",
+"de": "7.62x54 7N13",
+"pl": "7.62x54 7N13",
+"sr": "7.62x54 7N13",
+"cs": "7.62x54 7N13",
+"hu": "7.62x54 7N13",
+"fi": "7.62x54 7N13",
+"be": "7.62x54 7Н13",
+"hr": "7.62x54 7N13",
+"pt": "7.62x54 7N13"
+}
+},
+{
+"game": {
+"en": "7.62x54R",
+"uk": "7.62x54R",
+"ru": "7.62х54R",
+"de": "7.62x54R",
+"pl": "7.62x54R",
+"sr": "7.62x54R",
+"cs": "7.62x54R",
+"hu": "7.62x54R",
+"fi": "7.62x54R",
+"be": "7.62х54R",
+"hr": "7.62x54R",
+"pt": "7.62x54R"
+}
+},
+{
+"game": {
+"en": "9x18 MP",
+"uk": "9x18",
+"ru": "9x18 ПМ",
+"de": "9x18 MP",
+"pl": "9x18 PM",
+"sr": "9x18 MP",
+"cs": "9x18 MP",
+"hu": "9x18 MP",
+"fi": "9x18 MP",
+"be": "9x18 ПМ",
+"hr": "9x18 MP",
+"pt": "9x18 PM"
+}
+},
+{
+"game": {
+"en": "9x18 PBM",
+"uk": "9x18 ПБМ",
+"ru": "9x18 ПБМ",
+"de": "9x18 PBM",
+"pl": "9x18 PBM",
+"sr": "9x18 PBM",
+"cs": "9x18 PBM",
+"hu": "9x18 PBM",
+"fi": "9x18 PBM",
+"be": "9x18 ПБМ",
+"hr": "9x18 PBM",
+"pt": "9x18 PBM"
+}
+},
+{
+"game": {
+"en": "9x19 7N21",
+"uk": "9x19 7H21",
+"ru": "9x19 7H21",
+"de": "9x19 7N21",
+"pl": "9x19 7N21",
+"sr": "9x19 7N21",
+"cs": "9x19 7N21",
+"hu": "9x19 7N21",
+"fi": "9x19 7N21",
+"be": "9x19 7Н21",
+"hr": "9x19 7N21",
+"pt": "9x19 7N21"
+}
+},
+{
+"game": {
+"en": "9x19 7N31",
+"uk": "9x19 7H31",
+"ru": "9x19 7H31",
+"de": "9x19 7N31",
+"pl": "9x19 7H31",
+"sr": "9x19 7N31",
+"cs": "9x19 7N31",
+"hu": "9x19 7N31",
+"fi": "9x19 7N31",
+"be": "9x19 7Н31",
+"hr": "9x19 7N31",
+"pt": "9x19 7N31"
+}
+},
+{
+"game": {
+"en": "9x19 Parabellum",
+"uk": "9х19 Парабеллум",
+"ru": "9х19 Парабеллум",
+"de": "9x19 Parabellum",
+"pl": "9x19 Parabellum",
+"sr": "9x19 Parabellum",
+"cs": "9x19 Parabellum",
+"hu": "9x19 Parabellum",
+"fi": "9x19 Parabellum",
+"be": "9х19 Парабелум",
+"hr": "9x19 Parabellum",
+"pt": "9x19 Parabellum"
+}
+},
+{
+"game": {
+"en": "9x21 SP-10",
+"uk": "9x21 СП-10",
+"ru": "9x21 СП-10",
+"de": "9x21 SP-10",
+"pl": "9x21 SP-10",
+"sr": "9x21 SP-10",
+"cs": "9x21 SP-10",
+"hu": "9x21 SP-10",
+"fi": "9x21 SP-10",
+"be": "9x21 СП-10",
+"hr": "9x21 SP-10",
+"pt": "9x21 SP-10"
+}
+},
+{
+"game": {
+"en": "9x39 PAB-9",
+"uk": "9x39 ПАБ-9",
+"ru": "9x39 ПАБ-9",
+"de": "9x39 PAB -9",
+"pl": "9x39 PAB-9",
+"sr": "9x39 PAB-9",
+"cs": "9x39 PAB-9",
+"hu": "9x39 PAB-9",
+"fi": "9x39 PAB-9",
+"be": "9x39 ПАБ-9",
+"hr": "9x39 PAB-9",
+"pt": "9x39 PAB-9"
+}
+},
+{
+"game": {
+"en": "9x39 SP-5",
+"uk": "9x39 СП-5",
+"ru": "9x39 СП-5",
+"de": "9x39 SP-5",
+"pl": "9x39 SP-5",
+"sr": "9x39 SP-5",
+"cs": "9x39 SP-5",
+"hu": "9x39 SP-5",
+"fi": "9x39 SP-5",
+"be": "9x39 СП-5",
+"hr": "9x39 SP-5",
+"pt": "9x39 SP-5"
+}
+},
+{
+"game": {
+"en": "9x39 SP-6",
+"uk": "9x39 СП-6",
+"ru": "9x39 СП-6",
+"de": "9x39 SP-6",
+"pl": "9x39 SP-6",
+"sr": "9x39 SP-6",
+"cs": "9x39 SP-6",
+"hu": "9x39 SP-6",
+"fi": "9x39 SP-6",
+"be": "9x39 СП-6",
+"hr": "9x39 SP-6",
+"pt": "9x39 SP-6"
+}
+},
+{
+"word": "Sniper rifle"
+},
+{
+"word": "Submachine gun"
+},
+{
+"word": "Pistol"
+},
+{
+"word": "Shotgun"
+},
+{
+"word": "Assault rifle"
+},
+{
+"word": "Machine gun"
+},
+{
+"word": "Skhid revision {revision}",
+"places": {
+"revision": "71"
+}
+}
+]

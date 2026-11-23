@@ -210,7 +210,8 @@ mod tests {
     }
 
     /// Every text the code asks for: `(english, context)` of each
-    /// `.t("..")`, `.tf("..", ..)` and `.tc("context", "..")` under `src/`.
+    /// `.t("..")`, `.tf("..", ..)` and `.tc("context", "..")` under `src/`, and
+    /// of the built pages ([`asked_by_built_pages`]).
     fn asked() -> BTreeSet<(String, String)> {
         fn files(dir: &Path, out: &mut Vec<String>) {
             for entry in std::fs::read_dir(dir).unwrap() {
@@ -241,6 +242,47 @@ mod tests {
                 asked.insert((english, context));
             }
         }
+        asked.extend(asked_by_built_pages());
+        asked
+    }
+
+    /// Every text the pages built at a release ask for (`crate::built`): of each table
+    /// (`*.texts.json`) and each script that says its words (`site-texts/words.js`) under
+    /// their folders.
+    fn asked_by_built_pages() -> BTreeSet<(String, String)> {
+        fn files(dir: &Path, out: &mut Vec<std::path::PathBuf>) {
+            for entry in std::fs::read_dir(dir).unwrap() {
+                let path = entry.unwrap().path();
+                if path.is_dir() {
+                    files(&path, out);
+                } else {
+                    out.push(path);
+                }
+            }
+        }
+        let mut paths = Vec::new();
+        for dir in ["wiki", "skills", "maps", "damage"] {
+            files(&Path::new(env!("CARGO_MANIFEST_DIR")).join(dir), &mut paths);
+        }
+        let mut asked = BTreeSet::new();
+        for path in paths {
+            let name = path.display().to_string();
+            let found = if name.ends_with(".texts.json") {
+                crate::built::asked_by_table(&std::fs::read_to_string(&path).unwrap())
+            } else if name.ends_with(".js") {
+                // A script that says its words so (site-texts/words.js first in it).
+                let source = std::fs::read_to_string(&path).unwrap();
+                if !source.contains("const PAGE_WORDS = ") {
+                    continue;
+                }
+                crate::built::asked_by_script(&source)
+            } else {
+                continue;
+            };
+            let found = found.unwrap_or_else(|why| panic!("{name}: {why}"));
+            asked.extend(found.into_iter().map(|text| (text.english, text.context)));
+        }
+        assert!(!asked.is_empty(), "the built pages ask for no text");
         asked
     }
 

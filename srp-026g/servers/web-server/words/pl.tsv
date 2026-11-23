@@ -525,3 +525,145 @@ Each kit a gun of another class, with random bonuses and attachments.	W każdym 
 Plain FFA: {0} % of FFA cards.	Zwykłe FFA: {0} % kart FFA.
 {0} % of FFA cards.	{0} % kart FFA.
 FFA: Roulette	FFA: Ruletka
+
+# The wiki's weapons and simulators (pages built at a release: scripts/site-texts)
+Search weapons	Szukaj broni
+No weapons match.	Nie znaleziono broni.
+lvl {n}	poz. {n}
+Search…	Szukaj…
+Search items	Szukaj przedmiotów
+No items match.	Nie znaleziono przedmiotów.
+s	s	unit
+Search rounds	Szukaj nabojów
+No rounds match.	Nie znaleziono nabojów.
+shots	strzały
+up	w górę
+side	w bok
+spread	rozrzut
+where it aims as the recoil moves it	gdzie celuje broń przesuwana odrzutem
+Play	Odtwórz
+Pause	Pauza
+Recoil and spread	Odrzut i rozrzut
+Weapon {side}	Broń {side}
+Choose a weapon…	Wybierz broń…
+Round	Nabój
+Clear	Wyczyść	list
+Choose a weapon; a second one to compare.	Wybierz broń; drugą do porównania.
+Aim	Celowanie
+From the hip	Z biodra
+Aiming in	W trakcie celowania
+Fully aimed	Pełne celowanie
+Stance	Postawa
+Standing	Stojąc
+Walking	Chód
+Crouching	W kucki
+Crouch-walking	Chód w kucki
+Sprinting	Sprint
+Jumping	Skok
+Broken arms	Złamane ręce
+Spread from the hip {v} per rank, sprinting and jumping included. Not while aiming.	Rozrzut z biodra {v} na rangę, także w sprincie i w skoku. Nie podczas celowania.
+No effect fully aimed.	Bez efektu przy pełnym celowaniu.
+Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.	Rozrzut podczas chodu {v} na rangę, z biodra lub w trakcie celowania. Nie w chodzie w kucki.
+Spread from broken arms {v} per rank.	Rozrzut od złamanych rąk {v} na rangę.
+This weapon's kick ranges, up and sideways. Not the camera shake.	Zakresy odrzutu tej broni, w górę i w bok. Bez drgań kamery.
+The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.	Rozrzut od postawy i od każdego strzału. Bez efektu w sprincie, w skoku i przy pełnym celowaniu.
+Each shot's kick with any weapon: up, sideways and the camera shake.	Odrzut każdego strzału z dowolnej broni: w górę, w bok i drgania kamery.
+Base	Bazowy
+A shot	Na strzał
+At most	Maksymalny
+Vertical kick	Odrzut pionowy
+game units	jednostki gry
+Horizontal kick	Odrzut poziomy
+Modelled kick, recovery, spread and camera shake (from the hip), with no mouse compensation. The plots are in the weapons’ kick units; the crosshair view is in degrees of view (upward exactly as the game does, sideways estimated), with each bullet’s hit and the spread circle.	Model odrzutu, powrotu, rozrzutu i drgań kamery (z biodra), bez kompensacji myszą. Wykresy są w jednostkach odrzutu broni; widok celownika w stopniach pola widzenia (w górę dokładnie jak w grze, w bok szacunkowo), z trafieniem każdego pocisku i okręgiem rozrzutu.
+Trigger	Spust
+Hold	Przytrzymaj
+Click, {n} a second	Klikaj, {n} na sekundę
+Sample seed	Ziarno losowania
+A full magazine; with two weapons, as many shots as the smaller magazine holds, each at its own fire rate. Random samples use the same seed for comparison; they are not recorded game shots.	Pełny magazynek; dla dwóch broni tyle strzałów, ile mieści mniejszy magazynek, każda z własną szybkostrzelnością. Próbki losowe mają to samo ziarno, by dało się je porównać; to nie są zapisane strzały z gry.
+Spread	Rozrzut
+degrees	stopnie
+Last shot	Ostatni strzał
+Reset	Resetuj
+Timeline	Oś czasu
+Crosshair	Celownik
+degrees of view	stopnie pola widzenia
+Target	Cel
+None	Brak
+Enemy at {m} m	Wróg w odległości {m} m
+Recoil parameters are unavailable for this selection.	Parametry odrzutu są niedostępne dla tego wyboru.
+Rounds	Naboje
+Sniper rifle	Karabin snajperski
+Submachine gun	Pistolet maszynowy
+Pistol	Pistolet
+Shotgun	Strzelba
+Assault rifle	Karabin szturmowy
+Machine gun	Karabin maszynowy
+Skhid revision {revision}	Skhid, rewizja {revision}
+Stat	Parametr
+Better	Lepiej
+Worse	Gorzej
+weapons	szt. broni	count
+Compare weapons or expand a row for damage, handling, accuracy, recoil and aim sway.	Porównaj broń lub rozwiń wiersz: obrażenia, obsługa, celność, odrzut i kołysanie celownika.
+Values with the chosen round, the weapon’s standard one first. Upgrades and character bonuses are not included. The game’s card shows the highest damage and the highest penetration among all the weapon’s rounds.	Wartości z wybranym nabojem, najpierw ze standardowym dla broni. Bez ulepszeń i bonusów postaci. Karta w grze pokazuje najwyższe obrażenia i najwyższą penetrację spośród wszystkich nabojów broni.
+Find a weapon	Znajdź broń
+Weapon class	Klasa broni
+All classes	Wszystkie klasy
+Damage: high to low	Obrażenia: malejąco
+Fire rate: high to low	Szybkostrzelność: malejąco
+Compare weapons	Porównanie broni
+Only differences	Tylko różnice
+Color better / worse values	Koloruj lepsze / gorsze wartości
+Recoil and spread →	Odrzut i rozrzut →
+Choose two weapons to compare. Equal values and neutral traits keep their normal color.	Wybierz dwie sztuki broni do porównania. Równe wartości i neutralne cechy mają zwykły kolor.
+No differences in the displayed stats.	Brak różnic w wyświetlanych parametrach.
+m	m	unit
+kg	kg	unit
+Single shot	Ogień pojedynczy
+Damage & range	Obrażenia i zasięg
+Damage	Obrażenia
+Armor penetration	Penetracja pancerza
+Full damage up to	Pełne obrażenia do
+Minimum damage from	Minimalne obrażenia od
+Minimum damage retained	Minimalne zachowane obrażenia
+Stopping power	Siła hamująca
+Stamina damage	Obrażenia kondycji
+Firing & handling	Strzelanie i obsługa
+rpm	strz./min	unit
+Fire rate	Szybkostrzelność
+Magazine capacity	Pojemność magazynka
+Reload time	Czas przeładowania
+Aim time	Czas celowania
+Draw time	Czas wyciągnięcia
+Holster time	Czas schowania
+Movement speed modifier	Modyfikator szybkości ruchu
+Base aim zoom	Bazowe przybliżenie
+Fire modes	Tryby ognia
+Accuracy & spread	Celność i rozrzut
+Spread values use the game's own units. Growth and recovery parameters are shown without a better/worse rating.	Wartości rozrzutu podano w jednostkach gry. Parametry wzrostu i odzyskania pokazano bez oceny „lepiej/gorzej”.
+Base dispersion	Rozrzut bazowy
+Hip-fire spread multiplier	Mnożnik rozrzutu z biodra
+Spread added per shot	Rozrzut na strzał
+Spread limit	Limit rozrzutu
+Spread growth parameter	Parametr wzrostu rozrzutu
+Spread recovery parameter	Parametr odzyskania celności
+Recoil	Odrzut
+Base kick in game units, not degrees. Horizontal kick is right minus left; variability is its standard deviation. These do not describe an entire burst.	Bazowy odrzut w jednostkach gry, nie w stopniach. Odrzut poziomy to prawo minus lewo; zmienność to jego odchylenie standardowe. Nie opisują one całej serii.
+Base vertical kick range	Zakres bazowego odrzutu pionowego
+Horizontal kick range	Zakres odrzutu poziomego
+Horizontal kick variability	Zmienność odrzutu poziomego
+Horizontal bias (− left / + right)	Przesunięcie poziome (− w lewo / + w prawo)
+Recoil accumulation exponent	Wykładnik kumulacji odrzutu
+Recovery response (P)	Reakcja powrotu (P)
+Recovery accumulation (I)	Kumulacja powrotu (I)
+Recovery damping (D)	Tłumienie powrotu (D)
+Aim sway	Kołysanie celownika
+Horizontal sway	Kołysanie poziome
+Vertical sway	Kołysanie pionowe
+Aim sway period	Okres kołysania celownika
+Magazine	Magazynek
+Set as weapon A	Ustaw jako broń A
+Set as weapon B	Ustaw jako broń B
+Automatic	Ogień ciągły
+{m}-round burst	Seria po {m}
+pellets	śrucin
+No weapons match. Try another name or class.	Nie znaleziono broni. Spróbuj innej nazwy lub klasy.
