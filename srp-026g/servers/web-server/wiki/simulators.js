@@ -208,13 +208,10 @@ globalThis.CAMERA_SHAKE = {"period_frames":225,"pitch":[-0.252,-0.238,-0.189,-0.
 // has the bones, the signs and the units): the camera's, in the hands' shot
 // clip, and the gun's in front of the camera, in its own. Neither reads the
 // recoil numbers: each is one curve, played once a shot in 60/rpm seconds.
-// - the camera's turns the view, so the screen moves, and the bullets with it:
-//   a bullet leaves along the eye (player+44Ch, instant_fire 0x2E243D) as the
-//   simulation's step before the shot left it (the shot is an animation event
-//   in base_player::tick, the eye is posed after it, assign_physics_transform
-//   0x2D93A0; steps end every 50 ms, atomic_tick 0x2D1E20). A burst's second
-//   shot and on so take the clip's turn late in the pass before; the first
-//   leaves from rest;
+// - the camera's turns the view, so the screen moves. It no longer turns the
+//   bullets (exe patch 200): a shot leaves from the gun as it is posed at the
+//   shot's own time, the clip's first frame, where the game took the eye of
+//   the simulation's step before, late in the pass before;
 // - the gun's moves the gun and its sights over the view, since patch 172 on
 //   every gun while aimed; the bullet leaves from the camera, not the barrel.
 (() => {
@@ -275,17 +272,10 @@ globalThis.CAMERA_SHAKE = {"period_frames":225,"pitch":[-0.252,-0.238,-0.189,-0.
     }
     return last < 0 ? 1 : (time - last) / interval;
   }
-  // The end of the simulation's step before the one a shot at `time` falls
-  // in (a shot at a step's very end falls in that step): when the eye it
-  // leaves along was posed.
-  const STEP = .05;
-  const eyeTime = time => (Math.ceil(time / STEP - 1e-9) - 1) * STEP;
   // The camera's turn {up, side} degrees while firing in `aim` (WeaponSpread.AIMS), and the gun's {back mm, up, side degrees}.
   const cameraAt = (motions, aim, phase) => at(motions.camera[aim === 'hip' ? 'hip' : 'aimed'], AXES.camera, phase);
   const gunAt = (motions, phase) => at(motions.gun, AXES.gun, phase);
-  // The camera's turn a bullet fired at `time` leaves with.
-  const cameraAtShot = (motions, aim, shots, interval, time) => cameraAt(motions, aim, phaseAt(shots, interval, eyeTime(time)));
-  globalThis.WeaponMotions = Object.freeze({AXES, parse, peak, custom, phaseAt, eyeTime, cameraAt, cameraAtShot, gunAt});
+  globalThis.WeaponMotions = Object.freeze({AXES, parse, peak, custom, phaseAt, cameraAt, gunAt});
 })();
 
 // Calculator-style chooser: lobby icons, class groups, level ordering,
@@ -694,12 +684,11 @@ const HUD = (() => {
       const distance = Number(find('.sim-target').value) || 0, body = distance ? bodyDegrees(distance) : 0;
       // The aim (kick and shake), each bullet's hit and the spread around the
       // aim, in degrees of view: the view holds them all.
-      // A bullet's hit: the view at its shot, the camera's clip as the step
-      // before the shot left the eye (motions.js), and its own tilt in the spread.
+      // A bullet's hit: the view at its shot (the camera's clip is at its
+      // first frame then, motions.js) and its own tilt in the spread.
       const hit = (series, event) => {
         const point = viewAt(series, event.time, on);
-        const eye = on.camera ? WeaponMotions.cameraAtShot(series.motions, series.aim, series.events, series.interval, event.time) : {side: 0, up: 0};
-        return {side: point.side + eye.side + event.bullet.side, up: point.up + eye.up + event.bullet.up};
+        return {side: point.side + event.bullet.side, up: point.up + event.bullet.up};
       };
       // The path drawn every 1/240 s, fine enough for the shake and a clip's pass.
       const steps = series => Array.from({length: Math.floor(series.duration * 240) + 1}, (_, i) => i / 240);
