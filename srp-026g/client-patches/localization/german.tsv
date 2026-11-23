@@ -2899,6 +2899,7 @@ st_srp_pierce_plywood	Sperrholz
 st_srp_pierce_stone	Stein
 st_srp_pierce_tinplate	Blech
 st_srp_pierce_value	%1$s · %2$s
+st_srp_pip_scopes_option	Bild-in-Bild-Zielfernrohre
 st_srp_play_in_squad	Im Trupp
 st_srp_pvb_at_limit	Die Höchstzahl an Bot-Matches läuft bereits, versuche es in einer Minute erneut
 st_srp_pvb_at_limit_count	Die Höchstzahl an Bot-Matches läuft bereits (%1$s/%2$s), versuche es in einer Minute erneut

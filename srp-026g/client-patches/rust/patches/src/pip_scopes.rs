@@ -21,8 +21,13 @@ use core::sync::atomic::{AtomicBool, Ordering};
 
 use crate::vostok::log::{self, Piece};
 use crate::vostok::renderer::get_environment;
-use crate::vostok::second_view::{self, Frame, GpuClock, MainView, Marks, SecondView, RING};
-use crate::vostok::{Context, Flow, Lock, NoExit, OrigRenderFlashUi, PipScopesOnPresentExit, PipScopesOnUnmoveExit, Reg};
+use crate::hud_options;
+use crate::pip_lens;
+use crate::vostok::second_view::{self, Disc, Frame, GpuClock, Keep, Lens, MainView, Marks, ModelId, ReadError, Scoped, SecondView, RING};
+use crate::vostok::{
+    trig, Context, Flow, Lock, NoExit, OrigRenderFlashUi, PipScopesOnAddHideExit, PipScopesOnAddIdleExit, PipScopesOnPresentExit,
+    PipScopesOnRemoveIdleExit, PipScopesOnRemoveShowExit, PipScopesOnUnmoveExit, Reg, Thread,
+};
 
 /// The second view's field of view: the frame's over this.
 const ZOOM: f32 = 4.0;
@@ -30,21 +35,44 @@ const ZOOM: f32 = 4.0;
 const MARGIN: u32 = 16;
 /// Frames a line of times sums.
 const LOGGED_FRAMES: u32 = 240;
+/// The lens's radius, of the frame's half height.
+const LENS_RADIUS: f32 = 0.45;
+/// The scope's picture, pixels square, with the setting.
+const SCOPE_SIZE: u32 = 512;
+/// The lens's rim: how sharp its darkening is, how dark it gets.
+const RIM_SHARPNESS: f32 = 12.0;
+const RIM_DARKNESS: f32 = 0.2;
+
+/// What the second view is for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Use {
+    /// Every frame, from the frame's camera, its picture in the corner.
+    Probe,
+    /// While a magnified optic is aimed: its lens.
+    Scopes,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Asked {
     Off,
     Timing,
-    Second(u32),
+    Second(Use, u32),
 }
 
-fn asked(value: &[u8]) -> Asked {
+fn size(value: &[u8]) -> Option<u32> {
     match value {
-        b"on" => Asked::Second(512),
-        b"256" => Asked::Second(256),
-        b"512" => Asked::Second(512),
-        b"1024" => Asked::Second(1024),
-        b"time" => Asked::Timing,
+        b"on" | b"512" => Some(512),
+        b"256" => Some(256),
+        b"1024" => Some(1024),
+        _ => None,
+    }
+}
+
+fn asked(probe: &[u8], scopes: &[u8]) -> Asked {
+    match (size(scopes), probe, size(probe)) {
+        (Some(size), _, _) => Asked::Second(Use::Scopes, size),
+        (None, _, Some(size)) => Asked::Second(Use::Probe, size),
+        (None, b"time", None) => Asked::Timing,
         _ => Asked::Off,
     }
 }
@@ -56,9 +84,9 @@ enum Probe {
     /// Frame times only.
     Timing,
     /// The render thread makes the view at its next frame.
-    Wanted(u32),
-    /// The view drawn each frame; the main view of the last frame queued.
-    Made { second: SecondView, main: Option<MainView> },
+    Wanted(Use, u32),
+    /// The view made; the main view of the last frame it was queued in.
+    Made { second: SecondView, used: Use, main: Option<MainView> },
     Failed,
 }
 
@@ -67,6 +95,46 @@ static PROBE: Lock<Probe> = Lock::new(Probe::Unread);
 /// Whether the render thread is in the second view's draw (renderer::render
 /// is not reentrant: set at its start, read by its sites).
 static SECOND_PASS: AtomicBool = AtomicBool::new(false);
+
+/// SKHID_PIP_SCOPES set: the lens whatever the setting says.
+static SCOPES_FORCED: AtomicBool = AtomicBool::new(false);
+
+/// The lens is on: the setting (or the variable), and the view made for it.
+fn scopes_active(thread: &Thread, probe: Probe) -> bool {
+    matches!(probe, Probe::Made { used: Use::Scopes, .. })
+        && (SCOPES_FORCED.load(Ordering::Relaxed) || hud_options::pip_scopes_on(thread))
+}
+
+/// The held magnified optic this frame (update_camera to the draw).
+static SCOPED: Lock<Option<Scoped>> = Lock::new(None);
+
+/// The optic's aimed model while the lens is drawn: the second view draws it
+/// alone of the first-person models, the frame all but it.
+static AIMED: Lock<Option<ModelId>> = Lock::new(None);
+
+/// The second view was drawn for a lens this frame: the frame's draw shows it.
+static LENS_DUE: AtomicBool = AtomicBool::new(false);
+
+/// The weapon (its address) whose aimed model was put in the scene the
+/// lens's way: its body, hands and idle optic left in.
+static LENS_WEAPON: Lock<Option<u32>> = Lock::new(None);
+
+enum LensState {
+    Unmade,
+    Made(Lens),
+    Failed,
+}
+
+static LENS: Lock<LensState> = Lock::new(LensState::Unmade);
+
+/// The hi-Z switch as the second view's draw found it, put back after it.
+static HIZ_KEPT: Lock<Option<bool>> = Lock::new(None);
+
+fn restore_hiz(thread: &crate::vostok::Thread) {
+    if let Some(was) = HIZ_KEPT.with(thread, Option::take) {
+        second_view::set_hiz(thread, was);
+    }
+}
 
 /// The render thread's times.
 struct Clock {
@@ -78,6 +146,8 @@ struct Clock {
     second_this_frame: bool,
     last_present: Option<f64>,
     sums: Sums,
+    /// GPU reads that failed, logged up to 8.
+    misses: u32,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -98,6 +168,7 @@ static CLOCK: Lock<Clock> = Lock::new(Clock {
     main_started: None,
     second_this_frame: false,
     last_present: None,
+    misses: 0,
     sums: Sums { frames: 0, second_cpu: 0.0, main_cpu: 0.0, interval: 0.0, gpu_frames: 0, second_gpu: 0.0, main_gpu: 0.0 },
 });
 
@@ -142,29 +213,113 @@ fn narrowed(projection: &[f32; 16], zoom: f32) -> [f32; 16] {
 }
 
 /// game::tick before it draws its scene: the second view's draw queued first.
-pub fn on_draw(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    let thread = ctx.thread();
-    let probe = PROBE.with(thread, |probe| {
+fn read_probe(thread: &Thread) -> Probe {
+    PROBE.with(thread, |probe| {
         if let Probe::Unread = probe {
-            let mut room = [0u8; 16];
-            let len = get_environment(thread, c"SKHID_PIP_PROBE", &mut room);
-            *probe = match asked(&room[..len]) {
+            let (mut a, mut b) = ([0u8; 16], [0u8; 16]);
+            let la = get_environment(thread, c"SKHID_PIP_PROBE", &mut a);
+            let lb = get_environment(thread, c"SKHID_PIP_SCOPES", &mut b);
+            SCOPES_FORCED.store(size(&b[..lb]).is_some(), Ordering::Relaxed);
+            *probe = match asked(&a[..la], &b[..lb]) {
                 Asked::Off => Probe::Off,
                 Asked::Timing => Probe::Timing,
-                Asked::Second(size) => Probe::Wanted(size),
+                Asked::Second(used, size) => Probe::Wanted(used, size),
             };
             if !matches!(probe, Probe::Off) {
-                log::line(&[Piece::Text("pip: on, "), Piece::Text(core::str::from_utf8(&room[..len]).unwrap_or("?"))]);
+                log::line(&[
+                    Piece::Text("pip: on, probe "),
+                    Piece::Text(core::str::from_utf8(&a[..la]).unwrap_or("?")),
+                    Piece::Text(", scopes "),
+                    Piece::Text(core::str::from_utf8(&b[..lb]).unwrap_or("?")),
+                ]);
             }
         }
         *probe
-    });
-    let Probe::Made { second, .. } = probe else { return Flow::Continue };
+    })
+}
+
+/// The tangent of half of `degrees`.
+fn half_tan(degrees: f32) -> Option<f32> {
+    let half = degrees * core::f32::consts::PI / 360.0;
+    let (s, c) = (trig::sin(half)?, trig::cos(half)?);
+    (c > 1e-6).then(|| s / c)
+}
+
+/// Patch 22's field of view at zoom `z` (fov_projection): 65 z degrees plus
+/// uro_fov's part, which fades out as z goes to a full scope's 0.25.
+fn fov_at(z: f32, uro_fov: f32) -> f32 {
+    65.0 * z + (uro_fov - 65.0) * ((z - 0.25) / 0.75).max(0.0)
+}
+
+/// The frame's projection as at zoom 1 (uro_fov), its aspect, depth range
+/// and jitter kept.
+fn unzoomed(projection: &[f32; 16], uro_fov: f32) -> Option<[f32; 16]> {
+    let y = 1.0 / half_tan(uro_fov)?;
+    let aspect = projection[0] / projection[5];
+    let mut p = *projection;
+    p[5] = y;
+    p[0] = y * aspect;
+    Some(p)
+}
+
+/// The scope's projection: the optic's full zoom, narrowed to the lens (its
+/// radius `lens` of the frame's half height), square, unjittered.
+fn through_lens(projection: &[f32; 16], fov_factor: f32, uro_fov: f32, lens: f32) -> Option<[f32; 16]> {
+    let y = 1.0 / (lens * half_tan(fov_at(fov_factor, uro_fov))?);
+    let mut p = *projection;
+    p[0] = y;
+    p[5] = y;
+    p[8] = 0.0;
+    p[9] = 0.0;
+    Some(p)
+}
+
+/// player::update_camera's zoom: the held optic, when magnified, for this
+/// frame's draw.
+pub fn on_zoom(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let scoped = second_view::scoped(ctx);
+    SCOPED.with(ctx.thread(), |kept| *kept = scoped);
+    Flow::Continue
+}
+
+/// game::tick before it draws its scene: the second view's draw queued first.
+pub fn on_draw(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let thread = ctx.thread();
+    let mut probe = read_probe(thread);
+    if matches!(probe, Probe::Off) && hud_options::pip_scopes_on(thread) {
+        probe = Probe::Wanted(Use::Scopes, SCOPE_SIZE);
+        PROBE.with(thread, |kept| *kept = probe);
+    }
+    let scoped = SCOPED.with(thread, Option::take).filter(|_| scopes_active(thread, probe));
+    let Probe::Made { second, used, .. } = probe else { return Flow::Continue };
     let Some(frame) = Frame::at(ctx) else { return Flow::Continue };
     let (camera, projection) = (frame.camera(), frame.projection());
     let view = invert_affine(&camera);
-    frame.draw_second(&second, &view, &narrowed(&projection, ZOOM), &view, &projection);
     let main = frame.main_view();
+    let drawn = match used {
+        Use::Probe => {
+            frame.draw_second(&second, &view, &narrowed(&projection, ZOOM), &view, &projection);
+            None
+        }
+        Use::Scopes => {
+            let Some(scoped) = scoped else {
+                AIMED.with(thread, |aimed| *aimed = None);
+                return Flow::Continue;
+            };
+            let uro_fov = second_view::field_of_view(thread);
+            let (Some(main_projection), Some(lens)) =
+                (unzoomed(&projection, uro_fov), through_lens(&projection, scoped.fov_factor, uro_fov, LENS_RADIUS))
+            else {
+                return Flow::Continue;
+            };
+            frame.set_projection(&main_projection);
+            if scoped.shown {
+                frame.draw_second(&second, &view, &lens, &view, &main_projection);
+            }
+            scoped.aimed.filter(|_| scoped.shown)
+        }
+    };
+    AIMED.with(thread, |aimed| *aimed = drawn);
     PROBE.with(thread, |probe| {
         if let Probe::Made { main: kept, .. } = probe {
             *kept = main;
@@ -182,11 +337,17 @@ pub fn on_render_begin(ctx: &mut Context<'_>) -> Flow<NoExit> {
             if let Some(main) = main {
                 second_view::match_environment(thread, &second, main);
             }
+            LENS_DUE.store(true, Ordering::Relaxed);
             true
         }
         _ => false,
     };
     SECOND_PASS.store(second, Ordering::Relaxed);
+    restore_hiz(thread);
+    if second {
+        let was = second_view::set_hiz(thread, false);
+        HIZ_KEPT.with(thread, |kept| *kept = Some(was));
+    }
     if timed(probe) {
         let now = second_view::cpu_ms(thread);
         CLOCK.with(thread, |clock| {
@@ -225,11 +386,11 @@ pub fn on_flash_ui_call(orig: &OrigRenderFlashUi, renderer: u32, window: u32) {
 pub fn on_interface(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let probe = PROBE.with(thread, |probe| {
-        if let Probe::Wanted(size) = *probe {
+        if let Probe::Wanted(used, size) = *probe {
             *probe = match second_view::make(thread, size) {
                 Ok(second) => {
                     log::line(&[Piece::Text("pip: second view made, "), Piece::Dec(size)]);
-                    Probe::Made { second, main: None }
+                    Probe::Made { second, used, main: None }
                 }
                 Err(why) => {
                     log::line(&[Piece::Text("pip: no second view: "), Piece::Text(match why {
@@ -253,8 +414,33 @@ pub fn on_interface(ctx: &mut Context<'_>) -> Flow<NoExit> {
             }
         });
     }
-    if let Probe::Made { second, .. } = probe {
-        second_view::composite(ctx, &second, MARGIN);
+    match probe {
+        Probe::Made { second, used: Use::Probe, .. } => {
+            second_view::composite(ctx, &second, MARGIN);
+        }
+        Probe::Made { second, used: Use::Scopes, .. } if LENS_DUE.swap(false, Ordering::Relaxed) => {
+            LENS.with(thread, |lens| {
+                let lens = match lens {
+                    LensState::Unmade => {
+                        *lens = match Lens::make(ctx, &pip_lens::VERTEX, &pip_lens::PIXEL) {
+                            Some(made) => LensState::Made(made),
+                            None => {
+                                log::line(&[Piece::Text("pip: no lens shaders")]);
+                                LensState::Failed
+                            }
+                        };
+                        lens
+                    }
+                    made => made,
+                };
+                if let LensState::Made(lens) = lens {
+                    let aspect = second_view::frame_aspect(ctx).unwrap_or(16.0 / 9.0);
+                    let disc = Disc { centre: [0.0, 0.0], radius: [LENS_RADIUS / aspect, LENS_RADIUS], rim: [RIM_SHARPNESS, RIM_DARKNESS] };
+                    lens.draw(ctx, &second, &disc);
+                }
+            });
+        }
+        _ => {}
     }
     Flow::Continue
 }
@@ -270,6 +456,7 @@ pub fn on_present(ctx: &mut Context<'_>) -> Flow<PipScopesOnPresentExit> {
         CLOCK.with(thread, |clock| tick(clock, second, now));
     }
     if second {
+        restore_hiz(thread);
         ctx.set_reg(Reg::Eax, 0);
         Flow::Exit(PipScopesOnPresentExit::Kept)
     } else {
@@ -301,8 +488,18 @@ fn tick(clock: &mut Clock, second: bool, now: f64) {
         // the oldest frame in flight
         let oldest = (clock.frame as usize + 1) % RING;
         if clock.frame >= RING as u32 {
-            if let Some(marks) = gpu.read(oldest) {
-                add_gpu(&mut clock.sums, &marks);
+            match gpu.read(oldest) {
+                Ok(marks) => add_gpu(&mut clock.sums, &marks),
+                Err(why) if clock.misses < 8 => {
+                    clock.misses += 1;
+                    let (a, b, c) = match why {
+                        ReadError::NoContext => (0, 0, 0),
+                        ReadError::Disjoint { got, disjoint } => (1, got, disjoint),
+                        ReadError::Mark { mark, got } => (2 + mark, got, 0),
+                    };
+                    log::line(&[Piece::Text("pip: gpu read "), Piece::Dec(a), Piece::Text(" "), Piece::Hex(b), Piece::Text(" "), Piece::Dec(c)]);
+                }
+                Err(_) => {}
             }
         }
     }
@@ -354,12 +551,62 @@ pub fn on_unmove(_: &mut Context<'_>) -> Flow<PipScopesOnUnmoveExit> {
     if SECOND_PASS.load(Ordering::Relaxed) { Flow::Exit(PipScopesOnUnmoveExit::Kept) } else { Flow::Continue }
 }
 
-/// stage_forward::execute_foreground: no first-person models in the second view.
+/// stage_forward::execute_foreground: the second view draws no first-person
+/// model but the lens's aimed model (the probe, none), the frame all but it.
 pub fn on_foreground(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    if SECOND_PASS.load(Ordering::Relaxed) {
-        second_view::drop_foreground(ctx);
+    let aimed = AIMED.with(ctx.thread(), |aimed| *aimed);
+    match (SECOND_PASS.load(Ordering::Relaxed), aimed) {
+        (true, Some(aimed)) => second_view::filter_foreground(ctx, Keep::Only(aimed)),
+        (true, None) => second_view::drop_foreground(ctx),
+        (false, Some(aimed)) => second_view::filter_foreground(ctx, Keep::AllBut(aimed)),
+        (false, None) => {}
     }
     Flow::Continue
+}
+
+fn lens_on(thread: &Thread) -> bool {
+    scopes_active(thread, PROBE.with(thread, |probe| *probe))
+}
+
+/// add_aimed_rifle_scope_to_scene before it takes the idle optic out: with
+/// the lens, the eyes' weapon keeps it.
+pub fn on_add_idle(ctx: &mut Context<'_>) -> Flow<PipScopesOnAddIdleExit> {
+    let thread = ctx.thread();
+    let Some((weapon, eyes)) = second_view::scope_weapon(ctx) else { return Flow::Continue };
+    let lens = eyes && lens_on(thread);
+    LENS_WEAPON.with(thread, |kept| *kept = lens.then_some(weapon));
+    if lens { Flow::Exit(PipScopesOnAddIdleExit::Aimed) } else { Flow::Continue }
+}
+
+/// add_aimed_rifle_scope_to_scene before it hides the body and the hands:
+/// the lens's weapon keeps them.
+pub fn on_add_hide(ctx: &mut Context<'_>) -> Flow<PipScopesOnAddHideExit> {
+    if ours(ctx, false) { Flow::Exit(PipScopesOnAddHideExit::Shown) } else { Flow::Continue }
+}
+
+/// remove_aimed_rifle_scope_from_scene before it puts the idle optic back:
+/// the lens's weapon never took it out.
+pub fn on_remove_idle(ctx: &mut Context<'_>) -> Flow<PipScopesOnRemoveIdleExit> {
+    if ours(ctx, false) { Flow::Exit(PipScopesOnRemoveIdleExit::Aimed) } else { Flow::Continue }
+}
+
+/// remove_aimed_rifle_scope_from_scene before it shows the body and the
+/// hands again: the lens's weapon never hid them.
+pub fn on_remove_show(ctx: &mut Context<'_>) -> Flow<PipScopesOnRemoveShowExit> {
+    if ours(ctx, true) { Flow::Exit(PipScopesOnRemoveShowExit::Shown) } else { Flow::Continue }
+}
+
+/// Whether the weapon at this scope site put its aimed model in the lens's
+/// way; `done` forgets it (its aimed model is out).
+fn ours(ctx: &Context<'_>, done: bool) -> bool {
+    let Some((weapon, _)) = second_view::scope_weapon(ctx) else { return false };
+    LENS_WEAPON.with(ctx.thread(), |kept| {
+        let ours = *kept == Some(weapon);
+        if ours && done {
+            *kept = None;
+        }
+        ours
+    })
 }
 
 #[cfg(test)]

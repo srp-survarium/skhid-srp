@@ -1867,3 +1867,14 @@ vostok::render::output_window_configuration	windowed	0x11	u8	windowed (1) or ful
 vostok::render::output_window_configuration	size	0x14	size	render_output_window_cook::translate_query's local (0x138039..0x138065): five words, the last two bytes the flags
 vostok::render::render_call_frame	view_ref	0xC	ptr<vostok::render::scene_view_ref>	renderer::render's third argument at its start (by the site's ESP): the scene-view reference it draws (0x13D0AE)
 vostok::render::stage_forward	context	0x4	ptr<vostok::render::renderer_context>	the forward stage's renderer context (execute_foreground 0x1AB76D: [esi+4], its +119Ch targets, +4170h scene view at 0x1AB81D)
+vostok::render::image	options_global	0x2260498	obj<vostok::render::options_slot>	the render options' global, the struct every stage reads (stage_visibility::execute_stage 0x1B6A2B, renderer::render 0x13D383)
+vostok::render::options_slot	options	0x0	ptr<vostok::render::render_options>	the render options (options::register_console_commands 0x3CD870 names them; opt+X in renderer-026g.md)
+vostok::render::render_options	hiz_occlusion	0x12D	u8	the hi-Z occlusion on: stage_visibility::execute_stage asks the last query's answers and sends a new one only then (0x1B6A32), and leaves out a model whose stored answer is occluded (+61h, 0x1B6A98)
+vostok::render::render_output_window	present_texture	0x2234	ptr<vostok::render::res_texture>	its targets' $user$present texture (the targets at +118h, a descriptor 0A0h a target, the texture at +9Ch beside the target at +98h, renderer_context::get_rt 0x11C1D0; present is 52): the frame's final picture, which the present stage copies to the back buffer (0x13DB36)
+vostok::render::res_texture	view	0x1B4	ptr<d3d11::hw_resource>	its ID3D11ShaderResourceView (released by the destructor 0x3D09F5, copied and AddRef'd by clone 0x3D105F..0x3D10E9)
+survarium::weapon_optics	fov_factor	0x114	f32	the optic's fov_factor (rifle_scope_cook 0x258845): the zoom it aims at, 1 / magnification of the original's 65 degrees (update_camera 0x1F34EB: zoom = 1 + (fov_factor - 1) x the aim's progress)
+vostok::render::model_instance	surface_count	0x294	u8	a static model instance's surface records' count (all LODs; renderer-026g.md 2.1)
+vostok::render::model_instance	first_surface	0x298	obj<vostok::render::render_surface_instance>	a static model instance's first surface record (64h bytes each): the render_surface_instances its draw lists hold
+vostok::render::model_instance	vtable	0x0	u32	its vtable: 9F2B24h a static model instance, 9F0F24h a skeleton instance
+vostok::render::image	static_model_vtable	0x9F2B24	u32	the static model instance's vtable (renderer-026g.md 2.1)
+vostok::render::render_surface_instance	size	0x64	size	a model instance's surface record (renderer-026g.md 2.1)

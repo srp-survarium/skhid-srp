@@ -4,6 +4,7 @@
 # the engine's side vostok/second_view.rs.
 name = "pip_scopes"
 patch = 198
+uses = ["hud_options"]
 
 # game::tick before its scene's draw: the second view's draw first
 [[hook]]
@@ -41,3 +42,26 @@ handler = "on_unmove"
 [[hook]]
 site = "forward.execute_foreground"
 handler = "on_foreground"
+
+# update_camera's zoom: the held optic, when magnified
+[[hook]]
+site = "camera.zoom"
+handler = "on_zoom"
+
+# the aimed optic put in the scene: with the lens, the eyes' weapon keeps
+# its idle optic, body and hands
+[[hook]]
+site = "scope.add_idle"
+handler = "on_add_idle"
+
+[[hook]]
+site = "scope.add_hide"
+handler = "on_add_hide"
+
+[[hook]]
+site = "scope.remove_idle"
+handler = "on_remove_idle"
+
+[[hook]]
+site = "scope.remove_show"
+handler = "on_remove_show"

@@ -152,6 +152,7 @@ pub mod replay_keys;
 // patch 152: two keys save the game's picture as a PNG
 pub mod screenshot;
 pub mod pip_scopes;
+pub mod pip_lens;
 pub mod map_id;
 pub mod replay_map;
 // patch 133: the console command `where`

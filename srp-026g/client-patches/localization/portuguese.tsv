@@ -2899,6 +2899,7 @@ st_srp_pierce_plywood	Compensado
 st_srp_pierce_stone	Pedra
 st_srp_pierce_tinplate	Chapa fina
 st_srp_pierce_value	%1$s · %2$s
+st_srp_pip_scopes_option	Lunetas imagem na imagem
 st_srp_play_in_squad	Em esquadrão
 st_srp_pvb_at_limit	Já há o máximo de partidas com bots ao mesmo tempo, tente de novo em um minuto
 st_srp_pvb_at_limit_count	Já há o máximo de partidas com bots ao mesmo tempo (%1$s/%2$s), tente de novo em um minuto

@@ -2899,6 +2899,7 @@ st_srp_pierce_plywood	Šperploča
 st_srp_pierce_stone	Kamen
 st_srp_pierce_tinplate	Lim
 st_srp_pierce_value	%1$s · %2$s
+st_srp_pip_scopes_option	Nišani slika u slici
 st_srp_play_in_squad	U odredu
 st_srp_pvb_at_limit	Već se odvija najveći broj borbi s botovima, pokušajte za minutu
 st_srp_pvb_at_limit_count	Već se odvija najveći broj borbi s botovima (%1$s/%2$s), pokušajte za minutu

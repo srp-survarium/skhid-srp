@@ -130,6 +130,15 @@ pub static MAP_NAMES: Setting = Setting::new(c"srp_map_names", c"st_srp_map_name
 /// are the stock static crosshair setting's two states).
 pub static HIDE_CROSSHAIR: Setting = Setting::new(c"srp_hide_crosshair", c"st_srp_crosshair_hidden");
 
+/// The Graphics tab's "Picture-in-picture scopes" (patch 198, docs/notes/pip-scopes.md):
+/// a magnified optic's lens shows the scope's view, the frame its own field of view.
+pub static PIP_SCOPES: Setting = Setting::new(c"srp_pip_scopes", c"st_srp_pip_scopes_option");
+
+/// Whether "Picture-in-picture scopes" is on (the console variable, user.cfg's).
+pub fn pip_scopes_on(thread: &Thread) -> bool {
+    PIP_SCOPES.on(thread)
+}
+
 /// The Graphics tab's Renderer list, on Vulkan/DXVK: the next process start
 /// reads it from user.cfg itself (before the console exists), and turns it
 /// off after a failed DXVK start ([`step`]).
@@ -1049,8 +1058,8 @@ fn load_dxvk(thread: &Thread) -> Result<(), Stopped> {
 }
 
 /// Every setting of this patch, as the Settings call them.
-pub static SETTINGS: [&Setting; 7] =
-    [&HIDE_SCORES, &MAP_NAMES, &HIDE_CROSSHAIR, &DXVK, &LOW_LATENCY, &TEAR_FREE, &DEDICATED_GPU];
+pub static SETTINGS: [&Setting; 8] =
+    [&HIDE_SCORES, &MAP_NAMES, &HIDE_CROSSHAIR, &DXVK, &LOW_LATENCY, &TEAR_FREE, &DEDICATED_GPU, &PIP_SCOPES];
 
 /// The Settings' "HUD:" group's own texts (dictionary keys), in the order
 /// `root.srp_hud_texts` gives them: the heading, the stock quest progress

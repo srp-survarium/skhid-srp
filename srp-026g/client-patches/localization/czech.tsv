@@ -2899,6 +2899,7 @@ st_srp_pierce_plywood	Překližka
 st_srp_pierce_stone	Kámen
 st_srp_pierce_tinplate	Plech
 st_srp_pierce_value	%1$s · %2$s
+st_srp_pip_scopes_option	Zaměřovače obraz v obraze
 st_srp_play_in_squad	V četě
 st_srp_pvb_at_limit	Už běží maximální počet zápasů s boty, zkus to za minutu
 st_srp_pvb_at_limit_count	Už běží maximální počet zápasů s boty (%1$s/%2$s), zkus to za minutu
