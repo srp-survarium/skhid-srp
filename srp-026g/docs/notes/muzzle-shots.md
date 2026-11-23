@@ -39,8 +39,11 @@ where no sight is looked through.
 - **The gun is posed at the shot's own time.** The game's copy was the eye of the step before (up
   to 50 ms old), which in a burst carried the hands clip's camera turn of the pass before (the
   H&K 416, the M4A1: up to 0.67 degrees). Those bullets now go where the sights show.
-- **Bots** fire from the hip (`key::FIRE` alone, `bots/aimpoint.rs`) and aim their view: their
-  shots now go where their gun looks. Their aim has to take the gun's line (to do).
+- **Bots** aim their view. From 10 m on they fire down the sights (`bots/reflex.rs`,
+  `ads_near_m`), where a shot's way is the eye's line as before. Nearer, or running for cover,
+  they fire from the hip: those shots now go where their gun looks, and so do the ones fired
+  while the sight is still coming up. Their aim does not take the gun's line yet: how far the
+  hip pose turns it from the view is not measured (`SKHID_SHOT_LOG` gives it in a game).
 - **Replays** of games before the revision that ships this play out otherwise: a row in
   `simulation_changes.tsv`.
 - **Peeking:** a bullet no longer clears a ledge the eye sees over and the barrel does not.
