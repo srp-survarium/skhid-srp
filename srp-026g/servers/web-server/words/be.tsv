@@ -731,7 +731,7 @@ Damage ×{damage}, penetration ×{pierce}, before armour: lower penetration make
 {drug}: {pool} takes ×{k} for {s} s after use ({delay} s to kick in).	{drug}: {pool} атрымлівае ×{k} на працягу {s} с пасля ўжывання (пачынае дзейнічаць праз {delay} с).
 Inside an anomaly: damage ×{k}, before armour.	У анамаліі: шкода ×{k}, да брані.
 This weapon takes no damage bonuses.	Гэта зброя не мае бонусаў шкоды.
-Come with the weapon; cannot be changed.	Ідуць са зброяй; змяніць нельга.
+Comes with the weapon; cannot be changed.	Ідзе са зброяй; змяніць нельга.
 An item holds at most 3 modifications. Bonuses on one stat add up before they apply.	Прадмет мае не больш за 3 мадыфікацыі. Бонусы да адной характарыстыкі складваюцца, перш чым дзейнічаць.
 This item takes no armour bonuses.	Гэты прадмет не мае бонусаў брані.
 Nothing worn covers the {part}.	Нічога з надзетага не ахоўвае: {part}.
