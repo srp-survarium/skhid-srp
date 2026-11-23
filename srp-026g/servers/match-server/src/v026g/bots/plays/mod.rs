@@ -1597,6 +1597,11 @@ impl Running {
         }
     }
 
+    /// [anomaly batteries] Whether this is a Collect take inside an energy core's zones (`team::Commit::ZoneWalk`).
+    pub fn in_zone_take(&self) -> bool {
+        matches!(self, Self::Collect(collect::State::ZoneTake(_)))
+    }
+
     /// [A394 (b)] Whether this is a Collect take to finish before another play ([`collect::finishing`]).
     pub fn finishing_take(&self, target: TargetRef, cx: &Ctx) -> bool {
         matches!(self, Self::Collect(state) if collect::finishing(state, target, cx))
