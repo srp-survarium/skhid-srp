@@ -151,8 +151,8 @@ def simulation(texts):
         f'<figure class="sim-sight"><figcaption>{t("Crosshair")} · {t("degrees of view")}</figcaption><div class="sim-sight-views"></div>'
         '<p class="sim-key">'
         + "".join(f'<span><svg viewBox="0 0 16 16" aria-hidden="true">{shape}</svg>{t(en)}</span>' for shape, en in [
-            ('<path class="sim-key-view" d="M8 1v5M8 10v5M1 8h5M10 8h5"/>', "bullet"),
-            ('<circle class="sim-key-sight" cx="8" cy="8" r="6"/>', "sight"),
+            ('<path class="sim-key-view" d="M8 1v5M8 10v5M1 8h5M10 8h5"/>', "screen"),
+            ('<circle class="sim-key-sight" cx="8" cy="8" r="6"/>', "gun"),
             ('<circle class="sim-key-hit" cx="8" cy="8" r="3.5"/>', "hit")])
         + '</p>'
         f'<label class="sim-target-pick">{t("Target")}<select class="sim-target"><option value="">{t("None")}</option>'

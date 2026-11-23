@@ -670,7 +670,7 @@ Left	Links	direction
 Right	Rechts	direction
 Back	Zurück	direction
 where it aims as the shot moves it	wohin sie unter dem Schuss zielt
-from the side, the bullet from the eye along the view	von der Seite: die Kugel vom Auge entlang der Sicht
+from the side, the bullet from the gun along its line	von der Seite: die Kugel von der Waffe entlang ihrer Linie
 custom	eigene
 Up	Hoch
 Side	Seitlich
@@ -680,8 +680,8 @@ Camera wobble	Kamerawackeln
 Gun kick	Waffenstoß
 Custom gun	Eigene Waffe
 Speed	Tempo
-bullet	Kugel
-sight	Visier
+screen	Bildschirm
+gun	Waffe
 hit	Treffer
 
 # The wiki's skills (a page built at a release: scripts/site-texts)

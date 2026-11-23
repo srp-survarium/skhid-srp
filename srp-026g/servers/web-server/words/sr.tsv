@@ -670,7 +670,7 @@ Left	Levo	direction
 Right	Desno	direction
 Back	Nazad	direction
 where it aims as the shot moves it	gde nišani pod dejstvom hica
-from the side, the bullet from the eye along the view	sa strane: metak od oka duž pogleda
+from the side, the bullet from the gun along its line	sa strane: metak iz oružja duž njegove linije
 custom	sopstveno
 Up	Gore
 Side	U stranu
@@ -680,8 +680,8 @@ Camera wobble	Njihanje kamere
 Gun kick	Trzaj oružja
 Custom gun	Sopstveno oružje
 Speed	Brzina
-bullet	metak
-sight	nišan
+screen	ekran
+gun	oružje
 hit	pogodak
 
 # The wiki's skills (a page built at a release: scripts/site-texts)

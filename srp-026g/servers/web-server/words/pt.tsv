@@ -670,7 +670,7 @@ Left	Esquerda	direction
 Right	Direita	direction
 Back	Trás	direction
 where it aims as the shot moves it	para onde mira com o tiro
-from the side, the bullet from the eye along the view	de lado: a bala do olho ao longo da visão
+from the side, the bullet from the gun along its line	de lado: a bala da arma ao longo da sua linha
 custom	personalizada
 Up	Cima
 Side	Lado
@@ -680,8 +680,8 @@ Camera wobble	Balanço da câmera
 Gun kick	Coice da arma
 Custom gun	Arma personalizada
 Speed	Velocidade
-bullet	bala
-sight	mira
+screen	tela
+gun	arma
 hit	acerto
 
 # The wiki's skills (a page built at a release: scripts/site-texts)

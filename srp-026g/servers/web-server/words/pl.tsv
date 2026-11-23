@@ -670,7 +670,7 @@ Left	W lewo	direction
 Right	W prawo	direction
 Back	W tył	direction
 where it aims as the shot moves it	gdzie celuje pod wpływem strzału
-from the side, the bullet from the eye along the view	z boku: pocisk od oka wzdłuż spojrzenia
+from the side, the bullet from the gun along its line	z boku: pocisk z broni wzdłuż jej linii
 custom	własna
 Up	W górę
 Side	W bok
@@ -680,8 +680,8 @@ Camera wobble	Chwianie kamery
 Gun kick	Szarpnięcie broni
 Custom gun	Własna broń
 Speed	Prędkość
-bullet	pocisk
-sight	celownik
+screen	ekran
+gun	broń
 hit	trafienie
 
 # The wiki's skills (a page built at a release: scripts/site-texts)

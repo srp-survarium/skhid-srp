@@ -670,7 +670,7 @@ Left	Vlevo	direction
 Right	Vpravo	direction
 Back	Dozadu	direction
 where it aims as the shot moves it	kam míří pod vlivem výstřelu
-from the side, the bullet from the eye along the view	z boku: střela od oka podél pohledu
+from the side, the bullet from the gun along its line	z boku: střela od zbraně podél její osy
 custom	vlastní
 Up	Nahoru
 Side	Do strany
@@ -680,8 +680,8 @@ Camera wobble	Kývání kamery
 Gun kick	Kopnutí zbraně
 Custom gun	Vlastní zbraň
 Speed	Rychlost
-bullet	střela
-sight	mířidla
+screen	obrazovka
+gun	zbraň
 hit	zásah
 
 # The wiki's skills (a page built at a release: scripts/site-texts)
