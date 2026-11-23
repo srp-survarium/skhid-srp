@@ -95,6 +95,28 @@ in.
   its shot leaves the eye, the same way. The wall's rule on a real level.
 - The stack at the call is the original's in every case; no run failed.
 
+## A recorded match played back with it (2026-11-23)
+
+The owner's go for a headless replay. A match recorded on revision 71 (seven players) played back
+for five minutes by the built exe (revision 72's tree with patch 200, the barrel's axis always) on
+a display of its own, `SKHID_SHOT_LOG` on (`private/scope-shot-045/muzzle-shots/replay_shots.py`).
+The recording is from before the patch, so its match plays out otherwise from the first shot on;
+its players still fire. 768 shots, every player's, no panic, assert or crash; the game ran until it
+was stopped.
+
+| the sight | shots | the way against the game's old copy of the eye (degrees) | the muzzle from that eye (mm) |
+|---|---|---|---|
+| fully raised | 710 | median 0.27, nine in ten under 0.80, the most 1.86 | 0 right (-16 to 15), 91 under, 733 ahead |
+| coming up | 46 | median 0.62, the most 4.72 | 42 right, 96 under, 755 ahead |
+| from the hip | 12 | median 1.39, the most 7.20 | 119 right, 91 under, 735 ahead |
+
+- Three shots of the 768 left more than 3 degrees off the old eye's line; none anywhere near a
+  sprint's 54. Nobody in this match fired with the gun still down.
+- The numbers agree with the dumps': from the hip the muzzle 12 cm right and 9 under, the barrel
+  1.4 degrees off (the bots' `hip_line_deg`, `hip_muzzle_m`).
+- Unseen still: the crosshair on a screen (no picture was taken), two games of one match, a played
+  match.
+
 ## Recoil, on top (the owner: "simulation with recoil being the next thing")
 
 The game's recoil is already a state of the weapon in the simulation: the kick (the recoil
