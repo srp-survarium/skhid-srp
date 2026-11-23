@@ -444,8 +444,17 @@ the Bodycam study's recipe (the owner, 2026-10-25), proposals to tune in the gam
   frame (over 0.08 m/s; an end at rest keeps its plane), along its motion with the ground
   below it added (v dt plus the radius and 5 cm). An end that finds nothing while the other
   end lies on a plane, at that plane's height or above, takes that plane (a capsule across a
-  battery's or a ledge's edge stays on it); below it, it hangs past a step and is free. The
-  game's budget is 160 rays a frame for all ragdolls; an end not asked keeps its plane.
+  battery's or a ledge's edge stays on it); below it, it hangs past a step and is free.
+  Each end also has a plane beside it (2026-11-09; the owner: "people shouldn't see others
+  heads clipping into walls"): the game's query is a thin ray from the end's centre, so a
+  ray down never met a wall beside the end, and a head slid or thrown into a wall sank in
+  (a body thrown at a wall, `a_body_thrown_into_a_wall_stays_out_of_it` with the game's ray:
+  15 cm into it before, under 4 cm now). A moving end (across more than 1 mm a frame) asks
+  a second ray along its motion across, that long plus two radii and 5 cm; a surface
+  facing the end is its side plane, kept while the end is within its radius and 5 cm of
+  it (a wall let go as the end rocked off it and found again kept the body from settling).
+  The game's budget is 320 rays a frame for all ragdolls (160 before the side rays); an end
+  not asked keeps its planes.
 - **Settled:** no capsule end moved 1.5 cm in 0.4 s, or every body slower than 0.05 m/s
   (the solver's creep between a limb, the ground and a leg); or every capsule end slower
   than 0.35 m/s for a second (a limb that still drifts, two constraints fighting with one
@@ -460,10 +469,23 @@ the Bodycam study's recipe (the owner, 2026-10-25), proposals to tune in the gam
   bone's axis nearest the body's forward, with the hand's motion; the "Weapon" bone
   follows it, so the game draws the held item where the gun lies. Its own bounds are not
   read yet (a rifle's size for every item).
-- **The camera:** the eye ("Item") kept relative to the head at the death; followed by
-  critically damped springs (12 rad/s on its place, 9 on its forward), its up level (no
-  roll), its pitch within 55 degrees, 22 cm above the ground the head lies on at least.
-  Patch 46's drag still turns it.
+- **The camera:** the eye ("Item") kept relative to the head at the death. Its place is
+  the eye's, never trailing it: the game draws the local player's body without its head
+  (set_head_visibility, dead too), and the first build's spring on the place (12 rad/s)
+  trailed a falling head by about 0.5 m (2v/omega at 3 m/s) and its 22 cm lift above
+  the ground took it out of a head lying on the ground, so the body was seen headless
+  (the owner, 2026-11-09: "quite often it is clearly visible that the head is removed").
+  One ray of the level from the skull (the head capsule's far end) to the eye each frame
+  (none once the body has settled: the last one holds): a surface between them pulls
+  the camera back toward the skull, 8 cm short of the surface, and it is kept 8 cm off
+  that surface and the ground the head lies on, but never further from them than the
+  skull is, so it stays inside the hidden head (the owner, same day: "camera gets stuck
+  in textures": nothing kept it out of walls). And the camera itself never crosses a
+  surface: each frame it moves from where it was to that place by a ray (one more to slide
+  along a surface it stops 8 cm off), so a head that still sinks into a wall for a while
+  leaves the camera before the wall until it comes out. Its forward follows by a critically damped
+  spring (9 rad/s), its up level (no roll), its pitch within 55 degrees. Patch 46's drag
+  still turns it.
 - **The pool:** 20 slots. A new death with none free takes the oldest settled corpse's
   slot (that corpse is drawn as the game draws it again); with none settled, the death
   keeps the game's clip (`Canned`).
@@ -576,9 +598,10 @@ takes no lock.
   body half over a ledge stays on it, one fully past it falls off.
 - **Settled:** within about 2 s of hitting the ground the body stops moving and stays as
   it lies; it is drawn even just off screen, so turning toward it shows it where it lies.
-- **Your own death:** the camera rides your own body's head as it falls, smoothly, never
-  rolling, never looking straight up or down, never below the ground; dragging still
-  turns the view (patch 46).
+- **Your own death:** the camera rides your own body's head as it falls, in the head,
+  never behind it (you never see your own body without its head); it turns smoothly,
+  never rolling, never looking straight up or down; never below the ground or inside a
+  wall; dragging still turns the view (patch 46).
 - **A respawn, or a rollback that takes the death back:** the ragdoll is gone at once.
 - **What may look off (tell me):** a body that shakes on the ground (464c's fixes, section
   12), a knock-back too strong or too weak (`tuning::DEATH_KNOCK`, `BODY_SHARE`), legs that
@@ -1187,6 +1210,32 @@ meet. `check_ragdoll_026g.py`: the ray's filter is 414h/20Ah, and a bush's slab
 player's are: the body lands on the hittable floor. `check_weapon_pickup_026g.py`'s
 stand-in for the level takes the new group. Visual only: no data, no simulation
 change.
+
+## 20. The fingers let go (2026-11-23)
+
+The owner, 2026-11-23: a ragdoll's fingers "are always as if they were holding a weapon". The
+bodies end at the forearms (section 7: the hands go with them), and every other bone kept its
+pose on its parent from the frame of the death (`Link::Parent`): the thirty finger joints kept
+the grip of the gun that had just dropped.
+
+A finger joint is now its own link (`Link::Finger`): on its parent as held at the death, its
+turn going to a loose hand's (`skeleton.rs` `LOOSE_FINGERS`, the splines' Euler angles of each
+joint on its parent; both hands' finger bones are laid out alike, a curl is +Z, so one table
+serves both: the knuckles' spread and the thumb are the artefact carry's open palm, the curls a
+resting hand's, 0.45 to 0.8 rad, more toward the little finger). The way is a quaternion nlerp
+eased over `FINGERS_LOOSE_TIME` (0.35 s, under the 0.4 s a body takes to settle, so a settled
+hand is loose) from the ragdoll's age alone. The fingers are no bodies: they have no speed, meet
+nothing and cannot swing (the owner: "make sure fingers don't start to behave wildly too"); the
+joints' places on their parents are the death's, only the turn changes. `Ragdoll::draw` is the
+one way a ragdoll's skeleton is drawn (the camera's head too), so every draw has the same hand.
+The view alone, as all of the ragdoll.
+
+Checked: `cargo test -p ragdoll` (`the_fingers_let_go_once_and_never_swing`: in a shot body's
+fall every joint is each frame nearer the loose turn or where it was, and there from 0.35 s
+on; the thirty joints and no other bone have a loose turn). Looked at offline on the stock
+hands (the artefact carry's `render_mesh.py` skinning, the stock battery idle clip's grip beside
+the loose hand, both hands, four sides): an open hand lightly curled, neither hand twisted. Not
+run in a game.
 
 ## Addresses (re-kit rows added in this change)
 

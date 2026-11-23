@@ -39,9 +39,9 @@ package survarium.controls
 
       private static var additionalMedicine:Boolean = false;
 
-      // Toxic Smoke (441): a grenade takes two of a pocket's units, as the RGD-5 does; Bear Trap
-      // (444): a trap takes one and a half (the server's KitLayout, PocketShare).
-      private static var halvedGrenades:Boolean = false;
+      // Toxic Smoke (441): a grenade of one unit takes one and a half of a pocket's units; Bear Trap
+      // (444): a trap does (the server's KitLayout, PocketShare).
+      private static var heavyGrenades:Boolean = false;
 
       private static var heavyTraps:Boolean = false;
 
@@ -59,7 +59,7 @@ package survarium.controls
          additionalMedicine = false;
          supplyPocket = false;
          tankContainer = false;
-         halvedGrenades = false;
+         heavyGrenades = false;
          heavyTraps = false;
          for each(var skill:Object in value)
          {
@@ -77,7 +77,7 @@ package survarium.controls
             }
             if(skill.id == 441)
             {
-               halvedGrenades = true;
+               heavyGrenades = true;
             }
             if(skill.id == 444)
             {
@@ -116,12 +116,12 @@ package survarium.controls
          return additionalMedicine && category == ItemCategory.MEDKITS;
       }
 
-      // The pocket units one item takes: 2 for the RGD-5 and a grenade with Toxic Smoke, 1.5 for a
-      // trap with Bear Trap; else 1.
+      // The pocket units one item takes: 2 for the RGD-5 (its own, with or without Toxic Smoke),
+      // 1.5 for another grenade with Toxic Smoke and a trap with Bear Trap; else 1.
       public static function itemUnits(category:uint, size:Number) : Number
       {
-         if(size == QuickSlotSize.PAIR || (halvedGrenades && category == ItemCategory.GRENADES)) return 2;
-         if(heavyTraps && category == ItemCategory.BOOBY_TRAPS) return 1.5;
+         if(size == QuickSlotSize.PAIR) return 2;
+         if((heavyGrenades && category == ItemCategory.GRENADES) || (heavyTraps && category == ItemCategory.BOOBY_TRAPS)) return 1.5;
          return 1;
       }
       

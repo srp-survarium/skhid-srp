@@ -22,6 +22,7 @@
 mod cue;
 mod geometry;
 mod params;
+mod restart;
 mod roster;
 mod rule;
 mod shape;
@@ -32,13 +33,14 @@ mod wire;
 pub use cue::{Cue, Line, Message, Viewer};
 pub use geometry::Position;
 pub use params::{
-    BASE_MARGIN, BaseDef, FADE, MAX_SHAPES, MAX_SPAWNERS, ParamError, Params, REACH, RawParams,
+    BASE_MARGIN, BaseDef, MAX_SHAPES, MAX_SPAWNERS, ParamError, Params, REACH, RawParams,
     RawShape, Spawner,
 };
+pub use restart::{FADE, Lives, Restart, Spawning, Step, Timing};
 pub use roster::{PLAYERS, Place, Roster, Sides, Team};
 pub use rule::{
     Action, Actions, After, Artefact, ArtefactView, Clock, Event, Hud, MAX_ACTIONS, Outcome, Over,
-    Phase, Play, Reason, Rng, Round, Rule, Shift, Spawning, Spot, Stage, Sudden, SuddenShown, Wave,
+    Phase, Play, Reason, Rng, Round, Rule, Shift, Spot, Stage, Sudden, SuddenShown, Wave,
 };
 pub use shape::{Shape, ShapeKind, View, along};
 pub use time::{Ms, Time};

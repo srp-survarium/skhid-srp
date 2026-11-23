@@ -2,7 +2,7 @@
 result, without running it and without writing into the game folder.
 
     cd srp-026g/client-patches/launcher
-    python selftest_launcher_026g.py <game>/binaries/x86/survarium_launcher.exe [--nasm=<nasm>]
+    python selftest_launcher_026g.py <game>/binaries/x86/survarium_launcher.exe
 
 Checks:
  1. every byte that differs from the original is in a place the README
@@ -20,17 +20,13 @@ Checks:
     operands point, and the operands are still relocated;
  5. no relocation touches a changed instruction (but the five disabled ones);
  6. no address of the game's old sites is left in the file;
- 7. with --nasm (or NASM in the environment): launcher_values_026g.asm
-    assembles to the checked-in .bin byte for byte;
- 8. all original native artwork and localized text resources are unchanged.
+ 7. all original native artwork and localized text resources are unchanged.
 """
 
 import hashlib
 import os
 import struct
-import subprocess
 import sys
-import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -78,13 +74,11 @@ def ranges_of_the_patch(original, patched, section_size):
 
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    nasm = next((a[7:] for a in sys.argv[1:] if a.startswith("--nasm=")), os.environ.get("NASM"))
     if len(args) != 1:
         sys.exit(__doc__)
     with open(args[0], "rb") as file:
         original = file.read()
-    with open(L.default_bin(), "rb") as file:
-        code = file.read()
+    code = L.code()
     patched, description = L.build(original, code, site=SITE)
     patched = bytes(patched)
     print(description)
@@ -210,25 +204,13 @@ def main():
                 left.append(word)
     check(6, not left, "no address of the game's old sites in the file" + (f"; LEFT: {sorted(set(left))}" if left else ""))
 
-    # 7. The source gives the .bin.
-    if nasm:
-        with tempfile.TemporaryDirectory() as folder:
-            out = os.path.join(folder, "values.bin")
-            subprocess.run([nasm, "-f", "bin", f"-DCAVE={L.SECTION_VA:#x}",
-                            os.path.join(HERE, "launcher_values_026g.asm"), "-o", out], check=True)
-            with open(out, "rb") as file:
-                assembled = file.read()
-        check(7, assembled == code, f"launcher_values_026g.asm assembles to the checked-in .bin ({len(code)} bytes)")
-    else:
-        print("skip 7. no --nasm: the .bin was not assembled again")
-
     # The page skin is separate from the native window's bitmaps and text.
     # Compare the whole resource section, including every language and all
     # normal/hover/pressed/disabled button and progress-bar images.
     resource = next(section for section in old_headers.sections(original)
                     if section[0].rstrip(b"\0") == b".rsrc")
     resource_at, resource_size = resource[3], resource[4]
-    check(8, original[resource_at:resource_at + resource_size]
+    check(7, original[resource_at:resource_at + resource_size]
           == patched[resource_at:resource_at + resource_size],
           f"all {resource_size} bytes of the native window's artwork and text resources are unchanged")
 

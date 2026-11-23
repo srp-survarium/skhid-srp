@@ -140,7 +140,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `read_order_026g.asm`, `read_order_026g.bin` | The source of patch 33 (the order of the archive reads is a strict weak ordering) and that code assembled at 0x10BCC0, the 0x1A0 bytes of `hdd_manager_sorting_predicate` it replaces, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_read_order_026g.py` | Runs the original's and patch 33's predicate, with the game's own path, string and offset helpers, and the game's own sort on made-up read queries over several archives (needs Unicorn) |
 | `rust/patches/` (`src/suicide_key.rs`, `src/suicide_key.toml`), `hooks_026g.py`, `port/equiv/suicide_key.py` | Patch 34 (the commit_suicide key kills one's own player), the Rust framework's example: the patch module and its hook TOML (a `[[hook]]` naming the site `input_builder.spot_query`), generated into the block `patches.code`; and its spec for the port-only equivalence gate. Until the framework, NASM at 0x980 of `.srp` |
-| `rust/patches/src/vostok/`, `engine_026g.tsv` + `fields_026g.tsv` + `sites_026g.tsv` -> `raw_026g.rs` (`engine_026g.py`) | The framework: `raw` (generated: a typed handle per kind with its fields, the functions typed by them, each site's typed registers), `vostok` (the safe API over those handles and the hook system), the patch modules. `docs/notes/rust_patches.md` |
+| `rust/patches/src/vostok/`, `engine_026g.tsv` + `fields_026g.tsv` + `sites_026g.tsv` -> `raw_026g.rs` (`engine_026g.py`, at every build) | The framework: `raw` (generated: a typed handle per kind with its fields, the functions typed by them, each site's typed registers), `vostok` (the safe API over those handles and the hook system), the patch modules. `docs/notes/rust_patches.md` |
 | `sites_026g.tsv` | The game sites the Rust patches hook, by name: each a VA, a kind (call/splice/...), the callee it uses and a short note. A patch names a site; the addresses live here, not in the patch (`docs/notes/rust_patches.md`, "The design principle") |
 | `spot_026g.asm`, `spot_026g.section.bin` | The source of patch 38's code (a spot's hit on a battery's body spots the battery) and that code assembled for 0x7C0 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_spot_026g.py` | Runs the original's and patch 38's input apply (the spot and its wait, the player's tick's countdown) with the game's own spottable code of players and batteries on made-up ray hits (needs Unicorn) |
@@ -221,9 +221,8 @@ release's. The "Result" row is the build of the revision named in it.
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `rust/patches/src/weapon_camo.rs`, `weapon_camo.toml` | Patch 44's part in the baker (Rust, one lohook at `bake.own_camouflage`, 0x12E124): a weapon's bake takes only the camouflage textures its patch names (the colours and the `_smap`, not the `_nmap`, a cloth's weave), never the surface's own `<diffuse>_camo...`; `check_weapon_camo_026g.py` runs the site |
 | `research_026g.asm`, `research_arena/`, `../crates/research-rule/` | Patch 53 (Research): four aligned assembly entries, the integer rules in Rust, and the cook, rule slots and UI integration in Rust |
-| `link_026g.py`, `arena_026g.lock.json` | The arena's linker (below, "The arena"): every block's C and NASM sources compiled to ELF32 objects and linked by GNU ld at `.srpx`'s VA, at every build; `--write` writes the lock (the linked arena's SHA-256, its blocks and symbols), `--check` compares. Needs gcc (`-m32`), GNU ld and NASM 2.16 (`nix develop ./srp-026g`) |
-| `engine_026g.tsv`, `engine_026g.py` | The engine-function library (below, "Calling the game's functions"): its functions, one row each, and the generator of the three files after it from those rows and the re-kit's ABI rows (`--write`, `--check`) |
-| `engine_026g.h`, `engine_026g.inc`, `engine_026g.rs`, `raw_026g.rs`, `engine_026g.asm` | Generated, not edited: the C declarations, their externs for NASM, their declarations for Rust (C's types, research_arena's; typed by the kinds' handles, the Rust patches' `raw`), and the thunks, the arena's block `engine.code` |
+| `link_026g.py` | The arena's linker (below, "The arena"): every block's C and NASM sources compiled to ELF32 objects and linked by GNU ld at `.srpx`'s VA, at every build, its generated sources written first; it prints the blocks and the arena's SHA-256 (`--symbols` every symbol's VA, `--generate` only the generated sources). Needs gcc (`-m32`), GNU ld and NASM 2.16 (`nix develop ./srp-026g`) |
+| `engine_026g.tsv`, `engine_026g.py` | The engine-function library (below, "Calling the game's functions"): its functions, one row each, and the generator of `engine_026g.h`, `.inc`, `.rs`, `.asm` and `raw_026g.rs` from those rows and the re-kit's ABI rows: written by every build, not committed (the C declarations, their externs for NASM, their declarations for Rust, the Rust patches' `raw`, and the thunks, the arena's block `engine.code`) |
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
 | `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown (none for a key pressed before they came or in their first second), and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the four entries from the game's sites and the game's own input tick, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
 | `rust/patches/src/voice.rs`, `voice.toml` | Patch 66: safe Rust voice hooks (eleven named lohooks) over Vostok, through the versioned `voice-abi` interface to Rust `skhid_voice.dll` (`../client-voice`): options, push-to-talk, mutes, radio distances, the hud's list of who talks, the Tab menu's voice mute and the options' microphone test (the shared `patches.*` blocks); `cargo test` in `rust/` checks its logic |
@@ -289,11 +288,10 @@ opcode). The link refuses, loudly, a missing tool, NASM other than 2.16
 block takes, a relocation other than R_386_32/R_386_PC32, an undefined or
 doubly defined symbol and an arena past `ARENA_LIMIT`.
 
-No prebuilt arena code is checked in. `arena_026g.lock.json` records the
-linked arena's SHA-256, its blocks and its symbols; every build (the
-self-test's, the release's: `release/build-zip` builds in the dev shell)
-links from source and stops if the bytes are not the lock's. After changing
-an arena source: `python link_026g.py --write` and commit the lock with it.
+No prebuilt arena code and no generated source is checked in: every build
+(the self-test's, the release's: `release/build-zip` builds in the dev shell)
+writes the generated sources and links from source. A release records the
+arena's SHA-256 and stops when the exe's is not the one its self-test linked.
 
 **A Rust crate as a source** (the framework: `../docs/notes/rust_patches.md`):
 a block may name a crate's `Cargo.toml` (its name, its `[lib]` path and the
@@ -317,13 +315,13 @@ the crates it links, and every file and environment variable its dep-info
 names), so a build that changes no Rust source compiles none (4 s instead of
 28 s) and a new worktree starts from the last build of any other; an output
 no build took for 30 days is deleted. The release and the self-test build
-with `SRP_ARENA_CACHE=off`: from source, as before. The rustc version is in the lock's
-`built_with`.
+with `SRP_ARENA_CACHE=off`: from source, as before. `python link_026g.py` prints the
+rustc version with the others.
 
 **Adding a block:** one `ARENA` row and its source file; `global` the labels
 a hook jumps to, `extern` what it uses of other patches; its hooks as
 (site, bytes, symbol, opcode) rows made in `build()`; each declared in
-`INSTALLS` (below); `python link_026g.py --write`. A Rust patch:
+`INSTALLS` (below). A Rust patch:
 `../docs/notes/rust_patches.md`. The arena's blocks today (`python
 link_026g.py --sizes` prints their bytes, pages and languages):
 
@@ -392,9 +390,8 @@ game's function takes it (`docs/notes/client_patch.md` 0.5).
   its C prototype. Its re-kit rows (`tools/re-kit/v026g/abi_inputs.tsv`, `abi.tsv`)
   must have every argument and the cleanup (`ret_cleanup`) and, if it
   returns something, the result; append the rows that are missing (from the
-  function's body and its callers; the re-kit's README). Then
-  `python engine_026g.py --write`, `python link_026g.py --write` and the
-  self-test. The generator refuses a
+  function's body and its callers; the re-kit's README). The next build
+  generates its declarations. The generator refuses a
   row whose locations are not the re-kit's, a parameter whose word is not in
   its location's role (two parameters swapped: the words do not fit), a
   stack slot missing, a cleanup that is no number or larger than the slots, a
@@ -3244,7 +3241,7 @@ positions against the units' shapes, which the mode config carries (`capture_zon
   Research has its first two blocks: `research.code` (the 256 bytes of `research_026g.asm`,
   four `jmp near`: research_register, research_hud, research_welcome and research_icons;
   then the Rust code and its constants) and `research.state` (`rn_state`: the cook, the hud's
-  cache; zeroed), linked from source (addresses recorded in `arena_026g.lock.json`). The next blocks are patch
+  cache; zeroed), linked from source (`python link_026g.py` prints their addresses). The next blocks are patch
   54's, the engine library's and patch 58's.
 - **The register hook**: `mov eax,ebx / call 0x1EC170` at 0x1E9B4C of the game's constructor (after
   its own client rule cooks) becomes a `call` of the register stub, which registers the cook once
@@ -6475,7 +6472,7 @@ With it, two numbers of `configs::create_binary_config_buffer` (0x358AA8, 0x358A
 Its allocator has no bound, each fitted module adds an entry to the gun's config, and six guns'
 configs were within 5 entries of what 16 KB holds.
 
-Linked (`arena_026g.lock.json`); `check_attachments_026g.py` (`tools/check attachments`) runs
+Linked; `check_attachments_026g.py` (`tools/check attachments`) runs
 every site in the build and the original. Nothing a match computes changes by the patch alone.
 ## A part of a tick moves a body at rest (patch 166, unreleased)
 The world steps to the time of each precise input inside a tick, and the character controller ran its
@@ -6534,7 +6531,7 @@ crate, which srp shares. Rust modules `technical_skills` and its siblings (`tech
   its frame: time, killer, source).
 - Bear Trap (444) at `medical.wound` (0x32A28B, order 2; the site's ESI is the hit): a leg's pool
   hit by a trap set of a skilled holder is stored as 0.
-- Toxic Smoke's halved pockets and Bear Trap's 1.5-unit traps are srp's (`KitLayout::share`) and the lobby's
+- Toxic Smoke's and Bear Trap's 1.5-unit grenades and traps are srp's (`KitLayout::share`) and the lobby's
   (`PlayerInfo.pocketUnits`); nothing of them in the exe.
 - Sharp Ears (412, `technical_sharp_ears`): at `weapon_sound.made` (order 2) an enemy's pin pull also
   plays a long-range copy of its sound (content edit technical-sharp-ears-1) through
@@ -6591,10 +6588,12 @@ Two teams, best of nine: first to five round wins. A lethal hit freezes the
 player in place, skipping normal death/ragdoll teardown. A living teammate
 within 2 metres and across a clear line of sight thaws them after 4 continuous
 seconds; a frozen body thaws by itself after 120 s (no credit). A team's last one
-fighting is on the other team's minimap and Tab map. A team wipe scores a round; after a five-second pause the native team
-spawn path resets the players. The pause and the restart play the match start's countdown
-(the warmup camera, patch 31's kits: a kit picked then is spawned at the restart), with Artifact
-Hunt's code (`round_countdown`). No artifact rescue in this first version.
+fighting is on the other team's minimap and Tab map. A team wipe scores a round; the round ends and
+the next one starts as Artifact Hunt's, by the same code (the rules' `artefact_hunt_rule::Restart`,
+the exe's `round_countdown::respawn_tick`): 3 s of play, the 1 s fade whose end respawns everyone
+through the native team spawn path, the 5 s countdown at the spawns (the match start's: the warmup
+camera, patch 31's kits, a switch a life); the match point ends the match after its 3 s. No artifact
+rescue in this first version.
 
 Mode 12, initially on Rudnya day (`freeze-tag-1.json`). The stock team score
 bars, collection progress widget and blocked-hit sound provide the feedback.
@@ -6602,16 +6601,17 @@ A frozen player's name is drawn ice blue in the player icons movie (his own
 colour back on thaw; `tools/check freeze-names`), and each game draws the
 frozen glow `fx/artifacts/human_frozen` (pack freeze-tag-glow: the Spring
 activation glow in ice blue, fainter) on his body as scene particles from the
-world's state, never in the simulation, shrinking to 15 % of its size as a
+world's state, never in the simulation, on his skeleton (his hit model and model, as
+the effects' presenter plays a living player's glow, 0x2AC290), shrinking to 15 % of its size as a
 teammate thaws him (`game_world.after_move`, order 6, and `game_world.deactivate`, order 4).
 The shared world parser owns the versioned round state, including scores,
 frozen places and progress. See [the rules and native lifecycle](../docs/notes/freeze-tag.md).
 `tools/check freeze-native` exercises the installed hooks, HUD calls and
 rollback. Frozen players reuse the native pre-match orbit and wheel zoom;
 thaw restores their previous camera. Two sites are shared with Artifact Hunt and patch 78, chained by order:
-`respawn.tick` (0x316826: in play a frozen body's death respawn is cancelled,
-between rounds and after the match what falls due is held, the restart makes
-every place due at once) and `carry.input` (0x2D86E0: a held body's input leaves
+`respawn.tick` (0x316826: a frozen or lethal body's death respawn is void,
+then Artifact Hunt's path: the countdown's kit switches, what falls due in the
+3 s and the fade held, the fade's end making every place due at once) and `carry.input` (0x2D86E0: a held body's input leaves
 through the function's `ret 8` before patch 78 sees it). An actual local match
 remains pending.
 ## Artifact Hunt, mode 13 (patch 171, unreleased)

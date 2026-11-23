@@ -14,7 +14,7 @@ import sys
 
 from localization_026g import (CATALOG, CYRILLIC, may_be_empty, FLASH_MOVIES, FLASH_PREFIX, FOREIGN_LETTERS,
                               LANGUAGES, discover, encode_strings, read_config, read_strings,
-                              read_translations, rust_table_issue)
+                              read_translations)
 from check_flash_localization_026g import audit_flash
 
 
@@ -161,7 +161,7 @@ def audit(root, required=(), reference='english'):
 
 def failed(report):
     return bool(report['missing_languages'] or report.get('unexpected_languages') or report.get('source_issues')
-                or report.get('rust_table') or any(
+                or any(
         result.get(field) for result in report['languages'].values()
         for field in ('missing', 'extra', 'empty', 'placeholders', 'markup', 'invalid_utf8',
                       'too_long', 'non_latin', 'foreign_letters', 'braces', 'key_order', 'catalog_mismatch'))
@@ -182,7 +182,6 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         report = audit_catalog(args.catalog)
-        report['rust_table'] = rust_table_issue()
         flash = args.flash_source
         if flash is None and args.catalog.resolve() == CATALOG:
             flash = Path(__file__).resolve().parents[1] / 'flash'
@@ -223,8 +222,6 @@ def main(argv=None):
             print(f'UNREGISTERED LANGUAGE: {language}')
         for issue in report.get('source_issues', []):
             print(f'CONTENT: {issue}')
-        if report['rust_table']:
-            print(f"EXE TABLE: {report['rust_table']}")
         if 'resources' in report:
             print('Compiled resources: ' + ('FAIL' if failed(report['resources']) else 'PASS'))
             if failed(report['resources']):

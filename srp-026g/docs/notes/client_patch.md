@@ -2907,24 +2907,23 @@ to a label as a two-byte short jump (`EB`): the five-byte entry tables of
 `research_026g.asm` and `artefacts_026g.asm` shrink and every entry after
 the first moves. `link_026g.py` refuses any NASM but 2.16;
 `nix develop ./srp-026g` has NASM 2.16.03 (built from its release tarball,
-`flake.nix`), Python 3, the shell's gcc 15.2.0 and GNU ld 2.46; the lock was
-written there. That gcc 15.2.0 also rebuilds main's last prebuilt Research
+`flake.nix`), Python 3, the shell's gcc 15.2.0 and GNU ld 2.46. That gcc 15.2.0 also rebuilds main's last prebuilt Research
 `.bin` byte for byte (its `.json` named gcc 15.3.0, which gives the same
 bytes). `release/build-zip` runs `make_client_026g.py` and `patch_026g.py`
 in that shell (`client_patches_python`, release/lib.sh), and
 `release/test.sh` runs the same invocation for real with nothing but nix on
 PATH.
 
-**The lock, `arena_026g.lock.json`.** No prebuilt arena code is checked in;
-the lock is: the linked arena's VA, size and SHA-256, every block's kind, VA
-and size, every global symbol's VA (the map), and the tools that wrote it.
-`python link_026g.py --write` writes it after a change of an arena source
-(its diff in the PR shows what moved); `--check` compares. `arena()`, which
-`build()` and every check script call, links and compares the bytes, blocks
-and symbols with the lock, and stops when they differ: an unexpected change
-(another compiler or NASM, a source edited without `--write`) cannot ship.
-The self-test's made-up arenas are not compared (`build(...,
-arena_blocks=...)`).
+**Nothing generated is checked in.** No prebuilt arena code, and no file a
+tool makes from the tables: `arena()`, which `build()` and every check
+script call, first writes the generated sources (`generate_sources`: the
+engine library's `engine_026g.*` and `raw_026g.rs`, the hooks'
+`hook_entries_026g.asm` and `hooks_026g.rs`, `languages_026g.rs`; ignored by
+git), then links. `python link_026g.py` prints each block's VA and size and
+the arena's SHA-256, `--symbols` every global's VA (two trees' outputs
+diffed show what moved), `--sizes` the bytes per block and patch. A release
+records the arena's SHA-256 (the `.srpx` of the exe it ships) beside the
+exe's, and stops when it is not the arena its self-test linked.
 
 ```
 section table (0x210..0x400): 12 slots
@@ -2932,7 +2931,7 @@ section table (0x210..0x400): 12 slots
   .srp .srpd .srpc .srpw                           (ours, 8..11)
   .srpx                                            (the arena, 12)
 
-.srpx (VA 0xA42D000), its first blocks (the lock records every block):
+.srpx (VA 0xA42D000), its first blocks (`link_026g.py` prints every block):
   research.code    code  0x1000  research_026g.asm + research_arena   -> 0xa42d000, 0x3874
   research.state   state 0x1000  research_arena STATE                 -> 0xa431000, 0x44
   artefacts.code   code  0x1000  artefacts_026g.asm                   -> 0xa432000, 0x440
@@ -2970,11 +2969,9 @@ check_research_026g.py prints exactly what it printed on main.
 3. hook the game with rows of (site, original bytes, symbol, opcode), made in
    `build()` with `arena_target` as Research's and the artefacts' are; declare
    each in `INSTALLS` (and any vtable or callback in `INSTALLED_VTABLES` /
-   `CALLBACKS`, 0.4), or `build()` refuses it;
-4. `python link_026g.py --write`, commit the lock with the sources.
+   `CALLBACKS`, 0.4), or `build()` refuses it.
 
-Two PRs adding blocks no longer collide on addresses; they meet only in the
-lock (whichever merges second runs `--write` again on top of the first).
+Two PRs adding blocks do not collide: nothing records an address.
 
 **The dynamic anomalies (#225), taken out again (2026-10-23).** #225's
 block `anomalies.code` (`dynamic_anomalies_026g.asm`, 0x337 bytes, after
@@ -3204,8 +3201,7 @@ each), a cleanup "0x10"; libraries made from wrong re-kit rows
 real lookup finds nothing; w<unsigned char> popping 16: the exe pops 20;
 value_exists' key in EDI: the real one reads ESI); and the built library
 checked against rows with malloc's allocator and size exchanged. The
-self-test also fails when the three files are not what the rows give
-(`--write` not run), and runs the same check on the library linked at
+self-test also runs the same check on the library linked at
 another VA (the arena with two blocks swapped, 0.3).
 
 What is caught and what is not. Caught by the self-test: a spec parameter in
@@ -4616,9 +4612,9 @@ code is (`rust/patches/src/artefact_hunt.rs`, `artefact_hunt.toml`, `src/vostok/
   carrier's record gets EAX = place x 3 and CL = 1 (the `lea` and `setnz` skipped).
 - **After the second local test**: a round's Fade and Countdown are the match start's countdown (the
   core's time state 4; `time_rule.camera_state` 0x267AE6 gives the client's camera test 2 then, in
-  the shared `vostok::round_countdown` / patch module `round_countdown`, which Freeze Tag's pause and
-  restart use too; a
-  kit picked in it is switched by `RespawnTick::switch_kit` with patch 31's two calls, counted in
+  the shared `vostok::round_countdown` / patch module `round_countdown`, which Freeze Tag's
+  rounds use too, with its respawn tick (`round_countdown::respawn_tick`, the rules' shared
+  `artefact_hunt_rule::Restart`); a kit picked in it is switched by `RespawnTick::switch_kit` with patch 31's two calls, counted in
   `m_kit_switches` for the server's supplies); `SKHID_HUNT_LOG=on` logs the carrier's decisions.
 - **After the first local test** (2026-11-21; `artefact_hunt.md` "The implementation"): the tick takes
   in the world's places whose player has a team the rule does not have him on (slot 8 comes before

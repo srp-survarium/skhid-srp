@@ -1,12 +1,17 @@
 //! Freeze Tag's deterministic rule and world format. A frozen body remains
 //! installed in the native world, at its lethal hit, until a teammate thaws it
-//! or, after [`AUTO_THAW_MS`], it thaws by itself. This state is saved after
-//! the respawn rule; there is no wall-clock state.
+//! or, after [`AUTO_THAW_MS`], it thaws by itself. A round ends and the next
+//! one starts by Artifact Hunt's restart (`artefact_hunt_rule::Restart`, the
+//! one machine of both modes). This state is saved after the respawn rule.
 
+use crate::reader::Reader;
 use crate::{MAX_PLAYERS, Place, Places, Team};
-use core::num::{NonZeroU16, NonZeroU32};
+use artefact_hunt_rule::{Lives, Restart, Spawning, Step, Time, Timing};
+use core::num::NonZeroU32;
 
-pub const INTERMISSION: NonZeroU16 = NonZeroU16::new(5000).unwrap();
+/// The restart's parts: Artifact Hunt's maps' own (3 s after the round, the
+/// 1 s fade, the 5 s countdown).
+pub const TIMING: Timing = Timing::STOCK;
 pub const WINS: u8 = 5;
 pub const PLAYERS: usize = MAX_PLAYERS;
 pub const THAW_MS: u16 = 4000;
@@ -19,7 +24,8 @@ const RECORD: usize = 7;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Player {
-    /// Never entered. A late arrival starts fighting on its first spawn.
+    /// Not seen in this round yet: a late arrival, everyone at a round's
+    /// start; he fights from his first spawn.
     Waiting,
     Fighting(Team),
     Frozen {
@@ -70,54 +76,31 @@ pub enum RoundEnd {
     Won(Team),
     Draw,
 }
+
+/// A round's restart: Freeze Tag carries nothing from the fade to the round.
+pub type RoundRestart = Restart<(), ()>;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Phase {
     Playing,
-    Between {
-        result: RoundEnd,
-        remaining: NonZeroU16,
-    },
-    Restarting,
-    Finished(Team),
+    /// The round that ended so restarts. Nobody's state changes until the
+    /// fade's end respawns everyone ([`Step::Started`]), when every player
+    /// waits for his new spawn.
+    Restart { ended: RoundEnd, restart: RoundRestart },
+    /// `winner` won the match: the time after its last round ended at `at`.
+    Finished { winner: Team, at: Time },
 }
 
 /// What a step asks of the native world.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Actions {
-    /// Between rounds, waiting for every body's new round spawn, or finished.
+    /// A round's restart or the match's end: nothing of the rule's own.
     Wait,
     /// A played step: these places' native health and actions are restored
     /// (a teammate's thaw or the auto-thaw); `thawers` completed a thaw at it
     /// (every fighting teammate within reach of a body a teammate thawed),
     /// each credited as for a kill; an auto-thaw credits nobody.
     Play { thawed: Places, thawers: Places },
-    /// Every place spawns again now through the native team spawn.
-    Restart,
-}
-
-/// What the native respawn rule's schedule (twenty times, one a place: the
-/// tick spawns a place whose time is the step's) is left to do after a step.
-/// A cancel never applies to a place entering the match (its player not in
-/// the world yet): its entry spawn always runs, in every phase, so no place
-/// of the match is ever out of the world when a world is saved or loaded.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Schedule {
-    /// In play: a frozen body's death respawn is void (the freeze replaced
-    /// the death); every other place keeps its native time, so a late
-    /// arrival's first spawn runs.
-    CancelFrozen(Places),
-    /// Between rounds and after the match: no body has a native time (a
-    /// death's respawn, the round's last freeze too): the restart spawns
-    /// everyone, the end nobody, and the hud shows no respawn countdown (the
-    /// owner, 2026-11-22: it showed the last frozen body's death respawn,
-    /// "respawn in 8 seconds"). A late arrival spawns at his entry, moves
-    /// on in the pause as everyone not frozen, and spawns again with the
-    /// round.
-    CancelAll,
-    /// The round's restart: every present place is due at this step
-    /// ([`Actions::Restart`]), and a place without a free point retries
-    /// natively 50 ms later.
-    Native,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -125,25 +108,29 @@ pub struct FreezeTag {
     players: [Player; PLAYERS],
     phase: Phase,
     score: [u8; 2],
-    /// The rounds started after the match's first: each restart spawns
-    /// everyone with the kit's load, a life of every player then (a round
-    /// replayed after a double wipe too).
-    restarts: u16,
+    /// The rounds started after the match's first (a round replayed after a
+    /// double wipe too) and the kit switches in their countdowns.
+    lives: Lives,
 }
+
+/// The bytes before the player records: version, phase, scores, the ended
+/// round, a time (u32), the round starts (u16), each place's kit switches (u16).
+const HEAD: usize = 9 + 2 + 2 * PLAYERS;
+const _: () = assert!(RECORD == 1 + 2 + 4);
 
 impl FreezeTag {
     pub const EMPTY: Self = Self {
         players: [Player::Waiting; PLAYERS],
         phase: Phase::Playing,
         score: [0; 2],
-        restarts: 0,
+        lives: Lives::NONE,
     };
-    /// Version, phase, scores, countdown (u16), round result, twenty player
-    /// records (tag, thaw progress u16, auto-thaw time left u32), then the
-    /// restarts (u16).
-    pub const LEN: usize = 7 + PLAYERS * RECORD + 2;
-    /// 2: each frozen player's auto-thaw time.
-    const VERSION: u8 = 2;
+    /// [`HEAD`], then twenty player records (tag, thaw progress u16,
+    /// auto-thaw time left u32).
+    pub const LEN: usize = HEAD + PLAYERS * RECORD;
+    /// 3: Artifact Hunt's restart (the phase's deadline, the countdown's kit
+    /// switches); 2 (revision 71: a 5 s pause, then the restart) is not read.
+    const VERSION: u8 = 3;
     pub fn player(&self, place: Place) -> Player {
         // A place is below PLAYERS; the crate reaches no panic.
         self.players.get(place.index()).copied().unwrap_or(Player::Waiting)
@@ -153,40 +140,65 @@ impl FreezeTag {
     }
     pub fn winner(&self) -> Option<Team> {
         match self.phase {
-            Phase::Finished(team) => Some(team),
+            Phase::Finished { winner, .. } => Some(winner),
             _ => None,
         }
     }
     pub fn complete(&self) -> bool {
         self.winner().is_some()
     }
-    /// Whether the next round is about to start: the pause and the restart,
-    /// which the game plays as the match start's countdown (the warmup
-    /// camera, the kits), as Artifact Hunt's fade and countdown.
-    pub fn round_countdown(&self) -> bool {
-        matches!(self.phase, Phase::Between { .. } | Phase::Restarting)
-    }
-    /// What the respawn rule's schedule is left to do in this phase.
-    pub fn schedule(&self) -> Schedule {
+    /// When the match ended: the end of the time after its last round.
+    pub fn finished_at(&self) -> Option<Time> {
         match self.phase {
-            Phase::Playing => Schedule::CancelFrozen(
-                Place::all()
-                    .zip(&self.players)
-                    .filter(|(_, player)| matches!(player, Player::Frozen { .. }))
-                    .fold(Places::EMPTY, |frozen, (place, _)| frozen.with(place)),
-            ),
-            Phase::Between { .. } | Phase::Finished(_) => Schedule::CancelAll,
-            Phase::Restarting => Schedule::Native,
+            Phase::Finished { at, .. } => Some(at),
+            _ => None,
         }
+    }
+    fn restart(&self) -> Option<RoundRestart> {
+        match self.phase {
+            Phase::Restart { restart, .. } => Some(restart),
+            _ => None,
+        }
+    }
+    /// Whether the game plays the match start's countdown ([`Restart::round_countdown`]).
+    pub fn round_countdown(&self) -> bool {
+        self.restart().is_some_and(|restart| restart.round_countdown())
+    }
+    /// What the respawn rule does at `now`, before this step's rule step ([`Restart::spawning`]).
+    pub fn spawning(&self, now: Time) -> Spawning {
+        self.restart().map_or(Spawning::Native, |restart| restart.spawning(now))
+    }
+    /// The places whose native respawn is void: a freeze replaces the death,
+    /// so only a round's start spawns a frozen or lethal body (its death
+    /// queued a respawn, which the hud would count down: the owner,
+    /// 2026-11-22, "respawn in 8 seconds"). An entering place's spawn is
+    /// never voided (the patch's `RespawnTick::void`).
+    pub fn voided(&self, bodies: &[Body; PLAYERS]) -> Places {
+        Place::all()
+            .zip(self.players.iter().zip(bodies))
+            .filter(|(_, (player, body))| {
+                matches!(player, Player::Frozen { .. })
+                    || matches!(body, Body::Present { condition: Condition::Lethal, .. })
+            })
+            .fold(Places::EMPTY, |voided, (place, _)| voided.with(place))
+    }
+    /// Patch 31 switched `place` into its chosen kit where it stands.
+    pub fn kit_switched(&mut self, place: Place) {
+        if let Some(restart) = self.restart() {
+            self.lives.kit_switched(&restart, place.index());
+        }
+    }
+    pub fn lives(&self) -> &Lives {
+        &self.lives
     }
     /// Round wins, the first team's first.
     pub fn points(&self) -> [u16; 2] {
         self.score.map(u16::from)
     }
-    /// How many rounds started after the match's first ([`Actions::Restart`]):
-    /// every one a new life of each player in the match then.
+    /// How many rounds started after the match's first: every one a new life
+    /// of each player in the match then.
     pub fn round_starts(&self) -> u16 {
-        self.restarts
+        self.lives.round_starts()
     }
     pub fn points_of(&self, team: Team) -> u16 {
         let [first, second] = self.score;
@@ -202,10 +214,16 @@ impl FreezeTag {
             Team::Second => second,
         }
     }
+    /// Whether nothing of the places from `places` on is in the state.
     pub fn fits(&self, places: usize) -> bool {
         self.players
             .get(places..)
             .is_some_and(|rest| rest.iter().all(|p| *p == Player::Waiting))
+            && self
+                .lives
+                .every_kit_switch()
+                .get(places..)
+                .is_some_and(|rest| rest.iter().all(|count| *count == 0))
     }
     /// Whether `place` is his team's last one fighting in a round in play,
     /// with two teammates of his frozen at least: the other team sees him on
@@ -231,48 +249,44 @@ impl FreezeTag {
             .count()
     }
 
-    /// One simulation step. All rescues use the same pre-thaw population:
-    /// a player revived this tick cannot revive another until the next.
-    /// `visible[a][b]` is the world's obstruction test between the bodies.
+    /// One simulation step at `now`, `elapsed` after the last. All rescues
+    /// use the same pre-thaw population: a player revived this tick cannot
+    /// revive another until the next. `visible[a][b]` is the world's
+    /// obstruction test between the bodies.
     pub fn step(
         &mut self,
+        now: Time,
         bodies: &[Body; PLAYERS],
         visible: &[[bool; PLAYERS]; PLAYERS],
         elapsed: u16,
     ) -> Actions {
         match self.phase {
-            Phase::Finished(_) => return Actions::Wait,
-            Phase::Between { result, remaining } => {
-                return match NonZeroU16::new(remaining.get().saturating_sub(elapsed)) {
-                    Some(remaining) => {
-                        self.phase = Phase::Between { result, remaining };
-                        Actions::Wait
-                    }
-                    None => {
-                        self.phase = Phase::Restarting;
-                        self.restarts = self.restarts.saturating_add(1);
-                        Actions::Restart
-                    }
-                };
-            }
-            Phase::Restarting => {
-                // Native respawn may retry a crowded spawn point. Keep the
-                // round closed until every present body has actually spawned
-                // (the hold keeps each one lethal until its new spawn).
-                if bodies.iter().any(|b| {
-                    matches!(
-                        b,
-                        Body::Present {
-                            condition: Condition::Lethal,
-                            ..
-                        }
-                    )
-                }) {
+            Phase::Finished { .. } => return Actions::Wait,
+            Phase::Restart { ended, restart } => match restart.step(now, TIMING, &mut self.lives, |()| ()) {
+                Step::Stays(restart) => {
+                    self.phase = Phase::Restart { ended, restart };
                     return Actions::Wait;
                 }
-                self.players = [Player::Waiting; PLAYERS];
-                self.phase = Phase::Playing;
-            }
+                Step::Decided { .. } => {
+                    self.phase = match ended {
+                        RoundEnd::Won(winner) if self.points_of(winner) == u16::from(WINS) => {
+                            Phase::Finished { winner, at: now }
+                        }
+                        _ => Phase::Restart {
+                            ended,
+                            restart: Restart::fade(now, ()),
+                        },
+                    };
+                    return Actions::Wait;
+                }
+                Step::Started(restart) => {
+                    // Everyone respawns at this step: the new round's players.
+                    self.players = [Player::Waiting; PLAYERS];
+                    self.phase = Phase::Restart { ended, restart };
+                    return Actions::Wait;
+                }
+                Step::Next(()) => self.phase = Phase::Playing,
+            },
             Phase::Playing => {}
         }
         for (player, body) in self.players.iter_mut().zip(bodies) {
@@ -351,17 +365,14 @@ impl FreezeTag {
                 }
             }
         }
-        if let Some(end) = self.result() {
-            if let RoundEnd::Won(team) = end {
+        if let Some(ended) = self.result() {
+            if let RoundEnd::Won(team) = ended {
                 let score = self.score_mut(team);
                 *score = score.saturating_add(1);
             }
-            self.phase = match end {
-                RoundEnd::Won(team) if self.points_of(team) == u16::from(WINS) => Phase::Finished(team),
-                _ => Phase::Between {
-                    result: end,
-                    remaining: INTERMISSION,
-                },
+            self.phase = Phase::Restart {
+                ended,
+                restart: Restart::decided(now, TIMING),
             };
         }
         Actions::Play { thawed, thawers }
@@ -388,20 +399,22 @@ impl FreezeTag {
         }
     }
 
-    /// Whether the restarts fit the rounds: every round that ended (a win in
-    /// the scores, or a draw, which scores nothing) was restarted but the one
-    /// between rounds or the match's last; so the draws they leave are none
-    /// fewer than zero, and one at least between rounds after a draw.
-    fn restarts_fit(&self) -> bool {
+    /// Whether the round starts fit the rounds: every round that ended (a win
+    /// in the scores, or a draw, which scores nothing) was restarted but the
+    /// one whose fade has not ended and the match's last; so the draws they
+    /// leave are none fewer than zero, and one at least in a draw's restart.
+    fn lives_fit(&self) -> bool {
         let [first, second] = self.score;
         let wins = u16::from(first).saturating_add(u16::from(second));
         let (pending, draw_now) = match self.phase {
             Phase::Playing => (0, false),
-            Phase::Restarting => return self.restarts > 0 && self.restarts >= wins,
-            Phase::Between { result, .. } => (1, result == RoundEnd::Draw),
-            Phase::Finished(_) => (1, false),
+            Phase::Restart { ended, restart } => (
+                u16::from(!matches!(restart, Restart::Countdown { .. })),
+                ended == RoundEnd::Draw,
+            ),
+            Phase::Finished { .. } => (1, false),
         };
-        let Some(ended) = self.restarts.checked_add(pending) else { return false };
+        let Some(ended) = self.lives.round_starts().checked_add(pending) else { return false };
         match ended.checked_sub(wins) {
             Some(draws) => !draw_now || draws > 0,
             None => false,
@@ -409,79 +422,115 @@ impl FreezeTag {
     }
 
     pub fn bytes(&self) -> [u8; Self::LEN] {
-        let mut bytes = [0; Self::LEN];
-        let [version, phase, zero, one, low, high, result, slots @ .., restarts_low, restarts_high] = &mut bytes;
-        [*restarts_low, *restarts_high] = self.restarts.to_le_bytes();
-        *version = Self::VERSION;
-        [*zero, *one] = self.score;
         let team = |team| match team {
             Team::First => 1,
             Team::Second => 2,
         };
-        *phase = match self.phase {
-            Phase::Playing => 0,
-            Phase::Between {
-                result: end,
-                remaining,
-            } => {
-                [*low, *high] = remaining.get().to_le_bytes();
-                *result = match end {
+        let (phase, ended, time) = match self.phase {
+            Phase::Playing => (0, 0, 0),
+            Phase::Restart { ended, restart } => (
+                match restart {
+                    Restart::Decided { .. } => 1,
+                    Restart::Fade { .. } => 2,
+                    Restart::Countdown { .. } => 3,
+                },
+                match ended {
                     RoundEnd::Won(winner) => team(winner),
                     RoundEnd::Draw => 3,
-                };
-                1
-            }
-            Phase::Restarting => 2,
-            Phase::Finished(winner) => {
-                *result = team(winner);
-                3
-            }
+                },
+                restart.until().ms(),
+            ),
+            Phase::Finished { winner, at } => (4, team(winner), at.ms()),
         };
-        for (player, out) in self.players.iter().zip(slots.as_chunks_mut::<RECORD>().0) {
+        // Each field into its own place of the layout `read` takes: a field of the wrong width
+        // does not compile.
+        let mut bytes = [0; Self::LEN];
+        let [version, phase_at, zero, one, ended_at, t0, t1, t2, t3, s0, s1, rest @ ..] = &mut bytes;
+        [*version, *phase_at, *ended_at] = [Self::VERSION, phase, ended];
+        [*zero, *one] = self.score;
+        [*t0, *t1, *t2, *t3] = time.to_le_bytes();
+        [*s0, *s1] = self.lives.round_starts().to_le_bytes();
+        let (kits, records) = rest.split_at_mut(2 * PLAYERS);
+        for (out, count) in kits.as_chunks_mut::<2>().0.iter_mut().zip(self.lives.every_kit_switch()) {
+            *out = count.to_le_bytes();
+        }
+        for (out, player) in records.as_chunks_mut::<RECORD>().0.iter_mut().zip(&self.players) {
             let (tag, progress, thaws_in) = match *player {
+                // The tags `read` takes: 0 waiting, 1/2 fighting, 3/4 frozen, by team.
                 Player::Waiting => (0, 0, 0),
-                Player::Fighting(side) => (team(side), 0, 0),
-                Player::Frozen { team: side, progress, thaws_in } => (team(side) + 2, progress.0, thaws_in.get()),
+                Player::Fighting(Team::First) => (1, 0, 0),
+                Player::Fighting(Team::Second) => (2, 0, 0),
+                Player::Frozen { team: Team::First, progress, thaws_in } => (3, progress.0, thaws_in.get()),
+                Player::Frozen { team: Team::Second, progress, thaws_in } => (4, progress.0, thaws_in.get()),
             };
             let [p0, p1] = progress.to_le_bytes();
-            let [t0, t1, t2, t3] = thaws_in.to_le_bytes();
-            *out = [tag, p0, p1, t0, t1, t2, t3];
+            let [h0, h1, h2, h3] = thaws_in.to_le_bytes();
+            *out = [tag, p0, p1, h0, h1, h2, h3];
         }
         bytes
     }
     pub fn read(bytes: &[u8]) -> Option<Self> {
-        let bytes: &[u8; Self::LEN] = bytes.try_into().ok()?;
-        let [version, phase, zero, one, low, high, result, slots @ .., restarts_low, restarts_high] = bytes;
-        if *version != Self::VERSION {
+        if bytes.len() != Self::LEN {
             return None;
         }
+        let mut input = Reader::new(bytes, 0);
+        if input.u8().ok()? != Self::VERSION {
+            return None;
+        }
+        let phase = input.u8().ok()?;
+        let score = [input.u8().ok()?, input.u8().ok()?];
+        let [zero, one] = score;
+        if zero > WINS || one > WINS || (zero == WINS && one == WINS) {
+            return None;
+        }
+        let ended = input.u8().ok()?;
+        let time = Time::from_ms(input.u32().ok()?);
+        let round_starts = input.u16().ok()?;
+        let mut kit_switches = [0; PLAYERS];
+        for count in &mut kit_switches {
+            *count = input.u16().ok()?;
+        }
+        let winner = |team| match team {
+            1 => Some(Team::First),
+            2 => Some(Team::Second),
+            _ => None,
+        };
         let mut state = Self::EMPTY;
-        if *zero > WINS || *one > WINS || (*zero == WINS && *one == WINS) {
-            return None;
-        }
-        state.score = [*zero, *one];
-        let remaining = u16::from_le_bytes([*low, *high]);
-        state.phase = match (*phase, remaining, *result) {
+        state.score = score;
+        state.lives = Lives::new(round_starts, kit_switches);
+        state.phase = match (phase, ended, time.ms()) {
             (0, 0, 0) => Phase::Playing,
-            (1, n, r @ 1..=3) if n <= INTERMISSION.get() => Phase::Between {
-                remaining: NonZeroU16::new(n)?,
-                result: match r {
-                    1 => RoundEnd::Won(Team::First),
-                    2 => RoundEnd::Won(Team::Second),
-                    _ => RoundEnd::Draw,
+            (1..=3, 1..=3, _) => Phase::Restart {
+                ended: winner(ended).map_or(RoundEnd::Draw, RoundEnd::Won),
+                restart: match phase {
+                    1 => Restart::Decided { until: time },
+                    2 => Restart::Fade { until: time, next: () },
+                    _ => Restart::Countdown { until: time, next: () },
                 },
             },
-            (2, 0, 0) => Phase::Restarting,
-            (3, 0, 1) if *zero == WINS => Phase::Finished(Team::First),
-            (3, 0, 2) if *one == WINS => Phase::Finished(Team::Second),
+            (4, _, _) => Phase::Finished {
+                winner: winner(ended)?,
+                at: time,
+            },
             _ => return None,
         };
-        if !state.complete() && (*zero == WINS || *one == WINS) {
+        // A team at the goal: its last round's 3 s, or the match over.
+        let at_goal = |team| state.points_of(team) == u16::from(WINS);
+        let goal_fits = match state.phase {
+            Phase::Finished { winner, .. } => at_goal(winner),
+            Phase::Restart {
+                ended: RoundEnd::Won(team),
+                restart: Restart::Decided { .. },
+            } => !at_goal(team.other()),
+            _ => !at_goal(Team::First) && !at_goal(Team::Second),
+        };
+        if !goal_fits {
             return None;
         }
-        for (player, &[tag, p0, p1, t0, t1, t2, t3]) in state.players.iter_mut().zip(slots.as_chunks::<RECORD>().0) {
-            let progress = u16::from_le_bytes([p0, p1]);
-            let thaws_in = u32::from_le_bytes([t0, t1, t2, t3]);
+        for player in state.players.iter_mut() {
+            let tag = input.u8().ok()?;
+            let progress = input.u16().ok()?;
+            let thaws_in = input.u32().ok()?;
             let frozen = |team| {
                 Some(Player::Frozen {
                     team,
@@ -498,21 +547,27 @@ impl FreezeTag {
                 _ => return None,
             };
         }
+        // Nobody's state changes from the round's end to the fade's end,
+        // when everyone waits for his new spawn.
         let valid = match state.phase {
             Phase::Playing => state.result().is_none(),
-            Phase::Between {
-                result: RoundEnd::Won(team),
+            Phase::Restart {
+                restart: Restart::Countdown { .. },
+                ..
+            } => state.players.iter().all(|p| *p == Player::Waiting),
+            Phase::Restart {
+                ended: RoundEnd::Won(team),
                 ..
             }
-            | Phase::Finished(team) => state.result() == Some(RoundEnd::Won(team)) && state.points_of(team) > 0,
-            Phase::Between {
-                result: RoundEnd::Draw,
+            | Phase::Finished { winner: team, .. } => {
+                state.result() == Some(RoundEnd::Won(team)) && state.points_of(team) > 0
+            }
+            Phase::Restart {
+                ended: RoundEnd::Draw,
                 ..
             } => state.result() == Some(RoundEnd::Draw),
-            Phase::Restarting => state.result().is_some(),
         };
-        state.restarts = u16::from_le_bytes([*restarts_low, *restarts_high]);
-        (valid && state.restarts_fit()).then_some(state)
+        (valid && state.lives_fit()).then_some(state)
     }
 }
 
@@ -530,6 +585,9 @@ mod tests {
     }
     const VISIBLE: [[bool; PLAYERS]; PLAYERS] = [[true; PLAYERS]; PLAYERS];
     const BLIND: [[bool; PLAYERS]; PLAYERS] = [[false; PLAYERS]; PLAYERS];
+    const DECIDED: u16 = 3000;
+    const FADE: u16 = 1000;
+    const COUNTDOWN: u16 = 5000;
     fn body(team: Team, x: f32, condition: Condition) -> Body {
         Body::Present {
             team,
@@ -544,163 +602,179 @@ mod tests {
         b[2] = body(Team::Second, 1.0, Condition::Fighting);
         b
     }
+    /// The rule and the world's time.
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    struct Game {
+        s: FreezeTag,
+        now: u32,
+    }
+    impl Game {
+        fn new() -> Self {
+            Self { s: FreezeTag::EMPTY, now: 100_000 }
+        }
+        fn step(&mut self, bodies: &[Body; PLAYERS], visible: &[[bool; PLAYERS]; PLAYERS], elapsed: u16) -> Actions {
+            self.now += u32::from(elapsed);
+            self.s.step(Time::from_ms(self.now), bodies, visible, elapsed)
+        }
+        /// Steps of 50 ms for `ms`.
+        fn run(&mut self, bodies: &[Body; PLAYERS], ms: u16) {
+            for _ in 0..ms / 50 {
+                self.step(bodies, &VISIBLE, 50);
+            }
+        }
+        fn read_back(&self) -> FreezeTag {
+            FreezeTag::read(&self.s.bytes()).unwrap()
+        }
+    }
     #[test]
     fn proximity_requires_the_continuous_thaw_time_and_restores_after_rollback() {
         let b = match_bodies();
-        let mut s = FreezeTag::EMPTY;
-        assert_eq!(thawed(s.step(&b, &VISIBLE, THAW_MS - 50)), 0);
-        let saved = s.bytes();
-        assert_eq!(thawed(s.step(&b, &VISIBLE, 50)), 1);
-        assert_eq!(s.player(place(0)), Player::Fighting(Team::First));
-        s = FreezeTag::read(&saved).unwrap();
+        let mut g = Game::new();
+        assert_eq!(thawed(g.step(&b, &VISIBLE, THAW_MS - 50)), 0);
+        let saved = g;
+        assert_eq!(thawed(g.step(&b, &VISIBLE, 50)), 1);
+        assert_eq!(g.s.player(place(0)), Player::Fighting(Team::First));
+        g = Game { s: saved.read_back(), ..saved };
         let mut far = b;
         far[1] = body(Team::First, RADIUS + 0.01, Condition::Fighting);
-        assert_eq!(thawed(s.step(&far, &VISIBLE, 50)), 0);
-        assert_eq!(thawed(s.step(&b, &VISIBLE, THAW_MS - 50)), 0);
-        assert_eq!(thawed(s.step(&b, &VISIBLE, 50)), 1);
+        assert_eq!(thawed(g.step(&far, &VISIBLE, 50)), 0);
+        assert_eq!(thawed(g.step(&b, &VISIBLE, THAW_MS - 50)), 0);
+        assert_eq!(thawed(g.step(&b, &VISIBLE, 50)), 1);
     }
     #[test]
     fn enemies_frozen_helpers_and_walls_do_not_thaw() {
         let mut b = match_bodies();
         b[3] = body(Team::First, 20.0, Condition::Fighting);
-        let mut s = FreezeTag::EMPTY;
-        assert_eq!(thawed(s.step(&b, &[[false; PLAYERS]; PLAYERS], THAW_MS)), 0);
+        let mut g = Game::new();
+        assert_eq!(thawed(g.step(&b, &BLIND, THAW_MS)), 0);
         b[1] = body(Team::First, 1.0, Condition::Lethal);
-        assert_eq!(thawed(s.step(&b, &VISIBLE, THAW_MS)), 0);
-        assert!(!s.complete());
+        assert_eq!(thawed(g.step(&b, &VISIBLE, THAW_MS)), 0);
+        assert!(!g.s.complete());
     }
     #[test]
     fn team_wipe_is_terminal_simultaneous_wipe_and_a_team_alone_draw() {
         let mut b = match_bodies();
-        let mut s = FreezeTag::EMPTY;
-        s.step(&b, &VISIBLE, 50);
+        let mut g = Game::new();
+        g.step(&b, &VISIBLE, 50);
         b[1] = body(Team::First, 3.0, Condition::Lethal);
-        s.step(&b, &VISIBLE, 50);
+        g.step(&b, &VISIBLE, 50);
         assert!(matches!(
-            s.phase(),
-            Phase::Between {
-                result: RoundEnd::Won(Team::Second),
-                ..
+            g.s.phase(),
+            Phase::Restart {
+                ended: RoundEnd::Won(Team::Second),
+                restart: Restart::Decided { .. },
             }
         ));
-        assert_eq!(s.points(), [0, 1]);
-        assert_eq!(s.step(&match_bodies(), &VISIBLE, 3000), Actions::Wait);
+        assert_eq!(g.s.points(), [0, 1]);
+        assert_eq!(g.step(&match_bodies(), &VISIBLE, 3000), Actions::Wait);
         b[2] = body(Team::Second, 1.0, Condition::Lethal);
-        let mut s = FreezeTag::EMPTY;
-        s.step(&b, &VISIBLE, 50);
-        assert!(matches!(
-            s.phase(),
-            Phase::Between {
-                result: RoundEnd::Draw,
-                ..
-            }
-        ));
+        let mut g = Game::new();
+        g.step(&b, &VISIBLE, 50);
+        assert!(matches!(g.s.phase(), Phase::Restart { ended: RoundEnd::Draw, .. }));
         // A team alone (1 v 0): its wipe is a draw, replayed, no point.
         b[2] = Body::Absent;
-        let mut s = FreezeTag::EMPTY;
-        s.step(&b, &VISIBLE, 50);
-        assert!(matches!(s.phase(), Phase::Between { result: RoundEnd::Draw, .. }));
-        assert_eq!(s.points(), [0, 0]);
-        assert_eq!(FreezeTag::read(&s.bytes()), Some(s));
-        assert_eq!(s.step(&b, &VISIBLE, INTERMISSION.get()), Actions::Restart);
+        let mut g = Game::new();
+        g.step(&b, &VISIBLE, 50);
+        assert!(matches!(g.s.phase(), Phase::Restart { ended: RoundEnd::Draw, .. }));
+        assert_eq!(g.s.points(), [0, 0]);
+        assert_eq!(g.read_back(), g.s);
         // Nobody at all: nothing ends.
-        let mut s = FreezeTag::EMPTY;
-        s.step(&[Body::Absent; PLAYERS], &VISIBLE, 50);
-        assert_eq!(s.phase(), Phase::Playing);
+        let mut g = Game::new();
+        g.step(&[Body::Absent; PLAYERS], &VISIBLE, 50);
+        assert_eq!(g.s.phase(), Phase::Playing);
     }
+    /// Every field non-zero and of its own value: `read(bytes())` gives the state back, and each
+    /// field is at its place in the layout (since #2507 the writer had moved every field after
+    /// the first a byte on per field before it, and only the round trips of whole states showed it).
+    #[test]
+    fn every_field_is_written_at_its_place() {
+        let mut players = [Player::Waiting; PLAYERS];
+        for (n, player) in players.iter_mut().enumerate() {
+            let n16 = u16::try_from(n).unwrap();
+            *player = match n {
+                0..=9 => Player::Frozen {
+                    team: Team::Second,
+                    progress: Progress(100 + n16),
+                    thaws_in: NonZeroU32::new(1000 + 7 * u32::from(n16)).unwrap(),
+                },
+                10..=17 => Player::Frozen {
+                    team: Team::First,
+                    progress: Progress(200 + n16),
+                    thaws_in: NonZeroU32::new(5000 + 11 * u32::from(n16)).unwrap(),
+                },
+                18 => Player::Fighting(Team::First),
+                _ => Player::Waiting,
+            };
+        }
+        let kit_switches: [u16; PLAYERS] = core::array::from_fn(|n| 0x1001 + 0x0101 * u16::try_from(n).unwrap());
+        let state = FreezeTag {
+            players,
+            phase: Phase::Restart {
+                ended: RoundEnd::Won(Team::First),
+                restart: Restart::Fade { until: Time::from_ms(0x0A0B_0C0D), next: () },
+            },
+            score: [3, 2],
+            lives: Lives::new(0x0307, kit_switches),
+        };
+        let bytes = state.bytes();
+        assert_eq!(FreezeTag::read(&bytes), Some(state));
+        // The head: version, phase (the fade), the scores, the ended round (a win of the first
+        // team), the fade's end, the round starts, each place's kit switches.
+        assert_eq!(bytes[..11], [3, 2, 3, 2, 1, 0x0D, 0x0C, 0x0B, 0x0A, 0x07, 0x03]);
+        assert_eq!(bytes[11..13], [0x01, 0x10]);
+        assert_eq!(bytes[HEAD - 2..HEAD], kit_switches[PLAYERS - 1].to_le_bytes());
+        // The records: tag, progress, thaws_in, from HEAD.
+        let record = |n: usize| &bytes[HEAD + n * RECORD..HEAD + (n + 1) * RECORD];
+        assert_eq!(record(0), [4, 100, 0, 0xE8, 0x03, 0, 0]);
+        assert_eq!(record(17), [3, 217, 0, 0x43, 0x14, 0, 0]);
+        assert_eq!(record(18), [1, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(record(19), [0; RECORD]);
+        assert_eq!(HEAD + PLAYERS * RECORD, FreezeTag::LEN);
+    }
+
     #[test]
     fn wire_domains_and_roster_are_checked() {
-        let mut s = FreezeTag::EMPTY;
-        s.step(&match_bodies(), &VISIBLE, 1500);
+        let mut g = Game::new();
+        g.step(&match_bodies(), &VISIBLE, 1500);
+        let s = g.s;
         assert_eq!(FreezeTag::read(&s.bytes()), Some(s));
         assert!(s.fits(3));
         assert!(!s.fits(2));
+        let record = |n: usize| HEAD + n * RECORD;
         let mut bytes = s.bytes();
-        bytes[8..10].copy_from_slice(&THAW_MS.to_le_bytes());
+        bytes[record(0) + 1..record(0) + 3].copy_from_slice(&THAW_MS.to_le_bytes());
         assert!(FreezeTag::read(&bytes).is_none());
         bytes = s.bytes();
-        bytes[7] = 5;
+        bytes[record(0)] = 5;
         assert!(FreezeTag::read(&bytes).is_none());
         bytes = s.bytes();
-        bytes[1] = 4;
+        bytes[1] = 5;
         assert!(FreezeTag::read(&bytes).is_none());
+        // Revision 71's version 2 is not read.
+        bytes = s.bytes();
+        bytes[0] = 2;
+        assert!(FreezeTag::read(&bytes).is_none());
+        // Playing has no time.
+        bytes = s.bytes();
+        bytes[5] = 1;
+        assert!(FreezeTag::read(&bytes).is_none());
+        // A kit switch past the match's places does not fit.
+        bytes = s.bytes();
+        bytes[11 + 2 * 3] = 1;
+        assert!(FreezeTag::read(&bytes).is_some_and(|s| s.fits(4) && !s.fits(3)));
         // The auto-thaw time: 1 ms to AUTO_THAW_MS, a frozen record's only.
         let thaws_in = |bytes: &mut [u8; FreezeTag::LEN], at: usize, ms: u32| {
             bytes[at + 3..at + 7].copy_from_slice(&ms.to_le_bytes());
         };
         for (ms, ok) in [(1, true), (AUTO_THAW_MS.get(), true), (0, false), (AUTO_THAW_MS.get() + 1, false)] {
             let mut bytes = s.bytes();
-            thaws_in(&mut bytes, 7, ms);
+            thaws_in(&mut bytes, record(0), ms);
             assert_eq!(FreezeTag::read(&bytes).is_some(), ok, "{ms}");
         }
         let mut fighting = s.bytes();
-        thaws_in(&mut fighting, 7 + RECORD, 1);
+        thaws_in(&mut fighting, record(1), 1);
         assert!(FreezeTag::read(&fighting).is_none());
         assert!(FreezeTag::read(&bytes[..bytes.len() - 1]).is_none());
-    }
-
-    #[test]
-    fn best_of_nine_restores_between_rounds_and_finishes_at_five() {
-        use Team::{First, Second};
-        for winners in [[First; WINS as usize].as_slice(), &[First, Second, Second, First, Second, First, First, Second, Second]] {
-            let mut s = FreezeTag::EMPTY;
-            for (round, &winner) in winners.iter().enumerate() {
-                let mut bodies = [Body::Absent; PLAYERS];
-                bodies[0] = body(Team::First, 0.0, Condition::Fighting);
-                bodies[1] = body(Team::Second, 10.0, Condition::Fighting);
-                s.step(&bodies, &VISIBLE, 50);
-                bodies[1 - winner.index()] = body(
-                    if winner == Team::First {
-                        Team::Second
-                    } else {
-                        Team::First
-                    },
-                    10.0,
-                    Condition::Lethal,
-                );
-                s.step(&bodies, &VISIBLE, 50);
-                assert_eq!(s.points().iter().sum::<u16>(), (round + 1) as u16);
-                assert_eq!(FreezeTag::read(&s.bytes()), Some(s));
-                if round + 1 == winners.len() {
-                    assert_eq!(s.winner(), Some(winner));
-                    let saved = s;
-                    assert_eq!(s.step(&bodies, &VISIBLE, 6000), Actions::Wait);
-                    assert_eq!(s, saved);
-                } else {
-                    assert!(!s.complete());
-                    assert_eq!(s.step(&bodies, &VISIBLE, 4950), Actions::Wait);
-                    s = FreezeTag::read(&s.bytes()).unwrap();
-                    assert_eq!(s.step(&bodies, &VISIBLE, 50), Actions::Restart);
-                    assert_eq!(FreezeTag::read(&s.bytes()), Some(s));
-                    // A delayed native spawn keeps the round closed; it
-                    // cannot award another win for the same frozen body.
-                    assert_eq!(s.step(&bodies, &VISIBLE, 50), Actions::Wait);
-                    assert_eq!(s.phase(), Phase::Restarting);
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn the_schedule_cancels_frozen_in_play_cancels_all_between_and_runs_the_restart() {
-        let mut bodies = match_bodies();
-        let mut s = FreezeTag::EMPTY;
-        assert_eq!(s.schedule(), Schedule::CancelFrozen(Places::EMPTY));
-        s.step(&bodies, &[[false; PLAYERS]; PLAYERS], 50);
-        assert_eq!(s.schedule(), Schedule::CancelFrozen(Places::EMPTY.with(place(0))));
-        bodies[1] = body(Team::First, 3.0, Condition::Lethal);
-        s.step(&bodies, &VISIBLE, 50);
-        assert_eq!(s.schedule(), Schedule::CancelAll);
-        assert_eq!(s.step(&bodies, &VISIBLE, INTERMISSION.get()), Actions::Restart);
-        assert_eq!(s.schedule(), Schedule::Native);
-        for b in bodies.iter_mut().take(3) {
-            if let Body::Present { condition, .. } = b {
-                *condition = Condition::Fighting;
-            }
-        }
-        s.step(&bodies, &VISIBLE, 50);
-        assert_eq!(s.phase(), Phase::Playing);
-        assert_eq!(s.schedule(), Schedule::CancelFrozen(Places::EMPTY));
     }
 
     /// Fighting bodies of both teams, team 0 at x 0 and team 1 at x 10.
@@ -711,133 +785,245 @@ mod tests {
         b
     }
     /// One round played to its end (`frozen` the places frozen at it) and,
-    /// unless it ends the match, restarted and reopened.
-    fn round(s: &mut FreezeTag, frozen: &[usize]) {
+    /// unless it ends the match, restarted and opened.
+    fn round(g: &mut Game, frozen: &[usize]) {
         let mut b = fighting();
-        s.step(&b, &VISIBLE, 50);
+        g.step(&b, &VISIBLE, 50);
         for &i in frozen {
             if let Body::Present { condition, .. } = &mut b[i] {
                 *condition = Condition::Lethal;
             }
         }
-        s.step(&b, &VISIBLE, 50);
-        if s.complete() {
+        g.step(&b, &VISIBLE, 50);
+        assert_eq!(g.read_back(), g.s);
+        g.run(&b, DECIDED + FADE);
+        if g.s.complete() {
             return;
         }
-        assert_eq!(FreezeTag::read(&s.bytes()), Some(*s));
-        assert_eq!(s.step(&b, &VISIBLE, INTERMISSION.get()), Actions::Restart);
-        assert_eq!(FreezeTag::read(&s.bytes()), Some(*s));
-        s.step(&fighting(), &VISIBLE, 50);
-        assert_eq!(s.phase(), Phase::Playing);
+        assert!(matches!(g.s.phase(), Phase::Restart { restart: Restart::Countdown { .. }, .. }));
+        assert_eq!(g.read_back(), g.s);
+        g.run(&fighting(), COUNTDOWN);
+        assert_eq!(g.s.phase(), Phase::Playing);
+    }
+
+    #[test]
+    fn a_round_ends_and_starts_as_artifact_hunts() {
+        let mut b = fighting();
+        let mut g = Game::new();
+        g.step(&b, &VISIBLE, 50);
+        b[1] = body(Team::Second, 10.0, Condition::Lethal);
+        g.step(&b, &VISIBLE, 50);
+        let decided = g.now;
+        // 1. 3 s: play goes on, the frozen stay so, nobody respawns.
+        assert_eq!(
+            g.s.phase(),
+            Phase::Restart {
+                ended: RoundEnd::Won(Team::First),
+                restart: Restart::Decided { until: Time::from_ms(decided + 3000) },
+            }
+        );
+        assert!(!g.s.round_countdown());
+        let frozen = g.s.player(place(1));
+        while g.now < decided + 3000 - 50 {
+            assert_eq!(g.s.spawning(Time::from_ms(g.now + 50)), Spawning::Held);
+            assert_eq!(g.step(&b, &VISIBLE, 50), Actions::Wait);
+        }
+        assert_eq!(g.s.player(place(1)), frozen, "no thaw, no auto-thaw clock");
+        // 3. the 1 s fade: held; at its end everyone respawns.
+        g.step(&b, &VISIBLE, 50);
+        assert!(matches!(g.s.phase(), Phase::Restart { restart: Restart::Fade { .. }, .. }));
+        assert!(g.s.round_countdown());
+        while g.now < decided + 4000 - 50 {
+            assert_eq!(g.s.spawning(Time::from_ms(g.now + 50)), Spawning::Held);
+            g.step(&b, &VISIBLE, 50);
+        }
+        assert_eq!(g.s.spawning(Time::from_ms(g.now + 50)), Spawning::Everyone);
+        g.step(&b, &VISIBLE, 50);
+        // 4. the 5 s countdown: a round start, every player waits for his spawn.
+        assert!(matches!(g.s.phase(), Phase::Restart { restart: Restart::Countdown { .. }, .. }));
+        assert_eq!((g.s.round_starts(), g.s.player(place(1))), (1, Player::Waiting));
+        assert_eq!(g.s.spawning(Time::from_ms(g.now + 50)), Spawning::Native);
+        g.s.kit_switched(place(0));
+        assert_eq!(g.s.lives().kit_switches(0), 1);
+        assert_eq!(g.read_back(), g.s);
+        g.run(&fighting(), COUNTDOWN - 50);
+        assert!(g.s.round_countdown());
+        // 5. the next round.
+        g.step(&fighting(), &VISIBLE, 50);
+        assert_eq!(g.s.phase(), Phase::Playing);
+        assert_eq!(g.s.player(place(1)), Player::Fighting(Team::Second));
+        assert!(!g.s.round_countdown());
+        // No kit switch counts in play.
+        g.s.kit_switched(place(0));
+        assert_eq!(g.s.lives().kit_switches(0), 1);
+    }
+
+    #[test]
+    fn the_match_point_ends_the_match_after_the_3_s() {
+        let mut g = Game::new();
+        for _ in 0..WINS - 1 {
+            round(&mut g, &[1]);
+        }
+        let mut b = fighting();
+        g.step(&b, &VISIBLE, 50);
+        b[1] = body(Team::Second, 10.0, Condition::Lethal);
+        g.step(&b, &VISIBLE, 50);
+        assert_eq!(g.s.points(), [u16::from(WINS), 0]);
+        assert!(!g.s.complete());
+        assert_eq!(g.read_back(), g.s);
+        let decided = g.now;
+        g.run(&b, DECIDED);
+        assert_eq!(g.s.phase(), Phase::Finished { winner: Team::First, at: Time::from_ms(decided + 3000) });
+        assert_eq!(g.read_back(), g.s);
+        let over = g.s;
+        assert_eq!(g.step(&b, &VISIBLE, 6000), Actions::Wait);
+        assert_eq!(g.s, over);
+        assert_eq!(g.s.spawning(Time::from_ms(g.now)), Spawning::Native);
+        assert!(!g.s.round_countdown());
+    }
+
+    #[test]
+    fn best_of_nine_finishes_at_five() {
+        use Team::{First, Second};
+        for winners in [[First; WINS as usize].as_slice(), &[First, Second, Second, First, Second, First, First, Second, Second]] {
+            let mut g = Game::new();
+            for &winner in winners {
+                round(&mut g, &[1 - winner.index()]);
+            }
+            assert_eq!(g.s.winner(), Some(*winners.last().unwrap()));
+            assert_eq!(g.s.round_starts(), winners.len() as u16 - 1);
+        }
     }
 
     #[test]
     fn every_restart_counts_a_round_start_the_double_wipe_replay_too() {
-        let mut s = FreezeTag::EMPTY;
-        assert_eq!(s.round_starts(), 0);
-        round(&mut s, &[1]);
-        assert_eq!((s.points(), s.round_starts()), ([1, 0], 1));
+        let mut g = Game::new();
+        assert_eq!(g.s.round_starts(), 0);
+        round(&mut g, &[1]);
+        assert_eq!((g.s.points(), g.s.round_starts()), ([1, 0], 1));
         // A double wipe scores nothing; its replay is a round start.
-        round(&mut s, &[0, 1]);
-        assert_eq!((s.points(), s.round_starts()), ([1, 0], 2));
-        round(&mut s, &[0]);
-        round(&mut s, &[1]);
-        assert_eq!((s.points(), s.round_starts()), ([2, 1], 4));
-        round(&mut s, &[1]);
-        round(&mut s, &[1]);
-        assert_eq!((s.points(), s.round_starts()), ([4, 1], 6));
+        round(&mut g, &[0, 1]);
+        assert_eq!((g.s.points(), g.s.round_starts()), ([1, 0], 2));
+        round(&mut g, &[0]);
+        round(&mut g, &[1]);
+        assert_eq!((g.s.points(), g.s.round_starts()), ([2, 1], 4));
+        round(&mut g, &[1]);
+        round(&mut g, &[1]);
+        assert_eq!((g.s.points(), g.s.round_starts()), ([4, 1], 6));
         // The match's last round is never restarted.
-        round(&mut s, &[1]);
-        assert_eq!(s.winner(), Some(Team::First));
-        assert_eq!(s.round_starts(), 6);
+        round(&mut g, &[1]);
+        assert_eq!(g.s.winner(), Some(Team::First));
+        assert_eq!(g.s.round_starts(), 6);
         // A rollback restores the count with the rest.
-        assert_eq!(FreezeTag::read(&s.bytes()), Some(s));
+        assert_eq!(g.read_back(), g.s);
     }
 
     #[test]
-    fn the_restarts_are_no_fewer_than_the_rounds_ended_before() {
-        let restarts = |s: &FreezeTag, n: u16| {
+    fn the_round_starts_are_no_fewer_than_the_rounds_ended_before() {
+        let starts = |s: &FreezeTag, n: u16| {
             let mut bytes = s.bytes();
-            bytes[FreezeTag::LEN - 2..].copy_from_slice(&n.to_le_bytes());
+            bytes[9..11].copy_from_slice(&n.to_le_bytes());
             FreezeTag::read(&bytes)
         };
-        let mut s = FreezeTag::EMPTY;
-        round(&mut s, &[1]);
-        round(&mut s, &[1]);
-        // Playing at 2:0: two restarts at least; more are replayed draws.
-        assert!(restarts(&s, 1).is_none());
-        assert!(restarts(&s, 2).is_some() && restarts(&s, 9).is_some());
-        // Between rounds after a win: that win is not restarted yet.
+        let mut g = Game::new();
+        round(&mut g, &[1]);
+        round(&mut g, &[1]);
+        // Playing at 2:0: two starts at least; more are replayed draws.
+        assert!(starts(&g.s, 1).is_none());
+        assert!(starts(&g.s, 2).is_some() && starts(&g.s, 9).is_some());
+        // After a win, before the fade's end: that win is not restarted yet.
         let mut b = fighting();
-        s.step(&b, &VISIBLE, 50);
+        g.step(&b, &VISIBLE, 50);
         b[0] = body(Team::First, 0.0, Condition::Lethal);
-        s.step(&b, &VISIBLE, 50);
-        assert_eq!(s.points(), [2, 1]);
-        assert!(restarts(&s, 1).is_none() && restarts(&s, 2).is_some());
-        // Restarting: this round's restart is counted already.
-        s.step(&b, &VISIBLE, INTERMISSION.get());
-        assert_eq!(s.phase(), Phase::Restarting);
-        assert!(restarts(&s, 2).is_none() && restarts(&s, 3).is_some());
-        // Between rounds after a double wipe at 1:0: the win restarted, and
-        // this draw to come.
-        let mut s = FreezeTag::EMPTY;
-        round(&mut s, &[1]);
+        g.step(&b, &VISIBLE, 50);
+        assert_eq!(g.s.points(), [2, 1]);
+        assert!(starts(&g.s, 1).is_none() && starts(&g.s, 2).is_some());
+        // In the countdown: this round's start is counted already.
+        g.run(&b, DECIDED + FADE);
+        assert!(matches!(g.s.phase(), Phase::Restart { restart: Restart::Countdown { .. }, .. }));
+        assert!(starts(&g.s, 2).is_none() && starts(&g.s, 3).is_some());
+        // After a double wipe at 1:0: the win restarted, and this draw to come.
+        let mut g = Game::new();
+        round(&mut g, &[1]);
         let mut b = fighting();
-        s.step(&b, &VISIBLE, 50);
+        g.step(&b, &VISIBLE, 50);
         b[0] = body(Team::First, 0.0, Condition::Lethal);
         b[1] = body(Team::Second, 10.0, Condition::Lethal);
-        s.step(&b, &VISIBLE, 50);
-        assert!(matches!(s.phase(), Phase::Between { result: RoundEnd::Draw, .. }));
-        assert!(restarts(&s, 0).is_none() && restarts(&s, 1).is_some());
-        assert!(restarts(&FreezeTag::EMPTY, u16::MAX).is_some());
+        g.step(&b, &VISIBLE, 50);
+        assert!(matches!(g.s.phase(), Phase::Restart { ended: RoundEnd::Draw, .. }));
+        assert!(starts(&g.s, 0).is_none() && starts(&g.s, 1).is_some());
+        assert!(starts(&FreezeTag::EMPTY, u16::MAX).is_some());
+    }
+
+    #[test]
+    fn the_frozen_and_the_lethal_respawn_only_with_the_round() {
+        let mut bodies = match_bodies();
+        let mut g = Game::new();
+        assert_eq!(g.s.voided(&bodies), Places::EMPTY.with(place(0)));
+        g.step(&bodies, &BLIND, 50);
+        assert_eq!(g.s.voided(&bodies), Places::EMPTY.with(place(0)));
+        // Left: still frozen, still void.
+        bodies[0] = Body::Absent;
+        assert_eq!(g.s.voided(&bodies), Places::EMPTY.with(place(0)));
+        // A body killed in the 3 s after a round is held as the frozen are.
+        let mut b = fighting();
+        b[2] = body(Team::First, 5.0, Condition::Fighting);
+        let mut g = Game::new();
+        g.step(&b, &BLIND, 50);
+        b[1] = body(Team::Second, 10.0, Condition::Lethal);
+        g.step(&b, &BLIND, 50);
+        b[2] = body(Team::First, 5.0, Condition::Lethal);
+        assert_eq!(g.s.voided(&b), Places::EMPTY.with(place(1)).with(place(2)));
+        assert_eq!(g.step(&b, &BLIND, 50), Actions::Wait);
+        assert_eq!(g.s.player(place(2)), Player::Fighting(Team::First));
     }
 
     #[test]
     fn draws_replay_the_round_and_disconnects_cannot_clear_a_freeze() {
         let mut bodies = match_bodies();
-        let mut s = FreezeTag::EMPTY;
-        s.step(&bodies, &VISIBLE, 50);
+        let mut g = Game::new();
+        g.step(&bodies, &VISIBLE, 50);
         bodies[1] = Body::Absent;
-        s.step(&bodies, &VISIBLE, 50);
-        assert_eq!(s.points(), [0, 1]);
+        g.step(&bodies, &VISIBLE, 50);
+        assert_eq!(g.s.points(), [0, 1]);
         for b in bodies.iter_mut().take(3) {
             *b = body(Team::First, 0.0, Condition::Lethal);
         }
         bodies[2] = body(Team::Second, 0.0, Condition::Lethal);
-        s = FreezeTag::EMPTY;
-        s.step(&bodies, &VISIBLE, 50);
-        assert_eq!(s.points(), [0, 0]);
-        assert_eq!(s.step(&bodies, &VISIBLE, INTERMISSION.get()), Actions::Restart);
-        assert_eq!(FreezeTag::read(&s.bytes()), Some(s));
+        let mut g = Game::new();
+        g.step(&bodies, &VISIBLE, 50);
+        assert_eq!(g.s.points(), [0, 0]);
+        g.run(&bodies, DECIDED + FADE);
+        assert_eq!(g.s.round_starts(), 1);
+        assert_eq!(g.read_back(), g.s);
     }
 
     #[test]
     fn a_frozen_body_thaws_by_itself_after_two_minutes_crediting_nobody() {
-        const NO_SIGHT: [[bool; PLAYERS]; PLAYERS] = [[false; PLAYERS]; PLAYERS];
         let b = match_bodies();
-        let mut s = FreezeTag::EMPTY;
+        let mut g = Game::new();
         let mut left = AUTO_THAW_MS.get();
         while left > 50 {
             let step = u16::try_from((left - 50).min(60_000)).unwrap();
-            assert_eq!(s.step(&b, &NO_SIGHT, step), Actions::Play { thawed: Places::EMPTY, thawers: Places::EMPTY });
+            assert_eq!(g.step(&b, &BLIND, step), Actions::Play { thawed: Places::EMPTY, thawers: Places::EMPTY });
             left -= u32::from(step);
         }
-        assert!(matches!(s.player(place(0)), Player::Frozen { thaws_in, .. } if thaws_in.get() == 50));
-        assert_eq!(FreezeTag::read(&s.bytes()), Some(s));
-        let saved = s;
+        assert!(matches!(g.s.player(place(0)), Player::Frozen { thaws_in, .. } if thaws_in.get() == 50));
+        assert_eq!(g.read_back(), g.s);
+        let saved = g;
         let thawed = Places::EMPTY.with(place(0));
-        assert_eq!(s.step(&b, &NO_SIGHT, 50), Actions::Play { thawed, thawers: Places::EMPTY });
-        assert_eq!(s.player(place(0)), Player::Fighting(Team::First));
+        assert_eq!(g.step(&b, &BLIND, 50), Actions::Play { thawed, thawers: Places::EMPTY });
+        assert_eq!(g.s.player(place(0)), Player::Fighting(Team::First));
         // A teammate beside him then has not thawed him: no credit.
-        let mut s = saved;
-        let Actions::Play { thawers, .. } = s.step(&b, &VISIBLE, 50) else { panic!() };
+        let mut g = saved;
+        let Actions::Play { thawers, .. } = g.step(&b, &VISIBLE, 50) else { panic!() };
         assert_eq!(thawers, Places::EMPTY);
         // A place that left keeps its freeze and its time.
-        let mut s = saved;
+        let mut g = saved;
         let mut gone = b;
         gone[0] = Body::Absent;
-        s.step(&gone, &NO_SIGHT, 50);
-        assert_eq!(s.player(place(0)), saved.player(place(0)));
+        g.step(&gone, &BLIND, 50);
+        assert_eq!(g.s.player(place(0)), saved.s.player(place(0)));
     }
 
     #[test]
@@ -848,19 +1034,19 @@ mod tests {
         b[1] = body(Team::First, 10.0, Condition::Fighting);
         b[2] = body(Team::Second, 20.0, Condition::Fighting);
         b[3] = body(Team::First, 30.0, Condition::Fighting);
-        let mut s = FreezeTag::EMPTY;
-        s.step(&b, &BLIND, 50);
+        let mut g = Game::new();
+        g.step(&b, &BLIND, 50);
         // One frozen, two fighting: nobody.
-        assert!(!(0..4).any(|n| s.last_standing(place(n))));
+        assert!(!(0..4).any(|n| g.s.last_standing(place(n))));
         b[3] = body(Team::First, 30.0, Condition::Lethal);
-        s.step(&b, &BLIND, 50);
+        g.step(&b, &BLIND, 50);
         // Two frozen: their last one is shown; the lone one never.
-        assert!(s.last_standing(place(1)));
-        assert!(![0, 2, 3].into_iter().any(|n| s.last_standing(place(n))));
+        assert!(g.s.last_standing(place(1)));
+        assert!(![0, 2, 3].into_iter().any(|n| g.s.last_standing(place(n))));
         // The round over: nobody.
         b[1] = body(Team::First, 10.0, Condition::Lethal);
-        s.step(&b, &BLIND, 50);
-        assert!(!(0..4).any(|n| s.last_standing(place(n))));
+        g.step(&b, &BLIND, 50);
+        assert!(!(0..4).any(|n| g.s.last_standing(place(n))));
     }
 
     #[test]
@@ -871,10 +1057,10 @@ mod tests {
             b[1] = body(Team::First, 10.0, Condition::Fighting);
             b[2] = body(Team::Second, 20.0, Condition::Fighting);
             b[frozen] = body(Team::First, 10.0 * frozen as f32, Condition::Lethal);
-            let mut s = FreezeTag::EMPTY;
-            s.step(&b, &BLIND, 50);
-            assert!(matches!(s.phase(), Phase::Playing));
-            assert!(!(0..3).any(|n| s.last_standing(place(n))), "{frozen}");
+            let mut g = Game::new();
+            g.step(&b, &BLIND, 50);
+            assert!(matches!(g.s.phase(), Phase::Playing));
+            assert!(!(0..3).any(|n| g.s.last_standing(place(n))), "{frozen}");
         }
     }
 
@@ -885,21 +1071,18 @@ mod tests {
         b[1] = body(Team::First, 10.0, Condition::Fighting);
         b[2] = body(Team::Second, 20.0, Condition::Fighting);
         b[3] = body(Team::Second, 30.0, Condition::Lethal);
-        let mut s = FreezeTag::EMPTY;
-        s.step(&b, &BLIND, 50);
-        assert!(matches!(s.phase(), Phase::Playing));
-        assert!(!(0..4).any(|n| s.last_standing(place(n))));
+        let mut g = Game::new();
+        g.step(&b, &BLIND, 50);
+        assert!(matches!(g.s.phase(), Phase::Playing));
+        assert!(!(0..4).any(|n| g.s.last_standing(place(n))));
     }
 
     #[test]
     fn a_team_of_one_is_never_last_standing() {
-        let mut b = [Body::Absent; PLAYERS];
-        b[0] = body(Team::First, 0.0, Condition::Fighting);
-        b[1] = body(Team::Second, 10.0, Condition::Fighting);
-        let mut s = FreezeTag::EMPTY;
-        s.step(&b, &[[false; PLAYERS]; PLAYERS], 50);
+        let mut g = Game::new();
+        g.step(&fighting(), &BLIND, 50);
         // 1 v 1, a round in play: nobody shown.
-        assert!(matches!(s.phase(), Phase::Playing));
-        assert!(!s.last_standing(place(0)) && !s.last_standing(place(1)));
+        assert!(matches!(g.s.phase(), Phase::Playing));
+        assert!(!g.s.last_standing(place(0)) && !g.s.last_standing(place(1)));
     }
 }

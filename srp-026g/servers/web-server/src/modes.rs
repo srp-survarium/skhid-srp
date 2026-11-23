@@ -293,8 +293,11 @@ fn mode_rules(lang: Lang, mode: GameMode, maps: &[&MapMode]) -> Vec<String> {
             lang.t("A team's last fighter shows on the enemies' map."),
             lang.t("Freeze the whole enemy team to win the round."),
             lang.tf(
-                "{0} s pause between rounds, then everyone respawns.",
-                &[("0", &seconds(u32::from(freeze::INTERMISSION.get())))],
+                "{0} s after a round ends, then everyone respawns and waits {1} s at the spawns.",
+                &[
+                    ("0", &seconds(freeze::TIMING.decided().get())),
+                    ("1", &seconds(freeze::TIMING.countdown().get())),
+                ],
             ),
             lang.tf("First to {0} rounds wins.", &[("0", &freeze::WINS)]),
             lang.tf(

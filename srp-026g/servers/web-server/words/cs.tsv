@@ -1,8 +1,472 @@
 # The site's own words in Czech (README.md here): English as in the code, Czech. A text without a row is shown in English.
+Head	Hlava
+Face	Obličej
+Chest	Hruď
+Back	Záda
+Arms	Paže
+Hands	Ruce
+Legs	Nohy
+Feet	Chodidla
+Bullets	Střely
+Melee	Boj zblízka
+Explosions	Výbuchy
+Fire	Oheň
+Radiation	Radiace
+Electricity	Elektřina
+Toxins	Toxiny
+Armour	Ochrana
+Isolation	Izolace
+Protection	Odolnost
+Level	Úroveň
+Faction	Frakce
+Matchmaking level	Úroveň zápasu
+Also takes	Zabírá také
+Oxygen	Kyslík
+Gas filter	Protiplynový filtr
+{0}: hits up to {1} stopped, the rest ×{2}	{0}: zásahy do {1} zastaveny, zbytek ×{2}
+Fatal headshot	Smrtelný zásah do hlavy
+flies off	odletí
+About it	O předmětu
+premium	prémiový
+level	úroveň
+Weight	Hmotnost
+Details	Podrobnosti
+Its modifiers	Jeho bonusy
+Slot	Slot
+All	Vše
+Find	Najít
+Search by name…	Hledat podle názvu…
+All factions	Všechny frakce
+Level from	Úroveň od
+to	do
+Sort by	Řadit podle
+Name	Název
+Weight: low to high	Hmotnost: od nejnižší
+Armour: high to low	Ochrana: od nejvyšší
+Isolation: high to low	Izolace: od nejvyšší
+Group	Seskupit
+No groups	Bez skupin
+By set	Podle kompletu
+By slot	Podle slotu
 Wiki	Wiki
+Equipment	Vybavení
+Equipment reference	Přehled vybavení
+pieces	kusů
+Nothing matches.	Nic neodpovídá.
+Stats	Statistiky
+Public matches	Veřejné zápasy
+The stats need JavaScript.	Statistiky potřebují JavaScript.
+Skhid	Skhid
+mode {0}	režim {0}
+No match is being played now.	Teď se nehraje žádný zápas.
+waiting	čekání
+starting	start
+just now	právě teď
+{minutes} min ago	před {minutes} min
+&le; {minutes} min	&le; {minutes} min
+{0} v {1}	{0} proti {1}
+and {more} more	a dalších {more}
+Match	Zápas
+Players	Hráči
+Started	Začátek
+Time left	Zbývá
+Score	Skóre
+No battle has been fought yet. Be the first.	Zatím neproběhla žádná bitva. Buďte první.
+Player	Hráč
+Rating	Hodnocení
+online	online
+rooms	místností
+in rooms	v místnostech
+matches now	zápasů teď
+players	hráčů
+battles fought	odehraných bitev
+clans	klanů
+Maintenance: the server is down	Údržba: server je vypnutý
+Maintenance in {minutes} min	Údržba za {minutes} min
+On the server now	Teď na serveru
+Since the server opened	Od otevření serveru
+TEST SERVER	TESTOVACÍ SERVER
+Unofficial community server. Not affiliated with or endorsed by Vostok Games. Survarium is a trademark of its owners. An early test: accounts and progress can be reset at any time.	Neoficiální komunitní server. Není spojen se společností Vostok Games ani jí podporován. Survarium je ochranná známka svých vlastníků. Raný test: účty a postup mohou být kdykoli resetovány.
+Top 10 players	Top 10 hráčů
+Matches now	Zápasy teď
+Skhid &middot; Survarium <i>0.26g</i> community server	Skhid &middot; komunitní server Survarium <i>0.26g</i>
+Legal notice	Právní informace
+Not found.	Nenalezeno.
+Too many wrong tokens; wait a minute.	Příliš mnoho chybných tokenů; počkejte minutu.
+Wrong token.	Chybný token.
+No such user.	Takový uživatel neexistuje.
+Silver and gold are whole numbers, + or -, or empty.	Stříbro a zlato jsou celá čísla, + nebo -, nebo prázdné.
+{user}: now {silver_now} silver and {gold_now} gold.	{user}: nyní {silver_now} stříbra a {gold_now} zlata.
+New accounts are taken again.	Nové účty se opět přijímají.
+New accounts are refused; existing players sign in as before.	Nové účty se nepřijímají; stávající hráči se přihlašují jako dřív.
+Maintenance cancelled.	Údržba zrušena.
+No maintenance was planned.	Žádná údržba nebyla naplánována.
+Minutes: a whole number from 1 to {MAX_MAINTENANCE_MINUTES}.	Minuty: celé číslo od 1 do {MAX_MAINTENANCE_MINUTES}.
+Maintenance starts in {minutes} min, at {0} UTC.	Údržba začne za {minutes} min, v {0} UTC.
+for {hours} h	na {hours} h
+for good	natrvalo
+Address {net} banned {how_long}; {kicked} session(s) ended.	Adresa {net} zablokována {how_long}; ukončené relace: {kicked}.
+No such user or address. A name several accounts share needs the user name they sign in with.	Takový uživatel ani adresa neexistuje. Jméno, které sdílí více účtů, vyžaduje uživatelské jméno, kterým se přihlašuje.
+{target} banned {how_long}; {kicked} session(s) ended.	{target} zablokován {how_long}; ukončené relace: {kicked}.
+ Its address {net} too ({more} more session(s) ended).	 I jeho adresa {net} (další ukončené relace: {more}).
+ Its address is not known, so no address was banned.	 Jeho adresa není známa, takže žádná adresa nebyla zablokována.
+Address {net} unbanned.	Adresa {net} odblokována.
+{net} was not banned (a range is lifted as it was banned).	{net} nebyla zablokována (rozsah se ruší tak, jak byl zablokován).
+No such user or address.	Takový uživatel ani adresa neexistuje.
+{target} unbanned.	{target} odblokován.
+{target} was not banned.	{target} nebyl zablokován.
+ Its address {ip} too.	 I jeho adresa {ip}.
+The players' server:	Server pro hráče:
+Test server.	Testovací server.
+Changes are tried here before they reach the players: it can restart at any moment, and accounts and progress here can be reset.	Změny se tu zkoušejí dřív, než se dostanou k hráčům: server se může kdykoli restartovat a účty i postup tu mohou být resetovány.
+Damage calculator	Kalkulačka poškození
 Maps	Mapy
+TEST	TEST
+Home	Domů
+Community server, unofficial. Not affiliated with or endorsed by Vostok Games. Survarium is a trademark of its owners.	Neoficiální komunitní server. Není spojen se společností Vostok Games ani jí podporován. Survarium je ochranná známka svých vlastníků.
+“Game files removed by antivirus: …”	„Antivirus odstranil soubory hry: …“
+Run <code>Skhid-defender-setup.cmd</code>.	Spusťte <code>Skhid-defender-setup.cmd</code>.
+“Download failed: …”	„Stahování selhalo: …“
+Start <code>Skhid.bat</code> again. Still failing? Run <code>Skhid-without-updater.bat</code>: it downloads the game and its updates without the launcher, then starts it.	Spusťte znovu <code>Skhid.bat</code>. Pořád nic? Spusťte <code>Skhid-without-updater.bat</code>: stáhne hru a její aktualizace bez launcheru a pak ji spustí.
+“No connection: …”	„Žádné připojení: …“
+Run <code>Skhid-network-setup.cmd</code>.	Spusťte <code>Skhid-network-setup.cmd</code>.
+“Blocked on this network: …”	„V této síti blokováno: …“
+Your provider blocks our server. The launcher has already switched to our relay, a way around the block (<b>Relay: auto</b>, bottom left). Just press <b>Retry</b>.	Váš poskytovatel blokuje náš server. Launcher už sám přepnul na náš relay, který blokování obchází (<b>Relay: auto</b>, vlevo dole). Stačí stisknout <b>Opakovat</b>.
+Nothing works.	Nic nefunguje.
+Run <code>Skhid-collect-logs.cmd</code> and send the zip it makes to us on Discord: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.	Spusťte <code>Skhid-collect-logs.cmd</code> a pošlete nám vytvořený zip na Discord: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.
+Q:	Otázka:
+A:	Odpověď:
+If something goes wrong	Když se něco pokazí
+Download the files	Stáhnout soubory
+Download the game	Stáhnout hru
+The download link is coming soon.	Odkaz ke stažení bude brzy.
+Can't download? Run {script}: it downloads the whole game into a Survarium folder beside it.	Nejde stahovat? Spusťte {script}: stáhne celou hru do složky Survarium vedle sebe.
+Get the game	Získat hru
+The link is coming soon.	Odkaz bude brzy.
+Get the original Survarium 0.26g (build 2777) and unpack it.	Získejte původní Survarium 0.26g (build 2777) a rozbalte ho.
+Maintenance.	Údržba.
+The server is down for maintenance.	Server je kvůli údržbě vypnutý.
+The game closes in {minutes} min; Play is locked in the last 30.	Hra se zavře za {minutes} min; posledních 30 min je tlačítko „Hrát“ zamčené.
+New registrations are closed for now. Existing players can sign in and play.	Registrace nových účtů je zatím uzavřená. Stávající hráči se mohou přihlásit a hrát.
+players online	hráčů online
+registered	registrováno
+Run <code>Skhid.bat</code> and press <b>PLAY</b>. The first start downloads the game.	Spusťte <code>Skhid.bat</code> a stiskněte <b>PLAY</b>. Při prvním spuštění se hra stáhne.
+Run <code>Skhid.bat</code> and press <b>PLAY</b>.	Spusťte <code>Skhid.bat</code> a stiskněte <b>PLAY</b>.
+Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh launcher</code>, see <code>LINUX.txt</code>.	Windows varuje před neznámým vydavatelem? Povolte spuštění.<br>Linux: <code>bash Skhid.sh launcher</code>, viz <code>LINUX.txt</code>.
+Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh</code>, see <code>LINUX.txt</code>.	Windows varuje před neznámým vydavatelem? Povolte spuštění.<br>Linux: <code>bash Skhid.sh</code>, viz <code>LINUX.txt</code>.
+Run <code>play_skhid.bat</code> in <code>game\\binaries\\x86</code>.	Spusťte <code>play_skhid.bat</code> ve složce <code>game\\binaries\\x86</code>.
+Start it with this command line:	Spusťte hru tímto příkazem:
+english	english
+server address	adresa serveru
+language: english, russian, ukrainian	jazyk: english, russian, ukrainian
+Skhid (Ukrainian for “east”) is a community server that lets the Survarium {version} client sign in, trade, form squads and play matches again.	Skhid (ukrajinsky „východ“) je komunitní server, na kterém se klient Survarium {version} může znovu přihlašovat, obchodovat, tvořit čety a hrát zápasy.
+Project Discord: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>	Discord projektu: <a href="https://discord.gg/pxywZfaxRQ">discord.gg/pxywZfaxRQ</a>
+Early test server.	Raný testovací server.
+It has bugs and may not work fully. Your progress, items and accounts can be lost or reset at any time, and the server may be stopped at any time. By playing you accept this.	Obsahuje chyby a nemusí plně fungovat. Váš postup, předměty a účty mohou být kdykoli ztraceny nebo resetovány a server může být kdykoli zastaven. Hraním s tím souhlasíte.
+How to play	Jak hrát
+Download our files and unpack them into an empty folder (e.g. D:\\Survarium). <b>You do this only once.</b>	Stáhněte naše soubory a rozbalte je do prázdné složky (např. D:\\Survarium). <b>Děláte to jen jednou.</b>
+Download our files and unpack them into the game's folder, the one with the <code>game</code> folder, replacing files. <b>You do this only once.</b>	Stáhněte naše soubory a rozbalte je do složky hry, té se složkou <code>game</code>, s nahrazením souborů. <b>Děláte to jen jednou.</b>
+Download our files and unpack them over the game's <code>game</code> folder.	Stáhněte naše soubory a rozbalte je přes složku <code>game</code> hry.
+Download the patched game and unpack it.	Stáhněte upravenou hru a rozbalte ji.
+Sign in with any name and password: a new name registers itself. Remember the password.	Přihlaste se libovolným jménem a heslem: nové jméno se zaregistruje samo. Zapamatujte si heslo.
+New accounts are taken.	Nové účty se přijímají.
+Stop new registrations	Zastavit nové registrace
+New accounts are refused for now.	Nové účty se zatím nepřijímají.
+Take new registrations	Přijímat nové registrace
+Shown once the token is right.	Zobrazí se po zadání správného tokenu.
+Password	Heslo
+User name	Uživatelské jméno
+Silver, + or -	Stříbro, + nebo -
+Gold, + or -	Zlato, + nebo -
+Change	Změnit
+Admin	Administrátor
+Token	Token
+Money	Peníze
+Ban	Ban
+Unban	Zrušení banu
+Bans	Bany
+Maintenance	Údržba
+Signups	Registrace
+User name, or an address or range (1.2.3.4, 1.2.3.0/24)	Uživatelské jméno, nebo adresa či rozsah (1.2.3.4, 1.2.3.0/24)
+Hours (empty: for good)	Hodiny (prázdné: natrvalo)
+Reason (only admins see it)	Důvod (vidí ho jen administrátoři)
+Also ban the address it last signed in from	Zablokovat i adresu, ze které se naposledy přihlásil
+Ban	Zablokovat	button
+User name, or an address or range	Uživatelské jméno, nebo adresa či rozsah
+Also lift the ban of its last address	Odblokovat i jeho poslední adresu
+Unban	Odblokovat	button
+Refresh	Obnovit
+Existing players keep signing in and playing either way. Registration is open by default; a restart goes back to that (or to SRP_REGISTRATION=closed).	Stávající hráči se v každém případě dál přihlašují a hrají. Registrace je ve výchozím stavu otevřená; restart ji do tohoto stavu vrátí (nebo do SRP_REGISTRATION=closed).
+Starts in (minutes)	Začne za (minuty)
+Players see the minutes left from 60 on, cannot press Play from 30, and the game closes at 0. Restarting srp cancels it.	Hráči vidí zbývající minuty od 60, od 30 nemohou stisknout „Hrát“ a v 0 se hra zavře. Restart srp ji zruší.
+Plan	Naplánovat
+Cancel	Zrušit
+Account	Účet
+Give item	Dát předmět
+Take items	Odebrat předměty
+Text	Text
+Mute chat	Ztlumit chat
+Rename	Přejmenovat
+Shown now:	Nyní zobrazeno:
+No text is shown.	Žádný text se nezobrazuje.
+Set the level (0 to {0})	Nastavit úroveň (0 až {0})
+Experience, + or -	Zkušenosti, + nebo -
+Faction (1 to 4)	Frakce (1 až 4)
+Reputation with it, + or -	Pověst u ní, + nebo -
+Empty fields change nothing. An open game is sent the account again.	Prázdná pole nic nemění. Otevřená hra dostane účet znovu.
+Item: its id in the 0.26g dictionary, or its exact name	Předmět: jeho id ve slovníku 0.26g, nebo přesný název
+Count (rounds for ammo; up to 8 of anything else)	Počet (náboje u munice; u ostatního až 8)
+Give	Dát
+First line	První řádek
+Second line	Druhý řádek
+Everyone in the lobby sees it, and whoever signs in, until it is cleared or srp restarts.	Vidí ho všichni v lobby i každý, kdo se přihlásí, dokud se nesmaže nebo se srp nerestartuje.
+Show	Zobrazit
+Clear	Smazat
+No maintenance is planned.	Žádná údržba není naplánována.
+Maintenance has started: the game closes for everyone who signs in.	Údržba začala: hra se zavře každému, kdo se přihlásí.
+Hours: a whole number up to {MAX_BAN_HOURS}, or empty for good.	Hodiny: celé číslo do {MAX_BAN_HOURS}, nebo prázdné pro natrvalo.
+until {at} UTC	do {at} UTC
+None.	Žádné.
+Accounts	Účty
+Until	Do
+Reason	Důvod
+Last address	Poslední adresa
+Addresses	Adresy
+Address	Adresa
+Chat mutes	Ztlumené chaty
+ The database was busy: srp's saver writes it within seconds (the history below is shown next time).	 Databáze byla zaneprázdněná: srp ji zapíše během několika sekund (historie níže se zobrazí příště).
+ Error: the change stands in memory only: the database refused it ({error}). srp retries the write; check its log.	 Chyba: změna je jen v paměti: databáze ji odmítla ({error}). srp zápis zopakuje; zkontrolujte jeho log.
+No 0.26g account has that id.	Žádný účet 0.26g nemá toto id.
+More than one account has that character name: type its user name or #id.	Toto jméno postavy má více účtů: zadejte uživatelské jméno nebo #id.
+Silver is a whole number, + or -, or empty.	Stříbro je celé číslo, + nebo -, nebo prázdné.
+{0}: silver {1} → {2} ({3}).	{0}: stříbro {1} → {2} ({3}).
+Type the silver to add (+) or take (-). The balance is below.	Zadejte stříbro k přidání (+) nebo odebrání (-). Zůstatek je níže.
+Nothing would change: the account has none of it left to take.	Nic by se nezměnilo: účet už nemá nic k odebrání.
+A reason is required: nothing was changed.	Důvod je povinný: nic nebylo změněno.
+The account changed since the preview, or the fields did: nothing was changed. Check the new preview below and apply again.	Účet nebo pole se od náhledu změnily: nic nebylo změněno. Zkontrolujte nový náhled níže a použijte znovu.
+Check the change below; type a reason to apply it.	Zkontrolujte změnu níže; zadejte důvod, abyste ji použili.
+Check the change below, then press Apply. Nothing is changed until then.	Zkontrolujte změnu níže a pak stiskněte „Použít“. Do té doby se nic nemění.
+Type the account: its user name, its character name, or #id.	Zadejte účet: uživatelské jméno, jméno postavy nebo #id.
+Units are a whole number above 0, or empty for all of it.	Kusy jsou celé číslo větší než 0, nebo prázdné pro všechno.
+Tick the items to take (and the units of a stack, or all of it), type a reason, then press Preview.	Zaškrtněte předměty k odebrání (a počet kusů ze stohu, nebo celý), zadejte důvod a pak stiskněte „Náhled“.
+{0}: {1} item(s) taken.	{0}: odebrané předměty: {1}.
+The items or the choice changed since the preview: nothing was changed. Check the new preview below and apply again.	Předměty nebo výběr se od náhledu změnily: nic nebylo změněno. Zkontrolujte nový náhled níže a použijte znovu.
+Check what would be taken below; type a reason to apply it.	Zkontrolujte níže, co se odebere; zadejte důvod, abyste to použili.
+Check what would be taken below, then press Apply. Nothing is changed until then.	Zkontrolujte níže, co se odebere, a pak stiskněte „Použít“. Do té doby se nic nemění.
+A reason is required: the player is told it.	Důvod je povinný: hráč ho uvidí.
+{name}'s chat muted {0}.	Chat hráče {name} ztlumen {0}.
+{name}'s chat was not muted.	Chat hráče {name} nebyl ztlumen.
+{name}'s chat unmuted.	Chat hráče {name} obnoven.
+Account: user name or character name	Účet: uživatelské jméno nebo jméno postavy
+Reason (the player is told it)	Důvod (hráč ho uvidí)
+Nobody gets its chat lines, on any channel; it gets "muted for &lt;reason&gt;" (or "muted until &lt;time&gt; UTC: &lt;reason&gt;") back instead. Unmute needs the account only.	Jeho zprávy v chatu nikdo nedostane, na žádném kanálu; místo toho dostane zpět "muted for &lt;důvod&gt;" (nebo "muted until &lt;čas&gt; UTC: &lt;důvod&gt;"). Ke zrušení ztlumení stačí účet.
+Mute	Ztlumit
+Unmute	Zrušit ztlumení
+This preview was used already or is older than 10 minutes: nothing was changed. Check the new preview below and apply again.	Tento náhled už byl použit nebo je starší než 10 minut: nic nebylo změněno. Zkontrolujte nový náhled níže a použijte znovu.
+No item was ticked.	Nebyl zaškrtnut žádný předmět.
+At most {0} items at once.	Nejvýše {0} předmětů najednou.
+The account has no item {item_id} now (sold or taken meanwhile): nothing was changed. Check the list again.	Účet teď nemá předmět {item_id} (mezitím prodán nebo odebrán): nic nebylo změněno. Zkontrolujte seznam znovu.
+Item {item_id} is named twice.	Předmět {item_id} je uveden dvakrát.
+0 units of item {item_id}: leave it empty for all of it.	0 kusů předmětu {item_id}: nechte prázdné pro všechno.
+yes: its game is sent the change at once	ano: hra dostane změnu hned
+no: it sees the change at its next sign-in	ne: změnu uvidí při příštím přihlášení
+User name	Přihlašovací jméno	sign-in
+Character	Postava
+Account id	Id účtu
+ID	ID
+Earlier names	Dřívější jména
+until {}	do {}
+In the game now	Teď ve hře
+Earlier moderation of this account	Dřívější moderace tohoto účtu
+not shown ({error})	nezobrazeno ({error})
+none	nic
+What	Co
+Change	Změna	what
+; {0} asked, never below 0	; požadováno {0}, nikdy pod 0
+Apply to {0}	Použít na {0}
+Done	Hotovo
+Preview	Náhled
+Silver	Stříbro
+Account: user name, character name or #id	Účet: uživatelské jméno, jméno postavy nebo #id
+Reason (required; only admins see it)	Důvod (povinný; vidí ho jen administrátoři)
+Preview shows the balance before and after; nothing changes until Apply. A balance never goes below 0. An open game shows the change at once.	Náhled ukáže zůstatek před a po; do „Použít“ se nic nemění. Zůstatek nikdy neklesne pod 0. Otevřená hra změnu ukáže hned.
+Preview	Náhled	button
+the item	předmět
+all {0} units	všech {0} ks
+{0} of {1} units ({2} left)	{0} z {1} ks (zbude {2})
+taken off its kits	sundáno ze sad
+Apply: take them from {0}	Použít: odebrat účtu {0}
+Taken	Odebráno
+Would be taken	Bude odebráno
+Item	Předmět
+Item id	Id předmětu
+Kits	Sady
+{0} units	{0} ks
+all	vše
+cosmetic {id}	kosmetika {id}
+Items	Předměty
+Tick what to take. A stack takes the units typed, or all of it when empty. Kit * is the one it plays.	Zaškrtněte, co odebrat. Ze stohu se odebere zadaný počet kusů, nebo celý, když je pole prázdné. Sada * je ta, se kterou hraje.
+Dict id	Id ve slovníku
+Units / condition	Kusy / stav
+Worn	Nasazeno
+Modifications	Bonusy
+First the list, then a preview of what is taken; nothing changes until Apply. A worn item is taken off every kit, as when it is sold. An open game shows the change at once.	Nejdřív seznam, pak náhled toho, co se odebere; do „Použít“ se nic nemění. Nasazený předmět se sundá ze všech sad, jako při prodeji. Otevřená hra změnu ukáže hned.
+List / preview	Seznam / náhled
+(premium)	(prémiový)
+{0} of {1}	{0} z {1}
+Choose an item…	Vyberte předmět…
+By item	Podle předmětu
+level {0}	úroveň {0}
+Can roll	Může padnout
+Comes with	Má vestavěné
+Modifiers	Bonusy
+An item rolls up to three modifiers, each of a different kind. The stronger, the rarer.	Předmět dostane až tři bonusy, každý jiného druhu. Čím silnější, tím vzácnější.
+Weapons	Zbraně
+Strengths from common to rare.	Síla od běžné po vzácnou.
+Built into some items	Vestavěné v některých předmětech
+These never roll.	Tyto nikdy nepadnou.
+No account signs in with that user name (character names are not looked up).	Žádný účet se tímto uživatelským jménem nepřihlašuje (jména postav se nehledají).
+Type the user name the player signs in with.	Zadejte uživatelské jméno, kterým se hráč přihlašuje.
+Check the account below, then press the reset button.	Zkontrolujte účet níže a pak stiskněte tlačítko resetu.
+That user name now means another account: nothing was changed. Check it below.	Toto uživatelské jméno teď patří jinému účtu: nic nebylo změněno. Zkontrolujte ho níže.
+The password of {login} is cleared; {ended} session(s) ended. Their next sign-in, with any password, sets the new one.	Heslo účtu {login} je smazáno; ukončené relace: {ended}. Příští přihlášení s libovolným heslem nastaví nové.
+The password of {login} is cleared; {ended} session(s) ended. The database was busy: srp's saver writes it within seconds. Their next sign-in, with any password, sets the new one.	Heslo účtu {login} je smazáno; ukončené relace: {ended}. Databáze byla zaneprázdněná: srp ji zapíše během několika sekund. Příští přihlášení s libovolným heslem nastaví nové.
+Error: the password of {login} is cleared and {ended} session(s) ended, but only in memory: the database was not written ({error}). srp retries the write; check its log before the player signs in.	Chyba: heslo účtu {login} je smazáno a ukončené relace: {ended}, ale jen v paměti: databáze nebyla zapsána ({error}). srp zápis zopakuje; zkontrolujte jeho log, než se hráč přihlásí.
+not since srp started	ne od startu srp
+unknown	neznámá
+yes: its game is signed out	ano: hra bude odhlášena
+no	ne
+Last sign-in	Poslední přihlášení
+Signed in now	Teď přihlášen
+Reset the password of {0}	Resetovat heslo účtu {0}
+User name the player signs in with (not the character name)	Uživatelské jméno, kterým se hráč přihlašuje (ne jméno postavy)
+Clears the password: the player's next sign-in, with any password, sets it as the new one (owner's decision, 2026-10-18). Whoever signs in first takes it, so reset when the player is ready to sign in. A game signed in with the account is signed out. Case does not matter.	Smaže heslo: příští přihlášení hráče s libovolným heslem ho nastaví jako nové (rozhodnutí vlastníka, 2026-10-18). Kdo se přihlásí první, ten ho nastaví, takže resetujte, až bude hráč připraven se přihlásit. Hra přihlášená k účtu bude odhlášena. Na velikosti písmen nezáleží.
+Quests	Úkoly
+Pay by match level	Výplata podle úrovně zápasu
+Enter an account ID.	Zadejte ID účtu.
+Invalid nickname: at least 3 characters, at most 63 UTF-8 bytes, no spaces or control characters.	Neplatná přezdívka: aspoň 3 znaky, nejvýše 63 bajtů UTF-8, bez mezer a řídicích znaků.
+A reason is required.	Důvod je povinný.
+That nickname or a Cyrillic/Latin lookalike is already taken.	Tato přezdívka nebo její dvojník v cyrilici/latince je už obsazená.
+No such account ID.	Účet s tímto ID neexistuje.
+Account #{account_id} renamed: {0} → {1}.	Účet #{account_id} přejmenován: {0} → {1}.
+Account ID	ID účtu
+New nickname	Nová přezdívka
+Reason (admin history only)	Důvod (jen do historie administrátora)
+Changes the nickname immediately, free of charge. Login and progress stay the same. Duplicate and Cyrillic/Latin lookalike names are refused.	Změní přezdívku hned a zdarma. Přihlašovací jméno a postup zůstanou stejné. Duplicitní jména a dvojníci v cyrilici/latince se odmítají.
+Levels	Úrovně
+This level	Tato úroveň
+Total	Celkem
+Matches	Zápasy
+Hours	Hodiny
+Total experience by level	Celkové zkušenosti podle úrovně
+That account has not signed in to the 0.26g lobby yet: it has nothing to change.	Tento účet se ještě nepřihlásil do lobby 0.26g: nemá co měnit.
+Experience and reputation are whole numbers, + or -; the level is 0 to {MAX_LEVEL}; the faction is 1 to 4.	Zkušenosti a pověst jsou celá čísla, + nebo -; úroveň je 0 až {MAX_LEVEL}; frakce je 1 až 4.
+That level is under the skill points the account has spent; reset its skills in the game first.	Tato úroveň je pod utracenými body dovedností; nejdřív resetujte dovednosti ve hře.
+{user}: level {level_now} ({exp_now} experience).	{user}: úroveň {level_now} ({exp_now} zkušeností).
+ Reputation with faction {faction}: {points}.	 Pověst u frakce {faction}: {points}.
+No such item in the 0.26g dictionary (give its id or its exact name).	Takový předmět ve slovníku 0.26g není (zadejte id nebo přesný název).
+The count for this item is 1 to {most}.	Počet pro tento předmět je 1 až {most}.
+That stack would overflow.	Tento stoh by přetekl.
+{user}: given {count} of {0} (id {1}).	{user}: dáno {count} × {0} (id {1}).
+The text is cleared.	Text je smazán.
+Each line is at most {MAX_TEXT_LEN} bytes (a Cyrillic letter is 2) with no control characters.	Každý řádek má nejvýše {MAX_TEXT_LEN} bajtů (písmeno cyrilice jsou 2), bez řídicích znaků.
+The text is shown to everyone in the lobby, and to who signs in, until cleared.	Text vidí všichni v lobby i každý, kdo se přihlásí, dokud se nesmaže.
+Simulators	Simulátory
+Skills	Dovednosti
+Browse weapons, compare base stats and explore their damage and handling.	Procházejte zbraně, porovnávejte základní parametry, poškození a ovladatelnost.
+Recoil and spread of any weapon: aim, stance, skills, gear and injuries.	Zpětný ráz a rozptyl každé zbraně: míření, postoj, dovednosti, vybavení a zranění.
+Every armour piece: protection, weight, built-in bonuses and what it can roll.	Každý kus vybavení: ochrana, hmotnost, vestavěné bonusy a co může padnout.
+Every modifier, its strengths and the items that can get it.	Každý bonus, jeho síla a předměty, které ho mohou dostat.
+Levels and the experience they take; every skill tree: thresholds, ranks and what each rank gives.	Úrovně a potřebné zkušenosti; každý strom dovedností: prahy, stupně a co který stupeň dává.
+Every faction quest: its goal at each reputation level and what it pays.	Každý úkol frakce: cíl na každé úrovni pověsti a odměna.
+Shots to kill a target in any armour, at any distance.	Kolik zásahů je potřeba k zabití cíle v jakékoli ochraně, na jakoukoli vzdálenost.
+Spawns, batteries, chargers, containers and artefacts on every map.	Místa oživení, baterie, nabíječky, kontejnery a artefakty na každé mapě.
 Skhid wiki	Wiki Skhid
+Skhid · Survarium {version} community server	Skhid · komunitní server Survarium {version}
+Skhid · Survarium {version} TEST server	Skhid · TESTOVACÍ server Survarium {version}
+COMMUNITY SERVER FOR SURVARIUM	KOMUNITNÍ SERVER PRO SURVARIUM
+TEST SERVER FOR SURVARIUM	TESTOVACÍ SERVER PRO SURVARIUM
+{text} is not an item id: nothing was changed.	{text} není id předmětu: nic nebylo změněno.
+Exp	Zkuš.	formula
+Total	Celkem	formula
+Experience gives levels, and every level gives one skill point.	Zkušenosti dávají úrovně a každá úroveň dává jeden bod dovedností.
+Clan	Klan
+Matches	Zápasy	stats
+Player name	Jméno hráče
+Clan tag	Tag klanu
+Match number	Číslo zápasu
+Clans	Klany
+Best matches	Nejlepší zápasy
+Latest matches	Poslední zápasy
+Hour	Hodina
+Day	Den
+Experience	Zkušenosti
+Wins	Výhry
+Losses	Prohry
+Win rate	Podíl výher
+Kills	Zabití
+Deaths	Úmrtí
+K/D	K/D
 Kills/min	Zabití/min
+Assists	Asistence
+Score	Skóre	stats
+Avg score	Prům. skóre
+Headshots	Do hlavy
+Grenade kills	Granátem
+Melee kills	Zblízka
+Batteries	Baterie
+Captures	Obsazení
+Artefacts	Artefakty
+Members	Členové
+Commander	Velitel
+Overall	Celkově
+In matches	V zápasech
+Last 30 days	Posledních 30 dní
+Ended	Konec
+Duration	Trvání
+Map	Mapa
+Mode	Režim
+Result	Výsledek
+Place	Místo
+Team	Tým
+Points	Body
+Win	Výhra
+Loss	Prohra
+Draw	Remíza
+Left	Odešel
+won	vyhrál
+More players	Další hráči
+Older matches	Starší zápasy
+Hours played	Odehrané hodiny
+Replay	Záznam
+Preparing…	Připravuje se…
+Download	Stáhnout
+Recorded by an older game version	Nahráno starší verzí hry
+Busy, try again in a minute	Zaneprázdněno, zkuste to za minutu
+No replay	Bez záznamu
+Daily leaders	Lídři dne
+All time	Za celou dobu
+Shots fired	Výstřely
+Accuracy	Přesnost
+Weapon	Zbraň
+Kit	Sada
+Favourite equipment	Oblíbené vybavení
+1000+ shots	1000+ výstřelů
+5+ matches	5+ zápasů
+HS %	Do hlavy %
+Avg distance	Prům. vzdálenost
+Through walls	Skrz zdi
+Ricochets	Odrazem
+No weapons counted yet.	Zatím nejsou spočítány žádné zbraně.
+No public matches yet.	Zatím žádné veřejné zápasy.
+No player with public matches named “{}”.	Žádný hráč s veřejnými zápasy jménem „{}“ není.
+No clan tagged [{}].	Žádný klan s tagem [{}] není.
+No public match {}.	Veřejný zápas {} neexistuje.
+This server keeps no match history.	Tento server neuchovává historii zápasů.
+Could not load the stats. Reload the page.	Statistiky se nepodařilo načíst. Obnovte stránku.
+Nobody yet.	Zatím nikdo.
+
+# The wiki's modes (src/modes.rs).
 Modes	Režimy
 Every mode: its rules, numbers and maps.	Každý režim: pravidla, čísla a mapy.
 Versions	Varianty
@@ -39,7 +503,7 @@ A thaw counts as a kill.	Rozmrazení se počítá jako zabití.
 A frozen player thaws by himself after {0}.	Zmrazený hráč se sám rozmrazí po {0}.
 A team's last fighter shows on the enemies' map.	Poslední bojovník týmu je vidět na mapě soupeřů.
 Freeze the whole enemy team to win the round.	Zmrazte celý nepřátelský tým a vyhrajte kolo.
-{0} s pause between rounds, then everyone respawns.	{0} s pauza mezi koly, pak se všichni oživí.
+{0} s after a round ends, then everyone respawns and waits {1} s at the spawns.	{0} s po konci kola, pak se všichni oživí a čekají {1} s na místech oživení.
 First to {0} rounds wins.	Vyhrává první tým s {0} vyhranými koly.
 Time limit {0}: an unfinished series is a draw.	Časový limit {0}: nedokončená série je remíza.
 One artefact at a time, {0}–{1} s into a round.	Jeden artefakt najednou, {0}–{1} s po začátku kola.

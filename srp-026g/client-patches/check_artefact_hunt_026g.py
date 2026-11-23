@@ -34,6 +34,8 @@ from unicorn import UcError, UC_HOOK_CODE
 from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EBX, UC_X86_REG_EDX, UC_X86_REG_ESP, \
     UC_X86_REG_EBP, UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EIP, UC_X86_REG_XMM0
 
+if len(sys.argv) > 1:
+    os.environ.setdefault("SRP_026G_EXE", sys.argv[1])    # the arena below needs a span hook's bytes
 import patch_026g as base
 import check_research_026g as research
 

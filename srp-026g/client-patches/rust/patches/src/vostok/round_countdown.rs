@@ -62,37 +62,16 @@ pub(super) unsafe fn set(core: raw::CoreWorld, on: bool) {
 /// state, or the countdown's 2 while the core says a round is about to start,
 /// so the native camera switch (0x27B1A0: the warmup camera; patch 31's kits
 /// by +1F1C60h) plays the match start's countdown for a round, and switches
-/// back to the player's camera as the round starts.
-///
-/// A mode may leave its own players their camera in the countdown: Freeze Tag's
-/// who are not frozen move on through the pause (`freeze_tag::countdown_view`).
+/// back to the player's camera as the round starts: everyone's, in every mode.
 pub fn camera_state(ctx: &mut Context<'_>) {
     // SAFETY: the site's EDI, the live client time rule; its core (+128h,
-    // 0x267ACC) and its own state (+148h, the instruction replaced); ESI the
-    // network client (0x267AE0), its local player's place when it has one.
+    // 0x267ACC) and its own state (+148h, the instruction replaced).
     let state = unsafe {
         let Some(rule) = raw::site::time_rule_camera_state::rule(ctx) else { return };
         match rule.timelimit_core() {
-            Some(core) if Play::of(core) == Play::RoundCountdown && countdown_view(ctx) => COUNTDOWN,
+            Some(core) if Play::of(core) == Play::RoundCountdown => COUNTDOWN,
             _ => read(rule.time_state()),
         }
     };
     ctx.set_reg(Reg::Edi, state);
-}
-
-/// Whether this game's local player sees the round's countdown; the local
-/// player read only for a mode that asks (Freeze Tag).
-fn countdown_view(ctx: &Context<'_>) -> bool {
-    let thread = ctx.thread();
-    if !crate::freeze_tag::active(thread) {
-        return true;
-    }
-    // SAFETY: the site's ESI, the live network client; its local player's
-    // place byte when it has one.
-    let local = unsafe {
-        raw::site::time_rule_camera_state::client(ctx)
-            .and_then(|client| client.local_player())
-            .and_then(|player| srp_validate::Place::new(read(player.place())))
-    };
-    crate::freeze_tag::countdown_view(thread, local)
 }

@@ -416,8 +416,8 @@ python() {
 # Runs a script of the checkout <src>'s srp-026g/client-patches
 # (make_client_026g.py, patch_026g.py, ...) with the arguments after <src>,
 # in that checkout's dev shell: its python3, and the gcc, GNU ld and NASM
-# 2.16 the exe's arena is linked with (link_026g.py; the bytes must be
-# arena_026g.lock.json's). Nothing of this machine's PATH is needed but nix.
+# 2.16 the exe's arena is linked with (link_026g.py). Nothing of this
+# machine's PATH is needed but nix.
 # A release builds the arena's Rust from source (SRP_ARENA_CACHE=off): what
 # local builds keep of it (link_026g.py's cache) is not what players get.
 client_patches_python() {
@@ -485,6 +485,25 @@ exe_revision() {
 # The revision of the exe in a ZIP (<scratch> holds it), or `unknown`.
 zip_revision() {
     if zip_extract "$1" "$ZIP_EXE" "$2"; then exe_revision "$2"; else printf 'unknown\n'; fi
+}
+
+# The SHA-256 of an exe's arena: the bytes of its `.srpx` (patch_026g.py's
+# add_arena), what link_026g.py and the self-test print of the arena they
+# link. Fails when the exe has no `.srpx`.
+exe_arena_sha256() {
+    python -I -c '
+import hashlib, struct, sys
+data = open(sys.argv[1], "rb").read()
+pe = struct.unpack_from("<I", data, 0x3C)[0]
+count, optional = struct.unpack_from("<H", data, pe + 6)[0], struct.unpack_from("<H", data, pe + 20)[0]
+for at in range(pe + 24 + optional, pe + 24 + optional + 40 * count, 40):
+    name, size, _, _, raw = struct.unpack_from("<8sIIII", data, at)
+    if name == b".srpx\0\0\0":
+        print(hashlib.sha256(data[raw:raw + size]).hexdigest())
+        break
+else:
+    sys.exit(f"{sys.argv[1]}: no .srpx")
+' "$1"
 }
 
 # The patches a players' survarium_skhid.exe requires at its start (patch 49,

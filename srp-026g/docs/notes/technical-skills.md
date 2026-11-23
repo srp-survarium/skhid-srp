@@ -30,6 +30,9 @@ reading chosen where the owner's list leaves it open (the owner may overrule it)
   never a pocket (see "Tank Container (445)"). The owner, the same day, on a kit whose pockets
   fill the six quick positions: "yes, we have max 6 slots, and if there are already 6 sdlots, new
   ones are not added" (no container there, no pocket given up).
+- 2026-11-23 (the owner): "do the same with toxic smokes: a Bear Trap trap takes 1.5 pocket units,
+  so a 5-unit pocket holds 3". Toxic Smoke's grenade takes one and a half units too, not two (see
+  "Pocket units: Toxic Smoke (441) and Bear Trap (444)").
 - 2026-11-22 (the owner): "traps always break legs skill should take 1.5 slots, not 2", "so you
   could take 3 traps", "we can simulate fractions somehow, we don't need to overcomplicate there,
   internally we can just multiply all by 2 or something, or use higher numbers for more logic",
@@ -78,7 +81,7 @@ reading chosen where the owner's list leaves it open (the owner may overrule it)
 | 4 | 12 | 432 | Dead Man's Switch | 1 | killed: the throw key drops one of its smokes at the body | exe |
 | 4 | 12 | 433 | Rearm | 2 | its traps that were shot open again after 30 s (20 s) | exe |
 | 4 | 12 | 442 | Oxygen Rush | 1 | after every 20 s of oxygen tank use without a break and at its run-out: +10% speed for 20 s, energy full | exe |
-| 5 | 16 | 441 | Toxic Smoke | 3 | its smoke is tinted green and does toxic damage to enemies inside; a pocket holds half as many grenades | exe + pack + srp + lobby |
+| 5 | 16 | 441 | Toxic Smoke | 3 | its smoke is tinted green and does toxic damage to enemies inside; a grenade takes 1.5 pocket units | exe + pack + srp + lobby |
 | 5 | 16 | 443 | Scavenger | 1 | a kill with its grenade gives one grenade back | exe |
 | 5 | 16 | 444 | Bear Trap | 1 | its trap breaks the legs it catches; a trap takes 1.5 pocket units | exe + srp + lobby |
 | 5 | 16 | 445 | Tank Container | 1 | with an oxygen tank in the kit: one more artifact container | srp (the kit's block) + lobby |
@@ -299,11 +302,15 @@ the ms passed become ms x (10 + rank) / 10 for the user's player (`Skills::crate
 
 ## Pocket units: Toxic Smoke (441) and Bear Trap (444)
 
-- "Decreases the carry capacity to 2 slots (like normal grenades)": the RGD-5 takes two of a pocket's
-  units (`parameters/pocket_units` 2, `PocketShare::Pair`; one-pocket-a-type.md). With Toxic Smoke
-  every grenade of the kit does. With Bear Trap every trap takes one and a half
-  (`PocketShare::ThreeHalves`; `technical_skills::Skills::stack_units`): a pocket of `n` units holds
-  2n/3 traps, rounded down, at least one, as a pair's pocket holds n/2, at least one.
+- The RGD-5 takes two of a pocket's units (`parameters/pocket_units` 2, `PocketShare::Pair`;
+  one-pocket-a-type.md), with or without the skills. With Toxic Smoke every other grenade of the
+  kit (every grenade stack of one unit: in the game data the smoke grenade, the one throwable
+  config besides the RGD-5's, `throwables.tsv`) takes one and a half; it took two
+  until 2026-11-23 ("Decreases the carry capacity to 2 slots (like normal grenades)"). With Bear Trap
+  every trap takes one and a half (`PocketShare::ThreeHalves`;
+  `technical_skills::Skills::stack_units`): a pocket of `n` units holds 2n/3 of them, rounded down,
+  at least one, as a pair's pocket holds n/2, at least one. A kit with both counts each pocket by
+  its own item's share.
 - Where the units are counted: a pocket's size (`pocket_slot_size` plus the gear's and the skills'
   modifiers, at most five) and what one item takes of it are srp's (`loadouts::KitLayout`,
   `PocketShare::units_in`) and the lobby's (`PlayerInfo.pocketUnits`, `itemUnits`), each as a
@@ -319,14 +326,20 @@ the ms passed become ms x (10 + rank) / 10 for the user's player (`Skills::crate
   | traps, without Bear Trap | 1 | 2 | 3 | 4 | 5 |
   | traps, Bear Trap until 2026-11-22 (2 units) | 1 | 1 | 1 | 2 | 2 |
   | traps, Bear Trap now (1.5 units) | 1 | 1 | 2 | 2 | 3 |
+  | grenades of one unit, without Toxic Smoke | 1 | 2 | 3 | 4 | 5 |
+  | grenades, Toxic Smoke until 2026-11-23 (2 units) | 1 | 1 | 1 | 2 | 2 |
+  | grenades, Toxic Smoke now (1.5 units) | 1 | 1 | 2 | 2 | 3 |
+  | the RGD-5 (2 units), with or without Toxic Smoke | 1 | 1 | 1 | 2 | 2 |
 
   A pocket of five (the most: the player's one, the gear's +1/+2 and Tank Depth, capped at five)
-  holds three, the owner's "so you could take 3 traps". A pocket of one holds one, as a pair's.
+  holds three, the owner's "so you could take 3 traps" (and three grenades with Toxic Smoke). A
+  pocket of one holds one, as a pair's.
 - srp: `loadouts::KitLayout::share`, so every kit and preset is held to it; a skill change keeps
   what still fits and takes the rest off (a slot names units of the inventory's stack: nothing is
   lost).
 - The lobby: fed by the committed skills (`PlayerInfo.committedSkills`); a pocket draws its units
-  as cells, the traps in it and the units they use up in pale red last (5 units: 3 traps, 2 red).
+  as cells, the traps or grenades in it and the units they use up in pale red last (5 units: 3
+  traps, 2 red).
 - A change of what a kit can carry into a match: the `next` row.
 
 ## Grenades: Blast Drill (404), Scavenger (443)
