@@ -1058,7 +1058,6 @@ pub fn eye_reset(_: &Thread, value: Option<bool>) -> bool {
 pub enum Stage {
     AmbientOcclusion,
     Reflections,
-    SunShadows,
 }
 
 /// The stage's enable byte (render options) set to `on`; what it was.
@@ -1070,7 +1069,6 @@ pub fn set_stage(_: &Thread, stage: Stage, on: bool) -> bool {
         let byte = match stage {
             Stage::AmbientOcclusion => options.ambient_occlusion(),
             Stage::Reflections => options.reflections(),
-            Stage::SunShadows => options.sun_shadows(),
         };
         let was = *byte != 0;
         *byte = u8::from(on);

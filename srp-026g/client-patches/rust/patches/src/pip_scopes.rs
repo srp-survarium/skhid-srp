@@ -259,7 +259,6 @@ struct Kept {
     hiz: bool,
     ambient_occlusion: bool,
     reflections: bool,
-    sun_shadows: bool,
     eye_reset: bool,
 }
 
@@ -270,18 +269,17 @@ fn restore_switches(thread: &Thread) {
         second_view::set_hiz(thread, kept.hiz);
         second_view::set_stage(thread, Stage::AmbientOcclusion, kept.ambient_occlusion);
         second_view::set_stage(thread, Stage::Reflections, kept.reflections);
-        second_view::set_stage(thread, Stage::SunShadows, kept.sun_shadows);
         second_view::eye_reset(thread, Some(kept.eye_reset));
     }
 }
 
+/// The sun's cascades stay on: read from the frame's last draw, near sunlit
+/// surfaces in the picture came out shadowed while moving.
 fn turn_off_switches(thread: &Thread) {
     let kept = Kept {
         hiz: second_view::set_hiz(thread, false),
         ambient_occlusion: second_view::set_stage(thread, Stage::AmbientOcclusion, false),
         reflections: second_view::set_stage(thread, Stage::Reflections, false),
-        // the frame's cascades of the last draw, from the same eye, cover the second view's narrower frustum
-        sun_shadows: second_view::set_stage(thread, Stage::SunShadows, false),
         eye_reset: second_view::eye_reset(thread, Some(false)),
     };
     KEPT.with(thread, |slot| *slot = Some(kept));
