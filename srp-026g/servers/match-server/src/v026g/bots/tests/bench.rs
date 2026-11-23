@@ -2763,10 +2763,7 @@ pub(crate) fn real_bot_cost() {
             eprintln!("route hash: camper {:016x} bots {:016x}", bots.bench_route_hash[0], bots.bench_route_hash[1]);
             eprintln!("walker_holds so far: {}", crate::v026g::bots::body::walker_holds::count());
             let (left, ground, held) = crate::v026g::bots::body::kept_edges::counts();
-            eprintln!(
-                "kept edges so far: left the floor {left}, the walker's ground under the feet {ground}, no floor under it {held}; the column's floor not the square's {}",
-                crate::v026g::bots::body::kept_edges::column_differs_count()
-            );
+            eprintln!("kept edges so far: left the floor {left}, the walker's ground under the feet {ground}, no floor under it {held}");
             let [climbed, falls, fell_landed, handed, no_climb_in_air] = super::standin_jump::kept_moves::counts();
             eprintln!(
                 "stand-in kept moves so far: climbs {climbed}, steps in the air over the lattice's walk that climbed nothing {no_climb_in_air}; falls {falls} (landed {fell_landed}, handed back {handed})"
