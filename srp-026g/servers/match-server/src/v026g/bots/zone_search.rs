@@ -147,6 +147,87 @@ fn searched_entry(
     damage_per_s: impl Fn(NodeId) -> f32,
     within_m: f32,
 ) -> Option<Vec<NodeId>> {
+    let grid = &tactics.world.grid;
+    let hazards = &tactics.hazards;
+    let at = grid.position(goal);
+    let area = [at.x - within_m, at.z - within_m, at.x + within_m, at.z + within_m];
+    let inside = |p: mapdata::Vec3| (p.x - at.x).abs() <= within_m && (p.z - at.z).abs() <= within_m;
+    let walkable = |b: NodeId| entry_walkable(tactics, b, side);
+    // [CPU] By floor, not in maps (a box holds 180-240 thousand floors on Chemical Plant's batteries, and the maps'
+    // hashing was a tenth of a search), and the price of a floor stepped onto worked out once, not at every link into it.
+    let floors = grid.len();
+    let mut price: ByFloor<f32> = ByFloor::new(floors);
+    let mut prev: ByFloor<NodeId> = ByFloor::new(floors);
+    let mut stepped_onto: ByFloor<f32> = ByFloor::new(floors);
+    let mut floor_price = |b: NodeId| match stepped_onto.get(b) {
+        Some(d) => d,
+        None => {
+            let d = damage_per_s(b);
+            stepped_onto.set(b, d);
+            d
+        }
+    };
+    let mut heap = BinaryHeap::new();
+    for node in grid.floors_in(area) {
+        // Only a dry floor by a marked one can be an entry: the others' dry neighbours are sources at the same price.
+        if hazards.hazard_free(node)
+            && grid.links(node).any(|(b, _)| !hazards.hazard_free(b))
+            && tactics.past_fixed_zones(node)
+            && tactics.spawn_ok(node, side, false)
+            && grid.may_reach(spawn, node)
+        {
+            price.set(node, 0.0);
+            heap.push((Reverse(0.0f32.to_bits()), node));
+        }
+    }
+    while let Some((Reverse(bits), a)) = heap.pop() {
+        let here = f32::from_bits(bits);
+        if price.get(a).is_some_and(|p| here > p) {
+            continue;
+        }
+        if a == goal {
+            let mut path = vec![goal];
+            let mut node = goal;
+            while let Some(before) = prev.get(node) {
+                path.push(before);
+                node = before;
+            }
+            path.reverse();
+            return Some(path);
+        }
+        let from = grid.position(a);
+        for (b, kind) in grid.links(a) {
+            let to = grid.position(b);
+            if !inside(to) || !walkable(b) {
+                continue;
+            }
+            let walk = grid.link_cost(a, b, kind);
+            if !walk.is_finite() {
+                continue;
+            }
+            let metres = (to - from).length();
+            let damage = floor_price(b) * metres / CROSS_MPS;
+            let through = here + walk.max(metres) + damage * DAMAGE_M;
+            if price.get(b).is_none_or(|p| through < p) {
+                price.set(b, through);
+                prev.set(b, a);
+                heap.push((Reverse(through.to_bits()), b));
+            }
+        }
+    }
+    None
+}
+
+/// The search [`searched_entry`] was before its prices were kept by floor: the reference its test holds it to.
+#[cfg(test)]
+fn searched_entry_by_maps(
+    tactics: &Tactics,
+    spawn: NodeId,
+    goal: NodeId,
+    side: Option<i32>,
+    damage_per_s: impl Fn(NodeId) -> f32,
+    within_m: f32,
+) -> Option<Vec<NodeId>> {
     use std::collections::HashMap;
     let grid = &tactics.world.grid;
     let hazards = &tactics.hazards;
@@ -158,7 +239,6 @@ fn searched_entry(
     let mut prev: HashMap<NodeId, NodeId> = HashMap::new();
     let mut heap = BinaryHeap::new();
     for node in grid.floors_in(area) {
-        // Only a dry floor by a marked one can be an entry: the others' dry neighbours are sources at the same price.
         if hazards.hazard_free(node)
             && grid.links(node).any(|(b, _)| !hazards.hazard_free(b))
             && tactics.past_fixed_zones(node)
@@ -205,6 +285,30 @@ fn searched_entry(
         }
     }
     None
+}
+
+/// [CPU] A value by floor, none till it is set: [`searched_entry`]'s prices, ways back and floor prices. Zeroed memory
+/// (the allocator's own: only the floors a search reaches are touched) and a bit a floor for "set".
+struct ByFloor<T> {
+    value: Vec<T>,
+    set: Vec<u64>,
+}
+
+impl<T: Copy + Default> ByFloor<T> {
+    fn new(floors: usize) -> Self {
+        Self { value: vec![T::default(); floors], set: vec![0; floors.div_ceil(64)] }
+    }
+
+    fn get(&self, node: NodeId) -> Option<T> {
+        let n = node as usize;
+        (self.set[n / 64] >> (n % 64) & 1 != 0).then(|| self.value[n])
+    }
+
+    fn set(&mut self, node: NodeId, value: T) {
+        let n = node as usize;
+        self.set[n / 64] |= 1 << (n % 64);
+        self.value[n] = value;
+    }
 }
 
 /// The loss a body walking `path` over the grid takes, at [`CROSS_MPS`], in each pool, and the
@@ -266,5 +370,40 @@ mod tests {
             asked += 1;
         }
         assert!(never > 0 && found > 0, "{never} goals never stepped onto, {found} found, of {asked}");
+    }
+
+    /// [CPU] The search with its prices kept by floor finds the ways the search with maps found, floor for floor: on the
+    /// field with a zone on all match (a price that varies by floor), for the floors round the zone and all over.
+    #[test]
+    fn the_search_by_floor_finds_the_ways_the_search_by_maps_found() {
+        let world = crate::v026g::bots::tactics::tests::field_with(|map| {
+            map.zones.push(Zone {
+                kind: ZoneKind::Damage,
+                name: "slab".into(),
+                team: -1,
+                position: Vec3::new(30.0, -1.27, 30.0),
+                protection: None,
+                damage_type: "radiation".into(),
+                damage: Some(mapdata::Damage { max_hit: 0.1, interval_ms: 1000, parts: 2, ..mapdata::Damage::default() }),
+                shapes: vec![Shape {
+                    kind: ShapeKind::Box,
+                    center: Vec3::new(30.0, -1.27, 30.0),
+                    rotation: Rotation::IDENTITY,
+                    half: Vec3::new(4.0, 1.0, 4.0),
+                }],
+            });
+        });
+        let tactics = Tactics::new(world, 1.0);
+        let grid = &tactics.world.grid;
+        let spawn = grid.locate(Vec3::new(5.0, 0.0, 10.0), 1.0).unwrap();
+        // A price by floor: the zone's hit, and a little more toward the north (no two ways price alike by chance).
+        let price = |b: NodeId| tactics.hazards.hit_per_s(b) + grid.position(b).z * 1e-4;
+        let mut found = 0;
+        for goal in grid.floors_in([24.0, 24.0, 36.0, 36.0]).step_by(5).chain((0..grid.len() as NodeId).step_by(3001)) {
+            let by_floor = searched_entry(&tactics, spawn, goal, Some(0), price, 20.0);
+            assert_eq!(by_floor, searched_entry_by_maps(&tactics, spawn, goal, Some(0), price, 20.0), "goal {goal}");
+            found += usize::from(by_floor.is_some());
+        }
+        assert!(found > 10, "{found} ways found");
     }
 }
