@@ -931,6 +931,10 @@ fn fly_pressed(mut at: Estimate, plan: &PressPlan, world: &PressWorld) -> PressO
     let walk = plan.walk & !key::JUMP;
     let tick = |at: &Estimate, keys: u32| Tick { time: at.time + TICK_MS, keys, turn: (0.0, 0.0), kick: 0.0, jump: JumpGate::Open, legs_broken: false };
     let air = walk & key::FORWARD;
+    let stay = match plan.after {
+        AfterLanding::Hold => 0,
+        AfterLanding::WalkOn => walk,
+    };
     let mut steps = 0;
     while at.arc.is_some() && steps < PRESS_FLIGHT_STEPS {
         at = advance(at, tick(&at, air), kin, level, Some(grid), None, Role::Press, false);
@@ -939,6 +943,11 @@ fn fly_pressed(mut at: Estimate, plan: &PressPlan, world: &PressWorld) -> PressO
     if at.arc.is_some() {
         return PressOutcome::NotDown { at: at.feet };
     }
+    // [landing walk] The keys after the landing are the landing tick's own input, as the builder's scoring flights let go at the
+    // landing (`jump::STAY_KEYS`, exe-checked): a tick's input moves the step two ticks on, so the landing tick's air keys would
+    // push the walk on toward the cap for a step after the landing's own (the gate bench's level_03 rim: 0.12 m further onto the
+    // top, which the let-go client slid back off). The landing tick's step was the flight's, whatever its input.
+    at.keys = stay;
     // A flight that ended in the air (falling on): its controller falls on, no key, until it is on the ground, and the rest is
     // played from there. The grid's floor under the feet is not the client's where its controller has no ground (the suite's
     // S417: a gap's grid floor past its real edge, the exe fell 5.5 m; S109: a step's face, back to the start floor).
@@ -970,10 +979,6 @@ fn fly_pressed(mut at: Estimate, plan: &PressPlan, world: &PressWorld) -> PressO
         at.velocity = [0.0, 0.0];
         at.kept = Some(kept);
     }
-    let stay = match plan.after {
-        AfterLanding::Hold => 0,
-        AfterLanding::WalkOn => walk,
-    };
     let mut grounded = true;
     for _ in 0..mapdata::controller::jump::STAY_STEPS {
         at = advance(at, tick(&at, stay), kin, level, Some(grid), None, Role::Press, false);
@@ -982,7 +987,12 @@ fn fly_pressed(mut at: Estimate, plan: &PressPlan, world: &PressWorld) -> PressO
     if at.fall != Fall::Ground || at.arc.is_some() {
         return PressOutcome::NotDown { at: at.feet };
     }
-    let rest = at.feet;
+    // [landing walk] The rest's height is the kept controller's, the client's own: the reckoned feet stay on the grid's floor, which a
+    // body sliding back off a sloped rim has left (the gate bench's level_03 rim: the grid's 1.84 against the exe's 1.66 and falling).
+    let rest = match at.kept {
+        Some(kept) => Vec3::new(at.feet.x, kept.controller.feet().y, at.feet.z),
+        None => at.feet,
+    };
     if grounded && super::motor::is_up(rest, plan.take_off, plan.landing) {
         return PressOutcome::Lands { rest };
     }
