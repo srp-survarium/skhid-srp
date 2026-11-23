@@ -140,6 +140,14 @@ raises it, a downward turn of the mouse is taken off it first and a controller r
 (`bots/recoil.rs` has the proof). The look pitch with the kick poses the eye, the hands and the gun
 together, so in the stock game the kick is a turn of the screen.
 
+**Seen in play: the kick is on the gun.** The owner's third play logged every shot's way and the
+game's copy of the eye to the bit. Through bursts fired from the hip the barrel climbs and falls
+with the eye, shot for shot (one nine-shot burst: the barrel +1.4, +2.1, +2.0, +2.8, +2.5, +3.8,
++3.5, +3.4 degrees over its first shot, the eye +1.0, +1.9, +1.9, +2.9, +2.9, +3.5, +3.5, +3.5):
+the kick the weapon keeps turns the gun in the hands, not the eye alone, so a bullet from the
+muzzle carries the recoil from the hip as it does fully aimed. Nothing had to be added to the
+simulation for it.
+
 With the bullet following the gun, the kick is the gun's motion and the eye need not take all of
 it. Patch 197 draws it so: of the lift the kick gives the eye the view takes 40 % (`KICK_SHOWN`, a
 first value: the owner, asked, "we will iterate on this"), from the hip too; the gun stays on the
