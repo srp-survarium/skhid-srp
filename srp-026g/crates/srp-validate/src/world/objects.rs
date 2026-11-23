@@ -31,8 +31,11 @@
 //! grenade_core           serialize 0x303DA0, deserialize 0x303F80
 //!   u8   current_state   bit 0: in the physics world (+0x138 set),
 //!                        bit 1: thrown (+0x13C m_explode_time_ms not -1),
-//!                        bit 2: +0x144 (meaning unknown); no other bit
+//!                        bit 2: +0x144 (meaning unknown),
+//!                        bit 3: exe patch 180's toxic cloud; no other bit
 //!   bit 1:  u32 m_explode_time_ms, u32 m_id
+//!   bit 3:  u32 the blast's ms, f32 x3 its centre (Toxic Smoke 441,
+//!           technical_skills::smoke::Cloud; technical-skills.md)
 //!   bit 0:  f32 x16 m_transform, f32 x3 linear_velocity,
 //!           f32 x3 angular_velocity
 //!
@@ -89,16 +92,20 @@
 //!                        serialize 0x313670 / deserialize 0x313760
 //!   u16  m_amount        (an f32 m_condition for an item whose params'
 //!                        +0x22A is clear; an artefact's is set: every
-//!                        world reads so)
+//!                        world reads so), at most its item's ([`Uses`])
 //!   u8   player_id       0xFF none, else a place, then
 //!   u8   player_profile_id   its kit: [[core+0x18458] + place*0x30 +
 //!                        kit*4] with no bound, the place table of 20,
 //!                        three kits with a player object
-//!   when that kit has a player: u8 m_slot_id (its profile slot)
+//!   when that kit has a player: u8 m_slot_id, its inventory slot, an
+//!                        artefact slot 13..18 ([`ArtefactSlot`])
 //!   u8   m_state         0 free, 1 spawning in a container, 2 ready in
 //!                        it, 3 taken, 4 active, 5 (below); no other
 //!   1, 2: u8 m_container_id; 1: u32 m_time_left_to_spawn
 //!   else: u32 m_time_left_to_cool
+//!   4: u32 reached       client patch 109's, written at 0x313735 and read
+//!                        at 0x3137EC: the places Cascade's activation of
+//!                        the copy reached ([`Places`]: no bit past the 20)
 //!   u32  m_last_activation_time_ms
 //!   4: what its core saves of its own, by its item's data.type (the
 //!   artefact cook's switch 0x2EE95F):
@@ -127,14 +134,77 @@
 //! past the roster or on two objects, an artefact id past the map's, an
 //! owner whose kit has no player.
 //!
-//! Left open (any value the field holds is taken): the u32 times, ids and
-//! seeds; an artefact's amount, its slot and its container id (the writer
-//! copies them from the live objects, and nothing here shows the set it
-//! keeps them in).
+//! An artefact's slot and amount reach its holder's inventory (PROVEN,
+//! the clean exe): `inventory_item::deserialize` stores the slot byte at
+//! +254h with no bound (0x2FFFB0), and when an activation ends
+//! (`artefact_base::end_active` 0x313530) with the amount at 0, it calls
+//! `inventory::remove_item` with that slot (0x31359D..0x3135A9), which
+//! makes two virtual calls through `[inventory + slot*4 + 10Ch]` and writes
+//! 0 there (0x2FC683..0x2FC6AA): past the 23 slots, a call through
+//! whatever is there. The game puts an artefact only in its kit's artefact
+//! slots (`inventory::take_artefact` 0x2FC850, the one way in, through
+//! `set_item` 0x2FC620 or its eviction's shift; the setter `set_owner`
+//! 0x243590 writes +250h and +254h together, `remove_item` 0 and 23), a
+//! range `setup_from_profile` starts at a quick slot 13..18 and ends by
+//! the quick slots' end, 19 (0x2FD1C3..0x2FD2A5, [`ArtefactSlot`]). Its
+//! amount is set to its item's uses (`on_spawned` 0x3134C0, client patch
+//! 109's Keeper gift the same) and only lowered after (`end_active`): [`Uses`].
+//!
+//! Left open (any value the field holds is taken), each because no reader
+//! of the game indexes or dereferences with it (the clean exe):
+//!
+//! - an artefact's `m_container_id` (+284h): written by its constructor
+//!   (0x31300B), `on_spawned` (0x313506), `deserialize` (0x313779,
+//!   0x3137D3) and a container's take (0x31C8A4); read only by `serialize`
+//!   (0x3136EC). No other byte access to +284h in the exe reads it (the two
+//!   at 0x17D54E and 0x17D8CD are the renderer's own objects).
+//! - a grenade's `m_id`: `deserialize` hands it to the grenade's start
+//!   (vtable 0xA13FB8 +10h, 0x303B90), which stores it at +4 (0x303B9E;
+//!   0x303FF4 when already thrown); only `serialize` reads it (0x303E37).
+//!   None of the grenade's virtuals (0x303A60 tick, 0x303B20, 0x303B60
+//!   explode, 0x303C10, 0x303D10, 0x303D50, 0x3041B0) reads +4.
+//! - an anomaly's `m_random.seed()` (+1B8h of the anomaly): each use steps
+//!   it (`x * 0x8088405 + 1`) and takes the high half of `x * n`, always
+//!   below `n` (0x31B6CB, 0x31B7C8, 0x31B847, 0x31BA03).
+//! - the u32 times: every reader compares them with the clock, subtracts,
+//!   or converts them for display; none indexes, counts, divides or bounds
+//!   a loop with one. Each field's slot, then its readers (other than its
+//!   own `serialize`):
+//!   - an artefact's `m_time_left_to_cool` (+28Ch): the tick 0x313213
+//!     (subtract), `action` 0x313313 (compare with 0), the HUD's percent
+//!     0x31389C (over the item's own cooldown +274h, a byte at 0x3138F4);
+//!     `m_time_left_to_spawn` (+288h): the tick 0x313238, 0x31324C;
+//!     `m_last_activation_time_ms` (+2A0h): `effect` 0x313350's argument
+//!     (0x313860).
+//!   - an active core's `m_time_left_to_deactivate` (spring +394h,
+//!     lifebone +494h, onyx +F14h): its tick's saturating subtract
+//!     (0x311890, 0x312170, 0x3127E0), compare (0x311992, 0x312462,
+//!     0x312A50), and the HUD's seconds (0x311A6F, 0x31252F, 0x312B8F: a
+//!     u16 stored at 0x311AB8).
+//!   - a grenade's `m_explode_time_ms` (+14Ch): the tick's compare with the
+//!     clock 0x303AEA, 0x3041DB (subtract, compare).
+//!   - a trap's `m_action_time_in_ms` (core +260h): the tick 0x304DC1
+//!     (compare with the clock), 0x304D6F (compare with -1); its
+//!     `m_state_timer` (+268h): 0x304DDC..0x304DF9 (test, compare,
+//!     subtract); its `m_deploy_time_in_ms` (+26Ch): no reader. (The
+//!     +268h/+26Ch reads at 0x305E10..0x305FF2 are a trap set's vector.)
+//!   - a damage zone's `m_last_hit_time_ms` (core +1CCh, its serializable
+//!     at +130h): 0x319AB4, 0x319B01 (compare with -1, add its period,
+//!     compare with the clock).
+//!   - a zone group's `m_next_recharge_time` (+24h): the state's tick
+//!     0x31BCEC (test, compare with the clock), 0x31C02D (compare with 0).
+//!   - an anomaly state's `m_finish_time_ms` (+2Ch): 0x31BAAB (compare
+//!     with 0), the state's tick 0x31BD0F..0x31BD16 (test, compare).
+//!   - an anomaly's `m_next_artefact_spawn_time_ms` (+13Ch): 0x31B66B
+//!     (compare with the clock).
+//!   - a container's `m_next_artefact_spawn_time_ms` (+60h): the
+//!     anomaly's spawn 0x31B764..0x31B77A (compare with the clock and the
+//!     earliest so far).
 
-use super::{Context, Profile, Section};
+use super::player_tail::QUICK_SLOTS;
+use super::{Context, Item, Profile, Section};
 use crate::reader::{Reader, Short};
-use crate::{Finite, KITS, MAX_PLAYERS, Part, Place, Reason, Refusal};
+use crate::{Finite, KITS, MAX_PLAYERS, Part, Place, Places, Reason, Refusal};
 
 /// The list of objects a world's section holds, in its order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -189,7 +259,55 @@ pub struct Artefacts<'a> {
     /// `artefact_containers`.
     pub containers: usize,
     /// In the world's order: each of `artefacts[]` its `count` times.
-    pub artefacts: &'a [Artefact],
+    pub artefacts: &'a [ArtefactItem],
+}
+
+/// The item of one of an anomaly's artefacts, by its config.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ArtefactItem {
+    /// Its core, by `data.type`.
+    pub core: Artefact,
+    /// By `data.amount`.
+    pub uses: Uses,
+}
+
+/// An artefact item's `data.amount` as `artefact_base::artefact_base`
+/// keeps it: its low 16 bits at +27Ch (0x3130B9..0x3130CD; -1 is 0xFFFF).
+/// It bounds the artefact's `m_amount`, which nothing raises past it:
+/// `on_spawned` 0x3134C0 sets it to the uses, 1 for 0xFFFF; `end_active`
+/// 0x313530 takes one off each activation's end, none for 0xFFFF, and
+/// below 0 it wraps to 0xFFFF (so an item of 0 uses holds any amount).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Uses(u16);
+
+impl Uses {
+    /// The uses of an item whose `data.amount` is `amount`.
+    pub const fn of_amount(amount: i32) -> Self {
+        Self(amount as u16)
+    }
+
+    /// The least `m_amount` a held artefact of the item has: 1, but 0 for
+    /// an item of 0 uses. An endless one is never lowered from the 1 it is
+    /// given (`on_spawned` 0x3134C0, the Keeper gift), and a counted one at
+    /// 0 leaves its kit in the same `end_active` (`remove_item`, which
+    /// clears its owner). A held one at 0 would reach `remove_item` again
+    /// at its next activation's end (0x313536 skips the decrement for
+    /// 0xFFFF, 0x313598 calls it at 0), on a slot it may no longer hold.
+    pub const fn least_held(self) -> u16 {
+        match self.0 {
+            0 => 0,
+            _ => 1,
+        }
+    }
+
+    /// The most `m_amount` an artefact of the item holds.
+    pub const fn most(self) -> u16 {
+        match self.0 {
+            0xFFFF => 1,
+            0 => u16::MAX,
+            uses => uses,
+        }
+    }
 }
 
 /// An artefact's core, by its item's `data.type` (the artefact cook's
@@ -235,6 +353,14 @@ pub enum ObjectFault {
         at: usize,
         field: &'static str,
     },
+    /// An artefact's `m_amount` outside what its item and its holder allow
+    /// ([`Uses::least_held`], [`Uses::most`]).
+    Amount {
+        at: usize,
+        amount: u16,
+        least: u16,
+        most: u16,
+    },
 }
 
 impl ObjectFault {
@@ -242,7 +368,9 @@ impl ObjectFault {
     pub fn at(self) -> usize {
         match self {
             ObjectFault::Short(short) => short.at,
-            ObjectFault::Value { at, .. } | ObjectFault::NotNumber { at, .. } => at,
+            ObjectFault::Value { at, .. }
+            | ObjectFault::NotNumber { at, .. }
+            | ObjectFault::Amount { at, .. } => at,
         }
     }
 }
@@ -264,6 +392,15 @@ impl core::fmt::Display for ObjectFault {
                 )
             }
             ObjectFault::NotNumber { at, field } => write!(f, "its {field} at {at} is no number"),
+            ObjectFault::Amount {
+                at,
+                amount,
+                least,
+                most,
+            } => write!(
+                f,
+                "its m_amount at {at} is {amount}, outside the {least} to {most} it holds"
+            ),
         }
     }
 }
@@ -294,6 +431,16 @@ fn bits(reader: &mut Reader, field: &'static str, known: u8) -> Result<u8, Objec
     byte(reader, field, |value| {
         (value & !known == 0).then_some(value)
     })
+}
+
+/// An active artefact's places Cascade reached: the 20 places' bits of a little-endian u32, its
+/// third byte's high half and its fourth byte none (a fault names the byte).
+fn reached(reader: &mut Reader) -> Result<Places, ObjectFault> {
+    let (first, second) = (reader.u8()?, reader.u8()?);
+    let third = byte(reader, "reached", |value| (value < 0x10).then_some(value))?;
+    let fourth = byte(reader, "reached", |value| (value == 0).then_some(value))?;
+    let mask = u32::from_le_bytes([first, second, third, fourth]);
+    Places::new(mask).ok_or(ObjectFault::Value { at: reader.at(), field: "reached", value: third })
 }
 
 fn number(reader: &mut Reader, field: &'static str) -> Result<Finite, ObjectFault> {
@@ -379,9 +526,10 @@ impl UsableObject {
 }
 
 /// A grenade's `grenade_core`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GrenadeCore {
     thrown: Option<Thrown>,
+    cloud: Option<technical_skills::smoke::Cloud>,
     motion: Option<Motion>,
     flag_144: bool,
 }
@@ -440,18 +588,34 @@ impl GrenadeCore {
     const IN_PHYSICS: u8 = 1;
     const THROWN: u8 = 2;
     const FLAG_144: u8 = 4;
+    /// Exe patch 180's: a toxic cloud follows the thrown fields.
+    const CLOUD: u8 = 8;
 
     fn read(reader: &mut Reader) -> Result<Self, ObjectFault> {
         let state = bits(
             reader,
             "grenade current_state",
-            Self::IN_PHYSICS | Self::THROWN | Self::FLAG_144,
+            Self::IN_PHYSICS | Self::THROWN | Self::FLAG_144 | Self::CLOUD,
         )?;
         let thrown = if state & Self::THROWN != 0 {
             Some(Thrown {
                 explode_time_ms: reader.u32()?,
                 id: reader.u32()?,
             })
+        } else {
+            None
+        };
+        let cloud = if state & Self::CLOUD != 0 {
+            let at = reader.at();
+            let mut bytes = [0; technical_skills::smoke::Cloud::BYTES];
+            for byte in &mut bytes {
+                *byte = reader.u8()?;
+            }
+            let centre = ObjectFault::NotNumber {
+                at: at.saturating_add(4),
+                field: "toxic cloud centre",
+            };
+            Some(technical_skills::smoke::Cloud::parse(bytes).ok_or(centre)?)
         } else {
             None
         };
@@ -462,6 +626,7 @@ impl GrenadeCore {
         };
         Ok(Self {
             thrown,
+            cloud,
             motion,
             flag_144: state & Self::FLAG_144 != 0,
         })
@@ -470,6 +635,11 @@ impl GrenadeCore {
     /// Set when it was thrown (bit 1 of `current_state`).
     pub fn thrown(&self) -> Option<Thrown> {
         self.thrown
+    }
+
+    /// Exe patch 180's toxic cloud kept on it since its last blast (bit 3).
+    pub fn cloud(&self) -> Option<technical_skills::smoke::Cloud> {
+        self.cloud
     }
 
     /// Set while it is in the physics world (bit 0).
@@ -898,7 +1068,24 @@ pub struct Owner {
     at: usize,
     place: Place,
     kit: Kit,
-    slot: u8,
+    slot: ArtefactSlot,
+}
+
+/// An owned artefact's `m_slot_id`: one of the inventory slots a kit's
+/// artefacts take, 13..18 (the module doc; the player state's inventory
+/// header holds its own range to the same, `QUICK_SLOTS`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ArtefactSlot(u8);
+
+impl ArtefactSlot {
+    fn new(slot: u8) -> Option<Self> {
+        QUICK_SLOTS.contains(&slot).then_some(Self(slot))
+    }
+
+    /// The inventory slot, 13..18.
+    pub fn get(self) -> u8 {
+        self.0
+    }
 }
 
 impl Owner {
@@ -917,8 +1104,8 @@ impl Owner {
         self.kit
     }
 
-    /// `m_slot_id`, the profile slot it is in (left open).
-    pub fn slot(self) -> u8 {
+    /// `m_slot_id`, the inventory slot it is in.
+    pub fn slot(self) -> ArtefactSlot {
         self.slot
     }
 }
@@ -986,9 +1173,12 @@ pub enum ArtefactState {
     Ready { container_id: u8 },
     /// 3: in a kit.
     Taken { time_left_to_cool: u32 },
-    /// 4: in a kit, its active effect on.
+    /// 4: in a kit, its active effect on; `reached`: the teammates its
+    /// activation shared it with (client patch 109, Cascade), who keep it
+    /// to its end.
     Active {
         time_left_to_cool: u32,
+        reached: Places,
         core: ActiveCore,
     },
     /// 5: its holder's player down (LIKELY, the module doc).
@@ -1031,7 +1221,8 @@ pub struct ArtefactBase {
 }
 
 impl ArtefactBase {
-    fn read(reader: &mut Reader, core: Artefact) -> Result<Self, ObjectFault> {
+    fn read(reader: &mut Reader, item: ArtefactItem) -> Result<Self, ObjectFault> {
+        let amount_at = reader.at();
         let amount = reader.u16()?;
         let at = reader.at();
         let place = byte(reader, "player_id", |place| match place {
@@ -1046,7 +1237,7 @@ impl ArtefactBase {
                 })?;
                 // The slot follows when the kit has a player: a world names
                 // no other owner ([`objects`] holds it to one).
-                let slot = reader.u8()?;
+                let slot = byte(reader, "m_slot_id", ArtefactSlot::new)?;
                 Some(Owner {
                     at,
                     place,
@@ -1055,6 +1246,20 @@ impl ArtefactBase {
                 })
             }
         };
+        // Free or in a container: 0 to its uses; held: at least one.
+        let least = match owner {
+            Some(_) => item.uses.least_held(),
+            None => 0,
+        };
+        let most = item.uses.most();
+        if !(least..=most).contains(&amount) {
+            return Err(ObjectFault::Amount {
+                at: amount_at,
+                amount,
+                least,
+                most,
+            });
+        }
         // A state that is not in a container saves its cooldown; the
         // activation time follows every state, an active one's core after.
         let cooling = |reader: &mut Reader| -> Result<(u32, u32), ObjectFault> {
@@ -1066,6 +1271,9 @@ impl ArtefactBase {
                     let (time_left_to_cool, last) = cooling(reader)?;
                     (ArtefactState::Free { time_left_to_cool }, last)
                 }
+                // The container id is any byte: the game only stores it and
+                // writes it back (read only by serialize 0x3136EC; the
+                // module doc lists its writers).
                 StateByte::Spawning => {
                     let state = ArtefactState::Spawning {
                         container_id: reader.u8()?,
@@ -1084,10 +1292,13 @@ impl ArtefactBase {
                     (ArtefactState::Taken { time_left_to_cool }, last)
                 }
                 StateByte::Active => {
-                    let (time_left_to_cool, last) = cooling(reader)?;
-                    let core = ActiveCore::read(reader, core)?;
+                    let time_left_to_cool = reader.u32()?;
+                    let reached = reached(reader)?;
+                    let last = reader.u32()?;
+                    let core = ActiveCore::read(reader, item.core)?;
                     let state = ArtefactState::Active {
                         time_left_to_cool,
+                        reached,
                         core,
                     };
                     (state, last)
@@ -1127,7 +1338,7 @@ impl ArtefactBase {
 
 /// An anomaly's artefacts, in the world's order.
 #[derive(Clone, Copy, Debug)]
-pub struct ArtefactBases<'a>(Run<'a, &'a [Artefact]>);
+pub struct ArtefactBases<'a>(Run<'a, &'a [ArtefactItem]>);
 
 impl Iterator for ArtefactBases<'_> {
     type Item = ArtefactBase;
@@ -1402,8 +1613,10 @@ pub fn objects(section: &Section, context: &Context) -> Result<(), Refusal> {
     let mut rules = Rules {
         places: context.places.min(MAX_PLAYERS),
         owners: context.profiles,
+        kits: context.inventory.map(|inventory| inventory.kits),
         artefacts: list.map.artefacts(),
         using: 0,
+        held: [[0; KITS]; MAX_PLAYERS],
     };
     for (object, read) in read.objects().enumerate() {
         rules
@@ -1418,9 +1631,13 @@ struct Rules<'c> {
     places: usize,
     /// By place, whose kits have a player (an artefact's owner).
     owners: Option<&'c [Profile]>,
+    /// By place, by kit: its own items, when known.
+    kits: Option<&'c [[&'c [Item<'c>]; KITS]]>,
     artefacts: usize,
     /// Bit p: place p uses an object already.
     using: u32,
+    /// By place, by kit: bit s, quick slot 13 + s holds an artefact already.
+    held: [[u8; KITS]; MAX_PLAYERS],
 }
 
 impl Rules<'_> {
@@ -1458,11 +1675,72 @@ impl Rules<'_> {
                         };
                         return Err((owner.at(), reason));
                     }
+                    if let Some(owner) = artefact.owner() {
+                        self.slot(object, owner)?;
+                    }
                 }
                 Ok(())
             }
             GameObject::Grenade(_) | GameObject::BoobyTrap(_) | GameObject::DamageZone(_) => Ok(()),
         }
+    }
+
+    /// A held artefact's slot is one the game gives an artefact in its kit,
+    /// and no other's: none of the kit's own items' (`take_artefact` fills
+    /// only an empty slot, 0x2FC883), and not below the kit's artefact slots,
+    /// which `setup_from_profile` starts at its first quick slot with no
+    /// item of its own (the scan 0x2FD1C8..
+    /// 0x2FD1EF stops at a slot with no object, or with an artefact, whose
+    /// +58h is true), and `take_artefact` 0x2FC850 fills each once
+    /// (`set_owner` moves the slot with its item). An artefact in a pocket
+    /// would have `end_active`'s `remove_item` take the pocket's item out
+    /// (`resupply_from_profile` 0x2FDEC0 and `check_resupply` 0x2FE1D1 then
+    /// read the empty slot); two in one slot, the second's `remove_item`
+    /// reads the slot the first emptied (0x2FC68A). The kits unknown: only
+    /// the second rule.
+    fn slot(&mut self, object: usize, owner: Owner) -> Result<(), (usize, Reason)> {
+        let (place, kit, slot) = (owner.place(), owner.kit().get(), owner.slot().get());
+        if let Some(items) = self
+            .kits
+            .and_then(|kits| kits.get(place.index()))
+            .and_then(|kits| kits.get(usize::from(kit)))
+        {
+            let first = QUICK_SLOTS
+                .clone()
+                .find(|quick| !items.iter().any(|item| item.slot == *quick));
+            let pocket = items.iter().any(|item| item.slot == slot);
+            if pocket || first.is_none_or(|first| slot < first) {
+                let reason = Reason::ObjectsArtefactPocket {
+                    object,
+                    place: place.get(),
+                    kit,
+                    slot,
+                    first,
+                };
+                return Err((owner.at(), reason));
+            }
+        }
+        let bit = 1u8
+            .checked_shl(u32::from(slot.saturating_sub(QUICK_SLOTS.start)))
+            .unwrap_or(0);
+        let Some(held) = self
+            .held
+            .get_mut(place.index())
+            .and_then(|kits| kits.get_mut(usize::from(kit)))
+        else {
+            return Ok(());
+        };
+        if *held & bit != 0 {
+            let reason = Reason::ObjectsArtefactSlotTwice {
+                object,
+                place: place.get(),
+                kit,
+                slot,
+            };
+            return Err((owner.at(), reason));
+        }
+        *held |= bit;
+        Ok(())
     }
 
     /// Each user a place of the roster that uses no other object (a
@@ -1518,10 +1796,13 @@ mod tests {
             game_mode: crate::mode::BATTERIES,
             batteries: 3,
             respawn_points: None,
+            team_2_points: None,
             profiles: None,
             objects,
             artefacts: None,
             inventory: None,
+            dict_ids: None,
+            artefact_hunt: None,
         }
     }
 
@@ -1551,7 +1832,16 @@ mod tests {
     const ANOMALIES: [Anomaly; 1] = [Anomaly {
         artefacts: Some(Artefacts {
             containers: 2,
-            artefacts: &[Artefact::Onyx, Artefact::Spring],
+            artefacts: &[
+                ArtefactItem {
+                    core: Artefact::Onyx,
+                    uses: Uses::of_amount(3),
+                },
+                ArtefactItem {
+                    core: Artefact::Spring,
+                    uses: Uses::of_amount(-1),
+                },
+            ],
         }),
         states: &STATES,
     }];
@@ -1564,8 +1854,8 @@ mod tests {
         held: &[Held::Grenade, Held::Trap],
         map: &MAP,
     };
-    /// An artefact owned by place 2's kit 0, in slot 4, spawning (state 1).
-    const OWNED: [u8; 6] = [1, 0, 2, 0, 4, 1];
+    /// An artefact owned by place 2's kit 0, in slot 14, spawning (state 1).
+    const OWNED: [u8; 6] = [1, 0, 2, 0, 14, 1];
     /// A container used by place 1, holding artefact 1.
     const USED: [u8; 7] = [1, 1, 1, 0, 0, 0, 0];
 
@@ -1677,9 +1967,9 @@ mod tests {
                 own[0].amount(),
                 owner.place().get(),
                 owner.kit().get(),
-                owner.slot()
+                owner.slot().get()
             ),
-            (1, 2, 0, 4)
+            (1, 2, 0, 14)
         );
         assert_eq!(
             own[0].state(),
@@ -1753,7 +2043,7 @@ mod tests {
         nan[9..13].copy_from_slice(&f32::NAN.to_le_bytes());
         assert_eq!(field(&list, &nan), Some("m_transform"));
         let mut flag = bytes.clone();
-        flag[0] |= 8;
+        flag[0] |= 16;
         assert_eq!(field(&list, &flag), Some("grenade current_state"));
         let mut trap = bytes.clone();
         trap[1 + 8 + 88] = 4;
@@ -1761,12 +2051,48 @@ mod tests {
     }
 
     #[test]
+    fn a_spent_smoke_keeps_its_toxic_cloud() {
+        let empty = Map {
+            damage_zones: 0,
+            resupply_zones: 0,
+            anomalies: &[],
+        };
+        let list = Objects {
+            held: &[Held::Grenade],
+            map: &empty,
+        };
+        let cloud = technical_skills::smoke::Cloud {
+            blast: technical_skills::Clock(12_050),
+            centre: [3.0, 1.5, -7.25],
+        };
+        let mut bytes = std::vec![GrenadeCore::FLAG_144 | GrenadeCore::CLOUD];
+        bytes.extend(cloud.to_bytes());
+        assert_eq!(reason(&list, &bytes), None);
+        let read = GameObjects::read(&section(&bytes), &list).unwrap();
+        let GameObject::Grenade(grenade) = read.objects().next().unwrap() else {
+            panic!("a grenade")
+        };
+        assert_eq!(
+            (grenade.cloud(), grenade.thrown(), grenade.motion()),
+            (Some(cloud), None, None)
+        );
+        // a centre that is not a number; a cloud cut short
+        let mut nan = bytes.clone();
+        nan[9..13].copy_from_slice(&f32::NAN.to_le_bytes());
+        assert_eq!(field(&list, &nan), Some("toxic cloud centre"));
+        assert!(reason(&list, &bytes[..10]).is_some());
+    }
+
+    #[test]
     fn an_active_artefact_reads_what_its_core_saves() {
         // The anomaly's artefacts active (state 4): the onyx's u32 and f32,
-        // the spring's u32, after the base's two u32.
+        // the spring's u32, after the base's two u32 and Cascade's places
+        // between them (places 0 and 19 for the onyx).
         let active = |own: usize| {
             let mut bytes = std::vec![1, 0, 0xFF, 4];
-            bytes.extend([0; 4 + 4]);
+            bytes.extend([0; 4]);
+            bytes.extend(if own == 8 { (1u32 | 1 << 19).to_le_bytes() } else { [0; 4] });
+            bytes.extend([0; 4]);
             bytes.extend(std::iter::repeat_n(0, own));
             bytes
         };
@@ -1797,17 +2123,24 @@ mod tests {
             cores[1],
             ArtefactState::Active {
                 core: ActiveCore::Spring { .. },
+                reached: Places::EMPTY,
                 ..
             }
         ));
-        // An onyx read as a spring's.
+        let ArtefactState::Active { reached, .. } = cores[0] else { panic!("active") };
+        assert_eq!(reached.iter().map(Place::get).collect::<Vec<_>>(), [0, 19]);
+        // A place past the 20: its byte named.
+        for (nth, byte) in [(2, 0x10), (3, 0x01)] {
+            let mut bad = bytes.clone();
+            bad[artefacts + 4 + 4 + nth] = byte;
+            assert_eq!(field(&LIST, &bad), Some("reached"), "{nth} {byte:#x}");
+        }
+        // An onyx read as a spring's: the spring after it is misread, its
+        // owner's slot from a zero byte, no artefact slot.
         bytes.truncate(artefacts);
         bytes.extend(active(4));
         bytes.extend(active(4));
-        assert!(matches!(
-            reason(&LIST, &bytes),
-            Some(Reason::ObjectsUnread { .. })
-        ));
+        assert_eq!(field(&LIST, &bytes), Some("m_slot_id"));
     }
 
     #[test]
@@ -1830,6 +2163,9 @@ mod tests {
             (state + 5 + 4 + 2 + 15 + 5, 4, "events_mask"),
             (artefact + 2, 20, "player_id"),
             (artefact + 3, 3, "player_profile_id"),
+            (artefact + 4, 12, "m_slot_id"),
+            (artefact + 4, 19, "m_slot_id"),
+            (artefact + 4, 200, "m_slot_id"),
             (artefact + 5, 6, "artefact m_state"),
         ] {
             assert_eq!(field(&LIST, &mutate(offset, byte)), Some(name), "{name}");
@@ -1890,6 +2226,150 @@ mod tests {
                 kit: 1,
                 ..
             })
+        ));
+    }
+
+    #[test]
+    fn an_items_uses_bound_its_artefacts_amount() {
+        assert_eq!(Uses::of_amount(-1).most(), 1);
+        assert_eq!(Uses::of_amount(0xFFFF).most(), 1);
+        assert_eq!(Uses::of_amount(3).most(), 3);
+        assert_eq!(Uses::of_amount(0).most(), u16::MAX);
+        assert_eq!(Uses::of_amount(0x1_0000).most(), u16::MAX);
+        assert_eq!(Uses::of_amount(-1).least_held(), 1);
+        assert_eq!(Uses::of_amount(3).least_held(), 1);
+        assert_eq!(Uses::of_amount(0).least_held(), 0);
+        // The onyx, held, holds 1 to its 3 uses; the spring, free, 0 or 1.
+        let good = good();
+        let onyx = find(&good, &OWNED);
+        let spring = onyx + OWNED.len() + 9;
+        for (at, amount, most) in [(onyx, 1, 3), (onyx, 3, 3), (spring, 0, 1), (spring, 1, 1)] {
+            let mut bytes = good.clone();
+            bytes[at..at + 2].copy_from_slice(&u16::to_le_bytes(amount));
+            assert_eq!(reason(&LIST, &bytes), None, "{amount} of {most}");
+        }
+        let outside = [(onyx, 0, 1, 3), (onyx, 4, 1, 3), (spring, 2, 0, 1), (onyx, 0xFFFF, 1, 3)];
+        for (at, amount, least, most) in outside {
+            let mut bytes = good.clone();
+            bytes[at..at + 2].copy_from_slice(&u16::to_le_bytes(amount));
+            assert_eq!(
+                reason(&LIST, &bytes),
+                Some(Reason::ObjectsField {
+                    object: 4,
+                    fault: ObjectFault::Amount {
+                        at: 0x100 + at,
+                        amount,
+                        least,
+                        most
+                    },
+                }),
+            );
+        }
+    }
+
+    #[test]
+    fn an_active_artefact_past_the_artefact_slots_is_refused() {
+        // What would reach `inventory::remove_item` with slot 200 once its
+        // activation ends: an onyx active in place 2's kit 0, its last use.
+        let mut bytes = good();
+        let onyx = find(&bytes, &OWNED);
+        bytes.truncate(onyx);
+        bytes.extend([1, 0, 2, 0, 200, 4]);
+        bytes.extend([0; 4 + 4 + 4]);
+        bytes.extend(1u32.to_le_bytes());
+        bytes.extend(0f32.to_le_bytes());
+        bytes.extend([1, 0, 0xFF, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(field(&LIST, &bytes), Some("m_slot_id"));
+        bytes[onyx + 4] = 18;
+        assert_eq!(reason(&LIST, &bytes), None);
+    }
+
+    #[test]
+    fn a_held_endless_artefact_at_no_amount_is_refused() {
+        // What would call `remove_item` at each activation's end: a held
+        // spring (endless) at amount 0.
+        let mut bytes = good();
+        let spring = find(&bytes, &OWNED) + OWNED.len() + 9;
+        // Its 0xFF owner becomes place 2, kit 0, slot 15.
+        bytes.splice(spring..spring + 3, [0, 0, 2, 0, 15]);
+        assert!(matches!(
+            reason(&LIST, &bytes),
+            Some(Reason::ObjectsField {
+                fault: ObjectFault::Amount { amount: 0, least: 1, most: 1, .. },
+                ..
+            })
+        ));
+        bytes[spring] = 1;
+        assert_eq!(reason(&LIST, &bytes), None);
+    }
+
+    #[test]
+    fn two_held_artefacts_in_one_slot_are_refused() {
+        // The spring held in the onyx's slot 14 of place 2's kit 0; in
+        // kit 1, or slot 15, it passes.
+        let mut bytes = good();
+        let spring = find(&bytes, &OWNED) + OWNED.len() + 9;
+        bytes.splice(spring..spring + 3, [1, 0, 2, 0, 14]);
+        assert_eq!(
+            reason(&LIST, &bytes),
+            Some(Reason::ObjectsArtefactSlotTwice {
+                object: 4,
+                place: 2,
+                kit: 0,
+                slot: 14,
+            })
+        );
+        for (kit, slot) in [(1, 14), (0, 15)] {
+            let mut other = bytes.clone();
+            other[spring + 3] = kit;
+            other[spring + 4] = slot;
+            assert_eq!(reason(&LIST, &other), None, "kit {kit} slot {slot}");
+        }
+    }
+
+    #[test]
+    fn a_held_artefact_in_its_kits_pocket_is_refused() {
+        use crate::world::{Body, Inventory, Measure};
+        let item = |slot| Item {
+            slot,
+            measure: Measure::Condition,
+            body: Body::None,
+        };
+        // Place 2's kit 0 holds the onyx in slot 14.
+        let check = |pockets: &[Item]| {
+            let none: [&[Item]; KITS] = [&[]; KITS];
+            let kits = [none, none, [pockets, &[], &[]], none];
+            let inventory = Inventory {
+                kits: &kits,
+                body_parts: 1,
+            };
+            let mut context = context(Some(&LIST));
+            context.inventory = Some(&inventory);
+            objects(&section(&good()), &context).err().map(|refusal| refusal.reason)
+        };
+        // A gun and one pocket (13): its artefacts from 14.
+        assert_eq!(check(&[item(0), item(13)]), None);
+        // Two pockets: from 15, so 14 is a pocket.
+        assert_eq!(
+            check(&[item(13), item(14)]),
+            Some(Reason::ObjectsArtefactPocket {
+                object: 4,
+                place: 2,
+                kit: 0,
+                slot: 14,
+                first: Some(15),
+            })
+        );
+        // A gap at 13: the game starts there, but 14 is still a pocket.
+        assert!(matches!(
+            check(&[item(14), item(15)]),
+            Some(Reason::ObjectsArtefactPocket { first: Some(13), .. })
+        ));
+        // Every quick slot a pocket: no artefact slot at all.
+        let full: Vec<Item> = (13..19).map(item).collect();
+        assert!(matches!(
+            check(&full),
+            Some(Reason::ObjectsArtefactPocket { first: None, .. })
         ));
     }
 }

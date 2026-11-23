@@ -49,6 +49,7 @@ use std::time::{Duration, Instant};
 
 use crate::drive::{self, Drive};
 use lobby_server::v026g::scripted::{CLIENT_IDLE, TestClient, request};
+use login_server::sealed::ServerPublicKey;
 use match_server::v026g::scripted::Client as MatchClient;
 use survarium::v026g::lobby::ClientState;
 use survarium::v026g::lobby::client_model::Decoded;
@@ -59,7 +60,7 @@ use survarium::v026g::match_msgs::ServerMessage;
 /// The version a 0.26g client signs in with.
 const VERSION: &[u8] = b"0.26g0";
 /// The login server's answers.
-const TLS_NEXT: u8 = 0x0B;
+const PASSWORD_NEXT: u8 = 0x0B;
 const SIGNED_IN: u8 = 0x08;
 const INVALID: u8 = 0x0A;
 
@@ -99,16 +100,27 @@ pub struct Config {
     pub name: String,
     /// Its password. Never printed.
     pub password: String,
+    /// The login server's public key of the sign-in cipher.
+    pub server_key: ServerPublicKey,
     /// Stop after one match.
     pub once: bool,
     /// The kit to press Play with; `None` for the one the account plays.
     pub kit: Option<u32>,
-    /// In a match, send the inputs of the stage 0 script (`srp::drive`).
-    pub drive: bool,
+    /// In a match, send the inputs of this script (`srp::drive`).
+    pub drive: Option<drive::Script>,
     /// The patch revision its sign-in says: one that speaks the late join
     /// (5 and later; only such a game plays in rooms).
     pub revision: u8,
+    /// Test only (`srp-bot --suicide-after`): this long after it has the
+    /// world, its next scripted input also carries the suicide bit (24, what
+    /// the K key sends), once, so its body and gun lie where it stood for
+    /// another client to look at. With `drive`. No script has the bit
+    /// (`drive::key::NEVER`), and the match server's own bots never get it.
+    pub suicide_after: Option<Duration>,
 }
+
+/// The suicide bit of an input's actions (client patch 34's K key).
+const SUICIDE: u32 = 0x0100_0000;
 
 /// SHA-1 as the client prints it: 40 lower-case hex characters.
 fn sha1_hex(bytes: &[u8]) -> Vec<u8> {
@@ -130,7 +142,7 @@ impl SignIn {
     /// The session and the lobby's address of a `08` reply; `None` when
     /// the sign-in was refused.
     pub fn accepted(&self) -> Option<(u32, SocketAddr)> {
-        if self.answer != TLS_NEXT || self.reply.len() != 11 || self.reply[0] != SIGNED_IN {
+        if self.answer != PASSWORD_NEXT || self.reply.len() != 11 || self.reply[0] != SIGNED_IN {
             return None;
         }
         let session = u32::from_le_bytes(self.reply[1..5].try_into().ok()?);
@@ -146,9 +158,11 @@ impl SignIn {
         match (self.answer, self.reply.first()) {
             (0x22, _) => "the server takes another version of the game".to_owned(),
             (INVALID, _) => "the server does not take this user name".to_owned(),
-            (TLS_NEXT, Some(&INVALID)) => "invalid user name or password".to_owned(),
-            (TLS_NEXT, Some(code)) => format!("the login server answered {code:#04x}"),
-            (TLS_NEXT, None) => "the login server closed the link after the password".to_owned(),
+            (PASSWORD_NEXT, Some(&INVALID)) => "invalid user name or password".to_owned(),
+            (PASSWORD_NEXT, Some(code)) => format!("the login server answered {code:#04x}"),
+            (PASSWORD_NEXT, None) => {
+                "the login server closed the link after the password".to_owned()
+            }
             (answer, _) => format!("the login server answered {answer:#04x}"),
         }
     }
@@ -158,22 +172,39 @@ impl SignIn {
 /// the clear, the TLS handshake, the digest and the password. An error is
 /// the link's (nobody listening, a timeout); a refusal is a [`SignIn`]
 /// that is not [`SignIn::accepted`].
-pub fn sign_in(login: SocketAddr, user_name: &str, password: &str) -> io::Result<SignIn> {
-    sign_in_with_revision(login, user_name, password, 0)
+pub fn sign_in(
+    login: SocketAddr,
+    server_key: ServerPublicKey,
+    user_name: &str,
+    password: &str,
+) -> io::Result<SignIn> {
+    sign_in_with_revision(login, server_key, user_name, password, 0)
 }
 
 /// Sign in with an explicit client dialect for integration clients.
 pub fn sign_in_with_revision(
     login: SocketAddr,
+    server_key: ServerPublicKey,
     user_name: &str,
     password: &str,
     revision: u8,
 ) -> io::Result<SignIn> {
-    use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
+    let stream = TcpStream::connect_timeout(&login, LOGIN_TIMEOUT)?;
+    sign_in_over(stream, server_key, user_name, password, revision)
+}
+
+/// [`sign_in_with_revision`] over a connection the caller made (from an
+/// address of its choosing, say).
+pub fn sign_in_over(
+    mut stream: TcpStream,
+    server_key: ServerPublicKey,
+    user_name: &str,
+    password: &str,
+    revision: u8,
+) -> io::Result<SignIn> {
     let too_long = |what: &str| io::Error::other(format!("the {what} is longer than 255 bytes"));
     let name_len = u8::try_from(user_name.len()).map_err(|_| too_long("user name"))?;
     let password_len = u8::try_from(password.len()).map_err(|_| too_long("password"))?;
-    let mut stream = TcpStream::connect_timeout(&login, LOGIN_TIMEOUT)?;
     stream.set_read_timeout(Some(LOGIN_TIMEOUT))?;
     stream.set_write_timeout(Some(LOGIN_TIMEOUT))?;
     let mut message = vec![0x01, name_len];
@@ -187,31 +218,17 @@ pub fn sign_in_with_revision(
     stream.write_all(&message)?;
     let mut answer = [0];
     stream.read_exact(&mut answer)?;
-    if answer[0] != TLS_NEXT {
+    if answer[0] != PASSWORD_NEXT {
         return Ok(SignIn {
             answer: answer[0],
             reply: Vec::new(),
         });
     }
-    let mut connector = SslConnector::builder(SslMethod::tls()).map_err(io::Error::other)?;
-    // The game's own certificate and key are of 2013.
-    connector.set_security_level(0);
-    connector.set_verify(SslVerifyMode::NONE);
-    let mut tls = connector
-        .build()
-        .configure()
-        .map_err(io::Error::other)?
-        .verify_hostname(false)
-        .connect("localhost", stream)
-        .map_err(|error| io::Error::other(format!("the TLS handshake: {error}")))?;
     let mut message = vec![0x03];
     message.extend(sha1_hex(password.as_bytes()));
     message.push(password_len);
     message.extend(password.as_bytes());
-    tls.write_all(&message)?;
-    let mut reply = Vec::new();
-    // The server closes the link after its reply.
-    let _ = tls.read_to_end(&mut reply);
+    let reply = login_server::sealed::ask(stream, server_key, &message)?;
     Ok(SignIn {
         answer: answer[0],
         reply,
@@ -239,6 +256,8 @@ struct MatchLink {
     status_at: Instant,
     /// The input script, with `drive`.
     drive: Option<Drive>,
+    /// When its next scripted input carries the suicide bit (`suicide_after`).
+    suicide_at: Option<Instant>,
     /// Its inputs the server dropped (0xF1) or moved (0xEF).
     dropped: u32,
     moved: u32,
@@ -353,6 +372,7 @@ impl Bot {
         };
         let answer = match sign_in_with_revision(
             login,
+            self.config.server_key,
             &self.config.name,
             &self.config.password,
             self.config.revision,
@@ -650,12 +670,13 @@ impl Bot {
                     let ip = host.parse::<IpAddr>().ok().or(lobby_ip);
                     let drive = self.config.drive;
                     let link = ip.zip(socket().ok()).map(|(ip, socket)| {
-                        let mut client =
-                            if survarium::v026g::match_msgs::late_join::spoken_by(self.config.revision) {
-                                MatchClient::idle_growing(session)
-                            } else {
-                                MatchClient::idle(session)
-                            };
+                        let mut client = if survarium::v026g::match_msgs::late_join::spoken_by(
+                            self.config.revision,
+                        ) {
+                            MatchClient::idle_growing(session)
+                        } else {
+                            MatchClient::idle(session)
+                        };
                         client.connect();
                         MatchLink {
                             addr: SocketAddr::new(ip, *port),
@@ -669,7 +690,8 @@ impl Bot {
                             faults_told: 0,
                             relays: 0,
                             status_at: now + STATUS_EVERY,
-                            drive: drive.then(|| Drive::new(drive::stage_0())),
+                            drive: drive.map(|script| Drive::new(script.parts())),
+                            suicide_at: None,
                             dropped: 0,
                             moved: 0,
                         }
@@ -834,6 +856,7 @@ impl Bot {
         }
         if !link.synced && client.model.is_synced() {
             link.synced = true;
+            link.suicide_at = self.config.suicide_after.map(|after| now + after);
             say(&format!(
                 "has the time (0xE5, answered) and the world: its clock is at {} ms. It stays, \
                  sends {}no hashes and no world, to the match's end",
@@ -850,7 +873,13 @@ impl Bot {
         {
             let clock = client.clock();
             for sent in drive.due(clock) {
-                client.send_input(sent.input);
+                let mut input = sent.input;
+                if link.suicide_at.is_some_and(|at| now >= at) {
+                    link.suicide_at = None;
+                    input.actions |= SUICIDE;
+                    say("its next input carries the suicide bit (--suicide-after)");
+                }
+                client.send_input(input);
                 say(&format!(
                     "input for {} ms (tick {}, clock {clock} ms): keys {:#x}{}{}",
                     sent.time,
@@ -965,7 +994,7 @@ mod tests {
         reply.extend(u32::from(Ipv4Addr::new(127, 0, 0, 1)).to_le_bytes());
         reply.extend(1235_u16.to_le_bytes());
         let accepted = SignIn {
-            answer: TLS_NEXT,
+            answer: PASSWORD_NEXT,
             reply,
         };
         assert_eq!(
@@ -973,7 +1002,7 @@ mod tests {
             Some((0x1234_5678, "127.0.0.1:1235".parse().unwrap()))
         );
         let refused = SignIn {
-            answer: TLS_NEXT,
+            answer: PASSWORD_NEXT,
             reply: vec![INVALID],
         };
         assert_eq!(refused.accepted(), None);

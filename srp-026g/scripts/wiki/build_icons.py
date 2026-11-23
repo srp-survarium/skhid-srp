@@ -27,6 +27,17 @@ release makes them again from its own patches. Writes <out>/ anew:
   `faction_id` of SrvQuestFactionTab's `icon` (ButtonQuestFaction sets its
   data's icon to faction_id; ButtonIconCenter: icon.gotoAndStop(icon)), in
   its colours;
+- maps/<level>_<weather>.webp: the picture the rooms draw a map with, small (128x72): the
+  library bitmap the lobby's table tables/survarium/rooms/MapRenders.tsv names for the level
+  (match_making_params.map_id) and weather (map_weather_id), by the rule of the rooms' own
+  RoomsLook.renderClass, which reads the same table; one for every level and weather that has a
+  picture, so the site's match lists and the rooms cannot part;
+- modes/<frame>.webp: each frame of the loading screen's mode icon, SrvGameModeIcons (a config's
+  `ui.icon` n shows frame n + 1, LobbyGameLoad.setMode): the movie's own frames as FFDec exports
+  them, srp's (SrvGameModeIcons.as: a frame constant and the bitmap class `art` gives it) from the
+  lobby's bitmaps/<class>.png, the ones the movie is built with; and modes/twist-<lobby mode>.webp,
+  the frame SrvGameModeIcons.forTwist shows for a free-for-all's twist (its lobby mode number),
+  in their colours;
 - files.rs: those files, for the server's include (servers/web-server/src/icons.rs).
 
 The modification and filter icons are light glyphs with a dark drop shadow.
@@ -151,6 +162,102 @@ def quest_icons(swf_path, ffdec, tmp):
     return found
 
 
+# The loading screen's mode icon (LobbyGameLoad: modeIcon.gotoAndStop(ui.icon + 1)), and the side
+# in pixels each frame is written at.
+MODE_ICONS = "SrvGameModeIcons"
+MODE_SIDE = 64
+
+
+def mode_icons(swf_path, ffdec, lobby, tmp):
+    """({frame: picture}, {twist lobby mode: frame}) of SrvGameModeIcons: the movie's own frames
+    (FFDec's export of the sprite; srp's frames show frame 1 with its art hidden) and srp's, each
+    the bitmap class its `art` gives for its constant, from the lobby's bitmaps; the twists' frames
+    by forTwist's cases (`case 9: return RACKET - 1;`: lobby mode 9 shows frame RACKET)."""
+    source = (lobby / "src" / f"{MODE_ICONS}.as").read_text(encoding="utf-8")
+    frames = {name: int(value) for name, value in re.findall(r"public static const (\w+):int = (\d+);", source)}
+    own = {frames[name]: cls for name, cls in re.findall(r"case (\w+):\s*return new (\w+)\(\);", source)}
+    body = source.split("function forTwist", 1)[1].split("\n      }\n", 1)[0]
+    twists, cases = {}, []
+    for case, returned in re.findall(r"case (\d+):|return (\w+) - 1;", body):
+        if case:
+            cases.append(int(case))
+        elif returned:
+            twists.update((number, frames[returned]) for number in cases)
+            cases = []
+    if not own or not twists:
+        raise SystemExit(f"{MODE_ICONS}.as: no frames of srp's or no twists read")
+    _, tags = swf.split(swf_path.read_bytes())
+    ids = {name: cid for cid, name in swf.symbol_classes(tags)}
+    if MODE_ICONS not in ids:
+        raise SystemExit(f"lobby_menu.swf: no {MODE_ICONS}")
+    subprocess.run(["java", "-jar", str(ffdec), "-format", "sprite:png", "-zoom", "2", "-selectid", str(ids[MODE_ICONS]),
+                    "-export", "sprite", str(tmp / "modes"), str(swf_path)], check=True, capture_output=True)
+    exported = next(d for d in (tmp / "modes").iterdir() if re.fullmatch(rf"DefineSprite_{ids[MODE_ICONS]}(_.*)?", d.name))
+    pictures = {int(path.stem): Image.open(path).convert("RGBA") for path in exported.glob("*.png")}
+    for frame, cls in own.items():
+        pictures[frame] = Image.open(lobby / "bitmaps" / f"{cls}.png").convert("RGBA")
+    missing = sorted(set(twists.values()) - set(pictures))
+    if missing:
+        raise SystemExit(f"{MODE_ICONS}: forTwist shows frames {missing}, which it has not")
+    return pictures, twists
+
+
+def mode_square(image):
+    """`image` cut to what it draws and scaled into a MODE_SIDE square, centred."""
+    return fitted(image, image.getbbox() or (0, 0, image.width, image.height), MODE_SIDE)
+
+
+# A map's picture in a match list: 16:9 as the rooms' cards, twice the 64x36 it is shown at.
+MAP_SIZE = (128, 72)
+# Levels are match_making_params.map_id, a byte's worth; none is above this.
+MAP_LEVELS = range(1, 128)
+
+
+def map_pictures(lobby, images):
+    """{(level, weather): picture} by the rooms' rule (RoomsLook.renderClass) over the lobby's
+    table MapRenders.tsv: ONE's picture whatever the weather; else LIKE's name, or `Level<level>`,
+    with the weather's word, its day one for a weather it has none of. `images`: FFDec's export of
+    the movie's bitmaps (`<character id>_<class name>.<type>`); a level with no picture is not
+    there."""
+    _, table = read_table(lobby / "tables" / "survarium" / "rooms" / "MapRenders.tsv")
+    lists = {}
+    for name, key, value in table:
+        lists.setdefault(name, {})[int(key)] = value
+    weathers, like, one = lists["WEATHERS"], lists.get("LIKE", {}), lists.get("ONE", {})
+    exported = {}
+    for path in images.iterdir():
+        match = re.fullmatch(r"\d+_(\w+)\.(?:png|jpg|jpeg)", path.name)
+        if match:
+            # The original movie's bitmaps are exported under their name twice (`Level1_day_Level1_day`).
+            name = match.group(1)
+            half = name[:len(name) // 2]
+            exported[half if name == f"{half}_{half}" else name] = path
+    found = {}
+    for level in MAP_LEVELS:
+        for weather, word in weathers.items():
+            if level in one:
+                names = [one[level]]
+            else:
+                base = like.get(level, f"Level{level}")
+                names = [f"{base}_{word}", f"{base}_day"]
+            picture = next((exported[name] for name in names if name in exported), None)
+            if picture is not None:
+                found[level, weather] = picture
+    missing = sorted(name for name in one.values() if name not in exported)
+    if missing:
+        raise SystemExit(f"MapRenders.tsv names pictures the movie has not: {', '.join(missing)}")
+    return found
+
+
+def covered(image, size):
+    """`image` scaled to cover `size` and cut to it about its centre, as the rooms' cards are
+    (RoomsLook.cover)."""
+    scale = max(size[0] / image.width, size[1] / image.height)
+    image = image.resize((max(size[0], round(image.width * scale)), max(size[1], round(image.height * scale))), Image.LANCZOS)
+    left, top = (image.width - size[0]) // 2, (image.height - size[1]) // 2
+    return image.crop((left, top, left + size[0], top + size[1]))
+
+
 def fitted(image, box, side):
     """`image` cut to `box` (its set's pictures' bounds, so they keep their sizes) and scaled
     into a `side` square, centred."""
@@ -224,15 +331,29 @@ def main():
                     write(f"quests/{frame - 1}.webp", webp(glyph(fitted(picture, box, side))))
                 else:
                     write(f"factions/{frame}.webp", webp(fitted(picture, box, side)))
+        pictures, twists = mode_icons(args.swf, args.ffdec, args.lobby, Path(tmp))
+        for frame, picture in sorted(pictures.items()):
+            write(f"modes/{frame}.webp", webp(mode_square(picture)))
+        for number, frame in sorted(twists.items()):
+            write(f"modes/twist-{number}.webp", webp(mode_square(pictures[frame])))
+
+    small = {}
+    for (level, weather), picture in sorted(map_pictures(args.lobby, args.images).items()):
+        if picture not in small:
+            data = io.BytesIO()
+            covered(Image.open(picture).convert("RGB"), MAP_SIZE).save(data, "WEBP", quality=82, method=6)
+            small[picture] = data.getvalue()
+        write(f"maps/{level}_{weather}.webp", small[picture])
 
     (out / "files.rs").write_text(
         "// Built by srp-026g/scripts/wiki/build_icons.py; do not edit. The wiki's icons.\n"
         "files! {\n" + "".join(f'    "{path}" => "{kind}",\n' for path, kind in sorted(files.items())) + "}\n")
     total = sum((out / path).stat().st_size for path in files)
     counts = {kind: sum(path.startswith(kind + "/") for path in files)
-              for kind in ("items", "mods", "groups", "quests", "factions")}
+              for kind in ("items", "mods", "groups", "quests", "factions", "maps", "modes")}
     print(f"{out}: {counts['items']} items, {counts['mods']} modification, {counts['groups']} group, "
-          f"{counts['quests']} quest and {counts['factions']} faction icons, {total / 1024:.0f} KB")
+          f"{counts['quests']} quest and {counts['factions']} faction icons, {counts['maps']} map pictures, {counts['modes']} mode icons, "
+          f"{total / 1024:.0f} KB")
 
 
 if __name__ == "__main__":

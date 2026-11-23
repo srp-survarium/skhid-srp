@@ -79,6 +79,7 @@ u8  team_2_respawn
 | level_07 | 31 (16/15) | 31 |
 | level_08 | 26 (13/13) | 26 |
 - The deserializer of the base reads the mask, then one u32 per set bit, and sets the others to 0xFFFFFFFF (0x316D50). PROVEN.
+- **A free-for-all's (mode 8, srp's exe patch 142, since 2026-11-15) has 40 bytes more after its points:** the spawn history, for each of the 20 places its latest team-2 point index and the one before (0xFF none; never a second without a first), written at the end of 0x316F10 and read at the end of its deserialize 0x316FC0 (ffa.md "Never the last two"). Mode 8 has no mode rule, so in its section the respawn rule's points end 40 bytes before the kd stats (srp-validate `ModeRule::FreeForAll`, `snapshot::Rules::free_for_all`). Other modes: as above.
 - 0.21d: `snapshot.rs` never decoded the respawn rule (it sat between the gather head and the timelimit).
 
 ### 2.4 gather_victory_items_rule_core (class 0x58, mode 2) — variable, PROVEN (0x313CA0)
@@ -196,6 +197,7 @@ Not 0.26g's: srp's own rule for Research (`research_mode.md`), loaded by the con
 N x player_shared_statistics            N = match options +0x577B5 (statistics+0x31E0)   §3.1
 V x victory item status                 only when a gather rule exists (modes 2, 3)       §3.2
 11-byte tail                                                                              §3.3
+the per-weapon counts                   exe patch 165; none from a game that keeps none    §3.5
 ```
 
 **Changed against 0.21d** (`snapshot.rs::decode_statistics`): every part. 0.21d had 24 u16 counters per player, two `{u8 count, 5 bytes}` lists, 5 + 2 + 4 + 7 bytes, then 7 curing bytes per player, per-battery records and 2 bytes of team points. 0.26g has 28 events **per kit**, bit-masked and mostly one byte wide, no faction-kill counts, no curing records, and a longer tail that includes the winner.
@@ -270,14 +272,44 @@ Mode 4 has no such records. The class is `victory_item_event_manager` (its strin
 
 - The rules write these fields on every event, so the tail of the last snapshot before the end is the result. **Compute the winner from the team points with the rules of modes_maps.md §11**; the byte is 3 before the first event.
 - When the points are valid (PROVEN 2026-10-12): modes 2 and 3 from the start (0 from the constructor, then written only by the container event, in step with the rule's own pair); mode 4 from the start of play (the tdm rule writes tickets and winner on its "match started" event, 0x3160D8 → 0x3161F0), 0 during waiting and countdown.
-- The tail is the last 11 bytes of the blob whatever N and V are, so the results code can read team points and winner without parsing §3.1 at all.
+- The tail was the last 11 bytes of the blob whatever N and V are. Since exe patch 165 the per-weapon counts follow it (§3.5), of a length of their own: the tail is found by walking the records from the front (`Statistics::decode`), no longer from the end (`StatisticsTail::of` is gone).
 
 ### 3.4 Decoding and checks
 
 1. Chain five u16 prefixes from the end of the body; the statistics blob is the one before them.
 2. Empty statistics blob: the client had no statistics object; take the rules blob only (as 0.21d).
-3. Otherwise walk N player records (§3.1), then V battery records (V = 10 in modes 2/3, 0 in mode 4), then 11 bytes: the walk must end exactly at the blob's end. That is the same exact-fit test `snapshot.rs` uses to pick the right chain.
+3. Otherwise walk N player records (§3.1), then V battery records (V = 10 in modes 2/3, 0 in mode 4), then 11 bytes, then the per-weapon counts when any byte is left (§3.5: their own length must be the bytes left): the walk must end exactly at the blob's end. That is the same exact-fit test `snapshot.rs` uses to pick the right chain.
 4. Cross-check: modes 2/3 `m_team_points` equal the rule's two u8; mode 4 they equal `m_team_tickets`; `m_winner_team` follows from them.
+
+### 3.5 The per-weapon counts — exe patch 165 (`weapon_stats`), added 2026-11-20
+
+What each place did with each weapon, kept by the patch beside the statistics and written after the tail by its hook at serialize's epilogue (0x2F5BD0; `kill_weapon.md` section 4, `client_patch.md` "Per-weapon counts"). The one definition of the layout and its domains is `crates/srp-validate/src/world/weapons.rs` (`Weapons`, `PlaceWeapons`, `WeaponCounts`), which the game, the match server's check and the results' decoder all read it with.
+
+```
+u8   version                            1
+u16  length                             the bytes after it: to the blob's end
+N x (roster place):                     N = 20 from a patched game (STATISTICS_COUNT)
+    u8   n                              at most 16
+    n x (30 bytes, rising dict_id):
+        u16  dict_id                    the items dictionary's id; 0 (first): no weapon known
+        u16  kills                      enemy kills with it                       event 0
+        u16  headshots                  of them, by a headshot                    event 15
+        u16  wall_kills                 of them, the bullet had pierced something
+        u16  ricochet_kills             of them, the bullet had bounced
+        u16  deaths                     the place's deaths with it in the hands   event 2
+        u16  shots                      bullets fired, a pellet each              event 22
+        u16  hits                       bullet hits on an enemy                   event 23
+        u32  damage                     pain taken off enemies, 1/10000 of a pain pool
+        u32  kill_distance              killer to victim, decimetres, summed over the kills
+        u16  longest_kill               decimetres
+        u32  held_ms                    the time in the place's hands while alive, ticks of 50 ms
+```
+
+- **A world has the block or ends with the tail.** A game writes it while its statistics are counted: from their constructor or their reset between matches on, and from a world that had it. A game that loaded a world without it writes none until its statistics are reset, so a match's games agree; the worlds of older recordings have none.
+- **The sums are the record's** (refused otherwise, `Weapons::agree`): over a place's entries, kills, headshots and deaths are the place's events 0, 15 and 2 over the three kits modulo 256 (the record carries those as a byte a kit, §3.1), shots and hits its events 22 and 23 modulo 65536. Each is counted at the statistics' own call under their own tests, in every game alike. A count with no weapon known is under dict id 0: a hit with no bullet (a grenade, a trap), a death, a shot or a tick with nothing of the inventory in the hands (a battery), and a place's weapons past its fifteenth.
+- **The other domains:** the version is 1 and the length the bytes left; n is at most 16, the dict ids rise (none twice), and 16 entries begin with dict id 0; headshots, wall_kills and ricochet_kills are each at most kills; longest_kill is at most kill_distance, and that at most kills x longest_kill; held_ms is whole ticks of 50. On the server (which has the dictionary; `Context::dict_ids`) a dict id is an item's.
+- **No native total:** wall_kills and ricochet_kills (bounded by kills), damage (the game's own record is an f32 a victim and inflictor, per kit, not this sum; a hit's pain is rounded to 1/10000), the distances (a kill with no killer position adds none), held_ms. A kill's weapon is the damage source's (a grenade's or a trap's dict id too); a hit's is the bullet's, so a grenade's hits and damage are under dict id 0.
+- The counts wrap as the game's own u16 do (65536 of one weapon in a match); damage and kill_distance stop at their u32's top.
 
 ## 4. What `snapshot.rs` must change
 
@@ -310,7 +342,7 @@ Mode 4 has no such records. The class is `victory_item_event_manager` (its strin
 `crates/survarium/src/v026g/match_msgs/snapshot.rs` reads and writes all of
 this: `Sections` (the split; it chains **six** prefixes from the end, the
 bullet manager's too, which leaves fewer false splits than five),
-`Statistics` (§3, exact fit), `StatisticsTail::of` (§3.3 alone), `Rules`
+`Statistics` (§3, exact fit; its `weapons` are §3.5's), `Rules`
 (§2: the timelimit first, kd stats and the two flags from the end, the tdm
 rule as the 12 bytes before the kd stats; since 2026-10-12 also `Respawn`,
 `Gather` with its `Battery` and `Container` states and mode 3's `Timed`),
@@ -384,6 +416,7 @@ desyncs the client's cursor from the framing.
 Tree part, from the bit right after the 16-bit `T` field, in read order:
 
 ```
+(no bits)          duration   pop 1 time, always, before the nodes (0x3A9A64)
 read(6)            nodes      node count 0..63
 read(1) + 1        matrices   1 or 2
 popcount(read(4))  channels   0..4   (0x317D40 is popcount; 0x3A8A00 builds a
@@ -407,7 +440,7 @@ per node (anim_build_node 0x3A9250): exprs expression trees, each
     anim_read_expression 0x3A90C0 (RECURSIVE):
         read(2) = op
         channel pick (0 / 1 / 2 bits)
-        op 0: pop 2 floats           leaf
+        op 0: pop 2 floats, 1 time   leaf (the time at 0x3A9116)
         op 1: pop 1 float            leaf
         op 2: pop 1 time, 2 child expressions
         op 3: pop 1 time, 2 child expressions
@@ -453,7 +486,9 @@ U<=1023 -- are self-bounded and are not in this list.)
 `animation_len` (crate `world-frame`) covers the length only. `animation_validate`
 beside it seals 1-6: it decodes the tree as above (the base tracks in two
 passes over the nodes, not one), requires it to end exactly at `T`, the pops
-to stay within the table counts, and every floats-table value to be finite,
+to stay within the table counts (the duration time and each op-0 time counted:
+until 2026-11-10 it missed both, F4 of the packet-fuzz campaign, and accepted
+streams the client read below its times buffer), and every floats-table value to be finite,
 and `Frame::parse` refuses the block otherwise (`Refusal::Animation`). Proven on the kept worlds: all 177,672
 animated blocks of the 20,668 worlds in `private/live-worlds-*` pass, none near
 the expression-node cap (which is above the 32768 a `T` <= 65535 tree can

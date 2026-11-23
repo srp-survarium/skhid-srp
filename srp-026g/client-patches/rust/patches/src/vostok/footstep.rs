@@ -13,7 +13,8 @@
 //! its time is played for the first time.
 
 use super::context::Context;
-use super::world::read;
+use super::types::GameTime;
+use super::world::{read, Player};
 use crate::raw;
 
 /// A step's foot: the event's domain value 0 or 1.
@@ -41,6 +42,50 @@ impl Foot {
     }
 }
 
+/// A logic state's movement id (state +24h; the state constructors
+/// 0x2FABB0..0x2FADCC): the row of the boots' foot materials a foot step
+/// reads (`on_foot_step` 0x2A6545: the player's u16 at +0F2C4h + 4 x id +
+/// 2 x third view; the eight start at +0F2C8h, ids 1..4).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Movement {
+    /// 1..4: crouch_walk, stand_run, stand_sprint, stand_jump.
+    Moving(u32),
+    /// 0: stand_on_site, crouch_on_site, dead. No row: the read is the
+    /// word before the table (a crash in step_manager::on_step, rev71).
+    OnSite,
+    /// Past the table: no state the game makes.
+    Unknown(u32),
+}
+
+impl Movement {
+    pub fn parse(id: u32) -> Movement {
+        match id {
+            0 => Movement::OnSite,
+            1..=4 => Movement::Moving(id),
+            _ => Movement::Unknown(id),
+        }
+    }
+
+    /// The state's movement at `player_sound.foot_material`.
+    pub fn at_foot_material(ctx: &Context<'_>) -> Movement {
+        // SAFETY: the context is this site's: ECX the logic state's movement
+        // id, read at 0x2A6532.
+        Movement::parse(unsafe { raw::site::player_sound_foot_material::movement(ctx) })
+    }
+
+    pub fn id(self) -> u32 {
+        match self {
+            Movement::Moving(id) | Movement::Unknown(id) => id,
+            Movement::OnSite => 0,
+        }
+    }
+
+    /// Whether a foot step in this state has a foot material.
+    pub fn has_foot_material(self) -> bool {
+        matches!(self, Movement::Moving(_))
+    }
+}
+
 /// Simulation milliseconds (the event's time, the core's times).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SimTime(u32);
@@ -58,8 +103,9 @@ impl SimTime {
     }
 }
 
-/// Whose steps: the sound effect (one a player object, its +884h), as an
-/// identity only.
+/// Whose steps: the sound effect (the held item's +884h, one an item), or a
+/// player for a patch's own steps ([`StepSource::player`]), as an identity
+/// only.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct StepSource(u32);
 
@@ -67,6 +113,12 @@ impl StepSource {
     #[cfg(test)]
     pub const fn at(address: u32) -> StepSource {
         StepSource(address)
+    }
+
+    /// A player's steps that a patch plays itself (a ladder's rungs): the
+    /// player's address, no effect's.
+    pub fn player(player: &Player<'_>) -> StepSource {
+        StepSource(player.this.address())
     }
 }
 
@@ -91,6 +143,16 @@ pub struct Step {
 }
 
 impl Step {
+    /// A step a patch plays itself (a ladder's rung: `source` the player's,
+    /// `foot` a limb), made in the simulation's tick at `time`, the world
+    /// core's newest played time `newest` (its `maximum_time`): played for
+    /// the first time past it, by the game's rule (on_player_sound_event's
+    /// unsigned compare, 0x2A6488).
+    pub fn new(source: StepSource, foot: Foot, time: GameTime, newest: GameTime) -> Step {
+        let pass = if time.0 > newest.0 { Pass::First } else { Pass::Again { newest: SimTime(newest.0) } };
+        Step { source, foot, time: SimTime(time.0), pass }
+    }
+
     /// The event at `player_sound.step_guard`; None for a rustle, another
     /// object's event or feet not read (the game's own rule decides those).
     pub fn at_guard(ctx: &Context<'_>) -> Option<Step> {
@@ -111,6 +173,65 @@ impl Step {
             let newest = read(core.maximum_time());
             let pass = if time > newest { Pass::First } else { Pass::Again { newest: SimTime(newest) } };
             Some(Step { source: StepSource(effect.address()), foot, time: SimTime(time), pass })
+        }
+    }
+}
+
+
+/// The step log's view (SKHID_STEP_LOG) of a body sound event as the guard
+/// (`player_sound.step_guard`, 0x2A6485, before the time test) sees it,
+/// whatever the guard then does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EventLine {
+    /// The event's domain: 0 and 1 a foot, 2..4 the rustles.
+    pub domain: u8,
+    pub time: u32,
+    /// The core's `maximum_time`.
+    pub newest: u32,
+    /// The event's object is the effect's player.
+    pub ours: bool,
+    /// The effect's feet were read (+44h).
+    pub feet: bool,
+    /// The local player's.
+    pub own: bool,
+    /// The logic state's movement now.
+    pub movement: Option<Movement>,
+    /// The effect's address (the held item's +884h): two lines of one event
+    /// with two addresses are two effects.
+    pub effect: u32,
+}
+
+impl EventLine {
+    /// `what` the guard let on, or what on_foot_step then does with a foot
+    /// step in a state with no foot material
+    /// (footsteps::on_foot_material).
+    pub fn or_dropped(&self, what: &'static str) -> &'static str {
+        let foot = Foot::parse(self.domain).is_some();
+        if foot && self.ours && self.feet && self.movement.is_some_and(|m| !m.has_foot_material()) {
+            "dropped (no foot material)"
+        } else {
+            what
+        }
+    }
+
+    pub fn at_guard(ctx: &Context<'_>) -> Option<EventLine> {
+        use raw::site::player_sound_step_guard as site;
+        // SAFETY: the site's effect, event and core, alive for the call; the
+        // player's world, game and network client alive for a match.
+        unsafe {
+            let (effect, event, core) = (site::effect(ctx)?, site::event(ctx)?, site::core(ctx)?);
+            let player = effect.player()?;
+            let local = player.game_world().and_then(|world| world.game()?.network_client()?.local_player());
+            Some(EventLine {
+                domain: read(event.domain()),
+                time: read(event.time()),
+                newest: read(core.maximum_time()),
+                ours: read(event.object()) == player.address(),
+                feet: read(effect.feet()) != 0,
+                own: local == Some(player),
+                movement: effect.logic().and_then(|logic| logic.state()).map(|state| Movement::parse(read(state.movement()))),
+                effect: effect.address(),
+            })
         }
     }
 }

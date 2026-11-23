@@ -27,9 +27,11 @@
 //! respawn flags. Every world of real 0.26g matches the server saved
 //! (33,106, 2026-10-12..14) walks into its six sections.
 
+use srp_validate::world::freeze::FreezeTag;
 use std::collections::HashMap;
 
 use super::super::maps::RuleMode;
+use srp_validate::world::SpawnHistory;
 use super::{MAX_PLAYERS, players, rules};
 
 /// Score events (`match_stats_events_dict_enum` grew from 24 to 28).
@@ -65,6 +67,12 @@ pub mod event {
     pub const WON: usize = 12;
     pub const MELEE_KILL: usize = 13;
     pub const SILENT_KILL: usize = 14;
+    /// Freeze Tag's thaw (exe patch 160): each fighting teammate within reach
+    /// of a body thawed counts one, in the silent kill's number, which 0.26g
+    /// counts nowhere (`on_player_killed` 0x2F4EB0 no longer does); scored and
+    /// paid as a kill (`static_info::FREEZE_TAG_WEIGHTS`, `rewards`), never
+    /// one of the kills (event 0, the kd rule's).
+    pub const THAW: usize = SILENT_KILL;
     pub const HEADSHOT_KILL: usize = 15;
     pub const WINNING_TEAM_VI_BONUS: usize = 16;
     pub const STEAL_VICTORY_ITEM: usize = 17;
@@ -159,6 +167,13 @@ impl<'a> Reader<'a> {
 
     fn rest(&self) -> usize {
         self.bytes.len() - self.at
+    }
+
+    /// Every byte not read yet.
+    fn take_rest(&mut self) -> &'a [u8] {
+        let rest = &self.bytes[self.at..];
+        self.at = self.bytes.len();
+        rest
     }
 }
 
@@ -583,8 +598,9 @@ impl VictoryItemStatus {
     }
 }
 
-/// The statistics' last 11 bytes (0x2F5B08..0x2F5BCB): the standing. They
-/// end the section whatever the roster and the mode are.
+/// The statistics' 11 bytes after the records (0x2F5B08..0x2F5BCB): the
+/// standing. They end the section of a game that counts no weapons
+/// ([`Statistics::weapons`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct StatisticsTail {
     /// `m_team_points`: modes 2 and 3, the batteries in each team's
@@ -609,14 +625,6 @@ pub struct StatisticsTail {
 impl StatisticsTail {
     pub const LEN: usize = 11;
 
-    /// The tail of a statistics section, without reading what is before
-    /// it. `None`: the section is shorter (empty: the client had no
-    /// statistics object).
-    pub fn of(statistics: &[u8]) -> Option<Self> {
-        let at = statistics.len().checked_sub(Self::LEN)?;
-        Self::read(&mut Reader::new(&statistics[at..]))
-    }
-
     fn read(reader: &mut Reader) -> Option<Self> {
         Some(Self {
             team_points: [reader.u16()?, reader.u16()?],
@@ -635,6 +643,83 @@ impl StatisticsTail {
     }
 }
 
+/// What a place did with one weapon in a match, as the games count it (exe
+/// patch 165, `weapon_stats`; kill_weapon.md section 4): an entry of the
+/// block after the statistics' tail, whose one definition is
+/// `srp_validate::world::WeaponCounts`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct WeaponCounts {
+    /// The weapon's id in the items dictionary (a kill's may be a grenade's
+    /// or a trap's). 0: no weapon known (a hit with no bullet, a death with
+    /// nothing in the hands), and what a place's weapons past its fifteenth
+    /// are counted as.
+    pub dict_id: u16,
+    /// Enemies killed with it: over the place's weapons, its event 0.
+    pub kills: u16,
+    /// Of the kills, those by a headshot: event 15.
+    pub headshots: u16,
+    /// Of the kills, those whose bullet had pierced something (a wall, a
+    /// prop, another player) before it killed.
+    pub wall_kills: u16,
+    /// Of the kills, those whose bullet had bounced before it killed.
+    pub ricochet_kills: u16,
+    /// The place's deaths with it in the hands: event 2.
+    pub deaths: u16,
+    /// Bullets fired with it, a pellet each: event 22.
+    pub shots: u16,
+    /// Its bullets' hits on an enemy, a pellet each: event 23.
+    pub hits: u16,
+    /// The pain its hits took off enemies, in ten-thousandths of a pain
+    /// pool (10000: one whole pool).
+    pub damage: u32,
+    /// The killer-to-victim distances of its kills added up, in
+    /// decimetres: over `kills`, the average.
+    pub kill_distance_dm: u32,
+    /// Its longest kill, in decimetres.
+    pub longest_kill_dm: u16,
+    /// How long it was in the place's hands while the place was alive, in
+    /// ms (whole simulation ticks of 50). Under `dict_id` 0: the time alive
+    /// with none of its inventory's items in the hands (a battery).
+    pub held_ms: u32,
+}
+
+impl WeaponCounts {
+    fn of(counts: &srp_validate::world::WeaponCounts) -> Self {
+        Self {
+            dict_id: counts.dict_id(),
+            kills: counts.kills(),
+            headshots: counts.headshots(),
+            wall_kills: counts.wall_kills(),
+            ricochet_kills: counts.ricochet_kills(),
+            deaths: counts.deaths(),
+            shots: counts.shots(),
+            hits: counts.hits(),
+            damage: counts.damage(),
+            kill_distance_dm: counts.kill_distance(),
+            longest_kill_dm: counts.longest_kill(),
+            held_ms: counts.held_ms(),
+        }
+    }
+
+    fn write(&self, out: &mut Vec<u8>) {
+        let counts = [
+            self.kills,
+            self.headshots,
+            self.wall_kills,
+            self.ricochet_kills,
+            self.deaths,
+            self.shots,
+            self.hits,
+        ];
+        out.extend(self.dict_id.to_le_bytes());
+        out.extend(counts.iter().flat_map(|count| count.to_le_bytes()));
+        out.extend(self.damage.to_le_bytes());
+        out.extend(self.kill_distance_dm.to_le_bytes());
+        out.extend(self.longest_kill_dm.to_le_bytes());
+        out.extend(self.held_ms.to_le_bytes());
+    }
+}
+
 /// The statistics section (`shared_statistics::serialize` 0x2F5AC0).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Statistics {
@@ -643,6 +728,9 @@ pub struct Statistics {
     /// One for each battery; none in mode 4.
     pub victory_items: Vec<VictoryItemStatus>,
     pub tail: StatisticsTail,
+    /// By roster place, its weapons in rising dict id (exe patch 165).
+    /// `None`: the world's game counts none.
+    pub weapons: Option<Vec<Vec<WeaponCounts>>>,
 }
 
 impl Statistics {
@@ -653,7 +741,7 @@ impl Statistics {
             return None;
         }
         let mut reader = Reader::new(bytes);
-        let statistics = Self {
+        Some(Self {
             players: (0..players)
                 .map(|_| PlayerStatistics::read(&mut reader))
                 .collect::<Option<_>>()?,
@@ -661,8 +749,16 @@ impl Statistics {
                 .map(|_| VictoryItemStatus::read(&mut reader, players))
                 .collect::<Option<_>>()?,
             tail: StatisticsTail::read(&mut reader)?,
-        };
-        (reader.rest() == 0).then_some(statistics)
+            // To the section's exact end, by the block's own length.
+            weapons: srp_validate::world::Weapons::read(reader.take_rest(), players)
+                .ok()?
+                .map(|weapons| {
+                    weapons
+                        .places()
+                        .map(|place| place.counts().iter().map(WeaponCounts::of).collect())
+                        .collect()
+                }),
+        })
     }
 
     /// The section's bytes, as the client writes them: a player's event
@@ -676,6 +772,18 @@ impl Statistics {
             status.write(&mut out);
         }
         self.tail.write(&mut out);
+        if let Some(weapons) = &self.weapons {
+            let mut places = Vec::new();
+            for place in weapons {
+                places.push(place.len() as u8);
+                for counts in place {
+                    counts.write(&mut places);
+                }
+            }
+            out.push(srp_validate::world::weapon_block::VERSION);
+            out.extend((places.len() as u16).to_le_bytes());
+            out.extend(places);
+        }
         out
     }
 }
@@ -932,6 +1040,44 @@ impl Research {
         for unit in &self.units {
             unit.write(out);
         }
+    }
+}
+
+/// Artifact Hunt's rule (class 481, mode 13; `artefact_hunt.md`, "Wire"):
+/// its own bytes, found from the kd stats back by their last, `m_size`, the
+/// count of the bytes before it. What they say is read with the map's
+/// parameters ([`Self::rule`]): `artefact_hunt_rule::Rule::read` is the one
+/// definition of them, and every world the server trusts passed it in the
+/// world check.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ArtefactHunt(Vec<u8>);
+
+impl ArtefactHunt {
+    /// The rule that ends `bytes`: where it starts, and its bytes.
+    fn read_back(bytes: &[u8]) -> Option<(usize, Self)> {
+        let (&size, before) = bytes.split_last()?;
+        let at = before.len().checked_sub(usize::from(size))?;
+        Some((at, Self(bytes[at..].to_vec())))
+    }
+
+    /// `rule`'s bytes, as the game writes them.
+    pub fn of(rule: &artefact_hunt_rule::Rule) -> Self {
+        let mut bytes = [0; artefact_hunt_rule::MAX_BYTES];
+        let len = rule.write(&mut bytes).unwrap_or(0);
+        Self(bytes[..len].to_vec())
+    }
+
+    /// The rule its bytes are for a map of `params`; `None` when they are no
+    /// state of it.
+    pub fn rule(&self, params: &artefact_hunt_rule::Params) -> Option<artefact_hunt_rule::Rule> {
+        match artefact_hunt_rule::Rule::read_back(params, &self.0) {
+            Ok((rule, 0)) => Some(rule),
+            _ => None,
+        }
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.0
     }
 }
 
@@ -1265,6 +1411,13 @@ pub struct Rules {
     pub tdm: Option<Tdm>,
     /// Mode 5: the bytes before the kd stats, as many as its units make.
     pub research: Option<Research>,
+    /// Mode 8: the 40 bytes before the kd stats, exe patch 142's spawn
+    /// history.
+    pub free_for_all: Option<SpawnHistory>,
+    pub freeze_tag: Option<FreezeTag>,
+    /// Mode 13: the bytes before the kd stats that the rule's last byte
+    /// counts.
+    pub artefact_hunt: Option<ArtefactHunt>,
     /// One for each roster place.
     pub kills_deaths: Vec<KillsDeaths>,
     /// The blackboard's `team_1_respawn`, `team_2_respawn`: whether each
@@ -1289,7 +1442,7 @@ impl Rules {
     /// The respawn rule has two bytes for each respawn point of the map,
     /// and nothing says how many: in mode 4 the rest is the tdm rule's 12
     /// bytes; in mode 5 Research's 21 + 96 a unit (309 with its three
-    /// units); in modes 2 and 3 it is the number with which the gather
+    /// units); in mode 8 the spawn history's 40; in modes 2 and 3 it is the number with which the gather
     /// rule after it reads to the kd stats exactly, the smallest if
     /// several do.
     pub fn decode(
@@ -1347,6 +1500,20 @@ impl Rules {
             Some((at, rule)) => (Some(at), Some(rule)),
             None => (None, None),
         };
+        let freeze_tag = (game_mode == RuleMode::FreezeTag)
+            .then(|| middle.len().checked_sub(FreezeTag::LEN)).flatten()
+            .and_then(|at| FreezeTag::read(&middle[at..]));
+        let free_for_all = (game_mode == RuleMode::FreeForAll)
+            .then(|| middle.len().checked_sub(SpawnHistory::LEN))
+            .flatten()
+            .and_then(|at| SpawnHistory::read(&middle[at..]));
+        let (artefact_hunt_at, artefact_hunt) = match (game_mode == RuleMode::ArtefactHunt)
+            .then(|| ArtefactHunt::read_back(middle))
+            .flatten()
+        {
+            Some((at, rule)) => (Some(at), Some(rule)),
+            None => (None, None),
+        };
         let mut respawn = None;
         let mut gather = None;
         if let Some((mut head, head_len)) = Respawn::read_head(middle) {
@@ -1354,8 +1521,13 @@ impl Rules {
             // Where a mode rule of a size known from the end starts.
             let fixed_at = match game_mode {
                 RuleMode::TeamDeathmatch => Some(middle.len().checked_sub(Tdm::LEN)),
+                RuleMode::FreezeTag => Some(middle.len().checked_sub(FreezeTag::LEN)),
                 RuleMode::Research => Some(research_at),
-                _ => None,
+                // No mode rule: the respawn rule ends where the spawn
+                // history begins.
+                RuleMode::FreeForAll => Some(middle.len().checked_sub(SpawnHistory::LEN)),
+                RuleMode::ArtefactHunt => Some(artefact_hunt_at),
+                RuleMode::Batteries | RuleMode::TimedBatteries => None,
             };
             if let Some(end) = fixed_at {
                 if let Some(end) = end
@@ -1382,6 +1554,9 @@ impl Rules {
             gather,
             tdm,
             research,
+            free_for_all,
+            freeze_tag,
+            artefact_hunt,
             kills_deaths,
             team_respawn,
         })
@@ -1402,6 +1577,13 @@ impl Rules {
         }
         if let Some(research) = &self.research {
             research.write(&mut mode_rule);
+        }
+        if let Some(freeze) = &self.freeze_tag { mode_rule.extend(freeze.bytes()); }
+        if let Some(spawns) = &self.free_for_all {
+            mode_rule.extend(spawns.bytes());
+        }
+        if let Some(hunt) = &self.artefact_hunt {
+            mode_rule.extend(hunt.bytes());
         }
         self.encode(&respawn, &mode_rule)
     }
@@ -1459,7 +1641,31 @@ impl Decoded<'_> {
     /// Research's shown points when its rule was read (the rule copies
     /// them into the statistics in play only), else the statistics'.
     pub fn standing(&self, game_mode: RuleMode, teams: &[u8]) -> Option<Standing> {
+        // A free-for-all has no teams' standing: its players rank by the kd
+        // rule's kills.
+        if game_mode == RuleMode::FreezeTag {
+            let rule = self.rules.as_ref()?.freeze_tag.as_ref()?;
+            return Some(Standing { points: rule.points(), winner: rule.winner().map_or(2, |team| team.index() as u8) });
+        }
+        if game_mode == RuleMode::FreeForAll {
+            return None;
+        }
         let tail = self.statistics.as_ref().map(|statistics| statistics.tail);
+        // Artifact Hunt's rule writes its scores and its leader into the
+        // tail after every transition (the world check holds them to the
+        // rule's): the tail's leader once the rule wrote one (3 until play).
+        if game_mode == RuleMode::ArtefactHunt {
+            let tail = tail?;
+            let winner = if tail.winner_team <= rules::DRAW {
+                tail.winner_team
+            } else {
+                rules::winner_by_points(tail.team_points)
+            };
+            return Some(Standing {
+                points: tail.team_points,
+                winner,
+            });
+        }
         if game_mode == RuleMode::Research {
             let research = self.rules.as_ref().and_then(|rules| rules.research.as_ref());
             if let Some(research) = research {
@@ -1792,6 +1998,7 @@ mod tests {
             players: vec![first_kit, second_kit, every_kit],
             victory_items: Vec::new(),
             tail: tail(),
+            weapons: None,
         };
         let bytes = statistics.encode();
         assert_eq!(Statistics::decode(&bytes, 3, 0), Some(statistics));
@@ -1886,13 +2093,57 @@ mod tests {
     }
 
     #[test]
-    fn the_tail_is_read_without_the_rest() {
-        let mut bytes = vec![0xEE; 100];
-        bytes.extend(TAIL);
-        assert_eq!(StatisticsTail::of(&bytes), Some(tail()));
-        assert_eq!(StatisticsTail::of(&TAIL), Some(tail()));
-        assert_eq!(StatisticsTail::of(&TAIL[1..]), None);
-        assert_eq!(StatisticsTail::of(&[]), None);
+    fn the_weapons_follow_the_tail() {
+        let mut shooter = PlayerStatistics::default();
+        shooter.events[event::KILL] = [2, 0, 1];
+        shooter.events[event::HEADSHOT_KILL][0] = 1;
+        shooter.events[event::BULLET_FIRE] = [30, 0, 8];
+        shooter.events[event::BULLET_HIT][0] = 9;
+        let mut victim = PlayerStatistics::default();
+        victim.events[event::DEATH][1] = 3;
+        let rifle = WeaponCounts {
+            dict_id: 21,
+            kills: 2,
+            headshots: 1,
+            wall_kills: 1,
+            ricochet_kills: 2,
+            shots: 30,
+            hits: 9,
+            damage: 23_456,
+            kill_distance_dm: 700,
+            longest_kill_dm: 450,
+            held_ms: 61_250,
+            ..WeaponCounts::default()
+        };
+        let shotgun = WeaponCounts { dict_id: 300, kills: 1, shots: 8, ..WeaponCounts::default() };
+        let statistics = Statistics {
+            players: vec![shooter, victim],
+            victory_items: Vec::new(),
+            tail: tail(),
+            weapons: Some(vec![
+                vec![rifle, shotgun],
+                vec![
+                    WeaponCounts { deaths: 1, ..WeaponCounts::default() },
+                    WeaponCounts { dict_id: 21, deaths: 2, ..WeaponCounts::default() },
+                ],
+            ]),
+        };
+        let bytes = statistics.encode();
+        assert_eq!(Statistics::decode(&bytes, 2, 0).as_ref(), Some(&statistics));
+        // The same check the match server and the games make of it.
+        let check = |bytes: &[u8]| {
+            srp_validate::world::Statistics::read(&srp_validate::world::Section { at: 0, bytes }, 2, 0).map(|_| ())
+        };
+        assert_eq!(check(&bytes), Ok(()));
+        // A world of a game that counts none ends with the tail.
+        let without = Statistics { weapons: None, ..statistics.clone() };
+        assert_eq!(without.encode().len(), bytes.len() - 3 - 2 - 4 * 30);
+        assert_eq!(Statistics::decode(&without.encode(), 2, 0), Some(without));
+        // A sum that is not the record's, and a block cut short: neither reads.
+        let mut wrong = statistics.clone();
+        wrong.weapons.as_mut().unwrap()[0][1].kills = 2;
+        assert!(check(&wrong.encode()).is_err());
+        assert_eq!(Statistics::decode(&bytes[..bytes.len() - 1], 2, 0), None);
     }
 
     /// The timelimit rule at 539 650 ms (snapshot_rules.md §2.2): in
@@ -2469,6 +2720,9 @@ mod tests {
             gather: Some(gather()),
             tdm: None,
             research: None,
+            free_for_all: None,
+            freeze_tag: None,
+            artefact_hunt: None,
             kills_deaths: vec![KillsDeaths::default(); 2],
             team_respawn: [true, true],
         };
@@ -2478,6 +2732,76 @@ mod tests {
             Rules::decode(&bytes, TIME, 2, RuleMode::Batteries, 4),
             Some(rules)
         );
+    }
+
+    #[test]
+    fn a_free_for_alls_spawn_history_follows_the_respawn_points() {
+        let mut history = SpawnHistory::EMPTY;
+        let place = srp_validate::Place::new(1).unwrap();
+        history.spawned(place, srp_validate::world::SpawnPoint::new(4).unwrap());
+        let rules = Rules {
+            timelimit: Timelimit::read(&TIMELIMIT).unwrap(),
+            respawn: Some(Respawn {
+                times: vec![],
+                seed: 7,
+                points: vec![[0, 0]; 22],
+            }),
+            gather: None,
+            tdm: None,
+            research: None,
+            free_for_all: Some(history),
+            freeze_tag: None,
+            artefact_hunt: None,
+            kills_deaths: vec![KillsDeaths::default(); 2],
+            team_respawn: [true, true],
+        };
+        let bytes = rules.to_bytes();
+        assert_eq!(bytes.len(), 13 + 8 + 44 + 40 + 10 + 2);
+        assert_eq!(
+            Rules::decode(&bytes, TIME, 2, RuleMode::FreeForAll, 0),
+            Some(rules)
+        );
+    }
+
+    #[test]
+    fn an_artefact_hunt_rule_is_found_by_its_last_byte_and_read_with_the_maps_parameters() {
+        use super::super::super::maps::fixtures;
+        let added = fixtures::AddedMap::level_12_artefact_hunt();
+        let table = fixtures::table_of(&fixtures::with_map(&added)).unwrap();
+        let params = table.iter().find_map(|map| map.artefact_hunt).unwrap();
+        let start = artefact_hunt_rule::Time::from_ms(21_000);
+        let rule = artefact_hunt_rule::Rule::new(9)
+            .step(params, artefact_hunt_rule::Event::Start { now: start })
+            .0;
+        for points in [0, 1, 22] {
+            let rules = Rules {
+                timelimit: Timelimit::read(&TIMELIMIT).unwrap(),
+                respawn: Some(Respawn {
+                    times: vec![],
+                    seed: 7,
+                    points: vec![[0, 0]; points],
+                }),
+                gather: None,
+                tdm: None,
+                research: None,
+                free_for_all: None,
+                freeze_tag: None,
+                artefact_hunt: Some(ArtefactHunt::of(&rule)),
+                kills_deaths: vec![KillsDeaths::default(); 2],
+                team_respawn: [true, true],
+            };
+            let bytes = rules.to_bytes();
+            let decoded = Rules::decode(&bytes, TIME, 2, RuleMode::ArtefactHunt, 0).unwrap();
+            assert_eq!(decoded, rules, "{points}");
+            assert_eq!(decoded.artefact_hunt.unwrap().rule(params), Some(rule));
+            // Another mode's reading has none.
+            let research = Rules::decode(&bytes, TIME, 2, RuleMode::Research, 0).unwrap();
+            assert_eq!(research.artefact_hunt, None);
+        }
+        // Bytes that are no state of the map's rule read as none.
+        let mut wrong = ArtefactHunt::of(&rule).bytes().to_vec();
+        wrong[18] = 9;
+        assert_eq!(ArtefactHunt(wrong).rule(params), None);
     }
 
     #[test]
@@ -2496,6 +2820,47 @@ mod tests {
         let rules = Rules::decode(&bytes, 50, 2, RuleMode::Batteries, 10).unwrap();
         assert_eq!(rules.timelimit.start, None);
         assert_eq!(rules.timelimit.time_limit_at(900_000), None);
+    }
+
+    #[test]
+    fn freeze_tag_round_state_follows_respawn_and_precedes_kill_counters() {
+        use srp_validate::Team;
+        use srp_validate::world::freeze::{Body, Condition, Phase, PLAYERS};
+        let mut freeze = FreezeTag::EMPTY;
+        let mut bodies = [Body::Absent; PLAYERS];
+        bodies[0] = Body::Present { team: Team::First, position: [0.0; 3], condition: Condition::Fighting };
+        bodies[1] = Body::Present { team: Team::Second, position: [10.0; 3], condition: Condition::Lethal };
+        freeze.step(&bodies, &[[false; PLAYERS]; PLAYERS], 50);
+        assert!(matches!(freeze.phase(), Phase::Between { .. }));
+        let rules = Rules {
+            timelimit: Timelimit::read(&TIMELIMIT).unwrap(),
+            respawn: Some(Respawn { times: vec![], seed: 7, points: vec![[0, 0]; 22] }),
+            gather: None, tdm: None, research: None, free_for_all: None,
+            freeze_tag: Some(freeze), artefact_hunt: None,
+            kills_deaths: vec![KillsDeaths::default(); 2], team_respawn: [true, true],
+        };
+        let bytes = rules.to_bytes();
+        assert_eq!(bytes.len(), 13 + 8 + 44 + FreezeTag::LEN + 10 + 2);
+        assert_eq!(Rules::decode(&bytes, TIME, 2, RuleMode::FreezeTag, 0), Some(rules.clone()));
+        // Its restart, then a double wipe replayed and another to replay: two
+        // round starts, which the match server counts the lives by.
+        let both = [Body::Present { team: Team::First, position: [0.0; 3], condition: Condition::Lethal },
+            Body::Present { team: Team::Second, position: [10.0; 3], condition: Condition::Lethal }];
+        let fighting = bodies.map(|body| match body {
+            Body::Present { team, position, .. } => Body::Present { team, position, condition: Condition::Fighting },
+            Body::Absent => Body::Absent,
+        });
+        bodies[..2].copy_from_slice(&both);
+        for _ in 0..2 {
+            freeze.step(&fighting, &[[false; PLAYERS]; PLAYERS], 5000);
+            freeze.step(&fighting, &[[false; PLAYERS]; PLAYERS], 50);
+            assert_eq!(freeze.phase(), Phase::Playing);
+            freeze.step(&bodies, &[[false; PLAYERS]; PLAYERS], 50);
+        }
+        assert_eq!((freeze.points(), freeze.round_starts()), ([1, 0], 2));
+        let rules = Rules { freeze_tag: Some(freeze), ..rules };
+        let decoded = Rules::decode(&rules.to_bytes(), TIME, 2, RuleMode::FreezeTag, 0).unwrap();
+        assert_eq!(decoded.freeze_tag.map(|rule| rule.round_starts()), Some(2));
     }
 
     #[test]
@@ -2683,6 +3048,9 @@ mod tests {
             gather: Some(won),
             tdm: None,
             research: None,
+            free_for_all: None,
+            freeze_tag: None,
+            artefact_hunt: None,
             kills_deaths: vec![KillsDeaths::default(); 2],
             team_respawn: [true, true],
         }

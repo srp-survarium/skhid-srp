@@ -22,7 +22,9 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
     making at its first sign-in, added as all premium is (`premium::add_premium`); the lobby
     is told the hours left (720);
   - exactly 1000 rounds of every ammo: each stack of the dictionary under
-    `gameplay/items/weapons/ammo/`, the ported weapons' too (34 on the released data);
+    `gameplay/items/weapons/ammo/`, the ported weapons' too (39 on the data of rev58). An
+    account made before an ammo was added does not get it (a one-off top-up of the older
+    accounts was written for rev58 and never run; the owner dropped it, 2026-11-22);
   - the Scavengers at reputation level 5, their highest (3000 points), as earned: all they
     sell is buyable; they are its quest faction (never neutral);
   - owned: the TT-33, the Mosin and the PPSh-41 (the game's free weapons), the AKM, AKMSU and

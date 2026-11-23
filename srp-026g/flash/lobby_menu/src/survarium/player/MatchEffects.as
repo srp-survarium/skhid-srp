@@ -3,10 +3,11 @@ package survarium.player
    import survarium.constants.ItemCategory;
    import survarium.constants.PlayerModifier;
    import survarium.constants.ProfileSlot;
+   import survarium.controls.PlayerInfo;
    import survarium.data.LocalizationData;
    import survarium.item.ModificationRolls;
 
-   // What a match adds to a weapon's, a medicine's, a grenade's or a trap's card stats in the selected kit, shown while Alt is held
+   // What a match adds to a weapon's, a medicine's, a grenade's, a trap's or an armour piece's card stats in the selected kit, shown while Alt is held
    // (docs/notes/alt-weapon-stats.md). A player modifier's sum S is the kit's own float (the
    // skills) plus the kit's armour's modifications of it (armor::add_modifiers 0x33F3A0): the sum
    // apply_modifier 0x2D5AE0 takes, B x max(0, 1 + k x S), k 1 at every site below.
@@ -58,10 +59,11 @@ package survarium.player
          return LocalizationData.getName(_kit != null ? "st_srp_weapon_with_kit_skills" : "st_srp_weapon_with_kit");
       }
 
-      // Whether Alt shows an item's card as a match has it: a weapon's, a medicine's, a grenade's or a trap's.
+      // Whether Alt shows an item's card as a match has it: a weapon's, a medicine's, a grenade's or
+      // a trap's, and that of a piece with an isolation line (armour).
       public static function covers(item:Object) : Boolean
       {
-         return item != null && (item.isWeapon || item.category == ItemCategory.MEDKITS || throwable(item));
+         return item != null && (item.isWeapon || item.category == ItemCategory.MEDKITS || throwable(item) || has(item,ISOLATION) || tank(item));
       }
 
       private static function throwable(item:Object) : Boolean
@@ -75,6 +77,7 @@ package survarium.player
       {
          if(item.category == ItemCategory.MEDKITS) return medicine(item,propId,value);
          if(throwable(item)) return thrown(propId,value);
+         if(!item.isWeapon) return propId == ISOLATION ? isolation(value) : value;
          switch(propId)
          {
             case 133:
@@ -159,11 +162,17 @@ package survarium.player
          {
             // While a painkiller is active (set_active's flag on a pain protector): Numb Legs, the
             // sprint's stamina x (1 - 0.2 x rank) (player_stamina::sprint 0x329AAD); Unflinching,
-            // the hits' stopping power x (1 - 0.1 x rank); Concentration, the sight's sway x (1 - 0.05
-            // x rank) (breath_vibration_calculator::tick 0x31D727, added to modifier 61's own).
+            // the hits' stopping power x (1 - 0.1 x rank).
             skillLine(lines,"st_srp_medicine_sprint_stamina",1 - _kit.numbLegsRank * 0.2,false);
             skillLine(lines,"st_srp_medicine_hit_slow",1 - _kit.unflinchingRank * 0.1,false);
-            skillLine(lines,"st_srp_medicine_sight_sway",1 - _kit.concentrationRank * 0.05,false);
+         }
+         // While an antitoxin is active: Concentration, the reload's speed +10/+15/+20 % added to
+         // modifier 13's own (the four reload states' get_weapon_lexeme, medical::reload); Sharp
+         // Eye, the sight's aim time -5/-10/-15 % added to modifier 49's (medical::aim_start / _end).
+         if(antitoxin(item))
+         {
+            skillLine(lines,"st_srp_medicine_reload_speed",1 + RELOAD_BONUS[_kit.concentrationRank],true);
+            skillLine(lines,"st_srp_medicine_aim_time",1 - AIM_BONUS[_kit.sharpEyeRank],false);
          }
          // Take Cover: each heal tick's amount x (1 + 0.1 x rank) while crouched (medkit::tick
          // 0x33D948, after Medical Training's S57), on a medicine that heals.
@@ -174,6 +183,79 @@ package survarium.player
       private static function skillLine(lines:Array, key:String, factor:Number, higherIsBetter:Boolean) : void
       {
          if(factor != 1) lines.push({name:LocalizationData.getName(key),before:100,after:100 * factor,higherIsBetter:higherIsBetter});
+      }
+
+      // The lines a smoke's, a grenade's, a trap's or an oxygen tank's card adds below its own:
+      // what the technical skills do with it (technical_skills::Skills; docs/notes/
+      // technical-skills.md), each as medicineSkillLines' (a share of the game's own), or a value
+      // the game has none of ({before: 0, after, postfix}).
+      public function technicalSkillLines(item:Object) : Array
+      {
+         var lines:Array = [];
+         if(_kit == null) return lines;
+         var rank:Function = _kit.technicalRank;
+         if(smoke(item))
+         {
+            skillLine(lines,"st_srp_technical_smoke_duration",1 + 0.1 * rank(402),true);
+            var toxic:Number = [0,5,6,7][rank(441)];
+            if(toxic > 0) lines.push({name:LocalizationData.getName("st_srp_technical_toxic_damage"),before:0,after:toxic,
+               higherIsBetter:true,postfix:LocalizationData.getName("st_srp_technical_per_second")});
+         }
+         else if(item.category == ItemCategory.GRENADES)
+         {
+            skillLine(lines,"st_srp_technical_friendly_blast",1 - 0.25 * rank(404),false);
+         }
+         if(item.category == ItemCategory.BOOBY_TRAPS)
+         {
+            skillLine(lines,"st_srp_technical_disarm_speed",1 + 0.15 * rank(411),true);
+            var rearm:int = [0,30,20][rank(433)];
+            if(rearm > 0) lines.push({name:LocalizationData.getName("st_srp_technical_rearm"),before:0,after:rearm,
+               higherIsBetter:false,postfix:LocalizationData.getName("st_srp_medical_seconds")});
+         }
+         if(tank(item))
+         {
+            if(rank(442) > 0) skillLine(lines,"st_srp_technical_oxygen_rush",1.1,true);
+         }
+         return lines;
+      }
+
+      // A smoke grenade: a grenade without damage (its card has no damage row).
+      private static function smoke(item:Object) : Boolean
+      {
+         return item.category == ItemCategory.GRENADES && !has(item,1);
+      }
+
+      // What an oxygen tank's card lists with its built-in bonuses, as the modifications of the same
+      // kind show it ({icon, prop_id, value}): the pockets or the pocket size Tank Pocket or Tank
+      // Depth adds to a kit that wears it (1031 "Item slots", icon 3, prop 10; 1171 pocket size,
+      // icon 17, prop 117); Steady Breath's sway (the boosters' "Sight sway", icon 39, prop 125)
+      // and dispersion (1070's accuracy, icon 7, prop 101), -10 % a rank; Deep Breaths' sprint
+      // energy (1160's "Energy costs", icon 16, prop 116), -20/-30/-40 %; Tank Container's
+      // artefact container (1040's "Artifact slots", icon 4, prop 9).
+      public static function tankBonuses(item:Object) : Array
+      {
+         var bonuses:Array = [];
+         if(item == null || !tank(item)) return bonuses;
+         var pockets:int = LocalPlayerProfile.technicalRank(413);
+         var size:int = LocalPlayerProfile.technicalRank(414);
+         if(pockets > 0) bonuses.push({icon:3,prop_id:10,value:pockets});
+         if(size > 0) bonuses.push({icon:17,prop_id:117,value:size});
+         var steady:int = LocalPlayerProfile.technicalRank(403);
+         if(steady > 0)
+         {
+            bonuses.push({icon:39,prop_id:125,value:-0.1 * steady});
+            bonuses.push({icon:7,prop_id:101,value:-0.1 * steady});
+         }
+         var deep:int = LocalPlayerProfile.technicalRank(431);
+         if(deep > 0) bonuses.push({icon:16,prop_id:116,value:[0,-0.2,-0.3,-0.4][deep]});
+         if(PlayerInfo.tankContainer) bonuses.push({icon:4,prop_id:9,value:1});
+         return bonuses;
+      }
+
+      // An oxygen tank: a piece with an oxygen capacity (prop 11).
+      private static function tank(item:Object) : Boolean
+      {
+         return has(item,11);
       }
 
       // A grenade's or a trap's card stat (docs/notes/alt-weapon-stats.md), each as the match's
@@ -201,11 +283,42 @@ package survarium.player
          }
       }
 
+      // An armour card's isolation: the armour, x100, of each body part the piece covers against
+      // the four anomalous hit types (hit_params/<part>/hit_types/<type>/armor).
+      private static const ISOLATION:int = 8;
+
+      // A piece's isolation as a match has it on the parts it covers (docs/notes/artefact-skills.md,
+      // Resistance): a part's armour A against an anomalous hit is + 0.05 a rank of Resistance
+      // (patch hook 0x32A083, artefact_skills.rs Resistance::ARMOUR; the card's points are x100),
+      // and the hit keeps 1 - clamp(A - P, 0, 1) (0x32A07E), so points past 100 stop nothing more.
+      // Once a part, on the sum of the pieces that cover it: not once a piece.
+      private function isolation(value:Number) : Number
+      {
+         var rank:int = _kit == null ? 0 : _kit.resistanceRank;
+         return Math.max(value,Math.min(100,value + rank * 5));
+      }
+
       // A medicine card's pain protection (%), the painkiller's.
       private static const PAIN_PROTECTION:int = 17;
 
       // A medicine card's healing lines: infection, arms and legs, body and head, pain.
       private static const HEALING:Array = [13,135,136,137];
+
+      private static const RELOAD_BONUS:Array = [0,0.1,0.15,0.2];
+
+      private static const AIM_BONUS:Array = [0,0.05,0.1,0.15];
+
+      // An antitoxin's card: its infection cure (13) and no other healing above 0, as the exe's
+      // medical::antitoxin (a drug that heals the infection pool and nothing else).
+      private static function antitoxin(item:Object) : Boolean
+      {
+         if(!has(item,13)) return false;
+         for each(var prop:Object in item.properties)
+         {
+            if((prop.prop_id == 135 || prop.prop_id == 136 || prop.prop_id == 137) && Number(prop.prop_value) > 0) return false;
+         }
+         return true;
+      }
 
       private static function heals(item:Object) : Boolean
       {

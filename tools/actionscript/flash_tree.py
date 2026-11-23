@@ -7,6 +7,12 @@
     flash_tree.py [--tools T] build <movie dir> <original.swf> <out.swf>
         compile the whole tree (src/) in one Flex run and put the code into
         the original movie in place of all of its code
+    flash_tree.py graphics <movie dir> <original.swf> <out.swf>
+        the movie build makes, without its code (a tag marks its place): what
+        a content pack draws into, the same whatever the code
+    flash_tree.py code <drawn.swf> <built.swf> <out.swf>
+        a graphics movie (as a pack drew into it) with the code of build's
+        movie of the same tree: build's movie with what the pack drew
 
 A tree is the movie's complete ActionScript; movie.json names the original
 movie, whose graphics, fonts, sounds and symbol bindings (everything but the
@@ -246,12 +252,13 @@ def table_classes(movie_dir):
 @dataclass(frozen=True)
 class Placement:
     """A row of placements.tsv: in sprite `sprite`'s frame `frame` (from 1), the PlaceObject2 at `depth`
-    places `to` where the original places `old`."""
+    places `to` where the original places `old`; `to` None (`-` in the file): it places nothing, the
+    PlaceObject2 is left out."""
     sprite: int
     frame: int
     depth: int
     old: int
-    to: int
+    to: int | None
 
 
 def placements(movie_dir):
@@ -265,20 +272,21 @@ def placements(movie_dir):
         row = line.split('#', 1)[0].strip()
         if not row:
             continue
-        cells = row.split('\t')
-        if len(cells) != 5 or not all(c.strip().isdigit() for c in cells):
-            raise ValueError(f'{path}:{n}: sprite, frame, depth, from and to, five numbers')
-        out.append(Placement(*(int(c) for c in cells)))
+        cells = [c.strip() for c in row.split('\t')]
+        if len(cells) != 5 or not all(c.isdigit() for c in cells[:4]) or not (cells[4].isdigit() or cells[4] == '-'):
+            raise ValueError(f'{path}:{n}: sprite, frame, depth, from and to, five numbers (to may be -)')
+        out.append(Placement(*(int(c) for c in cells[:4]), None if cells[4] == '-' else int(cells[4])))
     return out
 
 
 def placed_right(tags, fixes):
     """`tags` with each of `fixes` applied: every one must match exactly one PlaceObject2 of its sprite,
-    frame and depth that places its `old` character, and `to` must be a character the movie defines."""
+    frame and depth that places its `old` character, and `to` must be a character the movie defines; a fix
+    whose `to` is None leaves that PlaceObject2 out."""
     left = {(f.sprite, f.frame, f.depth): f for f in fixes}
     defined = swf.character_ids(tags)
     for f in fixes:
-        if f.to not in defined:
+        if f.to is not None and f.to not in defined:
             raise ValueError(f'placements.tsv: character {f.to} is not defined')
     out = []
     for kind, raw in tags:
@@ -295,8 +303,10 @@ def placed_right(tags, fixes):
                         depth, cid = swf.placed(sub)
                         fix = mine.get((sprite, frame, depth))
                         if fix and cid == fix.old:
-                            sub = swf.with_character(sub, fix.to)
                             del left[(sprite, frame, depth)]
+                            if fix.to is None:
+                                continue
+                            sub = swf.with_character(sub, fix.to)
                     inner.append(sub)
                 raw = swf.tag(kind, body[:4] + b''.join(inner))
         out.append((kind, raw))
@@ -376,6 +386,34 @@ def build(movie_dir, original_swf, tools, report=print):
     return movie
 
 
+# Where graphics() leaves the code out: a DoABC tag of its own, which with_code() replaces.
+CODE_PLACE = swf.tag(swf.DO_ABC, struct.pack('<I', 0) + b"srp: the tree's code goes here\0")
+
+
+def graphics(movie_dir, original_swf):
+    """The tree's movie without its code (bytes): build()'s, with CODE_PLACE where its code is. What
+    a content pack draws into (vostok-port's lobby icons), so that a change of the code alone leaves
+    it as it was; with_code() of it and build()'s movie is build()'s movie."""
+    spec = load(movie_dir)
+    data = original_swf.read_bytes()
+    if sha(data) != spec['movie_sha256']:
+        raise ValueError(f"Not the original of {spec['movie']} (sha256 {sha(data)})")
+    return assemble(data, [(swf.DO_ABC, CODE_PLACE)], bitmaps(movie_dir), placements(movie_dir))
+
+
+def with_code(drawn, built):
+    """`drawn` (graphics() of a tree, as a pack may have drawn into it) with the code of `built`
+    (build()'s movie of the same tree) in its CODE_PLACE, compressed as `built` is: build()'s movie
+    with what the pack drew."""
+    header, tags = swf.split(drawn)
+    places = [i for i, (_, raw) in enumerate(tags) if raw == CODE_PLACE]
+    if len(places) != 1:
+        raise ValueError('Not a movie of graphics(): no single place for the code')
+    code = [t for t in swf.split(built)[1] if t[0] in (swf.DO_ABC, swf.DO_ABC_OLD)]
+    at = places[0]
+    return swf.compressed(swf.join(header, tags[:at] + code + tags[at + 1:]), built)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--tools', type=Path, default=REPO / 'private' / 'actionscript' / 'tools.json',
@@ -389,10 +427,24 @@ def main():
     make.add_argument('movie_dir', type=Path)
     make.add_argument('original', type=Path)
     make.add_argument('output', type=Path)
+    drawn = commands.add_parser('graphics')
+    drawn.add_argument('movie_dir', type=Path)
+    drawn.add_argument('original', type=Path)
+    drawn.add_argument('output', type=Path)
+    coded = commands.add_parser('code')
+    coded.add_argument('drawn', type=Path)
+    coded.add_argument('built', type=Path)
+    coded.add_argument('output', type=Path)
     args = parser.parse_args()
     if args.command == 'original':
         original(args.movie_dir, args.archive, args.output)
         print(f'Wrote {args.output}')
+    elif args.command in ('graphics', 'code'):
+        data = graphics(args.movie_dir, args.original) if args.command == 'graphics' else \
+            with_code(args.drawn.read_bytes(), args.built.read_bytes())
+        with args.output.open('xb') as stream:
+            stream.write(data)
+        print(f'Created {args.output}: sha256 {sha(data)}')
     else:
         if args.output.exists():
             raise ValueError('Output already exists; choose a new path')

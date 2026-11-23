@@ -22,10 +22,12 @@ extern crate std;
 
 pub mod memory;
 pub mod messages;
+pub mod modules;
 pub mod recovery;
 pub mod reader;
 pub mod refusal;
 pub mod report;
+pub mod executable;
 pub mod transport;
 pub mod world;
 
@@ -48,6 +50,14 @@ pub mod mode {
     pub const TEAM_DEATHMATCH: u8 = 4;
     /// Research (exe patch 53, `research_mode.md`).
     pub const RESEARCH: u8 = 5;
+    /// Free for all (`ffa.md`): no rule of its own, each place its own side
+    /// ([`super::own_side`]).
+    pub const FREE_FOR_ALL: u8 = 8;
+    pub const FREEZE_TAG: u8 = 12;
+    /// Artifact Hunt (`artefact_hunt.md`): its rule read through
+    /// `artefact_hunt_rule` with the map's parameters
+    /// (`world::Context::artefact_hunt`).
+    pub const ARTEFACT_HUNT: u8 = 13;
     /// The modes whose statistics and gather rule hold the map's batteries.
     pub const WITH_BATTERIES: [u8; 2] = [BATTERIES, TIMED_BATTERIES];
 }
@@ -167,6 +177,11 @@ impl Place {
     pub const fn index(self) -> usize {
         self.0 as usize
     }
+
+    /// Every place, in order.
+    pub fn all() -> impl Iterator<Item = Place> {
+        (0..MAX_PLAYERS as u8).map(Place)
+    }
 }
 
 /// A set of roster places: a u32 with no bit at [`MAX_PLAYERS`] or past.
@@ -193,6 +208,11 @@ impl Places {
         self.0.count_ones()
     }
 
+    /// The set with `place` in it.
+    pub const fn with(self, place: Place) -> Places {
+        Places(self.0 | 1u32.wrapping_shl(place.0 as u32))
+    }
+
     pub const fn contains(self, place: Place) -> bool {
         bit(self.0, place.0 as u32)
     }
@@ -211,6 +231,15 @@ impl Places {
     }
 }
 
+/// The team of roster place `place` in a free-for-all: a side of its own,
+/// 4 + the place (`ffa.md`). The game reads team 2 as "neutral" and 3 as
+/// "none", so those are never a player's.
+pub const fn own_side(place: usize) -> u8 {
+    // A roster has at most MAX_PLAYERS places.
+    let place = if place < MAX_PLAYERS { place } else { MAX_PLAYERS };
+    (place as u8).saturating_add(4)
+}
+
 /// One of a match's two teams: 0 and 1.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Team {
@@ -224,6 +253,14 @@ impl Team {
             0 => Some(Team::First),
             1 => Some(Team::Second),
             _ => None,
+        }
+    }
+
+    /// Its number in the game: 0 or 1.
+    pub const fn index(self) -> usize {
+        match self {
+            Team::First => 0,
+            Team::Second => 1,
         }
     }
 

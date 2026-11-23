@@ -46,12 +46,14 @@ PROVEN from `projects/*` and `gameplay/game_modes/*.options` (`match_making_para
 | 8 | level_08 | Cologne | day/evening/prerain × _2 _3 _4 | **new** |
 | 9 | level_09 | London (skhid's `resources.db.patch_14`, ids 181 to 183) | day × _2 _3 _4 | — |
 | 14 | v069d_level_01 | Rudnya (v0.69) (skhid's pack `rudnya-069d`, ids 204 and 216-218, `rudnya-069d.md`) | day × _2 _3 _4 _5 | — |
+| 32 | v044a_level_09 | London (v0.42) (skhid's pack `london-v042`, ids 290-298, `london-v042.md`) | day, rain, evening × _2 _3 _4 | — |
 | 88 | test/tt5, test/tdm_test, test/artefact_testlevel | test maps | **no `projects/test/*` in the db** | — |
 
 - `lobby_scene/day` still exists (client only). PROVEN.
 - 0.21d `projects/<lvl>/<var>/server_project` files (18) are all gone. 0.26g has 72 level client_projects = 8 maps × 3 variants × 3 modes. PROVEN.
 - `gameplay/game_modes/level_08_night_2.options` / `_night_3.options` (maps_dict ids 107/108) name `level_08/night_2`/`night_3`, **which have no project** → would fail to load. PROVEN (data); never offer them.
 - `loading_screen_id` (0..25) and `map_weather_id` now come from the mode config (`ui.loading_screen_id`, `match_making_params.map_weather_id`), replacing srp's `MAPS[].pictures` level_id byte. PROVEN (data); whether match_options still carries a picture byte: see sibling static_info.md.
+- Chemical Plant v0.11 (`v011e_level_04`, level 12) has a picture of its own since 2026-11-18 (the owner: "do another image prerender on chemical plant 0.11"): `Level_v011e_chemical`, loading picture 40 (`modes.tsv`; its Blackout and Free for All copies take it from the copied config) and the rooms' tile and vote card (`RoomsLook.RENDER_ONE`). Before, its tile showed Vostok v0.11's picture (`Level_v011e`) and its loading screen stock Chemical Plant's (5). A frame of the game itself, as the STALKER maps' (`stalker-maps.md`): headless, 2560 x 1440, every quality at its highest, 100 degrees across, pose `plant-n` (14, 16, 125), yaw 180, pitch -7 (the whole plant from the north), scaled to cover 1920 x 798, JPEG quality 92.
 
 ### Per-project rule objects (0.26g `client_project.server_objects`, 0.21d `server_project.server_objects`) — PROVEN
 
@@ -161,7 +163,7 @@ Serialized rule state (strings next to each `::serialize`), PROVEN:
 
 1. Do the 28 f32 / 20 u8 fields of 0.26g `match_options` (sibling) override any config timing (e.g. countdown, wait percent), as 0.21d's C454/C45A did? **Answered for the timelimit and tdm rules: no.** Their constructors read `mode.parameters.*` from the config only; the one match-options value the timelimit rule takes is N (+0x577B5) (§10, §11). `respawn_time` was not re-checked.
 2. The 0.26g `game_mode` enum names (no PDB): are 0/1 still capture-base, and what is mode 5 ("dtb")? Only configs referencing it exist in maps_dict, no files.
-3. Does the client fail or skip when maps_dict names a missing config (ids 114, 143..151) at startup (`items_dictionary_cook::on_map_configs_loaded` ~0x2C9D24)? It evidently shipped this way, so LIKELY skipped, not checked.
+3. Does the client fail or skip when maps_dict names a missing config at startup (`items_dictionary_cook::on_map_configs_loaded` ~0x2C9D24)? It logs "Wrong map config" and goes on to the next row (0x2C9CA5..0x2C9D45). Moot since 2026-11-21: the five such rows (114, 143, 144, 150, 151) are out of the shipped maps_dict (`client-dictionary-1.json`).
 4. Exact semantics of mode 3 `spawn_points_count` vs the 2..5 `victory_item_spawn_points` per map (choose N stations by `spawners_weight`?), and what `m_team_points` count. Not traced in code.
 5. TDM end condition: **answered in §11** (a team with no tickets and no player left alive, or 900 s).
 6. Class 0x5C (respawn base) in 0.21d terms: is it the old `single_player_respawn_rule`? Its 0.21d class id was not looked up.

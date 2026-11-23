@@ -1,10 +1,13 @@
 package survarium.controls
 {
+   import flash.display.DisplayObject;
    import flash.filters.GlowFilter;
+   import flash.geom.ColorTransform;
    import flash.geom.Rectangle;
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
    import flash.text.TextFormat;
+   import survarium.modes.FrozenPlaces;
 
    public class MinimapObjectPlayer extends MinimapObject
    {
@@ -22,16 +25,76 @@ package survarium.controls
       // The name over the icon (showName), made at its first name and kept with the icon.
       private var _label:TextField;
 
+      // Freeze Tag: the glyph's own colour while the icon is drawn frozen (null: not frozen).
+      private var _ownGlyph:ColorTransform = null;
+
       public function MinimapObjectPlayer()
       {
          super();
          stop();
       }
 
+      // A frame of another class has another glyph: a frozen icon stays frozen.
       public function set type(value:int) : void
       {
+         var frozen:Boolean = this.frozen;
+         this.frozen = false;
          gotoAndStop(value);
          _type = value;
+         this.frozen = frozen;
+      }
+
+      // Freeze Tag (Minimap: a frozen teammate): the glyph and the name in the ice blue, as the squad's
+      // glyph is green; the own colours back on thaw.
+      public function set frozen(value:Boolean) : void
+      {
+         var glyph:DisplayObject = this.glyph;
+         if(value == this.frozen || glyph == null)
+         {
+            return;
+         }
+         if(value)
+         {
+            _ownGlyph = glyph.transform.colorTransform;
+            glyph.transform.colorTransform = FrozenPlaces.tint();
+         }
+         else
+         {
+            glyph.transform.colorTransform = this._ownGlyph;
+            _ownGlyph = null;
+         }
+         this.paintLabel();
+      }
+
+      public function get frozen() : Boolean
+      {
+         return this._ownGlyph != null;
+      }
+
+      // The class's glyph: the upper of the frame's two parts named renderer (under it its shadow), the
+      // one the squad's icons have in green.
+      private function get glyph() : DisplayObject
+      {
+         var glyph:DisplayObject = null;
+         for(var i:int = 0; i < numChildren; i++)
+         {
+            if(getChildAt(i).name == "renderer")
+            {
+               glyph = getChildAt(i);
+            }
+         }
+         return glyph;
+      }
+
+      // Artifact Hunt: the carrier's dot in the artefact's light (CarryRing).
+      public function set carrying(value:Boolean) : void
+      {
+         CarryRing.mark(this,value);
+      }
+
+      public function get carrying() : Boolean
+      {
+         return CarryRing.marked(this);
       }
 
       // The player's name centred over the icon; null shows none. Its text and place change only
@@ -49,6 +112,7 @@ package survarium.controls
          if(!this._label)
          {
             _label = makeLabel();
+            this.paintLabel();
          }
          if(this._label.text != name || this._label.parent != this)
          {
@@ -63,6 +127,26 @@ package survarium.controls
             addChild(this._label);
          }
          this._label.visible = true;
+      }
+
+      // The label's colour in its own format (a copy: each text set later takes it): the ice blue while
+      // frozen, else the name's.
+      private function paintLabel() : void
+      {
+         if(!this._label)
+         {
+            return;
+         }
+         var format:TextFormat = this._label.defaultTextFormat;
+         format.color = this.frozen ? FrozenPlaces.COLOR : this.nameColor;
+         this._label.defaultTextFormat = format;
+         this._label.textColor = uint(format.color);
+      }
+
+      // The name's colour: white; an enemy's red (PlayerRed), as the game's names over heads.
+      protected function get nameColor() : uint
+      {
+         return 0xFFFFFF;
       }
 
       // The name shown over the icon, or null.

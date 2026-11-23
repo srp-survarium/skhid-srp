@@ -255,10 +255,13 @@ impl Timed {
             game_mode: map.mode.rules().number(),
             batteries: map.victory_items_count as usize,
             respawn_points: Some(map.respawn_points),
+            team_2_points: None,
             profiles: None,
             artefacts: None,
             objects: None,
             inventory: None,
+            dict_ids: None,
+            artefact_hunt: None,
         };
         let game = world::validate(body, &context).map_err(|refusal| refusal.to_string());
         let game_ns = batches(calls, || world::validate(black_box(body), &context).is_ok());

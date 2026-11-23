@@ -34,8 +34,8 @@ use crate::artefact_skills::{Copies, Kind, Skills};
 use crate::vostok::effect::{self, KeptEffect};
 use crate::vostok::log::{self, Piece::{Dec, Text}};
 use crate::vostok::resources::{self, Arrived, QueryResults, QueryTag};
-use crate::vostok::world::Player;
-use crate::vostok::{Context, Flow, GameCell, NoExit};
+use crate::vostok::world::{Player, PlayerId};
+use crate::vostok::{Context, Flow, GameCell, NoExit, Thread};
 
 /// An instance of each effect for each place of a match (every player can
 /// glow at once).
@@ -187,9 +187,15 @@ impl<E: Copy> Load<E> {
 
 static LOAD: GameCell<Load<[KeptEffect; 13]>> = GameCell::new(Load::Unasked);
 
-/// Whether `player` shows Forest Protection's glow.
+/// Whether `player` shows Forest Protection's glow. A toxic smoke cloud (patch 180) counts as a
+/// damage zone; it is looked for only for a living, protected player in no zone.
 fn glow(player: &Player<'_>) -> Glow {
-    Glow::of(player.alive(), player.damage_zones(), player.weapon_damage_in_anomaly())
+    let (alive, factor) = (player.alive(), player.weapon_damage_in_anomaly());
+    let zones = match player.damage_zones() {
+        0 if alive && factor < 1.0 && player.in_toxic_smoke() => 1,
+        zones => zones,
+    };
+    Glow::of(alive, zones, factor)
 }
 
 /// Whether `player` shows `effect` (the copies counted only for a quarter).
@@ -202,14 +208,34 @@ fn shows(effect: LegEffect, player: &Player<'_>) -> bool {
     }
 }
 
+/// A match's places.
+const PLACES: usize = 20;
+
+/// The player object each place's presenter last came back to: a rollback
+/// gives it back again at each tick it simulates again, and its line is said
+/// once an object.
+static PRESENTERS_BACK: GameCell<[Option<PlayerId>; PLACES]> = GameCell::new([None; PLACES]);
+
+/// Whether the presenter came back to another object than the place's last.
+fn presenter_first_back(thread: &Thread, player: &Player<'_>) -> bool {
+    let mut back = PRESENTERS_BACK.get(thread);
+    let Some(last) = back.get_mut(usize::from(player.place())) else { return true };
+    if *last == Some(player.id()) {
+        return false;
+    }
+    *last = Some(player.id());
+    PRESENTERS_BACK.set(thread, back);
+    true
+}
+
 /// A player's simulation tick: each effect it shows played when none of it
 /// plays; the effects asked for at the first tick.
 pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(player) = Player::at_tick(ctx) else { return Flow::Continue };
-    if player.take_its_presenter() {
+    let thread = ctx.thread();
+    if player.take_its_presenter() && presenter_first_back(thread, &player) {
         log::line(&[Text("forest_glow: place "), Dec(player.place().into()), Text("'s presenter back on its current kit")]);
     }
-    let thread = ctx.thread();
     let (load, action) = LOAD.get(thread).step(Event::Frame);
     LOAD.set(thread, load);
     match action {
@@ -236,7 +262,7 @@ pub fn on_loaded(results: QueryResults<'_>, tag: QueryTag) {
     let arrived = match results.arrived(tag) {
         Arrived::Effects(kept) => kept.all(),
         // this callback is only the glow's query's
-        Arrived::Bus(_) | Arrived::Track(..) => return,
+        Arrived::Bus(_) | Arrived::Track(..) | Arrived::Particles(_) | Arrived::Assets(_) => return,
     };
     let (load, action) = LOAD.get(thread).step(Event::Arrived(arrived));
     LOAD.set(thread, load);

@@ -69,10 +69,13 @@ fn main() {
                         game_mode,
                         batteries: statistics.victory_items.len(),
                         respawn_points: rules.respawn.as_ref().map(|r| r.points.len()),
+                        team_2_points: None,
                         profiles: None,
                         artefacts: None,
                         objects: None,
                         inventory: None,
+                        dict_ids: None,
+                        artefact_hunt: None,
                     };
                     match world::validate(body, &context) {
                         Ok(()) => println!("  check: OK"),

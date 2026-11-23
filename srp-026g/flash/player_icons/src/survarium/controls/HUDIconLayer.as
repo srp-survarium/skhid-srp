@@ -21,16 +21,45 @@ package survarium.controls
       // 0x23AA83: the batteries and the like).
       public static const FIRST_OBJECT:uint = 37;
 
+      // An enemy's colour, the game's own for an enemy's name over his head (render_name 0x1F300F).
+      public static const ENEMY_RGB:uint = 0xFF0000;
+
       // The match's objects' icons hidden (the interface forced hidden: MainTimeline.force_interface_hidden).
       protected var _objectsHidden:Boolean = false;
       
       protected var _markers:Dictionary = new Dictionary();
+      // Freeze Tag (patch 160): the places frozen, a bit each; their names and arrows are drawn ice blue
+      // (HUDMarker.frozen), a marker made later included.
+      private var _freezeMask:uint = 0;
+
+      public function freezeMarkers(mask:uint) : void
+      {
+         var changed:uint = _freezeMask ^ mask;
+         _freezeMask = mask;
+         for(var place:uint = 0; place < 20; place++)
+         {
+            if(this._markers[place] && (changed & (1 << place)))
+            {
+               this._markers[place].frozen = (mask & (1 << place)) != 0;
+            }
+         }
+      }
+
       
       protected var _timeInterval:uint = 500;
       
       protected var _class:Dictionary = new Dictionary();
       
       protected var _enemyIds:Array = [];
+
+      // The enemies' player icons shown too: a replay (exe patch 135, MainTimeline.srp_show_enemies;
+      // docs/notes/replay-map.md). The enemy list is then not consulted.
+      public var enemiesShown:Boolean = false;
+
+      // Artifact Hunt (MainTimeline.srp_show_carriers, docs/notes/artefact_hunt.md): an enemy's player
+      // icon shows while he carries the artefact (the game's carrier mark, HUDMarker.carrying), the mark
+      // the artefact's.
+      protected var _carriersShown:Boolean = false;
       
       protected var _playerTeam:uint = 0;
       
@@ -69,15 +98,47 @@ package survarium.controls
          }
       }
 
-      // Whether the icon of this id may show: an enemy's player icon never (the game's own rule), an object's
-      // not while the objects are hidden.
+      // Whether the icon of this id may show: an enemy's player icon never (the game's own rule) but in a
+      // replay or while he carries Artifact Hunt's artefact, an object's not while the objects are hidden.
       protected function canShow(id:uint, renderer:HUDMarker) : Boolean
       {
          if(_objectsHidden && id >= FIRST_OBJECT)
          {
             return false;
          }
-         return renderer.kind != 0 || this._enemyIds.indexOf(id) == -1;
+         return renderer.kind != 0 || this.enemiesShown || this._enemyIds.indexOf(id) == -1
+            || this._carriersShown && renderer.carrying;
+      }
+
+      // A player of the other team (the game's enemy list, set_enemy_icon_ids).
+      protected function isEnemy(id:uint) : Boolean
+      {
+         return this._enemyIds.indexOf(id) != -1;
+      }
+
+      public function get carriersShown() : Boolean
+      {
+         return this._carriersShown;
+      }
+
+      public function set carriersShown(value:Boolean) : void
+      {
+         this._carriersShown = value;
+         for(var id:* in this._markers)
+         {
+            HUDMarker(this._markers[id]).artefactCarry = value;
+            this.keepShowable(uint(id));
+         }
+      }
+
+      // A marker that may not show now (its carrier mark gone, the carriers no longer shown) hidden.
+      protected function keepShowable(id:uint) : void
+      {
+         var renderer:HUDMarker = this._markers[id];
+         if(renderer && renderer.visible && !this.canShow(id,renderer))
+         {
+            renderer.visible = false;
+         }
       }
 
       // Research (mode 5), at a change and every 60 frames (research_arena
@@ -179,6 +240,8 @@ package survarium.controls
             renderer.textField.visible = false;
          }
          renderer.kind = kind;
+         renderer.frozen = id < 20 && (_freezeMask & (1 << id)) != 0;
+         renderer.artefactCarry = this._carriersShown;
          this._markers[id] = renderer;
          renderer.visible = false;
          addChild(renderer);
@@ -202,7 +265,7 @@ package survarium.controls
       
       public function set_player_icon_name(id:uint, str:String) : void
       {
-         this._markers[id].textField.text = str;
+         this._markers[id].setName(str);
       }
       
       public function set_player_icon_type(id:uint, type:uint) : void
@@ -213,6 +276,7 @@ package survarium.controls
       public function set_player_icon_container(id:uint, container:Boolean) : void
       {
          this._markers[id].container = container;
+         this.keepShowable(id);
       }
       
       public function set_player_icon_rotation(id:uint, rot:Number) : void
@@ -313,6 +377,8 @@ package survarium.controls
             }
             else
             {
+               // an enemy's icon shown while he carried, his mark gone in this update
+               renderer.visible = false;
                return;
             }
             textField = renderer.textField;
@@ -322,10 +388,7 @@ package survarium.controls
                if(props.name != undefined)
                {
                   newName = props.name;
-                  if(textField.text != newName)
-                  {
-                     textField.text = newName;
-                  }
+                  renderer.setName(newName);
                }
                if(props.name_visible != undefined)
                {
@@ -339,18 +402,17 @@ package survarium.controls
                   }
                }
             }
-            if(props.rgb != undefined)
+            // an enemy shown (a replay, Artifact Hunt's carrier) red whatever colour the game sends,
+            // so that white is the teammates' only
+            if(props.rgb != undefined || this.isEnemy(id))
             {
                colorTransfor = new ColorTransform();
-               color = (props.rgb);
+               color = this.isEnemy(id) ? ENEMY_RGB : uint(props.rgb);
                colorTransfor.color = color;
-               if(renderer.icon.renderer)
-               {
-                  renderer.icon.renderer.transform.colorTransform = colorTransfor;
-               }
+               renderer.iconColour = colorTransfor;
                if(textField)
                {
-                  textField.textColor = color;
+                  renderer.nameColor = color;
                   if(textField.filters)
                   {
                      filter = textField.filters[0];
@@ -397,24 +459,21 @@ package survarium.controls
       
       public function set_player_color(id:uint, red:uint, green:uint, blue:uint, alpha:uint = 255) : void
       {
-         var color:uint = (red << 16 | green << 8 | blue);
+         var color:uint = this.isEnemy(id) ? ENEMY_RGB : (red << 16 | green << 8 | blue);
          var colorTransfor:ColorTransform = new ColorTransform();
          colorTransfor.color = color;
          colorTransfor.alphaOffset = alpha - 255;
          var renderer:HUDMarker = this._markers[id];
          var filter:DropShadowFilter;
-         if(renderer.icon.renderer)
-         {
-            renderer.icon.renderer.transform.colorTransform = colorTransfor;
-         }
+         renderer.iconColour = colorTransfor;
          if(renderer.textField)
          {
-            renderer.textField.textColor = color;
+            renderer.nameColor = color;
          }
          if(renderer.textField && ((renderer.textField as TextField).filters))
          {
             filter = (renderer.textField as TextField).filters[0];
-            filter.color = red << 16 | green << 8 | blue;
+            filter.color = color;
          }
       }
    }

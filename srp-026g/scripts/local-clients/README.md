@@ -26,6 +26,13 @@ python3 srp-026g/scripts/local-clients/run.py init \
 `--game-dir` contains `resources.db`, `resources/ssl/`, and `binaries/x86/`.
 The server's working directory must contain its `certs/` directory. Build the
 server with `cargo build --locked -p srp` from `srp-026g` before starting it.
+The local server is given the sign-in cipher's secret key (`SRP_SIGN_IN_KEY`,
+`docs/notes/sign-in-cipher.md`) from `~/.config/skhid/sign_in_cipher.key`,
+unless the configuration's `server.env` or the environment sets it; the key
+is no file of the repository.
+
+`"remote_login": "host:port"` in the configuration points the games at a
+login server that is not this machine's (`start --clients-only`).
 If the Wine executable needs a different wineserver path, edit the configuration.
 
 Edit `private/local-clients/config.json` to choose names, passwords, ports,
@@ -48,7 +55,11 @@ it prevents the native client's normal UI action handlers from being installed.
 
 The managed server binds only to `127.0.0.1`. Its accounts live in
 `private/local-clients/data`; logs and copied Wine prefixes live in
-`private/local-clients/runtime`. Default ports are login TCP 1234, lobby UDP
+`private/local-clients/runtime`. The games' own run logs (the engine's
+`Survarium_<user>.<stamp>.log` and the patches' `srp_patches.<stamp>.log`, every
+client's) are in the game folder's `logs/` (`srp-026g/docs/notes/run-logs.md`;
+exes before it: the engine's in each prefix's Documents/Survarium, the patches'
+in `binaries/x86`). Default ports are login TCP 1234, lobby UDP
 1235, match UDP 1236, web TCP 8088. Occupied ports cause startup to fail without
 stopping another server. You can change the four ports together in the JSON.
 The server binary is used as configured; `restart` does not build new code.
@@ -78,7 +89,12 @@ the server's env sets `SRP_MIN_PATCH_REVISION`, an account whose executable is
 older (or unpatched) stops the start before anything launches, naming the
 account and the file: the login server would otherwise refuse it only at its
 sign-in. A configuration shared between tests drifts; point the accounts at the
-build under test.
+build under test. A server that exits at its start is said with the last line of
+its log; game data with a patch above `SRP_MIN_PATCH_REVISION`, with its fix.
+
+To put changed files (a pack, a movie tree, configs) or this tree's exe into a
+setup: `tools/test-patch <setup folder> <inputs...> [--exe <name>]` (`--help`):
+a patch of only what differs, linked into its game folder, in a minute.
 
 To use a server that is already running, use `start --clients-only --count 2`.
 It must listen on the configured local login port. This launcher will not stop

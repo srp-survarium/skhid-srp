@@ -5,7 +5,10 @@
 name = "camera_walls"
 patch = 132
 
-# update_camera after the view's update wrote the camera's transform
+# update_camera after the view's update wrote the camera's transform: first
+# of the site's handlers, so patch 133's `where` and patch 156's lines read
+# the eye it leaves
 [[hook]]
-site = "camera.orbited"
-handler = "on_orbited"
+site = "camera.viewed"
+handler = "on_viewed"
+order = 0

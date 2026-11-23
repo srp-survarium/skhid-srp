@@ -255,7 +255,7 @@ even byte count; forces a terminating NUL. `REG_EXPAND_SZ` is rejected.
 | 6 | `start_updater` 0x15997 | HKLM (0x159A4) | product key | `update server` | R | 260 | key: MessageBoxW "Can't open survarium registry key"; value: "Can't retrieve updater server string from survarium registry key"; both -> state 8 |
 | 7 | `restart_launcher` 0x162F4 | HKLM (0x16301) | product key | `launcher` | R | 260 | assertion "Can't restart launcher", `PostQuitMessage(7)` |
 | 8 | `get_game_launch_parameters` 0x17092 | HKLM (0x170AD) | product key | `file to execute`, `arguments`, `working folder` | R | 260 / rest of 0x8000 / 260 | any missing -> assertion "Can't get game launch parameters", `PostQuitMessage(8)` |
-| 9 | `settings::reload` 0x1D4C4 | **HKCU** (0x1D4E3) | product key | `port_number` (REG_SZ), `download_type` (REG_DWORD) | R | 6 / dword | defaults: torrent allowed, port "" |
+| 9 | `settings::reload` 0x1D4C4 | **HKCU** (0x1D4E3) | product key | `port_number` (REG_SZ), `download_type` (REG_DWORD) | R | 6 / dword | defaults: torrent allowed, port "" (the Skhid launcher replaces "Allow torrent" by user.cfg's at once: its patch 15) |
 | 10 | `settings::save` 0x1D71A | **HKCU** (0x1D72F), `RegCreateKeyExW`, KEY_SET_VALUE | product key | `download_type` (REG_DWORD 1 = torrent, 0 = direct), `port_number` (REG_SZ) | W | | silent |
 | 11 | `settings::reload_language` 0x1D852 | **HKCU** (0x1D871) | product key | `language` (REG_DWORD 0..4) | R | | see section 10 |
 | 12 | `settings::save_language` 0x1D8DA | **HKCU** (0x1D8E8), `RegCreateKeyExW`, KEY_SET_VALUE | product key | `language` | W | | silent |
@@ -456,10 +456,10 @@ Dispatch: `jmp [0x1609E + (type-1)*4]` (0x15BB5) with **no range check**; the ta
 | 4 | wide string (drive letter or path), u64 available bytes, u8 | 0x15C27 | stored; pending prompt kind = 4 |
 | 5 | narrow string | 0x15CDA | **`MessageBoxA(NULL, text, "Updater error:", MB_ICONERROR)`**, modal; last-type = 5; state unchanged |
 | 6, 7, 8, 9 | narrow string (file name or command) | 0x15D0D | if longer than 48 chars it becomes `...` + its last 44 chars (`std::rotate` 0x18345 called at 0x15D55, then three dots); converted with `mbstowcs_s` into this+0x4FE4; last-type = type; `refresh_status` |
-| 10..13 | (ignored) | 0x16093 | nothing |
+| 10..13 | (ignored) | 0x16093 | nothing (the Skhid launcher: 10 is the "Relay" row's view, `client-patches/launcher/README.md` patch 16; 11 is which file of how many is downloaded, two u16, its patch 17) |
 | 14 | none | 0x15D94 | shows the pending prompt (5.2) and answers with 0x1C or 0x1D |
 | 15, 16, 17, 18 | none | 0x15C44.. | pending prompt kind = 0x0F, 0x10, 0x11, 0x12 |
-| 19 | u8 seconds | 0x15FAE | this+0x2BA0, `refresh_status` (text 0xB9 in updater state 23) |
+| 19 | u8 seconds | 0x15FAE | this+0x2BA0, `refresh_status` (text 0xB9 in updater state 23; the Skhid launcher: also the count of "The server is restarting. Next try in N s." in launcher state 7, `client-patches/launcher/README.md` patch 16) |
 | 20 | none | 0x15FC6 | port rejected: re-shows the settings window, settings "port ok" flag = 0, MessageBoxW text 0xB8 if the stored port string is empty else 0xB7 |
 | 21 | none | 0x16067 | port accepted: flag = 1, `WM_CLOSE` posted to the settings window |
 | 22 | none | 0x15C80 | pending prompt kind = 0x16 |
@@ -492,6 +492,7 @@ launcher sends 0x1C, anything else -> 0x1D; pending kind reset to 0.
 | 0x1C | none | 0x1611D | Retry in the prompt |
 | 0x1D | none | 0x16119 | Cancel in the prompt |
 | 0x21 | u16 port (decimal parse of the settings port string) | `send_port_message` 0x173B1 | settings saved with a changed port while connected (0x17309) |
+| 0x22, 0x23, 0x24 | none | `send_simple_message` 0x1749F | the Skhid launcher only: its "Relay" menu's row picked: auto, on, off (patch 16) |
 
 Wire examples: abort = `01 00 1B`; retry = `01 00 1C`; port 6881 = `03 00 21 E1 1A`. Nothing else is
 sent, in particular nothing at connect.
@@ -831,6 +832,24 @@ by small dynamic initialisers as left + width, top + height.
 The button captions (strings 0xC2..0xC6) are painted into the button bitmaps by
 `draw_button_texts` 0x1B8B0, so they move/disappear with the button.
 
+`transparent_control` (PROVEN, 0x12548, `ret 20h`; edi = the control, esi = its rect; arguments:
+parent, visible, cursor, three bitmaps, callback, context): +4 HWND, +8 picture, +0Ch under the
+pointer, +10h pressed, +14h under the pointer (flag), +15h pressed (flag), +18h/+1Ch callback and
+context, +20h cursor, +24h opaque (BitBlt, else AlphaBlend). Its window procedure (0x126F4) calls the
+callback (cdecl, the context) at WM_LBUTTONDOWN; 0x125CE sets +8 (eax the control, ecx the bitmap)
+and invalidates it. It AlphaBlends its picture over what its window showed: the launcher's windows are
+WS_EX_COMPOSITED (0x2000000, 0x1A890), so Windows paints the parent under it first; Wine does not.
+
+The bottom panel (`image_window` at form+0x4DC, JPG 301 at form+0xEC) is a static control showing that
+bitmap. `launcher_form::set_status_texts` (0x1B48D) copies the bitmap anew from its resource
+(0x12BE0: AlphaBlend, eax the rect) and draws the status texts into it (0x137C3; Calibri bold 12 at
+0x482A8, in 200..678), then invalidates. The Skhid launcher's "Allow torrent" box is YouTube's control
+in the panel, and Twitter's lies over its text, opaque (`client-patches/launcher/README.md`, patch 15).
+
+A rect's width and height initialisers (`83 C0 imm8`) add at most 127; each rect's pair is its own
+function (0x3A710, 0x3A72B, 0x3A746, 0x3A761 for YouTube .. VK), called only from the CRT initialiser
+table (0x3B59C..0x3B5A8), and the rect's right and bottom are 0 in the file until it runs.
+
 ### 9.2 What the click handlers do (PROVEN)
 
 `open_url(url)` 0x1BB95: `wsprintfW(buf, L"cmd.exe /c start %s", url)` (format 0x3F564) and
@@ -956,7 +975,7 @@ row arrays cannot grow; the Skhid launcher opens a Windows menu from the click i
 
 | Offset | Field |
 |---|---|
-| +0x00 / +0x01 | allow torrent: current / last saved (default 1) |
+| +0x00 / +0x01 | allow torrent: current / last saved (default 1, set at 0x1D4CE; in the Skhid launcher user.cfg's `enable_torrent_seeding on`, set right after `settings::reload`, and its box on the main window: its patch 15) |
 | +0x02 / +0x0E | port text wchar[6]: current / last saved |
 | +0x1A | "port accepted" flag (1 at start; message 20 clears, message 21 sets) |
 | +0x1C | language |

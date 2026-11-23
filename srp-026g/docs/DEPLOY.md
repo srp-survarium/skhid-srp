@@ -28,19 +28,27 @@
 The client is told the ports srp binds, so each game port must be the same
 number inside and outside the container. Change `SRP26_LOGIN_PORT`,
 `SRP26_LOBBY_PORT` and `SRP26_MATCH_PORT`; never map one number to another.
+Voice chat is always on the match port + 1 (the games send there; srp binds
+it): `SRP26_VOICE_PORT` must be `SRP26_MATCH_PORT` + 1. `release/release.sh`'s
+preflight stops when it is not.
 
 | | Default of the compose file | On a host of its own |
 |---|---|---|
 | Login (TCP, TLS) | 2234 | 1234 |
 | Lobby (UDP) | 2235 | 1235 |
 | Match server (UDP) | 2236 | 1236 |
+| Voice chat (UDP, the match port + 1; `SRP_VOICE=off` for none) | 2237 | 1237 |
 | Web page | `127.0.0.1:8098` | the same, or public through `caddy26` on 443 |
 
 The defaults are a block of their own so that the stack can run beside a
 0.21d server on one host without sharing a name, a volume or a port with it
 (that server has 1234 tcp+udp, 1235 tcp, 1236 udp, 80 and 443). Beside it,
 do not start `caddy26`: port 443 is the other server's. On a host of its own
-use the game's own 1234, 1235, 1236.
+use the game's own 1234, 1235, 1236 and 1237 for voice.
+
+Open every game port in the host's firewall: the login port for TCP, the
+lobby, match and voice ports for UDP. A voice port that is not open leaves
+voice silent and nothing else: the games keep playing.
 
 ## First start
 
@@ -81,7 +89,7 @@ Players start the game with `-server=<SRP_PUBLIC_HOST>:<login port>`
 | Setting | What |
 |---|---|
 | `SRP_PUBLIC_HOST` | The address players reach the host at. Required |
-| `SRP26_LOGIN_PORT`, `SRP26_LOBBY_PORT`, `SRP26_MATCH_PORT` | The game ports (above) |
+| `SRP26_LOGIN_PORT`, `SRP26_LOBBY_PORT`, `SRP26_MATCH_PORT`, `SRP26_VOICE_PORT` | The game ports (above; the voice port is the match port + 1) |
 | `SRP26_WEB_PORT` | The web page's port on the host's 127.0.0.1 (default 8098) |
 | `SRP26_HTTPS_PORT` | caddy's port (default 443) |
 | `SRP26_DOWNLOAD_DIR` | The folder with the download (default `./download`) |
@@ -173,7 +181,9 @@ the new one, and recreate the container.
   goes out in this order: the patch file at its URL, then, with srp26
   stopped, the new `server-game-data.db` and the players' ZIP of that
   revision over the old ones in `download/` and `SRP_MIN_PATCH_REVISION` in
-  `.env` set to the release's revision, then a new container. The ZIP
+  `.env` set to the release's revision (with `SRP_RELEASED_EXE_SHA256`, the
+  sha256 of that ZIP's game exe, which the match server then asks no game
+  for: `SRP-026G.md`), then a new container. The ZIP
   goes in with them, never after the start: the site serves whatever ZIP is
   in `download/` at once, and the old ZIP beside the new `/patches` and
   revision lets a launcher enable PLAY for a game the login server refuses
@@ -257,7 +267,7 @@ login or an admin token, with `Content-Type: application/json` and
 `Cache-Control: no-store`. For example (illustrative counts):
 
 ```json
-{"online":12,"registered":45,"matches":3,"rooms":2,"in_rooms":9,"queued":1,"last_match_ends_in":512}
+{"online":12,"registered":45,"matches":3,"rooms":2,"in_rooms":9,"queued":1,"last_match_ends_in":512,"normal_matches":2,"last_normal_match_ends_in":340}
 ```
 
 - `online`: distinct accounts with an active lobby/chat connection or a
@@ -274,8 +284,17 @@ login or an admin token, with `Content-Type: application/json` and
   countdown, counts its map's whole wait, countdown and match time (925 s);
   0 when none runs. A match can end sooner. `release/release.sh` plans the
   maintenance 30 seconds after it (rounded up to whole minutes).
+- `normal_matches`: of `matches`, the normal ones: neither against the
+  server's bots (Player vs Bots, a PIN room made with bots) nor of a
+  private room (a PIN) (`session::v026g::match_kind::MatchKind`, set where
+  the lobby makes the match).
+- `last_normal_match_ends_in`: `last_match_ends_in` over the normal matches
+  alone. `release/release.sh --end-bot-and-private-matches` plans the
+  maintenance from it and waits for `normal_matches` 0; the other matches
+  end at its swap.
 
-All seven fields are nonnegative integers. Counts are read from live state;
+All nine fields are nonnegative integers; new ones are only added, at the
+end. Counts are read from live state;
 separate locks mean they are not a single atomic snapshot. Reading the endpoint
 never forms a match. No names, identifiers, addresses or credentials are
 returned. It is independent of the page language. Poll about once a minute.

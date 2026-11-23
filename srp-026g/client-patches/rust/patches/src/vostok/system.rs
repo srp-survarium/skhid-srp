@@ -21,3 +21,13 @@ impl System {
         if wine { System::Wine } else { System::Windows }
     }
 }
+
+/// Ends the game's process at once with `code` (kernel32's ExitProcess,
+/// the game's import): for a run that has done what it was started for.
+pub fn exit(_: &super::Thread, code: u32) -> ! {
+    // SAFETY: ExitProcess ends this process only and does not return.
+    unsafe {
+        raw::engine_exit_process(code);
+        core::hint::unreachable_unchecked()
+    }
+}

@@ -22,11 +22,18 @@ root=$(dirname "$here")
 command -v python3 >/dev/null || { echo "test.sh: python3 is needed" >&2; exit 1; }
 
 if command -v shellcheck >/dev/null; then
-    (cd "$here" && shellcheck -x -s bash lib.sh build-patch build-content upload-patch add-mirror build-server-db build-site build-zip deploy rollback setup-patches-server release.sh bot-data world-corpus test.sh &&
+    (cd "$here" && shellcheck -x -s bash lib.sh build-patch build-content upload-patch dropbox-upload add-mirror build-server-db build-site build-zip build-torrent build-bootstrap publish-dht make-signing-key deploy rollback setup-patches-server release.sh bot-data world-corpus test.sh &&
         shellcheck -s sh host-rollback.sh host-bot-data.sh)
     echo "ok   shellcheck"
 else
     echo "skip shellcheck (none here)"
+fi
+
+# Skhid-get.bat's making (build_torrent.py bootstrap), without pwsh; its
+# PowerShell runs in test_bootstrap.py with pwsh.
+if out=$(python3 -I "$here/test_bootstrap.py" Script 2>&1); then echo "ok   the bootstrap script is made (test_bootstrap.py Script)"; else
+    echo "FAIL the bootstrap script is made (test_bootstrap.py Script): $out"
+    exit 1
 fi
 
 bin=${SRP_GAME_DATA_BIN:-$root/srp-026g/target/release/srp-game-data}
@@ -219,6 +226,8 @@ compose)
             cat "$state/refused"
         else
             echo "INFO game data: /srv/srp/download/server-game-data.db (2 gameplay files, 1 projects; made of resources.db; $(offered | grep -c .) patch(es) offered at /patches)"
+            # The match server, of the setting it read at its start.
+            sed -n "s/^SRP_RELEASED_EXE_SHA256=\(.*\)$/INFO Executables: the release's own is sha256 \1; a game that reports it is not asked for its file/p" "$TEST_DIR/live/.env"
         fi ;;
     *" up "*)
         cp "$state/latest" "$state/running"
@@ -387,8 +396,11 @@ M=http://127.0.0.1:$(cat "$T/mirror.port")
 # saying whether a release folder was staged then), /api/stats saying a
 # match runs for the first $T/state/busy asks, or (with $T/state/matches)
 # the next line of that file for each ask (its last line once it is the only
-# one), with "last_match_ends_in" of $T/state/ends-in when there is one (an
-# srp from before it without), the launcher's matches with the "Time left"
+# one; "<all> <normal>": that many of them normal), with "last_match_ends_in"
+# of $T/state/ends-in when there is one (an srp from before it without),
+# with "normal_matches" (all of them unless the line says) and
+# "last_normal_match_ends_in" of $T/state/normal-ends-in when there is one
+# (an srp from before them without), the launcher's matches with the "Time left"
 # of each line of $T/state/page-left (minutes, or - for none yet),
 # /api/client-files of the ZIP in place when asked.
 python3 - "$T/site" "$T/site.port" "$T/state" "$T/live/download/Survarium-0.26g-srp-files.zip" >/dev/null 2>&1 <<'EOF' &
@@ -404,10 +416,13 @@ def read(name, default=None):
 class Handler(http.server.SimpleHTTPRequestHandler):
     server_version, sys_version = "Caddy", ""
     def log_message(self, *args): pass
-    def stats(self, online, matches):
+    def stats(self, online, matches, normal=None):
         body = '{"online":%d,"registered":3,"matches":%d,"queued":0' % (online, matches)
         if read("ends-in") is not None:
             body += ',"last_match_ends_in":%d' % int(read("ends-in"))
+        if read("normal-ends-in") is not None:
+            body += ',"normal_matches":%d,"last_normal_match_ends_in":%d' % (
+                matches if normal is None else normal, int(read("normal-ends-in")))
         return self.answer(200, body + "}")
     def answer(self, status, body):
         data = body.encode()
@@ -431,15 +446,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             lines = read("matches").split("\n")
             if len(lines) > 1:
                 open(os.path.join(state, "matches"), "w").write("\n".join(lines[1:]) + "\n")
-            n = int(lines[0])
-            return self.stats(3, n)
+            counts = [int(each) for each in lines[0].split()]
+            return self.stats(3, counts[0], counts[1] if len(counts) > 1 else None)
         if self.path == "/api/stats" and read("busy"):
             busy = int(read("busy"))
             open(os.path.join(state, "busy"), "w").write(str(busy - 1))
             if busy > 0:
                 return self.stats(3, 1)
             return self.stats(0, 0)
-        if self.path == "/api/stats" and read("ends-in") is not None:
+        if self.path == "/api/stats" and (read("ends-in") is not None or read("normal-ends-in") is not None):
             return self.stats(0, 0)
         if self.path == "/api/client-files":
             try:
@@ -522,6 +537,7 @@ SKHID_GAME_LIST=$T/game.tsv
 SKHID_STOCK_DB=$T/resources.db
 SKHID_RELEASE_LOCK=$T/lock
 SKHID_BACKUP_DIR=$T/backups
+SKHID_DROPBOX=off
 EOF
 export SKHID_RELEASE_ENV=$T/release.env
 
@@ -547,6 +563,9 @@ check() { # <what> <test...>
     if "$@"; then ok "$what"; else fail "$what"; fi
 }
 has() { grep -q -- "$2" <<<"$1"; }
+# The sha256 of a ZIP's game exe, and the line of .env that names it.
+exe_sha() { python3 -c 'import hashlib, sys, zipfile; print(hashlib.sha256(zipfile.ZipFile(sys.argv[1]).read("game/binaries/x86/survarium_skhid.exe")).hexdigest())' "$1"; }
+exe_line() { echo "SRP_RELEASED_EXE_SHA256=$(exe_sha "$1")"; }
 quiet() { "$@" >/dev/null; }
 rows() { grep -v '^#' "$1" | cut -f1 | tr '\n' ' ' | sed 's/ $//'; }
 changed=0
@@ -1009,7 +1028,10 @@ check "deploy: the folder's state is released" grep -qx released "$F/state"
 check "deploy: the folder's release.log, without .env" bash -c "grep -q 'deployed revision 12' $F/release.log && ! grep -q very-secret $F/release.log"
 check "deploy tags the running image by its ID" test "$(cat "$T"/docker/tags/srp-026g_before-rev12-*-test)" = "$(cat "$T/docker/running")"
 check "deploy sets the revision" grep -qx "SRP_MIN_PATCH_REVISION=12" "$T/live/.env"
-check "deploy keeps the rest of .env" test "$(grep -v '^SRP_MIN_PATCH_REVISION=' "$T/live/.env")" = $'SRP_ADMIN_TOKEN=very-secret\nOTHER=1'
+check "deploy sets the sha256 of the ZIP's game exe" grep -qx "$(exe_line "$zip12")" "$T/live/.env"
+check "deploy: ... there was no such line before: the folder keeps none" test -e "$F/released-exe.old" -a ! -s "$F/released-exe.old"
+check "deploy: ... and says what srp's log tells of it" has "$out" "log: INFO Executables: the release's own is sha256 $(exe_sha "$zip12")"
+check "deploy keeps the rest of .env" test "$(grep -Ev '^SRP_(MIN_PATCH_REVISION|RELEASED_EXE_SHA256)=' "$T/live/.env")" = $'SRP_ADMIN_TOKEN=very-secret\nOTHER=1'
 check "deploy never prints .env" bash -c "! grep -q very-secret <<<\"\$1\"" _ "$out"
 check "deploy makes srp26 anew" grep -q "docker compose up -d --no-deps --force-recreate srp26" "$T/log"
 check "deploy: the ZIP goes in while srp26 is stopped, before its start" bash -c "s=\$(grep -n 'compose stop srp26' $T/args | head -n1 | cut -d: -f1); a=\$(grep -n 'up -d --no-deps' $T/args | head -n1 | cut -d: -f1); z=\$(grep -n 'mv -f download/.Survarium-0.26g-srp-files.zip.new' $T/args | head -n1 | cut -d: -f1); test -n \"\$s\" -a -n \"\$a\" -a -n \"\$z\" && ((s < z && z < a))"
@@ -1039,13 +1061,17 @@ check "deploy: ... shows srp's log" has "$out" "srp26's last log lines:"
 check "deploy: ... rolls back" has "$out" "ROLLING BACK"
 check "deploy: ... the old ZIP back in place" cmp -s "$zip12" "$T/live/download/Survarium-0.26g-srp-files.zip"
 check "deploy: ... the setting back" grep -qx "SRP_MIN_PATCH_REVISION=12" "$T/live/.env"
+check "deploy: ... the game exe's line back, once" test "$(grep '^SRP_RELEASED_EXE_SHA256=' "$T/live/.env")" = "$(exe_line "$zip12")"
 check "deploy: ... srp.db back from the new start's backup (its writes gone)" bash -c "! grep -q '^start $((starts + 1)) ' $T/volume/srp.db && grep -q '^start $((starts + 2)) ' $T/volume/srp.db"
 check "deploy: ... srp26 running again" test "$(cat "$T/docker/state")" = running
 check "deploy: ... the folder says rolled-back" grep -qx rolled-back "$F/state"
+check "deploy: ... and served (srp came up on its files: 13 went out)" test -e "$F/served"
 check "deploy: ... nothing half-done" bash -c "! ls $T/live/download/.*.new 2>/dev/null"
 # /api/client-files that is not the release's after the start (the ZIP in
 # place before it): the rollback puts the old ZIP back.
 echo 11 >"$T/state/client-files-min"
+# A server the release before gave no game exe's sha256.
+sed -i '/^SRP_RELEASED_EXE_SHA256=/d' "$T/live/.env"
 out=$(yes_to "$here/deploy" --zip "$T/work/r13.zip" --server-data "$T/work/sgd.db" --revision 13 --label notsaid || true)
 rm "$T/state/client-files-min"
 F=$(folder 13 notsaid)
@@ -1054,6 +1080,8 @@ check "deploy: ... srp started with the new ZIP, and again with the old one by t
 check "deploy: ... rolls back" has "$out" "ROLLING BACK"
 check "deploy: ... the old ZIP back in place" cmp -s "$zip12" "$T/live/download/Survarium-0.26g-srp-files.zip"
 check "deploy: ... the setting back" grep -qx "SRP_MIN_PATCH_REVISION=12" "$T/live/.env"
+check "deploy: ... no line of the game exe, as before" bash -c "! grep -q '^SRP_RELEASED_EXE_SHA256=' $T/live/.env"
+check "deploy: ... the rest of .env as it was" test "$(grep -v '^SRP_MIN_PATCH_REVISION=' "$T/live/.env")" = $'SRP_ADMIN_TOKEN=very-secret\nOTHER=1'
 check "deploy: ... srp26 running again" test "$(cat "$T/docker/state")" = running
 check "deploy: ... the folder says rolled-back" grep -qx rolled-back "$F/state"
 out=$(echo n | setsid -w "$here/deploy" --zip "$zip12" --server-data "$T/work/sgd.db" --revision 12 2>&1 || true)
@@ -1117,6 +1145,16 @@ echo "REVISION = 11" >"$src/client-patches/patch_026g.py"
 printf '# Client patches\n\n| | |\n|---|---|\n| Revision 10 | ten |\n| Revision 11 | eleven |\n| Revision 4 | four |\n| The players'"'"' download | the zip |\n' \
     >"$src/client-patches/README.md"
 printf '# Skhid 0.26g — what changed\n\nNewest first.\n\n---\n\n## 15 Oct, 20:02 — an older entry\n\n- something\n' >"$T/repo/CHANGELOG-SKHID-026G.md"
+# The torrents' signing keys, live and test: each public key committed, the
+# keys beside release.env (the stand-in build-torrent signs nothing; the
+# preflight reads each key's public key).
+mkdir -p "$T/repo/release"
+openssl=$(command -v openssl || printf '%s/bin/openssl\n' "$("$real_nix" build --no-link --print-out-paths nixpkgs#openssl.bin | head -n 1)")
+for pair in torrent-signing:signing torrent-signing-test:signing-test; do
+    (umask 077 && "$openssl" genpkey -algorithm ed25519 -out "$T/${pair%%:*}.pem")
+    "$openssl" pkey -in "$T/${pair%%:*}.pem" -pubout -outform DER | tail -c 32 | od -An -v -tx1 | tr -d ' \n' >"$T/repo/release/${pair#*:}.pub"
+    echo >>"$T/repo/release/${pair#*:}.pub"
+done
 commit "revision 11, as released"
 git -C "$T/repo" archive HEAD:srp-026g Cargo.toml Cargo.lock Dockerfile .dockerignore docker-compose.yml certs crates \
     resources/binary-config-examples resources/game-026g scripts servers | tar -x -C "$T/live"
@@ -1148,12 +1186,44 @@ if [[ -e $TEST_DIR/build-zip-stale-required ]]; then numbers=$(head -n -1 <<<"$n
 # shellcheck disable=SC2086 # one argument a number
 python3 "$TEST_DIR/requiring.py" "$TEST_DIR/work/r$revision.zip" $numbers
 cp "$TEST_DIR/work/r$revision.zip" "$work/Survarium-0.26g-srp-files.zip"
+# $TEST_DIR/build-zip-other: another ZIP of the revision (one more file).
+if [[ -e $TEST_DIR/build-zip-other ]]; then
+    python3 -c 'import sys, zipfile; zipfile.ZipFile(sys.argv[1], "a").writestr("other.txt", "other")' "$work/Survarium-0.26g-srp-files.zip"
+fi
 printf '%s with-server\n%s without-server\n' "$(printf 'with %s' "$revision" | sha256sum | cut -c1-64)" \
     "$(printf 'without %s' "$revision" | sha256sum | cut -c1-64)" >"$work/exe.sha256"
 echo "  CHANGED  game/binaries/x86/survarium_skhid.exe"
 echo "updater_skhid.exe: unchanged (the same file as live)"
 STANDIN
 chmod +x "$T/build-zip"
+# build-torrent [--test] --patches <list> --zip <zip> --out <file>
+# --zip-out <zip> --revision <n> --public-key <file>: a file naming the ZIP's
+# sha256 and the list, and the ZIP as it was (the checks here compare the
+# ZIP in place with r<n>.zip; test_build_torrent.py checks the real one's
+# entry); its arguments are a line of $TEST_DIR/build-torrent.args.
+cat >"$T/build-torrent" <<'STANDIN'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$TEST_DIR/build-torrent.args"
+while (($#)); do
+    case $1 in
+    --zip) zip=$2; shift 2 ;;
+    --out) out=$2; shift 2 ;;
+    --zip-out) zip_out=$2; shift 2 ;;
+    --patches) patches=$2; shift 2 ;;
+    *) shift ;;
+    esac
+done
+{ sha256sum <"$zip"; grep -v '^#' "$patches" | cut -f1; } >"$out"
+cp "$zip" "$zip_out"
+echo "btmh 1220$(sha256sum <"$out" | cut -c1-64)"
+STANDIN
+chmod +x "$T/build-torrent"
+# publish-dht <torrent>: its argument a line of $TEST_DIR/publish-dht.args.
+cat >"$T/publish-dht" <<'STANDIN'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$TEST_DIR/publish-dht.args"
+STANDIN
+chmod +x "$T/publish-dht"
 # build-site --tree <dir> [--with <patch>]: the site's pages in <dir> built
 # from the list (SKHID_PATCH_LIST of the release.env) and --with's patch:
 # each built-from.tsv, and a page.js naming them; its arguments are a line of
@@ -1267,7 +1337,7 @@ echo 'map one' >"$T/bot-data/mapdata/level_t_day_2.mapdata"
 echo '{"routes": 1}' >"$T/bot-data/bot-routes/routes-t.json"
 grep '^#' "$here/bot-data.tsv" >"$T/bot-data.tsv"
 out=$(SKHID_BOT_DATA_LIST=$T/bot-data.tsv "$here/bot-data" add "$T/bot-data" mapdata/level_t_day_2.mapdata mapdata/bot-routes.json=bot-routes/routes-t.json 2>&1) || fail "bot-data add: $out"
-export SKHID_TEST_REPO=$T/repo SKHID_TEST_BUILD_ZIP=$T/build-zip SKHID_TEST_BUILD_SITE=$T/build-site XDG_CACHE_HOME=$T/cache TMPDIR=$T/tmp
+export SKHID_TEST_REPO=$T/repo SKHID_TEST_BUILD_ZIP=$T/build-zip SKHID_TEST_BUILD_TORRENT=$T/build-torrent SKHID_TEST_PUBLISH_DHT=$T/publish-dht SKHID_TEST_BUILD_SITE=$T/build-site XDG_CACHE_HOME=$T/cache TMPDIR=$T/tmp
 SKHID_TEST_STOCK_SHA256=$(sha256sum <"$T/resources.db" | cut -d' ' -f1)
 export SKHID_TEST_STOCK_SHA256
 token=tok3n-$RANDOM$RANDOM$RANDOM
@@ -1313,6 +1383,20 @@ expect_refused "release: ... nor is another launcher" \
     "MISSING  SKHID_GAME: $T/game/binaries/x86/survarium_launcher.exe has sha256 $SKHID_TEST_LAUNCHER_SHA256, not the original 0.26g launcher's (0123)" \
     env SKHID_TEST_LAUNCHER_SHA256=0123 "$here/release.sh"
 check "release: ... neither planned nor took anything" bash -c "test ! -s $T/state/admin.log && test ! -e $T/lock"
+# Every torrent is signed: no key, or one others may read, stops the preflight.
+chmod 644 "$T/torrent-signing.pem"
+expect_refused "release: a signing key others may read is a preflight problem" \
+    "MISSING  the signing key $T/torrent-signing.pem: missing or not mode 600" "$here/release.sh"
+chmod 600 "$T/torrent-signing.pem"
+# The committed public key must be the signing key's (the updater built with
+# it takes only what that key signed).
+cp "$T/repo/release/signing.pub" "$T/signing.pub.kept"
+cp "$T/repo/release/signing-test.pub" "$T/repo/release/signing.pub"
+commit "another public key"
+expect_refused "release: a committed public key that is not the signing key's is a preflight problem" \
+    "MISSING  release/signing.pub of the commit to build is not the public key of $T/torrent-signing.pem" "$here/release.sh"
+cp "$T/signing.pub.kept" "$T/repo/release/signing.pub"
+commit "the public key back"
 
 # A whole release, no new content (patch_3 and patch_12 listed), the server
 # code as live; a feature PR merged since the last release (11, no tag yet).
@@ -1344,13 +1428,22 @@ check "release: the folder's release.log" grep -q "released revision 12" "$(fold
 check "release: no old data to keep (there was none)" test ! -e "$(folder 12 a)/old-server-game-data.db"
 check "release: the rollback removes the data (there was none)" grep -qx "HAVE_DATA=0" "$(folder 12 a)/rollback.env"
 check "release: SRP_MIN_PATCH_REVISION=12" grep -qx "SRP_MIN_PATCH_REVISION=12" "$T/live/.env"
-check "release: the rest of .env as it was" test "$(grep -vc '^SRP_MIN_PATCH_REVISION=' "$T/live/.env")" = 5
+check "release: SRP_RELEASED_EXE_SHA256 is the sha256 of the new ZIP's game exe" grep -qx "$(exe_line "$T/live/download/Survarium-0.26g-srp-files.zip")" "$T/live/.env"
+check "release: ... shown before the swap, and what srp's log tells of it after" bash -c "grep -q \"^  .env: SRP_RELEASED_EXE_SHA256 -> \$2 \" <<<\"\$1\" && grep -q \"^log: INFO Executables: the release's own is sha256 \$2\" <<<\"\$1\"" _ "$out" "$(exe_sha "$T/live/download/Survarium-0.26g-srp-files.zip")"
+check "release: the rest of .env as it was" test "$(grep -Evc '^SRP_(MIN_PATCH_REVISION|RELEASED_EXE_SHA256)=' "$T/live/.env")" = 5
 check "release: restarts srp26" grep -q "docker compose up -d --no-deps --force-recreate srp26" "$T/log"
 check "release: stops srp26 before it moves anything" bash -c "s=\$(grep -n 'compose stop srp26' $T/args | head -n1 | cut -d: -f1); b=\$(grep -n 'mv -f download/.server-game-data.db.new' $T/args | head -n1 | cut -d: -f1); test -n \"\$s\" -a -n \"\$b\" && ((s < b))"
 check "release: the ZIP goes in while srp26 is stopped, before its start" bash -c "s=\$(grep -n 'compose stop srp26' $T/args | head -n1 | cut -d: -f1); a=\$(grep -n 'up -d --no-deps' $T/args | head -n1 | cut -d: -f1); z=\$(grep -n 'mv -f download/.Survarium-0.26g-srp-files.zip.new' $T/args | head -n1 | cut -d: -f1); test -n \"\$s\" -a -n \"\$a\" -a -n \"\$z\" && ((s < z && z < a))"
 check "release: srp26 started with the new ZIP in place" test "$(tail -n 1 "$T/zip-at-start")" = "$(sha256sum <"$(folder 12 a)/Survarium-0.26g-srp-files.zip" | cut -c1-64)"
 check "release: waits for no match" has "$out" "5. no match is running"
 check "release: checks /patches and /api/client-files" has "$out" "/api/client-files: the new ZIP"
+check "release: builds the signed torrent of the ZIP and the list" bash -c "tail -n 1 $T/build-torrent.args | grep -q -- '--patches $T/patches.tsv --zip .*/Survarium-0.26g-srp-files.zip --out .*/skhid-rev12.torrent --zip-out .* --revision 12 --public-key .*/signing.pub'"
+check "release: puts the torrent's item on the DHT once it went out" bash -c "tail -n 1 $T/publish-dht.args | grep -q -- '--public-key .*/signing.pub .*/skhid-rev12.torrent'"
+check "release: ... after the record" bash -c "r=\$(grep -n '7. the record' <<<\"\$1\" | head -n1 | cut -d: -f1); d=\$(grep -n '8. the newest release' <<<\"\$1\" | head -n1 | cut -d: -f1); test -n \"\$r\" -a -n \"\$d\" && ((r < d))" _ "$out"
+check "release: the preflight sees the signing key" has "$out" "the signing key: there, mode 600"
+check "release: ... and the commit's public key is its own" has "$out" "release/signing.pub: in the commit to build, the signing key's public key"
+check "release: srp came up on the new files: the folder says served" test -e "$(folder 12 a)/served"
+check "release: the folder's changed.txt names the torrent" grep -q "skhid.torrent, btmh 1220[0-9a-f]\{64\}" "$(folder 12 a)/changed.txt"
 check "release: checks the log's game data line" has "$out" "log: INFO game data: .* 2 patch(es) offered"
 check "release: prints the rollback" has "$out" "release/rollback release-rev12-[0-9-]*-a"
 check "release: the rollback puts the running image back, by its ID" grep -qx "OLD_IMAGE=sha256:[0-9a-f]*" "$(folder 12 a)/rollback.env"
@@ -1437,6 +1530,17 @@ printf 'next\ta new kit before the start (#8)\n' >>"$sim"
 commit "a change of what a match computes"
 expect_refused "release: a change of what a match computes needs the server built" \
     "simulation_changes.tsv has a \`next\` row, but the server code is not built (--server-code no)" "$here/release.sh" --server-code no
+# Revision 13 went out with the deploy above (its folders say served): a
+# release of 13 says so in the preflight, and stops after its build, its
+# ZIP being another; then the tests below release 13 anew, as if that
+# deploy had never reached players.
+touch "$T/build-zip-other"
+run yes --minutes 2 --label other || true
+rm "$T/build-zip-other"
+check "release: a revision that went out is said in the preflight" has "$out" "note     revision 13 went out before (srp came up on its files: release-rev13-"
+check "release: ... and stops after its build, its ZIP being another" has "$out" "revision 13 went out before with another ZIP (sha256 [0-9a-f]\{64\}, release-rev13-.*--revision 14"
+check "release: ... nothing staged" nothing_staged
+rm -f "$T"/live/release-rev13-*/served
 mkdir -p "$T/p13/gameplay/items" "$T/r13"
 echo "item 13" >"$T/p13/gameplay/items/d.txt"
 "$bin" pack --dir "$T/p13" --out "$T/r13/resources.db.patch_13" >/dev/null
@@ -1642,6 +1746,30 @@ check "release: ... and published nothing" test ! -e "$T/patches/resources.db.pa
 run quiet --dry-run --minutes 2 || fail "release.sh --dry-run, the pages as offered: $out"
 check "release: the site's pages built from the list: not rebuilt" bash -c \
     "grep -q 'the Maps tab: built from the patches this release offers' <<<\"\$1\" && grep -q 'the calculator: built from the patches this release offers' <<<\"\$1\" && test ! -s $T/build-site.args" _ "$out"
+# Skhid-get.bat committed: the preflight makes it again from the commit's
+# pins and body, and refuses one that is not that.
+G=$T/get-files
+mkdir -p "$G" "$T/repo/release" "$T/repo/srp-026g/servers/web-server/bootstrap"
+: >"$G/rows"
+for name in 7zr.exe skhid_torrent.dll updater_skhid.exe; do
+    printf 'MZ %s' "$name" >"$G/$name"
+    printf '%s\t%s\t%s\thttps://mirror.example/%s\n' "$name" "$(sha256sum <"$G/$name" | cut -c1-64)" "$(stat -c %s "$G/$name")" "$name" >>"$G/rows"
+done
+cp "$G/rows" "$T/repo/release/bootstrap.tsv"
+cp "$here/bootstrap.ps1" "$T/repo/release/bootstrap.ps1"
+python3 -I "$here/build_torrent.py" bootstrap --torrent "$T/repo/release/bootstrap.torrent" \
+    --file game/binaries/x86/7zr.exe "$G/7zr.exe" --file game/binaries/x86/skhid_torrent.dll "$G/skhid_torrent.dll" \
+    --file game/binaries/x86/updater_skhid.exe "$G/updater_skhid.exe" --list "$G/rows" --body "$here/bootstrap.ps1" \
+    --out "$T/repo/srp-026g/servers/web-server/bootstrap/Skhid-get.bat" >/dev/null
+commit "Skhid-get.bat"
+run quiet --dry-run --minutes 2 || true
+check "release: the committed Skhid-get.bat is what its pins and body make" has "$out" "Skhid-get.bat: what release/bootstrap.torrent"
+echo 'rem changed by hand' >>"$T/repo/srp-026g/servers/web-server/bootstrap/Skhid-get.bat"
+commit "Skhid-get.bat by hand"
+run quiet --dry-run --minutes 2 || true
+check "release: ... one that is not stops the preflight" has "$out" "Skhid-get.bat of the commit to build is not what its pins"
+git_t -C "$T/repo" rm -q release/bootstrap.tsv release/bootstrap.ps1 release/bootstrap.torrent srp-026g/servers/web-server/bootstrap/Skhid-get.bat
+commit "no Skhid-get.bat"
 : >"$T/state/admin.log"
 touch "$T/build-site-fails"
 expect_refused "release --resources: a failed rebuild of the site's pages stops the preflight" \
@@ -2017,6 +2145,10 @@ check "release: ... srp26 running" test "$(cat "$T/docker/state")" = running
 check "release: ... the old ZIP back in place" cmp -s "$T/work/r13.zip" "$T/live/download/Survarium-0.26g-srp-files.zip"
 check "release: ... nothing staged" nothing_staged
 check "release: ... the setting as it was" grep -qx "SRP_MIN_PATCH_REVISION=13" "$T/live/.env"
+check "release: ... and served (srp came up on its files)" test -e "$(folder 14 k)/served"
+# Revision 14 went out for those seconds, before each rollback: the tests
+# below release 14 anew (other ZIPs), as if no player had got it.
+rm -f "$T"/live/release-rev14-*/served
 
 # A match that does not end.
 : >"$T/state/admin.log"
@@ -2051,6 +2183,8 @@ check "release: ... the source back" grep -qx "crates 2" "$T/live/crates/a/src/l
 check "release: ... srp.db as it was (the refused start never opened it)" bash -c "grep -q '^start $((starts + 1)) $running_before' $T/volume/srp.db && test \$(grep -c '^start ' $T/volume/srp.db) -le $((starts + 1))"
 check "release: ... nothing staged" nothing_staged
 check "release: ... the folder says rolled-back" grep -qx rolled-back "$(folder 14 f)/state"
+check "release: ... and served (marked before the restart, which might have served it)" test -e "$(folder 14 f)/served"
+rm -f "$T"/live/release-rev14-*/served
 check "release: ... the patch stays published and listed" bash -c "test -f $T/patches/resources.db.patch_14 && grep -q '^resources.db.patch_14' $T/patches.tsv"
 check "release: ... the lock freed" test ! -e "$T/lock"
 check "release: ... and no record (a rolled-back release leaves none)" no_record 14
@@ -2106,10 +2240,12 @@ out=$(yes_to "$here/rollback" --keep-db "$D_FOLDER") || fail "rollback --keep-db
 check "rollback --keep-db: the ZIP back" cmp -s "$T/work/r13.zip" "$T/live/download/Survarium-0.26g-srp-files.zip"
 check "rollback --keep-db: srp.db as it was" grep -q "^start $starts " "$T/volume/srp.db"
 check "rollback --keep-db: the setting back" grep -qx "SRP_MIN_PATCH_REVISION=13" "$T/live/.env"
+check "rollback --keep-db: the game exe's line back, once" test "$(grep '^SRP_RELEASED_EXE_SHA256=' "$T/live/.env")" = "$(exe_line "$T/work/r13.zip")"
 check "rollback --keep-db: the bots' data as it was (the old routes table back)" test "$(sha256sum <"$T/volume/mapdata/bot-routes.json")" = "$routes_before"
 check "rollback --keep-db: the folder says rolled-back" grep -qx rolled-back "$(folder 14 d)/state"
 # Revision 14 went out and came back: the next release is not 14 again.
 expect_refused "release after a rollback: main's REVISION says 14 went out" "main's REVISION 14 says revision 14 went out already, and the live exe says 13 .*--revision 15" "$here/release.sh"
+expect_refused "release after a rollback: ... and it went out (its folder says served)" "revision 14 went out before (srp came up on its files: release-rev14-[0-9-]*-[a-z]* .*--revision 15)" "$here/release.sh"
 expect_refused "release after a rollback: ... and its record is on origin" "the record of revision 14 is on origin already: refs/heads/release/record-rev14 refs/tags/026g-rev14" "$here/release.sh"
 run quiet --dry-run --revision 15 --minutes 1 || fail "release.sh --revision 15 --dry-run: $out"
 check "release --revision 15 after the rollback: accepted (the dry run)" has "$out" "the release: revision 13 -> 15 to the live server"
@@ -2146,7 +2282,7 @@ check "rollback: ... srp26 stopped, not looping" test "$(cat "$T/docker/state")"
 check "rollback: ... the folder says rollback-refused" grep -qx rollback-refused "$(folder 14 d)/state"
 back=$(grep -A1 'To put the release back as it was:' <<<"$out" | tail -n 1)
 (bash -c "$back") >/dev/null 2>&1 || fail "the way back to the release: $back"
-check "rollback: ... its way back puts the release in place again" bash -c "cmp -s $T/work/r14.zip $T/live/download/Survarium-0.26g-srp-files.zip && grep -qx SRP_MIN_PATCH_REVISION=14 $T/live/.env && test \$(cat $T/docker/state) = running"
+check "rollback: ... its way back puts the release in place again" bash -c "cmp -s $T/work/r14.zip $T/live/download/Survarium-0.26g-srp-files.zip && grep -qx SRP_MIN_PATCH_REVISION=14 $T/live/.env && test \"\$(grep '^SRP_RELEASED_EXE_SHA256=' $T/live/.env)\" = $(exe_line "$T/work/r14.zip") && test \$(cat $T/docker/state) = running"
 
 # --test: the test environment's compose project and patches server, no copy
 # of srp.db to the jump host (it is there).
@@ -2269,6 +2405,30 @@ run quiet --dry-run || true
 check "release: ... the page lists fewer than run: 16 min" bash -c "grep -q 'in 16 min (now: .*(2 time(s) left for 3 match(es))' <<<\"\$1\"" _ "$(plan_line)"
 rm -f "$T/state/matches" "$T/state/page-left"
 check "release --dry-run: none of these planned anything" test ! -s "$T/state/admin.log"
+
+# --end-bot-and-private-matches: the normal matches alone are waited for.
+# An srp that does not tell them apart is a preflight problem, never a
+# silent wait for all of them or for none.
+expect_refused "release: --end-bot-and-private-matches and --now refused together" "one or the other" \
+    "$here/release.sh" --now --end-bot-and-private-matches
+echo 840 >"$T/state/ends-in"
+run quiet --dry-run --end-bot-and-private-matches && fail "release.sh --end-bot-and-private-matches --dry-run, an older srp: ended 0"
+check "release --end-bot-and-private-matches: an srp without the normal matches' fields is a preflight problem" has "$out" \
+    "MISSING  --end-bot-and-private-matches: .*/api/stats does not tell the normal matches apart (no normal_matches and last_normal_match_ends_in: its srp is from before them)"
+check "release --end-bot-and-private-matches: ... a real run would stop before the lock" has "$out" "a real run would stop before the lock"
+# 3 matches, the last ending in 14 min; the 1 normal one in 5: the
+# maintenance in 6 min, the swap once "normal_matches":0, the others ended.
+echo 300 >"$T/state/normal-ends-in"
+printf '3 1\n' >"$T/state/matches"
+run quiet --dry-run --end-bot-and-private-matches || fail "release.sh --end-bot-and-private-matches --dry-run: $out"
+check "release --end-bot-and-private-matches --dry-run: the preflight counts the normal matches" has "$out" \
+    "/api/stats: 1 of them normal (the last ends in 5:00 at the latest), 2 against bots or of private rooms"
+check "release --end-bot-and-private-matches --dry-run: the maintenance from the last normal match: 6 min" bash -c \
+    "grep -q 'in 6 min (now: /api/stats: the last normal match ends in 5:00 at the latest (last_normal_match_ends_in 300), then 30 s' <<<\"\$1\"" _ "$(plan_line)"
+check "release --end-bot-and-private-matches --dry-run: the swap once \"normal_matches\":0, the others ended at the stop" in_order "$out" \
+    '^\[dry run\] 5. at the planned time: .*"normal_matches":0 on ' \
+    'the stop ends without results (--end-bot-and-private-matches)' 'compose stop srp26'
+rm -f "$T/state/ends-in" "$T/state/normal-ends-in" "$T/state/matches"
 
 # A stop before the go (build-zip fails): nothing planned.
 echo 300 >"$T/state/ends-in"
@@ -2552,6 +2712,7 @@ check "release --now: ... its record: REVISION 18 on main, the tag" bash -c "tes
 # no record (no tag, no branch, no PR, main as it was).
 main_before=$(git -C "$T/origin.git" rev-parse main)
 : >"$T/gh.log"
+: >"$T/publish-dht.args"
 : >"$T/item-tables.args"
 SRP_ITEM_TABLES_BIN=$T/no-such-tool run yes --test --now --label t || fail "release.sh --test: $out"
 check "release --test: the item tables' tool neither needed nor run (no record)" test ! -s "$T/item-tables.args"
@@ -2559,6 +2720,26 @@ check "release --test: released revision 19 (the test exe's + 1)" bash -c "grep 
 check "release --test: no record" has "$out" "No record (--test): no commit, no tag."
 check "release --test: ... no tag, no branch" no_record 19
 check "release --test: ... main as it was, gh never asked" test "$(git -C "$T/origin.git" rev-parse main)|$(cat "$T/gh.log")" = "$main_before|"
+check "release --test: nothing put on the public DHT" test ! -s "$T/publish-dht.args"
+
+# --end-bot-and-private-matches (on the test environment: revision 20): the
+# maintenance from the last normal match, the swap once no normal match
+# runs, the two others ended at the stop and said by kind.
+: >"$T/state/admin.log"
+echo 0 >"$T/state/normal-ends-in"
+printf '3 1\n3 1\n3 1\n3 1\n2 0\n' >"$T/state/matches"
+run yes --test --end-bot-and-private-matches --label nb || fail "release.sh --test --end-bot-and-private-matches: $out"
+rm -f "$T/state/normal-ends-in" "$T/state/matches"
+check "release --end-bot-and-private-matches: plans the maintenance from the normal match" bash -c \
+    "test \"\$1\" = 'plan 1' && grep -q 'planning the maintenance in 1 min (/api/stats: no normal match runs (last_normal_match_ends_in 0)' <<<\"\$2\"" _ "$(admin_log)" "$out"
+check "release --end-bot-and-private-matches: ... waits while a normal match runs" has "$out" "1 normal match(es) "
+check "release --end-bot-and-private-matches: ... swaps with the others running" cmp -s "$T/work/r20.zip" "$T/live/download/Survarium-0.26g-srp-files.zip"
+check "release --end-bot-and-private-matches: ... says, right before the stop, the matches it ends by kind" in_order "$out" \
+    '5. no normal match is running; 2 match(es) against bots or of private rooms' '5. the swap' \
+    '--end-bot-and-private-matches: 2 match(es) running (2 against bots or of private rooms, 0 normal): the stop ends them now, WITHOUT RESULTS' \
+    'the server is up on the new data'
+check "release --end-bot-and-private-matches: ... kept in the folder's release.log" grep -q -- \
+    "--end-bot-and-private-matches: the stop ended 2 match(es) without results (2 against bots or of private rooms, 0 normal)" "$(folder 20 nb)/release.log"
 
 # No secret in any output or command line.
 check "release: the admin token is in no output" bash -c "! grep -qF -- '$token' $T/outputs"
@@ -2634,9 +2815,16 @@ print("1 files edited, 0 unexpected differences")
 EOF
 edit_list() { printf '{"set": [{"file": "gameplay/items/%s", "from": "%s", "to": "%s"}]}\n' "$2" "$3" "$4" >"$C/srp-026g/scripts/content-edit/$1"; }
 edit_list e1.json a.txt "old item" "new item"
+# As flash_tree.py: `graphics` the movie with CODE where the version goes (and the tree's
+# placements.tsv, its graphics, after it), `code` the built movie's version put there (a pack's
+# lines after it kept).
 cat >"$T/build-movie" <<'EOF'
 #!/usr/bin/env bash
-printf 'built %s %s over %s\n' "$1" "$(cat "$2/src/version")" "$(sha256sum <"$3" | cut -c1-64)" >"$4"
+case $1 in
+graphics) { printf 'built %s CODE over %s\n' "${2##*/}" "$(sha256sum <"$3" | cut -c1-64)"; cat "$2/placements.tsv" 2>/dev/null; } >"$4" ;;
+code) sed "1s/ CODE / $(head -n 1 "$3" | cut -d' ' -f3) /" "$2" >"$4" ;;
+*) printf 'built %s %s over %s\n' "$1" "$(cat "$2/src/version")" "$(sha256sum <"$3" | cut -c1-64)" >"$4" ;;
+esac
 echo "$1: built"
 EOF
 cat >"$T/vostok-port" <<'EOF'
@@ -2666,13 +2854,16 @@ manifest() { # the rows, `kind name source` a line ('|' for a tab), into $T/cont
 }
 manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "edit|e1.json|-"
 bc_env=$(changed_env "s|^SKHID_PATCH_LIST=.*|SKHID_PATCH_LIST=$T/content-list.tsv|")
-# $bc: the release's build (--full); $bcq: the plain command, a quick build.
-cat >"$T/bcq" <<EOF
+# $bc: the release's build (--full); $bcq: a quick build (--slow); $bc0: the plain command.
+cat >"$T/bc0" <<EOF
 #!/usr/bin/env bash
 SKHID_RELEASE_ENV=$bc_env SKHID_TEST_BUILD_MOVIE=$T/build-movie SKHID_TEST_BUILD_SITE=$T/build-site TEST_DIR=$T exec "$here/build-content" "\$@" --tree "$C" --manifest "$T/content.tsv"
 EOF
-printf '#!/usr/bin/env bash\nexec %q "$@" --full\n' "$T/bcq" >"$T/bc"
-chmod +x "$T/bc" "$T/bcq"
+printf '#!/usr/bin/env bash\nexec %q "$@" --slow\n' "$T/bc0" >"$T/bcq"
+printf '#!/usr/bin/env bash\nexec %q "$@" --full\n' "$T/bc0" >"$T/bc"
+chmod +x "$T/bc" "$T/bcq" "$T/bc0"
+expect_refused "build-content: a local build without --slow points to tools/test-patch" \
+    "tools/test-patch <setup> <inputs> (a minute); to build the whole content anyway" "$T/bc0" 41 --out "$T/work/c41-plain"
 bcq=$T/bcq
 bc=$T/bc
 site_runs=$(grep -c . "$T/build-site.args" || true)
@@ -2770,8 +2961,8 @@ manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|hat@1|$hat_sha" "
 expect_refused "build-content: a pack needs vostok-port" "SKHID_VOSTOK_PORT must name" "$bc" 42 --out "$T/work/c42c"
 out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42d" 2>&1) || fail "build-content with a pack: $out"
 check "build-content: a pack's new file, and why" has "$out" "NEW       gameplay/items/hat.txt: pack hat@1; not in players' files"
-check "build-content: ... over the base patches, the built movie in place of the base's" \
-    bash -c "grep -q -- '--base-patch $T/cache/skhid-release/patches/resources.db.patch_40' $T/vostok-args && grep -q -- '--replace flash_movies/m.swf=' $T/vostok-args"
+check "build-content: ... over the base patches, a movie no operation edits not given" \
+    bash -c "grep -q -- '--base-patch $T/cache/skhid-release/patches/resources.db.patch_40' $T/vostok-args && ! grep -q -- '--replace' $T/vostok-args"
 printf '{"id": "hat", "version": "2"}\n' >"$T/packs/hat-1/pack.json"
 expect_refused "build-content: a pack whose pack.json is not the row's" "not $hat_sha" \
     env SKHID_VOSTOK_PORT="$T/vostok-port" SKHID_PACKS_DIR="$T/packs" "$bc" 42 --out "$T/work/c42e"
@@ -2795,9 +2986,22 @@ manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|hat@1|$hat_sha" "
 out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42i1" 2>&1) || fail "build-content, a pack editing the movie: $out"
 check "build-content: a pack that edits a movie: over the built one, and why" bash -c \
     "grep -q 'flash_movies/m.swf: movie m (srp-026g/flash/m), then pack hat@1, icons@1' <<<\"\$1\"" _ "$out"
+check "build-content: ... its graphics given to the pack that edits it" grep -q -- '--replace flash_movies/m.swf=' "$T/vostok-args"
+m_sha=$(sha256sum <"$T/b40/flash_movies/m.swf" | cut -c1-64)
+quiet "$bin" get --db "$T/work/c42i1/resources.db.patch_42" --out "$T/bc-get-i1" flash_movies/m.swf
+check "build-content: ... the movie built from its tree with what the pack drew" \
+    test "$(cat "$T/bc-get-i1/flash_movies/m.swf")" = "built m 2 over $m_sha"$'\n'"edited by icons-1"
 echo 1 >"$C/srp-026g/flash/m/src/version"
-out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42i2" 2>&1) || fail "build-content, the edited movie changed: $out"
-check "build-content: ... that movie changed: the packs composed again" bash -c "! grep -q 'composed them: the cache' <<<\"\$1\"" _ "$out"
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42i2" 2>&1) || fail "build-content, the edited movie's code changed: $out"
+check "build-content: ... its code changed: the packs from the cache (they draw into its graphics)" bash -c \
+    "grep -q 'composed them: the cache' <<<\"\$1\"" _ "$out"
+quiet "$bin" get --db "$T/work/c42i2/resources.db.patch_42" --out "$T/bc-get-i2" flash_movies/m.swf
+check "build-content: ... the new code with what the pack drew" \
+    test "$(cat "$T/bc-get-i2/flash_movies/m.swf")" = "built m 1 over $m_sha"$'\n'"edited by icons-1"
+echo "# none" >"$C/srp-026g/flash/m/placements.tsv"
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42i4" 2>&1) || fail "build-content, the edited movie's graphics changed: $out"
+rm "$C/srp-026g/flash/m/placements.tsv"
+check "build-content: ... its graphics changed: the packs composed again" bash -c "! grep -q 'composed them: the cache' <<<\"\$1\"" _ "$out"
 printf '{"id": "icons", "version": "1", "operations": [{"op": "add_file", "path": "gameplay/items/icon.txt"}]}\n' >"$T/packs/icons-1/pack.json"
 manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|hat@1|$hat_sha" \
     "pack|icons@1|$(sha256sum <"$T/packs/icons-1/pack.json" | cut -c1-64)" "edit|e1.json|-"
@@ -2806,6 +3010,20 @@ expect_refused "build-content: a movie vostok-port changed that no operation nam
     env SKHID_VOSTOK_PORT="$T/vostok-port" SKHID_PACKS_DIR="$T/packs" "$bc" 42 --out "$T/work/c42i3"
 rm -r "$T/packs/icons-1"
 manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|hat@1|$hat_sha" "edit|e1.json|-"
+# --delta-from: over an earlier build, only what the game would see otherwise; the earlier patch's
+# files known by its digests.tsv (the patch's sha256, then each file's), or, without one, read.
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bcq" 42 --out "$T/work/d42" 2>&1) || fail "build-content (quick) before a delta: $out"
+check "build-content: digests.tsv: the patch's sha256, then each file's" test \
+    "$(head -n 1 "$T/work/d42/digests.tsv") $(grep -vc '^#' "$T/work/d42/digests.tsv")" = \
+    "# resources.db.patch_42 $(sha256sum <"$T/work/d42/resources.db.patch_42" | cut -c1-64) $(grep -vc '^same' "$T/work/d42/files.tsv")"
+echo 3 >"$C/srp-026g/flash/m/src/version"
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bcq" 43 --out "$T/work/d43" --delta-from "$T/work/d42" 2>&1) || fail "build-content --delta-from: $out"
+check "build-content --delta-from: the changed movie only" test "$(cut -f1 "$T/work/d43/delta.tsv")" = flash_movies/m.swf
+rm "$T/work/d42/digests.tsv"
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bcq" 43 --out "$T/work/d43b" --delta-from "$T/work/d42" --no-cache 2>&1) || fail "build-content --delta-from, no digests.tsv: $out"
+check "build-content --delta-from: ... over a folder without digests.tsv, the same patch" \
+    cmp -s "$T/work/d43/resources.db.patch_43" "$T/work/d43b/resources.db.patch_43"
+echo 1 >"$C/srp-026g/flash/m/src/version"
 
 # A pack that rewrites a base config's vector as an indexed table: the value-
 # type check refuses it, naming the file, the path and both types.

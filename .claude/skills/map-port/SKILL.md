@@ -36,16 +36,18 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
 4. **The manifest row:** `pack <id>@<version> <sha256 of pack.json> <description>` in
    `release/content.tsv`. `pack.json` lists paths, not contents: a rebuild with the same
    file list keeps its sha, so a changed pack for a release gets a new version.
-5. **The content:** `release/build-content <revision> --out <dir>` from the skhid worktree
+5. **The content:** `release/build-content <revision> --slow --out <dir>` from the skhid worktree
    with the packs folder named: `release.env` sets `SKHID_PACKS_DIR` itself, so wrap it,
    ```sh
    # release-modes.env
    . <main checkout>/private/release/release.env
    SKHID_PACKS_DIR=/mnt/hdd/Projects/rudnya-069d/packs-modes   # <id>-<version> -> the pack
    ```
-   and run `SKHID_RELEASE_ENV=<that file> release/build-content 39 --out <content dir>`.
+   and run `SKHID_RELEASE_ENV=<that file> release/build-content 39 --slow --out <content dir>`.
    The folder holds `resources.db.patch_<rev>` and `server-game-data.db`: the coordinator or
    the owner swaps it into a local game; never assemble one by hand.
+   A later fix of the pack's files only (its tables and configs as they were): `tools/test-patch
+   <setup> <packs>/<id>-<version>` packs what differs into the setup in a minute.
 6. **Ids** (check stock, every published patch, every pack and parked branches):
    - `maps_dict` id (204; the server reads maps from the game data, not from code);
    - level, `match_making_params.map_id` (14): names, room tiles and play counts key on it;
@@ -89,27 +91,42 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
   stay full density; simplified base tiles under them (`terrain_simplify`,
   `decimate_terrain`) left overlay vertices up to 2 m off: dark seams and holes in
   trenches. Keep the whole terrain unsimplified (1 075 vertices > 25 cm off -> 94).
-- **Probes** (`MapProbes::Donor`, `src/survarium_026/lighting.rs`):
-  - scale each probe's diffuse by its `multiplier` (interiors x1.5-10; ignored, rooms
-    were 2-10x too dark and split by hard edges);
-  - keep volumes' full rotation, not y only (tilted church lights became blue columns);
-  - 0.26 has no cylinder: a fill cylinder becomes the box of its footprint area, a
-    darkening one is left out (its box cut black squares);
-  - darkening lights leave at least x0.25 (0.69d keeps the reflections under them; 0.26
-    drew the tractor station's wall tops black);
-  - lights 0.69d fades out (`fade_out_distance`) farther than every spawn is from them are
-    left out (`ambient_light_chaes` lit the power-plant backdrop into the haze);
-  - interior probes darker than 0.03 are raised to it, at most x8
-    (`lighting::adaptation_gain`): 0.69d's exposure shows its rooms alike.
-- **Materials.** Tell a vertex-blend material before an alpha-tested one (the blended
-  opaque layer closes the cut-outs: house_6's wall was gone) and keep `two_sided` on
-  vertex-colour categories (`vertex_colour_two_sided`, `vertex_blend_two_sided`,
-  `vertex_blend_alpha_test[_two_sided]` templates).
+- **Light, exposure and materials are converted by rule, never tuned by place** (owner,
+  2026-11-20: "our converter is pretty bad and I think we were patching the map screen by
+  screen"). No gain by area, no raised probes, no edit list that names a spot: a view that
+  differs from the donor is a rule to find (the donor's shader or exe against 0.26g's),
+  fixed for the whole map. What the rules are (resource-porter `lighting.rs`, `tone.rs`,
+  `surface.rs`, its `docs/survarium-069d-to-026.md`):
+  - probes: the donor's own volumes, cubes and SH with their `multiplier` and full
+    rotation, the largest also as the map-wide sphere;
+  - ambient lights: 0.26g's own ambient lights (an intensity above 1 adds light; the colour
+    is packed with red in the low byte), with the donor's falloff and facing fitted;
+  - exposure, grading and tone curve: the donor's, as an exposure profile of the lighting
+    pack (`three-maps-021-lighting`, its `exposure_profiles` row with the numbers the
+    build's "tone:" note prints; the scene's `mie_fog_base_height` is the marker) and the
+    scene's own colour grading texture. A new 0.69d map needs its row in that pack's
+    manifest and a new version of that pack in the same skhid PR;
+  - materials: gloss by the two builds' GGX alpha, Fresnel 0.04, a metalness map as the
+    surface's own diffuse and Fresnel maps made texel by texel (never the metalness map as
+    0.26g's Fresnel map: a dark pipe mirrored the sky);
+  - scene objects both builds have (sound emitters, a particle 0.26g ships): the donor's.
+- **Vertex-blend and vertex-colour materials.** Tell a vertex-blend material before an
+  alpha-tested one (the blended opaque layer closes the cut-outs: house_6's wall was gone)
+  and keep `two_sided` on vertex-colour categories (`vertex_colour_two_sided`,
+  `vertex_blend_two_sided`, `vertex_blend_alpha_test[_two_sided]` templates).
 - **Native models** are reused only when collision is identical and render bounds agree
   within 5 cm (`native_equivalent`); a reused one takes the donor's placement.
-- **What 0.26 cannot draw** (metalness, parallax, colour grading, height fog over the
-  map): left out with a note, never faked per spot. The pond's `volume_fog` is the same
-  object and shader in both builds and needs no change.
+- **What 0.26 cannot draw** (parallax, detail maps, the donor's height fog and sky): left
+  out with a note, never faked per spot; where it matters, the donor's own technique is
+  fitted in as a shader program behind the scene's marker (the lighting pack), proven by a
+  headless load first. The pond's `volume_fog` is the same program in both builds and
+  needs no change.
+- **A pack version that changes a project's object count** breaks the edit lists that
+  append to it by count: `artefact-keeper-1.json` carries `expected_counts` for the four
+  `v069d_level_01` projects (and FFA's `day_8` is a copy of `day_4` made by an edit list).
+  `build-content` stops with "expected indexed table of N"; move the counts in the same PR.
+- **`mie_fog_base_height` stays an integer** (`build-content`'s type check): a marker is a
+  whole number.
 
 ## Checking against the donor
 

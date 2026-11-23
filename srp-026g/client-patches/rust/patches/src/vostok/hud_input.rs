@@ -42,6 +42,11 @@ impl<'t> Hud<'t> {
         Hud { this, thread: PhantomData }
     }
 
+    /// The hud itself, for what else `vostok` reads of it.
+    pub(super) fn raw(&self) -> raw::GameWorldUi {
+        self.this
+    }
+
     pub fn view(&self) -> HudView {
         // SAFETY: the hud is alive for the hook, on its thread.
         unsafe {
@@ -110,6 +115,12 @@ impl<'t> Hud<'t> {
     pub fn movie(&self) -> Option<Movie<'_>> {
         // SAFETY: the hud is alive for the hook, on its thread.
         unsafe { movie_of(self.this.hud_movie()) }
+    }
+
+    /// The hud's game.
+    pub(in crate::vostok) fn game(&self) -> Option<raw::Game> {
+        // SAFETY: the hud's game world and its game live as long as the hud.
+        unsafe { self.this.world()?.game() }
     }
 
     /// The lobby the match's network client keeps (its messaging, the match's places).
@@ -310,8 +321,8 @@ impl<'c> HudCall<'c> {
     }
 
     /// Answers the hud movie: invokes its `method` with plain unsigned values
-    /// (at most four); whether the movie took it.
-    pub fn answer(&self, method: &CStr, values: &[u32]) -> bool {
+    /// (every one); whether the movie took it.
+    pub fn answer<const N: usize>(&self, method: &CStr, values: &[u32; N]) -> bool {
         self.hud.movie().is_some_and(|movie| movie.invoke_uints(method, values))
     }
 }

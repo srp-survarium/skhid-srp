@@ -84,6 +84,10 @@ name = "artefact-carry"
 version = "0.1.0"
 
 [[package]]
+name = "artefact-hunt-rule"
+version = "0.1.0"
+
+[[package]]
 name = "autocfg"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -487,6 +491,8 @@ dependencies = [
  "log",
  "openssl",
  "session",
+ "sign-in-cipher",
+ "udp-transport",
  "vostok",
 ]
 
@@ -512,6 +518,7 @@ dependencies = [
 name = "match-server"
 version = "0.1.0"
 dependencies = [
+ "artefact-hunt-rule",
  "crc32fast",
  "libc",
  "log",
@@ -520,9 +527,12 @@ dependencies = [
  "serde",
  "serde_json",
  "session",
+ "skhid-voice",
  "srp-validate",
  "survarium",
+ "technical-skills",
  "udp-transport",
+ "voice-abi",
  "vostok",
  "weapon-pickup",
  "world-frame",
@@ -814,6 +824,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
+name = "sign-in-cipher"
+version = "0.1.0"
+
+[[package]]
+name = "skhid-voice"
+version = "0.1.0"
+dependencies = [
+ "voice-abi",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "smallvec"
 version = "1.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -841,7 +863,9 @@ dependencies = [
  "match-server",
  "openssl",
  "session",
+ "socket2",
  "survarium",
+ "udp-transport",
  "vostok",
  "web-server",
 ]
@@ -851,7 +875,9 @@ name = "srp-validate"
 version = "0.1.0"
 dependencies = [
  "artefact-carry",
+ "artefact-hunt-rule",
  "survarium",
+ "technical-skills",
  "weapon-pickup",
  "world-frame",
 ]
@@ -873,6 +899,7 @@ name = "survarium"
 version = "0.1.0"
 dependencies = [
  "artefact-carry",
+ "artefact-hunt-rule",
  "binary-config-parser",
  "encoding_rs",
  "log",
@@ -881,8 +908,10 @@ dependencies = [
  "serde",
  "serde_json",
  "srp-validate",
+ "technical-skills",
  "udp-transport",
  "weapon-kit",
+ "weapon-modules",
  "weapon-pickup",
 ]
 
@@ -895,6 +924,13 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "technical-skills"
+version = "0.1.0"
+dependencies = [
+ "weapon-pickup",
 ]
 
 [[package]]
@@ -965,6 +1001,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
+name = "voice-abi"
+version = "0.1.0"
+
+[[package]]
 name = "vostok"
 version = "0.1.0"
 dependencies = [
@@ -984,6 +1024,10 @@ name = "weapon-kit"
 version = "0.1.0"
 
 [[package]]
+name = "weapon-modules"
+version = "0.1.0"
+
+[[package]]
 name = "weapon-pickup"
 version = "0.1.0"
 
@@ -994,7 +1038,9 @@ dependencies = [
  "log",
  "openssl",
  "resources-db 0.1.0",
+ "serde_json",
  "session",
+ "srp-validate",
  "survarium",
  "vostok",
 ]

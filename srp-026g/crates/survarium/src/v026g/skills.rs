@@ -83,7 +83,10 @@ pub const MODIFIER_NAMES: [&str; MODIFIERS] = [
 /// The modifiers that open or close a kit's slots, by index
 /// ([`MODIFIER_NAMES`]; `loadouts::KitLayout`).
 pub mod slot_modifier {
+    /// `artefact_slots`: the artefact containers, opened after the pockets (Artifact Container).
+    pub const ARTEFACT_SLOTS: usize = 14;
     pub const POCKET_SLOTS: usize = 15;
+    pub const AMMO_BAGS: usize = 16;
     pub const POCKET_SLOT_SIZE: usize = 17;
     pub const USE_TWO_DOUBLE_HANDED_WEAPONS: usize = 25;
     /// `armored_trap`: the medical skills' ranks, packed as an exact
@@ -776,17 +779,20 @@ mod tests {
         );
     }
 
-    /// The medical branch as the content builds it (medical-skills.md):
     /// `(id, levels, branch_points, column, row, antiskills)`.
+    type Row = (u16, u8, u32, u8, u8, &'static [u16]);
+
+    /// The medical branch as the content builds it (medical-skills.md): rows
+    /// at 0/3/7/12/17, painkiller skills in column 1 and antitoxin skills in
+    /// column 4 of rows 2-4.
     fn medical_tree() -> SkillsTree {
-        type Row = (u16, u8, u32, u8, u8, &'static [u16]);
         #[rustfmt::skip]
-        let rows: [Row; 13] = [
-            (301, 3, 0, 2, 1, &[]), (302, 2, 0, 3, 1, &[]),
-            (311, 5, 3, 1, 2, &[]), (313, 2, 3, 3, 2, &[]), (312, 3, 3, 4, 2, &[]),
-            (342, 2, 10, 1, 3, &[]), (303, 2, 10, 2, 3, &[]), (321, 3, 10, 4, 3, &[]),
-            (332, 5, 15, 2, 4, &[]), (323, 4, 15, 3, 4, &[333]), (333, 4, 15, 4, 4, &[323]),
-            (331, 1, 20, 2, 5, &[322]), (322, 1, 20, 3, 5, &[331]),
+        let rows: [Row; 14] = [
+            (342, 1, 0, 2, 1, &[]), (302, 2, 0, 3, 1, &[]),
+            (301, 3, 3, 1, 2, &[]), (311, 4, 3, 2, 2, &[]), (312, 3, 3, 3, 2, &[]), (314, 3, 3, 4, 2, &[]),
+            (303, 2, 7, 1, 3, &[]), (321, 3, 7, 2, 3, &[]), (324, 3, 7, 4, 3, &[]),
+            (323, 4, 12, 1, 4, &[]), (332, 5, 12, 2, 4, &[]), (333, 3, 12, 4, 4, &[]),
+            (331, 1, 17, 2, 5, &[322]), (322, 1, 17, 3, 5, &[331]),
         ];
         let mut skills: Vec<Skill> = rows
             .iter()
@@ -807,138 +813,72 @@ mod tests {
         SkillsTree { skills }
     }
 
+    /// The tree of 2026-11-19: a build saved before keeps what the new rows
+    /// still reach. Take Cover (313), Metabolism's fifth rank and
+    /// Concentration's fourth come back, and so does Potent Painkiller (row 2
+    /// now) where row 1 no longer holds its 3 points, with what it opened.
     #[test]
     fn a_changed_tree_settles_saved_skills_by_refunding() {
         let tree = medical_tree();
+        // The full build of before (31 points, Unflinching beside no Concentration).
+        #[rustfmt::skip]
         let full = [
-            (301, 3),
-            (302, 2),
-            (303, 2),
-            (311, 5),
-            (312, 3),
-            (313, 2),
-            (321, 3),
-            (322, 0),
-            (323, 4),
-            (331, 1),
-            (332, 5),
-            (342, 2),
+            (301, 3), (302, 2), (303, 2), (311, 5), (312, 3), (313, 2), (321, 3), (323, 4),
+            (331, 1), (332, 5), (342, 1),
         ];
-        assert_eq!(tree.validate(100, &full), Ok(()));
-        assert_eq!(tree.settle(100, &full), full);
-        // A full build of the tree before (Numb Legs in row 1, Unflinching
-        // at its old two ranks) is still valid: nothing is taken back.
-        let mut before = full;
-        before[8] = (323, 2);
-        assert_eq!(tree.validate(100, &before), Ok(()));
-        assert_eq!(tree.settle(100, &before), before);
-        // Numb Legs saved in the old row 1 stays when rows 1 and 2 hold its
-        // ten points now (row 3), and goes when they do not.
-        let numb = [(303, 2), (301, 3), (302, 2), (311, 5)];
-        assert_eq!(tree.settle(100, &numb), numb);
-        assert_eq!(
-            tree.settle(100, &[(303, 2), (301, 3), (302, 2)]),
-            [(301, 3), (302, 2)]
-        );
-        // Row 2 opens at 3 points: the old save that reached it with Numb
-        // Legs' two keeps row 2 and gives Numb Legs back.
-        assert_eq!(
-            tree.settle(100, &[(303, 2), (301, 3), (311, 2)]),
-            [(301, 3), (311, 2)]
-        );
-        // Ranks past the new levels are taken back; Medic (341) is gone.
-        assert_eq!(
-            tree.settle(100, &[(301, 5), (302, 5), (311, 5), (341, 1), (342, 5)]),
-            [(301, 3), (302, 2), (311, 5), (342, 2)]
-        );
-        // Without row 2 the five points of row 1 no longer reach row 3.
-        assert_eq!(
-            tree.settle(100, &[(301, 5), (302, 5), (342, 5)]),
-            [(301, 3), (302, 2)]
-        );
-        // Both of the new exclusive pair: Supply Pocket stays.
-        let both = [
-            (301, 3),
-            (302, 2),
-            (303, 2),
-            (311, 5),
-            (312, 3),
-            (313, 2),
-            (321, 3),
-            (322, 1),
-            (323, 4),
-            (331, 1),
-            (332, 5),
+        let settled = tree.settle(100, &full);
+        #[rustfmt::skip]
+        let kept = [
+            (301, 3), (302, 2), (303, 2), (311, 4), (312, 3), (321, 3), (323, 4), (331, 1),
+            (332, 5), (342, 1),
         ];
-        let settled = tree.settle(100, &both);
-        assert!(!settled.iter().any(|&(id, _)| id == 322));
-        assert!(settled.contains(&(331, 1)));
+        assert_eq!(settled, kept);
         assert_eq!(tree.validate(100, &settled), Ok(()));
-        // Concentration instead of Unflinching is a full build too; both
-        // (a set the tree never made) is refused, and settling takes
-        // Unflinching back, its points free again, Concentration kept.
-        let mut concentration = full;
-        concentration[8] = (333, 4);
-        assert_eq!(tree.validate(100, &concentration), Ok(()));
-        assert_eq!(tree.settle(100, &concentration), concentration);
-        let mut both = full.to_vec();
-        both.push((333, 4));
+        assert_eq!(tree.settle(100, &settled), settled);
+        // Concentration at its old fourth rank, beside Unflinching now.
+        let mut concentrating = kept.to_vec();
+        concentrating.push((333, 4));
+        let mut concentrating_now = kept.to_vec();
+        concentrating_now.push((333, 3));
+        assert_eq!(tree.settle(100, &concentrating), concentrating_now);
+        assert_eq!(tree.validate(100, &concentrating_now), Ok(()));
+        // Potent Painkiller with nothing else in row 1 is out of reach, and
+        // the row it opened goes with it; with row 1's three points it stays.
+        assert_eq!(tree.settle(100, &[(301, 3), (311, 5)]), Vec::<(u16, u8)>::new());
         assert_eq!(
-            tree.validate(100, &both),
-            Err(SkillError::Exclusive(323, 333))
+            tree.settle(100, &[(301, 3), (302, 2), (342, 1), (311, 5)]),
+            [(301, 3), (302, 2), (342, 1), (311, 4)]
         );
-        let settled = tree.settle(100, &both);
-        assert!(!settled.iter().any(|&(id, _)| id == 323));
-        assert!(settled.contains(&(333, 4)));
-        assert_eq!(tree.validate(100, &settled), Ok(()));
-        assert_eq!(settled.iter().map(|&(_, n)| u32::from(n)).sum::<u32>(), 32);
-        // A row no longer reached goes, and with it the rows it unlocked:
-        // 302 at 5 is 2 now, under row 2's three points, so row 2 goes and
-        // row 3 with it.
+        // Take Cover and Medic are gone, their points free again.
         assert_eq!(
-            tree.settle(100, &[(302, 5), (311, 5), (321, 5)]),
-            [(302, 2)]
-        );
-        // 301 at 5 is 3 now: row 2 stays, row 3 (ten) is out of reach at 8.
-        assert_eq!(
-            tree.settle(100, &[(301, 5), (311, 5), (321, 5)]),
-            [(301, 3), (311, 5)]
-        );
-        // The old tier-4 Supply Pocket is out of reach at 16 of 20.
-        assert_eq!(
-            tree.settle(
-                100,
-                &[(301, 5), (302, 5), (311, 5), (312, 5), (321, 5), (331, 1)]
-            ),
-            [(301, 3), (302, 2), (311, 5), (312, 3), (321, 3)]
+            tree.settle(100, &[(342, 1), (302, 2), (313, 2), (341, 1)]),
+            [(342, 1), (302, 2)]
         );
         // A branch the tree does not have is not this tree's to change.
         assert_eq!(
-            tree.settle(100, &[(101, 9), (301, 3)]),
-            [(101, 9), (301, 3)]
+            tree.settle(100, &[(101, 9), (302, 2)]),
+            [(101, 9), (302, 2)]
         );
     }
 
     /// A row unlocks the branch points it asks, not rounded down to fives:
-    /// the medical tree's second row opens at 3.
+    /// the medical tree's second row opens at 3, its third at 7.
     #[test]
     fn a_row_opens_at_its_own_branch_points() {
         let tree = medical_tree();
-        assert_eq!(tree.unlocked_branch_points(3, &[(301, 2)]), 0);
-        assert_eq!(tree.unlocked_branch_points(3, &[(301, 3)]), 3);
-        assert_eq!(tree.validate(100, &[(301, 3), (311, 1)]), Ok(()));
+        assert_eq!(tree.unlocked_branch_points(3, &[(302, 2)]), 0);
+        // Brothers in Arms' point is a row-1 point: two more open row 2.
+        assert_eq!(tree.unlocked_branch_points(3, &[(342, 1), (302, 2)]), 3);
+        assert_eq!(tree.validate(100, &[(342, 1), (302, 2), (301, 1)]), Ok(()));
         assert_eq!(
-            tree.validate(100, &[(301, 2), (311, 1)]),
+            tree.validate(100, &[(302, 2), (301, 1)]),
             Err(SkillError::Locked {
-                skill: 311,
+                skill: 301,
                 needs: 3,
                 unlocked: 0
             })
         );
-        // Row 3 (ten) counts rows 1 and 2: 5 + 5.
-        assert_eq!(
-            tree.unlocked_branch_points(3, &[(301, 3), (302, 2), (311, 5)]),
-            10
-        );
+        // Row 3 (seven) counts rows 1 and 2: 3 + 4.
+        assert_eq!(tree.unlocked_branch_points(3, &[(342, 1), (302, 2), (311, 4)]), 7);
     }
 }

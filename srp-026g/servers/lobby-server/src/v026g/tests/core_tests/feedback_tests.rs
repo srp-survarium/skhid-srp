@@ -421,16 +421,19 @@ impl World {
     /// Another match of the client's account ends, settled behind the
     /// lobby's back (the lobby is not told: no screen is shown for it).
     fn settle_another(&mut self, index: usize, match_id: u32) {
-        let made = self.host.made.lock().unwrap()[0].1.map;
+        let made = self.host.made.lock().unwrap()[0].1.played;
         let (account_id, session_id) = self.ids[index];
         let result = MatchResult {
             match_id,
+            replay_id: session::v026g::replays::ReplayId::new(match_id, std::time::UNIX_EPOCH),
             map_id: made.map().id,
             mode: made.mode(),
+            twist: made.armed(),
             match_level: 0,
             end: MatchEnd::ModeRule,
             winner: Some(0),
             team_points: [3, 1],
+            round_starts: 0,
             duration_ms: 700_000,
             played_ms: Some(600_000),
             trusted_snapshot_ms: Some(690_000),
@@ -456,6 +459,7 @@ impl World {
                 statistics: Some(PlayerStatistics::default()),
                 pay_statistics: None,
                 supplies: None,
+                weapons: Vec::new(),
             }],
         };
         let terms = Terms::at(session::v026g::quests::now());

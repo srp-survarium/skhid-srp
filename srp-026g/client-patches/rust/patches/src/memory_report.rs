@@ -66,7 +66,7 @@ fn report(thread: &Thread, connection: &Connection<'_>, event: Event) {
     let Some(moment) = moment else { return };
     let report = Report::Memory(snapshot(thread, moment));
     let told = connection.tell(&report);
-    let Report::Memory(memory) = &report;
+    let Report::Memory(memory) = &report else { return };
     for entry in memory.entries() {
         match *entry {
             Entry::Process(process) => line(&[

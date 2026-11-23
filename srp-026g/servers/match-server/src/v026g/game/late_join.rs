@@ -352,7 +352,7 @@ impl Game {
         if let Some(closed) = self.closed_to_joiners() {
             return Err(closed);
         }
-        let Some(limit) = self.rule.time_limit_at() else {
+        let Some(limit) = self.artefact_hunt_limit().or_else(|| self.rule.time_limit_at()) else {
             return Err(Closed::Loading);
         };
         let remaining = Duration::from_millis(u64::from(limit.saturating_sub(self.clock(now))));
@@ -361,6 +361,17 @@ impl Game {
             .filter(|open_for| !open_for.is_zero())
             .and_then(|open_for| now.checked_add(open_for))
             .ok_or(Closed::LastSeconds)
+    }
+
+    /// Artifact Hunt's end of play as its rule's clock shows it in the last
+    /// trusted world: the match time, in sudden death its own, and once over
+    /// that world's time (`artefact_hunt.md`, "srp"). `None` before play and
+    /// in the other modes: the time rule's limit stands.
+    fn artefact_hunt_limit(&self) -> Option<u32> {
+        let params = self.formed.played.map().artefact_hunt?;
+        let state = self.state.as_ref()?;
+        let rule = state.rules.as_ref()?.artefact_hunt.as_ref()?.rule(params)?;
+        artefact_hunt_play_ends(params, &rule, state.time)
     }
 
     /// Failed newcomers can queue elsewhere. Their descriptors remain
@@ -927,6 +938,10 @@ impl Game {
     /// not (two placed one on each side, one of them gone). The sides it
     /// would make when not.
     fn entry_keeps_balance(&self, entering: &[usize]) -> Result<(), [i64; 2]> {
+        // A free-for-all has no sides to keep even: each place is its own.
+        if self.game_mode() == RuleMode::FreeForAll {
+            return Ok(());
+        }
         let mut sides = [0usize; 2];
         for (index, place) in self.formed.places.iter().enumerate() {
             let in_match = !self.waiting_entry(index)
@@ -1113,5 +1128,98 @@ impl Game {
             admission.upload_received = true;
         }
         self.dump(snapshot, index, "joiner");
+    }
+}
+
+/// When Artifact Hunt's play ends as its rule's clock says at `time`: the
+/// match time, in sudden death its own; once over, `time`; before play,
+/// nothing of its own.
+fn artefact_hunt_play_ends(
+    params: &artefact_hunt_rule::Params,
+    rule: &artefact_hunt_rule::Rule,
+    time: u32,
+) -> Option<u32> {
+    match rule.stage() {
+        artefact_hunt_rule::Stage::Idle => None,
+        artefact_hunt_rule::Stage::Over(_) => Some(time),
+        artefact_hunt_rule::Stage::Play(_) => {
+            let now = artefact_hunt_rule::Time::from_ms(time);
+            Some(time.saturating_add(rule.hud(params, now).clock_ms))
+        }
+    }
+}
+
+#[cfg(test)]
+mod artefact_hunt_tests {
+    use super::artefact_hunt_play_ends;
+    use artefact_hunt_rule::{BaseDef, Event, Params, RawParams, RawShape, Rule, Spawner, Time};
+
+    fn params() -> Params {
+        let raw = RawParams {
+            match_time: 900,
+            time_needed_to_continue_match: 90,
+            draw_additional_time: 180,
+            time_before_new_round: 3,
+            round_countdown_time: 5,
+            score: 5,
+            respawn_time: 15,
+            time_needed_to_respawn: 7,
+            vi_spawn_time: 60,
+            vi_spawn_variation: 10,
+            vi_not_picked_ttl: 120,
+            vi_dropped_ttl: 60,
+            drop_lift: 0.13,
+            usable_radius: 0.3,
+        };
+        let shape = |x: f32| RawShape {
+            kind: 1,
+            position: [x, 0.5, 0.0],
+            axes: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+            half: [0.5; 3],
+        };
+        let (zero, one) = ([shape(-30.0)], [shape(30.0)]);
+        let bases = [
+            BaseDef { team: 0, position: [-30.0, 0.0, 0.0], shapes: &zero },
+            BaseDef { team: 1, position: [30.0, 0.0, 0.0], shapes: &one },
+        ];
+        Params::parse(&raw, &[Spawner { position: [0.0; 3] }], &bases).unwrap()
+    }
+
+    #[test]
+    fn a_late_joiner_is_taken_by_the_rules_clock() {
+        let params = params();
+        let idle = Rule::new(1);
+        assert_eq!(artefact_hunt_play_ends(&params, &idle, 5_000), None);
+        let start = 21_000;
+        let tick = |rule: Rule, now: u32| rule.step(&params, Event::Tick { now: Time::from_ms(now) }).0;
+        let begun = |rule: Rule| rule.step(&params, Event::Start { now: Time::from_ms(start) }).0;
+        // In regular time: the match time from the start.
+        let rule = begun(idle);
+        assert_eq!(artefact_hunt_play_ends(&params, &rule, start + 60_000), Some(start + 900_000));
+        // A player a team at 0 to 0 when the time runs out: sudden death, its own 180 s.
+        let mut rule = idle;
+        for (place, team) in [(0, artefact_hunt_rule::Team::Zero), (1, artefact_hunt_rule::Team::One)] {
+            let place = artefact_hunt_rule::Place::new(place).unwrap();
+            rule = rule.step(&params, Event::Entered { place, team, now: Time::from_ms(start - 50) }).0;
+        }
+        let mut rule = begun(rule);
+        let mut now = start;
+        while !rule.sudden_on() {
+            now += 50;
+            assert!(now < start + 1_000_000);
+            rule = tick(rule, now);
+        }
+        let ends = artefact_hunt_play_ends(&params, &rule, now).unwrap();
+        assert!(ends > start + 900_000 + 170_000, "{ends}");
+        // Nobody in the match at the time's end: team 1 is given its point and it is
+        // over, at that world's time.
+        let mut rule = begun(idle);
+        let mut now = start;
+        while rule.result().is_none() {
+            now += 50;
+            assert!(now < start + 1_000_000);
+            rule = tick(rule, now);
+        }
+        assert_eq!(artefact_hunt_play_ends(&params, &rule, now), Some(now));
     }
 }

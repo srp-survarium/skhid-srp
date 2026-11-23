@@ -219,6 +219,75 @@ impl<'t> Inventory<'t> {
         }
         Ok(())
     }
+
+    /// Courier (crate::artefact_courier): the artefacts the dead kit `donor`'s death left in its
+    /// containers into this alive kit's empty containers, in the donor's container order, as many
+    /// as there are empty ones.
+    ///
+    /// The donor's container range is gone by then: the respawn rule's tick takes the dead kit's
+    /// player out of the world (0x31699B, base_player::remove 0x2DA790 with 1) before the spawn,
+    /// and its unload_to_profile clears the range (0x2FDBE8..0x2FDBF2: +168h 0, +16Ch 0). Its
+    /// slots keep their items, so the donor's are found in its 23 slots: an item of `world`'s
+    /// registered artefacts whose owner and slot are that slot's, in slot order (the containers'
+    /// order: their range is a run of slots).
+    ///
+    /// Only an artefact its holder's death switched off moves (state 5: artefact_base::tick
+    /// 0x3132E5 unlinks its passive, vtable+84h, then writes 5; nothing else writes 5). Its slot is
+    /// emptied as remove_item (0x2FC680) empties one but without on_removed (vtable+34h, 0x313490),
+    /// whose vtable+84h would unlink the passive a second time: Spring's list removal (0x2D5D00) is
+    /// not idempotent (an unlinked node empties its list's head). So: no owner and slot 23 (the
+    /// set_owner remove_item calls, 0x243590), state 0 (on_removed's end), the slot and its
+    /// reference released, the weight to recalculate; then the game's own take_artefact (as a
+    /// pickup: set_item, on_taken links the passive, state 3). A free container keeps
+    /// take_artefact off its evicting path.
+    pub(super) fn take_from_dead_kit(&mut self, donor: &mut Inventory<'t>, world: raw::CoreWorld) -> crate::artefact_courier::Carried {
+        let mut carried = crate::artefact_courier::Carried::default();
+        if self.player.address() == donor.player.address() || self.this.address() == donor.this.address() {
+            return carried;
+        }
+        if !self.alive() || donor.alive() {
+            return carried;
+        }
+        for slot in 0..SLOTS {
+            // SAFETY: one of the donor's 23 slots (+10Ch + 4 x slot).
+            let entry = unsafe { donor.this.slots().at(usize::from(slot)) };
+            // SAFETY: the slot's item, if any; read as an artefact only once it is a registered one.
+            let Some(address) = (unsafe { entry.item() }).map(|item| item.address()) else { continue };
+            let Some((_, item)) = super::keeper::registered(world).find(|(_, item)| item.address() == address) else {
+                continue;
+            };
+            // SAFETY: a registered artefact's inventory_item's and artefact_base's fields.
+            let dead = unsafe {
+                item.item().inventory() == Some(donor.this)
+                    && read(item.item().inventory_slot()) == u32::from(slot)
+                    && read(item.state()) == 5
+            };
+            if !dead {
+                continue;
+            }
+            if self.container_space() != ContainerSpace::Available {
+                carried.left += 1;
+                continue;
+            }
+            let held = RetainedItem::new(item, self.thread);
+            // SAFETY: the donor's occupied slot (`entry`) and its item, retained by `held` across
+            // the empty-slot interval; the recipient has an empty container.
+            unsafe {
+                item.item().set_inventory(None);
+                item.item().inventory_slot().write_volatile(u32::from(SLOTS));
+                item.state().write_volatile(0);
+                entry.set_item(None);
+                drop(RetainedItem::adopt(item, self.thread));
+                donor.this.weight_dirty().write_volatile(1);
+                let mut incoming = Some(held.this);
+                raw::engine_inventory_take_artefact(Some(self.this), &mut incoming);
+                if item.item().inventory() == Some(self.this) {
+                    carried.moved += 1;
+                }
+            }
+        }
+        carried
+    }
 }
 
 /// The 23 slots of an inventory (+10Ch), by their native index (the item's +254h).

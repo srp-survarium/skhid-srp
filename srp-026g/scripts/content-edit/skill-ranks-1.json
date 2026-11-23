@@ -1,5 +1,5 @@
 {
- "_about": "Fewer ranks, more a rank (the owner, 2026-11-09: these skills took many points for little): seven stock skills go from 5 ranks to 3, each rank worth more (round steps, the maximum at least the stock one). Battle stance (102, movement_speed_when_aiming) +1% -> +2% a rank (max +5% -> +6%), Accuracy (106, dispersion_from_hip) and Firm grip (107, dispersion_movement_influence) +2% -> +4% (max +10% -> +12%), Equanimity (110, injury_penalty) -10% -> -20% (max -50% -> -60%), Endurance (201, stamina_spending_speed_skill) -2% -> -4% (max -10% -> -12%), Breath (204, stamina_regeneration_speed) +2% -> +4% (max +10% -> +12%), Unstoppable (211, stamina_loss_on_hit) -5% -> -10% (max -25% -> -30%). Rows, thresholds, icons and texts stay; srp settles saved ranks past 3 (SkillsTree::settle), refunding the points. Quick Hands (501) is changed in artefact-skills-1.json. The last text row's second cell (never shown) stays a string, as the replaced row's was.",
+ "_about": "Fewer ranks, more a rank (the owner, 2026-11-09: these skills took many points for little): seven stock skills go from 5 ranks to 3, each rank worth more (round steps, the maximum at least the stock one). Battle stance (102, movement_speed_when_aiming) +1% -> +4% a rank (max +5% -> +12%; +2% and +6% until the owner's 2026-11-14 \"battle stance should give +4% per pop to +12% not to +6%\"), Accuracy (106, dispersion_from_hip) and Firm grip (107, dispersion_movement_influence) +2% -> +4% (max +10% -> +12%), Equanimity (110, injury_penalty) -10% -> -20% (max -50% -> -60%), Endurance (201, stamina_spending_speed_skill) -2% -> -4% (max -10% -> -12%), Breath (204, stamina_regeneration_speed) +2% -> +4% (max +10% -> +12%), Unstoppable (211, stamina_loss_on_hit) -5% -> -10% (max -25% -> -30%). Rows, thresholds, icons and texts stay; srp settles saved ranks past 3 (SkillsTree::settle), refunding the points. Quick Hands (501) is changed in artefact-skills-1.json. The last text row's second cell (never shown) stays a string, as the replaced row's was.",
  "set_entry": [
   {
    "file": "gameplay/skills/skills_tree.options",
@@ -16,37 +16,37 @@
     "levels_amount": 3,
     "modifiers": [
      {
-      "movement_speed_when_aiming_modifier": 0.02
+      "movement_speed_when_aiming_modifier": 0.04
      },
      {
-      "movement_speed_when_aiming_modifier": 0.02
+      "movement_speed_when_aiming_modifier": 0.04
      },
      {
-      "movement_speed_when_aiming_modifier": 0.02
+      "movement_speed_when_aiming_modifier": 0.04
      }
     ],
     "ui/skill_descriptions": [
      [
-      " <green>+2",
+      " <green>+4",
       " 0",
       "</green>",
       ""
      ],
      [
-      " <green>+2",
-      " +2",
-      "</green>",
-      ""
-     ],
-     [
-      " <green>+2",
+      " <green>+4",
       " +4",
       "</green>",
       ""
      ],
      [
-      "<green> +6",
-      " +6",
+      " <green>+4",
+      " +8",
+      "</green>",
+      ""
+     ],
+     [
+      "<green> +12",
+      " +12",
       "</green>",
       ""
      ]

@@ -429,11 +429,6 @@ package survarium.ammo
          this.lock.mouseEnabled = this.textFieldLock2.mouseEnabled = this.textFieldLock.mouseEnabled = false;
       }
       
-      protected function onAutoBuyBtnClicked(event:ButtonEvent) : void
-      {
-         dispatchEvent(new Event(Event.CHANGE));
-      }
-      
       protected function stepperChange(event:Event) : void
       {
          if(event.target == this.stepper_backpack)

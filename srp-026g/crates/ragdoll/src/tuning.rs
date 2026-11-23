@@ -52,7 +52,8 @@ pub const DEATH_VELOCITY_MAX: f32 = 7.0;
 pub const EARLIER_HIT: f32 = 0.5;
 /// A hit this strong (N s) or more is a heavy one, more than any bullet's
 /// push (`shot::impulse` makes at most 0.04 kg x 3000 m/s x 0.8, 96 N s): a
-/// Force Protein's gun-stock push (16 x 8). It throws the whole body: its
+/// Force Protein's gun-stock push (16 x 8); a battery strike is one
+/// whatever its push (`shot::Hit::heavy`). It throws the whole body: its
 /// share is not capped, and goes up at `HEAVY_LIFT` of its level speed.
 pub const HEAVY_HIT: f32 = 100.0;
 pub const HEAVY_LIFT: f32 = 0.5;

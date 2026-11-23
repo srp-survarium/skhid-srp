@@ -26,6 +26,18 @@ Client patch 54 (README section 54, client_patch.md section 3.51) and the table
   (in their passive or active, container order); a fifth (Artifact Container) is never fired and
   stays ready, so its active adds nothing (and it gives no passive).
 - A copy on its cooldown or already active does nothing on that press; it is not fired later.
+- A press that fires a copy starts the cooldown of every other copy of that kind on its cooldown
+  again, the whole of it (the owner, 2026-11-22: "if you get new artifact, you can still activate
+  it, but this resets timer on other artis of the same type"). So a kind is used once a cooldown,
+  however many copies and whenever they were taken.
+  - The report (a player, revision 49): one Onyx taken and fired, then another taken and fired:
+    each cooled down on its own and the two were fired in turns, an Onyx twice as often (three or
+    four, three or four times).
+  - A copy still active is left as it is: it ends and cools down on its own, and the next press
+    that fires another starts its cooldown again.
+  - A press that fires nothing (every copy cooling or active) starts no cooldown again.
+  - Firing the copy that is ready first, while another has seconds left, costs that other its
+    whole cooldown: waiting for both fires them together.
 - The key of a copy that is not ready still fires the ready ones of its kind.
 - Different kinds have their own keys and cooldowns: Onyx, Spring and Lifebone fire on their own.
 - Every game of the match computes this the same way (the press is an input).
@@ -44,8 +56,24 @@ Client patch 54 (README section 54, client_patch.md section 3.51) and the table
 - Passive: each of its seven pools (body, head, both hands, both legs, pain) regenerates
   base + 0.1/s, up to 100 %, as before.
 - Regeneration starts after the pool's own 8 s without a hit (the artefact no longer adds 2 s).
-- Active (3 s, cooldown 45 s): hand and leg injuries removed as before, and pain, body and head full
-  at once.
+- Active (3 s, cooldown 45 s): hand and leg injuries removed as before, and every body part full
+  at once: its seven pools (body, head, both hands, both legs, pain), each to its own maximum (a
+  limb's as Strong Bones made it). `infection` is not a body part and stays as it is. The teammates
+  Cascade's share reaches get the same.
+  - The owner, 2026-11-14: "larkspur doesn't heal body parts when active". From 2026-10-22 to then
+    the active filled pain, body and head only: a hand or leg lost its injury (the affect) and kept
+    its health.
+  - What that left: the hud's doll colours a part by its pool's health (0x2370E0:
+    `set_body_part_hp` with H / Hmax of both hands, both legs, head and body), and a leg's slow is
+    its pool's too (the thresholds, 0x32A9C0: -10 % under 20 %, -20 % at 0), so both stayed until
+    the pool regenerated. The injury's own effects (no sprint, the weapon's dispersion; the counts
+    at the damage model +388h and +389h) went with the affect. An affect is applied by a hit alone
+    (0x32A740, called at 0x32A2B3): removed, it came back only with the next hit on a pool still
+    at 0.
+- The passive goes on while the artefact is active and while it cools down: its regeneration
+  modifiers are linked at the pickup (on_taken 0x313470, vtable +7Ch) and unlinked at death or
+  removal (0x3132E7, 0x3134A8, vtable +84h); the press (0x313300) and the active's end (0x313530)
+  touch neither, and the modifier (0x312590) reads no state. Patch 109 leaves out only a fifth copy.
 - Cooldown 45 s, was 15 s (the owner, 2026-10-23): since its active is a full heal, 15 s was too
   often (Spring 40 s, Onyx 60 s). `data/cooldown_sec` 15 -> 45 in `artefacts.tsv`.
 - Nothing hard-codes it: artefact_base's constructor (0x312FD0) reads `cooldown_sec` x 1000 into
@@ -74,6 +102,21 @@ active")
   on screen for that time. The text's `%s` is the pop-up's time on screen in seconds, which patch
   54 makes the active's time left; the hud writes it in. (%s, not `{s}`: the game's localizer (0x1FEF90, every text set_parameterized_message shows) makes `{NAME}` the key of the action NAME (`{USE}`) and any other name nothing, and drops a `}` after a character; the
   owner's first test showed "for  s.".)
+
+## The stock glow (0.26g, static reading)
+
+- The item config's `data/effect` names `gameplay/effects/effect_<name>.options` (the cook
+  0x2EC760): one particle effect, type 114, `time_to_finish` 5.
+- Particle systems and light colours (RGB): Lifebone `human_zhivokost` 0.10 0.77 0.00; Spring
+  `human_spring` 0.00 0.40 1.00; Onyx `human_onix` 1.00 0.48 0.00.
+- Each has 10 emitters on the body; `up_light` makes about 20 point lights a second, each about
+  1.7 s, radius about 1.2, no shadows.
+- The press: `artefact_base::action` 0x313300 (state 3 -> 4) -> 0x313350 ->
+  `game_effect_emitter::emit` 0x329050 / `game_effect_player::add` 0x2DE090 on the carrier.
+- It ends when the state leaves 4 (the calculator 0x313640); the living particles fade.
+- Load: `artefact_base::deserialize` 0x313760 links the effect again, or plays it again for an
+  artefact in state 4: late joiners see it.
+- Patch 54: each copy fired plays its own effect.
 
 ## Your own glow (the owner, 2026-10-25: "you see yourself shining (hands and body if you look
 down) when you use artifact? Note that your vision should still be clear")
@@ -128,6 +171,8 @@ down) when you use artifact? Note that your vision should still be clear")
 - Version 13: the leg quarters one particle effect of view 2 each, without the point light and the
   haze (what the carrier saw is what everyone sees), no first-person twin; Forest Protection's smoke
   emitters' Rate and MaxParticles x1.5.
+- Version 15 (14 is the open #1586's): Forest Protection's first-person twin plays its smoke too,
+  beside the rays, at three quarters of the third person's rate (artefact-skills.md).
 - History: version 1 (a lighter copy) and version 2 (with `up_light`'s lights at x0.35) showed
   too little in the first person; version 3, the stock glow without the head, was tested by the
   owner and approved (2026-10-25: "this version is good"). Version 4 is the same files.

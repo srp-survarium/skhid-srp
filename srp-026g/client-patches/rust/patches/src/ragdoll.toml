@@ -26,6 +26,7 @@ handler = "on_bones"
 [[hook]]
 site = "camera.eye"
 handler = "on_eye"
+order = 1
 
 # a bullet's ray traced: the corpses it crosses pushed, a living hit kept
 [[hook]]
@@ -52,3 +53,5 @@ handler = "on_render_bones"
 [[hook]]
 site = "player.killed_event"
 handler = "on_killed"
+# before Scavenger (patch 180, order 2)
+order = 1

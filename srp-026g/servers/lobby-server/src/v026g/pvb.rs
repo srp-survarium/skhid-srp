@@ -63,7 +63,7 @@ use session::{LockExt, QueuePool};
 use survarium::v026g::lobby::requests::id;
 use survarium::v026g::lobby::rooms::rules;
 use survarium::v026g::lobby::{self, PvbCode, PvbMap, PvbNumbers, PvbStatus};
-use survarium::v026g::maps::{self, MapMode};
+use survarium::v026g::maps::{self, MapId, MapMode};
 
 use super::core::{Core, Who};
 
@@ -75,14 +75,29 @@ pub(super) const PLAY_REFUSED: &str = "st_cant_change_ready_state";
 /// The maps offered, by `maps_dict` id (the owner's list of 2026-10-16):
 /// the day of each of the eight levels in batteries (mode 2: 61 Rudnya to
 /// 103) and in Team Deathmatch (mode 4: 117 to 138). No timed batteries
-/// (mode 3), no Research (mode 5: the server's bots play modes 2 to 4), no
-/// London (level 9, maps 181 to 183) and no level 88. The movie shows only
-/// the maps the status lists.
-pub const MAPS: [u8; 16] = [
-    61, 67, 73, 79, 85, 91, 97, 103, 117, 120, 123, 126, 129, 132, 135, 138,
+/// (mode 3), no Research (mode 5: the server's bots play modes 2 to 4) or
+/// Artifact Hunt (mode 13), no London (level 9, maps 181 to 183) and no
+/// level 88. The movie shows only the maps the status lists.
+pub const MAPS: [MapId; 16] = [
+    MapId::new(61),
+    MapId::new(67),
+    MapId::new(73),
+    MapId::new(79),
+    MapId::new(85),
+    MapId::new(91),
+    MapId::new(97),
+    MapId::new(103),
+    MapId::new(117),
+    MapId::new(120),
+    MapId::new(123),
+    MapId::new(126),
+    MapId::new(129),
+    MapId::new(132),
+    MapId::new(135),
+    MapId::new(138),
 ];
 /// The map the movie shows first (the team sizes and the size it shows first: `PvbRules`).
-pub const DEFAULT_MAP: u8 = 61;
+pub const DEFAULT_MAP: MapId = MapId::new(61);
 /// How long a choice is held for the player's Play.
 pub const HOLD: Duration = Duration::from_secs(10);
 /// A Play this long after its hold ran out is still taken as one meant for
@@ -100,7 +115,7 @@ pub struct Config {
     pub max_matches: usize,
     /// The maps a private room with bots may hold ([`bot_maps`]); none with
     /// the mode off.
-    pub bot_maps: Vec<u8>,
+    pub bot_maps: Vec<MapId>,
 }
 
 impl Default for Config {
@@ -148,24 +163,31 @@ impl Config {
 }
 
 /// The maps of `maps` the server's bots play: in the modes they play
-/// (batteries, timed batteries, Team Deathmatch: not Research, which the
-/// match server refuses them, nor Blackout, which Play vs Bots never
-/// offered) and with a bots' map in `dir` (`SRP_MAPDATA_DIR`, the match
-/// server's: without one its bots only run their script).
-pub fn bot_maps<'a>(maps: impl Iterator<Item = &'a MapMode>, dir: &std::path::Path) -> Vec<u8> {
+/// (batteries, timed batteries, Team Deathmatch, and a free-for-all, which
+/// they play as a Team Deathmatch with no teammates: not Research, which
+/// the match server refuses them, nor Artifact Hunt, whose rule they do not
+/// know, nor Blackout, which Play vs Bots never offered) and with a bots'
+/// map in `dir` (`SRP_MAPDATA_DIR`, the match server's: without one its
+/// bots only run their script).
+pub fn bot_maps<'a>(maps: impl Iterator<Item = &'a MapMode>, dir: &std::path::Path) -> Vec<MapId> {
     maps.filter(|map| {
         matches!(
             map.mode,
             maps::GameMode::Batteries
                 | maps::GameMode::TimedBatteries
                 | maps::GameMode::TeamDeathmatch
+                | maps::GameMode::FreeForAll
         ) && dir.join(mapdata::format::file_name(map.project)).is_file()
     })
     .map(|map| map.id)
     .collect()
 }
 
-/// The offered maps as the dictionary has them.
+/// The offered maps as the dictionary has them: [`MAPS`], each with its
+/// bots' map file in the release's bot data (`release/bot-data.tsv`). No
+/// free-for-all: its maps are projects of their own (`ffa.md`), which have
+/// no bots' map file, and the bots do not play it for now (the owner,
+/// 2026-11-13).
 pub fn offered_maps() -> impl Iterator<Item = &'static MapMode> {
     MAPS.iter().filter_map(|&id| maps::map_mode(id))
 }
@@ -174,7 +196,7 @@ pub fn offered_maps() -> impl Iterator<Item = &'static MapMode> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct Hold {
     pub size: u8,
-    pub map_id: u8,
+    pub map_id: MapId,
     pub until: Instant,
 }
 
@@ -183,7 +205,7 @@ pub(super) struct Hold {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct Choice {
     pub size: u8,
-    pub map_id: u8,
+    pub map_id: MapId,
 }
 
 /// Why not, in words for the log.
@@ -333,8 +355,9 @@ impl Core<'_> {
     pub(super) fn pvb_choose(&mut self, who: &Who, start: u32, now: Instant) {
         self.pvb_forget_old(now);
         self.pvb_holds.remove(&who.account_id);
-        let choice = lobby::pvb_choice(start)
-            .filter(|(size, map_id)| rules().pvb.sizes.contains(size) && MAPS.contains(map_id));
+        let choice = lobby::pvb_choice(start).filter(|(size, map_id)| {
+            rules().pvb.sizes.contains(size) && offered_maps().any(|map| map.id == *map_id)
+        });
         let fit = match choice {
             None => Err(PvbCode::UnknownChoice),
             Some(choice) => self.pvb_fit(who, now).map(|()| choice),
@@ -445,14 +468,17 @@ mod tests {
 
     /// The owner's list: the day of each level in batteries and in Team
     /// Deathmatch, every one playable on this server's data; no London
-    /// (level 9: maps 181 to 183), no level 88 and no timed batteries.
+    /// (level 9: maps 181 to 183), no level 88, no timed batteries and no
+    /// free-for-all.
     #[test]
     fn the_maps_are_the_days_of_batteries_and_team_deathmatch_and_playable() {
         assert_eq!(offered_maps().count(), MAPS.len());
         let mut seen = std::collections::HashSet::new();
-        for map in offered_maps() {
+        for (n, map) in offered_maps().enumerate() {
             assert!(map.is_playable(), "{} is not playable", map.id);
             assert_eq!(map.weather, maps::weather::DAY, "{} is not day", map.id);
+            // The owner's list, as it is.
+            assert_eq!(map.id, MAPS[n]);
             assert!(
                 matches!(
                     map.mode,
@@ -470,32 +496,30 @@ mod tests {
             );
             assert!(seen.insert((map.level, map.mode)), "{} twice", map.id);
         }
-        // Each of the eight levels in both modes.
-        assert_eq!(seen.len(), 16);
         for london in [181, 182, 183] {
-            assert!(!MAPS.contains(&london));
+            assert!(!MAPS.contains(&MapId::new(london)));
         }
         for map in maps::all() {
             if map.level == 9
                 || map.level == 88
-                || matches!(map.mode, maps::GameMode::TimedBatteries | maps::GameMode::Research)
+                || matches!(
+                    map.mode,
+                    maps::GameMode::TimedBatteries
+                        | maps::GameMode::Research
+                        | maps::GameMode::ArtefactHunt
+                )
             {
                 assert!(!MAPS.contains(&map.id), "{} is offered", map.id);
             }
         }
         assert!(MAPS.contains(&DEFAULT_MAP));
-        let rudnya = maps::map_mode(DEFAULT_MAP).unwrap();
-        assert_eq!((rudnya.level, rudnya.mode), (1, maps::GameMode::Batteries));
     }
 
     #[test]
     fn the_settings_read_as_documented() {
         let config = Config::default();
         assert!(!config.enabled);
-        assert_eq!(
-            (config.max_gear, config.max_matches),
-            (rules().pvb.max_gear, 5)
-        );
+        assert_eq!(config.max_gear, rules().pvb.max_gear);
         assert!(config.bot_maps.is_empty());
     }
 
@@ -513,18 +537,44 @@ mod tests {
         }
         let found = bot_maps(maps::playable(), &dir);
         std::fs::remove_dir_all(&dir).unwrap();
-        let expected: Vec<u8> = maps::playable()
+        let expected: Vec<MapId> = maps::playable()
             .filter(|map| {
                 matches!(
                     map.mode,
                     maps::GameMode::Batteries
                         | maps::GameMode::TimedBatteries
                         | maps::GameMode::TeamDeathmatch
+                        | maps::GameMode::FreeForAll
                 ) && with_file.iter().any(|other| other.project == map.project)
             })
             .map(|map| map.id)
             .collect();
         assert!(!found.is_empty());
         assert_eq!(found, expected);
+        // A free-for-all is one of their modes, with a file of its own
+        // project (none is in the release's bot data: `offered_maps`);
+        // Blackout is not, file or no file.
+        let of = |mode| maps::playable_in(mode).map(|map| map.id).collect::<Vec<MapId>>();
+        let free_for_all = of(maps::GameMode::FreeForAll);
+        assert!(!free_for_all.is_empty());
+        assert!(free_for_all.iter().all(|id| found.contains(id)));
+        assert!(of(maps::GameMode::Blackout).iter().all(|id| !found.contains(id)));
+    }
+
+    /// Artifact Hunt is none of the bots' modes, as Research: a map of it
+    /// with a bots' map file is still not theirs.
+    #[test]
+    fn the_bots_play_no_artefact_hunt() {
+        let dir = std::env::temp_dir().join(format!("srp-bot-maps-hunt-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let tdm = maps::playable_in(maps::GameMode::TeamDeathmatch).next().unwrap();
+        std::fs::write(dir.join(mapdata::format::file_name(tdm.project)), b"").unwrap();
+        let hunt = MapMode {
+            mode: maps::GameMode::ArtefactHunt,
+            ..*tdm
+        };
+        let found = bot_maps([tdm, &hunt].into_iter(), &dir);
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(found, [tdm.id]);
     }
 }

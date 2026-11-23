@@ -25,7 +25,6 @@ package player_icons_fla
    import flash.utils.*;
    import flash.xml.*;
    import scaleform.gfx.Extensions;
-   import survarium.Util;
    import survarium.controls.HUDIconLayer;
    import survarium.controls.HUDMarker;
    
@@ -40,6 +39,12 @@ package player_icons_fla
 
       // force_interface_hidden's state, for the layer frame 1 makes.
       public var objectsForced:Boolean = false;
+
+      // srp_show_enemies' state, for the layer frame 1 makes.
+      public var enemiesShown:Boolean = false;
+
+      // srp_show_carriers' state, for the layer frame 1 makes.
+      public var carriersShown:Boolean = false;
       
       public function MainTimeline()
       {
@@ -73,12 +78,38 @@ package player_icons_fla
          this.applyForced();
       }
 
+      // The enemies' markers and names shown too: a replay (exe patch 135, told right after the game's
+      // set_enemy_icon_ids at each match's start, before any marker; docs/notes/replay-map.md). False a live
+      // match: an enemy's marker never shows. Kept for frame 1's layer when told before it.
+      public function srp_show_enemies(shown:Boolean) : void
+      {
+         this.enemiesShown = shown;
+         this.applyForced();
+      }
+
+      // Artifact Hunt (its exe patch, told with the enemy list at each match's start; false another
+      // mode; docs/notes/artefact_hunt.md "The carrier"): an enemy's marker and name shown while he
+      // carries the artefact (the game's carrier mark, modifier_visible), the mark the artefact's
+      // instead of the battery's box. Kept for frame 1's layer when told before it.
+      public function srp_show_carriers(shown:Boolean) : void
+      {
+         this.carriersShown = shown;
+         this.applyForced();
+      }
+
       private function applyForced() : void
       {
          if(this.iconControl)
          {
+            this.iconControl.enemiesShown = this.enemiesShown;
             this.iconControl.objectsHidden = this.objectsForced;
+            this.iconControl.carriersShown = this.carriersShown;
          }
+      }
+
+      public function freeze_tag_markers(mask:uint) : void
+      {
+         this.iconControl.freezeMarkers(mask);
       }
 
       public function create_player_icon(id:uint, kind:uint = 0, baseScale:Number = 1) : void
@@ -127,7 +158,6 @@ package player_icons_fla
          var icons:uint = value.length;
          for(var i:uint = 0; i < icons; i++)
          {
-            Util.logObject(value[i]);
             this.iconControl.set_player_icon_props(value[i]);
          }
          trace("propsSetted");

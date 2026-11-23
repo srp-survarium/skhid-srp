@@ -221,9 +221,42 @@ pub enum Reason {
     },
     NoGatherRule,
     NoResearchRule,
+    /// A free-for-all's rules without exe patch 142's spawn history, or
+    /// with one that does not read.
+    NoSpawnHistory,
+    NoFreezeTagRule,
+    /// A place's last spawn names a point past the map's team-2 group.
+    SpawnPointPast {
+        place: usize,
+        point: usize,
+        points: usize,
+    },
     ResearchMaskPast {
         places: usize,
     },
+    /// A world of mode 13 checked without the map's Artifact Hunt
+    /// parameters: its rule cannot be read.
+    NoArtefactHuntParams,
+    /// Artifact Hunt's rule bytes are no state of the map's rule (the
+    /// crate's refusal).
+    ArtefactHuntRule {
+        error: artefact_hunt_rule::WireError,
+    },
+    /// Its sides name a place past the match's.
+    ArtefactHuntSidesPast {
+        places: usize,
+    },
+    /// Its stage against the timelimit's: idle exactly while the timelimit
+    /// is not in play, and in play from the timelimit's start.
+    ArtefactHuntStage,
+    /// The blackboard's two flags against the rule: both
+    /// `Rule::respawns()` in play, both true before it, equal once over.
+    ArtefactHuntFlags {
+        flags: [bool; 2],
+    },
+    /// The statistics' `m_team_points` or `m_winner_team` are not the
+    /// rule's scores and leader.
+    ArtefactHuntStanding,
     Batteries {
         found: usize,
         map: usize,
@@ -271,6 +304,23 @@ pub enum Reason {
         object: usize,
         place: u8,
         kit: u8,
+    },
+    /// A held artefact names one of its kit's own items' slots, or a slot
+    /// below `first`, the first the game gives artefacts (none: the kit
+    /// has none).
+    ObjectsArtefactPocket {
+        object: usize,
+        place: u8,
+        kit: u8,
+        slot: u8,
+        first: Option<u8>,
+    },
+    /// Two held artefacts name one slot of one kit.
+    ObjectsArtefactSlotTwice {
+        object: usize,
+        place: u8,
+        kit: u8,
+        slot: u8,
     },
     /// An object's field holds what the game never writes there
     /// (`world::GameObjects::read`).
@@ -380,6 +430,16 @@ pub enum Reason {
     TailGrenadeSlot {
         slot: u8,
     },
+    /// A throw names a slot whose item (in the owner's kit) is no grenade
+    /// set.
+    TailGrenadeSet {
+        slot: u8,
+    },
+    /// The inventory's selected grenade (`m_grenade_slot`) is a slot whose
+    /// item is no grenade set.
+    TailSelectedGrenade {
+        slot: u8,
+    },
     /// A body part's affect is of no type the game has.
     TailAffect {
         kind: u8,
@@ -486,7 +546,7 @@ pub enum Reason {
         roster: u8,
     },
     OptionsMap {
-        map: u8,
+        map: u16,
     },
     OptionsTeam {
         place: usize,
@@ -609,9 +669,38 @@ impl fmt::Display for Reason {
             }
             Reason::NoGatherRule => f.write_str("no gather rule"),
             Reason::NoResearchRule => f.write_str("no research rule"),
+            Reason::NoSpawnHistory => f.write_str("no free-for-all spawn history"),
+            Reason::NoFreezeTagRule => f.write_str("invalid Freeze Tag state"),
+            Reason::SpawnPointPast {
+                place,
+                point,
+                points,
+            } => write!(
+                f,
+                "place {place} last spawned at point {point}, past the map's {points} team-2 points"
+            ),
             Reason::ResearchMaskPast { places } => {
                 write!(f, "a research mask names a place past the {places} places")
             }
+            Reason::NoArtefactHuntParams => {
+                f.write_str("an artifact hunt world checked without its map's parameters")
+            }
+            Reason::ArtefactHuntRule { error } => {
+                write!(f, "the artifact hunt rule does not read: {error:?}")
+            }
+            Reason::ArtefactHuntSidesPast { places } => {
+                write!(f, "the artifact hunt sides name a place past the {places} places")
+            }
+            Reason::ArtefactHuntStage => {
+                f.write_str("the artifact hunt rule's stage is not the timelimit's")
+            }
+            Reason::ArtefactHuntFlags { flags } => write!(
+                f,
+                "the blackboard's respawn flags {flags:?} are not the artifact hunt rule's"
+            ),
+            Reason::ArtefactHuntStanding => f.write_str(
+                "the statistics' team points or winner are not the artifact hunt rule's",
+            ),
             Reason::Batteries { found, map } => write!(f, "{found} batteries, the map has {map}"),
             Reason::BatteryNotNumber { battery } => {
                 write!(f, "battery {battery}'s position is no number")
@@ -658,6 +747,33 @@ impl fmt::Display for Reason {
             Reason::ObjectsOwner { object, place, kit } => write!(
                 f,
                 "object {object} names owner {place} kit {kit}, which has no player"
+            ),
+            Reason::ObjectsArtefactPocket {
+                object,
+                place,
+                kit,
+                slot,
+                first,
+            } => match first {
+                Some(first) => write!(
+                    f,
+                    "object {object} holds an artefact in place {place} kit {kit} slot {slot}, \
+                     a pocket or below its first artefact slot {first}"
+                ),
+                None => write!(
+                    f,
+                    "object {object} holds an artefact in place {place} kit {kit} slot {slot}, \
+                     a kit with no artefact slot"
+                ),
+            },
+            Reason::ObjectsArtefactSlotTwice {
+                object,
+                place,
+                kit,
+                slot,
+            } => write!(
+                f,
+                "object {object} holds a second artefact in place {place} kit {kit} slot {slot}"
             ),
             Reason::ObjectsField { object, fault } => write!(f, "object {object}: {fault}"),
             Reason::PhysicsBytes { len } => write!(f, "{len} bytes where a game writes none"),
@@ -764,6 +880,12 @@ impl fmt::Display for Reason {
                 write!(f, "a state machine in state {state}, past its {states}")
             }
             Reason::TailGrenadeSlot { slot } => write!(f, "a throw of the grenade in slot {slot}"),
+            Reason::TailGrenadeSet { slot } => {
+                write!(f, "a throw of the grenade in slot {slot}, which holds no grenade set")
+            }
+            Reason::TailSelectedGrenade { slot } => {
+                write!(f, "the selected grenade in slot {slot}, which holds no grenade set")
+            }
             Reason::TailAffect { kind } => write!(f, "a body part affect of type {kind}"),
             Reason::TailBool { at } => write!(f, "a bool at {at} that is not 0x00 or 0xFF"),
             Reason::TailCarry => f.write_str("a carry snapshot of another version"),
@@ -844,7 +966,10 @@ impl fmt::Display for Reason {
                 write!(f, "map {map}, which the client does not have")
             }
             Reason::OptionsTeam { place, team } => {
-                write!(f, "place {place} has team {team}, not 0 or 1")
+                write!(
+                    f,
+                    "place {place} has team {team}, not 0 or 1 nor, with the roster's others, its own side"
+                )
             }
             Reason::OptionsNoKit { place } => {
                 write!(f, "place {place}, in the roster, has no kit")

@@ -6,6 +6,45 @@ bits 32
 section .text
 %include "rust_hook_026g.inc"
 
+; 0x295aa5 process_hands_ik (0x2959D0; mt_draw's bone pass, the held item's controller) in the first person with the aim's progress above 0, before its call of calculate_aim_alignment (0x295AAD): mov eax,[esp+1Ch] / lea esi,[esp+24h]; ECX the item's bones' matrices (its [ebp+10h], loaded at 0x295A9C), the site's ESP+1Ch the weapon (the EAX the replayed mov loads): lohook -> aim_pose_on_aim_alignment
+global aim_pose_on_aim_alignment
+extern hook_aim_pose_on_aim_alignment
+aim_pose_on_aim_alignment:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_aim_pose_on_aim_alignment
+    mov edx, aim_pose_on_aim_alignment_replay
+    cmp eax, 0
+    je aim_pose_on_aim_alignment_go
+    mov edx, 0x295aad
+    cmp eax, 1
+    je aim_pose_on_aim_alignment_go
+    ud2
+aim_pose_on_aim_alignment_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+aim_pose_on_aim_alignment_replay:
+    db 0x8b, 0x44, 0x24, 0x1c, 0x8d, 0x74, 0x24, 0x24
+    jmp 0x295aad
+
 ; 0x2d65ee the animations registry's lookup (0x2D6590, called only by base_player::animation_id_resolver 0x2D7C26) found no entry for the pair and is about to return 0FFFFh (pop edi / pop esi / mov eax,0FFFFh; reached by the three misses at 0x2D65D3, 0x2D65DA, 0x2D65E2): EDI the pair asked for, ESP+10h the registry, EBP the resolver's frame: lohook -> animation_id_log_on_id_missing
 global animation_id_log_on_id_missing
 extern hook_animation_id_log_on_id_missing
@@ -44,6 +83,51 @@ animation_id_log_on_id_missing_go:
 animation_id_log_on_id_missing_replay:
     db 0x5f, 0x5e, 0xb8, 0xff, 0xff, 0x00, 0x00
     jmp 0x2d65f5
+
+; 0xed30f quaternion::quaternion(float3 angles) 0xED2E0: sin of half the x angle, stored as a float (fstp dword [esp+0Ch]): call -> animation_math_on_sin_x (wraps engine_sin 0x38ff0)
+global animation_math_on_sin_x
+animation_math_on_sin_x:
+    RUST_CALL hook_animation_math_on_sin_x, 1, 0
+
+; 0xed31f quaternion::quaternion(float3 angles) 0xED2E0: cos of half the x angle, stored as a float (fstp dword [esp+10h]): call -> animation_math_on_cos_x (wraps engine_cos 0x39000)
+global animation_math_on_cos_x
+animation_math_on_cos_x:
+    RUST_CALL hook_animation_math_on_cos_x, 1, 0
+
+; 0xed32f quaternion::quaternion(float3 angles) 0xED2E0: sin of half the y angle, stored as a float (fstp dword [esp+4]): call -> animation_math_on_sin_y (wraps engine_sin 0x38ff0)
+global animation_math_on_sin_y
+animation_math_on_sin_y:
+    RUST_CALL hook_animation_math_on_sin_y, 1, 0
+
+; 0xed33f quaternion::quaternion(float3 angles) 0xED2E0: cos of half the y angle, stored as a float (fstp dword [esp+8]): call -> animation_math_on_cos_y (wraps engine_cos 0x39000)
+global animation_math_on_cos_y
+animation_math_on_cos_y:
+    RUST_CALL hook_animation_math_on_cos_y, 1, 0
+
+; 0xed34f quaternion::quaternion(float3 angles) 0xED2E0: sin of half the z angle, stored as a float (fstp dword [esp+14h]): call -> animation_math_on_sin_z (wraps engine_sin 0x38ff0)
+global animation_math_on_sin_z
+animation_math_on_sin_z:
+    RUST_CALL hook_animation_math_on_sin_z, 1, 0
+
+; 0xed35f quaternion::quaternion(float3 angles) 0xED2E0: cos of half the z angle, stored as a float (fstp dword [esp+18h] after one movss): call -> animation_math_on_cos_z (wraps engine_cos 0x39000)
+global animation_math_on_cos_z
+animation_math_on_cos_z:
+    RUST_CALL hook_animation_math_on_cos_z, 1, 0
+
+; 0x742a5 quaternion::quaternion(axis, angle) 0x74290: sin of half the angle, stored as a float (fstp dword [esp+8]): call -> animation_math_on_axis_sin (wraps engine_sin 0x38ff0)
+global animation_math_on_axis_sin
+animation_math_on_axis_sin:
+    RUST_CALL hook_animation_math_on_axis_sin, 1, 0
+
+; 0x742b5 quaternion::quaternion(axis, angle) 0x74290: cos of half the angle, stored as the w float (fstp dword [esi+0Ch]): call -> animation_math_on_axis_cos (wraps engine_cos 0x39000)
+global animation_math_on_axis_cos
+animation_math_on_axis_cos:
+    RUST_CALL hook_animation_math_on_axis_cos, 1, 0
+
+; 0x743b2 quaternion::get_axis_and_angle 0x74300: atan2(|xyz|, w), doubled in ST0 (fadd st0,st0: exact) and stored as a float (fstp dword [ebx]): call -> animation_math_on_angle_atan2 (wraps engine_atan2 0x79c40)
+global animation_math_on_angle_atan2
+animation_math_on_angle_atan2:
+    RUST_CALL hook_animation_math_on_angle_atan2, 2, 0
 
 ; 0x243fa0 weapon::on_hide entry; ECX live weapon, stack was_visible; return carry models to native ownership before removal: lohook -> artefact_carry_on_weapon_hide
 global artefact_carry_on_weapon_hide
@@ -84,10 +168,10 @@ artefact_carry_on_weapon_hide_replay:
     db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
     jmp 0x243fa6
 
-; 0x2d86e0 base_player set_input entry; ECX player, stack time and immutable input; before early-out: lohook -> artefact_carry_on_input
-global artefact_carry_on_input
-extern hook_artefact_carry_on_input
-artefact_carry_on_input:
+; 0x2d86e0 base_player set_input entry; ECX player, stack time and immutable input; before early-out: lohook -> freeze_tag_on_input
+global freeze_tag_on_input
+extern hook_freeze_tag_on_input_chain
+freeze_tag_on_input:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -104,22 +188,25 @@ artefact_carry_on_input:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_artefact_carry_on_input
-    mov edx, artefact_carry_on_input_replay
+    call hook_freeze_tag_on_input_chain
+    mov edx, freeze_tag_on_input_replay
     cmp eax, 0
-    je artefact_carry_on_input_go
+    je freeze_tag_on_input_go
     mov edx, 0x2d86e6
     cmp eax, 1
-    je artefact_carry_on_input_go
+    je freeze_tag_on_input_go
+    mov edx, 0x2d8a0c
+    cmp eax, 2
+    je freeze_tag_on_input_go
     ud2
-artefact_carry_on_input_go:
+freeze_tag_on_input_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-artefact_carry_on_input_replay:
+freeze_tag_on_input_replay:
     db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
     jmp 0x2d86e6
 
@@ -317,6 +404,45 @@ artefact_carry_on_load_go:
 artefact_carry_on_load_replay:
     db 0x80, 0xbb, 0x3c, 0x03, 0x00, 0x00, 0x00
     jmp 0x2dbabc
+
+; 0x2421b0 process_first_person_mode's epilogue (ebx the handler; the early exit 0x241284 comes here too): lohook -> artefact_carry_on_input_end
+global artefact_carry_on_input_end
+extern hook_artefact_carry_on_input_end
+artefact_carry_on_input_end:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_carry_on_input_end
+    mov edx, artefact_carry_on_input_end_replay
+    cmp eax, 0
+    je artefact_carry_on_input_end_go
+    mov edx, 0x2421b5
+    cmp eax, 1
+    je artefact_carry_on_input_end_go
+    ud2
+artefact_carry_on_input_end_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_carry_on_input_end_replay:
+    db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5
+    jmp 0x2421b5
 
 ; 0x2477c8 mt_draw before held item draw; EBX player, EAX weapon transform; exit still submits character bones: lohook -> artefact_carry_on_weapon
 global artefact_carry_on_weapon
@@ -728,7 +854,7 @@ artefact_carry_on_death_replay:
 
 ; 0x313735 artefact_base::serialize after native state-dependent fields; ESI item EDI writer: lohook -> artefact_carry_on_ground_save
 global artefact_carry_on_ground_save
-extern hook_artefact_carry_on_ground_save
+extern hook_artefact_carry_on_ground_save_chain
 artefact_carry_on_ground_save:
     lea esp, [esp - 4]
     pushfd
@@ -746,7 +872,7 @@ artefact_carry_on_ground_save:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_artefact_carry_on_ground_save
+    call hook_artefact_carry_on_ground_save_chain
     mov edx, artefact_carry_on_ground_save_replay
     cmp eax, 0
     je artefact_carry_on_ground_save_go
@@ -767,7 +893,7 @@ artefact_carry_on_ground_save_replay:
 
 ; 0x3137ec artefact_base::deserialize before EBX/EDI reused; EBX item EDI reader: lohook -> artefact_carry_on_ground_load
 global artefact_carry_on_ground_load
-extern hook_artefact_carry_on_ground_load
+extern hook_artefact_carry_on_ground_load_chain
 artefact_carry_on_ground_load:
     lea esp, [esp - 4]
     pushfd
@@ -785,7 +911,7 @@ artefact_carry_on_ground_load:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_artefact_carry_on_ground_load
+    call hook_artefact_carry_on_ground_load_chain
     mov edx, artefact_carry_on_ground_load_replay
     cmp eax, 0
     je artefact_carry_on_ground_load_go
@@ -881,6 +1007,639 @@ artefact_carry_on_key_go:
 artefact_carry_on_key_replay:
     db 0x8b, 0x75, 0x10, 0x83, 0xfe, 0x01
     jmp 0x23fe48
+
+; 0x316dda the respawn rule's spawn 0x316DA0 before it makes the chosen kit current (mov dl,[eax+0Dh] / mov cl,[ecx+115h], then mov [eax+0Ch],dl at 0x316DE3): BL the place, EAX its entry of the core's places, +0Ch still the kit it was in, +0Dh the kit it spawns in: lohook -> artefact_courier_on_spawn_kits
+global artefact_courier_on_spawn_kits
+extern hook_artefact_courier_on_spawn_kits
+artefact_courier_on_spawn_kits:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_courier_on_spawn_kits
+    mov edx, artefact_courier_on_spawn_kits_replay
+    cmp eax, 0
+    je artefact_courier_on_spawn_kits_go
+    mov edx, 0x316de3
+    cmp eax, 1
+    je artefact_courier_on_spawn_kits_go
+    ud2
+artefact_courier_on_spawn_kits_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_courier_on_spawn_kits_replay:
+    db 0x8a, 0x50, 0x0d, 0x8a, 0x89, 0x15, 0x01, 0x00, 0x00
+    jmp 0x316de3
+
+; 0x316eab the respawn rule's spawn 0x316DA0 at its end (the five pops before ret 0Ch), after the new kit's player was initialised (vtable+1Ch: its inventory set up from the profile, its containers' range set) and put into the world (vtable+20h): BL the place, ESI its new current kit's player: lohook -> artefact_courier_on_spawned
+global artefact_courier_on_spawned
+extern hook_artefact_courier_on_spawned
+artefact_courier_on_spawned:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_courier_on_spawned
+    mov edx, artefact_courier_on_spawned_replay
+    cmp eax, 0
+    je artefact_courier_on_spawned_go
+    mov edx, 0x316eb0
+    cmp eax, 1
+    je artefact_courier_on_spawned_go
+    ud2
+artefact_courier_on_spawned_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_courier_on_spawned_replay:
+    db 0x5f, 0x5e, 0x5d, 0x5b, 0x59
+    jmp 0x316eb0
+
+; 0x1ec170 game::query_base_resources' start (push ebp / mov ebp,esp / and esp,-8), its one caller the game's constructor 0x1E9B4E after its own client cooks (EAX the game); Research's registration tail-jumps here (0x1E9B4C): lohook -> artefact_hunt_on_register
+global artefact_hunt_on_register
+extern hook_artefact_hunt_on_register
+artefact_hunt_on_register:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_hunt_on_register
+    mov edx, artefact_hunt_on_register_replay
+    cmp eax, 0
+    je artefact_hunt_on_register_go
+    mov edx, 0x1ec176
+    cmp eax, 1
+    je artefact_hunt_on_register_go
+    ud2
+artefact_hunt_on_register_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_hunt_on_register_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x1ec176
+
+; 0x9fd8d0 the client tdm rule cook's vtable slot 9 (+24h, 0x9FD8AC): create(query), thiscall, ret 4; the rule cooks' shared translate (slot 7, 0x2F4290) calls it at 0x2F42C2: vtable -> artefact_hunt_on_cook_create (wraps engine_tdm_cook_create 0x2063f0)
+    RUST_THISCALL artefact_hunt_on_cook_create, hook_artefact_hunt_on_cook_create, 1
+
+; 0x9fd8d4 the same vtable's slot 10 (+28h): the resource's size, thiscall; the translate calls it at 0x2F42CD: vtable -> artefact_hunt_on_cook_size (wraps engine_tdm_cook_size 0x2063e0)
+    RUST_THISCALL artefact_hunt_on_cook_size, hook_artefact_hunt_on_cook_size, 0
+
+; 0xa15dc0 tdm_rule_core's vtable (0xA15DA4) slot 7 (+1Ch): on_event(type, data, time), thiscall, ret 0Ch; rules_on_event 0x2D1EA0 calls it: vtable -> artefact_hunt_on_event (wraps engine_tdm_rule_on_event 0x316090)
+    RUST_THISCALL artefact_hunt_on_event, hook_artefact_hunt_on_event, 3
+
+; 0xa15dc4 slot 8 (+20h): on_player_entered_match(place, time), thiscall, ret 8; game_world_core::on_player_entered_match 0x2D2021 calls it: vtable -> artefact_hunt_on_entered (wraps engine_tdm_rule_entered 0x316590)
+    RUST_THISCALL artefact_hunt_on_entered, hook_artefact_hunt_on_entered, 2
+
+; 0xa15dc8 slot 9 (+24h): on_player_left_match(place, time), thiscall, ret 8; game_world_core::on_player_left_match 0x2D2040 calls it while the place holds its player: vtable -> artefact_hunt_on_left (wraps engine_tdm_rule_left 0x3165d0)
+    RUST_THISCALL artefact_hunt_on_left, hook_artefact_hunt_on_left, 2
+
+; 0xa15dd0 slot 11 (+2Ch): set_game_world_core(core), thiscall, ret 4; the core gives its rules the core at 0x2D3B2B..0x2D3B47: vtable -> artefact_hunt_on_set_core (wraps engine_tdm_rule_set_core 0x267810)
+    RUST_THISCALL artefact_hunt_on_set_core, hook_artefact_hunt_on_set_core, 1
+
+; 0xa15de0 slot 15 (+3Ch): serialize(writer), thiscall, ret 4; the snapshot's rules loop: vtable -> artefact_hunt_on_serialize (wraps engine_tdm_rule_serialize 0x316340)
+    RUST_THISCALL artefact_hunt_on_serialize, hook_artefact_hunt_on_serialize, 1
+
+; 0xa15de4 slot 16 (+40h): deserialize(reader, dword), thiscall, ret 8; the snapshot's rules loop 0x2D2B42..0x2D2B5D: vtable -> artefact_hunt_on_deserialize (wraps engine_tdm_rule_deserialize 0x3163d0)
+    RUST_THISCALL artefact_hunt_on_deserialize, hook_artefact_hunt_on_deserialize, 2
+
+; 0xa15de8 slot 17 (+44h): fill_match_hud_state(hud, time), thiscall, ret 8; fill_match_hud_state 0x2D36D9 calls it in the rules' order: vtable -> artefact_hunt_on_fill_hud (wraps engine_tdm_rule_fill_hud 0x316430)
+    RUST_THISCALL artefact_hunt_on_fill_hud, hook_artefact_hunt_on_fill_hud, 2
+
+; 0xa15dec slot 18 (+48h): rule_completed(time), thiscall, ret 4 (AL): vtable -> artefact_hunt_on_completed (wraps engine_tdm_rule_completed 0x316520)
+    RUST_THISCALL artefact_hunt_on_completed, hook_artefact_hunt_on_completed, 1
+
+; 0x317f10 a tick delegate's function, as the time rule's (0x317F10): thiscall (dt, time, step), ret 0Ch; atomic_tick 0x2D1E20 calls each enabled delegate of its seven lists: callback -> artefact_hunt_on_tick (wraps engine_timelimit_tick 0x317f10)
+    RUST_THISCALL artefact_hunt_on_tick, hook_artefact_hunt_on_tick, 3
+
+; 0x316b6b player_respawn_rule_base::on_event after the floor of a death's delay (mov ecx,[edi+134h], the floor call's return): EAX the delay ms, EDI the rule, EBX the victim's player, ESP+20h the time; then time + EAX is put on the grid and stored at +138h + 4 x victim (0x316BA3): lohook -> artefact_hunt_on_death_delay
+global artefact_hunt_on_death_delay
+extern hook_artefact_hunt_on_death_delay
+artefact_hunt_on_death_delay:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_hunt_on_death_delay
+    mov edx, artefact_hunt_on_death_delay_replay
+    cmp eax, 0
+    je artefact_hunt_on_death_delay_go
+    mov edx, 0x316b71
+    cmp eax, 1
+    je artefact_hunt_on_death_delay_go
+    ud2
+artefact_hunt_on_death_delay_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_hunt_on_death_delay_replay:
+    db 0x8b, 0x8f, 0x34, 0x01, 0x00, 0x00
+    jmp 0x316b71
+
+; 0x316826 player_respawn_rule_base::tick after patch 31's kit-change jump at 0x316820 and its prologue (push ebp / mov ebp,esp / sub esp,34h), before it reads a place's time (push ebx / push esi / mov ebx,ecx / push edi): ECX the rule, EBP its frame; the modes that hold the places' times or make them due (Freeze Tag, Artifact Hunt) chain here by order: lohook -> freeze_tag_on_tick
+global freeze_tag_on_tick
+extern hook_freeze_tag_on_tick_chain
+freeze_tag_on_tick:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_freeze_tag_on_tick_chain
+    mov edx, freeze_tag_on_tick_replay
+    cmp eax, 0
+    je freeze_tag_on_tick_go
+    mov edx, 0x31682b
+    cmp eax, 1
+    je freeze_tag_on_tick_go
+    ud2
+freeze_tag_on_tick_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+freeze_tag_on_tick_replay:
+    db 0x53, 0x56, 0x8b, 0xd9, 0x57
+    jmp 0x31682b
+
+; 0x2dbf45 base_player::can_sprint after its push ebx / mov ebx,[esp+8] (mov eax,[ebx+108h]): EBX the player; refused is its every refusal's end (xor eax,eax / pop ebx / ret 4): lohook -> artefact_hunt_on_can_sprint
+global artefact_hunt_on_can_sprint
+extern hook_artefact_hunt_on_can_sprint
+artefact_hunt_on_can_sprint:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_hunt_on_can_sprint
+    mov edx, artefact_hunt_on_can_sprint_replay
+    cmp eax, 0
+    je artefact_hunt_on_can_sprint_go
+    mov edx, 0x2dbf4b
+    cmp eax, 1
+    je artefact_hunt_on_can_sprint_go
+    mov edx, 0x2dc008
+    cmp eax, 2
+    je artefact_hunt_on_can_sprint_go
+    ud2
+artefact_hunt_on_can_sprint_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_hunt_on_can_sprint_replay:
+    db 0x8b, 0x83, 0x08, 0x01, 0x00, 0x00
+    jmp 0x2dbf4b
+
+; 0x1f2b50 render_name (0x1F2AD0) at its test of a player of another team than the local one (0x1F2B43; a local team of 2, none, goes on at 0x1F2B4B): cmp dword [esi+348h],0, its time spotted; the ja after it (0x1F2B57) goes on while that is above 0, else 0x1F2B59 hides its marker (0x1F302C). shown is the go-on (0x1F2B5D, ECX 1, where the team tests' je go too): the marker placed, its name shown while left Alt is held (0x1F2DCD) and coloured 0xFF0000 for an enemy (0x1F300F, 0x23C0C0): lohook -> replay_map_on_name
+global replay_map_on_name
+extern hook_replay_map_on_name_chain
+replay_map_on_name:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_replay_map_on_name_chain
+    mov edx, replay_map_on_name_replay
+    cmp eax, 0
+    je replay_map_on_name_go
+    mov edx, 0x1f2b57
+    cmp eax, 1
+    je replay_map_on_name_go
+    mov edx, 0x1f2b5d
+    cmp eax, 2
+    je replay_map_on_name_go
+    ud2
+replay_map_on_name_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+replay_map_on_name_replay:
+    db 0x83, 0xbe, 0x48, 0x03, 0x00, 0x00, 0x00
+    jmp 0x1f2b57
+
+; 0x239505 update_minimap_players (0x239420) at its test of an enemy (a place of another team than the local player, alive and in the world): cmp dword [eax+348h],esi (ESI 0), its time spotted; the ja after it (0x23950B) lists it while that is above 0, else 0x23950D drops it. shown is the listing (0x23951B, where the team test's je goes too): the icon object for the place in EAX: lohook -> replay_map_on_enemy
+global replay_map_on_enemy
+extern hook_replay_map_on_enemy_chain
+replay_map_on_enemy:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_replay_map_on_enemy_chain
+    mov edx, replay_map_on_enemy_replay
+    cmp eax, 0
+    je replay_map_on_enemy_go
+    mov edx, 0x23950b
+    cmp eax, 1
+    je replay_map_on_enemy_go
+    mov edx, 0x23951b
+    cmp eax, 2
+    je replay_map_on_enemy_go
+    ud2
+replay_map_on_enemy_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+replay_map_on_enemy_replay:
+    db 0x39, 0xb0, 0x48, 0x03, 0x00, 0x00
+    jmp 0x23950b
+
+; 0x235709 game_world_ui::initialize_match (0x234880) about to send the player icons movie its enemy list (root.set_enemy_icon_ids, the Invoke at 0x235726; the icons movie [[ui+10h]+108h]+4), before any marker of the match is sent: mov ecx,[esi+10h] / mov edx,[ecx+108h]; ESI the ui (0x235702). the late join's lists_hook is on the bytes after the Invoke (0x23572B): lohook -> replay_map_on_enemy_ids
+global replay_map_on_enemy_ids
+extern hook_replay_map_on_enemy_ids_chain
+replay_map_on_enemy_ids:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_replay_map_on_enemy_ids_chain
+    mov edx, replay_map_on_enemy_ids_replay
+    cmp eax, 0
+    je replay_map_on_enemy_ids_go
+    mov edx, 0x235712
+    cmp eax, 1
+    je replay_map_on_enemy_ids_go
+    ud2
+replay_map_on_enemy_ids_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+replay_map_on_enemy_ids_replay:
+    db 0x8b, 0x4e, 0x10, 0x8b, 0x91, 0x08, 0x01, 0x00, 0x00
+    jmp 0x235712
+
+; 0x23aa10 game_world_ui::update_player_icons' start, every frame of a match ([esp+4] the ui): lohook -> blackout_on_update_icons
+global blackout_on_update_icons
+extern hook_blackout_on_update_icons_chain
+blackout_on_update_icons:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_blackout_on_update_icons_chain
+    mov edx, blackout_on_update_icons_replay
+    cmp eax, 0
+    je blackout_on_update_icons_go
+    mov edx, 0x23aa16
+    cmp eax, 1
+    je blackout_on_update_icons_go
+    ud2
+blackout_on_update_icons_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+blackout_on_update_icons_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x23aa16
+
+; 0x234880 game_world_ui::initialize_match's start (sub esp,5D4h), once a match (from 0x1F855D; the late join's rebuild enters at 0x234E71): the site's ESP+4 the hud, whose kits (+2DFh) and cursor (+2DCh) are the last match's: lohook -> hud_cursor_on_match_start
+global hud_cursor_on_match_start
+extern hook_hud_cursor_on_match_start_chain
+hud_cursor_on_match_start:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_cursor_on_match_start_chain
+    mov edx, hud_cursor_on_match_start_replay
+    cmp eax, 0
+    je hud_cursor_on_match_start_go
+    mov edx, 0x234886
+    cmp eax, 1
+    je hud_cursor_on_match_start_go
+    ud2
+hud_cursor_on_match_start_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_cursor_on_match_start_replay:
+    db 0x81, 0xec, 0xd4, 0x05, 0x00, 0x00
+    jmp 0x234886
+
+; 0x23b36a update_ui marks the welcome message shown (mov byte [edi+370h],1; the mode's jne at 0x23B354 lands here too): once a world, at its first update past the pregame, as the countdown ends: lohook -> music_on_announced
+global music_on_announced
+extern hook_music_on_announced_chain
+music_on_announced:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_music_on_announced_chain
+    mov edx, music_on_announced_replay
+    cmp eax, 0
+    je music_on_announced_go
+    mov edx, 0x23b371
+    cmp eax, 1
+    je music_on_announced_go
+    ud2
+music_on_announced_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+music_on_announced_replay:
+    db 0xc6, 0x87, 0x70, 0x03, 0x00, 0x00, 0x01
+    jmp 0x23b371
+
+; 0x14730 the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query: callback -> artefact_hunt_on_loaded (wraps engine_store_first_resource 0x14730)
+    RUST_CDECL artefact_hunt_on_loaded, hook_artefact_hunt_on_loaded, 2
+
+; 0x1f7c3c game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world): lohook -> ragdoll_on_step
+global ragdoll_on_step
+extern hook_ragdoll_on_step_chain
+ragdoll_on_step:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_ragdoll_on_step_chain
+    mov edx, ragdoll_on_step_replay
+    cmp eax, 0
+    je ragdoll_on_step_go
+    mov edx, 0x1f7c41
+    cmp eax, 1
+    je ragdoll_on_step_go
+    ud2
+ragdoll_on_step_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+ragdoll_on_step_replay:
+    db 0x80, 0x7c, 0x24, 0x0f, 0x00
+    jmp 0x1f7c41
+
+; 0x1f9520 game_world::on_deactivate's start (push ebx / push esi / push edi / mov edi,ecx): the match scene left: lohook -> voice_on_deactivate
+global voice_on_deactivate
+extern hook_voice_on_deactivate_chain
+voice_on_deactivate:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_voice_on_deactivate_chain
+    mov edx, voice_on_deactivate_replay
+    cmp eax, 0
+    je voice_on_deactivate_go
+    mov edx, 0x1f9525
+    cmp eax, 1
+    je voice_on_deactivate_go
+    ud2
+voice_on_deactivate_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+voice_on_deactivate_replay:
+    db 0x53, 0x56, 0x57, 0x8b, 0xf9
+    jmp 0x1f9525
+
+; 0x1f2d8b the icon record's carry test (cmp dword [edx+178h],0, the inventory's carried item; then lea eax,[eax+eax*2] / setnz cl and the record's +388h, modifier_visible): ESI the player, EAX its place; carrier: EAX place x 3, CL 1 (the setnz's), at the compare of the record's byte: lohook -> artefact_hunt_on_mark
+global artefact_hunt_on_mark
+extern hook_artefact_hunt_on_mark
+artefact_hunt_on_mark:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_hunt_on_mark
+    mov edx, artefact_hunt_on_mark_replay
+    cmp eax, 0
+    je artefact_hunt_on_mark_go
+    mov edx, 0x1f2d92
+    cmp eax, 1
+    je artefact_hunt_on_mark_go
+    mov edx, 0x1f2d98
+    cmp eax, 2
+    je artefact_hunt_on_mark_go
+    ud2
+artefact_hunt_on_mark_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_hunt_on_mark_replay:
+    db 0x83, 0xba, 0x78, 0x01, 0x00, 0x00, 0x00
+    jmp 0x1f2d92
 
 ; 0x31b8e0 generic_anomaly_core::register_artefacts at its entry (push ecx / mov eax,[esp+8]): the anomaly's pool is about to be registered from the core world's artefact vector length on, in pool order (each resolve links rebuilds the vector from empty): lohook -> artefact_keeper_on_register
 global artefact_keeper_on_register
@@ -1194,6 +1953,17 @@ artefact_skills_on_spring_reload_go:
 global artefact_skills_on_shared_modifier
 extern hook_artefact_skills_on_shared_modifier
 artefact_skills_on_shared_modifier:
+extern artefact_skills_on_shared_modifier_only
+    pushfd
+    cmp esi, 256
+    jae artefact_skills_on_shared_modifier_pass
+    bt dword [artefact_skills_on_shared_modifier_only], esi
+    jc artefact_skills_on_shared_modifier_save
+artefact_skills_on_shared_modifier_pass:
+    popfd
+    jmp artefact_skills_on_shared_modifier_replay
+artefact_skills_on_shared_modifier_save:
+    popfd
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -1233,6 +2003,17 @@ artefact_skills_on_shared_modifier_replay:
 global artefact_skills_on_shared_modifiers
 extern hook_artefact_skills_on_shared_modifiers
 artefact_skills_on_shared_modifiers:
+extern artefact_skills_on_shared_modifiers_only
+    pushfd
+    cmp eax, 256
+    jae artefact_skills_on_shared_modifiers_pass
+    bt dword [artefact_skills_on_shared_modifiers_only], eax
+    jc artefact_skills_on_shared_modifiers_save
+artefact_skills_on_shared_modifiers_pass:
+    popfd
+    jmp artefact_skills_on_shared_modifiers_replay
+artefact_skills_on_shared_modifiers_save:
+    popfd
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -1382,6 +2163,17 @@ artefact_skills_on_fire_go:
 global artefact_skills_on_own_modifier
 extern hook_artefact_skills_on_own_modifier
 artefact_skills_on_own_modifier:
+extern artefact_skills_on_own_modifier_only
+    pushfd
+    cmp esi, 256
+    jae artefact_skills_on_own_modifier_pass
+    bt dword [artefact_skills_on_own_modifier_only], esi
+    jc artefact_skills_on_own_modifier_save
+artefact_skills_on_own_modifier_pass:
+    popfd
+    jmp artefact_skills_on_own_modifier_replay
+artefact_skills_on_own_modifier_save:
+    popfd
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -1584,6 +2376,926 @@ packet_recovery_on_loaded_go:
 packet_recovery_on_loaded_replay:
     db 0x8b, 0x47, 0x04, 0x85, 0xc0
     jmp 0x27c11b
+
+; 0x2c8963 items_dictionary_cook::translate_query (0x2C88D0) before its query_resources (0x2C896C), the other arguments pushed: mov ecx,5 (the requests' count) / lea eax,[esp+3Ch] (the requests); query_resources copies the requests before it returns: lohook -> attachments_on_dictionary_requests
+global attachments_on_dictionary_requests
+extern hook_attachments_on_dictionary_requests
+attachments_on_dictionary_requests:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_attachments_on_dictionary_requests
+    mov edx, attachments_on_dictionary_requests_replay
+    cmp eax, 0
+    je attachments_on_dictionary_requests_go
+    mov edx, 0x2c896c
+    cmp eax, 1
+    je attachments_on_dictionary_requests_go
+    ud2
+attachments_on_dictionary_requests_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+attachments_on_dictionary_requests_replay:
+    db 0xb9, 0x05, 0x00, 0x00, 0x00, 0x8d, 0x44, 0x24, 0x3c
+    jmp 0x2c896c
+
+; 0x2c8aa0 items_dictionary_cook::on_configs_loaded's entry (push ebp / mov ebp,esp / sub esp,0E8h): [esp+4] the queries_result of translate_query's query; the dictionary is made of its first five results after this (0x2C8AF5..), each read by its place: lohook -> attachments_on_dictionary_configs
+global attachments_on_dictionary_configs
+extern hook_attachments_on_dictionary_configs
+attachments_on_dictionary_configs:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_attachments_on_dictionary_configs
+    mov edx, attachments_on_dictionary_configs_replay
+    cmp eax, 0
+    je attachments_on_dictionary_configs_go
+    mov edx, 0x2c8aa9
+    cmp eax, 1
+    je attachments_on_dictionary_configs_go
+    ud2
+attachments_on_dictionary_configs_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+attachments_on_dictionary_configs_replay:
+    db 0x55, 0x8b, 0xec, 0x81, 0xec, 0xe8, 0x00, 0x00, 0x00
+    jmp 0x2c8aa9
+
+; 0x24aa15 on_weapon_config_loaded (0x24A920) at its scope: mov dword [ebp-14h],0 (no scope yet), before the game looks for addons/rifle_scope_dict_id (the two has-checks 0x24AA1C, 0x24AA33, each a jz to 0x24AA78) and takes that dict id's dictionary entry's config path into [ebp-14h] with one more request ([ebp-0Ch], 0x24AA72); scoped is the block's end 0x24AA78, the path and the count already set: lohook -> attachments_on_scope_dict
+global attachments_on_scope_dict
+extern hook_attachments_on_scope_dict
+attachments_on_scope_dict:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_attachments_on_scope_dict
+    mov edx, attachments_on_scope_dict_replay
+    cmp eax, 0
+    je attachments_on_scope_dict_go
+    mov edx, 0x24aa1c
+    cmp eax, 1
+    je attachments_on_scope_dict_go
+    mov edx, 0x24aa78
+    cmp eax, 2
+    je attachments_on_scope_dict_go
+    ud2
+attachments_on_scope_dict_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+attachments_on_scope_dict_replay:
+    db 0xc7, 0x45, 0xec, 0x00, 0x00, 0x00, 0x00
+    jmp 0x24aa1c
+
+; 0x24ad13 on_weapon_subresources_ready (0x24ACF0) before it asks the config again whether the weapon has a scope (mov [esp+30h],ecx / mov [esp+24h],ebx, EBX 0: the two stores before the has-checks 0x24AD1B, 0x24AD3A, each a jz to 0x24ADC8 = no scope, the results from 0; the mov esi,offset "addons" before them has a base relocation and stays the game's): EAX the config's root, ECX the cook; scoped is 0x24AD47, where the first result is taken as the scope and the others follow from 1: lohook -> attachments_on_scope_result
+global attachments_on_scope_result
+extern hook_attachments_on_scope_result
+attachments_on_scope_result:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_attachments_on_scope_result
+    mov edx, attachments_on_scope_result_replay
+    cmp eax, 0
+    je attachments_on_scope_result_go
+    mov edx, 0x24ad1b
+    cmp eax, 1
+    je attachments_on_scope_result_go
+    mov edx, 0x24ad47
+    cmp eax, 2
+    je attachments_on_scope_result_go
+    ud2
+attachments_on_scope_result_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+attachments_on_scope_result_replay:
+    db 0x89, 0x4c, 0x24, 0x30, 0x89, 0x5c, 0x24, 0x24
+    jmp 0x24ad1b
+
+; 0x24aab4 weapon_cook::on_weapon_config_loaded (0x24A920) before it sizes the requests' alloca (lea esi,[eax*8+0]; 0x424CA0 at 0x24AABD): EAX the requests it will push, EBX the weapon config's root: lohook -> attachments_on_request_room
+global attachments_on_request_room
+extern hook_attachments_on_request_room
+attachments_on_request_room:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_attachments_on_request_room
+    mov edx, attachments_on_request_room_replay
+    cmp eax, 0
+    je attachments_on_request_room_go
+    mov edx, 0x24aabb
+    cmp eax, 1
+    je attachments_on_request_room_go
+    ud2
+attachments_on_request_room_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+attachments_on_request_room_replay:
+    db 0x8d, 0x34, 0xc5, 0x00, 0x00, 0x00, 0x00
+    jmp 0x24aabb
+
+; 0x24ac30 on_weapon_config_loaded after weapon_cook::allocate_weapon (0x24A780, called at 0x24AC2B; it keeps EBX) returned the weapon in EAX, every request of the game's pushed (the last at 0x24ABEE) and none read yet (query_resources at 0x24AC95): mov bl,[ebp+10h] / sub esp,20h; EBX the weapon config's root, [ebp-40h] the requests: lohook -> attachments_on_asked
+global attachments_on_asked
+extern hook_attachments_on_asked
+attachments_on_asked:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_attachments_on_asked
+    mov edx, attachments_on_asked_replay
+    cmp eax, 0
+    je attachments_on_asked_go
+    mov edx, 0x24ac36
+    cmp eax, 1
+    je attachments_on_asked_go
+    ud2
+attachments_on_asked_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+attachments_on_asked_replay:
+    db 0x8a, 0x5d, 0x10, 0x83, 0xec, 0x20
+    jmp 0x24ac36
+
+; 0x24acf0 weapon_cook::on_weapon_subresources_ready's entry (sub esp,24h / push ebx / push ebp): [esp+8] the weapon config's resource, [esp+0Ch] the weapon weapon_cook made, as the cook's functor binds them (0x24AC39..); by load_weapon both slots are the shots' loop's temporaries (0x24B063, 0x24AFA4, 0x24B044): lohook -> attachments_on_ready
+global attachments_on_ready
+extern hook_attachments_on_ready
+attachments_on_ready:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_attachments_on_ready
+    mov edx, attachments_on_ready_replay
+    cmp eax, 0
+    je attachments_on_ready_go
+    mov edx, 0x24acf5
+    cmp eax, 1
+    je attachments_on_ready_go
+    ud2
+attachments_on_ready_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+attachments_on_ready_replay:
+    db 0x83, 0xec, 0x24, 0x53, 0x55
+    jmp 0x24acf5
+
+; 0x24b0e1 on_weapon_subresources_ready (0x24ACF0) after load_weapon 0x243A30 returned (mov ecx,[esp+48h] / mov edx,[esp+44h]): EDI the weapon, its barrel, scope and aim locator records (+6E0h, +744h, +7A8h) and its finger corrector's sets (set_weapon_model at 0x243BB6) just filled from its model: lohook -> attachments_on_loaded
+global attachments_on_loaded
+extern hook_attachments_on_loaded
+attachments_on_loaded:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_attachments_on_loaded
+    mov edx, attachments_on_loaded_replay
+    cmp eax, 0
+    je attachments_on_loaded_go
+    mov edx, 0x24b0e9
+    cmp eax, 1
+    je attachments_on_loaded_go
+    ud2
+attachments_on_loaded_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+attachments_on_loaded_replay:
+    db 0x8b, 0x4c, 0x24, 0x48, 0x8b, 0x54, 0x24, 0x44
+    jmp 0x24b0e9
+
+; 0x245017 weapon::draw (0x244E10) after the weapon model's update and the aimed scope's add or remove (every path joins here; mov esi,[ebp+14h] / test esi,esi): EBX the weapon, [ebp+8] its world matrix, [ebp+0Ch] its bones: lohook -> attachments_on_draw
+global attachments_on_draw
+extern hook_attachments_on_draw
+attachments_on_draw:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_attachments_on_draw
+    mov edx, attachments_on_draw_replay
+    cmp eax, 0
+    je attachments_on_draw_go
+    mov edx, 0x24501c
+    cmp eax, 1
+    je attachments_on_draw_go
+    ud2
+attachments_on_draw_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+attachments_on_draw_replay:
+    db 0x8b, 0x75, 0x14, 0x85, 0xf6
+    jmp 0x24501c
+
+; 0x245353 weapon::on_culled_player_draw (0x245250) after the weapon model's update at the player's root (mov ebx,[ebx+1808h]; EBX the weapon until it): lohook -> attachments_on_culled
+global attachments_on_culled
+extern hook_attachments_on_culled
+attachments_on_culled:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_attachments_on_culled
+    mov edx, attachments_on_culled_replay
+    cmp eax, 0
+    je attachments_on_culled_go
+    mov edx, 0x245359
+    cmp eax, 1
+    je attachments_on_culled_go
+    ud2
+attachments_on_culled_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+attachments_on_culled_replay:
+    db 0x8b, 0x9b, 0x08, 0x18, 0x00, 0x00
+    jmp 0x245359
+
+; 0x244017 weapon::on_hide (0x243FA0) after the weapon model's removal (0x244012, or the aimed scope's 181Dh skipping it; mov edi,[esi+1808h]): ESI the weapon: lohook -> attachments_on_hidden
+global attachments_on_hidden
+extern hook_attachments_on_hidden
+attachments_on_hidden:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_attachments_on_hidden
+    mov edx, attachments_on_hidden_replay
+    cmp eax, 0
+    je attachments_on_hidden_go
+    mov edx, 0x24401d
+    cmp eax, 1
+    je attachments_on_hidden_go
+    ud2
+attachments_on_hidden_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+attachments_on_hidden_replay:
+    db 0x8b, 0xbe, 0x08, 0x18, 0x00, 0x00
+    jmp 0x24401d
+
+; 0x244649 weapon::activate (0x244610) after hand_to_weapon_ik_solver::set_weapon_locators (0x392AE0, called at 0x244644) filled the solver's sixteen records from the weapon's model (mov al,[esi+5E9h], the double_handed test): ESI the weapon: lohook -> attachments_on_hands
+global attachments_on_hands
+extern hook_attachments_on_hands
+attachments_on_hands:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_attachments_on_hands
+    mov edx, attachments_on_hands_replay
+    cmp eax, 0
+    je attachments_on_hands_go
+    mov edx, 0x24464f
+    cmp eax, 1
+    je attachments_on_hands_go
+    ud2
+attachments_on_hands_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+attachments_on_hands_replay:
+    db 0x8a, 0x86, 0xe9, 0x05, 0x00, 0x00
+    jmp 0x24464f
+
+; 0x298664 correct_fingers (0x298630) at its refill of the finger corrector from the weapon's model, made only when the user's view changed (the je at 0x29864F skips it): call -> attachments_on_fingers_view (wraps engine_fingers_set_weapon_model 0x390620)
+global attachments_on_fingers_view
+attachments_on_fingers_view:
+    RUST_CALL hook_attachments_on_fingers_view, 3, 12
+
+; 0x2443ee play_weapon_shell_pfx (0x2443D0) at its read of the scope's frame (lea eax,[esi+660h], pushed twice from 0x2443F4): ESI the weapon, EAX the matrix the shell effect plays at: lohook -> attachments_on_shells
+global attachments_on_shells
+extern hook_attachments_on_shells
+attachments_on_shells:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_attachments_on_shells
+    mov edx, attachments_on_shells_replay
+    cmp eax, 0
+    je attachments_on_shells_go
+    mov edx, 0x2443f4
+    cmp eax, 1
+    je attachments_on_shells_go
+    ud2
+attachments_on_shells_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+attachments_on_shells_replay:
+    db 0x8d, 0x86, 0x60, 0x06, 0x00, 0x00
+    jmp 0x2443f4
+
+; 0x24b190 weapon_cook::delete_resource's entry (push ebx / push esi / push edi / mov edi,[esp+10h]): [esp+4] the weapon's +10h, 0 for none: lohook -> attachments_on_release
+global attachments_on_release
+extern hook_attachments_on_release
+attachments_on_release:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_attachments_on_release
+    mov edx, attachments_on_release_replay
+    cmp eax, 0
+    je attachments_on_release_go
+    mov edx, 0x24b197
+    cmp eax, 1
+    je attachments_on_release_go
+    ud2
+attachments_on_release_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+attachments_on_release_replay:
+    db 0x53, 0x56, 0x57, 0x8b, 0x7c, 0x24, 0x10
+    jmp 0x24b197
+
+; 0x12eea7 process_compression with the bake's target of the type in [esp+1Ch], before the staging's create (mov esi,[esp+24h] / push 0); issued its epilogue 0x12F561 (releases [esp+10h] and [esp+1Ch], ret 28h): lohook -> bake_async_on_issue
+global bake_async_on_issue
+extern hook_bake_async_on_issue
+bake_async_on_issue:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_async_on_issue
+    mov edx, bake_async_on_issue_replay
+    cmp eax, 0
+    je bake_async_on_issue_go
+    mov edx, 0x12eead
+    cmp eax, 1
+    je bake_async_on_issue_go
+    mov edx, 0x12f561
+    cmp eax, 2
+    je bake_async_on_issue_go
+    ud2
+bake_async_on_issue_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_async_on_issue_replay:
+    db 0x8b, 0x74, 0x24, 0x24, 0x6a, 0x00
+    jmp 0x12eead
+
+; 0x12ec57 process_compression after its prologue (mov esi,eax / lea eax,[esp+40h]); tail 0x12F00B: the compress timed (ESI the timer [esp+50h]), then the texture made from [esp+18h], shared, saved, recorded, freed if EBX, the query finished, the log (EBP the type, EDI the DDS): lohook -> bake_async_on_resume
+global bake_async_on_resume
+extern hook_bake_async_on_resume
+bake_async_on_resume:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_async_on_resume
+    mov edx, bake_async_on_resume_replay
+    cmp eax, 0
+    je bake_async_on_resume_go
+    mov edx, 0x12ec5d
+    cmp eax, 1
+    je bake_async_on_resume_go
+    mov edx, 0x12f00b
+    cmp eax, 2
+    je bake_async_on_resume_go
+    ud2
+bake_async_on_resume_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_async_on_resume_replay:
+    db 0x8b, 0xf0, 0x8d, 0x44, 0x24, 0x40
+    jmp 0x12ec5d
+
+; 0x12f2d8 process_compression before make_save_descriptor (mov byte [esp+5F8h],2Fh; then mov [esp+2Ch],ebx, the bytes' data, EBX the DDS; then call 0x109ED0: ECX the physical path, EAX the virtual, [esp] the bytes; cdecl, add esp,4 after); made past the call, EAX the descriptor (0: none, the query's +0E0h 0 at 0x12F2FA, so finish_translated_query 0x109BD0 saves nothing): lohook -> bake_async_on_save
+global bake_async_on_save
+extern hook_bake_async_on_save
+bake_async_on_save:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_async_on_save
+    mov edx, bake_async_on_save_replay
+    cmp eax, 0
+    je bake_async_on_save_go
+    mov edx, 0x12f2e0
+    cmp eax, 1
+    je bake_async_on_save_go
+    mov edx, 0x12f2e9
+    cmp eax, 2
+    je bake_async_on_save_go
+    ud2
+bake_async_on_save_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_async_on_save_replay:
+    db 0xc6, 0x84, 0x24, 0xf8, 0x05, 0x00, 0x00, 0x2f
+    jmp 0x12f2e0
+
+; 0x12f3f7 process_compression after the record's push_back (mov ecx,[esp+188h]); EBX the DDS buffer until 0x12F40A, which frees it to the render allocator (0x12F41B) when not 0: lohook -> bake_async_on_free
+global bake_async_on_free
+extern hook_bake_async_on_free
+bake_async_on_free:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_async_on_free
+    mov edx, bake_async_on_free_replay
+    cmp eax, 0
+    je bake_async_on_free_go
+    mov edx, 0x12f3fe
+    cmp eax, 1
+    je bake_async_on_free_go
+    ud2
+bake_async_on_free_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_async_on_free_replay:
+    db 0x8b, 0x8c, 0x24, 0x88, 0x01, 0x00, 0x00
+    jmp 0x12f3fe
+
+; 0x11f754 compress_mip after the level's copy to its staging (push 0 / lea ecx,[esp+48h], then map2D 0x11F763 and the memcpy); kept past the Unmap: ESI's staging released, the target released, ret 20h; EBX the level's blocks wide: lohook -> bake_async_on_readback
+global bake_async_on_readback
+extern hook_bake_async_on_readback
+bake_async_on_readback:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_async_on_readback
+    mov edx, bake_async_on_readback_replay
+    cmp eax, 0
+    je bake_async_on_readback_go
+    mov edx, 0x11f75a
+    cmp eax, 1
+    je bake_async_on_readback_go
+    mov edx, 0x11f871
+    cmp eax, 2
+    je bake_async_on_readback_go
+    ud2
+bake_async_on_readback_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_async_on_readback_replay:
+    db 0x6a, 0x00, 0x8d, 0x4c, 0x24, 0x48
+    jmp 0x11f75a
+
+; 0x1024fa resources_manager::dispatch_callbacks' common end (pop edi / pop esi / pop ebx / mov esp,ebp, then pop ebp / ret 4): the thread's callbacks dispatched: lohook -> bake_async_on_dispatched
+global bake_async_on_dispatched
+extern hook_bake_async_on_dispatched
+bake_async_on_dispatched:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_async_on_dispatched
+    mov edx, bake_async_on_dispatched_replay
+    cmp eax, 0
+    je bake_async_on_dispatched_go
+    mov edx, 0x1024ff
+    cmp eax, 1
+    je bake_async_on_dispatched_go
+    ud2
+bake_async_on_dispatched_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_async_on_dispatched_replay:
+    db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5
+    jmp 0x1024ff
+
+; 0x13ca0 engine_world::tick's start (push ebp / mov ebp,esp / and esp,-8; ECX the engine world): the main loop's frame (engine_world::run calls it once a frame), before its dispatch_callbacks (0x13CE0) and the render world's tick ([esi+2C4h] +8, 0x13D31); apc's wait loops call dispatch_callbacks without it: lohook -> bake_async_on_frame
+global bake_async_on_frame
+extern hook_bake_async_on_frame
+bake_async_on_frame:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_async_on_frame
+    mov edx, bake_async_on_frame_replay
+    cmp eax, 0
+    je bake_async_on_frame_go
+    mov edx, 0x13ca6
+    cmp eax, 1
+    je bake_async_on_frame_go
+    ud2
+bake_async_on_frame_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_async_on_frame_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x13ca6
+
+; 0x1ec730 game::exit's start (push ebp / mov ebp,esp / and esp,-8; thiscall, ECX the game): every exit passes here, before the branches that skip its delete of user_data/streamed_textures (0x1EC7AE when 0x1051E0 fails, 0x1EC801 when 0x40F10 does; the delete 0x1EC832 is patch 70's nop): lohook -> bake_async_on_exit
+global bake_async_on_exit
+extern hook_bake_async_on_exit
+bake_async_on_exit:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_async_on_exit
+    mov edx, bake_async_on_exit_replay
+    cmp eax, 0
+    je bake_async_on_exit_go
+    mov edx, 0x1ec736
+    cmp eax, 1
+    je bake_async_on_exit_go
+    ud2
+bake_async_on_exit_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_async_on_exit_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x1ec736
+
+; 0x10a050 save_descriptor::~save_descriptor's start (sub esp,8 / cmp byte [esi+8],0; ESI the descriptor; its one caller ~query_result 0xF1135 with [query+0E0h]): when +8 is set it frees +0 (mt_free 0x106FC0 at 0x10A083), so a save's bytes live until its query is destroyed: lohook -> bake_async_on_save_freed
+global bake_async_on_save_freed
+extern hook_bake_async_on_save_freed
+bake_async_on_save_freed:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_async_on_save_freed
+    mov edx, bake_async_on_save_freed_replay
+    cmp eax, 0
+    je bake_async_on_save_freed_go
+    mov edx, 0x10a057
+    cmp eax, 1
+    je bake_async_on_save_freed_go
+    ud2
+bake_async_on_save_freed_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_async_on_save_freed_replay:
+    db 0x83, 0xec, 0x08, 0x80, 0x7e, 0x08, 0x00
+    jmp 0x10a057
 
 ; 0x1e944e game::game before its delete of user_data/streamed_textures (lea eax,[esp+470h] / call 0x1E8DA0: [esp+470h] the folder's physical path, a buffer_string); kept: past the delete's call (0x1E945A reads no register before it writes it): lohook -> bake_cache_on_game_start
 global bake_cache_on_game_start
@@ -1828,6 +3540,48 @@ bake_cache_on_finish_replay:
     db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
     jmp 0xf0d06
 
+; 0x131f90 remove_unwanted_files' start (sub esp,5B0h; stdcall, [esp+4] the cook), after each bake's push_back (0x12F405), the function's one caller; returned is its `ret 4` (0x132639), reached here with the entry's ESP: lohook -> bake_cache_on_trim
+global bake_cache_on_trim
+extern hook_bake_cache_on_trim
+bake_cache_on_trim:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_cache_on_trim
+    mov edx, bake_cache_on_trim_replay
+    cmp eax, 0
+    je bake_cache_on_trim_go
+    mov edx, 0x131f96
+    cmp eax, 1
+    je bake_cache_on_trim_go
+    mov edx, 0x132639
+    cmp eax, 2
+    je bake_cache_on_trim_go
+    ud2
+bake_cache_on_trim_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_cache_on_trim_replay:
+    db 0x81, 0xec, 0xb0, 0x05, 0x00, 0x00
+    jmp 0x131f96
+
 ; 0x42050 the CRC-32 step's start (mov ecx,[esp+4] / push edi; EAX &the CRC, EDX the bytes, [esp+4] the count); done its own ret 4 (it leaves ECX the new CRC, EDX past the bytes): lohook -> bake_cache_on_crc_step
 global bake_cache_on_crc_step
 extern hook_bake_cache_on_crc_step
@@ -1947,6 +3701,329 @@ ban_time_on_status_go:
 ban_time_on_status_replay:
     db 0x8a, 0x44, 0x24, 0x13, 0x8b, 0xd3
     jmp 0x21f21d
+
+; 0x2fa7e9 victory_item_core_cook::on_animations_loaded (0x2FA400, the client's and the core's batteries alike) once initialize_logic (0x2FA7E4) made the take, carry and put states: ESI the battery, ESP+28h the put state's six clips (the callback's own array, released after); replayed: mov ecx,[esp+20h] / mov eax,[ecx]: lohook -> battery_hit_on_logic
+global battery_hit_on_logic
+extern hook_battery_hit_on_logic
+battery_hit_on_logic:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_hit_on_logic
+    mov edx, battery_hit_on_logic_replay
+    cmp eax, 0
+    je battery_hit_on_logic_go
+    mov edx, 0x2fa7ef
+    cmp eax, 1
+    je battery_hit_on_logic_go
+    ud2
+battery_hit_on_logic_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_hit_on_logic_replay:
+    db 0x8b, 0x4c, 0x24, 0x20, 0x8b, 0x01
+    jmp 0x2fa7ef
+
+; 0x372420 the cdecl bool f() of a battery state machine's function-pointer predicate (functor vtable 0xA13CAC: its invoker 0x303450 jumps to the buffer's first word, the buffer's address on the stack; fsm::tick 0x38CA7A): its convention, for carry -> swing's predicate: callback -> battery_hit_on_wants_swing (wraps engine_fsm_always 0x372420)
+    RUST_CDECL battery_hit_on_wants_swing, hook_battery_hit_on_wants_swing, 1
+
+; 0x38caa0 fsm::tick 0x38CA20 leaving its current state through a transition it took (a predicate true, 0x38CA81; tried only once the state is ready, its vtable +18h), before that state's finalize (call [vtbl+0Ch] at 0x38CAA5): ECX the state left, of any machine (a battery's when its vtable is a battery state's); the only way a battery's machine leaves a state in the simulation (victory_item_core::deactivate 0x300F40 finalizes without a transition, game_world_core::deserialize 0x2D2770 reaches it through base_player::remove 0x2DA790); replayed: mov eax,[ecx] / mov edx,[eax+0Ch]: lohook -> battery_hit_on_state_left
+global battery_hit_on_state_left
+extern hook_battery_hit_on_state_left
+battery_hit_on_state_left:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_hit_on_state_left
+    mov edx, battery_hit_on_state_left_replay
+    cmp eax, 0
+    je battery_hit_on_state_left_go
+    mov edx, 0x38caa5
+    cmp eax, 1
+    je battery_hit_on_state_left_go
+    ud2
+battery_hit_on_state_left_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_hit_on_state_left_replay:
+    db 0x8b, 0x01, 0x8b, 0x50, 0x0c
+    jmp 0x38caa5
+
+; 0x2e43a3 weapon_core::player_stance 0x2E43A0 (the gun's vtable +7Ch; the bullet's constructor 0x32BADE, base_player hit events for no bullet 0x2D9FB2) once it read its user (mov eax,[ecx+8]), before that user's alive byte: ECX the gun, EAX the user (0 for a deactivated gun, which natively never shoots); replayed: mov al,[eax+33Ch]: lohook -> battery_hit_on_stance_user
+global battery_hit_on_stance_user
+extern hook_battery_hit_on_stance_user
+battery_hit_on_stance_user:
+extern battery_hit_on_stance_user_only
+    pushfd
+    cmp eax, 256
+    jae battery_hit_on_stance_user_pass
+    bt dword [battery_hit_on_stance_user_only], eax
+    jc battery_hit_on_stance_user_save
+battery_hit_on_stance_user_pass:
+    popfd
+    jmp battery_hit_on_stance_user_replay
+battery_hit_on_stance_user_save:
+    popfd
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_hit_on_stance_user
+    mov edx, battery_hit_on_stance_user_replay
+    cmp eax, 0
+    je battery_hit_on_stance_user_go
+    mov edx, 0x2e43a9
+    cmp eax, 1
+    je battery_hit_on_stance_user_go
+    ud2
+battery_hit_on_stance_user_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_hit_on_stance_user_replay:
+    db 0x8a, 0x80, 0x3c, 0x03, 0x00, 0x00
+    jmp 0x2e43a9
+
+; 0x2e43b9 weapon_core::player_stance once it read its clip set's posture (mov eax,[ecx+278h] / mov eax,[eax+20h]), before the posture's kind: ECX the gun, EAX the posture (0 for a deactivated gun's); replayed: cmp dword [eax+20h],1 / sete dl: lohook -> battery_hit_on_stance_posture
+global battery_hit_on_stance_posture
+extern hook_battery_hit_on_stance_posture
+battery_hit_on_stance_posture:
+extern battery_hit_on_stance_posture_only
+    pushfd
+    cmp eax, 256
+    jae battery_hit_on_stance_posture_pass
+    bt dword [battery_hit_on_stance_posture_only], eax
+    jc battery_hit_on_stance_posture_save
+battery_hit_on_stance_posture_pass:
+    popfd
+    jmp battery_hit_on_stance_posture_replay
+battery_hit_on_stance_posture_save:
+    popfd
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_hit_on_stance_posture
+    mov edx, battery_hit_on_stance_posture_replay
+    cmp eax, 0
+    je battery_hit_on_stance_posture_go
+    mov edx, 0x2e43c0
+    cmp eax, 1
+    je battery_hit_on_stance_posture_go
+    ud2
+battery_hit_on_stance_posture_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_hit_on_stance_posture_replay:
+    db 0x83, 0x78, 0x20, 0x01, 0x0f, 0x94, 0xc2
+    jmp 0x2e43c0
+
+; 0x2e1d00 the melee data's damage 0x2E1CF0 (the bullet's constructor 0x32BB38, update_bullet_position 0x32F09A each step), melee branch, once it read the gun's user (mov eax,[ecx+8]), before the user's kit: ECX the gun, EAX the user (0 for a deactivated gun); replayed: movzx ecx,byte [eax+115h]: lohook -> battery_hit_on_melee_damage_user
+global battery_hit_on_melee_damage_user
+extern hook_battery_hit_on_melee_damage_user
+battery_hit_on_melee_damage_user:
+extern battery_hit_on_melee_damage_user_only
+    pushfd
+    cmp eax, 256
+    jae battery_hit_on_melee_damage_user_pass
+    bt dword [battery_hit_on_melee_damage_user_only], eax
+    jc battery_hit_on_melee_damage_user_save
+battery_hit_on_melee_damage_user_pass:
+    popfd
+    jmp battery_hit_on_melee_damage_user_replay
+battery_hit_on_melee_damage_user_save:
+    popfd
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_hit_on_melee_damage_user
+    mov edx, battery_hit_on_melee_damage_user_replay
+    cmp eax, 0
+    je battery_hit_on_melee_damage_user_go
+    mov edx, 0x2e1d07
+    cmp eax, 1
+    je battery_hit_on_melee_damage_user_go
+    ud2
+battery_hit_on_melee_damage_user_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_hit_on_melee_damage_user_replay:
+    db 0x0f, 0xb6, 0x88, 0x15, 0x01, 0x00, 0x00
+    jmp 0x2e1d07
+
+; 0x2e1c99 the melee data's minimum damage 0x2E1C80 (update_bullet_position 0x32F0B6 each step, the pierce 0x32DA5A, the ricochet 0x32E35C), melee branch, once it read the gun's user (mov eax,[ecx+8]), before the user's kit: ECX the gun, EAX the user (0 for a deactivated gun); replayed: movzx ecx,byte [eax+115h]: lohook -> battery_hit_on_melee_falloff_user
+global battery_hit_on_melee_falloff_user
+extern hook_battery_hit_on_melee_falloff_user
+battery_hit_on_melee_falloff_user:
+extern battery_hit_on_melee_falloff_user_only
+    pushfd
+    cmp eax, 256
+    jae battery_hit_on_melee_falloff_user_pass
+    bt dword [battery_hit_on_melee_falloff_user_only], eax
+    jc battery_hit_on_melee_falloff_user_save
+battery_hit_on_melee_falloff_user_pass:
+    popfd
+    jmp battery_hit_on_melee_falloff_user_replay
+battery_hit_on_melee_falloff_user_save:
+    popfd
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_hit_on_melee_falloff_user
+    mov edx, battery_hit_on_melee_falloff_user_replay
+    cmp eax, 0
+    je battery_hit_on_melee_falloff_user_go
+    mov edx, 0x2e1ca0
+    cmp eax, 1
+    je battery_hit_on_melee_falloff_user_go
+    ud2
+battery_hit_on_melee_falloff_user_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_hit_on_melee_falloff_user_replay:
+    db 0x0f, 0xb6, 0x88, 0x15, 0x01, 0x00, 0x00
+    jmp 0x2e1ca0
+
+; 0xa1bfa4 the take state's vtable slot 8 (+20h, 0xA1BF84): may the battery be put away now (victory_item_core::is_ready_to_be_deactivated 0x301270 asks the current state; the item switch 0x2D76A0 calls that), thiscall; the take's answers no (0x397C20), the carry's whether its user is dead (0x338E90): vtable -> battery_hit_on_deactivatable (wraps engine_take_deactivatable 0x397c20)
+    RUST_THISCALL battery_hit_on_deactivatable, hook_battery_hit_on_deactivatable, 0
+
+; 0x2da3cb generate_killed_event 0x2DA170 about to write the kill event's killer and weapon icon (mov [eax+1],cl / mov [eax+2],dl; EAX the event node, EDX the icon: the bullet's data +50h, else the damage source's +224h, 0x2DA35A..0x2DA382; EBP the bullet or 0); the hud's handler 0x23B5F0 reads +2 for on_player_killed's object_icon; replayed: mov [eax+1],cl / mov [eax+2],dl: lohook -> battery_hit_on_kill_feed_icon
+global battery_hit_on_kill_feed_icon
+extern hook_battery_hit_on_kill_feed_icon
+battery_hit_on_kill_feed_icon:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_hit_on_kill_feed_icon
+    mov edx, battery_hit_on_kill_feed_icon_replay
+    cmp eax, 0
+    je battery_hit_on_kill_feed_icon_go
+    mov edx, 0x2da3d1
+    cmp eax, 1
+    je battery_hit_on_kill_feed_icon_go
+    ud2
+battery_hit_on_kill_feed_icon_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_hit_on_kill_feed_icon_replay:
+    db 0x88, 0x48, 0x01, 0x88, 0x50, 0x02
+    jmp 0x2da3d1
 
 ; 0x334999 victory_item_event_manager::start_match once both containers' positions are kept, before the batteries' nearest positions (mov eax,[esi+0A38h]): ESI the manager, +0A38h its rule just set: lohook -> battery_progress_on_match_start
 global battery_progress_on_match_start
@@ -2104,10 +4181,10 @@ battery_progress_on_load_replay:
     db 0x8b, 0x85, 0x38, 0x0a, 0x00, 0x00
     jmp 0x3350d6
 
-; 0x27b92d process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]: lohook -> blackout_on_static_info
-global blackout_on_static_info
-extern hook_blackout_on_static_info_chain
-blackout_on_static_info:
+; 0x27b92d process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]: lohook -> map_id_on_static_info
+global map_id_on_static_info
+extern hook_map_id_on_static_info_chain
+map_id_on_static_info:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -2124,29 +4201,29 @@ blackout_on_static_info:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_blackout_on_static_info_chain
-    mov edx, blackout_on_static_info_replay
+    call hook_map_id_on_static_info_chain
+    mov edx, map_id_on_static_info_replay
     cmp eax, 0
-    je blackout_on_static_info_go
+    je map_id_on_static_info_go
     mov edx, 0x27b932
     cmp eax, 1
-    je blackout_on_static_info_go
+    je map_id_on_static_info_go
     ud2
-blackout_on_static_info_go:
+map_id_on_static_info_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-blackout_on_static_info_replay:
+map_id_on_static_info_replay:
     db 0x8b, 0x17, 0x8b, 0x42, 0x40
     jmp 0x27b932
 
-; 0x1f0971 a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h: lohook -> blackout_on_replay_options
-global blackout_on_replay_options
-extern hook_blackout_on_replay_options_chain
-blackout_on_replay_options:
+; 0x1f0971 a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h: lohook -> map_id_on_replay_options
+global map_id_on_replay_options
+extern hook_map_id_on_replay_options_chain
+map_id_on_replay_options:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -2163,63 +4240,24 @@ blackout_on_replay_options:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_blackout_on_replay_options_chain
-    mov edx, blackout_on_replay_options_replay
+    call hook_map_id_on_replay_options_chain
+    mov edx, map_id_on_replay_options_replay
     cmp eax, 0
-    je blackout_on_replay_options_go
+    je map_id_on_replay_options_go
     mov edx, 0x1f0976
     cmp eax, 1
-    je blackout_on_replay_options_go
+    je map_id_on_replay_options_go
     ud2
-blackout_on_replay_options_go:
+map_id_on_replay_options_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-blackout_on_replay_options_replay:
+map_id_on_replay_options_replay:
     db 0x5e, 0x5b, 0x83, 0xc4, 0x34
     jmp 0x1f0976
-
-; 0x23aa10 game_world_ui::update_player_icons' start, every frame of a match ([esp+4] the ui): lohook -> blackout_on_update_icons
-global blackout_on_update_icons
-extern hook_blackout_on_update_icons_chain
-blackout_on_update_icons:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_blackout_on_update_icons_chain
-    mov edx, blackout_on_update_icons_replay
-    cmp eax, 0
-    je blackout_on_update_icons_go
-    mov edx, 0x23aa16
-    cmp eax, 1
-    je blackout_on_update_icons_go
-    ud2
-blackout_on_update_icons_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-blackout_on_update_icons_replay:
-    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
-    jmp 0x23aa16
 
 ; 0x25cd2c game_world::on_keyboard_action after it asked for Tab (0x25CD26: bl Tab down, tested at 0x25CD39): lohook -> blackout_on_tab
 global blackout_on_tab
@@ -2260,45 +4298,6 @@ blackout_on_tab_replay:
     db 0x8b, 0x4c, 0x24, 0x14, 0x8d, 0x77, 0x04
     jmp 0x25cd33
 
-; 0x2421b0 process_first_person_mode's epilogue (ebx the handler; the early exit 0x241284 comes here too): lohook -> blackout_on_input_end
-global blackout_on_input_end
-extern hook_blackout_on_input_end
-blackout_on_input_end:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_blackout_on_input_end
-    mov edx, blackout_on_input_end_replay
-    cmp eax, 0
-    je blackout_on_input_end_go
-    mov edx, 0x2421b5
-    cmp eax, 1
-    je blackout_on_input_end_go
-    ud2
-blackout_on_input_end_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-blackout_on_input_end_replay:
-    db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5
-    jmp 0x2421b5
-
 ; 0x1f2f10 render_name after the Alt/crosshair decision: AL the name-visible byte, ESI the player, EDI the UI, entry ESP+14h the local team; visible/projected players only: lohook -> blackout_on_name_visibility
 global blackout_on_name_visibility
 extern hook_blackout_on_name_visibility
@@ -2337,6 +4336,45 @@ blackout_on_name_visibility_go:
 blackout_on_name_visibility_replay:
     db 0x0f, 0xb6, 0x8e, 0x14, 0x01, 0x00, 0x00
     jmp 0x1f2f17
+
+; 0x2d9cb1 base_player::hit_impl once damage_model::hit_body_part (0x2E5080, at 0x2D9CA4) said 1: the hit took health past armour and protectors (more than 0.0 left, 0x2E5128); before the slow, the listeners and the death (mov edi,esi / cmp dword [edi+40h],0; the je at 0x2D9CB7 reads its flags): EBX the victim, ESI the hit; every hit of every player, in every game's simulation: lohook -> drug_interrupt_on_hit_applied
+global drug_interrupt_on_hit_applied
+extern hook_drug_interrupt_on_hit_applied_chain
+drug_interrupt_on_hit_applied:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_drug_interrupt_on_hit_applied_chain
+    mov edx, drug_interrupt_on_hit_applied_replay
+    cmp eax, 0
+    je drug_interrupt_on_hit_applied_go
+    mov edx, 0x2d9cb7
+    cmp eax, 1
+    je drug_interrupt_on_hit_applied_go
+    ud2
+drug_interrupt_on_hit_applied_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+drug_interrupt_on_hit_applied_replay:
+    db 0x8b, 0xfe, 0x83, 0x7f, 0x40, 0x00
+    jmp 0x2d9cb7
 
 ; 0x2840f2 lobby_camera::tick (0x283EF0) with the frame's yaw and pitch final (fld dword [ebx+0B4h], the yaw's load for rotY 0x15AE50): EBX the camera's +4 (the tick's this), the site's ESP+10h the frame's time (s, at most 0.1); after it the side angle's and the distance's steps (their speeds +E0h, +E8h), the collision ray (0x284309), the last clamp (0x28430E) and the eye (point - distance * forward): lohook -> weapon_flight_on_view
 global weapon_flight_on_view
@@ -2377,10 +4415,10 @@ weapon_flight_on_view_replay:
     db 0xd9, 0x83, 0xb4, 0x00, 0x00, 0x00
     jmp 0x2840f8
 
-; 0x1f3650 update_camera after the view's update (0x1F364B: 0x2422B0, or patch 46's death_view) wrote the handler's view (+48h), before camera_director::apply takes it (mov edx,[ebx+0F478h]; EBX the player, the frame's +10h the orbit's pivot in the modes but 0 and 4): lohook -> camera_walls_on_orbited
-global camera_walls_on_orbited
-extern hook_camera_walls_on_orbited
-camera_walls_on_orbited:
+; 0x1f3650 update_camera after the view's update (0x1F364B: update_inverted_view 0x2422B0, patch 46's death_view in our exe) wrote the handler's view (+48h), at mov edx,[ebx+0F478h]: EBX the camera's player ([ebx+0F470h] its handler; update_camera returned at 0x1F3497 for any other player); the frame's +10h the orbit's pivot in the modes but 0 and 4: lohook -> camera_walls_on_viewed
+global camera_walls_on_viewed
+extern hook_camera_walls_on_viewed_chain
+camera_walls_on_viewed:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -2397,24 +4435,1569 @@ camera_walls_on_orbited:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_camera_walls_on_orbited
-    mov edx, camera_walls_on_orbited_replay
+    call hook_camera_walls_on_viewed_chain
+    mov edx, camera_walls_on_viewed_replay
     cmp eax, 0
-    je camera_walls_on_orbited_go
+    je camera_walls_on_viewed_go
     mov edx, 0x1f3656
     cmp eax, 1
-    je camera_walls_on_orbited_go
+    je camera_walls_on_viewed_go
     ud2
-camera_walls_on_orbited_go:
+camera_walls_on_viewed_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-camera_walls_on_orbited_replay:
+camera_walls_on_viewed_replay:
     db 0x8b, 0x93, 0x78, 0xf4, 0x00, 0x00
     jmp 0x1f3656
+
+; 0x23ddd0 base_game_scene::apply_camera's start (sub esp,40h / push ebx / mov ebx,[esp+48h]; ret 4, the scene its stack argument): EDX the camera_director whose view (+4h) and projection (+44h) it copies into the scene (+0Ch, +4Ch) for the frame's draw; its one caller camera_director::apply (0x2434F6), every frame of every scene with a camera: lohook -> capture_on_camera
+global capture_on_camera
+extern hook_capture_on_camera
+capture_on_camera:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_capture_on_camera
+    mov edx, capture_on_camera_replay
+    cmp eax, 0
+    je capture_on_camera_go
+    mov edx, 0x23ddd8
+    cmp eax, 1
+    je capture_on_camera_go
+    ud2
+capture_on_camera_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+capture_on_camera_replay:
+    db 0x83, 0xec, 0x40, 0x53, 0x8b, 0x5c, 0x24, 0x48
+    jmp 0x23ddd8
+
+; 0x13ced0 renderer::render_flash_ui's start (push ebp / mov ebp,esp / sub esp,0Ch), once a frame from the frame's draw (0x13DB3D), after the present stage wrote the scene to the back buffer (0x13DB36) and before the interface's movies are drawn over it (flash_renderer::present 0x2AF0F0 at 0x13CFF3) and the swap chain's Present (0x13DD46): ESP the return address, the renderer and the output window: lohook -> screenshot_on_interface
+global screenshot_on_interface
+extern hook_screenshot_on_interface_chain
+screenshot_on_interface:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_screenshot_on_interface_chain
+    mov edx, screenshot_on_interface_replay
+    cmp eax, 0
+    je screenshot_on_interface_go
+    mov edx, 0x13ced6
+    cmp eax, 1
+    je screenshot_on_interface_go
+    ud2
+screenshot_on_interface_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+screenshot_on_interface_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xec, 0x0c
+    jmp 0x13ced6
+
+; 0x1ea210 game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301): lohook -> language_on_configs_start
+global language_on_configs_start
+extern hook_language_on_configs_start_chain
+language_on_configs_start:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_language_on_configs_start_chain
+    mov edx, language_on_configs_start_replay
+    cmp eax, 0
+    je language_on_configs_start_go
+    mov edx, 0x1ea216
+    cmp eax, 1
+    je language_on_configs_start_go
+    ud2
+language_on_configs_start_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+language_on_configs_start_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x1ea216
+
+; 0x13d9c1 renderer::render 0x13D010 at its depth-tested debug lines (taken while the cc_bool 0xA71DB7, on by default, is set; 0x13D97E), right after the scene's on_draw_scene(true) (boost function 0x205E0 at 0x13D9BC) and before the scene's own queued lines go to system_renderer::draw_lines with technique 0 (0x13DA08): mov edi,[esp+1Ch] / mov edx,[edi+6334C4h]; the render thread, the depth target and the view the scene's, so a draw_aabb there is drawn as the game's own debug lines: lohook -> collision_view_on_debug_lines
+global collision_view_on_debug_lines
+extern hook_collision_view_on_debug_lines
+collision_view_on_debug_lines:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_collision_view_on_debug_lines
+    mov edx, collision_view_on_debug_lines_replay
+    cmp eax, 0
+    je collision_view_on_debug_lines_go
+    mov edx, 0x13d9cb
+    cmp eax, 1
+    je collision_view_on_debug_lines_go
+    ud2
+collision_view_on_debug_lines_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+collision_view_on_debug_lines_replay:
+    db 0x8b, 0x7c, 0x24, 0x1c, 0x8b, 0x97, 0xc4, 0x34, 0x63, 0x00
+    jmp 0x13d9cb
+
+; 0x9e7c10 cc_delegate's vtable slot 1 (+4): execute(arguments), thiscall; console_commands::execute 0xEB980 calls it at 0xEBB98 for the command its lookup (0xEB7C0) found: vtable -> collision_view_on_execute (wraps engine_cc_delegate_execute 0xec830)
+    RUST_THISCALL collision_view_on_execute, hook_collision_view_on_execute, 1
+
+; 0x9e4f94 btConvexTriangleCallback's vtable slot 1 (+4): processTriangle(triangle, part, index), thiscall, ret 0Ch; btBvhTriangleMeshShape::processAllTriangles 0xA8660's node callback (processNode 0xA86A0, at 0xA8969) calls it for each triangle the BVH finds in the box: vtable -> collision_view_on_triangle (wraps engine_triangle_process 0xc5600)
+    RUST_THISCALL collision_view_on_triangle, hook_collision_view_on_triangle, 3
+
+; 0x285750 before insert_static, ECX project and ESP+4 physics: lohook -> lamps_on_bind
+global lamps_on_bind
+extern hook_lamps_on_bind_chain
+lamps_on_bind:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lamps_on_bind_chain
+    mov edx, lamps_on_bind_replay
+    cmp eax, 0
+    je lamps_on_bind_go
+    mov edx, 0x285756
+    cmp eax, 1
+    je lamps_on_bind_go
+    ud2
+lamps_on_bind_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lamps_on_bind_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x285756
+
+; 0x285614 remove_static epilogue, after native object removals: lohook -> lamps_on_remove
+global lamps_on_remove
+extern hook_lamps_on_remove_chain
+lamps_on_remove:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lamps_on_remove_chain
+    mov edx, lamps_on_remove_replay
+    cmp eax, 0
+    je lamps_on_remove_go
+    mov edx, 0x285619
+    cmp eax, 1
+    je lamps_on_remove_go
+    ud2
+lamps_on_remove_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lamps_on_remove_replay:
+    db 0x5f, 0x5b, 0xc3, 0xcc, 0xcc
+    jmp 0x285619
+
+; 0x285330 destructor before any member is released: lohook -> lamps_on_destroy
+global lamps_on_destroy
+extern hook_lamps_on_destroy_chain
+lamps_on_destroy:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lamps_on_destroy_chain
+    mov edx, lamps_on_destroy_replay
+    cmp eax, 0
+    je lamps_on_destroy_go
+    mov edx, 0x28533a
+    cmp eax, 1
+    je lamps_on_destroy_go
+    ud2
+lamps_on_destroy_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lamps_on_destroy_replay:
+    db 0x56, 0x8b, 0xf1, 0x83, 0xbe, 0xe8, 0x01, 0x00, 0x00, 0x00
+    jmp 0x28533a
+
+; 0x1a93a2 effect_composition<0,0,0>::compile (0x1A9330), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1A93AE): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1A939D), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span: lohook -> composition_v044a_on_begin_pass_000
+global composition_v044a_on_begin_pass_000
+extern hook_composition_v044a_on_begin_pass_000
+composition_v044a_on_begin_pass_000:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_begin_pass_000
+    mov edx, composition_v044a_on_begin_pass_000_replay
+    cmp eax, 0
+    je composition_v044a_on_begin_pass_000_go
+    mov edx, 0x1a93a9
+    cmp eax, 1
+    je composition_v044a_on_begin_pass_000_go
+    ud2
+composition_v044a_on_begin_pass_000_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_begin_pass_000_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1a93a9
+
+; 0x1a94c1 effect_composition<0,0,0>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1A94D7) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1A94DC), the stack and the x87 as here: lohook -> composition_v044a_on_sun_shadow_000
+global composition_v044a_on_sun_shadow_000
+extern hook_composition_v044a_on_sun_shadow_000
+composition_v044a_on_sun_shadow_000:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_sun_shadow_000
+    mov edx, composition_v044a_on_sun_shadow_000_replay
+    cmp eax, 0
+    je composition_v044a_on_sun_shadow_000_go
+    mov edx, 0x1a94c8
+    cmp eax, 1
+    je composition_v044a_on_sun_shadow_000_go
+    mov edx, 0x1a94dc
+    cmp eax, 2
+    je composition_v044a_on_sun_shadow_000_go
+    ud2
+composition_v044a_on_sun_shadow_000_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_sun_shadow_000_replay:
+    db 0xd9, 0xe8, 0x56, 0x51, 0xd9, 0x1c, 0x24
+    jmp 0x1a94c8
+
+; 0x1a95c8 effect_composition<0,0,0>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1A95CD), its technique ended (end_technique 0x3DA6B0 at 0x1A95C2); technique is the technique's start (0x1A933E: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1A9354): lohook -> composition_v044a_on_compiled_000
+global composition_v044a_on_compiled_000
+extern hook_composition_v044a_on_compiled_000
+composition_v044a_on_compiled_000:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_compiled_000
+    mov edx, composition_v044a_on_compiled_000_replay
+    cmp eax, 0
+    je composition_v044a_on_compiled_000_go
+    mov edx, 0x1a95cd
+    cmp eax, 1
+    je composition_v044a_on_compiled_000_go
+    mov edx, 0x1a933e
+    cmp eax, 2
+    je composition_v044a_on_compiled_000_go
+    ud2
+composition_v044a_on_compiled_000_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_compiled_000_replay:
+    db 0x5e, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x1a95cd
+
+; 0x1a9642 effect_composition<1,0,0>::compile (0x1A95D0), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1A964E): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1A963D), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span: lohook -> composition_v044a_on_begin_pass_100
+global composition_v044a_on_begin_pass_100
+extern hook_composition_v044a_on_begin_pass_100
+composition_v044a_on_begin_pass_100:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_begin_pass_100
+    mov edx, composition_v044a_on_begin_pass_100_replay
+    cmp eax, 0
+    je composition_v044a_on_begin_pass_100_go
+    mov edx, 0x1a9649
+    cmp eax, 1
+    je composition_v044a_on_begin_pass_100_go
+    ud2
+composition_v044a_on_begin_pass_100_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_begin_pass_100_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1a9649
+
+; 0x1a9761 effect_composition<1,0,0>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1A9777) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1A977C), the stack and the x87 as here: lohook -> composition_v044a_on_sun_shadow_100
+global composition_v044a_on_sun_shadow_100
+extern hook_composition_v044a_on_sun_shadow_100
+composition_v044a_on_sun_shadow_100:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_sun_shadow_100
+    mov edx, composition_v044a_on_sun_shadow_100_replay
+    cmp eax, 0
+    je composition_v044a_on_sun_shadow_100_go
+    mov edx, 0x1a9768
+    cmp eax, 1
+    je composition_v044a_on_sun_shadow_100_go
+    mov edx, 0x1a977c
+    cmp eax, 2
+    je composition_v044a_on_sun_shadow_100_go
+    ud2
+composition_v044a_on_sun_shadow_100_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_sun_shadow_100_replay:
+    db 0xd9, 0xe8, 0x56, 0x51, 0xd9, 0x1c, 0x24
+    jmp 0x1a9768
+
+; 0x1a9868 effect_composition<1,0,0>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1A986D), its technique ended (end_technique 0x3DA6B0 at 0x1A9862); technique is the technique's start (0x1A95DE: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1A95F4): lohook -> composition_v044a_on_compiled_100
+global composition_v044a_on_compiled_100
+extern hook_composition_v044a_on_compiled_100
+composition_v044a_on_compiled_100:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_compiled_100
+    mov edx, composition_v044a_on_compiled_100_replay
+    cmp eax, 0
+    je composition_v044a_on_compiled_100_go
+    mov edx, 0x1a986d
+    cmp eax, 1
+    je composition_v044a_on_compiled_100_go
+    mov edx, 0x1a95de
+    cmp eax, 2
+    je composition_v044a_on_compiled_100_go
+    ud2
+composition_v044a_on_compiled_100_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_compiled_100_replay:
+    db 0x5e, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x1a986d
+
+; 0x1a98e2 effect_composition<0,1,0>::compile (0x1A9870), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1A98EE): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1A98DD), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span: lohook -> composition_v044a_on_begin_pass_010
+global composition_v044a_on_begin_pass_010
+extern hook_composition_v044a_on_begin_pass_010
+composition_v044a_on_begin_pass_010:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_begin_pass_010
+    mov edx, composition_v044a_on_begin_pass_010_replay
+    cmp eax, 0
+    je composition_v044a_on_begin_pass_010_go
+    mov edx, 0x1a98e9
+    cmp eax, 1
+    je composition_v044a_on_begin_pass_010_go
+    ud2
+composition_v044a_on_begin_pass_010_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_begin_pass_010_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1a98e9
+
+; 0x1a9a01 effect_composition<0,1,0>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1A9A17) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1A9A1C), the stack and the x87 as here: lohook -> composition_v044a_on_sun_shadow_010
+global composition_v044a_on_sun_shadow_010
+extern hook_composition_v044a_on_sun_shadow_010
+composition_v044a_on_sun_shadow_010:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_sun_shadow_010
+    mov edx, composition_v044a_on_sun_shadow_010_replay
+    cmp eax, 0
+    je composition_v044a_on_sun_shadow_010_go
+    mov edx, 0x1a9a08
+    cmp eax, 1
+    je composition_v044a_on_sun_shadow_010_go
+    mov edx, 0x1a9a1c
+    cmp eax, 2
+    je composition_v044a_on_sun_shadow_010_go
+    ud2
+composition_v044a_on_sun_shadow_010_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_sun_shadow_010_replay:
+    db 0xd9, 0xe8, 0x56, 0x51, 0xd9, 0x1c, 0x24
+    jmp 0x1a9a08
+
+; 0x1a9b08 effect_composition<0,1,0>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1A9B0D), its technique ended (end_technique 0x3DA6B0 at 0x1A9B02); technique is the technique's start (0x1A987E: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1A9894): lohook -> composition_v044a_on_compiled_010
+global composition_v044a_on_compiled_010
+extern hook_composition_v044a_on_compiled_010
+composition_v044a_on_compiled_010:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_compiled_010
+    mov edx, composition_v044a_on_compiled_010_replay
+    cmp eax, 0
+    je composition_v044a_on_compiled_010_go
+    mov edx, 0x1a9b0d
+    cmp eax, 1
+    je composition_v044a_on_compiled_010_go
+    mov edx, 0x1a987e
+    cmp eax, 2
+    je composition_v044a_on_compiled_010_go
+    ud2
+composition_v044a_on_compiled_010_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_compiled_010_replay:
+    db 0x5e, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x1a9b0d
+
+; 0x1a9b82 effect_composition<1,1,0>::compile (0x1A9B10), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1A9B8E): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1A9B7D), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span: lohook -> composition_v044a_on_begin_pass_110
+global composition_v044a_on_begin_pass_110
+extern hook_composition_v044a_on_begin_pass_110
+composition_v044a_on_begin_pass_110:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_begin_pass_110
+    mov edx, composition_v044a_on_begin_pass_110_replay
+    cmp eax, 0
+    je composition_v044a_on_begin_pass_110_go
+    mov edx, 0x1a9b89
+    cmp eax, 1
+    je composition_v044a_on_begin_pass_110_go
+    ud2
+composition_v044a_on_begin_pass_110_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_begin_pass_110_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1a9b89
+
+; 0x1a9ca1 effect_composition<1,1,0>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1A9CB7) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1A9CBC), the stack and the x87 as here: lohook -> composition_v044a_on_sun_shadow_110
+global composition_v044a_on_sun_shadow_110
+extern hook_composition_v044a_on_sun_shadow_110
+composition_v044a_on_sun_shadow_110:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_sun_shadow_110
+    mov edx, composition_v044a_on_sun_shadow_110_replay
+    cmp eax, 0
+    je composition_v044a_on_sun_shadow_110_go
+    mov edx, 0x1a9ca8
+    cmp eax, 1
+    je composition_v044a_on_sun_shadow_110_go
+    mov edx, 0x1a9cbc
+    cmp eax, 2
+    je composition_v044a_on_sun_shadow_110_go
+    ud2
+composition_v044a_on_sun_shadow_110_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_sun_shadow_110_replay:
+    db 0xd9, 0xe8, 0x56, 0x51, 0xd9, 0x1c, 0x24
+    jmp 0x1a9ca8
+
+; 0x1a9da8 effect_composition<1,1,0>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1A9DAD), its technique ended (end_technique 0x3DA6B0 at 0x1A9DA2); technique is the technique's start (0x1A9B1E: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1A9B34): lohook -> composition_v044a_on_compiled_110
+global composition_v044a_on_compiled_110
+extern hook_composition_v044a_on_compiled_110
+composition_v044a_on_compiled_110:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_compiled_110
+    mov edx, composition_v044a_on_compiled_110_replay
+    cmp eax, 0
+    je composition_v044a_on_compiled_110_go
+    mov edx, 0x1a9dad
+    cmp eax, 1
+    je composition_v044a_on_compiled_110_go
+    mov edx, 0x1a9b1e
+    cmp eax, 2
+    je composition_v044a_on_compiled_110_go
+    ud2
+composition_v044a_on_compiled_110_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_compiled_110_replay:
+    db 0x5e, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x1a9dad
+
+; 0x1a9e22 effect_composition<0,0,1>::compile (0x1A9DB0), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1A9E2E): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1A9E1D), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span: lohook -> composition_v044a_on_begin_pass_001
+global composition_v044a_on_begin_pass_001
+extern hook_composition_v044a_on_begin_pass_001
+composition_v044a_on_begin_pass_001:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_begin_pass_001
+    mov edx, composition_v044a_on_begin_pass_001_replay
+    cmp eax, 0
+    je composition_v044a_on_begin_pass_001_go
+    mov edx, 0x1a9e29
+    cmp eax, 1
+    je composition_v044a_on_begin_pass_001_go
+    ud2
+composition_v044a_on_begin_pass_001_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_begin_pass_001_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1a9e29
+
+; 0x1a9f41 effect_composition<0,0,1>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1A9F57) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1A9F5C), the stack and the x87 as here: lohook -> composition_v044a_on_sun_shadow_001
+global composition_v044a_on_sun_shadow_001
+extern hook_composition_v044a_on_sun_shadow_001
+composition_v044a_on_sun_shadow_001:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_sun_shadow_001
+    mov edx, composition_v044a_on_sun_shadow_001_replay
+    cmp eax, 0
+    je composition_v044a_on_sun_shadow_001_go
+    mov edx, 0x1a9f48
+    cmp eax, 1
+    je composition_v044a_on_sun_shadow_001_go
+    mov edx, 0x1a9f5c
+    cmp eax, 2
+    je composition_v044a_on_sun_shadow_001_go
+    ud2
+composition_v044a_on_sun_shadow_001_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_sun_shadow_001_replay:
+    db 0xd9, 0xe8, 0x56, 0x51, 0xd9, 0x1c, 0x24
+    jmp 0x1a9f48
+
+; 0x1aa048 effect_composition<0,0,1>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1AA04D), its technique ended (end_technique 0x3DA6B0 at 0x1AA042); technique is the technique's start (0x1A9DBE: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1A9DD4): lohook -> composition_v044a_on_compiled_001
+global composition_v044a_on_compiled_001
+extern hook_composition_v044a_on_compiled_001
+composition_v044a_on_compiled_001:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_compiled_001
+    mov edx, composition_v044a_on_compiled_001_replay
+    cmp eax, 0
+    je composition_v044a_on_compiled_001_go
+    mov edx, 0x1aa04d
+    cmp eax, 1
+    je composition_v044a_on_compiled_001_go
+    mov edx, 0x1a9dbe
+    cmp eax, 2
+    je composition_v044a_on_compiled_001_go
+    ud2
+composition_v044a_on_compiled_001_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_compiled_001_replay:
+    db 0x5e, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x1aa04d
+
+; 0x1aa0c2 effect_composition<1,0,1>::compile (0x1AA050), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1AA0CE): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1AA0BD), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span: lohook -> composition_v044a_on_begin_pass_101
+global composition_v044a_on_begin_pass_101
+extern hook_composition_v044a_on_begin_pass_101
+composition_v044a_on_begin_pass_101:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_begin_pass_101
+    mov edx, composition_v044a_on_begin_pass_101_replay
+    cmp eax, 0
+    je composition_v044a_on_begin_pass_101_go
+    mov edx, 0x1aa0c9
+    cmp eax, 1
+    je composition_v044a_on_begin_pass_101_go
+    ud2
+composition_v044a_on_begin_pass_101_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_begin_pass_101_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1aa0c9
+
+; 0x1aa1e1 effect_composition<1,0,1>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1AA1F7) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1AA1FC), the stack and the x87 as here: lohook -> composition_v044a_on_sun_shadow_101
+global composition_v044a_on_sun_shadow_101
+extern hook_composition_v044a_on_sun_shadow_101
+composition_v044a_on_sun_shadow_101:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_sun_shadow_101
+    mov edx, composition_v044a_on_sun_shadow_101_replay
+    cmp eax, 0
+    je composition_v044a_on_sun_shadow_101_go
+    mov edx, 0x1aa1e8
+    cmp eax, 1
+    je composition_v044a_on_sun_shadow_101_go
+    mov edx, 0x1aa1fc
+    cmp eax, 2
+    je composition_v044a_on_sun_shadow_101_go
+    ud2
+composition_v044a_on_sun_shadow_101_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_sun_shadow_101_replay:
+    db 0xd9, 0xe8, 0x56, 0x51, 0xd9, 0x1c, 0x24
+    jmp 0x1aa1e8
+
+; 0x1aa2e8 effect_composition<1,0,1>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1AA2ED), its technique ended (end_technique 0x3DA6B0 at 0x1AA2E2); technique is the technique's start (0x1AA05E: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1AA074): lohook -> composition_v044a_on_compiled_101
+global composition_v044a_on_compiled_101
+extern hook_composition_v044a_on_compiled_101
+composition_v044a_on_compiled_101:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_compiled_101
+    mov edx, composition_v044a_on_compiled_101_replay
+    cmp eax, 0
+    je composition_v044a_on_compiled_101_go
+    mov edx, 0x1aa2ed
+    cmp eax, 1
+    je composition_v044a_on_compiled_101_go
+    mov edx, 0x1aa05e
+    cmp eax, 2
+    je composition_v044a_on_compiled_101_go
+    ud2
+composition_v044a_on_compiled_101_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_compiled_101_replay:
+    db 0x5e, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x1aa2ed
+
+; 0x1aa362 effect_composition<0,1,1>::compile (0x1AA2F0), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1AA36E): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1AA35D), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span: lohook -> composition_v044a_on_begin_pass_011
+global composition_v044a_on_begin_pass_011
+extern hook_composition_v044a_on_begin_pass_011
+composition_v044a_on_begin_pass_011:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_begin_pass_011
+    mov edx, composition_v044a_on_begin_pass_011_replay
+    cmp eax, 0
+    je composition_v044a_on_begin_pass_011_go
+    mov edx, 0x1aa369
+    cmp eax, 1
+    je composition_v044a_on_begin_pass_011_go
+    ud2
+composition_v044a_on_begin_pass_011_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_begin_pass_011_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1aa369
+
+; 0x1aa481 effect_composition<0,1,1>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1AA497) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1AA49C), the stack and the x87 as here: lohook -> composition_v044a_on_sun_shadow_011
+global composition_v044a_on_sun_shadow_011
+extern hook_composition_v044a_on_sun_shadow_011
+composition_v044a_on_sun_shadow_011:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_sun_shadow_011
+    mov edx, composition_v044a_on_sun_shadow_011_replay
+    cmp eax, 0
+    je composition_v044a_on_sun_shadow_011_go
+    mov edx, 0x1aa488
+    cmp eax, 1
+    je composition_v044a_on_sun_shadow_011_go
+    mov edx, 0x1aa49c
+    cmp eax, 2
+    je composition_v044a_on_sun_shadow_011_go
+    ud2
+composition_v044a_on_sun_shadow_011_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_sun_shadow_011_replay:
+    db 0xd9, 0xe8, 0x56, 0x51, 0xd9, 0x1c, 0x24
+    jmp 0x1aa488
+
+; 0x1aa588 effect_composition<0,1,1>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1AA58D), its technique ended (end_technique 0x3DA6B0 at 0x1AA582); technique is the technique's start (0x1AA2FE: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1AA314): lohook -> composition_v044a_on_compiled_011
+global composition_v044a_on_compiled_011
+extern hook_composition_v044a_on_compiled_011
+composition_v044a_on_compiled_011:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_compiled_011
+    mov edx, composition_v044a_on_compiled_011_replay
+    cmp eax, 0
+    je composition_v044a_on_compiled_011_go
+    mov edx, 0x1aa58d
+    cmp eax, 1
+    je composition_v044a_on_compiled_011_go
+    mov edx, 0x1aa2fe
+    cmp eax, 2
+    je composition_v044a_on_compiled_011_go
+    ud2
+composition_v044a_on_compiled_011_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_compiled_011_replay:
+    db 0x5e, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x1aa58d
+
+; 0x1aa602 effect_composition<1,1,1>::compile (0x1AA590), its one technique's begin_pass arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4CA8h and the call 0x3D9F60 at 0x1AA60E): ESP the PS name's slot (composition 0x9F4CA8, pushed at 0x1AA5FD), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span: lohook -> composition_v044a_on_begin_pass_111
+global composition_v044a_on_begin_pass_111
+extern hook_composition_v044a_on_begin_pass_111
+composition_v044a_on_begin_pass_111:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_begin_pass_111
+    mov edx, composition_v044a_on_begin_pass_111_replay
+    cmp eax, 0
+    je composition_v044a_on_begin_pass_111_go
+    mov edx, 0x1aa609
+    cmp eax, 1
+    je composition_v044a_on_begin_pass_111_go
+    ud2
+composition_v044a_on_begin_pass_111_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_begin_pass_111_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1aa609
+
+; 0x1aa721 effect_composition<1,1,1>::compile, before the pushes of its set_texture (0x3D98B0, at 0x1AA737) of t_sun_shadow_and_scattering (fld1 / push esi / push ecx / fstp [esp]; then push esi, push -1, push esi, push $user$sun_shadow_and_scattering 0x9F1E74, push t_sun_shadow_and_scattering 0x9F4D24, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1AA73C), the stack and the x87 as here: lohook -> composition_v044a_on_sun_shadow_111
+global composition_v044a_on_sun_shadow_111
+extern hook_composition_v044a_on_sun_shadow_111
+composition_v044a_on_sun_shadow_111:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_sun_shadow_111
+    mov edx, composition_v044a_on_sun_shadow_111_replay
+    cmp eax, 0
+    je composition_v044a_on_sun_shadow_111_go
+    mov edx, 0x1aa728
+    cmp eax, 1
+    je composition_v044a_on_sun_shadow_111_go
+    mov edx, 0x1aa73c
+    cmp eax, 2
+    je composition_v044a_on_sun_shadow_111_go
+    ud2
+composition_v044a_on_sun_shadow_111_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_sun_shadow_111_replay:
+    db 0xd9, 0xe8, 0x56, 0x51, 0xd9, 0x1c, 0x24
+    jmp 0x1aa728
+
+; 0x1aa828 effect_composition<1,1,1>::compile's epilogue after its pop edi (pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch at 0x1AA82D), its technique ended (end_technique 0x3DA6B0 at 0x1AA822); technique is the technique's start (0x1AA59E: xor esi,esi, its configuration's locals, then cmp byte [ebx+61F4Ch],0 / jne: begin_technique when the compiler is not caching), which needs EBX, EBP and ESP as here (the prologue's push esi the last; the technique pushes edi again at 0x1AA5B4): lohook -> composition_v044a_on_compiled_111
+global composition_v044a_on_compiled_111
+extern hook_composition_v044a_on_compiled_111
+composition_v044a_on_compiled_111:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_compiled_111
+    mov edx, composition_v044a_on_compiled_111_replay
+    cmp eax, 0
+    je composition_v044a_on_compiled_111_go
+    mov edx, 0x1aa82d
+    cmp eax, 1
+    je composition_v044a_on_compiled_111_go
+    mov edx, 0x1aa59e
+    cmp eax, 2
+    je composition_v044a_on_compiled_111_go
+    ud2
+composition_v044a_on_compiled_111_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_compiled_111_replay:
+    db 0x5e, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x1aa82d
+
+; 0x1a77b7 stage_composition::stage_composition (0x1A7280) after its last constant host's registration (rain_density's, +70h, whose name holder it lets go by 0x1A77B2): pop edi / pop ebp / mov byte [esi+0Ch],1, the one place both of the release's branches (0x1A77A4, 0x1A77AF) land on; ESI the stage. Its hosts: wind_info_parameters +38h, sun_light_parameters +3Ch, s_eye_ray_corner +40h, ... rain_density +70h (shared_string::create 0xE0B50, register_constant_host 0x3C8BC0 with the backend [2260490h]): lohook -> composition_v044a_on_constructed
+global composition_v044a_on_constructed
+extern hook_composition_v044a_on_constructed
+composition_v044a_on_constructed:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_constructed
+    mov edx, composition_v044a_on_constructed_replay
+    cmp eax, 0
+    je composition_v044a_on_constructed_go
+    mov edx, 0x1a77bd
+    cmp eax, 1
+    je composition_v044a_on_constructed_go
+    ud2
+composition_v044a_on_constructed_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_constructed_replay:
+    db 0x5f, 0x5d, 0xc6, 0x46, 0x0c, 0x01
+    jmp 0x1a77bd
+
+; 0x1a85b4 stage_composition::execute (0x1A8170) with its composition effect chosen (0x1A85B0: [ebp+edx*4], one of the eight effect_composition<a,b,c> of +10h..+2Ch by the environment's use_sun ([ebx+3Ch]) and two render options), at mov dword [eax+5620h],0, its technique, before res_effect::apply_pass (0x3D7230) at 0x1A85BE; apply is that call; EAX the effect, EBP the stage: lohook -> composition_v044a_on_technique
+global composition_v044a_on_technique
+extern hook_composition_v044a_on_technique
+composition_v044a_on_technique:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_technique
+    mov edx, composition_v044a_on_technique_replay
+    cmp eax, 0
+    je composition_v044a_on_technique_go
+    mov edx, 0x1a85be
+    cmp eax, 1
+    je composition_v044a_on_technique_go
+    mov edx, 0x1a85be
+    cmp eax, 2
+    je composition_v044a_on_technique_go
+    ud2
+composition_v044a_on_technique_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_technique_replay:
+    db 0xc7, 0x80, 0x20, 0x56, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    jmp 0x1a85be
+
+; 0x1a85d6 stage_composition::execute after apply_pass (0x1A85BE) and its first set_ps_constant (0x132A90 at 0x1A85D1, s_eye_ray_corner +40h), before the next (movss xmm0,[esp+28h]): the pass's program bound, EDI the backend ([2260490h], 0x1A85C7), EBP the stage; the game's own sets follow (sun_light_parameters +48h at 0x1A860B, ...): lohook -> composition_v044a_on_constants
+global composition_v044a_on_constants
+extern hook_composition_v044a_on_constants
+composition_v044a_on_constants:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_composition_v044a_on_constants
+    mov edx, composition_v044a_on_constants_replay
+    cmp eax, 0
+    je composition_v044a_on_constants_go
+    mov edx, 0x1a85dc
+    cmp eax, 1
+    je composition_v044a_on_constants_go
+    ud2
+composition_v044a_on_constants_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+composition_v044a_on_constants_replay:
+    db 0xf3, 0x0f, 0x10, 0x44, 0x24, 0x28
+    jmp 0x1a85dc
+
+; 0x3482c0 ui_text_edit::paste_from_clipboard's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,28h), the engine's stub that logs "not implemented": ECX the text edit (thiscall, no argument; Ctrl+V's and Shift+Insert's key binding, init_internals 0x34AA5C, calls it through 0x34B4C0, on the game's thread); pasted is its `ret` (0x34838F), the stack as at the site: lohook -> console_paste_on_paste
+global console_paste_on_paste
+extern hook_console_paste_on_paste
+console_paste_on_paste:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_console_paste_on_paste
+    mov edx, console_paste_on_paste_replay
+    cmp eax, 0
+    je console_paste_on_paste_go
+    mov edx, 0x3482c9
+    cmp eax, 1
+    je console_paste_on_paste_go
+    mov edx, 0x34838f
+    cmp eax, 2
+    je console_paste_on_paste_go
+    ud2
+console_paste_on_paste_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+console_paste_on_paste_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8, 0x83, 0xec, 0x28
+    jmp 0x3482c9
+
+; 0x1eaa0 console_impl::on_keyboard_action's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,14h; called only by game_console's input handler slot 0, 0x1C7F0): ECX the console, EAX the key's kind (1 down, 2 up, 3 held), ESP+4 the input world, +8 the key (DirectInput); every key of the open console (input priority 5, before the game world's 7 and the player's 10), which it takes on every path (AL 1), on the game's thread: lohook -> console_scroll_on_key
+global console_scroll_on_key
+extern hook_console_scroll_on_key
+console_scroll_on_key:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_console_scroll_on_key
+    mov edx, console_scroll_on_key_replay
+    cmp eax, 0
+    je console_scroll_on_key_go
+    mov edx, 0x1eaa9
+    cmp eax, 1
+    je console_scroll_on_key_go
+    ud2
+console_scroll_on_key_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+console_scroll_on_key_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8, 0x83, 0xec, 0x14
+    jmp 0x1eaa9
+
+; 0x1c810 game_console::on_mouse_move's start (its input handler's slot 3, vtable 0x9DC030 +0Ch; mov ecx,[ecx-254h], the console's dialog): ECX the console's input handler (the console's +268h), ESP+4 the input world, +8 x, +0Ch y, +10h z (the wheel); every mouse move of the open console, which it takes (AL 1), on the game's thread: lohook -> console_scroll_on_wheel
+global console_scroll_on_wheel
+extern hook_console_scroll_on_wheel
+console_scroll_on_wheel:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_console_scroll_on_wheel
+    mov edx, console_scroll_on_wheel_replay
+    cmp eax, 0
+    je console_scroll_on_wheel_go
+    mov edx, 0x1c816
+    cmp eax, 1
+    je console_scroll_on_wheel_go
+    ud2
+console_scroll_on_wheel_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+console_scroll_on_wheel_replay:
+    db 0x8b, 0x89, 0xac, 0xfd, 0xff, 0xff
+    jmp 0x1c816
+
+; 0x1c760 game_console::on_activate's start (push esi / mov esi,ecx / mov ecx,[esi+1Ch]; vtable 0x9DC030 +24h through 0x1C840): ECX the console, about to be shown (its text edit focused, +264h set, its input handler added to the input world), on the game's thread: lohook -> console_scroll_on_activate
+global console_scroll_on_activate
+extern hook_console_scroll_on_activate
+console_scroll_on_activate:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_console_scroll_on_activate
+    mov edx, console_scroll_on_activate_replay
+    cmp eax, 0
+    je console_scroll_on_activate_go
+    mov edx, 0x1c766
+    cmp eax, 1
+    je console_scroll_on_activate_go
+    ud2
+console_scroll_on_activate_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+console_scroll_on_activate_replay:
+    db 0x56, 0x8b, 0xf1, 0x8b, 0x4e, 0x1c
+    jmp 0x1c766
+
+; 0x9e7c10 cc_delegate's vtable slot 1 (+4): execute(arguments), thiscall; console_commands::execute 0xEB980 calls it at 0xEBB98 for the command its lookup (0xEB7C0) found: vtable -> console_where_on_execute (wraps engine_cc_delegate_execute 0xec830)
+    RUST_THISCALL console_where_on_execute, hook_console_where_on_execute, 1
 
 ; 0x23b7a0 update_local_player_state before updating a mapped quick slot: ESI ui, EBP player, EBX inventory, EDI quick slot, EAX inventory slot; original LEA gives item pointer: lohook -> consumable_activity_on_update
 global consumable_activity_on_update
@@ -2617,10 +6200,10 @@ deserialize_guards_on_artefact_replay:
     db 0x8d, 0x04, 0x82, 0x8b, 0x00
     jmp 0x2fe663
 
-; 0x2d9cb1 base_player::hit_impl once damage_model::hit_body_part (0x2E5080, at 0x2D9CA4) said 1: the hit took health past armour and protectors (more than 0.0 left, 0x2E5128); before the slow, the listeners and the death (mov edi,esi / cmp dword [edi+40h],0; the je at 0x2D9CB7 reads its flags): EBX the victim, ESI the hit; every hit of every player, in every game's simulation: lohook -> drug_interrupt_on_hit_applied
-global drug_interrupt_on_hit_applied
-extern hook_drug_interrupt_on_hit_applied
-drug_interrupt_on_hit_applied:
+; 0x338280 get_death_animations' entry (push ebx; mov ebx,[esp+10h]), called by on_animation_end 0x3384FF and selected_animations 0x338566 with the dead state's m_animation_index as read from the world: it reads [[set+0A20h]+index*4] and [[set+590h]+index*4] and takes a reference through each (lock xadd [slot+0DCh]) with no bound: lohook -> deserialize_guards_on_death_animation
+global deserialize_guards_on_death_animation
+extern hook_deserialize_guards_on_death_animation
+deserialize_guards_on_death_animation:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -2637,24 +6220,558 @@ drug_interrupt_on_hit_applied:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_drug_interrupt_on_hit_applied
-    mov edx, drug_interrupt_on_hit_applied_replay
+    call hook_deserialize_guards_on_death_animation
+    mov edx, deserialize_guards_on_death_animation_replay
     cmp eax, 0
-    je drug_interrupt_on_hit_applied_go
-    mov edx, 0x2d9cb7
+    je deserialize_guards_on_death_animation_go
+    mov edx, 0x338285
     cmp eax, 1
-    je drug_interrupt_on_hit_applied_go
+    je deserialize_guards_on_death_animation_go
     ud2
-drug_interrupt_on_hit_applied_go:
+deserialize_guards_on_death_animation_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-drug_interrupt_on_hit_applied_replay:
-    db 0x8b, 0xfe, 0x83, 0x7f, 0x40, 0x00
-    jmp 0x2d9cb7
+deserialize_guards_on_death_animation_replay:
+    db 0x53, 0x8b, 0x5c, 0x24, 0x10
+    jmp 0x338285
+
+; 0x310224 the bare double-barrel's and pistol's fire deserialize 0x310200 (vtables 0A15160h, 0A152A0h +14h; the game builds the sound wrappers, deserialize.fire_animation_sound) storing m_weapon_animation_index (mov [esi+16Ch],cl; ESI the state, CL the byte as read): weapon_and_hands_expression 0x30F830 takes a reference through [state+164h+index*4], the state's two fire animations, with no bound (0x30F854..0x30F884, 0x31ED1A): lohook -> deserialize_guards_on_fire_animation
+global deserialize_guards_on_fire_animation
+extern hook_deserialize_guards_on_fire_animation
+deserialize_guards_on_fire_animation:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_fire_animation
+    mov edx, deserialize_guards_on_fire_animation_replay
+    cmp eax, 0
+    je deserialize_guards_on_fire_animation_go
+    mov edx, 0x31022a
+    cmp eax, 1
+    je deserialize_guards_on_fire_animation_go
+    ud2
+deserialize_guards_on_fire_animation_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_fire_animation_replay:
+    db 0x88, 0x8e, 0x6c, 0x01, 0x00, 0x00
+    jmp 0x31022a
+
+; 0x252b48 the live double-barrel's and pistol's fire deserialize: weapon_sound_events_handler_state<...fire_state>::deserialize 0x252B20 (the cooks' wrappers, vtables 0A05150h and 0A05248h +14h; the bare classes' 0x310200 is never called) storing m_weapon_animation_index (mov [edi+16Ch],cl; EDI the state, CL the byte as read): lohook -> deserialize_guards_on_fire_animation_sound
+global deserialize_guards_on_fire_animation_sound
+extern hook_deserialize_guards_on_fire_animation_sound
+deserialize_guards_on_fire_animation_sound:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_fire_animation_sound
+    mov edx, deserialize_guards_on_fire_animation_sound_replay
+    cmp eax, 0
+    je deserialize_guards_on_fire_animation_sound_go
+    mov edx, 0x252b4e
+    cmp eax, 1
+    je deserialize_guards_on_fire_animation_sound_go
+    ud2
+deserialize_guards_on_fire_animation_sound_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_fire_animation_sound_replay:
+    db 0x88, 0x8f, 0x6c, 0x01, 0x00, 0x00
+    jmp 0x252b4e
+
+; 0x33a66d weapon_core_throw_grenade_state::is_ready_for_transition loading m_grenade_index (mov al,[esi+180h]); past the 0FFh test it reads [[set+268h]+index*4] and [grenade+154h] with no bound (0x33A677..0x33A689); not_ready is the native 0FFh path (xor eax,eax; pop esi; ret): lohook -> deserialize_guards_on_grenade_ready
+global deserialize_guards_on_grenade_ready
+extern hook_deserialize_guards_on_grenade_ready
+deserialize_guards_on_grenade_ready:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_grenade_ready
+    mov edx, deserialize_guards_on_grenade_ready_replay
+    cmp eax, 0
+    je deserialize_guards_on_grenade_ready_go
+    mov edx, 0x33a673
+    cmp eax, 1
+    je deserialize_guards_on_grenade_ready_go
+    mov edx, 0x33a692
+    cmp eax, 2
+    je deserialize_guards_on_grenade_ready_go
+    ud2
+deserialize_guards_on_grenade_ready_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_grenade_ready_replay:
+    db 0x8a, 0x86, 0x80, 0x01, 0x00, 0x00
+    jmp 0x33a673
+
+; 0x33a770 the throw state's throw_grenade entry (push ebp; mov ebp,esp; and esp,-8; ESI the state, called by the throw substate's on_animation_end 0x3106AD): it hands m_grenade_index to grenade_set_core::throw_grenade 0x30A250, which takes a reference through [[set+268h]+index*4] (0x30A268, 0x30A277) with no bound, 0FFh included; done is its ret, the stack as at the entry: lohook -> deserialize_guards_on_grenade_throw
+global deserialize_guards_on_grenade_throw
+extern hook_deserialize_guards_on_grenade_throw
+deserialize_guards_on_grenade_throw:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_grenade_throw
+    mov edx, deserialize_guards_on_grenade_throw_replay
+    cmp eax, 0
+    je deserialize_guards_on_grenade_throw_go
+    mov edx, 0x33a776
+    cmp eax, 1
+    je deserialize_guards_on_grenade_throw_go
+    mov edx, 0x33a7dd
+    cmp eax, 2
+    je deserialize_guards_on_grenade_throw_go
+    ud2
+deserialize_guards_on_grenade_throw_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_grenade_throw_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x33a776
+
+; 0x30db7d weapon_core_animation_end_aware_state::on_animation_end (an animation-end callback, for every player) loading m_index_of_animation_to_wait (movzx edx,byte [ecx+134h]) before cmp ebx,[[ecx+130h]+edx*4] with no bound (0x30DB8E); no_match is the compare's failed path (pop edi; xor eax,eax; pop esi; ret 4): lohook -> deserialize_guards_on_wait_end
+global deserialize_guards_on_wait_end
+extern hook_deserialize_guards_on_wait_end
+deserialize_guards_on_wait_end:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_wait_end
+    mov edx, deserialize_guards_on_wait_end_replay
+    cmp eax, 0
+    je deserialize_guards_on_wait_end_go
+    mov edx, 0x30db84
+    cmp eax, 1
+    je deserialize_guards_on_wait_end_go
+    mov edx, 0x30dba7
+    cmp eax, 2
+    je deserialize_guards_on_wait_end_go
+    ud2
+deserialize_guards_on_wait_end_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_wait_end_replay:
+    db 0x0f, 0xb6, 0x91, 0x34, 0x01, 0x00, 0x00
+    jmp 0x30db84
+
+; 0x310692 the throw substate's on_animation_end 0x310680 loading m_index_of_animation_to_wait before cmp eax,[[ecx+130h]+edx*4] (0x3106A2); no_match is its failed path (xor eax,eax; pop esi; ret 4): lohook -> deserialize_guards_on_wait_throw
+global deserialize_guards_on_wait_throw
+extern hook_deserialize_guards_on_wait_throw
+deserialize_guards_on_wait_throw:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_wait_throw
+    mov edx, deserialize_guards_on_wait_throw_replay
+    cmp eax, 0
+    je deserialize_guards_on_wait_throw_go
+    mov edx, 0x310699
+    cmp eax, 1
+    je deserialize_guards_on_wait_throw_go
+    mov edx, 0x3106b2
+    cmp eax, 2
+    je deserialize_guards_on_wait_throw_go
+    ud2
+deserialize_guards_on_wait_throw_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_wait_throw_replay:
+    db 0x0f, 0xb6, 0x91, 0x34, 0x01, 0x00, 0x00
+    jmp 0x310699
+
+; 0x310cf0 the melee state's animation callback 0x310CF0 at its entry (movzx edx,byte [ecx+134h]) before cmp edi,[[ecx+130h]+edx*4] (0x310D06); no_match is its ret 4 with the stack as at the entry (the handler sets EAX 0, the failed path's): lohook -> deserialize_guards_on_wait_melee
+global deserialize_guards_on_wait_melee
+extern hook_deserialize_guards_on_wait_melee
+deserialize_guards_on_wait_melee:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_wait_melee
+    mov edx, deserialize_guards_on_wait_melee_replay
+    cmp eax, 0
+    je deserialize_guards_on_wait_melee_go
+    mov edx, 0x310cf7
+    cmp eax, 1
+    je deserialize_guards_on_wait_melee_go
+    mov edx, 0x310d3e
+    cmp eax, 2
+    je deserialize_guards_on_wait_melee_go
+    ud2
+deserialize_guards_on_wait_melee_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_wait_melee_replay:
+    db 0x0f, 0xb6, 0x91, 0x34, 0x01, 0x00, 0x00
+    jmp 0x310cf7
+
+; 0x3103cf the pull substate's initialize 0x3103A0 loading the throw state's set (mov ecx,[esi+17Ch]) for grenade_set_core::pull_pin 0x30A120, which indexes the set's grenades with the new amount's low byte (0x30A1C2) and takes a reference through the slot, with no bound, and calls through [[set+250h]+174h]'s vtable; no_pull stores AL as m_grenade_index (pop edi; mov [esi+180h],al), the stack as after the call (pull_pin pops 8): lohook -> deserialize_guards_on_grenade_pull
+global deserialize_guards_on_grenade_pull
+extern hook_deserialize_guards_on_grenade_pull
+deserialize_guards_on_grenade_pull:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_grenade_pull
+    mov edx, deserialize_guards_on_grenade_pull_replay
+    cmp eax, 0
+    je deserialize_guards_on_grenade_pull_go
+    mov edx, 0x3103d5
+    cmp eax, 1
+    je deserialize_guards_on_grenade_pull_go
+    mov edx, 0x3103dc
+    cmp eax, 2
+    je deserialize_guards_on_grenade_pull_go
+    ud2
+deserialize_guards_on_grenade_pull_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_grenade_pull_replay:
+    db 0x8b, 0x8e, 0x7c, 0x01, 0x00, 0x00
+    jmp 0x3103d5
+
+; 0x310465 the idle substate's 0x310450 loading the throw state's set (mov edx,[eax+17Ch]) to compare the inventory's grenade slot with [set+254h] (0x310473); done is its ret, AL the result: lohook -> deserialize_guards_on_grenade_idle
+global deserialize_guards_on_grenade_idle
+extern hook_deserialize_guards_on_grenade_idle
+deserialize_guards_on_grenade_idle:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_grenade_idle
+    mov edx, deserialize_guards_on_grenade_idle_replay
+    cmp eax, 0
+    je deserialize_guards_on_grenade_idle_go
+    mov edx, 0x31046b
+    cmp eax, 1
+    je deserialize_guards_on_grenade_idle_go
+    mov edx, 0x31047e
+    cmp eax, 2
+    je deserialize_guards_on_grenade_idle_go
+    ud2
+deserialize_guards_on_grenade_idle_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_grenade_idle_replay:
+    db 0x8b, 0x90, 0x7c, 0x01, 0x00, 0x00
+    jmp 0x31046b
+
+; 0x33a73f 0x33A730 (called by the throw state at 0x33A11D, 0x33A195, 0x33A209) loading its set (mov ecx,[ecx+17Ch]) to compare the inventory's grenade slot with [set+254h] (0x33A74B); done is its ret 4, AL the result: lohook -> deserialize_guards_on_grenade_choice
+global deserialize_guards_on_grenade_choice
+extern hook_deserialize_guards_on_grenade_choice
+deserialize_guards_on_grenade_choice:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_grenade_choice
+    mov edx, deserialize_guards_on_grenade_choice_replay
+    cmp eax, 0
+    je deserialize_guards_on_grenade_choice_go
+    mov edx, 0x33a745
+    cmp eax, 1
+    je deserialize_guards_on_grenade_choice_go
+    mov edx, 0x33a75f
+    cmp eax, 2
+    je deserialize_guards_on_grenade_choice_go
+    ud2
+deserialize_guards_on_grenade_choice_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_grenade_choice_replay:
+    db 0x8b, 0x89, 0x7c, 0x01, 0x00, 0x00
+    jmp 0x33a745
+
+; 0x33a51b the throw state's serialize 0x33A4E0 loading its set and the set's slot (mov ecx,[ebx+17Ch]; mov dl,[ecx+254h]) for the byte it writes (0x33A53D); skipping with DL the byte and ECX the set takes the native write: lohook -> deserialize_guards_on_grenade_serialize
+global deserialize_guards_on_grenade_serialize
+extern hook_deserialize_guards_on_grenade_serialize
+deserialize_guards_on_grenade_serialize:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_grenade_serialize
+    mov edx, deserialize_guards_on_grenade_serialize_replay
+    cmp eax, 0
+    je deserialize_guards_on_grenade_serialize_go
+    mov edx, 0x33a527
+    cmp eax, 1
+    je deserialize_guards_on_grenade_serialize_go
+    ud2
+deserialize_guards_on_grenade_serialize_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_grenade_serialize_replay:
+    db 0x8b, 0x8b, 0x7c, 0x01, 0x00, 0x00, 0x8a, 0x91, 0x54, 0x02, 0x00, 0x00
+    jmp 0x33a527
+
+; 0x2e40bf weapon_core's can-throw 0x2E4090 taking the item of the inventory's grenade slot (ECX, not 17h: mov ecx,[eax+ecx*4+10Ch]) and calling its vtable +64h, then 0x30A090 on the result as a grenade set; cannot is its 0 (xor eax,eax; pop esi; ret): lohook -> deserialize_guards_on_grenade_can_throw
+global deserialize_guards_on_grenade_can_throw
+extern hook_deserialize_guards_on_grenade_can_throw
+deserialize_guards_on_grenade_can_throw:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_grenade_can_throw
+    mov edx, deserialize_guards_on_grenade_can_throw_replay
+    cmp eax, 0
+    je deserialize_guards_on_grenade_can_throw_go
+    mov edx, 0x2e40c6
+    cmp eax, 1
+    je deserialize_guards_on_grenade_can_throw_go
+    mov edx, 0x2e40fc
+    cmp eax, 2
+    je deserialize_guards_on_grenade_can_throw_go
+    ud2
+deserialize_guards_on_grenade_can_throw_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_grenade_can_throw_replay:
+    db 0x8b, 0x8c, 0x88, 0x0c, 0x01, 0x00, 0x00
+    jmp 0x2e40c6
+
+; 0x33a7f5 the throw state's attach_grenade 0x33A7E0 (its initialize 0x33A463) taking the item of the inventory's grenade slot (ECX, 0..17h: [eax+ecx*4+10Ch], 17h reading +168h, the artefact slots' pointer) as its set and taking a reference through it (lock xadd [item+0D0h]); skipping with EAX 0 takes the native no-item path (the state holds no set): lohook -> deserialize_guards_on_grenade_attach
+global deserialize_guards_on_grenade_attach
+extern hook_deserialize_guards_on_grenade_attach
+deserialize_guards_on_grenade_attach:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_grenade_attach
+    mov edx, deserialize_guards_on_grenade_attach_replay
+    cmp eax, 0
+    je deserialize_guards_on_grenade_attach_go
+    mov edx, 0x33a7fc
+    cmp eax, 1
+    je deserialize_guards_on_grenade_attach_go
+    ud2
+deserialize_guards_on_grenade_attach_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_grenade_attach_replay:
+    db 0x8b, 0x84, 0x88, 0x0c, 0x01, 0x00, 0x00
+    jmp 0x33a7fc
 
 ; 0x2aa1cd sound_game_effect_presenter::on_event 0x2A9EF0, a stop (event kind 1) after its search, where the search's end and an empty list meet (mov eax,[ebx] / lea edx,[edi+edi*4]; the erase 0x2AB420 follows): EDI the index of the entry playing the effect, -1 when none (then the erase starts at begin - 14h: the presenter's own seed (+10h) taken for an entry's effect reference and freed); ignore is its return (pop edi / pop esi / pop ebx; ret 0Ch): lohook -> effect_presenters_on_sound_stop
 global effect_presenters_on_sound_stop
@@ -2782,6 +6899,285 @@ effect_presenters_on_particle_stop_replay:
     db 0x8d, 0x14, 0x40, 0x8b, 0x07
     jmp 0x2ac65f
 
+; 0x1ec8ec game::tick after its pending call is cleared (lea esi,[ebx+5308h]): every frame, on the game's thread, EBX the game: lohook -> music_on_frame
+global music_on_frame
+extern hook_music_on_frame_chain
+music_on_frame:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_music_on_frame_chain
+    mov edx, music_on_frame_replay
+    cmp eax, 0
+    je music_on_frame_go
+    mov edx, 0x1ec8f2
+    cmp eax, 1
+    je music_on_frame_go
+    ud2
+music_on_frame_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+music_on_frame_replay:
+    db 0x8d, 0xb3, 0x08, 0x53, 0x00, 0x00
+    jmp 0x1ec8f2
+
+; 0x27a790 close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown: lohook -> memory_report_on_close
+global memory_report_on_close
+extern hook_memory_report_on_close_chain
+memory_report_on_close:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_memory_report_on_close_chain
+    mov edx, memory_report_on_close_replay
+    cmp eax, 0
+    je memory_report_on_close_go
+    mov edx, 0x27a796
+    cmp eax, 1
+    je memory_report_on_close_go
+    ud2
+memory_report_on_close_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+memory_report_on_close_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x27a796
+
+; 0x205662 profile_skin_visual_cook::on_configs_loaded's default head, reached only when no item's remove_head_model took record 0 (the je at 0x205653), past its relocated `mov edi,9FD770h` ("head"): lea eax,[esp+0A8h] (the body_parts copy, before add esi,234h, record 0); 0x205659..0x2056E6 assign body_parts/head/data's base_model and part_name to record 0 and tag it 0; made is the join after it (0x2056F0), where every record is made and the skin's name is queried (patch 123): lohook -> faces_on_head
+global faces_on_head
+extern hook_faces_on_head
+faces_on_head:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_faces_on_head
+    mov edx, faces_on_head_replay
+    cmp eax, 0
+    je faces_on_head_go
+    mov edx, 0x205669
+    cmp eax, 1
+    je faces_on_head_go
+    mov edx, 0x2056f0
+    cmp eax, 2
+    je faces_on_head_go
+    ud2
+faces_on_head_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+faces_on_head_replay:
+    db 0x8d, 0x84, 0x24, 0xa8, 0x00, 0x00, 0x00
+    jmp 0x205669
+
+; 0x27030b process_own_account (0x270260, the 0x87 handler) after its last field, exp_next_level (mov esi,ebx / mov [ebx+1EA96Ch],ecx, before the items' copy 0x270320): EBX the lobby client, its account profile at +1E6344h; ESI the message's reader, its cursor past the field: srp's face byte there (patch 123): lohook -> faces_on_own_account
+global faces_on_own_account
+extern hook_faces_on_own_account
+faces_on_own_account:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_faces_on_own_account
+    mov edx, faces_on_own_account_replay
+    cmp eax, 0
+    je faces_on_own_account_go
+    mov edx, 0x270313
+    cmp eax, 1
+    je faces_on_own_account_go
+    ud2
+faces_on_own_account_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+faces_on_own_account_replay:
+    db 0x8b, 0xf3, 0x89, 0x8b, 0x6c, 0xa9, 0x1e, 0x00
+    jmp 0x270313
+
+; 0x274c01 the 0x88 handler (squad member account, 0x274BCE) after its revision (mov edx,[ebx+1E56C0h], before on_squad_member_profile_arrived 0x222FE0 copies the profile to the member's lobby character): ESI the message's reader past the revision, srp's face byte there; EDI the member's profile, read by deserialize_static 0x1F1070 (patch 123): lohook -> faces_on_squad_member
+global faces_on_squad_member
+extern hook_faces_on_squad_member
+faces_on_squad_member:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_faces_on_squad_member
+    mov edx, faces_on_squad_member_replay
+    cmp eax, 0
+    je faces_on_squad_member_go
+    mov edx, 0x274c07
+    cmp eax, 1
+    je faces_on_squad_member_go
+    ud2
+faces_on_squad_member_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+faces_on_squad_member_replay:
+    db 0x8b, 0x93, 0xc0, 0x56, 0x1e, 0x00
+    jmp 0x274c07
+
+; 0x27a31f on_match_packet_received before storing the normalized id and subtracting E3h; EAX the id, reader cursor after it; refused is the epilogue: lohook -> message_check_on_message
+global message_check_on_message
+extern hook_message_check_on_message_chain
+message_check_on_message:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_message_check_on_message_chain
+    mov edx, message_check_on_message_replay
+    cmp eax, 0
+    je message_check_on_message_go
+    mov edx, 0x27a327
+    cmp eax, 1
+    je message_check_on_message_go
+    mov edx, 0x27a72c
+    cmp eax, 2
+    je message_check_on_message_go
+    ud2
+message_check_on_message_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+message_check_on_message_replay:
+    db 0x89, 0x45, 0x0c, 0x05, 0x1d, 0xff, 0xff, 0xff
+    jmp 0x27a327
+
+; 0x204b36 profile_skin_visual_cook::on_configs_loaded's worn item, its entry's key chosen (the join of 0x204B26/0x204B2F): EDI the key ("data" 0x9FD6C4, or the torso's and pants' data_<model_type>), the item's config at [esp+10h], its profile slot at [esp+60h]; mov esi,[esp+10h] / mov eax,[esi+108h], then cfg_child (0x204B40) of the root by EDI, the 24-byte node copied to [esp+20h], which the records' base_model, part_name, material, remove_head_model, model_type and additional_models are read from (0x2051C0..0x20561C) (patch 123: a helmet's or mask's data_head_<face>): lohook -> faces_on_item_data
+global faces_on_item_data
+extern hook_faces_on_item_data
+faces_on_item_data:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_faces_on_item_data
+    mov edx, faces_on_item_data_replay
+    cmp eax, 0
+    je faces_on_item_data_go
+    mov edx, 0x204b40
+    cmp eax, 1
+    je faces_on_item_data_go
+    ud2
+faces_on_item_data_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+faces_on_item_data_replay:
+    db 0x8b, 0x74, 0x24, 0x10, 0x8b, 0x86, 0x08, 0x01, 0x00, 0x00
+    jmp 0x204b40
+
 ; 0x2a6485 player_equipment_sound_effect::on_player_sound_event's guard (mov edi,[esi+10h] / cmp edi,[ecx+18FC4h] / setbe cl / test cl,cl; the jne at 0x2A6493 skips an event at or before the newest played time): EAX the effect, ESI the event, ECX its player's world core (not 0: the je at 0x2A6483); play goes on to the object test and the switch, skip is the handler's return 0: lohook -> footsteps_on_step_guard
 global footsteps_on_step_guard
 extern hook_footsteps_on_step_guard
@@ -2826,6 +7222,48 @@ footsteps_on_step_guard_go:
 footsteps_on_step_guard_replay:
     db 0x8b, 0x7e, 0x10, 0x3b, 0xb9, 0xc4, 0x8f, 0x01, 0x00, 0x0f, 0x96, 0xc1, 0x84, 0xc9
     jmp 0x2a6493
+
+; 0x2a6545 on_foot_step's read of the foot material (lea eax,[edx+ecx*2+7962h] / mov ecx,[esi+3Ch] / movzx edi,word [ecx+eax*2]: the player's u16 at +0F2C4h + 4 x movement + 2 x third view), the one path of both feet's cases of on_player_sound_event (0x2A64B6, 0x2A64D2), whether or not the player has a world core: ESI the effect, ECX the logic state's movement id (+24h, 0x2A6532), EDX 1 for third view; skip 0x2A6577, on_foot_step's end (pop edi / add esp,8 / ret 8, the stack as here: its own je there when the world has no step manager): lohook -> footsteps_on_foot_material
+global footsteps_on_foot_material
+extern hook_footsteps_on_foot_material
+footsteps_on_foot_material:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_footsteps_on_foot_material
+    mov edx, footsteps_on_foot_material_replay
+    cmp eax, 0
+    je footsteps_on_foot_material_go
+    mov edx, 0x2a6553
+    cmp eax, 1
+    je footsteps_on_foot_material_go
+    mov edx, 0x2a6577
+    cmp eax, 2
+    je footsteps_on_foot_material_go
+    ud2
+footsteps_on_foot_material_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+footsteps_on_foot_material_replay:
+    db 0x8d, 0x84, 0x4a, 0x62, 0x79, 0x00, 0x00, 0x8b, 0x4e, 0x3c, 0x0f, 0xb7, 0x3c, 0x41
+    jmp 0x2a6553
 
 ; 0x14730 the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query: callback -> forest_glow_on_loaded (wraps engine_store_first_resource 0x14730)
     RUST_CDECL forest_glow_on_loaded, hook_forest_glow_on_loaded, 2
@@ -2911,6 +7349,732 @@ medical_skills_on_effect_clock_replay:
     db 0x8b, 0x54, 0x24, 0x10, 0x2b, 0x54, 0x24, 0x0c
     jmp 0x2e5d88
 
+; 0x1d910d effect_fstage_default_materials::compile (0x1D8F40, forward_default) among the pushes for its compile_begin (0x1CD0B0, called at 0x1D9126): setne cl / push edi / shl cl,6 (no address under them; the pushes of the two family names have base relocations); the options, the config tree and the configuration pushed (ESP+0 the configuration, the compile's [esp+50h]; +4 the material's config tree, EBX), the configuration's bytes but 7 final (byte 7 read at 0x1D9109, written at 0x1D9122); compile_begin writes the configuration's bytes 3 and 6 only (0x1CD0CD, 0x1CD12E), then copies it for begin_pass (0x1CD19A): lohook -> forward_effects_on_forward_begin
+global forward_effects_on_forward_begin
+extern hook_forward_effects_on_forward_begin
+forward_effects_on_forward_begin:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_forward_effects_on_forward_begin
+    mov edx, forward_effects_on_forward_begin_replay
+    cmp eax, 0
+    je forward_effects_on_forward_begin_go
+    mov edx, 0x1d9114
+    cmp eax, 1
+    je forward_effects_on_forward_begin_go
+    ud2
+forward_effects_on_forward_begin_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+forward_effects_on_forward_begin_replay:
+    db 0x0f, 0x95, 0xc1, 0x57, 0xc0, 0xe1, 0x06
+    jmp 0x1d9114
+
+; 0x1db34b effect_offscreen_particle_lighting_materials::compile (0x1DB170, particle_lighting) among the pushes for its compile_begin (0x1CD0B0, called at 0x1DB35B): lea eax,[esp+48h] / push eax / push ebx (the pushes of the family names after them have base relocations); the options and the config tree pushed (ESP+0 the tree, ESI), the configuration (the compile's [esp+40h], ESP+48h here) final, its last write 0x1DB347: lohook -> forward_effects_on_particle_lighting_begin
+global forward_effects_on_particle_lighting_begin
+extern hook_forward_effects_on_particle_lighting_begin
+forward_effects_on_particle_lighting_begin:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_forward_effects_on_particle_lighting_begin
+    mov edx, forward_effects_on_particle_lighting_begin_replay
+    cmp eax, 0
+    je forward_effects_on_particle_lighting_begin_go
+    mov edx, 0x1db351
+    cmp eax, 1
+    je forward_effects_on_particle_lighting_begin_go
+    ud2
+forward_effects_on_particle_lighting_begin_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+forward_effects_on_particle_lighting_begin_replay:
+    db 0x8d, 0x44, 0x24, 0x48, 0x50, 0x53
+    jmp 0x1db351
+
+; 0x1d964d effect_fstage_default_materials::compile at solid_color_specular's set_constant<float4> (push edi / lea ecx,[esp+68h], the call 0x1A8900 at 0x1D9652), before the block that sends constant_tile_uv (0x1D9657: set_constant<float2> 0x1D9740 at 0x1D96EE or 0x1D9716): EBX the material's config tree, EDI the compiler. A set_constant keeps a name's first value (0x1D97C0..0x1D97CB, 0x1A8988..0x1A8993: the binding vector is searched by the interned name, 0x3C3DD0 comparing +8, and a binding added only when none has it), so a constant set here stands and the block's later set of the name adds nothing: lohook -> forward_effects_on_tile_uv
+global forward_effects_on_tile_uv
+extern hook_forward_effects_on_tile_uv
+forward_effects_on_tile_uv:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_forward_effects_on_tile_uv
+    mov edx, forward_effects_on_tile_uv_replay
+    cmp eax, 0
+    je forward_effects_on_tile_uv_go
+    mov edx, 0x1d9652
+    cmp eax, 1
+    je forward_effects_on_tile_uv_go
+    ud2
+forward_effects_on_tile_uv_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+forward_effects_on_tile_uv_replay:
+    db 0x57, 0x8d, 0x4c, 0x24, 0x68
+    jmp 0x1d9652
+
+; 0x19015d stage_lights::stage_lights (0x18EE40) after its last constant host's registration (m_shadow3's, whose name holder it lets go by 0x190158): mov eax,10h, the one byte both of the release's branches (0x19014A, 0x190155) land on; EBX the stage. Its registrations: probe_parameters0..3 +0DCh..+0E8h, world_to_outer_probe +0ECh, probe_geometry_type +0F0h, ambient_light_particle_multiplier +0F4h, particle_screen_divider +0F8h, m_shadow0..3 +100h..+10Ch (shared_string::create 0xE0B50, the holder's assign 0x11170, register_constant_host 0x3C8BC0 with the backend [2260490h], which returns the host already made for a name): lohook -> forward_effects_on_stage_lights_constructed
+global forward_effects_on_stage_lights_constructed
+extern hook_forward_effects_on_stage_lights_constructed
+forward_effects_on_stage_lights_constructed:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_forward_effects_on_stage_lights_constructed
+    mov edx, forward_effects_on_stage_lights_constructed_replay
+    cmp eax, 0
+    je forward_effects_on_stage_lights_constructed_go
+    mov edx, 0x190162
+    cmp eax, 1
+    je forward_effects_on_stage_lights_constructed_go
+    ud2
+forward_effects_on_stage_lights_constructed_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+forward_effects_on_stage_lights_constructed_replay:
+    db 0xb8, 0x10, 0x00, 0x00, 0x00
+    jmp 0x190162
+
+; 0x19834b stage_lights::accumulate_particle_lighting (0x1961B0) where its two ways meet after the probe's constants (probe_geometry_type +0F0h, ambient_light_particle_multiplier +0F4h, particle_screen_divider +0F8h): mov ecx,[esi+4] / mov eax,[ecx+4170h] (the way that sets them with the vertex setter 0x14AE60 jumps here from 0x197C8C, the pixel one, set_ps_constant 0x132A90, falls through from 0x198346); ESI the stage, EBX the backend, [EBP-24h] the batch's probe or 0, the pass's program bound (0x19838E sets constants after it): lohook -> forward_effects_on_particle_probe
+global forward_effects_on_particle_probe
+extern hook_forward_effects_on_particle_probe
+forward_effects_on_particle_probe:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_forward_effects_on_particle_probe
+    mov edx, forward_effects_on_particle_probe_replay
+    cmp eax, 0
+    je forward_effects_on_particle_probe_go
+    mov edx, 0x198354
+    cmp eax, 1
+    je forward_effects_on_particle_probe_go
+    ud2
+forward_effects_on_particle_probe_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+forward_effects_on_particle_probe_replay:
+    db 0x8b, 0x4e, 0x04, 0x8b, 0x81, 0x70, 0x41, 0x00, 0x00
+    jmp 0x198354
+
+; 0x3237e0 kd_stats_rule::on_event entry; cmp dword [esp+4],1; done is the original ret 0Ch, before any pushes: lohook -> free_for_all_on_kill_event
+global free_for_all_on_kill_event
+extern hook_free_for_all_on_kill_event
+free_for_all_on_kill_event:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_free_for_all_on_kill_event
+    mov edx, free_for_all_on_kill_event_replay
+    cmp eax, 0
+    je free_for_all_on_kill_event_go
+    mov edx, 0x3237e5
+    cmp eax, 1
+    je free_for_all_on_kill_event_go
+    mov edx, 0x323861
+    cmp eax, 2
+    je free_for_all_on_kill_event_go
+    ud2
+free_for_all_on_kill_event_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+free_for_all_on_kill_event_replay:
+    db 0x83, 0x7c, 0x24, 0x04, 0x01
+    jmp 0x3237e5
+
+; 0x3168ce player_respawn_rule_base::tick puts a due player into its team's vector, EAX his team (lea edx,[eax+eax*2] / mov eax,[ebp-10h]): two vectors, so a team of 2 or more must be 0 here: lohook -> free_for_all_on_due_team
+global free_for_all_on_due_team
+extern hook_free_for_all_on_due_team
+free_for_all_on_due_team:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_free_for_all_on_due_team
+    mov edx, free_for_all_on_due_team_replay
+    cmp eax, 0
+    je free_for_all_on_due_team_go
+    mov edx, 0x3168d4
+    cmp eax, 1
+    je free_for_all_on_due_team_go
+    ud2
+free_for_all_on_due_team_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+free_for_all_on_due_team_replay:
+    db 0x8d, 0x14, 0x40, 0x8b, 0x45, 0xf0
+    jmp 0x3168d4
+
+; 0x3171dc player_respawn_rule_base::select_respawn_points after its frame and pushes (mov edi,[ecx+eax*4+194h]); done is its epilogue (lea esp,[ebp-24h] ... ret 18h): lohook -> free_for_all_on_select
+global free_for_all_on_select
+extern hook_free_for_all_on_select
+free_for_all_on_select:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_free_for_all_on_select
+    mov edx, free_for_all_on_select_replay
+    cmp eax, 0
+    je free_for_all_on_select_go
+    mov edx, 0x3171e3
+    cmp eax, 1
+    je free_for_all_on_select_go
+    mov edx, 0x317354
+    cmp eax, 2
+    je free_for_all_on_select_go
+    ud2
+free_for_all_on_select_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+free_for_all_on_select_replay:
+    db 0x8b, 0xbc, 0x81, 0x94, 0x01, 0x00, 0x00
+    jmp 0x3171e3
+
+; 0x316fb8 player_respawn_rule_core::serialize's end, after its three groups' points (pop edi / pop esi / pop ebp / pop ebx / pop ecx, then ret 4; reached only by the fall-through at 0x316FB6): EBX the writer (its argument, 0x316F12): lohook -> free_for_all_on_spawns_save
+global free_for_all_on_spawns_save
+extern hook_free_for_all_on_spawns_save_chain
+free_for_all_on_spawns_save:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_free_for_all_on_spawns_save_chain
+    mov edx, free_for_all_on_spawns_save_replay
+    cmp eax, 0
+    je free_for_all_on_spawns_save_go
+    mov edx, 0x316fbd
+    cmp eax, 1
+    je free_for_all_on_spawns_save_go
+    ud2
+free_for_all_on_spawns_save_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+free_for_all_on_spawns_save_replay:
+    db 0x5f, 0x5e, 0x5d, 0x5b, 0x59
+    jmp 0x316fbd
+
+; 0x317038 player_respawn_rule_core::deserialize's end, after its three groups' points (pop edi / pop esi / pop ebp / pop ebx / ret 8; reached only by the fall-through at 0x317036): ESI the reader (its argument, 0x316FC7): lohook -> free_for_all_on_spawns_load
+global free_for_all_on_spawns_load
+extern hook_free_for_all_on_spawns_load_chain
+free_for_all_on_spawns_load:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_free_for_all_on_spawns_load_chain
+    mov edx, free_for_all_on_spawns_load_replay
+    cmp eax, 0
+    je free_for_all_on_spawns_load_go
+    mov edx, 0x31703f
+    cmp eax, 1
+    je free_for_all_on_spawns_load_go
+    ud2
+free_for_all_on_spawns_load_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+free_for_all_on_spawns_load_replay:
+    db 0x5f, 0x5e, 0x5d, 0x5b, 0xc2, 0x08, 0x00
+    jmp 0x31703f
+
+; 0x316bc0 player_respawn_rule_base::on_player_entered_match's entry (movzx eax,byte [esp+4]; then mov edx,[esp+8] / mov [ecx+eax*4+138h],edx / ret 8; vtable 0xA16084 slot +20h, called by game_world_core::on_player_entered_match 0x2D2021): [esp+4] the place: lohook -> free_for_all_on_entered
+global free_for_all_on_entered
+extern hook_free_for_all_on_entered
+free_for_all_on_entered:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_free_for_all_on_entered
+    mov edx, free_for_all_on_entered_replay
+    cmp eax, 0
+    je free_for_all_on_entered_go
+    mov edx, 0x316bc5
+    cmp eax, 1
+    je free_for_all_on_entered_go
+    ud2
+free_for_all_on_entered_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+free_for_all_on_entered_replay:
+    db 0x0f, 0xb6, 0x44, 0x24, 0x04
+    jmp 0x316bc5
+
+; 0x2f4628 respawn_point_core::load before legacy seconds conversion (mov edx,[eax]; imul edx,1000); EBP point, EBX config; applied skips the conversion and store after an explicit millisecond setting: lohook -> free_for_all_on_protection_read
+global free_for_all_on_protection_read
+extern hook_free_for_all_on_protection_read
+free_for_all_on_protection_read:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_free_for_all_on_protection_read
+    mov edx, free_for_all_on_protection_read_replay
+    cmp eax, 0
+    je free_for_all_on_protection_read_go
+    mov edx, 0x2f4630
+    cmp eax, 1
+    je free_for_all_on_protection_read_go
+    mov edx, 0x2f4633
+    cmp eax, 2
+    je free_for_all_on_protection_read_go
+    ud2
+free_for_all_on_protection_read_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+free_for_all_on_protection_read_replay:
+    db 0x8b, 0x10, 0x69, 0xd2, 0xe8, 0x03, 0x00, 0x00
+    jmp 0x2f4630
+
+; 0x2daa60 base_player::tick before deferred death: push ecx/ebx/ebp; mov ebx,ecx. Frozen exits through ret 4 without entering the prologue: lohook -> freeze_tag_on_player_tick
+global freeze_tag_on_player_tick
+extern hook_freeze_tag_on_player_tick
+freeze_tag_on_player_tick:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_freeze_tag_on_player_tick
+    mov edx, freeze_tag_on_player_tick_replay
+    cmp eax, 0
+    je freeze_tag_on_player_tick_go
+    mov edx, 0x2daa65
+    cmp eax, 1
+    je freeze_tag_on_player_tick_go
+    mov edx, 0x2dab69
+    cmp eax, 2
+    je freeze_tag_on_player_tick_go
+    ud2
+freeze_tag_on_player_tick_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+freeze_tag_on_player_tick_replay:
+    db 0x51, 0x53, 0x55, 0x8b, 0xd9
+    jmp 0x2daa65
+
+; 0x14730 the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query: callback -> freeze_tag_on_loaded (wraps engine_store_first_resource 0x14730)
+    RUST_CDECL freeze_tag_on_loaded, hook_freeze_tag_on_loaded, 2
+
+; 0x59adf sound_world::tick's general pass, after the active scenes ticked (cmp byte [edi+48F0h],al; the je skips the pass when General is as last applied): the sound thread, EDI the world, EAX s_general_volume's value truncated (cvttss2si [0A7AF90h], 0 to 100); done 0x59B4B, past the pass (ESI 0 there as here: the scenes' walk ended): lohook -> game_volume_on_general
+global game_volume_on_general
+extern hook_game_volume_on_general
+game_volume_on_general:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_game_volume_on_general
+    mov edx, game_volume_on_general_replay
+    cmp eax, 0
+    je game_volume_on_general_go
+    mov edx, 0x59ae5
+    cmp eax, 1
+    je game_volume_on_general_go
+    mov edx, 0x59b4b
+    cmp eax, 2
+    je game_volume_on_general_go
+    ud2
+game_volume_on_general_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+game_volume_on_general_replay:
+    db 0x38, 0x87, 0xf0, 0x48, 0x00, 0x00
+    jmp 0x59ae5
+
+; 0x3d43e0 hw_buffer_pool::allocate's start (sub esp,10h / push ebx / mov ebx,[esp+18h]): the site's ESP+4 the pool, +8 the range it fills, +0Ch the bytes, +10h their count, +14h the stride; shared is its `ret 14h`, AL its result: lohook -> geometry_share_on_allocate
+global geometry_share_on_allocate
+extern hook_geometry_share_on_allocate
+geometry_share_on_allocate:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_geometry_share_on_allocate
+    mov edx, geometry_share_on_allocate_replay
+    cmp eax, 0
+    je geometry_share_on_allocate_go
+    mov edx, 0x3d43e8
+    cmp eax, 1
+    je geometry_share_on_allocate_go
+    mov edx, 0x3d44fa
+    cmp eax, 2
+    je geometry_share_on_allocate_go
+    ud2
+geometry_share_on_allocate_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+geometry_share_on_allocate_replay:
+    db 0x83, 0xec, 0x10, 0x53, 0x8b, 0x5c, 0x24, 0x18
+    jmp 0x3d43e8
+
+; 0x3d1178 untyped_buffer::untyped_buffer with its range of a pool taken, both pools' calls joined (mov ecx,[esi] / mov eax,[ecx+0C00Ch]): EDI the buffer (its +4h the range, +14h its bytes, +18h its stride), EBP its frame (+10h the bytes it was filled with): lohook -> geometry_share_on_pooled
+global geometry_share_on_pooled
+extern hook_geometry_share_on_pooled
+geometry_share_on_pooled:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_geometry_share_on_pooled
+    mov edx, geometry_share_on_pooled_replay
+    cmp eax, 0
+    je geometry_share_on_pooled_go
+    mov edx, 0x3d1180
+    cmp eax, 1
+    je geometry_share_on_pooled_go
+    ud2
+geometry_share_on_pooled_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+geometry_share_on_pooled_replay:
+    db 0x8b, 0x0e, 0x8b, 0x81, 0x0c, 0xc0, 0x00, 0x00
+    jmp 0x3d1180
+
+; 0x3d4510 hw_buffer_pool::deallocate's start (sub esp,14h / mov ecx,[eax+8]): EAX the range a buffer gives back (0x3D1680, when its references reach 0); kept is its bare ret, the range left in its chunk: lohook -> geometry_share_on_deallocate
+global geometry_share_on_deallocate
+extern hook_geometry_share_on_deallocate
+geometry_share_on_deallocate:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_geometry_share_on_deallocate
+    mov edx, geometry_share_on_deallocate_replay
+    cmp eax, 0
+    je geometry_share_on_deallocate_go
+    mov edx, 0x3d4516
+    cmp eax, 1
+    je geometry_share_on_deallocate_go
+    mov edx, 0x3d455c
+    cmp eax, 2
+    je geometry_share_on_deallocate_go
+    ud2
+geometry_share_on_deallocate_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+geometry_share_on_deallocate_replay:
+    db 0x83, 0xec, 0x14, 0x8b, 0x48, 0x08
+    jmp 0x3d4516
+
+; 0x2471a4 player::st_draw's grenade sensor (0x246F50) once a grenade near the followed player is his team's (the team test 0x24719C passed; mov edx,[esi] / mov edx,[edx+1Ch] reads its position next): ESI the grenade's body (its user the grenade +1Ch), EBP the followed player, BL the marker it takes (0..5, icon 2Fh + BL; show_grenade_icons 0x2471FC shows that many): lohook -> grenade_icons_on_sensed
+global grenade_icons_on_sensed
+extern hook_grenade_icons_on_sensed
+grenade_icons_on_sensed:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_grenade_icons_on_sensed
+    mov edx, grenade_icons_on_sensed_replay
+    cmp eax, 0
+    je grenade_icons_on_sensed_go
+    mov edx, 0x2471a9
+    cmp eax, 1
+    je grenade_icons_on_sensed_go
+    ud2
+grenade_icons_on_sensed_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+grenade_icons_on_sensed_replay:
+    db 0x8b, 0x16, 0x8b, 0x52, 0x1c
+    jmp 0x2471a9
+
 ; 0x2e50c7 EDI damage model ESI hit_info; invulnerability applied: lohook -> hand_kill_on_hit
 global hand_kill_on_hit
 extern hook_hand_kill_on_hit_chain
@@ -2950,10 +8114,10 @@ hand_kill_on_hit_replay:
     db 0x8d, 0x4c, 0x24, 0x10, 0x51
     jmp 0x2e50cc
 
-; 0x234880 game_world_ui::initialize_match's start (sub esp,5D4h), once a match (from 0x1F855D; the late join's rebuild enters at 0x234E71): the site's ESP+4 the hud, whose kits (+2DFh) and cursor (+2DCh) are the last match's: lohook -> hud_cursor_on_match_start
-global hud_cursor_on_match_start
-extern hook_hud_cursor_on_match_start
-hud_cursor_on_match_start:
+; 0x1f3643 update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player): lohook -> ragdoll_on_eye
+global ragdoll_on_eye
+extern hook_ragdoll_on_eye_chain
+ragdoll_on_eye:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -2970,24 +8134,144 @@ hud_cursor_on_match_start:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_hud_cursor_on_match_start
-    mov edx, hud_cursor_on_match_start_replay
+    call hook_ragdoll_on_eye_chain
+    mov edx, ragdoll_on_eye_replay
     cmp eax, 0
-    je hud_cursor_on_match_start_go
-    mov edx, 0x234886
+    je ragdoll_on_eye_go
+    mov edx, 0x1f3649
     cmp eax, 1
-    je hud_cursor_on_match_start_go
+    je ragdoll_on_eye_go
     ud2
-hud_cursor_on_match_start_go:
+ragdoll_on_eye_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-hud_cursor_on_match_start_replay:
-    db 0x81, 0xec, 0xd4, 0x05, 0x00, 0x00
-    jmp 0x234886
+ragdoll_on_eye_replay:
+    db 0x8b, 0x8b, 0x70, 0xf4, 0x00, 0x00
+    jmp 0x1f3649
+
+; 0x32d88a check_collision once try_pierce (0x32D881) let the bullet through (mov ebp,2; AL 0 jumps past it to 0x32D891): EDI the bullet, its +4Ch the struck triangle's material (0x32D87B), ESI the hit receiver the ray met (a player's body, a trap, a lamp) or 0: the level's collision (a static surface, a prop with no receiver), whose back faces never come here (0x32D72F): lohook -> hit_marker_walls_on_pierced
+global hit_marker_walls_on_pierced
+extern hook_hit_marker_walls_on_pierced
+hit_marker_walls_on_pierced:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hit_marker_walls_on_pierced
+    mov edx, hit_marker_walls_on_pierced_replay
+    cmp eax, 0
+    je hit_marker_walls_on_pierced_go
+    mov edx, 0x32d88f
+    cmp eax, 1
+    je hit_marker_walls_on_pierced_go
+    ud2
+hit_marker_walls_on_pierced_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hit_marker_walls_on_pierced_replay:
+    db 0xbd, 0x02, 0x00, 0x00, 0x00
+    jmp 0x32d88f
+
+; 0x1f3d76 player::generate_hit_event (0x1F3C70, the slot hit_impl calls at 0x2D9ED1) at a bullet hit's last store into the shooter's inflicted_damage_collector (movss [esi+8],xmm0, the fraction clamped to 0..1; both of the clamp's ways come here, 0x1F3D71): ESI the collector, its victim (+0, 0x1F3D62) and time (+4, 0x1F3D5F) this hit's; EBP the bullet, never 0 here (0x1F3CAA leaves without one); the site's ESP the frame (the shooter's place): lohook -> hit_marker_walls_on_hit
+global hit_marker_walls_on_hit
+extern hook_hit_marker_walls_on_hit
+hit_marker_walls_on_hit:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hit_marker_walls_on_hit
+    mov edx, hit_marker_walls_on_hit_replay
+    cmp eax, 0
+    je hit_marker_walls_on_hit_go
+    mov edx, 0x1f3d7b
+    cmp eax, 1
+    je hit_marker_walls_on_hit_go
+    ud2
+hit_marker_walls_on_hit_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hit_marker_walls_on_hit_replay:
+    db 0xf3, 0x0f, 0x11, 0x46, 0x08
+    jmp 0x1f3d7b
+
+; 0x238272 game_world_ui::draw_damage_collector (0x238230; its one caller player::st_draw, 0x247467, gives it the drawn player's collector) once it found the collector's victim or fraction changed and took them into its copy (+34Ch, +354h; 0x23825D..0x23826C), before the fraction's 0 test (movss xmm0,[esi+8]): ESI the collector, EDI the ui; quiet is its epilogue (0x2383A4), where a 0 fraction goes, past root.crosshair_enemy_hit(fraction, 200, false) (0x23838C): lohook -> hit_marker_walls_on_draw
+global hit_marker_walls_on_draw
+extern hook_hit_marker_walls_on_draw
+hit_marker_walls_on_draw:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hit_marker_walls_on_draw
+    mov edx, hit_marker_walls_on_draw_replay
+    cmp eax, 0
+    je hit_marker_walls_on_draw_go
+    mov edx, 0x238277
+    cmp eax, 1
+    je hit_marker_walls_on_draw_go
+    mov edx, 0x2383a4
+    cmp eax, 2
+    je hit_marker_walls_on_draw_go
+    ud2
+hit_marker_walls_on_draw_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hit_marker_walls_on_draw_replay:
+    db 0xf3, 0x0f, 0x10, 0x46, 0x08
+    jmp 0x238277
 
 ; 0x23a992 show_cursor's show (mov eax,[edi+18h] / lea esi,[edi+0Ch], then the call of base_game_scene::show_movie 0x23DC00 at 0x23A998): kept skips the movie, the flag (+2DCh) still written at 0x23A9A1: lohook -> hud_cursor_on_cursor_shown
 global hud_cursor_on_cursor_shown
@@ -3114,7 +8398,7 @@ hud_cursor_on_menu_show_replay:
 
 ; 0x201040 game_options::deactivate's start (push ecx / cmp byte [esi+44h],0; the je after it returns when the menu is not shown): the menu's Resume (0x1FF66E), its key (0x20165A), a match's end (0x1F956D) and the lobby's (0x21D50E): lohook -> hud_cursor_on_menu_close
 global hud_cursor_on_menu_close
-extern hook_hud_cursor_on_menu_close
+extern hook_hud_cursor_on_menu_close_chain
 hud_cursor_on_menu_close:
     lea esp, [esp - 4]
     pushfd
@@ -3132,7 +8416,7 @@ hud_cursor_on_menu_close:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_hud_cursor_on_menu_close
+    call hook_hud_cursor_on_menu_close_chain
     mov edx, hud_cursor_on_menu_close_replay
     cmp eax, 0
     je hud_cursor_on_menu_close_go
@@ -3151,10 +8435,10 @@ hud_cursor_on_menu_close_replay:
     db 0x51, 0x80, 0x7e, 0x44, 0x00
     jmp 0x201045
 
-; 0x1ea210 game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301): lohook -> language_on_configs_start
-global language_on_configs_start
-extern hook_language_on_configs_start_chain
-language_on_configs_start:
+; 0xe9580 memory::platform::allocate_arenas' start (mov eax,11A8h before its stack probe 0x429F20): once, at the process's start (memory::allocate_region, 0xE11F9), before the VRAM check's get_local_video_memory_size 0x106300 (Direct3DCreate9) at 0xE9C3F and the render device: lohook -> run_logs_on_process_start
+global run_logs_on_process_start
+extern hook_run_logs_on_process_start_chain
+run_logs_on_process_start:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -3171,67 +8455,28 @@ language_on_configs_start:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_language_on_configs_start_chain
-    mov edx, language_on_configs_start_replay
+    call hook_run_logs_on_process_start_chain
+    mov edx, run_logs_on_process_start_replay
     cmp eax, 0
-    je language_on_configs_start_go
-    mov edx, 0x1ea216
-    cmp eax, 1
-    je language_on_configs_start_go
-    ud2
-language_on_configs_start_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-language_on_configs_start_replay:
-    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
-    jmp 0x1ea216
-
-; 0xe9580 memory::platform::allocate_arenas' start (mov eax,11A8h before its stack probe 0x429F20): once, at the process's start (memory::allocate_region, 0xE11F9), before the VRAM check's get_local_video_memory_size 0x106300 (Direct3DCreate9) at 0xE9C3F and the render device: lohook -> hud_options_on_process_start
-global hud_options_on_process_start
-extern hook_hud_options_on_process_start
-hud_options_on_process_start:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_hud_options_on_process_start
-    mov edx, hud_options_on_process_start_replay
-    cmp eax, 0
-    je hud_options_on_process_start_go
+    je run_logs_on_process_start_go
     mov edx, 0xe9585
     cmp eax, 1
-    je hud_options_on_process_start_go
+    je run_logs_on_process_start_go
     ud2
-hud_options_on_process_start_go:
+run_logs_on_process_start_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-hud_options_on_process_start_replay:
+run_logs_on_process_start_replay:
     db 0xb8, 0xa8, 0x11, 0x00, 0x00
     jmp 0xe9585
 
 ; 0x3cf8ff res_render_output::present right before the game's IDXGISwapChain::Present (mov esi,[esi+0CCh], the swap chain; then its vtable +20h, the sync interval in EAX, flags 0): ESI the render output. Every Present of the game's swap chain is here (present 0x3CF7F0, called from 0x117EDF, 0x13CA02, 0x13CB73, 0x13DD46), after its GetFullscreenState and ShowWindow: lohook -> hud_options_on_present
 global hud_options_on_present
-extern hook_hud_options_on_present
+extern hook_hud_options_on_present_chain
 hud_options_on_present:
     lea esp, [esp - 4]
     pushfd
@@ -3249,7 +8494,7 @@ hud_options_on_present:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_hud_options_on_present
+    call hook_hud_options_on_present_chain
     mov edx, hud_options_on_present_replay
     cmp eax, 0
     je hud_options_on_present_go
@@ -3267,6 +8512,45 @@ hud_options_on_present_go:
 hud_options_on_present_replay:
     db 0x8b, 0xb6, 0xcc, 0x00, 0x00, 0x00
     jmp 0x3cf905
+
+; 0x105e8e the engine's DirectDraw probe of the video memory (0x105DB0, the DirectX SDK's GetVideoMemoryViaDirectDraw, called by get_local_video_memory_size's 0x1060F0) after GetAvailableVidMem, before it releases the IDirectDraw7 (mov eax,[esp+14h] / mov edx,[eax]; then Release 0x105E98 and FreeLibrary(ddraw) 0x105E9A, which unloads the DirectDraw object's code): the DirectDraw object at [esp+18h], which the probe never releases: lohook -> hud_options_on_ddraw_probed
+global hud_options_on_ddraw_probed
+extern hook_hud_options_on_ddraw_probed
+hud_options_on_ddraw_probed:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_options_on_ddraw_probed
+    mov edx, hud_options_on_ddraw_probed_replay
+    cmp eax, 0
+    je hud_options_on_ddraw_probed_go
+    mov edx, 0x105e94
+    cmp eax, 1
+    je hud_options_on_ddraw_probed_go
+    ud2
+hud_options_on_ddraw_probed_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_options_on_ddraw_probed_replay:
+    db 0x8b, 0x44, 0x24, 0x14, 0x8b, 0x10
+    jmp 0x105e94
 
 ; 0x1ff5d0 game_options::scaleform_callback's start (push ebp / push esi / mov esi,[esp+10h]): ECX the options' interface, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is its `ret 10h`: lohook -> language_on_options_call
 global language_on_options_call
@@ -3393,7 +8677,7 @@ input_check_on_change_input_replay:
 
 ; 0x3b914b keyboard::execute (0x3B8D20) after GetDeviceData filled the event buffer (every successful read joins at 0x3B9147: mov eax,[esp+14h] the count; here mov [edi+404h],eax): EDI the platform keyboard, its events at +408h, EAX their count (at most 40h); before the loop that sets each key's state and the Shift/Ctrl/Alt flags from them (0x3B9159) and process (0x3B9AF0), which hands them to the handlers: lohook -> key_remap_on_events
 global key_remap_on_events
-extern hook_key_remap_on_events
+extern hook_key_remap_on_events_chain
 key_remap_on_events:
     lea esp, [esp - 4]
     pushfd
@@ -3411,7 +8695,7 @@ key_remap_on_events:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_key_remap_on_events
+    call hook_key_remap_on_events_chain
     mov edx, key_remap_on_events_replay
     cmp eax, 0
     je key_remap_on_events_go
@@ -3547,10 +8831,10 @@ keyboard_layout_on_text_replay:
     db 0x8b, 0xf8, 0x8d, 0x44, 0x24, 0x20
     jmp 0x3b92e8
 
-; 0x285750 before insert_static, ECX project and ESP+4 physics: lohook -> lamps_on_bind
-global lamps_on_bind
-extern hook_lamps_on_bind
-lamps_on_bind:
+; 0x18365 message_processor's WM_INPUTLANGCHANGEREQUEST case at its call of the game's text-focus check (mov eax,[ecx] / mov edx,[eax+44h] / call edx; ECX the game, survarium::game slot 44h 0x1EE7C0, after window.lang_request); focused 0x18374, where a focused request goes to DefWindowProc (pop edi/esi/ebx, jmp [DefWindowProcA]), the stack as at the site; a false check drops it at 0x18272: lohook -> keyboard_layout_on_request_focus
+global keyboard_layout_on_request_focus
+extern hook_keyboard_layout_on_request_focus
+keyboard_layout_on_request_focus:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -3567,29 +8851,32 @@ lamps_on_bind:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_lamps_on_bind
-    mov edx, lamps_on_bind_replay
+    call hook_keyboard_layout_on_request_focus
+    mov edx, keyboard_layout_on_request_focus_replay
     cmp eax, 0
-    je lamps_on_bind_go
-    mov edx, 0x285756
+    je keyboard_layout_on_request_focus_go
+    mov edx, 0x1836c
     cmp eax, 1
-    je lamps_on_bind_go
+    je keyboard_layout_on_request_focus_go
+    mov edx, 0x18374
+    cmp eax, 2
+    je keyboard_layout_on_request_focus_go
     ud2
-lamps_on_bind_go:
+keyboard_layout_on_request_focus_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-lamps_on_bind_replay:
-    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
-    jmp 0x285756
+keyboard_layout_on_request_focus_replay:
+    db 0x8b, 0x01, 0x8b, 0x50, 0x44, 0xff, 0xd2
+    jmp 0x1836c
 
-; 0x285614 remove_static epilogue, after native object removals: lohook -> lamps_on_remove
-global lamps_on_remove
-extern hook_lamps_on_remove
-lamps_on_remove:
+; 0x1c77e game_console::on_activate (0x1C760, vtable 0x9DC020 slot 4) marking the console shown (mov byte [esi+264h],1), after it focused the text edit; the logic thread: lohook -> keyboard_layout_on_console_opened
+global keyboard_layout_on_console_opened
+extern hook_keyboard_layout_on_console_opened
+keyboard_layout_on_console_opened:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -3606,29 +8893,29 @@ lamps_on_remove:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_lamps_on_remove
-    mov edx, lamps_on_remove_replay
+    call hook_keyboard_layout_on_console_opened
+    mov edx, keyboard_layout_on_console_opened_replay
     cmp eax, 0
-    je lamps_on_remove_go
-    mov edx, 0x285619
+    je keyboard_layout_on_console_opened_go
+    mov edx, 0x1c785
     cmp eax, 1
-    je lamps_on_remove_go
+    je keyboard_layout_on_console_opened_go
     ud2
-lamps_on_remove_go:
+keyboard_layout_on_console_opened_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-lamps_on_remove_replay:
-    db 0x5f, 0x5b, 0xc3, 0xcc, 0xcc
-    jmp 0x285619
+keyboard_layout_on_console_opened_replay:
+    db 0xc6, 0x86, 0x64, 0x02, 0x00, 0x00, 0x01
+    jmp 0x1c785
 
-; 0x285330 destructor before any member is released: lohook -> lamps_on_destroy
-global lamps_on_destroy
-extern hook_lamps_on_destroy
-lamps_on_destroy:
+; 0x1c7d3 game_console::on_deactivate (0x1C7A0, slot 8) marking it hidden (mov byte [esi+264h],0), after it unfocused the text edit and the tips; the logic thread: lohook -> keyboard_layout_on_console_closed
+global keyboard_layout_on_console_closed
+extern hook_keyboard_layout_on_console_closed
+keyboard_layout_on_console_closed:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -3645,29 +8932,29 @@ lamps_on_destroy:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_lamps_on_destroy
-    mov edx, lamps_on_destroy_replay
+    call hook_keyboard_layout_on_console_closed
+    mov edx, keyboard_layout_on_console_closed_replay
     cmp eax, 0
-    je lamps_on_destroy_go
-    mov edx, 0x28533a
+    je keyboard_layout_on_console_closed_go
+    mov edx, 0x1c7da
     cmp eax, 1
-    je lamps_on_destroy_go
+    je keyboard_layout_on_console_closed_go
     ud2
-lamps_on_destroy_go:
+keyboard_layout_on_console_closed_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-lamps_on_destroy_replay:
-    db 0x56, 0x8b, 0xf1, 0x83, 0xbe, 0xe8, 0x01, 0x00, 0x00, 0x00
-    jmp 0x28533a
+keyboard_layout_on_console_closed_replay:
+    db 0xc6, 0x86, 0x64, 0x02, 0x00, 0x00, 0x00
+    jmp 0x1c7da
 
-; 0x1f7c3c game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world): lohook -> ragdoll_on_step
-global ragdoll_on_step
-extern hook_ragdoll_on_step_chain
-ragdoll_on_step:
+; 0x34b4da insert_char_action::execute (0x34B4D0, vtable 0xA1DEBC slot 4: a ui_text_edit's key that types a character, the console's letters, digits and punctuation, made by create_char_action 0x34A4C0) after mov edi,ecx, before its Shift test (mov eax,[edi+4] / test byte [eax+2ACh],30h): EDI the action; the character it types is [esp+8], its own (+19h, Shift +1Ah) or, for a key made named (+18h), the first letter of the key's DirectInput name (get_dik_name through the input world's keyboard, 0x34B533..0x34B5CE); typed 0x34B5D2, where it deletes the selection (0x3486A0) and inserts [esp+8] (0x348000), EDI the action, the stack as at the site: lohook -> keyboard_layout_on_console_char
+global keyboard_layout_on_console_char
+extern hook_keyboard_layout_on_console_char
+keyboard_layout_on_console_char:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -3684,24 +8971,69 @@ ragdoll_on_step:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_ragdoll_on_step_chain
-    mov edx, ragdoll_on_step_replay
+    call hook_keyboard_layout_on_console_char
+    mov edx, keyboard_layout_on_console_char_replay
     cmp eax, 0
-    je ragdoll_on_step_go
-    mov edx, 0x1f7c41
+    je keyboard_layout_on_console_char_go
+    mov edx, 0x34b4e4
     cmp eax, 1
-    je ragdoll_on_step_go
+    je keyboard_layout_on_console_char_go
+    mov edx, 0x34b5d2
+    cmp eax, 2
+    je keyboard_layout_on_console_char_go
     ud2
-ragdoll_on_step_go:
+keyboard_layout_on_console_char_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-ragdoll_on_step_replay:
-    db 0x80, 0x7c, 0x24, 0x0f, 0x00
-    jmp 0x1f7c41
+keyboard_layout_on_console_char_replay:
+    db 0x8b, 0x47, 0x04, 0xf6, 0x80, 0xac, 0x02, 0x00, 0x00, 0x30
+    jmp 0x34b4e4
+
+; 0x2337fa on_kill_cross_event (0x233770, from process_kill_cross_events 0x1FB6C0, each world event after the last kill-cross time) once it handled the event in EDI (a kill by the drawn player drew the kill marker at 0x2337D9): cmp byte [esp+14h],0 (sealed), then the write of the event's time (+24h) into the last kill-cross time (EBX, game_world+564h) at 0x233801; kept is past it (pop esi, 0x233806): lohook -> kill_cross_on_walked
+global kill_cross_on_walked
+extern hook_kill_cross_on_walked
+kill_cross_on_walked:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_kill_cross_on_walked
+    mov edx, kill_cross_on_walked_replay
+    cmp eax, 0
+    je kill_cross_on_walked_go
+    mov edx, 0x2337ff
+    cmp eax, 1
+    je kill_cross_on_walked_go
+    mov edx, 0x233806
+    cmp eax, 2
+    je kill_cross_on_walked_go
+    ud2
+kill_cross_on_walked_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+kill_cross_on_walked_replay:
+    db 0x80, 0x7c, 0x24, 0x14, 0x00
+    jmp 0x2337ff
 
 ; 0x32d627 check_collision after the bullet's ray_test (movq of its result; EAX the result, EDI the bullet): lohook -> subtick_hits_on_ray
 global subtick_hits_on_ray
@@ -3831,6 +9163,24 @@ lamps_on_load_replay:
 
 ; 0xa0ae10 object_light remove slot 9: vtable -> lamps_on_light_remove (wraps engine_light_remove 0x2917d0)
     RUST_THISCALL lamps_on_light_remove, hook_lamps_on_light_remove, 0
+
+; 0xa0ac6c object_ambient_light insert slot 8: vtable -> lamps_on_ambient_light_insert (wraps engine_ambient_light_insert 0x290930)
+    RUST_THISCALL lamps_on_ambient_light_insert, hook_lamps_on_ambient_light_insert, 0
+
+; 0xa0ac70 object_ambient_light remove slot 9: vtable -> lamps_on_ambient_light_remove (wraps engine_ambient_light_remove 0x290ae0)
+    RUST_THISCALL lamps_on_ambient_light_remove, hook_lamps_on_ambient_light_remove, 0
+
+; 0xa0afcc object_particle_visual insert slot 8: vtable -> lamps_on_particle_insert (wraps engine_particle_insert 0x292cc0)
+    RUST_THISCALL lamps_on_particle_insert, hook_lamps_on_particle_insert, 0
+
+; 0xa0afd0 object_particle_visual remove slot 9: vtable -> lamps_on_particle_remove (wraps engine_particle_remove 0x292dc0)
+    RUST_THISCALL lamps_on_particle_remove, hook_lamps_on_particle_remove, 0
+
+; 0xa0ac0c object_environment_probe insert slot 8: vtable -> lamps_on_probe_insert (wraps engine_probe_insert 0x28ffd0)
+    RUST_THISCALL lamps_on_probe_insert, hook_lamps_on_probe_insert, 0
+
+; 0xa0ac10 object_environment_probe remove slot 9: vtable -> lamps_on_probe_remove (wraps engine_probe_remove 0x2904a0)
+    RUST_THISCALL lamps_on_probe_remove, hook_lamps_on_probe_remove, 0
 
 ; 0x32e672 process_front_face_piercing at the pair's entry decal (cmp [esi+8],0; lea edi): EBP the bullet, EBX its hit; skip is the particle/sound part after add_decal, EDI unused there: lohook -> lamps_on_decal_enter
 global lamps_on_decal_enter
@@ -4077,6 +9427,123 @@ language_on_configs_texts_go:
 language_on_configs_texts_replay:
     db 0x8d, 0x87, 0xa8, 0x52, 0x00, 0x00
     jmp 0x1ea30c
+
+; 0x1b81e3 get_results_and_prepare_bounds_env_probes (0x1B8190) storing an environment probe's hi-Z answer (mov [ecx+384h],al): ECX the probe, AL 1 occluded / 0 visible, as hiz.light_answer (its index +37Ch); joined by the never-queried path (jmp at 0x1B81D0): lohook -> light_occlusion_on_probe_answer
+global light_occlusion_on_probe_answer
+extern hook_light_occlusion_on_probe_answer
+light_occlusion_on_probe_answer:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_light_occlusion_on_probe_answer
+    mov edx, light_occlusion_on_probe_answer_replay
+    cmp eax, 0
+    je light_occlusion_on_probe_answer_go
+    mov edx, 0x1b81e9
+    cmp eax, 1
+    je light_occlusion_on_probe_answer_go
+    ud2
+light_occlusion_on_probe_answer_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+light_occlusion_on_probe_answer_replay:
+    db 0x88, 0x81, 0x84, 0x03, 0x00, 0x00
+    jmp 0x1b81e9
+
+; 0x1b8043 get_results_and_prepare_bounds_ambient_lights (0x1B7FF0) storing an ambient light's hi-Z answer (mov [ecx+0A4h],al): ECX the light, AL 1 occluded / 0 visible, as hiz.light_answer (its index +9Ch); joined by the never-queried path (jmp at 0x1B8030): lohook -> light_occlusion_on_ambient_light_answer
+global light_occlusion_on_ambient_light_answer
+extern hook_light_occlusion_on_ambient_light_answer
+light_occlusion_on_ambient_light_answer:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_light_occlusion_on_ambient_light_answer
+    mov edx, light_occlusion_on_ambient_light_answer_replay
+    cmp eax, 0
+    je light_occlusion_on_ambient_light_answer_go
+    mov edx, 0x1b8049
+    cmp eax, 1
+    je light_occlusion_on_ambient_light_answer_go
+    ud2
+light_occlusion_on_ambient_light_answer_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+light_occlusion_on_ambient_light_answer_replay:
+    db 0x88, 0x81, 0xa4, 0x00, 0x00, 0x00
+    jmp 0x1b8049
+
+; 0x1b7c2b get_results_and_prepare_bounds_lights (0x1B7BD0) storing a point or spot light's hi-Z answer (mov [ecx+270h],al): ECX the light, AL 1 occluded / 0 visible, its result in the last query (0 at [stage+1Ch] + the index it had then, +2ACh; 0 when it never had one, -1), read when that query's results came in (quary_and_get_results_if_ready 0x1D7E30); EDI the index it takes in the query sent now (written next, 0x1B7C33): it grows within a pass, all kinds sharing one counter from 0. Joined by the never-queried path (jmp at 0x1B7C1B): lohook -> light_occlusion_on_light_answer
+global light_occlusion_on_light_answer
+extern hook_light_occlusion_on_light_answer
+light_occlusion_on_light_answer:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_light_occlusion_on_light_answer
+    mov edx, light_occlusion_on_light_answer_replay
+    cmp eax, 0
+    je light_occlusion_on_light_answer_go
+    mov edx, 0x1b7c31
+    cmp eax, 1
+    je light_occlusion_on_light_answer_go
+    ud2
+light_occlusion_on_light_answer_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+light_occlusion_on_light_answer_replay:
+    db 0x88, 0x81, 0x70, 0x02, 0x00, 0x00
+    jmp 0x1b7c31
 
 ; 0x2747c3 read_squad_info (0x274720, the 0xA1 squad info handler) with its squad id kept (+1EAAA4h, 0x2747A8) and compared with 0 (the je at 0x2747CA reads the flags), at mov byte [ebx+1EAAACh],0: EBX the lobby client, ESI the message's reader (its cursor past the id: srp's two bytes there when the id is 0); both paths pass, a squad id of 0 (no squad) jumps over the members and the rest from here: lohook -> lobby_scene_on_squad_id
 global lobby_scene_on_squad_id
@@ -4354,6 +9821,87 @@ music_on_unload_replay:
     db 0x53, 0x56, 0x8b, 0xf1, 0x8b, 0x8e, 0x5c, 0x53, 0x00, 0x00
     jmp 0x1ed03a
 
+; 0x373cd9 start_seeding_impl's lea eax,[ebp-4B8h] (the game's wide pipe name, swprintf'd at 0x373CC6) before its call of win_utils::pipe::accept (0x373230 at 0x373CDF: ECX the pipe, EAX the wide name, [ESP] &error_code); a Skip with EAX set gives accept another name, read only by its CreateNamedPipeW (0x373262) (patch 150): lohook -> lobby_seeding_on_accept
+global lobby_seeding_on_accept
+extern hook_lobby_seeding_on_accept
+lobby_seeding_on_accept:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lobby_seeding_on_accept
+    mov edx, lobby_seeding_on_accept_replay
+    cmp eax, 0
+    je lobby_seeding_on_accept_go
+    mov edx, 0x373cdf
+    cmp eax, 1
+    je lobby_seeding_on_accept_go
+    ud2
+lobby_seeding_on_accept_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lobby_seeding_on_accept_replay:
+    db 0x8d, 0x85, 0x48, 0xfb, 0xff, 0xff
+    jmp 0x373cdf
+
+; 0x373d2d start_seeding_impl after the pipe's accept and its message handler bound (0x373CE4..0x373D20, the temporary function destroyed), before the service's start (OpenSCManagerA 0x373D5B .. StartServiceW 0x373F4A): add esp,4 / mov edi,eax after the product name's call 0x373D28; started is the epilogue 0x37400E (patch 150): lohook -> lobby_seeding_on_updater
+global lobby_seeding_on_updater
+extern hook_lobby_seeding_on_updater
+lobby_seeding_on_updater:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lobby_seeding_on_updater
+    mov edx, lobby_seeding_on_updater_replay
+    cmp eax, 0
+    je lobby_seeding_on_updater_go
+    mov edx, 0x373d32
+    cmp eax, 1
+    je lobby_seeding_on_updater_go
+    mov edx, 0x37400e
+    cmp eax, 2
+    je lobby_seeding_on_updater_go
+    ud2
+lobby_seeding_on_updater_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lobby_seeding_on_updater_replay:
+    db 0x83, 0xc4, 0x04, 0x8b, 0xf8
+    jmp 0x373d32
+
 ; 0x25cd1c game_world::on_keyboard_action with the input world's keyboard (its vtable+24h 0x79E40: [input_world+24h]), before it asks the keyboard for Tab (mov edx,[eax] / mov ecx,eax / mov eax,[edx]; push 0Fh at 0x25CD22): EAX the keyboard, EDI the game world's input handler (the hud at +4); every key the game world is given, a held one every tick: lohook -> map_names_on_key
 global map_names_on_key
 extern hook_map_names_on_key
@@ -4392,6 +9940,48 @@ map_names_on_key_go:
 map_names_on_key_replay:
     db 0x8b, 0x10, 0x8b, 0xc8, 0x8b, 0x02
     jmp 0x25cd22
+
+; 0x306d50 game_material_manager::material_pair's start (movzx eax,dx / mov eax,[ecx+eax*4+108h]): ECX the manager, DX and DI the two material ids, indexed into its 128 material slots (+108h) with no bound; done 0x306DF8, its ret (nothing pushed yet), EAX the pair or 0 (no pair: every caller tests it, 0x2481A6 0x2487F8 0x248A74 0x248B90 0x32E5A0 0x32E7FA 0x32EA20 0x32EC9F): lohook -> material_bounds_on_material_pair
+global material_bounds_on_material_pair
+extern hook_material_bounds_on_material_pair
+material_bounds_on_material_pair:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_material_bounds_on_material_pair
+    mov edx, material_bounds_on_material_pair_replay
+    cmp eax, 0
+    je material_bounds_on_material_pair_go
+    mov edx, 0x306d5a
+    cmp eax, 1
+    je material_bounds_on_material_pair_go
+    mov edx, 0x306df8
+    cmp eax, 2
+    je material_bounds_on_material_pair_go
+    ud2
+material_bounds_on_material_pair_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+material_bounds_on_material_pair_replay:
+    db 0x0f, 0xb7, 0xc2, 0x8b, 0x84, 0x81, 0x08, 0x01, 0x00, 0x00
+    jmp 0x306d5a
 
 ; 0x33d41b EBP medkit EBX player XMM0 duration: lohook -> medical_skills_on_duration_start
 global medical_skills_on_duration_start
@@ -4590,7 +10180,7 @@ medical_skills_on_initialize_replay:
 
 ; 0x2dbc91 EBX player XMM0 final movement speed: lohook -> medical_skills_on_movement
 global medical_skills_on_movement
-extern hook_medical_skills_on_movement
+extern hook_medical_skills_on_movement_chain
 medical_skills_on_movement:
     lea esp, [esp - 4]
     pushfd
@@ -4608,7 +10198,7 @@ medical_skills_on_movement:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_medical_skills_on_movement
+    call hook_medical_skills_on_movement_chain
     mov edx, medical_skills_on_movement_replay
     cmp eax, 0
     je medical_skills_on_movement_go
@@ -4666,9 +10256,9 @@ medical_skills_on_heal_replay:
     db 0xf3, 0x0f, 0x11, 0x86, 0xa0, 0x00, 0x00, 0x00
     jmp 0x32a468
 
-; 0x32a28b EBP pool XMM0 new health before write: lohook -> medical_skills_on_wound
+; 0x32a28b EBP pool, ESI the hit (mov esi,[esp+13Ch] at 0x32A284, on every path here), XMM0 new health before write: lohook -> medical_skills_on_wound
 global medical_skills_on_wound
-extern hook_medical_skills_on_wound
+extern hook_medical_skills_on_wound_chain
 medical_skills_on_wound:
     lea esp, [esp - 4]
     pushfd
@@ -4686,7 +10276,7 @@ medical_skills_on_wound:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_medical_skills_on_wound
+    call hook_medical_skills_on_wound_chain
     mov edx, medical_skills_on_wound_replay
     cmp eax, 0
     je medical_skills_on_wound_go
@@ -4747,10 +10337,10 @@ medical_skills_on_protection_replay:
     db 0x8b, 0x44, 0x24, 0x04, 0x8b, 0x10
     jmp 0x33db36
 
-; 0x2f76e8 apply_kit_parameter epilogue: ESI parameter index, XMM0 final base+skills+equipment value; replay pops EDI ESI EBP EBX and returns: lohook -> medical_skills_on_pocket_count
-global medical_skills_on_pocket_count
-extern hook_medical_skills_on_pocket_count
-medical_skills_on_pocket_count:
+; 0x2f76e8 player_profile::apply_kit_parameter epilogue (every caller is the lobby's): ESI parameter index (15 pockets, 17 pocket size), XMM0 final base+skills+equipment value, EBX the kit record, EBP the profile, the dictionary argument by ESP; replay pops EDI ESI EBP EBX and returns: lohook -> technical_skills_on_kit_parameter
+global technical_skills_on_kit_parameter
+extern hook_technical_skills_on_kit_parameter_chain
+technical_skills_on_kit_parameter:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -4767,28 +10357,28 @@ medical_skills_on_pocket_count:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_medical_skills_on_pocket_count
-    mov edx, medical_skills_on_pocket_count_replay
+    call hook_technical_skills_on_kit_parameter_chain
+    mov edx, technical_skills_on_kit_parameter_replay
     cmp eax, 0
-    je medical_skills_on_pocket_count_go
+    je technical_skills_on_kit_parameter_go
     mov edx, 0x2f76ed
     cmp eax, 1
-    je medical_skills_on_pocket_count_go
+    je technical_skills_on_kit_parameter_go
     ud2
-medical_skills_on_pocket_count_go:
+technical_skills_on_kit_parameter_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-medical_skills_on_pocket_count_replay:
+technical_skills_on_kit_parameter_replay:
     db 0x5f, 0x5e, 0x5d, 0x5b, 0xc3
     jmp 0x2f76ed
 
 ; 0x329aad player_stamina::sprint after both spending modifiers (19, 67): XMM0 sprint stamina per second, before the elapsed-time multiply: lohook -> medical_skills_on_sprint
 global medical_skills_on_sprint
-extern hook_medical_skills_on_sprint
+extern hook_medical_skills_on_sprint_chain
 medical_skills_on_sprint:
     lea esp, [esp - 4]
     pushfd
@@ -4806,7 +10396,7 @@ medical_skills_on_sprint:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_medical_skills_on_sprint
+    call hook_medical_skills_on_sprint_chain
     mov edx, medical_skills_on_sprint_replay
     cmp eax, 0
     je medical_skills_on_sprint_go
@@ -4896,10 +10486,10 @@ medical_skills_on_stopping_go:
     lea esp, [esp + 4]
     ret
 
-; 0x31d727 breath_vibration_calculator::tick after apply_modifier of breath_vibration (61) at 0x31D722, before it stores the result (mov eax,[ebp+0Ch] / fild dword [ebp+0Ch], then movss [esp+10h],xmm0 at 0x31D72D): XMM0 the dispersion that drives the aimed weapon's sway, B x max(0, 1 + S61); EDI the calculator (weapon+288h), EBP the tick's frame: lohook -> medical_skills_on_sway
-global medical_skills_on_sway
-extern hook_medical_skills_on_sway
-medical_skills_on_sway:
+; 0x30e25f weapon_core_reload_state::get_weapon_lexeme after apply_modifier of reload_speed (13) at 0x30E25A (push 1 / push -1 / push 1, then movss [esp+20h],xmm0 at 0x30E26A): XMM0 the hands clip's speed, +138h x max(0, 1 + S13); EDI the state, [[EDI+120h]+8] the player whose kit it read: lohook -> medical_skills_on_reload
+global medical_skills_on_reload
+extern hook_medical_skills_on_reload
+medical_skills_on_reload:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -4916,24 +10506,258 @@ medical_skills_on_sway:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_medical_skills_on_sway
-    mov edx, medical_skills_on_sway_replay
+    call hook_medical_skills_on_reload
+    mov edx, medical_skills_on_reload_replay
     cmp eax, 0
-    je medical_skills_on_sway_go
-    mov edx, 0x31d72d
+    je medical_skills_on_reload_go
+    mov edx, 0x30e265
     cmp eax, 1
-    je medical_skills_on_sway_go
+    je medical_skills_on_reload_go
     ud2
-medical_skills_on_sway_go:
+medical_skills_on_reload_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-medical_skills_on_sway_replay:
-    db 0x8b, 0x45, 0x0c, 0xdb, 0x45, 0x0c
-    jmp 0x31d72d
+medical_skills_on_reload_replay:
+    db 0x6a, 0x01, 0x6a, 0xff, 0x6a, 0x01
+    jmp 0x30e265
+
+; 0x30f622 double_barreled_weapon_core_reload_state::get_weapon_lexeme (0x30F5A0) after apply_modifier of reload_speed (13) at 0x30F61D (mov edx,[esp+14h] / push 1, then movss [esp+20h],xmm0): XMM0 the clip's speed, +138h x max(0, 1 + S13); EDI the state: lohook -> medical_skills_on_reload_double
+global medical_skills_on_reload_double
+extern hook_medical_skills_on_reload_double
+medical_skills_on_reload_double:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_reload_double
+    mov edx, medical_skills_on_reload_double_replay
+    cmp eax, 0
+    je medical_skills_on_reload_double_go
+    mov edx, 0x30f628
+    cmp eax, 1
+    je medical_skills_on_reload_double_go
+    ud2
+medical_skills_on_reload_double_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_reload_double_replay:
+    db 0x8b, 0x54, 0x24, 0x14, 0x6a, 0x01
+    jmp 0x30f628
+
+; 0x30ff0c pistol_weapon_core_reload_state::get_weapon_lexeme (0x30FE90, state 314) after apply_modifier of reload_speed (13) at 0x30FF07 (push 1 / push -1 / push 1, then movss [esp+20h],xmm0): XMM0 the clip's speed, +138h x max(0, 1 + S13); EDI the state: lohook -> medical_skills_on_reload_pistol
+global medical_skills_on_reload_pistol
+extern hook_medical_skills_on_reload_pistol
+medical_skills_on_reload_pistol:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_reload_pistol
+    mov edx, medical_skills_on_reload_pistol_replay
+    cmp eax, 0
+    je medical_skills_on_reload_pistol_go
+    mov edx, 0x30ff12
+    cmp eax, 1
+    je medical_skills_on_reload_pistol_go
+    ud2
+medical_skills_on_reload_pistol_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_reload_pistol_replay:
+    db 0x6a, 0x01, 0x6a, 0xff, 0x6a, 0x01
+    jmp 0x30ff12
+
+; 0x3110da the shotgun reload substate's get_weapon_lexeme (0x311070) after apply_modifier of reload_speed (13) at 0x3110D5 (mov ecx,[edi+154h], then movss [esp+20h],xmm0 at 0x3110F0): XMM0 the clip's speed, +14Ch x max(0, 1 + S13); EDI the state: lohook -> medical_skills_on_reload_shotgun
+global medical_skills_on_reload_shotgun
+extern hook_medical_skills_on_reload_shotgun
+medical_skills_on_reload_shotgun:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_reload_shotgun
+    mov edx, medical_skills_on_reload_shotgun_replay
+    cmp eax, 0
+    je medical_skills_on_reload_shotgun_go
+    mov edx, 0x3110e0
+    cmp eax, 1
+    je medical_skills_on_reload_shotgun_go
+    ud2
+medical_skills_on_reload_shotgun_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_reload_shotgun_replay:
+    db 0x8b, 0x8f, 0x54, 0x01, 0x00, 0x00
+    jmp 0x3110e0
+
+; 0x2e1b9f weapon_core::instant_aim_start after apply_modifier of aim_time (49) at 0x2E1B9A (movss xmm2,[edi+604h], then XMM0 stored at +608h, 0x2E1BD2): XMM0 the sight's raising time, +5F8h x max(0, 1 + S49); EDI the weapon, [EDI+8] the player whose kit it read: lohook -> medical_skills_on_aim_start
+global medical_skills_on_aim_start
+extern hook_medical_skills_on_aim_start
+medical_skills_on_aim_start:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_aim_start
+    mov edx, medical_skills_on_aim_start_replay
+    cmp eax, 0
+    je medical_skills_on_aim_start_go
+    mov edx, 0x2e1ba7
+    cmp eax, 1
+    je medical_skills_on_aim_start_go
+    ud2
+medical_skills_on_aim_start_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_aim_start_replay:
+    db 0xf3, 0x0f, 0x10, 0x97, 0x04, 0x06, 0x00, 0x00
+    jmp 0x2e1ba7
+
+; 0x2e1c40 weapon_core::instant_aim_end after apply_modifier of aim_time (49) at 0x2E1C3B (movss xmm2,[edi+604h], then XMM0 stored at +608h, 0x2E1C6E): XMM0 the sight's lowering time, +5F8h x max(0, 1 + S49); EDI the weapon: lohook -> medical_skills_on_aim_end
+global medical_skills_on_aim_end
+extern hook_medical_skills_on_aim_end
+medical_skills_on_aim_end:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_aim_end
+    mov edx, medical_skills_on_aim_end_replay
+    cmp eax, 0
+    je medical_skills_on_aim_end_go
+    mov edx, 0x2e1c48
+    cmp eax, 1
+    je medical_skills_on_aim_end_go
+    ud2
+medical_skills_on_aim_end_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_aim_end_replay:
+    db 0xf3, 0x0f, 0x10, 0x97, 0x04, 0x06, 0x00, 0x00
+    jmp 0x2e1c48
+
+; 0x33d872 medkit::tick on the first tick of the active time (remaining == the whole active time, 0x33D860), after remove_affects (0x33D86D), before the drug_activity link (movzx edx,byte [ebp+115h]): EDI the drug, EBP its holder: lohook -> medical_skills_on_drug_begin
+global medical_skills_on_drug_begin
+extern hook_medical_skills_on_drug_begin
+medical_skills_on_drug_begin:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_drug_begin
+    mov edx, medical_skills_on_drug_begin_replay
+    cmp eax, 0
+    je medical_skills_on_drug_begin_go
+    mov edx, 0x33d879
+    cmp eax, 1
+    je medical_skills_on_drug_begin_go
+    ud2
+medical_skills_on_drug_begin_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_drug_begin_replay:
+    db 0x0f, 0xb6, 0x95, 0x15, 0x01, 0x00, 0x00
+    jmp 0x33d879
 
 ; 0xe12bf allocate_region (0xE1120) after memory::initialize (0xE12D0) made each registered allocator's heap in its arena (lea esp,[ebp-58h] / pop edi / pop esi / pop ebx): every arena is where it stays while the game runs; patch 127 reads SKHID_MEMORY_PROFILE here, once: lohook -> memory_profile_on_start
 global memory_profile_on_start
@@ -5038,45 +10862,6 @@ memory_profile_on_freeing_go:
     lea esp, [esp + 4]
     ret
 
-; 0x27a790 close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown: lohook -> memory_report_on_close
-global memory_report_on_close
-extern hook_memory_report_on_close_chain
-memory_report_on_close:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_memory_report_on_close_chain
-    mov edx, memory_report_on_close_replay
-    cmp eax, 0
-    je memory_report_on_close_go
-    mov edx, 0x27a796
-    cmp eax, 1
-    je memory_report_on_close_go
-    ud2
-memory_report_on_close_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-memory_report_on_close_replay:
-    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
-    jmp 0x27a796
-
 ; 0xe4d70 out_of_memory_with_crash's entry (push ebp / mov ebp,esp / and esp,-8; stdcall: the mspace, its doug_lea_allocator, first time), a fixed arena's heap callback: it logs "out of memory in arena", dumps the statistics and FATALs; EBP the bytes asked when it returns to mspace_malloc (heap_out_of_memory_return): lohook -> memory_profile_on_out_of_memory
 global memory_profile_on_out_of_memory
 extern hook_memory_profile_on_out_of_memory
@@ -5116,10 +10901,10 @@ memory_profile_on_out_of_memory_replay:
     db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
     jmp 0xe4d76
 
-; 0x27a31f on_match_packet_received before storing the normalized id and subtracting E3h; EAX the id, reader cursor after it; refused is the epilogue: lohook -> message_check_on_message
-global message_check_on_message
-extern hook_message_check_on_message
-message_check_on_message:
+; module_watch.thread patch 125's TLS callback (module_watch_026g.asm module_watch_tls, the one callback of the exe's TLS directory): Windows calls it, the loader's lock held, on the main thread before the exe's entry point (reason 1) and on every thread the process gets before that thread's own start (reason 2); stdcall (the module, the reason, reserved), our code pushes the address of module_watch_dll before its call and returns with ret 0Ch: entry -> module_report_on_thread
+global module_report_on_thread
+extern hook_module_report_on_thread
+module_report_on_thread:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -5136,27 +10921,49 @@ message_check_on_message:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_message_check_on_message
-    mov edx, message_check_on_message_replay
+    call hook_module_report_on_thread
     cmp eax, 0
-    je message_check_on_message_go
-    mov edx, 0x27a327
-    cmp eax, 1
-    je message_check_on_message_go
-    mov edx, 0x27a72c
-    cmp eax, 2
-    je message_check_on_message_go
+    je module_report_on_thread_go
     ud2
-message_check_on_message_go:
-    mov [ebp + 36], edx
+module_report_on_thread_go:
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
+    lea esp, [esp + 4]
     ret
-message_check_on_message_replay:
-    db 0x89, 0x45, 0x0c, 0x05, 0x1d, 0xff, 0xff, 0xff
-    jmp 0x27a327
+
+; module_watch.dll patch 125's DLL notification (module_watch_026g.asm module_watch_dll, handed to ntdll's LdrRegisterDllNotification): the loader calls it, its lock held, after it mapped a DLL (reason 1) and before it unmaps one (2); stdcall (the reason, the LDR_DLL_NOTIFICATION_DATA, our context), our code returns with ret 0Ch: entry -> module_report_on_dll
+global module_report_on_dll
+extern hook_module_report_on_dll
+module_report_on_dll:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_module_report_on_dll
+    cmp eax, 0
+    je module_report_on_dll_go
+    ud2
+module_report_on_dll_go:
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    lea esp, [esp + 4]
+    ret
 
 ; 0x2402e9 on_mouse_move's pitch step (patch 112), after the window's two size calls: movss xmm1,[edi] / divss xmm1,[eax] (h / w) / movss xmm2,[esp+28h] (the yaw's step s) / mulss xmm1,xmm2; 0x2402FB multiplies xmm1 by the invert and 3/pi, 0x240309 the journal's path joins; XMM1 the pitch's step before them, XMM2 s for the yaw (0x240349): lohook -> mouse_pitch_on_pitch_step
 global mouse_pitch_on_pitch_step
@@ -5228,45 +11035,6 @@ mouse_pitch_on_death_pitch_go:
     popfd
     lea esp, [esp + 4]
     ret
-
-; 0x1ec8ec game::tick after its pending call is cleared (lea esi,[ebx+5308h]): every frame, on the game's thread, EBX the game: lohook -> music_on_frame
-global music_on_frame
-extern hook_music_on_frame_chain
-music_on_frame:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_music_on_frame_chain
-    mov edx, music_on_frame_replay
-    cmp eax, 0
-    je music_on_frame_go
-    mov edx, 0x1ec8f2
-    cmp eax, 1
-    je music_on_frame_go
-    ud2
-music_on_frame_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-music_on_frame_replay:
-    db 0x8d, 0xb3, 0x08, 0x53, 0x00, 0x00
-    jmp 0x1ec8f2
 
 ; 0x21d31d lobby_menu::on_activate after base_game_scene::on_activate (mov ecx,[edi+9Ch]): the lobby is shown, at the start and back from a match: lohook -> music_on_lobby
 global music_on_lobby
@@ -5346,45 +11114,6 @@ music_on_loading_replay:
     db 0x8b, 0xc6, 0x89, 0x74, 0x24, 0x0c
     jmp 0x2204b9
 
-; 0x23b36a update_ui marks the welcome message shown (mov byte [edi+370h],1; the mode's jne at 0x23B354 lands here too): once a world, at its first update past the pregame, as the countdown ends: lohook -> music_on_announced
-global music_on_announced
-extern hook_music_on_announced
-music_on_announced:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_music_on_announced
-    mov edx, music_on_announced_replay
-    cmp eax, 0
-    je music_on_announced_go
-    mov edx, 0x23b371
-    cmp eax, 1
-    je music_on_announced_go
-    ud2
-music_on_announced_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-music_on_announced_replay:
-    db 0xc6, 0x87, 0x70, 0x03, 0x00, 0x00, 0x01
-    jmp 0x23b371
-
 ; 0x59ab1 sound_world::tick after process_orders, before the active scenes tick (mov esi,[edi+48E4h]): the sound thread, EDI the world, EBX the ms since its last tick: lohook -> music_on_sound_tick
 global music_on_sound_tick
 extern hook_music_on_sound_tick
@@ -5427,7 +11156,289 @@ music_on_sound_tick_replay:
 ; 0x14730 the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query: callback -> music_on_query_done (wraps engine_store_first_resource 0x14730)
     RUST_CDECL music_on_query_done, hook_music_on_query_done, 2
 
-; 0x24757c mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player): lohook -> ragdoll_on_cull
+; 0x1dff85 effect_gstage_default_materials::compile (0x1DDD50, g_stage_default: gbuffer_pass and gbuffer_emissive_pass) in its parallax block (the configuration's [esp+1Ah] bit 40h, use_parallax, tested at 0x1DFF18), after constant_parallax_scale and texture_bump's lookup, before t_height_map's set_texture (0x3D98B0 at 0x1DFFA7): fld dword [esp+3Ch] / mov edx,[esp+2Ch] (no address under them, no branch into them; EAX the texture_bump node, kept). EBX the material's config tree, [EBP+8] the compiler. 0.44a5 sets parallax_uv_scrolling_factors and parallax_uv_scale_factors at the same place of its parallax block (0x4C4414..0x4C45A3): lohook -> parallax_uv_on_parallax
+global parallax_uv_on_parallax
+extern hook_parallax_uv_on_parallax
+parallax_uv_on_parallax:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_parallax_uv_on_parallax
+    mov edx, parallax_uv_on_parallax_replay
+    cmp eax, 0
+    je parallax_uv_on_parallax_go
+    mov edx, 0x1dff8d
+    cmp eax, 1
+    je parallax_uv_on_parallax_go
+    ud2
+parallax_uv_on_parallax_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+parallax_uv_on_parallax_replay:
+    db 0xd9, 0x44, 0x24, 0x3c, 0x8b, 0x54, 0x24, 0x2c
+    jmp 0x1dff8d
+
+; 0x1f6884 game_world::game_world 0x1F67B0 after its first-person presenter's constructor 0x2971C0 at 0x1F686A (mov [ebp+4D38h],eax / mov [ebp+4D3Ch],ebx; the first site after it without a relocation under it, EAX no longer the presenter): EBP the game world, its first-person presenter at +1D98h (the EDI given at 0x1F6857), its particle list inline (six entries); game_world is the static at 0xA96860, so the address is the same at every construction: lohook -> particle_room_on_first_person_made
+global particle_room_on_first_person_made
+extern hook_particle_room_on_first_person_made
+particle_room_on_first_person_made:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_particle_room_on_first_person_made
+    mov edx, particle_room_on_first_person_made_replay
+    cmp eax, 0
+    je particle_room_on_first_person_made_go
+    mov edx, 0x1f688a
+    cmp eax, 1
+    je particle_room_on_first_person_made_go
+    ud2
+particle_room_on_first_person_made_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+particle_room_on_first_person_made_replay:
+    db 0x89, 0x85, 0x38, 0x4d, 0x00, 0x00
+    jmp 0x1f688a
+
+; 0x1f6b14 game_world::game_world 0x1F67B0's loop over the twenty places' holders, after each third-person presenter's constructor 0x297570 at 0x1F6B0F (add eax,220h / sub esi,edi): EAX the presenter (holder +8h, the game world's +22BCh + place x 220h; the constructor keeps EAX), its particle list inline (six entries): lohook -> particle_room_on_third_person_made
+global particle_room_on_third_person_made
+extern hook_particle_room_on_third_person_made
+particle_room_on_third_person_made:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_particle_room_on_third_person_made
+    mov edx, particle_room_on_third_person_made_replay
+    cmp eax, 0
+    je particle_room_on_third_person_made_go
+    mov edx, 0x1f6b19
+    cmp eax, 1
+    je particle_room_on_third_person_made_go
+    ud2
+particle_room_on_third_person_made_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+particle_room_on_third_person_made_replay:
+    db 0x05, 0x20, 0x02, 0x00, 0x00
+    jmp 0x1f6b19
+
+; 0x2ac8a6 particle_game_effect_presenter::deserialize 0x2AC870 once its local list is set up and the presenter stored (mov [esp+4Ch],edx / mov [esp+58h],eax): EAX the local's capacity end (ESP+0ECh, six entries inline from ESP+5Ch) the second instruction stores; the saved entries are pushed into it (0x2AC9B8) and it is swapped into the presenter at 0x2ACC00: lohook -> particle_room_on_read_room
+global particle_room_on_read_room
+extern hook_particle_room_on_read_room
+particle_room_on_read_room:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_particle_room_on_read_room
+    mov edx, particle_room_on_read_room_replay
+    cmp eax, 0
+    je particle_room_on_read_room_go
+    mov edx, 0x2ac8ae
+    cmp eax, 1
+    je particle_room_on_read_room_go
+    ud2
+particle_room_on_read_room_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+particle_room_on_read_room_replay:
+    db 0x89, 0x54, 0x24, 0x4c, 0x89, 0x44, 0x24, 0x58
+    jmp 0x2ac8ae
+
+; 0x2acd00 the particle lists' swap 0x2ACD00 (sub esp,0A4h), whose one caller is deserialize 0x2AC870 at 0x2ACC00: EDI the presenter's list, ESI the local read; it copies EDI's entries into a stack room of six (ESP+10h..+0A0h) and assigns with 0x2AD360, which checks no capacity; returned is its ret (at the site ESP is the return address): lohook -> particle_room_on_swap
+global particle_room_on_swap
+extern hook_particle_room_on_swap
+particle_room_on_swap:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_particle_room_on_swap
+    mov edx, particle_room_on_swap_replay
+    cmp eax, 0
+    je particle_room_on_swap_go
+    mov edx, 0x2acd06
+    cmp eax, 1
+    je particle_room_on_swap_go
+    mov edx, 0x2acd73
+    cmp eax, 2
+    je particle_room_on_swap_go
+    ud2
+particle_room_on_swap_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+particle_room_on_swap_replay:
+    db 0x81, 0xec, 0xa4, 0x00, 0x00, 0x00
+    jmp 0x2acd06
+
+; 0x2ac686 particle_game_effect_presenter::on_event 0x2AC400, a play (event kind 0) before its entry is made (mov eax,ecx / lea ecx,[esp+30h]; the entry's constructor 0x2AC1F0 at 0x2AC68C and push_back 0x2ACC20 at 0x2AC695 follow, and push_back asserts on a full list): EBX the presenter; full is its return (pop edi / pop esi / pop ebx; mov esp,ebp; pop ebp; ret 8), nothing pushed since the prologue: lohook -> particle_room_on_start
+global particle_room_on_start
+extern hook_particle_room_on_start
+particle_room_on_start:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_particle_room_on_start
+    mov edx, particle_room_on_start_replay
+    cmp eax, 0
+    je particle_room_on_start_go
+    mov edx, 0x2ac68c
+    cmp eax, 1
+    je particle_room_on_start_go
+    mov edx, 0x2ac6b3
+    cmp eax, 2
+    je particle_room_on_start_go
+    ud2
+particle_room_on_start_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+particle_room_on_start_replay:
+    db 0x8b, 0xc1, 0x8d, 0x4c, 0x24, 0x30
+    jmp 0x2ac68c
+
+; 0x111ed0 logging::log_message's start (push ebp / mov ebp,esp / sub esp,250h), the one writer of every engine log line, on any thread (cdecl, varargs; its callers ask has_passed_filters first and build the line's function on their stack, which they free after the call): the site's ESP+4 that function, +8 the context word, +0Ch the template, +10h the file, +14h the line, +18h the caller's name, +1Ch the channel, +20h the level, +24h the format, +28h its first argument; quiet is its `ret` (0x111F73), the stack as at the site: the line not written: lohook -> quiet_log_on_message
+global quiet_log_on_message
+extern hook_quiet_log_on_message
+quiet_log_on_message:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_quiet_log_on_message
+    mov edx, quiet_log_on_message_replay
+    cmp eax, 0
+    je quiet_log_on_message_go
+    mov edx, 0x111ed9
+    cmp eax, 1
+    je quiet_log_on_message_go
+    mov edx, 0x111f73
+    cmp eax, 2
+    je quiet_log_on_message_go
+    ud2
+quiet_log_on_message_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+quiet_log_on_message_replay:
+    db 0x55, 0x8b, 0xec, 0x81, 0xec, 0x50, 0x02, 0x00, 0x00
+    jmp 0x111ed9
+
+; 0x24757c mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player); culled 0x24781E, past the bones and past the culled player's held item's vtable+4Ch (0x247811: weapon::on_culled_player_draw 0x245250 moves the weapon to the player's root), where the game's own cull (jne 0x24758C, [ebx+12Ch] not 0) ends, the stack as at the site: lohook -> ragdoll_on_cull
 global ragdoll_on_cull
 extern hook_ragdoll_on_cull
 ragdoll_on_cull:
@@ -5453,6 +11464,9 @@ ragdoll_on_cull:
     je ragdoll_on_cull_go
     mov edx, 0x247583
     cmp eax, 1
+    je ragdoll_on_cull_go
+    mov edx, 0x24781e
+    cmp eax, 2
     je ragdoll_on_cull_go
     ud2
 ragdoll_on_cull_go:
@@ -5504,45 +11518,6 @@ ragdoll_on_bones_go:
 ragdoll_on_bones_replay:
     db 0x8b, 0x8b, 0x90, 0xf2, 0x00, 0x00
     jmp 0x24771c
-
-; 0x1f3643 update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player): lohook -> ragdoll_on_eye
-global ragdoll_on_eye
-extern hook_ragdoll_on_eye
-ragdoll_on_eye:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_ragdoll_on_eye
-    mov edx, ragdoll_on_eye_replay
-    cmp eax, 0
-    je ragdoll_on_eye_go
-    mov edx, 0x1f3649
-    cmp eax, 1
-    je ragdoll_on_eye_go
-    ud2
-ragdoll_on_eye_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-ragdoll_on_eye_replay:
-    db 0x8b, 0x8b, 0x70, 0xf4, 0x00, 0x00
-    jmp 0x1f3649
 
 ; 0x24754f mt_draw's read of the held item (mov esi,[ebx+128h]; the je after it skips every bone update when it is 0; EBX the player): lohook -> ragdoll_on_held_item
 global ragdoll_on_held_item
@@ -5667,9 +11642,9 @@ ragdoll_on_render_bones_replay:
     db 0x80, 0xbf, 0xd8, 0x62, 0x00, 0x00, 0x00
     jmp 0x15a957
 
-; 0x2da3df generate_killed_event after enqueue: ESI victim, BL cause (1 headshot, 0 other, 3 suicide/no killer); replays mov eax,[esi+120h]: lohook -> ragdoll_on_killed
+; 0x2da3df generate_killed_event after enqueue: ESI victim, BL cause (1 headshot, 0 other, 3 suicide/no killer); replays mov eax,[esi+120h]; ESP its frame (the arguments at +44h..: time, killer, bone, source): lohook -> ragdoll_on_killed
 global ragdoll_on_killed
-extern hook_ragdoll_on_killed
+extern hook_ragdoll_on_killed_chain
 ragdoll_on_killed:
     lea esp, [esp - 4]
     pushfd
@@ -5687,7 +11662,7 @@ ragdoll_on_killed:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_ragdoll_on_killed
+    call hook_ragdoll_on_killed_chain
     mov edx, ragdoll_on_killed_replay
     cmp eax, 0
     je ragdoll_on_killed_go
@@ -5705,6 +11680,239 @@ ragdoll_on_killed_go:
 ragdoll_on_killed_replay:
     db 0x8b, 0x86, 0x20, 0x01, 0x00, 0x00
     jmp 0x2da3e5
+
+; 0x1f0245 open_file_impl: EDI local open options, ESI resolved path; replay separator initialization before native open: lohook -> replay_file_before_open
+global replay_file_before_open
+extern hook_replay_file_before_open
+replay_file_before_open:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_replay_file_before_open
+    mov edx, replay_file_before_open_replay
+    cmp eax, 0
+    je replay_file_before_open_go
+    mov edx, 0x1f024d
+    cmp eax, 1
+    je replay_file_before_open_go
+    ud2
+replay_file_before_open_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+replay_file_before_open_replay:
+    db 0xc6, 0x84, 0x24, 0x54, 0x01, 0x00, 0x00, 0x5c
+    jmp 0x1f024d
+
+; 0x1f02a3 open_file_impl epilogue: AL native open result, ESI resolved path; REPLAY_OPEN_RESULT routes failures here too: lohook -> replay_file_open_result
+global replay_file_open_result
+extern hook_replay_file_open_result
+replay_file_open_result:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_replay_file_open_result
+    mov edx, replay_file_open_result_replay
+    cmp eax, 0
+    je replay_file_open_result_go
+    mov edx, 0x1f02a8
+    cmp eax, 1
+    je replay_file_open_result_go
+    ud2
+replay_file_open_result_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+replay_file_open_result_replay:
+    db 0x8b, 0x44, 0x24, 0x10, 0x5f
+    jmp 0x1f02a8
+
+; 0x25cd00 game_world::on_keyboard_action's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,0Ch): ECX the game world's input handler, ESP+8 the key, +0Ch its kind; taken is its `ret 0Ch` (AL the answer: 1 the key is taken, the player's handler not told): lohook -> voice_on_key
+global voice_on_key
+extern hook_voice_on_key_chain
+voice_on_key:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_voice_on_key_chain
+    mov edx, voice_on_key_replay
+    cmp eax, 0
+    je voice_on_key_go
+    mov edx, 0x25cd09
+    cmp eax, 1
+    je voice_on_key_go
+    mov edx, 0x25cf15
+    cmp eax, 2
+    je voice_on_key_go
+    ud2
+voice_on_key_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+voice_on_key_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8, 0x83, 0xec, 0x0c
+    jmp 0x25cd09
+
+; 0x267ae6 the client time rule node's camera test (0x267AA0, for a tick first played): mov edi,[edi+148h] (its own state) before the compare with the network client's +1F1C60h and the camera switch 0x27B1A0; state: EDI given, on at the compare: lohook -> round_countdown_on_camera_state
+global round_countdown_on_camera_state
+extern hook_round_countdown_on_camera_state
+round_countdown_on_camera_state:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_round_countdown_on_camera_state
+    mov edx, round_countdown_on_camera_state_replay
+    cmp eax, 0
+    je round_countdown_on_camera_state_go
+    mov edx, 0x267aec
+    cmp eax, 1
+    je round_countdown_on_camera_state_go
+    mov edx, 0x267aec
+    cmp eax, 2
+    je round_countdown_on_camera_state_go
+    ud2
+round_countdown_on_camera_state_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+round_countdown_on_camera_state_replay:
+    db 0x8b, 0xbf, 0x48, 0x01, 0x00, 0x00
+    jmp 0x267aec
+
+; 0xe31f8 logging_initialize (0xE30E0) after generate_log_file_name (0xE29C0, the only call, at 0xE31F3) made the engine log's name in EDI, the frame's buffer_string [esp+0Ch] over its 104h bytes at [esp+18h] (<user data folder><application>_<user>.log), before new_log_file (0x1128D0, the only call, at 0xE31FD) makes the log file of that name anew (create_always: log_file::log_file, as g_log_file_usage 0x1B3A1B8 says); mov eax,[esp+0Ch] / push eax: lohook -> run_logs_on_engine_log
+global run_logs_on_engine_log
+extern hook_run_logs_on_engine_log
+run_logs_on_engine_log:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_run_logs_on_engine_log
+    mov edx, run_logs_on_engine_log_replay
+    cmp eax, 0
+    je run_logs_on_engine_log_go
+    mov edx, 0xe31fd
+    cmp eax, 1
+    je run_logs_on_engine_log_go
+    ud2
+run_logs_on_engine_log_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+run_logs_on_engine_log_replay:
+    db 0x8b, 0x44, 0x24, 0x0c, 0x50
+    jmp 0xe31fd
+
+; log.c_line the arena's C code's line to the patches' log (patch 100's ad_log, audio_device_engine_026g.c): a cdecl call of C (the entry keeps every register), the text and a value; the caller pops the two: entry -> run_logs_on_c_line
+global run_logs_on_c_line
+extern hook_run_logs_on_c_line
+run_logs_on_c_line:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_run_logs_on_c_line
+    cmp eax, 0
+    je run_logs_on_c_line_go
+    ud2
+run_logs_on_c_line_go:
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    lea esp, [esp + 4]
+    ret
 
 ; 0x572675 DrawableImageContext::OnNextCapture (0x572660, the render thread) after its ExecuteNextCapture (vtable+4, call edx at 0x572673), at the walk of its queues (mov ecx,[esi+44h] / lea edi,[esi+40h]): ESI the context's capture notify (context+8), EBX the render notify; done is its epilogue (pop edi / pop esi / pop ebx / ret 4, the registers the entry pushed): lohook -> scaleform_capture_on_next_capture
 global scaleform_capture_on_next_capture
@@ -5787,6 +11995,294 @@ scaleform_capture_on_queue_destroy_replay:
     db 0x56, 0x8b, 0xf1, 0x8b, 0x4e, 0x34
     jmp 0x5ed1e6
 
+; 0x2d7843 base_player::on_fire 0x2D7800 after its fire listeners, before the handler's on_player_weapon_firing (slot +8, the only call, 0x2D78A5; mov ecx,[esi+10h] / mov ebx,[ecx+18FA8h]): ESI the player + 110h, the site's ESP+14h the bullets fired: lohook -> weapon_stats_on_fired
+global weapon_stats_on_fired
+extern hook_weapon_stats_on_fired_chain
+weapon_stats_on_fired:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_stats_on_fired_chain
+    mov edx, weapon_stats_on_fired_replay
+    cmp eax, 0
+    je weapon_stats_on_fired_go
+    mov edx, 0x2d784c
+    cmp eax, 1
+    je weapon_stats_on_fired_go
+    ud2
+weapon_stats_on_fired_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_stats_on_fired_replay:
+    db 0x8b, 0x4e, 0x10, 0x8b, 0x99, 0xa8, 0x8f, 0x01, 0x00
+    jmp 0x2d784c
+
+; 0x31ad0f the effect zone protecting an own-team player inside it (0x31ACA0, each player of its list whose team is the zone's +50h): about to store the fade (mov [eax+330h],ecx, the zone's +4Ch) and the end (mov [eax+32Ch],edx at 0x31AD15: the time + the zone's +48h) into the player's damage model, EAX; skip is past both stores, the player's reference released as on the other team's path (the jne at 0x31ACF4): lohook -> shot_protection_on_zone_protect
+global shot_protection_on_zone_protect
+extern hook_shot_protection_on_zone_protect
+shot_protection_on_zone_protect:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_shot_protection_on_zone_protect
+    mov edx, shot_protection_on_zone_protect_replay
+    cmp eax, 0
+    je shot_protection_on_zone_protect_go
+    mov edx, 0x31ad15
+    cmp eax, 1
+    je shot_protection_on_zone_protect_go
+    mov edx, 0x31ad1b
+    cmp eax, 2
+    je shot_protection_on_zone_protect_go
+    ud2
+shot_protection_on_zone_protect_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+shot_protection_on_zone_protect_replay:
+    db 0x89, 0x88, 0x30, 0x03, 0x00, 0x00
+    jmp 0x31ad15
+
+; 0x380504 on_user_name_answer_received (0x380340) for the answer 0Bh, the user name taken (mov ecx,[ebp+8] / sub esp,30h, past the jne at 0x380502): before it starts the stream's handshake (0x38B840), once a sign-in: lohook -> sign_in_cipher_on_begin
+global sign_in_cipher_on_begin
+extern hook_sign_in_cipher_on_begin
+sign_in_cipher_on_begin:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_sign_in_cipher_on_begin
+    mov edx, sign_in_cipher_on_begin_replay
+    cmp eax, 0
+    je sign_in_cipher_on_begin_go
+    mov edx, 0x38050a
+    cmp eax, 1
+    je sign_in_cipher_on_begin_go
+    ud2
+sign_in_cipher_on_begin_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+sign_in_cipher_on_begin_replay:
+    db 0x8b, 0x4d, 0x08, 0x83, 0xec, 0x30
+    jmp 0x38050a
+
+; 0x4d4c63 SSL_connect (0x4D4C60) after its prologue (mov eax,[ebp+8] / cmp dword [eax+20h],0): EBP+8 the SSL; done is its pop ebp / ret, EAX the result: lohook -> sign_in_cipher_on_connect
+global sign_in_cipher_on_connect
+extern hook_sign_in_cipher_on_connect
+sign_in_cipher_on_connect:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_sign_in_cipher_on_connect
+    mov edx, sign_in_cipher_on_connect_replay
+    cmp eax, 0
+    je sign_in_cipher_on_connect_go
+    mov edx, 0x4d4c6a
+    cmp eax, 1
+    je sign_in_cipher_on_connect_go
+    mov edx, 0x4d4c8a
+    cmp eax, 2
+    je sign_in_cipher_on_connect_go
+    ud2
+sign_in_cipher_on_connect_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+sign_in_cipher_on_connect_replay:
+    db 0x8b, 0x45, 0x08, 0x83, 0x78, 0x20, 0x00
+    jmp 0x4d4c6a
+
+; 0x4d4ca3 SSL_read (0x4D4CA0) after its prologue (the same two instructions): EBP+8 the SSL, +0Ch the room, +10h its length; done is its pop ebp / ret, EAX the result: lohook -> sign_in_cipher_on_read
+global sign_in_cipher_on_read
+extern hook_sign_in_cipher_on_read
+sign_in_cipher_on_read:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_sign_in_cipher_on_read
+    mov edx, sign_in_cipher_on_read_replay
+    cmp eax, 0
+    je sign_in_cipher_on_read_go
+    mov edx, 0x4d4caa
+    cmp eax, 1
+    je sign_in_cipher_on_read_go
+    mov edx, 0x4d4d02
+    cmp eax, 2
+    je sign_in_cipher_on_read_go
+    ud2
+sign_in_cipher_on_read_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+sign_in_cipher_on_read_replay:
+    db 0x8b, 0x45, 0x08, 0x83, 0x78, 0x20, 0x00
+    jmp 0x4d4caa
+
+; 0x4d4d73 SSL_write (0x4D4D70) after its prologue (the same two instructions): EBP+8 the SSL, +0Ch the bytes, +10h their length; done is its pop ebp / ret, EAX the result: lohook -> sign_in_cipher_on_write
+global sign_in_cipher_on_write
+extern hook_sign_in_cipher_on_write
+sign_in_cipher_on_write:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_sign_in_cipher_on_write
+    mov edx, sign_in_cipher_on_write_replay
+    cmp eax, 0
+    je sign_in_cipher_on_write_go
+    mov edx, 0x4d4d7a
+    cmp eax, 1
+    je sign_in_cipher_on_write_go
+    mov edx, 0x4d4df1
+    cmp eax, 2
+    je sign_in_cipher_on_write_go
+    ud2
+sign_in_cipher_on_write_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+sign_in_cipher_on_write_replay:
+    db 0x8b, 0x45, 0x08, 0x83, 0x78, 0x20, 0x00
+    jmp 0x4d4d7a
+
+; 0x4d6e33 SSL_get_error (0x4D6E30) after its prologue (mov eax,0Ch, before __chkstk): done is its mov esp,ebp / pop ebp / ret, EAX the result: lohook -> sign_in_cipher_on_get_error
+global sign_in_cipher_on_get_error
+extern hook_sign_in_cipher_on_get_error
+sign_in_cipher_on_get_error:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_sign_in_cipher_on_get_error
+    mov edx, sign_in_cipher_on_get_error_replay
+    cmp eax, 0
+    je sign_in_cipher_on_get_error_go
+    mov edx, 0x4d6e38
+    cmp eax, 1
+    je sign_in_cipher_on_get_error_go
+    mov edx, 0x4d7042
+    cmp eax, 2
+    je sign_in_cipher_on_get_error_go
+    ud2
+sign_in_cipher_on_get_error_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+sign_in_cipher_on_get_error_replay:
+    db 0xb8, 0x0c, 0x00, 0x00, 0x00
+    jmp 0x4d6e38
+
 ; 0x5cab0 calculate_hdr_audio_frame after create_sound_voice for an audible propagator above the gain floor with no voice (mov [esi+4],eax; test eax,eax): the sound thread, ESI the propagator, EAX its new voice or 0 (the world's 64 all taken), EBP the frame: lohook -> sound_voices_on_voice_made
 global sound_voices_on_voice_made
 extern hook_sound_voices_on_voice_made
@@ -5826,15 +12322,10 @@ sound_voices_on_voice_made_replay:
     db 0x89, 0x46, 0x04, 0x85, 0xc0
     jmp 0x5cab5
 
-; 0x242196 the input builder's last action query (spot): call -> suicide_key_on_spot (wraps engine_action_present 0x242460)
-global suicide_key_on_spot
-suicide_key_on_spot:
-    RUST_CALL hook_suicide_key_on_spot, 3, 12
-
-; 0x25cd00 game_world::on_keyboard_action's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,0Ch): ECX the game world's input handler, ESP+8 the key, +0Ch its kind; taken is its `ret 0Ch` (AL the answer: 1 the key is taken, the player's handler not told): lohook -> tab_cursor_on_key
-global tab_cursor_on_key
-extern hook_tab_cursor_on_key
-tab_cursor_on_key:
+; 0x248b5a step_manager::on_step after its ground ray (mov ecx,[esp+4Ch] / test ecx,ecx: the ray result's object; the je at 0x248B60 is a miss's silent return): ESI the manager, ESP its frame (the ray's direction, origin and result), EBP its arguments (the foot material, the view flag); material is past the hit object's get_triangle_material (0x248B77: mov ecx,[esi+4] / movzx edi,ax), EAX the ground material, the stack as at the site: lohook -> step_ground_on_ground
+global step_ground_on_ground
+extern hook_step_ground_on_ground
+step_ground_on_ground:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -5851,31 +12342,192 @@ tab_cursor_on_key:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_tab_cursor_on_key
-    mov edx, tab_cursor_on_key_replay
+    call hook_step_ground_on_ground
+    mov edx, step_ground_on_ground_replay
     cmp eax, 0
-    je tab_cursor_on_key_go
-    mov edx, 0x25cd09
+    je step_ground_on_ground_go
+    mov edx, 0x248b60
     cmp eax, 1
-    je tab_cursor_on_key_go
-    mov edx, 0x25cf15
+    je step_ground_on_ground_go
+    mov edx, 0x248b77
     cmp eax, 2
-    je tab_cursor_on_key_go
+    je step_ground_on_ground_go
     ud2
-tab_cursor_on_key_go:
+step_ground_on_ground_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-tab_cursor_on_key_replay:
-    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8, 0x83, 0xec, 0x0c
-    jmp 0x25cd09
+step_ground_on_ground_replay:
+    db 0x8b, 0x4c, 0x24, 0x4c, 0x85, 0xc9
+    jmp 0x248b60
+
+; 0x846a1 character_step_down_sweep_test_callback::addSingleResult (0x84420) taking a hit as its first (fld dword [ebx+30h] / mov eax,[esp+0Ch]; both of its ways in, 0x845ED and 0x84695, reach here; the stores of the fraction, normal, object and point follow): EBX the hit, ESI the callback: lohook -> step_ground_on_sweep_first
+global step_ground_on_sweep_first
+extern hook_step_ground_on_sweep_first
+step_ground_on_sweep_first:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_step_ground_on_sweep_first
+    mov edx, step_ground_on_sweep_first_replay
+    cmp eax, 0
+    je step_ground_on_sweep_first_go
+    mov edx, 0x846a8
+    cmp eax, 1
+    je step_ground_on_sweep_first_go
+    ud2
+step_ground_on_sweep_first_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+step_ground_on_sweep_first_replay:
+    db 0xd9, 0x43, 0x30, 0x8b, 0x44, 0x24, 0x0c
+    jmp 0x846a8
+
+; 0x845a8 the same taking a hit as its second (mov byte [esi+0C4h],1; its fraction and point stored after): EBX the hit, ESI the callback: lohook -> step_ground_on_sweep_second
+global step_ground_on_sweep_second
+extern hook_step_ground_on_sweep_second
+step_ground_on_sweep_second:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_step_ground_on_sweep_second
+    mov edx, step_ground_on_sweep_second_replay
+    cmp eax, 0
+    je step_ground_on_sweep_second_go
+    mov edx, 0x845af
+    cmp eax, 1
+    je step_ground_on_sweep_second_go
+    ud2
+step_ground_on_sweep_second_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+step_ground_on_sweep_second_replay:
+    db 0xc6, 0x86, 0xc4, 0x00, 0x00, 0x00, 0x01
+    jmp 0x845af
+
+; 0x852ef the step-down sweep 0x84FE0 after its sweep, before it caches the result (lea eax,[esp+40h] / lea ecx,[esp+20h]; both ways, a hit 0x852AD and none 0x852E2, join here): ESI the controller's sweep helper (+210h), ESP+80h the callback; BL the hit: lohook -> step_ground_on_sweep_result
+global step_ground_on_sweep_result
+extern hook_step_ground_on_sweep_result
+step_ground_on_sweep_result:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_step_ground_on_sweep_result
+    mov edx, step_ground_on_sweep_result_replay
+    cmp eax, 0
+    je step_ground_on_sweep_result_go
+    mov edx, 0x852f7
+    cmp eax, 1
+    je step_ground_on_sweep_result_go
+    ud2
+step_ground_on_sweep_result_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+step_ground_on_sweep_result_replay:
+    db 0x8d, 0x44, 0x24, 0x40, 0x8d, 0x4c, 0x24, 0x20
+    jmp 0x852f7
+
+; 0x85083 the same answered from its cache (mov al,[eax+24h] / pop edi / pop esi): ESI the helper, EAX the cached entry (+24h its hit): lohook -> step_ground_on_sweep_cached
+global step_ground_on_sweep_cached
+extern hook_step_ground_on_sweep_cached
+step_ground_on_sweep_cached:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_step_ground_on_sweep_cached
+    mov edx, step_ground_on_sweep_cached_replay
+    cmp eax, 0
+    je step_ground_on_sweep_cached_go
+    mov edx, 0x85088
+    cmp eax, 1
+    je step_ground_on_sweep_cached_go
+    ud2
+step_ground_on_sweep_cached_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+step_ground_on_sweep_cached_replay:
+    db 0x8a, 0x40, 0x24, 0x5f, 0x5e
+    jmp 0x85088
+
+; 0x242196 the input builder's last action query (spot): call -> suicide_key_on_spot (wraps engine_action_present 0x242460)
+global suicide_key_on_spot
+suicide_key_on_spot:
+    RUST_CALL hook_suicide_key_on_spot, 3, 12
 
 ; 0x233d30 game_world_ui::scaleform_callback's start (push ebx / push esi / mov esi,[esp+10h]): ECX the hud, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is a `ret 10h` of its own (0x233D73): lohook -> tab_cursor_on_hud_call
 global tab_cursor_on_hud_call
-extern hook_tab_cursor_on_hud_call
+extern hook_tab_cursor_on_hud_call_chain
 tab_cursor_on_hud_call:
     lea esp, [esp - 4]
     pushfd
@@ -5893,7 +12545,7 @@ tab_cursor_on_hud_call:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_tab_cursor_on_hud_call
+    call hook_tab_cursor_on_hud_call_chain
     mov edx, tab_cursor_on_hud_call_replay
     cmp eax, 0
     je tab_cursor_on_hud_call_go
@@ -5914,6 +12566,1311 @@ tab_cursor_on_hud_call_go:
 tab_cursor_on_hud_call_replay:
     db 0x53, 0x56, 0x8b, 0x74, 0x24, 0x10
     jmp 0x233d36
+
+; 0x321790 player_slot::apply_profile_input's start (movzx eax,byte [ecx+2Ch] / mov edx,[ecx+28h]): each place's tick (tick list 0, after the respawn rule), every game, every replay of a tick; ECX the place, [esp+8] the tick's time: lohook -> technical_dead_man_on_place_tick
+global technical_dead_man_on_place_tick
+extern hook_technical_dead_man_on_place_tick
+technical_dead_man_on_place_tick:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_dead_man_on_place_tick
+    mov edx, technical_dead_man_on_place_tick_replay
+    cmp eax, 0
+    je technical_dead_man_on_place_tick_go
+    mov edx, 0x321797
+    cmp eax, 1
+    je technical_dead_man_on_place_tick_go
+    ud2
+technical_dead_man_on_place_tick_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_dead_man_on_place_tick_replay:
+    db 0x0f, 0xb6, 0x41, 0x2c, 0x8b, 0x51, 0x28
+    jmp 0x321797
+
+; 0x25cd69 game_world::on_keyboard_action after the binder's answer for a key down with Tab up (mov edi,eax / cmp edi,3Fh): EAX the key's action (kinds 1; 20h throw_grenade), EBX the game; also on the death screen: lohook -> technical_dead_man_on_game_key
+global technical_dead_man_on_game_key
+extern hook_technical_dead_man_on_game_key
+technical_dead_man_on_game_key:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_dead_man_on_game_key
+    mov edx, technical_dead_man_on_game_key_replay
+    cmp eax, 0
+    je technical_dead_man_on_game_key_go
+    mov edx, 0x25cd6e
+    cmp eax, 1
+    je technical_dead_man_on_game_key_go
+    ud2
+technical_dead_man_on_game_key_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_dead_man_on_game_key_replay:
+    db 0x8b, 0xf8, 0x83, 0xff, 0x3f
+    jmp 0x25cd6e
+
+; 0x1f8070 game_world::select_profile's start (mov eax,[edi+9Ch]): every profile input this game queues (the hud's kit pick 0x233F23, patch 180's Dead Man's Switch); EDI the game world, [esp+4] the value; held is its `ret 4` (0x1F8115, the stack as at the start): nothing queued: lohook -> technical_dead_man_on_select_profile
+global technical_dead_man_on_select_profile
+extern hook_technical_dead_man_on_select_profile
+technical_dead_man_on_select_profile:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_dead_man_on_select_profile
+    mov edx, technical_dead_man_on_select_profile_replay
+    cmp eax, 0
+    je technical_dead_man_on_select_profile_go
+    mov edx, 0x1f8076
+    cmp eax, 1
+    je technical_dead_man_on_select_profile_go
+    mov edx, 0x1f8115
+    cmp eax, 2
+    je technical_dead_man_on_select_profile_go
+    ud2
+technical_dead_man_on_select_profile_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_dead_man_on_select_profile_replay:
+    db 0x8b, 0x87, 0x9c, 0x00, 0x00, 0x00
+    jmp 0x1f8076
+
+; 0x1ecc47 game::tick where it sets the game's time to the frame's (mov [ebx+5854h],ecx): after the input tick, the game world's update and the network client's tick of the frame; EBX the game: lohook -> technical_dead_man_on_frame_end
+global technical_dead_man_on_frame_end
+extern hook_technical_dead_man_on_frame_end
+technical_dead_man_on_frame_end:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_dead_man_on_frame_end
+    mov edx, technical_dead_man_on_frame_end_replay
+    cmp eax, 0
+    je technical_dead_man_on_frame_end_go
+    mov edx, 0x1ecc4d
+    cmp eax, 1
+    je technical_dead_man_on_frame_end_go
+    ud2
+technical_dead_man_on_frame_end_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_dead_man_on_frame_end_replay:
+    db 0x89, 0x8b, 0x54, 0x58, 0x00, 0x00
+    jmp 0x1ecc4d
+
+; 0x2d8747 base_player::set_input past its early-outs (a dead player 0x2D86F5; the same actions and no turn 0x2D8741), before the new input is copied to +32Ch (mov ecx,[edi+32Ch]; 0x2D870A and 0x2D8725 jump here): EDI the player, ESI the new input, [EBP+8] its time; every game, before patch 78's filter (carry.filter): lohook -> technical_return_to_sender_on_input
+global technical_return_to_sender_on_input
+extern hook_technical_return_to_sender_on_input
+technical_return_to_sender_on_input:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_return_to_sender_on_input
+    mov edx, technical_return_to_sender_on_input_replay
+    cmp eax, 0
+    je technical_return_to_sender_on_input_go
+    mov edx, 0x2d874d
+    cmp eax, 1
+    je technical_return_to_sender_on_input_go
+    ud2
+technical_return_to_sender_on_input_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_return_to_sender_on_input_replay:
+    db 0x8b, 0x8f, 0x2c, 0x03, 0x00, 0x00
+    jmp 0x2d874d
+
+; 0x297f7e weapon_sound_effect::play_sound_callback with its new proxy (mov eax,[eax] / xor ebx,ebx / xor edi,edi), where the hud (0x297F5E) and point (0x297F79) paths join: EAX the out slot, the effect at [esp+24h]: lohook -> technical_sharp_ears_on_weapon_sound
+global technical_sharp_ears_on_weapon_sound
+extern hook_technical_sharp_ears_on_weapon_sound
+technical_sharp_ears_on_weapon_sound:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_sharp_ears_on_weapon_sound
+    mov edx, technical_sharp_ears_on_weapon_sound_replay
+    cmp eax, 0
+    je technical_sharp_ears_on_weapon_sound_go
+    mov edx, 0x297f84
+    cmp eax, 1
+    je technical_sharp_ears_on_weapon_sound_go
+    ud2
+technical_sharp_ears_on_weapon_sound_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_sharp_ears_on_weapon_sound_replay:
+    db 0x8b, 0x00, 0x33, 0xdb, 0x33, 0xff
+    jmp 0x297f84
+
+; 0x14730 the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query: callback -> technical_sharp_ears_on_loaded (wraps engine_store_first_resource 0x14730)
+    RUST_CDECL technical_sharp_ears_on_loaded, hook_technical_sharp_ears_on_loaded, 2
+
+; 0x31d95b breath_vibration_calculator::tick's stores of m_vibration (mov [edi+44h],eax / mov [edi+48h],ecx): EAX the horizontal sway's bits, ECX the vertical's, EDI the calculator; the tick never reads them back: lohook -> technical_skills_on_breath_vibration
+global technical_skills_on_breath_vibration
+extern hook_technical_skills_on_breath_vibration
+technical_skills_on_breath_vibration:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_breath_vibration
+    mov edx, technical_skills_on_breath_vibration_replay
+    cmp eax, 0
+    je technical_skills_on_breath_vibration_go
+    mov edx, 0x31d961
+    cmp eax, 1
+    je technical_skills_on_breath_vibration_go
+    ud2
+technical_skills_on_breath_vibration_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_breath_vibration_replay:
+    db 0x89, 0x47, 0x44, 0x89, 0x4f, 0x48
+    jmp 0x31d961
+
+; 0x2e1dbe weapon_core::get_dispersed_bullet_direction's store of the shot's dispersion (movss [esp+7Ch],xmm1; read again only by the tilt's fmul at 0x2E1E0A): XMM1 the final dispersion, static + dynamic; EBX the weapon (loaded at 0x2E1D5C, [EBX+8] its user); every player's shot in every game (instant_fire 0x2E245C): lohook -> technical_skills_on_dispersion
+global technical_skills_on_dispersion
+extern hook_technical_skills_on_dispersion
+technical_skills_on_dispersion:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_dispersion
+    mov edx, technical_skills_on_dispersion_replay
+    cmp eax, 0
+    je technical_skills_on_dispersion_go
+    mov edx, 0x2e1dc4
+    cmp eax, 1
+    je technical_skills_on_dispersion_go
+    ud2
+technical_skills_on_dispersion_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_dispersion_replay:
+    db 0xf3, 0x0f, 0x11, 0x4c, 0x24, 0x7c
+    jmp 0x2e1dc4
+
+; 0x33e661 oxygen_tank::tick after the air is spent, a living holder's only (the dead path jumps past it; the tick runs only while the tank is on, set_active 0x33E400 lists it): ECX m_amount_ms left, 0 when it ran out this tick (set_active(0) follows at 0x33E66D), EAX the ms this tick spent (min(m_amount_ms, the elapsed ms), 0x33E5F3..0x33E607): lohook -> technical_skills_on_tank_spent
+global technical_skills_on_tank_spent
+extern hook_technical_skills_on_tank_spent
+technical_skills_on_tank_spent:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_tank_spent
+    mov edx, technical_skills_on_tank_spent_replay
+    cmp eax, 0
+    je technical_skills_on_tank_spent_go
+    mov edx, 0x33e669
+    cmp eax, 1
+    je technical_skills_on_tank_spent_go
+    ud2
+technical_skills_on_tank_spent_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_tank_spent_replay:
+    db 0xf3, 0x0f, 0x11, 0x87, 0x60, 0x02, 0x00, 0x00
+    jmp 0x33e669
+
+; 0x33e403 oxygen_tank::set_active's store of m_active (mov [edi+268h],al): AL the new state, EDI the tank; called by action 0x33E3BD (the player's switch) and the tick's off 0x33E66F (run-out or a dead holder); deserialize lists a loaded tank itself, without it: lohook -> technical_skills_on_tank_switch
+global technical_skills_on_tank_switch
+extern hook_technical_skills_on_tank_switch
+technical_skills_on_tank_switch:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_tank_switch
+    mov edx, technical_skills_on_tank_switch_replay
+    cmp eax, 0
+    je technical_skills_on_tank_switch_go
+    mov edx, 0x33e409
+    cmp eax, 1
+    je technical_skills_on_tank_switch_go
+    ud2
+technical_skills_on_tank_switch_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_tank_switch_replay:
+    db 0x88, 0x87, 0x68, 0x02, 0x00, 0x00
+    jmp 0x33e409
+
+; 0x33e293 oxygen_tank's ctor epilogue (pop edi / pop esi / mov eax,ebp / pop ebp): EBP the tank, its tail padding as the allocator left it: lohook -> technical_skills_on_tank_construct
+global technical_skills_on_tank_construct
+extern hook_technical_skills_on_tank_construct
+technical_skills_on_tank_construct:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_tank_construct
+    mov edx, technical_skills_on_tank_construct_replay
+    cmp eax, 0
+    je technical_skills_on_tank_construct_go
+    mov edx, 0x33e298
+    cmp eax, 1
+    je technical_skills_on_tank_construct_go
+    ud2
+technical_skills_on_tank_construct_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_tank_construct_replay:
+    db 0x5f, 0x5e, 0x8b, 0xc5, 0x5d
+    jmp 0x33e298
+
+; 0x33e590 oxygen_tank's vtable +38h (amount := capacity, a refill): ECX the tank: lohook -> technical_skills_on_tank_refill
+global technical_skills_on_tank_refill
+extern hook_technical_skills_on_tank_refill
+technical_skills_on_tank_refill:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_tank_refill
+    mov edx, technical_skills_on_tank_refill_replay
+    cmp eax, 0
+    je technical_skills_on_tank_refill_go
+    mov edx, 0x33e596
+    cmp eax, 1
+    je technical_skills_on_tank_refill_go
+    ud2
+technical_skills_on_tank_refill_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_tank_refill_replay:
+    db 0x8b, 0x81, 0x70, 0x02, 0x00, 0x00
+    jmp 0x33e596
+
+; 0x33e5a0 oxygen_tank's vtable +40h, the same refill body with ret 8: ECX the tank: lohook -> technical_skills_on_tank_refill_2
+global technical_skills_on_tank_refill_2
+extern hook_technical_skills_on_tank_refill_2
+technical_skills_on_tank_refill_2:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_tank_refill_2
+    mov edx, technical_skills_on_tank_refill_2_replay
+    cmp eax, 0
+    je technical_skills_on_tank_refill_2_go
+    mov edx, 0x33e5a6
+    cmp eax, 1
+    je technical_skills_on_tank_refill_2_go
+    ud2
+technical_skills_on_tank_refill_2_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_tank_refill_2_replay:
+    db 0x8b, 0x81, 0x70, 0x02, 0x00, 0x00
+    jmp 0x33e5a6
+
+; 0x33e7e7 oxygen_tank::serialize after m_amount_ms (0x33E7DB): ESI the tank, EDI the writer: lohook -> technical_skills_on_tank_save
+global technical_skills_on_tank_save
+extern hook_technical_skills_on_tank_save
+technical_skills_on_tank_save:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_tank_save
+    mov edx, technical_skills_on_tank_save_replay
+    cmp eax, 0
+    je technical_skills_on_tank_save_go
+    mov edx, 0x33e7ec
+    cmp eax, 1
+    je technical_skills_on_tank_save_go
+    ud2
+technical_skills_on_tank_save_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_tank_save_replay:
+    db 0x5f, 0x5e, 0x8b, 0xe5, 0x5d
+    jmp 0x33e7ec
+
+; 0x33e82f oxygen_tank::deserialize after m_amount_ms (ECX it), before its active test (cmp byte [esi+268h],0): ESI the tank, EDI the reader at the bytes after it: lohook -> technical_skills_on_tank_load
+global technical_skills_on_tank_load
+extern hook_technical_skills_on_tank_load
+technical_skills_on_tank_load:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_tank_load
+    mov edx, technical_skills_on_tank_load_replay
+    cmp eax, 0
+    je technical_skills_on_tank_load_go
+    mov edx, 0x33e836
+    cmp eax, 1
+    je technical_skills_on_tank_load_go
+    ud2
+technical_skills_on_tank_load_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_tank_load_replay:
+    db 0x80, 0xbe, 0x68, 0x02, 0x00, 0x00, 0x00
+    jmp 0x33e836
+
+; 0x338b61 victory_item_core_take_state::item_and_hands_expression after it stored the take animation's time scale (push 1 / push 2 / push eax / push esi before get_user_hands_lexeme_impl 0x344F60): ESI the take state, [ESP] the scale: lohook -> technical_skills_on_battery_take
+global technical_skills_on_battery_take
+extern hook_technical_skills_on_battery_take
+technical_skills_on_battery_take:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_battery_take
+    mov edx, technical_skills_on_battery_take_replay
+    cmp eax, 0
+    je technical_skills_on_battery_take_go
+    mov edx, 0x338b67
+    cmp eax, 1
+    je technical_skills_on_battery_take_go
+    ud2
+technical_skills_on_battery_take_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_battery_take_replay:
+    db 0x6a, 0x01, 0x6a, 0x02, 0x50, 0x56
+    jmp 0x338b67
+
+; 0x2f8147 resupply_zone_core::update_use 0x2F8120 after the ms passed (sub eax,[esi+8]), before the zone's resupply time is read and compared (mov edx,[ecx+50h] / cmp eax,edx): EAX the ms passed at the crate, which also the progress divides (0x2F8163), EDI the user's player ([esi]): lohook -> technical_skills_on_resupply_time
+global technical_skills_on_resupply_time
+extern hook_technical_skills_on_resupply_time
+technical_skills_on_resupply_time:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_resupply_time
+    mov edx, technical_skills_on_resupply_time_replay
+    cmp eax, 0
+    je technical_skills_on_resupply_time_go
+    mov edx, 0x2f814c
+    cmp eax, 1
+    je technical_skills_on_resupply_time_go
+    ud2
+technical_skills_on_resupply_time_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_resupply_time_replay:
+    db 0x8b, 0x51, 0x50, 0x3b, 0xc2
+    jmp 0x2f814c
+
+; 0x304f92 booby_trap_core::use_execute after floor(defuse_time) (add esp,4 / test eax,eax): EAX the defuse's ms, ESI the ms passed, EBX the disarmer's usable user data: lohook -> technical_skills_on_defuse_time
+global technical_skills_on_defuse_time
+extern hook_technical_skills_on_defuse_time
+technical_skills_on_defuse_time:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_defuse_time
+    mov edx, technical_skills_on_defuse_time_replay
+    cmp eax, 0
+    je technical_skills_on_defuse_time_go
+    mov edx, 0x304f97
+    cmp eax, 1
+    je technical_skills_on_defuse_time_go
+    ud2
+technical_skills_on_defuse_time_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_defuse_time_replay:
+    db 0x83, 0xc4, 0x04, 0x85, 0xc0
+    jmp 0x304f97
+
+; 0x305552 booby_trap_core::hit after its hit-type check (cmp byte [ecx+220h],0): ECX the trap; shot is its ret 28h after the native defuse_completed: lohook -> technical_skills_on_trap_shot
+global technical_skills_on_trap_shot
+extern hook_technical_skills_on_trap_shot
+technical_skills_on_trap_shot:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_trap_shot
+    mov edx, technical_skills_on_trap_shot_replay
+    cmp eax, 0
+    je technical_skills_on_trap_shot_go
+    mov edx, 0x305559
+    cmp eax, 1
+    je technical_skills_on_trap_shot_go
+    mov edx, 0x305571
+    cmp eax, 2
+    je technical_skills_on_trap_shot_go
+    ud2
+technical_skills_on_trap_shot_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_trap_shot_replay:
+    db 0x80, 0xb9, 0x20, 0x02, 0x00, 0x00, 0x00
+    jmp 0x305559
+
+; 0x304dcf booby_trap_core::tick when now (EBX) reached m_action_time (push ebx / mov [eax+20h],-1 before the delayed action's call): ESI the trap; reopened goes on past the call to the state timer: lohook -> technical_skills_on_trap_reopen
+global technical_skills_on_trap_reopen
+extern hook_technical_skills_on_trap_reopen
+technical_skills_on_trap_reopen:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_trap_reopen
+    mov edx, technical_skills_on_trap_reopen_replay
+    cmp eax, 0
+    je technical_skills_on_trap_reopen_go
+    mov edx, 0x304dd7
+    cmp eax, 1
+    je technical_skills_on_trap_reopen_go
+    mov edx, 0x304ddc
+    cmp eax, 2
+    je technical_skills_on_trap_reopen_go
+    ud2
+technical_skills_on_trap_reopen_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_trap_reopen_replay:
+    db 0x53, 0xc7, 0x40, 0x20, 0xff, 0xff, 0xff, 0xff
+    jmp 0x304dd7
+
+; 0x305025 booby_trap_core::use_execute's finished defuse after defuse_completed (0x305020) returned (pop edi / pop esi / pop ebx / mov al,1): a trap that goes off at the defuse (the owner's modifier 46) goes to 0x30502E instead; EBX the disarmer's usable user data, EDI the trap's set, EBP the trap's usable_object (the trap at -34h): lohook -> technical_skills_on_trap_defused
+global technical_skills_on_trap_defused
+extern hook_technical_skills_on_trap_defused
+technical_skills_on_trap_defused:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_skills_on_trap_defused
+    mov edx, technical_skills_on_trap_defused_replay
+    cmp eax, 0
+    je technical_skills_on_trap_defused_go
+    mov edx, 0x30502a
+    cmp eax, 1
+    je technical_skills_on_trap_defused_go
+    ud2
+technical_skills_on_trap_defused_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_skills_on_trap_defused_replay:
+    db 0x5f, 0x5e, 0x5b, 0xb0, 0x01
+    jmp 0x30502a
+
+; 0x1f6642 grenade_cook::new_derived_resource 0x1F6630, the client grenade's size (mov eax,258h before doug_lea_allocator::malloc_impl 0xE4F90; the only maker of the class, its jmp 0x1F6651 the only way to its ctor): patch 180 asks 270h, its smoke fields after the native ones: lohook -> technical_smoke_on_grenade_size
+global technical_smoke_on_grenade_size
+extern hook_technical_smoke_on_grenade_size
+technical_smoke_on_grenade_size:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_smoke_on_grenade_size
+    mov edx, technical_smoke_on_grenade_size_replay
+    cmp eax, 0
+    je technical_smoke_on_grenade_size_go
+    mov edx, 0x1f6647
+    cmp eax, 1
+    je technical_smoke_on_grenade_size_go
+    ud2
+technical_smoke_on_grenade_size_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_smoke_on_grenade_size_replay:
+    db 0xb8, 0x58, 0x02, 0x00, 0x00
+    jmp 0x1f6647
+
+; 0x2483be survarium::grenade's ctor 0x248310 at its last store (mov [edi+250h],ax): EDI the grenade, patch 180's tail (+258h..+26Fh) as the allocator left it: lohook -> technical_smoke_on_grenade_construct
+global technical_smoke_on_grenade_construct
+extern hook_technical_smoke_on_grenade_construct
+technical_smoke_on_grenade_construct:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_smoke_on_grenade_construct
+    mov edx, technical_smoke_on_grenade_construct_replay
+    cmp eax, 0
+    je technical_smoke_on_grenade_construct_go
+    mov edx, 0x2483c5
+    cmp eax, 1
+    je technical_smoke_on_grenade_construct_go
+    ud2
+technical_smoke_on_grenade_construct_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_smoke_on_grenade_construct_replay:
+    db 0x66, 0x89, 0x87, 0x50, 0x02, 0x00, 0x00
+    jmp 0x2483c5
+
+; 0x2483f0 survarium::grenade's destructor body (push esi / mov esi,ecx / lea ecx,[esi+220h]; the deleting dtor 0x2483D0 calls it): ECX the grenade, before its own resources are released: lohook -> technical_smoke_on_grenade_destroy
+global technical_smoke_on_grenade_destroy
+extern hook_technical_smoke_on_grenade_destroy
+technical_smoke_on_grenade_destroy:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_smoke_on_grenade_destroy
+    mov edx, technical_smoke_on_grenade_destroy_replay
+    cmp eax, 0
+    je technical_smoke_on_grenade_destroy_go
+    mov edx, 0x2483f9
+    cmp eax, 1
+    je technical_smoke_on_grenade_destroy_go
+    ud2
+technical_smoke_on_grenade_destroy_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_smoke_on_grenade_destroy_replay:
+    db 0x56, 0x8b, 0xf1, 0x8d, 0x8e, 0x20, 0x02, 0x00, 0x00
+    jmp 0x2483f9
+
+; 0x25e154 grenade_cook::query_resources 0x25E030 before its query (mov ecx,3 / lea eax,[esp+44h]; the five cdecl arguments pushed): its three requests at ESP+44h; done is past the call (add esp,14h, the cleanup, follows): lohook -> technical_smoke_on_cook_query
+global technical_smoke_on_cook_query
+extern hook_technical_smoke_on_cook_query
+technical_smoke_on_cook_query:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_smoke_on_cook_query
+    mov edx, technical_smoke_on_cook_query_replay
+    cmp eax, 0
+    je technical_smoke_on_cook_query_go
+    mov edx, 0x25e15d
+    cmp eax, 1
+    je technical_smoke_on_cook_query_go
+    mov edx, 0x25e162
+    cmp eax, 2
+    je technical_smoke_on_cook_query_go
+    ud2
+technical_smoke_on_cook_query_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_smoke_on_cook_query_replay:
+    db 0xb9, 0x03, 0x00, 0x00, 0x00, 0x8d, 0x44, 0x24, 0x44
+    jmp 0x25e15d
+
+; 0x25e308 grenade_cook's callback 0x25E1C0 after the particle instance's store (+21Ch, 0x25E2EB), before the sound's (mov ecx,[ebx+6ECh]): EDI the grenade, EBX the results: lohook -> technical_smoke_on_cook_ready
+global technical_smoke_on_cook_ready
+extern hook_technical_smoke_on_cook_ready
+technical_smoke_on_cook_ready:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_smoke_on_cook_ready
+    mov edx, technical_smoke_on_cook_ready_replay
+    cmp eax, 0
+    je technical_smoke_on_cook_ready_go
+    mov edx, 0x25e30e
+    cmp eax, 1
+    je technical_smoke_on_cook_ready_go
+    ud2
+technical_smoke_on_cook_ready_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_smoke_on_cook_ready_replay:
+    db 0x8b, 0x8b, 0xec, 0x06, 0x00, 0x00
+    jmp 0x25e30e
+
+; 0x248720 survarium::grenade::explode (vtable 0xA046A0 +28h; grenade_core::tick 0x303A60 calls it when +14Ch is the tick's time, every game, a re-simulation too): ECX the grenade, +14Ch still its explode time, +1C0h its centre (push ebp / mov ebp,esp / and esp,-8): lohook -> technical_smoke_on_explode
+global technical_smoke_on_explode
+extern hook_technical_smoke_on_explode
+technical_smoke_on_explode:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_smoke_on_explode
+    mov edx, technical_smoke_on_explode_replay
+    cmp eax, 0
+    je technical_smoke_on_explode_go
+    mov edx, 0x248726
+    cmp eax, 1
+    je technical_smoke_on_explode_go
+    ud2
+technical_smoke_on_explode_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_smoke_on_explode_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x248726
+
+; 0x303df8 grenade_core::serialize 0x303DA0 with its current_state byte stored at [esp+23h], before w<u8> writes it (push edi / lea eax,[esp+27h]): ESI the grenade's serializable (+10h): lohook -> technical_smoke_on_save_state
+global technical_smoke_on_save_state
+extern hook_technical_smoke_on_save_state
+technical_smoke_on_save_state:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_smoke_on_save_state
+    mov edx, technical_smoke_on_save_state_replay
+    cmp eax, 0
+    je technical_smoke_on_save_state_go
+    mov edx, 0x303dfd
+    cmp eax, 1
+    je technical_smoke_on_save_state_go
+    ud2
+technical_smoke_on_save_state_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_smoke_on_save_state_replay:
+    db 0x57, 0x8d, 0x44, 0x24, 0x27
+    jmp 0x303dfd
+
+; 0x303e40 grenade_core::serialize after the thrown fields (m_explode_time_ms, m_id; both paths join here), before the physics test (cmp dword [esi+138h],0): ESI the serializable, EDI the writer: lohook -> technical_smoke_on_save_cloud
+global technical_smoke_on_save_cloud
+extern hook_technical_smoke_on_save_cloud
+technical_smoke_on_save_cloud:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_smoke_on_save_cloud
+    mov edx, technical_smoke_on_save_cloud_replay
+    cmp eax, 0
+    je technical_smoke_on_save_cloud_go
+    mov edx, 0x303e47
+    cmp eax, 1
+    je technical_smoke_on_save_cloud_go
+    ud2
+technical_smoke_on_save_cloud_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_smoke_on_save_cloud_replay:
+    db 0x83, 0xbe, 0x38, 0x01, 0x00, 0x00, 0x00
+    jmp 0x303e47
+
+; 0x30406c grenade_core::deserialize 0x303F80 after the thrown fields, where its three paths join, before the physics fields (xorps xmm0,xmm0 / mov al,[esp+13h]): EBX the serializable, ESI the reader, [esp+13h] the state byte read: lohook -> technical_smoke_on_load_cloud
+global technical_smoke_on_load_cloud
+extern hook_technical_smoke_on_load_cloud
+technical_smoke_on_load_cloud:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_smoke_on_load_cloud
+    mov edx, technical_smoke_on_load_cloud_replay
+    cmp eax, 0
+    je technical_smoke_on_load_cloud_go
+    mov edx, 0x304073
+    cmp eax, 1
+    je technical_smoke_on_load_cloud_go
+    ud2
+technical_smoke_on_load_cloud_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_smoke_on_load_cloud_replay:
+    db 0x0f, 0x57, 0xc0, 0x8a, 0x44, 0x24, 0x13
+    jmp 0x304073
+
+; 0x248908 survarium::grenade::explode's particle, played only while +232h is 0 (once a throw, never in a re-simulation): the instance's load (mov eax,[esi+21Ch]) before its by-value copy for scene_renderer::play_particle_system 0x22660; Skip goes on with the EAX the hook chose: lohook -> technical_smoke_on_play
+global technical_smoke_on_play
+extern hook_technical_smoke_on_play
+technical_smoke_on_play:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_smoke_on_play
+    mov edx, technical_smoke_on_play_replay
+    cmp eax, 0
+    je technical_smoke_on_play_go
+    mov edx, 0x24890e
+    cmp eax, 1
+    je technical_smoke_on_play_go
+    ud2
+technical_smoke_on_play_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_smoke_on_play_replay:
+    db 0x8b, 0x86, 0x1c, 0x02, 0x00, 0x00
+    jmp 0x24890e
+
+; 0x35daf5 particle_system_instance_impl::tick 0x35DAD0 at its pause test (cmp byte [edi+302h],0; the je follows), the particle world's thread: EDI the instance, XMM0 the tick's seconds: lohook -> technical_smoke_on_particle_tick
+global technical_smoke_on_particle_tick
+extern hook_technical_smoke_on_particle_tick
+technical_smoke_on_particle_tick:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_smoke_on_particle_tick
+    mov edx, technical_smoke_on_particle_tick_replay
+    cmp eax, 0
+    je technical_smoke_on_particle_tick_go
+    mov edx, 0x35dafc
+    cmp eax, 1
+    je technical_smoke_on_particle_tick_go
+    ud2
+technical_smoke_on_particle_tick_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_smoke_on_particle_tick_replay:
+    db 0x80, 0xbf, 0x02, 0x03, 0x00, 0x00, 0x00
+    jmp 0x35dafc
+
+; 0x332833 the anomaly weapon-damage rule 0x332810 where a hit with an owner (hit +20h, 0x332825) reads the victim's damage zones (cmp byte [eax+2E4h],0 / jna): EAX the victim, EBP the hit; the exit is past the jna, where modifier 41 scales the damage (EAX still the victim): lohook -> technical_smoke_on_anomaly_zones
+global technical_smoke_on_anomaly_zones
+extern hook_technical_smoke_on_anomaly_zones
+technical_smoke_on_anomaly_zones:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_technical_smoke_on_anomaly_zones
+    mov edx, technical_smoke_on_anomaly_zones_replay
+    cmp eax, 0
+    je technical_smoke_on_anomaly_zones_go
+    mov edx, 0x33283a
+    cmp eax, 1
+    je technical_smoke_on_anomaly_zones_go
+    mov edx, 0x33283c
+    cmp eax, 2
+    je technical_smoke_on_anomaly_zones_go
+    ud2
+technical_smoke_on_anomaly_zones_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+technical_smoke_on_anomaly_zones_replay:
+    db 0x80, 0xb8, 0xe4, 0x02, 0x00, 0x00, 0x00
+    jmp 0x33283a
 
 ; 0x79d369 AvmTextField::OnCharEvent before GetAS3Obj: EDI the AvmTextField interface, its raw/collectible AS3 pointers at -1Ch/-20h; ignore sets BL=0 for the original false-return epilogue, no event allocated: lohook -> text_input_on_char
 global text_input_on_char
@@ -5956,6 +13913,252 @@ text_input_on_char_go:
 text_input_on_char_replay:
     db 0x8b, 0x47, 0xe8, 0x8b, 0x70, 0x10
     jmp 0x79d36f
+
+; 0x15433e scene::process_streaming's turn of a request whose pool has no free, unreserved slot of the key it wants (mov eax,[ebp+8] / mov edx,[eax+980550h]; the non-lazy path, r_lazy_streaming off): the game then looks for another request leaving that size and cancels this one either way (0x1C89C0: wanted_mips = resident_mips), so the texture stays as it is; next is the loop's step to the next request (add esi,64h), the stack as at the site: lohook -> texture_pool_on_no_slot
+global texture_pool_on_no_slot
+extern hook_texture_pool_on_no_slot
+texture_pool_on_no_slot:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_texture_pool_on_no_slot
+    mov edx, texture_pool_on_no_slot_replay
+    cmp eax, 0
+    je texture_pool_on_no_slot_go
+    mov edx, 0x154347
+    cmp eax, 1
+    je texture_pool_on_no_slot_go
+    mov edx, 0x1543c4
+    cmp eax, 2
+    je texture_pool_on_no_slot_go
+    ud2
+texture_pool_on_no_slot_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+texture_pool_on_no_slot_replay:
+    db 0x8b, 0x45, 0x08, 0x8b, 0x90, 0x50, 0x05, 0x98, 0x00
+    jmp 0x154347
+
+; 0x155980 scene::update_streaming_data's start (sub esp,18h / push ebx / mov ebx,[eax+12615Ch]), every frame from process_streaming (0x1540DE) while the scene has streamable textures: EAX the scene; returned is its `ret` (0x1559FE): lohook -> texture_streaming_on_update
+global texture_streaming_on_update
+extern hook_texture_streaming_on_update
+texture_streaming_on_update:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_texture_streaming_on_update
+    mov edx, texture_streaming_on_update_replay
+    cmp eax, 0
+    je texture_streaming_on_update_go
+    mov edx, 0x15598a
+    cmp eax, 1
+    je texture_streaming_on_update_go
+    mov edx, 0x1559fe
+    cmp eax, 2
+    je texture_streaming_on_update_go
+    ud2
+texture_streaming_on_update_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+texture_streaming_on_update_replay:
+    db 0x83, 0xec, 0x18, 0x53, 0x8b, 0x98, 0x5c, 0x61, 0x12, 0x00
+    jmp 0x15598a
+
+; 0x3be280 resource_manager::get_texture_video_memory_size's start (push ebx / push esi / mov esi,[eax+880A4h]), every frame from renderer::render's statistics (0x13D73E): EAX the resource manager; returned is its `ret` (0x3BE2C7), EAX the sum in bytes: lohook -> texture_streaming_on_texture_memory
+global texture_streaming_on_texture_memory
+extern hook_texture_streaming_on_texture_memory
+texture_streaming_on_texture_memory:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_texture_streaming_on_texture_memory
+    mov edx, texture_streaming_on_texture_memory_replay
+    cmp eax, 0
+    je texture_streaming_on_texture_memory_go
+    mov edx, 0x3be288
+    cmp eax, 1
+    je texture_streaming_on_texture_memory_go
+    mov edx, 0x3be2c7
+    cmp eax, 2
+    je texture_streaming_on_texture_memory_go
+    ud2
+texture_streaming_on_texture_memory_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+texture_streaming_on_texture_memory_replay:
+    db 0x53, 0x56, 0x8b, 0xb0, 0xa4, 0x80, 0x08, 0x00
+    jmp 0x3be288
+
+; 0x7c823 bullet_character_controller::can_skeep_player_step (0x7C7E0) after it stored the walk asked, squared, at [esp+0Ch] (mov eax,[esp+0Ch] / and eax,7FFFFFFFh, then the compare with 1e-5 at 0x7C830): EDX the controller, EBP its frame: lohook -> tick_parts_on_idle_walk
+global tick_parts_on_idle_walk
+extern hook_tick_parts_on_idle_walk
+tick_parts_on_idle_walk:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_tick_parts_on_idle_walk
+    mov edx, tick_parts_on_idle_walk_replay
+    cmp eax, 0
+    je tick_parts_on_idle_walk_go
+    mov edx, 0x7c82c
+    cmp eax, 1
+    je tick_parts_on_idle_walk_go
+    ud2
+tick_parts_on_idle_walk_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+tick_parts_on_idle_walk_replay:
+    db 0x8b, 0x44, 0x24, 0x0c, 0x25, 0xff, 0xff, 0xff, 0x7f
+    jmp 0x7c82c
+
+; 0x2d9541 base_player::assign_physics_transform (0x2D93A0) storing m_linear_horizontal_speed, the step's horizontal move over its ms (fld dword [esp+0Ch] / fstp dword [ebx+334h]): skipped, the value stays as it was: lohook -> tick_parts_on_speed_measured
+global tick_parts_on_speed_measured
+extern hook_tick_parts_on_speed_measured
+tick_parts_on_speed_measured:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_tick_parts_on_speed_measured
+    mov edx, tick_parts_on_speed_measured_replay
+    cmp eax, 0
+    je tick_parts_on_speed_measured_go
+    mov edx, 0x2d954b
+    cmp eax, 1
+    je tick_parts_on_speed_measured_go
+    ud2
+tick_parts_on_speed_measured_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+tick_parts_on_speed_measured_replay:
+    db 0xd9, 0x44, 0x24, 0x0c, 0xd9, 0x9b, 0x34, 0x03, 0x00, 0x00
+    jmp 0x2d954b
+
+; 0x305540 booby_trap_core::hit with a hit type, its entry (mov eax,[ecx+194h]; then the set defuse_by_hit against the hit type, 0x30554C): ECX the trap, ESP the return address and the ten arguments; defuse is where a hit of the trap own type goes on (cmp byte [ecx+220h],0: ECX alone is read): lohook -> trap_stock_hit_on_hit
+global trap_stock_hit_on_hit
+extern hook_trap_stock_hit_on_hit
+trap_stock_hit_on_hit:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_trap_stock_hit_on_hit
+    mov edx, trap_stock_hit_on_hit_replay
+    cmp eax, 0
+    je trap_stock_hit_on_hit_go
+    mov edx, 0x305546
+    cmp eax, 1
+    je trap_stock_hit_on_hit_go
+    mov edx, 0x305552
+    cmp eax, 2
+    je trap_stock_hit_on_hit_go
+    ud2
+trap_stock_hit_on_hit_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+trap_stock_hit_on_hit_replay:
+    db 0x8b, 0x81, 0x94, 0x01, 0x00, 0x00
+    jmp 0x305546
 
 ; 0x21c07c network_client::connect_to_match (0x21BEB0) once it connects (past its return for the link's own session, 0x21BED5; the disconnect and connected callbacks given): mov dword [ebx+1F1C64h],0, the handshake's phase back to 0; EBX the network client (patch 120): lohook -> unplayed_match_on_connect
 global unplayed_match_on_connect
@@ -6158,6 +14361,45 @@ unplayed_match_on_ready_replay:
     db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5
     jmp 0x27aec4
 
+; 0x23a430 game_world_ui::set_using_progress_message (0x23A430) at its start (movss xmm0,[esp+8]): player::st_draw calls it each frame the drawn local player has an object in use (its user +4, player +134h; 0x246FC4) with the ui and the use's progress; ESP+4 the ui: lohook -> use_prompt_on_progress
+global use_prompt_on_progress
+extern hook_use_prompt_on_progress
+use_prompt_on_progress:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_use_prompt_on_progress
+    mov edx, use_prompt_on_progress_replay
+    cmp eax, 0
+    je use_prompt_on_progress_go
+    mov edx, 0x23a436
+    cmp eax, 1
+    je use_prompt_on_progress_go
+    ud2
+use_prompt_on_progress_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+use_prompt_on_progress_replay:
+    db 0xf3, 0x0f, 0x10, 0x44, 0x24, 0x08
+    jmp 0x23a436
+
 ; 0x2d84c0 base_player::detect_usable_object's start (push ebp / mov ebp,esp / and esp,-8): every use scan (a use's start 0x2D8900, its tick 0x2D86AD, the prompt 0x246FCD); ESP+4 the player, +8 the point or 0; returned is its `ret 8` (0x2D8697), EAX the object: lohook -> use_scan_on_detect
 global use_scan_on_detect
 extern hook_use_scan_on_detect
@@ -6199,6 +14441,653 @@ use_scan_on_detect_go:
 use_scan_on_detect_replay:
     db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
     jmp 0x2d84c6
+
+; 0x1ce5be effect_wet_surface::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), its three techniques ended; EBX the compiler, ESP as after the prologue's pushes; begin and cached are technique 0's start after them (0x1CE116's jne: begin_technique when the compiler is not caching, its skip when it is), which need EBX and EBP alone: lohook -> v021d_render_on_wet_surface_compiled
+global v021d_render_on_wet_surface_compiled
+extern hook_v021d_render_on_wet_surface_compiled
+v021d_render_on_wet_surface_compiled:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v021d_render_on_wet_surface_compiled
+    mov edx, v021d_render_on_wet_surface_compiled_replay
+    cmp eax, 0
+    je v021d_render_on_wet_surface_compiled_go
+    mov edx, 0x1ce5c4
+    cmp eax, 1
+    je v021d_render_on_wet_surface_compiled_go
+    mov edx, 0x1ce118
+    cmp eax, 2
+    je v021d_render_on_wet_surface_compiled_go
+    mov edx, 0x1ce13b
+    cmp eax, 3
+    je v021d_render_on_wet_surface_compiled_go
+    ud2
+v021d_render_on_wet_surface_compiled_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v021d_render_on_wet_surface_compiled_replay:
+    db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x1ce5c4
+
+; 0x1ce16c effect_wet_surface::compile, technique 0 (wet), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F71C8h and the call 0x3D9F60 at 0x1CE178): ESP the PS name's slot (wet_surface 0x9F71C8, pushed at 0x1CE142), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span: lohook -> v021d_render_on_wet_surface_pass
+global v021d_render_on_wet_surface_pass
+extern hook_v021d_render_on_wet_surface_pass
+v021d_render_on_wet_surface_pass:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v021d_render_on_wet_surface_pass
+    mov edx, v021d_render_on_wet_surface_pass_replay
+    cmp eax, 0
+    je v021d_render_on_wet_surface_pass_go
+    mov edx, 0x1ce173
+    cmp eax, 1
+    je v021d_render_on_wet_surface_pass_go
+    ud2
+v021d_render_on_wet_surface_pass_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v021d_render_on_wet_surface_pass_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1ce173
+
+; 0x1d3e30 effect_rain::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), technique 1 ended; technique is technique 1's start (cmp byte [ebx+61F4Ch],0 / jne), which needs EBX, EBP and ESI = 0 (its stores at 0x1D3D34 and 0x1D3D44..0x1D3D5A): lohook -> v021d_render_on_rain_compiled
+global v021d_render_on_rain_compiled
+extern hook_v021d_render_on_rain_compiled
+v021d_render_on_rain_compiled:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v021d_render_on_rain_compiled
+    mov edx, v021d_render_on_rain_compiled_replay
+    cmp eax, 0
+    je v021d_render_on_rain_compiled_go
+    mov edx, 0x1d3e36
+    cmp eax, 1
+    je v021d_render_on_rain_compiled_go
+    mov edx, 0x1d3d12
+    cmp eax, 2
+    je v021d_render_on_rain_compiled_go
+    ud2
+v021d_render_on_rain_compiled_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v021d_render_on_rain_compiled_replay:
+    db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x1d3e36
+
+; 0x1d3dc7 effect_rain::compile, technique 1 (the sprite drops), before the pushes of its set_texture (0x3D98B0, at 0x1D3DDE) of t_rain_drop (fld1 / push 1 / push ecx; then fstp [esp], push esi, push -1, push esi, push engine/rain_drop 0x9F78D8, push t_rain_drop 0x9F78EC, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1D3DE3), the stack as here: lohook -> v021d_render_on_rain_drop_texture
+global v021d_render_on_rain_drop_texture
+extern hook_v021d_render_on_rain_drop_texture
+v021d_render_on_rain_drop_texture:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v021d_render_on_rain_drop_texture
+    mov edx, v021d_render_on_rain_drop_texture_replay
+    cmp eax, 0
+    je v021d_render_on_rain_drop_texture_go
+    mov edx, 0x1d3dcc
+    cmp eax, 1
+    je v021d_render_on_rain_drop_texture_go
+    mov edx, 0x1d3de3
+    cmp eax, 2
+    je v021d_render_on_rain_drop_texture_go
+    ud2
+v021d_render_on_rain_drop_texture_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v021d_render_on_rain_drop_texture_replay:
+    db 0xd9, 0xe8, 0x6a, 0x01, 0x51
+    jmp 0x1d3dcc
+
+; 0x17cb1b stage_pre_rain::execute after render_rain_shadow_map, the shading-quality gate of its copy and wet passes (cmp dword [eax+0E8h],0, EAX the render options [2260498h]; the je 0x17CC39 after it takes the flags); wet is the r_rain_render_wet_surface_effect test after it (0x17CB28); ESI the stage: lohook -> v021d_render_on_wet_gate
+global v021d_render_on_wet_gate
+extern hook_v021d_render_on_wet_gate
+v021d_render_on_wet_gate:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v021d_render_on_wet_gate
+    mov edx, v021d_render_on_wet_gate_replay
+    cmp eax, 0
+    je v021d_render_on_wet_gate_go
+    mov edx, 0x17cb22
+    cmp eax, 1
+    je v021d_render_on_wet_gate_go
+    mov edx, 0x17cb28
+    cmp eax, 2
+    je v021d_render_on_wet_gate_go
+    ud2
+v021d_render_on_wet_gate_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v021d_render_on_wet_gate_replay:
+    db 0x83, 0xb8, 0xe8, 0x00, 0x00, 0x00, 0x00
+    jmp 0x17cb22
+
+; 0x17cb90 stage_pre_rain::execute's wet pass: mov eax,[esi+18h] / xor ecx,ecx before res_effect::apply 0x11C1B0 (EAX the effect, ECX the technique) at 0x17CB95, the copy's fill done; ESI the stage: lohook -> v021d_render_on_wet_apply
+global v021d_render_on_wet_apply
+extern hook_v021d_render_on_wet_apply
+v021d_render_on_wet_apply:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v021d_render_on_wet_apply
+    mov edx, v021d_render_on_wet_apply_replay
+    cmp eax, 0
+    je v021d_render_on_wet_apply_go
+    mov edx, 0x17cb95
+    cmp eax, 1
+    je v021d_render_on_wet_apply_go
+    mov edx, 0x17cb95
+    cmp eax, 2
+    je v021d_render_on_wet_apply_go
+    ud2
+v021d_render_on_wet_apply_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v021d_render_on_wet_apply_replay:
+    db 0x8b, 0x46, 0x18, 0x33, 0xc9
+    jmp 0x17cb95
+
+; 0x1adf7d stage_rain::execute before it copies rain_u_scale * 0.05 and rain_v_scale * 0.4 ([esp+40h], [esp+44h]) into rain_drops_parameters1.zw (movss xmm0,[esp+40h]); EBP the stage: lohook -> v021d_render_on_drop_scales
+global v021d_render_on_drop_scales
+extern hook_v021d_render_on_drop_scales
+v021d_render_on_drop_scales:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v021d_render_on_drop_scales
+    mov edx, v021d_render_on_drop_scales_replay
+    cmp eax, 0
+    je v021d_render_on_drop_scales_go
+    mov edx, 0x1adf83
+    cmp eax, 1
+    je v021d_render_on_drop_scales_go
+    ud2
+v021d_render_on_drop_scales_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v021d_render_on_drop_scales_replay:
+    db 0xf3, 0x0f, 0x10, 0x44, 0x24, 0x40
+    jmp 0x1adf83
+
+; 0x1adfa4 stage_rain::execute's layer loop (the jb at 0x1AE0BD comes back here): mov eax,[ebp+34h] / mov ecx,1 before res_effect::apply 0x11C1B0 at 0x1ADFAC; EBP the stage: lohook -> v021d_render_on_drops_apply
+global v021d_render_on_drops_apply
+extern hook_v021d_render_on_drops_apply
+v021d_render_on_drops_apply:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v021d_render_on_drops_apply
+    mov edx, v021d_render_on_drops_apply_replay
+    cmp eax, 0
+    je v021d_render_on_drops_apply_go
+    mov edx, 0x1adfac
+    cmp eax, 1
+    je v021d_render_on_drops_apply_go
+    mov edx, 0x1adfac
+    cmp eax, 2
+    je v021d_render_on_drops_apply_go
+    ud2
+v021d_render_on_drops_apply_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v021d_render_on_drops_apply_replay:
+    db 0x8b, 0x45, 0x34, 0xb9, 0x01, 0x00, 0x00, 0x00
+    jmp 0x1adfac
+
+; 0x1cd1b6 effect_material_base::compile_begin's one begin_pass (0x1CD1BC): mov eax,[esp+2Ch] (the VS family name) / push esi / push ebp; EBX the shader configuration (its vertex input type in byte 6), [esp+3Ch] the merged config tree; every material effect's every pass, cache and build compiles alike: lohook -> v021d_render_on_material_pass
+global v021d_render_on_material_pass
+extern hook_v021d_render_on_material_pass
+v021d_render_on_material_pass:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v021d_render_on_material_pass
+    mov edx, v021d_render_on_material_pass_replay
+    cmp eax, 0
+    je v021d_render_on_material_pass_go
+    mov edx, 0x1cd1bc
+    cmp eax, 1
+    je v021d_render_on_material_pass_go
+    ud2
+v021d_render_on_material_pass_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v021d_render_on_material_pass_replay:
+    db 0x8b, 0x44, 0x24, 0x2c, 0x56, 0x55
+    jmp 0x1cd1bc
+
+; 0x1e603c effect_fstage_simpe_water_materials::compile (the forward_water and forward_water_local_reflections passes, the loop at 0x1E6015), after compile_begin's return, before the pushes of its set_texture (0x3D98B0, at 0x1E6053) of t_normal_map (fld1 / push 1 / push ecx; then fstp [esp], push esi, push -1, push esi, push engine/water_waves2 0x9F9FA4, push t_normal_map 0x9F3204, push ebx): EBX the compiler, [ebp+0Ch] the material's config tree; bound is after the call (0x1E6058), the stack as here: lohook -> v021d_render_on_water_texture
+global v021d_render_on_water_texture
+extern hook_v021d_render_on_water_texture
+v021d_render_on_water_texture:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v021d_render_on_water_texture
+    mov edx, v021d_render_on_water_texture_replay
+    cmp eax, 0
+    je v021d_render_on_water_texture_go
+    mov edx, 0x1e6041
+    cmp eax, 1
+    je v021d_render_on_water_texture_go
+    mov edx, 0x1e6058
+    cmp eax, 2
+    je v021d_render_on_water_texture_go
+    ud2
+v021d_render_on_water_texture_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v021d_render_on_water_texture_replay:
+    db 0xd9, 0xe8, 0x6a, 0x01, 0x51
+    jmp 0x1e6041
+
+; 0x1a5520 stage_atmosphere's god-rays pass (0x1A5520, stdcall, ESP+4 the stage, ret 4), its entry (sub esp,14h / push ebx / mov ebx,[esp+1Ch]); its one caller is stage_atmosphere::execute's end (push ebp / call at 0x1A5133), for both the sky stage (stage+ACh 0) and the geometry stage (1), so 0.26 draws the rays twice a frame where 0.21 draws them once; skipped is its ret 4 (0x1A575C), the stack as at the entry: lohook -> v021d_render_on_god_rays
+global v021d_render_on_god_rays
+extern hook_v021d_render_on_god_rays
+v021d_render_on_god_rays:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v021d_render_on_god_rays
+    mov edx, v021d_render_on_god_rays_replay
+    cmp eax, 0
+    je v021d_render_on_god_rays_go
+    mov edx, 0x1a5528
+    cmp eax, 1
+    je v021d_render_on_god_rays_go
+    mov edx, 0x1a575c
+    cmp eax, 2
+    je v021d_render_on_god_rays_go
+    ud2
+v021d_render_on_god_rays_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v021d_render_on_god_rays_replay:
+    db 0x83, 0xec, 0x14, 0x53, 0x8b, 0x5c, 0x24, 0x1c
+    jmp 0x1a5528
+
+; 0x27a1b0 match_client::connect's start (push ebx / push ebp / push esi / mov esi,ecx): ECX the match client, the site's ESP+4 the host, +8 the port, +0Ch the session (a replay's connect is another function, 0x122350): lohook -> voice_on_connect
+global voice_on_connect
+extern hook_voice_on_connect
+voice_on_connect:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_voice_on_connect
+    mov edx, voice_on_connect_replay
+    cmp eax, 0
+    je voice_on_connect_go
+    mov edx, 0x27a1b5
+    cmp eax, 1
+    je voice_on_connect_go
+    ud2
+voice_on_connect_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+voice_on_connect_replay:
+    db 0x53, 0x55, 0x56, 0x8b, 0xf1
+    jmp 0x27a1b5
+
+; 0x1f96f0 game_world::on_finish_match's start (push edi / mov edi,eax / mov eax,[edi+9Ch]): the match over: lohook -> voice_on_finish
+global voice_on_finish
+extern hook_voice_on_finish
+voice_on_finish:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_voice_on_finish
+    mov edx, voice_on_finish_replay
+    cmp eax, 0
+    je voice_on_finish_go
+    mov edx, 0x1f96f9
+    cmp eax, 1
+    je voice_on_finish_go
+    ud2
+voice_on_finish_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+voice_on_finish_replay:
+    db 0x57, 0x8b, 0xf8, 0x8b, 0x87, 0x9c, 0x00, 0x00, 0x00
+    jmp 0x1f96f9
+
+; 0x25cf70 game_world::on_mouse_key_action after it asked the input world for the keyboard (mov edi,eax / mov eax,[edi] / mov edx,[eax]; its first ten bytes are patch 31's jump, WARMUP_KEYS_HOOK, which comes back at 0x25CF6A for every button it does not take): ESI the game world's input handler (the keyboard's, the hud at +4: its cursor flag +2E0h is the hud's +2DCh), ESP+14h the button's key (151h + the button), +18h its kind; every mouse button of a match comes here before the player's handler (input priority 7, before 10): lohook -> voice_on_mouse_key
+global voice_on_mouse_key
+extern hook_voice_on_mouse_key
+voice_on_mouse_key:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_voice_on_mouse_key
+    mov edx, voice_on_mouse_key_replay
+    cmp eax, 0
+    je voice_on_mouse_key_go
+    mov edx, 0x25cf76
+    cmp eax, 1
+    je voice_on_mouse_key_go
+    ud2
+voice_on_mouse_key_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+voice_on_mouse_key_replay:
+    db 0x8b, 0xf8, 0x8b, 0x07, 0x8b, 0x10
+    jmp 0x25cf76
+
+; 0x12e124 on_base_texture_loaded (0x12DEE0) where the camouflage layer's texture of the bake's type has no name (0x12E11B test ecx,ecx / cmp byte [ecx],0: the je and the fall-through come here), before it names the surface's own instead (mov edx,[ebp+eax*4-4Ch] / mov edi,[ebp+10h]: the suffix _camo, _camo_nmap, _camo_fmap or _camo_smap of 0x9EDD60.., EAX the type, and the surface's diffuse name; 0x328D30 joins them); ESI the bake's parameters; no_layer 0x12E25A, where the fresnel bake (0x12E0EA) and an empty name (0x12E169) go: no camouflage texture and no _aoac asked for (it reads [ebp-8], the count of textures to ask for, and no register before writing it): lohook -> weapon_camo_on_own_camouflage
+global weapon_camo_on_own_camouflage
+extern hook_weapon_camo_on_own_camouflage
+weapon_camo_on_own_camouflage:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_camo_on_own_camouflage
+    mov edx, weapon_camo_on_own_camouflage_replay
+    cmp eax, 0
+    je weapon_camo_on_own_camouflage_go
+    mov edx, 0x12e12b
+    cmp eax, 1
+    je weapon_camo_on_own_camouflage_go
+    mov edx, 0x12e25a
+    cmp eax, 2
+    je weapon_camo_on_own_camouflage_go
+    ud2
+weapon_camo_on_own_camouflage_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_camo_on_own_camouflage_replay:
+    db 0x8b, 0x54, 0x85, 0xb4, 0x8b, 0x7d, 0x10
+    jmp 0x12e12b
+
+; weapon_camo.bake_name patch 44's bake_surface (weapon_camo_026g.asm), through its bake_name dword the build writes, once a surface's parameters are filled: cdecl, the parameters, the model's path; the caller keeps every register and pops the two: entry -> weapon_camo_on_bake_name
+global weapon_camo_on_bake_name
+extern hook_weapon_camo_on_bake_name
+weapon_camo_on_bake_name:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_camo_on_bake_name
+    cmp eax, 0
+    je weapon_camo_on_bake_name_go
+    ud2
+weapon_camo_on_bake_name_go:
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    lea esp, [esp + 4]
+    ret
 
 ; 0x2f1776 translate_query after 0x2F2060 copied the query (mov ecx,[ebp+38h] / mov eax,[ebp+44h]): ESP patch 68's room (weapon_kit.query_room), EBP the frame whose [ebp+40h] (the item's upgrades' buffer_vector) is read at 0x2F1799 (their count) and 0x2F18D0 (each record's dict id and value) and nowhere else; AL 0x2F2060's answer (0: the query not copied, as on another thread's query, 0x2F206F): lohook -> weapon_kit_on_query
 global weapon_kit_on_query
@@ -6910,6 +15799,282 @@ weapon_pickup_on_load_ordinal_replay:
     db 0x8b, 0x47, 0x0c, 0x85, 0xc0
     jmp 0x32bdbf
 
+; 0x321ca0 bullet_manager::deserialize's loop over the records (mov esi,[edi+80h], before the bullet's allocation and its constructor 0x32BBC0): EDI the manager, EBX the section's reader at the record; skip 0x321CFC is the loop's count (sub ebp,1 / jne), no bullet made: lohook -> weapon_pickup_on_load_record
+global weapon_pickup_on_load_record
+extern hook_weapon_pickup_on_load_record
+weapon_pickup_on_load_record:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_load_record
+    mov edx, weapon_pickup_on_load_record_replay
+    cmp eax, 0
+    je weapon_pickup_on_load_record_go
+    mov edx, 0x321ca6
+    cmp eax, 1
+    je weapon_pickup_on_load_record_go
+    mov edx, 0x321cfc
+    cmp eax, 2
+    je weapon_pickup_on_load_record_go
+    ud2
+weapon_pickup_on_load_record_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_load_record_replay:
+    db 0x8b, 0xb7, 0x80, 0x00, 0x00, 0x00
+    jmp 0x321ca6
+
+; 0x26da00 base_game_statistics_handler::on_player_killed's start (push esi / mov esi,ecx / mov eax,[esi+3238h]; vtable 0xA0755C slot +0, called only by generate_killed_event 0x2DA46C): ECX the handler, the site's ESP its 17 arguments, before shared_statistics::on_player_killed 0x2F4EB0 counts the kill: lohook -> weapon_stats_on_killed
+global weapon_stats_on_killed
+extern hook_weapon_stats_on_killed
+weapon_stats_on_killed:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_stats_on_killed
+    mov edx, weapon_stats_on_killed_replay
+    cmp eax, 0
+    je weapon_stats_on_killed_go
+    mov edx, 0x26da09
+    cmp eax, 1
+    je weapon_stats_on_killed_go
+    ud2
+weapon_stats_on_killed_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_stats_on_killed_replay:
+    db 0x56, 0x8b, 0xf1, 0x8b, 0x86, 0x38, 0x32, 0x00, 0x00
+    jmp 0x26da09
+
+; 0x2da10c generate_hit_event 0x2D9F40 after the damage record's add (0x2DA10A), before the handler's on_player_damaged (slot +4, the only call, 0x2DA164; mov ecx,[esi+120h]): ESI the victim, EDI the attacker's player or 0, EBP the bullet or 0, EBX the victim's place, the site's ESP the frame; every path of the function comes here (0x2DA043, 0x2DA0C4, 0x2DA0ED): lohook -> weapon_stats_on_hit
+global weapon_stats_on_hit
+extern hook_weapon_stats_on_hit
+weapon_stats_on_hit:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_stats_on_hit
+    mov edx, weapon_stats_on_hit_replay
+    cmp eax, 0
+    je weapon_stats_on_hit_go
+    mov edx, 0x2da112
+    cmp eax, 1
+    je weapon_stats_on_hit_go
+    ud2
+weapon_stats_on_hit_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_stats_on_hit_replay:
+    db 0x8b, 0x8e, 0x20, 0x01, 0x00, 0x00
+    jmp 0x2da112
+
+; 0x2f5bd0 shared_statistics::serialize 0x2F5AC0 after its tail's last write (m_active_in_match_players_mask, 0x2F5BCB), at its epilogue (pop edi / pop ebx / mov esp,ebp / pop ebp): ESI the statistics, EDI the writer: lohook -> weapon_stats_on_save
+global weapon_stats_on_save
+extern hook_weapon_stats_on_save
+weapon_stats_on_save:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_stats_on_save
+    mov edx, weapon_stats_on_save_replay
+    cmp eax, 0
+    je weapon_stats_on_save_go
+    mov edx, 0x2f5bd5
+    cmp eax, 1
+    je weapon_stats_on_save_go
+    ud2
+weapon_stats_on_save_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_stats_on_save_replay:
+    db 0x5f, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x2f5bd5
+
+; 0x2f5c83 shared_statistics::deserialize 0x2F5BE0 with its tail read, the reader's cursor past it (pop edi / mov [esi+31C4h],ecx; ECX the mask read): ESI the statistics, EDI the reader, whose bytes are the world's statistics section alone (world apply 0x2D2AEE..0x2D2B09): lohook -> weapon_stats_on_load
+global weapon_stats_on_load
+extern hook_weapon_stats_on_load
+weapon_stats_on_load:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_stats_on_load
+    mov edx, weapon_stats_on_load_replay
+    cmp eax, 0
+    je weapon_stats_on_load_go
+    mov edx, 0x2f5c8a
+    cmp eax, 1
+    je weapon_stats_on_load_go
+    ud2
+weapon_stats_on_load_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_stats_on_load_replay:
+    db 0x5f, 0x89, 0x8e, 0xc4, 0x31, 0x00, 0x00
+    jmp 0x2f5c8a
+
+; 0x2f4c31 the shared statistics' reset between matches (0x2F4C20, called by the handler's clear 0x26D880 alone), which zeroes every place's events (0x2F4C7E..0x2F4CD6): mov [edi+31C0h],ebx; EDI the statistics: lohook -> weapon_stats_on_reset
+global weapon_stats_on_reset
+extern hook_weapon_stats_on_reset
+weapon_stats_on_reset:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_stats_on_reset
+    mov edx, weapon_stats_on_reset_replay
+    cmp eax, 0
+    je weapon_stats_on_reset_go
+    mov edx, 0x2f4c37
+    cmp eax, 1
+    je weapon_stats_on_reset_go
+    ud2
+weapon_stats_on_reset_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_stats_on_reset_replay:
+    db 0x89, 0x9f, 0xc0, 0x31, 0x00, 0x00
+    jmp 0x2f4c37
+
+; 0x2f4bc1 the shared statistics' constructor (0x2F4B40, called by the handler's 0x26D75B alone) with its 20 records made, their events 0: mov [edi+31C0h],ebx; EDI the statistics: lohook -> weapon_stats_on_made
+global weapon_stats_on_made
+extern hook_weapon_stats_on_made
+weapon_stats_on_made:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_stats_on_made
+    mov edx, weapon_stats_on_made_replay
+    cmp eax, 0
+    je weapon_stats_on_made_go
+    mov edx, 0x2f4bc7
+    cmp eax, 1
+    je weapon_stats_on_made_go
+    ud2
+weapon_stats_on_made_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_stats_on_made_replay:
+    db 0x89, 0x9f, 0xc0, 0x31, 0x00, 0x00
+    jmp 0x2f4bc7
+
 ; 0x27c0d0 process_dynamic_match_info before it loads an unpacked world (mov [ebp-14h],esi / mov [ebp-10h],esi / mov [ebp-0Ch],edx, then the load call 0x2D0B70 at 0x27C0D9): EDI the network client, the world (its time, then the body) the mutable buffer at [ebp-24h], the packet read to its end already (0x27C0B7); refused is the handler's epilogue (lea esp,[ebp-30h]): lohook -> world_check_on_unpacked
 global world_check_on_unpacked
 extern hook_world_check_on_unpacked
@@ -6994,6 +16159,185 @@ world_check_on_raw_replay:
     db 0x8b, 0x8f, 0x40, 0x1c, 0x1f, 0x00
     jmp 0x27c105
 
+; 0x2dbeaa base_player::unsubscribe_from_actions 0x2DBE90 after its find (0x3C5510) of the subscriber, before the erase (mov ecx,esi / lea edx,[eax+4]; then the memmove 0x2DBEBA and the end's -4 at 0x2DBEC2, with no test of the find): EBX the player's game_object part, EAX what the find found, ESI the end (equal: not subscribed), EDI the argument's slot; missing is the function's own pop edi / pop esi / pop ebx / ret 4 (patch 192): lohook -> zone_guards_on_unsubscribe_find
+global zone_guards_on_unsubscribe_find
+extern hook_zone_guards_on_unsubscribe_find
+zone_guards_on_unsubscribe_find:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_zone_guards_on_unsubscribe_find
+    mov edx, zone_guards_on_unsubscribe_find_replay
+    cmp eax, 0
+    je zone_guards_on_unsubscribe_find_go
+    mov edx, 0x2dbeaf
+    cmp eax, 1
+    je zone_guards_on_unsubscribe_find_go
+    mov edx, 0x2dbec9
+    cmp eax, 2
+    je zone_guards_on_unsubscribe_find_go
+    ud2
+zone_guards_on_unsubscribe_find_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+zone_guards_on_unsubscribe_find_replay:
+    db 0x8b, 0xce, 0x8d, 0x50, 0x04
+    jmp 0x2dbeaf
+
+; 0x319811 damage_zone_core::on_objects_left 0x319780 before its erase of the object from the inside list (mov edx,[edi+54h] / mov eax,[edi+50h]; then the find 0x308A40 and the erase 0x319822..0x31983A, which pops the list's last entry when the find found none): EDI the listener, EBP the left object's holder (its copy at [esp+10h]), ESI the object's owner; missing is the release of that copy at 0x319870 (patch 192): lohook -> zone_guards_on_left_find
+global zone_guards_on_left_find
+extern hook_zone_guards_on_left_find
+zone_guards_on_left_find:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_zone_guards_on_left_find
+    mov edx, zone_guards_on_left_find_replay
+    cmp eax, 0
+    je zone_guards_on_left_find_go
+    mov edx, 0x319817
+    cmp eax, 1
+    je zone_guards_on_left_find_go
+    mov edx, 0x319870
+    cmp eax, 2
+    je zone_guards_on_left_find_go
+    ud2
+zone_guards_on_left_find_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+zone_guards_on_left_find_replay:
+    db 0x8b, 0x57, 0x54, 0x8b, 0x47, 0x50
+    jmp 0x319817
+
+section .rodata
+align 4
+global artefact_hunt_cook_vtable
+artefact_hunt_cook_vtable:
+    dd 0xa47134
+    dd 0x36760
+    dd 0xfda90
+    dd 0xf7760
+    dd 0x372420
+    dd 0x372420
+    dd 0x36780
+    dd 0x1fa420
+    dd 0x2f4290
+    dd 0x75af0
+    dd artefact_hunt_on_cook_create
+    dd artefact_hunt_on_cook_size
+
+section .rodata
+align 4
+global artefact_hunt_rule_vtable
+artefact_hunt_rule_vtable:
+    dd 0xa532c0
+    dd 0x266710
+    dd 0xf1900
+    dd 0xf1f00
+    dd 0xf1f40
+    dd 0xfda90
+    dd 0xfda90
+    dd 0xfda90
+    dd artefact_hunt_on_event
+    dd artefact_hunt_on_entered
+    dd artefact_hunt_on_left
+    dd 0x75af0
+    dd artefact_hunt_on_set_core
+    dd 0x267820
+    dd 0x75af0
+    dd 0x1af330
+    dd artefact_hunt_on_serialize
+    dd artefact_hunt_on_deserialize
+    dd artefact_hunt_on_fill_hud
+    dd artefact_hunt_on_completed
+    dd 0x8fe10
+
+section .rodata
+align 4
+global battery_hit_swing_vtable
+battery_hit_swing_vtable:
+    dd 0xa53fc0
+    dd 0x338ab0
+    dd 0x344730
+    dd 0x344b30
+    dd 0x3447f0
+    dd 0x344950
+    dd 0x344870
+    dd 0x338930
+    dd 0x339150
+    dd battery_hit_on_deactivatable
+    dd 0x338b20
+    dd 0x344c90
+    dd 0x338ef0
+
+section .rodata
+align 4
+global collision_view_methods_vtable
+collision_view_methods_vtable:
+    dd 0xa3e110
+    dd 0xec7e0
+    dd collision_view_on_execute
+    dd 0xec4b0
+    dd 0xec800
+    dd 0xec500
+    dd 0x75af0
+    dd 0x15a4b0
+
+section .rodata
+align 4
+global collision_view_triangles_vtable
+collision_view_triangles_vtable:
+    dd 0xa3d4dc
+    dd 0xc55b0
+    dd collision_view_on_triangle
+
+section .rodata
+align 4
+global console_where_methods_vtable
+console_where_methods_vtable:
+    dd 0xa3e110
+    dd 0xec7e0
+    dd console_where_on_execute
+    dd 0xec4b0
+    dd 0xec800
+    dd 0xec500
+    dd 0x75af0
+    dd 0x15a4b0
+
 section .rodata
 align 4
 global lamps_visual_vtable
@@ -7017,3 +16361,51 @@ lamps_light_vtable:
     dd 0x291720
     dd lamps_on_light_insert
     dd lamps_on_light_remove
+
+section .rodata
+align 4
+global lamps_ambient_light_vtable
+lamps_ambient_light_vtable:
+    dd 0xa4d884
+    dd 0x290770
+    dd 0xf1900
+    dd 0xf1f00
+    dd 0xf1f40
+    dd 0xfda90
+    dd 0xfda90
+    dd 0xfda90
+    dd 0x2907a0
+    dd lamps_on_ambient_light_insert
+    dd lamps_on_ambient_light_remove
+
+section .rodata
+align 4
+global lamps_particle_vtable
+lamps_particle_vtable:
+    dd 0xa4dcb0
+    dd 0x292ae0
+    dd 0xf1900
+    dd 0xf1f00
+    dd 0xf1f40
+    dd 0xfda90
+    dd 0xfda90
+    dd 0xfda90
+    dd 0x292b10
+    dd lamps_on_particle_insert
+    dd lamps_on_particle_remove
+
+section .rodata
+align 4
+global lamps_probe_vtable
+lamps_probe_vtable:
+    dd 0xa4d808
+    dd 0x28f350
+    dd 0xf1900
+    dd 0xf1f00
+    dd 0xf1f40
+    dd 0xfda90
+    dd 0xfda90
+    dd 0xfda90
+    dd 0x28f3b0
+    dd lamps_on_probe_insert
+    dd lamps_on_probe_remove

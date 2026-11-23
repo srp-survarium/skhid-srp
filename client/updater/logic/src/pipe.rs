@@ -9,6 +9,7 @@
 //! count of UTF-16 units and the units.
 
 use alloc::vec::Vec;
+use core::num::NonZeroU16;
 
 /// The updater's states the launcher knows (`02 <state>`). Only the ones
 /// this updater reports are named.
@@ -19,6 +20,8 @@ pub mod state {
     pub const CHECKING: u8 = 0x04;
     /// The question failed; it is asked again.
     pub const CHECK_FAILED: u8 = 0x05;
+    /// Checking the torrent's pieces already on disk.
+    pub const TORRENT_CHECKING: u8 = 0x08;
     pub const DOWNLOADING: u8 = 0x09;
     /// The download failed; it is tried again.
     pub const DOWNLOAD_FAILED: u8 = 0x0A;
@@ -51,6 +54,24 @@ pub mod step {
 pub mod disk {
     pub const FULL: u8 = 0;
     pub const CANNOT_WRITE: u8 = 3;
+}
+
+/// Which file of how many a step is downloading, the first being 1: the
+/// launcher's "(5/69)" ([`ToLauncher::FileOf`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FileOf {
+    file: NonZeroU16,
+    of: NonZeroU16,
+}
+
+impl FileOf {
+    /// The file at `index` (from 0) of `count`; `None` for one past the
+    /// last, or more files than the message can say.
+    pub fn at(index: usize, count: usize) -> Option<Self> {
+        let file = NonZeroU16::new(u16::try_from(index.checked_add(1)?).ok()?)?;
+        let of = NonZeroU16::new(u16::try_from(count).ok()?)?;
+        (file <= of).then_some(Self { file, of })
+    }
 }
 
 /// A message of the updater.
@@ -86,6 +107,23 @@ pub enum ToLauncher<'a> {
     CannotVerifyHash,
     /// `17`.
     HashMismatch,
+    /// `14`: the torrent port asked for (`21`) cannot be listened on: the
+    /// launcher shows its settings again with "busy".
+    PortBusy,
+    /// `15`: it is listened on: the launcher closes its settings.
+    PortOk,
+    /// `13`: the seconds to the next try while the server restarts, after
+    /// [`state::MAINTENANCE`]: the launcher's line counts them (launcher
+    /// patch 16; the original keeps the byte and shows nothing of it); 0:
+    /// no count, "Server maintenance..." again.
+    NextTry(u8),
+    /// `0A`: what the "Relay" row shows (`crate::route::Shown::byte`;
+    /// launcher patch 16). The original launcher ignores 0A..0D.
+    Route(crate::route::Shown),
+    /// `0B`: the file being downloaded and how many there are, two 16-bit
+    /// numbers, shown after the downloading line's "... left" as "(5/69)"
+    /// (launcher patch 17); `None`, 0 of 0: no count.
+    FileOf(Option<FileOf>),
 }
 
 fn narrow(out: &mut Vec<u8>, text: &str) {
@@ -153,6 +191,18 @@ pub fn frame(message: ToLauncher) -> Vec<u8> {
         ToLauncher::CannotMoveFile => out.push(0x11),
         ToLauncher::CannotVerifyHash => out.push(0x16),
         ToLauncher::HashMismatch => out.push(0x17),
+        // No disk-space record after these: the launcher reads none
+        // (`launcher.md` 5.1).
+        ToLauncher::PortBusy => out.push(0x14),
+        ToLauncher::PortOk => out.push(0x15),
+        ToLauncher::NextTry(seconds) => out.extend_from_slice(&[0x13, seconds]),
+        ToLauncher::Route(shown) => out.extend_from_slice(&[0x0A, shown.byte()]),
+        ToLauncher::FileOf(count) => {
+            out.push(0x0B);
+            let (file, of) = count.map_or((0, 0), |count| (count.file.get(), count.of.get()));
+            out.extend_from_slice(&file.to_le_bytes());
+            out.extend_from_slice(&of.to_le_bytes());
+        }
     }
     let length = (out.len() - 2) as u16;
     out[..2].copy_from_slice(&length.to_le_bytes());
@@ -162,17 +212,50 @@ pub fn frame(message: ToLauncher) -> Vec<u8> {
 /// A message of the launcher.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FromLauncher {
-    /// `1A`: torrent (0) or direct (1) download. Nothing to this updater.
-    DownloadType(u8),
+    /// `1A`: "Allow torrent" switched; its byte 0 is on.
+    AllowTorrent(bool),
     /// `1B`: stop.
     Abort,
     /// `1C` and `1D`: the answer to [`ToLauncher::Question`].
     Yes,
     No,
-    /// `21`: the torrent port. Nothing to this updater.
+    /// `21`: the torrent port.
     Port(u16),
+    /// `1E`: bytes a second; `None` for 0, no limit.
+    UploadLimit(Option<u64>),
+    /// `22`, `23`, `24`: the relay menu's row picked: auto, on, off
+    /// (launcher patch 16).
+    RouteChosen(crate::route::Choice),
     /// Any other id.
     Other(u8),
+}
+
+/// The launcher's "Allow torrent" and port: the update's 4th and 13th
+/// arguments, then `1A` and `21`. The port is kept while off, for when it
+/// is turned on; `None` when the launcher has none.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Torrenting {
+    Off { port: Option<u16> },
+    On { port: Option<u16> },
+}
+
+impl Torrenting {
+    pub fn of_arguments(download_type: &str, port: &str) -> Self {
+        let port = port_number(port);
+        if download_type != "torrent" {
+            return Self::Off { port };
+        }
+        Self::On { port }
+    }
+}
+
+/// A port as the launcher's settings take one: 1 to 65534.
+pub fn port_number(text: &str) -> Option<u16> {
+    (!text.is_empty() && text.len() <= 5 && text.bytes().all(|c| c.is_ascii_digit()))
+        .then(|| text.parse::<u32>().ok())
+        .flatten()
+        .filter(|port| (1..65535).contains(port))
+        .map(|port| port as u16)
 }
 
 /// Takes the bytes of the pipe as they come and gives the whole messages.
@@ -186,19 +269,33 @@ impl Reader {
         self.buffer.extend_from_slice(bytes);
     }
 
-    /// The next whole message, if all of it is here.
+    /// The bytes of the next whole message (its id first), if all of it
+    /// is here.
+    pub fn payload(&mut self) -> Option<Vec<u8>> {
+        let length = u16::from_le_bytes([*self.buffer.first()?, *self.buffer.get(1)?]) as usize;
+        if self.buffer.len() < 2 + length {
+            return None;
+        }
+        Some(self.buffer.drain(..2 + length).skip(2).collect())
+    }
+
+    /// The next whole message of the launcher, if all of it is here.
     pub fn message(&mut self) -> Option<FromLauncher> {
         loop {
-            let length = u16::from_le_bytes([*self.buffer.first()?, *self.buffer.get(1)?]) as usize;
-            if self.buffer.len() < 2 + length {
-                return None;
-            }
-            let payload: Vec<u8> = self.buffer.drain(..2 + length).skip(2).collect();
+            let payload = self.payload()?;
             // A message of no bytes has no id: nothing to tell.
             let Some(&id) = payload.first() else { continue };
             return Some(match id {
-                0x1A => FromLauncher::DownloadType(payload.get(1).copied().unwrap_or(0)),
+                0x1A if payload.len() >= 2 => FromLauncher::AllowTorrent(payload[1] == 0),
+                0x1E if payload.len() >= 9 => {
+                    let limit = u64::from_le_bytes(payload[1..9].try_into().expect("8 bytes"));
+                    FromLauncher::UploadLimit((limit != 0).then_some(limit.min(0x7FFF_FFFF)))
+                }
                 0x1B => FromLauncher::Abort,
+                id @ 0x22..=0x24 => match crate::route::Choice::of_message(id) {
+                    Some(choice) => FromLauncher::RouteChosen(choice),
+                    None => FromLauncher::Other(id),
+                },
                 0x1C => FromLauncher::Yes,
                 0x1D => FromLauncher::No,
                 0x21 if payload.len() >= 3 => {
@@ -217,6 +314,11 @@ mod tests {
     #[test]
     fn frames_are_length_id_fields() {
         assert_eq!(frame(ToLauncher::State(state::LATEST)), [2, 0, 0x02, 0x0E]);
+        assert_eq!(frame(ToLauncher::Route(crate::route::Shown::Relay)), [2, 0, 0x0A, 5]);
+        assert_eq!(frame(ToLauncher::NextTry(5)), [2, 0, 0x13, 5]);
+        assert_eq!(frame(ToLauncher::FileOf(FileOf::at(4, 69))), [5, 0, 0x0B, 5, 0, 69, 0]);
+        assert_eq!(frame(ToLauncher::FileOf(None)), [5, 0, 0x0B, 0, 0, 0, 0]);
+        assert_eq!(FileOf::at(69, 69), None);
         assert_eq!(frame(ToLauncher::Question), [1, 0, 0x0E]);
         assert_eq!(frame(ToLauncher::CannotMoveFile), [1, 0, 0x11]);
         let progress = frame(ToLauncher::Progress {
@@ -274,14 +376,20 @@ mod tests {
             1, 0, 0x1C, // yes
             1, 0, 0x1D, // no
             3, 0, 0x21, 0x39, 0x30, // port 12345
+            9, 0, 0x1E, 0, 4, 0, 0, 0, 0, 0, 0, // 1 KiB a second
+            2, 0, 0x1A, 0, // torrent allowed
+            1, 0, 0x23, // the relay menu: on
             4, 0, 0x99, 1, 2, 3, // unknown
         ];
         let expected = [
             FromLauncher::Abort,
-            FromLauncher::DownloadType(1),
+            FromLauncher::AllowTorrent(false),
             FromLauncher::Yes,
             FromLauncher::No,
             FromLauncher::Port(12345),
+            FromLauncher::UploadLimit(Some(1024)),
+            FromLauncher::AllowTorrent(true),
+            FromLauncher::RouteChosen(crate::route::Choice::Relay),
             FromLauncher::Other(0x99),
         ];
         let mut reader = Reader::default();
@@ -299,5 +407,23 @@ mod tests {
         }
         assert_eq!(got, expected);
         assert_eq!(reader.message(), None);
+    }
+}
+
+#[cfg(test)]
+mod torrenting {
+    use super::*;
+
+    #[test]
+    fn the_launchers_settings() {
+        assert_eq!(Torrenting::of_arguments("torrent", "6881"), Torrenting::On { port: Some(6881) });
+        assert_eq!(Torrenting::of_arguments("torrent", ""), Torrenting::On { port: None });
+        assert_eq!(Torrenting::of_arguments("torrent", "65535"), Torrenting::On { port: None });
+        assert_eq!(Torrenting::of_arguments("direct", "6881"), Torrenting::Off { port: Some(6881) });
+        assert_eq!(Torrenting::of_arguments("", ""), Torrenting::Off { port: None });
+        assert_eq!(port_number("0"), None);
+        assert_eq!(port_number("123456"), None);
+        assert_eq!(frame(ToLauncher::PortBusy), [1, 0, 0x14]);
+        assert_eq!(frame(ToLauncher::PortOk), [1, 0, 0x15]);
     }
 }

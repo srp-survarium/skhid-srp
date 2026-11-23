@@ -9,7 +9,6 @@ use survarium::v026g::lobby::{
 };
 use survarium::v026g::modifications::Modifications;
 use survarium::v026g::shop_offers;
-use survarium::v026g::skills::SkillsTree;
 use survarium::v026g::weapon_kit;
 
 use super::account::{Account, Item};
@@ -44,7 +43,7 @@ pub fn item_descr(item: &Item) -> ItemDescr {
 }
 
 /// An item's upgrades as the client is sent them. A record whose dict id
-/// the data lacks (a withdrawn scope variant) would have the client build
+/// the data lacks (a withdrawn item's) would have the client build
 /// the item with a modification it does not have; the load takes such
 /// records off, this is the last guard. A weapon's (up to six, in logical
 /// slots) go packed into at most three: the decals, then the weapon kit
@@ -76,10 +75,9 @@ pub fn upgrades_descr(item: &Item) -> Vec<Upgrade> {
 /// item once however many kits wear it. A slot whose item the inventory
 /// lacks is left out (the client would look it up and crash).
 pub fn account_body(account: &Account) -> AccountBody {
-    let modifiers = SkillsTree::shared().modifiers(&account.skills);
     let mut items: Vec<ItemDescr> = Vec::new();
     let mut kits = Vec::with_capacity(account.kits.len());
-    for kit in account.kits.iter().take(limits::KITS) {
+    for (index, kit) in account.kits.iter().take(limits::KITS).enumerate() {
         let mut slots = [None; limits::KIT_SLOTS];
         for (slot, held) in kit.slots.iter().enumerate() {
             let Some(held) = held else {
@@ -105,7 +103,8 @@ pub fn account_body(account: &Account) -> AccountBody {
             id: kit.id,
             name: kit.name.clone(),
             slots,
-            modifiers,
+            // Each kit its own: Artifact Container's slot is the kit's choice.
+            modifiers: account.kit_modifiers(index),
         });
     }
     AccountBody {
@@ -146,11 +145,12 @@ pub fn own_account(account: &Account) -> Result<ServerMessage, WireError> {
             .map(|kit| kit.revision)
             .collect(),
         active_kit: account.active().map_or(0, |kit| kit.id),
-        autobuy: account.autobuy,
         level,
         exp_total: account.exp_total.max(start),
         exp_level_start: start,
         exp_next_level: next,
+        face: account.face,
+        faces: survarium::v026g::faces::Faces::shared(),
     })
 }
 
@@ -158,7 +158,7 @@ pub fn own_account(account: &Account) -> Result<ServerMessage, WireError> {
 /// it plays.
 pub fn squad_member_account(account: &Account) -> Result<ServerMessage, WireError> {
     let revision = account.active().map_or(0, |kit| kit.revision);
-    lobby::squad_member_account(&account_body(account), revision)
+    lobby::squad_member_account(&account_body(account), revision, account.face)
 }
 
 /// `93`: the account's kits as a results screen's row shows them (the
@@ -403,9 +403,11 @@ mod tests {
         expected.extend_from_slice(&[
             1, 0, 0, 0,  1, 0, 0, 0,  1, 0, 0, 0,   // the kits' revisions
             1, 0, 0, 0,                             // the active kit
-            1,                                      // autobuy: on for a new account
+            1,                                      // autobuy: always on
             0,                                      // level
             0, 0, 0, 0,  0, 0, 0, 0,  0xF4, 0x01, 0, 0,
+            0,                                      // srp: the face, 0 for a new account
+            survarium::v026g::faces::Faces::shared().count(), // srp: the faces' count
         ]);
         assert_eq!(bytes(&own_account(&account).unwrap()), expected);
         // The stock account has no money.

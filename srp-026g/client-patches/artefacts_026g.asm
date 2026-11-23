@@ -52,6 +52,7 @@ section .text
 %define FIND_POOL 0x2E58B0         ; eax = the damage model's pools, ecx = &name: eax = the pool or 0
 %define INCREASE_HEALTH 0x32A420   ; esi = a pool; (time, amount), `ret 8`
 %define ACTION_BACK 0x31330A       ; artefact_base::action after its state test: `jne 0x313344`
+%define COOLDOWN_START 0x3135BD    ; an active's end, edi = the artefact: its cooldown (+28Ch), state 3
 %define ONYX_ENABLE 0x3128C0       ; Onyx's enable_active (vtable +80h): its active time +F14h, ms
 %define ONYX_TIME_LEFT 0xF14       ; an Onyx's active time left, ms (its tick 0x3127E0 counts it down)
 %define ONYX_EXTRA_MS 1000         ; each Onyx fired with others: 1 s more for all of them
@@ -347,7 +348,10 @@ lifebone_active:
 ; fired adds ONYX_EXTRA_MS to every fired one's active time (+F14h), so n
 ; fired together are all active 3 s + (n - 1) s and end together. Ready
 ; (below) leaves out a copy past the 4 of its kind that count (patch 109): a
-; press fires at most 4, and a fifth adds no time.
+; press fires at most 4, and a fifth adds no time. A press that fires one
+; starts the cooldown of every other copy of the kind on its cooldown again
+; (recool): copies taken and fired one after another cool down together from
+; then on, never in turns.
 fire_kind:
     cmp byte [esp+4], 0
     je .original
@@ -375,7 +379,8 @@ fire_kind:
 .counted:
     xor ebx, ebx                   ; the time each fired one gets on top
     dec edx
-    jle .extra
+    js .end                        ; none ready: nothing fires, no cooldown starts again
+    jz .extra
     mov eax, [esi]
     cmp dword [eax+0x80], ONYX_ENABLE
     jne .extra
@@ -397,6 +402,22 @@ fire_kind:
     cmp ebp, LAST_SLOT
     jbe .slot
 .done:
+    mov ecx, esi
+    call recool
+    mov ebp, FIRST_SLOT
+.cool:
+    mov eax, [esi+0x250]
+    test eax, eax
+    jz .end
+    mov ecx, [eax+0x10C+ebp*4]
+    call kin
+    jnc .cool_next
+    call recool
+.cool_next:
+    inc ebp
+    cmp ebp, LAST_SLOT
+    jbe .cool
+.end:
     popad
     ret 8
 .original:
@@ -469,6 +490,29 @@ activate:
     pop esi
 .no:
     ret
+
+; ecx = an artefact: one in its passive on its cooldown (state 3, +28Ch not
+; 0) starts the cooldown again, as the end of an active starts it
+; (0x3135BD..0x313638, edi = the artefact: cooldown_sec x 1000 (+274h) times
+; its holder's modifier 38 into +28Ch, state 3, then `pop esi; pop ecx;
+; ret`). Keeps every register.
+recool:
+    cmp dword [ecx+0x280], 3
+    jne .no
+    cmp dword [ecx+0x28C], 0
+    je .no
+    cmp dword [ecx+0x250], 0       ; its inventory: the holder's modifiers
+    je .no
+    pushad
+    mov edi, ecx
+    call .start
+    popad
+.no:
+    ret
+.start:
+    push ecx                       ; the two the game's code pops before its ret
+    push esi
+    jmp COOLDOWN_START
 
 ; Onyx's hit callback 0x312BF0 (thiscall: the hit, &damage, &armour
 ; piercing; `ret 0Ch`) at 0x312C03 `cmp dword [ecx+280h],3`, after its hit
@@ -565,7 +609,17 @@ body_name:
     db "body", 0
 head_name:
     db "head", 0
-; The pools Lifebone's active fills.
+left_hand_name:
+    db "left_hand", 0
+right_hand_name:
+    db "right_hand", 0
+left_leg_name:
+    db "left_leg", 0
+right_leg_name:
+    db "right_leg", 0
+; The pools Lifebone's active fills: every body part (the limbs too since the
+; owner's 2026-11-14 report; `infection` is not one and is left).
 heals:
     dd pain_name, body_name, head_name
+    dd left_hand_name, right_hand_name, left_leg_name, right_leg_name
 heals_end:

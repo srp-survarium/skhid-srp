@@ -38,13 +38,13 @@
   };
   const fromHash = () => {
     const [key, mode] = decodeURIComponent(location.hash.slice(1)).split("/");
-    if (MAPS.maps.some(m => m.key === key)) { state.map = key; state.mode = Number(mode) || null; }
+    if (MAPS.maps.some(m => m.key === key)) { state.map = key; state.mode = mode || null; }
   };
   fromHash();
   const map = () => MAPS.maps.find(m => m.key === state.map);
   // Two maps in (nearly) one frame: a port and its original.
   const sameFrame = (a, b) => a.box.every((v, i) => Math.abs(v - b.box[i]) < 2);
-  const mode = () => map().modes.find(m => m.mode === state.mode) || map().modes[0];
+  const mode = () => map().modes.find(m => m.key === state.mode) || map().modes[0];
 
   document.title = T("Survarium maps", "Мапи Survarium");
   $("title").textContent = T("Maps", "Мапи");
@@ -60,13 +60,15 @@
   }
   const modeName = (m, all) => {
     const same = all.filter(o => N(o.name) === N(m.name));
+    if (m.layout) return `${N(m.name)} · ${m.layout + 1}`;
     return same.length > 1 && m.stations.length ? `${N(m.name)} · ${T("chargers", "зарядки")}` : N(m.name);
   };
 
   // The HUD minimap's icons (MAPS.hud). A team's icon is painted in its
   // colour by the icon's own lightness, measured by the build, solid, with
   // the HUD's dark outline. Others keep their colours and get the outline.
-  const TEAM = { t0: "#3b82f6", t1: "#e5484d", tx: "#9aa0a6" };
+  // `solo`: a spawn of a mode without teams.
+  const TEAM = { t0: "#3b82f6", t1: "#e5484d", tx: "#9aa0a6", solo: "#f2c94c" };
   const defs = svgEl("svg", { width: 0, height: 0, "aria-hidden": "true", style: "position:absolute" }, svgEl("defs"));
   document.body.append(defs);
   // A crisp one-pixel dark edge round the icon (no blur), after its paint.
@@ -90,6 +92,9 @@
     return filter(`paint-${name}-${tint}`, `${row(r)} ${row(g)} ${row(b)} 0 0 0 ${1 / i.opaque} 0`);
   };
   const tintOf = t => (t === 0 ? "t0" : t === 1 ? "t1" : "tx");
+  // A mode none of whose spawns is a team's (Free for All: each player on
+  // his own) has one kind of spawn: one colour, one swatch, no team named.
+  const solo = mo => !mo.respawn.some(([, , , t]) => t === 0 || t === 1);
   // One icon centred on (x, y), `px` screen pixels high: painted in a team's
   // colour when `tint` is given.
   function hud(name, x, y, px, u, tint = null, rotate = 0) {
@@ -112,9 +117,10 @@
   };
   // Legend swatches, drawn as the markers are.
   // Two teams in one swatch: blue above and behind, red below and in front.
-  const swatch = key => {
+  const swatch = (key, mo) => {
     const s = svgEl("svg", { viewBox: "-11 -11 22 22", "aria-hidden": "true" });
-    if (key === "respawn") s.append(hud("player", -3, -3, 14, 1, "t0"), hud("player", 3, 3, 14, 1, "t1"));
+    if (key === "respawn" && solo(mo)) s.append(hud("player", 0, 0, 16, 1, "solo"));
+    else if (key === "respawn") s.append(hud("player", -3, -3, 14, 1, "t0"), hud("player", 3, 3, 14, 1, "t1"));
     if (key === "spawners") s.append(hud("battery", 0, 0, 14, 1));
     if (key === "stations") s.append(hud("charger", 0, 0, 22, 1));
     if (key === "containers") s.append(hud("base", -4, -2, 16, 1, "t0"), hud("base", 4, 2, 16, 1, "t1"));
@@ -125,9 +131,9 @@
 
   function drawControls() {
     const m = map();
-    if (!m.modes.some(o => o.mode === state.mode)) state.mode = m.modes[0].mode;
+    if (!m.modes.some(o => o.key === state.mode)) state.mode = m.modes[0].key;
     chips($("maps"), MAPS.maps.map(o => [o.key, N(o.name)]), state.map, k => { state.map = k; go(); });
-    chips($("modes"), m.modes.map(o => [o.mode, modeName(o, m.modes)]), state.mode, k => { state.mode = k; go(); });
+    chips($("modes"), m.modes.map(o => [o.key, modeName(o, m.modes)]), state.mode, k => { state.mode = k; go(); });
     chips($("views"), [["minimap", T("Minimap", "Мінімапа")], ["render", T("From above", "Згори")]], state.view,
       v => { state.view = v; store.set("view", v); go(); });
     const mo = mode();
@@ -140,7 +146,7 @@
       const n = counts[l.key];
       const extra = l.key === "stations" && mo.stations_active && mo.stations_active < n ? ` (${T(`${mo.stations_active} active`, `${mo.stations_active} активні`)})` : "";
       const b = el("button", { type: "button", class: "layer", "aria-pressed": String(state.on[l.key]) },
-        l.icon ? el("img", { src: l.icon, alt: "" }) : swatch(l.key), document.createTextNode(l.label), el("b", { text: n + extra }));
+        l.icon ? el("img", { src: l.icon, alt: "" }) : swatch(l.key, mo), document.createTextNode(l.label), el("b", { text: n + extra }));
       b.hidden = !n;
       b.addEventListener("click", () => { state.on[l.key] = !state.on[l.key]; store.set("on", state.on); go(); });
       return b;
@@ -202,7 +208,8 @@
       kids.push(svgEl("g", { class: "mk" }, unitMark(cp, x, -z, 22, u), tip(`${T("Research unit", "Установка")} ${letter(cp)}`)));
     // The HUD's player triangle, turned the way the player faces at spawn.
     if (state.on.respawn) for (const [x, z, , t, facing] of mo.respawn)
-      kids.push(svgEl("g", { class: "mk" }, hud("player", x, -z, MAPS.hud.player.h, u, tintOf(t), facing), tip(`${T("Spawn", "Відродження")}, ${teamName(t)}`)));
+      kids.push(svgEl("g", { class: "mk" }, hud("player", x, -z, MAPS.hud.player.h, u, solo(mo) ? "solo" : tintOf(t), facing),
+        tip(solo(mo) ? T("Spawn", "Відродження") : `${T("Spawn", "Відродження")}, ${teamName(t)}`)));
     svg.replaceChildren(...kids);
   }
 

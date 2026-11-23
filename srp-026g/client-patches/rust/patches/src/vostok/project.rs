@@ -22,15 +22,27 @@ impl<T> NativeVtable<T> {
     pub(in crate::vostok) unsafe fn from_address(address: u32) -> Self {
         Self { address: NonZeroU32::new(address).expect("linked vtable"), layout: PhantomData }
     }
+
+    /// The table's address, the word an object of layout T's vtable field
+    /// takes (vostok::console's command).
+    pub(in crate::vostok) fn address(self) -> u32 {
+        self.address.get()
+    }
 }
 
 pub struct MethodTables {
     visual: NativeVtable<raw::RenderVisualMethods>,
     light: NativeVtable<raw::ObjectLightMethods>,
+    ambient_light: NativeVtable<raw::ObjectAmbientLightMethods>,
+    particle: NativeVtable<raw::ObjectParticleVisualMethods>,
+    probe: NativeVtable<raw::ObjectEnvironmentProbeMethods>,
 }
 impl MethodTables {
-    pub fn new(visual: NativeVtable<raw::RenderVisualMethods>, light: NativeVtable<raw::ObjectLightMethods>) -> Self {
-        Self { visual, light }
+    pub fn new(visual: NativeVtable<raw::RenderVisualMethods>, light: NativeVtable<raw::ObjectLightMethods>,
+               ambient_light: NativeVtable<raw::ObjectAmbientLightMethods>,
+               particle: NativeVtable<raw::ObjectParticleVisualMethods>,
+               probe: NativeVtable<raw::ObjectEnvironmentProbeMethods>) -> Self {
+        Self { visual, light, ambient_light, particle, probe }
     }
 }
 
@@ -50,6 +62,9 @@ macro_rules! native_view {
 }
 native_view!(RenderVisual);
 native_view!(ObjectLight);
+native_view!(ObjectAmbientLight);
+native_view!(ObjectParticleVisual);
+native_view!(ObjectEnvironmentProbe);
 native_view!(GameScene);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -58,6 +73,11 @@ impl PhysicsId {
     pub(super) fn of(physics: raw::BulletPhysicsWorld) -> Self {
         Self(NonZeroU32::new(physics.address()).expect("non-null native handle"))
     }
+    /// A made-up world's (the tests').
+    #[cfg(test)]
+    pub fn made_up(id: u32) -> Self {
+        Self(NonZeroU32::new(id).expect("a made-up world's id is not 0"))
+    }
 }
 
 /// Index in the authored render-visual array, distinct from a lamp id.
@@ -65,18 +85,31 @@ impl PhysicsId {
 pub struct VisualIndex(u32);
 impl From<u32> for VisualIndex { fn from(value: u32) -> Self { Self(value) } }
 
+/// A project (simple_game_project) as an id: compared, never read through.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct ProjectId(NonZeroU32);
+pub struct ProjectId(NonZeroU32);
 impl ProjectId {
     fn of(project: raw::SimpleGameProject) -> Self {
         Self(NonZeroU32::new(project.address()).expect("non-null native handle"))
+    }
+    /// The project project.removed is at (remove_static's epilogue, after the native removals).
+    pub fn removed(ctx: &Context<'_>) -> Option<Self> {
+        // SAFETY: the site's ESI is the project being removed; only its address is kept.
+        unsafe { raw::site::project_removed::project(ctx) }.map(Self::of)
+    }
+    /// The project project.destroy is at (its destructor's entry).
+    pub fn destroyed(ctx: &Context<'_>) -> Option<Self> {
+        // SAFETY: the site's ECX is the project being destroyed; only its address is kept.
+        unsafe { raw::site::project_destroy::project(ctx) }.map(Self::of)
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum BindingError {
     MissingProject, MissingScene, MissingPhysics, InvalidObjects, InvalidVisual,
-    UnknownVisualType, UnknownLight, AmbiguousLight, DuplicateObject, Capacity,
+    UnknownVisualType, UnknownLight, AmbiguousLight, UnknownAmbientLight, AmbiguousAmbientLight, UnknownParticle, AmbiguousParticle,
+    UnknownProbe, AmbiguousProbe,
+    DuplicateObject, Capacity,
     OtherProjectActive, Config(ConfigError),
 }
 impl From<ConfigError> for BindingError {
@@ -111,6 +144,17 @@ impl<'t> ProjectView<'t> {
             Ok(Self { native, frame, thread: ctx.thread() })
         }
     }
+    /// The project at project.insert, for a patch that reads only its
+    /// config and its scene (patch 130); the lamps' registry makes its own.
+    pub fn at_insert(ctx: &'t Context<'_>) -> Result<Self, BindingError> { Self::inserting(ctx) }
+    pub fn id(&self) -> ProjectId { ProjectId::of(self.native) }
+    /// The render scene its game scene holds (game_scene+4), the one the
+    /// renderer's context names while that scene is drawn; None without one.
+    pub fn render_scene(&self) -> Option<super::render_stage::RenderSceneId> {
+        // SAFETY: the inserted project's game scene is alive for the hook;
+        // only the render scene's address is kept, as an id.
+        unsafe { self.native.scene().and_then(|scene| scene.render_scene()).map(super::render_stage::RenderSceneId::of) }
+    }
     pub fn root(&self) -> Result<ConfigValue<'t>, BindingError> {
         // SAFETY: the inserted project owns the config resource for the hook.
         unsafe {
@@ -129,8 +173,59 @@ impl<'t> ProjectView<'t> {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum NativeObject { Visual(raw::RenderVisual), Light(raw::ObjectLight) }
+/// The share of its light a bound probe keeps while its binding is Hidden:
+/// a fraction in (0, 1].
+#[derive(Clone, Copy, Debug)]
+pub struct Share(f32);
+impl Share {
+    pub fn parse(value: f32) -> Option<Self> { (value > 0.0 && value <= 1.0).then_some(Self(value)) }
+}
+
+/// A probe's diffuse and specular multipliers (+3F0h, +3F4h) and radius
+/// (+3ECh): its own, and those it is drawn with while its binding is Hidden:
+/// the multipliers dimmed, the radius `DRAWN_OVER` less, so that it is drawn
+/// over the probes of its own radius, whose light would show through where
+/// they overlap it.
+#[derive(Clone, Copy)]
+struct ProbeLight { own: ProbeFields, dimmed: ProbeFields }
+#[derive(Clone, Copy)]
+struct ProbeFields { diffuse: f32, specular: f32, radius: f32 }
+/// The renderer draws the visible probes largest sort key first; a render
+/// probe's key is its radius plus a number in [0, 0.1) its constructor makes
+/// from its heap address (+380h, 0x1C2F30..0x1C2FA6; set_properties 0x1C370F
+/// adds it), so probes of one radius come in no set order. 0.1 less puts the
+/// dimmed probe after every one of its radius, whatever their numbers and its
+/// own. A box probe's volume and falloff are its transform and side width,
+/// not its radius; a sphere's would draw 10 cm smaller (London binds boxes).
+const DRAWN_OVER: f32 = 0.1;
+impl ProbeLight {
+    fn new(own: ProbeFields, keeps: Share) -> Self {
+        let dimmed = ProbeFields { diffuse: own.diffuse * keeps.0, specular: own.specular * keeps.0,
+                                   radius: own.radius - DRAWN_OVER };
+        Self { own, dimmed }
+    }
+    fn at(self, membership: Membership) -> ProbeFields {
+        if membership == Membership::Hidden { self.dimmed } else { self.own }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum NativeObject {
+    Visual(raw::RenderVisual), Light(raw::ObjectLight), AmbientLight(raw::ObjectAmbientLight),
+    Particle(raw::ObjectParticleVisual),
+    /// Never taken out of the renderer by its lamp: Shown draws it with its
+    /// own light, Hidden with the dimmed one.
+    Probe(raw::ObjectEnvironmentProbe, ProbeLight),
+}
+impl NativeObject {
+    /// The native object's address, its identity.
+    fn address(self) -> u32 {
+        match self {
+            Self::Visual(v) => v.address(), Self::Light(l) => l.address(), Self::AmbientLight(l) => l.address(),
+            Self::Particle(p) => p.address(), Self::Probe(p, _) => p.address(),
+        }
+    }
+}
 
 struct Binding<K> { object: NativeObject, key: K, membership: Membership }
 
@@ -147,7 +242,7 @@ impl<'t, D, K> ProjectPlan<'t, D, K> {
         ProjectPlan { project: self.project, data, methods: self.methods, bindings: self.bindings }
     }
     fn add(&mut self, object: NativeObject, key: K) -> Result<(), BindingError> {
-        if self.bindings.iter().any(|binding| binding.object == object) { return Err(BindingError::DuplicateObject); }
+        if self.bindings.iter().any(|binding| binding.object.address() == object.address()) { return Err(BindingError::DuplicateObject); }
         self.bindings.push(Binding { object, key, membership: Membership::Detached }).map_err(|_| BindingError::Capacity)?;
         Ok(())
     }
@@ -162,24 +257,59 @@ impl<'t, D, K> ProjectPlan<'t, D, K> {
         };
         self.add(NativeObject::Visual(visual), key)
     }
-    pub fn light_at(&mut self, position: WorldPoint, key: K) -> Result<(), BindingError> {
-        // SAFETY: native project vector and light objects live for this
-        // insertion. Only an object with the light vtable is read as a light.
-        let light = unsafe {
-            let first = self.project.native.objects().ok_or(BindingError::UnknownLight)?;
+    /// The project's one object at `position` among those `kind` reads as a
+    /// T with its position; `none` or `several` when it is not one.
+    fn object_at<T>(&self, position: WorldPoint, kind: impl Fn(raw::ProjectObject) -> Option<(T, [f32; 3])>,
+                    none: BindingError, several: BindingError) -> Result<T, BindingError> {
+        let mut found = None;
+        // SAFETY: the native project vector and its objects live for this insertion.
+        unsafe {
+            let Some(first) = self.project.native.objects() else { return Err(none) };
             let end = self.project.native.objects_end().ok_or(BindingError::InvalidObjects)?;
             let count = end.index_from(first).ok_or(BindingError::InvalidObjects)?;
-            let mut found = None;
             for i in 0..count {
                 let object = first.at(i).object().ok_or(BindingError::InvalidObjects)?;
-                if object.vtable().read() != raw::image::light_methods().address() { continue; }
-                let light = object.light();
-                let xyz = super::world::floats(light.position());
-                if xyz == position.coordinates() && found.replace(light).is_some() { return Err(BindingError::AmbiguousLight); }
+                let Some((native, xyz)) = kind(object) else { continue };
+                if xyz == position.coordinates() && found.replace(native).is_some() { return Err(several); }
             }
-            found.ok_or(BindingError::UnknownLight)?
-        };
+        }
+        found.ok_or(none)
+    }
+    pub fn light_at(&mut self, position: WorldPoint, key: K) -> Result<(), BindingError> {
+        // SAFETY: only an object with the light vtable is read as a light.
+        let light = self.object_at(position, |object| unsafe {
+            if object.vtable().read() != raw::image::light_methods().address() { return None; }
+            Some((object.light(), super::world::floats(object.light().position())))
+        }, BindingError::UnknownLight, BindingError::AmbiguousLight)?;
         self.add(NativeObject::Light(light), key)
+    }
+    pub fn ambient_light_at(&mut self, position: WorldPoint, key: K) -> Result<(), BindingError> {
+        // SAFETY: only an object with the ambient light vtable is read as one.
+        let light = self.object_at(position, |object| unsafe {
+            if object.vtable().read() != raw::image::ambient_light_methods().address() { return None; }
+            Some((object.ambient_light(), super::world::floats(object.ambient_light().position())))
+        }, BindingError::UnknownAmbientLight, BindingError::AmbiguousAmbientLight)?;
+        self.add(NativeObject::AmbientLight(light), key)
+    }
+    pub fn particle_at(&mut self, position: WorldPoint, key: K) -> Result<(), BindingError> {
+        // SAFETY: only an object with the particle object's vtable is read as one.
+        let particle = self.object_at(position, |object| unsafe {
+            if object.vtable().read() != raw::image::particle_methods().address() { return None; }
+            Some((object.particle(), super::world::floats(object.particle().position())))
+        }, BindingError::UnknownParticle, BindingError::AmbiguousParticle)?;
+        self.add(NativeObject::Particle(particle), key)
+    }
+    pub fn probe_at(&mut self, position: WorldPoint, keeps: Share, key: K) -> Result<(), BindingError> {
+        // SAFETY: only an object with the probe's vtable is read as one; it
+        // is loaded (its multipliers read) before the project is inserted.
+        let probe = self.object_at(position, |object| unsafe {
+            if object.vtable().read() != raw::image::probe_methods().address() { return None; }
+            Some((object.probe(), super::world::floats(object.probe().position())))
+        }, BindingError::UnknownProbe, BindingError::AmbiguousProbe)?;
+        // SAFETY: the probe object_at found is alive and loaded for this insertion.
+        let own = unsafe { ProbeFields { diffuse: probe.diffuse_multiplier().read(), specular: probe.specular_multiplier().read(),
+                                         radius: probe.radius().read() } };
+        self.add(NativeObject::Probe(probe, ProbeLight::new(own, keeps)), key)
     }
     pub fn data_mut(&mut self) -> &mut D { &mut self.data }
 }
@@ -223,11 +353,36 @@ impl<D, K> ProjectRegistry<D, K> {
     }
 }
 
+/// A bound probe from one membership to the next. It stays in the renderer
+/// while bound: a change between Shown and Hidden takes it out and puts it
+/// back with the other multipliers (insert hands the object's fields to
+/// update_environment_probe); Detached leaves the object with its own.
+///
+/// # Safety
+/// `probe` is a bound, loaded probe of the live registration, on the scene thread.
+unsafe fn drive_probe(probe: raw::ObjectEnvironmentProbe, light: ProbeLight, previous: Membership, next: Membership) {
+    if previous == next { return; }
+    unsafe {
+        if previous != Membership::Detached { raw::engine_probe_remove(Some(probe)); }
+        let fields = light.at(next);
+        probe.diffuse_multiplier().write(fields.diffuse);
+        probe.specular_multiplier().write(fields.specular);
+        probe.radius().write(fields.radius);
+        if next != Membership::Detached { raw::engine_probe_insert(Some(probe)); }
+    }
+}
+
 impl<D: Presentation<K>, K: Copy> BoundProject<D, K> {
     fn drive(&mut self, index: usize, event: PresentationEvent) {
         let binding = self.bindings.get_mut(index).expect("owned binding");
         let (next, action) = binding.membership.transition(event);
-        binding.membership = next;
+        let previous = core::mem::replace(&mut binding.membership, next);
+        if let NativeObject::Probe(probe, light) = binding.object {
+            // SAFETY: as below; the multipliers are the loaded probe's own
+            // fields, which its insert hands to the renderer.
+            unsafe { drive_probe(probe, light, previous, next) };
+            return;
+        }
         // SAFETY: the registration is alive from project insertion until
         // remove/destructor entry. These calls run only on the game's scene
         // thread; workers can access D alone. Native methods call renderer
@@ -238,12 +393,19 @@ impl<D: Presentation<K>, K: Copy> BoundProject<D, K> {
                 (NativeObject::Visual(visual), RendererAction::Remove) => raw::engine_visual_remove(Some(visual), Some(self.scene)),
                 (NativeObject::Light(light), RendererAction::Add) => raw::engine_light_insert(Some(light)),
                 (NativeObject::Light(light), RendererAction::Remove) => raw::engine_light_remove(Some(light)),
+                (NativeObject::AmbientLight(light), RendererAction::Add) => raw::engine_ambient_light_insert(Some(light)),
+                (NativeObject::AmbientLight(light), RendererAction::Remove) => raw::engine_ambient_light_remove(Some(light)),
+                (NativeObject::Particle(particle), RendererAction::Add) => raw::engine_particle_insert(Some(particle)),
+                (NativeObject::Particle(particle), RendererAction::Remove) => raw::engine_particle_remove(Some(particle)),
+                (NativeObject::Probe(..), _) => unreachable!("a probe is driven by drive_probe"),
                 (_, RendererAction::Keep) => {},
             }
         }
     }
-    fn callback(&mut self, object: NativeObject, event: impl FnOnce(Visibility) -> PresentationEvent) {
-        let index = self.bindings.iter().position(|b| b.object == object).expect("only registered objects carry our vtables");
+    /// The binding of the native object at `address` (a hook's `this`).
+    fn callback(&mut self, address: u32, event: impl FnOnce(Visibility) -> PresentationEvent) {
+        let index = self.bindings.iter().position(|b| b.object.address() == address)
+            .expect("only registered objects carry our vtables");
         let binding = self.bindings.get(index).expect("owned binding");
         self.drive(index, event(self.data.visibility(binding.key)));
     }
@@ -256,6 +418,9 @@ impl<D: Presentation<K>, K: Copy> BoundProject<D, K> {
                 match self.bindings.get(i).expect("owned binding").object {
                     NativeObject::Visual(v) => v.vtable().write(raw::image::visual_methods().address()),
                     NativeObject::Light(l) => l.vtable().write(raw::image::light_methods().address()),
+                    NativeObject::AmbientLight(l) => l.vtable().write(raw::image::ambient_light_methods().address()),
+                    NativeObject::Particle(p) => p.vtable().write(raw::image::particle_methods().address()),
+                    NativeObject::Probe(p, _) => p.vtable().write(raw::image::probe_methods().address()),
                 }
             }
         }
@@ -280,6 +445,9 @@ impl<D: Presentation<K>, K: Copy> Registration<D, K> {
                         match binding.object {
                             NativeObject::Visual(v) => v.vtable().write(plan.methods.visual.address.get()),
                             NativeObject::Light(l) => l.vtable().write(plan.methods.light.address.get()),
+                            NativeObject::AmbientLight(l) => l.vtable().write(plan.methods.ambient_light.address.get()),
+                            NativeObject::Particle(p) => p.vtable().write(plan.methods.particle.address.get()),
+                            NativeObject::Probe(p, _) => p.vtable().write(plan.methods.probe.address.get()),
                         }
                     }
                 }
@@ -339,7 +507,7 @@ impl<D: Presentation<K>, K: Copy> ProjectRegistry<D, K> {
         self.state.with(visual.thread, |s| {
             let Registration::Bound(bound) = s else { panic!("registered visual without an owner") };
             assert_eq!(bound.scene, scene.native, "visual belongs to its project's scene");
-            bound.callback(NativeObject::Visual(visual.native), event);
+            bound.callback(visual.native.address(), event);
         });
     }
     pub fn light_insert(&self, light: &ObjectLight<'_>) { self.light(light, PresentationEvent::Insert); }
@@ -347,7 +515,36 @@ impl<D: Presentation<K>, K: Copy> ProjectRegistry<D, K> {
     fn light(&self, light: &ObjectLight<'_>, event: impl FnOnce(Visibility) -> PresentationEvent) {
         self.state.with(light.thread, |s| {
             let Registration::Bound(bound) = s else { panic!("registered light without an owner") };
-            bound.callback(NativeObject::Light(light.native), event);
+            bound.callback(light.native.address(), event);
         });
     }
+    pub fn ambient_light_insert(&self, light: &ObjectAmbientLight<'_>) { self.ambient_light(light, PresentationEvent::Insert); }
+    pub fn ambient_light_remove(&self, light: &ObjectAmbientLight<'_>) { self.ambient_light(light, |_| PresentationEvent::Remove); }
+    fn ambient_light(&self, light: &ObjectAmbientLight<'_>, event: impl FnOnce(Visibility) -> PresentationEvent) {
+        self.state.with(light.thread, |s| {
+            let Registration::Bound(bound) = s else { panic!("registered ambient light without an owner") };
+            bound.callback(light.native.address(), event);
+        });
+    }
+    pub fn particle_insert(&self, particle: &ObjectParticleVisual<'_>) { self.particle(particle, PresentationEvent::Insert); }
+    pub fn particle_remove(&self, particle: &ObjectParticleVisual<'_>) { self.particle(particle, |_| PresentationEvent::Remove); }
+    fn particle(&self, particle: &ObjectParticleVisual<'_>, event: impl FnOnce(Visibility) -> PresentationEvent) {
+        self.state.with(particle.thread, |s| {
+            let Registration::Bound(bound) = s else { panic!("registered particle without an owner") };
+            bound.callback(particle.native.address(), event);
+        });
+    }
+    pub fn probe_insert(&self, probe: &ObjectEnvironmentProbe<'_>) { self.probe(probe, PresentationEvent::Insert); }
+    pub fn probe_remove(&self, probe: &ObjectEnvironmentProbe<'_>) { self.probe(probe, |_| PresentationEvent::Remove); }
+    fn probe(&self, probe: &ObjectEnvironmentProbe<'_>, event: impl FnOnce(Visibility) -> PresentationEvent) {
+        self.state.with(probe.thread, |s| {
+            let Registration::Bound(bound) = s else { panic!("registered probe without an owner") };
+            bound.callback(probe.native.address(), event);
+        });
+    }
+}
+
+#[cfg(test)]
+impl ProjectId {
+    pub fn for_test(address: u32) -> Self { Self(NonZeroU32::new(address).expect("a test id is not 0")) }
 }

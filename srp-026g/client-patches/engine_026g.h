@@ -9,28 +9,46 @@
 #define ENGINE_026G_H
 
 struct artefact;
+struct backend;
+struct bake_pair;
+struct bake_parameters_copy;
 struct baked_texture_resource;
+struct battery_clips;
+struct battery_state;
+struct bio;
+struct blackboard;
+struct booby_trap_core;
 struct bt_broadphase_proxy;
 struct bt_collision_object;
 struct bt_collision_shape;
 struct bt_transform;
+struct buffer_reader;
 struct buffer_string;
 struct buffer_writer;
 struct bullet;
 struct bullet_manager;
+struct bullet_manager_engine;
+struct bullet_owner;
 struct bullet_physics_world;
 struct camouflage_decal_texture_type_baker_cook;
 struct cc_bool;
+struct cc_delegate;
 struct cc_float;
 struct cc_string;
 struct closest_ray_result_callback;
 struct collision_geometry;
+struct constant_host;
 struct core_world;
 struct critical_section;
+struct d3d_device;
+struct dds_cursor;
 struct di_command_queue;
 struct drawable_image_context;
+struct effect_compiler;
 struct effect_presenter_holder;
 struct engine_cfg;
+struct fingers_corrector;
+struct fsm_predicate;
 struct game_allocator;
 struct game_effect;
 struct game_effect_list;
@@ -48,21 +66,36 @@ struct gfx_movie;
 struct gfx_object;
 struct gfx_object_interface;
 struct gfx_value;
+struct grenade_core;
+struct grenade_set;
 struct hit_object;
+struct hit_part;
+struct hit_receiver;
+struct hunt_cook;
+struct hunt_rule;
+struct hw_resource;
+struct immediate_context;
 struct inventory;
 struct inventory_recipe;
 struct item;
 struct item_entry;
 struct items_dictionary;
+struct key_binder;
 struct keyboard;
+struct kill_event;
 struct lobby_camera;
 struct lobby_character;
 struct lobby_client;
 struct lobby_menu;
+struct log_function;
+struct log_helper;
+struct managed_resource;
+struct match_hud_state;
 struct match_options;
 struct match_options_holder;
 struct match_packet;
 struct material_pair;
+struct medical_damage;
 struct medical_effect_resource;
 struct medical_pool;
 struct medical_pools;
@@ -71,12 +104,22 @@ struct messaging_client;
 struct movie_slot;
 struct network_client;
 struct new_sound_propagator;
+struct object_ambient_light;
+struct object_environment_probe;
 struct object_light;
+struct object_particle_visual;
+struct panning_lut;
 struct particle_slot;
+struct particle_system;
+struct particle_system_instance;
+struct pinned_resource;
 struct player;
 struct player_input_handler;
 struct player_params_modifiers_container;
 struct player_profile;
+struct player_respawn_rule_base;
+struct player_vector;
+struct predicate_buffer;
 struct pthreads3_allocator;
 struct pure_game_effect_emitter;
 struct queries_result;
@@ -88,14 +131,21 @@ struct ray_hits;
 struct ray_result;
 struct render_model_instance;
 struct render_notify;
+struct render_surface_instance;
 struct render_visual;
 struct res_texture;
 struct resource_manager;
 struct resource_request;
+struct respawn_point_core;
+struct respawn_point_vector;
+struct rule_query;
+struct save_descriptor;
 struct scene_model;
 struct scene_model_ref;
 struct scene_reference;
 struct scene_renderer;
+struct scroll_source;
+struct shared_string;
 struct simple_game_project;
 struct sound_emitter;
 struct sound_instance_proxy;
@@ -107,12 +157,25 @@ struct sound_world;
 struct static_collision;
 struct static_model_instance;
 struct statistics_listener;
+struct step_manager;
+struct submix_voice;
+struct swap_chain;
+struct system_renderer;
 struct text_translator;
+struct triangle_callback;
+struct ui_scroll_view;
+struct ui_text_edit;
+struct ui_text_edit_text;
 struct usable_list;
 struct usable_object;
 struct usable_user;
+struct victory_item_core;
+struct weapon;
 struct weapon_locator;
 struct world_user;
+
+/* 0x261100 survarium::options_item_int::options_item_int: parent ECX, id EAX, receiver ESP+4, command ESP+8, values ESP+12, count ESP+16; pops 16; EAX */
+void *engine_options_int(void *parent, unsigned int id, void *receiver, const char *command, const char *const *values, unsigned int count);
 
 /* 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX */
 const struct engine_cfg *engine_cfg_child(const struct engine_cfg *table, const char *key);
@@ -223,7 +286,7 @@ void engine_accept_decal_edit(void *character, unsigned int host, unsigned int d
 void engine_cc_bool(struct cc_bool *object, const char *name, unsigned char *value, unsigned int saved, unsigned int kind);
 
 /* 0x207d50 survarium::key_binder::get_binded_action: binder EAX, kinds EDI, key ESI, toggle ESP+4; pops 4; EAX */
-unsigned int engine_binded_action(const void *binder, unsigned int kinds, unsigned int key, unsigned int *toggle);
+unsigned int engine_binded_action(const struct key_binder *binder, unsigned int kinds, unsigned int key, unsigned int *toggle);
 
 /* 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly */
 unsigned char __attribute__((stdcall)) engine_action_present(struct player_input_handler *handler, unsigned int action, unsigned int *state);
@@ -239,6 +302,9 @@ extern unsigned int (__attribute__((stdcall)) *const engine_close_handle)(void *
 
 /* the IAT slot 0x87021c (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_delete_file_a)(const char * name);
+
+/* the IAT slot 0x870174 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_get_disk_free_space_ex_w)(const void * folder, void * free_for_caller, void * total, void * free);
 
 /* the IAT slot 0x870080 (an import, stdcall) */
 extern void * (__attribute__((stdcall)) *const engine_load_library_a)(const char * name);
@@ -278,6 +344,9 @@ struct match_options *engine_match_options(struct network_client *client);
 
 /* virtual survarium::base_network_client+0x50 (2 vtables of vtables.tsv: 0x26d6a0, 0x27a9c0): client ECX, out ESP+4, place ESP+8; pops 8; EAX */
 struct player **engine_active_player(struct network_client *client, struct player **out, unsigned int place);
+
+/* virtual survarium::bullet_manager_engine+0x24 (1 vtables of vtables.tsv: 0x1f7660): engine ECX, place ESP+4; pops 4; EAX */
+struct player *engine_bullet_player(struct bullet_manager_engine *engine, unsigned int place);
 
 /* the IAT slot 0x870158 (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_query_performance_counter)(unsigned int * count);
@@ -333,7 +402,7 @@ void __attribute__((thiscall)) engine_collision_remove(struct static_collision *
 /* 0x2de7f0 survarium::game_effect_player::stop: effects EDI; pops 0 */
 void engine_effects_stop(struct game_effect_list *effects);
 
-/* 0x2de090 survarium::game_effect_player::play: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20 */
+/* 0x2de090 survarium::game_effect_player::add: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20 */
 void engine_effect_play(struct game_effect_player *player, struct game_effect_slot *effect, unsigned int second, unsigned int third, unsigned int fourth, struct game_effect_listener *listener);
 
 /* 0x1f3740 survarium::player::set_effect_presenter: player ESI, holder EDI; pops 0 */
@@ -362,6 +431,24 @@ void __attribute__((thiscall)) engine_light_insert(struct object_light *light);
 
 /* 0x2917d0 survarium::object_light::remove: light ECX; pops 0; thiscall, called directly */
 void __attribute__((thiscall)) engine_light_remove(struct object_light *light);
+
+/* 0x290930 survarium::object_ambient_light::insert: light ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_ambient_light_insert(struct object_ambient_light *light);
+
+/* 0x290ae0 survarium::object_ambient_light::remove: light ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_ambient_light_remove(struct object_ambient_light *light);
+
+/* 0x292cc0 survarium::object_particle_visual::insert: particle ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_particle_insert(struct object_particle_visual *particle);
+
+/* 0x292dc0 survarium::object_particle_visual::remove: particle ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_particle_remove(struct object_particle_visual *particle);
+
+/* 0x28ffd0 survarium::object_environment_probe::insert: probe ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_probe_insert(struct object_environment_probe *probe);
+
+/* 0x2904a0 survarium::object_environment_probe::remove: probe ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_probe_remove(struct object_environment_probe *probe);
 
 /* 0x2fc680 survarium::inventory::remove_item: inventory ESI, slot EAX; pops 0 */
 void engine_inventory_remove(struct inventory *inventory, unsigned int slot);
@@ -615,6 +702,51 @@ extern unsigned int (__attribute__((stdcall)) *const engine_find_next_file_a)(vo
 /* the IAT slot 0x870228 (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_find_close)(void * find);
 
+/* 0x3d0f80 vostok::render::res_texture::map2D: texture ESI, pitch ESP+4, no_wait ESP+8; pops 8; EAX */
+void *engine_map2d(struct res_texture *texture, unsigned int *pitch, unsigned int no_wait);
+
+/* 0x3c0e00 vostok::render::resource_manager::copy2D: width EAX, height EDX, destination ESP+4, source ESP+8; pops 8 */
+void engine_copy2d(unsigned int width, unsigned int height, struct res_texture *destination, struct res_texture *source);
+
+/* 0x3bea70 vostok::render::resource_manager::create_texture2d: width EAX, manager ESP+4, name ESP+8, height ESP+12, initial ESP+16, format ESP+20, usage ESP+24, mips ESP+28, bind ESP+32; pops 32; EAX */
+struct res_texture *engine_create_texture2d(unsigned int width, struct resource_manager *manager, const char *name, unsigned int height, const void *initial, unsigned int format, unsigned int usage, unsigned int mips, unsigned int bind);
+
+/* 0x11f280 vostok::render::gpu_dxt_compressor::block_mip_count: blocks_wide EAX, blocks_high ECX; pops 0; EAX */
+unsigned int engine_block_mip_count(unsigned int blocks_wide, unsigned int blocks_high);
+
+/* 0x11f2f0 vostok::render::gpu_dxt_compressor::data_size: levels ECX, width EDX, height ESP+4, format ESP+8; pops 0; EAX */
+unsigned int engine_dxt_data_size(unsigned int levels, unsigned int width, unsigned int height, unsigned int format);
+
+/* 0x11f350 vostok::render::gpu_dxt_compressor::write_dds_header: output EAX, format ECX, width ESP+4, height ESP+8, linear_size ESP+12, normal ESP+16, levels ESP+20; pops 0 */
+void engine_write_dds_header(unsigned char *output, unsigned int format, unsigned int width, unsigned int height, unsigned int linear_size, unsigned int normal, unsigned int levels);
+
+/* 0x11f8b0 vostok::render::gpu_dxt_compressor::make_mips: width ECX, height EDX, renderer ESP+4, levels ESP+8, count ESP+12; pops 12 */
+void engine_make_mips(unsigned int width, unsigned int height, struct system_renderer *renderer, struct res_texture **levels, unsigned int count);
+
+/* 0x11f590 vostok::render::gpu_dxt_compressor::compress_mip: renderer ESP+4, levels ESP+8, cursor ESP+12, wide ESP+16, high ESP+20, level ESP+24, format ESP+28, normal ESP+32; pops 32; stdcall, called directly */
+void __attribute__((stdcall)) engine_compress_mip(struct system_renderer *renderer, struct res_texture **levels, struct dds_cursor *cursor, unsigned int wide, unsigned int high, unsigned int level, unsigned int format, unsigned int normal);
+
+/* 0x12ec40 vostok::render::camouflage_decal_texture_type_baker_cook::process_compression: extent EAX, cook ESP+4, query ESP+8, targets ESP+12, size ESP+16, surface ESP+20, parameters ESP+24, pair ESP+28, value ESP+32, kind ESP+36, draw_ms ESP+40; pops 40 */
+void engine_process_compression(const unsigned int *extent, struct camouflage_decal_texture_type_baker_cook *cook, struct query_result_for_cook *query, const void *targets, unsigned int size, struct render_surface_instance *surface, const struct bake_parameters_copy *parameters, const struct bake_pair *pair, unsigned int value, unsigned int kind, float draw_ms);
+
+/* 0x1c6a0 vostok::memory::mt_allocate: size ESI, allocator ESP+4; pops 0; EAX */
+unsigned char *engine_mt_allocate(unsigned int size, struct pthreads3_allocator *allocator);
+
+/* 0x1c410 vostok::memory::mt_free: memory ESP+4; pops 0; cdecl, called directly */
+void __attribute__((cdecl)) engine_mt_free_memory(unsigned char *memory);
+
+/* 0x109f30 vostok::resources::allocate_save_descriptor: physical ESP+4, virtual_path ESP+8; pops 0; EAX; cdecl, called directly */
+struct save_descriptor *__attribute__((cdecl)) engine_allocate_save_descriptor(const struct buffer_string *physical, const struct buffer_string *virtual_path);
+
+/* COM ID3D11DeviceContext+0x3c (stdcall through the interface's vtable): context ESP+4, resource ESP+8, subresource ESP+12; pops 12 */
+void engine_context_unmap(struct immediate_context *context, struct hw_resource *resource, unsigned int subresource);
+
+/* COM ID3D11DeviceContext+0x1bc (stdcall through the interface's vtable): context ESP+4; pops 4 */
+void engine_context_flush(struct immediate_context *context);
+
+/* COM IXAudio2Voice+0x30 (stdcall through the interface's vtable): voice ESP+4, volume ESP+8, operation_set ESP+12; pops 12; EAX */
+unsigned int engine_voice_set_volume(struct submix_voice *voice, float volume, unsigned int operation_set);
+
 /* 0x75b40 vostok::physics::closest_ray_result_callback::closest_ray_result_callback: callback EAX, from ESI, to EDX, group ESP+4, mask ESP+8, requester ESP+12; pops 12 */
 void engine_ray_callback(struct closest_ray_result_callback *callback, const float *from, const float *to, unsigned int group, unsigned int mask, struct bullet *requester);
 
@@ -627,6 +759,9 @@ void __attribute__((cdecl)) engine_ray_test_single(struct bt_transform *from, st
 /* 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly */
 unsigned char __attribute__((thiscall)) engine_key_name(struct keyboard *keyboard, unsigned int key, char *name, unsigned int size);
 
+/* 0x3b92d0 vostok::input::platform::keyboard::translate_text: keyboard ECX, key ESP+4, text ESP+8; pops 8; AL; thiscall, called directly */
+unsigned char __attribute__((thiscall)) engine_key_text(struct keyboard *keyboard, unsigned int key, unsigned short *text);
+
 /* the IAT slot 0xaeff20 (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_activate_keyboard_layout)(unsigned int layout, unsigned int flags);
 
@@ -638,6 +773,9 @@ extern unsigned int (__attribute__((stdcall)) *const engine_set_window_long_a)(v
 
 /* the IAT slot 0x87003c (an import, stdcall) */
 extern void * (__attribute__((stdcall)) *const engine_get_module_handle_a)(const char * name);
+
+/* 0x11b740 vostok::render::backend::reset: backend EDI; pops 0 */
+void engine_backend_reset(struct backend *backend);
 
 /* virtual survarium::match_client+0x18 (1 vtables of vtables.tsv: 0x279fe0): client ECX, id ESP+4; pops 4; EAX */
 struct match_packet *engine_match_packet_begin(struct match_options_holder *client, unsigned int id);
@@ -678,7 +816,7 @@ struct collision_geometry *engine_collision_geometry(struct game_object *object)
 /* 0x2dc390 survarium::collision_geometry::query_objects_by_type<survarium::usable_object>: result ESI, geometry ESP+4, cast ESP+8, offset ESP+12; pops 12 */
 void engine_query_usables(struct usable_list *result, struct collision_geometry *geometry, const void *cast, unsigned int offset);
 
-/* virtual survarium::usable_object+0x30 (10 vtables of vtables.tsv: 0x2f8080, 0x300710, 0x305070, 0x31c6b0, 0x31cb10): usable ECX, user ESP+4; pops 4; AL */
+/* virtual survarium::usable_object+0x30 (11 vtables of vtables.tsv: 0x2f8080, 0x300710, 0x305070, 0x31c6b0, 0x31cb10): usable ECX, user ESP+4; pops 4; AL */
 unsigned char engine_can_use(struct usable_object *usable, struct usable_user *user);
 
 /* virtual survarium::usable_object+0x44 (12 vtables of vtables.tsv: 0x246ed0, 0x2f8440): usable ECX, matrix ESP+4; pops 4 */
@@ -692,5 +830,296 @@ void __attribute__((stdcall)) engine_discard_playing_order(struct lobby_client *
 
 /* 0x2015a0 survarium::game_options::finish_binding: options EDI; pops 0 */
 void engine_finish_key_binding(struct game_options *options);
+
+/* 0x38ff0 vostok::math::sin: angle ESP+4; pops 0; ST0; cdecl, called directly */
+float __attribute__((cdecl)) engine_sin(float angle);
+
+/* 0x39000 vostok::math::cos: angle ESP+4; pops 0; ST0; cdecl, called directly */
+float __attribute__((cdecl)) engine_cos(float angle);
+
+/* 0x79c40 vostok::math::atan2: y ESP+4, x ESP+8; pops 0; ST0; cdecl, called directly */
+float __attribute__((cdecl)) engine_atan2(float y, float x);
+
+/* 0x44c630 BIO_read: bio ESP+4, room ESP+8, length ESP+12; pops 0; EAX; cdecl, called directly */
+unsigned int __attribute__((cdecl)) engine_bio_read(struct bio *bio, unsigned char *room, unsigned int length);
+
+/* 0x44c740 BIO_write: bio ESP+4, bytes ESP+8, length ESP+12; pops 0; EAX; cdecl, called directly */
+unsigned int __attribute__((cdecl)) engine_bio_write(struct bio *bio, const unsigned char *bytes, unsigned int length);
+
+/* 0x44a270 ERR_put_error: library ESP+4, function ESP+8, reason ESP+12, file ESP+16, line ESP+20; pops 0; cdecl, called directly */
+void __attribute__((cdecl)) engine_err_put_error(unsigned int library, unsigned int function, unsigned int reason, const char *file, unsigned int line);
+
+/* 0x46b6e0 ssleay_rand_bytes: room ESP+4, length ESP+8; pops 0; EAX; cdecl, called directly */
+unsigned int __attribute__((cdecl)) engine_rand_bytes(unsigned char *room, unsigned int length);
+
+/* 0xec780 vostok::console_commands::cc_delegate::cc_delegate: object EDI, name EDX, delegate ESP+4, status ESP+8, kind ESP+12; pops 12 */
+void engine_cc_delegate(struct cc_delegate *object, const char *name, const void *delegate, unsigned int status, unsigned int kind);
+
+/* 0xec830 vostok::console_commands::cc_delegate::execute: command ECX, arguments ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_cc_delegate_execute(struct cc_delegate *command, const char *arguments);
+
+/* 0x111c90 vostok::logging::helper::helper: function EAX, context ECX, helper ESP+4, template_helper ESP+8, file ESP+12, line ESP+16, caller ESP+20, channel ESP+24, level ESP+28; pops 28; EAX */
+struct log_helper *engine_log_helper(const struct log_function *function, unsigned int context, struct log_helper *helper, const struct log_helper *template_helper, const char *file, unsigned int line, const char *caller, const char *channel, unsigned int level);
+
+/* 0x111d10 vostok::logging::helper::write: helper ESI, format ESP+4, arguments ESP+8; pops 8 */
+void engine_log_write(struct log_helper *helper, const char *format, const void *arguments);
+
+/* 0x1dcd0 vostok::console_commands::cc_u32::cc_u32: object EAX, name ESP+4, value ESP+8, minimum ESP+12, maximum ESP+16, saved ESP+20, kind ESP+24; pops 24 */
+void engine_cc_u32(void *object, const char *name, unsigned int *value, unsigned int minimum, unsigned int maximum, unsigned int saved, unsigned int kind);
+
+/* 0x3cd300 vostok::render::render_cc_u32::execute: object ECX, arguments ESP+4; pops 4 */
+void engine_render_u32_execute(void *object, const char *arguments);
+
+/* the IAT slot 0xaeff30 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_message_box_a)(void * window, const char * text, const char * title, unsigned int flags);
+
+/* the IAT slot 0x87020c (an import, stdcall) */
+extern void (__attribute__((stdcall)) *const engine_exit_process)(unsigned int code);
+
+/* 0x2f4800 survarium::respawn_point_core::is_clear_for_team: point ESI, team ESP+4, players ESP+8; pops 8; AL */
+unsigned int engine_respawn_point_clear(const struct respawn_point_core *point, unsigned int team, const struct player_vector *players);
+
+/* 0x3174c0 vostok::buffer_vector<survarium::respawn_point_core *>::push_back: vector ESI, point ESP+4; pops 4 */
+void engine_respawn_points_push(struct respawn_point_vector *vector, struct respawn_point_core *const *point);
+
+/* 0x57d70 vostok::sound::sound_scene::calculate_3d_pan: scene ESP+4, table ESP+8, proxy ESP+12, position ESP+16, distance ESP+20, matrix ESP+24, coefficient ESP+28; pops 28 */
+void engine_sound_pan(struct sound_scene *scene, struct panning_lut *table, struct sound_instance_proxy *proxy, const float *position, float distance, float *matrix, float *coefficient);
+
+/* 0x57560 vostok::sound::sound_scene::get_listenet_position: scene EAX, out ESI; pops 0; EAX */
+float *engine_listener_position(struct sound_scene *scene, float *out);
+
+/* 0x338940 survarium::victory_item_core_take_state::victory_item_core_take_state: room ESI, battery ESP+4, clips ESP+8, time ESP+12; pops 12; EAX */
+struct battery_state *engine_battery_take_state(void *room, struct victory_item_core *battery, const struct battery_clips *clips, float time);
+
+/* 0x338be0 survarium::victory_item_core_carry_state::victory_item_core_carry_state: battery EAX, room ESP+4, clips ESP+8; pops 8; EAX */
+struct battery_state *engine_battery_carry_state(struct victory_item_core *battery, void *room, const struct battery_clips *clips);
+
+/* 0x38c970 vostok::ai::fsm::append_transition: source ESP+4, destination ESP+8, predicate ESP+12; pops 12; stdcall, called directly */
+void __attribute__((stdcall)) engine_fsm_append_transition(struct battery_state *source, struct battery_state *destination, const struct fsm_predicate *predicate);
+
+/* 0x322830 survarium::bullet_manager::emit_bullet: gun EDI, manager ESP+4, point ESP+8, velocity ESP+12, data ESP+16, time ESP+20, owner ESP+24, second ESP+28, unused ESP+32; pops 32; EAX */
+struct bullet *engine_emit_bullet(struct weapon *gun, struct bullet_manager *manager, const float *point, const float *velocity, const void *data, unsigned int time, struct bullet_owner *owner, void *second, unsigned int unused);
+
+/* 0x3447f0 survarium::victory_item_core_animation_end_aware_state::finalize: state ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_battery_state_finalize(struct battery_state *state);
+
+/* 0x372420 survarium::weapon_core_throw_grenade_base_substate::is_ready_for_transition: buffer ESP+4; pops 0; AL; cdecl, called directly */
+unsigned char __attribute__((cdecl)) engine_fsm_always(const struct predicate_buffer *buffer);
+
+/* 0x397c20 survarium::victory_item_core_take_state::is_ready_to_be_deactivated [descriptive]: state ECX; pops 0; AL; thiscall, called directly */
+unsigned char __attribute__((thiscall)) engine_take_deactivatable(struct battery_state *state);
+
+/* the IAT slot 0x87005c (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_get_last_error)(void);
+
+/* COM IDXGISwapChain+0x24 (stdcall through the interface's vtable): chain ESP+4, buffer ESP+8, iid ESP+12, surface ESP+16; pops 16; EAX */
+unsigned int engine_swap_chain_get_buffer(struct swap_chain *chain, unsigned int buffer, const void *iid, struct hw_resource **surface);
+
+/* COM ID3D11Texture2D+0x28 (stdcall through the interface's vtable): texture ESP+4, desc ESP+8; pops 8 */
+void engine_texture2d_get_desc(struct hw_resource *texture, void *desc);
+
+/* COM ID3D11DeviceChild+0xc (stdcall through the interface's vtable): child ESP+4, device ESP+8; pops 8 */
+void engine_device_child_get_device(struct hw_resource *child, struct d3d_device **device);
+
+/* COM ID3D11Device+0x14 (stdcall through the interface's vtable): device ESP+4, desc ESP+8, initial ESP+12, texture ESP+16; pops 16; EAX */
+unsigned int engine_device_create_texture2d(struct d3d_device *device, const void *desc, const void *initial, struct hw_resource **texture);
+
+/* COM ID3D11DeviceContext+0xbc (stdcall through the interface's vtable): context ESP+4, destination ESP+8, source ESP+12; pops 12 */
+void engine_context_copy_resource(struct immediate_context *context, struct hw_resource *destination, struct hw_resource *source);
+
+/* COM ID3D11DeviceContext+0x38 (stdcall through the interface's vtable): context ESP+4, resource ESP+8, subresource ESP+12, map_type ESP+16, flags ESP+20, mapped ESP+24; pops 24; EAX */
+unsigned int engine_context_map(struct immediate_context *context, struct hw_resource *resource, unsigned int subresource, unsigned int map_type, unsigned int flags, void *mapped);
+
+/* COM IUnknown+0x8 (stdcall through the interface's vtable): resource ESP+4; pops 4; EAX */
+unsigned int engine_d3d_resource_release(struct hw_resource *resource);
+
+/* COM IUnknown+0x8 (stdcall through the interface's vtable): device ESP+4; pops 4; EAX */
+unsigned int engine_d3d_device_release(struct d3d_device *device);
+
+/* 0x248ad0 survarium::step_manager::on_step: manager ECX, position EAX, direction ESP+4, foot_material ESP+8, view ESP+12; pops 12 */
+void engine_on_step(struct step_manager *manager, const float *position, const float *direction, unsigned int foot_material, unsigned int view);
+
+/* virtual survarium::game_world+0x34 (1 vtables of vtables.tsv: 0x1f63e0): world ECX; pops 0; EAX */
+struct step_manager *engine_step_manager(struct game_world *world);
+
+/* virtual vostok::physics::base_physics_object+0x10 (2 vtables of vtables.tsv: 0x3570a0): object ECX, triangle ESP+4, compound ESP+8; pops 8; AX */
+unsigned short engine_triangle_material(struct hit_object *object, unsigned int triangle, unsigned int compound);
+
+/* 0x1f3bd0 survarium::player::is_first_view: player ECX; pops 0; AL */
+unsigned int engine_is_first_view(struct player *player);
+
+/* 0x11cd10 vostok::render::system_renderer::draw_lines: vertex_end EAX, renderer ESP+4, vertex_begin ESP+8, index_begin ESP+12, index_end ESP+16, technique ESP+20; pops 20 */
+void engine_draw_lines(const void *vertex_end, struct system_renderer *renderer, const void *vertex_begin, const unsigned short *index_begin, const unsigned short *index_end, unsigned int technique);
+
+/* 0xa8660 btBvhTriangleMeshShape::processAllTriangles: shape ECX, callback ESP+4, aabb_min ESP+8, aabb_max ESP+12; pops 12 */
+void engine_process_all_triangles(struct bt_collision_shape *shape, struct triangle_callback *callback, const float *aabb_min, const float *aabb_max);
+
+/* 0xc5600 btConvexTriangleCallback::processTriangle: callback ECX, triangle ESP+4, part ESP+8, index ESP+12; pops 12; thiscall, called directly */
+void __attribute__((thiscall)) engine_triangle_process(struct triangle_callback *callback, const float *triangle, unsigned int part, unsigned int index);
+
+/* 0x349c60 vostok::ui::ui_scroll_view::set_follow_last_line: view ECX, follow ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_scroll_view_set_follow(struct ui_scroll_view *view, unsigned int follow);
+
+/* 0x349ca0 vostok::ui::ui_scroll_v_source::set_position: source ECX, position ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_scroll_set_position(struct scroll_source *source, float position);
+
+/* 0x11e370 vostok::render::system_renderer::draw_triangles: renderer ESP+4, vertex_begin ESP+8, vertex_end ESP+12, index_begin ESP+16, index_end ESP+20, override_flag ESP+24; pops 24 */
+void engine_draw_triangles(struct system_renderer *renderer, const void *vertex_begin, const void *vertex_end, const unsigned short *index_begin, const unsigned short *index_end, unsigned int override_flag);
+
+/* 0x3479d0 vostok::ui::ui_text_edit::set_text: part ECX, text ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_text_edit_set_text(struct ui_text_edit_text *part, const char *text);
+
+/* 0x3488a0 vostok::ui::ui_text_edit::set_caret_position: edit ECX, position ESP+4, select ESP+8; pops 8; thiscall, called directly */
+void __attribute__((thiscall)) engine_text_edit_set_caret(struct ui_text_edit *edit, unsigned int position, unsigned int select);
+
+/* 0x3486a0 vostok::ui::ui_text_edit's delete of the selection: edit ESI; pops 0 */
+void engine_text_edit_delete_selection(struct ui_text_edit *edit);
+
+/* the IAT slot 0xaefedc (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_open_clipboard)(void * window);
+
+/* the IAT slot 0xaefed8 (an import, stdcall) */
+extern void * (__attribute__((stdcall)) *const engine_get_clipboard_data)(unsigned int format);
+
+/* the IAT slot 0xaefed4 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_close_clipboard)(void);
+
+/* the IAT slot 0x870078 (an import, stdcall) */
+extern void * (__attribute__((stdcall)) *const engine_global_lock)(void * memory);
+
+/* the IAT slot 0x87007c (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_global_unlock)(void * memory);
+
+/* 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly */
+void __attribute__((stdcall)) engine_set_texture(struct effect_compiler *compiler, const char *slot, const char *texture, unsigned int option, unsigned int request, unsigned int lower, float lower_float, unsigned int flag);
+
+/* 0x305210 survarium::booby_trap_core::switch_to_state: trap ECX, state ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_trap_switch_state(struct booby_trap_core *trap, unsigned int state);
+
+/* 0x304e20 survarium::booby_trap_core::insert_collision: trap ESI; pops 0 */
+void engine_trap_insert_collision(struct booby_trap_core *trap);
+
+/* 0x304f00 survarium::booby_trap_core::remove: trap ESI; pops 0 */
+void engine_trap_remove(struct booby_trap_core *trap);
+
+/* 0x25b940 survarium::game_world::play_sound: world ECX, slot ESP+4, position ESP+8; pops 8; thiscall, called directly */
+void __attribute__((thiscall)) engine_world_play_sound(struct game_world *world, const unsigned int *slot, const float *position);
+
+/* virtual survarium::grenade_core+0x1c (2 vtables of vtables.tsv: 0x248600, 0x303d50): grenade ECX; pops 0 */
+void engine_grenade_remove(struct grenade_core *grenade);
+
+/* virtual survarium::grenade_core+0x18 (2 vtables of vtables.tsv: 0x248520, 0x303c10): grenade ECX, transform ESP+4, velocity ESP+8; pops 8 */
+void engine_grenade_throw(struct grenade_core *grenade, const float *transform, const float *velocity);
+
+/* 0x1f8070 survarium::game_world::select_profile: world EDI, value ESP+4; pops 4 */
+void engine_select_profile(struct game_world *world, unsigned int value);
+
+/* 0x30a120 survarium::grenade_set_core::pull_pin: set ESP+4, now ESP+8; pops 8; AL; stdcall, called directly */
+unsigned char __attribute__((stdcall)) engine_pull_pin(struct grenade_set *set, unsigned int now);
+
+/* 0x2d9ae0 survarium::base_player::hit: receiver ECX, time ESP+4, attacker ESP+8, bodypart ESP+12, kind ESP+16, damage ESP+20, piercing ESP+24, initiator ESP+28, item ESP+32; pops 32; thiscall, called directly */
+void __attribute__((thiscall)) engine_player_hit(struct hit_receiver *receiver, unsigned int time, const struct bullet_owner *attacker, const struct hit_part *bodypart, unsigned int kind, float damage, float piercing, const void *initiator, struct item *item);
+
+/* 0xe0210 vostok::render::render_model_instance::destroy: instance ECX, count EAX; pops 0 */
+void engine_release_particle(struct particle_system_instance *instance, unsigned int *count);
+
+/* 0x390620 vostok::animation::fingers_to_weapon_corrector::set_weapon_model: corrector ESP+4, instance ESP+8, first_view ESP+12; pops 12; stdcall, called directly */
+void __attribute__((stdcall)) engine_fingers_set_weapon_model(struct fingers_corrector *corrector, unsigned int instance, unsigned int first_view);
+
+/* 0x3dd990 vostok::resources::pinned_ptr_const<unsigned char>::pinned_ptr_const [descriptive]: pinned EAX, resource ESP+4; pops 4 */
+void engine_pin_resource(struct pinned_resource *pinned, struct managed_resource *resource);
+
+/* 0x3c1020 vostok::resources::pinned_ptr_const<unsigned char>::~pinned_ptr_const [descriptive]: pinned ECX; pops 0 */
+void engine_unpin_resource(struct pinned_resource *pinned);
+
+/* 0x1a8900 vostok::render::effect_compiler::set_constant_float4: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly */
+void __attribute__((thiscall)) engine_set_constant_float4(const float *value, struct effect_compiler *compiler, const char *name);
+
+/* 0x1d9740 vostok::render::effect_compiler::set_constant_float2: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly */
+void __attribute__((thiscall)) engine_set_constant_float2(const float *value, struct effect_compiler *compiler, const char *name);
+
+/* 0xe0b50 vostok::shared_string::create: text ESP+4; pops 4; EAX; stdcall, called directly */
+struct shared_string *__attribute__((stdcall)) engine_shared_string_create(const char *text);
+
+/* 0xe0ae0 vostok::shared_string::destroy: string ESP+4; pops 4; stdcall, called directly */
+void __attribute__((stdcall)) engine_shared_string_destroy(struct shared_string *string);
+
+/* 0x11170 vostok::intrusive_ptr<shared_string>::assign: holder EDI, string EAX; pops 0 */
+void engine_shared_string_assign(struct shared_string **holder, struct shared_string *string);
+
+/* 0x3c8bc0 vostok::render::backend::register_constant_host: backend EAX, name ESP+4, auxiliary ESP+8; pops 8; EAX */
+struct constant_host *engine_register_constant_host(struct backend *backend, struct shared_string **name, unsigned int auxiliary);
+
+/* 0x132a90 vostok::render::backend::set_ps_constant: host EAX, backend EDI, value ESP+4; pops 4 */
+void engine_set_ps_constant(struct constant_host *host, struct backend *backend, const float *value);
+
+/* 0x2e5290 survarium::damage_model::reset: receiver EDI, time ESP+4; pops 4 */
+void engine_freeze_reset_health(struct medical_damage *receiver, unsigned int time);
+
+/* 0x1f8190 survarium::game_world::switch_to_warmup_camera: world EDX; pops 0 */
+void engine_switch_to_warmup_camera(struct game_world *world);
+
+/* 0x1f8200 survarium::game_world::switch_to_player_camera: world EAX, first_person ESP+4; pops 4 */
+void engine_switch_to_player_camera(struct game_world *world, unsigned char first_person);
+
+/* 0x22660 vostok::render::scene_renderer::play_particle_system: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20, first_attachment ESP+24, second_attachment ESP+28; pops 28; stdcall, called directly */
+void __attribute__((stdcall)) engine_play_particle_system(struct scene_renderer *renderer, struct scene_reference *scene, struct particle_system *particle, const float *first_matrix, const float *second_matrix, const unsigned int *first_attachment, const unsigned int *second_attachment);
+
+/* 0x229d0 vostok::render::scene_renderer::remove_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12; pops 12; stdcall, called directly */
+void __attribute__((stdcall)) engine_remove_particle_system(struct scene_renderer *renderer, struct scene_reference *scene, struct particle_system *const *particle);
+
+/* 0x22b30 vostok::render::scene_renderer::update_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20; pops 20; stdcall, called directly */
+void __attribute__((stdcall)) engine_update_particle_system(struct scene_renderer *renderer, struct scene_reference *scene, struct particle_system *const *particle, const float *first_matrix, const float *second_matrix);
+
+/* 0x2063f0 survarium::tdm_rule_cook::create_resource: cook ECX, query ESP+4; pops 4; EAX; thiscall, called directly */
+unsigned int __attribute__((thiscall)) engine_tdm_cook_create(struct hunt_cook *cook, struct rule_query *query);
+
+/* 0x2063e0 survarium::tdm_rule_cook::resource_size: cook ECX; pops 0; EAX; thiscall, called directly */
+unsigned int __attribute__((thiscall)) engine_tdm_cook_size(struct hunt_cook *cook);
+
+/* 0x316090 survarium::tdm_rule_core::on_event: rule ECX, type ESP+4, data ESP+8, time ESP+12; pops 12; thiscall, called directly */
+void __attribute__((thiscall)) engine_tdm_rule_on_event(struct hunt_rule *rule, unsigned int type, const struct kill_event *data, unsigned int time);
+
+/* 0x316590 survarium::tdm_rule_core::on_player_entered_match: rule ECX, place ESP+4, time ESP+8; pops 8; thiscall, called directly */
+void __attribute__((thiscall)) engine_tdm_rule_entered(struct hunt_rule *rule, unsigned int place, unsigned int time);
+
+/* 0x3165d0 survarium::tdm_rule_core::on_player_left_match: rule ECX, place ESP+4, time ESP+8; pops 8; thiscall, called directly */
+void __attribute__((thiscall)) engine_tdm_rule_left(struct hunt_rule *rule, unsigned int place, unsigned int time);
+
+/* 0x267810 survarium::tdm_rule::set_game_world_core [descriptive]: rule ECX, core ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_tdm_rule_set_core(struct hunt_rule *rule, struct core_world *core);
+
+/* 0x316340 survarium::tdm_rule_core::serialize: rule ECX, writer ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_tdm_rule_serialize(struct hunt_rule *rule, struct buffer_writer *writer);
+
+/* 0x3163d0 survarium::tdm_rule_core::deserialize: rule ECX, reader ESP+4, unused ESP+8; pops 8; thiscall, called directly */
+void __attribute__((thiscall)) engine_tdm_rule_deserialize(struct hunt_rule *rule, struct buffer_reader *reader, unsigned int unused);
+
+/* 0x316430 survarium::tdm_rule_core::fill_match_hud_state: rule ECX, hud ESP+4, time ESP+8; pops 8; thiscall, called directly */
+void __attribute__((thiscall)) engine_tdm_rule_fill_hud(struct hunt_rule *rule, struct match_hud_state *hud, unsigned int time);
+
+/* 0x316520 survarium::tdm_rule_core::rule_completed: rule ECX, time ESP+4; pops 4; AL; thiscall, called directly */
+unsigned char __attribute__((thiscall)) engine_tdm_rule_completed(struct hunt_rule *rule, unsigned int time);
+
+/* 0x317f10 survarium::timelimit_rule_core::tick: rule ECX, dt ESP+4, time ESP+8, step ESP+12; pops 12; thiscall, called directly */
+void __attribute__((thiscall)) engine_timelimit_tick(struct hunt_rule *rule, unsigned int dt, unsigned int time, unsigned int step);
+
+/* 0x316630 survarium::blackboard::set<bool> [descriptive]: index EAX, blackboard ESP+4, value ESP+8; pops 8 */
+void engine_blackboard_set_bool(unsigned int index, struct blackboard *blackboard, const unsigned char *value);
+
+/* 0x102d10 vostok::resources::register_cook: cook EDI; pops 0 */
+void engine_register_hunt_cook(struct hunt_cook *cook);
+
+/* 0x313900 survarium::game_match_rule_base::game_match_rule_base: rule EAX, type ESP+4; pops 4; EAX */
+struct hunt_rule *engine_hunt_rule_base(void *rule, unsigned int type);
+
+/* 0x1f2870 survarium::player::remove: player ECX, flag ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_player_remove(struct player *player, unsigned int flag);
+
+/* 0x316da0 survarium::player_respawn_rule_base::spawn_player: rule ECX, place ESP+4, point ESP+8, time ESP+12; pops 12; thiscall, called directly */
+void __attribute__((thiscall)) engine_spawn_player(struct player_respawn_rule_base *rule, unsigned int place, const unsigned int *point, unsigned int time);
+
+/* 0x23bea0 survarium::game_world_ui::set_hud_icon_type: ui ESP+4, id ESP+8, type ESP+12; pops 12 */
+void engine_set_hud_icon_type(struct game_world_ui *ui, unsigned int id, unsigned int type);
 
 #endif

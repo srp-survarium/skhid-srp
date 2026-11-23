@@ -69,22 +69,26 @@ impl FileTime {
                 && (raw::engine_file_time_to_system_time)(local.as_ptr(), parts.as_mut_ptr()) != 0
         };
         done.then(|| LocalTime {
+            year: parts[0] as u16,
             month: (parts[0] >> 16) as u8,
             day: (parts[1] >> 16) as u8,
             hour: parts[2] as u8,
             minute: (parts[2] >> 16) as u8,
+            second: parts[3] as u8,
         })
     }
 }
 
-/// A wall-clock moment as the player's machine shows it, to the minute (the
-/// year left out: what a ban's end needs).
+/// A wall-clock moment as the player's machine shows it, to the second (a
+/// ban's end shows its minute, a run's logs are named by its second).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LocalTime {
+    pub year: u16,
     pub month: u8,
     pub day: u8,
     pub hour: u8,
     pub minute: u8,
+    pub second: u8,
 }
 
 /// `n / d` by shifts and subtractions: the arena links no `__udivdi3`.

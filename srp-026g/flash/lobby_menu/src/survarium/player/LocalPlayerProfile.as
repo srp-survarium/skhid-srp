@@ -1,5 +1,6 @@
 package survarium.player
 {
+   import survarium.constants.QuickSlotSize;
    import fl.transitions.easing.Strong;
    import flash.display.DisplayObject;
    import flash.display.DisplayObjectContainer;
@@ -16,6 +17,7 @@ package survarium.player
    import flash.utils.Timer;
    import flash.utils.getTimer;
    import scaleform.clik.controls.Button;
+   import scaleform.clik.core.UIComponent;
    import scaleform.clik.data.DataProvider;
    import scaleform.clik.events.ButtonEvent;
    import scaleform.clik.events.ComponentEvent;
@@ -25,7 +27,6 @@ package survarium.player
    import survarium.Util;
    import survarium.controls.Message;
    import survarium.controls.Transient;
-   import survarium.controls.UnfocusedCheckBox;
    import survarium.controls.PlayerProfileBase;
    import survarium.controls.PlayerInfo;
    import survarium.data.ItemData;
@@ -54,11 +55,14 @@ package survarium.player
       
       public var glassSprite:MovieClip;
       
+      // The Autobuy and auto-repair boxes: both gone (no wear since
+      // 2026-10-23; autobuy always on, with no setting, since 2026-11-10:
+      // the owner).
+      // The original movie's graphics still place them at the start of
+      // the weight's row, so their fields stay and init hides them; the
+      // regeneration's box has their place (WeightIndicator).
       public var checkbox_autobuy:Button;
       
-      // The auto-repair box: wear is gone, so it did nothing (the owner's
-      // of 2026-10-23). The original movie's graphics place it beside
-      // Autobuy; init hides it and moves Autobuy into its place.
       public var checkbox_autorepair:Button;
       
       public var ammoContainer:MovieClip;
@@ -104,6 +108,17 @@ package survarium.player
       private static const PRESETS_LAST:int = PRESETS_FIRST + 99;
       
       private static const PRESET_CHOOSE:int = PRESETS_FIRST + 10;
+
+      // A kit's perk slot taken or declined (+ kit x 10 + perk x 2 + state), and the list's row
+      // of them.
+      private static const PERK_BASE:int = PRESETS_FIRST + 20;
+
+      private static const PERKS_ROW:String = "K;";
+
+      // What the list's header says of a perk switch it answers: set, refused.
+      private static const PERK_SET:int = 3;
+
+      private static const PERK_REFUSED:int = 4;
       
       private static const PRESET_COUNT:int = 5;
       
@@ -208,6 +223,15 @@ package survarium.player
       // Item id -> the presets that use it (bit n - 1: preset n), as the
       // server last said.
       private var _presetUses:Object = {};
+
+      // The `K` row: [kit id, [PerkSlotMark state a perk]] a kit, the account's kits in order.
+      private var _perks:Array = [];
+
+      // A perk switch of the kit shown, while srp answers it: the kit's account held until its
+      // answer, both drawn at once (PerkSwitch).
+      private var _perkSwitch:PerkSwitch;
+
+      private var _perkWait:Timer;
       
       // The U rows the uses came from, to tell a change.
       private var _presetUsesRows:String = "";
@@ -275,6 +299,15 @@ package survarium.player
          return this._relocateFunctionRef;
       }
       
+      // Asks the game for `moves` (each made by Relocation.move). The way to ask: Scaleform throws
+      // "is not a function" when the getter _relocateFunction is called in place on a variable of
+      // this class, and a drop handler that throws leaves its drag on the cursor.
+      public function relocate(moves:Array) : void
+      {
+         var ask:Function = this._relocateFunctionRef;
+         ask(moves);
+      }
+
       public function get paperDoll() : ILocalPaperDoll
       {
          return this._playerPaperDoll;
@@ -304,6 +337,11 @@ package survarium.player
             for(var j:uint = 0; j < l; j++)
             {
                var itemData:ItemData = equippedItems[j];
+               // a booster and a medicine share a category and nothing else: not compared
+               if((itemData.quickSlotItemSize == QuickSlotSize.WHOLE) != (value.quickSlotItemSize == QuickSlotSize.WHOLE))
+               {
+                  continue;
+               }
                if(itemData.category == value.category || itemData.isWeapon && value.isWeapon && itemData.oneHanded == value.oneHanded)
                {
                   if(itemData.itemId == value.itemId)
@@ -361,8 +399,9 @@ package survarium.player
          _weightC = cur;
          _weightM = max;
          _weightEffects = effects;
-         if(_weightIndicator == null) _weightIndicator = new WeightIndicator(playerWeight);
-         _weightIndicator.update(cur,max,withKitItems(effects));
+         // The row's boxes start as far from the panel's left side as the weight's ends from its right.
+         if(_weightIndicator == null) _weightIndicator = new WeightIndicator(playerWeight,width - KitStatIndicator.boxOf(playerWeight).right);
+         showWeight();
          this._playerPaperDoll.ammoControl.update(null,"player_profile");
       }
       
@@ -372,6 +411,12 @@ package survarium.player
       public function setKitModifiers(kit:KitModifiers) : void
       {
          _kitModifiers = kit;
+      }
+
+      // A technical skill's rank in the selected kit (0 before the exe sends the kit's modifiers).
+      public static function technicalRank(skill:int) : int
+      {
+         return me == null || me._kitModifiers == null ? 0 : me._kitModifiers.technicalRank(skill);
       }
 
       // What a match adds to a weapon's stats in the selected kit: its skills and its armour.
@@ -433,11 +478,6 @@ package survarium.player
          }
       }
       
-      public function fillAutoBuyItems(value:Array) : void
-      {
-         this._playerPaperDoll.ammoControl.fillItems(value);
-      }
-      
       public function fillEquippedItems() : void
       {
          var equippedItems:DataProvider = profileItems.dataProvider as DataProvider;
@@ -488,17 +528,26 @@ package survarium.player
             trace("invalidateOnEquipped");
             equippedItems.invalidate();
          }
-         // A bonus rerolled or repaired changes the speed without a weight callback.
-         if(_weightIndicator != null) _weightIndicator.update(_weightC,_weightM,withKitItems(_weightEffects));
+         // A bonus rerolled changes the speed and the regeneration without a weight callback.
+         if(_weightIndicator != null) showWeight();
+      }
+      
+      // The weight row with the kit as it is: the weight, the speed and the regeneration, each
+      // with what the kit's items add. The regeneration needs the kit's own modifiers (the skills).
+      private function showWeight() : void
+      {
+         var kit:KitItems = kitItems();
+         _weightIndicator.update(_weightC,_weightM,_weightEffects == null ? null : _weightEffects.withItems(kit),
+            _kitModifiers == null ? null : RegenerationExplanation.of(_kitModifiers,kit));
       }
       
       // What each of the kit's items adds (KitItems): the armour's and the pockets'
-      // movement (prop 105) and carry limit (prop 106) from their modifications
-      // (built-in, rolled, defects), one entry an item by its displayed name, and the
-      // first weapon's own movement parameter (the weapon in hand).
-      private function withKitItems(effects:WeightEffects) : WeightEffects
+      // movement (prop 105), carry limit (prop 106), energy costs (prop 116) and health and
+      // stamina regeneration (props 103, 104) from their modifications (built-in, rolled,
+      // defects), one entry an item by its displayed name, and the first weapon's own
+      // movement parameter (the weapon in hand).
+      private function kitItems() : KitItems
       {
-         if(effects == null) return effects;
          var items:DataProvider = profileItems.dataProvider as DataProvider;
          var kit:KitItems = new KitItems();
          for(var i:uint = 0; items != null && i < items.length; i++)
@@ -515,6 +564,8 @@ package survarium.player
                if(propOf(item,105) != 0) kit.speed.push({name:item.name,value:propOf(item,105),category:group,slot:item.slotId});
                if(propOf(item,106) != 0) kit.limit.push({name:item.name,value:propOf(item,106),category:group,slot:item.slotId});
                if(propOf(item,116) != 0) kit.stamina.push({name:item.name,value:propOf(item,116),category:group,slot:item.slotId});
+               if(propOf(item,103) != 0) kit.regeneration.push({name:item.name,value:propOf(item,103),category:group,slot:item.slotId});
+               if(propOf(item,104) != 0) kit.staminaRegeneration.push({name:item.name,value:propOf(item,104),category:group,slot:item.slotId});
             }
             else if(item.slotId == ProfileSlot.WEAPON_1 && propOf(item,105) != 0)
                kit.weapon = {name:item.name,value:propOf(item,105),category:item.category,killIcon:killIconOf(item)};
@@ -523,11 +574,13 @@ package survarium.player
          kit.speed.sortOn("slot",Array.NUMERIC);
          kit.limit.sortOn("slot",Array.NUMERIC);
          kit.stamina.sortOn("slot",Array.NUMERIC);
-         return effects.withItems(kit);
+         kit.regeneration.sortOn("slot",Array.NUMERIC);
+         kit.staminaRegeneration.sortOn("slot",Array.NUMERIC);
+         return kit;
       }
       
       // The sum of a property over the item's modifications (built-in, rolled, defects):
-      // 105 movement speed, 106 carry limit (kg).
+      // 105 movement speed, 106 carry limit (kg), 103 health and 104 stamina regeneration.
       // A weapon's kill feed icon (ui_desc/combat_log_icon, property 161: weapon-kill-icon-ui-1), or -1.
       private static function killIconOf(item:ItemData) : int
       {
@@ -610,7 +663,14 @@ package survarium.player
          return this._playerInventory.getInventoryItem(value.itemId);
       }
       
+      // The exe's account of the kit shown: drawn now, or held while a perk switch of that kit is
+      // asked (PerkSwitch), to be drawn with its answer.
       override public function fillProfileItems(data:Object) : void
+      {
+         this.perkStep(PerkSwitch.FILL,data);
+      }
+
+      private function drawProfileItems(data:Object) : void
       {
          trace("fillProfileItems",data.items.length);
          var oldData:DataProvider = profileItems.dataProvider as DataProvider;
@@ -656,7 +716,6 @@ package survarium.player
          this.ammoContainer.tx_total_label.text = LocalizationData.getName("equipment_cost");
          this.btnShowAmmo.label = LocalizationData.getName("show_ammo");
          this.showPresetTitle();
-         this.checkbox_autobuy.tipData = {name:LocalizationData.getName("auto_button_hint")};
       }
       
       override protected function init(e:Event) : void
@@ -667,19 +726,11 @@ package survarium.player
          LocalizationData.addCallback(this.onLocal,"equipment_weight");
          LocalizationData.addButton(this.ammoContainer.btn_cancel,"cancel");
          LocalizationData.addButton(this.ammoContainer.btn_apply,"refill_ammo_btn");
-         LocalizationData.addButton(this.checkbox_autobuy,"autobuy_button_label");
-         this.checkbox_autobuy.tooltipRendererName = "SrvProfileTipRendererStyled";
          // The total in gold and its plus: there is no gold (the owner, 2026-11-08).
          this.ammoContainer.labelCostP.visible = this.ammoContainer.plusSprite.visible = false;
-         // The auto-repair box is gone (see its declaration): Autobuy takes
-         // its place at the row's start, no gap left.
-         this.checkbox_autorepair.visible = false;
-         this.checkbox_autobuy.x = this.checkbox_autorepair.x;
-         // Its label as long as its text; the row has room up to the speed and weight.
-         (this.checkbox_autobuy as UnfocusedCheckBox).fitLabel();
-         this.checkbox_autobuy.addEventListener(ButtonEvent.CLICK,this.onAutoBuy);
+         // The two boxes are gone (see their declaration).
+         this.checkbox_autorepair.visible = this.checkbox_autobuy.visible = false;
          trace("PlayerProfileInit2",this._ammo_share,this.ammoContainer,this.ammoContainer.labelCostR,this.ammoContainer.labelCostP,this.btnShowAmmo);
-         this._ammo_share.autoBuyCheckBox = this.checkbox_autobuy;
          this.ammoContainer.addChildAt(this._ammo_share as DisplayObject,4);
          this._ammo_share.x = 10;
          this._ammo_share.y = 10;
@@ -692,15 +743,6 @@ package survarium.player
          this.ammoContainer.shift = -575;
          this.ammoContainer.addEventListener(Event.CLOSE,this.onAmmoButtonSwitch);
          this.makePresets();
-      }
-      
-      private function onAutoBuy(e:Event) : void
-      {
-         // 0x288CD0 reads the first byte of the GFx value's union, without
-         // converting a Number to an integer. Send the Boolean itself:
-         // true has byte 1; the double representation of 1 has byte 0.
-         // The auto-repair control is gone, so only the autobuy bit is sent.
-         ExternalInterface.call("autobuy_changed",this.checkbox_autobuy.selected);
       }
       
       private function onAmmoButtonSwitch(e:Event) : void
@@ -861,7 +903,7 @@ package survarium.player
       }
       
       // A tip over a greyed button (a disabled one takes no hover): the
-      // game's tooltip (as Autobuy's), nested a Sprite deeper (a control
+      // game's tooltip, nested a Sprite deeper (a control
       // straight in a content Sprite may lose its mouse events to it). The
       // caller removes it with the holder.
       public static function reasonTip(parent:DisplayObjectContainer, x:Number, y:Number, w:Number, h:Number) : Sprite
@@ -918,6 +960,12 @@ package survarium.player
          return false;
       }
       
+      // InventoryList.duplicates: a loadout uses `itemId` (the sale's question's rows).
+      public static function inLoadout(itemId:uint) : Boolean
+      {
+         return me != null && int(me._presetUses[String(itemId)]) != 0;
+      }
+
       // MessageAskSell: the question a sale of `itemId` asks first, "" when
       // no preset uses it (the owner's of 2026-10-23).
       public static function sellWarning(itemId:uint) : String
@@ -1573,8 +1621,124 @@ package survarium.player
          }
       }
       
+      // `K;<kit id>:<container>:<weapon>,...`, the account's kits in order: each kit's perk slots
+      // (PerkSlotMark's states, a perk each; 0 without the skill), told to the paper doll for the
+      // kit shown.
+      // The perk switch's transition (PerkSwitch.step) and what it says to do, in one go: the
+      // accounts held drawn, then srp's perk states told, so the kit is drawn old or new, never
+      // half of each.
+      private function perkStep(event:int, value:*) : Object
+      {
+         if(this._perkSwitch == null)
+         {
+            this._perkSwitch = new PerkSwitch(this.sendPerk);
+         }
+         var out:Object = this._perkSwitch.step(event,value);
+         // srp's accounts, then its states (of the kit they show), then the paper doll drawn now:
+         // one pass, so no frame shows the new counts with the old states or the other way round.
+         for each(var fill:Object in out.fills)
+         {
+            this.drawProfileItems(fill);
+         }
+         if(out.tell)
+         {
+            this.tellPerkSlots();
+         }
+         if((out.tell || out.fills.length > 0) && profileItems is UIComponent)
+         {
+            (profileItems as UIComponent).validateNow();
+         }
+         return out;
+      }
+
+      // The perk switch's own sender, the harness's to replace.
+      public function get perkSwitch() : PerkSwitch
+      {
+         if(this._perkSwitch == null)
+         {
+            this._perkSwitch = new PerkSwitch(this.sendPerk);
+         }
+         return this._perkSwitch;
+      }
+
+      private function sendPerk(request:int) : void
+      {
+         this.sendPresets(PERK_BASE + request);
+      }
+
+      private function takePerks(row:String, answer:int) : void
+      {
+         var kits:Array = [];
+         for each(var entry:String in row.split(","))
+         {
+            var fields:Array = entry.split(":");
+            if(fields.length == 3)
+            {
+               kits.push([uint(fields[0]),[int(fields[1]),int(fields[2])]]);
+            }
+         }
+         this._perks = kits;
+         this.perkStep(PerkSwitch.LIST,answer);
+      }
+
+      // The kit shown's perk slots to its paper doll, with how to ask for others.
+      private function tellPerkSlots() : void
+      {
+         var doll:LocalPaperDoll = profileItems as LocalPaperDoll;
+         if(doll == null)
+         {
+            return;
+         }
+         var at:int = this.perkKit();
+         doll.perkSlots(uint(_profileId),at >= 0 ? this._perks[at][1] : [PerkSlotMark.NONE,PerkSlotMark.NONE],this.askPerkSlot);
+      }
+
+      // The kit shown's place among the account's kits (the `K` row's order); -1: not listed.
+      private function perkKit() : int
+      {
+         var i:int = 0;
+         while(i < this._perks.length)
+         {
+            if(this._perks[i][0] == uint(_profileId))
+            {
+               return i;
+            }
+            i++;
+         }
+         return -1;
+      }
+
+      // A click on a perk's slot: the kit shown's made `state` (PERK_BASE + kit x 10 + perk x 2 +
+      // state), answered with the account and the list.
+      // Whether it was asked: one switch at a time (PerkSwitch); none for a kit not listed.
+      private function askPerkSlot(perk:int, state:int) : Boolean
+      {
+         var at:int = this.perkKit();
+         if(at < 0 || !this.perkStep(PerkSwitch.ASK,{
+            "request":at * 10 + perk * 2 + state,
+            "kit":uint(_profileId)
+         }).accepted)
+         {
+            return false;
+         }
+         // No answer in time: what is held is drawn.
+         if(this._perkWait == null)
+         {
+            this._perkWait = new Timer(PerkSwitch.WAIT_MS,1);
+            this._perkWait.addEventListener(TimerEvent.TIMER_COMPLETE,this.onPerkWait);
+         }
+         this._perkWait.reset();
+         this._perkWait.start();
+         return true;
+      }
+
+      private function onPerkWait(e:TimerEvent) : void
+      {
+         this.perkStep(PerkSwitch.TIMEOUT,null);
+      }
+
       // `P2;L;<done>;<preset>;<active>;<blocks>;<minutes>`, then `<preset>;<saved>;<level>`
-      // each, then `U;<item id>:<presets>,...` rows.
+      // each, then the `K;` row (takePerks), then `U;<item id>:<presets>,...` rows.
       private function takePresets(rows:Array) : void
       {
          var head:Array = String(rows[0].nickname).split(";");
@@ -1611,6 +1775,14 @@ package survarium.player
                   }
                   k++;
                }
+               i++;
+               continue;
+            }
+            if(name.indexOf(PERKS_ROW) == 0)
+            {
+               // A perk switch's answer (`done` 3 set, 4 refused) names its request in `preset`.
+               var perkDone:int = int(head[2]);
+               this.takePerks(name.substr(PERKS_ROW.length),perkDone == PERK_SET || perkDone == PERK_REFUSED ? int(head[3]) : -1);
                i++;
                continue;
             }

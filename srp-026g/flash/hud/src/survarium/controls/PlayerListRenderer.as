@@ -1,6 +1,7 @@
 package survarium.controls
 {
    import flash.display.MovieClip;
+   import flash.display.Shape;
    import flash.display.Sprite;
    import flash.geom.ColorTransform;
    import flash.text.TextField;
@@ -11,6 +12,8 @@ package survarium.controls
    import survarium.constants.Colors;
    import survarium.constants.SquadState;
    import survarium.constants.TeamSide;
+   import survarium.modes.ArtefactHuntLook;
+   import survarium.modes.FrozenPlaces;
    
    public class PlayerListRenderer extends Button implements IListItemRenderer
    {
@@ -38,6 +41,9 @@ package survarium.controls
       public var squad_icon:MovieClip;
       
       public var ui_sqad:TextField;
+
+      // Artifact Hunt: the carrier's row, the artefact's orb left of his name.
+      private var _carryMark:Shape;
       
       public function PlayerListRenderer()
       {
@@ -169,6 +175,11 @@ package survarium.controls
             {
                this.ui_name.textColor = _data.color;
             }
+            if(this.board != null && _data.id != undefined && this.board.isFrozen(int(_data.id)))
+            {
+               this.ui_name.textColor = FrozenPlaces.COLOR;
+            }
+            this.markCarrier(this.board != null && _data.id != undefined && this.board.carrier == int(_data.id));
          }
          else
          {
@@ -185,16 +196,53 @@ package survarium.controls
                this.squad_icon.visible = false;
                this.squad_icon.gotoAndStop(1);
             }
+            this.markCarrier(false);
          }
+      }
+
+      protected function markCarrier(carries:Boolean) : void
+      {
+         if(!carries)
+         {
+            if(this._carryMark)
+            {
+               this._carryMark.visible = false;
+            }
+            return;
+         }
+         if(!this._carryMark)
+         {
+            _carryMark = new Shape();
+            ArtefactHuntLook.drawOrb(this._carryMark.graphics,6,true);
+            this._carryMark.filters = [ArtefactHuntLook.glow(1.5)];
+            addChild(this._carryMark);
+         }
+         this._carryMark.x = this.ui_name.x - 9;
+         this._carryMark.y = this.ui_name.y + this.ui_name.height / 2;
+         this._carryMark.visible = true;
+      }
+
+      public function get carrierMarked() : Boolean
+      {
+         return this._carryMark != null && this._carryMark.visible;
       }
       
       // The list this row is in shows names only (PlayerList.namesOnly: the Settings' "Hide player scores").
       protected function get namesOnly() : Boolean
       {
-         var board:PlayerList = owner != null ? owner.parent as PlayerList : null;
-         return board != null && board.namesOnly;
+         return this.board != null && this.board.namesOnly;
+      }
+
+      // The Tab list this row is in, null for another list.
+      protected function get board() : PlayerList
+      {
+         return owner != null ? owner.parent as PlayerList : null;
       }
       
+      // The name's authored width, beside the columns.
+      private var _nameWidth:Number = 0;
+
+      // Names only, the name takes the row up to the hidden columns' right edge.
       protected function showStats(shown:Boolean) : void
       {
          this.ui_kills.visible = this.ui_deaths.visible = this.ui_rank.visible = shown;
@@ -202,6 +250,24 @@ package survarium.controls
          {
             this.ui_score.visible = shown;
          }
+         if(this._nameWidth == 0)
+         {
+            this._nameWidth = this.ui_name.width;
+         }
+         this.ui_name.width = shown ? this._nameWidth : this.columnsRight() - this.ui_name.x;
+      }
+
+      private function columnsRight() : Number
+      {
+         var right:Number = this.ui_name.x + this._nameWidth;
+         for each(var column:TextField in [this.ui_kills,this.ui_deaths,this.ui_rank,this.ui_score])
+         {
+            if(column)
+            {
+               right = Math.max(right,column.x + column.width);
+            }
+         }
+         return right;
       }
       
       override public function toString() : String

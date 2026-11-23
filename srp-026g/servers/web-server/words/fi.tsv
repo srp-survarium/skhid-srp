@@ -1,0 +1,63 @@
+# The site's own words in Finnish (README.md here): English as in the code, Finnish. A text without a row is shown in English.
+Wiki	Wiki
+Maps	Kartat
+Skhid wiki	Skhid-wiki
+Kills/min	Tapot/min
+Modes	Pelimuodot
+Every mode: its rules, numbers and maps.	Jokainen pelimuoto: säännöt, luvut ja kartat.
+Versions	Muunnelmat
+Public rooms only	Vain julkiset huoneet
+Private rooms only	Vain yksityiset huoneet
+Not offered now	Ei tarjolla nyt
+Respawn after {0} s.	Uudelleensyntyminen {0} s:n kuluttua.
+Batteries lie on the map.	Akut ovat kartalla.
+Carry them to your team's container.	Vie ne joukkueesi säiliöön.
+First to {0} batteries wins.	Ensimmäinen joukkue, jolla on {0} akkua, voittaa.
+Time limit {0}: more batteries wins.	Aikaraja {0}: enemmän akkuja voittaa.
+Batteries come out of {0} active chargers.	Akut tulevat {0} aktiivisesta latausasemasta.
+A new battery every {0} s, give or take {1} s.	Uusi akku {0} s:n välein, {1} s suuntaan tai toiseen.
+Protective device rules: batteries, no chargers.	Suojalaitteen säännöt: akut, ei latausasemia.
+No interface: no ammo, health, crosshair or minimap.	Ei käyttöliittymää: ei ammuksia, terveyttä, tähtäintä eikä minikarttaa.
+Teammates' markers stay; enemies have none.	Joukkuetovereiden merkit säilyvät; vihollisilla niitä ei ole.
+Hold Tab for ammo, body state, the clock and the team list.	Pidä Tabia: ammukset, kehon tila, kello ja joukkueen lista.
+Each team has {0} tickets.	Kullakin joukkueella on {0} lippua.
+A death costs one ticket; a teamkill costs none.	Kuolema maksaa yhden lipun; joukkuetoverin tappo ei yhtään.
+Out of tickets, a team stops respawning and loses when its last player dies.	Ilman lippuja joukkue ei enää synny uudelleen ja häviää, kun sen viimeinen pelaaja kaatuu.
+Time limit {0}: more tickets wins.	Aikaraja {0}: enemmän lippuja voittaa.
+Capture research units: be inside with no enemy there.	Valtaa tutkimusyksiköt: ole sisällä, kun siellä ei ole vihollista.
+Owned units earn points; more units, faster.	Hallitut yksiköt tuovat pisteitä; mitä enemmän yksiköitä, sitä nopeammin.
+First to {0} points wins.	Ensimmäinen joukkue, jolla on {0} pistettä, voittaa.
+Time limit {0}: more points wins.	Aikaraja {0}: enemmän pisteitä voittaa.
+Every player for himself.	Jokainen omillaan.
+First to {0} kills wins.	Ensimmäinen, jolla on {0} tappoa, voittaa.
+Time limit {0}: most kills wins.	Aikaraja {0}: eniten tappoja voittaa.
+Public rooms: each FFA card draws a version.	Julkiset huoneet: jokainen FFA-kortti arpoo muunnelman.
+Private rooms: plain FFA only.	Yksityiset huoneet: vain tavallinen FFA.
+A lethal hit freezes you in place.	Kuolettava osuma jäädyttää sinut paikallesi.
+A teammate within {0} m thaws you in {1} s.	Joukkuetoveri {0} m:n sisällä sulattaa sinut {1} s:ssa.
+A thaw counts as a kill.	Sulatus lasketaan tapoksi.
+A frozen player thaws by himself after {0}.	Jäätynyt pelaaja sulaa itsestään {0} jälkeen.
+A team's last fighter shows on the enemies' map.	Joukkueen viimeinen taistelija näkyy vastustajien kartalla.
+Freeze the whole enemy team to win the round.	Jäädytä koko vastajoukkue voittaaksesi erän.
+{0} s pause between rounds, then everyone respawns.	{0} s tauko erien välillä, sitten kaikki syntyvät uudelleen.
+First to {0} rounds wins.	Ensimmäinen joukkue, joka voittaa {0} erää, voittaa.
+Time limit {0}: an unfinished series is a draw.	Aikaraja {0}: kesken jäänyt sarja on tasapeli.
+One artefact at a time, {0}–{1} s into a round.	Yksi artefakti kerrallaan, {0}–{1} s erän alusta.
+Bring it to your own base: 1 point, and the round ends.	Vie se omaan tukikohtaasi: 1 piste, ja erä päättyy.
+The carrier is slower and seen by everyone.	Kantaja on hitaampi ja kaikkien nähtävissä.
+Respawn in waves every {0} s.	Uudelleensyntyminen aalloissa {0} s:n välein.
+Time limit {0}: the higher score wins; a tie plays {1} of sudden death without respawns.	Aikaraja {0}: suurempi tulos voittaa; tasatilanteessa {1} äkkikuolemaa ilman uudelleensyntymistä.
+Sniper rifles, silenced guns and guns without automatic fire are replaced.	Tarkkuuskiväärit, äänenvaimennetut aseet ja aseet ilman sarjatulta vaihdetaan.
+Rooms up to level {0}: {1}.	Huoneet tasolle {0} asti: {1}.
+Other rooms: {0}.	Muut huoneet: {0}.
+Sight: {0}.	Tähtäin: {0}.
+Every kit: {0} only.	Jokainen varustus: vain {0}.
+Every kit: {0} and {1}.	Jokainen varustus: {0} ja {1}.
+Everyone plays the same {0} random kits.	Kaikki pelaavat samoilla {0} satunnaisella varustuksella.
+Level bands: {0}.	Tasoalueet: {0}.
+A room draws bands up to its level.	Huone arpoo alueita tasoonsa asti.
+Each kit a gun of another class, with random bonuses and attachments.	Jokaisessa varustuksessa eri luokan ase, satunnaisilla bonuksilla ja lisäosilla.
+{0} % of deals: pistols only.	{0} % jaoista: vain pistoolit.
+Plain FFA: {0} % of FFA cards.	Tavallinen FFA: {0} % FFA-korteista.
+{0} % of FFA cards.	{0} % FFA-korteista.
+FFA: Roulette	FFA: Ruletti

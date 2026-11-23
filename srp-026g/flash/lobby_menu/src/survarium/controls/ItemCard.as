@@ -334,7 +334,7 @@ package survarium.controls
       private function isUpgradeable(item:Object) : Boolean
       {
          var category:int = int(item.category);
-         return (category == ItemCategory.BODY_ARMOR || category == ItemCategory.HELMETS || category == ItemCategory.PANTS || category == ItemCategory.RIGS) && (Boolean(this._data.camoAvailable) || Boolean(this._data.decalAvailable)) || UpgradeWindow.isWeaponCategory(category) && (UpgradeWindow.hasScopes(int(item.dictId)) || Boolean(this._data.camoAvailable) || Boolean(this._data.decalAvailable));
+         return (category == ItemCategory.BODY_ARMOR || category == ItemCategory.HELMETS || category == ItemCategory.PANTS || category == ItemCategory.RIGS) && (Boolean(this._data.camoAvailable) || Boolean(this._data.decalAvailable)) || UpgradeWindow.isWeaponCategory(category) && (UpgradeWindow.hasAttachments(int(item.dictId)) || Boolean(this._data.camoAvailable) || Boolean(this._data.decalAvailable));
       }
    }
 }

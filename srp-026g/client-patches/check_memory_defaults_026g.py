@@ -8,7 +8,9 @@ branches, units conversion and allocator instructions execute from the PE.
 Patch 124's helper and render arenas run from the key's read to their
 registration with the native is_set_as_number<u32> (0x141B0); only the key's
 reader 0xDDF20 is a stub. Patch 128's thread stack runs from threading::spawn's
-size to spawn_internal's call of CreateThread.
+size to spawn_internal's call of CreateThread. Patch 129's multithreaded arena
+runs from the key's read to the size stored; its stack term runs
+allocate_arenas' sum of the stacks for a number of threads.
 The fragmentation fixture matches the report's total/used/requested byte counts,
 but its block layout is synthetic: the submitted dump does not contain the heap.
 It demonstrates why aggregate free bytes do not imply a successful allocation;
@@ -135,6 +137,16 @@ def thread_stack(data):
     return m.read(sp + 4), m.read(sp + 16)
 
 
+def stack_term(data, threads):
+    """Patch 129: what platform::allocate_arenas adds to "engine(fixed)" for
+    the engine threads' stacks, (threads x 2 + 8) x the size at 0xE98C6, as
+    the u64 in EDX:EAX after its `mul` (0xE98BD..0xE98CD)."""
+    m = Machine(data)
+    m.word(0x1F1D634, threads)
+    m.run(0xE98BD, 0xE98CD)
+    return m.uc.reg_read(UC_X86_REG_EAX) | m.uc.reg_read(UC_X86_REG_EDX) << 32
+
+
 def fragmented_allocation(data, size):
     """Same held blocks in both arenas; extra capacity stays free at the end."""
     total, used, requested = 295436288, 173033088, 22369685
@@ -225,12 +237,15 @@ def main():
     built, _ = patch.build(original, 'section', Path(patch.default_bin('section')).read_bytes(),
                            late_join=Path(patch.late_join_bin()).read_bytes())
     assert budgets(original, None, None) == (336 * MIB, 376 * MIB)
-    assert budgets(built, None, None) == (768 * MIB, 768 * MIB)
-    assert budgets(built, 99, 99, False, False) == (768 * MIB, 768 * MIB)
-    for value in (256, 512, 768, 1024):
-        assert budgets(built, value, value) == budgets(original, value, value) == (value * MIB, value * MIB)
-    assert budgets(built, None, 512) == (768 * MIB, 512 * MIB)
-    assert budgets(built, 512, None) == (512 * MIB, 768 * MIB)
+    assert budgets(built, None, None) == (768 * MIB, 1024 * MIB)
+    assert budgets(built, 99, 99, False, False) == (768 * MIB, 1024 * MIB)
+    for value in (256, 512, 768, 1024, 1536):
+        assert budgets(original, value, value) == (value * MIB, value * MIB)
+        # Patch 129: the multithreaded arena is at least 1024 MiB.
+        assert budgets(built, value, value) == (value * MIB, max(value, 1024) * MIB)
+    assert budgets(built, None, 512) == (768 * MIB, 1024 * MIB)
+    assert budgets(built, None, 2048) == (768 * MIB, 2048 * MIB)
+    assert budgets(built, 512, None) == (512 * MIB, 1024 * MIB)
     assert fragmented_allocation(original, 295436288) == 0
     assert fragmented_allocation(built, 512 * MIB) != 0
     assert single_region_fallback(original) == single_region_fallback(built) == (147718144, 295436288)
@@ -246,8 +261,13 @@ def main():
     # Patch 128: an engine thread's stack, committed (flags 0).
     assert thread_stack(original) == (8 * MIB, 0)
     assert thread_stack(built) == (2 * MIB, 0)
+    # Patch 129: allocate_arenas counts the stacks there are.
+    for threads in (4, 8, 24, 32, 64):
+        assert stack_term(original, threads) == (threads * 2 + 8) * 8 * MIB
+        assert stack_term(built, threads) == (threads * 2 + 8) * 2 * MIB
     print('PASS: native defaults, independent/explicit/invalid option paths, fragmentation fixture, '
-          'address-space fallback limitation, helper/render arena defaults and options, thread stacks')
+          'address-space fallback limitation, helper/render arena defaults and options, thread stacks, '
+          "the multithreaded arena's floor and the budget's stack term")
 
 
 if __name__ == '__main__':

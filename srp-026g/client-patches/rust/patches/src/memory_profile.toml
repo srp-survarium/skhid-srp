@@ -5,6 +5,7 @@
 # bytes there, and on_start writes the jumps only when the profile is on.
 name = "memory_profile"
 patch = 127
+uses = ["geometry_share"]
 
 # allocate_region after every allocator's heap is made: the switch read once
 [[hook]]
@@ -58,7 +59,7 @@ site = "memory_profile.freeing"
 handler = "on_freeing"
 
 # the snapshots: a world in (after patch 126's, order 3), the match closing
-# with its world still there (after patch 126 and 97), a fixed arena full
+# with its world still there (after patches 126, 125 and 97), a fixed arena full
 # before the game ends itself (on demand); Scroll Lock is polled by the gates
 [[hook]]
 site = "world_load.loaded"
@@ -68,7 +69,7 @@ order = 4
 [[hook]]
 site = "match_recovery.close"
 handler = "on_close"
-order = 3
+order = 4
 
 [[hook]]
 site = "memory.out_of_memory"

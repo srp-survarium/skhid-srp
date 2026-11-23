@@ -936,7 +936,7 @@ mod tests {
         let show = |value: Option<f64>| value.map_or("-".to_owned(), |mb| format!("{mb:.0} MB"));
         // The battery day of each level: what the lobby offers (its TDM
         // days are the same projects).
-        let mut projects: Vec<&str> = [61_u8, 67, 73, 79, 85, 91, 97, 103]
+        let mut projects: Vec<&str> = [61, 67, 73, 79, 85, 91, 97, 103].map(survarium::v026g::maps::MapId::new)
             .iter()
             .filter_map(|&id| survarium::v026g::maps::map_mode(id))
             .map(|map| map.project)

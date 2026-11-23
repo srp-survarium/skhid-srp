@@ -58,8 +58,9 @@ enum Pull {
 
 static PULL: GameCell<Pull> = GameCell::new(Pull::Off);
 
-/// update_camera after the view's update (`camera.orbited`).
-pub fn on_orbited(ctx: &mut Context<'_>) -> Flow<NoExit> {
+/// update_camera after the view's update (`camera.viewed`), before patch
+/// 133's and 156's handlers there: they read the eye this leaves.
+pub fn on_viewed(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let Some(mut orbit) = Orbit::at(ctx) else {
         PULL.set(thread, Pull::Off);

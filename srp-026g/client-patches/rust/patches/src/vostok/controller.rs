@@ -73,6 +73,91 @@ impl SteppedController {
     }
 }
 
+/// How much of a tick a controller's step covers. The world steps a tick in
+/// parts when an input falls inside it (game_world_core::tick_events
+/// 0x2D21E0); player_step gives a part its share of the tick's move.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Step {
+    /// The whole tick.
+    Whole,
+    /// A part: its length over the tick's, between 0 and 1.
+    Part { of_tick: f32 },
+}
+
+impl Step {
+    /// The step of `dt` seconds in a tick of `tick`: a part only when it is
+    /// shorter than its tick and longer than nothing.
+    pub fn parse(dt: f32, tick: f32) -> Step {
+        if dt > 0.0 && dt < tick { Step::Part { of_tick: dt / tick } } else { Step::Whole }
+    }
+}
+
+/// A controller's test for a step with nothing to walk (`controller.idle_walk`,
+/// can_skeep_player_step 0x7C7E0 after it squared the walk asked for the
+/// step, before it compares it with 1e-5 at 0x7C830).
+pub struct IdleTest {
+    step: Step,
+    locals: raw::CanSkeepLocals,
+}
+
+impl IdleTest {
+    pub fn at(ctx: &Context<'_>) -> Option<IdleTest> {
+        use raw::site::controller_idle_walk as site;
+        // SAFETY: the context is this site's: EDX the controller whose step
+        // runs, ESP and EBP can_skeep_player_step's own, its saved EBP the
+        // frame of player_step (its only caller), all alive while the step
+        // runs, on the physics tick's thread.
+        unsafe {
+            let (controller, locals) = (site::controller(ctx)?, site::locals(ctx)?);
+            let dt = site::frame(ctx)?.caller()?.dt().read_unaligned();
+            Some(IdleTest { step: Step::parse(dt, controller.tick().read_unaligned()), locals })
+        }
+    }
+
+    pub fn step(&self) -> Step {
+        self.step
+    }
+
+    /// The walk asked for the step, squared (metres).
+    pub fn walk_squared(&self) -> f32 {
+        // SAFETY: can_skeep_player_step's local, its own until it returns.
+        unsafe { self.locals.walk_squared().read_unaligned() }
+    }
+
+    /// Has the test compare `walk_squared` instead.
+    pub fn set_walk_squared(&mut self, walk_squared: f32) {
+        // SAFETY: as walk_squared; the game reads the local again at the
+        // site's own instructions (0x7C823) and at its compare.
+        unsafe { self.locals.walk_squared().write_unaligned(walk_squared) }
+    }
+}
+
+/// Where a step of the world ends: on a tick's boundary or inside the tick.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StepEnd {
+    Tick,
+    Part,
+}
+
+/// A player's speed being stored after its controller's step
+/// (`player.speed_measured`, base_player::assign_physics_transform 0x2D93A0).
+pub struct SpeedMeasure;
+
+impl SpeedMeasure {
+    /// The end of the step the speed is of. The world tells every tick
+    /// delegate whether its step ends a tick (atomic_tick 0x2D1E32).
+    pub fn at(ctx: &Context<'_>) -> StepEnd {
+        use raw::site::player_speed_measured as site;
+        // SAFETY: the context is this site's: EBP is
+        // assign_physics_transform's frame, alive while it runs.
+        let ends_tick = unsafe { site::frame(ctx).map(|frame| frame.ends_tick().read_unaligned()) };
+        match ends_tick {
+            Some(0) => StepEnd::Part,
+            _ => StepEnd::Tick,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::Position;

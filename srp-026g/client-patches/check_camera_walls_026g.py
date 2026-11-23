@@ -9,7 +9,8 @@ player::update_camera (0x1F3480, `ret 4`: the player) is entered as the game
 world enters it, a frame a call; the game's own code makes the pivot and
 runs the view's update (0x2422B0, in the build through patch 46's
 death_view), the math included. A run stops at camera_director::apply
-(0x243440), which gives the handler's view (+48h) to the view. ray_test
+(0x243440), which gives the handler's view (+48h) to the view, so the site's
+later handlers (patch 133's `where`, patch 156's lines, off) run too. ray_test
 (0x75E20) is a stand-in: a plane square to the orbit, or nothing; the
 performance counter is a clock of ours (1000 ticks a second).
 
@@ -25,7 +26,8 @@ performance counter is a clock of ours (1000 ticks a second).
 - An orbit going on: a wall that comes pulls the eye in by 1 - e^(-8 t) of
   the way in t s, one that goes lets it out by 1 - e^(-3 t).
 - The first person (0) and a spectator (4): the view is the original's (the
-  eyes' transform), no ray.
+  eyes' transform), no ray of the orbit's (patch 158's own, from under the eye,
+  with nothing in its way).
 - A player with no physics world: the original's view, no ray.
 In every run the registers at camera_director::apply are the original's.
 """
@@ -44,7 +46,7 @@ import patch_026g as base
 
 UPDATE_CAMERA, SITE, APPLY, RAY_TEST = 0x1F3480, 0x1F3650, 0x243440, 0x75E20
 SPAN = bytes.fromhex("8b9378f40000")                       # mov edx,[ebx+0F478h]
-THREAD_SLOT, QPC_SLOT, QPF_SLOT = 0x870118, 0x870158, 0x870150
+THREAD_SLOT, QPC_SLOT, QPF_SLOT, TICK_SLOT = 0x870118, 0x870158, 0x870150, 0x870090
 HEAP, STUBS, STACK = 0x30000000, 0x31000000, 0x32000000
 PLAYER, HANDLER, PRESENTERS = HEAP, HEAP + 0x10000, HEAP + 0x20000
 PHYSICS = 0x5A5A0000                                      # a made-up physics world (ray_test's ECX)
@@ -96,6 +98,9 @@ class Game:
             emu.mem_map(at, 0x10000, UC_PROT_ALL)
         self.u32(THREAD_SLOT, STUBS + 0x80)
         emu.mem_write(STUBS + 0x80, b"\xB8\x01\x00\x00\x00\xC3")
+        # GetTickCount, for patch 133's handler after ours at the site (it keeps the view it reads)
+        self.u32(TICK_SLOT, STUBS + 0xB0)
+        emu.mem_write(STUBS + 0xB0, b"\x31\xC0\xC3")
         # QueryPerformanceCounter / Frequency (stdcall 1): our clock, 1000 ticks a second
         for slot, stub, hook in ((QPC_SLOT, STUBS + 0x90, self.counter), (QPF_SLOT, STUBS + 0xA0, self.frequency)):
             self.u32(slot, stub)
@@ -242,8 +247,9 @@ def main():
         s_view, s_regs, _ = stock.update_camera(mode)
         o_view, o_regs, rays = ours.update_camera(mode)
         eyes = struct.unpack("<3f", struct.pack("<3f", *EYES[12:15]))
-        check(o_view == s_view and o_regs == s_regs and not rays and o_view[12:15] == eyes,
-              f"mode {mode}: the eyes' view, the original's registers, no ray")
+        ours_rays = [r for r in rays if math.dist(r[1], PIVOT) < 1e-3]     # the rest: patch 158's, from under the eye
+        check(o_view == s_view and o_regs == s_regs and not ours_rays and len(rays) <= 1 and o_view[12:15] == eyes,
+              f"mode {mode}: the eyes' view, the original's registers, no ray from the pivot")
     s_view, s_regs, _ = stock.update_camera(3, physics=0)
     o_view, o_regs, rays = ours.update_camera(3, physics=0)
     check(o_view == s_view and o_regs == s_regs and not rays, "no physics world: the original's view, no ray")

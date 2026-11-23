@@ -1,0 +1,113 @@
+name = "technical_skills"
+patch = 180
+
+# Tank Pocket or Tank Depth: an oxygen tank in the kit gives a pocket, or +1 pocket size;
+# before the medical tree's clamp (order 2).
+[[hook]]
+site = "medical.pocket_count"
+handler = "on_kit_parameter"
+order = 1
+
+# Steady Breath: the aimed sway and the shot's dispersion while the oxygen tank is on.
+[[hook]]
+site = "technical.breath_vibration"
+handler = "on_breath_vibration"
+
+[[hook]]
+site = "technical.dispersion"
+handler = "on_dispersion"
+
+# Deep Breaths: the sprint's stamina cost while the oxygen tank is on, after Numb Legs (order 1).
+[[hook]]
+site = "medical.sprint"
+handler = "on_sprint_cost"
+order = 2
+
+
+# Oxygen Rush: after 20 s of the tank's use without a break (switching on counts from 0) and at
+# its run-out; its end each tick (after the battery, Resonance,
+# Forest glow and Keeper handlers, orders 1-4); its speed after the medical tree's (order 1); its
+# saved word.
+[[hook]]
+site = "technical.tank_spent"
+handler = "on_tank_spent"
+
+[[hook]]
+site = "technical.tank_switch"
+handler = "on_tank_switch"
+
+[[hook]]
+site = "battery.carrier_tick"
+handler = "on_tick"
+order = 6
+
+[[hook]]
+site = "medical.movement"
+handler = "on_movement"
+order = 2
+
+[[hook]]
+site = "technical.tank_construct"
+handler = "on_tank_construct"
+
+[[hook]]
+site = "technical.tank_refill"
+handler = "on_tank_refill"
+
+[[hook]]
+site = "technical.tank_refill_2"
+handler = "on_tank_refill_2"
+
+[[hook]]
+site = "technical.tank_save"
+handler = "on_tank_save"
+
+[[hook]]
+site = "technical.tank_load"
+handler = "on_tank_load"
+
+# Dexterous Hands: the battery take animation's time scale; the time passed at an ammo crate.
+[[hook]]
+site = "technical.battery_take"
+handler = "on_battery_take"
+[[hook]]
+site = "technical.resupply_time"
+handler = "on_resupply_time"
+
+# Sapper: the disarming's time.
+[[hook]]
+site = "technical.defuse_time"
+handler = "on_defuse_time"
+
+# Rearm: a shot trap of a skilled owner reopens after 20 s.
+[[hook]]
+site = "technical.trap_shot"
+handler = "on_trap_shot"
+
+[[hook]]
+site = "technical.trap_reopen"
+handler = "on_trap_reopen"
+
+# Blast Drill: after the hand kill (order 0) and Brothers in Arms (order 1).
+[[hook]]
+site = "medical.hit"
+handler = "on_hit"
+order = 2
+
+# Scavenger: after the ragdoll's death (order 1).
+[[hook]]
+site = "player.killed_event"
+handler = "on_killed"
+order = 2
+
+# Trophy Trap: a disarmed own or enemy trap goes into the disarmer's trap pocket if it has room.
+[[hook]]
+site = "technical.trap_defused"
+handler = "on_trap_defused"
+
+# Bear Trap: a leg caught by a skilled owner's trap is left with no health; after the medical
+# tree's pool refresh (order 1).
+[[hook]]
+site = "medical.wound"
+handler = "on_wound"
+order = 2

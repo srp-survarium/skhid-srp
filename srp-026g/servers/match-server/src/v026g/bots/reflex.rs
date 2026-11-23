@@ -2182,12 +2182,12 @@ mod tests {
     use super::*;
     use crate::v026g::bots::guns;
     use crate::v026g::bots::know::{DangerSpot, Percept};
-    use crate::v026g::bots::view::{Mode, Sound};
+    use crate::v026g::bots::view::{Mode, Side, Sound};
 
     fn body(place: Place, team: u8, feet: Vec3, yaw: f32) -> PlaceView {
         PlaceView {
             place,
-            team,
+            team: Side::team(team),
             bot: true,
             present: true,
             alive: true,

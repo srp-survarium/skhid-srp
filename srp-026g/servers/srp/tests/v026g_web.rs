@@ -57,9 +57,8 @@ fn start(name: &str) -> (Stack, SocketAddr) {
         session::v026g::SqliteGameRepository::open_in(&dir).expect("the 0.26g tables"),
     ))
     .expect("the 0.26g accounts");
-    let certs = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../certs");
-    let stack = Stack::start(Arc::new(store), Arc::new(accounts), Options::local(&certs))
-        .expect("the servers");
+    let stack =
+        Stack::start(Arc::new(store), Arc::new(accounts), Options::local()).expect("the servers");
     let listener = TcpListener::bind("127.0.0.1:0").expect("a free port");
     let web = listener.local_addr().unwrap();
     let (store, game) = (stack.store.clone(), stack.web_game());
@@ -122,7 +121,6 @@ fn sha1_hex(bytes: &[u8]) -> Vec<u8> {
 /// The 0.26g sign-in with a typed password: the reply past the TLS
 /// handshake (`08` + session + lobby address, or one status byte).
 fn sign_in(login: SocketAddr, user_name: &str, password: &str) -> Vec<u8> {
-    use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
     let mut stream = TcpStream::connect(login).expect("the login server");
     stream.set_read_timeout(Some(SOON)).unwrap();
     stream.set_write_timeout(Some(SOON)).unwrap();
@@ -137,24 +135,11 @@ fn sign_in(login: SocketAddr, user_name: &str, password: &str) -> Vec<u8> {
     let mut answer = [0];
     stream.read_exact(&mut answer).unwrap();
     assert_eq!(answer[0], 0x0B, "the user name was not taken");
-    let mut connector = SslConnector::builder(SslMethod::tls()).unwrap();
-    connector.set_security_level(0);
-    connector.set_verify(SslVerifyMode::NONE);
-    let mut tls = connector
-        .build()
-        .configure()
-        .unwrap()
-        .verify_hostname(false)
-        .connect("localhost", stream)
-        .expect("the TLS handshake");
     let mut message = vec![0x03];
     message.extend(sha1_hex(password.as_bytes()));
     message.push(password.len() as u8);
     message.extend(password.as_bytes());
-    tls.write_all(&message).unwrap();
-    let mut reply = Vec::new();
-    let _ = tls.read_to_end(&mut reply);
-    reply
+    login_server::sealed::ask(stream, login_server::sealed::test_key().public(), &message).unwrap()
 }
 
 /// A game in the lobby.

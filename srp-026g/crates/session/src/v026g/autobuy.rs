@@ -1,6 +1,7 @@
-//! What a match took of an account's supplies, and the two boxes of the
-//! kit window that put it right: autobuy and auto-repair (`49 01`, the
-//! lobby's number: bit 0 and bit 1).
+//! What a match took of an account's supplies, and autobuy, which buys it
+//! back: always on, for every account, with no setting (the owner,
+//! 2026-11-10: "internally autobuy is always on"; the kit window's box and
+//! its `49 01` are gone, the stored flag is not read).
 //!
 //! The money the server spends this way is shown on the results screen:
 //! the three lists that end `89` (`lobby.md` §2.9), "Ammunition", "Special
@@ -23,7 +24,8 @@
 //!      (`respawns + 1` times the most a kit's slots hold of the item: a
 //!      life takes at most its slots' counts out of the store, 0x2FCC4A;
 //!      a respawn is a death or a kit change before play began, which the
-//!      games of patch 31 make a respawn in place);
+//!      games of patch 31 make a respawn in place, and in Artifact Hunt a
+//!      round start, which respawns everyone);
 //!    - for ammo, never more than the bullets the statistics counted
 //!      (event 22), except buckshot, whose round flies as ten bullets (its
 //!      config's `buckshot: 10`) while it is not known whether the counter
@@ -37,12 +39,14 @@
 //!
 //! `SRP_AMMO_USE=off` takes nothing at all (ammo and the rest).
 //!
-//! # The boxes ([`settle`])
+//! # Autobuy ([`settle`])
 //!
 //! - **Autobuy** buys back what was taken, in whole steps of the shop (a
 //!   clip of ammo, one of anything else), as many as the silver pays for
 //!   [0.21d's rule, `survarium::v021d::supplies`], at the shop's price for
-//!   an account that may buy the item there; ammo the game prices at
+//!   an account that may buy the item there. With too little silver it buys
+//!   the whole steps the silver pays for and the rest stays used up; with
+//!   none, nothing. Ammo the game prices at
 //!   nothing (the starting pistol's) is refilled for nothing [as
 //!   `rules::buy`'s refill]. What the account may not buy is not bought.
 //! - **No auto-repair**: srp has no repair (the owner, 2026-11-08).
@@ -52,6 +56,7 @@ use survarium::v026g::item_params::{item_params, shop_unit};
 use survarium::v026g::lobby::{SpentMoney, limits};
 use survarium::v026g::match_msgs::players::Supplies;
 use survarium::v026g::prices;
+use survarium::v026g::twist::Armed;
 
 use super::account::Account;
 
@@ -137,14 +142,23 @@ fn used_by_counters(account: &Account, shots: &[u32], buckshot: Option<u16>) -> 
 /// id, units)`. `supplies` is the player's block of the last trusted
 /// snapshot, `shots[kit]` the bullets its counters say each kit fired,
 /// `respawns` how often it began a new life: its deaths and its kit
-/// changes before play began. Call it before the match's pay or drop
-/// changes a stack. See the module.
+/// changes before play began (and an Artifact Hunt's round starts), `twist` the twist the match armed its kits
+/// with: then they were not the account's, without a block the counters
+/// prove nothing of its stacks, and the ammo the twist gives
+/// ([`Armed::gives`]) is nobody's, never charged though the account owns
+/// that kind too. Call it before the match's pay or
+/// drop changes a stack. See the module.
 pub fn used(
     account: &Account,
     supplies: Option<&Supplies>,
     shots: &[u32],
     respawns: u32,
+    twist: Option<Armed>,
 ) -> Vec<(u16, u32)> {
+    // Roulette's kits held nothing of the account's (`survarium::v026g::roulette`).
+    if matches!(twist, Some(Armed::Roulette(_))) {
+        return Vec::new();
+    }
     let dictionary = Dictionary::shared();
     let buckshot = dictionary.item_named(BUCKSHOT).map(|item| item.dict_id);
     let block = supplies.filter(|supplies| !supplies.alive || supplies.inventory_read);
@@ -167,8 +181,12 @@ pub fn used(
                 })
                 .collect()
         }
+        None if twist.is_some() => Vec::new(),
         None => used_by_counters(account, shots, buckshot),
     };
+    if let Some(given) = twist.map(Armed::gives) {
+        used.retain(|(dict_id, _)| !given.contains(dict_id));
+    }
     // Never more than the account owns.
     for (dict_id, units) in &mut used {
         *units = (*units).min(owned(account, *dict_id));
@@ -195,15 +213,13 @@ fn step_cost(account: &Account, dict_id: u16) -> Option<u32> {
 }
 
 /// After a match: take what it used ([`used`]) off the stacks and buy it
-/// back if the account's autobuy is on. Call it before the kits are
+/// back (autobuy: always, for every account). Call it before the kits are
 /// brought up to the inventory ([`Account::sync_kits`]).
 pub fn settle(account: &mut Account, used: &[(u16, u32)]) -> Settled {
     let mut settled = Settled::default();
     for &(dict_id, units) in used {
         let mut bought = 0;
-        if account.autobuy
-            && let Some(cost) = step_cost(account, dict_id)
-        {
+        if let Some(cost) = step_cost(account, dict_id) {
             let unit = shop_unit(dict_id);
             let wanted = units.div_ceil(unit);
             let steps = match cost {
@@ -247,6 +263,8 @@ pub fn settle(account: &mut Account, used: &[(u16, u32)]) -> Settled {
 mod tests {
     use super::*;
     use crate::v026g::account::KitSlot;
+    use survarium::v026g::cowboy::Variation;
+    use survarium::v026g::racket::Gun;
     use survarium::v026g::lobby::FULL_CONDITION;
     use survarium::v026g::lobby::client_model::{Client, Decoded};
     use survarium::v026g::match_msgs::players::ItemLeft;
@@ -309,27 +327,27 @@ mod tests {
         let (mut account, _, ammo) = rifleman(300);
         let rounds = dict("ammo_5.45x39_7n6m");
         // 45 bullets with kit 1, whose one ammo is the 5.45.
-        assert_eq!(used(&account, None, &[45, 0, 0], 0), [(rounds, 45)]);
+        assert_eq!(used(&account, None, &[45, 0, 0], 0, None), [(rounds, 45)]);
         // Both kits fired: each its own ammo.
         assert_eq!(
-            used(&account, None, &[45, 7, 0], 0),
+            used(&account, None, &[45, 7, 0], 0, None),
             [(rounds, 45), (dict("ammo_7.62x25"), 7)]
         );
         // Never more than the stack.
-        assert_eq!(used(&account, None, &[1_000, 0, 0], 0), [(rounds, 300)]);
+        assert_eq!(used(&account, None, &[1_000, 0, 0], 0, None), [(rounds, 300)]);
         // A second kind of ammo in the kit: which was fired is not known.
         let other = account.add_item(dict("ammo_5.45x39_7n10"), 60);
         account.kits[0].slots[9] = Some(KitSlot {
             item_id: other,
             count: 60,
         });
-        assert_eq!(used(&account, None, &[45, 0, 0], 0), []);
+        assert_eq!(used(&account, None, &[45, 0, 0], 0, None), []);
         // The same kind in both slots is one kind.
         account.kits[0].slots[9] = Some(KitSlot {
             item_id: ammo,
             count: 30,
         });
-        assert_eq!(used(&account, None, &[45, 0, 0], 0), [(rounds, 45)]);
+        assert_eq!(used(&account, None, &[45, 0, 0], 0, None), [(rounds, 45)]);
         // Buckshot: a round is ten bullets, and the counter's unit is not
         // known.
         let shells = account.add_item(dict(BUCKSHOT), 100);
@@ -338,9 +356,9 @@ mod tests {
             count: 30,
         });
         account.kits[0].slots[9] = None;
-        assert_eq!(used(&account, None, &[45, 0, 0], 0), []);
+        assert_eq!(used(&account, None, &[45, 0, 0], 0, None), []);
         // A kit that fired nothing uses nothing.
-        assert_eq!(used(&account, None, &[0, 0, 0], 0), []);
+        assert_eq!(used(&account, None, &[0, 0, 0], 0, None), []);
     }
 
     #[test]
@@ -356,35 +374,35 @@ mod tests {
         // 240 rounds and 4 medkits left of 300 and 5; 60 bullets counted.
         let supplies = block(&[(rounds, 240), (medkit, 4)]);
         assert_eq!(
-            used(&account, Some(&supplies), &[60, 0, 0], 0),
+            used(&account, Some(&supplies), &[60, 0, 0], 0, None),
             [(rounds, 60), (medkit, 1)]
         );
         // The block says more ammo is gone than bullets were counted: the
         // bullets hold.
         assert_eq!(
-            used(&account, Some(&supplies), &[45, 0, 0], 0),
+            used(&account, Some(&supplies), &[45, 0, 0], 0, None),
             [(rounds, 45), (medkit, 1)]
         );
         // It says everything is gone: no more than its lives could take
         // (120 rounds and 2 medkits a life; one death is two lives).
         let empty = block(&[(rounds, 0), (medkit, 0)]);
         assert_eq!(
-            used(&account, Some(&empty), &[1_000, 0, 0], 0),
+            used(&account, Some(&empty), &[1_000, 0, 0], 0, None),
             [(rounds, 120), (medkit, 2)]
         );
         assert_eq!(
-            used(&account, Some(&empty), &[1_000, 0, 0], 1),
+            used(&account, Some(&empty), &[1_000, 0, 0], 1, None),
             [(rounds, 240), (medkit, 4)]
         );
         // More left than owned (a stack bought since): nothing used.
         let more = block(&[(rounds, 500), (medkit, 9)]);
-        assert_eq!(used(&account, Some(&more), &[60, 0, 0], 0), []);
+        assert_eq!(used(&account, Some(&more), &[60, 0, 0], 0, None), []);
         // A player alive whose slots were not found says nothing: the
         // counters alone.
         let mut unread = block(&[(rounds, 0), (medkit, 0)]);
         unread.alive = true;
         assert_eq!(
-            used(&account, Some(&unread), &[60, 0, 0], 0),
+            used(&account, Some(&unread), &[60, 0, 0], 0, None),
             [(rounds, 60)]
         );
         // Alive and read: what is in store and in hand.
@@ -394,7 +412,7 @@ mod tests {
         alive.items[0].in_hand = Some(100);
         alive.items[1].in_hand = Some(1);
         assert_eq!(
-            used(&account, Some(&alive), &[60, 0, 0], 0),
+            used(&account, Some(&alive), &[60, 0, 0], 0, None),
             [(rounds, 50), (medkit, 1)]
         );
     }
@@ -415,17 +433,43 @@ mod tests {
         supplies.inventory_read = true;
         supplies.items[0].in_hand = Some(120);
         supplies.items[0].slot = Some(8);
-        assert_eq!(used(&account, Some(&supplies), &[300, 0, 0], 0), []);
+        assert_eq!(used(&account, Some(&supplies), &[300, 0, 0], 0, None), []);
         // Without the block the fallback, the kit's counter, charges the 300.
-        assert_eq!(used(&account, None, &[300, 0, 0], 0), [(rounds, 300)]);
+        assert_eq!(used(&account, None, &[300, 0, 0], 0, None), [(rounds, 300)]);
+        // Not in a twisted match: its kits were not the account's.
+        assert_eq!(used(&account, None, &[300, 0, 0], 0, Some(Armed::Racket(Gun::Ak12))), []);
+    }
+
+    /// A twisted match never charges the ammo its twist gave, though the
+    /// account owns that kind too: a Python owner's own .357 is not what
+    /// the match's store of it spent (`docs/notes/ffa.md`, "Twists").
+    #[test]
+    fn the_ammo_a_twist_gives_is_never_charged() {
+        let (mut account, _, _) = rifleman(300);
+        let colt = Armed::Cowboy(Variation::Colt);
+        let given = colt.gives()[0];
+        let own = account.add_item(given, 200);
+        account.kits[1].slots[9] = Some(KitSlot {
+            item_id: own,
+            count: 40,
+        });
+        let rounds = dict("ammo_5.45x39_7n6m");
+        let supplies = block(&[(rounds, 270), (given, 170)]);
+        assert_eq!(
+            used(&account, Some(&supplies), &[30, 0, 0], 0, None),
+            [(rounds, 30), (given, 30)]
+        );
+        assert_eq!(
+            used(&account, Some(&supplies), &[30, 0, 0], 0, Some(colt)),
+            [(rounds, 30)]
+        );
     }
 
     #[test]
-    fn without_the_boxes_what_was_used_is_gone_and_nothing_is_spent() {
+    fn without_silver_what_was_used_is_gone_and_nothing_is_spent() {
         let (mut account, rifle, ammo) = rifleman(300);
-        // Autobuy is on for a new account: the player turned it off.
-        account.autobuy = false;
         account.item_mut(rifle).unwrap().condition_or_stack = 900_000;
+        account.generic_money = 0;
         let money = account.generic_money;
         let rounds = dict("ammo_5.45x39_7n6m");
         let settled = settle(&mut account, &[(rounds, 45)]);
@@ -443,23 +487,23 @@ mod tests {
     #[test]
     fn autobuy_buys_back_whole_clips_within_the_money() {
         let (mut account, _, ammo) = rifleman(300);
-        account.autobuy = true;
         account.generic_money = 1_000;
         let rounds = dict("ammo_5.45x39_7n6m");
-        // 45 used: two clips of 30 at 30 silver (its `base_cost`).
+        let clip = survarium::v026g::prices::price(rounds).unwrap().cost;
+        // 45 used: two clips of 30.
         let settled = settle(&mut account, &[(rounds, 45)]);
         assert_eq!(settled.bought, [(rounds, 60)]);
         assert_eq!(settled.spent.autobuy_ammo, [(60, rounds)]);
         assert!(settled.spent.autobuy_consumables.is_empty());
         assert_eq!(account.item(ammo).unwrap().condition_or_stack, 315);
-        assert_eq!(account.generic_money, 940);
+        assert_eq!(account.generic_money, 1_000 - 2 * clip);
         // Silver for one clip only.
-        account.generic_money = 50;
+        account.generic_money = clip + clip / 2;
         let settled = settle(&mut account, &[(rounds, 90)]);
         assert_eq!(settled.bought, [(rounds, 30)]);
         assert_eq!(settled.spent.autobuy_ammo, [(30, rounds)]);
         assert_eq!(account.item(ammo).unwrap().condition_or_stack, 255);
-        assert_eq!(account.generic_money, 20);
+        assert_eq!(account.generic_money, clip / 2);
         // No silver: nothing bought, nothing listed.
         account.generic_money = 0;
         let settled = settle(&mut account, &[(rounds, 30)]);
@@ -470,7 +514,6 @@ mod tests {
     #[test]
     fn ammo_is_bought_back_at_no_reputation_and_a_drug_is_not() {
         let (mut account, _, ammo) = rifleman(300);
-        account.autobuy = true;
         account.generic_money = 1_000;
         // Known to no seller.
         for (_, points) in &mut account.reputations {
@@ -484,13 +527,12 @@ mod tests {
         assert_eq!(settled.bought, [(rounds, 30)]);
         assert_eq!(account.item(ammo).unwrap().condition_or_stack, 300);
         assert_eq!(account.item(kits).unwrap().condition_or_stack, 3);
-        assert_eq!(account.generic_money, 970);
+        assert_eq!(account.generic_money, 1_000 - survarium::v026g::prices::price(rounds).unwrap().cost);
     }
 
     #[test]
     fn consumables_are_bought_back_one_by_one_in_their_own_list() {
         let (mut account, _, _) = rifleman(300);
-        account.autobuy = true;
         account.generic_money = 1_000;
         let medkit = dict("medkit");
         let kits = account.add_item(medkit, 5);
@@ -506,7 +548,6 @@ mod tests {
     #[test]
     fn the_starting_ammo_is_refilled_for_nothing() {
         let mut account = Account::new("Alice");
-        account.autobuy = true;
         let money = account.generic_money;
         let ammo = account.kits[0].slots[8].unwrap().item_id;
         let rounds = dict("ammo_7.62x25");
@@ -525,7 +566,6 @@ mod tests {
     #[test]
     fn the_spent_lists_go_out_with_the_inventory() {
         let (mut account, _, _) = rifleman(300);
-        account.autobuy = true;
         account.generic_money = 100_000;
         let rounds = dict("ammo_5.45x39_7n6m");
         let settled = settle(&mut account, &[(rounds, 45)]);

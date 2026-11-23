@@ -70,9 +70,14 @@ impl<'a> Connection<'a> {
     pub(super) fn of(client: raw::NetworkClient, thread: &'a Thread) -> Option<Self> {
         Self::any(client, thread).filter(Self::live)
     }
-    /// The client's connection, whatever its transport's state.
+    /// The client's connection, whatever its transport's state; none for a
+    /// replay's client (its class), which is smaller than a live one: its
+    /// +1F1C48h is past its 0x5AB18 bytes (a replay's start crashed here).
     fn any(client: raw::NetworkClient, thread: &'a Thread) -> Option<Self> {
-        // SAFETY: the synchronous dispatch/load boundary owns this client.
+        if super::world::playback_of(client) == super::world::Playback::Replay {
+            return None;
+        }
+        // SAFETY: as above, and a live match's client has these fields.
         unsafe {
             let holder = client.options_holder()?;
             let (client_key, seed) = (client.address() as usize, read(holder.match_seed()));
@@ -189,6 +194,11 @@ impl<'a> Connection<'a> {
             && (0..parts)
                 .filter_map(|part| report.part(self.seed, part))
                 .all(|(bytes, len)| self.carry(bytes.get(..len).unwrap_or_default()))
+    }
+
+    /// One bounded executable-transfer carrier, with the usual pool reserve.
+    pub(crate) fn executable(&self, carrier: srp_validate::executable::Carrier<'_>) -> bool {
+        self.live() && self.room_for(1) && carrier.encode().is_some_and(|(bytes, len)| self.carry(&bytes[..len]))
     }
 
     /// The pool has room for `packets` more 0xE0 carriers and the sixteen
