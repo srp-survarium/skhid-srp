@@ -28,7 +28,7 @@ harnesses. The game's own code runs:
   from 57h (bind_key's pass over the bindings); unbind (0x207FF0) clears
   4Ah's key; an unbind of an unknown name clears binding 49h's, inside the
   build's binder (past the original's); the options (game_options 0x2013A0,
-  0x201F20): a key set for 4Ah is kept in the 46th row and the accept runs
+  0x201F20): a key set for 4Ah is kept in its row and the accept runs
   `bind use_onyx kF5`;
 - the input: process_first_person_mode (0x241250 to its `ret 8`, no keyboard
   look) on a made-up handler whose game world's network client's local
@@ -400,13 +400,12 @@ def main():
     options = Binder(built)
     options.emu.mem_write(hide.OUT, b"kF5\0")
     options.call(hide.KEY_SET, [hide.OPTIONS, ONYX], {UC_X86_REG_EAX: hide.OUT})
-    controls = base.arena().symbols["controls"]
-    row43 = base.HIDE_UI_ROWS + next(i for i, (action, _) in enumerate(base.CONTROLS_ADDED) if action == ONYX)
+    row = options.control_row(base.arena().symbols["controls"], ONYX)
     options.lines = []
     options.call(hide.APPLY, [])
-    report(options.text(options.read(controls + 0x68 * row43 + 0x10)) == b"kF5"
+    report(options.text(options.read(row + 0x10)) == b"kF5"
            and options.lines == [(b"bind", b"use_onyx kF5")],
-           f"the options: kF5 set for 4Ah (0x2013A0) is kept in row {row43 + 1}; the accept (0x201F20) runs "
+           f"the options: kF5 set for 4Ah (0x2013A0) is kept in its row; the accept (0x201F20) runs "
            f"{options.lines}")
 
     print("the input (process_first_person_mode 0x241250, its end's chain: patch 149, then patch 78's chord)")
