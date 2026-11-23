@@ -62,8 +62,18 @@ The console command `where` (patch 133) prints a place and look to copy from a g
 
 ## Not covered
 
-- Players, weapons or items in the picture: the world is the map's own (its objects, anomalies,
-  lamps, weather), nobody in it. A weapon or kit shot needs a roster place that enters with that
-  kit (an enter record and the kit in the options): the same file with one more event.
+- Players or items in the picture: the world is the map's own (its objects, anomalies, lamps,
+  weather), nobody in it, except one place with a gun (below).
 - The match's own clock runs (a free-for-all shows its waiting countdown in the hud, which the
   picture leaves out).
+
+## A gun, first person (diagnostics)
+
+`capture.py --hold <gun dict id>[:<optic dict id>[:<rounds dict id>]] [--aim-ms 30000]` writes the
+replay with its one place entering at 1 s with that kit (`srp-map-sur --hold`: the gun in slot 7, the
+optic's record on it as the lobby writes it, the rounds in slot 8) and holding the aim key from
+`--aim-ms` on; the game simulates it as any replay's place. The poses file's defaults take
+`"follow": 0` (patch 176 asks the replay to follow place 0 in first person, once a second until it
+does) and a pose `{"name": ..., "eyes": true, "settle_ms": ...}` saves the game's own camera, those
+eyes. `--env SKHID_<name>=<value>` passes a diagnostic switch to the game; `--uncapped` drops the
+60 fps cap. Used for picture-in-picture scopes (`pip-scopes.md` section 6).

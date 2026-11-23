@@ -1,18 +1,17 @@
-//! Patch 198: a second view of the scene each frame, for picture-in-picture
-//! scopes (docs/notes/pip-scopes.md). Dormant unless `SKHID_PIP_PROBE` is set
-//! in the game's environment (read once, at the first scene drawn):
-//!
-//! - `256`, `512`, `1024` (or `on`, 512): the scene drawn a second time
-//!   each frame, before the frame, from the frame's camera with a quarter of
-//!   its field of view, into a square window of that size, and copied into
-//!   the frame's top right corner; frame times logged;
-//! - `time`: only the frame times logged;
-//! - `disc`: 512, drawn at the centre as the lens is (its draw seen without a scope).
+//! Patch 198: picture-in-picture scopes (docs/notes/pip-scopes.md). With the
+//! setting `srp_pip_scopes` (or `SKHID_PIP_SCOPES=on`) the eyes' magnified
+//! optic is not swapped for its aimed model: the real gun, hands and optic
+//! stay (`scope_draw.*`), the frame keeps uro_fov, and the optic's glass shows
+//! the scene drawn a second time from the aim, magnified, with the aimed
+//! model's reticle. Off: today's scopes exactly. Diagnostics:
+//! `SKHID_PIP_LOG=on|picture`; `SKHID_PIP_PROBE=256|512|1024|time|disc`, the
+//! second view without a scope (in the frame's corner, timed only, or as a
+//! centred lens).
 //!
 //! The draws are queued on the game's thread (`game.draw_scene`); the
 //! render thread knows the second view's draw by its scene view
 //! (`render.begin`), gives it the frame's weather, leaves the first-person
-//! models, the interface and the Present out of it, and keeps the scene's
+//! surfaces, the interface and the Present out of it, and keeps the scene's
 //! moved models for the frame's own draw (`render.unmove`). Display only:
 //! nothing a match computes.
 

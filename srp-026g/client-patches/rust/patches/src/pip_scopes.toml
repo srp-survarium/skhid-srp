@@ -1,6 +1,6 @@
-# Patch 198: a second view of the scene each frame, for picture-in-picture
-# scopes, with SKHID_PIP_PROBE set (docs/notes/pip-scopes.md); nothing
-# without it. The sites are sites_026g.tsv's; the logic is pip_scopes.rs,
+# Patch 198: picture-in-picture scopes (docs/notes/pip-scopes.md): with the
+# setting srp_pip_scopes (or SKHID_PIP_SCOPES), or the probe SKHID_PIP_PROBE;
+# nothing without them. The sites are sites_026g.tsv's; the logic is pip_scopes.rs,
 # the engine's side vostok/second_view.rs.
 name = "pip_scopes"
 patch = 198
