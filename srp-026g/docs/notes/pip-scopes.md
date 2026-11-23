@@ -53,7 +53,38 @@ own fxc into `pip_lens.rs`). Sites, fields and functions: `sites_026g.tsv`, `fie
 
 ## 2. Cost (the probe, `SKHID_PIP_PROBE`)
 
-NUMBERS
+Measured 2026-11-23 with GPU timestamps (D3D11 TIMESTAMP queries around each draw, through DXVK)
+and the render thread's clock, in a headless capture (`capture.py`, Fire Station day, the two poses
+of `fire-station.json` held 20 s each, 1920 x 1080, every quality setting at its highest, TAA), on
+an RTX 3060 Ti that other workers' jobs shared, so each figure is a range over four windows of 240
+frames; per frame:
+
+```
+                        off (time only)   256          512          1024
+the frame's draw, GPU    7.0 .. 11.7      7.1 .. 8.7   7.7 .. 8.4   5.7 .. 8.3   ms
+the second view, GPU         -            2.4 .. 2.9   2.5 .. 3.5   3.5 .. 4.6   ms
+the second view, CPU         -            1.5 .. 1.7   1.4 .. 1.6   1.3 .. 1.9   ms (render thread)
+the frame's draw, CPU    3.4 .. 4.8       3.0 .. 3.6   2.8 .. 3.4   3.3 .. 3.7   ms
+```
+
+- The second view costs about 2.5 ms of GPU at 256 and 512 and 4 ms at 1024: most of it is the
+  view's own fixed work (the sun's shadow cascades fitted to its frustum, the local lights' shadow
+  faces it sees, the culling, the ambient and post-process passes), not its pixels; 1.5 ms of the
+  render thread at every size.
+- The frame interval (50 to 58 ms in every run, with the second view or without) is the rig's, not a
+  measure: neither draw was its limit.
+- **Broken: nothing seen.** The frame's own picture with the second view (the inset masked out)
+  differs from the picture without it as one run differs from another (mean 0.9 of 255), but for a
+  few thin sunlit edges in one pose (0.6 % of the pixels, specular glints on wires and poles;
+  LIKELY the sun's shadow cascades, which each draw fits to its own frustum). The second view's
+  picture: the same weather, fog and exposure, sharp, no interface, no first-person model. Not
+  seen in a static capture: particles (none at these poses), a moving object's TAA history, the
+  texture streaming at a narrow field of view (each draw asks its own mips).
+- Pictures: `private/renders/pip-probe/fire-station-<pose>-<off|256|512|1024>.png` (the second view
+  in the top right corner), each run's log and `timings.txt` beside them.
+- **The default from these numbers:** 512 (the lens's picture is a disc of 0.45 of the half height:
+  486 px across at 1080p, 648 at 1440p). The lens is drawn only while a magnified optic is aimed, so
+  the cost is that time's alone.
 
 ## 3. The lens (`SKHID_PIP_SCOPES`, unplayed)
 
@@ -84,6 +115,31 @@ NUMBERS
 - **Others** see nothing different: everything is the eyes' own drawing; the world format and what
   a match computes do not change (no `simulation_changes.tsv` row).
 
-## 4. Not done yet
+## 4. The setting
 
-TODO
+- `srp_pip_scopes on|off` in user.cfg, off by default (patch 83's console variable, `hud_options`),
+  read each frame: off is today's behaviour exactly (no second view drawn, no hook acts).
+  `SKHID_PIP_SCOPES=on|256|512|1024` turns it on whatever the setting says (local tests).
+- The label `st_srp_pip_scopes_option` is in the twelve dictionaries. **Not made:** its checkbox in
+  the Graphics tab (Settings.as, `SrpVideoTab`); until then the console sets it.
+
+## 5. Not done, and what a real use still needs
+
+- **Unplayed.** The lens part (section 3) has never run: a static capture has nobody to aim, and
+  nothing here aims. Everything in it is from the code read; the owner's test is the proof.
+- **The lens's size and place** are a constant disc at the screen's centre (0.45 of the half
+  height). The optic's eyepiece, seen at the eyes' field of view from its own eye, has a size of its
+  own; the disc should be the eyepiece's (its lens surface's bounds projected, per optic, as X-Ray's
+  fork measures it) and follow it through the aim-in and the gun's sway, not only at the full aim.
+- **The reticle** is the aimed model's own, drawn in the second view: today's reticle, at today's
+  angular size, cut to the lens. A second-focal-plane look; nothing per optic.
+- **Exposure:** each view adapts its own eye (the second view to the scope's picture); the frame's
+  exposure is not imposed on the lens.
+- **Cost cuts not made:** a lower shadow, AO or SSR quality for the second view (the stages' enable
+  bytes, opt+109h..+11Eh, set around its draw as the hi-Z switch is), and a second view sized to the
+  lens on screen.
+- **Memory:** the second view's window holds a full set of targets at its size (at 512: about 30
+  MB of video memory, LIKELY, from `create_targets` formats), made the first time it is wanted and
+  kept for the process.
+- **Spectators** with the setting see through the spectated player's optic the same way (the eyes'
+  camera is theirs).
