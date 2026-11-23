@@ -1432,6 +1432,53 @@ mod tests {
         (grid, stats.rim, up)
     }
 
+    /// [body physics S5b] Every stored rim press with a run-up has its stored run-in (`WalkGrid::run_in_of`, RunIn::of): the gait of
+    /// its stored press, the moving steps its own run-up plays again, the stored lead and aim; the file keeps them, every field.
+    #[test]
+    fn a_stored_press_has_the_run_in_it_was_flown_with() {
+        use crate::motion::RunGait;
+        for top in [1.30, 1.40] {
+            let (grid, _, _) = onto(top, true);
+            assert_eq!(grid.run_ins.len(), grid.off.len(), "{top}: one run-in a link");
+            let (caster, s) = body(true).controller();
+            let mut tris = Vec::new();
+            quad(&mut tris, Vec3::new(-2.0, 0.0, 0.0), Vec3::new(-2.0, 0.0, 6.0), Vec3::new(5.0, 0.0, 6.0), Vec3::new(5.0, 0.0, 0.0));
+            quad(&mut tris, Vec3::new(5.0, top, 0.0), Vec3::new(5.0, top, 6.0), Vec3::new(12.0, top, 6.0), Vec3::new(12.0, top, 0.0));
+            quad(&mut tris, Vec3::new(5.0, 0.0, 0.0), Vec3::new(5.0, top, 0.0), Vec3::new(5.0, top, 6.0), Vec3::new(5.0, 0.0, 6.0));
+            let world = crate::controller::Collision::build(&tris).with_caster(caster);
+            let mut with_run_in = 0;
+            for l in grid.off_links() {
+                let Some(run_in) = grid.run_in_of(l, false) else {
+                    assert!(matches!(l.press, Takeoff::Climb | Takeoff::WalkOff | Takeoff::WalkOffCrouched | Takeoff::Release { .. }), "{top}: {l:?}");
+                    continue;
+                };
+                with_run_in += 1;
+                let own = Neighbour { lead: 0.0, side: l.aim.side_m(), turn: l.aim.turn_rad(), dy: 0.0, fastest: false };
+                let way = l.press_way(grid.position(l.from), grid.position(l.to));
+                let moving = super::super::run_ins::press_moving(&world, &s, grid.position(l.from), way, l.press, own, jump::WALK_CAP_MS)
+                    .expect("its run-up plays again");
+                let (gait_ok, lead) = match (l.press, run_in.gait) {
+                    (Takeoff::Press(lead), RunGait::Walk { ramp }) | (Takeoff::Slow { lead, .. }, RunGait::Walk { ramp }) => (ramp == u32::from(moving), lead),
+                    (Takeoff::Sprint(lead) | Takeoff::SprintHeld(lead), RunGait::Sprint { steps, .. }) => (steps == u32::from(moving), lead),
+                    _ => (false, PressLead::from_metres(0.0)),
+                };
+                assert!(gait_ok, "{top}: {l:?} {run_in:?} moving {moving}");
+                assert_eq!((run_in.lead, run_in.side), (lead.metres(), l.aim.side_m()), "{top}: {l:?}");
+            }
+            assert!(with_run_in > 0, "{top}: some stored press has a run-up");
+            let path = std::env::temp_dir().join(format!("srp-runin-{}-{top}.bin", std::process::id()));
+            grid.write(&path, 11).unwrap();
+            let back = WalkGrid::read(&path, 11, body(true)).unwrap();
+            std::fs::remove_file(&path).ok();
+            assert_eq!(back.run_ins, grid.run_ins, "{top}: the file keeps them");
+            for l in grid.off_links() {
+                assert_eq!(back.run_in_of(l, false), grid.run_in_of(l, false), "{top}: {l:?}");
+                assert_eq!(back.run_in_of(l, true), grid.run_in_of(l, true), "{top}: {l:?}");
+            }
+            assert_eq!(back.digest(), grid.digest());
+        }
+    }
+
     /// A 1.30 m top (over the sprint jump's lowest top, 1.28) and a 1.40 m one are got onto by some client press: rim jumps are
     /// made with the press that lands (a gap link's, in the built file too) and the tops are reached; without rim jumps they are
     /// not. A 2.10 m top no press gets onto: no rim jump is made, and the build reports every one it flew.
