@@ -927,7 +927,12 @@ impl Core<'_> {
             _ => return,
         };
         match result {
-            Ok(()) => log::info!("{}: squad change {message:?}", who.name),
+            Ok(()) => {
+                log::info!("{}: squad change {message:?}", who.name);
+                if matches!(message, ClientMessage::AddSquadMember { .. }) {
+                    self.room_squad_made(who);
+                }
+            }
             Err(error) => {
                 log::info!("{}: squad change {message:?} refused: {error:?}", who.name);
                 // Its client asked for a change to a squad the server does

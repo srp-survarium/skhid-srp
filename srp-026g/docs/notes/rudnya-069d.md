@@ -42,7 +42,16 @@ the whole map (pack @4, below).
 - Materials by the two builds' shading: gloss from 0.69d's smoothness by the GGX alpha each
   build draws, Fresnel 0.04, the 43 materials with a metalness map on diffuse and Fresnel maps
   made from their albedo and metalness (pack @3 bound the metalness map as the Fresnel map and
-  metal mirrored the sky).
+  metal mirrored the sky). Pack @5: a smoothness map is drawn as a map on every category (the
+  alpha-tested two-sided template had none and drew 0.69d's unused constant: the rusty sheet
+  metal of the sheds and roofs at gloss 0.62 where its map is matte, the tester's "greasy"
+  roofs; 19 materials), and a vertex blend keeps 0.69d's own strength, falloff, second-layer
+  tile and mask scale and rotation (55 of 68 blends drew the template's). An alpha-tested blend
+  that 0.69d cuts by its second layer's alpha (`consider_blended_albedo_opaque` false: the lath
+  under the wallpaper of house_7's stairs, whose transparent texels 0.26g drew black) is cut so
+  by `v021d-vertex-blend@4`'s programs, selected by the blend strength the converter writes from
+  those flags (resource-porter `weather_fog_021::vertex_blend::blend_cut`; 3 of Rudnya's
+  materials, 14 in all of 0.69d's; techniques 0 and 2 are not converted, noted by the build).
 - 0.69d's own sound emitters (22; one sound 0.26g lacks is imported) and its fly swarms.
 
 Known differences from 0.69d (the owner, 2026-11-21, of the eight views and the outdoor

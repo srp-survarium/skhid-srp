@@ -108,7 +108,14 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
     manifest and a new version of that pack in the same skhid PR;
   - materials: gloss by the two builds' GGX alpha, Fresnel 0.04, a metalness map as the
     surface's own diffuse and Fresnel maps made texel by texel (never the metalness map as
-    0.26g's Fresnel map: a dark pipe mirrored the sky);
+    0.26g's Fresnel map: a dark pipe mirrored the sky); every category's template must draw
+    a gloss map (`use_troughness`) where the donor binds a smoothness map: without one the
+    donor's unused constant was drawn (Rudnya's rusty roofs "greasy" at gloss 0.62; the build
+    now stops on such a template);
+  - vertex blends: the donor's own strength, falloff, second-layer tile and mask scale and
+    rotation (both builds draw the same weight formula); a blend 0.69d cuts by its second
+    layer's alpha needs the blended-cut gbuffer programs (0.26g's own read the base's alpha
+    only: the lath under Rudnya's wallpaper drew black);
   - scene objects both builds have (sound emitters, a particle 0.26g ships): the donor's.
 - **Vertex-blend and vertex-colour materials.** Tell a vertex-blend material before an
   alpha-tested one (the blended opaque layer closes the cut-outs: house_6's wall was gone)

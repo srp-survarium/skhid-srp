@@ -235,7 +235,7 @@ class WineTest(unittest.TestCase):
         started = os.path.join(self.x86, "survarium_skhid.exe.started.txt")
         if os.path.exists(started):
             os.remove(started)
-        self.write(f"{X86}/play_skhid.bat", builder.bat("srp.example:1234", "english", True))
+        self.write(f"{X86}/play_skhid.bat", builder.bat("srp.example:1234", True))
         command, env = windows(["cmd", "/c", "play_skhid.bat"])
         code = subprocess.run(command, cwd=self.x86, env=env, timeout=120,
                               stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)

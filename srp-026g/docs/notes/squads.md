@@ -42,6 +42,12 @@ movie's `SquadList`, `RoomsLook.squadTag`. Tests: `core_tests::rooms_tests::squa
   waiting in no queue of its own (one it queued in before the squad keeps it: the review of
   #884). A mate idle in a room comes along with the commander's Join or Play (it leaves that
   room).
+- **A squad made in a room:** a commander already in a room when the squad is made (`2A 02`)
+  brings its new mate in beside it while the mate is free (the rule above), as a room it makes
+  does, and the mate goes into the room's match, if one is played, by the late join on its
+  commander's side. A room with no place for it (or its max level) leaves the mate where it is.
+  Without this the soldier could never come: it joins no room on its own, and the commander,
+  in its room already, presses no Play or Join (the report of 2026-11-01).
 - **Play** (the commander's):
   - its mate in a room: into that room, beside it; that room full: its queue. A room that does
     not take it (a PIN, its max level, turned out): Play as for anyone.

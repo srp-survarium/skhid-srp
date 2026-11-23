@@ -92,16 +92,17 @@ def main():
     archive_of = {'resources.db': args.stock} | {r[1]: args.patches / r[1] for r in base_rows}
     sha_of = {'resources.db': file_sha256(args.stock)} | {r[1]: r[2] for r in base_rows}
     base = list(archive_of.values())
-    base_id = [build.game_data_id(args.game_data, ROOT / 'srp-026g')] + list(sha_of.items())
+    reader = build.game_data_id(args.game_data, ROOT / 'srp-026g')
     with tempfile.TemporaryDirectory(prefix='v021-weather-source-') as tmp:
         work = Path(tmp)
         game = build.Game(args.game_data, work)
-        world, cache = build.World(), build.Cache(args.cache)
-        build.build_movies(rows, ROOT, archive_of, sha_of, game, args.flash_tools, work, world, cache)
-        build.compose_packs(rows, base, base_id, args.porter, args.packs, work, world, cache)
-        base_files = game.files(base)
-        build.apply_edits(rows, day_edit_tree(work, weather_rows=weather_rows), base, base_id, base_files, game, work, world, cache)
-        selected = {path: data for path, data in world.bytes.items()
+        cache = build.Cache(args.cache)
+        world = build.World(cache)
+        drawn = build.build_movies(rows, ROOT, archive_of, sha_of, game, args.flash_tools, work, world, cache)
+        build.compose_packs(rows, base, list(sha_of.items()), args.porter, args.packs, work, world, cache, drawn)
+        base_layers = build.Layers(game, cache, reader, base, sha_of)
+        build.apply_edits(rows, day_edit_tree(work, weather_rows=weather_rows), base_layers, work, world, cache)
+        selected = {path: world.data(path) for path in world
                     if path.startswith('projects/v021d_level_') and '/day_' in path
                     or path.startswith('gameplay/game_modes/v021d_level_') and '_day_' in path
                     or path == 'gameplay/db_static_dictionaries'}

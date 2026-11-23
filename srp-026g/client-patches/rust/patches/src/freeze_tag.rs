@@ -425,10 +425,10 @@ pub fn on_hud(ctx: &mut Context<'_>) -> Flow<NoExit> {
         // The Tab list's frozen rows; the movie clears them with the match.
         movie.invoke_uints(c"root.freeze_tag_rows", &[mask]);
     }
-    if let Some(movie) = ui.icons_movie() {
-        if movie.invoke_uints(c"root.freeze_tag_markers", &[mask]) {
-            MARKERS.set(ctx.thread(), Some(movie.id()));
-        }
+    if let Some(movie) = ui.icons_movie()
+        && movie.invoke_uints(c"root.freeze_tag_markers", &[mask])
+    {
+        MARKERS.set(ctx.thread(), Some(movie.id()));
     }
     Flow::Continue
 }

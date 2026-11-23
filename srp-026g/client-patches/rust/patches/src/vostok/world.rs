@@ -150,6 +150,11 @@ impl Places {
     pub fn each(self) -> [bool; Places::COUNT] {
         core::array::from_fn(|place| self.0 >> place & 1 != 0)
     }
+
+    /// How many places are in.
+    pub fn count(self) -> usize {
+        self.0.count_ones() as usize
+    }
 }
 
 /// What the game plays, from its network client's class (its vtable), read at each ask: there is

@@ -1,6 +1,7 @@
 import importlib.util
 from pathlib import Path
 import struct
+import types
 import unittest
 
 from check_boot_classes import Resources, audit, bcw
@@ -48,15 +49,16 @@ class BootClassTests(unittest.TestCase):
             def get(self, archives, paths):
                 return {p: native[p] for p in paths}
 
-        world = build.World()
+        base = types.SimpleNamespace(of=Game().files(['stock']), game=Game(), archives=['stock'])
+        world = build.World(build.Cache(None))
         for path, raw in resources([('exo', 'data_long', .22)]).items():
             world.put(path, raw, 'pack')
         with self.assertRaises(build.Problem):
-            build.clothing_check(['stock'], native, Game(), world)
+            build.clothing_check(base, world)
         # An edit over the pack fixes its class; the gate sees that final data.
         path = 'gameplay/items/armour/boots/exo.options'
         world.put(path, resources([('exo', 'data_full', .22)])[path], 'edit')
-        build.clothing_check(['stock'], native, Game(), world)
+        build.clothing_check(base, world)
 
 
 if __name__ == '__main__':
