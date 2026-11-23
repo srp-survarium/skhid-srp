@@ -825,7 +825,7 @@ limit beside the weight ("/ 30"):
 - **Skills**: the kit's float of modifier 5 (Athlete, skill 209, +1 kg a rank),
   from the exe's callback.
 - **Bonuses**: the armour's (HEAD..FOOT) weight-limit modifications (prop 106,
-  1120..1124: +0.5..+2.5 kg, halved 2026-11-23; the Duty suit's built-in 1124).
+  1120..1124: +1, +1, +2, +2, +3 kg since 2026-11-23 (whole numbers: the stock values are ints); the Duty suit's built-in 1124).
 - **Boosters**: the pockets' (the Anomalous Force Protein, `weight_booster`,
   built-in 1124: +5 kg while carried, as every booster).
 - The items' own parameters (beyond their modifications) are 0 in every
