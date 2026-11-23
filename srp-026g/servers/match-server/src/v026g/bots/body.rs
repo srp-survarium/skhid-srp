@@ -163,6 +163,9 @@ pub(crate) struct KeptStep {
     /// [A388 step 2] The step left the ground: the client's `step_down` (0x7E1B0, port `controller::tick`) found no ground within the
     /// step under the capsule and it is airborne ([`mapdata::controller::tick::StepNotes::airborne`]).
     pub airborne: bool,
+    /// [fix-lip] How far the controller's own feet went down in the step (m, negative up). Its own height is not the reckoning's
+    /// (a controller kept after a flight is shifted, [`FlownJump`]); its moves are.
+    pub down: f32,
 }
 
 /// [A364 P9] One reckoned ground step of the kept controller ([`ClientStep::Kept`]) from `feet`, asked to move `by` (flat): where its
@@ -209,7 +212,7 @@ pub(crate) fn kept_step(
     body.feet = to;
     body.airborne = notes.airborne;
     *kept = Some(body);
-    Some(KeptStep { to, airborne: notes.airborne })
+    Some(KeptStep { to, airborne: notes.airborne, down: start.y - end.y })
 }
 
 /// [A388 (e) gap 16] The crouch a kept controller's step is handed (`CrouchInput::Tested`): the crouch key as `input_crouch`, and both
@@ -281,6 +284,69 @@ pub(crate) enum KeptOff {
     /// not known, so it stays on the grid's floors. A kept controller needs the walker, so the reckoning's steps never meet this;
     /// the lip guard's margin point can (a grid built without it).
     NoWalker,
+}
+
+/// [fix-lip] Where a kept controller that left the ground ([`KeptOff::Left`]) is against the top it left: the client's capsule sinks
+/// slowly first (`additional_down_speed` a tick under `on_ground_max_vertical_speed`, [`client_fall_tick`]) and an edge under its
+/// round bottom can still catch it, so the walk-off is a fall only once it is more than a step under the top, the depth
+/// [`kept_off_ground`]'s floor is taken from.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum KeptSink {
+    /// No more than a step under the top: it plays on.
+    Sinking(Sink),
+    /// More than a step under it: it falls on, from the reckoned height `y` at `speed` (m/s down).
+    Past { y: f32, speed: f32 },
+    /// No kept controller to ask: the body leaves at once.
+    Unknown,
+}
+
+/// [fix-lip] A kept controller's sinking ([`KeptSink::Sinking`]): the reckoned top it left the ground at, and how far its own feet
+/// went down since (m).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Sink {
+    top: f32,
+    sunk: f32,
+}
+
+impl Sink {
+    /// The reckoned height of its feet.
+    fn y(self) -> f32 {
+        self.top - self.sunk
+    }
+}
+
+/// [fix-lip] What a ground step did to a kept controller's sinking ([`Fall::Sinking`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum SinkStep {
+    /// No sinking, or one that ended with no catch (the step's own rule then).
+    None,
+    /// It sinks on.
+    On(Sink),
+    /// It found ground again.
+    Caught,
+    /// It sank past a step and falls on from the reckoned height `y` at `speed` (m/s down).
+    Past { y: f32, speed: f32 },
+}
+
+impl KeptSink {
+    /// `fall`: the body's before the step; `down`: how far the controller's feet went down in the step ([`KeptStep::down`]).
+    fn of(kept: Option<&KeptBody>, fall: Fall, top: f32, down: f32, step: f32) -> Self {
+        match kept {
+            None => Self::Unknown,
+            Some(kept) => {
+                let before = match fall {
+                    Fall::Sinking(sink) => sink,
+                    _ => Sink { top, sunk: 0.0 },
+                };
+                let sink = Sink { top: before.top, sunk: before.sunk + down };
+                if sink.sunk <= step {
+                    Self::Sinking(sink)
+                } else {
+                    Self::Past { y: sink.y(), speed: (-kept.controller.velocity.y).max(0.0) }
+                }
+            }
+        }
+    }
 }
 
 /// [A318] The grid's own step less the client tick's, for one reckoned step: its flat length (m, may be negative) and its flat net.
@@ -501,6 +567,9 @@ pub enum Fall {
     Ground,
     /// Falling at `speed` m/s (down), the client's `step_down` velocity.
     Falling { speed: f32 },
+    /// [fix-lip] Its kept controller left the ground and sinks, no more than a step under the top it left ([`KeptSink`]): off the
+    /// ground (the client's `on_ground` 0x7EF90 is false), not yet a fall; the kept controller plays on.
+    Sinking(Sink),
 }
 
 /// [A318] `fall_params.gravity`, m/s^2 (PROVEN, `docs/notes/fall_damage.md`; `step_down` 0x7E1B0's g).
@@ -2247,14 +2316,19 @@ fn advance(
                         if counted {
                             flown_jumps::count(flown_jumps::Kind::Falling);
                         }
-                        // Falling on: onto the floor under the feet open above them, from where the flight left it.
-                        let floor = under_edge(grid, feet, feet.y, feet.y).or(under);
                         at.feet = feet;
-                        at.node = floor;
-                        at.fall = Fall::Falling { speed: (-vertical).max(0.0) };
-                        // [press forecast] The press forecast follows the controller down ([`press_forecast`]); the reckoning
-                        // falls by its own rule.
-                        at.kept = (role == Role::Press).then_some(after);
+                        at.node = under;
+                        if falls {
+                            // [fix-lip] Falling on: the flight's controller plays on ([`Fall::Sinking`] from where the flight
+                            // left it), caught where it is caught, a fall from its own height and speed past a step. Not the
+                            // floor `under_edge` gave in the square about the feet: on a flat floor a short jump's falling-on
+                            // end at (6.25, 0.05, 5.0) took a floor 0.67 m off, whose support then stopped every step after.
+                            at.fall = Fall::Sinking(Sink { top: feet.y, sunk: 0.0 });
+                        } else {
+                            at.fall = Fall::Falling { speed: (-vertical).max(0.0) };
+                            // [press forecast] The press forecast follows the controller down ([`press_forecast`]).
+                            at.kept = (role == Role::Press).then_some(after);
+                        }
                     }
                 }
             }
@@ -2318,6 +2392,7 @@ fn advance(
                 let blocked = feet.distance_xz(to) > CLIENT_BLOCKED_M;
                 // [A388 step 2] The kept controller's step left the ground ([`KeptStep::airborne`]).
                 let mut airborne = false;
+                let mut kept_down = 0.0;
                 let client = match (kin.client_step, role, in_air, at.fall) {
                     (ClientStep::Client, Role::Reckoning | Role::Press, false, Fall::Ground) if rises || blocked => {
                         let by = Vec3::new(to.x - at.feet.x, 0.0, to.z - at.feet.z);
@@ -2328,12 +2403,13 @@ fn advance(
                     // [A364 P9] Every ground step by the body's kept controller. [A388 step 2b] The lip guard's stop forecast's too
                     // ([`ForecastStep::Kept`]): its body is the reckoning's, so it leaves an edge where the reckoned body does.
                     // [press forecast] The press forecast's too, whatever the stop forecast's switch ([`Role::Press`]).
-                    (ClientStep::Kept, Role::Reckoning | Role::Forecast | Role::Press, false, Fall::Ground)
+                    (ClientStep::Kept, Role::Reckoning | Role::Forecast | Role::Press, false, Fall::Ground | Fall::Sinking(_))
                         if role.steps_as_reckoning() || kin.forecast_step == ForecastStep::Kept =>
                     {
                         let by = Vec3::new(to.x - at.feet.x, 0.0, to.z - at.feet.z);
                         kept_step(grid, &mut at.kept, at.feet, by, crouch_input(step_keys, tick.legs_broken), Kinematics::sprint_state(at.keys), role.clock()).map(|step| {
                             airborne = step.airborne;
+                            kept_down = step.down;
                             step.to
                         })
                     }
@@ -2387,14 +2463,73 @@ fn advance(
                 // falls onto at the controller's feet, and [`fall_step`] plays the client's fall from the top (not held by the grid to
                 // [`SUPPORT_M`] past its floor's centre, where the client's capsule has already rolled off the walker's rim: falls
                 // report R4, 66 of 110 notes, a median 0.26 m / 0.3 s). The controller is set anew after the fall.
+                // [fix-lip] Not on the first tick it finds no ground: the client's capsule then sinks slowly
+                // (`additional_down_speed`, 0.05 m a tick under 2 m/s, [`client_fall_tick`]) and an edge under its round bottom
+                // catches it within a few ticks. While the kept controller is no more than a step under the top ([`KeptSink`]),
+                // it plays on and the body goes where it goes (its floor kept); past a step it falls, from the controller's height
+                // and speed. batt-m7-s1 bot 0, 44.0-47.7 s: from the reckoning's own feet the port's kept controller and the
+                // game's (exe rig_real_v3) ended within 0.02 m over 10 ticks, caught 0.05-0.25 m down, where leaving at once put
+                // the body on floors 0.87-4.45 m down.
                 let mut left = false;
+                // [fix-lip] What the step does to a kept controller's sinking: none (no sinking, or it ended without a catch), it
+                // sinks on, it was caught again, it sank past a step and falls from (height, speed).
+                let mut sinks = SinkStep::None;
                 let off = client.filter(|_| airborne && kin.edge == Edge::Controller).map(|target| kept_off_ground(grid, target, top));
                 if let (Role::Reckoning, Some(off)) = (role, off) {
                     kept_edges::count(off);
                 }
-                if let Some(KeptOff::Left(down, at_down)) = off {
-                    (node, feet, stopped, left) = (down, at_down, false, true);
-                    at.kept = None;
+                // A sinking goes on while its controller finds no ground, whatever the walk-off test says under it now; past a step
+                // it comes down on the walk-off's floor, else on its column's under the controller's feet ([`column_floor`]).
+                let left_off = match off {
+                    Some(KeptOff::Left(down, at_down)) => Some((down, at_down)),
+                    _ => None,
+                };
+                if let Some(target) = client.filter(|_| airborne && (left_off.is_some() || matches!(at.fall, Fall::Sinking(_)))) {
+                    match KeptSink::of(at.kept.as_ref(), at.fall, top, kept_down, grid.body().step) {
+                        KeptSink::Sinking(sink) if falls => {
+                            #[cfg(test)]
+                            if role == Role::Reckoning {
+                                kept_edges::sinking();
+                            }
+                            (node, feet, stopped) = (at.node.unwrap_or(node), Vec3::new(target.x, sink.y().min(sink.top), target.z), false);
+                            sinks = SinkStep::On(sink);
+                        }
+                        sink => {
+                            let mut below = top;
+                            if let KeptSink::Past { y, speed } = sink {
+                                #[cfg(test)]
+                                if role == Role::Reckoning {
+                                    kept_edges::sank_past();
+                                }
+                                sinks = SinkStep::Past { y, speed };
+                                below = y;
+                            }
+                            let onto = left_off.or_else(|| {
+                                column_floor(grid, Vec3::new(target.x, below, target.z)).map(|f| (f, Vec3::new(target.x, grid.position(f).y, target.z)))
+                            });
+                            if let Some((down, at_down)) = onto {
+                                (node, feet, stopped, left) = (down, at_down, false, true);
+                                at.kept = None;
+                            }
+                        }
+                    }
+                }
+                // [fix-lip] A sinking kept controller ([`KeptSink::Sinking`]) the step found ground again for: the body is where it was
+                // caught, on [`caught_floor`] when there is one, else on the top's floor (the grid's slide does not pull it back to its
+                // floor's support).
+                if !airborne
+                    && let (Some(target), Fall::Sinking(sink)) = (client, at.fall)
+                {
+                    sinks = SinkStep::Caught;
+                    let y = sink.y() - kept_down;
+                    match caught_floor(grid, Vec3::new(target.x, y, target.z), sink.top) {
+                        Some(floor) => (node, feet, stopped) = (floor, Vec3::new(target.x, grid.position(floor).y, target.z), false),
+                        None => (node, feet, stopped) = (at.node.unwrap_or(node), Vec3::new(target.x, sink.top, target.z), false),
+                    }
+                    #[cfg(test)]
+                    if role == Role::Reckoning {
+                        kept_edges::caught();
+                    }
                 }
                 if in_air
                     && feet.distance_xz(to) > 1e-3
@@ -2431,7 +2566,20 @@ fn advance(
                 if stopped {
                     at.velocity = [0.0, 0.0];
                 }
-                at.fall = if falls && !in_air { fall_step(at.fall, top, &mut at.feet, grid.body().step, kin.drop_fall) } else { Fall::Ground };
+                at.fall = match sinks {
+                    SinkStep::On(sink) => Fall::Sinking(sink),
+                    // The kept controller's own fall goes on from where it is, over the floor it comes down on.
+                    SinkStep::Past { y, speed } if falls && !in_air && y > at.feet.y => {
+                        at.feet.y = y;
+                        Fall::Falling { speed }
+                    }
+                    // A sinking that ended (caught, or no kept walk-off any more) is on the ground for the step's own rule.
+                    _ if falls && !in_air => {
+                        let before = if matches!(at.fall, Fall::Sinking(_)) { Fall::Ground } else { at.fall };
+                        fall_step(before, top, &mut at.feet, grid.body().step, kin.drop_fall)
+                    }
+                    _ => Fall::Ground,
+                };
             }
             _ => at.feet = to,
         }
@@ -2505,7 +2653,7 @@ fn fall_step(fall: Fall, top: f32, feet: &mut Vec3, step: f32, rule: DropFall) -
     let floor = feet.y;
     let speed = match fall {
         Fall::Falling { speed } => speed,
-        Fall::Ground if top - floor > step => match rule {
+        Fall::Ground | Fall::Sinking(_) if top - floor > step => match rule {
             // [`DropFall::Client`]: the edge tick is the fall's first (no ground within the step: airborne at once, from rest).
             DropFall::Client => 0.0,
             _ => {
@@ -2513,7 +2661,7 @@ fn fall_step(fall: Fall, top: f32, feet: &mut Vec3, step: f32, rule: DropFall) -
                 return Fall::Falling { speed: GRAVITY * TICK_S };
             }
         },
-        Fall::Ground => return Fall::Ground,
+        Fall::Ground | Fall::Sinking(_) => return Fall::Ground,
     };
     let (after, down) = match rule {
         DropFall::Client => client_fall_tick(speed),
@@ -2789,6 +2937,32 @@ pub(crate) mod kept_edges {
     #[cfg(test)]
     pub(crate) fn counts() -> (u64, u64, u64) {
         (OFF[0].load(Relaxed), OFF[1].load(Relaxed), OFF[2].load(Relaxed))
+    }
+
+    /// [fix-lip] The reckoning's kept steps by a sinking controller ([`super::KeptSink`]): steps sinking within a step under the
+    /// top, sinkings caught again, sinkings that went past a step and fell.
+    #[cfg(test)]
+    static SINKS: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
+
+    #[cfg(test)]
+    pub(crate) fn sinking() {
+        SINKS[0].fetch_add(1, Relaxed);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn caught() {
+        SINKS[1].fetch_add(1, Relaxed);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn sank_past() {
+        SINKS[2].fetch_add(1, Relaxed);
+    }
+
+    /// (sinking steps, caught, sank past a step) so far.
+    #[cfg(test)]
+    pub(crate) fn sinks() -> (u64, u64, u64) {
+        (SINKS[0].load(Relaxed), SINKS[1].load(Relaxed), SINKS[2].load(Relaxed))
     }
 
     /// [`counts`] since the last call, and zero again.
@@ -3318,6 +3492,16 @@ fn column_floor(grid: &WalkGrid, feet: Vec3) -> Option<NodeId> {
         .flat_map(|(x, z)| grid.floors_in([x, z, x, z]))
         .filter(|&node| grid.position(node).y <= feet.y + FIX_ABOVE_M)
         .max_by(|&a, &b| grid.position(a).y.total_cmp(&grid.position(b).y))
+}
+
+/// [fix-lip] The floor a sinking kept controller caught again at `feet` is on ([`Fall::Sinking`]): its column's ([`column_floor`])
+/// when that is lower than the top `top` it sank from and no more than a step under the feet; none (the top's floor then)
+/// otherwise. `column_floor` takes the highest floor however far under the feet: with no floor of the caught height in the
+/// column's cells (a rim's top the grid's cells eroded back), it put the body on floors metres down, where its route then planned
+/// jumps up beyond the jump's reach (#2562's gate bench: route presses of links over 1.30 m 14 % -> 22 %; with this bound, the 3
+/// worst matches 32 -> 10, the tip's 10).
+fn caught_floor(grid: &WalkGrid, feet: Vec3, top: f32) -> Option<NodeId> {
+    column_floor(grid, feet).filter(|&f| (feet.y - grid.body().step..top - STEP_UP_RISE_M).contains(&grid.position(f).y))
 }
 
 /// The bench's counts of [`FixFloor::UnderInJump`] (all matches of the run): the worlds whose nearest floor and floor under the
@@ -4063,8 +4247,12 @@ pub(super) mod tests {
         // downward speed, the clip's own (about 6 m/s here). Over 2 m/s down the step is not a slow one, so `step_down` moves the
         // body that speed times the tick (0x7E1DC..0x7E249), which on flat ground ends a few centimetres short of the floor: no
         // ground that tick, and the client's `on_ground` (0x7EF90) is false (it also needs the vertical speed under 4 m/s). The
-        // fall lands on the next step (the flight's falling-on end).
-        assert!(matches!(at.fall, Fall::Falling { speed } if speed > 4.0) && at.feet.y < 0.1, "falling on at the landing step: {at:?}");
+        // fall lands on the next step (the flight's falling-on end). [fix-lip] Its controller plays that on ([`Fall::Sinking`]),
+        // with the clip's speed.
+        assert!(
+            matches!(at.fall, Fall::Sinking(_)) && at.kept.is_some_and(|k| -k.controller.velocity.y > 4.0) && at.feet.y < 0.1,
+            "falling on at the landing step: {at:?}"
+        );
         let mut steps = 0;
         while track.estimate().unwrap().fall != Fall::Ground && steps < 4 {
             time += 50;
@@ -4549,6 +4737,69 @@ pub(super) mod tests {
         let (client, controller) = (first_down(Edge::Client).expect("falls"), first_down(Edge::Controller).expect("falls"));
         assert!(controller < client - 0.05, "the controller's edge is before the grid's hold: controller {controller}, client {client}");
         assert!(controller > 10.1 - 0.2, "and not before the rim: {controller}");
+    }
+
+    /// [fix-lip] A kept controller that leaves the ground over a narrow gap sinks and is caught on the shelf beyond it, 0.15 m
+    /// lower ([`KeptSink`]): the reckoned body goes where its controller goes, onto the shelf, not down onto the floor under the gap
+    /// (batt-m7-s1 bot 0, 44.0-47.7 s: the port's kept controller and the game's were caught 0.05-0.25 m down, and leaving at once
+    /// put the body on floors 0.87-4.45 m down).
+    #[test]
+    fn a_kept_controller_that_leaves_the_ground_is_followed_until_it_sinks_past_a_step() {
+        let clamp = |h: f32| {
+            move |mut t: Triangle| {
+                t.v.iter_mut().for_each(|v| v.y = v.y.min(h));
+                t
+            }
+        };
+        let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+        triangles.extend(floor(0.0, 0.0, 10.1, 10.0, 2.0));
+        triangles.extend(wall_x(10.1, 0.0, 10.0).map(clamp(2.0)));
+        triangles.extend(floor(10.25, 0.0, 20.0, 10.0, 1.85));
+        triangles.extend(wall_x(10.25, 0.0, 10.0).map(clamp(1.85)));
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default()).with_client_walker(&triangles);
+        // The bare kept controller over the gap: it leaves the ground and is caught on the shelf.
+        let mut bare = grid.kept_controller_at(Vec3::new(9.6, 2.0, 5.0)).expect("walker");
+        let (mut left, mut bare_low) = (false, f32::MAX);
+        for _ in 0..12 {
+            let input = TickInput { walk: Vec3::new(0.15, 0.0, 0.0), air_control: Vec3::ZERO, crouch: crouch_input(0, false), sprinting: false };
+            left |= grid.kept_tick(&mut bare, input).expect("walker").airborne;
+            bare_low = bare_low.min(bare.feet().y);
+        }
+        assert!(left && bare_low > 1.7 && bare.feet().x > 10.4, "the premise: left the ground, caught on the shelf ({bare_low}, {:?})", bare.feet());
+        let kin = Kinematics { blend_ticks: 1, edge: Edge::Controller, client_step: ClientStep::Kept, ..Kinematics::default() };
+        let mut track = BodyTrack::default();
+        track.fixed(fix(0, Vec3::new(8.0, 2.0, 5.0), -std::f32::consts::FRAC_PI_2), &kin, Some(&grid));
+        let mut low = f32::MAX;
+        for time in (50..=4_000).step_by(50) {
+            track.decided(time, key::FORWARD, (0.0, 0.0), 0.0, &kin, Some(&grid));
+            let at = track.estimate().unwrap().feet;
+            low = low.min(at.y);
+            if at.x > 12.0 {
+                break;
+            }
+        }
+        let at = track.estimate().unwrap().feet;
+        assert!(at.x > 12.0 && (at.y - 1.85).abs() < 0.05, "on the shelf past the gap: {at:?}");
+        assert!(low > 1.7, "never down onto the floor under the gap: lowest {low}");
+    }
+
+    /// [fix-lip] A sinking kept controller caught where the grid has no floor of its height (a rim's top the grid's cells eroded
+    /// back): [`caught_floor`] does not take the column's floor 2 m under the caught feet ([`column_floor`] has no lower bound of
+    /// its own), and takes one of the caught height lower than the top.
+    #[test]
+    fn a_caught_kept_controller_is_not_put_on_a_floor_far_under_it() {
+        let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+        triangles.extend(floor(0.0, 0.0, 10.0, 10.0, 2.0));
+        triangles.extend(floor(12.0, 0.0, 20.0, 10.0, 1.8));
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default());
+        // Caught 0.1 m under the top, past the top's cells: the column's floor is the one 2 m down.
+        let caught = Vec3::new(11.0, 1.9, 5.0);
+        let deep = column_floor(&grid, caught).expect("the column's floor");
+        assert!(grid.position(deep).y < 0.1, "the premise: column_floor takes the floor 2 m down ({:?})", grid.position(deep));
+        assert_eq!(caught_floor(&grid, caught, 2.0), None, "not the floor 2 m under the caught feet");
+        // Caught over a floor of its height lower than the top: that floor.
+        let shelf = caught_floor(&grid, Vec3::new(14.0, 1.82, 5.0), 2.0).map(|f| grid.position(f).y);
+        assert!(shelf.is_some_and(|y| (y - 1.8).abs() < 0.05), "the shelf: {shelf:?}");
     }
 
     /// [A318] [`DropFall::Client`]: a body going over a 3 m drop sinks 0.05 m a tick for five ticks (the speed at each tick's start

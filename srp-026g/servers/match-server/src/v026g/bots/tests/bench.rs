@@ -2764,6 +2764,8 @@ pub(crate) fn real_bot_cost() {
             eprintln!("walker_holds so far: {}", crate::v026g::bots::body::walker_holds::count());
             let (left, ground, held) = crate::v026g::bots::body::kept_edges::counts();
             eprintln!("kept edges so far: left the floor {left}, the walker's ground under the feet {ground}, no floor under it {held}");
+            let (sinking, caught, sank_past) = crate::v026g::bots::body::kept_edges::sinks();
+            eprintln!("kept sinks so far: steps sinking within a step under the top {sinking}, caught again {caught}, sank past a step and fell {sank_past}");
             let [climbed, falls, fell_landed, handed, no_climb_in_air] = super::standin_jump::kept_moves::counts();
             eprintln!(
                 "stand-in kept moves so far: climbs {climbed}, steps in the air over the lattice's walk that climbed nothing {no_climb_in_air}; falls {falls} (landed {fell_landed}, handed back {handed})"
