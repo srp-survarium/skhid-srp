@@ -186,6 +186,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/light_occlusion.rs`, `src/light_occlusion.toml`, `src/vostok/occlusion.rs` | Patch 190: the hi-Z occlusion no longer drops the light of a place for a frame (`../docs/notes/renderer-026g.md` 5.7): three lohooks at the stores of the hi-Z answers in stage_visibility::occlusion_culling (`hiz.probe_answer` 0x1B81E3, `hiz.ambient_light_answer` 0x1B8043, `hiz.light_answer` 0x1B7C2B): an environment probe or ambient light is always stored visible, a point or spot light occluded only after four occluded answers in a row; rendering only |
 | `rust/patches/src/zone_guards.rs`, `src/zone_guards.toml`, `src/vostok/zone_guard.rs` | Patch 192: a damage zone and the players it holds out of step no longer move memory (`../docs/notes/client_patch.md` 3.102): two lohooks at the stock game's two unchecked finds, `zones.unsubscribe_find` 0x2DBEAA (base_player::unsubscribe_from_actions: a subscriber not there memmoved -4 bytes) and `zones.left_find` 0x319811 (damage_zone_core::on_objects_left: an object not in the inside list popped its last entry); each skips the erase of what is not there and logs a line; `check_zone_guards_026g.py` |
 | `rust/patches/src/use_prompt.rs`, `src/use_prompt.toml`, `src/vostok/use_prompt.rs`, `check_use_prompt_026g.py` | Patch 195: a use's progress bar ends with the use (`../docs/notes/client_patch.md` 3.101): one lohook at set_using_progress_message's start (`use_prompt.progress`, 0x23A430) writes 0 to the ui's last prompt key (+334h), so set_using_info_message gives the next prompt again; the hud alone; its check runs both functions in both exes on a made-up hud (needs Unicorn) |
+| `rust/patches/src/profile_kit.rs`, `src/profile_kit.toml`, `src/vostok/profile_kit.rs`, `check_profile_kit_026g.py` | Patch 199: the lobby is given the kit it shows whole, in one call (`../docs/notes/client_patch.md` 3.104): lobby_menu::on_profile_changed's root.fill_player_profile_items (`lobby_menu.profile_items`, 0x222A07) is not made, and at its root.update_profile_slots_count (`lobby_menu.profile_counts`, 0x222CA1) the items value gets `item_slots` and `artifact_slots` and is given in its place; the lobby alone; its check runs both sites in both exes (needs Unicorn) |
 | `rust/patches/src/material_bounds.rs`, `src/material_bounds.toml`, `src/vostok/material.rs` | Patch 193: game_material_manager::material_pair (0x306D50) takes an id past its 128 material slots as the default material's, the answer it gives an empty slot, instead of reading past its tables (`../docs/notes/footsteps.md`, "Material ids past the table"): one lohook at its start (`material_pair.entry`), every caller's pair through it; the patch log says so at the 1st, 10th, 100th, .. of a run |
 | `rust/patches/src/constant_upload.toml`, `constant_upload_026g.asm`, `check_constant_upload_026g.py` | Patch 134: shader constants cost the render thread less, the same bytes on the GPU: shader_constant_buffer::set_memory (0x11B5A0) copies 16 bytes at a time, not one, and update (0x3DDFD0) maps a buffer only when its bytes differ from the ones it last uploaded (four `code` hooks); its check runs set_memory on 4000 made-up cases in both exes (every register, XMM0..7 and the memory alike), the constructor, and 150 draws over four buffers with a model of the device context (the GPU's bytes after every update alike) (needs Unicorn) |
 | `rust/patches/src/replay_map.rs`, `src/replay_map.toml`, `src/vostok/ui.rs` (`GameWorldUi::at_enemy_ids`), `check_replay_map_026g.py` | Patch 135: a replay shows every enemy, spotted or not (`../docs/notes/replay-map.md`): its dot (update_minimap_players' spotted test, 0x239505), its marker and red name with Alt (render_name's, 0x1F2B50), the icons movie told `root.srp_show_enemies` before initialize_match's enemy list (0x235709); a replay known by the game's network client's class (`vostok::world::Playback`), no state of its own; its check runs the three sites in both exes (needs Unicorn) |
@@ -6804,3 +6805,21 @@ with one of the patterns 20..39, `weapon_pickup::corpse_shot`), which every game
 player's view: the hud movie's `root.set_dead_black`, and patch 144's Game share 0. No new site:
 patch 76's, 78's and 144's, `player_icons.update_start`, `game.clear_resources` and
 `resources.query_done`. Nothing a match computes. Checked: its transition's test; not run in a game.
+
+## The kit shown, in one call (patch 199, unreleased)
+
+The exe shows the lobby a kit in two calls: its items, then its counts
+(lobby_menu::on_profile_changed 0x222330: `root.fill_player_profile_items`, then
+`root.update_profile_slots_count`, which names no kit). Revision 72's lobby drew the items at once,
+on the counts of the kit shown before. The pockets that kit lacked, or had as artefact containers,
+sent their items back, and srp took them off the kit (bug report 2026-11-23: the fourth pocket
+emptied on a kit or preset switch).
+
+Patch 199 gives the kit whole. The items' call is not made (`lobby_menu.profile_items`,
+0x222A07). At the counts' call (`lobby_menu.profile_counts`, 0x222CA1) the items value gets
+`item_slots` (the pockets) and `artifact_slots` (the containers) and is given
+`root.fill_player_profile_items` in its place. The stock paper doll opens its slots from those two
+before it sets the items.
+
+The lobby alone: nothing a match computes. Checked with `check_profile_kit_026g.py` (Unicorn;
+`tools/check profile-kit`); not run in a game.

@@ -139,6 +139,7 @@ pub mod ban_time;
 pub mod sign_in_cipher;
 pub mod controller_position;
 pub mod tick_parts;
+pub mod profile_kit;
 pub mod use_prompt;
 pub mod use_scan;
 pub mod unplayed_match;

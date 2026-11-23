@@ -436,6 +436,14 @@ package survarium.player
          return this._secondaryEnabled || this.weaponMark.shown == PerkSlotMark.DECLINED;
       }
 
+      // A quick slot that is no pocket of the kit drawn only shows nothing: the doll draws the kit
+      // it is given and asks nothing. srp owns the kit: a pocket that goes (a smaller backpack, a
+      // perk's slot switched) is emptied there, and the kit srp sends back shows it.
+      override protected function closeQuickSlot(slot:IPaperDollSlot) : void
+      {
+         slot.setData(null);
+      }
+
       // The pockets and containers shown, then the marks on the perks' slots among them.
       override protected function handleQuickSlots() : void
       {

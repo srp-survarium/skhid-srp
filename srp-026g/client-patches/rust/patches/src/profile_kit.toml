@@ -1,0 +1,16 @@
+# Patch 199: the lobby is given the kit it shows whole, in one call
+# (docs/notes/client_patch.md "The kit shown, in one call"). The sites are
+# sites_026g.tsv's; the logic is profile_kit.rs.
+name = "profile_kit"
+patch = 199
+
+# on_profile_changed's root.fill_player_profile_items: skipped.
+[[hook]]
+site = "lobby_menu.profile_items"
+handler = "on_items"
+
+# on_profile_changed's root.update_profile_slots_count: the items with the
+# counts in their place.
+[[hook]]
+site = "lobby_menu.profile_counts"
+handler = "on_counts"
