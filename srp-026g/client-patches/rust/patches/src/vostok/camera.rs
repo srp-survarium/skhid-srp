@@ -182,11 +182,19 @@ impl<'t> Orbit<'t> {
         place(&self.view())
     }
 
-    /// Puts the eye at `eye`, the view's turn kept; the view the director
-    /// gives on is this one.
-    pub fn set_eye(&mut self, eye: Vec3) {
+    /// The view's turn: its rows right, up and forward.
+    pub fn turn(&self) -> [Vec3; 3] {
+        let v = self.view();
+        [0, 4, 8].map(|row| Vec3::new(v[row], v[row + 1], v[row + 2]))
+    }
+
+    /// The view the director gives on is `turn` (the rows right, up and
+    /// forward) from `eye`.
+    pub fn look(&mut self, turn: [Vec3; 3], eye: Vec3) {
         let mut v = self.view();
-        v[12..15].copy_from_slice(&[eye.x, eye.y, eye.z]);
+        for (row, axis) in [0, 4, 8, 12].into_iter().zip(turn.into_iter().chain([eye])) {
+            v[row..row + 3].copy_from_slice(&[axis.x, axis.y, axis.z]);
+        }
         // SAFETY: as view.
         unsafe { write_floats(self.view.view(), v) }
     }

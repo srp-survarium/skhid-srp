@@ -220,27 +220,22 @@ impl<'t> Inventory<'t> {
         Ok(())
     }
 
-    /// Courier (crate::artefact_courier): the artefacts the dead kit `donor`'s death left in its
-    /// containers into this alive kit's empty containers, in the donor's container order, as many
-    /// as there are empty ones.
+    /// Courier (crate::artefact_courier): the artefacts of the kit `donor` the place left into
+    /// this alive kit's empty containers, in the donor's container order, as many as there are
+    /// empty ones.
     ///
-    /// The donor's container range is gone by then: the respawn rule's tick takes the dead kit's
-    /// player out of the world (0x31699B, base_player::remove 0x2DA790 with 1) before the spawn,
-    /// and its unload_to_profile clears the range (0x2FDBE8..0x2FDBF2: +168h 0, +16Ch 0). Its
-    /// slots keep their items, so the donor's are found in its 23 slots: an item of `world`'s
-    /// registered artefacts whose owner and slot are that slot's, in slot order (the containers'
-    /// order: their range is a run of slots).
+    /// The donor is out of the world by then, dead or alive when it left: the respawn rule's tick
+    /// takes a kit's player out (0x31699B, base_player::remove 0x2DA790 with 1) before its spawn
+    /// (a round's start spawns everyone), as patch 31's switch does in a countdown. remove_alive
+    /// (0x2D99C0) writes alive 0; unload_to_profile clears the container range (0x2FDBE8..0x2FDBF2:
+    /// +168h 0, +16Ch 0) and leaves the artefacts as they were. Its slots keep their items, so the
+    /// donor's are found in its 23 slots: an item of `world`'s registered artefacts whose owner and
+    /// slot are that slot's, in slot order (the containers' order: their range is a run of slots).
     ///
-    /// Only an artefact its holder's death switched off moves (state 5: artefact_base::tick
-    /// 0x3132E5 unlinks its passive, vtable+84h, then writes 5; nothing else writes 5). Its slot is
-    /// emptied as remove_item (0x2FC680) empties one but without on_removed (vtable+34h, 0x313490),
-    /// whose vtable+84h would unlink the passive a second time: Spring's list removal (0x2D5D00) is
-    /// not idempotent (an unlinked node empties its list's head). So: no owner and slot 23 (the
-    /// set_owner remove_item calls, 0x243590), state 0 (on_removed's end), the slot and its
-    /// reference released, the weight to recalculate; then the game's own take_artefact (as a
-    /// pickup: set_item, on_taken links the passive, state 3). A free container keeps
-    /// take_artefact off its evicting path.
-    pub(super) fn take_from_dead_kit(&mut self, donor: &mut Inventory<'t>, world: raw::CoreWorld) -> crate::artefact_courier::Carried {
+    /// Each leaves as its state says ([`Held`]), then the game's own take_artefact (as a pickup:
+    /// set_item, on_taken links the passive, state 3). A free container keeps take_artefact off
+    /// its evicting path.
+    pub(super) fn take_from_kit(&mut self, donor: &mut Inventory<'t>, world: raw::CoreWorld) -> crate::artefact_courier::Carried {
         let mut carried = crate::artefact_courier::Carried::default();
         if self.player.address() == donor.player.address() || self.this.address() == donor.this.address() {
             return carried;
@@ -257,29 +252,32 @@ impl<'t> Inventory<'t> {
                 continue;
             };
             // SAFETY: a registered artefact's inventory_item's and artefact_base's fields.
-            let dead = unsafe {
-                item.item().inventory() == Some(donor.this)
-                    && read(item.item().inventory_slot()) == u32::from(slot)
-                    && read(item.state()) == 5
+            let held = unsafe {
+                (item.item().inventory() == Some(donor.this) && read(item.item().inventory_slot()) == u32::from(slot))
+                    .then(|| Held::parse(read(item.state())))
+                    .flatten()
             };
-            if !dead {
-                continue;
-            }
+            let Some(held) = held else { continue };
             if self.container_space() != ContainerSpace::Available {
                 carried.left += 1;
                 continue;
             }
-            let held = RetainedItem::new(item, self.thread);
-            // SAFETY: the donor's occupied slot (`entry`) and its item, retained by `held` across
-            // the empty-slot interval; the recipient has an empty container.
+            let retained = RetainedItem::new(item, self.thread);
+            // SAFETY: the donor's occupied slot (`entry`) and its item, retained by `retained`
+            // across the empty-slot interval; the recipient has an empty container.
             unsafe {
-                item.item().set_inventory(None);
-                item.item().inventory_slot().write_volatile(u32::from(SLOTS));
-                item.state().write_volatile(0);
-                entry.set_item(None);
-                drop(RetainedItem::adopt(item, self.thread));
-                donor.this.weight_dirty().write_volatile(1);
-                let mut incoming = Some(held.this);
+                match held {
+                    Held::Live => raw::engine_inventory_remove(Some(donor.this), u32::from(slot)),
+                    Held::Dead => {
+                        item.item().set_inventory(None);
+                        item.item().inventory_slot().write_volatile(u32::from(SLOTS));
+                        item.state().write_volatile(0);
+                        entry.set_item(None);
+                        drop(RetainedItem::adopt(item, self.thread));
+                        donor.this.weight_dirty().write_volatile(1);
+                    }
+                }
+                let mut incoming = Some(retained.this);
                 raw::engine_inventory_take_artefact(Some(self.this), &mut incoming);
                 if item.item().inventory() == Some(self.this) {
                     carried.moved += 1;
@@ -287,6 +285,33 @@ impl<'t> Inventory<'t> {
             }
         }
         carried
+    }
+}
+
+/// How an artefact sits in the kit Courier takes it from (artefact_base +280h).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Held {
+    /// Its passive linked (3), its active too (4): the kit left alive (a countdown's switch, a
+    /// round's start). It leaves as remove_item (0x2FC680) takes it: on_removed (vtable+34h,
+    /// 0x313490) ends the active, unlinks the passive and writes 0; then the owner, the slot, the
+    /// reference and the weight.
+    Live,
+    /// Its holder's death switched it off (5: artefact_base::tick 0x3132E5 unlinks its passive,
+    /// vtable+84h, then writes 5; nothing else writes 5). It leaves as remove_item takes an item
+    /// but without on_removed, whose vtable+84h would unlink the passive a second time: Spring's
+    /// list removal (0x2D5D00) is not idempotent (an unlinked node empties its list's head). So:
+    /// no owner and slot 23 (the set_owner remove_item calls, 0x243590), state 0 (on_removed's
+    /// end), the slot and its reference released, the weight to recalculate.
+    Dead,
+}
+
+impl Held {
+    fn parse(state: u32) -> Option<Held> {
+        match state {
+            3 | 4 => Some(Held::Live),
+            5 => Some(Held::Dead),
+            _ => None,
+        }
     }
 }
 

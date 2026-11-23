@@ -119,6 +119,21 @@ unsafe fn tank_of(player: raw::Player) -> Option<raw::OxygenTank> {
     }
 }
 
+/// Whether `item` is an oxygen tank whose Oxygen Rush runs for `player` now (the HUD's quick
+/// slot: the tank's countdown in Spring's blue).
+///
+/// # Safety
+/// `item` is a live inventory item of `player`, alive for the hook.
+pub(super) unsafe fn oxygen_rush_on(player: raw::Player, item: raw::Item) -> bool {
+    // SAFETY: the vtable says it is a tank; the word is our own padding, the clock the player's.
+    unsafe {
+        read(item.vtable()) == raw::image::OXYGEN_TANK_VTABLE
+            && OxygenRush::parse(read(item.oxygen_tank().oxygen_rush_until()))
+                .at(Clock(read(player.stamina().clock())))
+                != OxygenRush::Off
+    }
+}
+
 /// Whether `player`'s oxygen tank is switched on now (its saved m_active).
 ///
 /// # Safety
