@@ -516,7 +516,18 @@ chain's present mode) paces those, whatever the lens does. Unpaced, aimed costs 
 against 5.5 unaimed: the frame's GPU 6.2 against 5.3 (the real gun, optic and hands drawn), its render
 thread 5.0 against 3.1, the second view 1.7 to 2.0 ms of CPU and 0.7 of GPU at 512.
 
+**7. The rig's numbers with `pip-scopes-6`** (960 x 540, uncapped, AK-74M + Leupold 3-7, the rig's
+display still paces every frame, so its interval of 12 to 22 ms and the Present's 10 to 12 ms are the
+rig's; a CPU and GPU shared with other jobs; per frame, windows of 240): unaimed and today's scope
+(`SKHID_PIP_PROBE=time`) the frame's CPU 2.4 to 3.7 ms, GPU 2.2 to 4.1; with the lens aimed the frame's
+CPU 3.6 to 4.9, GPU 2.0 to 2.5, the second view's CPU 2.4 to 4.1 and GPU 0.5 to 1.1 (512, its own sun
+cascades: its CPU about 1.5 to 2.5 ms over round 4's without them). The baseline did not hang this time.
+Pairs: `private/renders/pip-probe/round5/` (README there).
+
 **Next (handoff).**
+- The second view's own cascades cost render-thread time; the owner's aimed frame is CPU-heavy (his
+  `pip-scopes-4` log: frame 5.0 + second view 1.7 to 2.0 ms of CPU): try fewer cascades for it, and
+  confirm in his next log.
 - The exposure (section 10, 3a). The eye adaptation (0x1B1400) is per output window: the previous
   adapted luminance at the window targets' +257Ch (or, on a reset, the frame's own measure +275Ch), the
   adapted one written to +2618h (+261Ch beside it); adapted = lerp(previous, current, dt / T), dt the
