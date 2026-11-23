@@ -144,7 +144,11 @@ pub(super) fn world(
         format!("bench-grid-{:016x}-{grid_key:016x}.bin", cache.source),
         |path| WalkGrid::read(path, grid_key, body),
         || {
-            let grid = World::map_grid(&map, &walker, cell, body, links);
+            let (grid, stats) = World::map_grid_with_stats(&map, &walker, cell, body, links);
+            // [incremental grids] Where the build's time went: per pass and per `parallel` call (`mapdata::grid::timing`).
+            for line in stats.timing.table().lines() {
+                eprintln!("  grid cache: build time: {line}");
+            }
             // A grid its own file's read would refuse: an error naming the link (it would be built again at every run).
             if let Some(problem) = grid.off_links_problem() {
                 eprintln!("  grid cache: ERROR: the grid breaks the off-mesh links' rule: {problem}");

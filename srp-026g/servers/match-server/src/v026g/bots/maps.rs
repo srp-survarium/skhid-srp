@@ -976,6 +976,10 @@ fn build(
                             walked.given_back_kept,
                             walked.given_back_no_way_round
                         );
+                        // [incremental grids] Where the build's time went: per pass and per `parallel` call (`mapdata::grid::timing`).
+                        for line in stats.timing.table().lines() {
+                            log::info!("Bot map {} build time: {line}", path.display());
+                        }
                         // [item 10] Each held sprint built (`Takeoff::SprintHeld`: the forward key held on after the landing).
                         for l in grid.off_links().iter().filter(|l| matches!(l.press, mapdata::grid::gap::Takeoff::SprintHeld(_))) {
                             let (from, to) = (grid.position(l.from), grid.position(l.to));

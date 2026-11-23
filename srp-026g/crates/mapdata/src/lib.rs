@@ -442,10 +442,16 @@ impl World {
     pub fn map_grid_with_stats(map: &MapData, walker: &[Triangle], cell: f32, body: Body, links: OffMeshLinks) -> (WalkGrid, BuildStats) {
         // [A389] Every pass that walks or flies the client's body takes the shapes: the rim jumps, the gap flights, the Drop links'
         // walk, the rest and held floors, [row 6] the walk check.
+        let started = std::time::Instant::now();
         let shapes = Self::takes_shapes(body).then(|| controller::Collision::build_exe(map)).flatten();
+        let shapes_s = started.elapsed().as_secs_f64();
         let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
         let area = map.play_area(AREA_MARGIN);
-        WalkGrid::build_kept_with_shapes(walker, shapes.as_ref(), area, cell, body, &map.grid_seeds(), &spawns, links)
+        let (grid, mut stats) = WalkGrid::build_kept_with_shapes(walker, shapes.as_ref(), area, cell, body, &map.grid_seeds(), &spawns, links);
+        // [incremental grids] The shapes' build is the grid's first pass in its timing.
+        stats.timing.passes.insert(0, grid::timing::PassTime { pass: "shapes (build_exe)", wall_s: shapes_s });
+        stats.timing.total_s += shapes_s;
+        (grid, stats)
     }
 
     /// The key of [`Self::map_grid`]'s grid: what it is built from, so a grid read back under this key (a pre-built file, or

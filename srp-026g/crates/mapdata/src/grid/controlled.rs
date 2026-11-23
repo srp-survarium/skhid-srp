@@ -472,36 +472,72 @@ pub fn client_step(world: &Collision, s: &Settings, start: WalkStart, feet: Vec3
 /// Rudnya while the threads' mean was 477 s. A job's answer depends on its item only: the jobs read the grid and the world, and
 /// a thread's search arrays are reused under a new mark each search and read only where that search reached
 /// (`WalkGrid::start_search_reaching`), so the split changes no result (the grids of 8 and 16 threads were the same before this).
+///
+/// [incremental grids] Called on a thread whose build's clock runs ([`super::timing`]), the call is recorded there by its place in
+/// the source (`#[track_caller]`): its items, its jobs' summed and longest seconds, its wall seconds.
+#[track_caller]
 pub(super) fn parallel<T: Sync, R: Send + Default + Clone>(items: &[T], job: impl Fn(&T) -> R + Sync) -> Vec<R> {
+    let site = std::panic::Location::caller();
+    let timed = super::timing::running();
+    let started = std::time::Instant::now();
     let threads = std::thread::available_parallelism().map_or(4, |n| n.get()).min(16);
     let block = items.len().div_ceil(threads * PARALLEL_BLOCKS).max(1);
     let next = std::sync::atomic::AtomicUsize::new(0);
-    let done: Vec<Vec<(usize, Vec<R>)>> = std::thread::scope(|scope| {
-        let workers: Vec<_> = (0..threads.min(items.len().div_ceil(block)))
+    let workers_used = threads.min(items.len().div_ceil(block));
+    let done: Vec<WorkerDone<R>> = std::thread::scope(|scope| {
+        let workers: Vec<_> = (0..workers_used)
             .map(|_| {
                 scope.spawn(|| {
                     let mut taken = Vec::new();
+                    let mut times = super::timing::JobTimes::default();
                     loop {
                         let first = next.fetch_add(block, std::sync::atomic::Ordering::Relaxed);
                         if first >= items.len() {
-                            break taken;
+                            break (taken, times);
                         }
                         let end = (first + block).min(items.len());
-                        taken.push((first, items[first..end].iter().map(&job).collect()));
+                        let results = if timed {
+                            items[first..end]
+                                .iter()
+                                .map(|item| {
+                                    let began = std::time::Instant::now();
+                                    let result = job(item);
+                                    times.add(began.elapsed());
+                                    result
+                                })
+                                .collect()
+                        } else {
+                            items[first..end].iter().map(&job).collect()
+                        };
+                        taken.push((first, results));
                     }
                 })
             })
             .collect();
         workers.into_iter().map(|worker| worker.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic))).collect()
     });
+    let mut times = super::timing::JobTimes::default();
+    let done: Vec<Vec<(usize, Vec<R>)>> = done
+        .into_iter()
+        .map(|(taken, worker)| {
+            times.merge(worker);
+            taken
+        })
+        .collect();
     let mut out = vec![R::default(); items.len()];
     for (first, results) in done.into_iter().flatten() {
         for (at, result) in results.into_iter().enumerate() {
             out[first + at] = result;
         }
     }
+    if timed {
+        super::timing::record_site(site, items.len(), workers_used, started.elapsed(), times);
+    }
     out
 }
+
+/// A [`parallel`] worker's results (each block's first item and its results) and its jobs' times.
+type WorkerDone<R> = (Vec<(usize, Vec<R>)>, super::timing::JobTimes);
 
 /// How many blocks a thread's even share of [`parallel`]'s items is cut into: fine enough that the last blocks even the threads
 /// out (a block of the rim jumps' flights is about 15 items, ~3 s on Rudnya), coarse enough that the counter is not contended.
