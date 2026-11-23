@@ -45,6 +45,11 @@ const AHEAD_M: f32 = 2.5;
 const STALL_SHARE: f32 = 0.5;
 const STALL_WINDOW_MS: u32 = 1_000;
 const STALL_LEG_MS: u32 = 2_000;
+/// A walk's start (from a stand, or turned round for the way out) is given this long before the watch runs, ms.
+const STALL_GRACE_MS: u32 = 500;
+/// The pace a walk on the way is expected to make, m/s: a carrier's walk (`kin::CarrierSprint`, the run's 3.5 x 0.95), the
+/// slowest the take walks; a sprint is asked for, not sure (the way may not allow it).
+const STALL_MPS: f32 = RUN_MPS * CARRIER_SHARE;
 /// The last stretch of the way in, m: at a walk with the view on the battery, USE pressed when the ray meets it (the client
 /// refuses a use while sprinting, `can_use` 0x300710).
 const LAST_M: f32 = 3.0;
@@ -102,9 +107,10 @@ pub struct Watch {
 }
 
 impl Watch {
-    /// Afresh at `now`, the body on floor `along` of the way, `m` metres along it.
+    /// Afresh at `now`, the body on floor `along` of the way, `m` metres along it: it runs from [`STALL_GRACE_MS`] on.
     pub fn from(now: u32, along: usize, m: f32) -> Self {
-        Self { window: (now, m), leg: (along, now) }
+        let start = now + STALL_GRACE_MS;
+        Self { window: (start, m), leg: (along, start) }
     }
 
     /// Whether the walk at `mps` stalled ([`STALL_SHARE`]), the body on floor `along`, `m` metres along the way at `now`:
@@ -112,7 +118,7 @@ impl Watch {
     pub fn stalled(&mut self, now: u32, along: usize, m: f32, mps: f32) -> Option<&'static str> {
         if along != self.leg.0 {
             self.leg = (along, now);
-        } else if now > self.leg.1 + STALL_LEG_MS {
+        } else if now > self.leg.1.max(self.window.0) + STALL_LEG_MS {
             return Some("stalled: on one floor of the way over 2 s");
         }
         let (since, from) = self.window;
@@ -461,12 +467,7 @@ pub fn step(take: &mut Take, target: TargetRef, cx: &Ctx) -> Next {
     // [stall] The way in or out walked by straight steps makes its pace's way, or the take gives it up: in, it walks out;
     // out, it hands the bot back to the motor at once (its own stuck and pocket handling, its way out of the zone).
     let mps = match take.phase {
-        Phase::In => match take.plan.gait {
-            Gait::Sprint => SPRINT_MPS,
-            Gait::Run | Gait::Walk => RUN_MPS,
-        },
-        Phase::Out { .. } if carrying => RUN_MPS * CARRIER_SHARE,
-        Phase::Out { .. } => SPRINT_MPS,
+        Phase::In | Phase::Out { .. } => STALL_MPS,
         Phase::Stand { .. } => 0.0,
     };
     if mps > 0.0
@@ -598,16 +599,18 @@ mod tests {
         for (k, t) in (50..=3_000).step_by(50).enumerate() {
             assert_eq!(w.stalled(t, k + 1, t as f32 / 1000.0 * 3.0, 3.5), None, "{t}");
         }
+        // Nothing the first half second (the start), then under half the pace over the next second.
         let mut w = Watch::from(0, 0, 0.0);
         let mut why = None;
-        for (k, t) in (50..=1_000).step_by(50).enumerate() {
-            why = why.or(w.stalled(t, k + 1, t as f32 / 1000.0 * 1.5, 3.5));
+        for (k, t) in (50..=1_500).step_by(50).enumerate() {
+            assert!(t >= 1_500 || why.is_none());
+            why = why.or(w.stalled(t, k + 1, t as f32 / 1000.0 * 1.0, 3.5));
         }
         assert_eq!(why, Some("stalled: under half its pace's way over 1 s"));
-        // Making way but held on one floor (a long leg the tracking does not leave): stalled past 2 s.
+        // Making way but held on one floor (a long leg the tracking does not leave): stalled 2 s after the start.
         let mut w = Watch::from(0, 4, 0.0);
         let mut why = None;
-        for t in (50..=2_100).step_by(50) {
+        for t in (50..=2_600).step_by(50) {
             why = why.or(w.stalled(t, 4, t as f32 / 1000.0 * 3.0, 3.5));
         }
         assert_eq!(why, Some("stalled: on one floor of the way over 2 s"));
