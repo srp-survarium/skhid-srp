@@ -6376,8 +6376,8 @@ looks, there shots go" (`../docs/notes/muzzle-shots.md`, `../docs/notes/client_p
 and every pellet's start from the copy. A lohook after the copy (`weapon.shot_origin`, 0x2E2456)
 replaces it with the gun's: the fire point's place on the gun as the simulation poses it at the
 shot's time (the user's Weapon bone half-turned, the aim's alignment by the aim's progress, the
-gun's bones from its user's tree), looking along the barrel from the hip and along the eye's line
-fully aimed; from the eye when the level stands between the eye and the muzzle. Every game computes
+gun's bones from its user's tree), looking along the barrel always; from the eye when the level
+stands between the eye and the muzzle. Every game computes
 it for every player from the simulation's own state: a row in `simulation_changes.tsv`.
 
 The HUD's crosshair is put where the own player's gun looks (the hud movie's `srp_crosshair_at`).
@@ -6387,13 +6387,16 @@ call of get_dispersed_bullet_direction in both exes, the bone function and the r
 the hip, full aim, half raised, a wall, and the cases left as the original's bit for bit. Not run
 in a game with a shot fired: the crosshair on a screen and two games in step are unseen. The built
 exe's shot was run under Unicorn on three real matches' full memory (`../docs/notes/muzzle-shots.md`):
-eleven guns held ready leave the muzzle (0.05 mm, 0.005 degrees from the note's arithmetic, the
-level's own ray test run), twenty-three not held ready are the original's bit for bit.
+of twenty-five held guns twenty-four leave the muzzle along the barrel (0.05 mm, 0.01 degrees
+from the note's arithmetic, the level's own ray test run) and one, the level between its eye and
+its muzzle, the eye.
 
-A gun not held ready (its barrel more than 5 degrees off the eye's line: a sprint's pose, the hands
-between two poses) is left the game's own shot, from the eye. Measured on three real matches'
-memory (`../docs/notes/muzzle-shots.md`): held ready a gun is 0.5 to 2.4 degrees off, sprinting 54
-and more. The server's bots turn their view by the measured line when they fire from the hip.
+The way is the barrel's own axis always (the owner: "the rule is being closest to bodycam as
+possible, which means full direction gun simulation"): fully aimed it is the models' 0 to 0.6
+degrees off the sights' line, and a gun not brought up (a sprint's pose: 54 degrees and more off the
+view, measured on three real matches' memory, `../docs/notes/muzzle-shots.md`) shoots where it
+points. Held ready from the hip a gun is 0.5 to 2.4 degrees off the view. The server's bots turn
+their view by the measured line when they fire from the hip.
 
 ## The kick is the gun's; the drawn view trails the aim (patch 197, unreleased)
 

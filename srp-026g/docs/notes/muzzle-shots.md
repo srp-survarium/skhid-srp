@@ -1,7 +1,9 @@
 # Shots from the muzzle (patch 200)
 
 The owner, 2026-11-23: "Bullets leave the barrel, not the eye. Full simulation of where the weapon
-looks, there shots go, with simulation with recoil being the next thing on top." The proof is
+looks, there shots go, with simulation with recoil being the next thing on top." And, the same
+day: "the rule is being closest to bodycam as possible, which means full direction gun
+simulation". Where a choice comes up, it is Bodycam's: the gun's own direction. The proof is
 `client_patch.md`; the aimed view that goes with it is `aim-pose.md` and patch 197.
 
 ## The rules
@@ -9,16 +11,13 @@ looks, there shots go, with simulation with recoil being the next thing on top."
 - **Where a bullet starts:** the gun's fire point (the model's `barrel_point`, the weapon's
   +6E0h), on the gun as the simulation poses it. Fully aimed that is 5 to 10 cm under the eye's
   line and 30 to 110 cm ahead of the eye.
-- **Where it goes:** the way the gun looks.
-  - From the hip: along the barrel (the fire point's own axis), wherever the hands hold it.
-  - Fully aimed: along the eye's line. The aim's alignment lays the sights on that line, so the
-    bullet goes where the sights show, as before; only its start is lower.
-  - While the sight is raised or lowered: between the two, by the aim's progress.
+- **Where it goes:** the way the gun looks: along the barrel (the fire point's own axis),
+  wherever the hands hold the gun. From the hip, fully aimed (the gun laid by the aim's alignment),
+  while the sight comes up, and out of a sprint or any other pose alike. Nothing trues it to the
+  sights and nothing falls back to the eye (the owner, asked: "Always follow the barrel", "Raw
+  barrel axis").
 - **The spread** is the game's, around that way, and the kick and the camera's own motions turn
   the eye and the hands as they did: the gun's pose is made from both.
-- **A gun not held ready** (its barrel more than 5 degrees off the eye's line: a sprint's pose,
-  the hands between two poses) fires as the game always did, from the eye along its line. The
-  hands' clips were not made as ballistics; a gun held ready is 0.5 to 2.4 degrees off (below).
 - **A wall between the eye and the muzzle:** the shot leaves the eye instead (along the same
   way), so it meets that wall. No bullet starts beyond what the barrel pokes through.
 - **Who:** every player, in every game, computed in the simulation from the simulation's own
@@ -27,12 +26,14 @@ looks, there shots go, with simulation with recoil being the next thing on top."
 - **What does not change:** the recoil's numbers, the spread's, the damage, the bullets' flight,
   the world's format (a bullet's start is a place, as before).
 
-## Why the direction is not the barrel's axis when aimed
+## What the barrel's own axis means
 
-The fire point's axis is within 0.6 degrees of the sights' line on the guns measured (AK-74M
-0.23, PM 0.58, the others 0 to 0.2): a modelling error, not a zero. A gun's sights must be true,
-so fully aimed the bullet goes along the line they are laid on. The barrel's own axis is used
-where no sight is looked through.
+- **Fully aimed** the fire point's axis is within 0.6 degrees of the sights' line on the guns
+  measured (AK-74M 0.23, PM 0.58, the others 0 to 0.2): the models' own. A bullet follows the
+  barrel, so on those guns it lands that much off the sights (the PM: 30 cm at 30 m).
+- **A gun not brought up** shoots where it points: a sprinting player's gun is 54 to 58 degrees
+  left and down of the view (measured below), so a shot fired as the hands come out of a sprint
+  goes low and left until the gun is up.
 
 ## What follows from it
 
@@ -44,7 +45,7 @@ where no sight is looked through.
   movie's own layout had the crosshair.
 - **The gun is posed at the shot's own time.** The game's copy was the eye of the step before (up
   to 50 ms old), which in a burst carried the hands clip's camera turn of the pass before (the
-  H&K 416, the M4A1: up to 0.67 degrees). Those bullets now go where the sights show.
+  H&K 416, the M4A1: up to 0.67 degrees). Those bullets now go where the gun points then.
 - **Bots** aim their view. From 10 m on they fire down the sights (`bots/reflex.rs`,
   `ads_near_m`), where a shot's way is the eye's line as before. Nearer (15 % of their near
   targets) or running for cover they fire from the hip: there a bot turns its view by the gun's
@@ -72,10 +73,9 @@ dump's memory for every held gun's bones, and patch 200's rig made of them
   under it and 44 to 92 cm ahead. So from the hip a bullet lands right of the screen's centre:
   about 13 cm, plus 1.7 cm a metre. The HUD's crosshair shows it.
 - **A gun not held ready points elsewhere:** a sprinting player's 54 to 58 degrees left and down,
-  some states' 73 degrees up, a dead player's 125. Hence the rule of a gun not held ready: a shot
-  fired as the hands come out of such a pose is the game's own. **Not known:** how often that
-  is (a trigger pressed in a sprint fires at once, by the bots' model of the cadence);
-  `SKHID_SHOT_LOG` in a game tells.
+  some states' 73 degrees up, a dead player's 125. A shot fired as the hands come out of such a
+  pose goes where the gun points then. **Not known:** how often that is (a trigger pressed in a
+  sprint fires at once, by the bots' model of the cadence); `SKHID_SHOT_LOG` in a game tells.
 
 ### The built exe's shot on those matches
 
@@ -86,12 +86,13 @@ exe's code on the same memory. The hook, the Rust, the engine's `compute_bone_ma
 level's own `ray_test` on the match's collision all run for real; only GetCurrentThreadId is stood
 in.
 
-- **Eleven guns held ready** (from the hip, half raised, fully aimed): the shot leaves the muzzle,
-  within 0.05 mm of the place and 0.005 degrees of the way this note's arithmetic gives from the
-  same bones; one ray of the level's collision from the eye to the muzzle each (46 to 93 cm),
-  nothing in its way.
-- **Twenty-three guns not held ready** (sprinting, other states, the dead, the lobby's): the copy
-  is the original's, bit for bit.
+- **Twenty-five held guns** of two matches (held ready from the hip, half raised, fully aimed; a
+  sprint's pose; other states; the dead): twenty-four leave the muzzle along the barrel, within
+  0.05 mm of the place and 0.01 degrees of the way this note's arithmetic gives from the same
+  bones, each after one ray of the level's collision from the eye to the muzzle (33 to 156 cm)
+  that met nothing.
+- **One** (a dead player's gun, its muzzle 127 cm from the eye) had the level in that ray's way:
+  its shot leaves the eye, the same way. The wall's rule on a real level.
 - The stack at the call is the original's in every case; no run failed.
 
 ## Recoil, on top (the owner: "simulation with recoil being the next thing")

@@ -20,11 +20,12 @@ aim locator on the root, its fire point on the body; an aim offset.
 - From the hip the copy becomes: the fire point's place on the gun on the
   half-turned Weapon bone, looking along the barrel (the fire point's -z).
 - Fully aimed: the gun where its aim (offset x half turn x locator x bone) is
-  the Item bone; from the fire point, along the eye's line.
+  the Item bone; from the fire point, along the barrel there (the model's own
+  axis, a little off the eye's line).
 - Half raised: between them (the turn along its arc, the place along the line).
+- A gun held low (9.7 degrees off the eye's line): along its barrel all the same.
 - A wall between the eye and the muzzle: from the eye, the same way.
-- A gun not held ready (its barrel more than 5 degrees off the eye's line),
-  a bare weapon_core, a user with no tree, a gun whose skeleton lacks the
+- A bare weapon_core, a user with no tree, a gun whose skeleton lacks the
   locator's bone, a user with no `Weapon` bone: the copy is the eye's, bit
   for bit.
 - The bones are asked as the game asks them: the user's own animation player,
@@ -108,7 +109,7 @@ def unit(v):
 HALF_TURN = (-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1)
 WORLD = matrix(turn_y=0.7, place=(100.0, 6.5, -50.0))                     # the user in the world
 HAND = matrix(0.15, math.pi, (0.18, 1.32, 0.31))                          # the Weapon bone, the user's space: held ready, 2 degrees off the eye's line
-LOW = matrix(0.12, math.pi + 0.2, (0.18, 1.32, 0.31))                     # not held ready: 9.7 degrees off
+LOW = matrix(0.12, math.pi + 0.2, (0.18, 1.32, 0.31))                     # held low: 9.7 degrees off
 ITEM = matrix(-0.15, 0.03, (0.0, 1.62, 0.13))                            # the Item bone: the eyes
 EYE = product(matrix(-0.4, 0.05, (0.0, 1.6, 0.1)), WORLD)                # the copy the game makes: an older eye
 AIM_OFFSET = matrix(place=(0.0, 0.0, -0.11))
@@ -118,9 +119,9 @@ GUN_ROOT = matrix()
 GUN_BODY = matrix(-0.0148, 0.0, (0.0088, 0.0214, 0.05))                   # as a clip poses the body
 
 
-def expected(raised, blocked=False):
+def expected(raised, blocked=False, hand=None):
     """The transform a shot leaves from (muzzle_shots.rs, in this file's own arithmetic)."""
-    hip = product(HALF_TURN, HAND)
+    hip = product(HALF_TURN, hand or HAND)
     sight = product(product(AIM_OFFSET, HALF_TURN), product(AIM, GUN_ROOT))
     aimed = product(inverse(sight), ITEM)
     if raised <= 0:
@@ -131,8 +132,7 @@ def expected(raised, blocked=False):
         held = blend(hip, aimed, raised)
     eye = product(ITEM, WORLD)
     fire = product(product(BARREL, GUN_BODY), product(held, WORLD))
-    barrel, look = unit(tuple(-x for x in fire[8:11])), unit(eye[8:11])
-    along = unit(tuple(b * (1 - raised) + e * raised for b, e in zip(barrel, look)))
+    along = unit(tuple(-x for x in fire[8:11]))
     dot = lambda a, b: sum(x * y for x, y in zip(a, b))
     across = lambda v, of: tuple(x - o * dot(v, of) for x, o in zip(v, of))
     right = unit(across(eye[0:3], along))
@@ -301,7 +301,10 @@ def main():
                   "from the hip: along the fire point's -z, from its place on the half-turned Weapon bone")
         if raised == 1.0:
             look = product(ITEM, WORLD)
-            check(near(o_out[8:11], unit(look[8:11])), "fully aimed: along the Item bone's forward now, not the copy's")
+            aligned = product(product(BARREL, GUN_BODY), product(product(inverse(product(product(AIM_OFFSET, HALF_TURN), product(AIM, GUN_ROOT))), ITEM), WORLD))
+            off = math.degrees(math.acos(min(1.0, sum(a * b for a, b in zip(o_out[8:11], unit(look[8:11]))))))
+            check(near(o_out[8:11], unit(tuple(-x for x in aligned[8:11]))) and 0.05 < off < 2.0,
+                  f"fully aimed: along the barrel of the gun laid on the Item bone now, {off:.2f} degrees off the eye's line (the model's)")
             under = sum((m - e) * u for m, e, u in zip(o_out[12:15], look[12:15], look[4:7]))
             check(-0.12 < under < -0.03, f"fully aimed: the muzzle {-under * 100:.1f} cm under the eye's line")
         asked = sorted(ours.asked)
@@ -330,11 +333,13 @@ def main():
         s_out, s_regs = stock.shot(0.5, **shot)
         o_out, o_regs = ours.shot(0.5, **shot)
         check(o_out == eye and o_out == s_out and o_regs == s_regs, f"{what}: the eye's copy bit for bit, the registers the original's")
-    # Not held ready from the hip (9.7 degrees off the eye's line): the game's own shot.
+    # Held low from the hip (9.7 degrees off the eye's line): along its barrel all the same.
     s_out, s_regs = stock.shot(0.0, hand=LOW)
     o_out, o_regs = ours.shot(0.0, hand=LOW)
-    check(o_out == eye and o_out == s_out and o_regs == s_regs,
-          "a gun not held ready: the eye's copy bit for bit, the registers the original's")
+    want, _, _ = expected(0.0, hand=LOW)
+    low = math.degrees(math.acos(min(1.0, sum(a * b for a, b in zip(o_out[8:11], unit(product(ITEM, WORLD)[8:11]))))))
+    check(s_out == eye and o_regs == s_regs and near(o_out, want) and 9.0 < low < 10.5,
+          f"a gun held low: from its muzzle along its barrel, {low:.1f} degrees off the eye's line")
     if failed:
         sys.exit(f"{failed} check(s) failed")
     print("all checks passed")

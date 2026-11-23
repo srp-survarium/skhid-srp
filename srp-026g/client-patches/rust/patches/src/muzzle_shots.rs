@@ -10,9 +10,10 @@
 //!   gun as the simulation poses it: the hands' Weapon bone, and as the sight
 //!   is raised the aim's alignment the drawing makes (the aim locator the
 //!   eye), blended by the aim's progress;
-//! - its forward is the way the gun looks: along the barrel from the hip,
-//!   along the sights, which the alignment lays on the eye's line, fully
-//!   aimed, and between them as the sight is raised;
+//! - its forward is the way the gun looks: along the barrel (the fire
+//!   point's own axis), wherever the hands hold the gun. From the hip, fully
+//!   aimed, between the two and out of a sprint alike (the owner,
+//!   2026-11-23: "Always follow the barrel", "Raw barrel axis");
 //! - a wall between the eye and the muzzle keeps the shot at the eye: no
 //!   bullet starts beyond what the barrel pokes through.
 //!
@@ -31,10 +32,6 @@
 //! (`camera.apply`) puts it on the screen, and the HUD movie is told
 //! (`player_icons.update_start`, `srp_crosshair_at`) when it moves. Drawing
 //! only.
-//!
-//! A gun not held ready (its barrel more than 5 degrees off the eye's line:
-//! a sprint's pose, the hands between two poses) has no muzzle here: its
-//! shot is the game's own, from the eye, and the crosshair is not moved.
 //!
 //! `SKHID_SHOT_LOG` set in the game's environment (read once, after a
 //! frame's simulation) writes a line a shot to the patches' log: how far the
@@ -254,7 +251,7 @@ impl Rig {
         let sight = product(&product(&self.aim_offset, &HALF_TURN), &self.aim);
         let aimed = product(&inverse(&sight)?, &self.eye);
         let held = blend(&hip, &aimed, self.raised);
-        Some(Pose { eye: product(&self.eye, &self.world), gun: product(&held, &self.world), barrel: self.barrel, raised: self.raised })
+        Some(Pose { eye: product(&self.eye, &self.world), gun: product(&held, &self.world), barrel: self.barrel })
     }
 }
 
@@ -286,8 +283,6 @@ pub struct Pose {
     /// The fire point in the gun's model (its locator on its bone): it looks
     /// along its -z.
     pub barrel: [f32; 16],
-    /// How far the sight is raised, 0 from the hip to 1 fully aimed.
-    pub raised: f32,
 }
 
 /// Where the muzzle is and the way the gun looks.
@@ -297,25 +292,12 @@ pub struct Muzzle {
     pub along: Vec3,
 }
 
-/// The cosine of the most a held gun's barrel is off the eye's line and the
-/// gun still held ready: 5 degrees. In real matches' memory guns held ready
-/// were 0.5 to 2.4 degrees off, a sprinting player's 54 and more.
-const READY: f32 = 0.996_194_7;
-
 impl Pose {
-    /// The muzzle: at the fire point; looking along the barrel from the hip
-    /// and along the eye's line fully aimed (the sights are on it then), by
-    /// the sight's raising between. None for a gun or an eye with no way,
-    /// and for a gun not held ready (a sprint's pose, the hands between two
-    /// poses): its shot is the game's own, from the eye.
+    /// The muzzle: at the fire point, looking along the barrel. None for a
+    /// gun with no way.
     pub fn muzzle(&self) -> Option<Muzzle> {
         let fire = product(&self.barrel, &self.gun);
-        let (barrel, eye) = ((row(&fire, 2) * -1.0).direction()?, row(&self.eye, 2).direction()?);
-        if barrel.dot(eye) < READY {
-            return None;
-        }
-        let raised = if self.raised.is_finite() { self.raised.clamp(0.0, 1.0) } else { 0.0 };
-        let along = (barrel * (1.0 - raised) + eye * raised).direction()?;
+        let along = (row(&fire, 2) * -1.0).direction()?;
         let place = row(&fire, 3);
         (place.is_finite() && along.is_finite()).then_some(Muzzle { place, along })
     }
@@ -458,57 +440,36 @@ mod tests {
         assert!(moved(at(1, 0.6, 0.5), at(1, 0.5, 0.5)));
     }
 
-    fn pose(raised: f32) -> Pose {
-        Pose { eye: at(0.0, 1.5, 0.0), gun: product(&gun(0.05), &at(0.0, 1.5, 0.0)), barrel: barrel(), raised }
+    /// A gun turned `sine` of an angle from the eye's line.
+    fn pose(sine: f32) -> Pose {
+        Pose { eye: at(0.0, 1.5, 0.0), gun: product(&gun(sine), &at(0.0, 1.5, 0.0)), barrel: barrel() }
     }
 
     #[test]
-    fn a_gun_not_held_ready_has_no_muzzle() {
-        // Turned 5.7 degrees from the eye's line, and a sprint's 54.
-        for sine in [0.1, 0.81] {
-            let low = Pose { gun: product(&gun(sine), &at(0.0, 1.5, 0.0)), ..pose(0.0) };
-            assert_eq!(low.muzzle(), None, "{sine}");
-        }
-        // 4.6 degrees: held ready.
-        assert!(Pose { gun: product(&gun(0.08), &at(0.0, 1.5, 0.0)), ..pose(0.0) }.muzzle().is_some());
-    }
-
-    #[test]
-    fn from_the_hip_the_shot_goes_along_the_barrel() {
-        let muzzle = pose(0.0).muzzle().unwrap();
+    fn the_shot_goes_along_the_barrel_from_the_muzzle() {
+        let muzzle = pose(0.05).muzzle().unwrap();
         // 0.6 along the turned gun from 0.05 right and 0.1 under the eye
         assert!((muzzle.place - Vec3::new(0.05 - 0.03, 1.4, 0.6 * 0.998_749_2)).length() < 1e-6, "{muzzle:?}");
         assert!((muzzle.along - Vec3::new(-0.05, 0.0, 0.998_749_2)).length() < 1e-6, "{muzzle:?}");
     }
 
     #[test]
-    fn fully_aimed_it_goes_along_the_eyes_line_from_the_muzzle() {
-        let muzzle = pose(1.0).muzzle().unwrap();
-        assert_eq!(muzzle.along, Vec3::new(0.0, 0.0, 1.0));
-        assert_eq!(muzzle.place, pose(0.0).muzzle().unwrap().place);
-    }
-
-    #[test]
-    fn between_it_turns_with_the_sights_raising() {
-        let (hip, half, aimed) = (pose(0.0).muzzle().unwrap(), pose(0.5).muzzle().unwrap(), pose(1.0).muzzle().unwrap());
-        assert!(half.along.x < aimed.along.x && half.along.x > hip.along.x, "{half:?}");
-        assert!((half.along.length() - 1.0).abs() < 1e-6);
-        for odd in [f32::NAN, -3.0] {
-            assert_eq!(pose(odd).muzzle(), pose(0.0).muzzle());
-        }
-        assert_eq!(pose(7.0).muzzle(), pose(1.0).muzzle());
+    fn a_gun_held_low_shoots_where_it_points() {
+        // A sprint's 54 degrees off the eye's line: no other rule.
+        let muzzle = pose(0.81).muzzle().unwrap();
+        assert!((muzzle.along - Vec3::new(-0.81, 0.0, (1.0f32 - 0.81 * 0.81).sqrt())).length() < 1e-6, "{muzzle:?}");
     }
 
     #[test]
     fn a_gun_with_no_way_gives_no_muzzle() {
-        let flat = Pose { barrel: with_row(barrel(), 2, Vec3::new(0.0, 0.0, 0.0)), ..pose(0.0) };
+        let flat = Pose { barrel: with_row(barrel(), 2, Vec3::new(0.0, 0.0, 0.0)), ..pose(0.05) };
         assert_eq!(flat.muzzle(), None);
     }
 
     #[test]
     fn the_shot_is_laid_out_as_the_eye() {
         let eye = at(0.0, 1.5, 0.0);
-        let muzzle = pose(0.0).muzzle().unwrap();
+        let muzzle = pose(0.05).muzzle().unwrap();
         let shot = shot_from(&eye, muzzle.place, muzzle.along);
         let (right, up, forward) = (row(&shot, 0), row(&shot, 1), row(&shot, 2));
         assert_eq!((forward, row(&shot, 3)), (muzzle.along, muzzle.place));
