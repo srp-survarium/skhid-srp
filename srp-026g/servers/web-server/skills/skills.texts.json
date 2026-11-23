@@ -2682,34 +2682,34 @@
 },
 {
 "game": {
-"en": "Last Gasp",
-"uk": "Останній вдих",
-"ru": "Последний вдох",
-"de": "Letzter Atemzug",
-"pl": "Ostatni oddech",
-"sr": "Poslednji dah",
-"cs": "Poslední nádech",
-"hu": "Utolsó lélegzet",
-"fi": "Viimeinen henkäys",
-"be": "Апошні ўдых",
-"hr": "Posljednji dah",
-"pt": "Último Suspiro"
+"en": "Oxygen Rush",
+"uk": "Кисневий ривок",
+"ru": "Кислородный рывок",
+"de": "Sauerstoffschub",
+"pl": "Tlenowy zryw",
+"sr": "Kiseonički nalet",
+"cs": "Kyslíkový nápor",
+"hu": "Oxigénroham",
+"fi": "Happiryntäys",
+"be": "Кіслародны рывок",
+"hr": "Kisikov nalet",
+"pt": "Arrancada de Oxigênio"
 }
 },
 {
 "html": {
-"en": "When your oxygen tank runs out: +10% speed for 20 s and full energy.",
-"uk": "Коли кисневий балон порожніє: +10% до швидкості на 20 с і повна енергія.",
-"ru": "Когда кислородный баллон пустеет: +10% к скорости на 20 с и полная энергия.",
-"de": "Wenn deine Sauerstoffflasche leer ist: +10% Tempo für 20 s und volle Energie.",
-"pl": "Gdy butla tlenowa się opróżni: +10% szybkości na 20 s i pełna energia.",
-"sr": "Kada se boca s kiseonikom isprazni: +10% brzine na 20 s i puna energija.",
-"cs": "Když se kyslíková láhev vyprázdní: +10% rychlosti na 20 s a plná energie.",
-"hu": "Amikor kiürül az oxigénpalackod: +10% sebesség 20 mp-ig és teljes energia.",
-"fi": "Kun happipullosi tyhjenee: +10% nopeutta 20 s ajan ja täysi energia.",
-"be": "Калі кіслародны балон пусцее: +10% да хуткасці на 20 с і поўная энергія.",
-"hr": "Kad se boca s kisikom isprazni: +10% brzine na 20 s i puna energija.",
-"pt": "Quando o tanque de oxigênio acaba: +10% de velocidade por 20 s e estamina cheia."
+"en": "After every 20 s of continuous oxygen tank use and when the tank runs out: +10% speed for 20 s and full energy.",
+"uk": "Після кожних 20 с безперервної роботи кисневого балона і коли він порожніє: +10% до швидкості на 20 с і повна енергія.",
+"ru": "После каждых 20 с непрерывной работы кислородного баллона и когда он пустеет: +10% к скорости на 20 с и полная энергия.",
+"de": "Nach je 20 s ununterbrochener Nutzung der Sauerstoffflasche und wenn sie leer ist: +10% Tempo für 20 s und volle Energie.",
+"pl": "Po każdych 20 s ciągłego używania butli tlenowej i gdy się opróżni: +10% szybkości na 20 s i pełna energia.",
+"sr": "Posle svakih 20 s neprekidnog korišćenja boce s kiseonikom i kad se isprazni: +10% brzine na 20 s i puna energija.",
+"cs": "Po každých 20 s nepřetržitého používání kyslíkové láhve a když se vyprázdní: +10% rychlosti na 20 s a plná energie.",
+"hu": "Az oxigénpalack minden 20 mp folyamatos használata után és amikor kiürül: +10% sebesség 20 mp-ig és teljes energia.",
+"fi": "Joka 20 s yhtäjaksoisen happipullon käytön jälkeen ja kun pullo tyhjenee: +10% nopeutta 20 s ajan ja täysi energia.",
+"be": "Пасля кожных 20 с бесперапыннай працы кіслароднага балона і калі ён пусцее: +10% да хуткасці на 20 с і поўная энергія.",
+"hr": "Nakon svakih 20 s neprekidnog korištenja boce s kisikom i kad se isprazni: +10% brzine na 20 s i puna energija.",
+"pt": "A cada 20 s de uso contínuo do tanque de oxigênio e quando ele acaba: +10% de velocidade por 20 s e estamina cheia."
 }
 },
 {
@@ -2746,18 +2746,18 @@
 },
 {
 "html": {
-"en": "Your smoke is tinted green and poisons enemies inside; an oxygen tank protects. A pocket holds half as many smoke grenades. Toxic damage:&nbsp;<span class=\"skill-value\">+5 a second</span>",
-"uk": "Ваш дим трохи зелений і отруює ворогів усередині; кисневий балон захищає. У кишеню вміщується вдвічі менше димових гранат. Токсична шкода:&nbsp;<span class=\"skill-value\">+5 за секунду</span>",
-"ru": "Ваш дым слегка зелёный и отравляет врагов внутри; кислородный баллон защищает. В карман помещается вдвое меньше дымовых гранат. Токсичный урон:&nbsp;<span class=\"skill-value\">+5 в секунду</span>",
-"de": "Dein Rauch ist leicht grün und vergiftet Gegner darin; eine Sauerstoffflasche schützt. In eine Tasche passen nur halb so viele Rauchgranaten. Giftschaden:&nbsp;<span class=\"skill-value\">+5 pro Sekunde</span>",
-"pl": "Twój dym jest lekko zielony i truje wrogów w środku; butla tlenowa chroni. W kieszeni mieści się o połowę mniej granatów dymnych. Obrażenia toksyczne:&nbsp;<span class=\"skill-value\">+5 na sekundę</span>",
-"sr": "Tvoj dim je blago zelen i truje neprijatelje u njemu; boca s kiseonikom štiti. U džep staje upola manje dimnih granata. Toksična šteta:&nbsp;<span class=\"skill-value\">+5 u sekundi</span>",
-"cs": "Tvůj kouř je lehce zelený a otravuje nepřátele uvnitř; kyslíková láhev chrání. Do kapsy se vejde polovina kouřových granátů. Toxické poškození:&nbsp;<span class=\"skill-value\">+5 za sekundu</span>",
-"hu": "A füstöd enyhén zöld és mérgezi a benne lévő ellenségeket; az oxigénpalack véd. Egy zsebbe feleannyi füstgránát fér. Mérgező sebzés:&nbsp;<span class=\"skill-value\">+5 másodpercenként</span>",
-"fi": "Savusi on hieman vihreää ja myrkyttää sen sisällä olevat viholliset; happipullo suojaa. Taskuun mahtuu puolet vähemmän savukranaatteja. Myrkkyvahinko:&nbsp;<span class=\"skill-value\">+5 sekunnissa</span>",
-"be": "Ваш дым крыху зялёны і атручвае ворагаў унутры; кіслародны балон абараняе. У кішэню змяшчаецца ўдвая менш дымавых гранат. Таксічныя страты:&nbsp;<span class=\"skill-value\">+5 за секунду</span>",
-"hr": "Vaš dim je zelenkast i truje neprijatelje u njemu; boca s kisikom štiti. U džep stane upola manje dimnih granata. Otrovna šteta:&nbsp;<span class=\"skill-value\">+5 u sekundi</span>",
-"pt": "Sua fumaça fica esverdeada e envenena os inimigos dentro dela; o tanque de oxigênio protege. Cada bolso comporta metade das granadas de fumaça. Dano tóxico:&nbsp;<span class=\"skill-value\">+5 por segundo</span>"
+"en": "Your smoke is tinted green and poisons enemies inside; an oxygen tank protects. A smoke grenade takes 1.5 pocket slots. Toxic damage:&nbsp;<span class=\"skill-value\">+5 a second</span>",
+"uk": "Ваш дим трохи зелений і отруює ворогів усередині; кисневий балон захищає. Димова граната займає 1,5 місця в кишені. Токсична шкода:&nbsp;<span class=\"skill-value\">+5 за секунду</span>",
+"ru": "Ваш дым слегка зелёный и отравляет врагов внутри; кислородный баллон защищает. Дымовая граната занимает 1,5 места в кармане. Токсичный урон:&nbsp;<span class=\"skill-value\">+5 в секунду</span>",
+"de": "Dein Rauch ist leicht grün und vergiftet Gegner darin; eine Sauerstoffflasche schützt. Eine Rauchgranate belegt 1,5 Taschenplätze. Giftschaden:&nbsp;<span class=\"skill-value\">+5 pro Sekunde</span>",
+"pl": "Twój dym jest lekko zielony i truje wrogów w środku; butla tlenowa chroni. Granat dymny zajmuje 1,5 miejsca w kieszeni. Obrażenia toksyczne:&nbsp;<span class=\"skill-value\">+5 na sekundę</span>",
+"sr": "Tvoj dim je blago zelen i truje neprijatelje u njemu; boca s kiseonikom štiti. Dimna granata zauzima 1,5 mesta u džepu. Toksična šteta:&nbsp;<span class=\"skill-value\">+5 u sekundi</span>",
+"cs": "Tvůj kouř je lehce zelený a otravuje nepřátele uvnitř; kyslíková láhev chrání. Kouřový granát zabere 1,5 místa v kapse. Toxické poškození:&nbsp;<span class=\"skill-value\">+5 za sekundu</span>",
+"hu": "A füstöd enyhén zöld és mérgezi a benne lévő ellenségeket; az oxigénpalack véd. Egy füstgránát 1,5 zsebhelyet foglal. Mérgező sebzés:&nbsp;<span class=\"skill-value\">+5 másodpercenként</span>",
+"fi": "Savusi on hieman vihreää ja myrkyttää sen sisällä olevat viholliset; happipullo suojaa. Savukranaatti vie 1,5 taskupaikkaa. Myrkkyvahinko:&nbsp;<span class=\"skill-value\">+5 sekunnissa</span>",
+"be": "Ваш дым крыху зялёны і атручвае ворагаў унутры; кіслародны балон абараняе. Дымавая граната займае 1,5 месца ў кішэні. Таксічныя страты:&nbsp;<span class=\"skill-value\">+5 за секунду</span>",
+"hr": "Vaš dim je zelenkast i truje neprijatelje u njemu; boca s kisikom štiti. Dimna granata zauzima 1,5 mjesta u džepu. Otrovna šteta:&nbsp;<span class=\"skill-value\">+5 u sekundi</span>",
+"pt": "Sua fumaça fica esverdeada e envenena os inimigos dentro dela; o tanque de oxigênio protege. Cada granada de fumaça ocupa 1,5 espaço no bolso. Dano tóxico:&nbsp;<span class=\"skill-value\">+5 por segundo</span>"
 }
 },
 {
@@ -2826,18 +2826,50 @@
 },
 {
 "html": {
-"en": "Your trap breaks the legs it catches. A pocket holds half as many traps.",
-"uk": "Ваш капкан ламає ноги тому, хто в нього потрапив. У кишеню вміщується вдвічі менше капканів.",
-"ru": "Ваш капкан ломает ноги попавшему в него. В карман помещается вдвое меньше капканов.",
-"de": "Deine Falle bricht dem Gefangenen die Beine. In eine Tasche passen nur halb so viele Fallen.",
-"pl": "Twoja pułapka łamie nogi temu, kto w nią wpadnie. W kieszeni mieści się o połowę mniej pułapek.",
-"sr": "Tvoja zamka lomi noge onome ko u nju upadne. U džep staje upola manje zamki.",
-"cs": "Tvá past láme nohy tomu, koho chytí. Do kapsy se vejde polovina pastí.",
-"hu": "A csapdád eltöri annak a lábát, aki belelép. Egy zsebbe feleannyi csapda fér.",
-"fi": "Ansasi murtaa siihen jääneen jalat. Taskuun mahtuu puolet vähemmän ansoja.",
-"be": "Ваш капкан ламае ногі таму, хто ў яго трапіў. У кішэню змяшчаецца ўдвая менш капканаў.",
-"hr": "Vaša zamka lomi noge onome tko u nju upadne. U džep stane upola manje zamki.",
-"pt": "Sua armadilha quebra as pernas de quem ela pega. Cada bolso comporta metade das armadilhas."
+"en": "Your trap breaks the legs it catches. A trap takes 1.5 pocket slots.",
+"uk": "Ваш капкан ламає ноги тому, хто в нього потрапив. Капкан займає 1,5 місця в кишені.",
+"ru": "Ваш капкан ломает ноги попавшему в него. Капкан занимает 1,5 места в кармане.",
+"de": "Deine Falle bricht dem Gefangenen die Beine. Eine Falle belegt 1,5 Taschenplätze.",
+"pl": "Twoja pułapka łamie nogi temu, kto w nią wpadnie. Pułapka zajmuje 1,5 miejsca w kieszeni.",
+"sr": "Tvoja zamka lomi noge onome ko u nju upadne. Zamka zauzima 1,5 mesta u džepu.",
+"cs": "Tvá past láme nohy tomu, koho chytí. Past zabere 1,5 místa v kapse.",
+"hu": "A csapdád eltöri annak a lábát, aki belelép. Egy csapda 1,5 zsebhelyet foglal.",
+"fi": "Ansasi murtaa siihen jääneen jalat. Ansa vie 1,5 taskupaikkaa.",
+"be": "Ваш капкан ламае ногі таму, хто ў яго трапіў. Капкан займае 1,5 месца ў кішэні.",
+"hr": "Vaša zamka lomi noge onome tko u nju upadne. Zamka zauzima 1,5 mjesta u džepu.",
+"pt": "Sua armadilha quebra as pernas de quem ela pega. Cada armadilha ocupa 1,5 espaço no bolso."
+}
+},
+{
+"game": {
+"en": "Tank Container",
+"uk": "Контейнер у балоні",
+"ru": "Контейнер в баллоне",
+"de": "Flaschenbehälter",
+"pl": "Pojemnik w butli",
+"sr": "Kontejner u boci",
+"cs": "Kontejner v láhvi",
+"hu": "Palacktároló",
+"fi": "Pullosäiliö",
+"be": "Кантэйнер у балоне",
+"hr": "Spremnik u boci",
+"pt": "Recipiente no Tanque"
+}
+},
+{
+"html": {
+"en": "With an oxygen tank in the kit: one more artifact container.",
+"uk": "З кисневим балоном у комплекті: ще один контейнер для артефакту.",
+"ru": "С кислородным баллоном в комплекте: ещё один контейнер для артефакта.",
+"de": "Mit Sauerstoffflasche im Set: ein Artefaktbehälter mehr.",
+"pl": "Z butlą tlenową w zestawie: jeszcze jeden pojemnik na artefakt.",
+"sr": "Sa bocom s kiseonikom u kompletu: još jedan kontejner za artefakt.",
+"cs": "S kyslíkovou láhví v sadě: o jeden kontejner na artefakt víc.",
+"hu": "Oxigénpalackkal a felszerelésben: még egy artefaktumtároló.",
+"fi": "Happipullo varusteissa: yksi artefaktisäiliö lisää.",
+"be": "З кіслародным балонам у камплекце: яшчэ адзін кантэйнер для артэфакта.",
+"hr": "S bocom s kisikom u opremi: još jedan spremnik za artefakte.",
+"pt": "Com tanque de oxigênio no kit: mais um recipiente para artefato."
 }
 },
 {

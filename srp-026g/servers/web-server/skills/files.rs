@@ -56,6 +56,7 @@ files! {
     "icons/442.webp" => "image/webp",
     "icons/443.webp" => "image/webp",
     "icons/444.webp" => "image/webp",
+    "icons/445.webp" => "image/webp",
     "icons/501.webp" => "image/webp",
     "icons/502.webp" => "image/webp",
     "icons/512.webp" => "image/webp",
