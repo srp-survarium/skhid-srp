@@ -597,6 +597,21 @@ split distances for its thin cone (the per-cascade records of 118h bytes, their 
 calculate_matrices 0x1742A2), or a shadow mask that reads only the cascades drawn; both need more of
 stage_shadow_direct read first. The second view keeps all four (`pip-scopes-7`).
 
+**4. The exit pupil's shadow (`pip-scopes-8`).** A real scope shows its picture only to an eye
+inside its eye box, a few mm across; off it, a dark crescent closes in from one side. The lens now
+measures each frame how far the eye (the view's origin) is off its glass's axis, in glass radii
+(`eye_off_axis`, from the glass's place and normal), and its pixel shader darkens what lies outside a
+clear circle shifted by it (`PUPIL_GAIN` 6 per radius, a soft edge of 0.35 radius, `PUPIL_SOFT`; both
+consts in pip_scopes.rs, gain 0 turns it off). Logged with `SKHID_PIP_LOG=on` every 30 frames.
+- At a steady aim the eye is on the axis for every kit tried (Leupold 3-7, Mk4, PSO-1: 0.001 radius
+  off): no shadow. As the gun comes up to the eye the lens comes on 0.3 to 0.6 radius off (the scope's
+  view starts at about 0.82 of the aim-in): a few frames dark, then a crescent that opens as the gun
+  settles (`round6/pupil-*`). Strafing moves the eye 0.02 to 0.1 radius off: a faint darkening at one
+  edge, nothing more, as in a real scope held to the eye.
+- Not added: a softer field stop (the picture's edge is the rear glass's, already cut by the housing
+  in front of it, item 2, and darkened over its outer 8 %) and a glass reflection (nothing in a
+  headless look asked for it).
+
 **The rig.** `srp-map-sur --hold ... --turn <yaw>[:<pitch>]` (`capture.py --turn`): the place turns
 once, a second after it enters (whole degrees, right and up positive), so its view can look across
 the map instead of at a wall.
