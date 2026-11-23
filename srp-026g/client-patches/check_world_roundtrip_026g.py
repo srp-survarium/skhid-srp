@@ -118,6 +118,18 @@ OWN_CHECKS = {
                    "it never writes; check_artefact_keeper_026g.py runs it after the game's own "
                    "inventory::deserialize and asserts a mended current kit keeps its loaded +180h/+184h",
     (0x38CD22, 7): "FSM null-state guard owns no serialized bytes; check_deserialize_guards_026g.py",
+    (0x252B48, 6): "deserialize.fire_animation_sound (patch 115): a double-barrel's or pistol's fire "
+                   "m_weapon_animation_index past its two animations stored as the first; any other byte stored "
+                   "as read, so a world the game wrote saves back the same; check_deserialize_guards_026g.py "
+                   "(each fire vtable's deserialize, the stock's store for valid bytes)",
+    (0x310224, 6): "deserialize.fire_animation: as deserialize.fire_animation_sound, the bare classes' "
+                   "deserialize (never called by the game)",
+    (0x33A51B, 12): "deserialize.grenade_serialize (patch 115): a throw state with no grenade set writes the slot "
+                    "none (17h) where the stock faults reading one off its item; with a set, the stock's byte; "
+                    "check_deserialize_guards_026g.py (the serialize against the stock's for each set)",
+    (0x2AC8A6, 8): "effect_presenter.particle_read_room (patch 122): the room the presenter's local list reads "
+                   "into (32 entries, not six), a capacity, no byte of the world; check_particle_room_026g.py "
+                   "(deserialize's local list from this site, the swap to the byte as the original's)",
     (0x31B0FF, 9): "anomaly state bounds own no serialized bytes; check_deserialize_guards_026g.py",
     (0x2FE65E, 5): "artefact bounds own no serialized bytes; check_deserialize_guards_026g.py",
     (0x252B48, 6): "deserialize.fire_animation_sound (patch 115): a fire state's m_weapon_animation_index stored as "
