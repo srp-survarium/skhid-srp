@@ -2504,3 +2504,9 @@ va	status	ref_021d	name
 0x003cfe20	reviewed		vostok::render::res_render_output::goto_fullscreen
 0x003cfe80	reviewed	0x00274fc2	vostok::render::res_render_output::minimize
 0x00222330	observed		survarium::lobby_menu::on_profile_changed
+0x00207540	observed		survarium::key_binder::key_binder
+0x002078a0	observed	0x00155843	survarium::key_binder::set_default_controls
+0x00207ff0	observed		survarium::key_binder::unbind_key
+0x00207450	observed		survarium::key_binder::bind_command_save
+0x0023b740	observed		survarium::game_world_ui::update_local_player_state
+0x002fe8b0	observed		survarium::inventory::first_grenade_set_slot

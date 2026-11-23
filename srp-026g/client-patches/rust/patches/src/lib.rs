@@ -47,6 +47,7 @@ pub mod round_countdown;
 mod artefact_carry;
 pub mod suicide_key;
 pub mod camera_walls;
+pub mod item_hotkeys;
 pub mod bake_async;
 
 pub mod text_input;

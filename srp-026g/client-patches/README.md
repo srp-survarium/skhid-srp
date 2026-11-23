@@ -3687,7 +3687,8 @@ without it, or of another version (unloaded), voice is off.
   one for 10m one for radio"): 47h, `ptt` (P), the radio's (the team's; in a free-for-all
   everyone's), and 37h, `ptt_nearby` (O), the 10 m voice's (everyone near hears it). 37h is the
   action table's entry 0xA74E10, `serialize_player_state` (kinds 5, a debug action whose console
-  command does not exist), renamed and made kind 8, its default key kept (`VOICE_ACTION`). Their
+  command does not exist), renamed and made kind 8, its default key kept (its row in patch 149's
+  moved action table, `item_hotkeys_026g.asm`). Their
   Controls rows are the game group's and can be set (patch 62's `controls`: `ptt`'s moved, a 43rd
   for `ptt_nearby`);
 - `hud.callback` (after patch 86's): the Tab list's player menu asks `srp_voice_menu(place)`
@@ -4514,7 +4515,7 @@ game has no screenshot key of its own.
 **The keys.** The action table's two spare entries: `torch` (1Ah, 0xA74CBC) and `night_vision`
 (1Bh, 0xA74CD0), kinds 5 and no default key, which nothing reads (the game world's switch is
 11h..19h, 0x25CE1C; the player's input table 0xA746E0 has neither; 0.10b's source names them only
-in the table). `patch_026g.py`'s `SCREENSHOT_ACTIONS` names them `screenshot` and
+in the table). Their rows in patch 149's moved action table (`item_hotkeys_026g.asm`) name them `screenshot` and
 `screenshot_no_ui` with the default keys F11 and F12, and patch 62's `controls` gets their rows,
 the 44th and 45th (`st_screenshot_action`, `st_screenshot_no_ui_action`). F11 was patch 62's:
 its entry (19h, 0xA74CA8) is named `hide_interface` with the default key F9. The new name is what
@@ -6839,3 +6840,21 @@ before it sets the items.
 
 The lobby alone: nothing a match computes. Checked with `check_profile_kit_026g.py` (Unicorn;
 `tools/check profile-kit`); not run in a game.
+
+## A key per item type (patch 149, unreleased)
+
+Sixteen new game actions, unbound, one Options > Controls row each (game group): Onyx, Spring,
+Lifebone, the seven medicines, RGD-5, RDG-M, the trap and the oxygen tank, and two more: Next
+artifact and Next medkit, the first ready item of the group (`docs/notes/item-hotkeys.md`). A key is a press of the quick-use key (3..8) of the first quick
+slot holding its item: at the input builder's end (0x2421B0), before patch 78's chord, the Rust
+patch `item_hotkeys` sets that slot's quick-use bit while the game would set it for the slot's
+key; nothing of that type, nothing. Only the input bits the game already has: nothing a match
+computes. The game's action table ends where the key names begin, so `item_hotkeys_026g.asm`
+(block item_hotkeys.data) is the table again, the game's 60 rows (with the rows other patches change:
+artefact's default H, patch 78's; hide_interface, screenshot and screenshot_no_ui, patch 152's;
+ptt_nearby, patch 66's) and the sixteen (ids 4Ah..59h); `ITEM_HOTKEYS_TABLE_REFS` / `_END` / `_COUNTS` repoint the key
+binder's four readers of it. The binder's bindings (one per action id) grow from 48h to 60h:
+`ITEM_HOTKEYS_BINDER` makes its allocation, construction, get_binded_action, bind_key's pass and
+the save's loop 60h, and moves its game pointer (+360h) after them. The rows are patch 62's
+`controls` (61 rows). `check_item_hotkeys_026g.py` runs the binder's functions and the whole input
+builder in both exes (needs Unicorn); `docs/notes/client_patch.md` 3.105.

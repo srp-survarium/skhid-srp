@@ -3273,7 +3273,7 @@ st_team_member_is_not_commander	The team member is not a commander.
 st_texture_quality_option	Textures quality
 st_there_is_no_item_in_inventory	Item not found in your inventory
 st_thief_item	Grab container
-st_throw_grenade_action	Use grenade
+st_throw_grenade_action	Next grenade
 st_time_current	Picking up players:
 st_time_was_resynchronized	Restoring connection...
 st_to_all	To all
@@ -3318,12 +3318,28 @@ st_ump45_name	H&K UMP45
 st_unknown_faction	Neutral
 st_unlimited_upload	unlimit
 st_use_action	Use
+st_use_antitoxin_action	Use Antitoxin
 st_use_artefact_container	Procure artifact ({USE})
+st_use_bandages_action	Use bandages
+st_use_blackmarket_medkit_action	Use Black Market Medkit
 st_use_fix_voucher	Repair kit
 st_use_item_message	Are you sure you want to use this item?
 st_use_ladder	Ladder
+st_use_lifebone_action	Use Larkspur
+st_use_medkit_action	Use Medikit
 st_use_microphone_option	Use microphone
+st_use_military_medkit_action	Use Military Medkit
+st_use_next_artefact_action	Next artifact
+st_use_next_medkit_action	Next medkit
+st_use_onyx_action	Use Onyx
+st_use_oxygen_tank_action	Use oxygen tank
+st_use_painkiller_action	Use Anesthetic
+st_use_rdgm_action	Throw smoke grenade RDG-M
 st_use_resupply_zone	Add ammunition ({USE})
+st_use_rgd5_action	Throw RGD-5 grenade
+st_use_science_medkit_action	Use Science Medkit
+st_use_spring_action	Use Spring
+st_use_trap_action	Use trap
 st_use_two_double_handed_weapons_description	You can carry two two-handed weapons into a match.
 st_use_two_double_handed_weapons_name	Terminator
 st_using_progress_message	Progress:

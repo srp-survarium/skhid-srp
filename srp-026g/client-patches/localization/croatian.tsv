@@ -3273,7 +3273,7 @@ st_team_member_is_not_commander	Član ekipe nije zapovjednik.
 st_texture_quality_option	Kvaliteta tekstura
 st_there_is_no_item_in_inventory	Predmet nije pronađen u vašem inventaru
 st_thief_item	Uzmi spremnik
-st_throw_grenade_action	Upotrijebi granatu
+st_throw_grenade_action	Sljedeća granata
 st_time_current	Odabir igrača:
 st_time_was_resynchronized	Obnavljanje veze...
 st_to_all	Svima
@@ -3318,12 +3318,28 @@ st_ump45_name	H&K UMP45
 st_unknown_faction	Neutralno
 st_unlimited_upload	neograničeno
 st_use_action	Upotrijebi
+st_use_antitoxin_action	Upotrijebi antitoksin
 st_use_artefact_container	Izvadi artefakt ({USE})
+st_use_bandages_action	Upotrijebi paket zavoja
+st_use_blackmarket_medkit_action	Upotrijebi prvu pomoć Crnog tržišta
 st_use_fix_voucher	Pribor za popravak
 st_use_item_message	Jeste li sigurni da želite upotrijebiti ovaj predmet?
 st_use_ladder	Ljestvica
+st_use_lifebone_action	Upotrijebi Kokotić
+st_use_medkit_action	Upotrijebi prvu pomoć
 st_use_microphone_option	Koristi mikrofon
+st_use_military_medkit_action	Upotrijebi vojnu prvu pomoć
+st_use_next_artefact_action	Sljedeći artefakt
+st_use_next_medkit_action	Sljedeća prva pomoć
+st_use_onyx_action	Upotrijebi Oniks
+st_use_oxygen_tank_action	Upotrijebi bocu kisika
+st_use_painkiller_action	Upotrijebi anestetik
+st_use_rdgm_action	Baci dimnu granatu RDG-M
 st_use_resupply_zone	Dopuni streljivo ({USE})
+st_use_rgd5_action	Baci granatu RGD-5
+st_use_science_medkit_action	Upotrijebi znanstvenu prvu pomoć
+st_use_spring_action	Upotrijebi Oprugu
+st_use_trap_action	Upotrijebi zamku
 st_use_two_double_handed_weapons_description	U borbu možete ponijeti dva dvoručna oružja.
 st_use_two_double_handed_weapons_name	Terminator
 st_using_progress_message	Napredak:

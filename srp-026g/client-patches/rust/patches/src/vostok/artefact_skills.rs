@@ -130,7 +130,7 @@ fn holder(artefact: raw::Artefact) -> Option<raw::Player> {
 /// then gives nothing, its passive nor its active. The holder is its inventory's (an Onyx's protector and a
 /// Lifebone's regeneration subscriber are in their holder's parts only while it carries them);
 /// an artefact in no inventory, or in no passive nor active, counts as the game has it.
-fn uncounted(artefact: raw::Artefact) -> bool {
+pub(super) fn uncounted(artefact: raw::Artefact) -> bool {
     let (Some(player), Some(kind)) = (holder(artefact), kind_of(artefact)) else {
         return false;
     };

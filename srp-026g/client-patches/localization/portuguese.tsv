@@ -3273,7 +3273,7 @@ st_team_member_is_not_commander	O membro da equipe não é um comandante.
 st_texture_quality_option	Qualidade das texturas
 st_there_is_no_item_in_inventory	Item não encontrado no seu inventário
 st_thief_item	Pegue o container
-st_throw_grenade_action	Usar granada
+st_throw_grenade_action	Próxima granada
 st_time_current	Selecionando jogadores:
 st_time_was_resynchronized	Restaurando conexão...
 st_to_all	Para todos
@@ -3318,12 +3318,28 @@ st_ump45_name	H&K UMP45
 st_unknown_faction	Neutro
 st_unlimited_upload	ilimitado
 st_use_action	Usar
+st_use_antitoxin_action	Usar antitoxina
 st_use_artefact_container	Retirar artefato ({USE})
+st_use_bandages_action	Usar bandagens
+st_use_blackmarket_medkit_action	Usar kit médico do Mercado Negro
 st_use_fix_voucher	Kit de reparo
 st_use_item_message	Você tem certeza que quer usar este item?
 st_use_ladder	Escada
+st_use_lifebone_action	Usar Espora
+st_use_medkit_action	Usar kit médico
 st_use_microphone_option	Usar microfone
+st_use_military_medkit_action	Usar kit médico militar
+st_use_next_artefact_action	Próximo artefato
+st_use_next_medkit_action	Próximo kit médico
+st_use_onyx_action	Usar Ônix
+st_use_oxygen_tank_action	Usar tanque de oxigênio
+st_use_painkiller_action	Usar anestésico
+st_use_rdgm_action	Lançar granada de fumaça RDG-M
 st_use_resupply_zone	Adicionar munição ({USE})
+st_use_rgd5_action	Lançar granada RGD-5
+st_use_science_medkit_action	Usar kit médico científico
+st_use_spring_action	Usar Fonte
+st_use_trap_action	Usar armadilha
 st_use_two_double_handed_weapons_description	Você pode carregar duas armas de duas mãos em uma partida.
 st_use_two_double_handed_weapons_name	Exterminador
 st_using_progress_message	Progresso:
