@@ -24,10 +24,10 @@ use crate::vostok::log::{self, Piece};
 use crate::vostok::renderer::get_environment;
 use crate::hud_options;
 use crate::pip_lens;
-use crate::vostok::second_view::{self, Disc, Frame, GpuClock, Keep, Lens, MainView, Marks, ModelId, ReadError, Scoped, SecondView, Stage, UnknownModel, DrawnWeapon, RING};
+use crate::vostok::second_view::{self, Disc, Frame, GpuClock, Keep, Lens, LensPlace, MainView, Marks, ModelId, ReadError, Put, ScopeSite, ScopeWeapon, Scoped, SecondView, Stage, UnknownModel, RING};
 use crate::vostok::{
-    trig, Context, Flow, Lock, NoExit, OrigRenderFlashUi, PipScopesOnAddHideExit, PipScopesOnAddIdleExit, PipScopesOnPresentExit,
-    PipScopesOnRemoveIdleExit, PipScopesOnRemoveShowExit, PipScopesOnUnmoveExit, Reg, Thread,
+    trig, Context, Flow, Lock, NoExit, OrigRenderFlashUi, PipScopesOnPresentExit, PipScopesOnScopeBodyExit,
+    PipScopesOnScopeCulledBodyExit, PipScopesOnScopeOpticExit, PipScopesOnScopeShowExit, PipScopesOnScopeSwapExit, PipScopesOnUnmoveExit, Reg, Thread,
 };
 
 /// The second view's field of view: the frame's over this.
@@ -105,8 +105,97 @@ static PROBE: Lock<Probe> = Lock::new(Probe::Unread);
 /// is not reentrant: set at its start, read by its sites).
 static SECOND_PASS: AtomicBool = AtomicBool::new(false);
 
+/// The picture a large lens is drawn from: made the first time a lens is
+/// wider on the screen than [`SCOPE_SIZE`] pixels, kept after.
+#[derive(Clone, Copy)]
+enum Large {
+    Unwanted,
+    Wanted,
+    Made(SecondView),
+    Failed,
+}
+
+static LARGE: Lock<Large> = Lock::new(Large::Unwanted);
+
+/// The large picture's size, pixels square: the most a lens draws from.
+const LARGE_SIZE: u32 = 1024;
+
+/// The frame's back buffer's height, pixels (render thread, for the game's).
+static FRAME_HEIGHT: Lock<u32> = Lock::new(1080);
+
+/// The view the render thread draws now, of the second views (its picture the lens's).
+static PICTURE: Lock<Option<SecondView>> = Lock::new(None);
+
 /// SKHID_PIP_SCOPES set: the lens whatever the setting says.
 static SCOPES_FORCED: AtomicBool = AtomicBool::new(false);
+
+/// SKHID_PIP_LOG=on: what the lens does at each aim, in the log.
+static LOG_ON: AtomicBool = AtomicBool::new(false);
+
+/// The aim the game's thread and the render thread last logged (an aim is
+/// its aimed model in the scene: logged once each).
+static NOTED_AIM: Lock<Option<ModelId>> = Lock::new(None);
+static SEEN_AIM: Lock<Option<(ModelId, u32)>> = Lock::new(None);
+
+/// SKHID_PIP_LOG=picture: the log, and the second view's picture copied into the
+/// frame's top right corner while the lens is drawn.
+static PICTURE_ON: AtomicBool = AtomicBool::new(false);
+
+/// A log line of the lens's, built in place.
+struct Note {
+    pieces: [Piece<'static>; 80],
+    len: usize,
+}
+
+impl Note {
+    fn new(text: &'static str) -> Note {
+        let mut note = Note { pieces: [Piece::Text(""); 80], len: 0 };
+        note.text(text);
+        note
+    }
+
+    fn text(&mut self, text: &'static str) -> &mut Note {
+        if let Some(slot) = self.pieces.get_mut(self.len) {
+            *slot = Piece::Text(text);
+            self.len += 1;
+        }
+        self
+    }
+
+    fn dec(&mut self, value: u32) -> &mut Note {
+        if let Some(slot) = self.pieces.get_mut(self.len) {
+            *slot = Piece::Dec(value);
+            self.len += 1;
+        }
+        self
+    }
+
+    fn hex(&mut self, value: u32) -> &mut Note {
+        if let Some(slot) = self.pieces.get_mut(self.len) {
+            *slot = Piece::Hex(value);
+            self.len += 1;
+        }
+        self
+    }
+
+    /// A float as signed thousandths.
+    fn milli(&mut self, value: f32) -> &mut Note {
+        let m = value * 1000.0;
+        self.text(if m < 0.0 { " -" } else { " " });
+        self.dec(if m.is_finite() { m.abs().min(4e9) as u32 } else { u32::MAX })
+    }
+
+    fn point(&mut self, p: [f32; 3]) -> &mut Note {
+        self.text(" (").milli(p[0]).milli(p[1]).milli(p[2]).text(" )")
+    }
+
+    /// Into the log with SKHID_PIP_LOG=on.
+    fn send(&self) {
+        if LOG_ON.load(Ordering::Relaxed) {
+            log::line(&self.pieces[..self.len]);
+        }
+    }
+}
 
 /// The lens is on: the setting (or the variable), and the view made for it.
 fn scopes_active(thread: &Thread, probe: Probe) -> bool {
@@ -126,10 +215,6 @@ static AIMED: Lock<Option<ModelId>> = Lock::new(None);
 
 /// The second view was drawn for a lens this frame: the frame's draw shows it.
 static LENS_DUE: AtomicBool = AtomicBool::new(false);
-
-/// The weapon (its address) whose aimed model was put in the scene the
-/// lens's way: its body, hands and idle optic left in.
-static LENS_WEAPON: Lock<Option<u32>> = Lock::new(None);
 
 enum LensState {
     Unmade,
@@ -178,7 +263,11 @@ fn turn_off_switches(thread: &Thread) {
 static FRAME_CAMERA: Lock<Option<([f32; 16], [f32; 16])>> = Lock::new(None);
 
 /// The lens on the frame's screen this frame (clip space: centre, radii).
-static LENS_DISC: Lock<Option<([f32; 2], [f32; 2])>> = Lock::new(None);
+static LENS_DISC: Lock<Option<LensPlace>> = Lock::new(None);
+
+/// The aimed model's lens surface the last frame found: the second view
+/// leaves it out (its glass would cover the whole picture).
+static LENS_SURFACE: Lock<Option<u32>> = Lock::new(None);
 
 /// The radius of the lens's last place, of the half height, for the next
 /// second view's field of view.
@@ -268,6 +357,10 @@ fn read_probe(thread: &Thread) -> Probe {
             let la = get_environment(thread, c"SKHID_PIP_PROBE", &mut a);
             let lb = get_environment(thread, c"SKHID_PIP_SCOPES", &mut b);
             SCOPES_FORCED.store(size(&b[..lb]).is_some(), Ordering::Relaxed);
+            let mut c = [0u8; 8];
+            let lc = get_environment(thread, c"SKHID_PIP_LOG", &mut c);
+            LOG_ON.store(matches!(&c[..lc], b"on" | b"picture"), Ordering::Relaxed);
+            PICTURE_ON.store(&c[..lc] == b"picture", Ordering::Relaxed);
             *probe = match asked(&a[..la], &b[..lb]) {
                 Asked::Off => Probe::Off,
                 Asked::Timing => Probe::Timing,
@@ -358,17 +451,8 @@ pub fn on_draw(ctx: &mut Context<'_>) -> Flow<NoExit> {
         PROBE.with(thread, |kept| *kept = probe);
     }
     let scoped = scoped.filter(|_| scopes_active(thread, probe));
-    // an aimed optic the lens cannot read is today's scope, said once in the log
-    let scoped = scoped.filter(|scoped| match scoped.aimed {
-        Some(Ok(_)) => true,
-        Some(Err(UnknownModel(vtable))) => {
-            if UNREAD.with(thread, |kept| kept.replace(vtable)) != Some(vtable) {
-                log::line(&[Piece::Text("pip: an aimed optic's model of class "), Piece::Hex(vtable), Piece::Text(" is not one the lens reads: today's scope for it")]);
-            }
-            false
-        }
-        None => false,
-    });
+    // an optic the lens does not take is today's scope (lens_takes logs why)
+    let scoped = scoped.filter(|scoped| matches!(scoped.aimed, Some(Ok(model)) if !refused(thread, model)));
     let Probe::Made { second, used, .. } = probe else { return Flow::Continue };
     let Some(frame) = Frame::at(ctx) else { return Flow::Continue };
     let (camera, projection) = (frame.camera(), frame.projection());
@@ -403,11 +487,47 @@ pub fn on_draw(ctx: &mut Context<'_>) -> Flow<NoExit> {
             frame.set_projection(&main_projection);
             set_frame_fov(thread, &main_projection);
             FRAME_CAMERA.with(thread, |kept| *kept = Some((view, main_projection)));
-            if scoped.shown {
+            // the picture as wide as the lens on the screen: the large one past SCOPE_SIZE pixels
+            let wide = size * FRAME_HEIGHT.with(thread, |h| *h) as f32 > SCOPE_SIZE as f32 * 1.1;
+            let large = LARGE.with(thread, |large| match *large {
+                Large::Unwanted if wide => {
+                    *large = Large::Wanted;
+                    None
+                }
+                Large::Made(view) if wide => Some(view),
+                _ => None,
+            });
+            let picture = large.unwrap_or(second);
+            let shown = scoped.scope_view && reticle_of(thread, scoped.weapon);
+            if shown {
                 // from the aim itself: the reticle's centre is where a shot goes
-                frame.draw_second(&second, &invert_affine(&scoped.eye), &lens, &view, &main_projection);
+                frame.draw_second(&picture, &invert_affine(&scoped.eye), &lens, &view, &main_projection);
             }
-            scoped.aimed.and_then(Result::ok).filter(|_| scoped.shown)
+            let aimed = scoped.aimed.and_then(Result::ok).filter(|_| shown);
+            if NOTED_AIM.with(thread, |noted| core::mem::replace(noted, aimed)) != aimed
+                && let Some(model) = aimed
+            {
+                let fov = trig::atan2(1.0, lens[5]).map_or(0.0, |half| 2.0 * half * 180.0 / core::f32::consts::PI);
+                Note::new("pip: aim (thousandths): optic fov_factor")
+                    .milli(scoped.fov_factor)
+                    .text(", aimed model ")
+                    .text(model.kind().name())
+                    .text(" ")
+                    .hex(model.address())
+                    .text(", idle model ")
+                    .hex(scoped.idle.unwrap_or(0))
+                    .text(", uro_fov")
+                    .milli(uro_fov)
+                    .text(", last lens radius (half heights)")
+                    .milli(size)
+                    .text(", second view fov (degrees)")
+                    .milli(fov)
+                    .text(", its picture ")
+                    .dec(SCOPE_SIZE)
+                    .text(" px square")
+                    .send();
+            }
+            aimed
         }
     };
     AIMED.with(thread, |aimed| *aimed = drawn);
@@ -423,16 +543,26 @@ pub fn on_draw(ctx: &mut Context<'_>) -> Flow<NoExit> {
 pub fn on_render_begin(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let probe = PROBE.with(thread, |probe| *probe);
-    let second = match probe {
-        Probe::Made { second, main, .. } if second_view::drawn_view(ctx, &second) => {
-            if let Some(main) = main {
-                second_view::match_environment(thread, &second, main);
-            }
-            LENS_DUE.store(true, Ordering::Relaxed);
-            true
-        }
-        _ => false,
+    let large = LARGE.with(thread, |large| match *large {
+        Large::Made(view) => Some(view),
+        _ => None,
+    });
+    let drawn = match probe {
+        Probe::Made { second, main, .. } => [Some(second), large]
+            .into_iter()
+            .flatten()
+            .find(|view| second_view::drawn_view(ctx, view))
+            .map(|view| (view, main)),
+        _ => None,
     };
+    if let Some((view, main)) = drawn {
+        if let Some(main) = main {
+            second_view::match_environment(thread, &view, main);
+        }
+        PICTURE.with(thread, |picture| *picture = Some(view));
+        LENS_DUE.store(true, Ordering::Relaxed);
+    }
+    let second = drawn.is_some();
     SECOND_PASS.store(second, Ordering::Relaxed);
     restore_switches(thread);
     if second {
@@ -494,6 +624,23 @@ pub fn on_interface(ctx: &mut Context<'_>) -> Flow<NoExit> {
         }
         *probe
     });
+    LARGE.with(thread, |large| {
+        if let Large::Wanted = *large {
+            *large = match second_view::make(thread, LARGE_SIZE) {
+                Ok(view) => {
+                    log::line(&[Piece::Text("pip: second view made, "), Piece::Dec(LARGE_SIZE), Piece::Text(" (a large lens)")]);
+                    Large::Made(view)
+                }
+                Err(_) => {
+                    log::line(&[Piece::Text("pip: no large second view: the lens draws from the 512 one")]);
+                    Large::Failed
+                }
+            };
+        }
+    });
+    if let Some(height) = second_view::frame_height(ctx) {
+        FRAME_HEIGHT.with(thread, |kept| *kept = height);
+    }
     if timed(probe) {
         CLOCK.with(thread, |clock| {
             if clock.gpu.is_none() {
@@ -509,6 +656,7 @@ pub fn on_interface(ctx: &mut Context<'_>) -> Flow<NoExit> {
             second_view::composite(ctx, &second, MARGIN);
         }
         Probe::Made { second, used: used @ (Use::Scopes | Use::ProbeLens), .. } if LENS_DUE.swap(false, Ordering::Relaxed) => {
+            let second = PICTURE.with(thread, Option::take).unwrap_or(second);
             LENS.with(thread, |lens| {
                 let lens = match lens {
                     LensState::Unmade => {
@@ -527,12 +675,15 @@ pub fn on_interface(ctx: &mut Context<'_>) -> Flow<NoExit> {
                     let aspect = second_view::frame_aspect(ctx).unwrap_or(16.0 / 9.0);
                     // the eyepiece's own place this frame; the probe's, at the centre
                     let (centre, radius) = match LENS_DISC.with(thread, Option::take) {
-                        Some(disc) => disc,
+                        Some(place) => (place.centre, place.radius),
                         None if used == Use::ProbeLens => ([0.0, 0.0], [LENS_RADIUS / aspect, LENS_RADIUS]),
                         None => return,
                     };
                     LENS_SIZE.with(thread, |size| *size = radius[1]);
                     lens.draw(ctx, &second, &Disc { centre, radius, rim: [RIM_SHARPNESS, RIM_DARKNESS] });
+                    if PICTURE_ON.load(Ordering::Relaxed) {
+                        second_view::composite(ctx, &second, MARGIN);
+                    }
                 }
             });
         }
@@ -652,66 +803,222 @@ pub fn on_unmove(_: &mut Context<'_>) -> Flow<PipScopesOnUnmoveExit> {
 pub fn on_foreground(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let aimed = AIMED.with(ctx.thread(), |aimed| *aimed);
     match (SECOND_PASS.load(Ordering::Relaxed), aimed) {
-        (true, Some(aimed)) => second_view::filter_foreground(ctx, Keep::Only(aimed)),
+        (true, Some(aimed)) => {
+            let except = LENS_SURFACE.with(ctx.thread(), |kept| *kept);
+            second_view::filter_foreground(ctx, Keep::Only { model: aimed, except });
+        }
         (true, None) => second_view::drop_foreground(ctx),
         (false, Some(aimed)) => {
             let thread = ctx.thread();
-            let disc = FRAME_CAMERA
-                .with(thread, |camera| *camera)
-                .and_then(|(view, projection)| second_view::lens_on_screen(aimed, &view, &projection, LEAST_LENS));
+            let camera = FRAME_CAMERA.with(thread, |camera| *camera);
+            let disc = camera.and_then(|(view, projection)| second_view::lens_on_screen(aimed, &view, &projection, LEAST_LENS));
             LENS_DISC.with(thread, |kept| *kept = disc);
+            if let Some(place) = disc {
+                LENS_SURFACE.with(thread, |kept| *kept = Some(place.surface));
+            }
+            // an aim's first frame and its thirtieth (its surfaces placed by then)
+            let frame = SEEN_AIM.with(thread, |seen| {
+                let frame = match *seen {
+                    Some((model, frame)) if model == aimed => frame + 1,
+                    _ => 0,
+                };
+                *seen = Some((aimed, frame));
+                frame
+            });
+            if frame == 0 || frame == 30 {
+                log_surfaces(ctx, aimed, camera, disc);
+            }
+            // its spheres are placed a frame or two after it enters the scene
+            if disc.is_none() && frame >= 30 {
+                refuse(thread, aimed);
+            }
             second_view::filter_foreground(ctx, Keep::AllBut(aimed));
         }
-        (false, None) => {}
+        (false, None) => SEEN_AIM.with(ctx.thread(), |seen| *seen = None),
     }
     Flow::Continue
+}
+
+/// The aimed model's surfaces and the lens's place, at an aim's first frame.
+fn log_surfaces(ctx: &Context<'_>, aimed: ModelId, camera: Option<([f32; 16], [f32; 16])>, disc: Option<LensPlace>) {
+    if !LOG_ON.load(Ordering::Relaxed) {
+        return;
+    }
+    let Some((view, _)) = camera else {
+        Note::new("pip: aim: no frame camera").send();
+        return;
+    };
+    let (seen, count) = second_view::surfaces_seen(aimed, &view);
+    Note::new("pip: aim: model ").hex(aimed.address()).text(" ").text(aimed.kind().name()).text(", surfaces ").dec(count as u32).send();
+    for (index, surface) in seen.iter().take(count).enumerate() {
+        let mut note = Note::new("pip:   surface ");
+        note.dec(index as u32).text(" radius").milli(surface.radius).text(", centre").point(surface.stored);
+        note.text(", in view").point(surface.in_view);
+        match surface.placed {
+            Some(at) => note.text(", matrix at").point(at),
+            None => note.text(", no matrix"),
+        };
+        note.send();
+    }
+    let (list, listed) = second_view::foreground_seen(ctx, aimed);
+    Note::new("pip: aim: the frame's first-person list, ").dec(listed as u32).text(" shown").send();
+    for entry in list.iter().take(listed) {
+        let mut note = Note::new("pip:   entry ");
+        note.hex(entry.address).text(if entry.aimed { " aimed" } else { " other" }).text(" sphere");
+        note.point([entry.sphere[0], entry.sphere[1], entry.sphere[2]]).text(" r").milli(entry.sphere[3]);
+        note.text(" surface ").hex(entry.surface).text(" owner ").hex(entry.owner);
+        match entry.placed {
+            Some(at) => note.text(", matrix at").point(at),
+            None => note.text(", no matrix"),
+        };
+        note.send();
+    }
+    match disc {
+        Some(place) => Note::new("pip: aim: lens at (clip)")
+            .milli(place.centre[0])
+            .milli(place.centre[1])
+            .text(", radii")
+            .milli(place.radius[0])
+            .milli(place.radius[1])
+            .text(", surface ")
+            .hex(place.surface)
+            .send(),
+        None => Note::new("pip: aim: no surface of the aimed model on the eye's axis: no lens").send(),
+    }
 }
 
 fn lens_on(thread: &Thread) -> bool {
     scopes_active(thread, PROBE.with(thread, |probe| *probe))
 }
 
-/// add_aimed_rifle_scope_to_scene before it takes the idle optic out: with
-/// the lens, the eyes' weapon keeps it.
-pub fn on_add_idle(ctx: &mut Context<'_>) -> Flow<PipScopesOnAddIdleExit> {
-    let thread = ctx.thread();
-    let Some((weapon, eyes, lensable)) = second_view::scope_weapon(ctx) else { return Flow::Continue };
-    let lens = eyes && lensable && lens_on(thread);
-    LENS_WEAPON.with(thread, |kept| *kept = lens.then_some(weapon));
-    if lens { Flow::Exit(PipScopesOnAddIdleExit::Aimed) } else { Flow::Continue }
+/// The aimed model of the lens's weapon: in the scene while the lens is
+/// drawn (put there by the lens, the game's swap skipped for that weapon),
+/// for the second view's reticle; the frame leaves it out.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Reticle {
+    Out,
+    In { weapon: u32 },
 }
 
-/// add_aimed_rifle_scope_to_scene before it hides the body and the hands:
-/// the lens's weapon keeps them.
-pub fn on_add_hide(ctx: &mut Context<'_>) -> Flow<PipScopesOnAddHideExit> {
-    if ours(ctx, false) { Flow::Exit(PipScopesOnAddHideExit::Shown) } else { Flow::Continue }
+static RETICLE: Lock<Reticle> = Lock::new(Reticle::Out);
+
+/// Aimed models the lens found no glass on: today's scope for them (logged once each).
+static REFUSED: Lock<([u32; 16], usize)> = Lock::new(([0; 16], 0));
+
+fn refused(thread: &Thread, model: ModelId) -> bool {
+    REFUSED.with(thread, |(list, count)| list[..*count].contains(&model.address()))
 }
 
-/// remove_aimed_rifle_scope_from_scene before it puts the idle optic back:
-/// the lens's weapon never took it out.
-pub fn on_remove_idle(ctx: &mut Context<'_>) -> Flow<PipScopesOnRemoveIdleExit> {
-    if ours(ctx, false) { Flow::Exit(PipScopesOnRemoveIdleExit::Aimed) } else { Flow::Continue }
-}
-
-/// remove_aimed_rifle_scope_from_scene before it shows the body and the
-/// hands again: the lens's weapon never hid them.
-pub fn on_remove_show(ctx: &mut Context<'_>) -> Flow<PipScopesOnRemoveShowExit> {
-    if ours(ctx, true) { Flow::Exit(PipScopesOnRemoveShowExit::Shown) } else { Flow::Continue }
-}
-
-/// Whether the weapon at this scope site put its aimed model in the lens's
-/// way; `done` forgets it (its aimed model is out).
-fn ours(ctx: &Context<'_>, done: bool) -> bool {
-    let Some((weapon, _, _)) = second_view::scope_weapon(ctx) else { return false };
-    LENS_WEAPON.with(ctx.thread(), |kept| {
-        let ours = *kept == Some(weapon);
-        if ours && done {
-            *kept = None;
+fn refuse(thread: &Thread, model: ModelId) {
+    let fresh = REFUSED.with(thread, |(list, count)| {
+        if list[..*count].contains(&model.address()) {
+            return false;
         }
-        ours
-    })
+        if *count < list.len() {
+            list[*count] = model.address();
+            *count += 1;
+        }
+        true
+    });
+    if fresh {
+        log::line(&[
+            Piece::Text("pip: no glass of the aimed model "),
+            Piece::Hex(model.address()),
+            Piece::Text(" on the eye's axis: today's scope for that optic"),
+        ]);
+    }
 }
 
+/// The lens takes this weapon: the eyes' own, a magnified optic, the lens
+/// on, and an aimed model of a class it reads whose glass it found. Every
+/// other case is today's scope (an unread class said once in the log).
+fn lens_takes(thread: &Thread, weapon: &ScopeWeapon<'_>) -> bool {
+    if !weapon.magnified() || !lens_on(thread) || !weapon.first_person() {
+        return false;
+    }
+    match weapon.aimed() {
+        Some(Ok(model)) => !refused(thread, model),
+        Some(Err(UnknownModel(vtable))) => {
+            if UNREAD.with(thread, |kept| kept.replace(vtable)) != Some(vtable) {
+                log::line(&[Piece::Text("pip: an aimed optic's model of class "), Piece::Hex(vtable), Piece::Text(" is not one the lens reads: today's scope for it")]);
+            }
+            false
+        }
+        None => false,
+    }
+}
+
+/// The reticle model for `weapon` after this frame's draw: in while the
+/// lens takes it and its scope's view is on (and the game's own swap is
+/// undone: never both in the scene), out otherwise.
+fn place_reticle(thread: &Thread, weapon: &ScopeWeapon<'_>, takes: bool) {
+    let want = takes && weapon.scope_view() && !weapon.swapped();
+    RETICLE.with(thread, |reticle| {
+        *reticle = match (*reticle, want) {
+            (Reticle::Out, true) if weapon.put_aimed(Put::In) => Reticle::In { weapon: weapon.address() },
+            (Reticle::In { weapon: w }, false) if w == weapon.address() => {
+                weapon.put_aimed(Put::Out);
+                Reticle::Out
+            }
+            (kept, _) => kept,
+        };
+    });
+}
+
+fn reticle_of(thread: &Thread, weapon: u32) -> bool {
+    RETICLE.with(thread, |reticle| *reticle == Reticle::In { weapon })
+}
+
+/// weapon::on_show, its scope's view on: the lens's weapon shows its idle optic.
+pub fn on_scope_show(ctx: &mut Context<'_>) -> Flow<PipScopesOnScopeShowExit> {
+    let Some(weapon) = ScopeWeapon::at(ctx, ScopeSite::Show) else { return Flow::Continue };
+    if lens_takes(ctx.thread(), &weapon) { Flow::Exit(PipScopesOnScopeShowExit::Idle) } else { Flow::Continue }
+}
+
+/// weapon::draw's body update: the lens's weapon's body is updated (it never leaves the scene).
+pub fn on_scope_body(ctx: &mut Context<'_>) -> Flow<PipScopesOnScopeBodyExit> {
+    let Some(weapon) = ScopeWeapon::at(ctx, ScopeSite::Body) else { return Flow::Continue };
+    if lens_takes(ctx.thread(), &weapon) { Flow::Exit(PipScopesOnScopeBodyExit::Update) } else { Flow::Continue }
+}
+
+pub fn on_scope_culled_body(ctx: &mut Context<'_>) -> Flow<PipScopesOnScopeCulledBodyExit> {
+    let Some(weapon) = ScopeWeapon::at(ctx, ScopeSite::CulledBody) else { return Flow::Continue };
+    if lens_takes(ctx.thread(), &weapon) { Flow::Exit(PipScopesOnScopeCulledBodyExit::Update) } else { Flow::Continue }
+}
+
+/// weapon::draw's swap, first person: the lens's weapon takes the other
+/// branch (no swap; the game's own aimed model, if in, taken out there) and
+/// the lens puts the aimed model in for its reticle.
+pub fn on_scope_swap(ctx: &mut Context<'_>) -> Flow<PipScopesOnScopeSwapExit> {
+    let thread = ctx.thread();
+    let Some(weapon) = ScopeWeapon::at(ctx, ScopeSite::Swap) else { return Flow::Continue };
+    let takes = lens_takes(thread, &weapon);
+    place_reticle(thread, &weapon, takes);
+    if takes { Flow::Exit(PipScopesOnScopeSwapExit::Unscoped) } else { Flow::Continue }
+}
+
+/// weapon::draw's optic update: the lens's weapon updates its idle optic
+/// (the one in view) and the lens its aimed model (the reticle), both to the
+/// weapon's matrix.
+pub fn on_scope_optic(ctx: &mut Context<'_>) -> Flow<PipScopesOnScopeOpticExit> {
+    let thread = ctx.thread();
+    let Some(weapon) = ScopeWeapon::at(ctx, ScopeSite::Optic) else { return Flow::Continue };
+    if !lens_takes(thread, &weapon) {
+        return Flow::Continue;
+    }
+    if reticle_of(thread, weapon.address()) {
+        weapon.put_aimed(Put::Moved);
+    }
+    Flow::Exit(PipScopesOnScopeOpticExit::Idle)
+}
+
+/// weapon::on_hide: the lens's aimed model leaves the scene with the weapon.
+pub fn on_weapon_hidden(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let thread = ctx.thread();
+    let Some(weapon) = ScopeWeapon::at(ctx, ScopeSite::Hidden) else { return Flow::Continue };
+    place_reticle(thread, &weapon, false);
+    Flow::Continue
+}
 
 #[cfg(test)]
 mod tests {
@@ -742,14 +1049,3 @@ mod tests {
     }
 }
 
-/// weapon::draw after its optic's update: the lens's weapon's idle optic
-/// moved with the gun as its aimed one is (the game updates only that one
-/// once the scope's view is on; kept in the scene, the idle one would stay
-/// where the swap left it).
-pub fn on_weapon_drawn(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    let Some(weapon) = DrawnWeapon::at(ctx) else { return Flow::Continue };
-    if LENS_WEAPON.with(ctx.thread(), |kept| *kept) == Some(weapon.address()) {
-        weapon.move_idle_optic();
-    }
-    Flow::Continue
-}

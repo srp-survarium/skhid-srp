@@ -83,6 +83,7 @@ engine_play_sound	0x3222f0	ESP+4:manager ESP+8:sound ESP+12:position	void engine
 engine_user_data_directory	0x018bd0	-	const char *engine_user_data_directory(void)	thunk	
 engine_match_options	survarium::base_network_client+0x34	ECX:client	struct match_options *engine_match_options(struct network_client *client)	virtual
 engine_active_player	survarium::base_network_client+0x50	ECX:client ESP+4:out ESP+8:place	struct player **engine_active_player(struct network_client *client, struct player **out, unsigned int place)	virtual
+engine_follow_first_person	survarium::base_network_client+0x7c	ECX:client ESP+4:world ESP+8:place	void engine_follow_first_person(struct network_client *client, struct game_world *world, unsigned int place)	virtual
 engine_bullet_player	survarium::bullet_manager_engine+0x24	ECX:engine ESP+4:place	struct player *engine_bullet_player(struct bullet_manager_engine *engine, unsigned int place)	virtual
 engine_query_performance_counter	0x870158	-	unsigned int engine_query_performance_counter(unsigned int *count)	import	
 engine_query_performance_frequency	0x870150	-	unsigned int engine_query_performance_frequency(unsigned int *frequency)	import	
@@ -371,6 +372,7 @@ engine_device_create_buffer	ID3D11Device+0xc	-	unsigned int engine_device_create
 engine_device_create_vertex_shader	ID3D11Device+0x30	-	unsigned int engine_device_create_vertex_shader(struct d3d_device *device, const void *code, unsigned int size, void *linkage, struct hw_resource **shader)	com	
 engine_device_create_pixel_shader	ID3D11Device+0x3c	-	unsigned int engine_device_create_pixel_shader(struct d3d_device *device, const void *code, unsigned int size, void *linkage, struct hw_resource **shader)	com	
 engine_device_create_sampler_state	ID3D11Device+0x5c	-	unsigned int engine_device_create_sampler_state(struct d3d_device *device, const void *desc, struct hw_resource **sampler)	com	
+engine_device_create_blend_state	ID3D11Device+0x50	-	unsigned int engine_device_create_blend_state(struct d3d_device *device, const void *desc, struct hw_resource **state)	com	
 engine_context_vs_set_constant_buffers	ID3D11DeviceContext+0x1c	-	void engine_context_vs_set_constant_buffers(struct immediate_context *context, unsigned int first, unsigned int count, struct hw_resource *const *buffers)	com	
 engine_context_ps_set_shader_resources	ID3D11DeviceContext+0x20	-	void engine_context_ps_set_shader_resources(struct immediate_context *context, unsigned int first, unsigned int count, struct hw_resource *const *views)	com	
 engine_context_ps_set_shader	ID3D11DeviceContext+0x24	-	void engine_context_ps_set_shader(struct immediate_context *context, struct hw_resource *shader, void *const *instances, unsigned int count)	com	

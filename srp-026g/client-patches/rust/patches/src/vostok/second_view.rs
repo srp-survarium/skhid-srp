@@ -538,6 +538,8 @@ pub struct Lens {
     pixel: Held,
     constants: Held,
     sampler: Held,
+    /// Source alpha over the frame: the disc's edge covers its pixels by its share.
+    blend: Held,
 }
 
 // SAFETY: made and used on the render thread alone.
@@ -589,8 +591,14 @@ impl Lens {
                 max_lod: f32::MAX,
             };
             let gs = raw::engine_device_create_sampler_state(device.cast(), (&raw const sampler).cast(), &mut s);
+            // D3D11_BLEND_DESC (264 bytes): no alpha to coverage, target 0: SRC_ALPHA, INV_SRC_ALPHA, ADD;
+            // alpha ONE, ZERO, ADD; red, green and blue written, the frame's alpha kept (the other seven unused)
+            let mut blend_desc = [0u32; 66];
+            blend_desc[2..10].copy_from_slice(&[1, 5, 6, 1, 2, 1, 1, 0x07]);
+            let mut b = None;
+            let gb = raw::engine_device_create_blend_state(device.cast(), blend_desc.as_ptr().cast(), &mut b);
             raw::engine_d3d_device_release(device.cast());
-            Some(Lens { vertex: made(gv, v)?, pixel: made(gp, p)?, constants: made(gc, c)?, sampler: made(gs, s)? })
+            Some(Lens { vertex: made(gv, v)?, pixel: made(gp, p)?, constants: made(gc, c)?, sampler: made(gs, s)?, blend: made(gb, b)? })
         };
         lens
     }
@@ -667,7 +675,7 @@ impl Lens {
             raw::engine_context_ps_set_constant_buffers(c, 0, 1, [Some(self.constants.0)].as_ptr().cast_mut());
             raw::engine_context_ps_set_shader_resources(c, 0, 1, [Some(picture)].as_ptr().cast_mut());
             raw::engine_context_ps_set_samplers(c, 0, 1, [Some(self.sampler.0)].as_ptr().cast_mut());
-            raw::engine_context_om_set_blend_state(c, None, null(), u32::MAX);
+            raw::engine_context_om_set_blend_state(c, Some(self.blend.0), null(), u32::MAX);
             raw::engine_context_om_set_depth_stencil_state(c, None, 0);
             raw::engine_context_rs_set_state(c, None);
             raw::engine_context_rs_set_viewports(c, 1, (&raw const full).cast());
@@ -728,6 +736,20 @@ impl ModelId {
     pub fn kind(self) -> ModelKind {
         self.1
     }
+
+    /// The instance's address, for the log.
+    pub fn address(self) -> u32 {
+        self.0.address()
+    }
+}
+
+impl ModelKind {
+    pub fn name(self) -> &'static str {
+        match self {
+            ModelKind::Static => "static",
+            ModelKind::Skeleton => "skeleton",
+        }
+    }
 }
 
 // SAFETY: read on the render thread while the weapon holds its optic (the
@@ -740,9 +762,13 @@ unsafe impl Send for ModelId {}
 pub struct Scoped {
     /// The optic's fov_factor: 1 / its magnification of the 65 degrees.
     pub fov_factor: f32,
-    /// Its aimed model is in the scene (the weapon's +181Dh).
-    pub shown: bool,
+    /// The weapon (an address: whose aimed model the lens put in).
+    pub weapon: u32,
+    /// The scope's view is on (+181Eh).
+    pub scope_view: bool,
     pub aimed: Option<Result<ModelId, UnknownModel>>,
+    /// The idle model's instance (an address, for the log).
+    pub idle: Option<u32>,
     /// The eyes' transform (the player's +44Ch, bone Item: where a shot starts
     /// and goes), the second view's camera: the frame's view may be another.
     pub eye: [f32; 16],
@@ -760,7 +786,8 @@ pub fn scoped(ctx: &Context<'_>) -> Option<Scoped> {
         }
         let aimed = optics.aim_model().and_then(|m| m.render_instance().instance()).map(|m| ModelId::parse(m));
         let eye = read16(raw::site::camera_zoom::player(ctx)?.eye());
-        Some(Scoped { fov_factor: *optics.fov_factor(), shown: *weapon.scope_in_scene() != 0, aimed, eye })
+        let idle = optics.model().and_then(|m| m.render_instance().instance()).map(|m| m.address());
+        Some(Scoped { fov_factor: *optics.fov_factor(), weapon: weapon.address(), scope_view: *weapon.scope_view() != 0, aimed, idle, eye })
     }
 }
 
@@ -789,39 +816,28 @@ impl Frame<'_> {
     }
 }
 
-/// At `scope.*` (add/remove_aimed_rifle_scope_to_scene, ESI the weapon):
-/// its address (an id) and whether it is the eyes' (is_first_person_view).
-/// And whether its aimed optic is a model the lens reads.
-pub fn scope_weapon(ctx: &Context<'_>) -> Option<(u32, bool, bool)> {
-    // SAFETY: the context is one of these four sites', each holding the
-    // weapon in ESI (sites_026g.tsv), alive while it runs on the game's thread.
-    unsafe {
-        let weapon = raw::site::scope_add_idle::weapon(ctx)?;
-        let lensable = weapon
-            .optics()
-            .and_then(|o| o.aim_model())
-            .and_then(|m| m.render_instance().instance())
-            .is_some_and(|m| ModelId::parse(m).is_ok());
-        Some((weapon.address(), raw::engine_weapon_first_person(Some(weapon)) != 0, lensable))
-    }
-}
-
-/// Which of the frame's first-person models stay, at
-/// `forward.execute_foreground`: only `model`'s surfaces, or all but them.
+/// Which of the frame's first-person surfaces stay, at
+/// `forward.execute_foreground`: only `model`'s (its lens surface, `except`,
+/// left out too), or all but them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Keep {
-    Only(ModelId),
+    Only { model: ModelId, except: Option<u32> },
     AllBut(ModelId),
 }
 
-/// The frame's foreground list kept as `keep` says (a static model's
-/// surfaces are its records, +298h, 64h bytes each); a model that is not a
-/// static instance keeps the list as it is.
+/// The first-person surfaces of the drawn view kept as `keep` says: the
+/// foreground list (+0C4B8h, forward's) and the first-person entries of the
+/// forward-lit list (+44A0h, stage_lights' foreground pass, which draws the
+/// guns, hands and optics); the world's entries of that list stay (drawn
+/// before, in slot 16). A static model's surfaces are its records.
 pub fn filter_foreground(ctx: &Context<'_>, keep: Keep) {
-    let (Keep::Only(model) | Keep::AllBut(model)) = keep;
+    let (Keep::Only { model, .. } | Keep::AllBut(model)) = keep;
     // SAFETY: the context is this site's: ECX the forward stage on the
-    // render thread, its scene view the frame's; the model alive (see
-    // ModelId); the list's pointers rewritten within begin..end.
+    // render thread, its scene view the drawn one; the model alive (see
+    // ModelId); each list's entries live render_surface_instances (their
+    // owner +3Ch a live model instance, its foreground byte +114h), the
+    // lists' ends rewritten within begin..end (the visibility stage fills
+    // them again next frame).
     unsafe {
         let Some((first, count)) = surfaces(model) else { return };
         let first = first.address();
@@ -829,23 +845,59 @@ pub fn filter_foreground(ctx: &Context<'_>, keep: Keep) {
         let Some(view) = raw::site::forward_execute_foreground::stage(ctx).and_then(|s| s.context()).and_then(|c| c.scene_view()) else {
             return;
         };
-        let (begin, end) = (*view.foreground_first() as usize as *mut u32, *view.foreground_end() as usize as *mut u32);
-        if begin.is_null() || end < begin {
+        let stays = |surface: u32| {
+            let ours = (first..past).contains(&surface);
+            match keep {
+                Keep::Only { except, .. } => ours && except != Some(surface),
+                Keep::AllBut(_) => !ours,
+            }
+        };
+        compact(view.foreground_first(), view.foreground_end(), stays);
+        compact(view.lit_first(), view.lit_end(), |surface| !first_person(surface) || stays(surface));
+    }
+}
+
+/// Whether a render_surface_instance belongs to a first-person model (its
+/// owner's foreground byte, as render_forward_lighting tests it, 0x192DC1).
+///
+/// # Safety
+/// `surface` is a live render_surface_instance.
+unsafe fn first_person(surface: u32) -> bool {
+    unsafe {
+        let owner = (surface as usize as *const u8).add(0x3C).cast::<*const u8>().read();
+        !owner.is_null() && owner.add(0x114).read() != 0
+    }
+}
+
+/// The vector `*first..*end` of u32 entries kept where `stays`, its end moved.
+///
+/// # Safety
+/// The two words are a live vector's begin and end, the render thread's.
+unsafe fn compact(first: *mut u32, end: *mut u32, stays: impl Fn(u32) -> bool) {
+    unsafe {
+        let (begin, past) = (*first as usize as *mut u32, *end as usize as *mut u32);
+        if begin.is_null() || past < begin {
             return;
         }
         let mut kept = begin;
         let mut at = begin;
-        while at < end {
+        while at < past {
             let surface = at.read();
-            let ours = (first..past).contains(&surface);
-            if ours == matches!(keep, Keep::Only(_)) {
+            if stays(surface) {
                 kept.write(surface);
                 kept = kept.add(1);
             }
             at = at.add(1);
         }
-        *view.foreground_end() = kept as usize as u32;
+        *end = kept as usize as u32;
     }
+}
+
+/// The frame's back buffer's height, pixels, at `render.flash_ui`.
+pub fn frame_height(ctx: &Context<'_>) -> Option<u32> {
+    // SAFETY: as composite's.
+    let window = unsafe { raw::site::render_flash_ui::frame(ctx).and_then(|f| f.window()) }?;
+    back_buffer(window).map(|(_, desc)| desc.height).filter(|&h| h > 0)
 }
 
 /// The frame's back buffer's width over its height, at `render.flash_ui`.
@@ -895,31 +947,128 @@ pub fn set_stage(_: &Thread, stage: Stage, on: bool) -> bool {
     }
 }
 
+/// A surface sphere larger than this is not an eyepiece (a record whose
+/// sphere is not computed yet holds FLT_MAX).
+const MOST_LENS: f32 = 0.25;
+
 /// The aimed model's lens on the frame's screen, at `forward.execute_foreground`
 /// (the frame's draw, its first-person models' spheres this frame's, world
 /// space): of its surfaces the camera's axis passes through, the smallest of
 /// at least `least` metres (the eyepiece's glass or the reticle's plane,
 /// not the body nor a dot), projected with the frame's `view` and
 /// `projection`. Its centre and radii in clip space.
-pub fn lens_on_screen(model: ModelId, view: &[f32; 16], projection: &[f32; 16], least: f32) -> Option<([f32; 2], [f32; 2])> {
+/// The lens on the frame's screen: its centre and radii in clip space, and
+/// the surface record it is (an address: the second view leaves it out).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LensPlace {
+    pub centre: [f32; 2],
+    pub radius: [f32; 2],
+    pub surface: u32,
+}
+
+pub fn lens_on_screen(model: ModelId, view: &[f32; 16], projection: &[f32; 16], least: f32) -> Option<LensPlace> {
     // SAFETY: the model alive (see ModelId) on the render thread, its
     // records its own; each sphere four floats at the record's +10h.
     unsafe {
         let (first, count) = surfaces(model)?;
-        let mut best: Option<(f32, [f32; 3])> = None;
+        let mut best: Option<(f32, [f32; 3], u32)> = None;
         for index in 0..count {
             let sphere = first.at(index).sphere();
             let (c, r) = ([sphere.read(), sphere.add(1).read(), sphere.add(2).read()], sphere.add(3).read());
             let v: [f32; 3] = core::array::from_fn(|k| c[0] * view[k] + c[1] * view[4 + k] + c[2] * view[8 + k] + view[12 + k]);
             let off_axis = v[0] * v[0] + v[1] * v[1];
-            if v[2] <= 0.0 || r < least || off_axis > r * r || best.is_some_and(|(b, _)| b <= r) {
+            if v[2] <= 0.0 || !(least..=MOST_LENS).contains(&r) || off_axis > r * r || best.is_some_and(|(b, _, _)| b <= r) {
                 continue;
             }
-            best = Some((r, v));
+            best = Some((r, v, first.at(index).address()));
         }
-        let (r, v) = best?;
+        let (r, v, surface) = best?;
         let (x, y) = (v[0] * projection[0] + v[2] * projection[8], v[1] * projection[5] + v[2] * projection[9]);
-        Some(([x / v[2], y / v[2]], [r * projection[0] / v[2], r * projection[5] / v[2]]))
+        Some(LensPlace { centre: [x / v[2], y / v[2]], radius: [r * projection[0] / v[2], r * projection[5] / v[2]], surface })
+    }
+}
+
+/// One of an aimed model's surfaces as the lens's log shows it: its bound
+/// sphere's radius and centre (as stored, and in the frame's view space),
+/// and its world matrix's place.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct SurfaceSeen {
+    pub radius: f32,
+    pub stored: [f32; 3],
+    pub in_view: [f32; 3],
+    pub placed: Option<[f32; 3]>,
+}
+
+/// The most surfaces the log shows.
+pub const SEEN: usize = 24;
+
+/// The aimed model's surfaces as the lens reads them, at `forward.execute_foreground`.
+pub fn surfaces_seen(model: ModelId, view: &[f32; 16]) -> ([SurfaceSeen; SEEN], usize) {
+    let mut seen = [SurfaceSeen::default(); SEEN];
+    // SAFETY: as lens_on_screen's; the matrix pointer the record's own, 16 floats or null.
+    unsafe {
+        let Some((first, count)) = surfaces(model) else { return (seen, 0) };
+        for (index, slot) in seen.iter_mut().enumerate().take(count) {
+            let record = first.at(index);
+            let sphere = record.sphere();
+            let c = [sphere.read(), sphere.add(1).read(), sphere.add(2).read()];
+            let matrix = record.transform();
+            *slot = SurfaceSeen {
+                radius: sphere.add(3).read(),
+                stored: c,
+                in_view: core::array::from_fn(|k| c[0] * view[k] + c[1] * view[4 + k] + c[2] * view[8 + k] + view[12 + k]),
+                placed: (!matrix.is_null()).then(|| [matrix.add(12).read(), matrix.add(13).read(), matrix.add(14).read()]),
+            };
+        }
+        (seen, count.min(SEEN))
+    }
+}
+
+/// One entry of the frame's first-person list, as the lens's log shows it.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ForegroundSeen {
+    pub address: u32,
+    /// Inside the aimed model's surface records.
+    pub aimed: bool,
+    pub sphere: [f32; 4],
+    pub surface: u32,
+    pub owner: u32,
+    pub placed: Option<[f32; 3]>,
+}
+
+/// The frame's first-person list at `forward.execute_foreground`, up to [`SEEN`] entries.
+pub fn foreground_seen(ctx: &Context<'_>, model: ModelId) -> ([ForegroundSeen; SEEN], usize) {
+    let mut seen = [ForegroundSeen::default(); SEEN];
+    // SAFETY: the context is this site's; the list's entries the surfaces the
+    // renderer draws this frame, each a live render_surface_instance (its
+    // sphere +10h, render surface +38h, matrix pointer +50h).
+    unsafe {
+        let (first, past) = surfaces(model).map_or((0, 0), |(first, count)| {
+            (first.address(), first.address() + count as u32 * raw::RenderSurfaceInstance::SIZE as u32)
+        });
+        let Some(view) = raw::site::forward_execute_foreground::stage(ctx).and_then(|s| s.context()).and_then(|c| c.scene_view()) else {
+            return (seen, 0);
+        };
+        let (begin, end) = (*view.foreground_first() as usize as *const u32, *view.foreground_end() as usize as *const u32);
+        if begin.is_null() || end < begin {
+            return (seen, 0);
+        }
+        let count = (end.offset_from(begin) as usize).min(SEEN);
+        for (index, slot) in seen.iter_mut().enumerate().take(count) {
+            let address = begin.add(index).read();
+            let at = address as usize as *const u8;
+            let sphere = at.add(0x10).cast::<f32>();
+            let matrix = at.add(0x50).cast::<*const f32>().read();
+            *slot = ForegroundSeen {
+                address,
+                aimed: (first..past).contains(&address),
+                sphere: core::array::from_fn(|k| sphere.add(k).read()),
+                surface: at.add(0x38).cast::<u32>().read(),
+                owner: at.add(0x3C).cast::<u32>().read(),
+                placed: (!matrix.is_null()).then(|| [matrix.add(12).read(), matrix.add(13).read(), matrix.add(14).read()]),
+            };
+        }
+        (seen, count)
     }
 }
 
@@ -933,52 +1082,112 @@ unsafe fn surfaces(model: ModelId) -> Option<(raw::RenderSurfaceInstance, usize)
     let ModelId(instance, kind) = model;
     unsafe {
         match kind {
-            ModelKind::Static => Some((instance.first_surface(), usize::from(*instance.surface_count()))),
+            ModelKind::Static => Some((instance.first_surface()?, usize::from(*instance.surface_count()))),
             ModelKind::Skeleton => Some((instance.skeleton_surfaces()?, usize::from(*instance.skeleton_surface_count()))),
         }
     }
 }
 
-/// At `attachments.draw` (weapon::draw after its optic's update, the
-/// game's thread): the weapon's address, whether its aimed optic is in the
-/// scene, and a way to move its idle optic with the gun as well.
-pub struct DrawnWeapon<'t> {
+/// The eyes' weapon at one of its scope-draw sites (`scope_draw.*`,
+/// `attachments.hidden`; the game's thread): its optic, its aimed model,
+/// and that model in or out of the scene, which the lens owns while it
+/// draws (the game's swap does not run for it).
+pub struct ScopeWeapon<'t> {
     weapon: raw::Weapon,
     _thread: &'t Thread,
 }
 
-impl<'t> DrawnWeapon<'t> {
-    pub fn at(ctx: &'t Context<'_>) -> Option<DrawnWeapon<'t>> {
-        // SAFETY: the context is this site's: EBX the weapon being drawn,
-        // alive while weapon::draw runs on the game's thread.
-        let weapon = unsafe { raw::site::attachments_draw::weapon(ctx) }?;
-        Some(DrawnWeapon { weapon, _thread: ctx.thread() })
+/// The scope-draw sites, each holding the weapon in a register.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ScopeSite {
+    Show,
+    Body,
+    CulledBody,
+    Swap,
+    Optic,
+    Hidden,
+}
+
+impl<'t> ScopeWeapon<'t> {
+    pub fn at(ctx: &'t Context<'_>, site: ScopeSite) -> Option<ScopeWeapon<'t>> {
+        // SAFETY: the context is that site's (sites_026g.tsv): the weapon it
+        // shows, draws or hides, alive while it runs on the game's thread.
+        let weapon = unsafe {
+            match site {
+                ScopeSite::Show => raw::site::scope_draw_show::weapon(ctx),
+                ScopeSite::Body => raw::site::scope_draw_body::weapon(ctx),
+                ScopeSite::CulledBody => raw::site::scope_draw_culled_body::weapon(ctx),
+                ScopeSite::Swap => raw::site::scope_draw_swap::weapon(ctx),
+                ScopeSite::Optic => raw::site::scope_draw_optic::weapon(ctx),
+                ScopeSite::Hidden => raw::site::attachments_hidden::weapon(ctx),
+            }
+        }?;
+        Some(ScopeWeapon { weapon, _thread: ctx.thread() })
     }
 
     pub fn address(&self) -> u32 {
         self.weapon.address()
     }
 
-    /// The idle optic updated to the weapon's matrix (+660h), as weapon::draw
-    /// updates the aimed one while the scope's view is on (0x244FD3): both
-    /// models hang on the same matrix. Only while the aimed one is in the
-    /// scene (+181Dh). Whether it did.
-    pub fn move_idle_optic(&self) -> bool {
-        // SAFETY: the weapon's optics and models, its world's scene and the
-        // game's renderers, all alive while the weapon draws; the matrix 16
-        // floats of the weapon's; update_model on the game's thread, as
-        // weapon::draw calls it (0x245012).
+    /// The eyes' weapon (is_first_person_view).
+    pub fn first_person(&self) -> bool {
+        // SAFETY: the weapon alive (see at), its own test on the game's thread.
+        unsafe { raw::engine_weapon_first_person(Some(self.weapon)) != 0 }
+    }
+
+    /// Its optic magnifies (hide_weapon_on_aim: the game swaps it).
+    pub fn magnified(&self) -> bool {
+        // SAFETY: the weapon's optics, alive with it.
+        unsafe { self.weapon.optics().is_some_and(|o| *o.hide_weapon_on_aim() != 0) }
+    }
+
+    /// The scope's view is on (+181Eh: the aim past the optic's change point).
+    pub fn scope_view(&self) -> bool {
+        // SAFETY: a byte of the live weapon.
+        unsafe { *self.weapon.scope_view() != 0 }
+    }
+
+    /// The game's own aimed model is in the scene (+181Dh: its swap ran).
+    pub fn swapped(&self) -> bool {
+        // SAFETY: a byte of the live weapon.
+        unsafe { *self.weapon.scope_in_scene() != 0 }
+    }
+
+    /// Its optic's aimed model, when the lens reads its class.
+    pub fn aimed(&self) -> Option<Result<ModelId, UnknownModel>> {
+        // SAFETY: the weapon's optics and their aimed model, alive with it.
+        unsafe { self.weapon.optics()?.aim_model()?.render_instance().instance().map(|m| ModelId::parse(m)) }
+    }
+
+    /// The aimed model put in (`Put::In`), moved with the gun (`Put::Moved`)
+    /// or taken out (`Put::Out`) of the weapon's scene, at the weapon's
+    /// matrix (+660h) as add_aimed_rifle_scope_to_scene puts it (0x244BA9).
+    /// Whether the renderer took the call.
+    pub fn put_aimed(&self, put: Put) -> bool {
+        // SAFETY: the weapon's optics and aimed model, its world's scene and
+        // the game's renderers, all alive while the weapon draws or hides;
+        // the matrix 16 floats of the weapon's; add/update/remove_model on the
+        // game's thread, as weapon::draw calls them.
         unsafe {
-            if *self.weapon.scope_in_scene() == 0 {
-                return false;
-            }
-            let Some(optics) = self.weapon.optics() else { return false };
-            let Some(idle) = optics.model() else { return false };
+            let Some(aimed) = self.weapon.optics().and_then(|o| o.aim_model()) else { return false };
             let Some(world) = self.weapon.world() else { return false };
             let Some(renderer) = world.game().and_then(|g| g.renderer()).and_then(|r| r.scene_renderer()) else { return false };
             let matrix = self.weapon.transform();
-            raw::engine_update_model(Some(renderer), Some(idle.render_instance()), Some(world.scene()), matrix, matrix);
+            let (model, scene) = (Some(aimed.render_instance()), Some(world.scene()));
+            match put {
+                Put::In => raw::engine_add_model(Some(renderer), model, scene, matrix, matrix),
+                Put::Moved => raw::engine_update_model(Some(renderer), model, scene, matrix, matrix),
+                Put::Out => raw::engine_remove_model(Some(renderer), model, scene),
+            }
             true
         }
     }
+}
+
+/// What [`ScopeWeapon::put_aimed`] does with the aimed model.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Put {
+    In,
+    Moved,
+    Out,
 }

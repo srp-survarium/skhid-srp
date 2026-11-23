@@ -144,7 +144,7 @@ pointers to handles whose first DWORD is the scene / model (ABI in re-kit). PROV
 The scene's lights are at scene+9B7670h (section 4).
 
 A static model instance (vtable 0x9F2B24) keeps its world matrix at +14Ch (16 floats, row vectors),
-its surface records at +298h (64h bytes each, count byte +294h) for **all** LODs. The original
+its surface records behind the pointer at +298h (64h bytes each, count byte +294h; get_surfaces 0x16F436 adds [instance+298h]) for **all** LODs. The original
 resource's LOD table (+128h through instance+290h) has three counts and three u8 index lists;
 LOD 0 is the most detailed. A record's +38h is the render surface, +3Ch the model owner, +44h its
 category flags: bit 0 drawn for the camera, bit 1 cast sun shadows (camera `select_models` mask 1

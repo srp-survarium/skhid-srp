@@ -48,28 +48,33 @@ handler = "on_foreground"
 site = "camera.zoom"
 handler = "on_zoom"
 
-# the aimed optic put in the scene: with the lens, the eyes' weapon keeps
-# its idle optic, body and hands
+# the lens's weapon draws as an optic that does not hide it: no swap of
+# its idle optic for the aimed one, its body and hands drawn and updated
+# (each site's other branch, taken when the lens takes the weapon)
 [[hook]]
-site = "scope.add_idle"
-handler = "on_add_idle"
+site = "scope_draw.show"
+handler = "on_scope_show"
 
 [[hook]]
-site = "scope.add_hide"
-handler = "on_add_hide"
+site = "scope_draw.body"
+handler = "on_scope_body"
 
 [[hook]]
-site = "scope.remove_idle"
-handler = "on_remove_idle"
+site = "scope_draw.culled_body"
+handler = "on_scope_culled_body"
+
+# the swap: the aimed model put in the scene by the lens instead, for its
+# reticle in the second view only
+[[hook]]
+site = "scope_draw.swap"
+handler = "on_scope_swap"
 
 [[hook]]
-site = "scope.remove_show"
-handler = "on_remove_show"
+site = "scope_draw.optic"
+handler = "on_scope_optic"
 
-# weapon::draw after its optic's update (after patch 161's, order 1): the
-# idle optic the lens keeps in the scene moved with the gun too (the game
-# updates only the aimed one once the scope's view is on)
+# the weapon put away: the lens's aimed model out of the scene with it
 [[hook]]
-site = "attachments.draw"
-handler = "on_weapon_drawn"
+site = "attachments.hidden"
+handler = "on_weapon_hidden"
 order = 2

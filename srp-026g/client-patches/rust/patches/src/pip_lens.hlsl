@@ -28,12 +28,15 @@ v_out vs_main(uint id : SV_VertexID)
     return o;
 }
 
+// alpha-blended: the edge covers each pixel by its share inside the circle (no stair-steps)
 float4 ps_main(v_out i) : SV_Target
 {
     float r = length(i.offset);
-    clip(1.0 - r);
+    float edge = max(fwidth(r), 1e-5);
+    float cover = saturate((1.0 - r) / edge);
+    clip(cover - 1.0 / 512.0);
     float2 uv = i.offset * float2(0.5, -0.5) + 0.5;
     float3 c = picture.Sample(linear_clamp, uv).rgb;
     float shade = lerp(rim.y, 1.0, saturate((1.0 - r) * rim.x));
-    return float4(c * shade, 1.0);
+    return float4(c * shade, cover);
 }

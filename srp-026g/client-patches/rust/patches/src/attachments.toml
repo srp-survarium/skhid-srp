@@ -50,6 +50,7 @@ handler = "on_culled"
 [[hook]]
 site = "attachments.hidden"
 handler = "on_hidden"
+order = 1
 
 [[hook]]
 site = "attachments.hands"
