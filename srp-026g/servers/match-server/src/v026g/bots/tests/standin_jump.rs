@@ -1897,8 +1897,8 @@ fn a_kept_controllers_sprint_climb_takes_the_stand_in_up() {
 
 /// [stand-in fidelity] [`kept_climb`] climbs nothing for a controller in the air (the combined bench's B-tdm-m6-s2 bot 10): a body
 /// run east at a sprint off a 2 m top down a 45 degree ramp, the lattice walking it down the ramp's floors (`walk_slide`) while its
-/// kept controller is in the air over them, goes on down to the ground beyond. With a climb allowed in the air (the rule before), the
-/// controller's height over the lattice's walk put it back on the top's floor each tick, and the top's edge held it.
+/// kept controller is in the air over them, goes on down to the ground beyond, with no climb on the way; and at one step past the
+/// top's edge with the controller over the lattice's walk, the climb is made on the ground (as before) and not in the air.
 #[test]
 fn a_kept_controller_in_the_air_climbs_nothing() {
     use super::body::tests::floor;
@@ -1911,7 +1911,7 @@ fn a_kept_controller_in_the_air_climbs_nothing() {
     let shape = mapdata::Body { exe_collision: true, start_witness: true, ..mapdata::Body::client() };
     let grid = mapdata::WalkGrid::build(&triangles, [0.0, 0.0, 14.0, 10.0], 0.25, shape).with_client_walker(&triangles);
     // The stand-in's ground tick at the kept controller's level: the lattice's walk to the controller's end, then the climb.
-    let run = |climb_in_air: bool| {
+    let run = || {
         let mut kept = None;
         let mut feet = Vec3::new(4.0, 2.0, 5.0);
         let mut node = grid.locate(feet, 0.5).expect("the top's floor");
@@ -1925,7 +1925,7 @@ fn a_kept_controller_in_the_air_climbs_nothing() {
             let (slid, walked, _) = super::standin::walk_slide(&grid, node, feet, step.to);
             let top = kept.map_or(feet.y, |kept: body::KeptBody| kept.height());
             airborne_steps += usize::from(step.airborne);
-            (node, feet) = match kept_climb(&grid, step.to, top, walked, step.airborne && !climb_in_air) {
+            (node, feet) = match kept_climb(&grid, step.to, top, walked, step.airborne) {
                 Some(up) => {
                     air_climbs += usize::from(step.airborne);
                     up
@@ -1935,11 +1935,16 @@ fn a_kept_controller_in_the_air_climbs_nothing() {
         }
         (feet, airborne_steps, air_climbs)
     };
-    let (down, airborne, _) = run(false);
+    let (down, airborne, air_climbs) = run();
     assert!(airborne > 0, "the controller leaves the ground over the ramp");
+    assert_eq!(air_climbs, 0);
     assert!(down.x > 8.0 && down.y < 0.1, "down the ramp to the ground: {down:?}");
-    let (held, _, climbs) = run(true);
-    assert!(climbs > 0 && held.y > 1.5 && held.x < 6.5, "a climb in the air holds it on the top: {held:?}, {climbs} climbs");
+    // The rule at one step just past the top's edge, the controller 0.18 m over the lattice's walk down the ramp (bot 10's ticks
+    // had it 0.4-0.5 m over): on the ground, a climb onto the floor at its height, as before; in the air, none.
+    let (to, top) = (Vec3::new(6.1, 1.9, 5.0), 2.08);
+    let walked = Vec3::new(6.1, 1.9, 5.0);
+    assert!(kept_climb(&grid, to, top, walked, false).is_some(), "on the ground: the climb, as before");
+    assert_eq!(kept_climb(&grid, to, top, walked, true), None, "in the air: no climb");
 }
 
 /// [stand-in fidelity] [`stand_in_kept_fall`]: a body walking east off a 2 m top's edge by its kept controller falls by it with the
