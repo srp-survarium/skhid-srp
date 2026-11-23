@@ -208,3 +208,24 @@ and no cascades of its own     0.5 .. 0.8   0.9 .. 1.1       -        ms GPU
   MB of video memory, LIKELY, from `create_targets` formats), made at the first aim, kept after.
 - **Spectators** with the setting see through the spectated player's optic the same way (the eyes'
   camera is theirs).
+
+## 7. The first play test (2026-11-23, preset 1 kit 1: AK-74M + Leupold 3-7)
+
+- **Two rings, no zoom.** weapon::draw updates one optic model a frame, the aimed one (optics+10Ch)
+  once the scope's view is on (+181Eh), else the idle one (+108h), both to the weapon's +660h
+  (0x244FBF..0x245012). Kept in the scene, the idle optic stayed where the swap left it (aim
+  progress about 0.82): the second ring, off the eye's axis. The aimed model was a class the lens
+  read nothing of (not a static instance), so it was neither left out of the frame nor placed: no
+  lens, the world seen unmagnified through its hollow eyepiece. Fixed: the lens's weapon's idle
+  optic is updated with the same matrix at `attachments.draw` (after patch 161's handler), and the
+  aimed model's class is read once from its vtable, a static instance (records +298h, count +294h)
+  or a skeleton instance (records behind +62D4h, count +62D0h). Another class: today's scope for
+  that optic and one `pip:` line in the log naming the class (the owner's rule, crash over a silent
+  skip). Which class each of the 15 kits' optics is: not read yet (the next test's log).
+- **The idle optic's glass** shows a blotchy, atlas-like texture in the first and the third person
+  (the owner's "some texture inside glass"). Not this patch's (third person is untouched); LIKELY the
+  0.69 optics' lens material as pack weapon-modules@3 ports it. Picture-in-picture puts that glass
+  in front of the eye: its fix is the pack's (its lens surfaces on a lens material of 0.26g, as the
+  rifle-scopes pack maps `scopes/scope_lense_3p` to `loc2:scope_lense_3p`). Not made.
+- **An aimed first-person capture without input** needs a player with a kit in the capture's
+  world, which the capture rig does not make (its replay has nobody in it): not made.
