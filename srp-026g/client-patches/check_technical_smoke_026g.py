@@ -23,9 +23,7 @@ victim (made-up memory, the game's own code around the sites):
   after the play for rank x 2.9 s, then resumes it.
 
 A constructed match, not a played one. Usage:
-    python check_technical_smoke_026g.py ORIGINAL_EXE [--fresh]
---fresh links the arena from this tree's sources (patch_026g.py's ARENA, no lock compared) instead
-of the lock's bytes: for a tree whose lock link_026g.py --write has not made yet.
+    python check_technical_smoke_026g.py ORIGINAL_EXE
 """
 import struct
 import sys
@@ -342,9 +340,8 @@ def check_presentation(data):
 
 def main():
     original = open(sys.argv[1], 'rb').read()
-    fresh = '--fresh' in sys.argv[2:]
     patched, _ = base.build(original, 'section', open(base.default_bin('section'), 'rb').read(), None,
-                            open(base.late_join_bin(), 'rb').read(), arena_blocks=base.ARENA if fresh else None)
+                            open(base.late_join_bin(), 'rb').read())
     patched = bytes(patched)
     check_tail(patched)
     check_blast_and_save(patched)

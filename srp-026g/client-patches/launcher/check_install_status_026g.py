@@ -130,7 +130,7 @@ class Native:
 
 def main():
     original = Path(sys.argv[1]).read_bytes()
-    code = Path(L.HERE, 'launcher_values_026g.bin').read_bytes()
+    code = L.code()
     patched, _ = L.build(original, code)
     texts = resources(original)
     russian = texts[0x419]

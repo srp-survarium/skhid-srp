@@ -2,7 +2,7 @@
 """Patch 194 (grenade_icons): the markers over thrown grenades tell a smoke and a toxic smoke apart
 (docs/notes/grenade-icons.md), in Unicorn on the built exe.
 
-    python check_grenade_icons_026g.py ORIGINAL_EXE [--fresh]
+    python check_grenade_icons_026g.py ORIGINAL_EXE
 
 Over a constructed followed player, his hud and grenades (made-up memory; the game's own
 set_hud_icon_type 0x23BEA0 runs, its Invoke stubbed and recorded):
@@ -17,9 +17,6 @@ set_hud_icon_type 0x23BEA0 runs, its Invoke stubbed and recorded):
 2. initialize_match at `player_icons.enemy_ids` (0x235709, before it makes the markers anew,
    every one a frag's): what the markers were told is forgotten, so a smoke is told again.
 3. The original exe at the sensor site: no call.
-
---fresh links the arena from this tree's sources (patch_026g.py's ARENA, no lock compared) instead
-of the lock's bytes: for a tree whose lock link_026g.py --write has not made yet.
 """
 import sys
 
@@ -113,9 +110,8 @@ def main():
     if len(sys.argv) < 2:
         sys.exit(__doc__)
     original = open(sys.argv[1], 'rb').read()
-    fresh = '--fresh' in sys.argv[2:]
     patched, _ = base.build(original, 'section', open(base.default_bin('section'), 'rb').read(), None,
-                            open(base.late_join_bin(), 'rb').read(), arena_blocks=base.ARENA if fresh else None)
+                            open(base.late_join_bin(), 'rb').read())
     print('the patched exe')
     check_patched(bytes(patched))
     print('the original exe')
