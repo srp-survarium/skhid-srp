@@ -164,6 +164,8 @@ Pixels more than 25 levels brighter before than after: church c2 to j and the st
 522, h 604 -> 32). The first batch's seven views: mean |change| 0.5-1.6 levels, largest 160x128
 tile 0.3-2.3. The 112 kept poses: one tile moved more than 12 levels (charger_216_0, nearer 0.69d,
 10.3 -> 8.6); mean tile distance to 0.69d 12.88 -> 12.82; 7 poses nearer, 2 farther (at most 0.5).
+At r_lighting_quality 0 and r_shading_quality 0 (the 0 program set) the same: d 49 / 98 / 47, e 49 / 79 / 48,
+f 48 / 79 / 49 on the seam, the sides as above.
 Left: the belfry's opening (05-church-inside-f) keeps a soft rim, the global tier's light in the gap
 between the church's environment_probe and church(8), where 0.69d's own weights are 0 too (W = 0 at
 y 30.0-30.2 by the model): 0.69d's global tier there is darker than 0.26g's lerped one (not this
