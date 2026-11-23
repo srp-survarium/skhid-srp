@@ -120,6 +120,16 @@ OWN_CHECKS = {
     (0x38CD22, 7): "FSM null-state guard owns no serialized bytes; check_deserialize_guards_026g.py",
     (0x31B0FF, 9): "anomaly state bounds own no serialized bytes; check_deserialize_guards_026g.py",
     (0x2FE65E, 5): "artefact bounds own no serialized bytes; check_deserialize_guards_026g.py",
+    (0x252B48, 6): "deserialize.fire_animation_sound (patch 115): a fire state's m_weapon_animation_index stored as "
+                   "read when 0 or 1, any other byte as 0; the world check refuses any other byte (srp-validate's "
+                   "FireAnimation), so a world a game loads is stored as read; check_deserialize_guards_026g.py",
+    (0x310224, 6): "deserialize.fire_animation: as 0x252B48, in the bare fire classes' deserialize (never called)",
+    (0x33A51B, 12): "deserialize.grenade_serialize (patch 115): the throw state's serialize writes its set's slot as "
+                    "the stock when the set is a grenade set, no slot (17h) for another item or none, a throw the "
+                    "server refuses (TailGrenadeSet); check_deserialize_guards_026g.py",
+    (0x2AC8A6, 8): "effect_presenter.particle_read_room (patch 122): particle_game_effect_presenter::deserialize's "
+                   "local list given the presenter's room (32 entries, not six), a capacity, no bytes of the world; "
+                   "check_particle_room_026g.py",
     (0x27C0FF, 6): "world_load.raw: the same preparation as world_load.unpacked (world_check.rs `check`), for a "
                    "world sent raw; check_world_check_026g.py",
     (0x27C059, 5): "WORLD_UNPACK (patch 98): the 0xE8 handler's stack buffer for a packed world, 0x8000 -> 0xF000 "
