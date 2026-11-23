@@ -3086,7 +3086,7 @@ st_srp_technical_432_description	Nach deinem Tod lässt du mit der Wurftaste ein
 st_srp_technical_432_name	Totmannschalter
 st_srp_technical_433_description	Deine Fallen, auf die geschossen wurde, öffnen sich wieder nach:
 st_srp_technical_433_name	Nachspannen
-st_srp_technical_441_description	Dein Rauch ist leicht grün und vergiftet Gegner darin; eine Sauerstoffflasche schützt. In eine Tasche passen nur halb so viele Rauchgranaten. Giftschaden:
+st_srp_technical_441_description	Dein Rauch ist leicht grün und vergiftet Gegner darin; eine Sauerstoffflasche schützt. Eine Rauchgranate belegt 1,5 Taschenplätze. Giftschaden:
 st_srp_technical_441_name	Giftrauch
 st_srp_technical_442_description	Nach je 20 s ununterbrochener Nutzung der Sauerstoffflasche und wenn sie leer ist: +10% Tempo für 20 s und volle Energie.
 st_srp_technical_442_name	Sauerstoffschub
