@@ -1388,8 +1388,9 @@ STATS = {
             'level': 'parameters/item_level', 'mm_level': 'parameters/match_making_level',
             'rarity': 'parameters/base_rarity_level', 'mods': 'parameters/available_modifications_mask',
             # built-in bonuses, a column a kind: the modification's id; an item's default list is kept
-            # in this order (sort_built_ins), the card's lines too: what it carries (ammo bags first),
-            # then the body, the gun, the rest
+            # in this order (sort_built_ins), the lobby card's one order of its lines (flash/lobby_menu/
+            # tables/survarium/data/BonusOrder.tsv): what it carries (ammo bags first), then the body,
+            # the gun, the rest
             'ammo_bags': default_modification(105),
             'pockets': default_modification(103),
             'slot_size': default_modification(117),
