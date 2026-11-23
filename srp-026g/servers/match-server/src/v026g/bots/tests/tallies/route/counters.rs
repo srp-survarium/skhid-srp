@@ -322,6 +322,15 @@ pub(super) fn in_flight_holds() -> Box<dyn RouteTopic> {
     )
 }
 
+/// [T2b] Failed route jumps whose route ended on the landing: the goal on it (given up), the goal elsewhere (not given up)
+/// (`drive::failed_landing_counts`).
+pub(super) fn failed_landings() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::drive::failed_landing_counts::counts().to_vec(),
+        |d, line| line.ends.push(format!("failed_landing_goal_on {} failed_landing_goal_off {}", d[0], d[1])),
+    )
+}
+
 /// The ticks off the route by the walked-leg rule alone (`path::below_walk`).
 pub(super) fn below_walk() -> Box<dyn RouteTopic> {
     Delta::of(

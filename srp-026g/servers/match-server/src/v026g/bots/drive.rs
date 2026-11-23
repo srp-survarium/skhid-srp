@@ -20,6 +20,23 @@ pub(super) const REPLAN_MOVED_M: f32 = 2.0;
 /// flight is under 1.5 s, and a reckoning that keeps saying "in the air" holds no search longer.
 pub(super) const IN_FLIGHT_HOLD_MS: u32 = 1_500;
 
+/// [T2b] The bench's counts of the failed route jumps whose route ended on the landing: the goal on it too (given up as no way), and
+/// the goal elsewhere (a route ending short of its goal; T2 gave those goals up before T2b).
+#[cfg(test)]
+pub mod failed_landing_counts {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNTS: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
+
+    pub fn end_on_landing(goal_on_landing: bool) {
+        COUNTS[usize::from(!goal_on_landing)].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn counts() -> [u64; 2] {
+        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
+}
+
 /// [N1b] The bench's counts of N1's holds (all matches of the run): the holds begun (the reckoning in its own flight), the ticks
 /// held, and the ticks a search went ahead with only the kept controller reading the body in the air (N1 held those before).
 #[cfg(test)]
@@ -2332,11 +2349,21 @@ fn drive_tick_inner(
                             // tries failed it at once, keys 0 to the end (the 887 final round's level_04 ledges S169, S260, S262,
                             // S086, S093, S037: silent from "try 3 spent" to 60 s). Given up as no way for this body while the
                             // landing is shut, and for the plays as any proven no way, so a play chooses again.
-                            let end = route.end();
+                            // [T2b] The goal itself (`at`), not the route's end: a route that ends short of its goal (a search's
+                            // partial way, a stranded start's leg) can end on the landing while the goal is far, and the search to
+                            // that goal does shut the landing. B-batt-m7-s3's bot 15 gave up goals 15-50 m off its landing this way
+                            // (four times, 105-174 s), and its plays ended on "no way to its goal".
                             let goal_on_landing = landing.is_some_and(|landing| {
-                                landing.distance_xz(end) < super::stuck::LANDING_SHUT_M
-                                    && (landing.y - end.y).abs() < super::stuck::LANDING_SHUT_UP_M
+                                landing.distance_xz(at) < super::stuck::LANDING_SHUT_M
+                                    && (landing.y - at.y).abs() < super::stuck::LANDING_SHUT_UP_M
                             });
+                            #[cfg(test)]
+                            if landing.is_some_and(|landing| {
+                                let end = route.end();
+                                landing.distance_xz(end) < super::stuck::LANDING_SHUT_M && (landing.y - end.y).abs() < super::stuck::LANDING_SHUT_UP_M
+                            }) {
+                                failed_landing_counts::end_on_landing(goal_on_landing);
+                            }
                             let line = super::nav_log::failed_jump_line(take_off, landing, me.feet, super::stuck::JUMP_SHUT_MS, goal_on_landing);
                             let link = landing.unwrap_or(take_off);
                             let key = super::nav_log::key(("failed jump", take_off.x.to_bits(), take_off.z.to_bits(), link.x.to_bits(), link.z.to_bits(), time / super::stuck::JUMP_SHUT_MS));
