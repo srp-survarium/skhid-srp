@@ -318,6 +318,24 @@ impl OutputWindow {
         NonNull::new(window as usize as *mut c_void).map(OutputWindow)
     }
 
+    /// At `render_output.fullscreen_back`: the window of a fullscreen output
+    /// whose swap chain was just made fullscreen again, the focus back; None
+    /// for a windowed output (goto_fullscreen then asked for a window) or no
+    /// window.
+    pub fn at_fullscreen_back(ctx: &Context<'_>) -> Option<OutputWindow> {
+        // SAFETY: the context is this site's: ESI the render output
+        // goto_fullscreen runs on, alive while the engine's tick runs it on the
+        // main thread; its mode and window are only read.
+        let (windowed, window) = unsafe {
+            let output = raw::site::render_output_fullscreen_back::output(ctx)?;
+            (*output.windowed(), *output.window())
+        };
+        if windowed != 0 {
+            return None;
+        }
+        NonNull::new(window as usize as *mut c_void).map(OutputWindow)
+    }
+
     /// Its styles now (GetWindowLongA).
     pub fn styles(self, _: &Thread) -> WindowStyles {
         // SAFETY: GetWindowLongA through the game's delayed user32 slot (its
@@ -339,6 +357,67 @@ impl OutputWindow {
         unsafe {
             (raw::engine_set_window_long_a)(self.0.as_ptr(), OutputWindow::GWL_STYLE, style);
         }
+    }
+}
+
+/// A failed HRESULT (its sign bit), or what succeeded.
+fn hresult(code: u32) -> Result<(), u32> {
+    if code & 1 << 31 == 0 { Ok(()) } else { Err(code) }
+}
+
+/// The shell's taskbar list (ITaskbarList2), made on the game's main thread
+/// and kept for the process's life: its MarkFullscreenWindow tells the
+/// taskbar that a window is fullscreen, so the taskbar goes under it
+/// whenever that window is the active one.
+pub struct Taskbar(NonNull<c_void>);
+
+// SAFETY: made and used on the game's main thread alone (patch 83's
+// fullscreen_back, the engine's tick); the Lock that holds it only orders.
+unsafe impl Send for Taskbar {}
+
+impl Taskbar {
+    /// CLSID_TaskbarList {56FDF344-FD6D-11D0-958A-006097C9A090}.
+    const CLASS: [u8; 16] = [0x44, 0xF3, 0xFD, 0x56, 0x6D, 0xFD, 0xD0, 0x11, 0x95, 0x8A, 0x00, 0x60, 0x97, 0xC9,
+                             0xA0, 0x90];
+    /// IID_ITaskbarList2 {602D4995-B13A-429B-A66E-1935E44F4317}.
+    const INTERFACE: [u8; 16] = [0x95, 0x49, 0x2D, 0x60, 0x3A, 0xB1, 0x9B, 0x42, 0xA6, 0x6E, 0x19, 0x35, 0xE4, 0x4F,
+                                 0x43, 0x17];
+    const COINIT_APARTMENTTHREADED: u32 = 2;
+    /// COM already set up on this thread as a multithreaded apartment: it is
+    /// used as it is.
+    const RPC_E_CHANGED_MODE: u32 = 0x8001 << 16 | 0x0106;
+    const CLSCTX_INPROC_SERVER: u32 = 1;
+    /// No object given with S_OK (never seen: the call's contract).
+    const E_POINTER: u32 = 0x8000 << 16 | 0x4003;
+
+    /// COM on this thread (an apartment, as the game's own threads ask for
+    /// it), the shell's TaskbarList made and set up (HrInit); Err the failed
+    /// HRESULT (a list HrInit refuses is not released: one, once).
+    pub fn make(_: &Thread) -> Result<Taskbar, u32> {
+        // SAFETY: ole32's CoInitializeEx and CoCreateInstance through the
+        // game's delayed slots, the GUIDs ours and alive; HrInit through the
+        // object CoCreateInstance answered with S_OK.
+        unsafe {
+            match raw::engine_co_initialize_ex(null_mut(), Taskbar::COINIT_APARTMENTTHREADED) {
+                Taskbar::RPC_E_CHANGED_MODE => {}
+                code => hresult(code)?,
+            }
+            let mut object = null_mut();
+            hresult(raw::engine_co_create_instance(Taskbar::CLASS.as_ptr().cast(), null_mut(),
+                                                   Taskbar::CLSCTX_INPROC_SERVER, Taskbar::INTERFACE.as_ptr().cast(),
+                                                   &mut object))?;
+            let taskbar = NonNull::new(object).ok_or(Taskbar::E_POINTER)?;
+            hresult(raw::engine_taskbar_hr_init(taskbar.as_ptr()))?;
+            Ok(Taskbar(taskbar))
+        }
+    }
+
+    /// The window told the taskbar fullscreen (MarkFullscreenWindow TRUE);
+    /// Err its HRESULT.
+    pub fn mark_fullscreen(&self, _: &Thread, window: OutputWindow) -> Result<(), u32> {
+        // SAFETY: the list `make` set up, alive for the process's life, on the
+        // thread that made it; the game's window.
+        hresult(unsafe { raw::engine_taskbar_mark_fullscreen_window(self.0.as_ptr(), window.0.as_ptr(), 1) })
     }
 }
 
