@@ -457,7 +457,7 @@ accumulate_motion_vectors (0x1B1B50) for the first-person lists (+84ACh, +494h) 
 matrix and projection it reads; a stopgap is the frame's motion blur off while the lens is drawn
 (opt+E4h, not traced how the post-process reads it).
 
-## 11. Round 5 (exe `pip-scopes-5`)
+## 11. Round 5 (exes `pip-scopes-5`, `pip-scopes-6`)
 
 The owner's play of `pip-scopes-4` (2026-11-23 14:37, RPD + aperture, an ACOG, another map): still
 right; moving, a pale doubled copy of the optic's housing offset by a fifth of its width (his ACOG
@@ -490,9 +490,14 @@ lights, particles and rain keep their split, which adds up to the frame).
 
 **3. The dark picture while moving.** Reproduced in the round-4 rig (TOZ-122 + Mk4, AK-74U + ACOG and
 others: the sunlit wall grey in the lens while today's scope shows it bright at the same moment). With
-1 fixed it is gone in the rig (AK-74U + ACOG strafing: the lens 0.8 of today's scope's brightness, as
-standing, item 2 of section 10). Not the sun's cascades: the second view fitting its own
-(a diagnostic switch tried in round 5, since removed) gave the same picture.
+1 fixed the far wall is right (AK-74U + ACOG strafing: the lens 0.8 of today's scope's brightness, as
+standing, section 10, 3a). A near sunlit pillar (1 to 2 m) still came out grey and unlit in the lens
+while the frame showed it in the sun (`pip-scopes-5`, TOZ-122 + Mk4, `move1c`, `move2`); with the second
+view fitting its own sun cascades it was sunlit (one strafe each, not the same moments: LIKELY, not
+PROVEN). So the second view's draw keeps its own cascades again (`pip-scopes-6`): the saving of section
+5 (reading the frame's last ones) was not sound for near surfaces while moving. Its cost is section 5's
+(about 1.5 to 2.5 ms of GPU at 512 there); a cheaper sound form (fewer cascades for the narrow view:
+stage_shadow_direct::execute takes its first cascade as 4 - opt+C4h, 0x172EF4) is not tried.
 
 **4. The game thread runs ahead in his game (PROVEN).** His log: `the drawn camera is (mm) from the one
 the game's thread queued last: 0, 6, 15, 26, 0` while moving: round 3's offset of the disc was the
