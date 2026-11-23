@@ -967,6 +967,21 @@ pub fn stage_previous_view(ctx: &Context<'_>, view: Option<&[f32; 16]>) -> Optio
     }
 }
 
+/// At `postprocess.start`: the draw's time step (its context's +413Ch, s), and
+/// set to `step` when given.
+pub fn stage_time_step(ctx: &Context<'_>, step: Option<f32>) -> Option<f32> {
+    // SAFETY: the context is this site's: ECX the live post-process stage, its
+    // renderer context the one this draw fills, on the render thread.
+    unsafe {
+        let at = raw::site::postprocess_start::stage(ctx)?.context()?.time_step();
+        let was = *at;
+        if let Some(step) = step {
+            *at = step;
+        }
+        Some(was)
+    }
+}
+
 /// The vector `*first..*end` of u32 entries kept where `stays`, its end moved.
 ///
 /// # Safety

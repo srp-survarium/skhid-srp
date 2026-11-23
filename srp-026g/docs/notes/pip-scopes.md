@@ -456,3 +456,44 @@ perhaps the zoomed one, against the unzoomed one the lens gives the frame). Next
 accumulate_motion_vectors (0x1B1B50) for the first-person lists (+84ACh, +494h) and what previous
 matrix and projection it reads; a stopgap is the frame's motion blur off while the lens is drawn
 (opt+E4h, not traced how the post-process reads it).
+
+## 11. Round 5 (exe `pip-scopes-5`)
+
+The owner's play of `pip-scopes-4` (2026-11-23 14:37, RPD + aperture, an ACOG, another map): still
+right; moving, a pale doubled copy of the optic's housing offset by a fifth of its width (his ACOG
+crop `14-41-19`), the whole world ghosted while walking (`14-38-40`), the picture in the disc dark grey
+(the same shot), far things in the picture flickering. `r_motion_blur_quality 0` took the ghost away.
+
+**1. The smear and the ghost: one post-process stage for both draws (PROVEN, fixed).** The renderer
+makes one stage_postprocess (0x1AFD40, into renderer+150h's +5Ch) and every draw runs it. Its +10h is
+the previous view: the end of execute copies the drawn view there (0x1B34ED); the motion pass
+(accumulate_motion_vectors 0x1B1B50, per surface 0x1B18B0) multiplies each surface's last world matrix,
+kept in a map of the same stage (+25374h, keyed by the record, updated with this draw's), by it; the
+motion blur passes it too (0x1B2ECF, 0x1B3003). With the lens the second view drew just before the
+frame, so the frame's "last frame" camera was this frame's eye: the first-person models, which move
+with the camera, got the camera's whole motion (the smear, the doubled housing), the world the
+difference between the eye and the bobbing camera (the ghosted world), and the second view had the
+frame's camera as its last one (its picture's vectors wrong by the zoom). The second view's motion pass
+also wrote this frame's world matrices into the map, so a moving world model looked still to the frame.
+Now (`postprocess.start` 0x1B2270, `motion.previous_world` 0x1B19C3): each draw has its own previous
+view (the frame's put back, the second view's kept from its draw a frame before, none after a frame
+without it: then the frame's), and the second view's motion pass leaves the world's map entries to the
+frame (its own first-person ones, the lens's reticle, it keeps). Rig, AK-74M + Leupold 3-7 strafing,
+blur on: the gun and ring sharp, the world blurred as for a strafe.
+
+**2. The time step (PROVEN, fixed).** renderer::render gives each draw the time since the draw before
+it (renderer+2E8h - +2E4h, 0x13D1CD; stored at the context's +413Ch, 0x13D26B; `last_frame_time` set at
+its end, 0x13DE5F). With the second view the frame's own draw got the few ms after the second view's,
+and the motion blur's constants (0x1B3035, 0x1B30CB, 0x1B3163) and the eye adaptation (0x1B142D) read
+it. Each draw's post-process now takes the whole frame's: its own plus the other draw's before it (the
+lights, particles and rain keep their split, which adds up to the frame).
+
+**3. The dark picture while moving.** Reproduced in the round-4 rig (TOZ-122 + Mk4, AK-74U + ACOG and
+others: the sunlit wall grey in the lens while today's scope shows it bright at the same moment). With
+1 fixed it is gone in the rig (AK-74U + ACOG strafing: the lens 0.8 of today's scope's brightness, as
+standing, item 2 of section 10). Not the sun's cascades: the second view fitting its own
+(`SKHID_PIP_CASCADES=own`, diagnostics) gives the same picture.
+
+**4. The game thread runs ahead in his game (PROVEN).** His log: `the drawn camera is (mm) from the one
+the game's thread queued last: 0, 6, 15, 26, 0` while moving: round 3's offset of the disc was the
+camera taken from the game's thread (section 10, 1).
