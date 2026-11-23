@@ -21,8 +21,14 @@ picked has Automatic in Russia (the Windows region) and direct elsewhere;
 direct found blocked while the relay answers becomes Automatic by itself.
 Automatic fallback runs before PLAY starts the game. With `updater_skhid.relay`
 installed and Automatic, the updater probes direct login TCP and lobby/match UDP concurrently,
-then tries the relay if any fails. The server echoes a 22-byte nonce challenge
-without creating an account, session or match. A successful route is passed as
+then tries the relay if any fails. Each probe carries 64 KiB each way within
+5 s (login TCP one stream, lobby and match UDP 130 datagrams of 508 bytes,
+missing ones sent again), since some providers cut a flow to foreign hosting
+after its first tens of KB: a small echo would pass and the game then fail.
+The server echoes exactly what it got, as it gets it (a login connection up to
+64 KiB, a datagram that starts `SKHID-ROUTE-1:` up to 508 bytes), without
+creating an account, session or match. The relay's per-address budgets carry
+the burst. A successful route is passed as
 `-server=IP:port`; the origin advertises the relay for lobby and match, and voice
 uses match + 1. Explicit `-server=` and replay options bypass route selection.
 A failed route never switches a running match: launch again to choose anew.

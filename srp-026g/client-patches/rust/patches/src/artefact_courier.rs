@@ -1,13 +1,14 @@
 //! Courier (patch 109, docs/notes/artefact-skills.md "Courier"): at a respawn into another kit,
-//! the artefacts of the kit the player died in come along into the new kit's empty containers.
+//! the artefacts of the kit the player left come along into the new kit's empty containers.
 //!
 //! - When: the respawn rule's spawn (0x316DA0), every spawn of a match and every replay of its
 //!   tick. Its start says which kit the place was in and which it spawns in (`on_spawn_kits`), its
 //!   end has the new kit set up and in the world (`on_spawned`): the move is made there, once.
 //! - What: only the kit the place was in gives (the owner, 2026-11-21: kit 1 with two artefacts
-//!   dies into kit 2, kit 2 dies into kit 3: kit 3 gets nothing of kit 1's), each artefact its
-//!   death left there (state 5, its passive off), in container order, as many as the new kit has
-//!   empty containers; the rest stay where they are. Any artefact, found or Keeper's.
+//!   dies into kit 2, kit 2 dies into kit 3: kit 3 gets nothing of kit 1's), each artefact it
+//!   holds, in container order, as many as the new kit has empty containers; the rest stay where
+//!   they are. Any artefact, found or Keeper's. The kit was left at a death, or alive: a kit
+//!   switch in a countdown (a round mode's, a match start's) and a round's start.
 //! - A respawn in the same kit moves nothing: the game keeps its artefacts (setup_from_profile's
 //!   on_taken switches their passives on again).
 //! - Every input is simulated state (the place's kits, the static info's skills, the inventories,

@@ -45,20 +45,23 @@ def check(run, updater, x86, started, log, win, survarium):
                 client, _ = listener.accept()
             except (TimeoutError, OSError):
                 continue
+            # The server's echo: what comes, as it comes, 64 KiB at most.
             with client:
                 client.settimeout(2)
-                data = b''
-                while len(data) < 22:
-                    part = client.recv(22-len(data))
-                    if not part:
-                        break
-                    data += part
-                if data.startswith(b'SKHID-ROUTE-1:') and len(data) == 22:
-                    client.sendall(data)
+                left = 64 * 1024
+                try:
+                    while left:
+                        part = client.recv(left)
+                        if not part:
+                            break
+                        client.sendall(part)
+                        left -= len(part)
+                except OSError:
+                    pass
     def udp(s, event):
         while not stop.is_set():
             try:
-                data, peer = s.recvfrom(64)
+                data, peer = s.recvfrom(2048)
             except (TimeoutError, OSError):
                 continue
             if event.is_set():
