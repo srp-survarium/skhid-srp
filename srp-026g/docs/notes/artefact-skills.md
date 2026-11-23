@@ -365,10 +365,12 @@ chooses each.
   named), then `update_profile_slots_count` (the counts, no kit named). It is the only caller of
   both. It runs on a status from srp (`on_client_status_received` 0x21D720: sign-in, a kit or
   preset switch, Play, a perk switch's answer) and on a relocation srp accepted
-  (`process_succeeded_inventory_action` 0x275520: an item moved, a backpack changed). One half
-  waits for the other, in either order, and the whole kit goes to `PerkSwitch` and then to the
-  paper doll in one step. So no draw lays one kit's items on another kit's counts, whatever the
-  timing. Revision 72 drew the items at once, on the counts of the kit shown before. A pocket
+  (`process_succeeded_inventory_action` 0x275520: an item moved, a backpack changed). Items
+  always start a new kit, which waits for its counts (a fill that carries its counts is whole at
+  once). Counts complete the kit waiting; with none waiting they are a change of the kit drawn
+  (its backpack), drawn at once. Counts never wait, so a lone half can not pair with the next
+  kit's. The whole kit goes to `PerkSwitch` and then to the paper doll in one step. So no draw
+  lays one kit's items on another kit's counts, whatever the timing. Revision 72 drew the items at once, on the counts of the kit shown before. A pocket
   that kit lacked, or had as a container, then sent its item back
   (`PaperDollBase.handleQuickSlots`, `dropSlot`), and srp took the item off the kit (bug report
   2026-11-23: the fourth pocket emptied going from a kit with fewer pockets to one with more; the

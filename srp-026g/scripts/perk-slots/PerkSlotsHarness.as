@@ -21,9 +21,10 @@ package {
  //   slot shaken; a click on the red pocket takes it again; the open weapon slot keeps its own
  //   click.
  // - Every kit given as the exe gives it, its items then its counts (KitShown makes them one).
- //   From three pockets and a container to another kit's four, a medkit in the fourth: one half
- //   alone draws nothing, and the whole kit keeps the medkit, nothing sent back, in that order and
- //   the other; the same kit's pockets fewer (a smaller backpack) still send it back.
+ //   From three pockets and a container to another kit's four, a medkit in the fourth: the items
+ //   alone draw nothing, and the whole kit keeps the medkit, nothing sent back; so after a fill
+ //   that carried its counts and a counts call, and after two kit switches in a row; counts alone,
+ //   the kit drawn's pockets fewer (a smaller backpack), still send it back.
  // Every language's hints. Then the looks before and after: Artifact Container's slot at three
  // times (zoom.png; before, the first flat 2 px border), the weapon perk's slots at their size
  // (weapon.png; before, the red lock alone). The slot labels are the stock English (english.tsv).
@@ -541,22 +542,26 @@ package {
       break;
      case 23:
       keptMedkit("the exe's order: items, then counts");
-      // The other order (the exe has none such): the counts wait for their items.
-      kit(2,3,1);
+      // A fill that carries its counts, then a counts call anyway (the same kit's, drawn again):
+      // the next kit still pairs its own items and counts.
+      profile.fillProfileItems({profileId:2,items:[],item_slots:3,artifact_slots:1});
+      profile.updateSlots(1,3);
+      medkitKit(1);
+      profile.updateSlots(0,4);
       break;
      case 24:
-      relocated.length=0;
-      profile.updateSlots(0,4);
-      check(fourth().data==null && relocated.length==0,"the counts alone: nothing drawn, nothing sent back: "+relocated);
+      keptMedkit("after a fill that carried its counts and a counts call");
+      // Two kit switches in a row, in one go: kit 1 to kit 2 and back.
+      kit(2,3,1);
       medkitKit(1);
+      profile.updateSlots(0,4);
       break;
      case 25:
-      keptMedkit("counts, then items");
-      // The same kit's own pockets fewer (a smaller backpack put on): the fourth pocket's item
-      // goes back, as in the stock lobby. Ruffle stops in the stock send-back
-      // (ItemPaperDollSlot.dropSlot reads ItemData's condition_or_stack, which it lacks; Scaleform
-      // reads undefined and sends the relocation), so its error is the send-back here.
-      medkitKit(1);
+      keptMedkit("two kit switches in a row");
+      // Counts alone after a draw: the kit drawn's own (a smaller backpack put on), its fourth
+      // pocket lost: its item goes back, as in the stock lobby. Ruffle stops in the stock
+      // send-back (ItemPaperDollSlot.dropSlot reads ItemData's condition_or_stack, which it lacks;
+      // Scaleform reads undefined and sends the relocation), so its error is the send-back here.
       var sentBack:String="";
       try {profile.updateSlots(0,3);} catch(err:Error) {sentBack=String(err);}
       check(sentBack.indexOf("condition_or_stack")>=0 || relocated.length==1,"the same kit's pocket lost: its item sent back: "+sentBack+" "+relocated);

@@ -1,22 +1,26 @@
 package survarium.player
 {
-   // The kit the exe shows, given in two calls (`on_profile_changed` 0x222330, from a status of srp
-   // and from a relocation it accepted): its items (`fill_player_profile_items`, the kit named),
-   // then its counts (`update_profile_slots_count`, no kit named). A kit is drawn only whole: one
-   // half waits for the other, in either order, so no draw ever lays one kit's items on another
-   // kit's counts (revision 72 did: the paper doll took the new kit's extra pockets for missing
-   // slots or containers and sent their items back, and srp took them off the kit).
+   // The kit the exe shows, given in two calls, always in this order (`on_profile_changed`
+   // 0x222330, from a status of srp and from a relocation it accepted): its items
+   // (`fill_player_profile_items`, the kit named), then its counts (`update_profile_slots_count`,
+   // no kit named). A kit is drawn only whole, so no draw lays one kit's items on another kit's
+   // counts (revision 72 did: the paper doll took the new kit's extra pockets for missing slots or
+   // containers and sent their items back, and srp took them off the kit).
    //
-   // Its state: nothing waiting (null), or one half waiting ({half, value}). `step` is its one
-   // transition: an event and its value to the new state and the kit made whole, if one is.
+   // Its state: the kit drawn last (null: none yet) and the items waiting for their counts (null:
+   // none). Items always start a new kit; counts complete the kit waiting, or else are a change of
+   // the kit drawn (its backpack put on or taken off). Counts never wait, so a half that comes
+   // alone can not pair with another kit's. `step` is its one transition.
    public class KitShown
    {
 
-      // The halves: the items (value the exe's fill; one that carries `item_slots` and
+      // The calls: the items (value the exe's fill; one that carries `item_slots` and
       // `artifact_slots` is whole by itself), the counts (value {pockets, containers}).
       public static const ITEMS:int = 0;
 
       public static const COUNTS:int = 1;
+
+      private var _drawn:Object = null;
 
       private var _waiting:Object = null;
 
@@ -25,30 +29,34 @@ package survarium.player
          super();
       }
 
-      // The kit made whole by `event` (the fill, its counts set in its `item_slots` and
-      // `artifact_slots`), or null while its other half has not come. A half that comes again
-      // before the other replaces the one waiting.
+      // The kit to draw after `event` (a fill with its counts in `item_slots` and
+      // `artifact_slots`), or null: the items wait for their counts, or counts came before any kit.
       public function step(event:int, value:Object) : Object
       {
-         if(event == ITEMS && value.item_slots != undefined)
+         if(event == ITEMS)
          {
+            if(value.item_slots == undefined)
+            {
+               this._waiting = value;
+               return null;
+            }
             this._waiting = null;
+            this._drawn = value;
             return value;
          }
-         if(this._waiting == null || this._waiting.half == event)
+         var items:Object = this._waiting != null ? this._waiting : this._drawn;
+         this._waiting = null;
+         if(items == null)
          {
-            this._waiting = {
-               "half":event,
-               "value":value
-            };
             return null;
          }
-         var items:Object = event == ITEMS ? value : this._waiting.value;
-         var counts:Object = event == COUNTS ? value : this._waiting.value;
-         this._waiting = null;
-         items.item_slots = counts.pockets;
-         items.artifact_slots = counts.containers;
-         return items;
+         this._drawn = {
+            "profileId":items.profileId,
+            "items":items.items,
+            "item_slots":value.pockets,
+            "artifact_slots":value.containers
+         };
+         return this._drawn;
       }
    }
 }
