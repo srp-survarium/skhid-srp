@@ -150,8 +150,24 @@ light; its reflections' composition was not read).
 
 ## Checked
 
-The captures (patch 176, the scene clock held by the capture's `clock` line, so two builds can be
-compared byte for byte): see the PR and the report of 2026-11-23.
+Rudnya only (patch 176's capture, the tester's cameras, vertical fov 70 at 1280x1024; before: this tree
+without patch 203 with main's map plus the sun colour fix and lighting@14; after: patch 203, the
+map's local probes marked, the tier programs). The seam's ridge (median display luma on the line
+the seam draws, and 20-30 px either side), 0.69d / before / after:
+
+    05-church-inside-d   49 between 43 and 45 / 97 between 41 and 43 / 46 between 41 and 43
+    05-church-inside-e   50 between 40 and 46 / 79 between 37 and 45 / 48 between 39 and 45
+    05-church-inside-f   49 between 44 and 45 / 80 between 53 and 53 / 48 between 44 and 47
+
+Pixels more than 25 levels brighter before than after: church c2 to j and the station's a2, h and k
+(d 33 092 -> 0, e 10 157 -> 21, f 15 292 -> 607, g 25 136 -> 196, i 17 092 -> 248, station a2 1 737 ->
+522, h 604 -> 32). The first batch's seven views: mean |change| 0.5-1.6 levels, largest 160x128
+tile 0.3-2.3. The 112 kept poses: one tile moved more than 12 levels (charger_216_0, nearer 0.69d,
+10.3 -> 8.6); mean tile distance to 0.69d 12.88 -> 12.82; 7 poses nearer, 2 farther (at most 0.5).
+Left: the belfry's opening (05-church-inside-f) keeps a soft rim, the global tier's light in the gap
+between the church's environment_probe and church(8), where 0.69d's own weights are 0 too (W = 0 at
+y 30.0-30.2 by the model): 0.69d's global tier there is darker than 0.26g's lerped one (not this
+patch).
 
 ## Limits
 
