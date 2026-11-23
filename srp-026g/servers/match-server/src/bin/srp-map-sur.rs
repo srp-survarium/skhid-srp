@@ -73,6 +73,10 @@ fn main() -> ExitCode {
         Ok(file) => match std::fs::write(out, &file) {
             Ok(()) => {
                 println!("{out}: map {id} ({}, {}), {} bytes", map.map().project, map.map().config, file.len());
+                if let Some(holder) = holder {
+                    let name = |id: u16| survarium::v026g::dictionary::Dictionary::shared().item(id).map_or("?".to_owned(), |item| item.name.to_string());
+                    println!("holding {} ({}) with {} ({})", name(holder.weapon), holder.weapon, holder.scope.map_or("no optic".to_owned(), name), holder.scope.unwrap_or(0));
+                }
                 ExitCode::SUCCESS
             }
             Err(error) => {
