@@ -2431,6 +2431,21 @@ st_srp_ban_reason_politics	Discussão política.
 st_srp_ban_reason_racism	Racismo ou nazismo.
 st_srp_ban_reason_teamkilling	Matar aliados.
 st_srp_ban_reason_threats	Ameaças na vida real.
+st_srp_controls_assign	Atribuir
+st_srp_controls_choose	Escolher
+st_srp_controls_fight	Combate
+st_srp_controls_free	Tecla livre
+st_srp_controls_interface	Interface
+st_srp_controls_items	Itens
+st_srp_controls_lobby	Saguão
+st_srp_controls_loses	%1$s ficará sem tecla.
+st_srp_controls_movement	Movimento
+st_srp_controls_moves	%1$s passa de %2$s para cá.
+st_srp_controls_no_match	Nenhuma ação encontrada.
+st_srp_controls_search	Buscar ações
+st_srp_controls_talk	Comunicação
+st_srp_controls_title	Escolha uma ação
+st_srp_controls_unbind	Remover atribuição
 st_srp_crosshair_dynamic	Mira dinâmica
 st_srp_crosshair_hidden	Mira oculta
 st_srp_crosshair_static	Mira estática

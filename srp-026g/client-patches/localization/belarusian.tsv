@@ -2431,6 +2431,21 @@ st_srp_ban_reason_politics	Абмеркаванне палітыкі.
 st_srp_ban_reason_racism	Расізм або нацызм.
 st_srp_ban_reason_teamkilling	Забойства саюзнікаў.
 st_srp_ban_reason_threats	Пагрозы ў рэальным жыцці.
+st_srp_controls_assign	Прызначыць
+st_srp_controls_choose	Выбар
+st_srp_controls_fight	Бой
+st_srp_controls_free	Вольная клавіша
+st_srp_controls_interface	Інтэрфейс
+st_srp_controls_items	Прадметы
+st_srp_controls_lobby	Лобі
+st_srp_controls_loses	%1$s застанецца без клавішы.
+st_srp_controls_movement	Рух
+st_srp_controls_moves	%1$s пяройдзе сюды з %2$s.
+st_srp_controls_no_match	Няма адпаведных дзеянняў.
+st_srp_controls_search	Пошук дзеяння
+st_srp_controls_talk	Сувязь
+st_srp_controls_title	Абярыце дзеянне
+st_srp_controls_unbind	Зняць прызначэнне
 st_srp_crosshair_dynamic	Дынамічны прыцэл
 st_srp_crosshair_hidden	Схаваны прыцэл
 st_srp_crosshair_static	Статычны прыцэл

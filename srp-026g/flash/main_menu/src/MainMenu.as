@@ -11,6 +11,7 @@ package
    import survarium.menu.ActionMenu;
    import survarium.menu.BindKeyRender;
    import survarium.menu.Settings;
+   import survarium.menu.selector.ActionSelector;
    import survarium.messages.MessageApply;
    import survarium.messages.MessageApplySettings;
    import survarium.messages.MessageBase;
@@ -22,6 +23,9 @@ package
       public var action_select:ActionMenu = new SrvActionMenu();
       
       public var settings_window:Settings = new SrvSettingsWndow();
+
+      // The Controls' action selector, over the Settings (the Controls window opens it).
+      public var key_action_selector:ActionSelector = new ActionSelector();
       
       protected var layout:Layout;
       
@@ -38,6 +42,7 @@ package
          addChild(this.action_select);
          addChild(this.settings_window);
          this.settings_window.visible = false;
+         addChild(this.key_action_selector);
          var _spr:Sprite = new Sprite();
          stage.addChild(_spr);
          Message.initStage(_spr);
@@ -148,6 +153,12 @@ package
          this.settings_window.setHudTexts(values);
       }
       
+      // The exe's answer with the action selector's texts (patch 83, SelectorTexts' order).
+      public function srp_controls_texts(... values) : void
+      {
+         this.key_action_selector.setTexts(values);
+      }
+
       public function handle_promo_key_validation(value:Boolean, text:String) : void
       {
          this.action_select.handlePromoKeyValidation(value,text);

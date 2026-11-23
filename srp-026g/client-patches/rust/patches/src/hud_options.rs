@@ -23,7 +23,8 @@
 //!   whole degrees within the range first;
 //!   `srp_hud_texts` answers the group's own texts (`root.srp_hud_texts`:
 //!   the heading, "Hide quests", the crosshair list's three choices,
-//!   "Static minimap");
+//!   "Static minimap"); `srp_controls_texts` the Controls' action
+//!   selector's (`root.srp_controls_texts`, [`CONTROLS_TEXTS`]);
 //! - each frame's player icons update (`player_icons.update_start`, after
 //!   patch 65): the hud movie is told the four settings
 //!   (`root.srp_hud_options(hit markers, hide scores, hide crosshair,
@@ -1074,6 +1075,30 @@ pub const TEXTS: [&CStr; 15] = [c"st_srp_options_hud", c"st_srp_hide_quests_opti
                                 c"st_srp_vulkan_low_latency_hint", c"st_srp_vulkan_tear_free_hint",
                                 c"st_srp_vulkan_dedicated_gpu_hint"];
 
+/// The Controls' action selector's texts (dictionary keys), in the order
+/// `root.srp_controls_texts` gives them (the main menu's SelectorTexts): its
+/// title, the search field's hint, Unbind, a free key, the two warnings (an
+/// action moved from its key, the actions the key leaves), no match, the keys'
+/// hints (choose, assign, the stock Cancel), a lobby key's tag, then the five
+/// groups' names (ActionGroup's order).
+pub const CONTROLS_TEXTS: [&CStr; 16] = [c"st_srp_controls_title", c"st_srp_controls_search", c"st_srp_controls_unbind",
+                                         c"st_srp_controls_free", c"st_srp_controls_moves", c"st_srp_controls_loses",
+                                         c"st_srp_controls_no_match", c"st_srp_controls_choose",
+                                         c"st_srp_controls_assign", c"st_cancel", c"st_srp_controls_lobby",
+                                         c"st_srp_controls_movement", c"st_srp_controls_fight",
+                                         c"st_srp_controls_items", c"st_srp_controls_talk",
+                                         c"st_srp_controls_interface"];
+
+/// Answers `method` with the running language's texts of `keys`.
+fn answer_texts<const N: usize>(call: &OptionsCall<'_>, method: &CStr, keys: &[&CStr; N]) {
+    let mut rooms = [[0; 0x200]; N];
+    let mut texts: [&CStr; N] = [c""; N];
+    for ((text, room), key) in texts.iter_mut().zip(rooms.iter_mut()).zip(keys) {
+        *text = call.translate(key, room);
+    }
+    call.answer(method, &texts);
+}
+
 /// The setting the Settings' call names.
 pub fn setting(name: &CStr) -> Option<&'static Setting> {
     SETTINGS.iter().copied().find(|s| s.name == name)
@@ -1152,18 +1177,18 @@ pub fn on_process_start(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// the hit marker list answers no label, its saved choice twice and its texts;
 /// the Renderer and the Vulkan options answer the value this process runs
 /// after it (for their note), a list its choices' texts after that.
-/// `srp_hud_texts` answers the groups' texts (`root.srp_hud_texts`).
+/// `srp_hud_texts` answers the groups' texts (`root.srp_hud_texts`),
+/// `srp_controls_texts` the action selector's (`root.srp_controls_texts`).
 pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<HudOptionsOnOptionsCallExit> {
     let Some(call) = OptionsCall::at(ctx) else { return Flow::Continue };
     let thread = ctx.thread();
     let method = call.method();
     if method == c"srp_hud_texts" {
-        let mut rooms = [[0; 0x200]; TEXTS.len()];
-        let mut texts: [&CStr; TEXTS.len()] = [c""; TEXTS.len()];
-        for ((text, room), key) in texts.iter_mut().zip(rooms.iter_mut()).zip(TEXTS) {
-            *text = call.translate(key, room);
-        }
-        call.answer(c"root.srp_hud_texts", &texts);
+        answer_texts(&call, c"root.srp_hud_texts", &TEXTS);
+        return Flow::Exit(HudOptionsOnOptionsCallExit::Done);
+    }
+    if method == c"srp_controls_texts" {
+        answer_texts(&call, c"root.srp_controls_texts", &CONTROLS_TEXTS);
         return Flow::Exit(HudOptionsOnOptionsCallExit::Done);
     }
     let mut label = [0; 0x200];
@@ -1685,7 +1710,10 @@ mod tests {
         for (i, key) in TEXTS.iter().enumerate() {
             assert!(key.to_bytes().starts_with(b"st_srp_") && !TEXTS[i + 1..].contains(key));
         }
-        assert!(setting(c"srp_hud_texts").is_none());
+        for (i, key) in CONTROLS_TEXTS.iter().enumerate() {
+            assert!(!CONTROLS_TEXTS[i + 1..].contains(key) && !TEXTS.contains(key));
+        }
+        assert!(setting(c"srp_hud_texts").is_none() && setting(c"srp_controls_texts").is_none());
         for list in VulkanList::ALL {
             assert!(setting(list.name()).is_none() && list.label().to_bytes().starts_with(b"st_srp_"));
             assert!(SETTINGS.iter().all(|s| s.label != list.label()));
