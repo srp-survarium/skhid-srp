@@ -2,7 +2,7 @@
 //! No driver, administrator access, credentials, or game-memory hooks.
 use crate::{exit, install::Layout, log, message_box, patches, retry_box, route, waiting_box, win};
 use relay_client::{Config, Selection};
-use updater_logic::diagnosis::Diagnosis;
+use updater_logic::diagnosis::{Diagnosis, Via};
 use updater_logic::route::Choice;
 
 pub(crate) fn config() -> Result<Option<&'static Config>, &'static str> {
@@ -99,7 +99,7 @@ fn launch(arguments: &[String], wait: bool, quiet: bool) -> Result<(), Ended> {
                 }
                 // Back in a minute: the box probes every few seconds and
                 // goes on by itself once the server answers.
-                Diagnosis::Restarting => !quiet && waiting_box(&caption, &message, language, || answering(config).is_ok()),
+                Diagnosis::Restarting => !quiet && waiting_box(&caption, &message, language, || route::game_answers(config)),
                 _ => !quiet && retry_box(&caption, &message),
             };
             if !again {
@@ -129,8 +129,9 @@ fn launch(arguments: &[String], wait: bool, quiet: bool) -> Result<(), Ended> {
 }
 
 /// PLAY's route by the player's choice: the relay unprobed; direct, or
-/// (Automatic) the first that answers, probed. `Err`: what the probe found
-/// when that is no route of the choice's (`route::diagnose_game` tells why).
+/// (Automatic) the relay when the direct route failed its check
+/// (`route::check`). `Err`: what the check found when that is no route of
+/// the choice's (`route::diagnose_game` tells why).
 fn answering(config: &Config) -> Result<String, Selection> {
     let choice = route::choice();
     if choice == Choice::Relay {
@@ -138,14 +139,16 @@ fn answering(config: &Config) -> Result<String, Selection> {
         log::log!("play: the relay {address}, as chosen");
         return Ok(address);
     }
-    let selection = relay_client::select(config);
+    let selection = route::check(config, "play");
     match (choice, &selection) {
         (_, Selection::Direct(address)) => {
             log::log!("play: direct route {address} answered TCP, lobby UDP and match UDP");
+            route::set_played(Via::Direct);
             Ok(address.to_string())
         }
         (Choice::Automatic, Selection::Relay(address)) => {
             log::log!("play: direct route unavailable; using relay {address}");
+            route::set_played(Via::Relay);
             Ok(address.to_string())
         }
         _ => {

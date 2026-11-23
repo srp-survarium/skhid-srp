@@ -794,7 +794,9 @@ shows; the launcher only shows it and passes the pick on.
   without `updater_skhid.relay`, or with an older updater, there is no row.
   A tooltip (comctl32's, 30 s) says in a few lines what the relay is, the
   three choices, and what the row is now (in auto, the route the probe
-  picked, or that it is checking).
+  picked, or that it is checking). It says what the relay costs: "On:
+  always through the relay (higher ping)", and for auto on the relay "auto:
+  through the relay (higher ping): direct did not answer."
 - **The views** (message `0A <view>` of the updater, its one byte
   `updater_logic::route::Shown::byte`): 1 auto, probing; 2 auto, direct
   ("auto (off)"); 3 auto, the relay ("auto (on)"); 4 auto, neither answered;
