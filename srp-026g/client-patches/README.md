@@ -6385,7 +6385,10 @@ The HUD's crosshair is put where the own player's gun looks (the hud movie's `sr
 `check_muzzle_shots_026g.py` (`tools/check muzzle-shots`) runs instant_fire from its copy to its
 call of get_dispersed_bullet_direction in both exes, the bone function and the ray stood in for:
 the hip, full aim, half raised, a wall, and the cases left as the original's bit for bit. Not run
-in a game with a shot fired: the crosshair on a screen and two games in step are unseen.
+in a game with a shot fired: the crosshair on a screen and two games in step are unseen. The built
+exe's shot was run under Unicorn on three real matches' full memory (`../docs/notes/muzzle-shots.md`):
+eleven guns held ready leave the muzzle (0.05 mm, 0.005 degrees from the note's arithmetic, the
+level's own ray test run), twenty-three not held ready are the original's bit for bit.
 
 A gun not held ready (its barrel more than 5 degrees off the eye's line: a sprint's pose, the hands
 between two poses) is left the game's own shot, from the eye. Measured on three real matches'

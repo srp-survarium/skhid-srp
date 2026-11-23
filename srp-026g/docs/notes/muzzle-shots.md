@@ -77,6 +77,23 @@ dump's memory for every held gun's bones, and patch 200's rig made of them
   is (a trigger pressed in a sprint fires at once, by the bots' model of the cadence);
   `SKHID_SHOT_LOG` in a game tells.
 
+### The built exe's shot on those matches
+
+The same dumps, the built exe's own code and arena laid over the dump's memory
+(`private/scope-shot-045/muzzle-shots/dump_shot.py`): `instant_fire` run under Unicorn from its copy
+of the eye to its call of `get_dispersed_bullet_direction`, for every held gun, beside the original
+exe's code on the same memory. The hook, the Rust, the engine's `compute_bone_matrix` and the
+level's own `ray_test` on the match's collision all run for real; only GetCurrentThreadId is stood
+in.
+
+- **Eleven guns held ready** (from the hip, half raised, fully aimed): the shot leaves the muzzle,
+  within 0.05 mm of the place and 0.005 degrees of the way this note's arithmetic gives from the
+  same bones; one ray of the level's collision from the eye to the muzzle each (46 to 93 cm),
+  nothing in its way.
+- **Twenty-three guns not held ready** (sprinting, other states, the dead, the lobby's): the copy
+  is the original's, bit for bit.
+- The stack at the call is the original's in every case; no run failed.
+
 ## Recoil, on top (the owner: "simulation with recoil being the next thing")
 
 The game's recoil is already a state of the weapon in the simulation: the kick (the recoil
