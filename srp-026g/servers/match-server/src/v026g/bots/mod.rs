@@ -2764,6 +2764,13 @@ impl Bots {
             nav_log::PREFIX,
             short + sprint
         ));
+        // [landing walk] The walk after the client's flights' landings: resumed from the jump's own travel, against the blend speed
+        // the keys held through the flight had reached.
+        let [(rn, rb, rt), (pn, pb, pt)] = body::flown_jumps::take_landing_walk();
+        lines.push(format!(
+            "{}walk after flown landings since the last match end (every match on this server): the reckoning's {rn} (from the jump's travel {rt:.2} m/s, not the blend's {rb:.2} m/s, means), the press forecast's {pn} ({pt:.2} m/s, not {pb:.2} m/s)",
+            nav_log::PREFIX,
+        ));
         lines
     }
 

@@ -121,6 +121,10 @@ pub struct Estimate {
     /// ([`Self::step`]'s; [`Self::creep`] with [`StepInput::Same`]).
     pub creep: Creep,
     pub step_creep: Creep,
+    /// [landing walk] A flown jump just landed, its travel (m/s, straight ahead): the next step still walks at it whatever its
+    /// input (the client's landing substate, in the jump state still: recorded, the first ground step after 17 of 17 short
+    /// landings moves within 0.06 m/s of the landing step, with forward held or let go), and the walk blends from it after.
+    pub landing_walk: Option<f32>,
 }
 
 /// [A364 P9] A body's controller kept across ticks ([`ClientStep::Kept`]) and the feet it last gave the reckoning.
@@ -627,6 +631,7 @@ impl Estimate {
             // [F42] A forecast from a view does not know the crouch selector's state: moved as before.
             creep: Creep::Unknown,
             step_creep: Creep::Unknown,
+            landing_walk: None,
         }
     }
 
@@ -653,6 +658,7 @@ impl Estimate {
             kept: None,
             creep: Creep::Unknown,
             step_creep: Creep::Unknown,
+            landing_walk: None,
         }
     }
 }
@@ -925,6 +931,10 @@ fn fly_pressed(mut at: Estimate, plan: &PressPlan, world: &PressWorld) -> PressO
     let walk = plan.walk & !key::JUMP;
     let tick = |at: &Estimate, keys: u32| Tick { time: at.time + TICK_MS, keys, turn: (0.0, 0.0), kick: 0.0, jump: JumpGate::Open, legs_broken: false };
     let air = walk & key::FORWARD;
+    let stay = match plan.after {
+        AfterLanding::Hold => 0,
+        AfterLanding::WalkOn => walk,
+    };
     let mut steps = 0;
     while at.arc.is_some() && steps < PRESS_FLIGHT_STEPS {
         at = advance(at, tick(&at, air), kin, level, Some(grid), None, Role::Press, false);
@@ -933,6 +943,11 @@ fn fly_pressed(mut at: Estimate, plan: &PressPlan, world: &PressWorld) -> PressO
     if at.arc.is_some() {
         return PressOutcome::NotDown { at: at.feet };
     }
+    // [landing walk] The keys after the landing are the landing tick's own input, as the builder's scoring flights let go at the
+    // landing (`jump::STAY_KEYS`, exe-checked): a tick's input moves the step two ticks on, so the landing tick's air keys would
+    // push the walk on toward the cap for a step after the landing's own (the gate bench's level_03 rim: 0.12 m further onto the
+    // top, which the let-go client slid back off). The landing tick's step was the flight's, whatever its input.
+    at.keys = stay;
     // A flight that ended in the air (falling on): its controller falls on, no key, until it is on the ground, and the rest is
     // played from there. The grid's floor under the feet is not the client's where its controller has no ground (the suite's
     // S417: a gap's grid floor past its real edge, the exe fell 5.5 m; S109: a step's face, back to the start floor).
@@ -964,10 +979,6 @@ fn fly_pressed(mut at: Estimate, plan: &PressPlan, world: &PressWorld) -> PressO
         at.velocity = [0.0, 0.0];
         at.kept = Some(kept);
     }
-    let stay = match plan.after {
-        AfterLanding::Hold => 0,
-        AfterLanding::WalkOn => walk,
-    };
     let mut grounded = true;
     for _ in 0..mapdata::controller::jump::STAY_STEPS {
         at = advance(at, tick(&at, stay), kin, level, Some(grid), None, Role::Press, false);
@@ -976,7 +987,12 @@ fn fly_pressed(mut at: Estimate, plan: &PressPlan, world: &PressWorld) -> PressO
     if at.fall != Fall::Ground || at.arc.is_some() {
         return PressOutcome::NotDown { at: at.feet };
     }
-    let rest = at.feet;
+    // [landing walk] The rest's height is the kept controller's, the client's own: the reckoned feet stay on the grid's floor, which a
+    // body sliding back off a sloped rim has left (the gate bench's level_03 rim: the grid's 1.84 against the exe's 1.66 and falling).
+    let rest = match at.kept {
+        Some(kept) => Vec3::new(at.feet.x, kept.controller.feet().y, at.feet.z),
+        None => at.feet,
+    };
     if grounded && super::motor::is_up(rest, plan.take_off, plan.landing) {
         return PressOutcome::Lands { rest };
     }
@@ -1076,8 +1092,10 @@ pub struct FlownJump {
 pub(crate) enum FlownStep {
     /// In the air (or before the take-off, on the ground) at these feet.
     Air(Vec3),
-    /// The landing step: its feet, whether it is on the ground, the controller after it and its vertical speed (m/s, up).
-    Last { feet: Vec3, landed: bool, after: KeptBody, vertical: f32 },
+    /// The landing step: its feet, whether it is on the ground, the controller after it, its vertical speed (m/s, up) and its
+    /// walk straight ahead (m/s: the clip's last travel, `Flying::last_travel`), which the ground walk after the landing resumes
+    /// from.
+    Last { feet: Vec3, landed: bool, after: KeptBody, vertical: f32, travel: f32 },
 }
 
 impl FlownJump {
@@ -1155,7 +1173,13 @@ impl FlownJump {
             return Some(FlownStep::Air(feet));
         }
         let after = KeptBody { controller: self.body.controller, feet, airborne: !step.on_ground };
-        Some(FlownStep::Last { feet, landed: step.on_ground, after, vertical: self.body.controller.velocity.y })
+        Some(FlownStep::Last {
+            feet,
+            landed: step.on_ground,
+            after,
+            vertical: self.body.controller.velocity.y,
+            travel: self.flying.last_travel(),
+        })
     }
 }
 
@@ -1183,6 +1207,25 @@ pub(crate) mod flown_jumps {
     /// (short, sprint, not forward, landed, falling) since the last call, and zero again.
     pub(crate) fn take() -> [u64; 5] {
         std::array::from_fn(|i| COUNTS[i].swap(0, Relaxed))
+    }
+
+    /// [landing walk] The walk after a flown jump's landing ([`super::advance`]), per whose flight (the reckoning's, the press
+    /// forecast's): the landings, and the sums in mm/s of the blend's speed it replaced and of the jump's travel it resumes from.
+    static LANDING_WALK: [AtomicU64; 6] = [const { AtomicU64::new(0) }; 6];
+
+    pub(crate) fn landing_walk(press: bool, blend_ms: f32, travel_ms: f32) {
+        let at = if press { 3 } else { 0 };
+        LANDING_WALK[at].fetch_add(1, Relaxed);
+        LANDING_WALK[at + 1].fetch_add((blend_ms * 1000.0).round() as u64, Relaxed);
+        LANDING_WALK[at + 2].fetch_add((travel_ms * 1000.0).round() as u64, Relaxed);
+    }
+
+    /// The landing walk's tally since the last call, and zero again: (landings, mean replaced blend speed m/s, mean travel m/s)
+    /// for the reckoning, then for the press forecast.
+    pub(crate) fn take_landing_walk() -> [(u64, f64, f64); 2] {
+        let v: [u64; 6] = std::array::from_fn(|i| LANDING_WALK[i].swap(0, Relaxed));
+        let mean = |sum: u64, n: u64| if n == 0 { 0.0 } else { sum as f64 / n as f64 / 1000.0 };
+        [(v[0], mean(v[1], v[0]), mean(v[2], v[0])), (v[3], mean(v[4], v[3]), mean(v[5], v[3]))]
     }
 }
 /// A body is reckoned on this far past its last known tick at most, ms.
@@ -1963,6 +2006,7 @@ impl BodyTrack {
             // run; either before an on-site state, so not known).
             creep: creep_at_fix,
             step_creep: creep_at_fix,
+            landing_walk: None,
         };
         if kin.step_input == StepInput::Previous
             && estimate.step.is_some()
@@ -2140,6 +2184,11 @@ fn advance(
             creep_steps::step(creep);
         }
         let target = if tick.legs_broken { creep.target(kin.target_local(step_keys, level)) } else { kin.target_local(step_keys, level) };
+        // [landing walk] The step after a flown jump's landing walks at the jump's travel, its input aside ([`Estimate::landing_walk`]).
+        let target = match at.landing_walk.take() {
+            Some(travel) => [travel, 0.0],
+            None => target,
+        };
         // [A318] A falling body moves across from its floor; its height is played after the step.
         let top = at.feet.y;
         if let (Some(grid), Fall::Falling { .. }, Some(node), None) = (grid, at.fall, at.node, at.arc) {
@@ -2166,10 +2215,23 @@ fn advance(
                     at.feet = feet;
                     at.arc = Some(Jump::Flown(flown));
                 }
-                FlownStep::Last { feet, landed, after, vertical } => {
+                FlownStep::Last { feet, landed, after, vertical, travel } => {
                     at.velocity = [(feet.x - at.feet.x) / TICK_S, (feet.z - at.feet.z) / TICK_S];
                     at.arc = None;
                     at.kept = Some(after);
+                    // The ground walk after the landing resumes from the jump's own travel, straight ahead, not from the blend
+                    // the keys held through the flight would have reached (the walk cap): the client's walk in the jump is the
+                    // clip's, and its walk after `end_jump` blends from it. Recorded (exactness, `landing-walk-check-v2`):
+                    // 10 of 10 short landings with the keys let go run the travel (0.83 m/s from a slow press) down to rest
+                    // in 6 steps, and with forward held the walk rises from it to the cap over 6 steps; after a sprint landing
+                    // it is at the cap, the travel there. The step after the landing still walks at the travel, whatever its input
+                    // (the landing substate; 17 of 17 recorded short landings), so the keys' blend starts a step later.
+                    if matches!(role, Role::Reckoning | Role::Press) {
+                        let [a, l] = at.blend.now(kin.blend_ticks);
+                        flown_jumps::landing_walk(role == Role::Press, a.hypot(l), travel);
+                    }
+                    at.blend = Blend::at([travel, 0.0]);
+                    at.landing_walk = Some(travel);
                     let under = grid.locate(feet, LOCATE_M).or(Some(node));
                     // The press forecast's flights are not the reckoning's count (a stop forecast stepping a flight it was handed
                     // counts as before).
@@ -4019,6 +4081,65 @@ pub(super) mod tests {
         assert!(matches!(side.estimate().unwrap().arc, Some(Jump::Clip(_))), "a side press keeps the clip");
     }
 
+    /// [landing walk] After a flown jump's landing the ground walk resumes from the jump's own travel, not from the blend the keys
+    /// held through the flight reach (the walk cap). A short jump pressed from rest travels 0.83 m/s. The step after the landing
+    /// still walks at it whatever its input (the client's landing substate), and the keys' blend runs from it after: let go, down to
+    /// rest in 6 more steps; forward held, up to the cap. Recorded (exactness's `landing-walk-check-v2`, the game's walk vector):
+    /// let go after a 0.83 m/s jump, 0.82 0.65 0.42-0.51 ... 0, 0.10-0.13 m over steps 1-6 (4 jumps); forward held, 0.89 1.46 1.93
+    /// 2.39 2.86 3.33 3.64. The blend from the cap moved 0.45 m on with the keys let go. The walk is the step's move before the
+    /// grid's slide ([`Estimate::blend`]'s value after the step), so the floor the landing came down on does not enter.
+    #[test]
+    fn the_walk_after_a_flown_landing_resumes_from_the_jumps_travel() {
+        let triangles: Vec<Triangle> = floor(0.0, 0.0, 30.0, 10.0, 0.0).to_vec();
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 30.0, 10.0], 0.25, Body::default()).with_client_walker(&triangles);
+        let yaw = -std::f32::consts::FRAC_PI_2;
+        let kin = Kinematics { jump_arc: true, ..Kinematics::default() };
+        // A jump from rest, flown with forward held; from the decided tick `after_from` on the keys are `after`. The reckoning's
+        // step at a decided tick moves by the keys decided two ticks before ([`StepInput::Previous`]: the step ending at t moves by
+        // the input stamped t-50), so keys decided from the landing's own tick on are the recordings' "from L+50".
+        let fly = |after_from: u32, after: u32| {
+            let mut track = BodyTrack::default();
+            track.fixed(fix(0, Vec3::new(5.0, 0.0, 5.0), yaw), &kin, Some(&grid));
+            for time in (50..=300).step_by(50) {
+                track.decided(time, 0, (0.0, 0.0), 0.0, &kin, Some(&grid));
+            }
+            track.decided(350, key::FORWARD | key::JUMP, (0.0, 0.0), 0.0, &kin, Some(&grid));
+            assert!(matches!(track.estimate().unwrap().arc, Some(Jump::Flown(_))), "flown: {:?}", track.estimate());
+            let mut time = 350;
+            while track.estimate().unwrap().arc.is_some() && time < 2_000 {
+                time += 50;
+                track.decided(time, if time >= after_from { after } else { key::FORWARD }, (0.0, 0.0), 0.0, &kin, Some(&grid));
+            }
+            (track, time)
+        };
+        // The landing's tick, with forward held to it.
+        let (_, landing) = fly(u32::MAX, key::FORWARD);
+        // The walk of each of the 8 steps after the landing, the keys `after` from the landing's tick on.
+        let walks_after = |after: u32| {
+            let (mut track, mut time) = fly(landing, after);
+            let landed = *track.estimate().unwrap();
+            assert!(landed.arc.is_none() && time == landing, "landed at the same tick: {time} {landing} {landed:?}");
+            assert_eq!(landed.landing_walk.map(|t| (t * 1e3).round()), Some(833.0), "the jump's travel kept for the next step");
+            (0..8)
+                .map(|_| {
+                    time += 50;
+                    track.decided(time, after, (0.0, 0.0), 0.0, &kin, Some(&grid));
+                    let [ahead, left] = track.estimate().unwrap().blend.now(kin.blend_ticks);
+                    assert!(left.abs() < 1e-5, "straight ahead: {left}");
+                    ahead
+                })
+                .collect::<Vec<f32>>()
+        };
+        let let_go = walks_after(0);
+        assert!((let_go[0] - 0.8333).abs() < 0.01, "the step after the landing at the travel: {let_go:?}");
+        assert!(let_go.windows(2).all(|w| w[1] <= w[0] + 1e-6) && let_go[7] == 0.0, "run down to rest: {let_go:?}");
+        let on: f32 = let_go[..6].iter().sum::<f32>() * TICK_S;
+        assert!((0.08..0.16).contains(&on), "steps 1-6 cover {on} m: {let_go:?}");
+        let held = walks_after(key::FORWARD);
+        assert!((held[0] - 0.8333).abs() < 0.01, "the step after the landing at the travel: {held:?}");
+        assert!(held.windows(2).all(|w| w[1] >= w[0] - 1e-6) && held[6] > 3.3, "up to the cap: {held:?}");
+    }
+
     /// [press forecast] A wall across x (a vertical quad from z0 to z1, y0 up to y1): the pit's sides the capsule meets.
     fn pit_wall(x: f32, z0: f32, z1: f32, y0: f32, y1: f32) -> [Triangle; 2] {
         let walker = WalkerBehaviour::BySlope;
@@ -4102,6 +4223,9 @@ pub(super) mod tests {
             // A flight that ended in the air: the forecast follows its controller down ([`PRESS_FALL_STEPS`]), the reckoning falls by
             // its own rule onto the grid's floor; the forecast's end is not over that floor, and a landing only on it.
             let fell_on = matches!(r.fall, Fall::Falling { .. });
+            // [landing walk] The keys let go at the landing tick, as the forecast plays it: a tick's own input does not move its
+            // step, so it is the landing tick decided with no key.
+            r.keys = 0;
             if r.arc.is_none() {
                 for _ in 0..mapdata::controller::jump::STAY_STEPS {
                     r = step(r, 0);
@@ -4116,7 +4240,9 @@ pub(super) mod tests {
                     assert!((end.y - r.feet.y).abs() < 0.05, "press {press_in}: a landing on the reckoning's floor ({outcome:?}, {:?})", r.feet);
                 }
             } else {
-                assert_eq!(end, r.feet, "press {press_in}: the forecast ends where the reckoning does ({outcome:?})");
+                // [landing walk] Across to the bit; the forecast's rest height is its kept controller's, the reckoning's the grid's floor.
+                assert_eq!((end.x, end.z), (r.feet.x, r.feet.z), "press {press_in}: the forecast ends where the reckoning does ({outcome:?})");
+                assert!((end.y - r.feet.y).abs() < 0.01, "press {press_in}: on the reckoning's floor ({outcome:?}, {:?})", r.feet);
             }
         }
         eprintln!("presses that fell on: {fell} of 20");
