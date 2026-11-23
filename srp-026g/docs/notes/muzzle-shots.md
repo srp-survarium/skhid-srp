@@ -114,8 +114,23 @@ was stopped.
   sprint's 54. Nobody in this match fired with the gun still down.
 - The numbers agree with the dumps': from the hip the muzzle 12 cm right and 9 under, the barrel
   1.4 degrees off (the bots' `hip_line_deg`, `hip_muzzle_m`).
-- Unseen still: the crosshair on a screen (no picture was taken), two games of one match, a played
-  match.
+- Unseen still: the crosshair on a screen (no picture was taken), two games of one match.
+
+### Two games' logs of that match, side by side
+
+The same recording played back by two games, one held to 60 frames a second and one to 27, each
+shot logged with whose it is, the simulation's time, the game's own copy of the eye and its
+replacement, all to the bit (`SKHID_SHOT_LOG`'s second line).
+
+- **The same input gives the same shot.** 146 shots have the same player, time and eye bits in
+  both logs: all 146 have the same replacement, bit for bit. No shot of one player at one time
+  has two eyes.
+- **The playback itself is not the same twice.** Four of the seven players fire at the same times
+  in both (25 shots, none apart). The two who fire most, and one shot of a third, fire at other
+  times in the two games (place 1: 69 shots at the same time, 53 and 41 apart; place 7: 38, 34 and
+  19): when a held trigger's shots fall is the replay's own stepping, by its frames. That is the
+  game's, with or without the patch, and why two playbacks' logs differ in order. It is not a
+  test of two games of one live match, whose steps are the match's own.
 
 ## Recoil, on top (the owner: "simulation with recoil being the next thing")
 
