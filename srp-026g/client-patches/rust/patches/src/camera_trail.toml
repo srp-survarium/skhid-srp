@@ -3,6 +3,8 @@
 # and the handler, after the head clearance's eye.
 name = "camera_trail"
 patch = 197
+# the sight's progress, and the gun's kick shown while aimed
+uses = ["aim_pose"]
 
 # update_camera's join: EAX the eye transform the view gets
 [[hook]]

@@ -53,8 +53,8 @@ pub struct AimedGun<'c> {
     site: PhantomData<&'c ()>,
 }
 
-/// The gun's bones while its idle clip alone poses them.
-pub struct IdleBones<'g>(&'g raw::Float4x4);
+/// The gun's bones' matrices of this frame.
+pub struct Bones<'g>(&'g raw::Float4x4);
 
 impl<'c> AimedGun<'c> {
     pub fn at_alignment(ctx: &'c Context<'_>) -> Option<AimedGun<'c>> {
@@ -84,6 +84,27 @@ impl<'c> AimedGun<'c> {
         }
     }
 
+    /// How far the sight is raised: the aim's progress (+5FCh), above 0 here,
+    /// 1 fully aimed.
+    pub fn progress(&self) -> f32 {
+        // SAFETY: the live weapon's own float, which process_hands_ik read
+        // just before the site (0x295A2x) on this thread.
+        unsafe { *self.weapon.aim_progress() }
+    }
+
+    /// The bone the gun's body hangs on: its fire point's (the model's
+    /// `barrel_point`, the weapon's +6E0h), none for one on no bone.
+    pub fn body_bone(&self) -> Option<Bone> {
+        // SAFETY: the live weapon's own locator record, written at its load
+        // only (load_weapon 0x243A30).
+        Bone::parse(unsafe { *self.weapon.barrel_locator().bone() })
+    }
+
+    /// The gun's bones as its clips pose them this frame.
+    pub fn bones(&self) -> Bones<'_> {
+        Bones(&self.bones)
+    }
+
     /// The gun's bones, when what poses them this frame is its idle clip
     /// alone: the weapon is in its idle state and its user's mixing tree
     /// holds exactly one animation of this gun (the idle state's item clip;
@@ -91,7 +112,7 @@ impl<'c> AimedGun<'c> {
     /// state changes give the tree its new target in the same call
     /// (select_animations 0x2D9690), so an idle weapon's tree holds its idle
     /// clip; a world loaded from another game has both as that game sent them.
-    pub fn idle_bones(&self) -> Option<IdleBones<'_>> {
+    pub fn idle_bones(&self) -> Option<Bones<'_>> {
         // SAFETY: the live weapon, its state and its user, and the tree the
         // engine mixed this gun's bones from in this same pass
         // (update_bones_matrices 0x2FF60F..0x2FF63E): its animation records
@@ -110,7 +131,7 @@ impl<'c> AimedGun<'c> {
             }
             mixed
         };
-        (mixed == 1).then_some(IdleBones(&self.bones))
+        (mixed == 1).then_some(Bones(&self.bones))
     }
 
     /// The aim locator placed in the gun's model, on no bone.
@@ -124,11 +145,12 @@ impl<'c> AimedGun<'c> {
     }
 }
 
-impl IdleBones<'_> {
+impl Bones<'_> {
     /// A bone's matrix in the gun's model (a row-vector 4x4).
     pub fn bone(&self, bone: Bone) -> [f32; 16] {
-        // SAFETY: the index is the aim locator's, which calculate_locator
-        // indexes these same matrices with (0x243C73) when left on its bone.
+        // SAFETY: the index is one of this gun's locators' (the aim's or the
+        // fire point's), which calculate_locator indexes these same matrices
+        // with (0x243C73; weapon::draw's at 0x244E68) when left on its bone.
         unsafe { floats(self.0.at(usize::from(bone.0)).value()) }
     }
 }

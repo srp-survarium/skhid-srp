@@ -13,12 +13,21 @@
 //! ragdoll's and the head clearance's): the eyes' transform, the aim, the
 //! shots and the worlds are the game's. Nothing a match computes.
 //!
-//! Not done: the HUD's crosshair stays at the screen's centre.
+//! The zones are times how far the sight is raised (patch 172's site tells:
+//! `aim_pose::take_aim_progress`), so from the hip the view is the aim and
+//! the HUD's crosshair, at the screen's centre, stays true. With the switch
+//! the aimed gun also shows less of its shot clip (`aim_pose::Kick::Back`):
+//! its sights stay on the aim, and of its kick `BACK_SHARE` back along it.
+//!
+//! Not done: with picture-in-picture scopes (patch 198) the frame is not
+//! zoomed while the handler's factor says it is, so the zones are then that
+//! much smaller on the screen than without.
 
 #![forbid(unsafe_code)]
 
 use ragdoll::math::{Vec3, abs, atan2, clamp, exp_neg, min, sin_cos, sqrt};
 
+use crate::aim_pose::{self, Kick};
 use crate::vostok::world::PlayerId;
 use crate::vostok::{Context, Flow, GameCell, NoExit, camera, clock, renderer};
 
@@ -34,6 +43,8 @@ const MOST: Look = Look { yaw: 3.0 * DEGREE, pitch: 2.0 * DEGREE };
 /// The share of the way to where it is pulled the camera goes in a second
 /// (1 - e^(-rate t)).
 const RATE: f32 = 14.0;
+/// The share of the gun's own kick back along the view the aimed view shows.
+const BACK_SHARE: f32 = 0.35;
 /// The longest frame the camera steps by (s).
 const LONGEST_FRAME: f32 = 0.1;
 
@@ -53,6 +64,7 @@ impl Look {
         Some(Look { yaw: atan2(forward.x, forward.z), pitch: atan2(forward.y, level) })
     }
 
+    #[cfg(test)]
     fn forward(self) -> Vec3 {
         let ((sin_yaw, cos_yaw), (sin_pitch, cos_pitch)) = (sin_cos(self.yaw), sin_cos(self.pitch));
         Vec3::new(sin_yaw * cos_pitch, sin_pitch, cos_yaw * cos_pitch)
@@ -78,7 +90,10 @@ static TRAIL: GameCell<Trail> = GameCell::new(Trail::Unread);
 pub fn on_eye(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let state = match TRAIL.get(thread) {
-        Trail::Unread if renderer::environment_set(thread, c"SKHID_CAMERA_TRAIL") => Trail::Waiting,
+        Trail::Unread if renderer::environment_set(thread, c"SKHID_CAMERA_TRAIL") => {
+            aim_pose::show(thread, Kick::Back { share: BACK_SHARE });
+            Trail::Waiting
+        }
         Trail::Unread => Trail::Off,
         state => state,
     };
@@ -96,17 +111,22 @@ pub fn on_eye(ctx: &mut Context<'_>) -> Flow<NoExit> {
         return Flow::Continue;
     };
     let zoom = camera::eye_fov_factor(ctx).filter(|factor| factor.is_finite() && *factor > 0.0).map_or(1.0, |factor| min(factor, 1.0));
+    let raised = aim_pose::take_aim_progress(thread);
+    let zoom = zoom * if raised.is_finite() { clamp(raised, 0.0, 1.0) } else { 0.0 };
     let now = clock::milliseconds(thread);
     let look = shown(state, player, aim, zoom, now);
     TRAIL.set(thread, Trail::Following { player, look, at: now });
-    if let Some(view) = turned(&eye, look) {
-        camera::look_from(ctx, view);
+    // On the aim (from the hip always): the eye as it is given.
+    if look != aim {
+        camera::look_from(ctx, turned(&eye, aim, look));
     }
     Flow::Continue
 }
 
 /// Where `player`'s camera looks this frame: on from where it looked last
 /// frame toward the `aim`, or along the aim for a player it did not follow.
+/// `zoom` sizes the zones: the view's field-of-view factor times how far the
+/// sight is raised (0 from the hip: the view is the aim).
 fn shown(state: Trail, player: PlayerId, aim: Look, zoom: f32, now: u32) -> Look {
     match state {
         Trail::Following { player: last, look, at } if last == player => {
@@ -164,22 +184,24 @@ fn turn(angle: f32) -> f32 {
     }
 }
 
-/// The eye's transform looking along `look`: its place, level (no roll), of
-/// the eye's handedness. None when the look is along the world's up.
-fn turned(eye: &[f32; 16], look: Look) -> Option<[f32; 16]> {
-    let forward = look.forward();
-    let right = like(Vec3::new(0.0, 1.0, 0.0).cross(forward).direction()?, row(eye, 0));
-    let up = like(forward.cross(right), row(eye, 1));
+/// The eye's transform turned from the `aim` to `look`: about the world's up
+/// by the yaws' difference, then about the level axis across `look` by the
+/// pitches'. Its place and its roll are the eye's.
+fn turned(eye: &[f32; 16], aim: Look, look: Look) -> [f32; 16] {
+    let (sin_yaw, cos_yaw) = sin_cos(look.yaw);
+    let across = Vec3::new(-cos_yaw, 0.0, sin_yaw);
     let mut view = *eye;
-    for (at, axis) in [right, up, forward].into_iter().enumerate() {
+    for at in 0..3 {
+        let axis = about(about(row(eye, at), Vec3::new(0.0, 1.0, 0.0), turn(look.yaw - aim.yaw)), across, look.pitch - aim.pitch);
         view[at * 4..at * 4 + 3].copy_from_slice(&[axis.x, axis.y, axis.z]);
     }
-    Some(view)
+    view
 }
 
-/// `axis`, or its opposite: whichever is nearer `as_this`.
-fn like(axis: Vec3, as_this: Vec3) -> Vec3 {
-    if axis.dot(as_this) < 0.0 { axis * -1.0 } else { axis }
+/// `v` turned about the unit `axis` by `angle` (right-handed).
+fn about(v: Vec3, axis: Vec3, angle: f32) -> Vec3 {
+    let (sin, cos) = sin_cos(angle);
+    v * cos + axis.cross(v) * sin + axis * (axis.dot(v) * (1.0 - cos))
 }
 
 /// A row-vector 4x4's row (0 right, 1 up, 2 forward).
@@ -253,23 +275,29 @@ mod tests {
     }
 
     #[test]
-    fn the_view_keeps_the_eyes_place_and_hand() {
-        let mut eye = [0.0; 16];
-        eye[0] = 1.0;
-        eye[5] = 1.0;
-        eye[10] = 1.0;
+    fn the_view_is_the_eye_turned_to_the_look() {
+        let aim = Look { yaw: 0.4, pitch: -0.2 };
+        // an eye along the aim, rolled a little, at a place
+        let level = turned(&IDENTITY, Look { yaw: 0.0, pitch: 0.0 }, aim);
+        assert!((row(&level, 2) - aim.forward()).length() < 1e-6, "{level:?}");
+        let mut eye = level;
+        let (right, up) = (row(&level, 0), row(&level, 1));
+        for (at, axis) in [right * 0.995 + up * 0.0998, up * 0.995 - right * 0.0998].into_iter().enumerate() {
+            eye[at * 4..at * 4 + 3].copy_from_slice(&[axis.x, axis.y, axis.z]);
+        }
         eye[12..16].copy_from_slice(&[3.0, 4.0, 5.0, 1.0]);
-        assert_eq!(turned(&eye, Look { yaw: 0.0, pitch: 0.0 }), Some(eye));
-        let view = turned(&eye, Look { yaw: 0.3, pitch: 0.2 }).unwrap();
+        assert_eq!(turned(&eye, aim, aim), eye);
+        let look = Look { yaw: 0.43, pitch: -0.17 };
+        let view = turned(&eye, aim, look);
         let (right, up, forward) = (row(&view, 0), row(&view, 1), row(&view, 2));
-        assert!((forward - Look { yaw: 0.3, pitch: 0.2 }.forward()).length() < 1e-6);
-        assert!(right.dot(up).abs() < 1e-6 && right.dot(forward).abs() < 1e-6 && (right.cross(up) - forward).length() < 1e-5);
-        assert!(right.y.abs() < 1e-6, "level: {right:?}");
+        assert!((forward - look.forward()).length() < 1e-6, "{forward:?}");
+        // still a frame of the eye's hand, with the eye's roll and place
+        assert!(right.dot(up).abs() < 1e-6 && right.dot(forward).abs() < 1e-6);
+        let handed = |x: Vec3, y: Vec3, z: Vec3| (x.cross(y) - z).length() < 1e-5;
+        assert_eq!(handed(right, up, forward), handed(row(&eye, 0), row(&eye, 1), row(&eye, 2)));
+        assert!((right.y - row(&eye, 0).y).abs() < 0.01, "the roll: {} from {}", right.y, row(&eye, 0).y);
         assert_eq!(view[12..16], [3.0, 4.0, 5.0, 1.0]);
-        // the game's eye is of the other hand when its right is mirrored
-        eye[0] = -1.0;
-        let mirrored = turned(&eye, Look { yaw: 0.3, pitch: 0.2 }).unwrap();
-        assert!((row(&mirrored, 0) + right).length() < 1e-6 && (row(&mirrored, 1) - up).length() < 1e-6);
-        assert_eq!(turned(&eye, Look { yaw: 0.0, pitch: core::f32::consts::FRAC_PI_2 }), None);
     }
+
+    const IDENTITY: [f32; 16] = [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.];
 }
