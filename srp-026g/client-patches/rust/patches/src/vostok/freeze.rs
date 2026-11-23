@@ -367,6 +367,24 @@ pub(super) fn clear(core: raw::CoreWorld, from: Place, to: Place) -> bool {
     }
 }
 
+/// A body of the match this frame: the bones a glow on him follows, and his simulated transform
+/// (row-major 4x4).
+#[derive(Clone, Copy)]
+pub struct FrozenBody {
+    bones: super::carry_runtime::Bones,
+    pub transform: [f32; 16],
+}
+impl FrozenBody {
+    /// Whose bones: a glow played on other bones (another player object of the place) is played
+    /// again on these.
+    pub fn id(&self) -> BodyId {
+        BodyId(self.bones)
+    }
+}
+/// The bones a glow follows, as an identity: the play holds them, so no other body has them.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct BodyId(super::carry_runtime::Bones);
+
 /// The frozen glow as this game draws it (never in the simulation: the load moment of its
 /// resources differs per game, so an effect added from it would enter each game's world at
 /// another tick): the game world's scene, and the frozen bodies' matrices from the world.
@@ -390,20 +408,21 @@ impl<'t> GlowScene<'t> {
         // SAFETY: the live core of the hook's world.
         unsafe { Play::of(self.core).in_play() }
     }
-    /// The body at `place`, inserted and alive: its simulated transform (row-major 4x4).
-    pub fn body(&self, place: Place) -> Option<[f32; 16]> {
+    /// The body at `place`, inserted and alive.
+    pub fn body(&self, place: Place) -> Option<FrozenBody> {
         let player = player_at(self.core, place)?;
         // SAFETY: the roster's current player of the place, live for the hook.
         unsafe {
             if read(player.inserted()) == 0 || read(player.alive()) == 0 {
                 return None;
             }
-            Some(floats::<16>(player.transform()))
+            Some(FrozenBody { bones: super::carry_runtime::Bones::of(player), transform: floats::<16>(player.transform()) })
         }
     }
-    pub fn play(&self, particle: super::resources::KeptParticle, at: &[f32; 16]) {
+    /// `particle` played at `at` on `body`: its body-shaped emitters follow his bones.
+    pub fn play(&self, particle: super::resources::KeptParticle, at: &[f32; 16], body: FrozenBody) {
         // SAFETY: a particle system kept for the process; the live scene.
-        unsafe { self.scene.play_particle(particle.0, at) }
+        unsafe { self.scene.play_particle(particle.0, at, body.bones) }
     }
     pub fn move_to(&self, particle: super::resources::KeptParticle, at: &[f32; 16]) {
         // SAFETY: as play.

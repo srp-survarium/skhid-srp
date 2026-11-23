@@ -1645,7 +1645,13 @@ impl Decoded<'_> {
         // rule's kills.
         if game_mode == RuleMode::FreezeTag {
             let rule = self.rules.as_ref()?.freeze_tag.as_ref()?;
-            return Some(Standing { points: rule.points(), winner: rule.winner().map_or(2, |team| team.index() as u8) });
+            // A team at the wins has won, in its last round's 3 s too (a match the time limit ends
+            // then).
+            let at_goal = [srp_validate::Team::First, srp_validate::Team::Second]
+                .into_iter()
+                .find(|team| rule.points_of(*team) == u16::from(srp_validate::world::freeze::WINS));
+            let winner = rule.winner().or(at_goal);
+            return Some(Standing { points: rule.points(), winner: winner.map_or(2, |team| team.index() as u8) });
         }
         if game_mode == RuleMode::FreeForAll {
             return None;
