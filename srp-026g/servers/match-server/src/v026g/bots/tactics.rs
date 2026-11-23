@@ -2797,15 +2797,6 @@ impl Tactics {
             if out.len() >= n && cost.is_none() && weighing.is_none() {
                 break;
             }
-            // A spot on a storey over the anchor is one a walk up gets to (stairs,
-            // a ramp), not one only a jump chain does ([`Self::walk_up_from`]).
-            if spot.at.y > query.around.y + STOREY_FROM_M
-                && !by_walk
-                    .get_or_insert_with(|| self.walk_up_set(self.walk_up_anchor(query), query.max_m + WALK_UP_MARGIN_M))
-                    .contains(spot.node)
-            {
-                continue;
-            }
             let eye = still_eye(spot.at, true);
             if let Some(target) = query.sight_to {
                 let target = target + Vec3::new(0.0, 1.0, 0.0);
@@ -2819,6 +2810,23 @@ impl Tactics {
             }
             if let Some(from) = query.unseen_by
                 && self.sees(still_eye(from, false), still_eye(spot.at, false))
+            {
+                continue;
+            }
+            // A spot on a storey over the anchor is one a walk up gets to (stairs,
+            // a ramp), not one only a jump chain does ([`Self::walk_up_from`]).
+            // [CPU] Asked after the sight rays above, which are pure tests as this
+            // one is (a spot passes all or is left out, in any order): the walk-up
+            // set (a search of up to 40,000 floors, 2.2 ms) is made only when a
+            // storey spot is in sight. Most are not: 62 % of the sets made before
+            // were never needed on Chemical Plant's batteries, 27 % on Mamayev
+            // Kurgan's deathmatch (the gate bench of 2026-11-23, batt m2 s2 and
+            // tdm m6 s1). Before the line of fire below, whose tallies count only
+            // the spots that pass.
+            if spot.at.y > query.around.y + STOREY_FROM_M
+                && !by_walk
+                    .get_or_insert_with(|| self.walk_up_set(self.walk_up_anchor(query), query.max_m + WALK_UP_MARGIN_M))
+                    .contains(spot.node)
             {
                 continue;
             }
@@ -4458,6 +4466,29 @@ pub(super) mod tests {
             .collect();
         assert!(!ys.is_empty());
         assert!(ys.iter().all(|&y| y <= 2.0), "{ys:?}");
+    }
+
+    /// [CPU] The walk-up set is made only for a storey spot that passes the sight tests: with his point under the ground
+    /// no spot is in sight, so none is offered and no set is made (before, the first storey spot made one); with it by the
+    /// ramp's foot, the platform's spots in sight make the one set and are offered.
+    #[test]
+    fn the_walk_up_set_is_made_only_for_a_storey_spot_in_sight() {
+        let tactics = Tactics::new(platform_world(), 1.0);
+        let anchor = Vec3::new(26.0, 0.0, 24.0);
+        let query = |sight_to: Vec3| SpotQuery {
+            prefer_high: 1.0,
+            up_m: 8.0,
+            sight_to: Some(sight_to),
+            side: Some(0),
+            samples: 600,
+            ..SpotQuery::ring(anchor, 0.0, 14.0)
+        };
+        let made = |t: &Tactics| t.walk_ups.lock().unwrap().len();
+        assert!(tactics.spots(&query(Vec3::new(26.0, -20.0, 24.0)), 0, 40, &mut Rng::new(3)).is_empty());
+        assert_eq!(made(&tactics), 0);
+        let seen = tactics.spots(&query(anchor), 0, 40, &mut Rng::new(3));
+        assert!(seen.iter().any(|s| s.at.y > 3.5), "{seen:?}");
+        assert_eq!(made(&tactics), 1);
     }
 
     /// Decisions with no storey over the ring are the old search's: the
