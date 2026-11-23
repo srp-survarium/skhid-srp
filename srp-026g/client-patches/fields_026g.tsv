@@ -1855,7 +1855,7 @@ vostok::render::probe_loop_frame	pass	0x34	u32	[esp+34h]: the probe's pass, 0 fr
 vostok::render::probe_loop_frame	end	0x64	ptr<vostok::render::probe_slot>	[esp+64h]: the sorted list's end (scene_view+16CF8h, 0x180B68)
 vostok::render::probe_slot	probe	0x0	ptr<vostok::render::environment_probe>	one place of the scene view's sorted probe list (+16CF4h..+16CF8h): the probe (mov esi,[eax] at 0x180B94)
 vostok::render::probe_slot	size	0x4	size	a place is a pointer: the loop steps 4 (0x181641)
-vostok::render::environment_probe	radius	0x320	f32	the probe's radius plus its tie-breaker +380h (set_properties 0x1C3722): the visible list's sort key, largest first (sort_by_size_predicate 0x1BA0C7); for a box nothing else draws by it (renderer-026g.md 5.3); a 0.69d scene's local probe has it below 0 (patch 202)
+vostok::render::environment_probe	radius	0x320	f32	the probe's radius plus its tie-breaker +380h (set_properties 0x1C3722): the visible list's sort key, largest first (sort_by_size_predicate 0x1BA0C7); for a box nothing else draws by it (renderer-026g.md 5.3); a 0.69d scene's local probe has it below 0 (patch 203)
 vostok::render::environment_probe	smart_attenuation	0x33A	u8	smart_attenuation (render_environment_probes reads it into the effect's index, 0x180D59)
 vostok::render::environment_probe	geometry	0x33C	u32	0 sphere, 1 box (any other value drawn as a box: 0x180BC4)
 vostok::render::stage_ambient_lighting	context	0x4	ptr<vostok::render::renderer_context>	the renderer context (render_environment_probes 0x1809AE; clear_surfaces 0x180824)

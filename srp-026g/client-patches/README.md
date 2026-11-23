@@ -6888,7 +6888,7 @@ binder's four readers of it. The binder's bindings (one per action id) grow from
 the save's loop 60h, and moves its game pointer (+360h) after them. The rows are patch 62's
 `controls` (61 rows). `check_item_hotkeys_026g.py` runs the binder's functions and the whole input
 builder in both exes (needs Unicorn); `docs/notes/client_patch.md` 3.105.
-## A 0.69d scene's local probes as 0.69d composes them (patch 202, unreleased)
+## A 0.69d scene's local probes as 0.69d composes them (patch 203, unreleased)
 
 On a ported 0.69d map (Rudnya v0.69) the light between two abutting interior probes is 0.69d's,
 not a bright seam (the tester's church nave, 2026-11-23: "strange light line in the middle").
@@ -6906,4 +6906,4 @@ families of the lighting pack (three-maps-021-lighting@15, `environment_probe_ti
 scene, and any probe of a radius at or above 0, draws as before (stock level_07 has a probe of
 radius -0.4: it stays 0.26g's). The exe patch, the lighting pack and the map's pack ship together.
 Rendering only: nothing a match computes or a world holds changes
-(`../docs/notes/probe-tiers-069d.md`, `../docs/notes/client_patch.md` section 3.105).
+(`../docs/notes/probe-tiers-069d.md`, `../docs/notes/client_patch.md` section 3.107).

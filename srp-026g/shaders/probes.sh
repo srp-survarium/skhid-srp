@@ -2,7 +2,7 @@
 # probes.sh check <resources.db>
 # probes.sh build <resources.db> <out dir>
 #
-# The 0.26g box environment probe program and patch 202's tier programs, from
+# The 0.26g box environment probe program and patch 203's tier programs, from
 # sm_4_0/environment_probe_lighting.ps: the 8 permutations of ENV_PROBE_GEOMETRY_TYPE 1, LOD_INDEX 0
 # (GLOBAL_LIGHTING_QUALITY 0/3 x CONFIG_TDIFFUSE x CONFIG_TALPHABLENDED_DIFFUSE).
 #   check: compile the stock program (TIER 0) and compare with the shipped DXBC. Expected: 6 of 8

@@ -4762,7 +4762,7 @@ or "no window" (a locked or switching desktop). It is asked only for a line.
 registers in every poll, and the lines above only from the patched exe, once per change. The
 lost-device line's paths are run with a failed HRESULT's look in EAX: no line. A log line only:
 nothing a match computes.
-### 3.105 A 0.69d scene's local probes as 0.69d composes them (written 2026-11-23, README patch 202) — PROVEN in the code of 0.26g and the data; the 0.69d side from the earlier bytecode read; captured headless (probe-tiers-069d.md)
+### 3.107 A 0.69d scene's local probes as 0.69d composes them (written 2026-11-23, README patch 203) — PROVEN in the code of 0.26g and the data; the 0.69d side from the earlier bytecode read; captured headless (probe-tiers-069d.md)
 
 0.69d averages the probes of its local tier by their weights (`sum(w L) / max(W, 1)`) and shows the
 global tier only where `1 - W` remains; 0.26g lerps each probe over the ones before it, so between two

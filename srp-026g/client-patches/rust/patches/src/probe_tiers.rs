@@ -1,4 +1,4 @@
-//! Patch 202: a 0.69d scene's local environment probes are composed as
+//! Patch 203: a 0.69d scene's local environment probes are composed as
 //! 0.69d composes them (docs/notes/probe-tiers-069d.md).
 //!
 //! 0.69d draws its probes in tiers: in a tier each probe adds its light

@@ -1,4 +1,4 @@
-# 0.69d's local probe tier in 0.26g (exe patch 202)
+# 0.69d's local probe tier in 0.26g (exe patch 203)
 
 The tester's Rudnya (v0.69) reports of 2026-11-23: in the church nave "there is still strange light
 line in the middle" (05-church-inside-d), "here also seen on seams" (-e, -f). The owner's rule for

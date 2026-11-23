@@ -1,5 +1,5 @@
 //! The environment probes' draw and their four box effects' compiles, for
-//! patch 202 (docs/notes/probe-tiers-069d.md): what a probe of the loop is,
+//! patch 203 (docs/notes/probe-tiers-069d.md): what a probe of the loop is,
 //! the loop's place in the sorted list, the bound render targets, and a
 //! technique's pixel shader, blend and extra texture while it compiles. Every
 //! field is fields_026g.tsv's, every site sites_026g.tsv's.

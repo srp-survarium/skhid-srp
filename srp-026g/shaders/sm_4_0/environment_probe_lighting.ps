@@ -1,11 +1,11 @@
 // environment_probe_lighting.ps for Survarium 0.26g, the box probes (ENV_PROBE_GEOMETRY_TYPE 1,
-// LOD_INDEX 0), reconstructed from the shipped blobs, and patch 202's three tier programs built on it.
+// LOD_INDEX 0), reconstructed from the shipped blobs, and patch 203's three tier programs built on it.
 // Permutation ___A_B____________________0C___0_________1 : A = GLOBAL_LIGHTING_QUALITY (0 or 3),
 // B = CONFIG_TDIFFUSE (affect_diffuse), C = CONFIG_TALPHABLENDED_DIFFUSE (blend).
 // Compile: fxc /Zpr /O3 /T ps_4_0 /E main /D LIGHTING_QUALITY=A /D AFFECT_DIFFUSE=B /D BLEND=C [/D TIER=n]
 // TIER 0 (the stock program): 6 of the 8 byte-identical; A = 0, C = 0 multiply the specular's 0.25
 // after the SSAO factor where the shipped blob multiplies it before (one mul's operands, probes.sh).
-// TIER 1, 2, 3: environment_probe_tier_weight, _damp, _light (patch 202, docs/notes/probe-tiers-069d.md).
+// TIER 1, 2, 3: environment_probe_tier_weight, _damp, _light (patch 203, docs/notes/probe-tiers-069d.md).
 #ifndef LIGHTING_QUALITY
 #define LIGHTING_QUALITY 3
 #endif
@@ -125,7 +125,7 @@ float3 specular_texel( float3 direction, float mip )
 
 
 #if TIER
-// 0.69d's local probe tier (patch 202): a local probe's weight is 0.69d's falloff (attenuation_power 1),
+// 0.69d's local probe tier (patch 203): a local probe's weight is 0.69d's falloff (attenuation_power 1),
 // linear from its inner box (half extent - side width, 0.01 at least) to its outer face, per axis; a cylinder (about its
 // local y) takes the distance from its axis for x and z. The converter writes a local probe's radius
 // as -(shape + 0.25 + 0.5/(1 + R)), shape 1 a box, 2 a cylinder: the exe sets light_range = 0.98 radius

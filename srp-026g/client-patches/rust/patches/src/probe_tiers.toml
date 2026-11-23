@@ -1,8 +1,8 @@
-# Patch 202: a 0.69d scene's local environment probes composed as 0.69d
+# Patch 203: a 0.69d scene's local environment probes composed as 0.69d
 # composes them (probe_tiers.rs; docs/notes/probe-tiers-069d.md). The sites
 # are sites_026g.tsv's.
 name = "probe_tiers"
-patch = 202
+patch = 203
 [[hook]]
 site = "probe_lighting_1000.begin_pass0"
 handler = "on_pass0_1000"
