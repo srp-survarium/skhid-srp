@@ -2290,6 +2290,11 @@ fn drive_tick_inner(
                     if let Some(line) = bot.motor.take_line_hold_line() {
                         bot.nav_log.push(super::nav_log::Kind::Press, time, line);
                     }
+                    // [rest at the run-up] A walk-in's bail-out backed to the link's run-up point: one line a point a match.
+                    if let Some((rest, line)) = bot.motor.take_rest_back_line() {
+                        let key = super::nav_log::key(("rest at the run-up", (rest.x * 10.0).round() as i32, (rest.z * 10.0).round() as i32));
+                        bot.nav_log.push_once(super::nav_log::Kind::Press, key, time, line);
+                    }
                     // [A1b] A walk-off at release that ended: where the body came to rest (decision-neutral).
                     if let Some(line) = bot.motor.take_walk_off_line() {
                         bot.nav_log.push(super::nav_log::Kind::WalkOff, time, line);
