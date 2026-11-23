@@ -6750,3 +6750,7 @@ va	name	location	role	basis
 0x002d43b0	survarium::game_world_core::new_world_event	EAX	the core's world events (core+12740h)	observed
 0x00233770	survarium::game_world_ui::on_kill_cross_event	entry ESP+4	&game_world+564h, the last kill-cross time ([+4] the game_world_ui); a sealed event of any type writes its time (+24h) there (0x2337FA..0x233804), so a kill a re-simulation makes at or before an event already walked is never shown	observed
 0x00233770	survarium::game_world_ui::on_kill_cross_event	entry ESP+8	sealed (bool): the event is at or below the walker's bound	observed
+0x00297630		ECX	a third-person presenter	observed
+0x0031e810		ECX	a game effects presenter	observed
+0x0031e810		entry ESP+4	its +4: the player's +3A4h (set_effect_presenter 0x1F3763)	observed
+0x002dda40		EDI	the game_effect_player (a player's +358h)	observed
