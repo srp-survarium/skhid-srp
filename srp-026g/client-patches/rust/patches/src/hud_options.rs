@@ -1082,13 +1082,12 @@ pub const TEXTS: [&CStr; 21] = [c"st_srp_options_hud", c"st_srp_hide_quests_opti
 /// The Controls' action selector's texts (dictionary keys), in the order
 /// `root.srp_controls_texts` gives them (the main menu's SelectorTexts): its
 /// title, the search field's hint, Unbind, a free key, the two warnings (an
-/// action moved from its key, the actions the key leaves), no match, the keys'
-/// hints (choose, assign, the stock Cancel), a lobby key's tag, then the five
+/// action moved from its key, the actions the key leaves), no match, Assign,
+/// the stock Cancel, a lobby key's tag, then the five
 /// kinds' names (the Key bindings window's, SrpKeysWindow.KINDS' order).
-pub const CONTROLS_TEXTS: [&CStr; 16] = [c"st_srp_controls_title", c"st_srp_controls_search", c"st_srp_controls_unbind",
+pub const CONTROLS_TEXTS: [&CStr; 15] = [c"st_srp_controls_title", c"st_srp_controls_search", c"st_srp_controls_unbind",
                                          c"st_srp_controls_free", c"st_srp_controls_moves", c"st_srp_controls_loses",
-                                         c"st_srp_controls_no_match", c"st_srp_controls_choose",
-                                         c"st_srp_controls_assign", c"st_cancel", c"st_srp_controls_lobby",
+                                         c"st_srp_controls_no_match", c"st_srp_controls_assign", c"st_cancel", c"st_srp_controls_lobby",
                                          c"st_srp_keys_movement", c"st_srp_keys_combat", c"st_srp_keys_items",
                                          c"st_srp_keys_talk", c"st_srp_keys_interface"];
 

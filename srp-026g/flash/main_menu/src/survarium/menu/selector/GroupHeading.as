@@ -3,27 +3,30 @@ package survarium.menu.selector
    import flash.display.Graphics;
    import flash.text.TextField;
    
-   // A kind's heading over its actions (SrpKeysWindow.KINDS' `kind`): its name in its colour and a
-   // rule to the row's end.
+   // A kind's heading over its actions (SrpKeysWindow.KINDS' `kind`), as the Settings tab's headings:
+   // its name in the title's ink, a small mark of its colour before it, a rule to the row's end.
    public class GroupHeading extends SelectorRow
    {
       
-      public static const HEIGHT:Number = 34;
+      public static const HEIGHT:Number = 32;
       
-      public function GroupHeading(kind:int, texts:SelectorTexts, rowWidth:Number)
+      public function GroupHeading(kind:int, texts:SelectorTexts, rowWidth:Number, filters:Array)
       {
          super(rowWidth,HEIGHT);
          var colour:uint = uint(SrpKeysWindow.KINDS[kind].colour);
-         var name:TextField = Paint.text(13,colour,1.6);
-         name.text = String(texts.groups[kind]).toUpperCase();
-         name.x = 12;
-         name.y = HEIGHT - name.height - 3;
+         var name:TextField = Paint.text(15,Paint.TITLE,filters);
+         name.text = String(texts.groups[kind]);
+         name.x = 26;
+         name.y = HEIGHT - name.height - 2;
          addChild(name);
          var g:Graphics = graphics;
-         var line:Number = Math.round(name.y + name.height / 2) + 0.5;
-         g.lineStyle(1,Paint.mix(Paint.EDGE,colour,0.3));
-         g.moveTo(name.x + name.width + 10,line);
-         g.lineTo(rowWidth - 12,line);
+         var middle:Number = Math.round(name.y + name.height / 2);
+         g.beginFill(colour);
+         g.drawRect(12,middle - 4,8,8);
+         g.endFill();
+         g.beginFill(Paint.RULE);
+         g.drawRect(name.x + name.width + 10,middle,rowWidth - 12 - (name.x + name.width + 10),1);
+         g.endFill();
       }
    }
 }

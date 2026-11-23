@@ -2432,7 +2432,6 @@ st_srp_ban_reason_racism	Rassismus oder Nazismus.
 st_srp_ban_reason_teamkilling	Töten von Teamkameraden.
 st_srp_ban_reason_threats	Drohungen im echten Leben.
 st_srp_controls_assign	Zuweisen
-st_srp_controls_choose	Wählen
 st_srp_controls_free	Freie Taste
 st_srp_controls_lobby	Lobby
 st_srp_controls_loses	%1$s hat dann keine Taste.

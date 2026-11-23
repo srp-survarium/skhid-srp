@@ -12,22 +12,26 @@ package
     import flash.system.LoaderContext;
     import flash.text.TextField;
     import flash.ui.Keyboard;
+    import flash.utils.getTimer;
 
     // The Controls' action selector (survarium/menu/selector/ActionSelector) in the rebuilt main menu, over
-    // the Settings, the exe and the Controls window stood in for: the options' real rows with made-up
-    // keys (check.sh's data: a language's name, the exe's texts, its rows), opened for a key the way the
-    // window opens it. Checks the rows (every offered action once, by group, the fixed chat keys left
-    // out), the highlight, Up/Down/Page keys, Enter, Esc (no further than the selector: the Settings stay),
-    // a click, Unbind, the search, no match, a free key, the warnings (an action moved from its key, the
-    // key's action of the same kind left without one, a lobby action taking nothing from the match),
-    // scrolling and the backdrop and the close button; then every language's texts fitting. Prints
+    // the Settings, the exe and the Key bindings window stood in for: the options' real rows with made-up
+    // keys (check.sh's data: a language's name, the exe's texts, its rows), asked for a key as
+    // SrpKeysWindow.selector is (its request, the answer). Checks the rows (every offered action once, by
+    // kind in the table's order, the chat's fixed keys left out), the highlight, Up/Down/Page keys, Enter,
+    // Esc (no further than the selector: the Settings stay), a click, Assign, Unbind (off for a free key),
+    // Cancel, the search, no match, the warnings (an action moved from its key, the key's action of the
+    // same kind left without one, a lobby action taking nothing from the match), scrolling, the backdrop
+    // and the close button; then every language's texts fitting. Prints
     // "SELECTOR ..." lines, "SELECTOR SHOT <name>" for check.sh's screenshots (each state held a while),
     // and "SELECTOR RESULT pass" or "SELECTOR RESULT fail: ...", then "SELECTOR END".
     public class ActionSelectorHarness extends Sprite
     {
         private static const SPOT:uint = 0x22, JUMP:uint = 0x04, SHOP:uint = 0x42, CROUCH_TOGGLE:uint = 0x06;
         private static const CHARACTER:uint = 0x40, SEND_MESSAGE:uint = 0x45, SEND_TO:uint = 0x46;
-        private static const HOLD:int = 90;
+        // A state is drawn for this long (real time: Ruffle catches up on frames a long tick cost without
+        // drawing them) before check.sh is told to take it, and kept as long after.
+        private static const HOLD:int = 1500;
 
         private var loader:Loader = new Loader();
         private var frames:int = 0;
@@ -37,7 +41,8 @@ package
         private var asked:int = 0;
         private var failed:String = null;
         private var step:int = 0;
-        private var wait:int = 0;
+        private var pending:String = null;
+        private var until:int = 0;
 
         public function ActionSelectorHarness()
         {
@@ -155,7 +160,14 @@ package
         private function tick(e:Event):void
         {
             ++frames;
-            if (wait > 0) { --wait; return; }
+            if (getTimer() < until) return;
+            if (pending != null)
+            {
+                trace("SELECTOR SHOT " + pending);
+                pending = null;
+                until = getTimer() + HOLD;
+                return;
+            }
             if (frames < 10) return;
             try
             {
@@ -172,8 +184,8 @@ package
 
         private function shot(name:String):void
         {
-            trace("SELECTOR SHOT " + name);
-            wait = HOLD;
+            pending = name;
+            until = getTimer() + HOLD;
         }
 
         private function run():void
@@ -249,7 +261,8 @@ package
         private function behaviour(lang:Array):void
         {
             var ActionRow:Class = cls("survarium.menu.selector.ActionRow");
-            var UnbindRow:Class = cls("survarium.menu.selector.UnbindRow");
+            var ButtonEvent:Class = cls("scaleform.clik.events.ButtonEvent");
+            var press:Function = function(b:*):void { b.dispatchEvent(new ButtonEvent("buttonClick")); };
             var GroupHeading:Class = cls("survarium.menu.selector.GroupHeading");
             // the main menu gives the window this selector
             require(Object(cls("SrpKeysWindow")).selector != null, "SrpKeysWindow.selector is set");
@@ -257,7 +270,8 @@ package
             told = [];
             open(lang, "Q");
             var list:Array = selector.rows;
-            require(list[0] is UnbindRow, "a bound key's first row is Unbind");
+            require(selector.unbindButton.enabled, "a bound key's Unbind is on");
+            require(selector.assignButton.enabled, "Assign is on with an action highlighted");
             // every row with a key button once, by kind in KINDS' order, the table's order in a kind
             var ids:Array = [];
             var groups:Array = [];
@@ -288,9 +302,8 @@ package
             // the key's action highlighted at the open, and in view
             require(selector.highlighted == rowOf(SPOT), "the key's action is highlighted at the open");
             inView(selector.highlighted);
-            var now:* = selector.panel.getChildByName("_now");
-            require(now != null && now.numChildren == 1 && now.getChildAt(0).text == labelOf(lang, SPOT), "the header names the key's action");
-            require(selector.panel.getChildByName("_key") != null, "the header shows the key");
+            require(selector.header.textField.text == labelOf(lang, SPOT), "the header names the key's action: " + selector.header.textField.text);
+            require(selector.header.btn_key.label == "Q", "the header's key box shows the key: " + selector.header.btn_key.label);
             require(warning() == "", "its own action warns of nothing: " + warning());
             // a lobby action takes nothing from the match: only its move
             hover(rowOf(SHOP));
@@ -310,7 +323,7 @@ package
             require(selector.scroll > 0, "the list scrolled");
             inView(selector.highlighted);
             for (i = 0; i < 12; i++) key(Keyboard.PAGE_UP);
-            require(selector.highlighted == choices[0] && selector.scroll == 0, "Page Up back to Unbind at the top");
+            require(selector.highlighted == choices[0] && selector.scroll == 0, "Page Up back to the first action at the top");
             // the wheel
             selector.panel.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_WHEEL, true, false, 0, 0, null, false, false, false, false, -3));
             require(selector.scroll > 0, "the wheel scrolls");
@@ -330,13 +343,22 @@ package
             open(lang, "Q");
             rowOf(CROUCH_TOGGLE).dispatchEvent(new MouseEvent(MouseEvent.CLICK, true));
             require(told.length == 1 && told[0] == CROUCH_TOGGLE, "a click picks: " + told);
+            // Assign picks the highlighted
+            told = [];
+            open(lang, "Q");
+            hover(rowOf(SHOP));
+            press(selector.assignButton);
+            require(told.length == 1 && told[0] == SHOP, "Assign picks: " + told);
             // Unbind
             told = [];
             open(lang, "Q");
-            hover(selector.rows[0]);
-            require(warning() == format(lang[1][5], labelOf(lang, SPOT)), "Unbind's warning: " + warning());
-            selector.rows[0].dispatchEvent(new MouseEvent(MouseEvent.CLICK, true));
+            press(selector.unbindButton);
             require(told.length == 1 && told[0] == -2, "Unbind: " + told);
+            // Cancel
+            told = [];
+            open(lang, "Q");
+            press(selector.cancelButton);
+            require(!selector.isOpen && told.length == 1 && told[0] == -1, "Cancel: " + told);
             // the search
             told = [];
             open(lang, "Q");
@@ -344,7 +366,6 @@ package
             var found:Array = actionRows();
             require(found.length == 3, "three grenades: " + found.length);
             for each (r in found) require(String(r.action.label).toLowerCase().indexOf("gren") != -1, "a match: " + r.action.label);
-            require(!(selector.rows[0] is UnbindRow), "no Unbind in the search's rows");
             require(selector.highlighted == found[0], "the first match highlighted");
             // a key's name finds its action
             type("mouse 1");
@@ -352,7 +373,7 @@ package
             type("zzzz");
             require(selector.rows.length == 0 && selector.highlighted == null, "no match: no rows");
             key(Keyboard.ENTER);
-            require(selector.isOpen && told.length == 0, "Enter with nothing to pick does nothing");
+            require(selector.isOpen && told.length == 0 && !selector.assignButton.enabled, "Enter with nothing to pick does nothing, Assign off");
             type("");
             require(actionRows().length == 59, "the search cleared: every action");
             // the backdrop and the close button cancel
@@ -360,20 +381,21 @@ package
             require(!selector.isOpen && told.length == 1 && told[0] == -1, "a click outside cancels: " + told);
             told = [];
             open(lang, "Q");
-            selector.panel.getChildByName("_close").dispatchEvent(new MouseEvent(MouseEvent.CLICK, true));
+            press(selector.closeButton);
             require(!selector.isOpen && told.length == 1 && told[0] == -1, "the close button cancels: " + told);
             // a free key: no Unbind, the header says free; a pick of an unbound action warns of nothing
             told = [];
             open(lang, "J");
-            require(!(selector.rows[0] is UnbindRow), "a free key has no Unbind");
-            now = selector.panel.getChildByName("_now");
-            require(now.getChildAt(0).text == lang[1][3], "the header says free: " + now.getChildAt(0).text);
+            require(!selector.unbindButton.enabled, "a free key's Unbind is off");
+            press(selector.unbindButton);
+            require(selector.isOpen && told.length == 0, "Unbind off does nothing");
+            require(selector.header.textField.text == lang[1][3], "the header says free: " + selector.header.textField.text);
             hover(rowOf(0x4A));
             require(warning() == "", "an unbound action onto a free key warns of nothing: " + warning());
             // a key with a lobby and a match action: both in the header; a match pick takes only the match's
             open(lang, "C");
-            now = selector.panel.getChildByName("_now");
-            require(now.numChildren == 2, "C's two actions in the header: " + now.numChildren);
+            require(selector.header.textField.text == labelOf(lang, CROUCH_TOGGLE) + ", " + labelOf(lang, CHARACTER),
+                "C's two actions in the header: " + selector.header.textField.text);
             hover(rowOf(JUMP));
             require(warning() == format(lang[1][4], labelOf(lang, JUMP), "Space") + " " + format(lang[1][5], labelOf(lang, CROUCH_TOGGLE)),
                 "Jump onto C takes it from crouch toggle only: " + warning());
@@ -388,8 +410,8 @@ package
             require(top >= 0 && top + row.rowHeight <= selector.list.mask.height + 0.5, "the row is in view (" + top + ")");
         }
 
-        // Every text of `lang` whole on its place: each row's label, the groups, the title, the hints, the
-        // footer's warnings in two lines.
+        // Every text of `lang` whole on its place: each row's label, the kinds, the title, the header, the
+        // buttons, the warning in two lines over the bottom bar.
         private function fits(lang:Array):int
         {
             var ActionRow:Class = cls("survarium.menu.selector.ActionRow");
@@ -404,9 +426,9 @@ package
                     trace("SELECTOR OVERFLOW " + lang[0] + " row: " + r.action.label + " shows " + r.label.text);
                     ++bad;
                 }
-                if (r.width > r.rowWidth + 0.5)
+                if (r is ActionRow && r.stock.x + r.label.x + r.label.textWidth + 4 > r.rowWidth)
                 {
-                    trace("SELECTOR OVERFLOW " + lang[0] + " row wider than the list: " + r.width);
+                    trace("SELECTOR OVERFLOW " + lang[0] + " row's label past the list: " + (r.stock.x + r.label.x + r.label.textWidth));
                     ++bad;
                 }
             }
@@ -422,24 +444,24 @@ package
             // the longest warning: Jump moved and spot's key taken, under the footer's preview, in it
             hover(rowOf(JUMP));
             var w:TextField = selector.warning;
-            if (w.numLines > 2 || w.y + w.height > selector.hints.y)
+            if (w.numLines > 2 || w.y + w.height > selector.unbindButton.y - 4)
             {
                 trace("SELECTOR OVERFLOW " + lang[0] + " warning: " + w.numLines + " lines, to " + (w.y + w.height));
                 ++bad;
             }
-            // the preview's label beside the hints, uncut for every action
-            for each (r in actionRows())
+            // the buttons' labels on their buttons, the header's key and actions
+            for each (var b:* in [selector.unbindButton, selector.assignButton, selector.cancelButton])
             {
-                hover(r);
-                var pick:* = selector.footer.getChildByName("_pick");
-                for (i = 0; i < pick.numChildren; i++)
+                if (b.textField.textWidth + 4 > b.textField.width * b.scaleX + 0.5 || b.textField.numLines != 1)
                 {
-                    if (pick.getChildAt(i) is TextField && pick.getChildAt(i).text.indexOf("…") != -1)
-                    {
-                        trace("SELECTOR OVERFLOW " + lang[0] + " footer: " + pick.getChildAt(i).text);
-                        ++bad;
-                    }
+                    trace("SELECTOR OVERFLOW " + lang[0] + " button: " + b.label + " " + b.textField.textWidth + " of " + b.textField.width);
+                    ++bad;
                 }
+            }
+            if (selector.header.textField.text.indexOf("…") != -1)
+            {
+                trace("SELECTOR OVERFLOW " + lang[0] + " header: " + selector.header.textField.text);
+                ++bad;
             }
             trace("SELECTOR " + lang[0] + " fits: " + (bad == 0 ? "yes" : bad + " not"));
             selector.close();

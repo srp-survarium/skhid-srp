@@ -2432,7 +2432,6 @@ st_srp_ban_reason_racism	Rasismi tai natsismi.
 st_srp_ban_reason_teamkilling	Joukkuetovereiden tappaminen.
 st_srp_ban_reason_threats	Uhkaukset tosielämässä.
 st_srp_controls_assign	Määritä
-st_srp_controls_choose	Valitse
 st_srp_controls_free	Vapaa näppäin
 st_srp_controls_lobby	Aula
 st_srp_controls_loses	%1$s jää ilman näppäintä.

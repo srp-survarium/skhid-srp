@@ -2432,7 +2432,6 @@ st_srp_ban_reason_racism	Racism or Nazism.
 st_srp_ban_reason_teamkilling	Killing teammates.
 st_srp_ban_reason_threats	Real-life threats.
 st_srp_controls_assign	Assign
-st_srp_controls_choose	Choose
 st_srp_controls_free	Free key
 st_srp_controls_lobby	Lobby
 st_srp_controls_loses	%1$s will have no key.

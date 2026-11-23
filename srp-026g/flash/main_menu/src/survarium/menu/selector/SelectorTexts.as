@@ -6,7 +6,7 @@ package survarium.menu.selector
    public class SelectorTexts
    {
 
-      public static const COUNT:int = 16;
+      public static const COUNT:int = 15;
 
       public var title:String;
 
@@ -23,8 +23,6 @@ package survarium.menu.selector
       public var loses:String;
 
       public var noMatch:String;
-
-      public var choose:String;
 
       public var assign:String;
 
@@ -49,11 +47,10 @@ package survarium.menu.selector
          this.moves = text(4);
          this.loses = text(5);
          this.noMatch = text(6);
-         this.choose = text(7);
-         this.assign = text(8);
-         this.cancel = text(9);
-         this.lobby = text(10);
-         this.groups = [text(11),text(12),text(13),text(14),text(15)];
+         this.assign = text(7);
+         this.cancel = text(8);
+         this.lobby = text(9);
+         this.groups = [text(10),text(11),text(12),text(13),text(14)];
       }
 
       public static function format(text:String, ... values) : String

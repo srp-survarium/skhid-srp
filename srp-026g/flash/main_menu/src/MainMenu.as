@@ -43,6 +43,7 @@ package
          addChild(this.settings_window);
          this.settings_window.visible = false;
          addChild(this.key_action_selector);
+         this.key_action_selector.titleStyle = this.settings_window.textFieldLabel;
          SrpKeysWindow.selector = this.key_action_selector.select;
          var _spr:Sprite = new Sprite();
          stage.addChild(_spr);

@@ -2432,7 +2432,6 @@ st_srp_ban_reason_racism	Rasizam ili nacizam.
 st_srp_ban_reason_teamkilling	Ubijanje saveznika.
 st_srp_ban_reason_threats	Pretnje u stvarnom životu.
 st_srp_controls_assign	Dodeli
-st_srp_controls_choose	Izbor
 st_srp_controls_free	Slobodan taster
 st_srp_controls_lobby	Lobi
 st_srp_controls_loses	%1$s ostaje bez tastera.

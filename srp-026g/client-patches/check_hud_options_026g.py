@@ -798,11 +798,11 @@ def main():
     expect(stock_invokes == [], "the original ignores srp_hud_texts")
     before = state()
     invokes, count = ours.callback("srp_controls_texts")
-    expect(len(CONTROLS) == 16 and invokes == [(language.MOVIE, "root.srp_controls_texts",
+    expect(len(CONTROLS) == 15 and invokes == [(language.MOVIE, "root.srp_controls_texts",
                                                  tuple(CONTROLS_ENGLISH[k][:64] for k in CONTROLS))]
            and count == 0 and state() == before,
-           "srp_controls_texts: the action selector's 16 texts (title, search, Unbind, free key, the two warnings, "
-           "no match, the keys' hints, Lobby, the five groups), nothing set or saved")
+           "srp_controls_texts: the action selector's 15 texts (title, search, Unbind, free key, the two warnings, "
+           "no match, Assign, Cancel, Lobby, the five kinds), nothing set or saved")
     stock_invokes, _ = stock.callback("srp_controls_texts")
     expect(stock_invokes == [], "the original ignores srp_controls_texts")
     invokes, count = ours.callback("srp_language")

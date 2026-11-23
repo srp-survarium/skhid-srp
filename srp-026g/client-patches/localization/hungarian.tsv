@@ -2432,7 +2432,6 @@ st_srp_ban_reason_racism	Rasszizmus vagy nácizmus.
 st_srp_ban_reason_teamkilling	Csapattársak megölése.
 st_srp_ban_reason_threats	Valós életbeli fenyegetés.
 st_srp_controls_assign	Hozzárendelés
-st_srp_controls_choose	Választás
 st_srp_controls_free	Szabad billentyű
 st_srp_controls_lobby	Lobbi
 st_srp_controls_loses	%1$s billentyű nélkül marad.

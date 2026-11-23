@@ -2432,7 +2432,6 @@ st_srp_ban_reason_racism	Rasizam ili nacizam.
 st_srp_ban_reason_teamkilling	Ubijanje suigrača.
 st_srp_ban_reason_threats	Prijetnje u stvarnom životu.
 st_srp_controls_assign	Dodijeli
-st_srp_controls_choose	Odabir
 st_srp_controls_free	Slobodna tipka
 st_srp_controls_lobby	Predvorje
 st_srp_controls_loses	%1$s ostaje bez tipke.

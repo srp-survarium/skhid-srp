@@ -1,8 +1,9 @@
 package survarium.menu.selector
 {
+   import flash.display.BitmapData;
    import flash.display.DisplayObject;
-   import flash.display.GradientType;
    import flash.display.Graphics;
+   import flash.display.MovieClip;
    import flash.display.Shape;
    import flash.display.Sprite;
    import flash.events.Event;
@@ -14,93 +15,113 @@ package survarium.menu.selector
    import flash.geom.Point;
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
-   import flash.text.TextFieldType;
    import flash.text.TextFormat;
+   import flash.text.TextFormatAlign;
    import flash.ui.Keyboard;
+   import scaleform.clik.controls.Button;
+   import scaleform.clik.events.ButtonEvent;
    import survarium.constants.UiSound;
 
-   // The Controls' action selector (the owner, 2026-11-23: "selector should be its own thing"): a
-   // panel over the menu, opened for one key, that lists every action the player may give a key,
-   // by kind in its colour (SrpKeysWindow.KINDS), each with its key now; a search field filters them
-   // as one types; "Unbind" leaves the key with none. Up and Down (Page Up, Page Down) move through
-   // the choices, Enter or a click picks, Esc, the close button or a click outside cancels. The
-   // footer shows what the pick does, and in amber when it moves an action from another key or takes
-   // the key from another action (the game's conflict rule: one lobby action and one of the match a key).
+   // The Controls' action selector (the owner, 2026-11-23: "selector should be its own thing", in the
+   // game's own style): a window over the menu in the Settings window's skin (its background art, title
+   // band, close button, the stock text input, key rows, scroll bar, bottom bar and buttons), opened for
+   // one key. It lists every action the player may give a key, as the Settings' own key rows with each
+   // action's key now, under its kind's heading (SrpKeysWindow.KINDS: the kind's colour only as a mark);
+   // the search field filters them as one types. Up and Down (Page Up, Page Down) move through them,
+   // Enter, a click or Assign picks; Unbind leaves the key with none; Esc, Cancel, the close button or a
+   // click outside cancels. Over the bottom bar, in amber, what else the pick changes: the action moved
+   // from its key, the key taken from another action (the game's conflict rule: one lobby action and one
+   // of the match a key).
    //
    // The Key bindings window (SrpKeysWindow) asks it through SrpKeysWindow.selector, which the main
    // menu sets to `select`:
    //    select(request, answer)
    //    request  {key: the binder's key id ("kSPACE", "mouse1"), keyName: its text, actions: the rows
    //             bound to it, rows: every row (root.set_keybindings' objects), kinds: SrpKeysWindow.KINDS}
-   //    answer   called once, after the panel has closed: answer(actionId) the action picked for the
+   //    answer   called once, after the window has closed: answer(actionId) the action picked for the
    //             key, answer(UNBIND) the key to have no action, answer(CANCEL) nothing changes
-   // and the window applies it (srp_bind_key). close() takes the panel away answering nothing (the
-   // host closing over it); isOpen says whether it is open.
+   // and the window applies it (srp_bind_key). close() takes it away answering nothing (the host closing
+   // over it); isOpen says whether it is open.
    public class ActionSelector extends Sprite
    {
 
       public static const CANCEL:int = -1;
-      
+
       public static const UNBIND:int = -2;
-      
-      public static const WIDTH:Number = 620;
+
+      // the Settings window's width (its background art's)
+      public static const WIDTH:Number = 650;
 
       public static const MAX_HEIGHT:Number = 720;
 
-      // around the panel, to the screen's edges at the least
+      // around the window, to the screen's edges at the least
       private static const MARGIN:Number = 24;
 
-      private static const PAD:Number = 24;
+      // the Settings' layout: its content's left, its art's title band and foot (its bottom bar at stock
+      // y 479.9 of 565, 50 tall), its buttons (120 and 118 wide, 34 tall, at 200.55 and 325.9)
+      private static const LEFT:Number = 27;
 
-      private static const KEYCAP:Number = 64;
+      private static const ART_TOP:Number = 40;
 
-      private static const SEARCH_HEIGHT:Number = 42;
+      private static const ART_BOTTOM:Number = 72;
 
-      private static const FOOTER:Number = 118;
+      private static const BAR:Number = 50;
 
-      private static const LIST_X:Number = 14;
+      private static const ROW_X:Number = 18;
 
-      private static const ROW_WIDTH:Number = WIDTH - LIST_X - 30;
+      private static const ROW_WIDTH:Number = WIDTH - ROW_X - 42;
+
+      private static const HEADER_Y:Number = 50;
+
+      private static const SEARCH_Y:Number = 92;
+
+      private static const LIST_Y:Number = 134;
+
+      // the warning's two lines over the bottom bar
+      private static const NOTE:Number = 46;
 
       private static const NAVIGATION:Array = [Keyboard.UP,Keyboard.DOWN,Keyboard.PAGE_UP,Keyboard.PAGE_DOWN,Keyboard.ENTER,Keyboard.ESCAPE,Keyboard.TAB];
 
       // The exe's texts; null until it answers.
       private var texts:SelectorTexts = null;
 
-      // The open panel's state; null while closed.
+      // The Settings window's title, whose look the title takes (MainMenu gives it).
+      public var titleStyle:TextField = null;
+
+      // The open window's state; null while closed.
       private var session:Session = null;
 
       private var backdrop:Sprite;
 
       public var panel:Sprite;
 
+      public var input:MovieClip;
+
       public var search:TextField;
 
       private var placeholder:TextField;
 
-      private var searchBox:Shape;
+      public var header:MovieClip;
 
       public var list:Sprite;
 
       private var listMask:Shape;
 
-      private var listTop:Number;
-
       private var listHeight:Number;
 
-      private var scrollbar:Sprite;
-
-      private var thumb:Sprite;
+      public var scrollbar:MovieClip;
 
       private var empty:TextField;
 
-      public var footer:Sprite;
-
       public var warning:TextField;
 
-      public var hints:Sprite;
+      public var assignButton:Button;
 
-      private var dragFrom:Number = NaN;
+      public var unbindButton:Button;
+
+      public var cancelButton:Button;
+
+      public var closeButton:Button;
 
       public function ActionSelector()
       {
@@ -113,13 +134,13 @@ package survarium.menu.selector
          return this.session != null;
       }
 
-      // The rows on screen, top to bottom: GroupHeading, ActionRow and UnbindRow.
+      // The rows on screen, top to bottom: GroupHeading and ActionRow.
       public function get rows() : Array
       {
          return this.session == null ? [] : this.session.rows.concat();
       }
 
-      // The choice the keys and the mouse are on (null: none, nothing matches).
+      // The row the keys and the mouse are on (null: none, nothing matches).
       public function get highlighted() : SelectorRow
       {
          return this.session == null ? null : this.session.highlighted;
@@ -128,6 +149,11 @@ package survarium.menu.selector
       public function get scroll() : Number
       {
          return this.session == null ? 0 : this.session.scroll;
+      }
+
+      public function get viewHeight() : Number
+      {
+         return this.listHeight;
       }
 
       // root.srp_controls_texts: SelectorTexts' order.
@@ -176,8 +202,6 @@ package survarium.menu.selector
          stage.removeEventListener(KeyboardEvent.KEY_DOWN,this.onKey,false);
          stage.removeEventListener(KeyboardEvent.KEY_UP,this.onKey,false);
          stage.removeEventListener(Event.RESIZE,this.onResize);
-         stage.removeEventListener(MouseEvent.MOUSE_MOVE,this.onThumbMove);
-         stage.removeEventListener(MouseEvent.MOUSE_UP,this.onThumbUp);
          removeEventListener(KeyboardEvent.KEY_DOWN,this.keep);
          removeEventListener(KeyboardEvent.KEY_UP,this.keep);
          if(stage.focus == this.search)
@@ -193,18 +217,7 @@ package survarium.menu.selector
          visible = false;
       }
 
-      // The filter as the search field holds it (the harness types through it too).
-      public function filter(text:String) : void
-      {
-         if(this.session == null)
-         {
-            return;
-         }
-         this.search.text = text;
-         this.onSearch();
-      }
-
-      // Up and Down: the next choice that way, `steps` of them.
+      // Up and Down: the next action that way, `steps` of them.
       public function move(steps:int) : void
       {
          if(this.session == null)
@@ -222,31 +235,43 @@ package survarium.menu.selector
          this.reveal(choices[to]);
       }
 
-      // Enter or a click: the session ends with `row`'s choice.
+      // Enter, a click or Assign: the action of `row`.
       public function choose(row:SelectorRow) : void
       {
-         var session:Session = this.session;
-         if(session == null || row == null || !row.choice)
+         if(this.session != null && row is ActionRow)
          {
-            return;
+            this.finish(int(ActionRow(row).action.id));
          }
-         this.sound(UiSound.CLICK);
-         this.close();
-         session.answer(row is ActionRow ? int(ActionRow(row).action.id) : UNBIND);
+      }
+
+      public function unbind() : void
+      {
+         if(this.session != null && this.session.onKey().length > 0)
+         {
+            this.finish(UNBIND);
+         }
       }
 
       public function cancel() : void
       {
-         var session:Session = this.session;
-         if(session == null)
+         if(this.session != null)
          {
-            return;
+            this.finish(CANCEL);
          }
-         this.close();
-         session.answer(CANCEL);
       }
 
-      // ---- the panel
+      private function finish(answer:int) : void
+      {
+         var session:Session = this.session;
+         if(answer != CANCEL)
+         {
+            this.sound(UiSound.CLICK);
+         }
+         this.close();
+         session.answer(answer);
+      }
+
+      // ---- the window
 
       private function build() : void
       {
@@ -258,9 +283,10 @@ package survarium.menu.selector
          var t:SelectorTexts = this.texts != null ? this.texts : new SelectorTexts(null);
          var from:Point = globalToLocal(new Point(0,0));
          var to:Point = globalToLocal(new Point(stage.stageWidth,stage.stageHeight));
-         var height:Number = Math.round(Math.max(360,Math.min(MAX_HEIGHT,to.y - from.y - 2 * MARGIN)));
+         var height:Number = Math.round(Math.max(420,Math.min(MAX_HEIGHT,to.y - from.y - 2 * MARGIN)));
+         // the menu dimmed under it, as under the game's messages
          this.backdrop = new Sprite();
-         this.backdrop.graphics.beginFill(0x050607,0.62);
+         this.backdrop.graphics.beginFill(0,0.6);
          this.backdrop.graphics.drawRect(from.x,from.y,to.x - from.x,to.y - from.y);
          this.backdrop.graphics.endFill();
          this.backdrop.addEventListener(MouseEvent.CLICK,this.onBackdrop);
@@ -269,18 +295,19 @@ package survarium.menu.selector
          this.panel.name = "_srp_action_selector";
          this.panel.x = Math.round((from.x + to.x - WIDTH) / 2);
          this.panel.y = Math.round((from.y + to.y - height) / 2);
+         this.panel.addEventListener(MouseEvent.CLICK,this.onPanelClick);
          addChild(this.panel);
-         this.drawPanel(height);
+         this.drawArt(height);
+         this.buildTitle(t);
          this.buildHeader(t);
          this.buildSearch(t,query);
-         this.listTop = PAD + KEYCAP + 18 + SEARCH_HEIGHT + 12;
-         this.listHeight = height - FOOTER - this.listTop - 4;
+         this.listHeight = height - ART_BOTTOM - NOTE - LIST_Y;
          this.list = new Sprite();
-         this.list.x = LIST_X;
-         this.list.y = this.listTop;
+         this.list.x = ROW_X;
+         this.list.y = LIST_Y;
          this.listMask = new Shape();
          this.listMask.graphics.beginFill(0);
-         this.listMask.graphics.drawRect(0,this.listTop,WIDTH,this.listHeight);
+         this.listMask.graphics.drawRect(0,LIST_Y,WIDTH,this.listHeight);
          this.listMask.graphics.endFill();
          this.panel.addChild(this.listMask);
          this.panel.addChild(this.list);
@@ -288,205 +315,210 @@ package survarium.menu.selector
          this.list.addEventListener(MouseEvent.MOUSE_MOVE,this.onRowMove);
          this.list.addEventListener(MouseEvent.CLICK,this.onRowClick);
          this.panel.addEventListener(MouseEvent.MOUSE_WHEEL,this.onWheel);
-         this.empty = Paint.text(16,Paint.DIM);
+         this.empty = Paint.text(15,Paint.DIM,this.labelFilters());
          this.empty.text = t.noMatch;
          this.empty.x = Math.round((WIDTH - this.empty.width) / 2);
-         this.empty.y = this.listTop + 40;
+         this.empty.y = LIST_Y + 30;
          this.panel.addChild(this.empty);
-         this.scrollbar = new Sprite();
-         this.scrollbar.x = WIDTH - 20;
-         this.scrollbar.y = this.listTop;
+         this.scrollbar = new SrvScrollBar();
+         this.scrollbar.alpha = 1;
+         this.scrollbar.x = WIDTH - 22;
+         this.scrollbar.y = LIST_Y;
+         this.scrollbar.height = this.listHeight;
+         this.scrollbar.addEventListener(Event.SCROLL,this.onScrollBar);
          this.panel.addChild(this.scrollbar);
-         this.thumb = new Sprite();
-         this.thumb.addEventListener(MouseEvent.MOUSE_DOWN,this.onThumbDown);
-         this.scrollbar.addChild(this.thumb);
-         this.footer = new Sprite();
-         this.footer.y = height - FOOTER;
-         this.footer.mouseEnabled = this.footer.mouseChildren = false;
-         this.panel.addChild(this.footer);
-         this.buildHints(t);
+         this.warning = new TextField();
+         this.warning.name = "_warning";
+         this.warning.embedFonts = true;
+         this.warning.selectable = false;
+         this.warning.mouseEnabled = false;
+         this.warning.multiline = true;
+         this.warning.wordWrap = true;
+         this.warning.autoSize = TextFieldAutoSize.LEFT;
+         this.warning.defaultTextFormat = Paint.format(15,Paint.WARNING);
+         this.warning.filters = this.labelFilters();
+         this.warning.x = LEFT;
+         this.warning.y = height - ART_BOTTOM - NOTE + 4;
+         this.warning.width = WIDTH - 2 * LEFT;
+         this.panel.addChild(this.warning);
+         this.buildButtons(t,height);
          this.fill(t);
       }
 
-      private function drawPanel(height:Number) : void
+      // The Settings window's background art: its title band and foot as they are, its middle stretched
+      // to the height; the bottom bar over it as the Settings' (black 0.7, the hint lines' pattern).
+      private function drawArt(height:Number) : void
       {
+         var art:BitmapData = new SrpSettingsGround();
          var g:Graphics = this.panel.graphics;
-         // a soft shadow under it
-         for(var i:int = 14; i >= 1; i--)
-         {
-            g.beginFill(0,0.035);
-            g.drawRoundRect(-i,-i + 8,WIDTH + 2 * i,height + 2 * i,28 + 2 * i,28 + 2 * i);
-            g.endFill();
-         }
          var m:Matrix = new Matrix();
-         m.createGradientBox(WIDTH,height,Math.PI / 2);
-         g.lineStyle(1,Paint.EDGE,1,true);
-         g.beginGradientFill(GradientType.LINEAR,[0x1A1D21,Paint.PANEL,0x121417],[1,1,1],[0,90,255],m);
-         g.drawRoundRect(0.5,0.5,WIDTH - 1,height - 1,28,28);
+         g.beginBitmapFill(art,m,false,true);
+         g.drawRect(0,0,WIDTH,ART_TOP);
          g.endFill();
-         g.lineStyle();
-         // the footer's rule
-         g.beginFill(Paint.EDGE);
-         g.drawRect(PAD,height - FOOTER,WIDTH - 2 * PAD,1);
+         var middle:Number = height - ART_TOP - ART_BOTTOM;
+         var scale:Number = middle / (art.height - ART_TOP - ART_BOTTOM);
+         m = new Matrix(1,0,0,scale,0,ART_TOP - ART_TOP * scale);
+         g.beginBitmapFill(art,m,false,true);
+         g.drawRect(0,ART_TOP,WIDTH,middle);
          g.endFill();
-         // a click on the panel is no click outside
-         this.panel.addEventListener(MouseEvent.CLICK,this.onPanelClick);
+         m = new Matrix(1,0,0,1,0,height - art.height);
+         g.beginBitmapFill(art,m,false,true);
+         g.drawRect(0,height - ART_BOTTOM,WIDTH,ART_BOTTOM);
+         g.endFill();
+         var bar:Sprite = new Sprite();
+         bar.mouseEnabled = false;
+         bar.x = 3;
+         bar.y = height - ART_BOTTOM;
+         bar.graphics.beginFill(0,0.7);
+         bar.graphics.drawRect(0,0,WIDTH - 7,BAR);
+         bar.graphics.endFill();
+         bar.graphics.beginBitmapFill(new HintLinePattern());
+         bar.graphics.drawRect(0,0,WIDTH - 7,BAR);
+         bar.graphics.endFill();
+         this.panel.addChild(bar);
       }
 
-      private function buildHeader(t:SelectorTexts) : void
+      private function buildTitle(t:SelectorTexts) : void
       {
-         var key:String = this.session.keyName;
-         var now:Array = this.session.onKey();
-         var cap:Sprite = Paint.keycap(key,KEYCAP,26,now.length > 0 ? int(BoundAction(now[0]).colour) : -1);
-         cap.name = "_key";
-         cap.x = PAD;
-         cap.y = PAD;
-         this.panel.addChild(cap);
-         var left:Number = cap.x + cap.width + 18;
-         var room:Number = WIDTH - PAD - 40 - left;
-         var title:TextField = Paint.text(13,Paint.DIM,1.4);
-         Paint.fit(title,t.title.toUpperCase(),room);
-         title.x = left;
-         title.y = PAD + 4;
+         var title:TextField = new TextField();
+         title.name = "_title";
+         title.embedFonts = true;
+         title.selectable = false;
+         title.mouseEnabled = false;
+         var format:TextFormat = this.titleStyle != null ? this.titleStyle.getTextFormat() : Paint.format(17,Paint.TITLE);
+         format.align = TextFormatAlign.CENTER;
+         title.defaultTextFormat = format;
+         if(this.titleStyle != null)
+         {
+            title.filters = this.titleStyle.filters;
+         }
+         title.x = 50.75;
+         title.y = 5.75;
+         title.width = 548.5;
+         title.height = 29.65;
+         title.text = t.title;
          this.panel.addChild(title);
-         var line:Sprite = new Sprite();
-         line.name = "_now";
-         line.x = left;
-         line.y = PAD + 26;
-         this.panel.addChild(line);
-         if(now.length == 0)
+         this.closeButton = new ButtonCloseWindow2();
+         this.closeButton.name = "_close";
+         this.closeButton.alpha = 1;
+         this.closeButton.width = this.closeButton.height = 31;
+         this.closeButton.x = 615.5;
+         this.closeButton.y = 5.75;
+         this.closeButton.addEventListener(ButtonEvent.CLICK,function(e:ButtonEvent):void
          {
-            var free:TextField = Paint.text(19,Paint.DIM);
-            free.text = t.free;
-            line.addChild(free);
-         }
-         var x:Number = 0;
-         for(var i:int = 0; i < now.length; i++)
-         {
-            var action:BoundAction = now[i];
-            line.graphics.beginFill(action.colour);
-            line.graphics.drawCircle(x + 5,15,5);
-            line.graphics.endFill();
-            var label:TextField = Paint.text(19,Paint.INK);
-            // the last fits in what is left
-            var share:Number = i == now.length - 1 ? room - x - 16 : (room - x - 16) / (now.length - i) - 20;
-            Paint.fit(label,action.label,share);
-            label.x = x + 16;
-            line.addChild(label);
-            x = label.x + label.width + 20;
-         }
-         var shut:Sprite = new Sprite();
-         shut.name = "_close";
-         shut.x = WIDTH - PAD - 30;
-         shut.y = PAD - 4;
-         this.drawClose(shut,false);
-         shut.buttonMode = true;
-         shut.addEventListener(MouseEvent.ROLL_OVER,function(e:MouseEvent):void
-         {
-            drawClose(shut,true);
-         });
-         shut.addEventListener(MouseEvent.ROLL_OUT,function(e:MouseEvent):void
-         {
-            drawClose(shut,false);
-         });
-         shut.addEventListener(MouseEvent.CLICK,function(e:MouseEvent):void
-         {
-            e.stopPropagation();
             cancel();
          });
-         this.panel.addChild(shut);
+         this.panel.addChild(this.closeButton);
       }
 
-      private function drawClose(shut:Sprite, over:Boolean) : void
+      // The key being edited as a stock key row: its key box, then the action or actions on it now
+      // (or "Free key").
+      private function buildHeader(t:SelectorTexts) : void
       {
-         var g:Graphics = shut.graphics;
-         g.clear();
-         g.beginFill(over ? Paint.KEY_TOP : Paint.PANEL,over ? 1 : 0.004);
-         g.drawRoundRect(0,0,30,30,10,10);
-         g.endFill();
-         g.lineStyle(2,over ? Paint.INK : Paint.DIM,1,true);
-         g.moveTo(10,10);
-         g.lineTo(20,20);
-         g.moveTo(20,10);
-         g.lineTo(10,20);
+         var now:Array = this.session.onKey();
+         var labels:Array = now.map(function(action:BoundAction, ... rest):String
+         {
+            return action.label;
+         });
+         var text:String = now.length > 0 ? labels.join(", ") : t.free;
+         this.header = new SrvBindKeyListRender();
+         this.header.name = "_key";
+         this.header.mouseEnabled = this.header.mouseChildren = false;
+         this.header.alpha = 1;
+         this.header.x = ROW_X + 12;
+         this.header.y = HEADER_Y;
+         this.header.data = {label:text,key:this.session.keyName,type:1};
+         this.panel.addChild(this.header);
+         ActionRow.widen(this.header);
+         this.header.textField.width = WIDTH - LEFT - this.header.x - this.header.textField.x;
+         Paint.fit(this.header.textField,text,this.header.textField.width);
+         if(now.length == 0)
+         {
+            this.header.textField.textColor = Paint.DIM;
+         }
+         for(var i:int = 0; i < now.length; i++)
+         {
+            // each action's kind as its mark, left of the key box
+            this.panel.graphics.beginFill(BoundAction(now[i]).colour,0.85);
+            this.panel.graphics.drawRect(ROW_X + 5,HEADER_Y + 6 + i * 9,3,7);
+            this.panel.graphics.endFill();
+         }
       }
 
       private function buildSearch(t:SelectorTexts, query:String) : void
       {
-         var top:Number = PAD + KEYCAP + 18;
-         this.searchBox = new Shape();
-         this.searchBox.y = top;
-         this.panel.addChild(this.searchBox);
-         var icon:Shape = new Shape();
-         icon.graphics.lineStyle(2,Paint.DIM,1,true);
-         icon.graphics.drawCircle(PAD + 20,top + 19,6.5);
-         icon.graphics.moveTo(PAD + 24.8,top + 23.8);
-         icon.graphics.lineTo(PAD + 29,top + 28);
-         this.panel.addChild(icon);
-         this.placeholder = Paint.text(17,Paint.FAINT);
-         Paint.fit(this.placeholder,t.search,WIDTH - 2 * PAD - 56);
-         this.search = new TextField();
-         this.search.name = "_search";
-         this.search.type = TextFieldType.INPUT;
-         this.search.embedFonts = true;
-         this.search.multiline = false;
-         this.search.wordWrap = false;
+         this.input = new TextInputFriendName();
+         this.input.name = "_search";
+         this.input.alpha = 1;
+         this.input.x = LEFT;
+         this.input.y = SEARCH_Y;
+         this.panel.addChild(this.input);
+         this.input.validateNow();
+         this.search = this.input.textField;
          this.search.maxChars = 40;
-         this.search.defaultTextFormat = Paint.format(17,Paint.INK);
-         this.search.width = WIDTH - 2 * PAD - 56;
-         this.search.height = 26;
-         this.search.text = query;
+         this.input.text = query;
          this.search.setSelection(query.length,query.length);
-         this.search.x = this.placeholder.x = PAD + 40;
-         this.search.y = top + Math.round((SEARCH_HEIGHT - 26) / 2);
-         this.placeholder.y = this.search.y + 2;
+         this.placeholder = Paint.text(15,Paint.DIM);
+         Paint.fit(this.placeholder,t.search,this.search.width - 4);
+         this.placeholder.x = this.input.x + this.search.x + 2;
+         this.placeholder.y = this.input.y + this.search.y + Math.round((this.search.height - this.placeholder.height) / 2);
          this.panel.addChild(this.placeholder);
-         this.panel.addChild(this.search);
          this.search.addEventListener(Event.CHANGE,this.onSearch);
-         this.drawSearch(true);
+         this.placeholder.visible = query.length == 0;
       }
 
-      private function drawSearch(focused:Boolean) : void
+      // The bottom bar's buttons (the Settings' Apply and Exit's, SvButton2, at their sizes): Unbind at
+      // the left (while the key has an action, as wide as its words need), Assign and Cancel at the right.
+      private function buildButtons(t:SelectorTexts, height:Number) : void
       {
-         var g:Graphics = this.searchBox.graphics;
-         g.clear();
-         g.lineStyle(1,focused ? Paint.mix(Paint.EDGE,Paint.INK,0.28) : Paint.EDGE,1,true);
-         g.beginFill(Paint.SHADE);
-         g.drawRoundRect(PAD + 0.5,0.5,WIDTH - 2 * PAD - 1,SEARCH_HEIGHT - 1,20,20);
-         g.endFill();
-         this.placeholder.visible = this.search.text.length == 0;
-      }
-
-      // The keys' hints at the footer's bottom right: Up/Down choose, Enter assign, Esc cancel.
-      private function buildHints(t:SelectorTexts) : void
-      {
-         this.hints = new Sprite();
-         var x:Number = 0;
-         var pairs:Array = [[null,t.choose],["Enter",t.assign],["Esc",t.cancel]];
-         for each(var pair:Array in pairs)
+         var y:Number = height - ART_BOTTOM + 11;
+         this.unbindButton = this.button("_unbind",t.unbind,LEFT,y,140);
+         this.unbindButton.enabled = this.session.onKey().length > 0;
+         this.unbindButton.addEventListener(ButtonEvent.CLICK,function(e:ButtonEvent):void
          {
-            var cap:Sprite = Paint.keycap(pair[0] == null ? "" : pair[0],22,12);
-            if(pair[0] == null)
-            {
-               Paint.arrow(cap.graphics,6,6,10,true,Paint.DIM);
-               var down:Sprite = Paint.keycap("",22,12);
-               Paint.arrow(down.graphics,6,8,10,false,Paint.DIM);
-               down.x = x + 26;
-               this.hints.addChild(down);
-            }
-            cap.x = x;
-            this.hints.addChild(cap);
-            x += pair[0] == null ? 52 : cap.width + 6;
-            var word:TextField = Paint.text(13,Paint.DIM);
-            word.text = pair[1];
-            word.x = x;
-            word.y = Math.round((22 - word.height) / 2);
-            this.hints.addChild(word);
-            x = word.x + word.width + 14;
+            unbind();
+         });
+         this.assignButton = this.button("_assign",t.assign,WIDTH - LEFT - 118 - 6 - 120,y,120);
+         this.assignButton.addEventListener(ButtonEvent.CLICK,function(e:ButtonEvent):void
+         {
+            choose(highlighted);
+         });
+         this.cancelButton = this.button("_cancel",t.cancel,WIDTH - LEFT - 118,y,118);
+         this.cancelButton.addEventListener(ButtonEvent.CLICK,function(e:ButtonEvent):void
+         {
+            cancel();
+         });
+      }
+
+      private function button(name:String, label:String, x:Number, y:Number, width:Number) : Button
+      {
+         var b:Button = new SvButton2();
+         b.name = name;
+         b.autoSize = "none";
+         b.toggle = false;
+         // Scaleform leaves a script-created control fully transparent
+         b.alpha = 1;
+         b.label = label;
+         b.x = x;
+         b.y = y;
+         b.width = width;
+         b.height = 34;
+         this.panel.addChild(b);
+         b.validateNow();
+         // wider for its words (the Vulkan options' button's rule)
+         var room:Number = b.textField != null ? b.textField.width * b.scaleX : width;
+         var needed:Number = b.textField != null ? b.textField.textWidth + 8 : 0;
+         if(needed > room)
+         {
+            b.width = width + needed - room;
+            b.validateNow();
          }
-         this.hints.x = WIDTH - PAD - (x - 14);
-         this.hints.y = FOOTER - 34;
-         this.footer.addChild(this.hints);
+         return b;
+      }
+
+      private function labelFilters() : Array
+      {
+         return this.header != null && this.header.textField != null ? this.header.textField.filters : null;
       }
 
       // The rows for the search field's text, the highlight kept where it can be.
@@ -494,41 +526,29 @@ package survarium.menu.selector
       {
          var keep:SelectorRow = this.session.highlighted;
          var keptAction:BoundAction = keep is ActionRow ? ActionRow(keep).action : null;
-         var keptUnbind:Boolean = keep is UnbindRow;
          while(this.list.numChildren > 0)
          {
             this.list.removeChildAt(0);
          }
          var rows:Array = [];
-         var key:String = this.session.keyName;
          var words:Array = this.search.text.toLowerCase().split(/\s+/).filter(function(w:String, ... rest):Boolean
          {
             return w.length > 0;
          });
          var now:Array = this.session.onKey();
-         if(now.length > 0 && (words.length == 0 || matches(t.unbind,"",words)))
-         {
-            rows.push(new UnbindRow(key,t,ROW_WIDTH));
-         }
-         // by kind in KINDS' order, the table's order in a kind; a row of no kind last, under no heading
-         var kinds:Array = [];
-         for(var k:int = 0; k < SrpKeysWindow.KINDS.length; k++)
-         {
-            kinds.push(k);
-         }
-         kinds.push(-1);
-         for each(var kind:int in kinds)
+         var filters:Array = this.labelFilters();
+         for each(var kind:int in this.session.kinds())
          {
             var heading:GroupHeading = null;
-            for each(var action:BoundAction in this.session.actions)
+            for each(var action:BoundAction in this.session.ofKind(kind))
             {
-               if(action.kind != kind || !matches(action.label + " " + (kind == -1 ? "" : t.groups[kind]),action.key,words))
+               if(!matches(action.label + " " + (kind == -1 ? "" : t.groups[kind]),action.key,words))
                {
                   continue;
                }
                if(heading == null && kind != -1)
                {
-                  heading = new GroupHeading(kind,t,ROW_WIDTH);
+                  heading = new GroupHeading(kind,t,ROW_WIDTH,filters);
                   rows.push(heading);
                }
                rows.push(new ActionRow(action,t,ROW_WIDTH));
@@ -544,11 +564,11 @@ package survarium.menu.selector
          this.session.rows = rows;
          this.session.highlighted = null;
          this.empty.visible = rows.length == 0;
-         // the same choice again, else the key's action, else the first action
+         // the same action again, else the key's action, else the first action
          var light:SelectorRow = null;
          for each(row in rows)
          {
-            if(row is ActionRow && ActionRow(row).action == keptAction || row is UnbindRow && keptUnbind)
+            if(row is ActionRow && ActionRow(row).action == keptAction)
             {
                light = row;
             }
@@ -569,10 +589,6 @@ package survarium.menu.selector
             {
                light = row;
             }
-         }
-         if(light == null && rows.length > 0)
-         {
-            light = rows[0];
          }
          this.session.scroll = Math.min(this.session.scroll,this.maxScroll());
          this.light(light);
@@ -608,128 +624,37 @@ package survarium.menu.selector
          {
             row.highlight(true);
          }
-         this.preview();
+         this.assignButton.enabled = row is ActionRow;
+         this.note();
       }
 
-      // The footer: the pick's action, an arrow, the key; under it what else the pick changes.
-      private function preview() : void
+      // Over the bottom bar: what else the highlighted pick changes.
+      private function note() : void
       {
          var t:SelectorTexts = this.texts != null ? this.texts : new SelectorTexts(null);
-         for each(var part:String in ["_pick","_sign"])
-         {
-            var old:DisplayObject = this.footer.getChildByName(part);
-            if(old != null)
-            {
-               this.footer.removeChild(old);
-            }
-         }
-         if(this.warning != null && this.warning.parent != null)
-         {
-            this.warning.parent.removeChild(this.warning);
-         }
-         var row:SelectorRow = this.session.highlighted;
-         if(row == null)
-         {
-            return;
-         }
-         var key:String = this.session.keyName;
-         var pick:Sprite = new Sprite();
-         pick.name = "_pick";
-         pick.x = PAD;
-         pick.y = 16;
-         var colour:uint = row is ActionRow ? ActionRow(row).action.colour : Paint.UNBIND;
-         var name:TextField = Paint.text(16,row is ActionRow ? Paint.INK : Paint.mix(Paint.UNBIND,Paint.INK,0.3));
-         var keyCap:Sprite = Paint.keycap(key,22,12,row is ActionRow ? int(colour) : -1);
-         var room:Number = WIDTH - 2 * PAD - 16 - 14 - 28 - keyCap.width;
-         Paint.fit(name,row is ActionRow ? ActionRow(row).action.label : t.unbind,room);
-         pick.graphics.beginFill(colour);
-         pick.graphics.drawCircle(5,11,5);
-         pick.graphics.endFill();
-         name.x = 16;
-         name.y = Math.round((22 - name.height) / 2);
-         pick.addChild(name);
-         // the arrow
-         var ax:Number = name.x + name.width + 10;
-         pick.graphics.lineStyle(2,Paint.DIM,1,true);
-         pick.graphics.moveTo(ax,11);
-         pick.graphics.lineTo(ax + 16,11);
-         pick.graphics.lineStyle();
-         pick.graphics.beginFill(Paint.DIM);
-         pick.graphics.moveTo(ax + 20,11);
-         pick.graphics.lineTo(ax + 13,6.5);
-         pick.graphics.lineTo(ax + 13,15.5);
-         pick.graphics.endFill();
-         keyCap.x = ax + 28;
-         pick.addChild(keyCap);
-         this.footer.addChild(pick);
          var notes:Array = [];
-         var losers:Array = [];
-         if(row is ActionRow)
+         var row:ActionRow = this.session.highlighted as ActionRow;
+         if(row != null && !row.action.onKey)
          {
-            var action:BoundAction = ActionRow(row).action;
-            if(action.key != null && !action.onKey)
+            var action:BoundAction = row.action;
+            if(action.key != null)
             {
                notes.push(SelectorTexts.format(t.moves,action.label,action.key));
             }
-            if(!action.onKey)
+            var losers:Array = [];
+            for each(var other:BoundAction in this.session.onKey())
             {
-               for each(var other:BoundAction in this.session.onKey())
+               if(action.takesFrom(other))
                {
-                  if(action.takesFrom(other))
-                  {
-                     losers.push(other.label);
-                  }
+                  losers.push(other.label);
                }
             }
-         }
-         else
-         {
-            for each(other in this.session.onKey())
+            if(losers.length > 0)
             {
-               losers.push(other.label);
+               notes.push(SelectorTexts.format(t.loses,losers.join(", ")));
             }
          }
-         if(losers.length > 0)
-         {
-            notes.push(SelectorTexts.format(t.loses,losers.join(", ")));
-         }
-         if(notes.length == 0)
-         {
-            return;
-         }
-         if(this.warning == null)
-         {
-            this.warning = new TextField();
-            this.warning.name = "_warning";
-            this.warning.embedFonts = true;
-            this.warning.selectable = false;
-            this.warning.mouseEnabled = false;
-            this.warning.multiline = true;
-            this.warning.wordWrap = true;
-            this.warning.autoSize = TextFieldAutoSize.LEFT;
-            this.warning.defaultTextFormat = Paint.format(15,Paint.WARNING);
-         }
-         this.warning.x = PAD + 22;
-         this.warning.y = 48;
-         this.warning.width = WIDTH - 2 * PAD - 22;
          this.warning.text = notes.join(" ");
-         this.footer.addChild(this.warning);
-         // the warning's sign: a triangle with its mark
-         var sign:Shape = new Shape();
-         var g:Graphics = sign.graphics;
-         g.beginFill(Paint.WARNING);
-         g.moveTo(7,0);
-         g.lineTo(14.5,13);
-         g.lineTo(-0.5,13);
-         g.endFill();
-         g.beginFill(Paint.PANEL);
-         g.drawRect(6.2,4.5,1.6,4.5);
-         g.drawRect(6.2,10.2,1.6,1.6);
-         g.endFill();
-         sign.name = "_sign";
-         sign.x = PAD;
-         sign.y = this.warning.y + 3;
-         this.footer.addChild(sign);
       }
 
       // ---- scrolling
@@ -746,31 +671,20 @@ package survarium.menu.selector
 
       private function scrollTo(value:Number) : void
       {
-         this.session.scroll = Math.round(Math.max(0,Math.min(this.maxScroll(),value)));
-         this.list.y = this.listTop - this.session.scroll;
-         var g:Graphics = this.scrollbar.graphics;
-         g.clear();
-         this.thumb.graphics.clear();
          var max:Number = this.maxScroll();
-         if(max <= 0)
+         this.session.scroll = Math.round(Math.max(0,Math.min(max,value)));
+         this.list.y = LIST_Y - this.session.scroll;
+         // only the rows in view are drawn (each stock row's texts carry their shadow filters)
+         for each(var row:SelectorRow in this.session.rows)
          {
-            return;
+            row.visible = row.y + row.rowHeight > this.session.scroll && row.y < this.session.scroll + this.listHeight;
          }
-         g.beginFill(Paint.KEY);
-         g.drawRoundRect(0,0,5,this.listHeight,5,5);
-         g.endFill();
-         var length:Number = Math.max(36,this.listHeight * this.listHeight / (this.listHeight + max));
-         this.thumb.graphics.beginFill(Paint.mix(Paint.FAINT,Paint.DIM,0.4));
-         this.thumb.graphics.drawRoundRect(0,0,5,length,5,5);
-         this.thumb.graphics.endFill();
-         // the thumb's grip wider than it shows
-         this.thumb.graphics.beginFill(0,0.004);
-         this.thumb.graphics.drawRect(-6,0,17,length);
-         this.thumb.graphics.endFill();
-         this.thumb.y = Math.round((this.listHeight - length) * this.session.scroll / max);
+         this.scrollbar.visible = max > 0;
+         this.scrollbar.setScrollProperties(this.listHeight,0,max,ActionRow.HEIGHT);
+         this.scrollbar.position = this.session.scroll;
       }
 
-      // `row` within the list's view (with the heading over it when it is its group's first).
+      // `row` within the list's view (with the heading over it when it is its kind's first).
       private function reveal(row:SelectorRow, whole:Boolean = false) : void
       {
          if(row == null)
@@ -805,10 +719,18 @@ package survarium.menu.selector
 
       private function onSearch(e:Event = null) : void
       {
-         this.drawSearch(true);
+         this.placeholder.visible = this.search.text.length == 0;
          this.session.highlighted = null;
          this.session.scroll = 0;
          this.fill(this.texts != null ? this.texts : new SelectorTexts(null));
+      }
+
+      private function onScrollBar(e:Event) : void
+      {
+         if(this.session != null && this.scrollbar.position != this.session.scroll)
+         {
+            this.scrollTo(this.scrollbar.position);
+         }
       }
 
       private function onKey(e:KeyboardEvent) : void
@@ -858,7 +780,7 @@ package survarium.menu.selector
          }
       }
 
-      // The typing's own keys go no further than the panel (the menu's Esc, CLIK's focus moves).
+      // The typing's own keys go no further than the window (the menu's Esc, CLIK's focus moves).
       private function keep(e:KeyboardEvent) : void
       {
          e.stopPropagation();
@@ -913,30 +835,7 @@ package survarium.menu.selector
 
       private function onWheel(e:MouseEvent) : void
       {
-         this.scrollTo(this.session.scroll - e.delta * 14);
-      }
-
-      private function onThumbDown(e:MouseEvent) : void
-      {
-         this.dragFrom = this.scrollbar.mouseY - this.thumb.y;
-         stage.addEventListener(MouseEvent.MOUSE_MOVE,this.onThumbMove);
-         stage.addEventListener(MouseEvent.MOUSE_UP,this.onThumbUp);
-      }
-
-      private function onThumbMove(e:MouseEvent) : void
-      {
-         var max:Number = this.maxScroll();
-         var room:Number = this.listHeight - this.thumb.height;
-         if(room > 0)
-         {
-            this.scrollTo((this.scrollbar.mouseY - this.dragFrom) / room * max);
-         }
-      }
-
-      private function onThumbUp(e:MouseEvent) : void
-      {
-         stage.removeEventListener(MouseEvent.MOUSE_MOVE,this.onThumbMove);
-         stage.removeEventListener(MouseEvent.MOUSE_UP,this.onThumbUp);
+         this.scrollTo(this.session.scroll - e.delta * 16);
       }
 
       private function sound(id:int) : void
@@ -955,7 +854,7 @@ package survarium.menu.selector
 import survarium.menu.selector.BoundAction;
 import survarium.menu.selector.SelectorRow;
 
-// The open panel: the key's text, the actions, the host's answer, the rows shown, the choice
+// The open window: the key's text, the actions, the host's answer, the rows shown, the row
 // highlighted and the list's scroll.
 class Session
 {
@@ -989,6 +888,27 @@ class Session
       });
    }
 
+   // KINDS' order, then the actions of no kind.
+   public function kinds() : Array
+   {
+      var kinds:Array = [];
+      for(var k:int = 0; k < SrpKeysWindow.KINDS.length; k++)
+      {
+         kinds.push(k);
+      }
+      kinds.push(-1);
+      return kinds;
+   }
+
+   // A kind's actions in the rows' order (the exe's table, which the Key bindings window lists in too).
+   public function ofKind(kind:int) : Array
+   {
+      return this.actions.filter(function(action:BoundAction, ... rest):Boolean
+      {
+         return action.kind == kind;
+      });
+   }
+   
    public function choices() : Array
    {
       return this.rows.filter(function(row:SelectorRow, ... rest):Boolean

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# check.sh <main_menu.swf> [work dir]: the Controls' action selector (SrpActionSelector's panel,
-# survarium/menu/selector) in Ruffle, on a private CPU-only virtual display, at 1280x720 and 1920x1080:
+# check.sh <main_menu.swf> [work dir]: the Controls' action selector (survarium/menu/selector, in the
+# Settings window's skin) in Ruffle, on a private CPU-only virtual display, at 1280x720 and 1920x1080:
 # ActionSelectorHarness.as opens it over the Settings with the options' real rows (hide_ui_026g.asm's
 # `controls`, every dictionary's labels; the keys made up) and the exe's texts (hud_options.rs's
 # CONTROLS_TEXTS), picks, unbinds, cancels, searches, scrolls and checks every language's texts fit.
@@ -31,7 +31,7 @@ assert len(table) == 61, len(table)
 rust = (patches / 'rust/patches/src/hud_options.rs').read_text()
 block = re.search(r'pub const CONTROLS_TEXTS: \[&CStr; \d+\] = \[(.*?)\];', rust, re.S).group(1)
 keys = re.findall(r'c"(\w+)"', block)
-assert len(keys) == 16, keys
+assert len(keys) == 15, keys
 # Made-up keys (a default-like layout): Q is spot's, C crouch's toggle and the lobby's Character.
 KEYS = {0x0B: 'W', 0x0C: 'S', 0x0D: 'A', 0x0E: 'D', 0x04: 'Space', 0x05: 'Left Ctrl', 0x06: 'C', 0x07: 'Left Shift',
         0x2A: 'Left Shift', 0x22: 'Q', 0x26: 'Mouse 1', 0x28: 'Mouse 2', 0x27: 'R', 0x1D: '1', 0x1E: '2', 0x20: 'G',

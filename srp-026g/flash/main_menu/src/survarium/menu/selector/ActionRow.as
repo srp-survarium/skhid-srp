@@ -1,85 +1,87 @@
 package survarium.menu.selector
 {
    import flash.display.Graphics;
-   import flash.display.Sprite;
+   import flash.display.MovieClip;
    import flash.text.TextField;
-
-   // An action to pick: its kind's dot, its label (and "Lobby" for a lobby key), its key now on the
-   // right (tinted when it is on the key being edited, a dash when it has none).
+   
+   // An action to pick, drawn as the Settings' own key row (SrvBindKeyListRender: its key box with the
+   // action's key now, its label), shown only: the row takes no press of its own (its key box would ask
+   // the exe for a key). Its kind's colour a thin mark left of the key box; a lobby action's label
+   // followed by "Lobby".
    public class ActionRow extends SelectorRow
    {
-
-      public static const HEIGHT:Number = 38;
-
+      
+      public static const HEIGHT:Number = 32;
+      
+      // the stock row's place, and its key box widened for the mouse's and the modifiers' names
+      private static const STOCK_X:Number = 12;
+      
+      public static const KEY_BOX:Number = 96;
+      
+      private static const LABEL_GAP:Number = 15;
+      
       public var action:BoundAction;
-
+      
+      public var stock:MovieClip;
+      
       public var label:TextField;
-
-      public var keyChip:Sprite;
-
+      
       public function ActionRow(action:BoundAction, texts:SelectorTexts, rowWidth:Number)
       {
          super(rowWidth,HEIGHT);
          this.action = action;
-         var g:Graphics = marks.graphics;
-         g.beginFill(action.colour);
-         g.drawCircle(19,HEIGHT / 2,4);
+         var g:Graphics = graphics;
+         g.beginFill(action.colour,0.85);
+         g.drawRect(5,8,3,HEIGHT - 16);
          g.endFill();
-         var right:Number;
-         if(action.key == null)
-         {
-            var dash:TextField = Paint.text(16,Paint.FAINT);
-            dash.text = "—";
-            dash.x = rowWidth - 24 - dash.width / 2;
-            dash.y = Math.round((HEIGHT - dash.height) / 2);
-            addChild(dash);
-            right = rowWidth - 44;
-         }
-         else
-         {
-            this.keyChip = chip(action.key,action.onKey ? int(action.colour) : -1);
-            right = this.keyChip.x - 14;
-         }
-         var tag:Sprite = null;
+         this.stock = new SrvBindKeyListRender();
+         this.stock.mouseEnabled = this.stock.mouseChildren = false;
+         this.stock.alpha = 1;
+         this.stock.x = STOCK_X;
+         this.stock.y = Math.round((HEIGHT - 29) / 2);
+         this.stock.data = {label:action.label,key:action.key == null ? "" : action.key,type:1};
+         addChild(this.stock);
+         widen(this.stock);
+         this.label = this.stock.textField;
+         var room:Number = rowWidth - STOCK_X - this.label.x - 12;
+         var tag:TextField = null;
          if(action.lobby)
          {
-            tag = lobbyTag(texts.lobby);
-            right -= tag.width + 10;
+            tag = Paint.text(13,Paint.DIM,this.label.filters);
+            tag.text = texts.lobby;
+            room -= tag.width + 10;
          }
-         this.label = Paint.text(17,Paint.INK);
-         Paint.fit(this.label,action.label,right - 34);
-         this.label.x = 32;
-         this.label.y = Math.round((HEIGHT - this.label.height) / 2);
-         addChild(this.label);
+         this.label.width = room;
+         Paint.fit(this.label,action.label,room);
          if(tag != null)
          {
-            tag.x = this.label.x + this.label.width + 8;
-            tag.y = Math.round((HEIGHT - tag.height) / 2);
+            tag.x = this.stock.x + this.label.x + this.label.textWidth + 12;
+            tag.y = this.stock.y + this.label.y + this.label.textHeight - tag.textHeight - 1;
             addChild(tag);
          }
       }
-
+      
+      // A stock key row (SrvBindKeyListRender) with its key box KEY_BOX wide, its label after it.
+      public static function widen(stock:MovieClip) : void
+      {
+         stock.validateNow();
+         stock.btn_key.width = KEY_BOX;
+         stock.btn_key.validateNow();
+         stock.textField.x = KEY_BOX + LABEL_GAP;
+         if(stock.back != null)
+         {
+            stock.back.visible = false;
+         }
+      }
+      
       override public function get choice() : Boolean
       {
          return true;
       }
-
+      
       override protected function get accent() : uint
       {
          return this.action.colour;
-      }
-
-      private static function lobbyTag(text:String) : Sprite
-      {
-         var tag:Sprite = new Sprite();
-         var field:TextField = Paint.text(11,Paint.DIM,1);
-         field.text = text.toUpperCase();
-         field.x = 6;
-         tag.addChild(field);
-         var g:Graphics = tag.graphics;
-         g.lineStyle(1,Paint.EDGE,1,true);
-         g.drawRoundRect(0.5,0.5,field.width + 11,field.height,8,8);
-         return tag;
       }
    }
 }

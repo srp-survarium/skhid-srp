@@ -2432,7 +2432,6 @@ st_srp_ban_reason_racism	Расизм или нацизм.
 st_srp_ban_reason_teamkilling	Убийство союзников.
 st_srp_ban_reason_threats	Угрозы в реальной жизни.
 st_srp_controls_assign	Назначить
-st_srp_controls_choose	Выбор
 st_srp_controls_free	Свободная клавиша
 st_srp_controls_lobby	Лобби
 st_srp_controls_loses	%1$s останется без клавиши.
