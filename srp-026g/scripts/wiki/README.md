@@ -19,9 +19,9 @@ The artefacts page (`/wiki/artefacts`) has no build step either: the web server
 makes it from the server's game data (`servers/web-server/src/artefacts.rs`,
 the configs read by `survarium::v026g::artefacts`): each artefact's passive and
 active with its numbers, active time, cooldown, weight and skill, the rules of
-carrying several (exe patches 54 and 109, `docs/notes/artefacts.md`), the maps
-whose anomalies spawn it and Keeper of the Artifacts' share. Its icons are the
-lobby's, made with the wiki's (`build_icons.py`).
+carrying several (exe patches 54 and 109, `docs/notes/artefacts.md`) and the
+artefact tree's skills. Its icons are the lobby's, made with the wiki's
+(`build_icons.py`).
 
 The weapons section is a searchable weapon catalogue with class filters,
 sorting and expandable weapon stats. Both pages are one copy for every language

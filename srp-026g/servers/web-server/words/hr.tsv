@@ -932,7 +932,6 @@ Active time	Trajanje
 Cooldown	Hlađenje
 Skill	Vještina
 Rules	Pravila
-Where	Gdje
 Movement speed	Brzina kretanja
 Stamina regeneration	Obnova energije
 Stamina use	Potrošnja energije
@@ -946,10 +945,8 @@ Regeneration	Regeneracija
 Regeneration delay	Kašnjenje regeneracije
 Regenerates up to	Obnavlja se do
 HP	HP	unit
-Passive: while carried in a container, from pickup to death; a death leaves them in that kit's containers.	Pasiv: dok se nosi u spremniku, od podizanja do smrti; nakon smrti ostaju u spremnicima tog kompleta.
-Active: an artefact's key fires every ready copy of its kind.	Aktivacija: tipka artefakta aktivira svaku spremnu kopiju te vrste.
-Spring's and Larkspur's actives add to their passive; an active Onyx replaces its passive.	Aktivacija Opruge i Kokotića dodaje se njihovom pasivu; aktivni Oniks zamjenjuje svoj pasiv.
-Firing restarts the whole cooldown of the kind's copies still cooling.	Aktivacija ponovno pokreće cijelo hlađenje kopija te vrste koje se još hlade.
-Copies of a kind add up, Onyx's passive multiplies; at most 4 of a kind count.	Kopije iste vrste se zbrajaju, pasiv Oniksa se množi; računaju se najviše 4 iste vrste.
-Onyx fired together reduce a hit once, 1 s longer for each other copy.	Oniksi aktivirani zajedno smanjuju pogodak jednom, 1 s dulje za svaku drugu kopiju.
-Different kinds work side by side, each with its own key and cooldown.	Različite vrste djeluju jedna uz drugu, svaka sa svojom tipkom i hlađenjem.
+Carried in a container: passive. A death leaves them in that kit.	U spremniku: pasiv. Nakon smrti ostaju u tom kompletu.
+A key fires every ready copy of its kind and restarts the cooldown of the ones still cooling.	Tipka aktivira svaku spremnu kopiju svoje vrste i ponovno pokreće hlađenje onih koje se još hlade.
+Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Kopije iste vrste se zbrajaju (pasiv Oniksa se množi); računaju se najviše 4.
+Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Aktivacija Opruge i Kokotića dodaje se pasivu; Oniksova ga zamjenjuje.
+Onyx fired together: one reduction, 1 s longer per extra copy.	Oniksi aktivirani zajedno: jedno smanjenje, 1 s dulje za svaku dodatnu kopiju.

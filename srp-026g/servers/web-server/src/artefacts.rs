@@ -1,12 +1,10 @@
 //! The wiki's artefacts, `/wiki/artefacts` on the 0.26g site: every artefact of the game data
 //! with what it gives carried (its passive) and fired (its active), its active time, cooldown and
 //! weight, its skill of the artefact tree, the rules of carrying several (docs/notes/artefacts.md,
-//! exe patches 54 and 109), the items whose built-in bonuses change them, the maps whose anomalies
-//! spawn it and Keeper of the Artifacts' share of it. Made from the server's own game data
-//! ([`survarium::v026g::artefacts`], the maps' anomalies, the skills tree), so it is the
-//! release's. The names are the game's: its pickup hint names each artefact.
+//! exe patches 54 and 109). Made from the server's own game data
+//! ([`survarium::v026g::artefacts`], the skills tree), so it is the release's. The names
+//! are the game's: its pickup hint names each artefact.
 
-use std::collections::BTreeMap;
 use std::fmt::Write;
 
 use srp_validate::world::Artefact as Kind;
@@ -15,14 +13,12 @@ use survarium::v026g::artefacts::{
     self, Affine, ArtefactConfig, Effects, Modifier, Pool, Reduction,
 };
 use survarium::v026g::dictionary::Dictionary;
-use survarium::v026g::keeper;
 use survarium::v026g::localization;
-use survarium::v026g::maps::{self, GameMode};
 use survarium::v026g::skills::SkillsTree;
 
 use crate::icons::IconSet;
 use crate::modifiers::{self, number};
-use crate::{Lang, equipment, escape, maps as maps_page, skills};
+use crate::{Lang, equipment, escape, skills};
 
 /// The page's address.
 pub(crate) const PATH: &str = "/wiki/artefacts";
@@ -40,9 +36,6 @@ fn own_skill(kind: Kind) -> u16 {
 /// (docs/notes/artefact-skills.md): Quick Hands, Knowledge of Artifacts, Artifact Sight,
 /// Keeper of the Artifacts, Artifact Container, Courier, Resonance, Cascade.
 const SKILLS: [u16; 8] = [501, 512, 513, 521, 522, 534, 541, 542];
-
-/// Keeper of the Artifacts.
-const KEEPER: u16 = 521;
 
 /// An artefact's name in `lang`: its pickup hint's first sentence without the language's word
 /// for an artefact ("Onyx artifact.", "Артефакт Оникс."); a language without the text has the
@@ -299,73 +292,6 @@ fn skill_link(lang: Lang, id: u16) -> Option<String> {
     ))
 }
 
-/// The maps whose anomalies spawn each kind, by the Maps tab's key (the project's folder):
-/// its playable maps (Blackout's configs aside, as the tab), an anomaly with containers.
-fn spawns() -> BTreeMap<(maps::Build, &'static str), (&'static str, Vec<Kind>)> {
-    let mut found: BTreeMap<(maps::Build, &str), (&str, Vec<Kind>)> = BTreeMap::new();
-    for map in maps::playable().filter(|map| map.mode != GameMode::Blackout) {
-        let folder = map.project.split('/').next().unwrap_or(map.project);
-        for anomaly in map.world_objects.anomalies {
-            let Some(artefacts) = &anomaly.artefacts else {
-                continue;
-            };
-            if artefacts.containers == 0 {
-                continue;
-            }
-            let (_, kinds) = found
-                .entry((map.build, folder))
-                .or_insert((map.map_name_key, Vec::new()));
-            for item in artefacts.artefacts {
-                if !kinds.contains(&item.core) {
-                    kinds.push(item.core);
-                }
-            }
-        }
-    }
-    found
-}
-
-/// The item modifiers that change an artefact's own numbers: its cooldown (modifier 38) and
-/// active time (39).
-const ARTEFACT_TIMES: [&str; 2] = [
-    "parameters/artefact_cooldown_modifier",
-    "parameters/artefact_duration_modifier",
-];
-
-/// The items with built-in bonuses to artefacts' times (the Artifact-master's cooldown): a
-/// line each.
-fn item_lines(lang: Lang) -> Vec<String> {
-    Dictionary::shared()
-        .items
-        .iter()
-        .filter_map(|item| {
-            let bonuses: Vec<String> = modifiers::built_in(item.dict_id)
-                .into_iter()
-                .filter(|(modification, _)| {
-                    modification
-                        .modifiers
-                        .iter()
-                        .any(|modifier| ARTEFACT_TIMES.contains(&modifier.path.as_str()))
-                })
-                .map(|(modification, property)| {
-                    format!(
-                        "{} {}",
-                        modifiers::property_name(lang, property),
-                        modifiers::strength(lang, property, modification.shown.value)
-                    )
-                })
-                .collect();
-            (!bonuses.is_empty()).then(|| {
-                format!(
-                    "{}: {}",
-                    modifiers::item_name(lang, item.dict_id),
-                    bonuses.join(", ")
-                )
-            })
-        })
-        .collect()
-}
-
 /// The page's body in `lang`.
 pub(crate) fn body(lang: Lang) -> String {
     let code = lang.code();
@@ -425,67 +351,17 @@ pub(crate) fn body(lang: Lang) -> String {
         lang.t("Skill"),
     );
 
-    let mut rules = vec![
-        lang.t("Passive: while carried in a container, from pickup to death; a death leaves them in that kit's containers."),
-        lang.t("Active: an artefact's key fires every ready copy of its kind."),
-        lang.t("Spring's and Larkspur's actives add to their passive; an active Onyx replaces its passive."),
-        lang.t("Firing restarts the whole cooldown of the kind's copies still cooling."),
-        lang.t("Copies of a kind add up, Onyx's passive multiplies; at most 4 of a kind count."),
-        lang.t("Onyx fired together reduce a hit once, 1 s longer for each other copy."),
-        lang.t("Different kinds work side by side, each with its own key and cooldown."),
+    let rules = [
+        lang.t("Carried in a container: passive. A death leaves them in that kit."),
+        lang.t("A key fires every ready copy of its kind and restarts the cooldown of the ones still cooling."),
+        lang.t("Copies of a kind add up (Onyx's passive multiplies); at most 4 count."),
+        lang.t("Spring's and Larkspur's actives add to the passive; Onyx's replaces it."),
+        lang.t("Onyx fired together: one reduction, 1 s longer per extra copy."),
     ];
-    rules.extend(item_lines(lang));
     let rules: String = rules
         .iter()
         .map(|line| format!("<li>{}</li>", escape(line)))
         .collect();
-
-    let spawns = spawns();
-    let keeper = SkillsTree::shared().skill(KEEPER).is_some();
-    let mut where_rows = String::new();
-    for artefact in all {
-        let found: Vec<String> = spawns
-            .iter()
-            .filter(|(_, (_, kinds))| kinds.contains(&artefact.kind))
-            .map(|(&(_, folder), &(name_key, _))| {
-                format!(
-                    "<a href=\"{}?lang={code}#{folder}\">{}</a>",
-                    maps_page::PATH,
-                    escape(&modifiers::text(lang, name_key))
-                )
-            })
-            .collect();
-        let share = keeper::SHARES
-            .iter()
-            .find(|(kind, _)| kind.dict_id() == artefact.dict_id)
-            .map_or_else(|| "—".to_owned(), |&(_, share)| format!("{share}%"));
-        let _ = write!(
-            where_rows,
-            "<tr><th>{}</th><td>{}</td>{}</tr>",
-            escape(&name(lang, artefact)),
-            if found.is_empty() {
-                "—".to_owned()
-            } else {
-                found.join(", ")
-            },
-            if keeper {
-                format!("<td class=num>{share}</td>")
-            } else {
-                String::new()
-            },
-        );
-    }
-    let keeper_head = SkillsTree::shared()
-        .skill(KEEPER)
-        .map_or_else(String::new, |skill| {
-            format!("<th>{}</th>", escape(&modifiers::text(lang, &skill.name)))
-        });
-    let where_table = format!(
-        "<div class=table-scroll><table class=artefact-table><thead><tr><th>{}</th><th>{}</th>\
-         {keeper_head}</tr></thead><tbody>{where_rows}</tbody></table></div>",
-        lang.t("Artefact"),
-        lang.t("Maps"),
-    );
 
     let skill_links: String = SKILLS
         .iter()
@@ -504,13 +380,11 @@ pub(crate) fn body(lang: Lang) -> String {
     format!(
         "<p class=breadcrumb><a href=\"/wiki?lang={code}\">{}</a> / {}</p>\
          <div class=wiki-heading><div><h1>{}</h1></div></div>{table}\
-         <section class=modifiers><h2>{}</h2><ul class=mode-rules>{rules}</ul></section>\
-         <section class=modifiers><h2>{}</h2>{where_table}</section>{skills_section}",
+         <section class=modifiers><h2>{}</h2><ul class=mode-rules>{rules}</ul></section>{skills_section}",
         lang.t("Wiki"),
         lang.t("Artefacts"),
         lang.t("Artefacts"),
         lang.t("Rules"),
-        lang.t("Where"),
     )
 }
 
@@ -543,12 +417,12 @@ mod tests {
     }
 
     #[test]
-    fn every_artefact_has_its_row_numbers_and_spawns() {
+    fn every_artefact_has_its_row_and_numbers() {
         let page = body(Lang::En);
         for anchor in ["lifebone", "spring", "onyx"] {
             assert!(page.contains(&format!("<tr id=\"{anchor}\">")), "{anchor}");
         }
-        // Each kind's numbers as its config has them, and each found on a map.
+        // Each kind's numbers as its config has them.
         for artefact in artefacts::all() {
             let shown = match &artefact.effects {
                 Effects::Onyx {
@@ -569,15 +443,7 @@ mod tests {
             for line in shown {
                 assert!(page.contains(&line), "{line}");
             }
-            assert!(
-                spawns()
-                    .values()
-                    .any(|(_, kinds)| kinds.contains(&artefact.kind)),
-                "{:?}",
-                artefact.kind
-            );
         }
-        assert!(page.contains(&format!("{}?lang=en#", maps_page::PATH)));
         assert!(!page.contains('⟦'));
     }
 }

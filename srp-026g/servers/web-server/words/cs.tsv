@@ -932,7 +932,6 @@ Active time	Doba účinku
 Cooldown	Doba obnovy
 Skill	Dovednost
 Rules	Pravidla
-Where	Kde
 Movement speed	Rychlost pohybu
 Stamina regeneration	Obnova energie
 Stamina use	Spotřeba energie
@@ -946,10 +945,8 @@ Regeneration	Regenerace
 Regeneration delay	Prodleva regenerace
 Regenerates up to	Obnovuje se do
 HP	HP	unit
-Passive: while carried in a container, from pickup to death; a death leaves them in that kit's containers.	Pasiv: dokud je nošen v kontejneru, od sebrání do smrti; po smrti zůstanou v kontejnerech té sady.
-Active: an artefact's key fires every ready copy of its kind.	Aktivace: klávesa artefaktu aktivuje každou připravenou kopii jeho druhu.
-Spring's and Larkspur's actives add to their passive; an active Onyx replaces its passive.	Aktivace Pružiny a Ostrožky se přičítá k jejich pasivu; aktivní Onyx nahrazuje svůj pasiv.
-Firing restarts the whole cooldown of the kind's copies still cooling.	Aktivace znovu spustí celou dobu obnovy kopií toho druhu, které se ještě obnovují.
-Copies of a kind add up, Onyx's passive multiplies; at most 4 of a kind count.	Kopie jednoho druhu se sčítají, pasiv Onyxu se násobí; počítají se nejvýše 4 jednoho druhu.
-Onyx fired together reduce a hit once, 1 s longer for each other copy.	Onyxy aktivované společně sníží zásah jednou, o 1 s déle za každou další kopii.
-Different kinds work side by side, each with its own key and cooldown.	Různé druhy působí vedle sebe, každý s vlastní klávesou a dobou obnovy.
+Carried in a container: passive. A death leaves them in that kit.	V kontejneru: pasiv. Po smrti zůstanou v té sadě.
+A key fires every ready copy of its kind and restarts the cooldown of the ones still cooling.	Klávesa aktivuje každou připravenou kopii svého druhu a znovu spustí dobu obnovy těch, které se ještě obnovují.
+Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Kopie jednoho druhu se sčítají (pasiv Onyxu se násobí); počítají se nejvýše 4.
+Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Aktivace Pružiny a Ostrožky se přičítá k pasivu; aktivace Onyxu ho nahrazuje.
+Onyx fired together: one reduction, 1 s longer per extra copy.	Onyxy aktivované společně: jedno snížení, o 1 s déle za každou další kopii.

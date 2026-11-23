@@ -932,7 +932,6 @@ Active time	Hatásidő
 Cooldown	Újratöltés
 Skill	Képesség
 Rules	Szabályok
-Where	Lelőhelyek
 Movement speed	Mozgási sebesség
 Stamina regeneration	Energia-visszatöltődés
 Stamina use	Energiafogyasztás
@@ -946,10 +945,8 @@ Regeneration	Regeneráció
 Regeneration delay	Regeneráció késleltetése
 Regenerates up to	Regenerálódik eddig
 HP	ÉP	unit
-Passive: while carried in a container, from pickup to death; a death leaves them in that kit's containers.	Passzív: amíg tárolóban hordod, a felvételtől a halálig; halál után a felszerelés tárolóiban maradnak.
-Active: an artefact's key fires every ready copy of its kind.	Aktív: egy artefaktum gombja a fajtája minden kész példányát aktiválja.
-Spring's and Larkspur's actives add to their passive; an active Onyx replaces its passive.	A Rugó és a Szarkaláb aktívja hozzáadódik a passzívjukhoz; az aktív Ónix felváltja a passzívját.
-Firing restarts the whole cooldown of the kind's copies still cooling.	Az aktiválás újraindítja a fajta még töltődő példányainak teljes újratöltését.
-Copies of a kind add up, Onyx's passive multiplies; at most 4 of a kind count.	Egy fajta példányai összeadódnak, az Ónix passzívja szorzódik; fajtánként legfeljebb 4 számít.
-Onyx fired together reduce a hit once, 1 s longer for each other copy.	Az együtt aktivált Ónixok egyszer csökkentik a találatot, minden további példányért 1 mp-cel tovább.
-Different kinds work side by side, each with its own key and cooldown.	A különböző fajták egymás mellett hatnak, mindegyik saját gombbal és újratöltéssel.
+Carried in a container: passive. A death leaves them in that kit.	Tárolóban: passzív. Halál után abban a felszerelésben maradnak.
+A key fires every ready copy of its kind and restarts the cooldown of the ones still cooling.	Egy gomb a fajtája minden kész példányát aktiválja, és újraindítja a még töltődők újratöltését.
+Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Egy fajta példányai összeadódnak (az Ónix passzívja szorzódik); legfeljebb 4 számít.
+Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	A Rugó és a Szarkaláb aktívja hozzáadódik a passzívhoz; az Ónixé felváltja azt.
+Onyx fired together: one reduction, 1 s longer per extra copy.	Együtt aktivált Ónixok: egy csökkentés, minden további példányért 1 mp-cel tovább.

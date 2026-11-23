@@ -932,7 +932,6 @@ Active time	Час дзеяння
 Cooldown	Перазарадка
 Skill	Навык
 Rules	Правілы
-Where	Дзе
 Movement speed	Хуткасць перамяшчэння
 Stamina regeneration	Рэгенерацыя энергіі
 Stamina use	Расход энергіі
@@ -946,10 +945,8 @@ Regeneration	Рэгенерацыя
 Regeneration delay	Затрымка рэгенерацыі
 Regenerates up to	Аднаўляецца да
 HP	АЗ	unit
-Passive: while carried in a container, from pickup to death; a death leaves them in that kit's containers.	Пасіў: пакуль артэфакт у кантэйнеры, ад падбору да смерці; пасля смерці яны застаюцца ў кантэйнерах гэтага камплекта.
-Active: an artefact's key fires every ready copy of its kind.	Актывацыя: клавіша артэфакта актывуе ўсе гатовыя копіі гэтага віду.
-Spring's and Larkspur's actives add to their passive; an active Onyx replaces its passive.	Актывацыя Спружыны і Жывакосту дадаецца да іх пасіву; актыўны Онікс замяняе свой пасіў.
-Firing restarts the whole cooldown of the kind's copies still cooling.	Актывацыя наноў запускае ўсю перазарадку копій гэтага віду, якія яшчэ перазараджаюцца.
-Copies of a kind add up, Onyx's passive multiplies; at most 4 of a kind count.	Копіі аднаго віду складваюцца, пасіў Онікса памнажаецца; дзейнічаюць не больш за 4 аднаго віду.
-Onyx fired together reduce a hit once, 1 s longer for each other copy.	Оніксы, актываваныя разам, памяншаюць пападанне адзін раз і дзейнічаюць на 1 с даўжэй за кожную іншую копію.
-Different kinds work side by side, each with its own key and cooldown.	Розныя віды дзейнічаюць разам, у кожнага свая клавіша і перазарадка.
+Carried in a container: passive. A death leaves them in that kit.	У кантэйнеры: пасіў. Пасля смерці яны застаюцца ў тым камплекце.
+A key fires every ready copy of its kind and restarts the cooldown of the ones still cooling.	Клавіша актывуе ўсе гатовыя копіі свайго віду і наноў запускае перазарадку тых, што яшчэ перазараджаюцца.
+Copies of a kind add up (Onyx's passive multiplies); at most 4 count.	Копіі аднаго віду складваюцца (пасіў Онікса памнажаецца); дзейнічаюць не больш за 4.
+Spring's and Larkspur's actives add to the passive; Onyx's replaces it.	Актывацыя Спружыны і Жывакосту дадаецца да пасіву; Онікса — замяняе яго.
+Onyx fired together: one reduction, 1 s longer per extra copy.	Оніксы, актываваныя разам: адно памяншэнне, на 1 с даўжэй за кожную дадатковую копію.
