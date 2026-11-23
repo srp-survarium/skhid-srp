@@ -339,7 +339,7 @@ pub fn still_borne(tactics: &Tactics, route: &Route, walked: f32, body: &CrossBo
 /// [A390] The way out of a zone from floor `from` for `body` ([`Tactics::escape`] with `hard`, toward `goal`), by any way when
 /// its pool falls: when that way out would leave a pool under the body's give-up (`CrossBody::leaves`, the zone price rows'
 /// `give_up_left`), or there is none, the way out with the landings it gave up open again ([`RouteFilter::landings_opened`]:
-/// a jump or a drop it shut, Vector Laboratory's radiation pit's riser) is searched too. That one is taken when it leaves the
+/// a jump or a drop it shut, Vector Laboratory's radiation pit's riser; not one its motor gave up for the match, `spent`) is searched too. That one is taken when it leaves the
 /// give-up, or when the first is none, or when neither does and it leaves more in its tightest pool
 /// ([`CrossBody::tightest_left`]: each pool against what it holds). With the log's line when it is taken (decision-neutral).
 #[allow(clippy::too_many_arguments)]
@@ -352,13 +352,14 @@ pub fn escape_borne(
     objective: bool,
     hard: &RouteFilter,
     body: &CrossBody,
+    spent: &[mapdata::Vec3],
 ) -> (Option<Route>, Option<String>) {
     let kept = tactics.escape(from, goal, time, side, objective, hard);
     let cost = |route: &Route| hurt(tactics, route, 0.0, route.length(), body.armour());
     if kept.as_ref().is_some_and(|route| body.leaves(cost(route))) {
         return (kept, None);
     }
-    let any = tactics.escape(from, goal, time, side, objective, &hard.landings_opened());
+    let any = tactics.escape(from, goal, time, side, objective, &hard.landings_opened(spent));
     match any {
         Some(any)
             if body.leaves(cost(&any))

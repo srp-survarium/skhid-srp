@@ -314,10 +314,13 @@ impl RouteFilter {
 
     /// [A390] This filter with the landings of the jumps and drops the body gave up open again (its other rules kept, and the
     /// sprint links the client refuses it now, [`stuck::ShutKind::Refused`], still shut): a body a zone's way out would leave
-    /// under its give-up takes any way out (`crossing::escape_borne`).
-    pub fn landings_opened(&self) -> RouteFilter {
+    /// under its give-up takes any way out (`crossing::escape_borne`). [jump loop v2] The jumps its motor gave up for the match
+    /// (`spent`, `Stuck::spent_landings`) stay shut too: the motor refuses a route over one at once, and the way out over it was
+    /// handed again every tick (the confirm bench of 2026-11-23, Vector Laboratory batteries: 2,043 and 867 ways out over a shut
+    /// landing, each failed at once, by one bot in a zone in batt-m7-s1 and in batt-m7-s2).
+    pub fn landings_opened(&self, spent: &[mapdata::Vec3]) -> RouteFilter {
         let mut opened = self.clone();
-        opened.landings.retain(|shut| shut.kind == stuck::ShutKind::Refused);
+        opened.landings.retain(|shut| shut.kind == stuck::ShutKind::Refused || stuck::spent_covers(spent, shut));
         opened
     }
 
@@ -419,10 +422,13 @@ mod tests {
         let refused = stuck::Shut { kind: stuck::ShutKind::Refused, landing: grid.position(c), lasts: stuck::Lasts::Until(u32::MAX) };
         let shut = RouteFilter::shutting_landings(vec![stuck::Shut::jump(grid.position(a)), refused]).with_floors(move |n| n != b);
         assert!(!shut.hard_open(grid, a) && !shut.hard_open(grid, b) && !shut.hard_open(grid, c));
-        let opened = shut.landings_opened();
+        let opened = shut.landings_opened(&[]);
         assert!(opened.hard_open(grid, a), "the landing's floor is open again");
         assert!(!opened.hard_open(grid, b), "the floor rule stays");
         assert!(!opened.hard_open(grid, c), "a sprint the client refuses stays shut");
+        // [jump loop v2] A jump the body's motor gave up stays shut.
+        let spent = shut.landings_opened(&[grid.position(a)]);
+        assert!(!spent.hard_open(grid, a), "a spent jump's landing stays shut");
     }
 
     /// A grid and its regions to test on.

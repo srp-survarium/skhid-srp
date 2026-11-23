@@ -10,7 +10,7 @@
 //! the match, and written to the log as the map's dead-link list for the grid builder's owner.
 //!
 //! Its safety: a search that finds no way with the dead links shut searches once more without them
-//! (`unstick.drop_shut_last_resort`, [`super::stuck::without_drops`]): where a dead link is the only way, the bot takes it
+//! (`unstick.drop_shut_last_resort`, [`super::stuck::Stuck::last_resort`]): where a dead link is the only way, the bot takes it
 //! again, as it did before.
 //!
 //! [A351 change, `unstick.link_made`] No link is dead on the model's word when a world shows a body up it: a jump the motor
@@ -227,14 +227,18 @@ pub mod tally {
     pub const SHUT: usize = 1;
     pub const MADE: usize = 2;
     pub const OPENED: usize = 3;
+    /// [jump loop] A last resort that kept a dead link shut for a body whose motor gave the jump up (`Stuck::last_resort`).
+    pub const KEPT_SPENT: usize = 4;
+    /// [jump loop v2] A no-way taken as proof with a dead link shut over a jump the body's motor gave up (`Stuck::no_way_is_proof`).
+    pub const PROOF_SPENT: usize = 5;
 
-    static COUNTS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+    static COUNTS: [AtomicU64; 6] = [const { AtomicU64::new(0) }; 6];
 
     pub fn count(kind: usize) {
         COUNTS[kind].fetch_add(1, Ordering::Relaxed);
     }
 
-    pub fn counts() -> [u64; 4] {
+    pub fn counts() -> [u64; 6] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
