@@ -308,8 +308,12 @@ pub(super) fn fix_floors() -> Box<dyn RouteTopic> {
 /// that is not the nearest (`moved`), and on the same floor (`body::counts`).
 pub(super) fn fix_floors_in_air() -> Box<dyn RouteTopic> {
     Delta::of(
-        || super::super::body::counts::fix_floors_in_air().to_vec(),
-        |d, line| line.ends.push(format!("fix_floor_in_air_same {} fix_floor_in_air_moved {}", d[0], d[1])),
+        || {
+            let mut all = super::super::body::counts::fix_floors_in_air().to_vec();
+            all.push(super::super::body::counts::fix_floors_still());
+            all
+        },
+        |d, line| line.ends.push(format!("fix_floor_in_air_same {} fix_floor_in_air_moved {} fix_floor_still {}", d[0], d[1], d[2])),
     )
 }
 
