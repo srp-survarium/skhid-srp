@@ -107,7 +107,16 @@ if (process.argv[2]) {
   const motions = WeaponMotions.parse(shot), none = WeaponMotions.parse(undefined);
   assert.equal(motions.camera.hip, null, 'no hip clip, no hip motion');
   assert.deepEqual(WeaponMotions.parse({camera: {hip: {up: [0, 1], side: [0, 0]}}}).camera.aimed, {up: [0, 1], side: [0, 0]}, 'aimed is the hip clip unless another is given');
-  assert.deepEqual(WeaponMotions.cameraAt(motions, 'aimed', 0), {up: 0, side: 0}, 'the bullet leaves with the camera at rest');
+  assert.deepEqual(WeaponMotions.cameraAt(motions, 'aimed', 0), {up: 0, side: 0}, 'a pass starts from rest');
+  // A bullet leaves along the eye of the step before its shot (steps end every 50 ms).
+  for (const [time, eye] of [[.05, 0], [.07, .05], [.1, .05], [.1206, .1], [.15, .1]]) assert.ok(Math.abs(WeaponMotions.eyeTime(time) - eye) < 1e-9, `the eye of a shot at ${time}`);
+  const burst = [{time: .05}, {time: .11}, {time: .17}];
+  assert.equal(WeaponMotions.phaseAt(burst, .06, .04), 1, 'no shot yet');
+  assert.ok(Math.abs(WeaponMotions.phaseAt(burst, .06, .1) - 5 / 6) < 1e-9, 'late in the first pass');
+  assert.deepEqual(WeaponMotions.cameraAtShot(motions, 'aimed', burst, .06, .05), {up: 0, side: 0}, 'the first bullet leaves from rest');
+  // the second shot, at 0.11: the eye of 0.10, 5/6 into the first pass, halfway down the curve's last third
+  const second = WeaponMotions.cameraAtShot(motions, 'aimed', burst, .06, .11);
+  assert.ok(Math.abs(second.up + .25) < 1e-9 && Math.abs(second.side - .125) < 1e-9, `the second takes the turn of the pass before (${JSON.stringify(second)})`);
   assert.deepEqual(WeaponMotions.cameraAt(motions, 'aiming', 1 / 3), {up: -1, side: .5}, 'the aimed clip while aiming in');
   assert.deepEqual(WeaponMotions.cameraAt(motions, 'hip', 1 / 3), {up: 0, side: 0});
   assert.deepEqual(WeaponMotions.cameraAt(motions, 'aimed', 1), {up: 0, side: 0}, 'over with its pass');

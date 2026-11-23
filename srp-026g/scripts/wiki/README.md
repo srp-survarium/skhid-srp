@@ -62,7 +62,12 @@ A shot moves three things, and the simulation shows each by its own switch:
   next bullet leaves where it points.
 - **Camera wobble** (`motions.js`): the hands' shot clip turns the camera bone
   `Item` on some weapons (of the automatic ones only the H&K 416 and the M4A1).
-  One fixed curve a shot, back at rest by the next; no number scales it.
+  One fixed curve a shot; no number scales it. It turns the bullets too: a
+  bullet leaves along the eye as the simulation's step before its shot left
+  it (steps end every 50 ms), so from a burst's second shot on a bullet takes
+  the curve late in the pass before (the H&K 416: 0.29 degrees on average, at
+  most 0.67, mostly sideways); the first leaves from rest. The hits are drawn
+  so.
 - **Gun kick** (`motions.js`): the gun's own shot clip moves its body bone
   `offset` in front of the camera, which the aimed view shows on every gun
   since patch 172. One fixed curve a shot; the bullet leaves from the camera,
