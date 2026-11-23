@@ -3465,6 +3465,7 @@ va	name	location	role	basis
 0x0033e6f0	survarium::oxygen_tank::reduce_damage	stack+8	amountpointer	inferred
 0x0033e740	survarium::oxygen_tank::get_item_props	ECX	oxygenreceiver	inferred
 0x0033e740	survarium::oxygen_tank::get_item_props	stack+4	outputproperties	inferred
+0x0033e740	survarium::oxygen_tank::get_item_props	stack+4	the quick slot's props (update_quick_slot's vtable +48h, 0x23A265): +0 the icon word ([+25Ch]), +2 the timer, m_amount_ms (+26Ch) x 0.001 made an integer (0x1E800) (the air's seconds, fill_slot's timer: create_slot_value 0x23A04F), +4 the count 1	observed
 0x0033e790	survarium::oxygen_tank::serialize	ECX	oxygen_tank	inferred
 0x0033e790	survarium::oxygen_tank::serialize	stack+4	writer	inferred
 0x0033e7f0	survarium::oxygen_tank::deserialize	ECX	oxygen_tank	inferred
