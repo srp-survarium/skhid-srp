@@ -1,6 +1,6 @@
 //! Courier's native sites (patch 109, crate::artefact_courier): the respawn rule's spawn
 //! (0x316DA0) at its start, the place's kit and the one it spawns in, and at its end, the new
-//! kit's player and its place's kits. The move is the inventory's (`Inventory::take_from_dead_kit`).
+//! kit's player and its place's kits. The move is the inventory's (`Inventory::take_from_kit`).
 use super::inventory::Inventory;
 use super::world::read;
 use super::{Context, Thread, artefact_skills};
@@ -75,7 +75,7 @@ impl<'t> Spawned<'t> {
             return Carried::default();
         };
         match (Inventory::of_player(self.player, self.thread), Inventory::of_player(donor, self.thread)) {
-            (Some(mut recipient), Some(mut donor)) => recipient.take_from_dead_kit(&mut donor, self.world),
+            (Some(mut recipient), Some(mut donor)) => recipient.take_from_kit(&mut donor, self.world),
             _ => Carried::default(),
         }
     }
