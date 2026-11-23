@@ -386,7 +386,7 @@ class RouteTest(wine.WineTest):
         elif text:
             with open(path, "w", newline="") as file:
                 file.write(text)
-        return open(path).read() if os.path.exists(path) else None
+        return open(path, newline="").read() if os.path.exists(path) else None
 
     def views(self, launched):
         """The row's views and PLAY's "latest", in the order said."""
