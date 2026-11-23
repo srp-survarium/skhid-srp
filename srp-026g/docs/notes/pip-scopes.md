@@ -260,9 +260,19 @@ changed to no swap (section 3).
 **The frame rate while a magnified optic was held (rounds 1 and 2):** 13.3 ms a frame against 5.3;
 the owner's display runs at 74.96 Hz (niri, HDMI-A-1), so those frames waited for the display. Found
 headless (an X11 dummy display whose Present itself waits for its display, so every run there is at
-about that rate; the timing lines of section 6 say where each frame waits):
+about that rate; the timing lines of section 6 say where each frame waits; AK-74M + Leupold 3-7,
+960 x 540, uncapped, per frame):
 
+```
+                                      frame's Present   second view    interval
+lens off (SKHID_PIP_PROBE=time)       10.5 ms           -              13.0 ms
+lens on, aimed (round 2's draw)        0.02 ms          0.8 ms CPU,    13.4 ms
+                                                        then ~10 ms
+                                                        in its tail
+lens on, aimed (r_gpu_sync skipped)    8.9 ms           1.0 ms CPU     12.5 ms
+```
 
+(the render thread between draws 0.04 ms in all three: never idle.)
 
 - Every renderer::render ends, after its Present, with a wait for the GPU to finish its draw
   (r_gpu_sync, a console byte at 0xA71BF7, on by default: event_query::wait 0x3CF4B0 at 0x13DE1F).
