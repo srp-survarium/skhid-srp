@@ -261,7 +261,7 @@ package
 
       // Artifact Hunt (mode 13, docs/notes/artefact_hunt.md "HUD calls"): the teams' points in Team
       // Deathmatch's bars as Research's, the artefact under them (huntRow), the bases, the artefact and
-      // the carrier on the minimaps, his row in the Tab list, the round's fade (roundFade); all of it
+      // the carrier on the minimaps, the round's fade (roundFade); all of it
       // from the last root.artefact_hunt_update (_hunt) and the time since.
       protected const GAME_MODE_ARTEFACT_HUNT:uint = 13;
 
@@ -1483,8 +1483,6 @@ package
       {
          this.player_list.players.addPlayersList(_players);
          this.tabMinimap.setPlayerNames(_players);
-         // the carrier's name and his row's mark
-         this.drawArtefactHunt();
       }
 
       // The Tab map's names over the player icons, shown while Alt is held (the exe's patch 82 tells
@@ -2304,11 +2302,10 @@ package
          }
          this.drawHuntBars();
          this.spreadHuntBars(state.waveComing ? this.huntRow.wave.room : 0);
-         this.huntRow.draw(state,this.player_list.players.nameOf(state.carrier),getTimer());
+         this.huntRow.draw(state,getTimer());
          this.roundFade.update(state,getTimer());
          this.minimap.setArtefactHunt(state);
          this.tabMinimap.setArtefactHunt(state);
-         this.player_list.players.carrier = state.carrier;
          this.placeTopRow();
       }
 
@@ -2325,7 +2322,6 @@ package
          this.roundFade.update(null,0);
          this.minimap.setArtefactHunt(null);
          this.tabMinimap.setArtefactHunt(null);
-         this.player_list.players.carrier = -1;
       }
 
       // The teams' points in Team Deathmatch's bars, the own team's first (blue); in sudden death,

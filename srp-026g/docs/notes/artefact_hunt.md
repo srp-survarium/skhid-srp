@@ -573,9 +573,10 @@ late join need nothing, and a world gains no byte.
     `player_icons.enemy_ids` 0x235709 (a `flash/player_icons` change);
   - minimap: `update_minimap_players` 0x239420 lists an enemy only while spotted (0x239505, site
     `minimap.enemy_spotted`): the carrier always; its `is_carrying_item` (0x239521) is left alone,
-    the hud movie marks the dot of the update call's carrier place;
-  - the player list: 0.26g's `root.list_update_player` has no carry member; the hud movie marks the
-    row of the update call's carrier place.
+    the hud movie marks the dot of the update call's carrier place (on both minimaps, the corner's
+    and the Tab list's);
+  - nowhere else in the hud: no name under the artefact's row, no mark in the Tab list (the owner,
+    2026-11-23: "it should only be map and maybe minimap").
 - **His death and leaving** are the rule's own slots. PROVEN: event 1 is sent from `hit_impl` at
   0x2D9ED3..0x2D9EF7 when the hit set `pending_death`, the victim still alive and in the world (his
   `on_player_death` runs at his next tick), so his feet are there for the drop; it is the only
@@ -898,7 +899,8 @@ re-simulation undoes: Research has the same exposure.
 
   The movie draws from it: the scores (its own branch for game type 13; `set_game_type(13)` is
   native), the minimap's artefact while lying and the bases (its own highlighted with #20), as
-  Research's units are placed (x, -z), the carrier's row and dot, "carrying" for #20, the last
+  Research's units are placed (x, -z), the carrier's dot on the minimaps (#18; #19 colours the
+  row's orb, with no name under it), "carrying" for #20, the last
   players in sudden death, "Round restarts in" with #5 in phase 6 when #7 is 2 (0.46c2's
   `show_round_restart`, `set_round_restart_time`), a full-screen fade over phase 7's #6 (0.46c2's
   `show_fade_animation(1.0, true)`), the countdown's "Awaiting match start: 00:05" with #5 in
