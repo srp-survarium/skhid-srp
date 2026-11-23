@@ -374,8 +374,21 @@ pub struct ClientBody {
     /// The yaw the step before began at: the next step's walk is turned by it (walk-truth: keys t - 50 and this yaw are the game's
     /// walk on 63-95 % of steady steps within 0.1 mm, the step's own yaw on 2-4 %).
     walk_yaw: f32,
-    /// A forward jump under way, with the speed factor its flight was pressed at.
-    jump: Option<Flying>,
+    /// On the ground, in a forward jump, or on the step after one's landing.
+    phase: Phase,
+}
+
+/// Where a [`ClientBody`] is in a forward jump.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Phase {
+    /// No jump: the walk is the keys' blend.
+    Ground,
+    /// A forward jump under way.
+    Flying(Flying),
+    /// The step after a flight's landing (the landing substate, still in the jump state): it walks at the flight's last travel
+    /// straight ahead in `clip`, whatever its input; the keys' blend runs from it on the step after (pr-review-opus, #2561: the first
+    /// ground step after 17 of 17 recorded short landings moves within 0.06 m/s of the landing step's travel, forward held or let go).
+    Landing { travel: f32, clip: Clip },
 }
 
 impl std::fmt::Debug for ClientBody {
@@ -385,7 +398,7 @@ impl std::fmt::Debug for ClientBody {
             .field("blend", &self.blend)
             .field("moving", &self.moving)
             .field("walk_yaw", &self.walk_yaw)
-            .field("flying", &self.jump.is_some())
+            .field("phase", &self.phase)
             .finish()
     }
 }
@@ -393,7 +406,7 @@ impl std::fmt::Debug for ClientBody {
 impl ClientBody {
     /// A body whose controller is `controller`, at rest in its blend, with no input yet.
     pub fn of(controller: Controller, yaw: f32) -> Self {
-        Self { controller, blend: WalkBlend::still(), moving: Input { keys: 0, yaw }, walk_yaw: yaw, jump: None }
+        Self { controller, blend: WalkBlend::still(), moving: Input { keys: 0, yaw }, walk_yaw: yaw, phase: Phase::Ground }
     }
 
     /// A world's body: the controller it saved (`Controller::deserialized`, the client's own state: crouched where it is), the
@@ -469,7 +482,11 @@ impl ClientBody {
     /// the input before, blended, capped by `now`'s keys (skipped in a jump, 0x2D915E), turned by the yaw before the step before.
     fn walk_of(&self, now: Input, kin: Kin) -> ([f32; 2], WalkBlend) {
         let mut blend = self.blend;
-        let local = blend.tick(target_local(self.moving.keys, kin.level), clip_of(self.moving.keys));
+        let (target, clip) = match self.phase {
+            Phase::Landing { travel, clip } => ([travel, 0.0], clip),
+            _ => (target_local(self.moving.keys, kin.level), clip_of(self.moving.keys)),
+        };
+        let local = blend.tick(target, clip);
         let local = if self.controller.jumping { local } else { capped(local, now.keys, kin.level) };
         let v = to_world(local, self.walk_yaw);
         ([v[0] * DT, v[1] * DT], blend)
@@ -481,8 +498,8 @@ impl ClientBody {
     /// control of `now`'s keys, heading by the input before).
     pub fn tick(&mut self, world: &impl Walker, kin: Kin, now: Input) -> Tick {
         let (walk, blend) = self.walk_of(now, kin);
-        let (notes, walk) = match self.jump.as_mut() {
-            Some(flying) => {
+        let (notes, walk) = match &mut self.phase {
+            Phase::Flying(flying) => {
                 let sign = |a: u32, b: u32| i8::from(now.keys & a != 0) - i8::from(now.keys & b != 0);
                 let air = Flying::air_of(flying.press(), sign(keys::FORWARD, keys::BACK), sign(keys::RIGHT, keys::LEFT));
                 // The step's heading is the yaw after the input before it (`apply_rotation` 0x2D8AD0 turns the body by an input
@@ -491,16 +508,19 @@ impl ClientBody {
                 let step: FlightStep = world.fly(&mut self.controller, flying, (f[0], f[1]), air);
                 let landed = flying.landed();
                 if landed {
-                    // The ground walk goes on from the clip's last travel (`jump::fly_as`'s ground steps).
+                    // The ground walk goes on from the clip's last travel (`jump::fly_as`'s ground steps), first a step at it
+                    // whatever the keys ([`Phase::Landing`]).
                     let travel = flying.last_travel();
-                    self.blend = WalkBlend::at([travel, 0.0], clip_of(now.keys));
-                    self.jump = None;
+                    let clip = clip_of(now.keys);
+                    self.blend = WalkBlend::at([travel, 0.0], clip);
+                    self.phase = Phase::Landing { travel, clip };
                 }
                 let notes = StepNotes { airborne: !step.on_ground, ..StepNotes::default() };
                 (notes, [0.0, 0.0])
             }
-            None => {
+            Phase::Ground | Phase::Landing { .. } => {
                 self.blend = blend;
+                self.phase = Phase::Ground;
                 let input = TickInput {
                     walk: Vec3::new(walk[0], 0.0, walk[1]),
                     air_control: Vec3::ZERO,
@@ -532,7 +552,7 @@ impl ClientBody {
         }
         let cap = jump::WALK_CAP_MS * kin.level;
         let press = if sprints(keys) && speed >= cap { Press::Sprint { speed, leg, first_air_frame } } else { Press::Walk { speed } };
-        self.jump = Some(Flying::new(press, Flight { cap, dy: 0.0 }));
+        self.phase = Phase::Flying(Flying::new(press, Flight { cap, dy: 0.0 }));
         Ok(())
     }
 
@@ -550,14 +570,15 @@ impl ClientBody {
         steps_done: u32,
     ) -> Result<(), Unported> {
         self.press_forward(press.0, press.1, kin, leg, first_air_frame)?;
-        if let Some(flying) = self.jump.as_mut() {
+        if let Phase::Flying(flying) = &mut self.phase {
             let mut scratch = self.controller;
             let f = forward(self.moving.yaw);
             for _ in 0..steps_done {
                 world.fly(&mut scratch, flying, (f[0], f[1]), (0.0, 0.0));
             }
             if flying.landed() {
-                self.jump = None;
+                let travel = flying.last_travel();
+                self.phase = Phase::Landing { travel, clip: clip_of(self.moving.keys) };
             }
         }
         Ok(())
@@ -565,7 +586,7 @@ impl ClientBody {
 
     /// Whether a forward jump is under way.
     pub fn flying(&self) -> bool {
-        self.jump.is_some()
+        matches!(self.phase, Phase::Flying(_))
     }
 }
 
@@ -823,6 +844,30 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// [#2561] The step after a flight's landing walks at the flight's last travel whatever its keys; the keys' blend runs from it
+    /// on the step after: forward held, a sixth of the way to the walk cap.
+    #[test]
+    fn the_step_after_a_landing_walks_at_the_flights_travel() {
+        let floor = floor();
+        let world = Client { world: &floor };
+        let mut body = ClientBody::at_rest(&world, Vec3::new(0.0, 0.0, -10.0), 0.0).expect("rests");
+        let input = Input { keys: keys::FORWARD, yaw: 0.0 };
+        body.press_forward(keys::FORWARD, 1.0, Kin::CLIENT, Leg::Left, 6.57).expect("forward");
+        let mut travel = None;
+        while body.flying() {
+            body.tick(&world, Kin::CLIENT, input);
+            if let Phase::Landing { travel: t, .. } = body.phase {
+                travel = Some(t);
+            }
+        }
+        let travel = travel.expect("landed");
+        let m1 = body.tick(&world, Kin::CLIENT, input).walk;
+        assert!((m1[1] / DT - travel).abs() < 1e-4 && m1[0].abs() < 1e-5, "m1 {m1:?} against the travel {travel}");
+        let m2 = body.tick(&world, Kin::CLIENT, input).walk;
+        let want = travel + (target_local(keys::FORWARD, 1.0)[0] - travel) / 6.0;
+        assert!((m2[1] / DT - want).abs() < 1e-4, "m2 {m2:?} against {want}");
     }
 
     /// A side press is not flown (its clip is not ported).
