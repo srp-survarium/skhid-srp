@@ -717,3 +717,206 @@ Battery spawn	Výskyt baterie
 Charger	Nabíječka
 Research unit	Výzkumná jednotka
 Spawn	Oživení
+
+# The damage calculator (a page built at a release: scripts/site-texts)
+Feet	Chodidla	parts
+m/s	m/s	unit
+HP/s	HP/s	unit
+active	aktivní
+passive	pasivní
+Damage ×{damage}, penetration ×{pierce}, before armour: lower penetration makes the armour stop more.	Poškození ×{damage}, průbojnost ×{pierce}, před ochranou: s nižší průbojností ochrana zastaví víc.
+{drug}: {pool} takes ×{k} for {s} s after use ({delay} s to kick in).	{drug}: {pool} dostává ×{k} po dobu {s} s po použití (účinek za {delay} s).
+Inside an anomaly: damage ×{k}, before armour.	V anomálii: poškození ×{k}, před ochranou.
+This weapon takes no damage bonuses.	Tato zbraň nemůže mít bonusy k poškození.
+Come with the weapon; cannot be changed.	Patří ke zbrani; nelze je změnit.
+An item holds at most 3 modifications. Bonuses on one stat add up before they apply.	Předmět má nejvýš 3 modifikace. Bonusy k jednomu parametru se před použitím sečtou.
+This item takes no armour bonuses.	Tento předmět nemůže mít bonusy k ochraně.
+Nothing worn covers the {part}.	Nic z vybavení nechrání: {part}.
+Drugs	Léky
+Assault rifles	Útočné pušky
+Submachine guns	Samopaly
+Shotguns	Brokovnice
+Bolt-action & sniper rifles	Opakovací a odstřelovačské pušky
+Pistols & revolvers	Pistole a revolvery
+Helmet	Přilba
+Mask	Maska
+Jacket	Bunda
+Gloves	Rukavice
+Trousers	Kalhoty
+Boots	Boty
+Backpack	Batoh
+Chest & neck	Hruď a krk
+Right arm	Pravá paže
+Left arm	Levá paže
+Right hand	Pravá ruka
+Left hand	Levá ruka
+Right leg	Pravá noha
+Left leg	Levá noha
+Right foot	Pravé chodidlo
+Left foot	Levé chodidlo
+Body	Tělo
+Pain	Bolest
+Infection	Nákaza
+death	smrt
+bleeding	krvácení
+concussion	otřes mozku
+hand injury	zranění ruky
+leg injury	zranění nohy
+infection	nákaza
+blindness	oslepení
+Search	Hledat
+— none —	— nic —
+nothing worn	nic nenasazeno
+back	zezadu
+front	zepředu
+after shot	po výstřelu
+of	z
+dead	mrtvý
+Glass	Sklo
+Car	Auto
+Plywood	Překližka
+Tinplate	Plech
+Brick, steel	Cihla, ocel
+Concrete	Beton
+Stone	Kámen
+<none>	<žádná>
+armour	ochrana
+{n} left	zbývá {n}
+damage	poškození
+penetration	průbojnost
+full damage to	plné do
+minimum from	minimum od
+minimum	minimum
+muzzle	úsťová rychlost
+rate	kadence
+magazine	zásobník
+Gets through: k {k}, D {D} · P {P}.	Projde: k {k}, D {D} · P {P}.
+Does not get through: penetration {P}, armour {A}.	Neprojde: průbojnost {P}, ochrana {A}.
+here	tady
+not here	tady ne
+taken by {item}	obsazeno: {item}
+Covers the {part}.	Chrání: {part}.
+Does not cover the {part}.	Nechrání: {part}.
+Click to aim at the {part}.	Kliknutím zamíříte: {part}.
+aim at the {part}	mířit: {part}
+Full damage at this range.	Na tuto vzdálenost plné poškození.
+Fully fallen off: minimum damage.	Pokles je úplný: minimální poškození.
+Falling off: {share} of the way from minimum to full.	Klesá: {share} cesty od minima k plnému.
+Orange band: damage falls from {from} m to {to} m.	Oranžový pás: poškození klesá od {from} m do {to} m.
+per shot (all pellets)	za výstřel (všechny broky)
+per hit	za zásah
+{pool} damage {per}	{pool}: poškození {per}
+of {n} {pool} left	ze zbývajících {n} ({pool})
+of {n} {pool}	z {n} ({pool})
+Hits to kill	Zásahů k zabití
+dies when {pool} reaches 0	zemře, když {pool} klesne na 0
+this shot cannot kill	tento výstřel nezabije
+Time to kill	Čas do zabití
+every shot lands, no reload	každý výstřel zasáhne, bez přebíjení
+Leaves the barrel	Opouští hlaveň
+Weapon damage × ammo <code>k_damage</code>, weapon pierce × ammo <code>k_arp</code>.	Poškození zbraně × <code>k_damage</code> náboje, průbojnost zbraně × <code>k_arp</code> náboje.
+Each of the {n} pellets carries this.	Tolik nese každý z {n} broků.
+Flies {m} m	Letí {m} m
+Speed {v0} → {v} m/s. Damage slides from full ({full}) to minimum ({min}) by speed between {from} and {to} m: here {share}. Penetration stays.	Rychlost {v0} → {v} m/s. Poškození klesá od plného ({full}) k minimálnímu ({min}) podle rychlosti mezi {from} a {to} m: tady {share}. Průbojnost zůstává.
+Through {wall}	Skrz: {wall}
+stopped	zastaveno
+Penetration {P}, armour {A}. Damage, penetration and speed × k; then damage no higher than at {v} m/s.	Průbojnost {P}, ochrana {A}. Poškození, průbojnost a rychlost × k; pak poškození nejvýš jako při {v} m/s.
+Penetration {P} is not above armour {A}: the bullet stops.	Průbojnost {P} není vyšší než ochrana {A}: kulka se zastaví.
+No armour here, the full amount goes in.	Tady žádná ochrana, projde vše.
+Armour {A} is not above penetration {P}: nothing is stopped.	Ochrana {A} není vyšší než průbojnost {P}: nic se nezastaví.
+Armour exceeds penetration by a full 100: the bullet does nothing.	Ochrana převyšuje průbojnost o celých 100: kulka nic neudělá.
+Armour {A} − penetration {P} = {gap}% of the damage is stopped.	Ochrana {A} − průbojnost {P} = zastaví se {gap}% poškození.
+Hits {part}	Zasáhne: {part}
+Every hit anywhere also drains the shared pain pool. Pain at 0 kills.	Každý zásah kamkoli ubírá i ze společné zásoby bolesti. Bolest na 0 zabíjí.
+Body at 0 kills.	Tělo na 0 zabíjí.
+Head holds only 40: at 0 it kills, below 20 it concusses.	Hlava má jen 40: na 0 zabíjí, pod 20 způsobí otřes mozku.
+Limbs do not kill by themselves: an empty limb injures, the pain it carries can kill.	Končetiny samy nezabíjejí: prázdná končetina se zraní, ale bolest, kterou nese, zabít může.
+Second chance	Druhá šance
+The skill leaves the target alive once.	Dovednost jednou nechá cíl naživu.
+× {n} pellets	× {n} broků
+Each pellet is its own bullet: when several land, their damage adds up.	Každý brok je samostatná střela: když jich zasáhne víc, poškození se sčítá.
+kills	zabije
+breaks	zlomí
+below	pod
+empty	na nule
+movement	pohyb
+shot	výstřel
+Damage over distance	Poškození podle vzdálenosti
+after armour	po ochraně
+Body part	Část těla
+Stopped	Zastaveno
+Limb	Končetina
+Also	Také
+injury	zranění
+best ammo	nejlepší náboj
+default ammo	standardní náboj
+Ammo	Náboj
+Pen. here	Průb. tady
+Damage / hit	Pošk. / zásah
+RPM	Kadence
+Bullet	Kulka
+D, P = weapon × ammo, D falling with distance	D, P = zbraň × náboj, D klesá se vzdáleností
+{n} pellets	{n} broků
+Wall	Zeď
+P ≤ A: the bullet stays in the wall · else D, P × (1 − (A / P)²)	P ≤ A: kulka uvízne ve zdi · jinak D, P × (1 − (A / P)²)
+stays in the wall	uvízne ve zdi
+each	každý
+rank	stupeň
+inside an anomaly	v anomálii
+D × (1 − (armour − P) / 100)	D × (1 − (ochrana − P) / 100)
+{part}, armour {A} − P {P}	{part}, ochrana {A} − P {P}
+Pools	Zásoby
+chest, back → body · head, face → head · leg, foot → leg · arm, hand → hand	hruď, záda → tělo · hlava, obličej → hlava · noha, chodidlo → nohy · paže, ruka → ruce
+× 1 chest, head, arms · 0.9 legs · 0.8 hands, feet	× 1 hruď, hlava, paže · 0.9 nohy · 0.8 ruce, chodidla
+Death	Smrt
+body, head or pain at 0	tělo, hlava nebo bolest na 0
+{n} hits	zásahů: {n}
+at 0	na 0
+does not kill	nezabíjí
+wall armour	ochrana zdi
+One bullet through several parts: each pool loses only its biggest hit, not the sum (hands 40 + 40, chest 35 → pain −40, not −115).	Jedna kulka přes několik částí: každá zásoba ztratí jen svůj největší zásah, ne součet (ruce 40 + 40, hruď 35 → bolest −40, ne −115).
+full	naplno
+fixed	vyléčí
+{s} s without hits	{s} s bez zásahu
+By itself	Samo od sebe
+ends after {s} s without hits	skončí po {s} s bez zásahu
+carried	nošená
+activated	aktivovaná
+at once, every {s} s	ihned, jednou za {s} s
+{delay} s after use, for {s} s	{delay} s po použití, po dobu {s} s
+stops at {n}	do {n}
+From empty to full	Z nuly naplno
+Leg or hand	Noha nebo ruka
+No Larkspur	Bez Ostrožky
+Starts	Začíná
+Legs, hands	Nohy, ruce
+Broken leg, hand	Zlomená noha, ruka
+Top-down view of	Pohled shora:
+<b>{m} m</b> ({across} across, {sign}{height} height). Click again to start over.	<b>{m} m</b> ({across} vodorovně, {sign}{height} výškově). Dalším kliknutím začnete znovu.
+Now click the target.	Teď klikněte na cíl.
+Click the shooter, then the target.	Klikněte na střelce, pak na cíl.
+Orange ring: full damage to {from} m; dashed: minimum from {to} m.	Oranžový kruh: plné poškození do {from} m; čárkovaný: minimum od {to} m.
+health shown ×100 (body 100, head 40)	zdraví zobrazeno ×100 (tělo 100, hlava 40)
+Shooter	Střelec
+fires	střílí
+Distance to target	Vzdálenost k cíli
+Wall in front of the target	Zeď před cílem
+Weapon bonuses	Bonusy zbraně
+— — HIT — →	— — ZÁSAH — →
+takes the hit	dostává zásah
+Current pain	Aktuální bolest
+Pain the target already carries from earlier hits. It drains back to none at 10 a second once 8 s pass without a hit.	Bolest, kterou cíl už má z dřívějších zásahů. Klesá na nulu rychlostí 10 za sekundu, když 8 s nedostane zásah.
+Armour bonuses	Bonusy ochrany
+Artefacts, drugs & skills	Artefakty, léky a dovednosti
+Measure on a map	Změřit na mapě
+Clear points	Vymazat body
+bullet before armour	kulka před ochranou
+after this armour	po této ochraně
+Every body part, this shot	Každá část těla, tento výstřel
+Every weapon against this target	Všechny zbraně proti tomuto cíli
+Same distance, wall, body part, armour and target effects. Each gun uses its best ammo for this target unless you pick "default ammo". Click a row to load that gun.	Stejná vzdálenost, zeď, část těla, ochrana a efekty cíle. Každá zbraň použije svůj nejlepší náboj pro tento cíl, pokud nezvolíte „standardní náboj“. Kliknutím na řádek zbraň načtete.
+Formula	Vzorec
+Healing	Léčení
+Previous shot	Předchozí výstřel
+Next shot	Další výstřel
+Damage calculator	Kalkulačka poškození Survarium	title

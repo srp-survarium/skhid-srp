@@ -551,7 +551,28 @@ try {
       assert.equal(await evaluate("JSON.stringify(pageErrors)"), '[]', `maps, ${lang}: no script errors`);
     }
   }
-  console.log(`PASS: ${total} weapons; image choosers/search/keyboard/mobile, catalogue, full stat comparison, equality/neutral colors, same weapon, simulators: recoil step/scrub/reset, spread by aim, stance, skills, gloves and arms, recoil modifications, help lines (hover, keyboard, tap), EN/UK/RU, the list's columns in RU/DE, the skills' trees in EN/RU/DE/FI, the Maps tab in EN/RU, 360 px and CSP.`);
+  // The calculator in English and Russian (and German, its longest texts): its words the
+  // server's, a weapon and a distance picked change the result, nothing spilling out of its box.
+  for (const width of [1280, 640]) {
+    await send('browsingContext.setViewport', {context, viewport: {width, height: 900}, devicePixelRatio: 1});
+    for (const [lang, heading] of [['en', 'Result'], ['ru', 'Результат'], ['de', null]]) {
+      await navigate(`/wiki/calculator?lang=${lang}`);
+      await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message))");
+      if (heading) assert.equal(await evaluate("document.querySelector('#h-result').textContent"), heading, `calculator, ${lang}: its words`);
+      const result = () => evaluate("[...document.querySelectorAll('.big.num')].map(e => e.textContent).join(' | ')");
+      const first = await result();
+      await evaluate("{const s=document.querySelector('#weapon');s.value=[...s.options].at(-1).value;s.dispatchEvent(new Event('change'))}");
+      await evaluate("{const d=document.querySelector('#dist');d.value='120';d.dispatchEvent(new Event('input'))}");
+      assert.notEqual(await result(), first, `calculator, ${lang}: a weapon and a distance change the result`);
+      const spilled = JSON.parse(await evaluate(`JSON.stringify([...document.querySelectorAll('body *')].filter(e => e.offsetParent && !e.closest('.site, svg')
+        && [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()) && getComputedStyle(e).overflow === 'visible'
+        && getComputedStyle(e).display !== 'inline' && e.scrollWidth > e.clientWidth + 1).map(e => e.textContent.trim().slice(0, 40)))`));
+      assert.deepEqual(spilled, [], `calculator, ${lang} at ${width} px: nothing spills out of its box`);
+      assert.equal(await evaluate("document.documentElement.innerHTML.includes('⟦')"), false, `calculator, ${lang}: no place left`);
+      assert.equal(await evaluate("JSON.stringify(pageErrors)"), '[]', `calculator, ${lang}: no script errors`);
+    }
+  }
+  console.log(`PASS: ${total} weapons; image choosers/search/keyboard/mobile, catalogue, full stat comparison, equality/neutral colors, same weapon, simulators: recoil step/scrub/reset, spread by aim, stance, skills, gloves and arms, recoil modifications, help lines (hover, keyboard, tap), EN/UK/RU, the list's columns in RU/DE, the skills' trees in EN/RU/DE/FI, the Maps tab in EN/RU, the calculator in EN/RU/DE, 360 px and CSP.`);
   await send('session.end');
 } finally {
   await send('session.end').catch(() => {});
