@@ -23,6 +23,9 @@ cbuffer lens : register(b0)
     // front of its rear glass (a rim, an eyecup's lip) covers the picture; w 1 the frame's depth is
     // bound, 2 shown instead (red the frame's, green the glass's), 0 none
     float4 depth;
+    // the exit pupil: xy the clear field's centre in glass radii (it follows the eye off the optic's
+    // axis), z its soft edge: the rest of the glass in its shadow
+    float4 pupil;
 };
 
 Texture2D picture : register(t0);
@@ -70,5 +73,6 @@ float4 ps_main(v_out i) : SV_Target
     float2 uv = offset * float2(0.5, -0.5) + 0.5;
     float3 c = picture.Sample(linear_clamp, uv).rgb;
     float shade = lerp(rim.y, 1.0, saturate((1.0 - r) * rim.x));
+    shade *= 1.0 - smoothstep(1.0, 1.0 + pupil.z, length(i.local - pupil.xy));
     return float4(c * shade, cover);
 }

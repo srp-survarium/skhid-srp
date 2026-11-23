@@ -449,7 +449,19 @@ struct Placed {
     picture: [f32; 4],
     /// The depth terms the frame drew the optic with.
     depth: [f32; 2],
+    /// The eye off the glass's axis, in glass radii across it (its two radii's
+    /// directions), and the clear field's shift by it ([`PUPIL_GAIN`]).
+    eye: [f32; 2],
+    pupil: [f32; 2],
 }
+
+/// The exit pupil's shadow: the clear field's shift per glass radius the eye
+/// is off the optic's axis (on it at a steady aim; off it while the gun comes
+/// up to the eye, sways or moves), and its soft edge, glass radii. A real
+/// scope's eye box is a few mm across: 6 darkens the field at about a sixth
+/// of a radius off. 0: no shadow.
+const PUPIL_GAIN: f32 = 6.0;
+const PUPIL_SOFT: f32 = 0.35;
 
 static LENS_DISC: Lock<Option<Placed>> = Lock::new(None);
 
@@ -942,7 +954,8 @@ pub fn on_interface(ctx: &mut Context<'_>) -> Flow<NoExit> {
                             LENS_SIZE.with(thread, |size| *size = Some(placed.picture[3]));
                             let shown = if DEPTH_SHOWN.load(Ordering::Relaxed) { 2.0 } else { 1.0 };
                             let depth = [placed.depth[0], placed.depth[1], DEPTH_BIAS, shown];
-                            Disc { centre: placed.centre, across: placed.across, projection: placed.projection, picture: placed.picture, rim, depth }
+                            let pupil = [placed.pupil[0], placed.pupil[1], PUPIL_SOFT, 0.0];
+                            Disc { centre: placed.centre, across: placed.across, projection: placed.projection, picture: placed.picture, rim, depth, pupil }
                         }
                         None if used == Use::ProbeLens => probe_disc(aspect, rim),
                         None => return,
@@ -1167,7 +1180,6 @@ pub fn on_foreground(ctx: &mut Context<'_>) -> Flow<NoExit> {
                 let placed = place_lens(thread, aimed, idle?, &view, &projection)?;
                 Some(Placed { depth: second_view::foreground_depth(ctx, &projection), ..placed })
             });
-            LENS_DISC.with(thread, |kept| *kept = disc);
             LENS_SURFACE.with(thread, |kept| *kept = second_view::glass_record(aimed).map(|r| r.address()));
             // an aim's first frame and its thirtieth (its surfaces placed by then)
             let frame = SEEN_AIM.with(thread, |seen| {
@@ -1178,6 +1190,12 @@ pub fn on_foreground(ctx: &mut Context<'_>) -> Flow<NoExit> {
                 *seen = Some((aimed, frame));
                 frame
             });
+            let disc = disc.map(|placed| Placed { pupil: placed.eye.map(|v| v * PUPIL_GAIN), ..placed });
+            if let Some(placed) = disc.filter(|_| frame % 30 == 0) {
+                Note::new("pip: the eye off the glass's axis (thousandths of its radius)").milli(placed.eye[0]).milli(placed.eye[1])
+                    .text(", the exit pupil's shift").milli(placed.pupil[0]).milli(placed.pupil[1]).send();
+            }
+            LENS_DISC.with(thread, |kept| *kept = disc);
             if frame == 0 || frame == 30 {
                 log_surfaces(ctx, aimed, camera, disc);
             }
@@ -1447,6 +1465,7 @@ fn probe_disc(aspect: f32, rim: [f32; 2]) -> Disc {
         picture: [0.0, 0.0, LENS_RADIUS / aspect, LENS_RADIUS],
         rim,
         depth: [projection[10], projection[14], 0.0, 0.0],
+        pupil: [0.0, 0.0, PUPIL_SOFT, 0.0],
     }
 }
 
@@ -1487,7 +1506,24 @@ fn place_lens(thread: &Thread, aimed: ModelId, idle: ModelId, view: &[f32; 16], 
         projection: *projection,
         picture: [at[0], at[1], radius * projection[0] / centre[2], radius * projection[5] / centre[2]],
         depth: [projection[10], projection[14]],
+        eye: eye_off_axis(centre, normal, u, w, radius),
+        pupil: [0.0; 2],
     })
+}
+
+/// The eye (the view's origin) off the axis of a glass at `centre` facing
+/// `normal`, in glass radii along `u` and `w` (unit, across it).
+fn eye_off_axis(centre: [f32; 3], normal: [f32; 3], u: [f32; 3], w: [f32; 3], radius: f32) -> [f32; 2] {
+    let dot = |a: [f32; 3], b: [f32; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    let length = second_view::norm(normal);
+    if length <= 0.0 || radius <= 0.0 {
+        return [0.0; 2];
+    }
+    let n = normal.map(|v| v / length);
+    let to_eye = centre.map(|v| -v);
+    let along = dot(to_eye, n);
+    let off: [f32; 3] = core::array::from_fn(|k| to_eye[k] - along * n[k]);
+    [dot(off, u) / radius, dot(off, w) / radius]
 }
 
 /// The glass of `idle` (an optic in view), found once: its own rear glass

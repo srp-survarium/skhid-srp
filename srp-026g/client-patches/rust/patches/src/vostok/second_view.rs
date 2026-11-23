@@ -576,6 +576,8 @@ pub struct Disc {
     pub picture: [f32; 4],
     pub rim: [f32; 2],
     pub depth: [f32; 4],
+    /// The exit pupil: the clear field's centre (glass radii) and its soft edge.
+    pub pupil: [f32; 4],
 }
 
 
@@ -601,7 +603,7 @@ impl Lens {
             let (mut v, mut p, mut c, mut s) = (None, None, None, None);
             let gv = raw::engine_device_create_vertex_shader(device.cast(), vertex.as_ptr().cast(), vertex.len() as u32, null_mut(), &mut v);
             let gp = raw::engine_device_create_pixel_shader(device.cast(), pixel.as_ptr().cast(), pixel.len() as u32, null_mut(), &mut p);
-            // the shader's ten float4, dynamic, a constant buffer, written by the CPU
+            // the shader's eleven float4, dynamic, a constant buffer, written by the CPU
             let desc = BufferDesc { bytes: CONSTANTS as u32 * 4, usage: 2, bind: 4, cpu_access: 1 << 16, misc: 0, stride: 0 };
             let gc = raw::engine_device_create_buffer(device.cast(), (&raw const desc).cast(), null(), &mut c);
             // MIN_MAG_MIP_LINEAR, CLAMP, comparison NEVER, every mip
@@ -771,7 +773,7 @@ impl Lens {
 }
 
 /// The lens shader's constants, float4 by float4 (pip_lens.hlsl's cbuffer).
-const CONSTANTS: usize = 40;
+const CONSTANTS: usize = 44;
 
 fn constants(disc: &Disc, frame: [f32; 2]) -> [f32; CONSTANTS] {
     let mut c = [0.0; CONSTANTS];
@@ -783,6 +785,7 @@ fn constants(disc: &Disc, frame: [f32; 2]) -> [f32; CONSTANTS] {
     c[32..34].copy_from_slice(&disc.rim);
     c[34..36].copy_from_slice(&frame);
     c[36..40].copy_from_slice(&disc.depth);
+    c[40..44].copy_from_slice(&disc.pupil);
     c
 }
 
