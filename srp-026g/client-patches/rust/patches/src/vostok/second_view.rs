@@ -700,7 +700,35 @@ impl Lens {
 /// A model of the scene as the render thread compares its surfaces: the
 /// static model instance an optic's aimed model draws.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ModelId(raw::ModelInstance);
+pub struct ModelId(raw::ModelInstance, ModelKind);
+
+/// The model instance classes whose surfaces the lens reads, by their vtable.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ModelKind {
+    Static,
+    Skeleton,
+}
+
+/// An aimed model the lens cannot read: its instance's vtable.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UnknownModel(pub u32);
+
+impl ModelId {
+    /// # Safety
+    /// `model` is alive on this thread.
+    unsafe fn parse(model: raw::ModelInstance) -> Result<ModelId, UnknownModel> {
+        let vtable = unsafe { *model.vtable() };
+        match vtable {
+            raw::image::STATIC_MODEL_VTABLE => Ok(ModelId(model, ModelKind::Static)),
+            raw::image::SKELETON_MODEL_VTABLE => Ok(ModelId(model, ModelKind::Skeleton)),
+            other => Err(UnknownModel(other)),
+        }
+    }
+
+    pub fn kind(self) -> ModelKind {
+        self.1
+    }
+}
 
 // SAFETY: read on the render thread while the weapon holds its optic (the
 // aimed model is in the scene between add_aimed and remove_aimed).
@@ -714,7 +742,7 @@ pub struct Scoped {
     pub fov_factor: f32,
     /// Its aimed model is in the scene (the weapon's +181Dh).
     pub shown: bool,
-    pub aimed: Option<ModelId>,
+    pub aimed: Option<Result<ModelId, UnknownModel>>,
     /// The eyes' transform (the player's +44Ch, bone Item: where a shot starts
     /// and goes), the second view's camera: the frame's view may be another.
     pub eye: [f32; 16],
@@ -730,7 +758,7 @@ pub fn scoped(ctx: &Context<'_>) -> Option<Scoped> {
         if *optics.hide_weapon_on_aim() == 0 {
             return None;
         }
-        let aimed = optics.aim_model().and_then(|m| m.render_instance().instance()).map(ModelId);
+        let aimed = optics.aim_model().and_then(|m| m.render_instance().instance()).map(|m| ModelId::parse(m));
         let eye = read16(raw::site::camera_zoom::player(ctx)?.eye());
         Some(Scoped { fov_factor: *optics.fov_factor(), shown: *weapon.scope_in_scene() != 0, aimed, eye })
     }
@@ -763,12 +791,18 @@ impl Frame<'_> {
 
 /// At `scope.*` (add/remove_aimed_rifle_scope_to_scene, ESI the weapon):
 /// its address (an id) and whether it is the eyes' (is_first_person_view).
-pub fn scope_weapon(ctx: &Context<'_>) -> Option<(u32, bool)> {
+/// And whether its aimed optic is a model the lens reads.
+pub fn scope_weapon(ctx: &Context<'_>) -> Option<(u32, bool, bool)> {
     // SAFETY: the context is one of these four sites', each holding the
     // weapon in ESI (sites_026g.tsv), alive while it runs on the game's thread.
     unsafe {
         let weapon = raw::site::scope_add_idle::weapon(ctx)?;
-        Some((weapon.address(), raw::engine_weapon_first_person(Some(weapon)) != 0))
+        let lensable = weapon
+            .optics()
+            .and_then(|o| o.aim_model())
+            .and_then(|m| m.render_instance().instance())
+            .is_some_and(|m| ModelId::parse(m).is_ok());
+        Some((weapon.address(), raw::engine_weapon_first_person(Some(weapon)) != 0, lensable))
     }
 }
 
@@ -784,16 +818,14 @@ pub enum Keep {
 /// surfaces are its records, +298h, 64h bytes each); a model that is not a
 /// static instance keeps the list as it is.
 pub fn filter_foreground(ctx: &Context<'_>, keep: Keep) {
-    let (Keep::Only(ModelId(model)) | Keep::AllBut(ModelId(model))) = keep;
+    let (Keep::Only(model) | Keep::AllBut(model)) = keep;
     // SAFETY: the context is this site's: ECX the forward stage on the
     // render thread, its scene view the frame's; the model alive (see
     // ModelId); the list's pointers rewritten within begin..end.
     unsafe {
-        if *model.vtable() != raw::image::STATIC_MODEL_VTABLE {
-            return;
-        }
-        let first = model.first_surface().address();
-        let past = first + u32::from(*model.surface_count()) * raw::RenderSurfaceInstance::SIZE as u32;
+        let Some((first, count)) = surfaces(model) else { return };
+        let first = first.address();
+        let past = first + count as u32 * raw::RenderSurfaceInstance::SIZE as u32;
         let Some(view) = raw::site::forward_execute_foreground::stage(ctx).and_then(|s| s.context()).and_then(|c| c.scene_view()) else {
             return;
         };
@@ -870,16 +902,12 @@ pub fn set_stage(_: &Thread, stage: Stage, on: bool) -> bool {
 /// not the body nor a dot), projected with the frame's `view` and
 /// `projection`. Its centre and radii in clip space.
 pub fn lens_on_screen(model: ModelId, view: &[f32; 16], projection: &[f32; 16], least: f32) -> Option<([f32; 2], [f32; 2])> {
-    let ModelId(model) = model;
     // SAFETY: the model alive (see ModelId) on the render thread, its
     // records its own; each sphere four floats at the record's +10h.
     unsafe {
-        if *model.vtable() != raw::image::STATIC_MODEL_VTABLE {
-            return None;
-        }
-        let first = model.first_surface();
+        let (first, count) = surfaces(model)?;
         let mut best: Option<(f32, [f32; 3])> = None;
-        for index in 0..usize::from(*model.surface_count()) {
+        for index in 0..count {
             let sphere = first.at(index).sphere();
             let (c, r) = ([sphere.read(), sphere.add(1).read(), sphere.add(2).read()], sphere.add(3).read());
             let v: [f32; 3] = core::array::from_fn(|k| c[0] * view[k] + c[1] * view[4 + k] + c[2] * view[8 + k] + view[12 + k]);
@@ -892,5 +920,65 @@ pub fn lens_on_screen(model: ModelId, view: &[f32; 16], projection: &[f32; 16], 
         let (r, v) = best?;
         let (x, y) = (v[0] * projection[0] + v[2] * projection[8], v[1] * projection[5] + v[2] * projection[9]);
         Some(([x / v[2], y / v[2]], [r * projection[0] / v[2], r * projection[5] / v[2]]))
+    }
+}
+
+/// A model instance's surface records and their count: a static instance's
+/// inside it (+298h, count +294h), a skeleton instance's behind a pointer
+/// (+62D4h, count +62D0h; none before it has them).
+///
+/// # Safety
+/// The model is alive on this thread.
+unsafe fn surfaces(model: ModelId) -> Option<(raw::RenderSurfaceInstance, usize)> {
+    let ModelId(instance, kind) = model;
+    unsafe {
+        match kind {
+            ModelKind::Static => Some((instance.first_surface(), usize::from(*instance.surface_count()))),
+            ModelKind::Skeleton => Some((instance.skeleton_surfaces()?, usize::from(*instance.skeleton_surface_count()))),
+        }
+    }
+}
+
+/// At `attachments.draw` (weapon::draw after its optic's update, the
+/// game's thread): the weapon's address, whether its aimed optic is in the
+/// scene, and a way to move its idle optic with the gun as well.
+pub struct DrawnWeapon<'t> {
+    weapon: raw::Weapon,
+    _thread: &'t Thread,
+}
+
+impl<'t> DrawnWeapon<'t> {
+    pub fn at(ctx: &'t Context<'_>) -> Option<DrawnWeapon<'t>> {
+        // SAFETY: the context is this site's: EBX the weapon being drawn,
+        // alive while weapon::draw runs on the game's thread.
+        let weapon = unsafe { raw::site::attachments_draw::weapon(ctx) }?;
+        Some(DrawnWeapon { weapon, _thread: ctx.thread() })
+    }
+
+    pub fn address(&self) -> u32 {
+        self.weapon.address()
+    }
+
+    /// The idle optic updated to the weapon's matrix (+660h), as weapon::draw
+    /// updates the aimed one while the scope's view is on (0x244FD3): both
+    /// models hang on the same matrix. Only while the aimed one is in the
+    /// scene (+181Dh). Whether it did.
+    pub fn move_idle_optic(&self) -> bool {
+        // SAFETY: the weapon's optics and models, its world's scene and the
+        // game's renderers, all alive while the weapon draws; the matrix 16
+        // floats of the weapon's; update_model on the game's thread, as
+        // weapon::draw calls it (0x245012).
+        unsafe {
+            if *self.weapon.scope_in_scene() == 0 {
+                return false;
+            }
+            let Some(optics) = self.weapon.optics() else { return false };
+            let Some(idle) = optics.model() else { return false };
+            let Some(world) = self.weapon.world() else { return false };
+            let Some(renderer) = world.game().and_then(|g| g.renderer()).and_then(|r| r.scene_renderer()) else { return false };
+            let matrix = self.weapon.transform();
+            raw::engine_update_model(Some(renderer), Some(idle.render_instance()), Some(world.scene()), matrix, matrix);
+            true
+        }
     }
 }

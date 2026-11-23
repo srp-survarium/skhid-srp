@@ -65,3 +65,11 @@ handler = "on_remove_idle"
 [[hook]]
 site = "scope.remove_show"
 handler = "on_remove_show"
+
+# weapon::draw after its optic's update (after patch 161's, order 1): the
+# idle optic the lens keeps in the scene moved with the gun too (the game
+# updates only the aimed one once the scope's view is on)
+[[hook]]
+site = "attachments.draw"
+handler = "on_weapon_drawn"
+order = 2

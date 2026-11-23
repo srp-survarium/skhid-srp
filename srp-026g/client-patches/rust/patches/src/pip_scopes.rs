@@ -24,7 +24,7 @@ use crate::vostok::log::{self, Piece};
 use crate::vostok::renderer::get_environment;
 use crate::hud_options;
 use crate::pip_lens;
-use crate::vostok::second_view::{self, Disc, Frame, GpuClock, Keep, Lens, MainView, Marks, ModelId, ReadError, Scoped, SecondView, Stage, RING};
+use crate::vostok::second_view::{self, Disc, Frame, GpuClock, Keep, Lens, MainView, Marks, ModelId, ReadError, Scoped, SecondView, Stage, UnknownModel, DrawnWeapon, RING};
 use crate::vostok::{
     trig, Context, Flow, Lock, NoExit, OrigRenderFlashUi, PipScopesOnAddHideExit, PipScopesOnAddIdleExit, PipScopesOnPresentExit,
     PipScopesOnRemoveIdleExit, PipScopesOnRemoveShowExit, PipScopesOnUnmoveExit, Reg, Thread,
@@ -116,6 +116,9 @@ fn scopes_active(thread: &Thread, probe: Probe) -> bool {
 
 /// The held magnified optic this frame (update_camera to the draw).
 static SCOPED: Lock<Option<Scoped>> = Lock::new(None);
+
+/// The class of the last aimed optic the lens could not read (logged once).
+static UNREAD: Lock<Option<u32>> = Lock::new(None);
 
 /// The optic's aimed model while the lens is drawn: the second view draws it
 /// alone of the first-person models, the frame all but it.
@@ -355,6 +358,17 @@ pub fn on_draw(ctx: &mut Context<'_>) -> Flow<NoExit> {
         PROBE.with(thread, |kept| *kept = probe);
     }
     let scoped = scoped.filter(|_| scopes_active(thread, probe));
+    // an aimed optic the lens cannot read is today's scope, said once in the log
+    let scoped = scoped.filter(|scoped| match scoped.aimed {
+        Some(Ok(_)) => true,
+        Some(Err(UnknownModel(vtable))) => {
+            if UNREAD.with(thread, |kept| kept.replace(vtable)) != Some(vtable) {
+                log::line(&[Piece::Text("pip: an aimed optic's model of class "), Piece::Hex(vtable), Piece::Text(" is not one the lens reads: today's scope for it")]);
+            }
+            false
+        }
+        None => false,
+    });
     let Probe::Made { second, used, .. } = probe else { return Flow::Continue };
     let Some(frame) = Frame::at(ctx) else { return Flow::Continue };
     let (camera, projection) = (frame.camera(), frame.projection());
@@ -393,7 +407,7 @@ pub fn on_draw(ctx: &mut Context<'_>) -> Flow<NoExit> {
                 // from the aim itself: the reticle's centre is where a shot goes
                 frame.draw_second(&second, &invert_affine(&scoped.eye), &lens, &view, &main_projection);
             }
-            scoped.aimed.filter(|_| scoped.shown)
+            scoped.aimed.and_then(Result::ok).filter(|_| scoped.shown)
         }
     };
     AIMED.with(thread, |aimed| *aimed = drawn);
@@ -661,8 +675,8 @@ fn lens_on(thread: &Thread) -> bool {
 /// the lens, the eyes' weapon keeps it.
 pub fn on_add_idle(ctx: &mut Context<'_>) -> Flow<PipScopesOnAddIdleExit> {
     let thread = ctx.thread();
-    let Some((weapon, eyes)) = second_view::scope_weapon(ctx) else { return Flow::Continue };
-    let lens = eyes && lens_on(thread);
+    let Some((weapon, eyes, lensable)) = second_view::scope_weapon(ctx) else { return Flow::Continue };
+    let lens = eyes && lensable && lens_on(thread);
     LENS_WEAPON.with(thread, |kept| *kept = lens.then_some(weapon));
     if lens { Flow::Exit(PipScopesOnAddIdleExit::Aimed) } else { Flow::Continue }
 }
@@ -688,7 +702,7 @@ pub fn on_remove_show(ctx: &mut Context<'_>) -> Flow<PipScopesOnRemoveShowExit> 
 /// Whether the weapon at this scope site put its aimed model in the lens's
 /// way; `done` forgets it (its aimed model is out).
 fn ours(ctx: &Context<'_>, done: bool) -> bool {
-    let Some((weapon, _)) = second_view::scope_weapon(ctx) else { return false };
+    let Some((weapon, _, _)) = second_view::scope_weapon(ctx) else { return false };
     LENS_WEAPON.with(ctx.thread(), |kept| {
         let ours = *kept == Some(weapon);
         if ours && done {
@@ -726,4 +740,16 @@ mod tests {
         let n = narrowed(&p, 4.0);
         assert_eq!((n[0], n[5], n[8], n[10], n[14]), (4.0, 4.0, 0.0, 1.0, -0.1));
     }
+}
+
+/// weapon::draw after its optic's update: the lens's weapon's idle optic
+/// moved with the gun as its aimed one is (the game updates only that one
+/// once the scope's view is on; kept in the scene, the idle one would stay
+/// where the swap left it).
+pub fn on_weapon_drawn(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let Some(weapon) = DrawnWeapon::at(ctx) else { return Flow::Continue };
+    if LENS_WEAPON.with(ctx.thread(), |kept| *kept) == Some(weapon.address()) {
+        weapon.move_idle_optic();
+    }
+    Flow::Continue
 }

@@ -1882,3 +1882,6 @@ vostok::render::render_surface_instance	size	0x64	size	a model instance's surfac
 vostok::render::render_options	ambient_occlusion	0x10E	u8	stage_ambient_occlusion's enable byte (SSAO, SSDO; renderer-026g.md 1, slot 5)
 vostok::render::render_options	reflections	0x113	u8	stage_screen_space_reflections' enable byte (SSR and the water's reflections; slot 14)
 vostok::render::render_options	sun_shadows	0x109	u8	stage_shadow_direct's enable byte (the sun's shadow cascades; slot 0): off, the shadow mask (slot 9) reads the maps and matrices the last draw left
+vostok::render::model_instance	skeleton_surfaces	0x62D4	ptr<vostok::render::render_surface_instance>	a skeleton instance's surface records (64h bytes each, allocated: its constructor 0x15A1D8 writes the pointer, the destructor frees it, 0x15A219)
+vostok::render::model_instance	skeleton_surface_count	0x62D0	u8	their count (0x15A1D2; read by 0x159DC0)
+vostok::render::image	skeleton_model_vtable	0x9F0F24	u32	the skeleton instance's vtable (its destructor writes it at 0x15A220)

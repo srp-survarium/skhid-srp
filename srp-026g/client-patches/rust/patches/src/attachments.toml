@@ -41,6 +41,7 @@ handler = "on_loaded"
 [[hook]]
 site = "attachments.draw"
 handler = "on_draw"
+order = 1
 
 [[hook]]
 site = "attachments.culled"
