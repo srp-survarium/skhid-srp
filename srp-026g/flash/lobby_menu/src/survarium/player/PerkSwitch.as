@@ -5,7 +5,7 @@ package survarium.player
    // A perk switch of the kit shown, one at a time (artefact-skills.md, "One switch at a time"):
    // the one owner of what the lobby draws of a kit while srp answers it (the owner, 2026-11-23:
    // "the operation is not atomic is how i see it"). srp answers a switch with the kit's account
-   // (its pockets and items, the exe's `fillProfileItems`), then the presets list naming the
+   // (its items and counts, one whole kit: KitShown), then the presets list naming the
    // request. Drawing the one before the other shows a kit that is neither the old nor the new, so
    // while a switch is asked the kit's account is held, and its answer applies both at once.
    //
@@ -15,8 +15,8 @@ package survarium.player
    public class PerkSwitch
    {
 
-      // The events: a click asks (value {request, kit}); an account comes (the exe's fill, value
-      // its data); a presets list comes (value the request it answers, -1 none); the time is up.
+      // The events: a click asks (value {request, kit}); an account comes (value the whole kit,
+      // KitShown's); a presets list comes (value the request it answers, -1 none); the time is up.
       public static const ASK:int = 0;
 
       public static const FILL:int = 1;
@@ -48,20 +48,14 @@ package survarium.player
       // The transition: `event` with its `value`. What the profile does, now:
       // - `accepted` (ASK): the request was sent;
       // - `fills`: the accounts to draw, in order;
-      // - `tell`: tell the paper doll srp's perk states (all of the kit, as last listed);
-      // - `now`: draw the paper doll at once (a switch's end: its held account's counts came with
-      //   it). Else it draws at the frame's render, as the stock lobby: the exe gives a kit's
-      //   counts after its account (update_profile_slots_count after fill_player_profile_items,
-      //   0x222330), and drawn before them the account is laid on the last kit's counts, whose
-      //   containers and missing pockets send their items back (PaperDollBase.handleQuickSlots).
+      // - `tell`: tell the paper doll srp's perk states (all of the kit, as last listed).
       // An expired switch ends first, as a TIMEOUT.
       public function step(event:int, value:*) : Object
       {
          var out:Object = {
             "accepted":false,
             "fills":[],
-            "tell":false,
-            "now":false
+            "tell":false
          };
          if(this._asked != null && !this.asked)
          {
@@ -94,8 +88,6 @@ package survarium.player
                   out.fills.push(value);
                   out.tell = true;
                }
-               // Its counts come next (`now`): never drawn in the fill's own call.
-               out.now = false;
                break;
             case LIST:
                if(this._asked == null)
@@ -125,7 +117,6 @@ package survarium.player
          }
          this._asked = null;
          out.tell = true;
-         out.now = true;
       }
    }
 }

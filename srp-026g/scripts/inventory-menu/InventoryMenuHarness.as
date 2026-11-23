@@ -205,6 +205,8 @@ package
                   // The kit: the rifle in hand, the helmet on, the medkit in the first pocket.
                   lobby.player_profile.paperDoll.setSlotsRestrictions([{slot_id:Slot("HEAD"),category_id:Category("HELMETS")},{slot_id:Slot("WEAPON_1"),category_id:Category("ASSAULT_RIFLES")},{slot_id:Slot("QUICK_1"),category_id:Category("MEDKITS")}]);
                   lobby.player_profile.fillProfileItems({profileId:1,items:[{itemId:11,slotId:Slot("WEAPON_1"),condition_or_stack:10000},{itemId:13,slotId:Slot("HEAD"),condition_or_stack:10000},{itemId:12,slotId:Slot("QUICK_1"),condition_or_stack:3}]});
+                  // The kit's counts, the exe's second call (the kit is drawn whole: KitShown).
+                  lobby.player_profile.updateSlots(0,4);
                   trace("INVMENU the inventory's rows: " + names());
                   break;
                case 2:

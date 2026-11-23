@@ -155,6 +155,8 @@ package
       private function kit(rifle:int) : void
       {
          profile.fillProfileItems({profileId:1,items:[{itemId:OWNED_HELMET,slotId:Slot("HEAD"),condition_or_stack:10000},{itemId:rifle,slotId:Slot("WEAPON_1"),condition_or_stack:10000}]});
+         // The kit's counts, the exe's second call (the kit is drawn whole: KitShown).
+         profile.updateSlots(0,4);
       }
 
       private function slot(name:String) : *

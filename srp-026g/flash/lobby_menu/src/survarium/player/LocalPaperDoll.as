@@ -436,10 +436,45 @@ package survarium.player
          return this._secondaryEnabled || this.weaponMark.shown == PerkSlotMark.DECLINED;
       }
 
+      // The kit drawn ({kit, pockets}; null: none yet), and the pockets ({from, to}, quick places,
+      // 1 the first) whose items the next draw sends back: those the kit drawn lost itself (a
+      // smaller backpack put on, the stock lobby's way); none when another kit is drawn.
+      private var _drawn:Object = null;
+
+      private var _returning:Object = null;
+
+      // A whole kit (KitShown) is drawn next: its id and pockets.
+      public function kitDrawn(kit:uint, pockets:int) : void
+      {
+         pockets = ProfileSlot.pocketCount(pockets);
+         var lost:Boolean = this._drawn != null && this._drawn.kit == kit && pockets < this._drawn.pockets;
+         this._returning = lost ? {
+            "from":pockets + 1,
+            "to":this._drawn.pockets
+         } : null;
+         this._drawn = {
+            "kit":kit,
+            "pockets":pockets
+         };
+      }
+
+      // A pocket its own kit lost sends its item back; any other quick slot that is no pocket only
+      // shows nothing (its item stays on the kit as srp has it).
+      override protected function closeQuickSlot(slot:IPaperDollSlot, place:int) : void
+      {
+         if(this._returning != null && place >= this._returning.from && place <= this._returning.to)
+         {
+            super.closeQuickSlot(slot,place);
+            return;
+         }
+         slot.setData(null);
+      }
+
       // The pockets and containers shown, then the marks on the perks' slots among them.
       override protected function handleQuickSlots() : void
       {
          super.handleQuickSlots();
+         this._returning = null;
          this.placeMarks();
       }
 

@@ -20,8 +20,10 @@ package {
  //   pocket (red, where it was), srp's answer moving nothing, the pocket's item sent back with its
  //   slot shaken; a click on the red pocket takes it again; the open weapon slot keeps its own
  //   click.
- // - Another kit shown as the exe shows it (items, then counts): from three pockets and a container
- //   to four, the fourth pocket's medkit kept, nothing sent back.
+ // - Every kit given as the exe gives it, its items then its counts (KitShown makes them one).
+ //   From three pockets and a container to another kit's four, a medkit in the fourth: one half
+ //   alone draws nothing, and the whole kit keeps the medkit, nothing sent back, in that order and
+ //   the other; the same kit's pockets fewer (a smaller backpack) still send it back.
  // Every language's hints. Then the looks before and after: Artifact Container's slot at three
  // times (zoom.png; before, the first flat 2 px border), the weapon perk's slots at their size
  // (weapon.png; before, the red lock alone). The slot labels are the stock English (english.tsv).
@@ -118,7 +120,15 @@ package {
   private function slot(quick:int):DisplayObject {return doll.getSlotAt(12+quick) as DisplayObject;}
   private function weaponSlot():DisplayObject {return doll.getSlotAt(WEAPON_2) as DisplayObject;}
   // The kit shown: its id and its pockets and containers, as the exe fills the panel.
-  private function kit(id:int,pockets:int,containers:int):void {profile.fillProfileItems({profileId:id,items:[],item_slots:pockets,artifact_slots:containers});}
+  // As the exe gives it (on_profile_changed 0x222330): its items, then its counts.
+  private function kit(id:int,pockets:int,containers:int):void {profile.fillProfileItems({profileId:id,items:[]});profile.updateSlots(containers,pockets);}
+  // Kit `id`'s items: a medkit in the fourth pocket.
+  private function medkitKit(id:int):void {profile.fillProfileItems({profileId:id,items:[{itemId:MEDKIT_ID,slotId:QUICK_4,condition_or_stack:4}]});}
+  private function fourth():Object {return doll.getSlotAt(QUICK_4);}
+  private function keptMedkit(how:String):void {
+   check(relocated.length==0,how+": no pocket's item sent back: "+relocated);
+   check(fourth().visible && fourth().enabled && fourth().data!=null && int(fourth().data.itemId)==MEDKIT_ID,how+": the fourth pocket shows its medkit");
+  }
   private function list(k:String):void {
    var rows:Array=["P2;L;0;0;1;0;-1","1;1;0","2;0;-1","3;0;-1","4;0;-1","5;0;-1",k];
    var out:Array=[];for(var i:int=0;i<rows.length;i++) out.push({place:2090000000+i,nickname:rows[i],rating:0,change:0});
@@ -522,16 +532,36 @@ package {
       kit(2,3,1);list("K;1:0:0,2:0:0,3:0:0");
       break;
      case 22:
-      // As the exe shows another kit (0x222330): its items (fill_player_profile_items, no
-      // counts), then its counts (update_profile_slots_count).
+      // As the exe shows another kit (0x222330): its items, then its counts. The items alone
+      // draw nothing (they wait for their counts).
       relocated.length=0;
-      profile.fillProfileItems({profileId:1,items:[{itemId:MEDKIT_ID,slotId:QUICK_4,condition_or_stack:4}]});
+      medkitKit(1);
+      check(fourth().data==null && relocated.length==0,"the items alone: nothing drawn, nothing sent back: "+relocated);
       profile.updateSlots(0,4);
       break;
      case 23:
-      check(relocated.length==0,"another kit shown: no pocket's item sent back: "+relocated);
-      var fourth:Object=doll.getSlotAt(12+4);
-      check(fourth.visible && fourth.enabled && fourth.data!=null && int(fourth.data.itemId)==MEDKIT_ID,"another kit shown: the fourth pocket keeps its medkit");
+      keptMedkit("the exe's order: items, then counts");
+      // The other order (the exe has none such): the counts wait for their items.
+      kit(2,3,1);
+      break;
+     case 24:
+      relocated.length=0;
+      profile.updateSlots(0,4);
+      check(fourth().data==null && relocated.length==0,"the counts alone: nothing drawn, nothing sent back: "+relocated);
+      medkitKit(1);
+      break;
+     case 25:
+      keptMedkit("counts, then items");
+      // The same kit's own pockets fewer (a smaller backpack put on): the fourth pocket's item
+      // goes back, as in the stock lobby. Ruffle stops in the stock send-back
+      // (ItemPaperDollSlot.dropSlot reads ItemData's condition_or_stack, which it lacks; Scaleform
+      // reads undefined and sends the relocation), so its error is the send-back here.
+      medkitKit(1);
+      var sentBack:String="";
+      try {profile.updateSlots(0,3);} catch(err:Error) {sentBack=String(err);}
+      check(sentBack.indexOf("condition_or_stack")>=0 || relocated.length==1,"the same kit's pocket lost: its item sent back: "+sentBack+" "+relocated);
+      break;
+     case 26:
       kit(2,0,1);
       planSheets();
       break;

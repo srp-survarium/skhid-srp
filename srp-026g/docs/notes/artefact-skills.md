@@ -360,14 +360,24 @@ chooses each.
   at once and guessed the counts until the answer, and the stock slots, drawn from the exe's
   counts as they came, went out of step with the marks for a moment: a mark over an empty place,
   a slot gone blank for the 3 s hold.
-- **Only a switch's end is drawn at once.** Any other account (another kit or preset shown, the
-  kit played, the lobby's own refresh) is drawn at the frame's render, as in the stock lobby: the
-  exe gives a kit's items before its counts (`on_profile_changed` 0x222330:
-  `fill_player_profile_items`, then `update_profile_slots_count`). Revision 72 drew every account
-  at once, on the counts of the kit shown before: a pocket the old kit lacked, or had as a
-  container, sent its item back (`PaperDollBase.handleQuickSlots`, `dropSlot`), and srp took it
-  off the kit (bug report 2026-11-23: the fourth pocket emptied going from a kit with fewer
-  pockets to one with more). The item stayed owned, in the inventory.
+- **A kit is drawn only whole** (`KitShown`, the profile's). The exe gives the kit shown in two
+  calls: `on_profile_changed` (0x222330) calls `fill_player_profile_items` (the items, the kit
+  named), then `update_profile_slots_count` (the counts, no kit named). It is the only caller of
+  both. It runs on a status from srp (`on_client_status_received` 0x21D720: sign-in, a kit or
+  preset switch, Play, a perk switch's answer) and on a relocation srp accepted
+  (`process_succeeded_inventory_action` 0x275520: an item moved, a backpack changed). One half
+  waits for the other, in either order, and the whole kit goes to `PerkSwitch` and then to the
+  paper doll in one step. So no draw lays one kit's items on another kit's counts, whatever the
+  timing. Revision 72 drew the items at once, on the counts of the kit shown before. A pocket
+  that kit lacked, or had as a container, then sent its item back
+  (`PaperDollBase.handleQuickSlots`, `dropSlot`), and srp took the item off the kit (bug report
+  2026-11-23: the fourth pocket emptied going from a kit with fewer pockets to one with more; the
+  item stayed owned, in the inventory). While a switch was asked, the counts also reached the doll
+  before the answer.
+- **Only a pocket its own kit lost sends its item back** (`LocalPaperDoll.closeQuickSlot`): the
+  same kit drawn again with fewer pockets (a smaller backpack put on), as in the stock lobby. A
+  quick slot that is no pocket after another kit is drawn only shows nothing; its item stays on
+  the kit as srp has it.
 - **One switch at a time** (the owner, 2026-11-22: "when I click too fast, 'fake' pocket on top
   can appear for a moment", "there is data race there somewhere"): while a click is asked, a right
   click on any perk's slot or red lock is not taken (nor while a slot shakes). srp itself handles a
