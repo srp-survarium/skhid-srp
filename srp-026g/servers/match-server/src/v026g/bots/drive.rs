@@ -1963,6 +1963,7 @@ fn drive_tick_inner(
                                 time,
                                 side,
                                 objective,
+                                &hard,
                             );
                             if kept {
                                 bot.features.crossing.long_kept = Some((at, time + crossing::LONG_RETRY_MS));
