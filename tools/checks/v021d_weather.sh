@@ -57,7 +57,8 @@ python3 srp-026g/scripts/v021d-weather/check_material_visibility.py \
 python3 srp-026g/scripts/v021d-weather/check_vertex_blend.py \
     --porter "$weather_porter" --stock "$SKHID_STOCK_DB" \
     --donor "$common/private/v021d-five-weathers/original-resources.db" \
-    --patch "${candidate[0]}" --pack "$SKHID_PACKS_DIR/v021d-vertex-blend-3"
+    --patch "${candidate[0]}" --pack "$SKHID_PACKS_DIR/v021d-vertex-blend-3" \
+    --composed-pack "$SKHID_PACKS_DIR/v021d-vertex-blend-4"
 python3 srp-026g/scripts/v021d-weather/check_normal_off.py \
     --porter "$weather_porter" --stock "$SKHID_STOCK_DB" \
     --donor "$common/private/v021d-five-weathers/original-resources.db" \
