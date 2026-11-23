@@ -3080,6 +3080,8 @@ INSTALLS[0x743B2] = (CALLEE, "get_axis_and_angle's atan2: animation_math (Rust `
 INSTALLS[0x298664] = (CALLEE, "correct_fingers' set_weapon_model 0x390620 (stdcall, the corrector, the instance, the "
                               "view; `ret 0Ch`) at a change of view: attachments (Rust `call` hook), the function, "
                               "then a grip's finger sets", None, None)
+INSTALLS[0x13DB3D] = (CALLEE, "renderer::render's render_flash_ui 0x13CED0 (stdcall, the renderer, the output window; `ret 8`): "
+                              "pip_scopes (Rust `call` hook), none in the second view's draw", None, None)
 INSTALLS[0x3B3340] = (ENTRY, "time_channel::domain: animation_math_domain, the same search without a division "
                              "per step", None, None)
 

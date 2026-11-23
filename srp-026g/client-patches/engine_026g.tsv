@@ -351,3 +351,16 @@ engine_hunt_rule_base	0x313900	EAX:this ESP+4:game_match_rule_type	struct hunt_r
 engine_player_remove	0x1f2870	ECX:player ESP+4:flag	void engine_player_remove(struct player *player, unsigned int flag)	thiscall	
 engine_spawn_player	0x316da0	ECX:rule ESP+4:place ESP+8:point ESP+12:time	void engine_spawn_player(struct player_respawn_rule_base *rule, unsigned int place, const unsigned int *point, unsigned int time)	thiscall	
 engine_set_hud_icon_type	0x23bea0	ESP+4:ui ESP+8:id ESP+12:type	void engine_set_hud_icon_type(struct game_world_ui *ui, unsigned int id, unsigned int type)	thunk	
+engine_create_window_ex_a	0xaefefc	-	void *engine_create_window_ex_a(unsigned int ex_style, const char *class_name, const char *title, unsigned int style, unsigned int x, unsigned int y, unsigned int width, unsigned int height, void *parent, void *menu, void *instance, void *parameter)	import	
+engine_scene_view_construct	0x15df00	EDI:storage	struct scene_view *engine_scene_view_construct(void *storage)	thunk	
+engine_output_window_construct	0x1198b0	EDI:owner ESP+4:properties	struct render_output_window *engine_output_window_construct(void *storage, const struct output_window_configuration *configuration)	thunk	
+engine_environment_assign	0x15e470	ESI:destination EDI:source	void engine_environment_assign(struct environment_properties *destination, const struct environment_properties *source)	thunk	
+engine_set_view_matrix	0x219d0	ESP+4:renderer ESP+8:view ESP+12:matrix	void engine_set_view_matrix(struct scene_renderer *renderer, const struct scene_view_ref *view, const float *matrix)	stdcall	
+engine_set_projection_matrix	0x21b50	ESP+4:renderer ESP+8:view ESP+12:matrix	void engine_set_projection_matrix(struct scene_renderer *renderer, const struct scene_view_ref *view, const float *matrix)	stdcall	
+engine_draw_scene	0x1f7f0	EAX:scene ESP+4:renderer ESP+8:view ESP+12:window EDX:viewport ESP+16:font	void engine_draw_scene(const struct scene_ref *scene, struct renderer *renderer, const struct scene_view_ref *view, const struct output_window_ref *window, const struct viewport *viewport, const void *font)	thunk	
+engine_render_flash_ui	0x13ced0	ESP+4:renderer ESP+8:window	void engine_render_flash_ui(unsigned int renderer, unsigned int window)	stdcall	renderer: u32, window: u32 ->
+engine_context_copy_subresource_region	ID3D11DeviceContext+0xb8	-	void engine_context_copy_subresource_region(struct immediate_context *context, struct hw_resource *destination, unsigned int destination_subresource, unsigned int x, unsigned int y, unsigned int z, struct hw_resource *source, unsigned int source_subresource, const void *box)	com	
+engine_device_create_query	ID3D11Device+0x60	-	unsigned int engine_device_create_query(struct d3d_device *device, const void *desc, struct hw_resource **query)	com	
+engine_context_begin	ID3D11DeviceContext+0x6c	-	void engine_context_begin(struct immediate_context *context, struct hw_resource *query)	com	
+engine_context_end	ID3D11DeviceContext+0x70	-	void engine_context_end(struct immediate_context *context, struct hw_resource *query)	com	
+engine_context_get_data	ID3D11DeviceContext+0x74	-	unsigned int engine_context_get_data(struct immediate_context *context, struct hw_resource *query, void *data, unsigned int size, unsigned int flags)	com	

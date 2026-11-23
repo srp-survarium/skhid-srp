@@ -1838,3 +1838,32 @@ survarium::game_world_ui	team_one_points	0xB6	u16	the hud state's +92h: team 1's
 survarium::player	ui	0xF480	ptr<survarium::game_world_ui>	the hud (player::st_draw reads it for the followed player: set_stamina 0x247000, show_grenade_icons 0x2471F2)
 vostok::collision::game_object	grenade	-0x1C	obj<survarium::grenade_core>	a thrown grenade's body user is its +1Ch (throw_grenade 0x303C5C: lea eax,[esi+1Ch] into the body +0Ch; its vtable 0xA046E0 +0Ch, as_grenade 0x248AC0, is sub ecx,1Ch / mov eax,ecx): the grenade 1Ch before it, only for a user whose as_grenade (vtable +0Ch) answered it, as player::st_draw's sensor asks (0x2470F1)
 survarium::world_event	kind	0x18	u32	the event's type: 0 a kill (generate_killed_event, 0x2DA3A8), 1 a victory item's user (0x300B4A, 0x301004), 2 a hit (generate_hit_event, 0x2DA054); game_world_core::new_world_event 0x2D43B0 makes the node, the world's list from core+12744h
+survarium::game	active_scene	0x539C	ptr<survarium::game_scene>	the scene game::tick draws (0x1ECD22: its +8 the scene-view reference, +4 the scene reference passed to game::renderer::draw_scene at 0x1ECD57)
+survarium::game	viewport	0x53B4	obj<vostok::render::viewport>	the viewport game::tick draws its scene in (lea edx,[ebx+53B4h] at 0x1ECD4F, draw_scene's EDX)
+vostok::render::viewport	size	0x10	size	a math::rectangle<float2>, left, top, right, bottom in 0..1 of the window (game::renderer::draw_scene copies 16 bytes from EDX, 0x1F85F..0x1F87E)
+survarium::game_scene	scene_ref	0x4	obj<vostok::render::scene_ref>	its scene reference (a resource_ptr<scene>): game::tick passes &+4 to draw_scene in EAX (lea edi,[ecx+4] at 0x1ECD2D)
+survarium::game_scene	view_ref	0x8	obj<vostok::render::scene_view_ref>	its scene-view reference (a resource_ptr<scene_view>): game::tick passes &+8 to draw_scene (0x1ECD2A), base_game_scene::apply_camera to set_view_matrix (lea esi,[ebx+8] at 0x23DE84)
+survarium::game_scene	camera	0xC	f32	the camera's transform this frame, 16 f32 (rows right, up, forward, place) apply_camera copies from its director's +4 (0x23DDD8..0x23DDE8) and inverts into set_view_matrix's matrix (0x23DE69)
+survarium::game_scene	projection	0x4C	f32	the projection this frame, 16 f32 apply_camera copies from its director's +44h (0x23DDEA..0x23DDF7) and hands set_projection_matrix
+vostok::render::scene_ref	scene	0x0	ptr<vostok::render::scene>	the scene (a resource_ptr<scene>: one pointer; game::renderer::draw_scene reads it, mov eax,[eax] at 0x1F7F3)
+vostok::render::scene_ref	size	0x4	size	one pointer
+vostok::render::scene_view_ref	view	0x0	ptr<vostok::render::scene_view>	the scene view (a resource_ptr<scene_view>: one pointer, its count at the view's +0D0h raised by a copy, draw_scene 0x1F81E..0x1F837)
+vostok::render::scene_view_ref	size	0x4	size	one pointer
+vostok::render::output_window_ref	window	0x0	ptr<vostok::render::render_output_window>	the output window (a resource_ptr<render_output_window>: one pointer, its count at +0D0h, draw_scene 0x1F83B..0x1F85B)
+vostok::render::output_window_ref	size	0x4	size	one pointer
+vostok::render::scene_view	references	0xD0	u32	its resource count: a reference's copy adds 1 (lock xadd at draw_scene 0x1F837, scene_view_cook::translate_query 0x137F1A); the last one let go destroys it through its cook
+vostok::render::scene_view	environment	0x118	obj<vostok::render::environment_properties>	the view's environment, the weather's (engine::world::set_environment_properties 0x118F30 assigns its argument here: add esi,118h / call 0x15E470)
+vostok::render::scene_view	foreground_first	0xC4B8	u32	the first of the frame's first-person models (a vector of render_surface_instance pointers; stage_forward::execute_foreground copies +0C4B8h..+0C4BCh, 0x1AB826..0x1AB866)
+vostok::render::scene_view	foreground_end	0xC4BC	u32	past the last of the frame's first-person models (the vector's end)
+vostok::render::scene_view	size	0x1DE40	size	scene_view_cook::translate_query allocates 1DE40h bytes for one (0x137EC4) and constructs it there (0x15DF00)
+vostok::render::environment_properties	rain_u_scale	0x1D0	f32	rain_u_scale (the scene view's +2E8h: its environment at +118h)
+vostok::render::render_output_window	references	0xD0	u32	its resource count: a reference's copy adds 1 (draw_scene 0x1F85B); the last one let go destroys it through its cook
+vostok::render::render_output_window	size	0x30B8	size	render_output_window_cook::translate_query allocates 30B8h bytes for one (0x1381A3) and constructs it there (0x1198B0)
+vostok::render::output_window_configuration	window	0x0	u32	the HWND whose swap chain the output window makes (render_output_window::render_output_window 0x1198B8, resource_manager::create_render_output 0x1198FD)
+vostok::render::output_window_configuration	width	0x8	u32	a width to set (with height): 0 keeps the window's own client size (the constructor calls set_size only when it is not 0, 0x11995C)
+vostok::render::output_window_configuration	height	0xC	u32	the height to set with width
+vostok::render::output_window_configuration	flash	0x10	u8	whether it makes a flash renderer (0x119977: 0 none, render_flash_ui then draws nothing, 0x13CEE9)
+vostok::render::output_window_configuration	windowed	0x11	u8	windowed (1) or full screen (0x1198CA, 0x119922)
+vostok::render::output_window_configuration	size	0x14	size	render_output_window_cook::translate_query's local (0x138039..0x138065): five words, the last two bytes the flags
+vostok::render::render_call_frame	view_ref	0xC	ptr<vostok::render::scene_view_ref>	renderer::render's third argument at its start (by the site's ESP): the scene-view reference it draws (0x13D0AE)
+vostok::render::stage_forward	context	0x4	ptr<vostok::render::renderer_context>	the forward stage's renderer context (execute_foreground 0x1AB76D: [esi+4], its +119Ch targets, +4170h scene view at 0x1AB81D)

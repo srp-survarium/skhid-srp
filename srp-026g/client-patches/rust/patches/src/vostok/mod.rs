@@ -204,6 +204,7 @@ pub mod match_message;
 pub mod packet_recovery;
 pub mod match_close;
 pub mod seeding;
+pub mod second_view;
 
 mod world_context;
 

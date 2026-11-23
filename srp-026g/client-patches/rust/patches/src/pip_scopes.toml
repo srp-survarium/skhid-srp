@@ -1,0 +1,43 @@
+# Patch 198: a second view of the scene each frame, for picture-in-picture
+# scopes, with SKHID_PIP_PROBE set (docs/notes/pip-scopes.md); nothing
+# without it. The sites are sites_026g.tsv's; the logic is pip_scopes.rs,
+# the engine's side vostok/second_view.rs.
+name = "pip_scopes"
+patch = 198
+
+# game::tick before its scene's draw: the second view's draw first
+[[hook]]
+site = "game.draw_scene"
+handler = "on_draw"
+
+# each draw on the render thread: which view it is
+[[hook]]
+site = "render.begin"
+handler = "on_render_begin"
+
+# no interface in the second view's draw
+[[hook]]
+site = "render.flash_ui_call"
+handler = "on_flash_ui_call"
+
+# the frame's scene before the interface, before patches 152's and 176's
+# (orders 1 and 2): the second view's picture in the corner
+[[hook]]
+site = "render.flash_ui"
+handler = "on_interface"
+order = 0
+
+# no Present of the second view's window
+[[hook]]
+site = "render.present_call"
+handler = "on_present"
+
+# the moved models kept for the frame's own draw
+[[hook]]
+site = "render.unmove"
+handler = "on_unmove"
+
+# no first-person models in the second view
+[[hook]]
+site = "forward.execute_foreground"
+handler = "on_foreground"
