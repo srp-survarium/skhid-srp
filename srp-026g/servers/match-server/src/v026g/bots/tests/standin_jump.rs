@@ -277,25 +277,8 @@ pub(crate) fn stand_in_world_controller() -> bool {
     *TUNED.get_or_init(|| super::bench_settings().var("SRP_BENCH_STAND_IN_WORLD_CONTROLLER").as_deref() != Ok("off"))
 }
 
-/// [body physics S2] The walk grid's client walker as the shared model's world: its walk tick and flight step (`WalkGrid::kept_tick`,
-/// `WalkGrid::kept_fly_step`: the game's shapes, the grid body's controller settings, the client's with `exe_collision`).
-pub(crate) struct GridWalker<'g>(pub(crate) &'g mapdata::WalkGrid);
-
-impl client_body::Walker for GridWalker<'_> {
-    fn step(&self, c: &mut mapdata::controller::tick::Controller, input: mapdata::controller::tick::TickInput) -> mapdata::controller::tick::StepNotes {
-        self.0.kept_tick(c, input).expect("a client-body stand-in needs the grid's client walker") // [the shared model's world]
-    }
-
-    fn fly(
-        &self,
-        c: &mut mapdata::controller::tick::Controller,
-        flying: &mut mapdata::controller::jump::Flying,
-        heading: (f32, f32),
-        air: (f32, f32),
-    ) -> mapdata::controller::jump::FlightStep {
-        self.0.kept_fly_step(c, flying, heading, air).expect("a client-body stand-in needs the grid's client walker") // [the shared model's world]
-    }
-}
+/// [body physics S3] The shared model's world: `bots::client_walker` (the reckoning's too).
+pub(crate) use super::super::client_walker::GridWalker;
 
 /// [body physics S2] How the stand-in's shared-model bodies moved, for the bench's line: ticks stepped, controllers placed anew (a
 /// spawn, or feet another rule moved), forward presses flown, side or back presses left to the clip, moves an enemy body held.

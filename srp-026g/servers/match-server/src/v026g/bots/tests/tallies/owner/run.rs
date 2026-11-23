@@ -28,6 +28,11 @@ pub(super) struct Doing {
     pub(super) guard: u8,
     pub(super) watch: LipWatchKind,
     pub(super) guard_why: u8,
+    /// [body physics S3] On a sample: the bot's reckoned feet, its route's next point past the feet, and the motor's route jump try
+    /// (take-off, landing, tries, pressed): the missed-jump note.
+    pub(super) reckoned: Option<Vec3>,
+    pub(super) next: Option<Vec3>,
+    pub(super) jump_try: Option<(Vec3, Vec3, u32, bool)>,
 }
 
 impl Doing {
@@ -58,6 +63,22 @@ impl Doing {
             guard: bot.bench_guard,
             watch: LipWatchKind::of(&bot.lip_watch),
             guard_why: bot.bench_guard_why,
+            reckoned: sample.then(|| bot.reckoned.as_ref().map(|(at, _)| at.feet)).flatten(),
+            next: sample
+                .then(|| {
+                    bot.route.as_ref().and_then(|(route, _)| {
+                        let mut r = route.clone();
+                        let (walked, _) = r.progress(feet);
+                        let mut along = 0.0;
+                        let points = r.points();
+                        points.windows(2).find_map(|w| {
+                            along += w[0].at.distance_xz(w[1].at);
+                            (along > walked + 0.05).then_some(w[1].at)
+                        })
+                    })
+                })
+                .flatten(),
+            jump_try: sample.then(|| bot.motor.bench_jump_try()).flatten(),
             after_landing: watch.and_then(|w| w.route).and_then(|jump| {
                 bot.route.as_ref().map(|(route, goal)| {
                     let mut r = route.clone();
@@ -227,6 +248,9 @@ impl Run {
             guard: doing.map_or(0, |d| d.guard),
             watch: doing.map_or(LipWatchKind::Watching, |d| d.watch),
             guard_why: doing.map_or(0, |d| d.guard_why),
+            reckoned: doing.and_then(|d| d.reckoned),
+            next: doing.and_then(|d| d.next),
+            jump_try: doing.and_then(|d| d.jump_try),
         };
         self.recs[place].push(rec);
         // A bot's jump pressed: why, from its watch of it.

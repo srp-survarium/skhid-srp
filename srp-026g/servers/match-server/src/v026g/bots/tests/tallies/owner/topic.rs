@@ -192,6 +192,9 @@ impl BotNow {
             guard: 0,
             watch: LipWatchKind::Watching,
             guard_why: 0,
+            reckoned: None,
+            next: None,
+            jump_try: None,
         }
     }
 }

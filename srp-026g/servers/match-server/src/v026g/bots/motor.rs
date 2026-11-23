@@ -1337,7 +1337,7 @@ const CREEP_HOLD_TICKS: u32 = 2 * (super::press_plan::REST_STEPS_MAX + 2);
 /// yaw on both, on the ground; only the feet moved.
 fn creeps(now: &Estimate, expected: &Estimate) -> bool {
     let still = |body: &Estimate| {
-        body.velocity[0].hypot(body.velocity[1]) <= super::press_plan::SAME_VELOCITY_MS && body.keys == 0 && body.arc.is_none()
+        body.velocity[0].hypot(body.velocity[1]) <= super::press_plan::SAME_VELOCITY_MS && body.keys == 0 && !body.in_jump()
     };
     still(now) && still(expected) && wrap(now.yaw - expected.yaw).abs() <= super::press_plan::SAME_YAW_RAD
 }
@@ -2140,6 +2140,12 @@ const DROP_AIM_PAST_M: f32 = 0.05;
 const DROP_AIM_LONG_TICKS: u32 = 40;
 
 impl Motor {
+    /// [body physics S3] The bench's missed-jump note: the route jump being made (take-off, landing, tries, pressed), if any.
+    #[cfg(test)]
+    pub(crate) fn bench_jump_try(&self) -> Option<(Vec3, Vec3, u32, bool)> {
+        self.jump_try.map(|t| (t.take_off, t.landing, t.tries, t.pressed.is_some()))
+    }
+
     pub fn new(feel: Feel, rng: &mut Rng) -> Self {
         Self {
             feel,

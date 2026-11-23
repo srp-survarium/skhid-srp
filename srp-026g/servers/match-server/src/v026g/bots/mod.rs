@@ -39,6 +39,7 @@ pub mod camp_flank;
 pub mod cheats;
 #[cfg(any(test, feature = "client-test"))]
 pub mod client_tests;
+pub(crate) mod client_walker;
 pub mod clip_tree;
 pub mod concede;
 pub mod contact;

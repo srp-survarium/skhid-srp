@@ -329,8 +329,8 @@ pub(super) fn same_body(now: &Estimate, expected: &Estimate) -> bool {
         && velocity <= SAME_VELOCITY_MS
         && yaw <= SAME_YAW_RAD
         && now.keys == expected.keys
-        && now.arc.is_none()
-        && expected.arc.is_none()
+        && !now.in_jump()
+        && !expected.in_jump()
 }
 
 #[cfg(test)]
