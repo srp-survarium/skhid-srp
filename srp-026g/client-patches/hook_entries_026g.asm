@@ -6077,6 +6077,48 @@ controller_position_on_step_end_replay:
     db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5
     jmp 0x7c7dc
 
+; 0x1ed030 game::clear_resources' start (push ebx / push esi / mov esi,ecx / mov ecx,[esi+535Ch]): the game unloads its menus and world: lohook -> music_on_unload
+global music_on_unload
+extern hook_music_on_unload_chain
+music_on_unload:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_music_on_unload_chain
+    mov edx, music_on_unload_replay
+    cmp eax, 0
+    je music_on_unload_go
+    mov edx, 0x1ed03a
+    cmp eax, 1
+    je music_on_unload_go
+    ud2
+music_on_unload_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+music_on_unload_replay:
+    db 0x53, 0x56, 0x8b, 0xf1, 0x8b, 0x8e, 0x5c, 0x53, 0x00, 0x00
+    jmp 0x1ed03a
+
+; 0x14730 the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query: callback -> corpse_shot_dark_on_loaded (wraps engine_store_first_resource 0x14730)
+    RUST_CDECL corpse_shot_dark_on_loaded, hook_corpse_shot_dark_on_loaded, 2
+
 ; 0x38cd22 fsm::deserialize after resolving the wire state id; selected +10h may be null; done is ret 8: lohook -> deserialize_guards_on_fsm
 global deserialize_guards_on_fsm
 extern hook_deserialize_guards_on_fsm
@@ -9781,45 +9823,6 @@ lobby_scene_on_activate_go:
 lobby_scene_on_activate_replay:
     db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
     jmp 0x21d2e6
-
-; 0x1ed030 game::clear_resources' start (push ebx / push esi / mov esi,ecx / mov ecx,[esi+535Ch]): the game unloads its menus and world: lohook -> music_on_unload
-global music_on_unload
-extern hook_music_on_unload_chain
-music_on_unload:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_music_on_unload_chain
-    mov edx, music_on_unload_replay
-    cmp eax, 0
-    je music_on_unload_go
-    mov edx, 0x1ed03a
-    cmp eax, 1
-    je music_on_unload_go
-    ud2
-music_on_unload_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-music_on_unload_replay:
-    db 0x53, 0x56, 0x8b, 0xf1, 0x8b, 0x8e, 0x5c, 0x53, 0x00, 0x00
-    jmp 0x1ed03a
 
 ; 0x373cd9 start_seeding_impl's lea eax,[ebp-4B8h] (the game's wide pipe name, swprintf'd at 0x373CC6) before its call of win_utils::pipe::accept (0x373230 at 0x373CDF: ECX the pipe, EAX the wide name, [ESP] &error_code); a Skip with EAX set gives accept another name, read only by its CreateNamedPipeW (0x373262) (patch 150): lohook -> lobby_seeding_on_accept
 global lobby_seeding_on_accept

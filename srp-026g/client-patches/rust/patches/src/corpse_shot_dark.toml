@@ -1,0 +1,25 @@
+# Patch 196: a shot into a corpse (docs/notes/corpse-shot-dark.md): only the
+# decisions, which sites and the handlers. The sites are sites_026g.tsv's; the
+# logic is corpse_shot_dark.rs. The shot and the step are patch 76's
+# (ragdoll.rs), the notice's input and its apply point artefact_carry's
+# input_builder.end and carry.filter, the cut patch 144's game.tick.
+name = "corpse_shot_dark"
+patch = 196
+
+# every frame of a match: the hud movie's black view (after the other
+# patches' handlers there, orders 1 to 5)
+[[hook]]
+site = "player_icons.update_start"
+handler = "on_update_icons"
+order = 6
+
+# the game unloads its match: everything ends (after patches 88 and 81)
+[[hook]]
+site = "game.clear_resources"
+handler = "on_unload"
+order = 3
+
+# the death sound's query: its sound kept
+[[hook]]
+site = "resources.query_done"
+handler = "on_loaded"

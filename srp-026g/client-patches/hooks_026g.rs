@@ -1302,6 +1302,21 @@ pub extern "C" fn hook_artefact_hunt_on_update_icons(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- corpse_shot_dark (patch 196) ----
+
+/// The entry `corpse_shot_dark_on_update_icons` (0x23aa10, game_world_ui::update_player_icons' start, every frame of a match ([esp+4] the ui)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_corpse_shot_dark_on_update_icons(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `corpse_shot_dark_on_update_icons` calls this, from the game's jump at 0x23aa10,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::corpse_shot_dark::on_update_icons(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- hud_cursor (patch 113) ----
 
 /// The entry `hud_cursor_on_match_start` (0x234880, game_world_ui::initialize_match's start (sub esp,5D4h), once a match (from 0x1F855D; the late join's rebuild enters at 0x234E71): the site's ESP+4 the hud, whose kits (+2DFh) and cursor (+2DCh) are the last match's) calls this with the saved machine.
@@ -4340,6 +4355,68 @@ pub extern "C" fn hook_controller_position_on_step_end(frame: &mut Frame) -> u32
     }
 }
 
+// ---- music (patch 88) ----
+
+/// The entry `music_on_unload` (0x1ed030, game::clear_resources' start (push ebx / push esi / mov esi,ecx / mov ecx,[esi+535Ch]): the game unloads its menus and world) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_music_on_unload(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `music_on_unload` calls this, from the game's jump at 0x1ed030,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::music::on_unload(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- lobby_scene (patch 81) ----
+
+/// The entry `lobby_scene_on_game_closing` (0x1ed030, game::clear_resources' start (push ebx / push esi / mov esi,ecx / mov ecx,[esi+535Ch]): the game unloads its menus and world) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lobby_scene_on_game_closing(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lobby_scene_on_game_closing` calls this, from the game's jump at 0x1ed030,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lobby_scene::on_game_closing(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- corpse_shot_dark (patch 196) ----
+
+/// The entry `corpse_shot_dark_on_unload` (0x1ed030, game::clear_resources' start (push ebx / push esi / mov esi,ecx / mov ecx,[esi+535Ch]): the game unloads its menus and world) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_corpse_shot_dark_on_unload(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `corpse_shot_dark_on_unload` calls this, from the game's jump at 0x1ed030,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::corpse_shot_dark::on_unload(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- corpse_shot_dark (patch 196) ----
+
+/// The entry `corpse_shot_dark_on_loaded` (a callback in engine_store_first_resource's convention, the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query)
+/// calls this with its 2 arguments, typed by the row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `corpse_shot_dark_on_loaded`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_corpse_shot_dark_on_loaded(a0: Option<raw::QueriesResult>, a1: *mut c_void) -> u32 {
+    // SAFETY: only the entry `corpse_shot_dark_on_loaded` calls this, when the game calls the callback
+    // a patch handed it, on the thread that asked; a0.. are the callback's arguments.
+    let thread = unsafe { Thread::new() };
+    let result = unsafe { QueryResults::from_raw(&thread, a0) };
+    let tag = QueryTag::from_raw(a1 as usize as u32);
+    { crate::corpse_shot_dark::on_loaded(result, tag); 0 }
+}
+
 // ---- deserialize_guards (patch 115) ----
 
 /// The named exits of deserialize_guards::on_fsm (the order the shim's Flow code
@@ -6701,36 +6778,6 @@ pub extern "C" fn hook_lobby_scene_on_activate(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::lobby_scene::on_activate(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- music (patch 88) ----
-
-/// The entry `music_on_unload` (0x1ed030, game::clear_resources' start (push ebx / push esi / mov esi,ecx / mov ecx,[esi+535Ch]): the game unloads its menus and world) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_music_on_unload(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `music_on_unload` calls this, from the game's jump at 0x1ed030,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::music::on_unload(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- lobby_scene (patch 81) ----
-
-/// The entry `lobby_scene_on_game_closing` (0x1ed030, game::clear_resources' start (push ebx / push esi / mov esi,ecx / mov ecx,[esi+535Ch]): the game unloads its menus and world) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_lobby_scene_on_game_closing(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `lobby_scene_on_game_closing` calls this, from the game's jump at 0x1ed030,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::lobby_scene::on_game_closing(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -9719,6 +9766,8 @@ pub extern "C" fn hook_blackout_on_update_icons_chain(frame: &mut Frame) -> u32 
     if flow != 0 { return flow; }
     let flow = hook_artefact_hunt_on_update_icons(frame);
     if flow != 0 { return flow; }
+    let flow = hook_corpse_shot_dark_on_update_icons(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -9971,6 +10020,17 @@ pub extern "C" fn hook_lamps_on_destroy_chain(frame: &mut Frame) -> u32 {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn hook_music_on_unload_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_music_on_unload(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_lobby_scene_on_game_closing(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_corpse_shot_dark_on_unload(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn hook_music_on_frame_chain(frame: &mut Frame) -> u32 {
     let flow = hook_music_on_frame(frame);
     if flow != 0 { return flow; }
@@ -10139,15 +10199,6 @@ pub extern "C" fn hook_subtick_hits_on_ray_chain(frame: &mut Frame) -> u32 {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn hook_music_on_unload_chain(frame: &mut Frame) -> u32 {
-    let flow = hook_music_on_unload(frame);
-    if flow != 0 { return flow; }
-    let flow = hook_lobby_scene_on_game_closing(frame);
-    if flow != 0 { return flow; }
-    0
-}
-
-#[unsafe(no_mangle)]
 pub extern "C" fn hook_medical_skills_on_movement_chain(frame: &mut Frame) -> u32 {
     let flow = hook_medical_skills_on_movement(frame);
     if flow != 0 { return flow; }
@@ -10246,6 +10297,15 @@ pub fn battery_hit_on_wants_swing_entry() -> super::hook::CallbackEntry<OrigFsmA
     // SAFETY: the generated entry lives for the executable's lifetime and takes the
     // arguments of engine_fsm_always, whose `Original` names the entry's type.
     unsafe { super::hook::CallbackEntry::from_entry(battery_hit_on_wants_swing as *const () as *const c_void) }
+}
+
+unsafe extern "C" { fn corpse_shot_dark_on_loaded(); }
+/// The entry `corpse_shot_dark_on_loaded`, in engine_store_first_resource's convention (the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query): a
+/// callback the patch hands the game (no site is rewritten).
+pub fn corpse_shot_dark_on_loaded_entry() -> super::hook::CallbackEntry<OrigStoreFirstResource> {
+    // SAFETY: the generated entry lives for the executable's lifetime and takes the
+    // arguments of engine_store_first_resource, whose `Original` names the entry's type.
+    unsafe { super::hook::CallbackEntry::from_entry(corpse_shot_dark_on_loaded as *const () as *const c_void) }
 }
 
 unsafe extern "C" { fn forest_glow_on_loaded(); }
