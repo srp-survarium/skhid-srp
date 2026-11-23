@@ -24,7 +24,7 @@ use crate::vostok::log::{self, Piece};
 use crate::vostok::renderer::get_environment;
 use crate::hud_options;
 use crate::pip_lens;
-use crate::vostok::second_view::{self, Disc, Frame, FrameWindow, GpuClock, Keep, Lens, MainView, Marks, ModelId, ReadError, Scoped, SecondView, Stage, RING};
+use crate::vostok::second_view::{self, Disc, Frame, GpuClock, Keep, Lens, MainView, Marks, ModelId, ReadError, Scoped, SecondView, Stage, RING};
 use crate::vostok::{
     trig, Context, Flow, Lock, NoExit, OrigRenderFlashUi, PipScopesOnAddHideExit, PipScopesOnAddIdleExit, PipScopesOnPresentExit,
     PipScopesOnRemoveIdleExit, PipScopesOnRemoveShowExit, PipScopesOnUnmoveExit, Reg, Thread,
@@ -170,9 +170,6 @@ fn turn_off_switches(thread: &Thread) {
     };
     KEPT.with(thread, |slot| *slot = Some(kept));
 }
-
-/// The frame's window (the render thread keeps it from its last draw).
-static FRAME_WINDOW: Lock<Option<FrameWindow>> = Lock::new(None);
 
 /// The frame's view and projection, for the lens's place on its screen.
 static FRAME_CAMERA: Lock<Option<([f32; 16], [f32; 16])>> = Lock::new(None);
@@ -407,11 +404,6 @@ pub fn on_render_begin(ctx: &mut Context<'_>) -> Flow<NoExit> {
     restore_switches(thread);
     if second {
         turn_off_switches(thread);
-        if let Some(frame) = FRAME_WINDOW.with(thread, |w| *w) {
-            if let Probe::Made { second: view, .. } = probe {
-                second_view::match_exposure(thread, &view, frame);
-            }
-        }
     }
     if timed(probe) {
         let now = second_view::cpu_ms(thread);
@@ -450,8 +442,6 @@ pub fn on_flash_ui_call(orig: &OrigRenderFlashUi, renderer: u32, window: u32) {
 /// when asked, its picture copied into the corner.
 pub fn on_interface(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
-    let window = second_view::frame_window(ctx);
-    FRAME_WINDOW.with(thread, |kept| *kept = window);
     let probe = PROBE.with(thread, |probe| {
         if let Probe::Wanted(used, size) = *probe {
             *probe = match second_view::make(thread, size) {
@@ -687,15 +677,6 @@ fn ours(ctx: &Context<'_>, done: bool) -> bool {
         }
         ours
     })
-}
-
-/// renderer::render's time step for its stages: none in the second view's
-/// draw, so its eye adaptation keeps the frame's (copied in at its start).
-pub fn on_frame_delta(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    if SECOND_PASS.load(Ordering::Relaxed) {
-        ctx.set_xmm_f32(0, 0.0);
-    }
-    Flow::Continue
 }
 
 

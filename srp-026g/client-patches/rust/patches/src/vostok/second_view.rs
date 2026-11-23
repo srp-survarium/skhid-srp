@@ -824,37 +824,6 @@ pub fn frame_aspect(ctx: &Context<'_>) -> Option<f32> {
     (desc.height > 0).then(|| desc.width as f32 / desc.height as f32)
 }
 
-/// An output window of the game's, kept by the render thread from one frame
-/// to the next (the frame's own: alive for the game).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct FrameWindow(raw::RenderOutputWindow);
-
-// SAFETY: named on the render thread alone.
-unsafe impl Send for FrameWindow {}
-
-/// The window the frame at `render.flash_ui` draws into.
-pub fn frame_window(ctx: &Context<'_>) -> Option<FrameWindow> {
-    // SAFETY: as composite's.
-    unsafe { raw::site::render_flash_ui::frame(ctx).and_then(|f| f.window()) }.map(FrameWindow)
-}
-
-/// The second view given the frame's exposure: the frame window's last
-/// adapted luminance copied into ours, which our draw's eye adaptation then
-/// keeps (its time step 0, `render.frame_delta`). The render thread, at our
-/// draw's start.
-pub fn match_exposure(_: &Thread, second: &SecondView, frame: FrameWindow) -> bool {
-    let Some(context) = immediate_context() else { return false };
-    // SAFETY: both windows alive (ours for good, the frame's for the game),
-    // their 1x1 luminance targets of one format, their resources the
-    // textures'; CopyResource on the render thread's immediate context.
-    unsafe {
-        let (Some(to), Some(from)) = (second.window.adapted_luminance(), frame.0.adapted_luminance()) else { return false };
-        let (Some(to), Some(from)) = (to.hw_resource(), from.hw_resource()) else { return false };
-        raw::engine_context_copy_resource(Some(context), Some(to), Some(from));
-    }
-    true
-}
-
 /// The eye adaptation's reset flag (the next adaptation starts from the
 /// frame's own measure), as it is; and set to `value`. One for every view.
 pub fn eye_reset(_: &Thread, value: Option<bool>) -> bool {
