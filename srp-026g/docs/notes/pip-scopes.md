@@ -585,6 +585,18 @@ the scene around it, wherever the narrow view looks (indoors under a lamp, the o
   strafing). LIKELY the round-4 ones were the motion blur smear fixed in round 5, over the eyecup's
   single-sided inside; not PROVEN, as the moments of two runs differ.
 
+**3. A cheaper second view: fewer sun cascades, tried and not kept.** stage_shadow_direct::execute
+fits and draws cascades 4 - (render options +C4h) up to 3 (0x172EF4); the second view's draw was given
+2 and 1 (TOZ-122 + Mk4, standing and strafing). The cascades it skips keep the maps and matrices the
+frame's last draw left, and its shadow mask still reads them: with one, banded wrong shadows across a
+sunlit wall; with two, the reticle's lines lost from the picture
+(`round6/cascades-toz122-leupoldmk4-aim1-LEFT-four-MIDDLE-two-RIGHT-one.png`). Its render-thread time did
+not fall either (2.0 ms with four, 2.5 with two or one: one aimed window each, the rig's shared CPU), so
+the cascades' count is not where its CPU goes, or not alone. Sound forms left: the second view's own
+split distances for its thin cone (the per-cascade records of 118h bytes, their +10Ch read at
+calculate_matrices 0x1742A2), or a shadow mask that reads only the cascades drawn; both need more of
+stage_shadow_direct read first. The second view keeps all four (`pip-scopes-7`).
+
 **The rig.** `srp-map-sur --hold ... --turn <yaw>[:<pitch>]` (`capture.py --turn`): the place turns
 once, a second after it enters (whole degrees, right and up positive), so its view can look across
 the map instead of at a wall.
