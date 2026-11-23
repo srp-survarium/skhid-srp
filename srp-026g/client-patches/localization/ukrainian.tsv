@@ -2747,7 +2747,7 @@ st_srp_inventory_search_tip_level_example	+10 +11
 st_srp_inventory_sell_duplicates	Продати дублі
 st_srp_inventory_sell_duplicates_ask	Предметів на продаж: %1$s
 st_srp_item_props_mps	м/с
-st_srp_key_bindings	Призначення клавіш
+st_srp_key_bindings	Прив’язки
 st_srp_keys_combat	Бій
 st_srp_keys_interface	Інтерфейс
 st_srp_keys_items	Предмети

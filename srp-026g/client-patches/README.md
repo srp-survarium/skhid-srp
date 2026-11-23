@@ -3534,8 +3534,10 @@ movie (Settings.as) puts each row in its group's list (game, lobby, chat) in the
 and nothing takes a row by its place: the six functions and the movie name a row by its action
 (0x201150 collects the conflicting actions, 0x201248 and 0x2013A0 find a row by its action),
 user.cfg by the action's name. So `controls` lists the game's and the added rows together, each
-beside its relatives: movement; the weapon; grenade, melee, use, drop, hold artefact; the quick
-slots; patch 149's item keys (artefacts, medicines, grenades, the others); the spot, the chat and
+beside its relatives: movement; the weapon; melee, use, drop, hold artefact; the items' three
+"next" keys (next grenade, next medkit, next artefact: the owner, 2026-11-23, "should be close
+by"); the quick slots; patch 149's other item keys (artefacts, medicines, grenades, the others);
+the spot, the chat and
 both push-to-talks; hide interface and the screenshots; then the lobby's and the chat's rows.
 
 **The match.** `on_keyboard_action` (0x25CD00) asks the binder for kind 1 (0x25CD5F) and switches

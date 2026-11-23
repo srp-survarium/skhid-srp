@@ -1161,6 +1161,9 @@ pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<HudOptionsOnOptionsCallExi
     let Some(call) = OptionsCall::at(ctx) else { return Flow::Continue };
     let thread = ctx.thread();
     let method = call.method();
+    if crate::key_bindings::on_call(&call, method) {
+        return Flow::Exit(HudOptionsOnOptionsCallExit::Done);
+    }
     if method == c"srp_hud_texts" {
         let mut rooms = [[0; 0x200]; TEXTS.len()];
         let mut texts: [&CStr; TEXTS.len()] = [c""; TEXTS.len()];
