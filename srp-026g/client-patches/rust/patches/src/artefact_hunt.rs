@@ -25,7 +25,7 @@ use core::ffi::CStr;
 
 use artefact_hunt_rule::{
     Action, After, ArtefactView, BaseDef, Cue, Event, Hud, Line, Message, Params, Place, Position, RawParams,
-    RawShape, Reason, Rule, Shift, Spawner, SuddenShown, Team, Time, View, Viewer, MAX_SHAPES, MAX_SPAWNERS,
+    RawShape, Reason, Rule, Spawner, SuddenShown, Team, Time, View, Viewer, MAX_SHAPES, MAX_SPAWNERS,
     PLAYERS, REACH, along,
 };
 
@@ -197,7 +197,6 @@ fn read_config(root: &ConfigTable<'_>) -> Result<(Params, Item), &'static str> {
         round_countdown_time: int(c"round_countdown_time")?,
         score: int(c"score")?,
         respawn_time: int(c"respawn_time")?,
-        time_needed_to_respawn: int(c"time_needed_to_respawn")?,
         vi_spawn_time: int(c"vi_spawn_time")?,
         vi_spawn_variation: int(c"vi_spawn_variation")?,
         vi_not_picked_ttl: int(c"vi_not_picked_ttl")?,
@@ -280,7 +279,6 @@ fn read_config(root: &ConfigTable<'_>) -> Result<(Params, Item), &'static str> {
         artefact_hunt_rule::ParamError::RoundCountdownTime => "parameters.round_countdown_time",
         artefact_hunt_rule::ParamError::Score => "parameters.score",
         artefact_hunt_rule::ParamError::RespawnTime => "parameters.respawn_time",
-        artefact_hunt_rule::ParamError::TimeNeededToRespawn => "parameters.time_needed_to_respawn",
         artefact_hunt_rule::ParamError::ViSpawnTime => "parameters.vi_spawn_time",
         artefact_hunt_rule::ParamError::ViNotPickedTtl => "parameters.vi_not_picked_ttl",
         artefact_hunt_rule::ParamError::ViDroppedTtl => "parameters.vi_dropped_ttl",
@@ -528,15 +526,14 @@ pub fn on_completed(_: &OrigTdmRuleCompleted, rule: &mut HuntRule<'_>, time: u32
 
 // ---- the respawn rule ----------------------------------------------------------
 
-/// A death's delay: the wave's time (`Rule::respawn_at`), the native grid
-/// and store after it.
+/// A death's delay: the wave's time (`Rule::respawn_at`, the native delay
+/// and its respawn modifier dropped), the native grid and store after it.
 pub fn on_death_delay(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(mut delay) = DeathDelay::at(ctx) else { return Flow::Continue };
     let Some(world) = delay.world().map(|world| world.key()) else { return Flow::Continue };
     let Some(hunt) = hunt_in(delay.thread(), world) else { return Flow::Continue };
-    let shift = Shift::new(delay.delay() as i32 - delay.respawn_time() as i32);
     let death = Time::from_ms(delay.time());
-    if let Some(at) = hunt.state.respawn_at(&hunt.params, death, shift) {
+    if let Some(at) = hunt.state.respawn_at(&hunt.params, death) {
         delay.set_delay(at.ms().wrapping_sub(death.ms()));
     }
     Flow::Continue
@@ -1385,7 +1382,7 @@ mod tests {
         ];
         let raw = RawParams {
             match_time: 900, time_needed_to_continue_match: 90, draw_additional_time: 180, time_before_new_round: 3,
-            round_countdown_time: 5, score: 5, respawn_time: 15, time_needed_to_respawn: 7, vi_spawn_time: 60,
+            round_countdown_time: 5, score: 5, respawn_time: 15, vi_spawn_time: 60,
             vi_spawn_variation: 10, vi_not_picked_ttl: 120, vi_dropped_ttl: 60, drop_lift: 0.13, usable_radius: 0.3,
         };
         let params = Params::parse(&raw, &spawners, &bases).unwrap();

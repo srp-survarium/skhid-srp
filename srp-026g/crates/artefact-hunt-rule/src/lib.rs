@@ -40,7 +40,7 @@ pub use restart::{FADE, Lives, Restart, Spawning, Step, Timing};
 pub use roster::{PLAYERS, Place, Roster, Sides, Team};
 pub use rule::{
     Action, Actions, After, Artefact, ArtefactView, Clock, Event, Hud, MAX_ACTIONS, Outcome, Over,
-    Phase, Play, Reason, Rng, Round, Rule, Shift, Spot, Stage, Sudden, SuddenShown, Wave,
+    Phase, Play, Reason, Rng, Round, Rule, Spot, Stage, Sudden, SuddenShown, Wave,
 };
 pub use shape::{Shape, ShapeKind, View, along};
 pub use time::{Ms, Time};

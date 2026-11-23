@@ -1719,7 +1719,6 @@ mod tests {
                 round_countdown_time: 5,
                 score: 1,
                 respawn_time: 15,
-                time_needed_to_respawn: 7,
                 vi_spawn_time: 60,
                 vi_spawn_variation: 10,
                 vi_not_picked_ttl: 120,

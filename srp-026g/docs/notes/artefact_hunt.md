@@ -47,10 +47,13 @@ the mode. This note is the specification: the rules below are 0.46c2's; where 0.
   world"); before the fade's end, it respawns him with everyone.
 - **No new round** with less than 90 s of match time left (`time_needed_to_continue_match`): the
   match ends (scores differ) or goes to sudden death (equal).
-- **Respawn in a round:** in waves every 15 s (`respawn_time`) counted from the match start, never
-  sooner than 7 s after the death (`time_needed_to_respawn`); the player's respawn modifier applies.
-  The hud counts to the next wave beside the match time, for everyone (srp's addition: "HUD calls",
-  "The respawn wave").
+- **Respawn in a round:** in waves every 15 s (`respawn_time`) counted from the match start: a
+  death comes back at the wave the hud shows when he dies, however near it is (the owner,
+  2026-11-23: dead 4 s before a wave he waited for the next one; 0.46c2 waits at least 7 s,
+  `time_needed_to_respawn`, below). The respawn modifier (the radio) has no effect: everyone
+  respawns in the same waves (the owner, 2026-11-23: "No effect in wave modes"). The hud counts to
+  the next wave beside the match time, for everyone, the same time as the game's "Respawn in" line
+  (srp's addition: "HUD calls", "The respawn wave").
 - **Match time** 900 s (`match_time`). When it runs out: the higher score wins at once; equal scores:
   sudden death.
 - **Sudden death,** 180 s (`draw_additional_time`): no respawns; a team with nobody left gives the
@@ -80,6 +83,16 @@ Each one a decision; the owner's are marked, the rest are the port's and open to
   maps keep 0.26g's anomalies.
 - **`wait_time`** (0.46c2: minutes until an unfilled match is abandoned) is 0.26g's own waiting.
 - **The 30 s end music** of 0.46c2: not ported (0.26g's matches have none).
+- **No 7 s least time dead** (the owner, 2026-11-23: "if i die ~4 seconds before it runs out, i
+  respawn full timer +4 seconds"). 0.46c2's `max(death + 7 s, wave(death + 7 s) + m)` (0x785130)
+  sends a death in the 7 s before a wave to the next one, while the wave timer counts to the one he
+  misses. Here a death joins the wave the timer shows at his death's step; the only least time is
+  the game's own: after that step ("Respawns"). `time_needed_to_respawn` stays in the config,
+  unread.
+- **No respawn modifier in the waves** (the owner, 2026-11-23: "No effect in wave modes"). 0.46c2
+  moves a player's wave by his modifier (`m` above, its parameter 59); here the radio's -20 %
+  (0.26g's parameter 60) does nothing in this mode, so every dead player comes back in the wave the
+  timer shows. Modes without waves keep it (the native respawn rule's own delay).
 
 ## Data (the content pack's contract with the rule)
 
@@ -136,8 +149,7 @@ Each one a decision; the owner's are marked, the rest are the port's and open to
     types a stock config has them in;
   - the native respawn rule and the new rule: `respawn_time`, an int (seconds);
   - the new rule, whole seconds as ints: `match_time`, `time_needed_to_continue_match`,
-    `draw_additional_time`, `time_before_new_round`, `round_countdown_time`,
-    `time_needed_to_respawn`, `vi_spawn_time`, `vi_spawn_variation`, `vi_not_picked_ttl`,
+    `draw_additional_time`, `time_before_new_round`, `round_countdown_time`, `vi_spawn_time`, `vi_spawn_variation`, `vi_not_picked_ttl`,
     `vi_dropped_ttl`; `score` an int, 1 to 255 (`Params::parse` names the key it refuses);
   - `mode.artefact_hunt.spawners[] {position, rotation}`: where the artefact appears (0.46c2's
     `victory_item_spawners[].spawned_item`); 1 to 64 a map;
@@ -319,15 +331,21 @@ The native respawn rule (91) keeps its points and its spawn; four things are ask
   0x316B6B..0x316B9D) and stored at rule+138h + 4 x victim (0x316BA3). The patch: a lohook
   `respawn.death_delay` at 0x316B6B (`8B 8F 34 01 00 00`, `mov ecx,[edi+134h]`, 6 bytes, the
   return address of the floor call; EAX = D, EDI the rule, EBX the victim's player, `[ESP+20h]` the
-  time). In this mode, with `Rule::respawn_at(params, time, Shift::new(D - [edi+114h]))` =
-  `Some(at)`, it sets `EAX = at - time`; the native grid and store follow. `D - respawn_time` is
-  the modifier's part of a wave as 0.46c2 rounds it (0x78562C), so with `respawn_time` 15 the time
-  is 0.46c2's: the first multiple of 15 s from the match's start at or after death + 7 s, moved by
-  the modifier, never under the 7 s. `None` (before the start, after the end) leaves the native
-  delay.
+  time). In this mode, with `Rule::respawn_at(params, time)` = `Some(at)`, it sets `EAX = at -
+  time` in place of D (the modifier dropped); the native grid and store follow. The time: the first
+  multiple of 15 s from the match's start after the death's step (the wave the hud shows at that
+  step). `None` (before the start, after the end) leaves the native delay.
   - The tick spawns a place whose time **equals** the step's time (0x3168BA `cmp [edx],ecx / jnz`):
     a time must be a grid time, which is why the native rounding is kept and the rule's time is
     never stored directly.
+  - **The game's own least time dead** (PROVEN, "The order inside one step"): the death's time is
+    its event's, the step before's, and the death's step ran the respawn rule's tick before the
+    death, so a time at or before that step would never come (the player dead to the end). The
+    least is the event's time + 51 ms (steps at most 50 ms apart), which the grid takes to the step
+    after the death's. Nothing else needs a dead player to wait: the death camera (patch 46), the
+    corpse's dark screen (patch 196), the ragdoll and the kit picked on the death screen all end or
+    apply at the respawn, whenever it comes. 0.46c2's 7 s (`time_needed_to_respawn`) is its rule's
+    choice, not dropped by need ("Differences from 0.46c2").
   - `mode.parameters.respawn_time` is read by both rules and must be an int (the respawn rule's
     constructor: `mov ecx,[eax] / imul ecx,3E8h`, 0x316783).
 - **The round's restart: held, then everyone** (0.46c2: respawns off in states 6 and 7, rule+0x220,
@@ -605,7 +623,6 @@ does otherwise, each open to the owner's word:
   0.46c2's `bring_victory_artefact_singly` (weight 0) is not counted.
 - **The score events** are 0.26g's numbers 20 (put) and 6 (bring, hundredths), with this mode's
   weights 10 and 50 from srp's static info as Research's; 0.46c2's are 16 and 35.
-- **The respawn modifier** is 0.26g's parameter 60 as its respawn rule rounds it (0.46c2: 59).
 - **The health regeneration modifier** follows 0.26g's rule for its index 2 (x 1.05 a body part).
   0.46c2 "adds 0.05" to its parameter 1; whether that is the same relative rule was not read.
 - **The slow is a flat 20 %:** 0.26g has no `victory_item_speed_modifier` to lessen it.
@@ -894,21 +911,18 @@ re-simulation undoes: Research has the same exposure.
   `Rule::respawn_at`, one function: a wave of this very step has come, the respawn rule's tick
   being before the hud's); `None` before the start, in the 3 s, the fade and the countdown (respawns
   held), in sudden death and once over. The game spawns a wave at the simulation step at or after
-  it (the 50 ms grid): the hud is at most a step early. Display only: nothing a match computes
-  changes. The movie counts down between updates and goes on to the next wave at 0 (the waves
+  it (the 50 ms grid): the hud is at most a step early. Display only. The movie counts down between updates and goes on to the next wave at 0 (the waves
   repeat until an update says none): no timer of its own.
   - **What is shown** (decided by the owner, 2026-11-22: "exactly like in dirty bomb", "There it is
     a smaller timer after the main one", "yes, let's go 1", out of ten looks drawn): a smaller
     number of seconds right after the match time, on its baseline, in the row's font, white with
     its dark edge (`ArtefactHuntWave`, owned by the row); the bars move apart by its widest ("00")
     so that the time and it stay centred between them, and close again while no wave comes.
-  - **Every team's wave, not a player's.** Both teams share one wave clock (from the match's
-    start), so one number serves both. A dead player's own time stays the game's respawn line under
-    the row (`root.set_respawn_time` from the respawn rule's own time: the 7 s least time and his
-    modifier in it): dead in time for the coming wave with no modifier, the two say the same; dead
-    less than 7 s before it, his line says the wave after (the wave number shows 3, his line 00:18);
-    with a modifier his line is shifted by it. This is Dirty Bomb's split too (below): the wave
-    timer is the team's, the death screen says one's own.
+  - **Everyone's wave, one timer.** Both teams share one wave clock (from the match's start), so
+    one number serves both. A dead player's own line under the row (`root.set_respawn_time`, the
+    respawn rule's time of his place) counts to the same moment: a death's time is the wave shown
+    at its step, with no modifier (`Rule::respawn_at`). Before that (the owner's screenshot of
+    2026-11-23) the wave showed 3 and his line 00:18, from 0.46c2's 7 s least.
   - **No number that will not happen:** hidden before the start, in a round's restart, in sudden
     death (its "Sudden death" line says why) and at the end.
   - **Spectators and replays** see the same number (it is nobody's), beside the same match time;

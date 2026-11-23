@@ -114,25 +114,6 @@ unsafe fn smoke_of(player: raw::Player) -> Option<Smoke> {
     }
 }
 
-/// The place's next spawn time (the respawn rule's), none in a match without one.
-///
-/// # Safety
-/// `core` is the live world core of a hook.
-unsafe fn respawn_time(core: raw::CoreWorld, place: u8) -> Option<u32> {
-    // SAFETY: the core's rule vector and its rules live with the core; the respawn rule's array of
-    // a u32 a place (20) only after its vtable says it is one.
-    unsafe {
-        let begin = core.rules_begin()?;
-        let count = core.rules_end()?.index_from(begin)?;
-        (0..count).find_map(|n| {
-            let rule = begin.at(n).rule()?;
-            let table = read(rule.vtable());
-            let respawn = table == raw::image::RESPAWN_RULE_VTABLE || table == raw::image::RESPAWN_CLIENT_RULE_VTABLE;
-            (respawn && place < 20).then(|| read(rule.respawn_times().add(usize::from(place))))
-        })
-    }
-}
-
 /// Whether `player`, at the tick `tick` of its world `core`, may drop a smoke: dead and still in
 /// the world, the skill in its current kit, a smoke ready, and the fuse ending before its respawn.
 ///
@@ -149,7 +130,7 @@ unsafe fn ready(player: raw::Player, core: raw::CoreWorld, tick: Tick) -> Result
         }
         let smoke = smoke_of(player).ok_or(Refusal::NoSmoke)?;
         let place = read(player.place());
-        match respawn_time(core, place) {
+        match super::respawn::respawn_time(core, place) {
             Some(respawn) if !tick.before_respawn(smoke.ttl, respawn) => Err(Refusal::TooLate),
             _ => Ok(smoke),
         }
