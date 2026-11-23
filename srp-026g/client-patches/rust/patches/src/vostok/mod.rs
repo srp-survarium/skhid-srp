@@ -55,6 +55,7 @@ pub mod draw;
 pub mod headwear;
 pub mod grenade_icons;
 pub mod hit_marker;
+pub mod world_event;
 mod hook;
 mod hud_input;
 mod input;
