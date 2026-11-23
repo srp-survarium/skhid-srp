@@ -87,6 +87,8 @@ def script_of(spec, out, aspect):
         spec = {'poses': spec}
     base = dict(DEFAULTS, **spec.get('capture', {}))
     lines = [f'folder {windows(out)}', f"wait {int(base['wait_ms'])}"]
+    if 'clock' in base:
+        lines.append(f"clock {float(base['clock']):.3f}")
     names = set()
     for raw in spec['poses']:
         raw = {k: v for k, v in raw.items() if v is not None}

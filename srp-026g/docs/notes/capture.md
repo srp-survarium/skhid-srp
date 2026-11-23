@@ -57,7 +57,7 @@ which earlier previews used.
 A list of poses or `{"capture": {defaults}, "poses": [...]}`. A pose: `name`, `position`, and
 `forward` or `yaw`/`pitch` (degrees; yaw 0 along +z, 90 along +x, pitch up positive; the
 previews' convention), `hfov` (horizontal, default 90) or `fov` (vertical), `near` (0.1), `far`
-(1500), `settle_ms` (4000). Defaults also: `wait_ms` (15000), `size` (`1920x1080`), `user_cfg`.
+(1500), `settle_ms` (4000). Defaults also: `wait_ms` (15000), `size` (`1920x1080`), `user_cfg`, and `clock` (seconds, none by default): the renderer's scene clock held there for the whole run (site `render.scene_clock`, 0x13D257, where renderer::render stores it as the frame's scene_time), so wind, clouds and film grain are the same in every run and two builds' pictures of a scene can be compared byte for byte.
 The console command `where` (patch 133) prints a place and look to copy from a game.
 
 ## Not covered

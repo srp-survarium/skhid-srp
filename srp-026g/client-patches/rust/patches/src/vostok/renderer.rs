@@ -845,6 +845,13 @@ fn look_with(_: &Thread, manifests: Option<&mut Manifests>) -> Result<Gpus, Vulk
     }
 }
 
+/// At `render.scene_clock` (patch 176's capture): the frame's scene clock
+/// (xmm0, the renderer's +2E4h about to be stored as the frame's scene_time)
+/// becomes `seconds`.
+pub fn hold_scene_clock(ctx: &mut Context<'_>, seconds: f32) {
+    ctx.set_xmm_f32(0, seconds);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
