@@ -1623,7 +1623,8 @@ mod tests {
     }
 
     /// [incremental grids PR 5] The rim line site through the memo builds the full build's grid, byte for byte
-    /// ([`WalkGrid::digest_full`]): a memo written by one build (`write-only`), taken whole by the next (`use`: every job a hit),
+    /// ([`WalkGrid::digest_full`]) and in memory (every field of every off link: the file keeps a walking press's share as a
+    /// count only, so equal bytes alone would not show a lost share bit): a memo written by one build (`write-only`), taken whole by the next (`use`: every job a hit),
     /// and run again and compared at every hit (`verify=1`), on the 1.30 m top the rim jumps get onto.
     #[test]
     fn a_rim_line_memo_build_is_the_full_build() {
@@ -1638,21 +1639,26 @@ mod tests {
         let build = |memo: &mut Memo| {
             WalkGrid::build_kept_memo(&tris, None, [-2.0, 0.0, 12.0, 6.0], 0.25, b, &start, &start, OffMeshLinks::Gaps, memo).0
         };
-        let full = build(&mut Memo::off()).digest_full();
+        let full_grid = build(&mut Memo::off());
+        let (full, full_off) = (full_grid.digest_full(), full_grid.off_links().to_vec());
+        let same = |grid: WalkGrid, what: &str| {
+            assert_eq!(grid.digest_full(), full, "{what}");
+            assert_eq!(grid.off_links(), &full_off[..], "{what}: the off links in memory, every field");
+        };
         let site = |memo: &Memo| memo.stats.iter().find(|s| s.site == "rim.line").cloned().expect("the rim line site ran");
         let mut written = Memo::new(Mode::WriteOnly, dir.clone(), 7);
-        assert_eq!(build(&mut written).digest_full(), full, "write-only");
+        same(build(&mut written), "write-only");
         let w = site(&written);
         assert!(w.items > 0 && w.written == w.items, "{w:?}");
         let mut used = Memo::new(Mode::Use, dir.clone(), 7);
-        assert_eq!(build(&mut used).digest_full(), full, "use");
+        same(build(&mut used), "use");
         let u = site(&used);
         assert!(u.hits == u.items && u.misses == 0 && u.errors == 0, "{u:?}");
         let mut verified = Memo::new(Mode::Verify { per_million: 1_000_000 }, dir.clone(), 7);
-        assert_eq!(build(&mut verified).digest_full(), full, "verify=1");
+        same(build(&mut verified), "verify=1");
         assert_eq!(site(&verified).verified, u.items);
         let mut other_world = Memo::new(Mode::Use, dir.clone(), 8);
-        assert_eq!(build(&mut other_world).digest_full(), full, "another world's global inputs");
+        same(build(&mut other_world), "another world's global inputs");
         assert_eq!(site(&other_world).hits, 0, "a key of another world takes nothing");
         let _ = std::fs::remove_dir_all(dir);
     }
