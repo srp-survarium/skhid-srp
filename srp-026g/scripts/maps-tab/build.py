@@ -7,7 +7,7 @@
 The patches are exactly the rows of release/patches.tsv (each checked by its
 sha256), mounted over the stock resources.db in their order, as the game does.
 Nothing about a map is written here by hand: the maps are the playable ids of
-`maps_dict` (a config of mode 2 to 5 or 8 whose project exists, as the server
+`maps_dict` (a config of mode 2 to 5, 8, 12 or 13 whose project exists, as the server
 plays them), and of each map
 
 - the name, the modes and their parameters: `gameplay/game_modes/`;
@@ -16,6 +16,8 @@ plays them), and of each map
   all, mode 8, the team-2 respawn points alone: its players' only spawns);
 - Research's three units (mode 5): the mode config's
   `parameters.capture_zones` (`cp_id`, `position`);
+- Artifact Hunt's artefact spawns and the teams' bases (mode 13): the mode
+  config's `artefact_hunt.spawners` and `.bases` (`team`, `position`);
 - artefact containers and what spawns there: the project's `client_objects`
   (`artefact_container`, grouped by their `generic_anomaly_core`);
 - the minimap and its frame: `flash_movies/hud.swf`, class
@@ -55,7 +57,9 @@ HERE = Path(__file__).resolve().parent
 SRP = HERE.parents[1]
 sys.path.insert(0, str(SRP / "scripts" / "released-game"))
 from released import LIST, die, extract, offered, revision as revision_of, write_built_from  # noqa: E402
-from game_maps import FREE_FOR_ALL, WANTED, hud_minimaps, load, playable  # noqa: E402
+from game_maps import ARTEFACT_HINT, BUILDS, FREE_FOR_ALL, WANTED, hud_minimaps, load, playable  # noqa: E402
+sys.path.insert(0, str(SRP / "scripts" / "site-texts"))
+from texts import CODES, DICTIONARIES, WORDS, Texts  # noqa: E402
 sys.path.insert(0, str(SRP / "scripts" / "kill-feed-icons"))
 import make_battery_icon  # noqa: E402
 
@@ -69,6 +73,10 @@ GATHER, TIMED = 88, 89
 # Research's rule (480, exe patch 53; docs/notes/research_mode.md) reads its
 # units from the mode config (`parameters.capture_zones`), not the project.
 RESEARCH = 480
+# Artifact Hunt's rule (481, exe patch 171; docs/notes/artefact_hunt.md) reads
+# the artefact's spawn points and the teams' bases from the mode config
+# (`artefact_hunt.spawners`, `.bases`), not the project.
+HUNT = 481
 SITE = "/maps"
 RENDERS = SRP / "servers" / "web-server" / "damage" / "maps"
 RENDER_TABLE = SRP / "scripts" / "damage-calc" / "assets" / "maps" / "maps.json"
@@ -140,18 +148,20 @@ def hud_icons(args, raw, work, out):
 
 
 def localization(raw):
-    return {lang: load(raw, f"localization/{name}/localization")["strings"]
-            for lang, name in (("en", "english"), ("uk", "ukrainian"))}
+    """Each language's texts (site-texts' codes)."""
+    return {code: load(raw, path)["strings"] for code, path in zip(CODES, DICTIONARIES)}
 
 
 def artefact_names(texts, key):
-    """The names the game's pickup hints give: "Onyx artifact. ..." and "Артефакт Онікс. ..."."""
+    """The names the game's pickup hints give, in each language."""
     hint = f"st_{key}_pickup_hint"
-    en = re.match(r"\s*(.+?) artifact\.", texts["en"].get(hint, ""))
-    uk = re.match(r"\s*Артефакт (.+?)\.", texts["uk"].get(hint, ""))
-    if not (en and uk):
-        die(f"{hint}: no artefact name in its text")
-    return {"en": en.group(1), "uk": uk.group(1)}
+    names = {}
+    for code in CODES:
+        found = re.match(r"\s*" + ARTEFACT_HINT[code], texts[code].get(hint, ""))
+        if not found:
+            die(f"{hint}: no artefact name in its {code} text")
+        names[code] = found.group(1)
+    return names
 
 
 def r1(v):
@@ -220,6 +230,13 @@ def objects(project, artefact_keys):
     }
 
 
+def hunt(config):
+    """Artifact Hunt's points of one mode config's `artefact_hunt`: where its
+    artefact appears ([x, z, y]) and the teams' bases ([x, z, y, team])."""
+    return {"hunt": sorted(xzy(s) for s in config["spawners"]),
+            "bases": sorted(xzy(b) + [b["team"]] for b in config["bases"])}
+
+
 def spawns(mode_id, points):
     """The respawn points a mode's players get, of its project's (each
     [x, z, y, team, heading]). A free-for-all's are the team-2 points alone:
@@ -262,7 +279,7 @@ def main():
             raw.mkdir(parents=True, exist_ok=True)
             extract(args.dbgrab, args.stock, rows, args.patches, WANTED + [BATTERY_MESH], raw)
         texts = localization(raw)
-        text = lambda key: {lang: texts[lang].get(key, key) for lang in texts}
+        text = lambda key: {code: texts[code].get(key) or texts["en"].get(key, key) for code in CODES}
         dictionary = load(raw, "gameplay/db_static_dictionaries")
         artefact_keys = {i["dict_id"]: i["name"].removeprefix("artefact_") for i in dictionary["items_dict"]
                          if i["cfg_name"].startswith("gameplay/items/artefacts/")}
@@ -278,11 +295,12 @@ def main():
         out.mkdir(parents=True, exist_ok=True)
         data_maps, missing = [], []
         used_artefacts = set()
-        for folder in sorted(maps, key=lambda f: (f.startswith("v"), f)):
+        # By build, as the room list (BUILDS), each build's maps by folder.
+        for folder in sorted(maps, key=lambda f: (BUILDS.index(maps[f]["build"]), f)):
             m = maps[folder]
             modes, project_name, artefacts = [], None, None
-            for mode_id in sorted(m["modes"]):
-                mm = m["modes"][mode_id]
+            for mode_id, layout in sorted(m["modes"]):
+                mm = m["modes"][mode_id, layout]
                 seen = None
                 for path in mm["projects"]:
                     project = load(raw, f"projects/{path}/client_project")
@@ -308,7 +326,13 @@ def main():
                 # [x, z, y, cp_id], by cp_id (0, 1, 2: A, B, C).
                 seen["units"] = (sorted((xzy(zone) + [zone.get("cp_id", 0)] for zone in p.get("capture_zones") or []),
                                         key=lambda unit: unit[3]) if RESEARCH in rules else [])
-                modes.append({"mode": mode_id, "ids": sorted(mm["ids"]), "name": text(mm["mode_name"]),
+                hunts = [hunt(c["artefact_hunt"]) if HUNT in rules else {"hunt": [], "bases": []} for c in mm["configs"]]
+                if any(h != hunts[0] for h in hunts):
+                    die(f"{folder}: Artifact Hunt's spawns or bases differ between its configs (same map and mode)")
+                seen.update(hunts[0])
+                # A mode's other layout (Research's units elsewhere) is a choice of its own: "5.2".
+                modes.append({"key": f"{mode_id}.{layout + 1}" if layout else str(mode_id), "layout": layout,
+                              "mode": mode_id, "ids": sorted(mm["ids"]), "name": text(mm["mode_name"]),
                               "stations_active": p.get("spawn_points_count"), "batteries": p.get("victory_items_count"),
                               **seen})
             for a in artefacts:
@@ -366,14 +390,16 @@ def main():
     data = {"revision": revision, "maps": data_maps, "artefacts": icons, "hud": hud}
     script = ('"use strict";\n// Built by srp-026g/scripts/maps-tab/build.py; do not edit.\n'
               f"const MAPS = {json.dumps(data, ensure_ascii=False, separators=(',', ':'))};\n"
-              + (HERE / "ui.js").read_text())
+              + (SRP / "scripts" / "site-texts" / "words.js").read_text() + (HERE / "ui.js").read_text())
     (out / "maps.js").write_text(script)
     template = (HERE / "template.html").read_text()
     faces = "\n".join(line for line in (SRP / "servers" / "web-server" / "damage" / "damage.html").read_text().splitlines()
                       if line.startswith("@font-face"))
-    page = (template.replace("/*__FONT__*/", faces)
+    page = (template.replace("/*__FONT__*/", faces).replace("__WORDS__", WORDS)
             .replace("__SCRIPT__", f"{SITE}/maps.js?v={version(script.encode())}"))
     (out / "maps.html").write_text(page)
+    # Its words are its script's alone (site-texts: the server fills them in).
+    Texts().write(out / "maps.texts.json")
     served = ["maps.js"] + [f"{sub}/{f.name}" for sub in ("minimap", "icons") for f in sorted((out / sub).iterdir())]
     (out / "files.rs").write_text(
         "// Built by srp-026g/scripts/maps-tab/build.py; do not edit. The files maps.html names.\n"
@@ -382,6 +408,7 @@ def main():
         + "}\n")
     write_built_from(out / "built-from.tsv", rows, "the Maps tab (srp-026g/scripts/maps-tab/build.py)")
     points = sum(len(mo["respawn"]) + len(mo["spawners"]) + len(mo["stations"]) + len(mo["containers"]) + len(mo["units"])
+                 + len(mo["hunt"]) + len(mo["bases"])
                  for m in data_maps for mo in m["modes"]) + sum(len(m["artefacts"]) for m in data_maps)
     print(f"{out}: revision {revision}, {len(data_maps)} maps, {points} points, maps.js {len(script) / 1024:.0f} KB")
 

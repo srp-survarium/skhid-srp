@@ -32,9 +32,9 @@ your own copy, and the patched exe is made from it.
 | File | What |
 |---|---|
 | `patch_launcher_026g.py` | Builds the patched launcher from the original. Python 3, nothing else |
-| `launcher_values_026g.asm`, `.bin` | The new code (304 bytes and three text slots): the values the launcher used to read from the installer's registry key, worked out from where the launcher is; and Enter pressing PLAY. Assembling the source again gives the same bytes |
+| `launcher_values_026g.asm` | The new code (304 bytes and three text slots): the values the launcher used to read from the installer's registry key, worked out from where the launcher is; and Enter pressing PLAY. Assembled by every build (`patch_launcher_026g.py`'s `code()`) |
 | `launcher_pages.py` | The ten small pages the launcher shows from its own folder while the server's page loads and when it cannot be loaded |
-| `check_*_026g.py` | Run the patched code under Unicorn: the registry reads (patch 4), the language (14), the install status (13), the "Allow torrent" box (15) |
+| `check_*_026g.py` | Run the patched code under Unicorn: the registry reads (patch 4), the language (14), the install status (13), the "Allow torrent" box (15), the "Relay" row (16), the file count of a download (17) |
 | `selftest_launcher_026g.py` | Builds it in memory and checks it: every changed byte is one named below, the PE is well formed, the hook and its way back, the addresses, the relocations, no old address left, the `.asm` gives the `.bin` |
 | `../make_client_026g.py` | Puts all of it into the players' ZIP (the default; `--no-launcher` leaves it out) |
 | `../../../client/updater/` | The updater: Rust source, its tests |
@@ -44,15 +44,17 @@ your own copy, and the patched exe is made from it.
 
 ```
 python patch_launcher_026g.py <game>/binaries/x86/survarium_launcher.exe <out>/launcher_skhid.exe [--site=https://skhid.link]
-python selftest_launcher_026g.py <game>/binaries/x86/survarium_launcher.exe --nasm=<nasm>
+python selftest_launcher_026g.py <game>/binaries/x86/survarium_launcher.exe
 python check_language_026g.py <game>/binaries/x86/survarium_launcher.exe   # the language code, under Unicorn
 python check_registry_026g.py <game>/binaries/x86/survarium_launcher.exe   # no registry call where the key was read, under Unicorn
 python check_torrent_box_026g.py <game>/binaries/x86/survarium_launcher.exe # the "Allow torrent" box (patch 15), under Unicorn
+python check_relay_box_026g.py <game>/binaries/x86/survarium_launcher.exe   # the "Relay" row (patch 16), under Unicorn
+python check_file_count_026g.py <game>/binaries/x86/survarium_launcher.exe  # "(5/69)" of a download (patch 17), under Unicorn
 ```
 
-After a change of the game's languages (`../localization_026g.py --write`
-writes `launcher_languages_026g.inc`), assemble the .bin again:
-`nasm -f bin -DCAVE=0x49A000 launcher_values_026g.asm -o launcher_values_026g.bin`.
+Each of them assembles `launcher_values_026g.asm` (the arena's NASM 2.16;
+`patch_launcher_026g.py`'s `code()`), with the game's languages, so no .bin
+is committed.
 
 Normally `make_client_026g.py` does it, with the updater and the pages:
 
@@ -90,8 +92,10 @@ installs whenever the ZIP's checksum changes.
    again by itself, and the new updater goes on from here.
 3. Then the game's patches: the bar shows "checking" while a patch file
    that changed since it was last checked is hashed, and a patch the
-   server lists that is missing or damaged is downloaded ("Extracting file
-   resources.db.patch_<n>" once it is in place). The first start after new
+   server lists that is missing or damaged is downloaded, the line saying
+   which of how many after what is left of it, "120 MB left (5/69)": 64
+   more to go (patch 17) ("Extracting file resources.db.patch_<n>" once it
+   is in place). The first start after new
    content downloads it; other starts take a second.
 4. "The latest version of the game is installed" and PLAY: only when the
    game's files are the server's ZIP, its exe is a revision the server lets
@@ -107,12 +111,12 @@ installs whenever the ZIP's checksum changes.
    launcher closes. Since game patch 79 (`../../docs/notes/language-option.md`)
    it passes no `-localization=`: the game's language is the one chosen in
    its Settings (user.cfg).
-7. The language button (EN, UA, RU, DE, PL, SR, CS, HU, FI, BE) opens a
+7. The language button (EN, UA, RU, DE, PL, SR, CS, HU, FI, BE, HR, PT) opens a
    menu of every language of the game, each by its own name, the current
    one checked. A pick is the game's language: it is written to the game's
    user.cfg at once, as the game's Settings write it, and the launcher's
    texts and page change with it (English for a language the launcher has
-   none in: SR, CS, HU, FI, BE). At its start the launcher shows user.cfg's
+   none in: SR, CS, HU, FI, BE, HR, PT). At its start the launcher shows user.cfg's
    language, else the one the game will start in (patch 14).
 
 "Watch replay" in the lobby's History (game patch revision 14) does not go
@@ -129,7 +133,8 @@ lobby's shop). PROJECT WEBSITE, in SHOP's old place at the right, opens
 "Allow torrent" and port) is gone too: "Allow torrent" is a box at the left
 of the bottom panel, where the social buttons were, kept in user.cfg as the
 language is (patch 15); the port is the updater's own
-(`../../docs/notes/torrent-downloads.md`).
+(`../../docs/notes/torrent-downloads.md`). Under it, in a download with a
+relay, "Relay: auto / on / off" (patch 16).
 
 The launchers built before SHOP went open `<site>/exchange?lang=<code>`
 with it. That address stays: a short page there says, in the launcher's
@@ -634,10 +639,10 @@ the game in Polish, his Windows' language): the launcher's language choice
 is the game's, in one place, user.cfg, and the launcher offers every
 language the game has. `docs/notes/language-option.md` has the rule.
 
-- **One list.** `launcher_languages_026g.inc` is generated by
-  `localization_026g.py --write` from its `LANGUAGES` (the game's own list:
+- **One list.** `launcher_languages_026g.inc` is generated at every build
+  from `localization_026g.py`'s `LANGUAGES` (the game's own list:
   resource name, own name, Windows locale rule, two-letter code), as
-  the game's table is; `check_localization_026g.py` fails when it is stale.
+  the game's table is.
   Exact Croatian LANGIDs take precedence over the Serbian primary-id fallback,
   as in the game. The launcher's own string tables and pages stay its five (`LAUNCHER_UI`
   there): another language shows them in English.
@@ -686,8 +691,9 @@ for settings"), and it stays as they left it, kept as the language is.
 - **What it looks like:** the settings window's own box and text, at the
   left of the bottom panel where the social buttons were: the box (PNG 347
   unticked, 345 under the pointer, 346 pressed, 344 ticked, 20 by 20) at 28,
-  32 of the panel, in line with the page's left column and centred on the
-  status line and PLAY; "Allow torrent" (string 0xD3, the launcher's
+  20 of the panel (32 before patch 16 put the relay row under it), in line
+  with the page's left column, the two boxes centred on the status line and
+  PLAY; "Allow torrent" (string 0xD3, the launcher's
   language) 25 pixels right of it and 1 below its top, Calibri bold 18,
   white, as the settings window has it beside its box (0x1C38E, 0x3A96C).
   The widest text, Russian, ends at x 186, before the status line (x 200).
@@ -695,9 +701,9 @@ for settings"), and it stays as they left it, kept as the language is.
 - **Where:** YouTube's control (form+0x648) is the box: its three pictures
   (0x1AAFC, 0x1AB0F, 0x1AB22) and Facebook's first (0x1AB35, the ticked
   one; Facebook stays out of sight) are loaded from the settings window's
-  PNGs, its rectangle (0x458A4) moves to 28, 32 and its size initialisers
+  PNGs, its rectangle (0x458A4) moves to 28, 20 and its size initialisers
   (0x3A715, 0x3A722) say 20. Twitter's control (form+0x698) makes the text
-  clickable: its rectangle (0x458C4) is 53, 32 to 187, 52, the text in every
+  clickable: its rectangle (0x458C4) is 53, 20 to 187, 40, the text in every
   language (Russian, the widest, is 134 pixels; its initialiser 0x3A746,
   which could add at most 127, returns at once and right and bottom are
   static), with the hand cursor as the box's; its click (0x1BD29) jumps to
@@ -766,6 +772,123 @@ for settings"), and it stays as they left it, kept as the language is.
   reset once with the file made. The clickable text is not yet run in a
   real launcher. Not yet run on Windows.
 
+### 16. "Relay: auto / on / off" under "Allow torrent"
+
+The owner (2026-11-20): players see their route and pick it: automatic, the
+relay, or direct, and the choice stays. First it was a tick box that the
+updater ticked; the owner, the same day: a tick box has two states and this
+has three. So it is a row that says its state in words, with a menu of the
+three. The route is the updater's (`client/updater`, `updater_logic::route`,
+its README's "The route"): it keeps the choice, probes, and says what the row
+shows; the launcher only shows it and passes the pick on.
+
+- **What it looks like:** under "Allow torrent", a button with the settings
+  gear's pictures (the launcher's own art: PNG 308, under the pointer 309,
+  pressed 310; its settings gear left the top panel with patch 8) at 28, 46
+  of the panel, and beside it, at 53, 47, in the torrent box's font, the
+  state: "Relay: auto", "Relay: on", "Relay: off", and in auto what the
+  probe picked, "Relay: auto (on)" or "Relay: auto (off)". Five languages
+  ("Релей: авто (вкл)", "Релей: авто (увімк)", "Relay: auto (an)", "Relay:
+  auto (wł.)"; Ukrainian, the widest, about 140 pixels, ends before the
+  status line at x 200). Hidden until the updater says what it shows:
+  without `updater_skhid.relay`, or with an older updater, there is no row.
+  A tooltip (comctl32's, 30 s) says in a few lines what the relay is, the
+  three choices, and what the row is now (in auto, the route the probe
+  picked, or that it is checking).
+- **The views** (message `0A <view>` of the updater, its one byte
+  `updater_logic::route::Shown::byte`): 1 auto, probing; 2 auto, direct
+  ("auto (off)"); 3 auto, the relay ("auto (on)"); 4 auto, neither answered;
+  5 on; 6 off. The original launcher's dispatch ignored 0A..0D (their table
+  entries are the handlers' end, 0x16093): 0A's (0x160C2, a relocated dword)
+  is now `route_message`; any other byte is ignored, and an older launcher
+  ignores the message altogether.
+- **A click** on the gear opens a menu under it, as the language's is
+  (`pick_language`: CreatePopupMenu, TrackPopupMenu): "Auto: only when
+  blocked", "On: always through the relay", "Off: never", the chosen one
+  checked. A pick sends `22`, `23` or `24` (auto, on, off;
+  `send_simple_message` 0x1749F, while the pipe is connected); the updater
+  saves it, runs its update again by the new route and answers with the new
+  view. The launcher keeps nothing but the last view. The updater also
+  moves it by itself, to auto, when it finds the direct route blocked while
+  the relay answers, and says so in its box.
+- **A server that restarts** (the owner, the same day: "The server is
+  restarting", retried every few seconds with a count the player sees):
+  the updater says "Server maintenance..." (its state 16h: PLAY off) and
+  then, each second, message `13 <seconds>` to its next try, which the
+  original launcher keeps (launcher+0x2BA0) and paints the status line anew
+  for, showing nothing of it (its only reader is the text of updater state
+  23, which this updater never says). The status line's `load_string` call
+  for the launcher's states 6 and 7 (0x1687C) is `restart_text`: asked for
+  "Server maintenance..." (string 0xB2) while that byte is not 0, it gives
+  "The server is restarting. Next try in 5 s." with the byte, in the row's
+  five languages; `13 00` (the server answers, or the wait ends) and every
+  other string are `load_string`'s own. PLAY comes on with the updater's
+  "latest" as ever.
+- **Where:** VK's control (form+0x6C0) is the button: its three pictures
+  (0x1ABA7, 0x1ABBA, 0x1ABCD) are the gear's PNGs, made opaque over the
+  panel where the button is (`bake_relay_box`, as the torrent box's); its
+  rectangle (0x458D4) is 28, 46, its size initialisers (0x3A766, 0x3A773)
+  say 20. Its making (0x1AEE5, `relay_made`) shows or hides it as the last
+  view says, so a window made again in another language keeps it; its click
+  (0x1BD3C, `relay_click`) is the menu. The text is painted with the torrent
+  box's (`paint_label`); a new view calls `refresh_status` (0x16811), which
+  paints the panel anew.
+- **Its state:** the launcher (for the pipe), the view, the tooltip and the
+  button's window it is for: 16 bytes at 0x4A800, in `.data` past its last
+  variable; `.data`'s VirtualSize grows from 0x67FC to 0x6810, inside the
+  page the loader maps already. The new code is 3 pages now (its texts), 4
+  at most.
+- Checked: `check_relay_box_026g.py` runs message 0A from the dispatch to
+  the handlers' end (every view, and 0, 7, 255 ignored; the registers and
+  the stack as they were), the button's making (hidden, or shown, its three
+  pictures the gear's), the tooltip (made once, its text updated in place,
+  made again for a new button), the panel's text for every view in every
+  language, the click (the menu's three rows in each language, the chosen
+  one checked, its pick 22, 23 or 24; no menu while not connected or
+  hidden), and the status line (the count in each language,
+  1 to 255 seconds; no count and state 6's text passed on to
+  `load_string`), under Unicorn at two bases.
+  `check_torrent_box_026g.py` and `check_language_026g.py` still pass. The
+  tick box before it, the tooltip and the status line were run in a real
+  launcher window under Wine (2026-11-20, a headless display, the test
+  folder of the PR); the gear and its menu not yet.
+
+### 17. "(5/69)": which file of how many is being downloaded
+
+The owner (2026-11-22): a download of many patches says which file of which
+it is at, "like (5/69)", so that 64 more are understood to follow. The
+updater knows (`client/updater`, its patch step's files to fetch) and says
+it; the launcher adds it to its downloading line.
+
+- **What it looks like:** the downloading line's middle text, "120 MB
+  left", is "120 MB left (5/69)" while the updater downloads the 5th of 69
+  patches. Numbers only: the same in every language. The Skhid ZIP and the
+  original game are one file each and have no count; a patch the torrent
+  gave is counted and not shown (nothing is downloaded for it).
+- **The message** `0B <file> <of>` of the updater (two 16-bit numbers; `0B
+  00 00 00 00`: no count, sent when the downloads end, however they end).
+  The original launcher's dispatch ignored 0B as it did 0A: its table entry
+  (0x160C6, a relocated dword) is now `count_message`, which keeps the two
+  numbers, or none when the file is 0 or past the last. An older launcher
+  ignores the message.
+- **The line:** in the updater's state 9 `refresh_status` loads "%s left"
+  (string 0x8D, its `load_string` call at 0x16ADF, a buffer of 128
+  characters) and formats what is left into it. That call is `count_text`:
+  `load_string`'s own, then " (5/69)" after the text while a count is kept
+  and 16 characters are free. The line is painted anew with every progress
+  message (four a second), so the count needs no repaint of its own. The
+  text is only there while the total is known (the original's rule for
+  "... left").
+- **Its state:** 4 bytes at 0x4A810, after the relay row's; `.data`'s
+  VirtualSize is 0x6814 now.
+- Checked: `check_file_count_026g.py` runs message 0B from the dispatch to
+  the handlers' end (kept, none for 0 of 0, file 0 and a file past the last;
+  the registers and the stack as they were) and the line's site (the count
+  after `load_string`'s text, 1 of 1 to 65535 of 65535; none without a
+  count or without room; the registers as they were), under Unicorn at two
+  bases. The other checks still pass. Not yet seen in a real launcher
+  window.
+
 ## The pipe, in short
 
 The launcher makes `\\.\pipe\vostok_updater_pipe-Survarium`, then starts the
@@ -785,8 +908,12 @@ and that many bytes, the first being its type.
 | `02 01` | "Error" |
 | `05 <text>` | a message box with the text (at most 255 ASCII characters) |
 | `02 0F` and the pipe closed | the launcher closes |
+| `0A <view>` | the "Relay" row (patch 16): hidden until then |
+| `0B <file> <of>` (two 16-bit numbers) | "(5/69)" after "... left" while downloading (patch 17); `0B 00 00 00 00`: no count |
+| `13 <seconds>` | after `02 16`: "The server is restarting. Next try in <seconds> s." (patch 16); `13 00`: "Server maintenance..." again |
 
-The launcher says `1B` (stop) when its window is closed. The updater stays
+The launcher says `1B` (stop) when its window is closed, `22`, `23` or `24`
+(auto, on, off) when a row of the "Relay" menu is picked. The updater stays
 connected after `02 0E` until then (a closed pipe would turn the line into
 "Error"), asking the server every 10 s; to have the launcher start anew it
 says `02 0F` and closes the pipe, then starts `launcher_skhid.exe`. Types 0, 24 and above 25 would crash the launcher (its table has no

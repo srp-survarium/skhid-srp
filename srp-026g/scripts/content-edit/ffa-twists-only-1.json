@@ -1,0 +1,11 @@
+{
+  "_about": "Military Warehouses (maps_dict 43) in Free for All with a twist only (the owner, 2026-11-22: \"military warehouses should not be playable on general ffa, only ffa: racket and other variants\"): srp's key mode.srp_twists_only = true in its config, which the server reads (survarium maps::MapMode::twists_only): a room's card on it draws a twist and never plain Free for All, a private room's pool leaves it out (docs/notes/ffa.md, \"Twists\").",
+  "add_value": [
+    {
+      "files": ["gameplay/game_modes/ffa/v010b_cs_mp_military_1_day_8.options"],
+      "table": "mode",
+      "key": "srp_twists_only",
+      "value": true
+    }
+  ]
+}

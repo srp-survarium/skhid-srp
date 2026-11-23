@@ -15,8 +15,12 @@ still count the client's own address (the PROXY header's for a relayed peer).
 srp parses `SRP_RELAYS` once at its start and gives the result to the four
 servers; a wrong value starts none of them.
 
+The player picks the route in the launcher's "Relay" row (auto, on, off:
+Automatic, the relay, direct; `client/updater/README.md`, "The route"); a player who never
+picked has Automatic in Russia (the Windows region) and direct elsewhere;
+direct found blocked while the relay answers becomes Automatic by itself.
 Automatic fallback runs before PLAY starts the game. With `updater_skhid.relay`
-installed, the updater probes direct login TCP and lobby/match UDP concurrently,
+installed and Automatic, the updater probes direct login TCP and lobby/match UDP concurrently,
 then tries the relay if any fails. Each probe carries 64 KiB each way within
 5 s (login TCP one stream, lobby and match UDP 130 datagrams of 508 bytes,
 missing ones sent again), since some providers cut a flow to foreign hosting
@@ -30,14 +34,17 @@ uses match + 1. Explicit `-server=` and replay options bypass route selection.
 A failed route never switches a running match: launch again to choose anew.
 
 The updater's HTTPS requests to the configured login hostname on port 443 also
-fall back, on network errors only, to the relay's port 8080 CONNECT service.
+fall back (Automatic), on network errors only, to the relay's port 8080 CONNECT
+service; with the relay chosen they go through it only, with direct never.
+Under Wine a request through it has the whole address in its request line
+(`GET https://skhid.link:443/...`), which Caddy answers as the path alone.
 It permits only `skhid.link:443` (or the configured `--https-origin`). TLS stays
 end to end, with normal hostname/certificate verification. Other download hosts
 retain their existing mirror behavior. This is not a general HTTP proxy and does
 not change browser or system proxy settings. A new player needs the release
 containing this updater/configuration before automatic fallback is available.
 
-Browsers get the site under a name of the relay's own (`by.skhid.link`): the
+Browsers get the site under a name of the relay's own (`playskhid.link`): the
 same web service passes its port 443 through the tunnel to the origin's Caddy,
 unopened. The certificate and its key stay on the origin, and the relay sees
 no page and no password. Caddy takes the visitor's address from the PROXY
@@ -90,7 +97,9 @@ UDP replies go only to clients observed on that frontend within 120 seconds.
 
 ## The site under the relay's name
 
-1. Point the name's A record (`by.skhid.link`) at the relay.
+1. Point the name's A record (`playskhid.link`, the owner's own domain; `www` too if it is to
+   answer) at the relay, in place of the registrar's parking records. The game's relay address
+   stays an IPv4 address (`--relay`): the name is the site's only.
 2. On both hosts run `bash setup.sh configure ...` again with the same
    arguments: it reloads the tunnel's firewall with port 443 (the tunnel stays
    up), and on the relay installs this forwarder and its service. Nothing else
@@ -105,7 +114,7 @@ UDP replies go only to clients observed on that frontend within 120 seconds.
    it (it makes only `srp26` anew). The name's certificate comes by TLS-ALPN
    through the relay, so steps 1 and 2 come first. Caddy reads `SRP_RELAYS`
    only when it is made: make it anew whenever that setting changes.
-4. Check `https://by.skhid.link/api/stats`, then that the page sees the
+4. Check `https://playskhid.link/api/stats`, then that the page sees the
    visitor and not the relay: the admin page must answer the jump host under
    this name too. If it does not, Caddy sees another source than the relay's
    tunnel address (Docker's published port keeps it) and ignores the header.

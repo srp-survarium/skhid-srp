@@ -33,6 +33,7 @@ use session::SessionStore;
 use session::v026g::Board;
 use survarium::v026g::localization::{self, Language};
 use survarium::v026g::maps;
+use survarium::v026g::twist::LobbyMode;
 
 use crate::{
     CONNECT, ContentType, Game, Lang, LiveMatch, LivePhase, Response, available_download, escape,
@@ -277,20 +278,25 @@ fn client_files_of(file: Option<&PathBuf>, min_revision: u8) -> Response {
 }
 
 /// The page's language from the launcher's own. The launcher asks for
-/// `/launcher/v2/survarium/?lang=<en|ru|ua|de|pl>`: `ua` and `en` are read
-/// with the request ([`Lang::pick`]), and for the three languages the site
-/// has no text in, the browser's language decides as on every page. A code
-/// as the last part of the path (`/launcher/ua`, `/launcher/v2/index-ua.html`)
-/// is taken too.
+/// `/launcher/v2/survarium/?lang=<en|ru|ua|de|pl>` (English for its other
+/// languages), read with the request ([`Lang::pick`]). A code as the last
+/// part of the path (`/launcher/ua`, `/launcher/v2/index-ua.html`), or a
+/// language's name in the game's settings, is taken too.
 pub(super) fn language(path: &str, chosen: Lang) -> Lang {
     let last = path.rsplit('/').next().unwrap_or("").to_ascii_lowercase();
     let last = last.strip_suffix(".html").unwrap_or(&last);
     let code = last.rsplit('-').next().unwrap_or("");
-    match code {
-        "ua" | "uk" | "ukrainian" => Lang::Uk,
-        "en" | "ru" | "de" | "pl" | "english" | "russian" | "german" | "polish" => Lang::En,
-        _ => chosen,
-    }
+    Lang::of_code(code)
+        .or_else(|| {
+            Lang::ALL.into_iter().find(|lang| {
+                lang.game()
+                    .path()
+                    .split('/')
+                    .nth(1)
+                    .is_some_and(|name| name == code)
+            })
+        })
+        .unwrap_or(chosen)
 }
 
 /// What the page counts, beside the board.
@@ -410,10 +416,7 @@ fn grouped(value: u64) -> String {
 
 /// The game's language of the page's.
 fn game_language(lang: Lang) -> Language {
-    match lang {
-        Lang::En => Language::English,
-        Lang::Uk => Language::Ukrainian,
-    }
+    lang.game()
 }
 
 /// The game's own name of a map: the text of its config's `ui.map_name`
@@ -421,7 +424,7 @@ fn game_language(lang: Lang) -> Language {
 /// ([`localization::text`]), as the game data has it (a map a patch adds
 /// comes with its name in the patch's localizations); without one, its
 /// project's folder (`level_12`).
-fn map_name(lang: Lang, map: &maps::MapMode) -> String {
+pub(crate) fn map_name(lang: Lang, map: &maps::MapMode) -> String {
     match localization::text(game_language(lang), map.map_name_key) {
         Some(name) => name.to_owned(),
         None => map.project.split('/').next().unwrap_or("?").to_owned(),
@@ -430,13 +433,19 @@ fn map_name(lang: Lang, map: &maps::MapMode) -> String {
 
 /// The game's own name of a mode (`ui.mode_name`, `st_mode_0N_name`): it
 /// has one name for both modes with batteries. Without one, its number.
-fn mode_name(lang: Lang, map: &maps::MapMode) -> String {
+pub(crate) fn mode_name(lang: Lang, map: &maps::MapMode) -> String {
     match localization::text(game_language(lang), map.mode_name_key) {
         Some(name) => name.to_owned(),
-        None => lang.tr(
-            &format!("mode {}", map.mode.lobby_number()),
-            &format!("режим {}", map.mode.lobby_number()),
-        ),
+        None => lang.tf("mode {0}", &[("0", &map.mode.lobby_number())]),
+    }
+}
+
+/// A mode as the lobby calls it, a free-for-all's twist too: the text the
+/// rooms name it by ([`LobbyMode::name_key`]). Without one, its number.
+pub(crate) fn lobby_mode_name(lang: Lang, mode: LobbyMode) -> String {
+    match localization::text(game_language(lang), mode.name_key()) {
+        Some(name) => name.to_owned(),
+        None => lang.tf("mode {0}", &[("0", &mode.number())]),
     }
 }
 
@@ -447,9 +456,11 @@ fn mode_name(lang: Lang, map: &maps::MapMode) -> String {
 /// - Started: how long ago play began; before that, what the match waits for.
 /// - Time left: to the time limit, in whole minutes rounded up. A match can
 ///   end sooner (the tickets, the batteries, Research's points, or everyone
-///   leaving), so it is "at most".
-/// - Score: tickets left in a Team Deathmatch, points in Research, batteries
-///   brought otherwise, the leader's in bold; only of a match in play, and
+///   leaving), so it is "at most"; Artifact Hunt's sudden death and last
+///   round's restart can run past it.
+/// - Score: tickets left in a Team Deathmatch, points in Research, artefacts
+///   delivered in Artifact Hunt, batteries brought otherwise, the leader's in
+///   bold; only of a match in play, and
 ///   only as fresh as [`session::v026g::matches_now::SCORE_AGE`].
 ///
 /// Which match is listed and which score is told are the rules the lobby's
@@ -460,10 +471,7 @@ fn matches(lang: Lang, live: &[LiveMatch]) -> String {
     if open.is_empty() {
         return format!(
             "<p class=none>{}</p>",
-            lang.tr(
-                "No match is being played now.",
-                "Зараз не грається жодного матчу."
-            )
+            lang.t("No match is being played now.")
         );
     }
     let listed = if open.len() > MOST_MATCHES {
@@ -478,20 +486,17 @@ fn matches(lang: Lang, live: &[LiveMatch]) -> String {
             None => ("?".to_owned(), "?".to_owned()),
         };
         let started = match (each.phase, each.played) {
-            (LivePhase::Gathering, _) => lang.tr("waiting", "очікування"),
-            (LivePhase::Countdown, _) => lang.tr("starting", "старт"),
+            (LivePhase::Gathering, _) => lang.t("waiting"),
+            (LivePhase::Countdown, _) => lang.t("starting"),
             (_, Some(played)) => match played.as_secs() / 60 {
-                0 => lang.tr("just now", "щойно"),
-                minutes => lang.tr(&format!("{minutes} min ago"), &format!("{minutes} хв тому")),
+                0 => lang.t("just now"),
+                minutes => lang.tf("{minutes} min ago", &[("minutes", &minutes)]),
             },
             (_, None) => NONE.to_owned(),
         };
         let left = each.time_left.map_or(NONE.to_owned(), |left| {
             let minutes = left.as_secs().div_ceil(60).max(1);
-            lang.tr(
-                &format!("&le; {minutes} min"),
-                &format!("&le; {minutes} хв"),
-            )
+            lang.tf("&le; {minutes} min", &[("minutes", &minutes)])
         });
         let score = each
             .standing
@@ -516,10 +521,7 @@ fn matches(lang: Lang, live: &[LiveMatch]) -> String {
             {
                 (each.players[0] + each.players[1]).to_string()
             } else {
-                lang.tr(
-                    &format!("{} v {}", each.players[0], each.players[1]),
-                    &format!("{} на {}", each.players[0], each.players[1]),
-                )
+                lang.tf("{0} v {1}", &[("0", &each.players[0]), ("1", &each.players[1])])
             },
         );
     }
@@ -527,17 +529,17 @@ fn matches(lang: Lang, live: &[LiveMatch]) -> String {
         let more = open.len() - listed;
         rows += &format!(
             "<tr><td class=m colspan=5><i>{}</i></td></tr>",
-            lang.tr(&format!("and {more} more"), &format!("і ще {more}"))
+            lang.tf("and {more} more", &[("more", &more)])
         );
     }
     format!(
         "<table cellspacing=0 cellpadding=0><tr><th class=m>{}</th><th class=s>{}</th>\
          <th class=a>{}</th><th class=e>{}</th><th class=c>{}</th></tr>{rows}</table>",
-        lang.tr("Match", "Матч"),
-        lang.tr("Players", "Гравці"),
-        lang.tr("Started", "Початок"),
-        lang.tr("Time left", "До кінця"),
-        lang.tr("Score", "Рахунок"),
+        lang.t("Match"),
+        lang.t("Players"),
+        lang.t("Started"),
+        lang.t("Time left"),
+        lang.t("Score"),
     )
 }
 
@@ -564,18 +566,15 @@ fn places(lang: Lang, board: &Board, live: &[LiveMatch], counts: Counts) -> [Str
     let table = if board.top.is_empty() {
         format!(
             "<p class=none>{}</p>",
-            lang.tr(
-                "No battle has been fought yet. Be the first.",
-                "Ще не відбулося жодного бою. Будьте першими."
-            )
+            lang.t("No battle has been fought yet. Be the first.")
         )
     } else {
         format!(
             "<table cellspacing=0 cellpadding=0><tr><th class=n>#</th><th class=p>{}</th>\
              <th class=l>{}</th><th class=r>{}</th></tr>{rows}</table>",
-            lang.tr("Player", "Гравець"),
-            lang.tr("Level", "Рівень"),
-            lang.tr("Rating", "Рейтинг"),
+            lang.t("Player"),
+            lang.t("Level"),
+            lang.t("Rating"),
         )
     };
     let cell = |value: u64, label: String| {
@@ -583,30 +582,24 @@ fn places(lang: Lang, board: &Board, live: &[LiveMatch], counts: Counts) -> [Str
     };
     let now = format!(
         "<table class=nums cellspacing=0 cellpadding=0><tr>{}{}{}{}</tr></table>",
-        cell(counts.online as u64, lang.tr("online", "онлайн")),
-        cell(counts.rooms as u64, lang.tr("rooms", "кімнат")),
-        cell(counts.in_rooms as u64, lang.tr("in rooms", "у кімнатах")),
+        cell(counts.online as u64, lang.t("online")),
+        cell(counts.rooms as u64, lang.t("rooms")),
+        cell(counts.in_rooms as u64, lang.t("in rooms")),
         cell(
             counts.matches as u64,
-            lang.tr("matches now", "матчів зараз")
+            lang.t("matches now")
         ),
     );
     let totals = format!(
         "<table class=nums cellspacing=0 cellpadding=0><tr>{}{}{}</tr></table>",
-        cell(counts.registered as u64, lang.tr("players", "гравців")),
-        cell(board.battles, lang.tr("battles fought", "проведено боїв")),
-        cell(counts.clans as u64, lang.tr("clans", "кланів")),
+        cell(counts.registered as u64, lang.t("players")),
+        cell(board.battles, lang.t("battles fought")),
+        cell(counts.clans as u64, lang.t("clans")),
     );
     let status = match counts.maintenance {
-        Some(0) => lang.tr(
-            "Maintenance: the server is down",
-            "Технічні роботи: сервер вимкнено",
-        ),
-        Some(minutes) => lang.tr(
-            &format!("Maintenance in {minutes} min"),
-            &format!("Технічні роботи через {minutes} хв"),
-        ),
-        None => lang.tr("On the server now", "Зараз на сервері"),
+        Some(0) => lang.t("Maintenance: the server is down"),
+        Some(minutes) => lang.tf("Maintenance in {minutes} min", &[("minutes", &minutes)]),
+        None => lang.t("On the server now"),
     };
     let status_class = if counts.maintenance.is_some() {
         "cap warn"
@@ -619,7 +612,7 @@ fn places(lang: Lang, board: &Board, live: &[LiveMatch], counts: Counts) -> [Str
         format!("{now}<div class=\"{status_class}\">{status}</div>"),
         format!(
             "{totals}<div class=cap>{}</div>",
-            lang.tr("Since the server opened", "Від відкриття сервера")
+            lang.t("Since the server opened")
         ),
     ]
 }
@@ -627,18 +620,11 @@ fn places(lang: Lang, board: &Board, live: &[LiveMatch], counts: Counts) -> [Str
 fn render(lang: Lang, board: &Board, live: &[LiveMatch], counts: Counts, test: bool) -> String {
     let [table, matches, now, totals] = places(lang, board, live, counts);
     let badge = if test {
-        format!(" <em>{}</em>", lang.tr("TEST SERVER", "ТЕСТОВИЙ СЕРВЕР"))
+        format!(" <em>{}</em>", lang.t("TEST SERVER"))
     } else {
         String::new()
     };
-    let legal = lang.tr(
-        "Unofficial community server. Not affiliated with or endorsed by Vostok Games. \
-         Survarium is a trademark of its owners. An early test: accounts and progress \
-         can be reset at any time.",
-        "Неофіційний ком'юніті сервер. Не пов'язаний із Vostok Games і не схвалений ними. \
-         Survarium є торговельною маркою її власників. Раннє тестування: акаунти та \
-         прогрес можуть бути скинуті будь-коли.",
-    );
+    let legal = lang.t("Unofficial community server. Not affiliated with or endorsed by Vostok Games. Survarium is a trademark of its owners. An early test: accounts and progress can be reset at any time.");
     format!(
         "<!DOCTYPE html><html lang={code}><head><meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\">\
          <meta http-equiv=\"content-type\" content=\"text/html; charset=UTF-8\">\
@@ -659,13 +645,10 @@ fn render(lang: Lang, board: &Board, live: &[LiveMatch], counts: Counts, test: b
         second = PLACES[3],
         discord = DISCORD_LINK.trim(),
         code = lang.code(),
-        top = lang.tr("Top 10 players", "Топ-10 гравців"),
-        playing = lang.tr("Matches now", "Матчі зараз"),
-        server = lang.tr(
-            "Skhid &middot; Survarium <i>0.26g</i> community server",
-            "Схід &middot; ком'юніті сервер Survarium <i>0.26g</i>"
-        ),
-        notice = lang.tr("Legal notice", "Правова інформація"),
+        top = lang.t("Top 10 players"),
+        playing = lang.t("Matches now"),
+        server = lang.t("Skhid &middot; Survarium <i>0.26g</i> community server"),
+        notice = lang.t("Legal notice"),
         legal = escape(&legal),
     )
 }
@@ -696,7 +679,7 @@ fn style() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::LiveStanding;
+    use crate::{LiveKind, LiveStanding};
     use session::v026g::BoardRow;
     use session::v026g::matches_now::SCORE_AGE;
 
@@ -707,6 +690,7 @@ mod tests {
     fn playing(map_id: maps::MapId, points: [u16; 2], leader: Option<usize>) -> LiveMatch {
         LiveMatch {
             map_id,
+            kind: LiveKind::Normal,
             phase: LivePhase::Playing,
             players: [4, 3],
             played: Some(Duration::from_secs(6 * 60 + 20)),
@@ -725,6 +709,7 @@ mod tests {
             playing(RUDNYA_TDM, [88, 78], Some(0)),
             LiveMatch {
                 map_id: RUDNYA_BATTERIES,
+                kind: LiveKind::Normal,
                 phase: LivePhase::Countdown,
                 players: [2, 2],
                 played: None,
@@ -738,6 +723,7 @@ mod tests {
             },
             LiveMatch {
                 map_id: RUDNYA_TDM,
+                kind: LiveKind::Normal,
                 phase: LivePhase::Gathering,
                 players: [5, 5],
                 played: None,
@@ -954,11 +940,15 @@ mod tests {
         assert_eq!(map_name(Lang::En, &twelve), "level_12");
         assert_eq!(map_name(Lang::Uk, &twelve), "level_12");
         assert_eq!(mode_name(Lang::Uk, &twelve), "режим 5");
-        // Every playable map and mode has a name of the game's (Blackout's and
-        // the free-for-all's are srp's own, `client-patches/localization`,
-        // which the test data's stock localizations lack).
+        // Every playable map and mode has a name of the game's (Blackout's, the
+        // free-for-all's and Artifact Hunt's are srp's own,
+        // `client-patches/localization`, which the test data's stock
+        // localizations lack).
         for map in maps::playable().filter(|map| {
-            !matches!(map.mode, maps::GameMode::Blackout | maps::GameMode::FreeForAll)
+            !matches!(
+                map.mode,
+                maps::GameMode::Blackout | maps::GameMode::FreeForAll | maps::GameMode::ArtefactHunt
+            )
         }) {
             for lang in [Lang::En, Lang::Uk] {
                 let game = |key| localization::text(game_language(lang), key).map(str::to_owned);
@@ -1199,14 +1189,15 @@ mod tests {
         ] {
             assert_eq!(language(path, Lang::En), Lang::Uk, "{path}");
         }
-        for path in [
-            "/launcher/v2/index-en.html",
-            "/launcher/ru",
-            "/launcher/v2/de",
-            "/launcher/pl",
-            "/launcher/v2/english",
+        for (path, lang) in [
+            ("/launcher/v2/index-en.html", Lang::En),
+            ("/launcher/ru", Lang::Ru),
+            ("/launcher/v2/de", Lang::De),
+            ("/launcher/pl", Lang::Pl),
+            ("/launcher/v2/english", Lang::En),
+            ("/launcher/v2/hungarian", Lang::Hu),
         ] {
-            assert_eq!(language(path, Lang::Uk), Lang::En, "{path}");
+            assert_eq!(language(path, Lang::Uk), lang, "{path}");
         }
         // Nothing in the path (the launcher's own form,
         // `/launcher/v2/survarium/?lang=ua`): `?lang=` or the browser's
@@ -1215,8 +1206,8 @@ mod tests {
         assert_eq!(language("/launcher/v2/survarium/", Lang::En), Lang::En);
         assert_eq!(Lang::pick("ua", "en-US"), Lang::Uk);
         assert_eq!(Lang::pick("en", "uk-UA"), Lang::En);
-        assert_eq!(Lang::pick("ru", "uk-UA,uk;q=0.9"), Lang::Uk);
-        assert_eq!(Lang::pick("de", "de-DE"), Lang::En);
+        assert_eq!(Lang::pick("ru", "uk-UA,uk;q=0.9"), Lang::Ru);
+        assert_eq!(Lang::pick("de", "de-DE"), Lang::De);
         assert_eq!(language("/launcher/v2/", Lang::Uk), Lang::Uk);
         assert_eq!(language("/launcher", Lang::En), Lang::En);
     }

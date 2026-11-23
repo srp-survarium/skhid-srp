@@ -31,9 +31,11 @@ use udp_transport::relay::Peer;
 use session::matchmaking_policy::{self as policy, LateRule, Worth};
 use session::v026g::bot_kits::{self, BotKit, BotKits};
 use session::v026g::level_stats;
+use session::v026g::match_kind::MatchKind;
 use session::v026g::{Account, matchmaking, quests, rules, wire};
 use session::{Level, LockExt, MAX_PLAYERS_PER_MATCH, QueuePool, QueueState, Strength};
-use survarium::v026g::loadouts::BotRole;
+use survarium::v026g::faces::{Face, Faces};
+use survarium::v026g::loadouts::{self, BotRole};
 use survarium::v026g::lobby::requests::id;
 use survarium::v026g::lobby::{self, ClientState, limits};
 use survarium::v026g::maps;
@@ -169,8 +171,9 @@ fn bots_gear_level(levels: &[u8]) -> u8 {
 /// first kit's ammo is spent. Its kits carry 10 kg more
 /// (`loadouts::bot_gear::bot_modifiers`). The match server reads the role
 /// back from the profile (`loadouts::bot_role_of`), and each kit's weapon
-/// and rounds.
-pub fn server_bot(n: usize, team: u8, kit: &BotKit) -> MatchPlayer {
+/// and rounds. Its face is `face` (`face-choice.md`: a bot's, fixed for
+/// its match, `Faces::bot_face`).
+pub fn server_bot(n: usize, team: u8, kit: &BotKit, face: Face) -> MatchPlayer {
     let mut profile = MatchProfile::from_loadouts(
         &server_bot_name(n),
         team,
@@ -180,6 +183,7 @@ pub fn server_bot(n: usize, team: u8, kit: &BotKit) -> MatchPlayer {
         1,
     );
     profile.clan_tag = "BOT".to_owned();
+    profile.face = face;
     MatchPlayer {
         session_id: 0,
         account_id: 0,
@@ -255,12 +259,10 @@ pub struct MatchSetup {
     /// (`session::v026g::matchmaking::match_level`).
     pub match_level: u16,
     pub players: Vec<MatchPlayer>,
-    /// One player against the server's own bots (`pvb`): the match
-    /// server's `MatchSetup::vs_bots`.
-    pub vs_bots: bool,
-    /// A match of a room with a PIN: it pays nothing (the match server's
-    /// `MatchSetup::private`; the owner's of 2026-10-20).
-    pub private: bool,
+    /// Against the server's bots (`pvb`, a room's with bots), a room's with
+    /// a PIN (it pays nothing: the owner's of 2026-10-20), or a normal one:
+    /// the match server's `MatchSetup::kind`.
+    pub kind: MatchKind,
     /// A room's match: the room's minimum of players (the match server's
     /// `MatchSetup::room_minimum`).
     pub room_minimum: Option<u8>,
@@ -362,6 +364,10 @@ pub(super) fn strength_in(account: &Account, gear: u8, squad: bool) -> Strength 
     }
 }
 
+/// The instance id of Trophy Trap's slot's trap stack: the match's own, no account's (an
+/// account's items are numbered from 1).
+const TROPHY_INSTANCE: u32 = 0;
+
 /// The account as a match shows it: every kit with what it wears, the
 /// items once, and the modifiers its skills give
 /// (`survarium::v026g::skills`), on `team` and in `squad`.
@@ -387,56 +393,82 @@ pub(super) fn strength_in(account: &Account, gear: u8, squad: bool) -> Strength 
 /// read of that player's state ended the game (match 0x55809714).
 pub fn match_profile(account: &Account, team: u8, squad: u8, now: u64) -> MatchProfile {
     let body = wire::account_body(account);
+    let dicts: Vec<u16> = body.items.iter().map(|item| item.dict_id).collect();
+    let mut items: Vec<MatchItem> = body
+        .items
+        .into_iter()
+        .map(|item| MatchItem {
+            instance_id: item.item_id,
+            dict_id: item.dict_id,
+            condition_or_stack: item.condition_or_stack,
+            // No repair (the owner, 2026-11-08).
+            repair_time: 0,
+            reroll_time: item.reroll_time,
+            modifications: item
+                .modifications
+                .iter()
+                .map(|modification| (modification.id, modification.state))
+                .collect(),
+            upgrades: item
+                .upgrades
+                .iter()
+                .map(|upgrade| Upgrade {
+                    id: upgrade.id,
+                    unknown_4: upgrade.a,
+                    unknown_8: upgrade.value,
+                    param: upgrade.param,
+                })
+                .collect(),
+        })
+        .collect();
+    // Trophy Trap's empty slot: one trap stack of the match's own, with a stock of 0
+    // (loadouts::trophy_pocket), made once for every kit that gets the slot.
+    let mut trophy_item: Option<u16> = None;
+    let kits = body
+        .kits
+        .into_iter()
+        .map(|kit| {
+            let state = if rules::check_play(account, kit.id, now).is_ok() {
+                kit.state
+            } else {
+                KIT_NOT_LOADED
+            };
+            let mut slots = kit
+                .slots
+                .map(|slot| slot.map(|slot| (slot.item_index, slot.count)));
+            let open = account.open_pockets(kit.id, &kit.modifiers);
+            let pocket = loadouts::trophy_pocket(&slots, &kit.modifiers, open, |index| {
+                dicts.get(usize::from(index)).copied()
+            });
+            if let (Some(pocket), Some(trap)) = (pocket, loadouts::trap_set_dict()) {
+                let index = *trophy_item.get_or_insert_with(|| {
+                    items.push(MatchItem {
+                        instance_id: TROPHY_INSTANCE,
+                        dict_id: trap,
+                        condition_or_stack: 0,
+                        repair_time: 0,
+                        reroll_time: 0,
+                        modifications: Vec::new(),
+                        upgrades: Vec::new(),
+                    });
+                    (items.len() - 1) as u16
+                });
+                slots[pocket] = Some((index, 1));
+            }
+            // An empty pocket before a held one is the lobby's to show,
+            // never the match's: its pockets go packed.
+            MatchKit::new(state, kit.id, kit.name, slots, kit.modifiers)
+        })
+        .collect();
     MatchProfile {
         team,
         name: body.name,
         clan_tag: body.clan_tag,
         protection: body.protection,
-        kits: body
-            .kits
-            .into_iter()
-            .map(|kit| {
-                let state = if rules::check_play(account, kit.id, now).is_ok() {
-                    kit.state
-                } else {
-                    KIT_NOT_LOADED
-                };
-                let slots = kit
-                    .slots
-                    .map(|slot| slot.map(|slot| (slot.item_index, slot.count)));
-                // An empty pocket before a held one is the lobby's to show,
-                // never the match's: its pockets go packed.
-                MatchKit::new(state, kit.id, kit.name, slots, kit.modifiers)
-            })
-            .collect(),
-        items: body
-            .items
-            .into_iter()
-            .map(|item| MatchItem {
-                instance_id: item.item_id,
-                dict_id: item.dict_id,
-                condition_or_stack: item.condition_or_stack,
-                // No repair (the owner, 2026-11-08).
-                repair_time: 0,
-                reroll_time: item.reroll_time,
-                modifications: item
-                    .modifications
-                    .iter()
-                    .map(|modification| (modification.id, modification.state))
-                    .collect(),
-                upgrades: item
-                    .upgrades
-                    .iter()
-                    .map(|upgrade| Upgrade {
-                        id: upgrade.id,
-                        unknown_4: upgrade.a,
-                        unknown_8: upgrade.value,
-                        param: upgrade.param,
-                    })
-                    .collect(),
-            })
-            .collect(),
+        kits,
+        items,
         squad,
+        face: account.face,
     }
 }
 
@@ -1124,8 +1156,11 @@ impl Core<'_> {
             (None, _) => Vec::new(),
         };
         // Against bots, a room's with bots too: paid as against bots.
-        let vs_bots = pvb.is_some()
-            || room.is_some_and(|room| matches!(room.kind, RoomKind::WithBots { .. }));
+        let kind = match (pvb, room.map(|room| room.kind)) {
+            (Some(_), _) | (None, Some(RoomKind::WithBots { .. })) => MatchKind::VsBots,
+            (None, Some(RoomKind::Private)) => MatchKind::PrivateRoom,
+            (None, Some(RoomKind::Open) | None) => MatchKind::Normal,
+        };
         let bot_roles = server_bot_roles(&bot_teams);
         // Their kits: of the players' equipment level, the top players'.
         let bot_level = bots_gear_level(&gear_levels);
@@ -1139,14 +1174,12 @@ impl Core<'_> {
                 .map(|(k, &role)| table.bot_kit(bot_level, role, k))
                 .collect()
         };
+        // Their faces: fixed for the match, by the second it is made.
+        let faces = Faces::shared();
         let players = players.map(|mut players| {
-            players.extend(
-                bot_teams
-                    .iter()
-                    .zip(&bot_kits)
-                    .enumerate()
-                    .map(|(n, (&team, kit))| server_bot(n + 1, team, kit)),
-            );
+            players.extend(bot_teams.iter().zip(&bot_kits).enumerate().map(|(n, (&team, kit))| {
+                server_bot(n + 1, team, kit, faces.bot_face(unix, n + 1))
+            }));
             players
         });
         let plain = |map_id: maps::MapId| (map_id, maps::MatchMap::of(map_id).map(Played::plain));
@@ -1189,8 +1222,7 @@ impl Core<'_> {
                     played,
                     match_level,
                     players,
-                    vs_bots,
-                    private: room.is_some_and(|room| room.kind == RoomKind::Private),
+                    kind,
                     room_minimum: room.map(|room| room.minimum),
                 })
                 .map(|ticket| (ticket, played)),
@@ -1262,7 +1294,7 @@ impl Core<'_> {
                 // The map is one more that each of them has played; a
                 // match against bots (a room's with bots too) counts towards
                 // no map rotation.
-                for seat in formed.seats.iter().filter(|_| !vs_bots) {
+                for seat in formed.seats.iter().filter(|_| !kind.vs_bots()) {
                     let account_id = seat.player.account_id;
                     if let Some(account) = self.accounts.get(account_id) {
                         matchmaking::count_map_play(&mut account.locked(), map);
@@ -1385,6 +1417,9 @@ impl Core<'_> {
         let Some(running) = self.matches.remove(&match_id) else {
             return;
         };
+        // Its leaves first: `end_match` drops the ones no tick has read yet,
+        // and a leave that ended the match would put its member back.
+        self.room_left_matches();
         self.store.matchmaking().end_match(match_id);
         // A room's match: its players are back in the room.
         if made {
@@ -1561,7 +1596,9 @@ mod tests {
         let bots: Vec<MatchPlayer> = BotRole::ALL
             .iter()
             .enumerate()
-            .map(|(n, &role)| server_bot(n + 1, (n % 2) as u8, &table.bot_kit(15, role, n)))
+            .map(|(n, &role)| {
+                server_bot(n + 1, (n % 2) as u8, &table.bot_kit(15, role, n), Face::DEFAULT)
+            })
             .collect();
         for (bot, role) in bots.iter().zip(BotRole::ALL) {
             let profile = &bot.profile;
@@ -1637,12 +1674,12 @@ mod tests {
     }
 
     /// A scope on a weapon reaches the match as its record: the owned scope
-    /// item's id and the variant made for the weapon (whose modification
-    /// the client applies, `survarium::v026g::scopes`), in slot 3, the
-    /// weapon kit's mark in its value; the client's reader of the static
-    /// info takes it as it is.
+    /// item's id and its own dict id (whose modification the client
+    /// applies, `survarium::v026g::scopes`), in slot 3, the weapon kit's
+    /// mark in its value; the client's reader of the static info takes it
+    /// as it is.
     #[test]
-    fn a_scope_on_a_weapon_reaches_the_match_as_its_variant() {
+    fn a_scope_on_a_weapon_reaches_the_match_as_its_record() {
         use session::v026g::account::Upgrade as Record;
         use survarium::v026g::dictionary::Dictionary;
         use survarium::v026g::lobby::FULL_CONDITION;
@@ -1659,14 +1696,13 @@ mod tests {
             .find_map(|slot| account.kits[0].slots[slot])
             .expect("a new account's weapon")
             .item_id;
-        // 0.26g's Leupold stands for a shop scope and its 1P69 (362) for
-        // the variant made for the weapon (the test data has none; the wire
-        // sends no record whose dict id the data lacks, and the record is
-        // otherwise carried as it is).
+        // 0.26g's Leupold (69) stands for a shop scope (the test data's
+        // modules table fits none; the wire sends no record whose dict id
+        // the data lacks, and the record is otherwise carried as it is).
         let scope = account.add_item(69, FULL_CONDITION);
         let record = Record {
             id: scope,
-            a: 362,
+            a: 69,
             value: 0,
             param: 3,
         };
@@ -1684,7 +1720,7 @@ mod tests {
             item.upgrades,
             [Upgrade {
                 id: scope,
-                unknown_4: 362,
+                unknown_4: 69,
                 unknown_8: u64::from(survarium::v026g::weapon_kit::KIT_MAGIC) << 56 | 3 << 48,
                 param: 3,
             }]

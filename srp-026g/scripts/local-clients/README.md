@@ -89,7 +89,12 @@ the server's env sets `SRP_MIN_PATCH_REVISION`, an account whose executable is
 older (or unpatched) stops the start before anything launches, naming the
 account and the file: the login server would otherwise refuse it only at its
 sign-in. A configuration shared between tests drifts; point the accounts at the
-build under test.
+build under test. A server that exits at its start is said with the last line of
+its log; game data with a patch above `SRP_MIN_PATCH_REVISION`, with its fix.
+
+To put changed files (a pack, a movie tree, configs) or this tree's exe into a
+setup: `tools/test-patch <setup folder> <inputs...> [--exe <name>]` (`--help`):
+a patch of only what differs, linked into its game folder, in a minute.
 
 To use a server that is already running, use `start --clients-only --count 2`.
 It must listen on the configured local login port. This launcher will not stop

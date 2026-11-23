@@ -111,6 +111,109 @@ class Lamps(unittest.TestCase):
         problems = edits.check_built('p', built(spec))
         self.assertEqual(len(problems), 3, problems)  # the intact model, its broken one, the light
 
+    def test_a_lit_alarm_owns_the_red_ambient_light_beside_it(self):
+        # Vector's alarm lamp (screenshot 2026-11-15-20-23-12: broken, its red
+        # glow stayed) beside a room's grey fill, a red glow too far away and
+        # an unlit alarm lamp, which glows through a light object if at all.
+        alarm = dict(visual_name='props/light/alarm_red_light', position=[10.675, 15.371, -6.341],
+                     rotation=[0., 0., 0.], scale=[1., 1., 1.])
+        unlit = dict(alarm, visual_name='props/light/alarm_red', position=[30., 15., 0.])
+        def ambient(name, position, colour):
+            return dict(game_object_type='ambient_light', full_name=name, position=position,
+                        color=colour & 0xffffffff)   # the serializer packs an i32's bits
+        objects = [ambient('glow', [10.911, 14.843, -6.414], -15857931),   # red 245, green 6, blue 14
+                   ambient('fill', [10.5, 15., -6.], -9737365),            # grey
+                   ambient('far', [14., 15.371, -6.341], -15857931),
+                   ambient('unlit', [30.3, 15., 0.], -15857931)]
+        def record(value):
+            kinds = {list: 7, int: 1, str: 5}
+            return (3, [(k, (kinds[type(v)], v)) for k, v in value.items()])
+        for v in (alarm, unlit):
+            v['lib_name'] = v['visual_name']
+        original = bytearray(pack.serialize((3, [('render_visuals', (4, [record(alarm), record(unlit)])),
+                                                 ('client_objects', (4, [record(o) for o in objects]))])))
+        box = ([-.1, -.2, -.1], [.1, 0., .1])
+        _, additions, spec = edits.author('p', original, {alarm['visual_name']: box, unlit['visual_name']: box}, 29, 7)
+        lit, other = spec['value']['lamps'].values()
+        self.assertEqual([light['name'] for light in lit['ambient_lights'].values()], ['glow'])
+        self.assertNotIn('ambient_lights', other)
+        data = bytearray(original)
+        for add in additions:
+            edits.c.add_entry(data, add['list'], add['after'], add['like'], add['values'])
+        built = bytearray(data)
+        edits.c.add_value(built, spec['table'], spec['key'], spec['value'])
+        self.assertEqual(edits.check_built('p', built), [])
+        lit['ambient_lights']['light0']['y'] += .1   # the map editor moved it
+        edits.c.add_value(data, spec['table'], spec['key'], spec['value'])
+        self.assertEqual(len(edits.check_built('p', data)), 1)
+
+    def test_a_kerosene_lamp_is_its_lit_glass_and_its_flame(self):
+        # London's lamp (screenshot 2026-11-15-20-44-11): the frame stays,
+        # the glass and the flame in it go. An unlit frame is scenery, and a
+        # flame of no lamp (the Fort has one) is nobody's.
+        frame = dict(visual_name='props/light/stand_group_batlamp', position=[46., 9.562, -18.825],
+                     rotation=[0., 0., 0.], scale=[1., 1., 1.])
+        glass = dict(frame, visual_name='props/light/stand_group_batlamp_glass_emit')
+        unlit = dict(frame, position=[60., 9.562, 0.])
+        def flame(name, position):
+            return dict(game_object_type='particle', lib_name=edits.FLAME, full_name=name, position=position)
+        def record(value):
+            return (3, [(k, (7 if isinstance(v, list) else 5, v)) for k, v in value.items()])
+        for v in (frame, glass, unlit):
+            v['lib_name'] = v['visual_name']
+        objects = [flame('lamp/oil_lamp', [46., 9.69, -18.825]), flame('lone/oil_lamp', [50., 9.69, -18.825])]
+        original = bytearray(pack.serialize((3, [('render_visuals', (4, [record(v) for v in (frame, glass, unlit)])),
+                                                 ('client_objects', (4, [record(o) for o in objects]))])))
+        bounds = {frame['visual_name']: ([-.12, 0., -.12], [.12, .62, .12]),
+                  glass['visual_name']: ([-.07, .11, -.07], [.07, .39, .07])}
+        _, additions, spec = edits.author('p', original, bounds, 29, 7)
+        lamp, = spec['value']['lamps'].values()
+        self.assertEqual(additions, [])   # nothing replaces the glass
+        self.assertEqual(list(lamp['visuals'].values()), [{'index': 1, 'state': 0}])   # the glass, intact only
+        self.assertEqual([p['name'] for p in lamp['particles'].values()], ['lamp/oil_lamp'])
+        self.assertAlmostEqual(lamp['max_y'], 9.562 + .62, places=5)   # a shot into the frame breaks it
+        self.assertAlmostEqual(lamp['glass_to_y'] - lamp['glass_from_y'], .28, places=5)
+        built = bytearray(original)
+        edits.c.add_value(built, spec['table'], spec['key'], spec['value'])
+        self.assertEqual(edits.check_built('p', built), [])
+
+    def test_a_weather_made_from_a_lamp_day_is_authored_over_its_carried_table(self):
+        # London's rain: a pack's copy of the day with the day's broken model
+        # and table, and a kerosene lamp the day's table does not bind.
+        bulb = dict(visual_name='props/light/lamp_on', position=[0., 5., 0.], rotation=[0., 0., 0.], scale=[1., 1., 1.])
+        frame = dict(bulb, visual_name='props/light/stand_group_batlamp', position=[20., 0., 0.])
+        glass = dict(frame, visual_name='props/light/stand_group_batlamp_glass_emit')
+        flame = dict(game_object_type='particle', lib_name=edits.FLAME, full_name='f', position=[20., .2, 0.])
+        def record(value):
+            return (3, [(k, (7 if isinstance(v, list) else 5, v)) for k, v in value.items()])
+        for v in (bulb, frame, glass):
+            v['lib_name'] = v['visual_name']
+        bounds = {bulb['visual_name']: ([-.056, -.209, -.056], [.056, 0., .055]),
+                  frame['visual_name']: ([-.12, 0., -.12], [.12, .62, .12]),
+                  glass['visual_name']: ([-.07, .11, -.07], [.07, .39, .07])}
+        def day(*visuals):
+            data = bytearray(pack.serialize((3, [('render_visuals', (4, [record(v) for v in visuals])),
+                                                 ('client_objects', (4, [record(flame)]))])))
+            _, additions, spec = edits.author('day', data, bounds, 29, 7)
+            for add in additions:
+                edits.c.add_entry(data, add['list'], add['after'], add['like'], add['values'])
+            edits.c.add_value(data, spec['table'], spec['key'], spec['value'])
+            return data
+        self.assertEqual(edits.author('rain', day(bulb, frame, glass), bounds, 29, 7), ([], [], None))
+        moves, additions, spec = edits.author('rain', day(bulb, frame), bounds, 29, 7)
+        self.assertEqual((moves, additions, spec), ([], [], None))
+        carried = day(bulb)
+        rain = bytearray(pack.serialize((3, [('render_visuals', (4, [record(v) for v in
+                                                                    edits.tree(carried)['render_visuals'] + [frame, glass]])),
+                                             ('client_objects', (4, [record(flame)]))])))
+        edits.c.add_value(rain, '', 'srp_lamps', edits.tree(carried)['srp_lamps'])
+        moves, additions, spec = edits.author('rain', rain, bounds, 29, 7)
+        self.assertEqual((moves, additions, spec.pop('replaces')), ([], [], True))
+        self.assertEqual(sorted(len(row.get('particles', {})) for row in spec['value']['lamps'].values()), [0, 1])
+        edits.c.remove_key(rain, 'srp_lamps')
+        edits.c.add_value(rain, spec['table'], spec['key'], spec['value'])
+        self.assertEqual(edits.check_built('rain', rain), [])
+
     def assert_glow_alignment(self, fixture, cone, box, expected_tip, moves_expected=1):
         scenery = dict(cone, position=[100., 10., 100.])
         for v in (fixture, cone, scenery):
@@ -250,7 +353,20 @@ class Lamps(unittest.TestCase):
         self.assertEqual(maps, {f'level_0{i}' for i in range(2, 10)} |
                          {'v011e_level_03', 'v011e_level_04', 'v021d_level_02', 'v021d_level_04',
                           'v021d_level_03', 'v021d_level_05', 'v021d_level_06'})
-        self.assertEqual(len(source['add_value']), 102)  # School/Fort/Chemical Plant battery and TDM projects included.
+        # School/Fort/Chemical Plant battery and TDM projects, and the rain and evening of London
+        # and of Fort and Chemical Plant v0.21 (their kerosene lamps), whose tables replace the
+        # day's they carry.
+        self.assertEqual(len(source['add_value']), 116)
+        weathers = [f'projects/{level}/{w}_{m}/client_project' for level, modes in
+                    (('level_09', (2, 3, 4)), ('v021d_level_04', (2, 4)), ('v021d_level_05', (2, 4)))
+                    for w in ('evening', 'rain') for m in modes]
+        self.assertEqual(sorted(e['files'] for e in source['remove_key']), sorted(weathers))
+        # Every lit kerosene lamp of every map, the 0.21 ports' copies of the models included.
+        flames = {project['files'][0].split('/')[1]: sum(len(lamp.get('particles', {}))
+                                                         for lamp in project['value']['lamps'].values())
+                  for project in source['add_value'] if '/day_4/' in project['files'][0]}
+        self.assertEqual({k: v for k, v in flames.items() if v},
+                         {'level_04': 1, 'level_05': 9, 'level_09': 10, 'v021d_level_04': 1, 'v021d_level_05': 9})
         # Each of Vostok v0.11's ten hanging-lamp shafts must disappear
         # with its fixture. The two outdoor scenery shafts have no owner.
         for project in source['add_value']:

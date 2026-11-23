@@ -14,6 +14,7 @@
 
 use std::time::{Duration, Instant};
 
+use session::v026g::match_kind::MatchKind;
 use survarium::v026g::match_msgs::PlayerInput;
 
 /// `SRP_ANTI_AFK` when unset: three minutes (the owner's).
@@ -171,19 +172,6 @@ impl Player {
     };
 }
 
-/// A match as anti-AFK tells them apart (`Formed::private`,
-/// `Formed::vs_bots`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum MatchKind {
-    /// Players against players: a public room's match, or Play's.
-    Public,
-    /// A private room's match (a PIN).
-    PrivateRoom,
-    /// Players against the server's bots ("Player vs Bots"), the only
-    /// matches the lobby puts the server's bots in.
-    VsBots,
-}
-
 /// Whether a match removes idle players: decided once, when it is made.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Watch {
@@ -203,7 +191,7 @@ impl Watch {
     pub fn new(setting: Setting, kind: MatchKind) -> Self {
         match (setting, kind) {
             (Setting::Off, _) | (_, MatchKind::PrivateRoom | MatchKind::VsBots) => Self::Exempt,
-            (Setting::After(limit), MatchKind::Public) => Self::Watched {
+            (Setting::After(limit), MatchKind::Normal) => Self::Watched {
                 limit,
                 players: Vec::new(),
             },
@@ -401,7 +389,7 @@ mod tests {
     #[test]
     fn the_watch_counts_only_inputs_that_act() {
         let start = Instant::now();
-        let mut watch = Watch::new(Setting::default(), MatchKind::Public);
+        let mut watch = Watch::new(Setting::default(), MatchKind::Normal);
         for at in 0..=170 {
             assert_eq!(
                 watch.poll(0, Presence::Playing, secs(start, at)),
@@ -415,7 +403,7 @@ mod tests {
             Action::Remove
         );
 
-        let mut watch = Watch::new(Setting::default(), MatchKind::Public);
+        let mut watch = Watch::new(Setting::default(), MatchKind::Normal);
         for at in 0..=170 {
             watch.poll(1, Presence::Playing, secs(start, at));
         }
@@ -437,7 +425,7 @@ mod tests {
         for mut watch in [
             Watch::new(Setting::default(), MatchKind::PrivateRoom),
             Watch::new(Setting::default(), MatchKind::VsBots),
-            Watch::new(Setting::Off, MatchKind::Public),
+            Watch::new(Setting::Off, MatchKind::Normal),
             Watch::new(Setting::Off, MatchKind::PrivateRoom),
         ] {
             assert!(watch.is_exempt());
@@ -448,13 +436,13 @@ mod tests {
                 );
             }
         }
-        assert!(!Watch::new(Setting::default(), MatchKind::Public).is_exempt());
+        assert!(!Watch::new(Setting::default(), MatchKind::Normal).is_exempt());
     }
 
     #[test]
     fn a_game_connected_again_starts_fresh() {
         let start = Instant::now();
-        let mut watch = Watch::new(Setting::default(), MatchKind::Public);
+        let mut watch = Watch::new(Setting::default(), MatchKind::Normal);
         for at in 0..=170 {
             watch.poll(0, Presence::Playing, secs(start, at));
         }

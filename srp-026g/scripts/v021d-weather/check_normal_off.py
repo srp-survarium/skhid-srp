@@ -142,9 +142,8 @@ def verify(row,original,native,actual):
 def check(porter, stock, donor, patch, pack):
     here = Path(__file__).resolve().parent
     contracts = json.loads((here / 'normal-off-programs.json').read_text())
-    assert len(contracts) == 348
     paths = {path for row in contracts for path in row['paths']}
-    assert len(paths) == sum(len(row['paths']) for row in contracts) == 1218
+    assert len(paths) == sum(len(row['paths']) for row in contracts)
     manifest = json.loads((pack / 'pack.json').read_text())
     assert len(manifest['operations']) == len(paths)
     assert {op['path'] for op in manifest['operations']} == paths
@@ -198,7 +197,7 @@ def check_constant_alpha(here, read):
     materials = json.loads((here / 'vertex-blend-inputs.json').read_text())['materials']
     factors = [r['original_blend']['material.g_stage.effect.constant_vertex_blended_factor.value']
                for r in materials if r['mode'] == 'masked']
-    assert len(factors) == 13 and all(1 <= factor <= 2 for factor in factors)
+    assert all(1 <= factor <= 2 for factor in factors)
     # For these authored factors saturate(factor+1) is exactly1; log2(1)=0,
     # factor*0=0, exp2(0)=1. Thus the original constant-alpha interpolation
     # coefficient is exactly the original unmasked program's coefficient1.

@@ -150,6 +150,11 @@ impl Places {
     pub fn each(self) -> [bool; Places::COUNT] {
         core::array::from_fn(|place| self.0 >> place & 1 != 0)
     }
+
+    /// How many places are in.
+    pub fn count(self) -> usize {
+        self.0.count_ones() as usize
+    }
 }
 
 /// What the game plays, from its network client's class (its vtable), read at each ask: there is
@@ -169,6 +174,17 @@ pub struct NetworkClient<'t> {
     pub(in crate::vostok) thread: &'t Thread,
 }
 
+/// What a network client plays, by its class (vtable +0): every field past
+/// it but the vtable's own calls is a live client's (a replay's client is
+/// 0x5AB18 bytes; the live one's options holder is at +1F1C48h).
+pub(in crate::vostok) fn playback_of(client: raw::NetworkClient) -> Playback {
+    // SAFETY: a client alive for the hook; its vtable is its first word.
+    match unsafe { read(client.vtable()) } {
+        raw::image::REPLAY_CLIENT_VTABLE => Playback::Replay,
+        _ => Playback::Match,
+    }
+}
+
 impl<'t> NetworkClient<'t> {
     /// The client a site's typed register holds, on its hook's thread.
     pub(in crate::vostok) fn of(this: raw::NetworkClient, thread: &'t Thread) -> NetworkClient<'t> {
@@ -177,11 +193,7 @@ impl<'t> NetworkClient<'t> {
 
     /// What it plays: its class (vtable +0), the one field both kinds of client share.
     pub fn playback(&self) -> Playback {
-        // SAFETY: the client, alive for the hook; its vtable is its first word.
-        match unsafe { read(self.this.vtable()) } {
-            raw::image::REPLAY_CLIENT_VTABLE => Playback::Replay,
-            _ => Playback::Match,
-        }
+        playback_of(self.this)
     }
 
     /// The match's places' count (0 without match options).
@@ -257,11 +269,12 @@ impl<'t> NetworkClient<'t> {
     /// is_local, set at 0x27BE5F), if any: the options' own bytes, read
     /// without the local player's object.
     pub fn local_profile(&self) -> Option<u8> {
-        // SAFETY: the client's options and their places live as long as the
-        // client, on the hook's thread; a place below the count (at most the
-        // 20 of the array) is one of them.
+        // SAFETY: the client's options (its own virtual, a live and a replay
+        // client alike) and their places live as long as the client, on the
+        // hook's thread; a place below the count (at most the 20 of the
+        // array) is one of them.
         unsafe {
-            let options = self.this.options_holder()?.options();
+            let options = raw::engine_match_options(Some(self.this))?;
             let places = read(options.places()).min(20);
             (0..places).find(|&p| read(options.first_place().at(usize::from(p)).is_local()) != 0)
         }

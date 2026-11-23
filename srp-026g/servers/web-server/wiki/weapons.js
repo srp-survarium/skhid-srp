@@ -1,11 +1,24 @@
+// The page's own words in the reader's language (site-texts/README.md): the web server fills the
+// page's <script type="application/json" id="page-words"> with every text its script asks for
+// with T, Tc (a context first) and Tf (a template and its places), from words/<code>.tsv. Each
+// takes its English text as a literal (the server and the words test find them so); English is
+// what a text has no row for.
+const PAGE_WORDS = JSON.parse(document.getElementById("page-words").textContent);
+// (None calls another: each call in a script is a text's.)
+const Tc = (context, english) => PAGE_WORDS[context]?.[english] ?? english;
+const T = english => PAGE_WORDS[""]?.[english] ?? english;
+const Tf = (english, values) => (PAGE_WORDS[""]?.[english] ?? english)
+  .replace(/\{(\w+)\}/g, (place, name) => (name in values ? String(values[name]) : place));
+
 // Calculator-style chooser: lobby icons, class groups, level ordering,
 // punctuation-insensitive search and arrow/Enter/Escape keyboard controls.
 // The hidden select owns the selection, including URL and catalogue updates.
 // `weapons` are the elements offered (the weapons page's rows, or the
 // modifiers page's item entries and the weapons page's rounds, which carry
-// their name in data-title); `offer(ids)` narrows them to those ids.
-function WikiWeaponPicker(select, weapons, tr, collator, words = {
-  search: tr('Search weapons', 'Пошук зброї'), none: tr('No weapons match.', 'Зброю не знайдено.')}) {
+// their name in data-title); `offer(ids)` narrows them to those ids. Its
+// words are the page's (site-texts/words.js).
+function WikiWeaponPicker(select, weapons, collator, words = {
+  search: T('Search weapons'), none: T('No weapons match.')}) {
   const host = document.getElementById(`${select.id}-picker`);
   const make = (tag, attrs = {}, ...children) => {
     const element = document.createElement(tag);
@@ -19,14 +32,14 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
     const source = weapon?.querySelector('img');
     return source ? make('img', {src: source.src, alt: '', width: 54, height: 26, loading: 'lazy'}) : make('span', {class: 'noimg'});
   };
-  const level = weapon => make('small', {}, tr(`lvl ${weapon.dataset.level}`, `рів. ${weapon.dataset.level}`));
+  const level = weapon => make('small', {}, Tf('lvl {n}', {n: weapon.dataset.level}));
   const button = make('button', {type: 'button', class: 'wpick-btn', id: `${select.id}-btn`,
     'aria-haspopup': 'listbox', 'aria-expanded': 'false', 'aria-controls': `${select.id}-list`,
     'aria-labelledby': `${select.id}-label ${select.id}-value`});
   const list = make('div', {class: 'wpick-list', role: 'listbox', id: `${select.id}-list`, 'aria-labelledby': `${select.id}-label`});
   const search = make('input', {type: 'search', class: 'wpick-search', role: 'combobox', autocomplete: 'off',
     'aria-controls': list.id, 'aria-expanded': 'false', 'aria-autocomplete': 'list',
-    'aria-label': words.search, placeholder: tr('Search…', 'Пошук…')});
+    'aria-label': words.search, placeholder: T('Search…')});
   const empty = make('p', {class: 'wpick-empty', role: 'status'}, words.none);
   const popup = make('div', {class: 'wpick-pop', hidden: ''}, search, list, empty);
   host.append(button, popup);
@@ -119,14 +132,14 @@ function WikiWeaponPicker(select, weapons, tr, collator, words = {
 // ...), kept in the address (a, b, ra, rb; a round only when not its
 // weapon's default, the first of `roundsOf`) and in the language link.
 // `changed()` runs after each choice; `refresh()` once the page is ready.
-function WikiWeaponSlots(weapons, roundsOf, tr, collator, changed) {
+function WikiWeaponSlots(weapons, roundsOf, collator, changed) {
   const pickers = ['a', 'b'].map(side => document.getElementById(`compare-${side}`));
   const roundPickers = ['a', 'b'].map(side => document.getElementById(`compare-${side}-round`));
   // Every round's chooser entry (its icon, name and level).
   const roundEntries = [...document.querySelectorAll('#round-options > div')];
-  const roundWords = {search: tr('Search rounds', 'Пошук набоїв'), none: tr('No rounds match.', 'Набоїв не знайдено.')};
-  const choosers = pickers.map(select => WikiWeaponPicker(select, weapons, tr, collator));
-  const roundChoosers = roundPickers.map(select => WikiWeaponPicker(select, roundEntries, tr, collator, roundWords));
+  const roundWords = {search: T('Search rounds'), none: T('No rounds match.')};
+  const choosers = pickers.map(select => WikiWeaponPicker(select, weapons, collator));
+  const roundChoosers = roundPickers.map(select => WikiWeaponPicker(select, roundEntries, collator, roundWords));
   const known = new Set(weapons.map(weapon => weapon.id));
   // A slot's rounds: its weapon's, keeping the chosen round when the new
   // weapon fires it too; a dash without a weapon.
@@ -144,8 +157,8 @@ function WikiWeaponSlots(weapons, roundsOf, tr, collator, changed) {
     const keys = [['a', pickers[0].value], ['b', pickers[1].value], ['ra', round(0)], ['rb', round(1)]];
     for (const [key, value] of keys) if (value) url.searchParams.set(key, value); else url.searchParams.delete(key);
     history.replaceState(null, '', url);
-    const language = document.querySelector('a.lang');
-    if (language) {
+    // Each of the header's languages keeps the choice.
+    for (const language of document.querySelectorAll('.lang a')) {
       const next = new URL(language.href);
       for (const [key] of keys) {
         if (url.searchParams.has(key)) next.searchParams.set(key, url.searchParams.get(key)); else next.searchParams.delete(key);
@@ -179,8 +192,9 @@ function WikiWeaponSlots(weapons, roundsOf, tr, collator, changed) {
   const count = document.querySelector('[data-count]');
   const empty = document.querySelector('#weapons-empty');
   const collator = new Intl.Collator(document.documentElement.lang, {numeric: true, sensitivity: 'base'});
+  // The classes in the reader's order (the page is one for every language).
+  category.append(...[...category.options].slice(1).sort((a, b) => collator.compare(a.text, b.text)));
   const normalize = text => text.normalize('NFKC').toLocaleLowerCase().replace(/[\s\-–—]+/g, '');
-  const tr = (en, uk) => document.documentElement.lang === 'uk' ? uk : en;
   const byId = new Map(weapons.map(element => [element.id, element]));
   const differenceOnly = document.querySelector('#only-differences'), colors = document.querySelector('#compare-colors');
   const tableHost = document.querySelector('#compare-table');
@@ -231,7 +245,7 @@ function WikiWeaponSlots(weapons, roundsOf, tr, collator, changed) {
     if (!a || !b) return;
     const table = node('table', undefined, 'weapon-comparison');
     const head = node('thead'), header = node('tr');
-    const corner = node('th', tr('Stat', 'Характеристика')); corner.scope = 'col'; header.append(corner);
+    const corner = node('th', T('Stat')); corner.scope = 'col'; header.append(corner);
     for (const [id, round, side] of [[a, roundA, 'A'], [b, roundB, 'B']]) {
       const cell = node('th'); cell.scope = 'col';
       const image = byId.get(id).querySelector('img');
@@ -257,7 +271,7 @@ function WikiWeaponSlots(weapons, roundsOf, tr, collator, changed) {
           const value = node('td', entry.text, verdict > 0 ? 'better' : verdict < 0 ? 'worse' : '');
           if (verdict) {
             const marker = node('span', verdict > 0 ? ' ↑' : ' ↓', 'comparison-marker');
-            marker.setAttribute('aria-label', verdict > 0 ? tr('Better', 'Краще') : tr('Worse', 'Гірше'));
+            marker.setAttribute('aria-label', verdict > 0 ? T('Better') : T('Worse'));
             value.append(marker);
           }
           line.append(value);
@@ -271,7 +285,7 @@ function WikiWeaponSlots(weapons, roundsOf, tr, collator, changed) {
 
   // The slots' recoil and spread: the simulators page with the same choice.
   const simulate = document.querySelector('#compare-simulate');
-  const slots = WikiWeaponSlots(weapons, roundsOf, tr, collator, () => {
+  const slots = WikiWeaponSlots(weapons, roundsOf, collator, () => {
     renderComparison();
     simulate.search = location.search;
   });
@@ -282,7 +296,7 @@ function WikiWeaponSlots(weapons, roundsOf, tr, collator, changed) {
     let chooser = null;
     weapon.addEventListener('toggle', () => {
       if (!weapon.open || chooser) return;
-      chooser = WikiWeaponPicker(select, slots.roundEntries, tr, collator, slots.roundWords);
+      chooser = WikiWeaponPicker(select, slots.roundEntries, collator, slots.roundWords);
       chooser.offer(roundsOf.get(weapon.id).map(round => round.id)); chooser.paint();
     });
     select.addEventListener('change', () => {

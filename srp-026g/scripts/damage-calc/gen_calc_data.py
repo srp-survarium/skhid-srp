@@ -6,7 +6,10 @@ path ('/' -> '__', '.json' appended), as dump_json.py writes them:
     dbgrab <resources.db> get gameplay/ <raw>
     dbgrab <resources.db> get localization/english <raw>
     python -I dump_json.py <raw> <json>
-    python -I gen_calc_data.py <json> <out.json>
+    python -I gen_calc_data.py <json> <out.json> [<shot-motions.json>]
+
+With the third (../wiki/shot_motions.py's, made from the same files), a weapon
+has its "shot": what its shot clips do to the camera and to the gun.
 
 Nothing here is chosen by the calculator: every number is the game's.
 """
@@ -15,7 +18,11 @@ import os
 import re
 import sys
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "released-game"))
+from game_maps import ARTEFACT_HINT  # noqa: E402
+
 source, target = sys.argv[1], sys.argv[2]
+shot_motions = json.load(open(sys.argv[3], encoding="utf-8")) if len(sys.argv) > 3 else {}
 
 
 def load(name):
@@ -66,19 +73,28 @@ def r(value, digits=6):
 strings = load("localization__english__localization.json")["strings"]
 
 
-# Ukrainian names beside the English ones, where the game has them.
-uk_path = os.path.join(source, "localization__ukrainian__localization.json")
-strings_uk = load("localization__ukrainian__localization.json")["strings"] if os.path.exists(uk_path) else {}
+# The other languages' names beside the English ones (`<field>_<code>`), where the game has
+# them: its dictionaries, in the site's languages (site-texts/texts.py LANGUAGES).
+LANGUAGES = {"uk": "ukrainian", "ru": "russian", "de": "german", "pl": "polish", "sr": "serbian", "cs": "czech",
+             "hu": "hungarian", "fi": "finnish", "be": "belarusian", "hr": "croatian", "pt": "portuguese"}
+strings_in = {code: load(f"localization__{folder}__localization.json")["strings"]
+              if os.path.exists(os.path.join(source, f"localization__{folder}__localization.json")) else {}
+              for code, folder in LANGUAGES.items()}
 
 
 def text(key):
     return strings.get(key, key).strip()
 
 
-def text_uk(key):
-    """The Ukrainian string, or None where the game has none."""
-    value = strings_uk.get(key, "").strip()
+def text_in(code, key):
+    """The string in language `code`, or None where the game has none."""
+    value = strings_in[code].get(key, "").strip()
     return value or None
+
+
+def texts(field, key):
+    """`key`'s string in each other language, as `<field>_<code>`."""
+    return {f"{field}_{code}": text_in(code, key) for code in LANGUAGES}
 
 
 def nonzero_modifiers(params):
@@ -90,7 +106,7 @@ def ui(cfg):
     names = desc.get("text_descriptions", {})
     return {
         "name": text(names.get("name", "")),
-        "name_uk": text_uk(names.get("name", "")),
+        **texts("name", names.get("name", "")),
         "description": text(names.get("description", "")),
         "icon": desc.get("icon"),
     }
@@ -121,6 +137,8 @@ for file in files("gameplay__items__weapons__wpn_"):
         "weight": r(p.get("weight", 0)),
         # Its broken-arm spread (0x3317C0); the exe's default false (0x30ABBE).
         "double_handed": bool(p.get("double_handed", False)),
+        # Its shot clips' own motions (wiki/shot_motions.py); absent in a build without them.
+        **({"shot": shot_motions[file]} if file in shot_motions else {}),
         # The wiki uses the same source data, including the detailed weapon card.
         # Missing optional parameters stay absent; native defaults are applied
         # by the presentation schema, never by substituting arbitrary zeroes.
@@ -232,7 +250,8 @@ for file in files("gameplay__items__artefacts__"):
         **ui(cfg),
         "name": text(cfg["ui_desc"]["text_descriptions"]["name"]) if cfg["ui_desc"]["text_descriptions"]["name"] in strings
         else pickup_name(key, strings, r"\s*(.+?) artifact\.") or key,
-        "name_uk": text_uk(cfg["ui_desc"]["text_descriptions"]["name"]) or pickup_name(key, strings_uk, r"\s*Артефакт (.+?)\."),
+        **{f"name_{c}": text_in(c, cfg["ui_desc"]["text_descriptions"]["name"])
+           or pickup_name(key, strings_in[c], r"\s*" + ARTEFACT_HINT[c]) for c in LANGUAGES},
         "cooldown_s": r(d.get("cooldown_sec", 0)),
         "passive": {k: r(v) for k, v in (d.get("passive") or {}).items()},
         "active": {k: r(v) if not isinstance(v, (dict, list)) else v for k, v in (d.get("active") or {}).items()},
@@ -241,9 +260,9 @@ for file in files("gameplay__items__artefacts__"):
         # What the game says of it: at the pickup (its passive) and at the
         # activation ("%s": the active's seconds).
         "pickup_hint": text(d["pickup_hint"]) if d.get("pickup_hint") in strings else None,
-        "pickup_hint_uk": text_uk(d.get("pickup_hint", "")),
+        **texts("pickup_hint", d.get("pickup_hint", "")),
         "activation_hint": text(d["activation_hint"]) if d.get("activation_hint") in strings else None,
-        "activation_hint_uk": text_uk(d.get("activation_hint", "")),
+        **texts("activation_hint", d.get("activation_hint", "")),
     }
     if artefacts[key]["active"].get("duration") is not None:
         artefacts[key]["active"]["duration_s"] = artefacts[key]["active"]["duration"]
@@ -284,9 +303,9 @@ RELEVANT = ("parameters/bullet_damage", "parameters/bullet_pierce", "parameters/
 presets = {str(d) for item in weapons.values() for d in item["default_modifications"]}
 ui_props = {}
 for q in rows(load("gameplay__static_game_parameters.options.json").get("ui_properties", [])):
-    ui_props[q["prop_id"]] = {"label": text(q.get("prop_name", "")), "label_uk": text_uk(q.get("prop_name", "")), "mod_type": q.get("mod_type", 2),
+    ui_props[q["prop_id"]] = {"label": text(q.get("prop_name", "")), **texts("label", q.get("prop_name", "")), "mod_type": q.get("mod_type", 2),
                               "direction": q.get("direction", 1), "postfix": text(q["postfix"]) if q.get("postfix") else "",
-                              "postfix_uk": text_uk(q["postfix"]) if q.get("postfix") else None}
+                              **{f"postfix_{c}": text_in(c, q["postfix"]) if q.get("postfix") else None for c in LANGUAGES}}
 
 
 def card_line(prop_id, value, icon=None, bonus=False):
@@ -300,8 +319,8 @@ def card_line(prop_id, value, icon=None, bonus=False):
         number = f"{'+' if v >= 0 else '−'}{abs(v):g}" if bonus else f"{v:g}"
         return number + ("" if not postfix else postfix if postfix == "%" else " " + postfix)
 
-    line = {"label": p.get("label"), "label_uk": p.get("label_uk"),
-            "value": said(p.get("postfix")), "value_uk": said(p.get("postfix_uk") or p.get("postfix"))}
+    line = {"label": p.get("label"), **{f"label_{c}": p.get(f"label_{c}") for c in LANGUAGES},
+            "value": said(p.get("postfix")), **{f"value_{c}": said(p.get(f"postfix_{c}") or p.get("postfix")) for c in LANGUAGES}}
     if icon is not None:
         line["icon"] = icon
     if bonus:
@@ -380,7 +399,7 @@ if rolled:
     kind = kinds.pop()
     takes = {a["slot"] for a in armour.values() if a["available_modifications_mask"][kind - 1:kind] == "1"}
     prop = ui_props.get(rows(rolled[0]["ui_desc"]["props_list"])[0]["prop_id"], {})
-    gear = {"label": prop.get("label"), "label_uk": prop.get("label_uk"), "icon": rolled[0]["ui_desc"].get("icon"),
+    gear = {"label": prop.get("label"), **{f"label_{c}": prop.get(f"label_{c}") for c in LANGUAGES}, "icon": rolled[0]["ui_desc"].get("icon"),
             "slots": sorted(takes), "grades": [{"id": str(m["id"]), "value": regeneration_of(m)["speed"]} for m in rolled]}
 # A booster's built-in bonuses, while it is in a pocket.
 boosters = {}
@@ -393,7 +412,7 @@ for file in files("gameplay__items__boosters__"):
         for k, v in regeneration_of(every_mod.get(d, {})).items():
             total[k] = r(total.get(k, 0) + v)
     if total:
-        boosters[key_of(file)] = {"name": ui(cfg)["name"], "name_uk": ui(cfg)["name_uk"], **total, "card": card}
+        boosters[key_of(file)] = {"name": ui(cfg)["name"], **{f"name_{c}": ui(cfg)[f"name_{c}"] for c in LANGUAGES}, **total, "card": card}
 # The skills the page counts, by their ids in the tree: the medical ones that
 # change recovery (docs/notes/medical-skills.md) and Forest Protection, which
 # changes a hit (docs/notes/artefact-skills.md); rules.js has what each does.
@@ -411,11 +430,12 @@ for s in skills_tree:
         step = float(re.search(r"\d+(?:\.\d+)?", printed).group(0))
         postfix = s["ui"].get("postfix", "")
         skills[SKILLS[s["id"]]] = {
-            "id": s["id"], "name": text(s["ui"]["name"]), "name_uk": text_uk(s["ui"]["name"]), "ranks": s["levels_amount"],
+            "id": s["id"], "name": text(s["ui"]["name"]), **texts("name", s["ui"]["name"]), "ranks": s["levels_amount"],
             "step": r(step / 100 if postfix == "st_percent_postfix" else step),
-            "description": text(s["ui"]["description"]), "description_uk": text_uk(s["ui"]["description"]),
+            "description": text(s["ui"]["description"]), **texts("description", s["ui"]["description"]),
             # The postfix as the game has it (" s", "%"): its own space or none.
-            "rank": printed + strings.get(postfix, "").rstrip(), "rank_uk": printed + strings_uk.get(postfix, "").rstrip() if strings_uk.get(postfix) else None}
+            "rank": printed + strings.get(postfix, "").rstrip(),
+            **{f"rank_{c}": printed + strings_in[c][postfix].rstrip() if strings_in[c].get(postfix) else None for c in LANGUAGES}}
 recovery = {"gear": gear, "boosters": boosters}
 
 for table in (weapons, armour):
@@ -428,27 +448,28 @@ for table in (weapons, armour):
 # Walls a bullet goes through (survarium::bullet::try_pierce 0x32D960): the
 # player's picks, each a group of materials of game_materials/game.materials
 # that share one `armor`, in its order; named as retail names materials where
-# they fit. The armour is the game's; a group whose materials differ stops the build.
+# they fit (in the page's words: ui.js WALLS). The armour is the game's; a group whose materials
+# differ stops the build.
 WALL_GROUPS = (
-    ("Glass", "Скло", ("glass", "glass_car", "foliage_deciduous", "foliage_coniferous", "cloth", "plastic", "paper")),
-    ("Car", "Автомобіль", ("metal_car", "metal_gas_tank")),
-    ("Plywood", "Фанера", ("wood_thin", "glass_hard", "rubber")),
-    ("Tinplate", "Бляха", ("metall_thin", "schiefer")),
-    ("Brick, steel", "Цегла, сталь", ("brick", "metall_thick", "wood_tree")),
-    ("Concrete", "Бетон", ("concrete",)),
-    ("Stone", "Камінь", ("stone",)),
+    ("Glass", ("glass", "glass_car", "foliage_deciduous", "foliage_coniferous", "cloth", "plastic", "paper")),
+    ("Car", ("metal_car", "metal_gas_tank")),
+    ("Plywood", ("wood_thin", "glass_hard", "rubber")),
+    ("Tinplate", ("metall_thin", "schiefer")),
+    ("Brick, steel", ("brick", "metall_thick", "wood_tree")),
+    ("Concrete", ("concrete",)),
+    ("Stone", ("stone",)),
 )
 materials = {m["name"]: m for m in load("game_materials__game.materials.json")["materials"] if not m.get("deleted")}
 walls = []
-for name, name_uk, members in WALL_GROUPS:
+for name, members in WALL_GROUPS:
     armor = {r(materials[m]["physic"]["armor"]) for m in members}
     if len(armor) != 1:
         sys.exit(f"wall {name!r}: its materials' armor differs: {sorted(armor)}")
-    walls.append({"name": name, "name_uk": name_uk, "armor": armor.pop(), "materials": list(members)})
+    walls.append({"name": name, "armor": armor.pop(), "materials": list(members)})
 walls.sort(key=lambda w: w["armor"])
 
 # Map names (st_<level>_name), for the map picker.
-level_names = {k.removeprefix("st_").removesuffix("_name"): {"en": v.strip(), "uk": text_uk(k)}
+level_names = {k.removeprefix("st_").removesuffix("_name"): {"en": v.strip(), **{c: text_in(c, k) for c in LANGUAGES}}
                for k, v in strings.items() if k.startswith("st_level_") and k.endswith("_name")}
 
 # The wiki's simulators (scripts/wiki/spread.js, recoil.js): the player's
@@ -480,7 +501,7 @@ for s in sorted(skills_tree, key=lambda s: s["id"]):
     if any(levels):
         assert len(levels) == s["levels_amount"], f"skill {s['id']}: {len(levels)} levels, {s['levels_amount']} ranks"
         ranks = [{m: r(sum(level.get(m, 0) for level in levels[:n])) for m in set().union(*levels[:n])} for n in range(len(levels) + 1)]
-        sim_skills.append({"id": s["id"], "name": text(s["ui"]["name"]), "name_uk": text_uk(s["ui"]["name"]), "ranks": ranks})
+        sim_skills.append({"id": s["id"], "name": text(s["ui"]["name"]), **texts("name", s["ui"]["name"]), "ranks": ranks})
 weapon_cfgs = {key_of(f): load(f) for f in files("gameplay__items__weapons__wpn_")}
 armour_cfgs = {f: load(f) for f in files("gameplay__items__armour__")}
 
@@ -521,13 +542,13 @@ for kind, table in (("mod", mods_cfg["modifications"]), ("defect", mods_cfg["def
             # whose items roll it, or come with it.
             rolls = {f.split("__")[3] for f in rollers(armour_cfgs, kind, m)}
             slots = sorted({f.split("__")[3] for f in takers(armour_cfgs, kind, m)}, key=list(SLOT_NAMES).index)
-            row |= {"kit": kit, "slots": [{"slot": x, "name": text(SLOT_NAMES[x]), "name_uk": text_uk(SLOT_NAMES[x]), "rolls": x in rolls}
+            row |= {"kit": kit, "slots": [{"slot": x, "name": text(SLOT_NAMES[x]), **texts("name", SLOT_NAMES[x]), "rolls": x in rolls}
                                           for x in slots]}
         if kick:
             if kick.keys() != KICK or len(set(kick.values())) != 1 or kit:
                 sys.exit(f"modification {m['id']}: kick {kick}: not one scale of the six ranges")
             row |= {"kick": next(iter(kick.values())), "weapons": takers(weapon_cfgs, kind, m),
-                    "slots": [{"slot": "weapon", "name": text("st_filter_weapons"), "name_uk": text_uk("st_filter_weapons"), "rolls": True}]}
+                    "slots": [{"slot": "weapon", "name": text("st_filter_weapons"), **texts("name", "st_filter_weapons"), "rolls": True}]}
         sim_mods.append(row)
 simulators = {"stance": {k: r(v) for k, v in player["character_dispersion_params"].items()},
               "skill_influence": {k: r(v) for k, v in player["character_dispersion_skill_influence"].items()},

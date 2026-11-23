@@ -1,5 +1,6 @@
 # Patch 101: a step first made by a re-simulation is heard (the players'
-# random footstep drop-outs). The site is sites_026g.tsv's; the logic is
+# random footstep drop-outs), and a foot step in a logic state with no foot
+# material is dropped. The sites are sites_026g.tsv's; the logic is
 # footsteps.rs and vostok/footstep.rs.
 name = "footsteps"
 patch = 101
@@ -9,3 +10,9 @@ patch = 101
 [[hook]]
 site = "player_sound.step_guard"
 handler = "on_step_guard"
+
+# on_foot_step's read of the foot material by the logic state's movement id
+# (0x2A6545): a state with none (movement 0) reads before the table.
+[[hook]]
+site = "player_sound.foot_material"
+handler = "on_foot_material"

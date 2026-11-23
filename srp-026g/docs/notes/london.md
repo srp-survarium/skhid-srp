@@ -29,7 +29,8 @@ research-mode@3. The owner's rules:
   two beside them. Preserve a point's facing when it was moved without turning it.
 - These replace the earlier proposal beside the ground-floor doors. The walking distance to
   the battery container is 44–65 m for team1 and 68–74 m for team2.
-- Remove the old outdoor spawn-protection zones; keep each point's own 6-second invulnerability.
+- Remove the old outdoor spawn-protection zones; keep each point's original invulnerability:
+  6 seconds in batteries, batteries with chargers and Research; 3 seconds in Team Deathmatch.
 - Do not include the accidental prop moves from the editor.
 
 ## London's own textures (pack london-textures)
@@ -41,6 +42,22 @@ The one London-only file is `textures/props/furniture/office_furniture_white.dds
 shipped as a cream image while 0.31a2's is wood-brown: London's cupboards with the second material
 set (`office_cupboard_high[1]` and the like, used by no other project) were white. Pack
 `london-textures@1` gives them 0.31a2's file.
+
+## Vertex blending (`london-vertex-blend-1.json`)
+
+Patch 14 shipped London's own materials from an earlier build of the map, and in 15 of them the
+vertex blending differs from 0.31a2 (the technique, the tiled blend mask and its scale, rotation and
+falloff, or which layers blend). On rain's sand over stones (`terrain_tile_aref/sand_base_alpha_vc`,
+technique 1 for 0.31a2's 2) the stones showed through with a hard edge (the owner, 2026-11-19:
+"rough edge of stone"); the list gives it 0.31a2's technique, and the sand covers them as there.
+
+The other 14 stay as patch 14 has them. Changing their techniques to 0.31a2's (0->1 on
+`floor_02_trash_vc`, `gari_vc`, `metal_gari_vc`, `stucco_bl_crack_vc`, `stucco_dirt_vc`; 0->2 on
+`l9_anom_tile_top_vc`; 1->2 on `carpeting_alpha_vc`; 1->0 on `pol`) stops 0.26g's client loading the
+map: it waits forever after "create replay network client" (headless, 2026-11-19, in each half of
+a bisection; the same build with only the sand material loads). Their mask and layer values alone
+load, but do nothing without the technique. Drawing them as 0.31a2 needs the shader programs those
+techniques select.
 
 Source and checks: `scripts/content-edit/london-1.json` and its README section. The server data,
 bots' generated map files and website maps must be built from the same released content.
@@ -87,6 +104,14 @@ found every London day file unchanged against the manifest, so it is the manifes
 Six new maps raise the pinned `maps_dict` counts of five edit lists by six; a PR adding maps after
 this one renumbers again.
 
+Material sets the weathers use. 0.31a2's evening places six vine bushes (`flora/vine/bush_*`) with
+their second material set (visual name `[1]`, dried leaves). 0.26g ships those models without that
+set, so they drew with no material, as plain grey sheets (the owner, 2026-11-19; the log says
+"Incompatible model settings ... material not found"). Of every set London's projects use, only
+these were missing: `london-vines-1.json` gives the six models 0.31a2's `material_settings_1`, and its
+material `flora/vine_leaves_v2_desiccated` as 0.26g's `flora/vine_leaves_v2` with 0.31a2's diffuse
+`flora/vine_leaves_v2_new`, the texture pack `london-vines@1` adds. Their first set is unchanged.
+
 ## The probes (pack london-probes)
 
 London has ten box probes `environment_and_lights/probes/reflection_window(…)` along its window
@@ -127,3 +152,55 @@ of `hall_2_floor`, `hall_box(1)`, `ladder(1)`; places of `hall_2_floor`, `gerkin
 `hall_2_floor`, `gerkin(22)`). With radius 5, `gerkin(3)` tied `gerkin_hall_centre` and could draw
 under it; with 0.31a2's 4 it draws after, as there (the corridor of the owner's FFA pick 11).
 `london-probe-shapes-1.json` sets the seven as 0.31a2 authors them in each project.
+
+## Campfires burn (the owner, 2026-11-15)
+
+"Fireplaces which don't do damage" (`2026-11-15-20-43-24.png`, the campfire by the skeleton). London
+has two lit bonfires (`props/light/bonefire_02_on`, each with its `fx/lights/bonfire` particle), at
+(0.88, 14.06, 18.73) and (14.04, 10.35, 4.87), the same in its eleven projects (the day's five and the six of rain and evening, maps 276-281). The port never had a
+damage zone for them (its seven zones were the anomalies', which `london-1` removed).
+
+`port-campfires-1.json` (`scripts/port-fires/make_edits.py`, from the stock
+`projects/level_05/day_4/client_project` and London's projects as the manifest leaves them) appends
+what Training Camp got (`stalker-maps.md`, `training-camp-fires-1`): level_05's
+`logic/fire_damage/fire_collision`, here two 0.8 m spheres, one 0.16 m over each bonfire, and
+`logic/fire_damage/fire_damage_zone` naming it (fire, 0.1 to both hips and both feet every 500 ms).
+The game's client applies the damage in its own simulation; the server needs no code. Each world
+saves one damage zone more, so it is a `next` simulation change.
+
+The nearest spawn is a Free for All point 6.9 m from a fire; the nearest battery spawner 4.9 m.
+London's nine barrel fires (eleven in `day_3`) and four skyscraper fires stay harmless: they are the
+same flame particle over a barrel or over nothing, and no barrel or stove burns in the stock maps.
+
+The 0.21 Mamayev Kurgan (`v021d_level_06`) has the same gap on seven bonfires. It is not in the list:
+one of them, at (-46.9, 17.94, 64.94), stands 0.98 m from `respawn_point(6)`, and is the one the stock
+map leaves without a zone.
+
+Not played in a game.
+
+## Name and build (the owner, 2026-11-20)
+
+"Our london maps should have 0.31 in the name" and "be sorted properly too"; then, with London's history
+in hand (its statics are 0.29a3's, the vegetation and detail pass is 0.32's, the rework is 0.42's): "I
+think we want london 0.32 in the game and london 0.42 in the game". So this London is rebuilt from
+0.32a4 and named "London (v0.32)", and the reworked London (donor 0.44a5, the first archived build with
+the rework) is a second map, "London (v0.42)".
+
+London's two name keys, `st_level_09_name` (loading screen, HUD, site) and `st_srp_map_london` (the
+rooms' tiles and list), are each language's word for London with " (v0.32)", as the other ports' names
+carry their build. The name is true once the 0.32 content ships: the name and that content go to players
+in one release.
+
+Lists show maps by build: 0.26, 0.11, 0.21, 0.32, 0.42, 0.69, STALKER. A config says its build in
+`mode.srp_build`, srp's own key, written by `modes.tsv`'s `build` column: `v032` in the ten London
+configs (Blackout's and Free for All's copies take it with them), `v042` for the reworked London's.
+Without the key a map's build is its project's prefix (`v021d_level_03`), and a project with no build's
+prefix is 0.26g's. London needs the key because its projects keep the native name `level_09`; the
+reworked London needs it because its prefix is its donor's (0.44a5), not the build it is listed as. A
+prefix that reads as a build and is none of srp's, with no key, is refused, so a new port cannot fall
+among the 0.26 maps unnoticed. The server (`survarium::v026g::maps::Build::of`) and the Maps tab
+(`scripts/released-game/game_maps.py`) read it the same way. Until a release builds the content with the
+key, London sorts with the 0.26 maps.
+
+The reworked London is a map of its own: its own level, its own name keys (`st_level_<level>_name`, and
+one at its level in the lobby movie's `RoomsText`) and `v042` in the `build` cell of each of its rows.

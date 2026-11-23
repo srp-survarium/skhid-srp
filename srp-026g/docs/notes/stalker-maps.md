@@ -15,9 +15,27 @@ takes the six TDM rows (210-215) out of `maps_dict`, so neither srp nor the game
 has them as maps: no room pool or create window, vote card, Play, clan match,
 Player vs Bots, room with bots or Maps tab can list them (each lists the
 dictionary's playable rows; a room saved with them is fitted without them).
-Repair Depot, Station and Depository have no FFA and are not played. Dark
-Valley, Vehicle Station, Fire Station and Sports Center (pack `stalker-maps-2`,
-below) are played in Free for All only too.
+Station has Free for All since 2026-11-21 (31, `stalker-ffa.md`); Repair Depot
+and Depository have no FFA and are not played. Dark Valley, Vehicle Station,
+Fire Station and Sports Center (pack `stalker-maps-2`, below) are played in
+Free for All only too.
+
+Training Camp is the exception since 2026-11-22 (the owner: "add tdm and freeze tag on stk2
+training camp"): its Team Deathmatch row 212 is back, after the team maps' lists, with Freeze Tag's
+450 (`training-camp-teams-1.json`), both on `day_teams`, a copy of Free for All's fenced `day_8`
+whose 47 points are every team's (`stalker-ffa.md`, "Team Deathmatch and Freeze Tag at the Free
+for All points"). The boundary and the outside stash below are no more in the way: `day_teams` has
+the wall and no stashes.
+
+Both modes play it as `day_tdm` since the next release (`training-camp-project-1.json`, a copy of
+`day_teams` as the list above leaves it). The client cuts a project name (a mode config's
+`match_making_params/map_name`) to 31 characters: `v010b_cs_training_camp/day_teams` is 32, so
+the client looked for `day_team`, found no project config and crashed loading the map
+(`project_cooker_simple::create_game_objects` 0x22C11E, a read of 0x108: map 212's first match,
+2026-11-22, both players). `day_teams` stays as players have it, named by no config.
+`release/build_content.py` refuses a mode config whose project name is over 31 characters. Where the
+client cuts it is not found yet: the cooker's own buffers hold 260 characters, and the full name
+is in memory beside the cut copies.
 
 Everything else stays: the six TDM configs, the projects with both teams'
 spawns and stashes, their `modes.tsv`/`maps.tsv` rows, names, pictures and
@@ -62,6 +80,17 @@ its row of `release/content.tsv`. The list must stay the last that edits
   in an untrusted patch archive). Station and Depository are community SoC 1.0006
   maps (`.xdb0`, xrLC 14, DM/TDM/AH); neither the archives nor the level files
   name an author or credit.
+- Station's loading picture and room tile: a frame of the game (2026-11-21, when
+  it got Free for All; before, it showed its minimap's render; Depository's still
+  does), headless at 2560 x 1440, highest settings, hfov 100, cut by
+  `ui_images.py`: Station `platform-low2` (209.8, -10.6, -64) yaw 0.4 pitch 0.9,
+  eye level on the tracks south of the station between the wagons and the
+  platform (Depository's, for when it is offered: `se-high` (70, 30, -40) -45 /
+  -12.2, the train, the vaulted warehouses and the middle buildings from the
+  south-east). The shots, the harness
+  and the poses are in `/mnt/hdd/Projects/stalker-ffa-previews/` (`plan.py`
+  sketches a pose over the site render's height map before the game is run);
+  the before/after pairs in `private/renders/stalker-ffa-previews/`.
 
 ## Four more maps: stalker-maps-2 (the owner, 2026-11-14)
 
@@ -72,7 +101,7 @@ which is fire station"): Dark Valley, Vehicle Station and Sports Center are
 held, in the porter (`maps.json` `hold`: not built into the pack) and here
 (no dictionary rows, project copies, Keeper pools, loading pictures, HUD
 minimaps or site maps; their FFA points stay in `ffa-spawns-2.tsv`, held by
-`make_ffa_edits.py`'s `HELD_2`, their names in the localization and their
+`make_ffa_edits.py`'s `SECOND.held`, their names in the localization and their
 ids theirs). To offer one: its rows back as Fire Station has them. The
 numbers below are the four maps' build. Built after the
 released `stalker-maps@6`, which they do not change: `release/build-content 60`
@@ -169,8 +198,12 @@ walker collision.
   showed through them (the owner, 2026-11-16, "holes in textures").
 - **Fire Station:** the earlier package's west roof ramp (34°) and the planks
   over clmbl#0 reach the main building's roof (743 m²); clmbl#3's top is
-  walked too. The slabs over the rungs of clmbl#2, #7 and #9 stay; the
-  tower, the 97 m² roof and the two ~100 m² roofs stay out of reach.
+  walked too. Both are drawn as planks since `stalker-maps-2@5`: up to @4 the
+  west ramp (`roof_west_ramp`, by clmbl#1) had no `planks` in the porter's
+  `maps.json`, so it was walked but not drawn (the owner, 2026-11-22: "one of
+  them is invisible", "even though it has collision"). The slabs over the rungs
+  of clmbl#2, #7 and #9 stay; the tower, the 97 m² roof and the two ~100 m²
+  roofs stay out of reach.
 - **Vehicle Station:** its four ladder areas (79-333 m²) stay out of reach;
   no spawn stands on them (one the spawn rule kept on clmbl#4's roof is left
   out, below). Its puddles (Clear Sky `effects\wallmarkmult`, 6 patches)
@@ -209,10 +242,10 @@ Fire Station's 48 are replaced by the owner's 42 picks (`ffa-fire-station-picks-
 
 ```sh
 stalker-ffa-points <layers> --project v010b_cs_mp_<map>/day_4 ... --plots P > planned.tsv
-make_ffa_edits.py --table planned.tsv <empty cover table>; make_ffa_edits.py --second --planned 24 ...
+make_ffa_edits.py --second --table planned.tsv <empty cover table>; make_ffa_edits.py --second --planned ...
 release/build-content 60   # the planner's points in day_8
 to_cover <layers> --times 2 --project v010b_cs_mp_<map>/day_8@<play area> ... > cover.tsv
-make_ffa_edits.py --table planned.tsv cover.tsv; make_ffa_edits.py --second --pack <stalker-maps-2-1> --dictionary <dict>
+make_ffa_edits.py --second --table planned.tsv cover.tsv; make_ffa_edits.py --second --pack <stalker-maps-2-1> --dictionary <dict>
 ```
 
 `--dictionary` is the live dictionary with the pack's four TDM rows

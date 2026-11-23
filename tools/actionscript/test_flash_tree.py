@@ -285,6 +285,27 @@ class TreeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Not the original'):
             flash_tree.build(self.tree, self.root / 'o.swf', None)
 
+    def test_the_code_goes_into_the_graphics_a_pack_drew_into(self):
+        shape = (2, tag(2, struct.pack('<H', 7) + b'shape'))
+        original = movie([shape, do_abc('a', 'A'), symbols((7, 'A'))], compressed=True)
+        (self.root / 'o.swf').write_bytes(original)
+        self.spec(movie_sha256=sha(original))
+        (self.tree / 'bitmaps').mkdir()
+        (self.tree / 'bitmaps' / 'Icon.png').write_bytes(png(1, 1, b'\x10\x20\x30\x80'))
+        # build()'s movie, without the compiler: the code over the original and the tree's bitmaps.
+        built = flash_tree.assemble(original, [do_abc('x', 'A', 'Icon')], flash_tree.bitmaps(self.tree))
+        drawing = flash_tree.graphics(self.tree, self.root / 'o.swf')
+        self.assertEqual(flash_tree.with_code(drawing, built), built)
+        # A pack redraws the shape (and gives the movie back uncompressed): that, with the code.
+        header, tags = swf.split(drawing)
+        redrawn = tag(2, struct.pack('<H', 7) + b'drawn')
+        drawn = swf.join(header, [(k, redrawn if k == 2 else raw) for k, raw in tags])
+        header, want = swf.split(built)
+        self.assertEqual(flash_tree.with_code(drawn, built),
+                         swf.compressed(swf.join(header, [(k, redrawn if k == 2 else raw) for k, raw in want]), built))
+        with self.assertRaisesRegex(ValueError, 'no single place'):
+            flash_tree.with_code(built, built)
+
     @unittest.skipUnless(os.environ.get('SRP_AS_TOOLS'), 'set SRP_AS_TOOLS to run the real compiler')
     def test_a_tree_builds_whole_in_one_compiler_run(self):
         # A method put in the middle of a class, a try in a method, classes

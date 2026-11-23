@@ -1,0 +1,7 @@
+# A device's family (devices.py: by 0.69d0's main drop modification and its group) and its price in
+# silver (base_cost; seller 0 at no rank). 0.69d0 prices every device alike (200 of its currency 4).
+# family	price	what it is in 0.69d0
+brake	6000	its main modification is recoil, slowdown on a hit or pellet spread, and it is neither a choke nor a duckbill: muzzle brakes and compensators
+flash_hider	4500	its main modification is the reveal radius
+choke	4500	group choke
+duckbill	4500	group duckbill

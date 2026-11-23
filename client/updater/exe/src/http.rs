@@ -8,12 +8,14 @@ use alloc::vec::Vec;
 use core::ffi::c_void;
 use core::ptr::{null, null_mut};
 
-use updater_logic::download::{self, PAGE_HEAD, Speed};
-use updater_logic::problem::{Fault, Miss, Probe, Stage};
+use updater_logic::download::{self, Failure, PAGE_HEAD, Refused};
+use updater_logic::diagnosis::{Reach, Via};
+use updater_logic::problem::{Fault, Miss, Stage};
+use updater_logic::route::Choice;
 use updater_logic::url::{self, MAX_REDIRECTS, Url};
 use windows_sys::Win32::Networking::WinHttp::{
-    WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_ACCESS_TYPE_NAMED_PROXY, WINHTTP_OPTION_PROXY,
-    WINHTTP_PROXY_INFO, WINHTTP_DISABLE_COOKIES, WINHTTP_FLAG_BYPASS_PROXY_CACHE,
+    WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_ACCESS_TYPE_NAMED_PROXY,
+    WINHTTP_DISABLE_COOKIES, WINHTTP_FLAG_BYPASS_PROXY_CACHE,
     WINHTTP_FLAG_SECURE, WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2, WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3,
     WINHTTP_OPTION_DISABLE_FEATURE, WINHTTP_OPTION_REDIRECT_POLICY,
     WINHTTP_OPTION_REDIRECT_POLICY_NEVER, WINHTTP_OPTION_SECURE_PROTOCOLS,
@@ -49,11 +51,11 @@ pub enum HttpError {
     /// A patch's file was redirected to an address a list may not name
     /// (its `Location`, at most 200 characters of it).
     BadRedirect(String),
-    /// Slower than `download::MIN_SPEED` over a stretch of
-    /// `download::SLOW_WINDOW_MS`: its bytes a second.
-    Slow(u64),
     /// A `206 Partial Content` of another range than the one asked for.
     BadRange,
+    /// A `416` to a request from a byte on: the file has no byte past those
+    /// kept. Its size, when the answer says it.
+    PastEnd(Option<u64>),
 }
 
 /// The step of a network error while the body came, after the answer's
@@ -61,6 +63,16 @@ pub enum HttpError {
 const READ_STEP: &str = "read";
 
 impl HttpError {
+    /// How an address failed, for the choice of the next one
+    /// (`download::Mirrors`): the network (a next pass may do better), or an
+    /// answer that is not the file.
+    pub fn failure(&self) -> Failure {
+        match self {
+            Self::Network(..) | Self::Cut { .. } | Self::Status(500..=599) => Failure::Network,
+            _ => Failure::Refused,
+        }
+    }
+
     /// How an address failed, for the player's box (`updater_logic::problem`):
     /// not reached, or an answer that is not the file (one that broke off
     /// while the file came is cut short).
@@ -77,47 +89,43 @@ impl HttpError {
             Self::Status(status) => Miss::Answered(Fault::Status(*status)),
             Self::Cut { .. } => Miss::Answered(Fault::CutShort),
             Self::Html(..) => Miss::Answered(Fault::WebPage),
-            Self::Slow(_) => Miss::Answered(Fault::TooSlow),
             Self::TooLarge
             | Self::Stopped
             | Self::Redirects
             | Self::BadRedirect(_)
-            | Self::BadRange => Miss::Answered(Fault::Other),
+            | Self::BadRange
+            | Self::PastEnd(_) => Miss::Answered(Fault::Other),
         }
     }
 }
 
-/// Windows' own test of its internet connection (its network icon asks the
-/// same address): a site that is always up, plain HTTP, a few bytes.
-const PROBE: &str = "http://www.msftconnecttest.com/connecttest.txt";
-
-/// After nothing of ours answered: whether a site that is always up does
-/// (any HTTP answer), within a few seconds. Asked once, only then.
-pub fn probe() -> Probe {
-    let Some(url) = url::patch(PROBE) else {
-        return Probe::Silent;
+/// After a failure: whether the server's site answers by `via`
+/// (`updater_logic::diagnosis`), within a few seconds: its public counts,
+/// which the game server behind it gives; a 502, 503 or 504 is its proxy
+/// saying that server is down. `None` by the relay without one for `url`.
+pub fn reach(url: &Url, via: Via) -> Option<Reach> {
+    let proxy = match via {
+        Via::Direct => None,
+        Via::Relay => Some(relay_proxy(url)?),
     };
-    let Ok(session) = open_session() else {
-        return Probe::Silent;
+    let Ok(session) = open_session(Patience::Question) else {
+        return Some(Reach::Silent);
     };
-    unsafe {
-        WinHttpSetTimeouts(session.0, 5_000, 5_000, 5_000, 5_000);
-    }
-    match ask(&session, &url, &url.prefix, 0) {
-        Ok(_) => Probe::Answered,
-        Err(_) => Probe::Silent,
-    }
+    let mut path = String::from(&*url.prefix);
+    path.push_str("/api/stats");
+    Some(match ask_via(&session, url, &path, 0, proxy.as_deref()) {
+        Ok(answer) if matches!(answer.status, 502..=504) => Reach::Restarting,
+        Ok(_) => Reach::Up,
+        Err(_) => Reach::Silent,
+    })
 }
 
-/// What a download slower than `download::MIN_SPEED` over a stretch of
-/// `download::SLOW_WINDOW_MS` does.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Slow {
-    /// Goes on: no other address would give the file (the last of a list's,
-    /// and every download of one address).
-    Wait,
-    /// Ends with `HttpError::Slow`: another address may do better.
-    Leave,
+/// The relay's CONNECT service, for this installation's HTTPS site only.
+fn relay_proxy(url: &Url) -> Option<String> {
+    crate::play::config().ok().flatten().filter(|config| {
+        url.secure && url.port == 443
+            && config.direct.host().eq_ignore_ascii_case(&url.host)
+    }).map(|config| alloc::format!("{}:8080", config.relay.host()))
 }
 
 /// Where a file's body goes: `sink(at, chunk)`, `chunk` the file's bytes
@@ -224,7 +232,7 @@ pub fn get_stream(
     sink: &mut dyn FnMut(&[u8]) -> Result<(), HttpError>,
     progress: &mut dyn FnMut(u64, Option<u64>) -> bool,
 ) -> Result<(), HttpError> {
-    let session = open_session()?;
+    let session = open_session(Patience::Download)?;
     let mut full_path = String::from(&*url.prefix);
     full_path.push_str(path);
     let answer = ask(&session, url, &full_path, 0)?;
@@ -235,7 +243,6 @@ pub fn get_stream(
         &answer.request,
         0,
         limit,
-        Slow::Wait,
         &mut |_, chunk| sink(chunk),
         progress,
     )
@@ -254,17 +261,16 @@ pub fn get_stream(
 /// part) is the whole file again, from byte 0. `sink(at, chunk)`: `chunk`
 /// is the file's from byte `at`. `progress(done, total)`: the file's bytes
 /// up to here, of its size when the answer says it. `limit`: the most bytes
-/// the file may have; `slow`: whether a slow download ends.
+/// the file may have.
 pub fn get_file(
     url: &Url,
     from: u64,
     limit: u64,
-    slow: Slow,
     hop: &mut dyn FnMut(&str),
     sink: &mut Sink,
     progress: &mut dyn FnMut(u64, Option<u64>) -> bool,
 ) -> Result<(), HttpError> {
-    let session = open_session()?;
+    let session = open_session(Patience::Download)?;
     let mut url = url.clone();
     let mut redirects = 0;
     let answer = loop {
@@ -289,17 +295,16 @@ pub fn get_file(
         hop(&text);
         url = next;
     };
-    let at = match answer.status {
-        200 => 0,
-        206 if from > 0 => {
-            text_header(&answer.request, WINHTTP_QUERY_CONTENT_RANGE, 128)
-                .and_then(|range| download::range_start(&range))
-                .filter(|&start| start == from)
-                .ok_or(HttpError::BadRange)?;
-            from
+    let range = matches!(answer.status, 206 | 416)
+        .then(|| text_header(&answer.request, WINHTTP_QUERY_CONTENT_RANGE, 128))
+        .flatten();
+    let at = download::body_start(from, answer.status, range.as_deref()).map_err(|refused| {
+        match refused {
+            Refused::Status(status) => HttpError::Status(status),
+            Refused::BadRange => HttpError::BadRange,
+            Refused::PastEnd(size) => HttpError::PastEnd(size),
         }
-        status => return Err(HttpError::Status(status)),
-    };
+    })?;
     if text_header(&answer.request, WINHTTP_QUERY_CONTENT_TYPE, 256).is_some_and(|kind| {
         kind.trim_start()
             .get(..9)
@@ -311,7 +316,6 @@ pub fn get_file(
             &answer.request,
             0,
             u64::MAX,
-            Slow::Wait,
             &mut |_, chunk| {
                 page.extend_from_slice(chunk);
                 if page.len() >= PAGE_HEAD {
@@ -325,26 +329,133 @@ pub fn get_file(
         let read = page.len() as u64;
         return Err(HttpError::Html(download::title(&page), read));
     }
-    receive(&answer.request, at, limit, slow, sink, progress)
+    receive(&answer.request, at, limit, sink, progress)
+}
+
+/// What a download into a file did ([`get_file_into`]).
+pub struct Saved {
+    /// The address's answer: `Ok` once its body came whole.
+    pub result: Result<(), HttpError>,
+    /// The bytes of it received (of a web page, those read for its title).
+    pub received: u64,
+    /// Where the file's bytes end now.
+    pub end: u64,
+}
+
+/// The file of a download could not be written or flushed.
+pub enum DiskError {
+    Write(Code),
+    Flush(Code),
+}
+
+/// What [`get_file_into`]'s sink calls a write that failed, to tell it
+/// from the network's.
+const WRITE_STEP: &str = "write the download";
+
+/// [`get_file`] into `file`, opened with `from` bytes of the file in it
+/// and at their end (`win::File::download`): a `206` from byte `from` is
+/// appended, a `200` is the whole file again from byte 0 (what was there is
+/// cut first). The file is flushed at the end, unless told to stop. The
+/// game's archive and the patches download so: what one address gave, the
+/// next goes on from, this run or the next.
+pub fn get_file_into(
+    file: &win::File,
+    url: &Url,
+    from: u64,
+    limit: u64,
+    hop: &mut dyn FnMut(&str),
+    progress: &mut dyn FnMut(u64, Option<u64>) -> bool,
+) -> Result<Saved, DiskError> {
+    let mut end = from;
+    let mut received = 0_u64;
+    let result = get_file(
+        url,
+        from,
+        limit,
+        hop,
+        &mut |at, chunk| {
+            if at != end {
+                file.cut(at).map_err(|code| HttpError::Network(WRITE_STEP, code))?;
+                end = at;
+            }
+            file.write(chunk)
+                .map_err(|code| HttpError::Network(WRITE_STEP, code))?;
+            end += chunk.len() as u64;
+            received += chunk.len() as u64;
+            Ok(())
+        },
+        progress,
+    );
+    match result {
+        Err(HttpError::Network(WRITE_STEP, code)) => return Err(DiskError::Write(code)),
+        Err(HttpError::Stopped) => {}
+        _ => file.flush().map_err(DiskError::Flush)?,
+    }
+    if let Err(HttpError::Html(_, read)) = &result {
+        received = *read;
+    }
+    Ok(Saved {
+        result,
+        received,
+        end,
+    })
+}
+
+/// How long a step of a request may take: name lookup, connect, send,
+/// receive, in milliseconds.
+#[derive(Clone, Copy)]
+enum Patience {
+    Download,
+    /// A question after a failure (`reach`): a few seconds.
+    Question,
+}
+
+impl Patience {
+    fn timeouts(self) -> [i32; 4] {
+        match self {
+            Self::Download => [10_000, 10_000, 30_000, 30_000],
+            Self::Question => [5_000; 4],
+        }
+    }
 }
 
 /// The WinHTTP session of one download: no step waits longer than its
 /// timeouts; TLS 1.2 and newer.
-fn open_session() -> Result<Internet, HttpError> {
+struct Session {
+    handle: Internet,
+    patience: Patience,
+}
+
+fn open_session(patience: Patience) -> Result<Session, HttpError> {
+    Ok(Session {
+        handle: open_handle(patience, None)?,
+        patience,
+    })
+}
+
+/// `proxy`: the relay's CONNECT service (`host:port`), every request of the
+/// session through it. The session's own proxy and not a request's option
+/// (`WINHTTP_OPTION_PROXY`): Wine 11 takes that option and ignores it, so a
+/// request "through the relay" went directly there.
+fn open_handle(patience: Patience, proxy: Option<&str>) -> Result<Internet, HttpError> {
     let agent = wide("SkhidUpdater/1");
+    let proxy = proxy.map(wide);
     let session = unsafe {
         WinHttpOpen(
             agent.as_ptr(),
-            WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
-            null(),
+            match proxy {
+                Some(_) => WINHTTP_ACCESS_TYPE_NAMED_PROXY,
+                None => WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+            },
+            proxy.as_ref().map_or(null(), |name| name.as_ptr()),
             null(),
             0,
         )
     };
     let session = handle(session, "start")?;
+    let [resolve, connect, send, receive] = patience.timeouts();
     unsafe {
-        // Name lookup, connect, send, receive: no step waits longer.
-        WinHttpSetTimeouts(session.0, 10_000, 10_000, 30_000, 30_000);
+        WinHttpSetTimeouts(session.0, resolve, connect, send, receive);
     }
     // TLS 1.2 and newer; a Windows that does not know 1.3 takes 1.2 alone,
     // and one that refuses both keeps its own default.
@@ -366,23 +477,28 @@ fn open_session() -> Result<Internet, HttpError> {
 struct Answer {
     request: Internet,
     status: u32,
-    // After `request`: a request is closed before its connection.
+    // After `request`: a request is closed before its connection, and that
+    // before the session made for it (the relay's).
     _connection: Internet,
+    _relayed: Option<Internet>,
 }
 
 /// GET `full_path` of `url`'s host, from byte `from` on when it is not 0
 /// (`Range`): the answer's status and headers.
-fn ask(session: &Internet, url: &Url, full_path: &str, from: u64) -> Result<Answer, HttpError> {
+fn ask(session: &Session, url: &Url, full_path: &str, from: u64) -> Result<Answer, HttpError> {
     // Only this installation's HTTPS site can use the fixed-origin CONNECT
     // service. TLS still authenticates the original hostname end to end.
+    // The player's route says which way: the relay or direct alone, or
+    // (Automatic) the one that answered last, then the other.
     #[derive(Clone, Copy)]
     enum Preferred { Direct, Relay }
     static PREFERRED: std::sync::Mutex<Preferred> = std::sync::Mutex::new(Preferred::Direct);
-    let proxy = crate::play::config().ok().flatten().filter(|config| {
-        url.secure && url.port == 443
-            && config.direct.host().eq_ignore_ascii_case(&url.host)
-    }).map(|config| format!("{}:8080", config.relay.host()));
-    let Some(proxy) = proxy else { return ask_via(session, url, full_path, from, None); };
+    let Some(proxy) = relay_proxy(url) else { return ask_via(session, url, full_path, from, None); };
+    match crate::route::choice() {
+        Choice::Direct => return ask_via(session, url, full_path, from, None),
+        Choice::Relay => return ask_via(session, url, full_path, from, Some(&proxy)),
+        Choice::Automatic => {}
+    }
     let preferred = *PREFERRED.lock().unwrap_or_else(|e| e.into_inner());
     let (first, second) = match preferred {
         Preferred::Direct => (None, Some(proxy.as_str())),
@@ -403,9 +519,12 @@ fn ask(session: &Internet, url: &Url, full_path: &str, from: u64) -> Result<Answ
     }
 }
 
-fn ask_via(session: &Internet, url: &Url, full_path: &str, from: u64, proxy: Option<&str>) -> Result<Answer, HttpError> {
+fn ask_via(session: &Session, url: &Url, full_path: &str, from: u64, proxy: Option<&str>) -> Result<Answer, HttpError> {
+    // Through the relay: a session of its own, as patient as the caller's.
+    let relayed = proxy.map(|proxy| open_handle(session.patience, Some(proxy))).transpose()?;
+    let through = relayed.as_ref().unwrap_or(&session.handle);
     let connection = handle(
-        unsafe { WinHttpConnect(session.0, wide(&url.host).as_ptr(), url.port, 0) },
+        unsafe { WinHttpConnect(through.0, wide(&url.host).as_ptr(), url.port, 0) },
         "connect",
     )?;
     let flags = WINHTTP_FLAG_BYPASS_PROXY_CACHE | if url.secure { WINHTTP_FLAG_SECURE } else { 0 };
@@ -423,20 +542,6 @@ fn ask_via(session: &Internet, url: &Url, full_path: &str, from: u64, proxy: Opt
         },
         "request",
     )?;
-    if let Some(proxy) = proxy {
-        let mut name = wide(proxy);
-        let mut info = WINHTTP_PROXY_INFO {
-            dwAccessType: WINHTTP_ACCESS_TYPE_NAMED_PROXY,
-            lpszProxy: name.as_mut_ptr(),
-            lpszProxyBypass: null_mut(),
-        };
-        // The option copies the strings. No certificate flags are changed.
-        if unsafe { WinHttpSetOption(request.0, WINHTTP_OPTION_PROXY,
-            (&mut info as *mut WINHTTP_PROXY_INFO).cast(),
-            core::mem::size_of::<WINHTTP_PROXY_INFO>() as u32) } == 0 {
-            return Err(HttpError::Network("relay proxy", last_error()));
-        }
-    }
     // WinHTTP follows no redirect itself (`get_file` follows a patch's,
     // checking each address), and no cookie is kept or sent.
     if !set_option(
@@ -471,6 +576,7 @@ fn ask_via(session: &Internet, url: &Url, full_path: &str, from: u64, proxy: Opt
         request,
         status,
         _connection: connection,
+        _relayed: relayed,
     })
 }
 
@@ -492,13 +598,11 @@ fn text_header(request: &Internet, which: u32, limit: usize) -> Option<String> {
     (ok != 0).then(|| from_wide(&text[..(size as usize / 2).min(text.len())]))
 }
 
-/// The body of the answer, the file's from byte `at`, into `sink`; with
-/// [`Slow::Leave`] a stretch slower than `download::MIN_SPEED` ends it.
+/// The body of the answer, the file's from byte `at`, into `sink`.
 fn receive(
     request: &Internet,
     at: u64,
     limit: u64,
-    slow: Slow,
     sink: &mut Sink,
     progress: &mut dyn FnMut(u64, Option<u64>) -> bool,
 ) -> Result<(), HttpError> {
@@ -508,16 +612,10 @@ fn receive(
         return Err(HttpError::TooLarge);
     }
     let mut received = 0_u64;
-    let mut speed = Speed::new(win::ticks(), 0);
     let mut buffer = alloc::vec![0_u8; 64 * 1024];
     loop {
         if !progress(at + received, total) {
             return Err(HttpError::Stopped);
-        }
-        if slow == Slow::Leave
-            && let Some(speed) = speed.slow(win::ticks(), received)
-        {
-            return Err(HttpError::Slow(speed));
         }
         let mut read = 0_u32;
         let ok = unsafe {

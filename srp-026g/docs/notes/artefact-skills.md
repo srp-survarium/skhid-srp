@@ -28,6 +28,7 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 | 4 | 15 | 531 | Spring II | 1 | Spring: reload +5% passive, +15% active | exe (patch 54's Spring) |
 | 4 | 15 | 532 | Onyx II | 1 | no fall damage while Onyx is active | exe (patch 54's Onyx) |
 | 4 | 15 | 533 | Larkspur II | 1 | activation restores all energy | exe |
+| 4 | 15 | 534 | Courier | 1 | at a respawn into another kit, the dead kit's artefacts come along | exe |
 | 5 | 20 | 541 | Resonance | 1 | passives shared, 9 m; or Cascade | exe |
 | 5 | 20 | 542 | Cascade | 1 | actives shared, 6 m; or Resonance | exe |
 
@@ -40,15 +41,15 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 | - Q R - |    Quick Hands, Resistance
 | - - K S |    Knowledge of Artifacts, Artifact Sight
 | F P A - |    Forest Protection, Keeper of the Artifacts, Artifact Container
-| S O L - |    Spring II, Onyx II, Larkspur II
+| S O L C |    Spring II, Onyx II, Larkspur II, Courier
 | - N X - |    Resonance or Cascade (antiskills of each other)
 ```
 
-- Points (25 ranks in all; one of Resonance and Cascade): row I holds 8, rows I-II 14, rows
-  I-III 20, rows I-IV 23, a full build 24. Without Forest Protection rows I-IV hold 19: row V
-  needs at least one of its ranks.
+- Points (26 ranks in all; one of Resonance and Cascade): row I holds 8, rows I-II 14, rows
+  I-III 20, rows I-IV 24, a full build 25. Without Forest Protection rows I-IV hold 20: row V
+  opens without it.
 - Thresholds 0/5/10/15/17 (the owner, 2026-11-14: row V at 17; the stock 0/5/10/15/20 from
-  2026-11-07): every row opens (row I holds 8 for 5; rows I-IV hold 23 for 17, 19 without Forest
+  2026-11-07): every row opens (row I holds 8 for 5; rows I-IV hold 24 for 17, 20 without Forest
   Protection).
 - Quick Hands: 3 ranks of -8% search time (max -24%; the owner, 2026-11-09, "should be 3", with
   more a rank; 4 of -6% from 2026-11-07, the saved ranks past 3 settled and refunded). Resistance: 5 ranks
@@ -67,7 +68,7 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   in the patch); invalid (fractional, negative, too large, a rank past its levels) is no
   artefact skill at all. Bits: 0..2 Resistance (0..5), 3 Keeper, 4 Resonance, 5 Spring II,
   6 Onyx II, 7 Larkspur II, 8 Cascade, 9..11 Keeper's draw, 12 Artifact Sight, 13 a late
-  joiner's kit (srp's mark, not a skill: Keeper below).
+  joiner's kit (srp's mark, not a skill: Keeper below), 14 Courier.
 - Modifier 40 evidence (the exact 0.26g exe, 2026-11-05): all 94 calls of `apply_modifier` and
   its wrapper 0x2D5B80 resolve to an index, none 40; `artefact_power_modifier` is referenced
   only by the two name tables (0x9284E8, 0x9C9C88); no other config, edit list or code
@@ -76,7 +77,7 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   40 of every kit of every player, bots too, with the skill or not (bits 9..11: the kind's draw,
   1 Larkspur, 2 Onyx, 3 Spring; 4 the Sponge once it is on main; 0 none), so every game knows it
   from the static info. The parser takes 1..6; a draw past the kinds gives nothing.
-- Bit 14 and above: nothing (a payload with one is refused).
+- Bit 15 and above: nothing (a payload with one is refused).
 
 ## Quick Hands (501)
 
@@ -181,6 +182,20 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   `up`, `body`, `left_hend`, `right_hend`) have their Rate (curve and data source) and
   MaxParticles (rounded up) x1.5 (`SMOKE_THICKER`); colours, sizes, the rays and the twin as @12.
   `check_forest` allows exactly that factor.
+- Since @15 (the owner, 2026-11-22: the carrier saw only the rays, the smoke should show in the
+  first person too, "so the person knows they are protected"; @14 is the open #1586's): the
+  first-person twin plays the smoke emitters as well as the rays (FOREST_FIRST_PERSON), still
+  without `up_light` and `distortion`, the smoke's Rate (curve and data source) and MaxParticles
+  (rounded up) three quarters of the third person's (`FIRST_PERSON_SMOKE`, nine eighths of the
+  stock rate: about 191 live puffs, 6 body strokes, 5 a hand). Tried in game by the owner,
+  2026-11-22: a third, then "can also be a tiny bit more"; a half, then "make it a bit more visible
+  still (usually you are already in smoke when this is active, so it is hard to see your hands
+  exuding smoke)". view_cone.py: `up`'s puffs reach the view's axis in both poses, `body` 4
+  degrees from it at the hip, the hand strokes 25..34 degrees at the hip; aimed, all of them (and
+  the rays) reach it. A rough estimate (discs of the particles' sizes, half opaque, fading over
+  their life): at the hip about 7 % of the view, the centre clear; aimed, some smoke over about
+  seven tenths of the 15-degree centre (a mean opacity of about a third there), against about
+  nine tenths at the third person's rate. `check_forest` allows exactly that twin.
 
 ## Artifact Container (522)
 
@@ -196,6 +211,232 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 - Spending or refunding it goes through srp's skill change (`Account::change_skills`, the kit
   layout of `loadouts::KitLayout`): the item of the pocket the skill takes away comes off every
   kit and preset, as for Deep Pockets.
+
+### The slot a pocket again, by kit
+
+The owner (2026-11-22): "if I use additional container skill, I should be able to click on that
+artifact slot to turn it back into equipment slot", and "it should have yelow contours".
+
+The same for the two skills that close the second weapon slot for a pocket (the owner,
+2026-11-22: "can we do that for another perk which blocks a weapon but gives you item slot, we
+have 2 of those", "essentially we already have red icon there"): Deep Pockets (stock 113) and
+Supply Pocket (medical 331), each `pocket_slots` +1 and `disable_second_weapon` 1 (Supply Pocket
+also its medical bit 16, which nothing reads). They exclude each other, so a kit has one at most;
+either is one perk here. Artifact Container and one of them may be held together: each kit
+chooses each.
+
+- **The choice is a kit's, a perk each** (`SlotPerk` of `survarium::v026g::loadouts`:
+  `ArtifactContainer`, `WeaponPocket`; `PerkSlot`: `Taken`, the default, or `Declined`;
+  `Kit::perks`, `KitPerks`). A kit that declines a perk carries the skills' modifiers without its
+  skill's (`Account::kit_modifiers`): its block is a kit's without the skill, so the game reads one pocket more and one container less, in the lobby and in a match
+  alike, with no exe change (the lobby's and the match's counts are apply_kit_parameter's of the
+  kit's own block, `MatchProfile` takes the account body's). Fixed when the kit is saved; nothing
+  changes in a match. Not a change of what a match computes (no `next` row: such a kit is a kit
+  without the skill), and the world format is as it was (the artefact slots' count is already the
+  kit's). Declining the weapon perk opens the second weapon slot the same way: the kit's
+  `disable_second_weapon` is 0, so the server's carry rule (`KitLayout`), the match's (patch 85)
+  and the lobby's slot all let a second weapon in; the lobby's own word on it
+  (`root.enable_second_weapon`, fill_char_info 0x2247D5) is the account's skills, not the kit's,
+  so the movie opens the slot itself for a kit that declines the perk.
+- **A preset's kit keeps its own** (the owner's pick of 2026-11-22: a preset is its kits;
+  `Preset::perks`, `g26_preset_declined`, a row a declined perk), put on with it. Kits:
+  `g26_kits.declined`, the declined perks as bits (bit `SlotPerk::index`; step 24 made it of step
+  23's `container`).
+- **Every kit of before takes every perk**, so nobody's kits change until he clicks. Without a
+  perk's skill every kit and preset kit takes it again (`change_skills`, and the repair at load), so
+  the skill learned again starts so.
+- **Each perk owns its place, in one order** (the owner, 2026-11-22: "two skills badly interact
+  with one another", "the additional pocket that we get should never be switchable to art
+  container", "[free pockets - 1] [additional pocket] [free pocket for switching with artis]", then
+  the added pocket declined stays in its place, blocked, and the container's slot stays last;
+  `KitPockets` and `PocketRole` of `survarium::v026g::loadouts`, `Account::kit_pockets`): the
+  quick places are the base pockets (the gear's and the other skills') but the last, then the
+  weapon perk's added pocket while the account has the skill (`Added(Taken)` open,
+  `Added(Declined)` blocked, never a container), then the last base pocket, Artifact Container's
+  (`Switched(Taken)` the container, `Switched(Declined)` a pocket).
+  - **The game** opens its first `pockets` quick slots as pockets and the containers after them,
+    with no place between, so `KitPockets::slots` is the same order without the blocked pocket:
+    a kit that declines the weapon perk has a pocket fewer in a match (the kit's modifiers without
+    the skill's), the container its first slot past the pockets, and no slot nobody may use
+    (`each_perk_switches_its_own_slot`). A match's inventory shows the container's pocket or the
+    container right after the base pockets (the stock HUD knows nothing of the blocked one; no exe
+    or HUD change).
+  - **The lobby** (`KitPockets::places`) shows the blocked pocket in its place: the first quick
+    slot past the pockets and containers, locked in red, is drawn before Artifact Container's slot
+    (`LocalPaperDoll.arrange` moves the slots' places, not their items; each keeps its profile
+    slot), while one of the six places is free.
+  - Each role keeps its item (`KitPockets::moved`, at a switch and at a skill learned or refunded):
+    the added pocket blocked loses its item; Artifact Container's slot keeps its own, last in the
+    lobby. Gear that changes the base pockets moves nothing (the pockets are places, as ever).
+- **What the slot held:** the container holds nothing in the lobby, so it opens as an empty
+  pocket. The pocket made the container again: its item comes off the kit and stays owned, as any
+  pocket that goes (`KitLayout::kept`); the server never saves an item in a container. The weapon
+  perk declined: the added pocket's item off the kit (owned); taken again: the second weapon comes
+  off the kit (owned), as when the skill is learned.
+- **Wire** (`lobby.md` §2.16.4): `2 090 000 020 + kit × 10 + perk × 2 + state` asks it (perk 0
+  Artifact Container: 1 the container, 2 the pocket; perk 1 the weapon perk: 3 the pocket, 4 the
+  second weapon), refused without the skill, in a match or on the way to one; answered with the
+  account (when the kit changed), then the presets list, whose header names the request it answers
+  (`done` 3 made, or so already, 4 refused; `preset` the request's `kit × 10 + perk × 2 + state`,
+  `PresetDone::PerkSet`, `PerkRefused`) and whose `K;<kit id>:<container>:<weapon>,...` row says
+  every kit's (each 0 without the skill, 1 taken, 2 declined). The movie asks for the list at every
+  account it is given, so learning, refunding or a preset chosen redraws it; such a list answers no
+  click.
+- **The lobby** (`PerkSlotMark`, `LocalPaperDoll`): with the skill, the slot has a soft edge
+  of the lobby's yellow (`RoomsLook.YELLOW`, 0xFFD23F; the owner, "it should have yelow
+  contours", then of the flat 2 px border: "can it be more beatiful not just yellow border"; he
+  picked the soft edge of three looks, 2026-11-22), over the slot's own look (the locked
+  "Artifact", or the pocket with or without its item), on the first container as the container
+  and on the last pocket as the pocket:
+  - a 1 px line all round at half strength (`RoomsLook.YELLOW_HALF`, 0.5);
+  - the yellow glowing into the slot from it (`RoomsLook.YELLOW_GLOW`, 0.16, to nothing): all
+    round, a ninth of the slot's short side deep, as the container; from the bottom up, half the
+    slot's height, as the pocket. So the two states tell apart at a glance: a glowing box, a
+    pocket lit from its bottom;
+  - on the hover the line goes to the full yellow and the glow doubles;
+  - the glow is drawn as gradients, not a GlowFilter (Scaleform renders a filtered object into a
+    bitmap of its own at every change of its alpha, each frame of a fade).
+- **The weapon perk in the lobby** (the owner, 2026-11-22: "when slot is added, it should be
+  yellow, clicking on it, unblocks the weapon slot (it becomes yellow) but blocks teh slot
+  (becomes red as in when item is blocked)"):
+  - taken (the default): the pocket it adds (before Artifact Container's, else the last) has the
+    yellow soft edge (glowing from the bottom, a pocket's); the second weapon slot shows the red
+    lock it always had
+    (`SlotLock`, the skills' `SkillLockSpriteRed`; its tip "Deep Pockets — Right-click: second
+    weapon", `st_srp_loadout_slot_to_weapon`);
+  - declined: the second weapon slot is open and has the yellow soft edge (all round); the pocket
+    is closed with the same red lock, in its place (before Artifact Container's slot; without
+    it, the next quick place after the pockets and containers), its tip "Deep Pockets — Right-click:
+    pocket";
+  - a right click on either red lock switches (its slot is empty); a right click on the yellow
+    pocket switches while it holds nothing (on an item it opens the item's menu, as on any slot);
+    a right click on the open second weapon slot takes the pocket again while it is empty (the
+    owner, 2026-11-22: "rmb on Deep pocket enabled weapon doesn't switch"; with the switch on the
+    right button the shop's left click is untouched); holding a weapon, a right click is the
+    weapon's menu, as in the stock game, and the red pocket switches (the weapon goes back, with
+    the sound and the shake).
+  - **The red lock is in the slot's centre**, where the stock game draws it, over the stock label
+    as there (the owner, 2026-11-23, after a build that moved it clear of "Weapon": "lock icon is
+    no longer centered now").
+  - **Each mark on its perk's own place**, by srp's order (`LocalPaperDoll.placeMarks`, the same
+    rule as `KitPockets`): Artifact Container's on the last pocket or the container after the
+    pockets, last; the weapon perk's yellow on the pocket before it (the last pocket without it),
+    its red pocket in the same place (with Artifact Container's slot, the red pocket is drawn
+    before it; without, it is the first free place after the pockets and containers). With both
+    perks each has its own place, and a switch closes its own slot only (the review of #2476 found
+    a mark on another pocket than the one srp closes; the owner then found the added pocket
+    switching to the container). The shake of a place goes with the place, whichever slot is
+    shown there once the slots are arranged again.
+  - **A switch that sends an item back** (a red lock pressed while the yellow slot holds one; the
+    owner, 2026-11-22: keep it so, "i wish there was some good sound design to say that, or maybe
+    some shaking"): the item comes off the kit (it stays owned), the lobby plays the game's own
+    sound of an item taken (`gameplay/ui_sounds` 14, `ammo_pick_up`, `UiSound.AMMO_PICK_UP`; the
+    movie plays nothing when an item is unequipped, and the stock list has no other sound of an
+    item moved) in place of the click, and the slot it left shakes: sideways, 4 px, three swings
+    fading out over 260 ms, on the movie's frames (`LocalPaperDoll.onShake`), then the slots are
+    drawn again where they rest. The sound and the shake follow the slot the switch closes (the
+    last pocket, or the second weapon slot: `PerkSlotMark.closing`), whichever mark was pressed:
+    a red lock pressed while the last pocket holds an item, whoever's mark is on it. A right click
+    on Artifact Container's own pocket switches only while it is empty, so it sends nothing back
+    (`PerkSlotMark.DISPLACED`).
+- **The switch is the right mouse button** (the owner, 2026-11-22: "lets make it so rmb switches
+  not lmb"), on every perk's slot and red lock: the left click does what the slot always did (the
+  shop's filter, an item chosen, a drag). The lobby takes a right click on a slot only for the
+  menu of the item in it (`LocalPaperDoll.onMouseItemClick`, Scaleform's `MouseEventEx.buttonIdx`
+  of the click the exe hands the movie), and a slot that holds an item never switches, so the two
+  never meet.
+- **A switch is drawn whole, in one frame** (the owner, 2026-11-23: "there is some middle state
+  where clicking removes an old slot and adds a new one", "the operation is not atomic is how i
+  see it"; `PerkSwitch`, the profile's, one transition function from the event to the new state
+  and what to draw). A click asks srp and changes nothing on screen but the sound (and the shake
+  of an item sent back). srp answers with the kit's account (its counts and items), then the list
+  naming the click; while a switch is asked the kit's account is held, and the answer draws both
+  at once, srp's states told and the paper doll validated in the same call, so every frame is the
+  old kit or the new one. A refused switch draws the account held, if any, and srp's word (the old
+  state). Any other list meanwhile (one asked before, or at an account) changes nothing; no answer
+  in 3 s draws what is held. An account for another kit shown meanwhile ends the switch (its kit
+  is no longer drawn). The marks show srp's word only, never a guess; only the hover fades
+  (about 130 ms, on the movie's frames). Before (#2476's first builds), a click showed its look
+  at once and guessed the counts until the answer, and the stock slots, drawn from the exe's
+  counts as they came, went out of step with the marks for a moment: a mark over an empty place,
+  a slot gone blank for the 3 s hold.
+- **A kit comes whole, in one call** (exe patch 199, `client_patch.md` 3.104). The stock exe gives
+  the kit shown in two calls: `fill_player_profile_items` (the items), then
+  `update_profile_slots_count` (the counts, no kit named). Revision 72 drew the items at once, on
+  the counts of the kit shown before. A pocket that kit lacked, or had as a container, then sent
+  its item back (`PaperDollBase.handleQuickSlots`, `dropSlot`), and srp took it off the kit (bug
+  report 2026-11-23: the fourth pocket emptied going from a kit with fewer pockets to one with
+  more; the item stayed owned, in the inventory). Patch 199 puts the counts into the items' call
+  (`item_slots`, `artifact_slots`), which the stock profile opens the slots from, and makes no
+  counts' call.
+- **The paper doll asks nothing** (`LocalPaperDoll.closeQuickSlot`). It draws the kit it is
+  given; a quick slot that is no pocket only shows nothing. srp owns the kit: a move that takes
+  pockets away (a smaller backpack) leaves their items out (`keep_to_layout_after`), and so does a
+  perk switch (`set_perk_slot`). srp answers every move and switch with the account, so the next
+  kit shown already has it.
+- **The switch's hold stays** (`PerkSwitch`): srp answers a switch in two messages, the account
+  and then the list with the kit's perk states, and the marks need both. That gap is srp's two
+  messages, not the exe's two calls.
+- **One switch at a time** (the owner, 2026-11-22: "when I click too fast, 'fake' pocket on top
+  can appear for a moment", "there is data race there somewhere"): while a click is asked, a right
+  click on any perk's slot or red lock is not taken (nor while a slot shakes). srp itself handles a
+  client's requests in order and sends each switch's account before its list (lobby-server's
+  `a_kit_takes_or_declines_a_perks_slot`). The harness (`scripts/perk-slots`) records every frame
+  of each switch and fails on any frame that is neither the old drawing nor the new one (each
+  place's slot, its visibility and alpha, the marks and locks), with quick clicks, a list asked
+  before arriving between, a refused switch and another kit shown meanwhile.
+- **Its tip**, the game's tooltip above the slot, names the slot's skill (the owner, 2026-11-22:
+  "pop up helper messages even on items should say which skill this 'slot' corresponds to"), in
+  the game's own names (`st_srp_artefact_522_name`, `st_srp_deep_pockets_name`, the stock
+  `st_convert_weapon_slot_to_pocket_name`'s copy the lobby is handed, `st_srp_medical_331_name`):
+  on an empty slot and on a red lock, the skill and what a right click does ("Deep Pockets —
+  Right-click: second weapon", "Artifact Container — Right-click: pocket",
+  `st_srp_loadout_slot_to_pocket`, `_to_container`, `_to_weapon`); on a slot holding an item, the
+  item's own card beside it as ever and above the slot one line, "Slot: Deep Pockets"
+  (`st_srp_loadout_slot_skill`). A right click on the container makes it the
+  pocket; a right click on the empty pocket makes it the container; on the pocket holding an
+  item it is the item's, as any pocket's (the owner's pick of 2026-11-22: empty it first, so a stray
+  click never moves an item). One ask at a time. Checked in Ruffle:
+  `scripts/perk-slots/check.sh` (its zoom.png, Artifact Container's slot before and after; its
+  weapon.png, the weapon perk's slots before and after with their tips, a pocket holding an item
+  among them).
+
+```text
+ Container (default)              Pocket (after a click)
+ +-----------+ +-----------+      +-----------+ +-----------+
+ | medkit x2 | | RGD-5 x1  |      | medkit x2 | | RGD-5 x1  |
+ +-----------+ +-----------+      +-----------+ +-----------+
+ +-----------+ +-----------+      +-----------+ +-----------+
+ | bandage   | |:::::::::::|      | bandage   | |           |
+ |           | |: ARTIFACT:|      |           | |   ITEMS   |
+ |           | |:::::::::::|      |           | |:::::::::::|
+ +-----------+ +-----------+      +-----------+ +-----------+
+ the skill's slot: a thin yellow line, the glow (:) all round as the container, from the
+ bottom up as the pocket
+```
+
+```text
+ Both perks (the stock pockets, Deep Pockets, Artifact Container declined), then Deep Pockets
+ declined: the added pocket blocked in its place, the container's pocket last with its item
+ +------+ +------+ +------+        +------+ +------+ +------+
+ | base | |added | |contnr|        | base | |(lock)| |contnr|
+ |      | |::::::| |pocket|        |      | |      | |pocket|
+ +------+ +------+ +------+        +------+ +------+ +------+
+ in a match the same kit has two pockets: base, container's pocket
+```
+
+```text
+ Deep Pockets taken (default)     The second weapon (after a click)
+ +-----------+ +-----------+      +-----------+ +-----------+
+ | weapon    | |  (lock)   |      | weapon    | |:::::::::::|
+ |           | |  WEAPON   |      |           | |: WEAPON  :|
+ +-----------+ +-----------+      +-----------+ +-----------+
+ +-----------+ +-----------+      +-----------+ +-----------+
+ | medkit x2 | |   ITEMS   |      | medkit x2 | |  (lock)   |
+ |           | |:::::::::::|      |           | |   ITEMS   |
+ +-----------+ +-----------+      +-----------+ +-----------+
+ (lock) the red lock; (:) the yellow glow
+```
 
 ## Knowledge of Artifacts (512)
 
@@ -342,6 +583,64 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   `crates/mapdata/tests/artefact_keeper.rs` (the edit list against the table, the anomaly as a
   map object), `survarium::v026g::keeper` and the match-server test (the draw in every kit, a
   joiner's too; bit 13 for a joiner taken in process, none for one taken in the countdown).
+
+## Courier (534)
+
+- What it is for (the owner, 2026-11-21, from a player's report: the medical tree is stronger than
+  this one, since not every map has artefacts; Keeper helps, "but only in one kit"): with Keeper,
+  a player always has an artefact, whatever kit they play.
+- The rule (the owner, 2026-11-21): at a respawn into another kit, the artefacts of the kit the
+  player died in move into the new kit's empty containers, as many as fit; the rest stay in the
+  old kit. Any artefact, found or Keeper's ("this should not be just keeper, essentially any
+  artifacts move").
+- Only the kit just left gives (the owner's run, 2026-11-21): kit 1 with two artefacts dies into
+  kit 2 with no container: nothing moves; kit 2 dies into kit 3: nothing (kit 1's stay in kit 1);
+  kit 3 takes one and dies into kit 1, which has three containers: kit 1 holds three. Kit 1 with
+  two dies into kit 2 with one container: one moves, one stays in kit 1.
+- A respawn in the same kit moves nothing (the game keeps its artefacts: setup_from_profile's
+  on_taken switches their passives on again). The countdown's kit change moves nothing either:
+  only an artefact a death switched off (state 5) moves.
+- Row IV, column 4, 15 points, one rank: modifier 40 bit 14 (`artefact-skills-1.json`'s last
+  entry). Icon 0.69d0 anomaly/10 (a hooded figure holding an artefact close; my pick, first
+  chosen for the parked Hidden Stash, which would take another).
+- Where (exe patch 109, `artefact_courier.rs`, `vostok/courier.rs`): the respawn rule's spawn
+  (0x316DA0), every spawn of a match, the first too, in every game and every replay of its tick.
+  - `courier.spawn_kits` (0x316DDA, before `mov [eax+0Ch],dl` makes the chosen kit current): the
+    place's entry's +0Ch (the kit it was in) and +0Dh (the kit it spawns in); a change of kit is
+    kept for the end of this same call (nothing kept past it).
+  - `courier.spawned` (0x316EAB, the spawn's last pops): the new kit initialised (vtable+1Ch:
+    initialize clears its modifier lists, setup_from_profile sets its container range and links
+    its own artefacts) and in the world (vtable+20h). With the bit in the new kit, the old kit's
+    container artefacts in state 5 go, in container order, into the new kit's empty containers.
+  - The old kit's container range is gone by the spawn (PROVEN): the respawn rule's tick takes a
+    dead player still in the world out of it before its spawn (0x316999..0x3169A0: vtable+24h with
+    1, player::remove 0x1F2870 -> base_player::remove 0x2DA790), whose unload_to_profile 0x2FD2D0
+    ends with +168h 0 and +16Ch 0 (0x2FDBE8..0x2FDBF2); its slots keep their items, and the next
+    spawn in that kit sets the range again (0x2FD29F). So the old kit's artefacts are found in its
+    23 slots: an item of the world's registered artefacts (+18940h) whose owner and slot are that
+    slot's, in slot order (a range is a run of slots, so the containers' order). Revision 69 read
+    them through the cleared range and moved nothing, at every respawn into another kit (match
+    0xf62d810b, Chemical Plant, 2026-11-22: place 10's static info has bit 14 (22509), its Spring
+    in kit 0 slot 16 went to state 5 at the death at 210 s and stayed there in every world after
+    the respawn into kit 1 at 218 s; no `courier:` line in the owner's log).
+- The move (`Inventory::take_from_dead_kit`): the old slot emptied as remove_item (0x2FC680) does
+  but without on_removed (vtable+34h, 0x313490): the death already unlinked the passive
+  (artefact_base::tick 0x3132E5: vtable+84h, then state 5, for an amount above 0, 0x2FFDD0; an
+  artefact whose amount reaches 0 is removed from its container by end_active 0x31359B..0x3135A9,
+  so every artefact a container holds goes there), and a second unlink is not harmless (Spring's
+  vostok::intrusive_list::unlink 0x2D5D00 on a node no longer linked empties its list's head).
+  So: owner 0, slot 23, state 0 (as on_removed leaves it), the slot and its reference released,
+  the old kit's weight to recalculate; then the game's own take_artefact (as a pickup: set_item,
+  on_taken links the passive, state 3). A free container keeps take_artefact off its eviction.
+- What a world carries is unchanged: a moved artefact's record is its owner (place, kit) and slot,
+  as after any pickup; `keeper::reconcile` keeps every kit's slots the world's after a load.
+- Changes what a match computes: a `next` row of `simulation_changes.tsv`.
+- Check: `client-patches/check_artefact_courier_026g.py` (Unicorn on the built exe: the owner's two
+  runs through the game's take_artefact, on_holder_death, artefact_base::tick, the dead kit's
+  unload_to_profile before each spawn (as the respawn rule's tick removes it) and the spawn's two
+  sites; each moved artefact in its new container, state 3, unlinked once and linked once; nothing
+  without the bit, in the same kit, or from another place; it fails on revision 69's build) and
+  `artefact_courier`'s tests.
 
 ## Spring II (531)
 
@@ -641,3 +940,5 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   kit objects of their own, Spring's every list and the stagger's slow, every kind's activation)
   fails on main at a Spring's activation at 3.5 m (nothing played). The radii raised to 9 m and
   6 m. Implemented and checked with Unicorn, not played, not released.
+- Courier (534, 2026-11-21): implemented and checked with Unicorn
+  (`check_artefact_courier_026g.py`, the owner's two runs); not played, not released.

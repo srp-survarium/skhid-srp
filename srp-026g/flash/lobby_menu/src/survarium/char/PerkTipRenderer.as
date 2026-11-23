@@ -36,23 +36,15 @@ package survarium.char
       
       override protected function invalidateData() : void
       {
-         trace("HINT::invalidateData",_data.resize);
          if(_data.description_2_string)
          {
             this.line.visible = true;
-            if(_data.resize)
-            {
-               this.textFieldProp.wordWrap = false;
-               this.textFieldProp.multiline = false;
-               this.textFieldProp.autoSize = TextFieldAutoSize.LEFT;
-            }
-            else
-            {
-               this.textFieldProp.width = 250;
-               this.textFieldProp.multiline = true;
-               this.textFieldProp.wordWrap = true;
-               this.textFieldProp.autoSize = TextFieldAutoSize.LEFT;
-            }
+            // Every skill's text wraps at the same width (stock kept a skill of several ranks on
+            // one line, which a long description ran across the screen).
+            this.textFieldProp.width = 250;
+            this.textFieldProp.multiline = true;
+            this.textFieldProp.wordWrap = true;
+            this.textFieldProp.autoSize = TextFieldAutoSize.LEFT;
             this.textFieldProp.text = _data.description_2_string;
          }
          else

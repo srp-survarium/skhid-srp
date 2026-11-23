@@ -165,6 +165,29 @@ fn a_genuinely_new_player_waits_for_resources_then_gets_a_post_barrier_snapshot(
     bench.assert_no_faults();
 }
 
+/// A newcomer whose account has face 2 (`face-choice.md`).
+fn faced(place: usize) -> MatchPlayer {
+    let mut player = player(place);
+    player.profile.face = survarium::v026g::faces::Faces::shared().face(2).unwrap();
+    player
+}
+
+#[test]
+fn a_newcomers_face_reaches_the_games_in_with_its_proposal_and_its_own_with_the_options() {
+    let mut bench = running();
+    let face = faced(0).profile.face;
+    let place = reserve_as(&mut bench, faced);
+    bench.clients[place].connect();
+    assert!(bench.until(1_000, |b| b.clients[place].model.options.is_some()));
+    let options = bench.clients[place].model.options.clone().unwrap();
+    assert_eq!(options.players[place].face, face);
+    bench.clients[place].ready();
+    assert!(bench.until(1_000, |b| !b.clients[1].prepares.is_empty()));
+    assert_eq!(bench.clients[1].prepares[0].profile.face, face);
+    assert!(bench.until(8_000, |b| b.stages() == "LLL"));
+    bench.assert_no_faults();
+}
+
 #[test]
 fn a_roster_grows_across_both_mask_boundaries_and_stops_at_twenty() {
     let mut bench = running();
@@ -1670,13 +1693,13 @@ fn a_newcomer_that_loads_again_gives_the_games_their_install_grace_again() {
     bench.assert_no_faults();
 }
 
-/// A room with a PIN's match (`MatchSetup::private`): its result says so,
+/// A room with a PIN's match (`MatchKind::PrivateRoom`): its result says so,
 /// a late joiner's place in it too, so the rewards pay none of them (the
 /// owner's of 2026-10-20).
 #[test]
 fn a_private_rooms_result_says_so_with_its_late_joiner() {
     let mut private = setup(2, MAP_BATTERIES);
-    private.private = true;
+    private.kind = session::v026g::match_kind::MatchKind::PrivateRoom;
     let mut bench = Bench::with_setup(private, Settings::default(), &[], &[], true);
     bench.join_all();
     bench.run_long(135_000);
@@ -1697,7 +1720,10 @@ fn a_private_rooms_result_says_so_with_its_late_joiner() {
 
     // Any other match's does not.
     let bench = Bench::growing(2, MAP_BATTERIES, Settings::default());
-    assert!(!bench.registry.formed(bench.match_id).unwrap().private);
+    assert_eq!(
+        bench.registry.formed(bench.match_id).unwrap().kind,
+        session::v026g::match_kind::MatchKind::Normal
+    );
 }
 
 #[test]

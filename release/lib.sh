@@ -180,6 +180,23 @@ http_get() {
     curl -sS --max-time "${HTTP_TIMEOUT:-600}" -o "$2" -w '%{http_code}' "$1" || true
 }
 
+# Whether a new patch also goes to Dropbox (release/dropbox-upload), by
+# release.env (load_env first): `on` with the account there (or an access
+# token given), `off` with SKHID_DROPBOX=off, said on purpose. Neither: it
+# was forgotten, nothing is printed, and upload-patch and release.sh stop
+# with DROPBOX_FORGOTTEN: a patch without its Dropbox address leaves the
+# players whose providers cut the patches server without the content.
+dropbox_setting() {
+    if [[ ${SKHID_DROPBOX:-} == off ]]; then
+        echo off
+    elif [[ -n ${SKHID_DROPBOX_TOKEN:-} ]] ||
+        [[ -n ${SKHID_DROPBOX_APP_KEY:-} && -n ${SKHID_DROPBOX_APP_SECRET:-} && -n ${SKHID_DROPBOX_REFRESH_TOKEN:-} ]]; then
+        echo on
+    fi
+}
+# shellcheck disable=SC2034 # used by the scripts that source this
+DROPBOX_FORGOTTEN="no Dropbox account in release.env: a new patch must go to Dropbox too. Set SKHID_DROPBOX_APP_KEY and SKHID_DROPBOX_APP_SECRET there and run release/dropbox-upload --login (once); or say SKHID_DROPBOX=off there to release without, on purpose"
+
 # The most URLs a patch may have (the players' updater takes up to 8).
 MAX_PATCH_URLS=8
 
@@ -399,12 +416,14 @@ python() {
 # Runs a script of the checkout <src>'s srp-026g/client-patches
 # (make_client_026g.py, patch_026g.py, ...) with the arguments after <src>,
 # in that checkout's dev shell: its python3, and the gcc, GNU ld and NASM
-# 2.16 the exe's arena is linked with (link_026g.py; the bytes must be
-# arena_026g.lock.json's). Nothing of this machine's PATH is needed but nix.
+# 2.16 the exe's arena is linked with (link_026g.py). Nothing of this
+# machine's PATH is needed but nix.
+# A release builds the arena's Rust from source (SRP_ARENA_CACHE=off): what
+# local builds keep of it (link_026g.py's cache) is not what players get.
 client_patches_python() {
     local src=$1
     shift
-    (cd "$src/srp-026g/client-patches" && nix develop "$src/srp-026g" -c python3 "$@")
+    (cd "$src/srp-026g/client-patches" && SRP_ARENA_CACHE=off nix develop "$src/srp-026g" -c python3 "$@")
 }
 
 # The exe patches' self-test (srp-026g/client-patches/selftest_026g.py) of
@@ -466,6 +485,25 @@ exe_revision() {
 # The revision of the exe in a ZIP (<scratch> holds it), or `unknown`.
 zip_revision() {
     if zip_extract "$1" "$ZIP_EXE" "$2"; then exe_revision "$2"; else printf 'unknown\n'; fi
+}
+
+# The SHA-256 of an exe's arena: the bytes of its `.srpx` (patch_026g.py's
+# add_arena), what link_026g.py and the self-test print of the arena they
+# link. Fails when the exe has no `.srpx`.
+exe_arena_sha256() {
+    python -I -c '
+import hashlib, struct, sys
+data = open(sys.argv[1], "rb").read()
+pe = struct.unpack_from("<I", data, 0x3C)[0]
+count, optional = struct.unpack_from("<H", data, pe + 6)[0], struct.unpack_from("<H", data, pe + 20)[0]
+for at in range(pe + 24 + optional, pe + 24 + optional + 40 * count, 40):
+    name, size, _, _, raw = struct.unpack_from("<8sIIII", data, at)
+    if name == b".srpx\0\0\0":
+        print(hashlib.sha256(data[raw:raw + size]).hexdigest())
+        break
+else:
+    sys.exit(f"{sys.argv[1]}: no .srpx")
+' "$1"
 }
 
 # The patches a players' survarium_skhid.exe requires at its start (patch 49,
@@ -596,8 +634,9 @@ on_patches() { ssh "$PATCHES_SSH" "$1" <"${2:-/dev/null}"; }
 # The offered-patch list (use_patches first), a committed file: one patch a
 # line, `<name> <sha256> <size> <urls>` with tabs between, in revision order;
 # `#` starts a comment. <urls> is the patch's URLs, one space apart, in the
-# order the players' updater tries them (Google Drive's first, the owner's
-# rule; the patches server's among them, always), 1 to 8, none twice. The server data is built of exactly these
+# order the players' updater tries them (Google Drive's, Dropbox's, the
+# patches server's, archive.org's: the owner's rule; the patches server's
+# among them, always), 1 to 8, none twice. The server data is built of exactly these
 # and /patches offers exactly these; a file on the patches server that is
 # not in it is offered to no one. And release/game.tsv ($GAME_LIST), the
 # row of the game's archive in the same form ($GAME_NAME, any host first):

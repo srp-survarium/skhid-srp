@@ -405,6 +405,7 @@ impl Core<'_> {
                 ..
             } => self.important(who, &target_name, kind, &text, now),
             M::Friendship(action) => self.friendship(who, &action, now),
+            M::RoomCreate(create) => self.room_create_text(who, create, now),
             M::Subscribe {
                 channel_ids,
                 language,
@@ -600,7 +601,9 @@ impl Core<'_> {
     /// (`lobby::presets::PRESETS_FIRST` to `PRESETS_LAST`) with the kit
     /// presets (`presets`), a lobby pick (`lobby::lobby_pick::LOBBY_PICK_BASE`
     /// and its id: kept, shown back in `0xA1`), the shop's "Hide owned" box
-    /// (`lobby::shop_filter::SHOP_FILTER_FIRST` and the next two: `shop`);
+    /// (`lobby::shop_filter::SHOP_FILTER_FIRST` and the next two: `shop`),
+    /// a faces start (`lobby::faces::FACES_FIRST` to `FACES_LAST`) with the
+    /// face (`faces`);
     /// any other gets no answer.
     /// Nothing of the ranking is read, sent or kept for them.
     fn reserved_ranking(&mut self, who: &Who, start: u32, count: u8, now: Instant) {
@@ -614,6 +617,12 @@ impl Core<'_> {
         }
         if let Some(request) = lobby::presets::preset_request(start) {
             self.preset_request(who, request);
+            return;
+        }
+        if let Some(request) =
+            lobby::faces::face_request(start, survarium::v026g::faces::Faces::shared())
+        {
+            self.face_request(who, request);
             return;
         }
         if let Some(request) = lobby::rooms::room_request(start, count) {

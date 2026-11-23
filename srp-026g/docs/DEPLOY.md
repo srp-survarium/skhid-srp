@@ -267,7 +267,7 @@ login or an admin token, with `Content-Type: application/json` and
 `Cache-Control: no-store`. For example (illustrative counts):
 
 ```json
-{"online":12,"registered":45,"matches":3,"rooms":2,"in_rooms":9,"queued":1,"last_match_ends_in":512}
+{"online":12,"registered":45,"matches":3,"rooms":2,"in_rooms":9,"queued":1,"last_match_ends_in":512,"normal_matches":2,"last_normal_match_ends_in":340}
 ```
 
 - `online`: distinct accounts with an active lobby/chat connection or a
@@ -284,8 +284,17 @@ login or an admin token, with `Content-Type: application/json` and
   countdown, counts its map's whole wait, countdown and match time (925 s);
   0 when none runs. A match can end sooner. `release/release.sh` plans the
   maintenance 30 seconds after it (rounded up to whole minutes).
+- `normal_matches`: of `matches`, the normal ones: neither against the
+  server's bots (Player vs Bots, a PIN room made with bots) nor of a
+  private room (a PIN) (`session::v026g::match_kind::MatchKind`, set where
+  the lobby makes the match).
+- `last_normal_match_ends_in`: `last_match_ends_in` over the normal matches
+  alone. `release/release.sh --end-bot-and-private-matches` plans the
+  maintenance from it and waits for `normal_matches` 0; the other matches
+  end at its swap.
 
-All seven fields are nonnegative integers. Counts are read from live state;
+All nine fields are nonnegative integers; new ones are only added, at the
+end. Counts are read from live state;
 separate locks mean they are not a single atomic snapshot. Reading the endpoint
 never forms a match. No names, identifiers, addresses or credentials are
 returned. It is independent of the page language. Poll about once a minute.

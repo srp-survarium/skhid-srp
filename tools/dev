@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# tools/dev <command...>
+#
+# The command in srp-026g's dev shell, as `nix develop ./srp-026g --command <command...>` runs it,
+# in 0.1 s instead of 1 to 8 s: `nix develop` evaluates the flake again whenever any tracked file of
+# the checkout changed (the flake's source is the whole repository), and a build asks for the shell
+# several times. Here the shell is kept as a Nix profile (~/.cache/skhid-dev/<key>, a garbage
+# collector root: the toolchain stays in the store) under the hash of what defines it: flake.nix,
+# flake.lock and the Nix files flake.nix imports. Every worktree with the same three shares it.
+# Anything wrong with the kept shell: the plain `nix develop`.
+#
+# For local builds and checks. The release's scripts call `nix develop` themselves.
+set -euo pipefail
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+flake=$root/srp-026g
+[[ $# -gt 0 ]] || { echo "usage: tools/dev <command...>" >&2; exit 2; }
+
+key=$(cat "$flake/flake.nix" "$flake/flake.lock" "$root"/client/updater/torrent-dll/*.nix | sha256sum | cut -c1-32)
+dir=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-dev
+profile=$dir/$key
+
+if [[ ! -e $profile ]]; then
+    mkdir -p "$dir"
+    (
+        flock 9
+        [[ -e $profile ]] || nix develop "$flake" --profile "$profile" --command true
+    ) 9>"$dir/lock" || exec nix develop "$flake" --command "$@"
+    # the shells of flakes as they were over 30 days ago: no longer kept (one still used is made again)
+    find "$dir" -maxdepth 1 -name '*-link' -mtime +30 -delete || true
+    find "$dir" -maxdepth 1 -xtype l -delete || true
+fi
+[[ -e $profile ]] || exec nix develop "$flake" --command "$@"
+exec nix develop "$profile" --command "$@"

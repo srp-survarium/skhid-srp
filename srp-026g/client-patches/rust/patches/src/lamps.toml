@@ -36,6 +36,18 @@ check = "check_lamps_026g.py"
 name = "light"
 source = "light_methods"
 check = "check_lamps_026g.py"
+[[vtable]]
+name = "ambient_light"
+source = "ambient_light_methods"
+check = "check_lamps_026g.py"
+[[vtable]]
+name = "particle"
+source = "particle_methods"
+check = "check_lamps_026g.py"
+[[vtable]]
+name = "probe"
+source = "probe_methods"
+check = "check_lamps_026g.py"
 
 [[hook]]
 site = "visual.insert"
@@ -53,6 +65,30 @@ proof = "light insert through project loop"
 site = "light.remove"
 handler = "on_light_remove"
 proof = "light remove through project loop"
+[[hook]]
+site = "ambient_light.insert"
+handler = "on_ambient_light_insert"
+proof = "ambient light insert through project loop"
+[[hook]]
+site = "ambient_light.remove"
+handler = "on_ambient_light_remove"
+proof = "ambient light remove through project loop"
+[[hook]]
+site = "particle.insert"
+handler = "on_particle_insert"
+proof = "particle insert through project loop"
+[[hook]]
+site = "particle.remove"
+handler = "on_particle_remove"
+proof = "particle remove through project loop"
+[[hook]]
+site = "probe.insert"
+handler = "on_probe_insert"
+proof = "probe insert through project loop"
+[[hook]]
+site = "probe.remove"
+handler = "on_probe_remove"
+proof = "probe remove through project loop"
 
 # Bullet decals: a glass mark inside a fixture's bounds is never queued.
 [[hook]]

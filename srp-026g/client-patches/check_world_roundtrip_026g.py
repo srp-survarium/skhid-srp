@@ -120,6 +120,16 @@ OWN_CHECKS = {
     (0x38CD22, 7): "FSM null-state guard owns no serialized bytes; check_deserialize_guards_026g.py",
     (0x31B0FF, 9): "anomaly state bounds own no serialized bytes; check_deserialize_guards_026g.py",
     (0x2FE65E, 5): "artefact bounds own no serialized bytes; check_deserialize_guards_026g.py",
+    (0x252B48, 6): "deserialize.fire_animation_sound (patch 115): a fire state's m_weapon_animation_index stored as "
+                   "read when 0 or 1, any other byte as 0; the world check refuses any other byte (srp-validate's "
+                   "FireAnimation), so a world a game loads is stored as read; check_deserialize_guards_026g.py",
+    (0x310224, 6): "deserialize.fire_animation: as 0x252B48, in the bare fire classes' deserialize (never called)",
+    (0x33A51B, 12): "deserialize.grenade_serialize (patch 115): the throw state's serialize writes its set's slot as "
+                    "the stock when the set is a grenade set, no slot (17h) for another item or none, a throw the "
+                    "server refuses (TailGrenadeSet); check_deserialize_guards_026g.py",
+    (0x2AC8A6, 8): "effect_presenter.particle_read_room (patch 122): particle_game_effect_presenter::deserialize's "
+                   "local list given the presenter's room (32 entries, not six), a capacity, no bytes of the world; "
+                   "check_particle_room_026g.py",
     (0x27C0FF, 6): "world_load.raw: the same preparation as world_load.unpacked (world_check.rs `check`), for a "
                    "world sent raw; check_world_check_026g.py",
     (0x27C059, 5): "WORLD_UNPACK (patch 98): the 0xE8 handler's stack buffer for a packed world, 0x8000 -> 0xF000 "
@@ -132,6 +142,11 @@ OWN_CHECKS = {
     (0x2F5AF4, 6): "shared_statistics::serialize: twenty records (its second loop)",
     (0x2F5BE6, 6): "shared_statistics::deserialize: twenty records, as its serialize",
     (0x2F5C03, 6): "shared_statistics::deserialize: twenty records (its second loop)",
+    (0x2F5BD0, 5): "weapon_stats.save: patch 165's per-weapon counts after the statistics' tail (the recorded "
+                   "match's worlds have none, and a game that loaded such a world writes none); "
+                   "check_weapon_stats_026g.py (the game's own serialize and deserialize: a load gives the table "
+                   "back, the next world is the one loaded; a world without it is written back without it)",
+    (0x2F5C83, 7): "weapon_stats.load: as weapon_stats.save",
     (0x313735, 6): "carry.ground_save: a dropped artefact's 20 bytes in the objects section (no decoder locates "
                    "them); check_artefact_carry_026g.py (state 6's 20 bytes saved, then loaded); and patch 109's "
                    "4 bytes of an active one (state 4), the places Cascade's activation reached; "
@@ -156,6 +171,15 @@ OWN_CHECKS = {
                    "check_free_for_all_026g.py (saved after the game's own bytes, loaded by a late joiner and in a "
                    "rollback, saved the same, the same choices after; another mode's bytes the game's alone)",
     (0x317038, 7): "respawn.load: as respawn.save",
+    (0x303DF8, 5): "smoke.save_state (patch 180, Toxic Smoke): grenade_core::serialize's current_state bit 3 when "
+                   "the grenade keeps a toxic cloud (the objects section, no decoder); check_technical_smoke_026g.py "
+                   "(serialize, then the load: the same cloud, the reader at its end)",
+    (0x303E40, 7): "smoke.save_cloud: the cloud's 16 bytes after the thrown fields, as smoke.save_state",
+    (0x30406C, 7): "smoke.load_cloud: as smoke.save_state (a world without the bit clears the grenade's cloud)",
+    (0x33E7E7, 5): "technical.tank_save (patch 180, Oxygen Rush): the boost's u32 and the use's u16 after the oxygen "
+                   "tank's m_amount_ms, always written (the players section; srp-validate's OxygenTank reads them); "
+                   "technical_skills::OxygenRush's and TankUse's tests and srp-validate's parse",
+    (0x33E82F, 7): "technical.tank_load: as technical.tank_save, checked against the stream's end",
 }
 CODEC = re.compile(r"::(de)?serialize")
 CODEC_ALSO = {0x32BBC0: "survarium::bullet::bullet (the bullet loader)",

@@ -19,7 +19,7 @@ use super::modifications::{self, Modifications};
 use super::new_account::{self, NewAccount};
 use super::prices::{SHOP_PATH, ShopRules};
 use super::quests::{self, Quests};
-use super::scopes::{SCOPE_CATEGORY, ScopeFits};
+use super::scopes::{self, SCOPE_CATEGORY};
 use super::skills::{self, SkillsTree};
 use super::ui_properties::{self, UiProperties};
 
@@ -39,13 +39,19 @@ fn parsed<T>(
 
 /// The most entries (named values and list elements, at any depth) an item
 /// config may have. The client rebuilds an item's config with its upgrades
-/// (camouflage, decals, scope) in a 16 KB stack arena of 24-byte items that
-/// it never bounds (`create_binary_config_buffer`, exe 0x358AA0); past it the
-/// items overwrite the arena's allocator and `vostok::configs::free_memory`
-/// (0x358A10) calls through it. The KS-23M of weapons-069@9 had 587 and,
-/// camouflaged and with decals, crashed every match at load (2026-11-01).
-/// 565 is the largest stock weapon config's (the premium Remington 700's),
-/// which players run with camouflage and decals.
+/// (camouflage, decals, the fitted modules) in a stack arena of 24-byte
+/// items that it never bounds (`create_binary_config_buffer`, exe 0x358AA0);
+/// past it the items overwrite the arena's allocator and
+/// `vostok::configs::free_memory` (0x358A10) calls through it. The arena was
+/// 16 KB: the KS-23M of weapons-069@9 had 587 and, camouflaged and with
+/// decals, crashed every match at load (2026-11-01). 565 is the largest
+/// stock weapon config's (the premium Remington 700's), which players ran
+/// with camouflage and decals in those 16 KB.
+///
+/// Client patch 161 makes the arena 64 KB (`ITEM_CONFIG_ARENAS`): the bound
+/// on the plain config stays, and what a weapon's kit adds on top (one
+/// entry a fitted scope, muzzle device and grip, each a type 3 add to
+/// `data`) has the 48 KB beyond it, 2,000 entries.
 pub const MAX_CONFIG_ENTRIES: usize = 565;
 
 /// The entries of a config: each named value and each list element.
@@ -159,10 +165,8 @@ pub fn check(data: &GameData) -> Result<(), GameDataError> {
     }
     modifications::derive_item_mods(data, &dictionary)?;
     armour::derive(data, &dictionary)?;
-    // A variant left out is logged when the table is first used
-    // ([`ScopeFits::shared`]); only a scope config that does not read stops
-    // srp.
-    ScopeFits::derive(data, &dictionary)?;
+    // The modules table parses, and what it fits as a scope is a scope item.
+    scopes::check(data, &dictionary)?;
     maps::derive(data, &dictionary)?;
     for language in localization::Language::ALL {
         localization::of(data, language)?;
@@ -177,6 +181,7 @@ pub fn check(data: &GameData) -> Result<(), GameDataError> {
         ConfigValue::parse(player).and_then(|config| PlayerLimits::from_config(&config)),
     )?;
     parsed(drops::PATH, Drops::parse(needed(data, drops::PATH)?))?;
+    parsed(super::faces::PATH, super::faces::Faces::of_data(data))?;
     parsed(quests::PATH, Quests::parse(needed(data, quests::PATH)?))?;
     parsed(skills::PATH, SkillsTree::parse(needed(data, skills::PATH)?))?;
     parsed(

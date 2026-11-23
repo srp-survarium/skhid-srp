@@ -164,6 +164,64 @@ try {
   await navigate('/wiki/weapons#wpn_vityaz');
   await evaluate("document.querySelector('#wpn_vityaz-round-btn').click();document.querySelector('#wpn_vityaz-round-ammo_9x19p_7n31').click()");
   assert.equal(await evaluate("new URL(document.querySelector('#wpn_vityaz .weapon-simulate a').href).search"), '?lang=en&a=wpn_vityaz&ra=ammo_9x19p_7n31');
+  // The list's quick stats are the same columns in every row, whatever a language makes of
+  // them: Russian (the longest headers) and German (the longest damage, "× 10 Schrotkugeln").
+  // Each column's left edge one; nothing past its column; a header one line (cut with an
+  // ellipsis, its title whole, where its column is narrower); a row's values on one line.
+  for (const width of [1440, 1280, 960, 640, 390]) {
+    await send('browsingContext.setViewport', {context, viewport: {width, height: 900}, devicePixelRatio: 1});
+    for (const lang of ['ru', 'de']) {
+      await navigate(`/wiki/weapons?lang=${lang}`);
+      const columns = JSON.parse(await evaluate(`JSON.stringify((() => {
+        const lefts = [], over = [], tall = [], uncut = [], tops = [];
+        for (const dl of document.querySelectorAll('#weapon-list .quick-stats')) {
+          const valueTops = new Set();
+          [...dl.children].forEach((cell, k) => {
+            const box = cell.getBoundingClientRect(), dt = cell.querySelector('dt'), dd = cell.querySelector('dd');
+            (lefts[k] ??= new Set()).add(Math.round(box.left));
+            if (dd.getBoundingClientRect().right > box.right + 1) over.push(dd.textContent);
+            const line = parseFloat(getComputedStyle(dt).lineHeight) || dt.getBoundingClientRect().height;
+            if (dt.getBoundingClientRect().height > line * 1.5) tall.push(dt.textContent);
+            const style = getComputedStyle(dt);
+            if (dt.scrollWidth > dt.clientWidth && (style.textOverflow !== 'ellipsis' || dt.title !== dt.textContent)) uncut.push(dt.textContent);
+            valueTops.add(Math.round(dd.getBoundingClientRect().top));
+          });
+          tops.push(valueTops.size);
+        }
+        return {lefts: lefts.map(set => set.size), over, tall, uncut, tops: Math.max(...tops)};
+      })())`));
+      const at = `${lang} at ${width} px`;
+      assert.deepEqual(columns.lefts, [1, 1, 1, 1], `${at}: one left edge a column`);
+      assert.deepEqual(columns.over, [], `${at}: nothing past its column`);
+      assert.deepEqual(columns.tall, [], `${at}: every header one line`);
+      assert.deepEqual(columns.uncut, [], `${at}: a cut header ends in an ellipsis, its title whole`);
+      assert.equal(columns.tops, 1, `${at}: a row's values on one line`);
+    }
+  }
+  await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 1});
+  // In Russian too (the words the server fills in): the list's search, class and sort, the
+  // chooser's words, and the simulators' play.
+  await navigate('/wiki/weapons?lang=ru');
+  await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message))");
+  assert.equal(await evaluate("document.querySelector('h1').textContent"), 'Оружие');
+  await evaluate("document.querySelector('#weapon-search').value='АК74М';document.querySelector('#weapon-search').dispatchEvent(new Event('input'))");
+  assert.equal(await evaluate(`${visible}.length`), 1, 'search by the Russian name');
+  const russianClass = await evaluate("document.querySelector('#weapon-class').options[1].value");
+  await evaluate(`document.querySelector('#weapon-search').value='';document.querySelector('#weapon-class').value=${JSON.stringify(russianClass)};document.querySelector('#weapon-class').dispatchEvent(new Event('change'))`);
+  assert.ok(await evaluate(`${visible}.length`) >= 1);
+  assert.equal(await evaluate(`${visible}.every(e=>e.dataset.class===${JSON.stringify(russianClass)})`), true, 'class filter, Russian');
+  assert.ok(/[А-Яа-я]/.test(russianClass), `a Russian class: ${russianClass}`);
+  await evaluate("document.querySelector('#compare-a-btn').click()");
+  assert.equal(await evaluate("document.querySelector('#compare-a-list').closest('.wpick-pop').querySelector('.wpick-search').placeholder"), 'Поиск…');
+  await navigate('/wiki/simulators?lang=ru&a=wpn_ak_74m');
+  await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message))");
+  const playLabel = await evaluate("document.querySelector('#recoil-sim .sim-play').textContent");
+  await evaluate("document.querySelector('#recoil-sim .sim-play').click()");
+  await evaluate('new Promise(r=>setTimeout(r,300))');
+  assert.notEqual(await evaluate("document.querySelector('#recoil-sim .sim-play').textContent"), playLabel, 'play turns to pause, Russian');
+  assert.ok(Number(await evaluate("document.querySelector('#recoil-sim .sim-time').value")) > 0, 'play advances, Russian');
+  assert.ok(/[А-Яа-я]/.test(await evaluate("document.querySelector('#recoil-sim .sim-legend').textContent")), 'the legend in Russian');
+  assert.equal(await evaluate("JSON.stringify(window.pageErrors)"), '[]', 'no script errors, Russian');
   // The simulators: one or two weapons' recoil and spread.
   const sim = selector => `document.querySelector('#recoil-sim ${selector}')`;
   const choose = (selector, value) => evaluate(`{const s=${sim(selector)};s.value='${value}';s.dispatchEvent(new Event('change'))}`);
@@ -247,7 +305,48 @@ try {
   await choose('.sim-target', '25');
   assert.notEqual(await evaluate("document.querySelector('#recoil-sim .sim-target-body').getAttribute('transform')"), near, 'the distance sizes the target');
   assert.equal(await evaluate("document.querySelector('#recoil-sim .sim-trail').getAttribute('d')"), trail);
-  // The spread's parts: from the hip by default; the stance, skills, gloves
+  // The shot's own motions: each weapon's view from the side with its
+  // bullets; a custom gun's camera wobble moves the view between shots and
+  // its gun kick the sight while aimed, each shown by its layer.
+  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-view svg.sim-side').length"), 1, 'the view from the side');
+  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-side .sim-landed,#recoil-sim .sim-side .sim-bullet').length"), 30, 'each bullet, on the wall or on its way');
+  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-speed option').length"), 3, 'slow motion');
+  const custom = (side, group, key, value) => evaluate(`{const i=document.querySelector('.sim-setup[data-side="${side}"] .sim-custom input[data-group="${group}"][data-key="${key}"]');i.value='${value}';i.dispatchEvent(new Event('change'))}`);
+  const layer = (key, on) => evaluate(`{const i=${sim(`.sim-layer-${key}`)};i.checked=${on};i.dispatchEvent(new Event('change'))}`);
+  const seekTo = time => evaluate(`{const t=${sim('.sim-time')};t.value='${time}';t.dispatchEvent(new Event('input'))}`);
+  const crossY = () => evaluate(`${sim('.sim-view .sim-cross circle')}.getAttribute('cy')`);
+  const setupName = () => evaluate("document.querySelector('.sim-setup[data-side=\"0\"] .sim-setup-name').textContent");
+  assert.equal(await evaluate(`document.querySelector('${row(0, 'aim')} .gstep[aria-pressed=true]').dataset.v`), 'aimed', 'fully aimed first');
+  await seekTo(.07);
+  const unmoved = await crossY();
+  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-gunsight').length"), await evaluate("document.querySelector('#wpn_ak_74m').dataset.recoil.includes('\"gun\"') ? 1 : 0"), 'the sight only with a gun kick');
+  await custom(0, 'camera', 'up', 3);
+  assert.ok((await setupName()).endsWith('custom'), 'a changed value makes the gun custom');
+  assert.ok((await evaluate(`${sim('.sim-legend')}.textContent`)).includes('custom'));
+  assert.notEqual(await crossY(), unmoved, 'the camera wobble turns the view between shots');
+  await layer('camera', false);
+  assert.equal(await crossY(), unmoved, 'without its layer the view is the kick alone');
+  await layer('camera', true);
+  await custom(0, 'gun', 'up', 2);
+  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-gunsight').length"), 1, 'the gun kick moves the sight while aimed');
+  assert.notEqual(await evaluate(`${sim('.sim-gunsight circle')}.getAttribute('cy')`), await crossY(), 'off the view');
+  await layer('gun', false);
+  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-gunsight').length"), 0);
+  await layer('gun', true);
+  await screenshot('simulators-custom');
+  await setRow(0, 'aim', 'hip');
+  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-gunsight').length"), 0, 'from the hip the sights are not looked through');
+  await evaluate("document.querySelector('.sim-setup[data-side=\"0\"] .sim-custom button').click()");
+  assert.equal(await setupName(), 'A · AK-74M', 'the weapon again');
+  assert.equal(await evaluate("document.querySelector('.sim-setup[data-side=\"0\"] .sim-custom input[data-key=\"rpm\"]').value"), '650', 'its fields are the values of the weapon');
+  await layer('recoil', false);
+  assert.equal(await crossY(), await evaluate(`${sim('.sim-origin')}.getAttribute('cy')`), 'without the recoil the view stays');
+  await layer('recoil', true);
+  await custom(0, 'recoil', 'rpm', 300);
+  await evaluate(`${sim('.sim-last')}.click()`);
+  assert.ok(Number(await evaluate(`${sim('.sim-time')}.value`)) > 5, 'a custom fire rate: 30 shots take longer');
+  await evaluate("document.querySelector('.sim-setup[data-side=\"0\"] .sim-custom button').click()");
+  // The spread's parts, from the hip (set above); the stance, skills, gloves
   // and arms change them; fully aimed, none of them does.
   const parts = () => evaluate("[...document.querySelectorAll('#recoil-sim .sim-parts tbody td')].map(td=>td.textContent).join(' ')");
   assert.equal(await parts(), '0.2° 5° 2° 25.2°', 'standing from the hip: base, stance, a shot, at most');
@@ -296,9 +395,9 @@ try {
     for (const key of pieces) await strongest(1, key);
     const [, both] = await ups();
     assert.ok(both < gloves && gloves < b0, `the pieces add up (${both} < ${gloves} < ${b0})`);
-    assert.equal(await parts(), '0.2° 5° 2° 25.2° 0.2° 5° 2° 25.2°', 'recoil leaves the spread');
-    await setRow(0, 'aim', 'aimed');
-    assert.equal(await parts(), '0.2° 0° 0° 0.2° 0.2° 5° 2° 25.2°', 'A\'s aim is A\'s');
+    assert.equal(await parts(), '0.2° 0° 0° 0.2° 0.2° 0° 0° 0.2°', 'recoil leaves the spread');
+    await setRow(0, 'aim', 'hip');
+    assert.equal(await parts(), '0.2° 5° 2° 25.2° 0.2° 0° 0° 0.2°', 'A\'s aim is A\'s');
     await screenshot('simulators-same-weapon');
   }
   // A row's card (what it does): on hover, keyboard focus or a tap.
@@ -401,7 +500,79 @@ try {
   await send('browsingContext.setViewport', {context, viewport: {width:390,height:844}, devicePixelRatio:1});
   assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'equipment fits mobile');
   await screenshot('equipment-mobile-uk');
-  console.log(`PASS: ${total} weapons; image choosers/search/keyboard/mobile, catalogue, full stat comparison, equality/neutral colors, same weapon, simulators: recoil step/scrub/reset, spread by aim, stance, skills, gloves and arms, recoil modifications, help lines (hover, keyboard, tap), EN/UK, 360 px and CSP.`);
+  // The skills in every language's longest words (Russian, German, Finnish): each tier's
+  // label and each name inside its track, one disc line a tier row, the planner counting a click.
+  for (const width of [1280, 640]) {
+    await send('browsingContext.setViewport', {context, viewport: {width, height: 900}, devicePixelRatio: 1});
+    for (const lang of ['en', 'ru', 'de', 'fi']) {
+      await navigate(`/wiki/skills?lang=${lang}`);
+      await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message))");
+      const faults = JSON.parse(await evaluate(`JSON.stringify((() => {
+        const bad = [];
+        for (const grid of document.querySelectorAll('.skill-grid')) {
+          const left = grid.getBoundingClientRect().left, rows = new Map();
+          for (const t of grid.querySelectorAll('.skill-tier'))
+            if (t.getBoundingClientRect().left < left - 1 || t.scrollWidth > t.clientWidth + 1) bad.push('tier ' + t.textContent);
+          for (const s of grid.querySelectorAll('.skill')) {
+            const row = s.style.gridArea.split('/')[0].trim(), top = Math.round(s.querySelector('.skill-disc').getBoundingClientRect().top);
+            (rows.get(row) ?? rows.set(row, new Set()).get(row)).add(top);
+            const n = s.querySelector('.skill-name'), b = n.getBoundingClientRect(), box = s.getBoundingClientRect();
+            if (n.scrollWidth > n.clientWidth + 1 || b.left < box.left - 1 || b.right > box.right + 1) bad.push('name ' + n.textContent);
+          }
+          for (const [row, tops] of rows) if (tops.size > 1) bad.push('row ' + row);
+        }
+        return bad;
+      })())`));
+      assert.deepEqual(faults, [], `skills, ${lang} at ${width} px`);
+      const points = await evaluate("document.querySelector('[data-plan=points]').textContent");
+      await evaluate("document.querySelector('.skill:not(.locked)').click()");
+      assert.notEqual(await evaluate("document.querySelector('[data-plan=points]').textContent"), points, `skills, ${lang}: the planner counts`);
+      assert.equal(await evaluate("JSON.stringify(pageErrors)"), '[]', `skills, ${lang}: no script errors`);
+    }
+  }
+  // The Maps tab in English and Russian: its words the server's (title, layers, views), a map,
+  // a mode, a view and a layer picked, nothing spilling, no script errors.
+  for (const width of [1280, 640]) {
+    await send('browsingContext.setViewport', {context, viewport: {width, height: 900}, devicePixelRatio: 1});
+    for (const [lang, title] of [['en', 'Maps'], ['ru', 'Карты']]) {
+      await navigate(`/wiki/maps?lang=${lang}`);
+      await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message))");
+      assert.equal(await evaluate("document.querySelector('#title').textContent"), title, `maps, ${lang}: its title`);
+      const marks = () => evaluate("document.querySelectorAll('#map .mk').length");
+      await evaluate("[...document.querySelectorAll('#maps .chip')].at(-1).click()");
+      await evaluate("[...document.querySelectorAll('#modes .chip')].at(-1).click()");
+      await evaluate("[...document.querySelectorAll('#views .chip')].at(-1).click()");
+      const shown = await marks();
+      assert.ok(shown > 0, `maps, ${lang}: the markers drawn`);
+      await evaluate("document.querySelector('#layers .layer').click()");
+      assert.notEqual(await marks(), shown, `maps, ${lang}: a layer toggles`);
+      await evaluate("document.querySelector('#layers .layer').click()");
+      assert.equal(await evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1"), true, `maps, ${lang} at ${width}: no sideways scroll`);
+      assert.equal(await evaluate("JSON.stringify(pageErrors)"), '[]', `maps, ${lang}: no script errors`);
+    }
+  }
+  // The calculator in English and Russian (and German, its longest texts): its words the
+  // server's, a weapon and a distance picked change the result, nothing spilling out of its box.
+  for (const width of [1280, 640]) {
+    await send('browsingContext.setViewport', {context, viewport: {width, height: 900}, devicePixelRatio: 1});
+    for (const [lang, heading] of [['en', 'Result'], ['ru', 'Результат'], ['de', null]]) {
+      await navigate(`/wiki/calculator?lang=${lang}`);
+      await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message))");
+      if (heading) assert.equal(await evaluate("document.querySelector('#h-result').textContent"), heading, `calculator, ${lang}: its words`);
+      const result = () => evaluate("[...document.querySelectorAll('.big.num')].map(e => e.textContent).join(' | ')");
+      const first = await result();
+      await evaluate("{const s=document.querySelector('#weapon');s.value=[...s.options].at(-1).value;s.dispatchEvent(new Event('change'))}");
+      await evaluate("{const d=document.querySelector('#dist');d.value='120';d.dispatchEvent(new Event('input'))}");
+      assert.notEqual(await result(), first, `calculator, ${lang}: a weapon and a distance change the result`);
+      const spilled = JSON.parse(await evaluate(`JSON.stringify([...document.querySelectorAll('body *')].filter(e => e.offsetParent && !e.closest('.site, svg')
+        && [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()) && getComputedStyle(e).overflow === 'visible'
+        && getComputedStyle(e).display !== 'inline' && e.scrollWidth > e.clientWidth + 1).map(e => e.textContent.trim().slice(0, 40)))`));
+      assert.deepEqual(spilled, [], `calculator, ${lang} at ${width} px: nothing spills out of its box`);
+      assert.equal(await evaluate("document.documentElement.innerHTML.includes('⟦')"), false, `calculator, ${lang}: no place left`);
+      assert.equal(await evaluate("JSON.stringify(pageErrors)"), '[]', `calculator, ${lang}: no script errors`);
+    }
+  }
+  console.log(`PASS: ${total} weapons; image choosers/search/keyboard/mobile, catalogue, full stat comparison, equality/neutral colors, same weapon, simulators: recoil step/scrub/reset, spread by aim, stance, skills, gloves and arms, recoil modifications, help lines (hover, keyboard, tap), EN/UK/RU, the list's columns in RU/DE, the skills' trees in EN/RU/DE/FI, the Maps tab in EN/RU, the calculator in EN/RU/DE, 360 px and CSP.`);
   await send('session.end');
 } finally {
   await send('session.end').catch(() => {});

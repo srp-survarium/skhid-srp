@@ -7,6 +7,10 @@ name = "artefact-carry"
 version = "0.1.0"
 
 [[package]]
+name = "artefact-hunt-rule"
+version = "0.1.0"
+
+[[package]]
 name = "ban-reason"
 version = "0.1.0"
 
@@ -15,12 +19,15 @@ name = "patches"
 version = "0.1.0"
 dependencies = [
  "artefact-carry",
+ "artefact-hunt-rule",
  "ban-reason",
  "ragdoll",
  "sign-in-cipher",
  "srp-validate",
+ "technical-skills",
  "voice-abi",
  "weapon-kit",
+ "weapon-modules",
  "weapon-pickup",
  "world-frame",
 ]
@@ -38,8 +45,17 @@ name = "srp-validate"
 version = "0.1.0"
 dependencies = [
  "artefact-carry",
+ "artefact-hunt-rule",
+ "technical-skills",
  "weapon-pickup",
  "world-frame",
+]
+
+[[package]]
+name = "technical-skills"
+version = "0.1.0"
+dependencies = [
+ "weapon-pickup",
 ]
 
 [[package]]
@@ -48,6 +64,10 @@ version = "0.1.0"
 
 [[package]]
 name = "weapon-kit"
+version = "0.1.0"
+
+[[package]]
+name = "weapon-modules"
 version = "0.1.0"
 
 [[package]]

@@ -61,6 +61,7 @@ fn player(place: u8, team: u8, name: &str, statistics: PlayerStatistics) -> Play
         statistics: Some(statistics),
         pay_statistics: None,
         supplies: None,
+        weapons: Vec::new(),
     }
 }
 
@@ -68,6 +69,7 @@ fn player(place: u8, team: u8, name: &str, statistics: PlayerStatistics) -> Play
 fn result(players: Vec<PlayerResult>) -> MatchResult {
     MatchResult {
         match_id: MATCH,
+        replay_id: ReplayId::new(MATCH, std::time::UNIX_EPOCH),
         map_id: survarium::v026g::maps::MapId::new(1),
         mode: GameMode::Batteries,
         twist: None,
@@ -75,6 +77,7 @@ fn result(players: Vec<PlayerResult>) -> MatchResult {
         end: MatchEnd::ModeRule,
         winner: Some(0),
         team_points: [3, 1],
+        round_starts: 0,
         duration_ms: 700_000,
         played_ms: Some(600_000),
         trusted_snapshot_ms: Some(690_000),
@@ -472,40 +475,6 @@ fn the_first_screen_comes_out_but_for_its_kills() {
     );
 }
 
-#[test]
-fn the_money_rate_scales_the_rows_silver() {
-    let players = alice_and_bob();
-    let store = accounts(&players);
-    store.get(10).unwrap().locked().quest_faction = 1;
-    let terms = Terms {
-        money_rate: pay::MoneyRate::Flat(80),
-        experience_rate: 2,
-        ..terms()
-    };
-    let report = Results::new()
-        .settle(&result(players), &store, &terms, &mut Rng::new(1))
-        .unwrap();
-    let alice = &report.players[0];
-    // 80 % of 75, 10 and 82.73 silver; twice 9, 1 and 122.69 experience;
-    // the reputation (3, 1 and 2.46) has its own rate.
-    assert_eq!(columns(&alice.full, 0), (3.0, 60, 18, 3));
-    assert_eq!(columns(&alice.full, 1), (1.0, 8, 2, 1));
-    assert_eq!(columns(&alice.full, 2), (2.0, 66, 245, 2));
-    assert_eq!(alice.reward.money, 134);
-    // srp's own terms: the owner's silver by match level, three times the
-    // experience and 180 % of the reputation (each with premium's half).
-    let own = Terms::at(NOW);
-    assert_eq!(
-        (own.money_rate, own.experience_rate, own.reputation_rate),
-        (pay::MoneyRate::ByLevel, 3, 180)
-    );
-    assert_eq!(own.score_weights, SCORE_WEIGHTS);
-    // And twice the original kill's silver and experience, and 30,000 for
-    // staying to the end.
-    assert_eq!(own.kill, pay::Pay::new(50.0, 6.0, 1.0));
-    assert_eq!(own.finish_silver, 30_000);
-}
-
 /// srp's own terms (the owner's of 2026-11-13): a kill pays 50 silver and 6
 /// experience before the rates, and every player who stays to the end gets
 /// 30,000 silver more, flat, in its activity cell; one who left gets none.
@@ -545,98 +514,6 @@ fn a_finisher_gets_thirty_thousand_and_twice_a_kill_and_one_who_left_does_not() 
     assert_eq!(columns(&carol.full, 0), (1.0, 50, 6, 0));
     assert_eq!(columns(&carol.full, 2), (0.0, 0, 0, 0));
     assert_eq!((carol.reward.experience, carol.reward.money), (6, 50));
-}
-
-/// The owner's rates (2026-10-14), with premium's half (2026-11-09): the
-/// rows' silver at the percent of the match's level, their experience three
-/// times, the rows' and the quests' reputation at 180 %.
-#[test]
-fn the_owners_rates_raise_silver_by_match_level_experience_and_reputation() {
-    let settle = |level: u16, terms: &Terms| {
-        let players = alice_and_bob();
-        let store = accounts(&players);
-        {
-            // The Scavengers' first quest (win with the base not robbed):
-            // 50 silver, 50 reputation.
-            let alice = store.get(10).unwrap();
-            let mut alice = alice.locked();
-            quests::choose_faction(&mut alice, 1).unwrap();
-            alice.quests.push(QuestInstance {
-                instance_id: 50,
-                quest_id: 10101,
-                games: 0,
-                expires_at: NOW + 10_000,
-            });
-            alice.next_quest_instance = 51;
-            no_new_quests(&mut alice);
-        }
-        let mut result = result(players);
-        result.match_level = level;
-        let report = Results::new()
-            .settle(&result, &store, terms, &mut Rng::new(5))
-            .unwrap();
-        report.players[0].clone()
-    };
-    let own = Terms {
-        money_rate: pay::MoneyRate::ByLevel,
-        experience_rate: pay::DEFAULT_EXPERIENCE_RATE,
-        reputation_rate: pay::DEFAULT_REPUTATION_RATE,
-        ..terms()
-    };
-    // Level 0 (every multiplier 1): 225 % of 75, 10 and 82.73 silver;
-    // three times 9, 1 and 122.69 experience; 180 % of 3, 1 and 2.46
-    // reputation.
-    let alice = settle(0, &own);
-    assert_eq!(columns(&alice.full, 0), (3.0, 168, 27, 5));
-    assert_eq!(columns(&alice.full, 1), (1.0, 22, 3, 1));
-    assert_eq!(columns(&alice.full, 2), (2.0, 186, 368, 4));
-    // Level 8 (`money_k` 5.59, the others 1.35): 270 % of the silver, and
-    // three times 12.15, 1.35 and 165.63 experience.
-    let plain = settle(8, &terms());
-    let alice = settle(8, &own);
-    assert_eq!(
-        (0..3)
-            .map(|line| columns(&alice.full, line).2)
-            .collect::<Vec<_>>(),
-        [36, 4, 496]
-    );
-    for line in 0..3 {
-        let (_, money, _, _) = columns(&alice.full, line);
-        let (_, plain_money, _, _) = columns(&plain.full, line);
-        assert!(
-            (f64::from(money) - 2.7 * f64::from(plain_money)).abs() <= 3.0,
-            "{line}: {money} against {plain_money}"
-        );
-    }
-    assert_eq!(
-        columns(&alice.full, 0).1,
-        (75.0 * 5.59 * 2.7_f64).floor() as u32
-    );
-    // 3 × 1.35 × 1.8 = 7.29, 2.43 and 5.98.
-    assert_eq!(
-        (0..3)
-            .map(|line| columns(&alice.full, line).3)
-            .collect::<Vec<_>>(),
-        [7, 2, 5]
-    );
-    // From level 12 on: 330 %.
-    for level in [12, 15, 20] {
-        let k = pay::multiplier(Dictionary::shared().match_level(level).unwrap().money_k);
-        assert_eq!(
-            columns(&settle(level as u16, &own).full, 0).1,
-            pay::cell(75.0, k * 3.3) as u32
-        );
-    }
-    // The quest's silver is the match level's alone (50 × 5.59); its
-    // reputation is 180 % of the level's (50 × 1.35 = 67.5, × 1.8 =
-    // 121.5).
-    assert_eq!(
-        (plain.reward.quest_money, alice.reward.quest_money),
-        (279, 279)
-    );
-    assert_eq!(plain.reward.quest_reputation, [(1, 67)]);
-    assert_eq!(alice.reward.quest_reputation, [(1, 121)]);
-    assert_eq!(alice.full.quest_reputation, 121);
 }
 
 #[test]
@@ -1073,6 +950,15 @@ fn the_quest_numbers_come_from_the_counters() {
     assert_eq!(alice.team_batteries, 0);
     assert!(!alice.battery_mode);
     assert!(!shared.quest_stats(&research.players[1]).base_robbed);
+    // Nor are Artifact Hunt's artefacts, though its rule counts a delivery
+    // in a battery's put event (20) and its shares in event 6.
+    let mut hunt = result.clone();
+    hunt.mode = GameMode::ArtefactHunt;
+    let shared = Shared::of(&hunt, &terms);
+    let alice = shared.quest_stats(&hunt.players[0]);
+    assert_eq!(alice.team_batteries, 0);
+    assert!(!alice.battery_mode);
+    assert!(!shared.quest_stats(&hunt.players[1]).base_robbed);
 }
 
 /// A Research match (mode 5) team 0 won 100 to 64: Alice captured units
@@ -2166,6 +2052,58 @@ fn a_level_reached_is_told_with_its_reward() {
     ));
 }
 
+/// Freeze Tag's restarts respawn everyone with the kit's load: each is a
+/// life for the supplies used, a double wipe's replayed round too (its rule
+/// counts it, `srp_validate::world::freeze`).
+#[test]
+fn a_freeze_tag_round_restart_is_a_life_more_for_the_supplies_used() {
+    use survarium::v026g::match_msgs::players::{ItemLeft, Supplies};
+    let medkit = Dictionary::shared().item_named("medkit").unwrap().dict_id;
+    // As below: one death, none of 12 medkits left, a life takes 2.
+    let mut players = alice_and_bob();
+    players[0].supplies = Some(Supplies {
+        alive: false,
+        kit: 0,
+        inventory_read: false,
+        items: vec![ItemLeft {
+            dict_id: medkit,
+            stack: true,
+            stored: 0,
+            in_hand: None,
+            condition: None,
+            magazine: None,
+            slot: None,
+        }],
+    });
+    let used = |round_starts: u16| {
+        let store = accounts(&players);
+        {
+            let alice = store.get(10).unwrap();
+            let mut alice = alice.locked();
+            let kits = alice.add_item(medkit, 12);
+            alice.kits[0].slots[13] = Some(crate::v026g::KitSlot {
+                item_id: kits,
+                count: 2,
+            });
+        }
+        let mut result = result(players.clone());
+        result.mode = GameMode::FreezeTag;
+        result.team_points = [3, 1];
+        result.round_starts = round_starts;
+        let report = Results::new()
+            .settle(&result, &store, &terms(), &mut Rng::new(1))
+            .unwrap();
+        report.players[0].reward.supplies_used.clone()
+    };
+    // Without the restarts: two lives, at most 4.
+    assert_eq!(used(0), [(medkit, 4)]);
+    // 3:1 in four rounds is three restarts (the last round none): five
+    // lives, at most 10.
+    assert_eq!(used(3), [(medkit, 10)]);
+    // With a double wipe replayed among them, four: six lives, all 12.
+    assert_eq!(used(4), [(medkit, 12)]);
+}
+
 #[test]
 fn a_kit_change_before_play_is_a_life_more_for_the_supplies_used() {
     use survarium::v026g::match_msgs::players::{ItemLeft, Supplies};
@@ -2210,6 +2148,53 @@ fn a_kit_change_before_play_is_a_life_more_for_the_supplies_used() {
     // A kit change before play began, a respawn in place with the new
     // kit's medkits (patch 31): three lives, and all 5 were used.
     assert_eq!(used(1), [(medkit, 5)]);
+}
+
+#[test]
+fn an_artefact_hunt_round_start_is_a_life_more_for_the_supplies_used() {
+    use survarium::v026g::match_msgs::players::{ItemLeft, Supplies};
+    let medkit = Dictionary::shared().item_named("medkit").unwrap().dict_id;
+    // As above: one death, none of 5 medkits left, a life takes 2.
+    let mut players = alice_and_bob();
+    players[0].supplies = Some(Supplies {
+        alive: false,
+        kit: 0,
+        inventory_read: false,
+        items: vec![ItemLeft {
+            dict_id: medkit,
+            stack: true,
+            stored: 0,
+            in_hand: None,
+            condition: None,
+            magazine: None,
+            slot: None,
+        }],
+    });
+    let used = |team_points: [u16; 2], round_starts: u16| {
+        let store = accounts(&players);
+        {
+            let alice = store.get(10).unwrap();
+            let mut alice = alice.locked();
+            let kits = alice.add_item(medkit, 5);
+            alice.kits[0].slots[13] = Some(crate::v026g::KitSlot {
+                item_id: kits,
+                count: 2,
+            });
+        }
+        let mut result = result(players.clone());
+        result.mode = GameMode::ArtefactHunt;
+        result.team_points = team_points;
+        result.round_starts = round_starts;
+        let report = Results::new()
+            .settle(&result, &store, &terms(), &mut Rng::new(1))
+            .unwrap();
+        report.players[0].reward.supplies_used.clone()
+    };
+    // A round started again: everyone respawned with the kit's load, a third
+    // life. The rule's count, not the points: the last point ended the match
+    // and started none.
+    assert_eq!(used([2, 0], 1), [(medkit, 5)]);
+    assert_eq!(used([1, 0], 0), [(medkit, 4)]);
 }
 
 #[test]
@@ -3619,6 +3604,7 @@ fn ffa_result(players: Vec<PlayerResult>) -> MatchResult {
         mode: GameMode::FreeForAll,
         winner: None,
         team_points: [0, 0],
+        round_starts: 0,
         ..result(players)
     }
 }
@@ -3819,5 +3805,470 @@ fn ffa_rating_does_not_reward_leavers_absentees_solo_private_or_bot_matches() {
         let report = Results::new().settle(&result, &store, &terms(), &mut Rng::new(1)).unwrap();
         assert_eq!(ratings(&store, &result.players), before);
         assert!(report.players.iter().all(|p| p.full.elo_before == p.full.elo_after));
+    }
+}
+
+/// The history's records made so far and not written.
+fn history_of(results: &Results) -> Vec<MatchRecord> {
+    results
+        .inner
+        .locked()
+        .changes
+        .history
+        .iter()
+        .map(|pending| pending.record.clone())
+        .collect()
+}
+
+#[test]
+fn a_settled_match_is_kept_for_the_history_without_its_bots() {
+    let mut players = alice_and_bob();
+    // Carol (team 0) scored less than Alice and left; Dan never came in; a
+    // server's bot played for team 1.
+    let mut carol = player(
+        2,
+        0,
+        "Carol",
+        counters_of(1, &[(event::HEADSHOT_KILL, 2), (event::ARTEFACT, 1)]),
+    );
+    carol.present_at_end = false;
+    carol.left = true;
+    carol.score = 1;
+    let mut dan = player(3, 1, "Dan", PlayerStatistics::default());
+    dan.entered = false;
+    dan.present_at_end = false;
+    let mut bot = player(4, 1, "Bot", counters_of(0, &[(event::KILL, 9)]));
+    bot.driven = true;
+    bot.account_id = 0;
+    players.extend([carol, dan, bot]);
+    players[0].statistics = Some(counters_of(
+        0,
+        &[
+            (event::KILL, 3),
+            (event::ASSIST, 1),
+            (event::DEATH, 1),
+            (event::GRENADE_KILL, 1),
+            (event::MELEE_KILL, 1),
+            (event::PUT_VICTORY_ITEM_IN_CONTAINER, 2),
+            (event::ARTEFACT, 2),
+            // Patch 80's empty-slot bonus: not an artefact of its own.
+            (event::WINNING_TEAM_VI_BONUS, 1),
+        ],
+    ));
+    let store = accounts(&players);
+    let results = Results::new();
+    let report = results
+        .settle(&result(players), &store, &terms(), &mut Rng::new(1))
+        .unwrap();
+
+    let records = history_of(&results);
+    assert_eq!(records.len(), 1);
+    let record = &records[0];
+    assert_eq!(record.replay_id, result(Vec::new()).replay_id);
+    assert_eq!(
+        record.kind,
+        MatchKind::Public(history::Eligibility::WithBots),
+        "a bot played: it counts in no total"
+    );
+    assert_eq!(
+        record.info,
+        history::MatchInfo {
+            ended_at: NOW,
+            duration_ms: 700_000,
+            map_id: survarium::v026g::maps::MapId::new(1),
+            mode: LobbyMode::Plain(GameMode::Batteries),
+            match_level: 0,
+            winner: history::Winner::FirstTeam,
+            team_points: [3, 1],
+        }
+    );
+    let lines: Vec<(u32, u8, history::Outcome)> = record
+        .players
+        .iter()
+        .map(|player| (player.account_id, player.line.seat, player.line.outcome))
+        .collect();
+    assert_eq!(
+        lines,
+        [
+            (10, 0, history::Outcome::Won),
+            (11, 1, history::Outcome::Lost),
+            // She left the match her team won: lost, as her rating has it.
+            (12, 2, history::Outcome::Lost),
+        ],
+        "no bot, nobody who never came in; by roster place"
+    );
+    let alice = &record.players[0].line;
+    assert_eq!(
+        (alice.team, alice.place, alice.presence),
+        (0, 1, history::Presence::Finished)
+    );
+    assert_eq!((alice.kills, alice.deaths), (3, 1));
+    assert_eq!(alice.rating, report.players[0].reward.rating_after);
+    assert_eq!(
+        alice.counters,
+        history::Counters {
+            assists: 1,
+            headshots: 0,
+            grenade_kills: 1,
+            melee_kills: 1,
+            batteries: 2,
+            capture_hundredths: 0,
+            artefacts: 2,
+            shots: 0,
+            hits: 0,
+        }
+    );
+    let carol = &record.players[2].line;
+    assert_eq!((carol.place, carol.presence), (2, history::Presence::Left));
+    assert_eq!(
+        (carol.counters.headshots, carol.counters.artefacts),
+        (2, 1),
+        "every kit counts"
+    );
+    assert_eq!(record.players[1].line.place, 1);
+    assert!(record.players.iter().all(|player| player.clan_id.is_none()));
+}
+
+#[test]
+fn a_private_room_and_a_match_against_bots_are_kept_by_their_kind() {
+    for (private, vs_bots, kind) in [
+        (true, false, MatchKind::Private),
+        (false, true, MatchKind::VsBots),
+        (true, true, MatchKind::Private),
+    ] {
+        let players = alice_and_bob();
+        let store = accounts(&players);
+        let results = Results::new();
+        let mut result = result(players);
+        result.private = private;
+        result.vs_bots = vs_bots;
+        results.settle(&result, &store, &terms(), &mut Rng::new(1));
+        let records = history_of(&results);
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].kind, kind);
+    }
+}
+
+#[test]
+fn a_public_match_counts_with_six_players_five_minutes_and_a_trusted_result() {
+    use history::Eligibility::{Counted, FewPlayers, NoResult, Short};
+    let names = ["A", "B", "C", "D", "E", "F"];
+    for (humans, played_ms, trusted_by, eligibility) in [
+        (6, Some(300_000), 2, Counted),
+        (6, Some(299_999), 2, Short),
+        (5, Some(600_000), 2, FewPlayers),
+        (6, Some(600_000), 0, NoResult),
+    ] {
+        let players: Vec<PlayerResult> = names[..humans]
+            .iter()
+            .enumerate()
+            .map(|(place, name)| {
+                player(
+                    place as u8,
+                    place as u8 % 2,
+                    name,
+                    PlayerStatistics::default(),
+                )
+            })
+            .collect();
+        let store = accounts(&players);
+        let results = Results::new();
+        let mut result = result(players);
+        result.played_ms = played_ms;
+        result.trusted_by = trusted_by;
+        results.settle(&result, &store, &terms(), &mut Rng::new(1));
+        let record = &history_of(&results)[0];
+        assert_eq!(
+            record.kind,
+            MatchKind::Public(eligibility),
+            "{humans} players, {played_ms:?} ms, trusted by {trusted_by}"
+        );
+        if trusted_by == 0 {
+            assert_eq!(record.info.winner, history::Winner::Unknown);
+            let line = &record.players[0].line;
+            assert_eq!(line.outcome, history::Outcome::Neither);
+            assert_eq!(line.counters, history::Counters::default());
+        }
+    }
+
+    // A match that never began has nobody in it: nothing is kept.
+    let players = alice_and_bob();
+    let store = accounts(&players);
+    let results = Results::new();
+    let mut waited = result(players);
+    waited.played_ms = None;
+    results.settle(&waited, &store, &terms(), &mut Rng::new(1));
+    assert!(history_of(&results).is_empty());
+}
+
+#[test]
+fn the_history_keeps_the_kits_with_a_counter_and_their_shots() {
+    let mut players = alice_and_bob();
+    // Alice fired with her first kit and her second; Bob only with his
+    // third, which he switched to; Carol did nothing at all.
+    let mut alice = counters_of(
+        0,
+        &[
+            (event::KILL, 3),
+            (event::HEADSHOT_KILL, 1),
+            (event::BULLET_FIRE, 100),
+            (event::BULLET_HIT, 30),
+        ],
+    );
+    alice.events[event::BULLET_FIRE][1] = 50;
+    alice.events[event::BULLET_HIT][1] = 20;
+    players[0].statistics = Some(alice);
+    players[1].statistics = Some(counters_of(
+        2,
+        &[(event::DEATH, 3), (event::BULLET_FIRE, 7)],
+    ));
+    players.push(player(2, 0, "Carol", PlayerStatistics::default()));
+    let store = accounts(&players);
+    let pistol = {
+        let alice = account(&store, 10);
+        let held = alice.kits[0].slots[7].unwrap().item_id;
+        alice.item(held).unwrap().dict_id
+    };
+    let results = Results::new();
+    results.settle(&result(players), &store, &terms(), &mut Rng::new(1));
+    let record = &history_of(&results)[0];
+
+    let alice = &record.players[0];
+    assert_eq!(
+        (alice.line.counters.shots, alice.line.counters.hits),
+        (150, 50)
+    );
+    assert_eq!(
+        alice.kits,
+        [
+            history::KitLine {
+                kit: 0,
+                counts: history::KitCounts {
+                    kills: 3,
+                    headshots: 1,
+                    shots: 100,
+                    hits: 30,
+                },
+                // The TT-33 in slot 7; its clip in slot 8 is ammo, not kept.
+                items: vec![history::KitItem {
+                    slot: history::GearSlot::of(7).unwrap(),
+                    dict_id: pistol,
+                }],
+            },
+            history::KitLine {
+                kit: 1,
+                counts: history::KitCounts {
+                    kills: 0,
+                    headshots: 0,
+                    shots: 50,
+                    hits: 20,
+                },
+                items: Vec::new(),
+            },
+        ]
+    );
+    let bob = &record.players[1].kits;
+    assert_eq!(bob.len(), 1, "not the kit the account plays");
+    assert_eq!((bob[0].kit, bob[0].counts.shots), (2, 7));
+    let carol = &record.players[2].kits;
+    assert_eq!(carol.len(), 1);
+    assert_eq!(carol[0].kit, 0, "nothing counted: the kit it plays");
+}
+
+#[test]
+fn the_history_keeps_what_the_games_counted_by_weapon() {
+    use survarium::v026g::match_msgs::snapshot::WeaponCounts;
+    let counted = vec![
+        WeaponCounts {
+            deaths: 1,
+            held_ms: 2_000,
+            ..WeaponCounts::default()
+        },
+        WeaponCounts {
+            dict_id: 155,
+            kills: 3,
+            headshots: 1,
+            wall_kills: 1,
+            ricochet_kills: 2,
+            deaths: 2,
+            shots: 100,
+            hits: 30,
+            damage: 31_000,
+            kill_distance_dm: 900,
+            longest_kill_dm: 450,
+            held_ms: 61_250,
+        },
+    ];
+    for trusted_by in [2, 0] {
+        let mut players = alice_and_bob();
+        players[0].weapons = counted.clone();
+        let store = accounts(&players);
+        let results = Results::new();
+        let mut result = result(players);
+        result.trusted_by = trusted_by;
+        results.settle(&result, &store, &terms(), &mut Rng::new(1));
+        let record = &history_of(&results)[0];
+        let alice = &record.players[0].weapons;
+        if trusted_by == 0 {
+            assert!(alice.is_empty(), "no trusted result: none of its numbers");
+            continue;
+        }
+        assert_eq!(alice.keys().copied().collect::<Vec<_>>(), [0, 155]);
+        assert_eq!(
+            alice[&155],
+            history::WeaponCounts {
+                kills: 3,
+                headshots: 1,
+                wall_kills: 1,
+                ricochet_kills: 2,
+                deaths: 2,
+                shots: 100,
+                hits: 30,
+                damage: 31_000,
+                kill_distance_dm: 900,
+                longest_kill_dm: 450,
+                held_ms: 61_250,
+            }
+        );
+        assert_eq!((alice[&0].deaths, alice[&0].held_ms), (1, 2_000));
+        assert!(record.players[1].weapons.is_empty());
+    }
+}
+
+#[test]
+fn a_research_match_keeps_captures_not_batteries() {
+    let mut players = alice_and_bob();
+    players[0].statistics = Some(counters_of(
+        0,
+        &[
+            (event::RESEARCH_CAPTURE, 150),
+            (event::PUT_VICTORY_ITEM_IN_CONTAINER, 1),
+        ],
+    ));
+    let store = accounts(&players);
+    let results = Results::new();
+    let mut result = result(players);
+    result.mode = GameMode::Research;
+    results.settle(&result, &store, &terms(), &mut Rng::new(1));
+    let counters = history_of(&results)[0].players[0].line.counters;
+    assert_eq!((counters.capture_hundredths, counters.batteries), (150, 0));
+}
+
+/// A repository that cannot write a match to the history (a row that breaks
+/// one of its CHECKs would do).
+struct HistoryFails {
+    inner: MemoryGameRepository,
+}
+
+impl GameRepository for HistoryFails {
+    fn load_all(&mut self) -> Result<Vec<(u32, Account)>, crate::persist::PersistError> {
+        self.inner.load_all()
+    }
+    fn save(
+        &mut self,
+        account_id: u32,
+        account: &Account,
+    ) -> Result<(), crate::persist::PersistError> {
+        self.inner.save(account_id, account)
+    }
+    fn describe(&self) -> String {
+        "history fails".to_owned()
+    }
+    fn load_results(&mut self) -> Result<Vec<(String, String)>, crate::persist::PersistError> {
+        self.inner.load_results()
+    }
+    fn save_result(&mut self, key: &str, body: &str) -> Result<(), crate::persist::PersistError> {
+        self.inner.save_result(key, body)
+    }
+    fn delete_result(&mut self, key: &str) -> Result<(), crate::persist::PersistError> {
+        self.inner.delete_result(key)
+    }
+    fn record_match(
+        &mut self,
+        _record: &history::MatchRecord,
+    ) -> Result<(), crate::persist::PersistError> {
+        Err(crate::persist::PersistError::GameData("a CHECK".to_owned()))
+    }
+}
+
+/// A match that cannot be written is tried again a bounded number of times,
+/// then dropped: it does not stay in the changes for ever.
+#[test]
+fn a_match_the_history_cannot_take_is_dropped_after_its_tries() {
+    let players = alice_and_bob();
+    let store =
+        GameAccounts::with_repository(Box::new(MemoryGameRepository::default())).unwrap();
+    for player in &players {
+        store.get_or_create(player.account_id, &player.name);
+    }
+    let results = Results::attached(&store);
+    results.settle(&result(players), &store, &terms(), &mut Rng::new(1));
+    assert_eq!(history_of(&results).len(), 1);
+    let mut repository = HistoryFails {
+        inner: MemoryGameRepository::default(),
+    };
+    for _ in 1..RECORD_TRIES {
+        results.save_changes(&mut repository);
+        assert_eq!(history_of(&results).len(), 1, "retried");
+    }
+    results.save_changes(&mut repository);
+    assert!(history_of(&results).is_empty(), "dropped");
+    assert!(results.inner.locked().changes.is_empty());
+}
+
+#[test]
+fn the_history_is_written_at_the_next_save() {
+    let dir = std::env::temp_dir().join(format!(
+        "srp-g26-history-save-{}-{:?}",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    let repository = crate::v026g::SqliteGameRepository::open_in(&dir).unwrap();
+    let store = GameAccounts::with_repository(Box::new(repository)).unwrap();
+    let players = alice_and_bob();
+    for player in &players {
+        store.get_or_create(player.account_id, &player.name);
+    }
+    let results = Results::attached(&store);
+    results.settle(&result(players), &store, &terms(), &mut Rng::new(1));
+    store.flush();
+    assert!(history_of(&results).is_empty());
+    let history = store.history().unwrap();
+    let matches = history.player_matches(10, None, 10).unwrap();
+    assert_eq!(matches.len(), 1);
+    assert_eq!(matches[0].line.kills, 3);
+    assert_eq!(matches[0].kits.len(), 1);
+    assert_eq!(
+        history.player(11).unwrap().unwrap().totals.matches,
+        0,
+        "two players: named, counted in no total"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A free-for-all's history names who won as the pay does: everyone with
+/// the most kills, whatever the column its screen put it in.
+#[test]
+fn a_free_for_alls_history_keeps_its_winners_by_kills() {
+    let players = ffa_players(&[("Carol", 7, 9), ("Bob", 12, 5), ("Dave", 0, 14), ("Alice", 12, 3)]);
+    let store = accounts(&players);
+    let results = Results::new();
+    let report = results
+        .settle(&ffa_result(players), &store, &terms(), &mut Rng::new(1))
+        .unwrap();
+    let record = &history_of(&results)[0];
+    assert_eq!(record.info.winner, history::Winner::MostKills);
+    // Each its own side: placed among everyone, by kills (a tie: the roster's order).
+    let places: Vec<u8> = record.players.iter().map(|player| player.line.place).collect();
+    assert_eq!(places, [3, 1, 4, 2]);
+    for (line, paid) in record.players.iter().zip(&report.players) {
+        assert_eq!(line.account_id, paid.account_id);
+        let outcome = if paid.reward.won {
+            history::Outcome::Won
+        } else {
+            history::Outcome::Lost
+        };
+        assert_eq!(line.line.outcome, outcome, "{}", line.account_id);
     }
 }

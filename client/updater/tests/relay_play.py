@@ -1,10 +1,14 @@
-"""Automatic PLAY selection through real Windows sockets under Wine."""
+"""PLAY's route (Automatic, the relay, direct) through real Windows sockets under Wine."""
 import socket
 import threading
 import time
 
 
-def check(run, updater, x86, started, log, win):
+def check(run, updater, x86, started, log, win, survarium):
+    """`survarium`: the prefix's Documents\\survarium, where the updater keeps
+    the player's route (launcher_skhid.route)."""
+    choice = survarium / 'launcher_skhid.route'
+
     stop = threading.Event()
     enabled = [threading.Event(), threading.Event()]
     for event in enabled:
@@ -90,6 +94,34 @@ def check(run, updater, x86, started, log, win):
             time.sleep(.05)
         raise AssertionError('PLAY did not start stand-in game: '+log())
     try:
+        # None chosen yet: decided once by the Windows region (Wine's: the
+        # United States) and saved: direct.
+        choice.unlink(missing_ok=True)
+        run(updater, 'play', 'quiet', '-minimum_resources_memory_size=768')
+        expect(f'127.0.0.1:{port}')
+        assert choice.read_bytes() == b'direct\r\n', choice.read_bytes()
+        # Direct, the direct route silent but the relay answering: blocked
+        # here, so the choice turns to Automatic by itself (saved) and the game goes
+        # through the relay.
+        enabled[0].clear()
+        run(updater, 'play', 'quiet', '-minimum_resources_memory_size=768')
+        expect(f'127.0.0.2:{port}')
+        assert 'route: diagnosis Some(Blocked)' in log(), log()
+        assert choice.read_bytes() == b'automatic\r\n', choice.read_bytes()
+        # Direct, nothing answering either way: no game, and the choice stays.
+        enabled[1].clear()
+        choice.write_text('direct\r\n')
+        run(updater, 'play', 'quiet', '-minimum_resources_memory_size=768', expected=1)
+        assert not started.exists(), 'unreachable routes must not launch the game'
+        assert choice.read_bytes() == b'direct\r\n', choice.read_bytes()
+        # The relay chosen: through it, unprobed (nothing answers at all).
+        choice.write_text('relay\r\n')
+        run(updater, 'play', 'quiet', '-minimum_resources_memory_size=768')
+        expect(f'127.0.0.2:{port}')
+        # Automatic: the first route that answers.
+        for event in enabled:
+            event.set()
+        choice.write_text('automatic\r\n')
         run(updater, 'play', 'quiet', '-minimum_resources_memory_size=768')
         expect(f'127.0.0.1:{port}')
         enabled[0].clear()
@@ -126,6 +158,7 @@ def check(run, updater, x86, started, log, win):
         started.unlink(missing_ok=True)
     finally:
         config.unlink(missing_ok=True)
+        choice.unlink(missing_ok=True)
         stop.set()
         for s in sockets:
             s.close()

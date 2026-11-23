@@ -187,9 +187,15 @@ impl<E: Copy> Load<E> {
 
 static LOAD: GameCell<Load<[KeptEffect; 13]>> = GameCell::new(Load::Unasked);
 
-/// Whether `player` shows Forest Protection's glow.
+/// Whether `player` shows Forest Protection's glow. A toxic smoke cloud (patch 180) counts as a
+/// damage zone; it is looked for only for a living, protected player in no zone.
 fn glow(player: &Player<'_>) -> Glow {
-    Glow::of(player.alive(), player.damage_zones(), player.weapon_damage_in_anomaly())
+    let (alive, factor) = (player.alive(), player.weapon_damage_in_anomaly());
+    let zones = match player.damage_zones() {
+        0 if alive && factor < 1.0 && player.in_toxic_smoke() => 1,
+        zones => zones,
+    };
+    Glow::of(alive, zones, factor)
 }
 
 /// Whether `player` shows `effect` (the copies counted only for a quarter).
@@ -256,7 +262,7 @@ pub fn on_loaded(results: QueryResults<'_>, tag: QueryTag) {
     let arrived = match results.arrived(tag) {
         Arrived::Effects(kept) => kept.all(),
         // this callback is only the glow's query's
-        Arrived::Bus(_) | Arrived::Track(..) => return,
+        Arrived::Bus(_) | Arrived::Track(..) | Arrived::Particles(_) | Arrived::Assets(_) => return,
     };
     let (load, action) = LOAD.get(thread).step(Event::Arrived(arrived));
     LOAD.set(thread, load);
