@@ -683,3 +683,243 @@ Speed	Швидкість
 bullet	куля
 sight	приціл
 hit	влучання
+
+# The wiki's skills (a page built at a release: scripts/site-texts)
+Points	Очки	skills
+matches	матчів	skills
+h	год	unit
+Tap a skill, then + or −.	Торкніться навички, потім + або −.
+Click a skill to add a rank, right-click to take one back.	Клік додає ранг, правий клік забирає.
+{n} point	{n} очко	one
+{n} points	{n} очки	few
+{n} points	{n} очок	many
+Maximum:	Максимум:
+or	або	skill
+
+# The Maps tab (a page built at a release: scripts/site-texts)
+Player spawns	Відродження
+Battery spawns	Батареї
+Chargers	Зарядки
+Containers	Контейнери
+Research units	Установки
+Ammo stashes	Поповнення амуніції
+Survarium maps	Мапи Survarium
+chargers	зарядки
+Minimap	Мінімапа
+From above	Згори
+{n} active	{n} активні
+{n} batteries to win.	{n} батарей для перемоги.
+team {n}	команда {n}
+any team	будь-яка команда
+Ammo stash	Поповнення амуніції
+Container	Контейнер
+Battery spawn	Поява батареї
+Charger	Зарядка
+Research unit	Установка
+Spawn	Відродження
+Glow of the Forest	Сяйво Лісу
+Bases	Бази
+Base	База	hunt
+
+# The damage calculator (a page built at a release: scripts/site-texts)
+Feet	Стопи	parts
+m/s	м/с	unit
+HP/s	ОЗ/с	unit
+active	активний
+passive	пасивний
+Damage ×{damage}, penetration ×{pierce}, before armour: lower penetration makes the armour stop more.	Пошкодження ×{damage}, бронебійність ×{pierce}, до броні: з меншою бронебійністю броня зупиняє більше.
+{drug}: {pool} takes ×{k} for {s} s after use ({delay} s to kick in).	{drug}: {pool} отримує ×{k} протягом {s} с після вживання (діє через {delay} с).
+Inside an anomaly: damage ×{k}, before armour.	В аномалії: пошкодження ×{k}, до броні.
+This weapon takes no damage bonuses.	Ця зброя не має бонусів пошкодження.
+Come with the weapon; cannot be changed.	Ідуть зі зброєю; змінити не можна.
+An item holds at most 3 modifications. Bonuses on one stat add up before they apply.	Предмет має щонайбільше 3 модифікації. Бонуси на одну характеристику додаються.
+This item takes no armour bonuses.	Цей предмет не має бонусів броні.
+Nothing worn covers the {part}.	Ніщо вдягнене не захищає: {part}.
+Drugs	Препарати
+Assault rifles	Штурмові гвинтівки
+Submachine guns	Пістолети-кулемети
+Shotguns	Дробовики
+Bolt-action & sniper rifles	Гвинтівки та снайперські гвинтівки
+Pistols & revolvers	Пістолети й револьвери
+Helmet	Шолом
+Mask	Маска
+Jacket	Куртка
+Gloves	Рукавиці
+Trousers	Штани
+Boots	Черевики
+Backpack	Рюкзак
+Chest & neck	Груди й шия
+Right arm	Права рука
+Left arm	Ліва рука
+Right hand	Права кисть
+Left hand	Ліва кисть
+Right leg	Права нога
+Left leg	Ліва нога
+Right foot	Права стопа
+Left foot	Ліва стопа
+Body	Тіло
+Pain	Біль
+Infection	Інфекція
+death	смерть
+bleeding	кровотеча
+concussion	контузія
+hand injury	травма руки
+leg injury	травма ноги
+infection	інфекція
+blindness	сліпота
+Search	Пошук
+— none —	— нічого —
+nothing worn	нічого не вдягнено
+back	ззаду
+front	спереду
+after shot	постріл
+of	з
+dead	мертвий
+Glass	Скло
+Car	Автомобіль
+Plywood	Фанера
+Tinplate	Бляха
+Brick, steel	Цегла, сталь
+Concrete	Бетон
+Stone	Камінь
+<none>	<немає>
+armour	броня
+{n} left	лишилось {n}
+damage	пошкодження
+penetration	бронебійність
+full damage to	повне до
+minimum from	мінімум від
+minimum	мінімум
+muzzle	швидкість кулі
+rate	темп
+magazine	магазин
+Gets through: k {k}, D {D} · P {P}.	Пробиває: k {k}, D {D} · P {P}.
+Does not get through: penetration {P}, armour {A}.	Не пробиває: бронебійність {P}, броня {A}.
+here	тут
+not here	не тут
+taken by {item}	зайнято: {item}
+Covers the {part}.	Захищає: {part}.
+Does not cover the {part}.	Не захищає: {part}.
+Click to aim at the {part}.	Клікніть, щоб цілити: {part}.
+aim at the {part}	цілити: {part}
+Full damage at this range.	На цій дистанції пошкодження повне.
+Fully fallen off: minimum damage.	Повністю спало: мінімальне пошкодження.
+Falling off: {share} of the way from minimum to full.	Спадає: {share} шляху від мінімуму до повного.
+Orange band: damage falls from {from} m to {to} m.	Помаранчева смуга: пошкодження спадає від {from} м до {to} м.
+per shot (all pellets)	за постріл (усі дробини)
+per hit	за влучання
+{pool} damage {per}	{pool}: пошкодження {per}
+of {n} {pool} left	із {n}, що лишились ({pool})
+of {n} {pool}	із {n} ({pool})
+Hits to kill	Влучань до смерті
+dies when {pool} reaches 0	гине, коли {pool} доходить до 0
+this shot cannot kill	цей постріл не вбиває
+Time to kill	Час до смерті
+every shot lands, no reload	усі влучають, без перезарядки
+Leaves the barrel	Виліт зі ствола
+Weapon damage × ammo <code>k_damage</code>, weapon pierce × ammo <code>k_arp</code>.	Пошкодження зброї × <code>k_damage</code> набою, бронебійність зброї × <code>k_arp</code> набою.
+Each of the {n} pellets carries this.	Так у кожної з {n} дробин.
+Flies {m} m	Летить {m} м
+Speed {v0} → {v} m/s. Damage slides from full ({full}) to minimum ({min}) by speed between {from} and {to} m: here {share}. Penetration stays.	Швидкість {v0} → {v} м/с. Пошкодження спадає від повного ({full}) до мінімального ({min}) за швидкістю між {from} і {to} м: тут {share}. Бронебійність не спадає.
+Through {wall}	Крізь: {wall}
+stopped	зупинено
+Penetration {P}, armour {A}. Damage, penetration and speed × k; then damage no higher than at {v} m/s.	Бронебійність {P}, броня {A}. Пошкодження, бронебійність і швидкість × k; далі пошкодження не вище, ніж на {v} м/с.
+Penetration {P} is not above armour {A}: the bullet stops.	Бронебійність {P} не вища за броню {A}: куля зупиняється.
+No armour here, the full amount goes in.	Броні тут немає: проходить усе.
+Armour {A} is not above penetration {P}: nothing is stopped.	Броня {A} не вища за бронебійність {P}: нічого не зупинено.
+Armour exceeds penetration by a full 100: the bullet does nothing.	Броня вища за бронебійність на повні 100: куля нічого не робить.
+Armour {A} − penetration {P} = {gap}% of the damage is stopped.	Броня {A} − бронебійність {P} = зупинено {gap}% пошкодження.
+Hits {part}	Влучає: {part}
+Every hit anywhere also drains the shared pain pool. Pain at 0 kills.	Кожне влучання також знімає спільний біль. Біль на 0 вбиває.
+Body at 0 kills.	Тіло на 0 вбиває.
+Head holds only 40: at 0 it kills, below 20 it concusses.	Голова має лише 40: на 0 вбиває, нижче 20 — контузія.
+Limbs do not kill by themselves: an empty limb injures, the pain it carries can kill.	Кінцівки самі не вбивають: порожня кінцівка травмується, а біль від неї може вбити.
+Second chance	Другий шанс
+The skill leaves the target alive once.	Навичка один раз лишає ціль живою.
+× {n} pellets	× {n} дробин
+Each pellet is its own bullet: when several land, their damage adds up.	Кожна дробина — окрема куля: коли влучає кілька, пошкодження додається.
+kills	вбиває
+breaks	ламає
+below	нижче
+empty	на нулі
+movement	рух
+shot	постріл
+Damage over distance	Пошкодження за дистанцією
+after armour	після броні
+Body part	Частина тіла
+Stopped	Зупинено
+Limb	Кінцівка
+Also	Також
+injury	травма
+best ammo	найкращий набій
+default ammo	стандартний набій
+Ammo	Набій
+Pen. here	Бронеб. тут
+Damage / hit	Пошк. / влуч.
+RPM	Темп
+Bullet	Куля
+D, P = weapon × ammo, D falling with distance	D, P = зброя × набій, D спадає з дистанцією
+{n} pellets	{n} дробин
+Wall	Стіна
+P ≤ A: the bullet stays in the wall · else D, P × (1 − (A / P)²)	P ≤ A: куля застрягає в стіні · інакше D, P × (1 − (A / P)²)
+stays in the wall	застрягає в стіні
+each	кожен
+rank	ранг
+inside an anomaly	в аномалії
+D × (1 − (armour − P) / 100)	D × (1 − (броня − P) / 100)
+{part}, armour {A} − P {P}	{part}, броня {A} − P {P}
+Pools	Пули
+chest, back → body · head, face → head · leg, foot → leg · arm, hand → hand	груди, спина → тіло · голова, обличчя → голова · нога, стопа → нога · рука, кисть → кисть
+× 1 chest, head, arms · 0.9 legs · 0.8 hands, feet	× 1 груди, голова, руки · 0.9 ноги · 0.8 кисті, стопи
+Death	Смерть
+body, head or pain at 0	тіло, голова або біль на 0
+{n} hits	влучань: {n}
+at 0	на 0
+does not kill	не вбиває
+wall armour	броня стіни
+One bullet through several parts: each pool loses only its biggest hit, not the sum (hands 40 + 40, chest 35 → pain −40, not −115).	Одна куля крізь кілька частин: кожен пул втрачає лише найбільше влучання, а не суму (кисті 40 + 40, груди 35 → біль −40, а не −115).
+full	повністю
+fixed	лікує
+{s} s without hits	{s} с без влучань
+By itself	Само собою
+ends after {s} s without hits	минає за {s} с без влучань
+carried	у слоті
+activated	активований
+at once, every {s} s	одразу, раз на {s} с
+{delay} s after use, for {s} s	через {delay} с, {s} с
+stops at {n}	до {n}
+From empty to full	Від нуля до повного
+Leg or hand	Нога чи кисть
+No Larkspur	Без Живокосту
+Starts	Починає
+Legs, hands	Ноги, кисті
+Broken leg, hand	Зламана нога, кисть
+Top-down view of	Вигляд згори:
+<b>{m} m</b> ({across} across, {sign}{height} height). Click again to start over.	<b>{m} м</b> ({across} по горизонталі, {sign}{height} по висоті). Клікніть ще раз, щоб почати знову.
+Now click the target.	Тепер клікніть ціль.
+Click the shooter, then the target.	Клікніть стрільця, потім ціль.
+Orange ring: full damage to {from} m; dashed: minimum from {to} m.	Помаранчеве коло: повне пошкодження до {from} м; пунктирне: мінімум від {to} м.
+health shown ×100 (body 100, head 40)	здоров'я ×100 (тіло 100, голова 40)
+Shooter	Стрілець
+fires	стріляє
+Distance to target	Дистанція до цілі
+Wall in front of the target	Стіна перед ціллю
+Weapon bonuses	Бонуси зброї
+— — HIT — →	— — ВЛУЧАННЯ — →
+takes the hit	отримує влучання
+Current pain	Поточний біль
+Pain the target already carries from earlier hits. It drains back to none at 10 a second once 8 s pass without a hit.	Біль, який ціль уже має від попередніх влучань. Спадає до нуля по 10 за секунду, коли 8 с немає влучань.
+Armour bonuses	Бонуси броні
+Artefacts, drugs & skills	Артефакти, препарати й навички
+Measure on a map	Виміряти на мапі
+Clear points	Очистити точки
+bullet before armour	куля до броні
+after this armour	після цієї броні
+Every body part, this shot	Кожна частина тіла, цей постріл
+Every weapon against this target	Уся зброя проти цієї цілі
+Same distance, wall, body part, armour and target effects. Each gun uses its best ammo for this target unless you pick "default ammo". Click a row to load that gun.	Та сама дистанція, стіна, частина тіла, броня й ефекти цілі. Кожна зброя бере свій найкращий набій для цієї цілі, якщо не вибрано «стандартний набій». Клікніть рядок, щоб узяти цю зброю.
+Formula	Формула
+Healing	Лікування
+Previous shot	Попередній постріл
+Next shot	Наступний постріл
+Damage calculator	Калькулятор шкоди Survarium	title

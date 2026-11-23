@@ -683,3 +683,243 @@ Speed	Nopeus
 bullet	luoti
 sight	tähtäin
 hit	osuma
+
+# The wiki's skills (a page built at a release: scripts/site-texts)
+Points	Pisteet	skills
+matches	ottelua	skills
+h	h	unit
+Tap a skill, then + or −.	Napauta taitoa, sitten + tai −.
+Click a skill to add a rank, right-click to take one back.	Klikkaus lisää asteen, oikea klikkaus poistaa sen.
+{n} point	{n} piste	one
+{n} points	{n} pistettä	few
+{n} points	{n} pistettä	many
+Maximum:	Enintään:
+or	tai	skill
+
+# The Maps tab (a page built at a release: scripts/site-texts)
+Player spawns	Syntypisteet
+Battery spawns	Akkujen syntypisteet
+Chargers	Laturit
+Containers	Säiliöt
+Research units	Tutkimusyksiköt
+Ammo stashes	Ammustäydennys
+Survarium maps	Survariumin kartat
+chargers	laturit
+Minimap	Minikartta
+From above	Ylhäältä
+{n} active	{n} aktiivista
+{n} batteries to win.	{n} akkua voittoon.
+team {n}	joukkue {n}
+any team	mikä tahansa joukkue
+Ammo stash	Ammustäydennys
+Container	Säiliö
+Battery spawn	Akun syntypiste
+Charger	Laturi
+Research unit	Tutkimusyksikkö
+Spawn	Syntypiste
+Glow of the Forest	Metsän Hohde
+Bases	Tukikohdat
+Base	Tukikohta	hunt
+
+# The damage calculator (a page built at a release: scripts/site-texts)
+Feet	Jalkaterät	parts
+m/s	m/s	unit
+HP/s	HP/s	unit
+active	aktiivinen
+passive	passiivinen
+Damage ×{damage}, penetration ×{pierce}, before armour: lower penetration makes the armour stop more.	Vahinko ×{damage}, panssarinläpäisy ×{pierce}, ennen panssaria: pienemmällä läpäisyllä panssari pysäyttää enemmän.
+{drug}: {pool} takes ×{k} for {s} s after use ({delay} s to kick in).	{drug}: {pool} ottaa ×{k} vahinkoa {s} s ajan käytön jälkeen (vaikutus alkaa {delay} s:n päästä).
+Inside an anomaly: damage ×{k}, before armour.	Anomalian sisällä: vahinko ×{k}, ennen panssaria.
+This weapon takes no damage bonuses.	Tähän aseeseen ei saa vahinkobonuksia.
+Come with the weapon; cannot be changed.	Tulevat aseen mukana; ei voi muuttaa.
+An item holds at most 3 modifications. Bonuses on one stat add up before they apply.	Esineessä on enintään 3 muokkausta. Saman arvon bonukset lasketaan yhteen ennen kuin ne vaikuttavat.
+This item takes no armour bonuses.	Tähän esineeseen ei saa panssaribonuksia.
+Nothing worn covers the {part}.	Mikään varuste ei suojaa: {part}.
+Drugs	Lääkkeet
+Assault rifles	Rynnäkkökiväärit
+Submachine guns	Konepistoolit
+Shotguns	Haulikot
+Bolt-action & sniper rifles	Pultti- ja tarkkuuskiväärit
+Pistols & revolvers	Pistoolit ja revolverit
+Helmet	Kypärä
+Mask	Naamari
+Jacket	Takki
+Gloves	Käsineet
+Trousers	Housut
+Boots	Saappaat
+Backpack	Reppu
+Chest & neck	Rinta ja kaula
+Right arm	Oikea käsivarsi
+Left arm	Vasen käsivarsi
+Right hand	Oikea käsi
+Left hand	Vasen käsi
+Right leg	Oikea jalka
+Left leg	Vasen jalka
+Right foot	Oikea jalkaterä
+Left foot	Vasen jalkaterä
+Body	Vartalo
+Pain	Kipu
+Infection	Tartunta
+death	kuolema
+bleeding	verenvuoto
+concussion	aivotärähdys
+hand injury	käsivamma
+leg injury	jalkavamma
+infection	tartunta
+blindness	sokeus
+Search	Hae
+— none —	— ei mitään —
+nothing worn	ei varusteita
+back	takaa
+front	edestä
+after shot	laukaus
+of	/
+dead	kuollut
+Glass	Lasi
+Car	Auto
+Plywood	Vaneri
+Tinplate	Pelti
+Brick, steel	Tiili, teräs
+Concrete	Betoni
+Stone	Kivi
+<none>	<ei mitään>
+armour	panssari
+{n} left	{n} jäljellä
+damage	vahinko
+penetration	panssarinläpäisy
+full damage to	täyden vahingon kantama
+minimum from	vähimmäisvahinko alkaa
+minimum	minimi
+muzzle	lähtönopeus
+rate	tulinopeus
+magazine	lipas
+Gets through: k {k}, D {D} · P {P}.	Läpäisee: k {k}, D {D} · P {P}.
+Does not get through: penetration {P}, armour {A}.	Ei läpäise: panssarinläpäisy {P}, panssari {A}.
+here	tässä
+not here	ei tässä
+taken by {item}	varattu: {item}
+Covers the {part}.	Suojaa: {part}.
+Does not cover the {part}.	Ei suojaa: {part}.
+Click to aim at the {part}.	Napsauta tähdätäksesi: {part}.
+aim at the {part}	tähtää: {part}
+Full damage at this range.	Täysi vahinko tällä etäisyydellä.
+Fully fallen off: minimum damage.	Heikentynyt täysin: vähimmäisvahinko.
+Falling off: {share} of the way from minimum to full.	Heikkenee: {share} matkasta vähimmäisvahingosta täyteen.
+Orange band: damage falls from {from} m to {to} m.	Oranssi kaista: vahinko heikkenee {from} m:n ja {to} m:n välillä.
+per shot (all pellets)	laukausta kohden (kaikki haulit)
+per hit	osumaa kohden
+{pool} damage {per}	{pool}: vahinko {per}
+of {n} {pool} left	/ {n} jäljellä ({pool})
+of {n} {pool}	/ {n} ({pool})
+Hits to kill	Osumia tappoon
+dies when {pool} reaches 0	kuolee, kun {pool} laskee nollaan
+this shot cannot kill	tämä laukaus ei voi tappaa
+Time to kill	Aika tappoon
+every shot lands, no reload	kaikki laukaukset osuvat, ei latausta
+Leaves the barrel	Lähtee piipusta
+Weapon damage × ammo <code>k_damage</code>, weapon pierce × ammo <code>k_arp</code>.	Aseen vahinko × patruunan <code>k_damage</code>, aseen panssarinläpäisy × patruunan <code>k_arp</code>.
+Each of the {n} pellets carries this.	Sama jokaiselle haulille ({n} kpl).
+Flies {m} m	Lentää {m} m
+Speed {v0} → {v} m/s. Damage slides from full ({full}) to minimum ({min}) by speed between {from} and {to} m: here {share}. Penetration stays.	Nopeus {v0} → {v} m/s. Vahinko laskee täydestä ({full}) vähimmäiseen ({min}) nopeuden mukaan {from} m:n ja {to} m:n välillä: tässä {share}. Panssarinläpäisy säilyy.
+Through {wall}	Läpi: {wall}
+stopped	pysäytetty
+Penetration {P}, armour {A}. Damage, penetration and speed × k; then damage no higher than at {v} m/s.	Panssarinläpäisy {P}, panssari {A}. Vahinko, läpäisy ja nopeus × k; sitten vahinko enintään sama kuin nopeudella {v} m/s.
+Penetration {P} is not above armour {A}: the bullet stops.	Panssarinläpäisy {P} ei ylitä panssaria {A}: luoti pysähtyy.
+No armour here, the full amount goes in.	Ei panssaria tässä: koko määrä menee läpi.
+Armour {A} is not above penetration {P}: nothing is stopped.	Panssari {A} ei ylitä panssarinläpäisyä {P}: mitään ei pysäytetä.
+Armour exceeds penetration by a full 100: the bullet does nothing.	Panssari ylittää panssarinläpäisyn täydellä 100:lla: luoti ei tee mitään.
+Armour {A} − penetration {P} = {gap}% of the damage is stopped.	Panssari {A} − panssarinläpäisy {P} = {gap}% vahingosta pysäytetään.
+Hits {part}	Osuu: {part}
+Every hit anywhere also drains the shared pain pool. Pain at 0 kills.	Jokainen osuma mihin tahansa vähentää myös yhteistä kipuvarantoa. Kipu nollassa tappaa.
+Body at 0 kills.	Vartalo nollassa tappaa.
+Head holds only 40: at 0 it kills, below 20 it concusses.	Päässä on vain 40: nollassa se tappaa, alle 20:ssä tulee aivotärähdys.
+Limbs do not kill by themselves: an empty limb injures, the pain it carries can kill.	Raajat eivät yksinään tapa: nollassa oleva raaja vammautuu, mutta sen tuoma kipu voi tappaa.
+Second chance	Toinen mahdollisuus
+The skill leaves the target alive once.	Taito jättää kohteen kerran henkiin.
+× {n} pellets	× {n} haulia
+Each pellet is its own bullet: when several land, their damage adds up.	Jokainen hauli on oma luotinsa: kun useampi osuu, niiden vahinko lasketaan yhteen.
+kills	tappaa
+breaks	murtaa
+below	alle
+empty	nollassa
+movement	liike
+shot	laukaus
+Damage over distance	Vahinko etäisyyden mukaan
+after armour	panssarin jälkeen
+Body part	Ruumiinosa
+Stopped	Pysäytetty
+Limb	Raaja
+Also	Lisäksi
+injury	vamma
+best ammo	paras patruuna
+default ammo	vakiopatruuna
+Ammo	Patruuna
+Pen. here	Läp. tässä
+Damage / hit	Vahinko / osuma
+RPM	ls/min
+Bullet	Luoti
+D, P = weapon × ammo, D falling with distance	D, P = ase × patruuna, D heikkenee etäisyyden myötä
+{n} pellets	{n} haulia
+Wall	Seinä
+P ≤ A: the bullet stays in the wall · else D, P × (1 − (A / P)²)	P ≤ A: luoti jää seinään · muuten D, P × (1 − (A / P)²)
+stays in the wall	jää seinään
+each	kukin
+rank	aste
+inside an anomaly	anomalian sisällä
+D × (1 − (armour − P) / 100)	D × (1 − (panssari − P) / 100)
+{part}, armour {A} − P {P}	{part}, panssari {A} − P {P}
+Pools	Varannot
+chest, back → body · head, face → head · leg, foot → leg · arm, hand → hand	rinta, selkä → vartalo · pää, kasvot → pää · jalka, jalkaterä → jalka · käsivarsi, käsi → käsi
+× 1 chest, head, arms · 0.9 legs · 0.8 hands, feet	× 1 rinta, pää, käsivarret · 0.9 jalat · 0.8 kädet, jalkaterät
+Death	Kuolema
+body, head or pain at 0	vartalo, pää tai kipu nollassa
+{n} hits	{n} osumaa
+at 0	nollassa
+does not kill	ei tapa
+wall armour	seinän panssari
+One bullet through several parts: each pool loses only its biggest hit, not the sum (hands 40 + 40, chest 35 → pain −40, not −115).	Yksi luoti usean osan läpi: kukin varanto menettää vain suurimman osumansa, ei summaa (kädet 40 + 40, rinta 35 → kipu −40, ei −115).
+full	täysi
+fixed	parantaa
+{s} s without hits	{s} s ilman osumia
+By itself	Itsestään
+ends after {s} s without hits	loppuu, kun osumia ei tule {s} s
+carried	kannettuna
+activated	aktivoitu
+at once, every {s} s	heti, {s} s välein
+{delay} s after use, for {s} s	{delay} s käytöstä, {s} s ajan
+stops at {n}	{n} asti
+From empty to full	Tyhjästä täyteen
+Leg or hand	Jalka tai käsi
+No Larkspur	Ilman Ritarinkannusta
+Starts	Alkaa
+Legs, hands	Jalat, kädet
+Broken leg, hand	Murtunut jalka, käsi
+Top-down view of	Näkymä ylhäältä:
+<b>{m} m</b> ({across} across, {sign}{height} height). Click again to start over.	<b>{m} m</b> ({across} vaakasuunnassa, {sign}{height} pystysuunnassa). Napsauta uudelleen aloittaaksesi alusta.
+Now click the target.	Napsauta nyt kohdetta.
+Click the shooter, then the target.	Napsauta ampujaa, sitten kohdetta.
+Orange ring: full damage to {from} m; dashed: minimum from {to} m.	Oranssi rengas: täysi vahinko {from} m asti; katkoviiva: vähimmäisvahinko {to} m:stä alkaen.
+health shown ×100 (body 100, head 40)	terveys näytetään ×100 (vartalo 100, pää 40)
+Shooter	Ampuja
+fires	ampuu
+Distance to target	Etäisyys kohteeseen
+Wall in front of the target	Seinä kohteen edessä
+Weapon bonuses	Asebonukset
+— — HIT — →	— — OSUMA — →
+takes the hit	ottaa osuman
+Current pain	Nykyinen kipu
+Pain the target already carries from earlier hits. It drains back to none at 10 a second once 8 s pass without a hit.	Kipu, joka kohteella on jo aiemmista osumista. Se laskee nollaan nopeudella 10 sekunnissa, kun 8 s on kulunut ilman osumaa.
+Armour bonuses	Panssaribonukset
+Artefacts, drugs & skills	Artefaktit, lääkkeet ja taidot
+Measure on a map	Mittaa kartalla
+Clear points	Tyhjennä pisteet
+bullet before armour	luoti ennen panssaria
+after this armour	tämän panssarin jälkeen
+Every body part, this shot	Jokainen ruumiinosa, tämä laukaus
+Every weapon against this target	Jokainen ase tätä kohdetta vastaan
+Same distance, wall, body part, armour and target effects. Each gun uses its best ammo for this target unless you pick "default ammo". Click a row to load that gun.	Sama etäisyys, seinä, ruumiinosa, panssari ja kohteen efektit. Jokainen ase käyttää tätä kohdetta vastaan parasta patruunaansa, ellet valitse "vakiopatruuna". Napsauta riviä valitaksesi sen aseen.
+Formula	Kaava
+Healing	Parannus
+Previous shot	Edellinen laukaus
+Next shot	Seuraava laukaus
+Damage calculator	Survariumin vahinkolaskuri	title

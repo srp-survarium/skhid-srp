@@ -683,3 +683,243 @@ Speed	Prędkość
 bullet	pocisk
 sight	celownik
 hit	trafienie
+
+# The wiki's skills (a page built at a release: scripts/site-texts)
+Points	Punkty	skills
+matches	meczów	skills
+h	godz.	unit
+Tap a skill, then + or −.	Dotknij umiejętności, potem + lub −.
+Click a skill to add a rank, right-click to take one back.	Kliknięcie dodaje rangę, prawy przycisk ją odbiera.
+{n} point	{n} punkt	one
+{n} points	{n} punkty	few
+{n} points	{n} punktów	many
+Maximum:	Maksimum:
+or	lub	skill
+
+# The Maps tab (a page built at a release: scripts/site-texts)
+Player spawns	Punkty odrodzenia
+Battery spawns	Pojawianie się baterii
+Chargers	Ładowarki
+Containers	Kontenery
+Research units	Jednostki badawcze
+Ammo stashes	Uzupełnienie amunicji
+Survarium maps	Mapy Survarium
+chargers	ładowarki
+Minimap	Minimapa
+From above	Z góry
+{n} active	aktywne: {n}
+{n} batteries to win.	Baterii do wygranej: {n}.
+team {n}	drużyna {n}
+any team	dowolna drużyna
+Ammo stash	Uzupełnienie amunicji
+Container	Kontener
+Battery spawn	Pojawianie się baterii
+Charger	Ładowarka
+Research unit	Jednostka badawcza
+Spawn	Odrodzenie
+Glow of the Forest	Leśny Blask
+Bases	Bazy
+Base	Baza	hunt
+
+# The damage calculator (a page built at a release: scripts/site-texts)
+Feet	Stopy	parts
+m/s	m/s	unit
+HP/s	HP/s	unit
+active	aktywny
+passive	pasywny
+Damage ×{damage}, penetration ×{pierce}, before armour: lower penetration makes the armour stop more.	Obrażenia ×{damage}, penetracja ×{pierce}, przed pancerzem: przy niższej penetracji pancerz zatrzymuje więcej.
+{drug}: {pool} takes ×{k} for {s} s after use ({delay} s to kick in).	{drug}: {pool} otrzymuje ×{k} przez {s} s po użyciu (działa po {delay} s).
+Inside an anomaly: damage ×{k}, before armour.	W anomalii: obrażenia ×{k}, przed pancerzem.
+This weapon takes no damage bonuses.	Ta broń nie ma bonusów obrażeń.
+Come with the weapon; cannot be changed.	Należą do broni; nie można ich zmienić.
+An item holds at most 3 modifications. Bonuses on one stat add up before they apply.	Przedmiot ma najwyżej 3 modyfikacje. Bonusy do jednego parametru sumują się przed zastosowaniem.
+This item takes no armour bonuses.	Ten przedmiot nie ma bonusów pancerza.
+Nothing worn covers the {part}.	Żaden noszony przedmiot nie chroni: {part}.
+Drugs	Preparaty
+Assault rifles	Karabiny szturmowe
+Submachine guns	Pistolety maszynowe
+Shotguns	Strzelby
+Bolt-action & sniper rifles	Karabiny powtarzalne i snajperskie
+Pistols & revolvers	Pistolety i rewolwery
+Helmet	Hełm
+Mask	Maska
+Jacket	Kurtka
+Gloves	Rękawice
+Trousers	Spodnie
+Boots	Buty
+Backpack	Plecak
+Chest & neck	Klatka piersiowa i szyja
+Right arm	Prawa ręka
+Left arm	Lewa ręka
+Right hand	Prawa dłoń
+Left hand	Lewa dłoń
+Right leg	Prawa noga
+Left leg	Lewa noga
+Right foot	Prawa stopa
+Left foot	Lewa stopa
+Body	Ciało
+Pain	Ból
+Infection	Infekcja
+death	śmierć
+bleeding	krwawienie
+concussion	ogłuszenie
+hand injury	uraz dłoni
+leg injury	uraz nogi
+infection	infekcja
+blindness	oślepienie
+Search	Szukaj
+— none —	— brak —
+nothing worn	nic nie założono
+back	z tyłu
+front	z przodu
+after shot	strzał
+of	z
+dead	martwy
+Glass	Szkło
+Car	Samochód
+Plywood	Sklejka
+Tinplate	Blacha
+Brick, steel	Cegła, stal
+Concrete	Beton
+Stone	Kamień
+<none>	<brak>
+armour	pancerz
+{n} left	zostało {n}
+damage	obrażenia
+penetration	penetracja
+full damage to	pełne do
+minimum from	minimum od
+minimum	minimum
+muzzle	prędkość wylotowa
+rate	szybkostrzelność
+magazine	magazynek
+Gets through: k {k}, D {D} · P {P}.	Przebija: k {k}, D {D} · P {P}.
+Does not get through: penetration {P}, armour {A}.	Nie przebija: penetracja {P}, pancerz {A}.
+here	tutaj
+not here	nie tutaj
+taken by {item}	zajęte: {item}
+Covers the {part}.	Chroni: {part}.
+Does not cover the {part}.	Nie chroni: {part}.
+Click to aim at the {part}.	Kliknij, by celować: {part}.
+aim at the {part}	celuj: {part}
+Full damage at this range.	Na tej odległości pełne obrażenia.
+Fully fallen off: minimum damage.	Pełny spadek: minimalne obrażenia.
+Falling off: {share} of the way from minimum to full.	Spadek: {share} drogi od minimum do pełnych.
+Orange band: damage falls from {from} m to {to} m.	Pomarańczowy pas: obrażenia spadają od {from} m do {to} m.
+per shot (all pellets)	za strzał (wszystkie śruciny)
+per hit	za trafienie
+{pool} damage {per}	{pool}: obrażenia {per}
+of {n} {pool} left	z {n} pozostałych ({pool})
+of {n} {pool}	z {n} ({pool})
+Hits to kill	Trafień do zabicia
+dies when {pool} reaches 0	ginie, gdy {pool} spada do 0
+this shot cannot kill	ten strzał nie zabija
+Time to kill	Czas do zabicia
+every shot lands, no reload	każdy strzał trafia, bez przeładowania
+Leaves the barrel	Wylot z lufy
+Weapon damage × ammo <code>k_damage</code>, weapon pierce × ammo <code>k_arp</code>.	Obrażenia broni × <code>k_damage</code> naboju, penetracja broni × <code>k_arp</code> naboju.
+Each of the {n} pellets carries this.	Dotyczy każdej z {n} śrucin.
+Flies {m} m	Leci {m} m
+Speed {v0} → {v} m/s. Damage slides from full ({full}) to minimum ({min}) by speed between {from} and {to} m: here {share}. Penetration stays.	Prędkość {v0} → {v} m/s. Obrażenia przechodzą od pełnych ({full}) do minimalnych ({min}) wraz z prędkością między {from} a {to} m: tutaj {share}. Penetracja się nie zmienia.
+Through {wall}	Przez: {wall}
+stopped	zatrzymany
+Penetration {P}, armour {A}. Damage, penetration and speed × k; then damage no higher than at {v} m/s.	Penetracja {P}, pancerz {A}. Obrażenia, penetracja i prędkość × k; potem obrażenia nie wyższe niż przy {v} m/s.
+Penetration {P} is not above armour {A}: the bullet stops.	Penetracja {P} nie przewyższa pancerza {A}: pocisk się zatrzymuje.
+No armour here, the full amount goes in.	Brak pancerza: przechodzi całość.
+Armour {A} is not above penetration {P}: nothing is stopped.	Pancerz {A} nie przewyższa penetracji {P}: nic nie zostaje zatrzymane.
+Armour exceeds penetration by a full 100: the bullet does nothing.	Pancerz przewyższa penetrację o pełne 100: pocisk nic nie robi.
+Armour {A} − penetration {P} = {gap}% of the damage is stopped.	Pancerz {A} − penetracja {P} = zatrzymane {gap}% obrażeń.
+Hits {part}	Trafia: {part}
+Every hit anywhere also drains the shared pain pool. Pain at 0 kills.	Każde trafienie, gdziekolwiek, uszczupla też wspólną pulę bólu. Ból na 0 zabija.
+Body at 0 kills.	Ciało na 0 zabija.
+Head holds only 40: at 0 it kills, below 20 it concusses.	Głowa ma tylko 40: na 0 zabija, poniżej 20 ogłusza.
+Limbs do not kill by themselves: an empty limb injures, the pain it carries can kill.	Kończyny same nie zabijają: wyzerowana kończyna to uraz, a jej ból może zabić.
+Second chance	Druga szansa
+The skill leaves the target alive once.	Umiejętność raz zostawia cel przy życiu.
+× {n} pellets	× {n} śrucin
+Each pellet is its own bullet: when several land, their damage adds up.	Każda śrucina to osobny pocisk: gdy trafi kilka, ich obrażenia się sumują.
+kills	zabija
+breaks	łamie
+below	poniżej
+empty	na zerze
+movement	ruch
+shot	strzał
+Damage over distance	Obrażenia a odległość
+after armour	po pancerzu
+Body part	Część ciała
+Stopped	Zatrzymane
+Limb	Kończyna
+Also	Również
+injury	uraz
+best ammo	najlepszy nabój
+default ammo	standardowy nabój
+Ammo	Nabój
+Pen. here	Penetr. tu
+Damage / hit	Obr. / traf.
+RPM	Strz./min
+Bullet	Pocisk
+D, P = weapon × ammo, D falling with distance	D, P = broń × nabój, D spada z odległością
+{n} pellets	{n} śrucin
+Wall	Ściana
+P ≤ A: the bullet stays in the wall · else D, P × (1 − (A / P)²)	P ≤ A: pocisk zostaje w ścianie · inaczej D, P × (1 − (A / P)²)
+stays in the wall	zostaje w ścianie
+each	każdy
+rank	ranga
+inside an anomaly	w anomalii
+D × (1 − (armour − P) / 100)	D × (1 − (pancerz − P) / 100)
+{part}, armour {A} − P {P}	{part}, pancerz {A} − P {P}
+Pools	Pule
+chest, back → body · head, face → head · leg, foot → leg · arm, hand → hand	klatka piersiowa, plecy → ciało · głowa, twarz → głowa · noga, stopa → noga · ręka, dłoń → dłoń
+× 1 chest, head, arms · 0.9 legs · 0.8 hands, feet	× 1 klatka piersiowa, głowa, ręce · 0.9 nogi · 0.8 dłonie, stopy
+Death	Śmierć
+body, head or pain at 0	ciało, głowa lub ból na 0
+{n} hits	trafień: {n}
+at 0	na 0
+does not kill	nie zabija
+wall armour	pancerz ściany
+One bullet through several parts: each pool loses only its biggest hit, not the sum (hands 40 + 40, chest 35 → pain −40, not −115).	Jeden pocisk przez kilka części: każda pula traci tylko największe trafienie, nie sumę (dłonie 40 + 40, klatka piersiowa 35 → ból −40, nie −115).
+full	w pełni
+fixed	leczy
+{s} s without hits	{s} s bez trafień
+By itself	Samoistnie
+ends after {s} s without hits	mija po {s} s bez trafień
+carried	w slocie
+activated	aktywowany
+at once, every {s} s	od razu, co {s} s
+{delay} s after use, for {s} s	po {delay} s, przez {s} s
+stops at {n}	do {n}
+From empty to full	Od zera do pełna
+Leg or hand	Noga lub dłoń
+No Larkspur	Bez Żywokostu
+Starts	Zaczyna
+Legs, hands	Nogi, dłonie
+Broken leg, hand	Złamana noga, dłoń
+Top-down view of	Widok z góry:
+<b>{m} m</b> ({across} across, {sign}{height} height). Click again to start over.	<b>{m} m</b> ({across} w poziomie, {sign}{height} w pionie). Kliknij ponownie, by zacząć od nowa.
+Now click the target.	Teraz kliknij cel.
+Click the shooter, then the target.	Kliknij strzelca, potem cel.
+Orange ring: full damage to {from} m; dashed: minimum from {to} m.	Pomarańczowy okrąg: pełne obrażenia do {from} m; przerywany: minimum od {to} m.
+health shown ×100 (body 100, head 40)	zdrowie ×100 (ciało 100, głowa 40)
+Shooter	Strzelec
+fires	strzela
+Distance to target	Odległość do celu
+Wall in front of the target	Ściana przed celem
+Weapon bonuses	Bonusy broni
+— — HIT — →	— — TRAFIENIE — →
+takes the hit	przyjmuje trafienie
+Current pain	Obecny ból
+Pain the target already carries from earlier hits. It drains back to none at 10 a second once 8 s pass without a hit.	Ból, który cel już ma po wcześniejszych trafieniach. Spada do zera o 10 na sekundę, gdy minie 8 s bez trafienia.
+Armour bonuses	Bonusy pancerza
+Artefacts, drugs & skills	Artefakty, preparaty i umiejętności
+Measure on a map	Zmierz na mapie
+Clear points	Wyczyść punkty
+bullet before armour	pocisk przed pancerzem
+after this armour	po tym pancerzu
+Every body part, this shot	Każda część ciała, ten strzał
+Every weapon against this target	Każda broń przeciw temu celowi
+Same distance, wall, body part, armour and target effects. Each gun uses its best ammo for this target unless you pick "default ammo". Click a row to load that gun.	Ta sama odległość, ściana, część ciała, pancerz i efekty celu. Każda broń używa najlepszego naboju na ten cel, chyba że wybierzesz „standardowy nabój”. Kliknij wiersz, by wczytać tę broń.
+Formula	Formuła
+Healing	Leczenie
+Previous shot	Poprzedni strzał
+Next shot	Następny strzał
+Damage calculator	Kalkulator obrażeń Survarium	title

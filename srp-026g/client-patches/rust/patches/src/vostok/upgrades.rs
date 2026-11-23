@@ -23,7 +23,7 @@ use weapon_kit::{Expanded, Logical, RECORDS, Record, Wire};
 
 use super::context::Context;
 use super::hook::Thread;
-use super::ui::GFX_UINT;
+use super::ui::set_uint_member;
 use crate::raw;
 
 /// Patch 48's "taken off" (its queue's slot).
@@ -210,23 +210,8 @@ impl<'t> FlashUpgrade<'t> {
     /// object interface, as the site's own `id` and `param`); false when the
     /// object is no AS3 movie's (nothing set) or the movie refused.
     pub fn set_uint(&self, name: &CStr, value: u32) -> bool {
-        let mut room = raw::GfxValueStorage::zeroed();
-        let given = room.handle();
-        // SAFETY: the object is the site's live GFx value; its interface is
-        // called only when its vtable is the AS3 interface's, whose SetMember
-        // 0x7C6A20 is that slot; the name a C string; the value ours, a uint.
-        unsafe {
-            let object = self.frame.object();
-            let Some(interface) = object.interface() else { return false };
-            if *interface.vtable() != raw::image::AS3_OBJECT_INTERFACE {
-                return false;
-            }
-            *given.kind() = GFX_UINT;
-            *given.value() = value;
-            let display = u32::from(*object.kind() & 0x8F == 0x0A);
-            raw::engine_gfx_set_member(Some(interface), object.object(), name.as_ptr().cast(), Some(given), display)
-                != 0
-        }
+        // SAFETY: the object is the site's live GFx value, on the lobby's thread.
+        unsafe { set_uint_member(self.frame.object(), name, value) }
     }
 }
 

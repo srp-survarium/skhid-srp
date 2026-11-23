@@ -224,7 +224,7 @@ mod tests {
 
     #[test]
     fn the_skills_page_names_only_files_it_serves() {
-        for lang in [Lang::En, Lang::Uk] {
+        for lang in Lang::ALL {
             let page = page(
                 skills::PATH,
                 "",
@@ -236,6 +236,7 @@ mod tests {
             assert!(page.body.contains(&format!("lang=\"{}\"", lang.code())));
             assert!(page.body.contains("class=\"skill-branch\""));
             assert!(page.body.contains("data-skill=\"101\""));
+            assert!(!page.body.contains('⟦'), "{lang:?}: a place left");
             let files: Vec<&str> = page
                 .body
                 .match_indices("/skills/")

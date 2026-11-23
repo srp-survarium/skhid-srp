@@ -3,8 +3,9 @@
 Use native medkit timing fields; stub only GFx Invoke and the skill modifier.
 Check delay, effect, last stack, death, slot reuse and missing movie, a drug a
 bullet stopped (patch 84: phase 3 for 1000 ms of game time, never for a natural
-end, a death, a stale drug or another one), and that
-all simulation objects, caller registers and stack survive unchanged.
+end, a death, a stale drug or another one), an oxygen tank whose Oxygen Rush
+runs (patch 180: phase 4, its countdown blue), and that all simulation
+objects, caller registers and stack survive unchanged.
 """
 import struct
 import sys
@@ -141,5 +142,26 @@ def main():
     r.run(0x23b7a0, (0x23b7a7,), hide.STACK + 0x9000, regs)
     assert r.invoked == [off], r.invoked
     print('ok another drug in the slot, ended with time left: no red')
+
+    # Patch 180: an oxygen tank whose Oxygen Rush runs (its word +294h, the end
+    # on the holder's stamina clock +6C0h+70h) shows phase 4, the countdown blue.
+    r.word(INVENTORY + 0x10c + 4*7, ITEM)
+    r.word(ITEM, 0xA1C874)
+    clock = PLAYER + 0x6c0 + 0x70
+    blue = (1, 4, 0, 0)
+    for label, until, now, alive, expected in [('running', 60000, 50000, True, blue),
+                                               ('its last millisecond', 60000, 59999, True, blue),
+                                               ('its end reached before the tick clears it', 60000, 60000, True, off),
+                                               ('none', 0, 50000, True, off),
+                                               ('a dead holder', 60000, 50000, False, off)]:
+        r.word(ITEM + 0x294, until)
+        r.word(clock, now)
+        assert r.update(False, 0, 0, alive=alive) == [expected], label
+        assert r.read(ITEM + 0x294) == until, label
+        print('ok oxygen tank:', label)
+    r.word(ITEM + 0x294, 60000)
+    r.word(ITEM, 0xA042AC)
+    assert r.update(False, 0, 0) == [off]
+    print('ok another item with the same word: no blue')
 
 if __name__ == '__main__': main()

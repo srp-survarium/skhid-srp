@@ -2503,3 +2503,4 @@ va	status	ref_021d	name
 0x002f85b0	observed		survarium::usable_object::use_finalize
 0x003cfe20	reviewed		vostok::render::res_render_output::goto_fullscreen
 0x003cfe80	reviewed	0x00274fc2	vostok::render::res_render_output::minimize
+0x00222330	observed		survarium::lobby_menu::on_profile_changed

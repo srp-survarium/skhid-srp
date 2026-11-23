@@ -5,7 +5,7 @@ sounds and blackens the camera, also add from 0.21 death sound there too"; the s
 in the environment"; "at respawn all sounds are back, radio is heard/usable even when dead".
 Code: `client-patches/rust/patches/src/corpse_shot_dark.rs`; the shot and the step are patch 76's
 (`ragdoll.rs`), the black view the hud movie's (`death-eyes.md`), the cut patch 144's
-(`game-volume.md`), the sound the pack `death-sound-021d@1`. Not part of PR #1618.
+(`game-volume.md`), the sound the pack `death-sound-021d@2`. Not part of PR #1618.
 
 ## When and who
 
@@ -34,10 +34,11 @@ Code: `client-patches/rust/patches/src/corpse_shot_dark.rs`; the shot and the st
 
 ## The effect
 
-- **The sound, everyone:** each game plays 0.21's death sound once at the skull of its own drawn
-  corpse of that death, a point sound of the world (heard as far as its presets carry: the fall to
-  5 m, the scream to 9 m), by the shooter, the dead player, bystanders and spectators alike. A game
-  that draws no ragdoll of it plays nothing.
+- **The sound, everyone:** each game plays 0.21's death scream once at the skull of its own drawn
+  corpse of that death, a point sound of the world (heard as far as its preset carries: 9 m),
+  by the shooter, the dead player, bystanders and spectators alike. A game that draws no ragdoll
+  of it plays nothing. The scream alone, 0.21's composite without its body fall (the owner,
+  2026-11-23: the drop cut out; `@1` had it, its thud 1.1 s in; no scream take has an impact).
 - **The dead player's own game:** the screen black at once (the hud movie's black view, under the
   hud: the respawn countdown and the kill feed stay); the game's sounds cut once 0.21's sound has
   played (3 s, its longest take), so he hears it (my reading: it plays before the cut).
@@ -69,7 +70,7 @@ Code: `client-patches/rust/patches/src/corpse_shot_dark.rs`; the shot and the st
 
 ## Release
 
-- The exe (patch 196), the hud movie (`root.set_dead_black`), the pack `death-sound-021d@1` (its
+- The exe (patch 196), the hud movie (`root.set_dead_black`), the pack `death-sound-021d@2` (its
   row in `release/content.tsv`), and the server (its refusal of a victim of no place; an older
   server relays one).
 - **No `simulation_changes.tsv` row:** patch 78's filter takes the marker and the quick bits out of

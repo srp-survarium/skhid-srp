@@ -683,3 +683,243 @@ Speed	Хуткасць
 bullet	куля
 sight	прыцэл
 hit	трапленне
+
+# The wiki's skills (a page built at a release: scripts/site-texts)
+Points	Ачкі	skills
+matches	матчаў	skills
+h	гадз	unit
+Tap a skill, then + or −.	Націсніце на навык, потым + або −.
+Click a skill to add a rank, right-click to take one back.	Клік дадае ранг, правы клік прыбірае.
+{n} point	{n} ачко	one
+{n} points	{n} ачкі	few
+{n} points	{n} ачкоў	many
+Maximum:	Максімум:
+or	або	skill
+
+# The Maps tab (a page built at a release: scripts/site-texts)
+Player spawns	Пункты адраджэння
+Battery spawns	З'яўленне батарэй
+Chargers	Зараднікі
+Containers	Кантэйнеры
+Research units	Даследчыя ўстаноўкі
+Ammo stashes	Папаўненне боепрыпасаў
+Survarium maps	Карты Survarium
+chargers	зараднікі
+Minimap	Мінікарта
+From above	Зверху
+{n} active	{n} актыўных
+{n} batteries to win.	{n} батарэй для перамогі.
+team {n}	каманда {n}
+any team	любая каманда
+Ammo stash	Папаўненне боепрыпасаў
+Container	Кантэйнер
+Battery spawn	З'яўленне батарэі
+Charger	Зараднік
+Research unit	Устаноўка
+Spawn	Адраджэнне
+Glow of the Forest	Ззянне Лесу
+Bases	Базы
+Base	База	hunt
+
+# The damage calculator (a page built at a release: scripts/site-texts)
+Feet	Ступні	parts
+m/s	м/с	unit
+HP/s	АЗ/с	unit
+active	актыўны
+passive	пасіўны
+Damage ×{damage}, penetration ×{pierce}, before armour: lower penetration makes the armour stop more.	Шкода ×{damage}, бранябойнасць ×{pierce}, да брані: з меншай бранябойнасцю браня спыняе больш.
+{drug}: {pool} takes ×{k} for {s} s after use ({delay} s to kick in).	{drug}: {pool} атрымлівае ×{k} на працягу {s} с пасля ўжывання (пачынае дзейнічаць праз {delay} с).
+Inside an anomaly: damage ×{k}, before armour.	У анамаліі: шкода ×{k}, да брані.
+This weapon takes no damage bonuses.	Гэта зброя не мае бонусаў шкоды.
+Come with the weapon; cannot be changed.	Ідуць са зброяй; змяніць нельга.
+An item holds at most 3 modifications. Bonuses on one stat add up before they apply.	Прадмет мае не больш за 3 мадыфікацыі. Бонусы да адной характарыстыкі складваюцца, перш чым дзейнічаць.
+This item takes no armour bonuses.	Гэты прадмет не мае бонусаў брані.
+Nothing worn covers the {part}.	Нічога з надзетага не ахоўвае: {part}.
+Drugs	Прэпараты
+Assault rifles	Штурмавыя вінтоўкі
+Submachine guns	Пісталеты-кулямёты
+Shotguns	Драбавікі
+Bolt-action & sniper rifles	Вінтоўкі і снайперскія вінтоўкі
+Pistols & revolvers	Пісталеты і рэвальверы
+Helmet	Шлем
+Mask	Маска
+Jacket	Куртка
+Gloves	Пальчаткі
+Trousers	Штаны
+Boots	Боты
+Backpack	Заплечнік
+Chest & neck	Грудзі і шыя
+Right arm	Правая рука
+Left arm	Левая рука
+Right hand	Правая кісць
+Left hand	Левая кісць
+Right leg	Правая нага
+Left leg	Левая нага
+Right foot	Правая ступня
+Left foot	Левая ступня
+Body	Цела
+Pain	Боль
+Infection	Інфекцыя
+death	смерць
+bleeding	крывацёк
+concussion	кантузія
+hand injury	траўма рукі
+leg injury	траўма нагі
+infection	інфекцыя
+blindness	слепата
+Search	Пошук
+— none —	— няма —
+nothing worn	нічога не надзета
+back	ззаду
+front	спераду
+after shot	стрэл
+of	з
+dead	мёртвы
+Glass	Шкло
+Car	Аўтамабіль
+Plywood	Фанера
+Tinplate	Бляха
+Brick, steel	Цэгла, сталь
+Concrete	Бетон
+Stone	Камень
+<none>	<няма>
+armour	браня
+{n} left	засталося {n}
+damage	шкода
+penetration	бранябойнасць
+full damage to	поўная да
+minimum from	мінімум ад
+minimum	мінімум
+muzzle	хуткасць кулі
+rate	тэмп
+magazine	магазін
+Gets through: k {k}, D {D} · P {P}.	Прабівае: k {k}, D {D} · P {P}.
+Does not get through: penetration {P}, armour {A}.	Не прабівае: бранябойнасць {P}, браня {A}.
+here	тут
+not here	не тут
+taken by {item}	занята: {item}
+Covers the {part}.	Ахоўвае: {part}.
+Does not cover the {part}.	Не ахоўвае: {part}.
+Click to aim at the {part}.	Націсніце, каб цэліцца: {part}.
+aim at the {part}	цэліцца: {part}
+Full damage at this range.	На гэтай дыстанцыі шкода поўная.
+Fully fallen off: minimum damage.	Цалкам спала: мінімальная шкода.
+Falling off: {share} of the way from minimum to full.	Спадае: {share} шляху ад мінімуму да поўнай.
+Orange band: damage falls from {from} m to {to} m.	Аранжавая паласа: шкода спадае ад {from} м да {to} м.
+per shot (all pellets)	за стрэл (усе шраціны)
+per hit	за трапленне
+{pool} damage {per}	{pool}: шкода {per}
+of {n} {pool} left	з {n}, што засталіся ({pool})
+of {n} {pool}	з {n} ({pool})
+Hits to kill	Трапленняў да смерці
+dies when {pool} reaches 0	гіне, калі {pool} даходзіць да 0
+this shot cannot kill	гэты стрэл не забівае
+Time to kill	Час да смерці
+every shot lands, no reload	усе трапляюць, без перазарадкі
+Leaves the barrel	Вылет са ствала
+Weapon damage × ammo <code>k_damage</code>, weapon pierce × ammo <code>k_arp</code>.	Шкода зброі × <code>k_damage</code> патрона, бранябойнасць зброі × <code>k_arp</code> патрона.
+Each of the {n} pellets carries this.	Так у кожнай з {n} шрацін.
+Flies {m} m	Ляціць {m} м
+Speed {v0} → {v} m/s. Damage slides from full ({full}) to minimum ({min}) by speed between {from} and {to} m: here {share}. Penetration stays.	Хуткасць {v0} → {v} м/с. Шкода спадае ад поўнай ({full}) да мінімальнай ({min}) па хуткасці паміж {from} і {to} м: тут {share}. Бранябойнасць не змяняецца.
+Through {wall}	Праз: {wall}
+stopped	спынена
+Penetration {P}, armour {A}. Damage, penetration and speed × k; then damage no higher than at {v} m/s.	Бранябойнасць {P}, браня {A}. Шкода, бранябойнасць і хуткасць × k; потым шкода не вышэй, чым пры {v} м/с.
+Penetration {P} is not above armour {A}: the bullet stops.	Бранябойнасць {P} не вышэй за браню {A}: куля спыняецца.
+No armour here, the full amount goes in.	Брані тут няма: праходзіць усё.
+Armour {A} is not above penetration {P}: nothing is stopped.	Браня {A} не вышэй за бранябойнасць {P}: нічога не спынена.
+Armour exceeds penetration by a full 100: the bullet does nothing.	Браня вышэй за бранябойнасць на цэлыя 100: куля нічога не робіць.
+Armour {A} − penetration {P} = {gap}% of the damage is stopped.	Браня {A} − бранябойнасць {P} = спынена {gap}% шкоды.
+Hits {part}	Трапляе: {part}
+Every hit anywhere also drains the shared pain pool. Pain at 0 kills.	Кожнае трапленне таксама змяншае агульны пул болю. Боль на 0 забівае.
+Body at 0 kills.	Цела на 0 забівае.
+Head holds only 40: at 0 it kills, below 20 it concusses.	Галава мае толькі 40: на 0 забівае, ніжэй за 20 — кантузія.
+Limbs do not kill by themselves: an empty limb injures, the pain it carries can kill.	Канечнасці самі не забіваюць: канечнасць на нулі траўміруецца, а боль ад яе можа забіць.
+Second chance	Другі шанц
+The skill leaves the target alive once.	Навык адзін раз пакідае мэту жывой.
+× {n} pellets	× {n} шрацін
+Each pellet is its own bullet: when several land, their damage adds up.	Кожная шраціна — асобная куля: калі трапляюць некалькі, іх шкода складваецца.
+kills	забівае
+breaks	ламае
+below	ніжэй
+empty	на нулі
+movement	рух
+shot	стрэл
+Damage over distance	Шкода па дыстанцыі
+after armour	пасля брані
+Body part	Частка цела
+Stopped	Спынена
+Limb	Канечнасць
+Also	Таксама
+injury	траўма
+best ammo	лепшы патрон
+default ammo	стандартны патрон
+Ammo	Патрон
+Pen. here	Бранеб. тут
+Damage / hit	Шкода / трапл.
+RPM	Тэмп
+Bullet	Куля
+D, P = weapon × ammo, D falling with distance	D, P = зброя × патрон, D спадае з дыстанцыяй
+{n} pellets	{n} шрацін
+Wall	Сцяна
+P ≤ A: the bullet stays in the wall · else D, P × (1 − (A / P)²)	P ≤ A: куля застравае ў сцяне · інакш D, P × (1 − (A / P)²)
+stays in the wall	застравае ў сцяне
+each	кожны
+rank	ранг
+inside an anomaly	у анамаліі
+D × (1 − (armour − P) / 100)	D × (1 − (браня − P) / 100)
+{part}, armour {A} − P {P}	{part}, браня {A} − P {P}
+Pools	Пулы
+chest, back → body · head, face → head · leg, foot → leg · arm, hand → hand	грудзі, спіна → цела · галава, твар → галава · нага, ступня → нага · рука, кісць → кісць
+× 1 chest, head, arms · 0.9 legs · 0.8 hands, feet	× 1 грудзі, галава, рукі · 0.9 ногі · 0.8 кісці, ступні
+Death	Смерць
+body, head or pain at 0	цела, галава або боль на 0
+{n} hits	трапленняў: {n}
+at 0	на 0
+does not kill	не забівае
+wall armour	браня сцяны
+One bullet through several parts: each pool loses only its biggest hit, not the sum (hands 40 + 40, chest 35 → pain −40, not −115).	Адна куля праз некалькі частак: кожны пул губляе толькі найбольшае трапленне, а не суму (кісці 40 + 40, грудзі 35 → боль −40, а не −115).
+full	цалкам
+fixed	лечыць
+{s} s without hits	{s} с без трапленняў
+By itself	Само па сабе
+ends after {s} s without hits	мінае праз {s} с без трапленняў
+carried	у слоце
+activated	актываваны
+at once, every {s} s	адразу, раз на {s} с
+{delay} s after use, for {s} s	праз {delay} с, на {s} с
+stops at {n}	да {n}
+From empty to full	Ад нуля да поўнага
+Leg or hand	Нага ці кісць
+No Larkspur	Без Жывакосту
+Starts	Пачынае
+Legs, hands	Ногі, кісці
+Broken leg, hand	Зламаная нага, кісць
+Top-down view of	Выгляд зверху:
+<b>{m} m</b> ({across} across, {sign}{height} height). Click again to start over.	<b>{m} м</b> ({across} па гарызанталі, {sign}{height} па вышыні). Націсніце яшчэ раз, каб пачаць нанова.
+Now click the target.	Цяпер націсніце на мэту.
+Click the shooter, then the target.	Націсніце на стралка, потым на мэту.
+Orange ring: full damage to {from} m; dashed: minimum from {to} m.	Аранжавае кола: поўная шкода да {from} м; пункцірнае: мінімум ад {to} м.
+health shown ×100 (body 100, head 40)	здароўе ×100 (цела 100, галава 40)
+Shooter	Стралок
+fires	страляе
+Distance to target	Дыстанцыя да мэты
+Wall in front of the target	Сцяна перад мэтай
+Weapon bonuses	Бонусы зброі
+— — HIT — →	— — ТРАПЛЕННЕ — →
+takes the hit	атрымлівае трапленне
+Current pain	Бягучы боль
+Pain the target already carries from earlier hits. It drains back to none at 10 a second once 8 s pass without a hit.	Боль, які мэта ўжо мае ад ранейшых трапленняў. Спадае да нуля па 10 за секунду, калі 8 с няма трапленняў.
+Armour bonuses	Бонусы брані
+Artefacts, drugs & skills	Артэфакты, прэпараты і навыкі
+Measure on a map	Вымераць на карце
+Clear points	Ачысціць пункты
+bullet before armour	куля да брані
+after this armour	пасля гэтай брані
+Every body part, this shot	Кожная частка цела, гэты стрэл
+Every weapon against this target	Уся зброя супраць гэтай мэты
+Same distance, wall, body part, armour and target effects. Each gun uses its best ammo for this target unless you pick "default ammo". Click a row to load that gun.	Тая ж дыстанцыя, сцяна, частка цела, браня і эфекты мэты. Кожная зброя бярэ свой лепшы патрон для гэтай мэты, калі не выбраны «стандартны патрон». Націсніце на радок, каб выбраць гэту зброю.
+Formula	Формула
+Healing	Лячэнне
+Previous shot	Папярэдні стрэл
+Next shot	Наступны стрэл
+Damage calculator	Калькулятар шкоды Survarium	title

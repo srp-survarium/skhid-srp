@@ -683,3 +683,243 @@ Speed	Скорость
 bullet	пуля
 sight	прицел
 hit	попадание
+
+# The wiki's skills (a page built at a release: scripts/site-texts)
+Points	Очки	skills
+matches	матчей	skills
+h	ч	unit
+Tap a skill, then + or −.	Нажмите на навык, затем + или −.
+Click a skill to add a rank, right-click to take one back.	Клик добавляет ранг, правый клик убирает.
+{n} point	{n} очко	one
+{n} points	{n} очка	few
+{n} points	{n} очков	many
+Maximum:	Максимум:
+or	или	skill
+
+# The Maps tab (a page built at a release: scripts/site-texts)
+Player spawns	Точки возрождения
+Battery spawns	Появление батарей
+Chargers	Зарядники
+Containers	Контейнеры
+Research units	Исследовательские установки
+Ammo stashes	Пополнение боеприпасов
+Survarium maps	Карты Survarium
+chargers	зарядники
+Minimap	Миникарта
+From above	Сверху
+{n} active	{n} активных
+{n} batteries to win.	{n} батарей для победы.
+team {n}	команда {n}
+any team	любая команда
+Ammo stash	Пополнение боеприпасов
+Container	Контейнер
+Battery spawn	Появление батареи
+Charger	Зарядник
+Research unit	Установка
+Spawn	Возрождение
+Glow of the Forest	Сияние Леса
+Bases	Базы
+Base	База	hunt
+
+# The damage calculator (a page built at a release: scripts/site-texts)
+Feet	Ступни	parts
+m/s	м/с	unit
+HP/s	ОЗ/с	unit
+active	активный
+passive	пассивный
+Damage ×{damage}, penetration ×{pierce}, before armour: lower penetration makes the armour stop more.	Урон ×{damage}, бронебойность ×{pierce}, до брони: при меньшей бронебойности броня останавливает больше.
+{drug}: {pool} takes ×{k} for {s} s after use ({delay} s to kick in).	{drug}: {pool} получает ×{k} в течение {s} с после применения (действует через {delay} с).
+Inside an anomaly: damage ×{k}, before armour.	В аномалии: урон ×{k}, до брони.
+This weapon takes no damage bonuses.	У этого оружия нет бонусов урона.
+Come with the weapon; cannot be changed.	Идут вместе с оружием; изменить нельзя.
+An item holds at most 3 modifications. Bonuses on one stat add up before they apply.	На предмете не больше 3 модификаций. Бонусы к одной характеристике складываются до применения.
+This item takes no armour bonuses.	У этого предмета нет бонусов брони.
+Nothing worn covers the {part}.	Ничто из надетого не защищает: {part}.
+Drugs	Препараты
+Assault rifles	Штурмовые винтовки
+Submachine guns	Пистолеты-пулемёты
+Shotguns	Дробовики
+Bolt-action & sniper rifles	Магазинные и снайперские винтовки
+Pistols & revolvers	Пистолеты и револьверы
+Helmet	Шлем
+Mask	Маска
+Jacket	Куртка
+Gloves	Перчатки
+Trousers	Штаны
+Boots	Ботинки
+Backpack	Рюкзак
+Chest & neck	Грудь и шея
+Right arm	Правая рука
+Left arm	Левая рука
+Right hand	Правая кисть
+Left hand	Левая кисть
+Right leg	Правая нога
+Left leg	Левая нога
+Right foot	Правая ступня
+Left foot	Левая ступня
+Body	Тело
+Pain	Боль
+Infection	Инфекция
+death	смерть
+bleeding	кровотечение
+concussion	контузия
+hand injury	травма руки
+leg injury	травма ноги
+infection	инфекция
+blindness	слепота
+Search	Поиск
+— none —	— ничего —
+nothing worn	ничего не надето
+back	сзади
+front	спереди
+after shot	выстрел
+of	из
+dead	мёртв
+Glass	Стекло
+Car	Автомобиль
+Plywood	Фанера
+Tinplate	Жесть
+Brick, steel	Кирпич, сталь
+Concrete	Бетон
+Stone	Камень
+<none>	<нет>
+armour	броня
+{n} left	осталось {n}
+damage	урон
+penetration	бронебойность
+full damage to	полный урон до
+minimum from	минимум от
+minimum	минимум
+muzzle	скорость пули
+rate	темп
+magazine	магазин
+Gets through: k {k}, D {D} · P {P}.	Пробивает: k {k}, D {D} · P {P}.
+Does not get through: penetration {P}, armour {A}.	Не пробивает: бронебойность {P}, броня {A}.
+here	здесь
+not here	не здесь
+taken by {item}	занято: {item}
+Covers the {part}.	Защищает: {part}.
+Does not cover the {part}.	Не защищает: {part}.
+Click to aim at the {part}.	Нажмите, чтобы прицелиться: {part}.
+aim at the {part}	прицелиться: {part}
+Full damage at this range.	На этой дистанции урон полный.
+Fully fallen off: minimum damage.	Полностью спал: минимальный урон.
+Falling off: {share} of the way from minimum to full.	Спадает: {share} пути от минимума до полного.
+Orange band: damage falls from {from} m to {to} m.	Оранжевая полоса: урон спадает с {from} м до {to} м.
+per shot (all pellets)	за выстрел (все дробины)
+per hit	за попадание
+{pool} damage {per}	{pool}: урон {per}
+of {n} {pool} left	из {n} оставшихся ({pool})
+of {n} {pool}	из {n} ({pool})
+Hits to kill	Попаданий до смерти
+dies when {pool} reaches 0	погибает, когда {pool} доходит до 0
+this shot cannot kill	этот выстрел не убивает
+Time to kill	Время до смерти
+every shot lands, no reload	все попадают, без перезарядки
+Leaves the barrel	Вылет из ствола
+Weapon damage × ammo <code>k_damage</code>, weapon pierce × ammo <code>k_arp</code>.	Урон оружия × <code>k_damage</code> патрона, бронебойность оружия × <code>k_arp</code> патрона.
+Each of the {n} pellets carries this.	Так у каждой из {n} дробин.
+Flies {m} m	Летит {m} м
+Speed {v0} → {v} m/s. Damage slides from full ({full}) to minimum ({min}) by speed between {from} and {to} m: here {share}. Penetration stays.	Скорость {v0} → {v} м/с. Урон спадает от полного ({full}) до минимального ({min}) по скорости между {from} и {to} м: здесь {share}. Бронебойность не меняется.
+Through {wall}	Сквозь: {wall}
+stopped	остановлено
+Penetration {P}, armour {A}. Damage, penetration and speed × k; then damage no higher than at {v} m/s.	Бронебойность {P}, броня {A}. Урон, бронебойность и скорость × k; затем урон не выше, чем при {v} м/с.
+Penetration {P} is not above armour {A}: the bullet stops.	Бронебойность {P} не выше брони {A}: пуля останавливается.
+No armour here, the full amount goes in.	Брони здесь нет: проходит всё.
+Armour {A} is not above penetration {P}: nothing is stopped.	Броня {A} не выше бронебойности {P}: ничего не остановлено.
+Armour exceeds penetration by a full 100: the bullet does nothing.	Броня выше бронебойности на полные 100: пуля ничего не делает.
+Armour {A} − penetration {P} = {gap}% of the damage is stopped.	Броня {A} − бронебойность {P} = остановлено {gap}% урона.
+Hits {part}	Попадает: {part}
+Every hit anywhere also drains the shared pain pool. Pain at 0 kills.	Любое попадание также отнимает общий пул боли. Боль на 0 убивает.
+Body at 0 kills.	Тело на 0 убивает.
+Head holds only 40: at 0 it kills, below 20 it concusses.	У головы всего 40: на 0 убивает, ниже 20 — контузия.
+Limbs do not kill by themselves: an empty limb injures, the pain it carries can kill.	Конечности сами не убивают: опустевшая конечность травмируется, а её боль может убить.
+Second chance	Второй шанс
+The skill leaves the target alive once.	Навык один раз оставляет цель в живых.
+× {n} pellets	× {n} дробин
+Each pellet is its own bullet: when several land, their damage adds up.	Каждая дробина — отдельная пуля: если попадает несколько, их урон складывается.
+kills	убивает
+breaks	ломает
+below	ниже
+empty	на нуле
+movement	движение
+shot	выстрел
+Damage over distance	Урон по дистанции
+after armour	после брони
+Body part	Часть тела
+Stopped	Остановлено
+Limb	Конечность
+Also	Также
+injury	травма
+best ammo	лучший патрон
+default ammo	стандартный патрон
+Ammo	Патрон
+Pen. here	Бронеб. здесь
+Damage / hit	Урон / попад.
+RPM	Выстр./мин
+Bullet	Пуля
+D, P = weapon × ammo, D falling with distance	D, P = оружие × патрон, D спадает с дистанцией
+{n} pellets	{n} дробин
+Wall	Стена
+P ≤ A: the bullet stays in the wall · else D, P × (1 − (A / P)²)	P ≤ A: пуля застревает в стене · иначе D, P × (1 − (A / P)²)
+stays in the wall	застревает в стене
+each	каждый
+rank	ранг
+inside an anomaly	в аномалии
+D × (1 − (armour − P) / 100)	D × (1 − (броня − P) / 100)
+{part}, armour {A} − P {P}	{part}, броня {A} − P {P}
+Pools	Пулы
+chest, back → body · head, face → head · leg, foot → leg · arm, hand → hand	грудь, спина → тело · голова, лицо → голова · нога, ступня → нога · рука, кисть → кисть
+× 1 chest, head, arms · 0.9 legs · 0.8 hands, feet	× 1 грудь, голова, руки · 0.9 ноги · 0.8 кисти, ступни
+Death	Смерть
+body, head or pain at 0	тело, голова или боль на 0
+{n} hits	попаданий: {n}
+at 0	на 0
+does not kill	не убивает
+wall armour	броня стены
+One bullet through several parts: each pool loses only its biggest hit, not the sum (hands 40 + 40, chest 35 → pain −40, not −115).	Одна пуля через несколько частей: каждый пул теряет только самое большое попадание, а не сумму (кисти 40 + 40, грудь 35 → боль −40, а не −115).
+full	полностью
+fixed	лечит
+{s} s without hits	{s} с без попаданий
+By itself	Само по себе
+ends after {s} s without hits	проходит через {s} с без попаданий
+carried	в слоте
+activated	активирован
+at once, every {s} s	сразу, раз в {s} с
+{delay} s after use, for {s} s	через {delay} с, на {s} с
+stops at {n}	до {n}
+From empty to full	От нуля до полного
+Leg or hand	Нога или кисть
+No Larkspur	Без Живокоста
+Starts	Начинает
+Legs, hands	Ноги, кисти
+Broken leg, hand	Сломанная нога, кисть
+Top-down view of	Вид сверху:
+<b>{m} m</b> ({across} across, {sign}{height} height). Click again to start over.	<b>{m} м</b> ({across} по горизонтали, {sign}{height} по высоте). Нажмите ещё раз, чтобы начать заново.
+Now click the target.	Теперь нажмите на цель.
+Click the shooter, then the target.	Нажмите на стрелка, затем на цель.
+Orange ring: full damage to {from} m; dashed: minimum from {to} m.	Оранжевое кольцо: полный урон до {from} м; пунктирное: минимум от {to} м.
+health shown ×100 (body 100, head 40)	здоровье ×100 (тело 100, голова 40)
+Shooter	Стрелок
+fires	стреляет
+Distance to target	Дистанция до цели
+Wall in front of the target	Стена перед целью
+Weapon bonuses	Бонусы оружия
+— — HIT — →	— — ПОПАДАНИЕ — →
+takes the hit	получает попадание
+Current pain	Текущая боль
+Pain the target already carries from earlier hits. It drains back to none at 10 a second once 8 s pass without a hit.	Боль, которую цель уже получила от прошлых попаданий. Спадает до нуля по 10 в секунду, когда 8 с нет попаданий.
+Armour bonuses	Бонусы брони
+Artefacts, drugs & skills	Артефакты, препараты и навыки
+Measure on a map	Измерить на карте
+Clear points	Очистить точки
+bullet before armour	пуля до брони
+after this armour	после этой брони
+Every body part, this shot	Все части тела, этот выстрел
+Every weapon against this target	Всё оружие против этой цели
+Same distance, wall, body part, armour and target effects. Each gun uses its best ammo for this target unless you pick "default ammo". Click a row to load that gun.	Та же дистанция, стена, часть тела, броня и эффекты цели. Каждое оружие берёт свой лучший патрон для этой цели, если не выбран «стандартный патрон». Нажмите на строку, чтобы выбрать это оружие.
+Formula	Формула
+Healing	Лечение
+Previous shot	Предыдущий выстрел
+Next shot	Следующий выстрел
+Damage calculator	Калькулятор урона Survarium	title
