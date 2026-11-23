@@ -36,8 +36,6 @@ TERRAIN = ('terrain', 'terain', 'ground')
 # sizes across, in its own frame.
 FOOTPRINTS = {
     'item/storage_device/box_atlant8c': ((0.0, 0.0), (0.606, 0.616)),
-    'item/storage_device/box_atlant12': ((-0.0135, -0.0035), (0.6075, 0.9325)),
-    'ported/v021d/item/quest/container': ((-0.203, 0.054), (0.735, 0.617)),
 }
 
 
@@ -152,7 +150,7 @@ def rough(floor):
 
 
 def place(world, model, position, rotation, floor_top, points):
-    """The slab under a box: of its placements (the footprint at the middle or either end of the flat
+    """The slab under a box: of its placements (the footprint at five places along the flat
     rectangle, the slab turned either way round under it), the first RISE high whose part over the ground
     cuts into no other model and covers none of `points` [(name, position)]; else FLUSH, the first that
     covers none, else the one that covers fewest. (the box's new foot, the slab's place, its outline,
@@ -163,7 +161,7 @@ def place(world, model, position, rotation, floor_top, points):
     turns = (0.0, math.pi) + ((math.pi / 2, 3 * math.pi / 2) if abs(hx - hz) < 0.05 else ())
     best = None
     for rise in (RISE, FLUSH):
-        for slide in (0.0, -room, room):
+        for slide in (0.0, -room / 2, room / 2, -room, room):
             for half_turn in turns:
                 foot, at, outline = slab(model, position, rotation, floor_top, slide, half_turn, rise)
                 covered = [name for name, p in points if inside(outline, p[0], p[2], 0.3) and floor_top - 1.0 < p[1] < foot + 0.5]

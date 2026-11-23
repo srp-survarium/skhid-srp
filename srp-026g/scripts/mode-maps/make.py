@@ -24,11 +24,13 @@ Deathmatch and Freeze Tag are training-camp-teams-1's, on its Free for All point
 - Artifact Hunt (mode 13), when it has none, from the map's own battery mode (0.46c2 had the mode on
   the nine stock levels alone, which artefact-hunt-1 has): the artefact's spawn points are the
   battery spawners' items (lifted by the item's drop_lift, as a dropped one lies), each team's base
-  its battery container: its use shapes (the container's collision geometries, in world space) and
-  its props (the container's models and collision, as the battery project has them). A container on rough
-  ground stands on a concrete slab (artefact-hunt/stands.py), raised onto it with its props and use shapes. The project is
-  a copy of the map's Team Deathmatch project with those props (its respawn points, each team's
-  base checked to be on its own team's side); the config, in the pack, has the stock Artifact Hunt config's rules,
+  at its battery container's place and turn: the stock maps' box (item/storage_device/box_atlant8c,
+  its render visual and collision as artefact-hunt-1's projects have them; the owner, 2026-11-23: "you
+  should use exactly the same prop for storing artifact"), its foot where the container stood, its use
+  shape the box itself. A box on rough ground stands on a concrete slab (artefact-hunt/stands.py),
+  raised onto it with its use shape. The project is a copy of the map's Team Deathmatch project with
+  the box (its respawn points, but one a box stands on; each team's base checked to be on its own
+  team's side); the config, in the pack, has the stock Artifact Hunt config's rules,
   parameters, announcer and item and the map's own ui. Its maps_dict row of ids.tsv.
   A map whose Artifact Hunt plays a project other than its Team Deathmatch project's `_ah` copy
   (London: artefact-hunt-1 copied level_09's, London plays v0.32's) gets the same, named after
@@ -297,10 +299,65 @@ def battery_data(battery, tdm, lift, where):
     return {'spawners': spawners, 'bases': bases}
 
 
+def stock_box(base):
+    """The artefact's box as the stock maps' Artifact Hunt projects have it (artefact-hunt-1): its render
+    visual and its collision objects, of level_01's day project."""
+    project = load(base, project_file('level_01/day_ah'))
+    visual = next(e for e in project['render_visuals'] if e.get('visual_name') == ah.BOX)
+    solids = [e for e in project['collision_objects'] if e['lib_name'].startswith(f'resources/models/{ah.BOX}.model/')
+              and math.dist(e['position'], visual['position']) < 1e-3]
+    if len(solids) != 2:
+        sys.exit(f'level_01/day_ah: the box {ah.BOX} without its two collision objects')
+    return visual, solids
+
+
+def artefact_box(data, box, where):
+    """Each base's Batteries container (its model and the props by it) gives way to the stock maps' box
+    (the owner, 2026-11-23: "you should use exactly the same prop for storing artifact"): at the
+    container's place and turn, its foot where the container's lowest box stood; its use shape the box
+    itself, as large as make_pack's fit report takes it (BOX_HALF, BOX_HEIGHT)."""
+    visual, solids = box
+    for base in data['bases']:
+        model = base['model']
+        at = model['position']
+        foot = min((e for e in base['props'] if e['visual_name'] == model['model_name']
+                    and math.hypot(e['position'][0] - at[0], e['position'][2] - at[2]) < 0.3),
+                   key=lambda e: e['position'][1])
+        turn = stands.yaw(model['rotation'])
+        place = {'position': (at[0], foot['position'][1], at[2]), 'rotation': (0.0, ah.f32(turn), 0.0),
+                 'scale': (1.0, 1.0, 1.0)}
+        base['props'] = [dict(visual, **place)]
+        base['solids'] = [dict(solid, **place) for solid in solids]
+        axes = research.rotation(place['rotation'])
+        centre = tuple(ah.f32(v) for v in (at[0], foot['position'][1] + ah.BOX_HEIGHT / 2, at[2]))
+        base['shapes'] = [{'type': 1, 'position': centre, 'axis_x': tuple(ah.f32(v) for v in axes[0]),
+                           'axis_y': tuple(ah.f32(v) for v in axes[1]), 'axis_z': tuple(ah.f32(v) for v in axes[2]),
+                           'half': tuple(ah.f32(v) for v in (ah.BOX_HALF[0], ah.BOX_HEIGHT / 2, ah.BOX_HALF[1]))}]
+        base['position'] = centre
+        base['container'] = model['model_name']
+        base['model'] = {'model_name': ah.BOX, 'position': place['position'], 'rotation': place['rotation']}
+
+
+def under_boxes(data, spawns):
+    """The Team Deathmatch respawn points a base's box stands on (within a body's radius of its
+    footprint, up to its top): a body spawned there would be in the box (Rudnya v0.69's point 387 is
+    where its Batteries container stands). Their full names."""
+    out = []
+    for point in spawns:
+        for base in data['bases']:
+            at, axes = base['model']['position'], research.rotation(base['model']['rotation'])
+            offset = [point['position'][i] - at[i] for i in range(3)]
+            u, w = (sum(offset[i] * axes[k][i] for i in range(3)) for k in (0, 2))
+            if (abs(u) < ah.BOX_HALF[0] + ah.floors.RADIUS and abs(w) < ah.BOX_HALF[1] + ah.floors.RADIUS
+                    and -1.0 < offset[1] < ah.BOX_HEIGHT):
+                out.append(point['full_name'])
+    return out
+
+
 def slab_bases(data, world, spawns, where, said):
-    """stands.py's slab under a base whose container stands on rough ground (the owner, 2026-11-22:
-    "essentially everywhere it stands on rough ground"): the container's lowest box of its model is
-    its foot; one that stands over the Team Deathmatch floor already stands on its Batteries props."""
+    """stands.py's slab under a base whose box stands on rough ground (the owner, 2026-11-22:
+    "essentially everywhere it stands on rough ground"); a box over the Team Deathmatch floor stands on
+    what the Batteries mode set its container on."""
     points = ([(f'artefact spawn point {i}', s['position']) for i, s in enumerate(data['spawners'])]
               + [(f'respawn point {i}', p) for i, p in enumerate(spawns)])
     for base in data['bases']:
@@ -387,10 +444,11 @@ def hunt_config(template, tdm, name, project, data):
 
 
 def hunt(base, team, anchor, ids, mapdata):
-    edits = {'_about': '', 'copy': [], 'add_entry': [], 'replace_string': [], 'add_value': []}
+    edits = {'_about': '', 'copy': [], 'add_entry': [], 'remove_entry': [], 'replace_string': [], 'add_value': []}
     template = load(base, MODES_DIR + AH_TEMPLATE)
     lift = template['mode']['artefact_hunt']['item']['drop_lift']
     files, rows, moved, said = {}, [], [], []
+    box = stock_box(base)
     for key in sorted(team, key=order):
         modes = team[key]
         _, tdm_cfg, tdm = modes[TDM]
@@ -414,12 +472,19 @@ def hunt(base, team, anchor, ids, mapdata):
         battery_project = modes[BATTERIES][2]['match_making_params']['map_name']
         tdm_project = load(base, project_file(source))
         data = battery_data(load(base, project_file(battery_project)), tdm_project, lift, target)
+        artefact_box(data, box, target)
         path = mapdata / (source.replace('/', '_') + '.mapdata')
         if not path.exists():
             sys.exit(f'--mapdata: no {path.name} (mapdata-dump --project {source})')
         floors_of = ah.floors.load(path)
         world = stands.Floors(floors_of, [e['position'] for b in data['bases'] for e in b['props']])
-        slab_bases(data, world, [p['position'] for p in tdm_project['server_objects']['respawn_points']], target, said)
+        boxed = under_boxes(data, tdm_project['server_objects']['respawn_points'])
+        for full_name in boxed:
+            edits['remove_entry'].append({'file': project_file(target), 'list': 'server_objects/respawn_points',
+                                          'where': {'full_name': full_name}})
+            said.append(f'{target}: the respawn point {full_name} is under a base\'s box: taken out')
+        slab_bases(data, world, [p['position'] for p in tdm_project['server_objects']['respawn_points']
+                                 if p['full_name'] not in boxed], target, said)
         config = hunt_config(template, tdm, name, target, data)
         research.check_config_types(config, template, target)
         files[f'{MODES_DIR}artefact_hunt/{name}.options'] = bcw.dump(config)
@@ -439,7 +504,7 @@ def hunt(base, team, anchor, ids, mapdata):
         said.append(f'{(old or rows[-1])[0]} {name}: project {target} of {source}, from {battery_project}'
                     + (f' (was {old[1]})' if old else '') + ': '
                     f"{len(data['spawners'])} artefact spawn points; bases "
-                    + '; '.join(f"team {b['team']} {ah.spot(b['position'])} ({len(b['shapes'])} shape, props "
+                    + '; '.join(f"team {b['team']} {ah.spot(b['position'])} ({b['container']} replaced; props "
                                 f"{', '.join(e['visual_name'].rsplit('/', 1)[-1] for e in b['props'])}, "
                                 f"{len(b['solids'])} collision)" for b in data['bases']))
     dictionary_rows(edits, anchor, rows)

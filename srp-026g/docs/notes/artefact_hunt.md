@@ -78,9 +78,8 @@ Each one a decision; the owner's are marked, the rest are the port's and open to
   `<w>_ah`; its `_v1`.. variants are other layouts of the same maps and are left out).
   Every other team map (the owner, 2026-11-21: "let's add artifact hunt to all other non FFA-only
   maps too"), which 0.46c2 never had, takes its own battery mode's: the artefact's spawn points
-  are its battery spawners' items, lifted by `drop_lift`; a team's base its battery container,
-  its use shapes the container's collision geometries and its props the container's models and
-  collision as the battery project has them, on a copy of the map's Team Deathmatch project
+  are its battery spawners' items, lifted by `drop_lift`; a team's base the stock maps' box at its
+  battery container's place and turn ("One box everywhere" below), on a copy of the map's Team Deathmatch project
   (its spawns; each base checked on its own team's side). Pack `artefact-hunt-maps` (the configs)
   and `artefact-hunt-maps-1.json` (projects, maps_dict 327-350), both made by
   `scripts/mode-maps/make.py` (each map's id kept in its `ids.tsv`: a new map's is the next free one). Rudnya v0.69 too: 0.46c2's Rudnya points are for 0.26's geometry,
@@ -152,8 +151,13 @@ Each one a decision; the owner's are marked, the rest are the port's and open to
     0.30 m over the floor's highest point, or flush (0.04 m, as Mamayev's team 0) where the raised
     slab's visible part would cut into another model or cover a spawn point (on the cluttered
     Batteries bases). 0.46c2's pallets on rough ground give way to the slab. On a built floor (a
-    building's, a street's, a platform) a box keeps 0.46c2's stands or none. The other team maps'
-    containers keep what their Batteries mode sets them on.
+    building's, a street's, a platform) a box keeps 0.46c2's stands or none.
+  - **One box everywhere** (the owner, 2026-11-23: "you should use exactly the same prop for storing
+    artifact"): the other team maps' bases are the stock maps' `box_atlant8c` too, at their Batteries
+    container's place and turn (the container and the props by it give way), its use shape the box,
+    and the concrete rule as above; a box that stands where the container did on what the Batteries
+    mode set it on (v0.21 Mamayev's slab) keeps that. A Team Deathmatch respawn point under a box is
+    taken out of the copy (Rudnya v0.69 had one where its container stands).
   A round start respawns a whole team at once: a team with fewer free
   points than players spawns the rest a step (50 ms) later each, as the native rule does
   ("Respawns"); 8 points a team (16 players) spawn everyone in the same step.
