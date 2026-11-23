@@ -202,6 +202,42 @@ impl<'c> HeldGun<'c> {
     }
 }
 
+/// The pitch (rad) the gun in `player`'s hands is lifted by its kick while
+/// the view need not be: the eye's pitch with the weapon's kick against
+/// without it. 0 with no client weapon in hand, and while the scope's own
+/// view is on (the optic's picture is the screen, so the view is the gun's).
+pub fn free_kick_lift(player: Player<'_>) -> f32 {
+    // SAFETY: the live player's held item (its first dword its vtable; the
+    // client weapon's interface is the weapon itself, as `HeldGun::of`), the
+    // weapon's and the player's own floats and byte.
+    unsafe {
+        let Some(item) = player.this.held_item() else { return 0.0 };
+        if read(item.vtable()) != raw::image::WEAPON_VTABLE {
+            return 0.0;
+        }
+        let weapon = item.weapon();
+        if read(weapon.scope_view()) != 0 {
+            return 0.0;
+        }
+        kick_lift(read(player.this.look_pitch()), read(weapon.kick_top()))
+    }
+}
+
+/// The eye's pitch (rad) at a look pitch: the look clips turn bone Item 60
+/// degrees a unit above the level and 67.5 below (look_time_factor_calculator
+/// 0x2FBF90 scrubs them at (pitch + 1) / 2; decoded from the clip).
+fn eye_pitch(look: f32) -> f32 {
+    let look = look.clamp(-1.0, 1.0);
+    (look * if look < 0.0 { 67.5 } else { 60.0 }).to_radians()
+}
+
+/// The eye's lift by a `kick` over the look pitch `base`
+/// (weapon_core::look_pitch 0x2E0F60: the clamped sum); 0 for no number.
+fn kick_lift(base: f32, kick: f32) -> f32 {
+    let lift = eye_pitch(base + kick) - eye_pitch(base);
+    if lift.is_finite() { lift } else { 0.0 }
+}
+
 /// A locator's bone index for none (calculate_locator 0x243C05).
 const NO_BONE: u16 = 0xFFFF;
 
@@ -219,5 +255,26 @@ unsafe fn named(skeleton: raw::Skeleton, name: &str) -> Option<raw::SkeletonBone
                 && name.bytes().enumerate().all(|(n, b)| text.add(n).read_volatile() == b)
                 && text.add(name.len()).read_volatile() == 0
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_kick_lifts_the_eye_sixty_degrees_a_unit_above_the_level() {
+        assert!((kick_lift(0.0, 0.1).to_degrees() - 6.0).abs() < 1e-4);
+        assert!((kick_lift(-0.2, 0.1).to_degrees() - 6.75).abs() < 1e-4);
+        // Across the level: 67.5 a unit below it, 60 above.
+        assert!((kick_lift(-0.1, 0.2).to_degrees() - 12.75).abs() < 1e-4);
+    }
+
+    #[test]
+    fn a_kick_past_the_looks_end_lifts_no_further() {
+        assert!((kick_lift(0.95, 0.2).to_degrees() - 3.0).abs() < 1e-4);
+        assert_eq!(kick_lift(1.0, 0.5), 0.0);
+        assert_eq!(kick_lift(0.0, 0.0), 0.0);
+        assert_eq!(kick_lift(f32::NAN, 0.1), 0.0);
     }
 }

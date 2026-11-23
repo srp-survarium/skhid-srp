@@ -6394,8 +6394,16 @@ Off unless the game is started with `SKHID_CAMERA_TRAIL` set. While the sight is
 drawn turns after the aim instead of with it (still within 0.8 degrees across and 0.55 up, never
 more than 3 and 2 behind, the zones times the view's zoom and the aim's progress): the gun and its
 sights, which hang on the aim, move over a calm screen. With the switch the aimed gun's sights stay
-on the aim and 35 % of its clip's kick back along the view is left (patch 172's site). Drawing
-only. Its own tests; never run in a game.
+on the aim and 35 % of its clip's kick back along the view is left (patch 172's site).
+
+The recoil on top of patch 200's shots from the gun: the weapon's kick is the gun's. The game adds
+the kick (the weapon's +478h) to the look pitch, which turns the eye, the hands and the gun
+together (`weapon_core::look_pitch` 0x2E0F60). With the switch the view takes 40 % of the lift the
+kick gives the eye, from the hip too; the gun, on the aim, rises over the screen and comes back as
+the kick is pulled down or returns, and the bullet goes where the gun looks. Not while the scope's
+own view is on. The kick's numbers, the shots and the eye the simulation keeps are untouched.
+
+Drawing only. Its own tests; never run in a game.
 
 ## Scrolling the console (patch 159, unreleased)
 

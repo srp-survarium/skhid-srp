@@ -48,7 +48,20 @@ where no sight is looked through.
   `simulation_changes.tsv`.
 - **Peeking:** a bullet no longer clears a ledge the eye sees over and the barrel does not.
 
-## Next, on top (the owner: "simulation with recoil being the next thing")
+## Recoil, on top (the owner: "simulation with recoil being the next thing")
 
-With the bullet following the gun, recoil can be made the gun's own motion instead of a turn of
-the eye. Not in this patch.
+The game's recoil is already a state of the weapon in the simulation: the kick (the recoil
+calculator, the weapon's +468h; its top kick at +478h) is added to the player's look pitch, a shot
+raises it, a downward turn of the mouse is taken off it first and a controller returns it
+(`bots/recoil.rs` has the proof). The look pitch with the kick poses the eye, the hands and the gun
+together, so in the stock game the kick is a turn of the screen.
+
+With the bullet following the gun, the kick is the gun's motion and the eye need not take all of
+it. Patch 197 (the aimed view's prototype, `SKHID_CAMERA_TRAIL`) draws it so: of the lift the kick
+gives the eye the view takes 40 % (`KICK_SHOWN`), from the hip too; the gun stays on the
+simulation's aim, so it rises over the screen as the kick grows and comes back as the player pulls
+it down. Nothing the simulation computes changes for it: the kick, its numbers and where the
+bullets go are the game's. Not while the scope's own view is on (its picture is the screen).
+
+Not done: the side kick (about 0.1 degree a shot: it scrubs the `recoil_horiz` clip, whose turn
+on the screen is not traced) stays a turn of the view.

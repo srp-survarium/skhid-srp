@@ -19,6 +19,11 @@
 //! the aimed gun also shows less of its shot clip (`aim_pose::Kick::Back`):
 //! its sights stay on the aim, and of its kick `BACK_SHARE` back along it.
 //!
+//! The weapon's kick is the gun's (the recoil on top of patch 200's shots
+//! from the gun): of the lift the kick gives the eye the view takes
+//! `KICK_SHOWN`, from the hip too, and the gun, on the aim, rises over it
+//! and comes back as the kick does. Not while the scope's own view is on.
+//!
 //! Not done: with picture-in-picture scopes (patch 198) the frame is not
 //! zoomed while the handler's factor says it is, so the zones are then that
 //! much smaller on the screen than without.
@@ -29,7 +34,7 @@ use ragdoll::math::{Vec3, abs, atan2, clamp, exp_neg, min, sin_cos, sqrt};
 
 use crate::aim_pose::{self, Kick};
 use crate::vostok::world::PlayerId;
-use crate::vostok::{Context, Flow, GameCell, NoExit, camera, clock, renderer};
+use crate::vostok::{Context, Flow, GameCell, NoExit, camera, clock, renderer, shot};
 
 const DEGREE: f32 = core::f32::consts::PI / 180.0;
 /// How far the aim turns from the camera before the camera follows (rad,
@@ -45,6 +50,9 @@ const MOST: Look = Look { yaw: 3.0 * DEGREE, pitch: 2.0 * DEGREE };
 const RATE: f32 = 14.0;
 /// The share of the gun's own kick back along the view the aimed view shows.
 const BACK_SHARE: f32 = 0.35;
+/// The share of the lift the weapon's kick gives the eye that the view takes;
+/// the gun takes all of it.
+const KICK_SHOWN: f32 = 0.4;
 /// The longest frame the camera steps by (s).
 const LONGEST_FRAME: f32 = 0.1;
 
@@ -103,10 +111,10 @@ pub fn on_eye(ctx: &mut Context<'_>) -> Flow<NoExit> {
     }
     let eye = camera::given_eye(ctx);
     let aimed = match camera::eye_player(ctx) {
-        Some((player, true)) => Look::of(row(&eye, 2)).map(|aim| (player.id(), aim)),
+        Some((player, true)) => Look::of(row(&eye, 2)).map(|aim| (player.id(), aim, rested(aim, shot::free_kick_lift(player)))),
         _ => None,
     };
-    let Some((player, aim)) = aimed else {
+    let Some((player, aim, rest)) = aimed else {
         TRAIL.set(thread, Trail::Waiting);
         return Flow::Continue;
     };
@@ -114,13 +122,19 @@ pub fn on_eye(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let raised = aim_pose::take_aim_progress(thread);
     let zoom = zoom * if raised.is_finite() { clamp(raised, 0.0, 1.0) } else { 0.0 };
     let now = clock::milliseconds(thread);
-    let look = shown(state, player, aim, zoom, now);
+    let look = shown(state, player, rest, zoom, now);
     TRAIL.set(thread, Trail::Following { player, look, at: now });
-    // On the aim (from the hip always): the eye as it is given.
+    // On the aim (from the hip with no kick always): the eye as it is given.
     if look != aim {
         camera::look_from(ctx, turned(&eye, aim, look));
     }
     Flow::Continue
+}
+
+/// Where the view rests under an `aim` whose weapon's kick lifts the eye by
+/// `lift` (rad): the aim less the kick's share the view does not take.
+fn rested(aim: Look, lift: f32) -> Look {
+    Look { yaw: aim.yaw, pitch: aim.pitch - (1.0 - KICK_SHOWN) * lift }
 }
 
 /// Where `player`'s camera looks this frame: on from where it looked last
@@ -218,6 +232,18 @@ mod tests {
 
     fn player(n: u32) -> PlayerId {
         PlayerId::for_test(n)
+    }
+
+    #[test]
+    fn the_view_takes_a_share_of_the_kicks_lift() {
+        let aim = Look { yaw: 0.3, pitch: 10.0 * DEGREE };
+        assert_eq!(rested(aim, 0.0), aim);
+        let rest = rested(aim, 5.0 * DEGREE);
+        assert_eq!(rest.yaw, aim.yaw);
+        assert!((rest.pitch - (10.0 - 5.0 * (1.0 - KICK_SHOWN)) * DEGREE).abs() < 1e-6);
+        // From the hip (no zones) the view is that rest at once.
+        let following = Trail::Following { player: player(1), look: aim, at: 0 };
+        assert_eq!(shown(following, player(1), rest, 0.0, 16), rest);
     }
 
     #[test]
