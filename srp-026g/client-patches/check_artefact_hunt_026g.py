@@ -520,7 +520,8 @@ def main():
           "rule's own", stopped == ("past", INPUT_ON) and run.read(CORE + TIME_STATE) == 3
           and camera_state(CORE) == (0x267AEC, 3))
 
-    # 12. A death's delay: the wave after death + 7 s, from the match's start.
+    # 12. A death's delay: the first wave from the match's start after the death's step (its time
+    # the step before's), however near.
     def delay(at_time, native):
         sp = STACK + 0x6000
         run.word(sp + 0x20, at_time)
@@ -530,12 +531,16 @@ def main():
         run.emu.emu_start(0x316B6B, 0x316B71, count=5_000_000)
         return run.emu.reg_read(UC_X86_REG_EAX)
     death = now
-    wave = START + ((death + 7000 - START + 14999) // 15000) * 15000
+    wave = START + ((death + 51 - START + 14999) // 15000) * 15000
     got_delay = delay(death, 15000)
     shifted = delay(death, 12000)
-    check("a death's delay is the wave's: the first 15 s from the start at or after death + 7 s; a -20 % "
-          "modifier 3 s sooner, never under the 7 s", got_delay == wave - death
-          and shifted == max(wave - 3000, death + 7000) - death, f"{got_delay}, {shifted}, wave {wave - death}")
+    near = wave - 4000
+    near_delay = delay(near, 15000)
+    late = delay(wave - 1000, 12000)
+    check("a death's delay is the wave's: the first 15 s from the start after the death's step, 4 s before "
+          "it too; a -20 % modifier 3 s sooner, never into the death's step",
+          got_delay == wave - death and shifted == wave - 3000 - death and near_delay == 4000 and late == 51,
+          f"{got_delay}, {shifted}, wave {wave - death}, 4 s before {near_delay}, modifier 1 s before {late}")
 
     # 13. Slot 17 through the hud's loop: the points, the clock's seconds.
     hud = run.allocate(0x100)
