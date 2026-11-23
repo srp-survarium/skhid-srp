@@ -20,7 +20,8 @@
 //!   ours holding nothing (a battery carrier's once the battery drops: the
 //!   game then updates no bone) is posed from its ragdoll alone.
 //! - `on_post_bones`: the content's extra render bone follows Head while
-//!   worn, and the cosmetic headwear body after death;
+//!   worn, and the cosmetic headwear body once off (the killing headshot,
+//!   or a later shot into the corpse's head);
 //! - `on_render_bones`: ordinary 69-bone commands initialize the extra
 //!   render bone for the lobby, baking and other renderer callers.
 //!
@@ -36,7 +37,7 @@ use core::sync::atomic::{AtomicBool, Ordering};
 
 use ::ragdoll::corpse::{Corpse, CorpseHit, Corpses, Death, DeathKey, Drawn, Frame, MAX_PLACES, Seen, SlotId};
 use ::ragdoll::math::{Pose, Quat, Vec3, abs};
-use ::ragdoll::ragdoll::{Cause, GunShape, HeadwearShape, Knock, Level, Skeleton, StartReport, Sweep};
+use ::ragdoll::ragdoll::{Cause, GunShape, HeadwearShape, Knock, Level, Off, Skeleton, StartReport, Sweep};
 use ::ragdoll::shot::{Hit, Recent, Shot, ShotKey, ShotLog, impulse, knocked_back};
 use ::ragdoll::skeleton::{BONE_COUNT, BONES, PARTS, Part};
 
@@ -429,9 +430,10 @@ fn seen(
     let gun = (player.held() == Held::Item && crate::artefact_carry::gun_in_hands_at_death(player, thread))
         .then_some(GunShape::RIFLE);
     let mut death = Death::new(DeathKey(player.spawned()), Cause::Unknown, gun, stood_on);
-    if fatal == Some((death.key, headwear::FatalHit::Headshot)) {
-        death.headwear = headwear::of_player(player).map(|_| HeadwearShape);
-    }
+    // off with a fatal headshot; else on the head until a shot into the corpse's head
+    let headshot = fatal == Some((death.key, headwear::FatalHit::Headshot));
+    death.headwear = headwear::of_player(player)
+        .map(|_| if headshot { HeadwearShape::ShotOff } else { HeadwearShape::Worn });
     (death.hits, death.hit_count) = recent.of_death(now);
     death.load = load_of(player);
     death.velocity = if moving.known { moving.velocity } else { Vec3::ZERO };
@@ -917,13 +919,17 @@ pub fn on_bones(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// The rendered accessory pose of the same death, in the player's model space.
+/// The rendered accessory pose of the same death, in the player's model space:
+/// off by a shot into the corpse, or by the killing headshot while the death
+/// is still one (a corrected event puts it back on the head).
 fn headwear_pose(state: &State, player: &Player<'_>) -> Option<[f32; 16]> {
     let (key, slot, _) = draw_of(state, player)?;
-    if *state.deaths.get(usize::from(player.place()))? != Some((key, headwear::FatalHit::Headshot)) {
+    let (pose, by) = state.corpses.slot(slot).body()?.headwear_pose()?;
+    if by == Off::Headshot
+        && *state.deaths.get(usize::from(player.place()))? != Some((key, headwear::FatalHit::Headshot))
+    {
         return None;
     }
-    let pose = state.corpses.slot(slot).body()?.headwear_pose()?;
     Some(matrix_of(pose_of(&player.transform())?.inverse().then(pose)))
 }
 

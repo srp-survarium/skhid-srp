@@ -540,7 +540,6 @@ shots	tiros
 up	cima
 side	lado
 spread	dispersão
-where it aims as the recoil moves it	para onde a arma aponta conforme o recuo a move
 Play	Reproduzir
 Pause	Pausar
 Recoil and spread	Recuo e dispersão
@@ -574,12 +573,10 @@ At most	Máximo
 Vertical kick	Recuo vertical
 game units	unidades do jogo
 Horizontal kick	Recuo horizontal
-Modelled kick, recovery, spread and camera shake (from the hip), with no mouse compensation. The plots are in the weapons’ kick units; the crosshair view is in degrees of view (upward exactly as the game does, sideways estimated), with each bullet’s hit and the spread circle.	Modelo do recuo, da recuperação, da dispersão e do tremor da câmera (da cintura), sem compensação com o mouse. Os gráficos estão nas unidades de recuo das armas; a vista da mira está em graus de visão (para cima exatamente como no jogo, para os lados estimado), com o impacto de cada bala e o círculo de dispersão.
 Trigger	Gatilho
 Hold	Segurar
 Click, {n} a second	Clicar, {n} por segundo
 Sample seed	Semente da amostra
-A full magazine; with two weapons, as many shots as the smaller magazine holds, each at its own fire rate. Random samples use the same seed for comparison; they are not recorded game shots.	Um carregador cheio; com duas armas, tantos tiros quanto cabem no carregador menor, cada uma na sua taxa de fogo. As amostras aleatórias usam a mesma semente para comparação; não são tiros gravados do jogo.
 Spread	Dispersão
 degrees	graus
 Last shot	Último tiro
@@ -667,3 +664,22 @@ Automatic	Automático
 {m}-round burst	Rajada de {m} tiros
 pellets	bagos
 No weapons match. Try another name or class.	Nenhuma arma encontrada. Tente outro nome ou classe.
+
+# The wiki's simulators: the shot's motions and the custom gun (pages built at a release: scripts/site-texts)
+Left	Esquerda	direction
+Right	Direita	direction
+Back	Trás	direction
+where it aims as the shot moves it	para onde mira com o tiro
+from the side, the bullet from the eye along the view	de lado: a bala do olho ao longo da visão
+custom	personalizada
+Up	Cima
+Side	Lado
+Rate	Taxa
+Power	Expoente
+Camera wobble	Balanço da câmera
+Gun kick	Coice da arma
+Custom gun	Arma personalizada
+Speed	Velocidade
+bullet	bala
+sight	mira
+hit	acerto

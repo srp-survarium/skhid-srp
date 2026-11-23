@@ -6,7 +6,10 @@ path ('/' -> '__', '.json' appended), as dump_json.py writes them:
     dbgrab <resources.db> get gameplay/ <raw>
     dbgrab <resources.db> get localization/english <raw>
     python -I dump_json.py <raw> <json>
-    python -I gen_calc_data.py <json> <out.json>
+    python -I gen_calc_data.py <json> <out.json> [<shot-motions.json>]
+
+With the third (../wiki/shot_motions.py's, made from the same files), a weapon
+has its "shot": what its shot clips do to the camera and to the gun.
 
 Nothing here is chosen by the calculator: every number is the game's.
 """
@@ -16,6 +19,7 @@ import re
 import sys
 
 source, target = sys.argv[1], sys.argv[2]
+shot_motions = json.load(open(sys.argv[3], encoding="utf-8")) if len(sys.argv) > 3 else {}
 
 
 def load(name):
@@ -135,6 +139,8 @@ for file in files("gameplay__items__weapons__wpn_"):
         "weight": r(p.get("weight", 0)),
         # Its broken-arm spread (0x3317C0); the exe's default false (0x30ABBE).
         "double_handed": bool(p.get("double_handed", False)),
+        # Its shot clips' own motions (wiki/shot_motions.py); absent in a build without them.
+        **({"shot": shot_motions[file]} if file in shot_motions else {}),
         # The wiki uses the same source data, including the detailed weapon card.
         # Missing optional parameters stay absent; native defaults are applied
         # by the presentation schema, never by substituting arbitrary zeroes.

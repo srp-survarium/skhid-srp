@@ -132,18 +132,29 @@ def simulation(texts):
         f'<figure><figcaption>{t(en)} · {t("game units")}</figcaption><svg class="sim-{axis}" viewBox="0 0 600 250" role="img" aria-label="{t(en)}"></svg></figure>'
         for axis, en in [("vertical", "Vertical kick"), ("horizontal", "Horizontal kick")])
     return "".join([
-        f'<p class="stat-note">{t("Modelled kick, recovery, spread and camera shake (from the hip), with no mouse compensation. The plots are in the weapons’ kick units; the crosshair view is in degrees of view (upward exactly as the game does, sideways estimated), with each bullet’s hit and the spread circle.")}</p>',
         f'<div class="sim-inputs">'
         f'<label>{t("Trigger")}<select class="sim-trigger"><option value="0">{t("Hold")}</option>'
         + "".join(f'<option value="{1 / n:g}">{tf("Click, {n} a second", n=n)}</option>' for n in (4, 2, 1))
-        + f'</select></label><label>{t("Sample seed")}<input class="sim-seed" type="number" min="1" max="999999" value="1"></label></div>',
-        f'<p class="stat-note">{t("A full magazine; with two weapons, as many shots as the smaller magazine holds, each at its own fire rate. Random samples use the same seed for comparison; they are not recorded game shots.")}</p>',
+        + f'</select></label><label>{t("Sample seed")}<input class="sim-seed" type="number" min="1" max="999999" value="1"></label>'
+        + f'<label>{t("Speed")}<select class="sim-speed">'
+        + "".join(f'<option value="{value}">{label}</option>' for value, label in (("1", "1×"), ("0.25", "1/4"), ("0.1", "1/10")))
+        + '</select></label></div>',
+        '<div class="sim-layers">'
+        + "".join(f'<label><input class="sim-layer-{key}" type="checkbox" checked> {t(en)}</label>' for key, en in [
+            ("recoil", "Recoil"), ("camera", "Camera wobble"), ("gun", "Gun kick")])
+        + '</div>',
         f'<table class="sim-parts"><caption>{t("Spread")} · {t("degrees")}</caption><thead><tr><td></td>'
         + "".join(f'<th scope="col">{p}</th>' for p in parts) + '</tr></thead><tbody></tbody></table>',
         f'<div class="sim-buttons"><button class="sim-play" type="button">{t("Play")}</button><button class="sim-last" type="button">{t("Last shot")}</button><button class="sim-reset" type="button">{t("Reset")}</button></div>',
         f'<label class="sim-timeline">{t("Timeline")} <output class="sim-time-label">0 s</output><input class="sim-time" type="range" min="0" max="1" step="0.01" value="0"></label>',
         '<div class="sim-legend" aria-live="polite"></div>',
         f'<figure class="sim-sight"><figcaption>{t("Crosshair")} · {t("degrees of view")}</figcaption><div class="sim-sight-views"></div>'
+        '<p class="sim-key">'
+        + "".join(f'<span><svg viewBox="0 0 16 16" aria-hidden="true">{shape}</svg>{t(en)}</span>' for shape, en in [
+            ('<path class="sim-key-view" d="M8 1v5M8 10v5M1 8h5M10 8h5"/>', "bullet"),
+            ('<circle class="sim-key-sight" cx="8" cy="8" r="6"/>', "sight"),
+            ('<circle class="sim-key-hit" cx="8" cy="8" r="3.5"/>', "hit")])
+        + '</p>'
         f'<label class="sim-target-pick">{t("Target")}<select class="sim-target"><option value="">{t("None")}</option>'
         + "".join(f'<option value="{m}">{tf("Enemy at {m} m", m=m)}</option>' for m in (5, 10, 25))
         + '</select></label></figure>',
@@ -240,7 +251,8 @@ def render_simulators(data, script_url):
     for key, w in sorted(data["weapons"].items(), key=lambda kv: (kv[1]["item_level"], english_title(kv[1]).casefold())):
         rounds = [{"id": k, "name": page.round_name(k), "spread": data["ammo"][k]["dispersion"]} for k in page.round_keys(key)]
         recoil = {"rpm": w["rounds_per_minute"], "magazine": w["magazine_capacity"], **w.get("recoil", {}),
-                  "dispersion": w.get("dispersion", {}), "double_handed": w["double_handed"]}
+                  "dispersion": w.get("dispersion", {}), "double_handed": w["double_handed"],
+                  **({"shot": w["shot"]} if "shot" in w else {})}
         icon = data.get("icons", {}).get(key)
         out.append(f'<div id="{esc(key)}" data-class="{esc(page.class_of(w))}" data-level="{w["item_level"]}" data-title="{esc(page.title(w))}" '
                    f'data-search-name="{esc(w["name"])}" data-rounds="{page.texts.attribute_json(rounds)}" data-recoil="{esc(json.dumps(recoil))}">'
@@ -355,7 +367,7 @@ def build(calculator, out):
     script = b"\n".join([words] + [(HERE / name).read_bytes() for name in ("picker.js", "slots.js", "weapons.js")])
     script_url = "/wiki/weapons.js?v=" + hashlib.sha256(script).hexdigest()[:12]
     # The setup panels are the calculator's rows (damage-calc/hud.js, hud.css).
-    simulators = b"\n".join([words, shake] + [path.read_bytes() for path in (HERE / "recoil.js", HERE / "spread.js", HERE / "picker.js",
+    simulators = b"\n".join([words, shake] + [path.read_bytes() for path in (HERE / "recoil.js", HERE / "spread.js", HERE / "motions.js", HERE / "picker.js",
                                                                               HERE / "slots.js", CALC / "hud.js", HERE / "simulators.js")])
     simulators_url = "/wiki/simulators.js?v=" + hashlib.sha256(simulators).hexdigest()[:12]
     out.mkdir(parents=True, exist_ok=True)

@@ -540,7 +540,6 @@ shots	выстрелы
 up	вверх
 side	вбок
 spread	разброс
-where it aims as the recoil moves it	куда смотрит прицел под действием отдачи
 Play	Воспроизвести
 Pause	Пауза
 Recoil and spread	Отдача и разброс
@@ -574,12 +573,10 @@ At most	Максимум
 Vertical kick	Отдача вверх
 game units	игровые единицы
 Horizontal kick	Отдача вбок
-Modelled kick, recovery, spread and camera shake (from the hip), with no mouse compensation. The plots are in the weapons’ kick units; the crosshair view is in degrees of view (upward exactly as the game does, sideways estimated), with each bullet’s hit and the spread circle.	Модель отдачи, восстановления, разброса и тряски камеры (от бедра), без компенсации мышью. Графики — в единицах отдачи оружия; прицел — в градусах обзора (вверх точно как в игре, вбок приблизительно), с попаданием каждой пули и кругом разброса.
 Trigger	Спуск
 Hold	Зажать
 Click, {n} a second	Нажатия, {n} в секунду
 Sample seed	Зерно выборки
-A full magazine; with two weapons, as many shots as the smaller magazine holds, each at its own fire rate. Random samples use the same seed for comparison; they are not recorded game shots.	Полный магазин; для двух единиц оружия — столько выстрелов, сколько вмещает меньший магазин, каждое со своей скорострельностью. Случайные выборки используют одно и то же зерно для сравнения; это не записанные выстрелы из игры.
 Spread	Разброс
 degrees	градусы
 Last shot	Последний выстрел
@@ -667,3 +664,22 @@ Automatic	Автоматический
 {m}-round burst	Очередь по {m}
 pellets	дробин
 No weapons match. Try another name or class.	Оружие не найдено. Попробуйте другое название или класс.
+
+# The wiki's simulators: the shot's motions and the custom gun (pages built at a release: scripts/site-texts)
+Left	Влево	direction
+Right	Вправо	direction
+Back	Назад	direction
+where it aims as the shot moves it	куда целится под действием выстрела
+from the side, the bullet from the eye along the view	сбоку: пуля от глаза вдоль взгляда
+custom	своё
+Up	Вверх
+Side	Вбок
+Rate	Темп
+Power	Степень
+Camera wobble	Качание камеры
+Gun kick	Толчок оружия
+Custom gun	Своё оружие
+Speed	Скорость
+bullet	пуля
+sight	прицел
+hit	попадание

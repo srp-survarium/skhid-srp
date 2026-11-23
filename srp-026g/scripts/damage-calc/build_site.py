@@ -34,7 +34,9 @@ from texts import DICTIONARIES  # noqa: E402
 # What the calculator reads of the game: its configs, every language's dictionary, the lobby's.
 WANTED = ["gameplay/", *DICTIONARIES,
           "localization/flash_movies_localizations.options", "flash_movies/lobby_menu.swf",
-          "game_materials/game.materials"]
+          "game_materials/game.materials",
+          # the weapons' shot clips: the simulators' camera and gun motions (../wiki/shot_motions.py)
+          "animations/single/weapons/"]
 SITE = SRP / "servers" / "web-server" / "damage"
 
 
@@ -61,7 +63,8 @@ def main():
             extract(args.dbgrab, args.stock, rows, args.patches, WANTED, raw)
         json_dir.mkdir(parents=True, exist_ok=True)
         run(HERE / "dump_json.py", raw, json_dir, SRP / "scripts" / "gen-data-026g")
-        run(HERE / "gen_calc_data.py", json_dir, work / "calc-data.json")
+        run(HERE.parent / "wiki" / "shot_motions.py", raw, json_dir, work / "shot-motions.json")
+        run(HERE / "gen_calc_data.py", json_dir, work / "calc-data.json", work / "shot-motions.json")
         if not images.is_dir():
             subprocess.run(["java", "-jar", args.ffdec, "-export", "image", str(images),
                             str(raw / "flash_movies__lobby_menu.swf")], check=True, capture_output=True)

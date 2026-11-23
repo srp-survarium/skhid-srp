@@ -540,7 +540,6 @@ shots	hitci
 up	gore
 side	bočno
 spread	rasipanje
-where it aims as the recoil moves it	kamo cilja dok ga trzaj pomiče
 Play	Reproduciraj
 Pause	Pauza
 Recoil and spread	Trzaj i rasipanje
@@ -574,12 +573,10 @@ At most	Najviše
 Vertical kick	Okomiti trzaj
 game units	jedinice igre
 Horizontal kick	Vodoravni trzaj
-Modelled kick, recovery, spread and camera shake (from the hip), with no mouse compensation. The plots are in the weapons’ kick units; the crosshair view is in degrees of view (upward exactly as the game does, sideways estimated), with each bullet’s hit and the spread circle.	Modelirani trzaj, oporavak, rasipanje i podrhtavanje kamere (s boka), bez kompenzacije mišem. Grafovi su u jedinicama trzaja oružja; prikaz nišana je u stupnjevima vidnog polja (gore točno kao u igri, u stranu procijenjeno), s pogotkom svakog metka i krugom rasipanja.
 Trigger	Okidač
 Hold	Držati
 Click, {n} a second	Klikati, {n} u sekundi
 Sample seed	Sjeme uzorka
-A full magazine; with two weapons, as many shots as the smaller magazine holds, each at its own fire rate. Random samples use the same seed for comparison; they are not recorded game shots.	Pun spremnik; s dva oružja onoliko hitaca koliko stane u manji spremnik, svako svojom brzinom paljbe. Nasumični uzorci koriste isto sjeme radi usporedbe; to nisu snimljeni hitci iz igre.
 Spread	Rasipanje
 degrees	stupnjevi
 Last shot	Zadnji hitac
@@ -667,3 +664,22 @@ Automatic	Automatski
 {m}-round burst	Rafal od {m} metaka
 pellets	zrna
 No weapons match. Try another name or class.	Nema odgovarajućeg oružja. Pokušajte s drugim nazivom ili klasom.
+
+# The wiki's simulators: the shot's motions and the custom gun (pages built at a release: scripts/site-texts)
+Left	Lijevo	direction
+Right	Desno	direction
+Back	Natrag	direction
+where it aims as the shot moves it	kamo cilja pod djelovanjem hica
+from the side, the bullet from the eye along the view	sa strane: metak od oka duž pogleda
+custom	vlastito
+Up	Gore
+Side	U stranu
+Rate	Tempo
+Power	Eksponent
+Camera wobble	Njihanje kamere
+Gun kick	Trzaj oružja
+Custom gun	Vlastito oružje
+Speed	Brzina
+bullet	metak
+sight	nišan
+hit	pogodak

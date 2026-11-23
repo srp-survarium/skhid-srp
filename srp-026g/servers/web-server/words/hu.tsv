@@ -540,7 +540,6 @@ shots	lövés
 up	fel
 side	oldalra
 spread	szórás
-where it aims as the recoil moves it	ahová a visszarúgástól elmozdulva céloz
 Play	Lejátszás
 Pause	Szünet
 Recoil and spread	Visszarúgás és szórás
@@ -574,12 +573,10 @@ At most	Legfeljebb
 Vertical kick	Függőleges visszarúgás
 game units	játékegység
 Horizontal kick	Vízszintes visszarúgás
-Modelled kick, recovery, spread and camera shake (from the hip), with no mouse compensation. The plots are in the weapons’ kick units; the crosshair view is in degrees of view (upward exactly as the game does, sideways estimated), with each bullet’s hit and the spread circle.	Modellezett visszarúgás, visszaállás, szórás és kamerarázkódás (csípőből), egeres kompenzálás nélkül. A grafikonok a fegyverek visszarúgás-egységeiben vannak; a célkereszt nézete látószögfokban (felfelé pontosan úgy, ahogy a játék, oldalra becsülve), minden lövedék találatával és a szórási körrel.
 Trigger	Ravasz
 Hold	Nyomva tartás
 Click, {n} a second	Kattintás, másodpercenként {n}
 Sample seed	Véletlenmag
-A full magazine; with two weapons, as many shots as the smaller magazine holds, each at its own fire rate. Random samples use the same seed for comparison; they are not recorded game shots.	Egy teljes tár; két fegyvernél annyi lövés, amennyi a kisebb tárba fér, mindegyik a saját tűzgyorsaságával. Az összehasonlításhoz a véletlen minták ugyanazt a magot használják; ezek nem rögzített játékbeli lövések.
 Spread	Szórás
 degrees	fok
 Last shot	Utolsó lövés
@@ -667,3 +664,22 @@ Automatic	Automata
 {m}-round burst	{m} lövéses sorozat
 pellets	sörét
 No weapons match. Try another name or class.	Nincs megfelelő fegyver. Próbálj más nevet vagy osztályt.
+
+# The wiki's simulators: the shot's motions and the custom gun (pages built at a release: scripts/site-texts)
+Left	Balra	direction
+Right	Jobbra	direction
+Back	Hátra	direction
+where it aims as the shot moves it	hová céloz a lövés hatására
+from the side, the bullet from the eye along the view	oldalról: a lövedék a szemtől a nézés mentén
+custom	saját
+Up	Fel
+Side	Oldalra
+Rate	Tempó
+Power	Kitevő
+Camera wobble	Kameraremegés
+Gun kick	Fegyverrúgás
+Custom gun	Saját fegyver
+Speed	Sebesség
+bullet	lövedék
+sight	irányzék
+hit	találat

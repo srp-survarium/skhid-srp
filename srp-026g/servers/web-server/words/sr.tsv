@@ -540,7 +540,6 @@ shots	hici
 up	nagore
 side	u stranu
 spread	rasipanje
-where it aims as the recoil moves it	kuda nišani dok ga trzaj pomera
 Play	Pusti
 Pause	Pauza
 Recoil and spread	Trzaj i rasipanje
@@ -574,12 +573,10 @@ At most	Najviše
 Vertical kick	Vertikalni trzaj
 game units	jedinice igre
 Horizontal kick	Horizontalni trzaj
-Modelled kick, recovery, spread and camera shake (from the hip), with no mouse compensation. The plots are in the weapons’ kick units; the crosshair view is in degrees of view (upward exactly as the game does, sideways estimated), with each bullet’s hit and the spread circle.	Model trzaja, oporavka, rasipanja i podrhtavanja kamere (sa boka), bez kompenzacije mišem. Grafikoni su u jedinicama trzaja oružja; prikaz nišana je u stepenima vidnog polja (nagore tačno kao u igri, u stranu procenjeno), sa pogotkom svakog metka i krugom rasipanja.
 Trigger	Okidač
 Hold	Drži
 Click, {n} a second	Klik, {n} u sekundi
 Sample seed	Seme uzorka
-A full magazine; with two weapons, as many shots as the smaller magazine holds, each at its own fire rate. Random samples use the same seed for comparison; they are not recorded game shots.	Pun okvir; sa dva oružja, onoliko hitaca koliko staje u manji okvir, svako svojom brzinom paljbe. Nasumični uzorci koriste isto seme radi poređenja; to nisu zabeleženi hici iz igre.
 Spread	Rasipanje
 degrees	stepeni
 Last shot	Poslednji hitac
@@ -667,3 +664,22 @@ Automatic	Automatska paljba
 {m}-round burst	Rafal od {m}
 pellets	sačmi
 No weapons match. Try another name or class.	Nije pronađeno nijedno oružje. Probajte drugi naziv ili klasu.
+
+# The wiki's simulators: the shot's motions and the custom gun (pages built at a release: scripts/site-texts)
+Left	Levo	direction
+Right	Desno	direction
+Back	Nazad	direction
+where it aims as the shot moves it	gde nišani pod dejstvom hica
+from the side, the bullet from the eye along the view	sa strane: metak od oka duž pogleda
+custom	sopstveno
+Up	Gore
+Side	U stranu
+Rate	Tempo
+Power	Stepen
+Camera wobble	Njihanje kamere
+Gun kick	Trzaj oružja
+Custom gun	Sopstveno oružje
+Speed	Brzina
+bullet	metak
+sight	nišan
+hit	pogodak

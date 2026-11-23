@@ -1865,9 +1865,6 @@
 "word": "Horizontal kick"
 },
 {
-"word": "Modelled kick, recovery, spread and camera shake (from the hip), with no mouse compensation. The plots are in the weapons’ kick units; the crosshair view is in degrees of view (upward exactly as the game does, sideways estimated), with each bullet’s hit and the spread circle."
-},
-{
 "word": "Trigger"
 },
 {
@@ -1895,7 +1892,16 @@
 "word": "Sample seed"
 },
 {
-"word": "A full magazine; with two weapons, as many shots as the smaller magazine holds, each at its own fire rate. Random samples use the same seed for comparison; they are not recorded game shots."
+"word": "Speed"
+},
+{
+"word": "Recoil"
+},
+{
+"word": "Camera wobble"
+},
+{
+"word": "Gun kick"
 },
 {
 "word": "Spread"
@@ -1920,6 +1926,15 @@
 },
 {
 "word": "degrees of view"
+},
+{
+"word": "bullet"
+},
+{
+"word": "sight"
+},
+{
+"word": "hit"
 },
 {
 "word": "Target"

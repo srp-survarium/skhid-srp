@@ -540,7 +540,6 @@ shots	výstřely
 up	nahoru
 side	do strany
 spread	rozptyl
-where it aims as the recoil moves it	kam míří, jak ji posouvá zpětný ráz
 Play	Přehrát
 Pause	Pozastavit
 Recoil and spread	Zpětný ráz a rozptyl
@@ -574,12 +573,10 @@ At most	Nejvýše
 Vertical kick	Svislý ráz
 game units	herní jednotky
 Horizontal kick	Vodorovný ráz
-Modelled kick, recovery, spread and camera shake (from the hip), with no mouse compensation. The plots are in the weapons’ kick units; the crosshair view is in degrees of view (upward exactly as the game does, sideways estimated), with each bullet’s hit and the spread circle.	Model rázu, obnovy, rozptylu a otřesu kamery (od boku), bez kompenzace myší. Grafy jsou v jednotkách rázu zbraní; zaměřovací kříž je ve stupních zorného pole (nahoru přesně jako ve hře, do strany odhadem), se zásahem každé kulky a kruhem rozptylu.
 Trigger	Spoušť
 Hold	Držet
 Click, {n} a second	Klikat, {n} za sekundu
 Sample seed	Semínko vzorku
-A full magazine; with two weapons, as many shots as the smaller magazine holds, each at its own fire rate. Random samples use the same seed for comparison; they are not recorded game shots.	Plný zásobník; u dvou zbraní tolik výstřelů, kolik pojme menší zásobník, každá svou kadencí. Náhodné vzorky mají pro porovnání stejné semínko; nejde o zaznamenané výstřely ze hry.
 Spread	Rozptyl
 degrees	stupně
 Last shot	Poslední výstřel
@@ -667,3 +664,22 @@ Automatic	Automatická střelba
 {m}-round burst	Dávka po {m}
 pellets	broků
 No weapons match. Try another name or class.	Žádné zbraně nenalezeny. Zkuste jiný název nebo třídu.
+
+# The wiki's simulators: the shot's motions and the custom gun (pages built at a release: scripts/site-texts)
+Left	Vlevo	direction
+Right	Vpravo	direction
+Back	Dozadu	direction
+where it aims as the shot moves it	kam míří pod vlivem výstřelu
+from the side, the bullet from the eye along the view	z boku: střela od oka podél pohledu
+custom	vlastní
+Up	Nahoru
+Side	Do strany
+Rate	Kadence
+Power	Mocnina
+Camera wobble	Kývání kamery
+Gun kick	Kopnutí zbraně
+Custom gun	Vlastní zbraň
+Speed	Rychlost
+bullet	střela
+sight	mířidla
+hit	zásah

@@ -540,7 +540,6 @@ shots	laukaukset
 up	ylös
 side	sivulle
 spread	hajonta
-where it aims as the recoil moves it	mihin ase osoittaa rekyylin liikuttamana
 Play	Toista
 Pause	Tauko
 Recoil and spread	Rekyyli ja hajonta
@@ -574,12 +573,10 @@ At most	Enintään
 Vertical kick	Pystyrekyyli
 game units	pelin yksiköt
 Horizontal kick	Vaakarekyyli
-Modelled kick, recovery, spread and camera shake (from the hip), with no mouse compensation. The plots are in the weapons’ kick units; the crosshair view is in degrees of view (upward exactly as the game does, sideways estimated), with each bullet’s hit and the spread circle.	Mallinnettu rekyyli, palautuminen, hajonta ja kameran tärinä (lonkalta), ilman hiirellä kompensointia. Kuvaajat ovat aseiden rekyyliyksiköissä; tähtäinnäkymä on näkymän asteissa (ylöspäin täsmälleen kuten pelissä, sivuttain arvioituna), ja siinä näkyvät jokaisen luodin osuma ja hajontaympyrä.
 Trigger	Liipaisin
 Hold	Pidä pohjassa
 Click, {n} a second	Napsauta {n} kertaa sekunnissa
 Sample seed	Satunnaissiemen
-A full magazine; with two weapons, as many shots as the smaller magazine holds, each at its own fire rate. Random samples use the same seed for comparison; they are not recorded game shots.	Täysi lipas; kahdella aseella niin monta laukausta kuin pienempään lippaaseen mahtuu, kumpikin omalla tulinopeudellaan. Satunnaisotokset käyttävät vertailun vuoksi samaa siementä; ne eivät ole pelistä tallennettuja laukauksia.
 Spread	Hajonta
 degrees	asteet
 Last shot	Viimeinen laukaus
@@ -667,3 +664,22 @@ Automatic	Sarjatuli
 {m}-round burst	{m} laukauksen sarja
 pellets	haulia
 No weapons match. Try another name or class.	Aseita ei löytynyt. Kokeile toista nimeä tai luokkaa.
+
+# The wiki's simulators: the shot's motions and the custom gun (pages built at a release: scripts/site-texts)
+Left	Vasemmalle	direction
+Right	Oikealle	direction
+Back	Taakse	direction
+where it aims as the shot moves it	mihin se tähtää laukauksen liikuttamana
+from the side, the bullet from the eye along the view	sivulta: luoti silmästä katseen suuntaan
+custom	oma
+Up	Ylös
+Side	Sivulle
+Rate	Tahti
+Power	Eksponentti
+Camera wobble	Kameran heilunta
+Gun kick	Aseen potku
+Custom gun	Oma ase
+Speed	Nopeus
+bullet	luoti
+sight	tähtäin
+hit	osuma

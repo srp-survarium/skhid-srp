@@ -540,7 +540,6 @@ shots	постріли
 up	вгору
 side	убік
 spread	розкид
-where it aims as the recoil moves it	куди цілиться під дією відбою
 Play	Відтворити
 Pause	Пауза
 Recoil and spread	Відбій і розкид
@@ -574,12 +573,10 @@ At most	Найбільший
 Vertical kick	Вертикальний відбій
 game units	одиниці гри
 Horizontal kick	Бічний відбій
-Modelled kick, recovery, spread and camera shake (from the hip), with no mouse compensation. The plots are in the weapons’ kick units; the crosshair view is in degrees of view (upward exactly as the game does, sideways estimated), with each bullet’s hit and the spread circle.	Модель поштовху, відновлення, розкиду й тремтіння камери (від стегна), без компенсації мишею. Графіки — в одиницях відбою зброї; приціл — у градусах огляду (вгору точно як у грі, убік приблизно), з влучанням кожної кулі та колом розкиду.
 Trigger	Спуск
 Hold	Утримувати
 Click, {n} a second	Клацати, {n} на секунду
 Sample seed	Зерно вибірки
-A full magazine; with two weapons, as many shots as the smaller magazine holds, each at its own fire rate. Random samples use the same seed for comparison; they are not recorded game shots.	Повний магазин; для двох одиниць зброї стільки пострілів, скільки вміщує менший магазин, кожна у власному темпі. Для порівняння використано однакове зерно випадковості; це не запис пострілів із гри.
 Spread	Розкид
 degrees	градуси
 Last shot	Останній постріл
@@ -667,3 +664,22 @@ Automatic	Автоматичний
 {m}-round burst	Черга по {m}
 pellets	шротин
 No weapons match. Try another name or class.	Зброю не знайдено. Спробуйте іншу назву або клас.
+
+# The wiki's simulators: the shot's motions and the custom gun (pages built at a release: scripts/site-texts)
+Left	Ліворуч	direction
+Right	Праворуч	direction
+Back	Назад	direction
+where it aims as the shot moves it	куди цілиться під дією пострілу
+from the side, the bullet from the eye along the view	збоку, куля від ока вздовж погляду
+custom	власна
+Up	Вгору
+Side	Убік
+Rate	Темп
+Power	Степінь
+Camera wobble	Хитання камери
+Gun kick	Поштовх зброї
+Custom gun	Власна зброя
+Speed	Швидкість
+bullet	куля
+sight	приціл
+hit	влучання

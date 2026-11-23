@@ -540,7 +540,6 @@ shots	Schüsse
 up	hoch
 side	seitlich
 spread	Streuung
-where it aims as the recoil moves it	wohin sie zielt, während der Rückstoß sie bewegt
 Play	Abspielen
 Pause	Pause
 Recoil and spread	Rückstoß und Streuung
@@ -574,12 +573,10 @@ At most	Höchstens
 Vertical kick	Vertikaler Rückstoß
 game units	Spieleinheiten
 Horizontal kick	Horizontaler Rückstoß
-Modelled kick, recovery, spread and camera shake (from the hip), with no mouse compensation. The plots are in the weapons’ kick units; the crosshair view is in degrees of view (upward exactly as the game does, sideways estimated), with each bullet’s hit and the spread circle.	Modelliert sind Rückstoß, Erholung, Streuung und Kamerawackeln (aus der Hüfte), ohne Ausgleich mit der Maus. Die Diagramme sind in den Rückstoßeinheiten der Waffen; das Fadenkreuz in Grad Sichtfeld (nach oben genau wie im Spiel, seitlich geschätzt), mit dem Treffer jeder Kugel und dem Streukreis.
 Trigger	Abzug
 Hold	Halten
 Click, {n} a second	Klicken, {n} pro Sekunde
 Sample seed	Seed der Stichprobe
-A full magazine; with two weapons, as many shots as the smaller magazine holds, each at its own fire rate. Random samples use the same seed for comparison; they are not recorded game shots.	Ein volles Magazin; bei zwei Waffen so viele Schüsse, wie das kleinere Magazin fasst, jede mit ihrer eigenen Feuerrate. Die Zufallsstichproben nutzen zum Vergleich denselben Seed; es sind keine aufgezeichneten Schüsse aus dem Spiel.
 Spread	Streuung
 degrees	Grad
 Last shot	Letzter Schuss
@@ -667,3 +664,22 @@ Automatic	Dauerfeuer
 {m}-round burst	{m}-Schuss-Feuerstoß
 pellets	Schrotkugeln
 No weapons match. Try another name or class.	Keine passenden Waffen. Versuche einen anderen Namen oder eine andere Klasse.
+
+# The wiki's simulators: the shot's motions and the custom gun (pages built at a release: scripts/site-texts)
+Left	Links	direction
+Right	Rechts	direction
+Back	Zurück	direction
+where it aims as the shot moves it	wohin sie unter dem Schuss zielt
+from the side, the bullet from the eye along the view	von der Seite: die Kugel vom Auge entlang der Sicht
+custom	eigene
+Up	Hoch
+Side	Seitlich
+Rate	Rate
+Power	Potenz
+Camera wobble	Kamerawackeln
+Gun kick	Waffenstoß
+Custom gun	Eigene Waffe
+Speed	Tempo
+bullet	Kugel
+sight	Visier
+hit	Treffer
