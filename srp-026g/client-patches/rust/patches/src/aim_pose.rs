@@ -13,9 +13,12 @@
 //! bones, the weapon's aim locator is moved from its bone into the gun's
 //! model at that pose (locator x bone, on no bone), which is what the game's
 //! own alignment then reads. Until then the alignment is the original's.
-//! The gun posed last is kept with what its locator was, so every later
-//! idle frame poses it again: a pose taken from a world that was not at
-//! rest lasts until the next one. Drawing only: nothing a match computes.
+//! Right after the call (`hands_ik.aligned`) the locator is the weapon's own
+//! again, on its bone: the record is the same in every game at every step,
+//! for what the simulation reads of it (patch 200). The gun posed last is
+//! kept with its idle pose, so every later idle frame takes it again: a pose
+//! taken from a world that was not at rest lasts until the next one. Drawing
+//! only: nothing a match computes.
 //!
 //! Patch 197's switch ([`show`], [`Kick::Back`]) shows less of the kick: the
 //! aim is carried by the gun's body (its fire point's bone) as the clips move
@@ -26,9 +29,8 @@
 
 #![forbid(unsafe_code)]
 
-use ragdoll::math::Vec3;
-
-use crate::vostok::aim::{AimLocator, AimedGun, Bone, GunId};
+use crate::affine::{inverse, product, row};
+use crate::vostok::aim::{AimLocator, AimedGun, AlignedGun, Bone, GunId};
 use crate::vostok::{Context, Flow, Lock, NoExit, Thread};
 
 /// What the aimed view shows of the gun's kick.
@@ -44,8 +46,8 @@ pub enum Kick {
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Kept {
     Nothing,
-    /// `gun`'s locator, which was at `place` on `bone`, holds `shown` on
-    /// none; `rest` is its idle pose.
+    /// `gun`'s locator, at `place` on `bone` in its record, was given the
+    /// alignment as `shown` on none; `rest` is its idle pose.
     Gun { gun: GunId, bone: Bone, place: [f32; 16], rest: Rest, shown: [f32; 16] },
 }
 
@@ -130,12 +132,35 @@ pub fn on_aim_alignment(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
+/// process_hands_ik after its calculate_aim_alignment: the weapon's own
+/// locator back in its record.
+pub fn on_aligned(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Some(mut gun) = AlignedGun::at_aligned(ctx) {
+        let (id, locator) = (gun.id(), gun.locator());
+        if let Some((bone, place)) = STATE.with(ctx.thread(), |state| own(state.kept, id, locator)) {
+            gun.hang_locator(bone, place);
+        }
+    }
+    Flow::Continue
+}
+
+/// The locator `gun`'s record had before this frame's alignment was given
+/// the kept pose: its bone and its place on it. None when the record holds
+/// anything else.
+fn own(kept: Kept, gun: GunId, locator: AimLocator) -> Option<(Bone, [f32; 16])> {
+    match kept {
+        Kept::Gun { gun: of, bone, place, shown, .. } if of == gun && locator == (AimLocator::Posed { place: shown }) => Some((bone, place)),
+        _ => None,
+    }
+}
+
 /// An aimed frame of `gun`: what is kept after it, and where its locator
-/// goes, if anywhere. Its idle pose is taken while the idle clip alone poses
-/// the gun (`idle`, a bone's matrix then) and kept after; with none yet the
-/// alignment is the original's. Only a locator on a bone or the kept gun's
-/// own is moved (a later weapon at its address has another). `live` is a
-/// bone's matrix this frame, `body` the bone of the gun's body.
+/// goes for the alignment, if anywhere. Its idle pose is taken while the
+/// idle clip alone poses the gun (`idle`, a bone's matrix then) and kept
+/// after for the same locator; with none yet the alignment is the
+/// original's. Only a locator on a bone is moved (one on none is its
+/// model's, or was not put back: left). `live` is a bone's matrix this
+/// frame, `body` the bone of the gun's body.
 fn posed(
     kept: Kept, gun: GunId, locator: AimLocator, body: Option<Bone>, kick: Kick,
     idle: Option<impl Fn(Bone) -> [f32; 16]>, live: impl Fn(Bone) -> [f32; 16],
@@ -144,11 +169,10 @@ fn posed(
         Kept::Gun { gun: of, bone, place, rest, shown } if of == gun => Some((bone, place, rest, shown)),
         _ => None,
     };
-    let (bone, place, rested) = match (locator, known) {
-        (AimLocator::OnBone { bone, place }, _) => (bone, place, None),
-        (AimLocator::Posed { place: now }, Some((bone, place, rest, shown))) if shown == now => (bone, place, Some(rest)),
-        (AimLocator::Posed { .. }, _) => return (kept, None),
-    };
+    let AimLocator::OnBone { bone, place } = locator else { return (kept, None) };
+    // the kept gun's own record: its idle pose is known (a later weapon at
+    // its address with the same record is the same model)
+    let rested = known.and_then(|(of, at, rest, _)| (of == bone && at == place).then_some(rest));
     let rest = match (idle, rested) {
         (Some(idle), _) => {
             let body = body.and_then(|bone| Some(Body { bone, from_rest: inverse(&idle(bone))? }));
@@ -161,8 +185,7 @@ fn posed(
         (Kick::Back { share }, Some(body)) => held(&rest.aim, &body.from_rest, &live(body.bone), share),
         _ => rest.aim,
     };
-    let moved = locator != AimLocator::Posed { place: shown };
-    (Kept::Gun { gun, bone, place, rest, shown }, moved.then_some(shown))
+    (Kept::Gun { gun, bone, place, rest, shown }, Some(shown))
 }
 
 /// The aim as the gun's body carries it: its idle `aim`, by the body bone's
@@ -179,48 +202,11 @@ fn held(aim: &[f32; 16], from_rest: &[f32; 16], live: &[f32; 16], share: f32) ->
     carried
 }
 
-/// `first` then `second`, row-vector affine 4x4s (the game's
-/// float4x4::multiply_affine 0xEE700: the last column is 0, 0, 0, 1).
-fn product(first: &[f32; 16], second: &[f32; 16]) -> [f32; 16] {
-    let mut out = [0.0; 16];
-    for row in 0..4 {
-        for column in 0..3 {
-            let turned: f32 = (0..3).map(|k| first[row * 4 + k] * second[k * 4 + column]).sum();
-            out[row * 4 + column] = if row == 3 { turned + second[12 + column] } else { turned };
-        }
-    }
-    out[15] = 1.0;
-    out
-}
-
-/// What undoes a row-vector affine 4x4; none for one that flattens space.
-fn inverse(m: &[f32; 16]) -> Option<[f32; 16]> {
-    let (x, y, z, place) = (row(m, 0), row(m, 1), row(m, 2), row(m, 3));
-    let volume = x.dot(y.cross(z));
-    if !volume.is_finite() || volume.abs() < 1e-12 {
-        return None;
-    }
-    // the columns of the 3x3's inverse
-    let (a, b, c) = (y.cross(z) * (1.0 / volume), z.cross(x) * (1.0 / volume), x.cross(y) * (1.0 / volume));
-    let mut out = [0.0; 16];
-    for (at, column) in [a, b, c].into_iter().enumerate() {
-        (out[at], out[4 + at], out[8 + at]) = (column.x, column.y, column.z);
-        out[12 + at] = -place.dot(column);
-    }
-    out[15] = 1.0;
-    Some(out)
-}
-
-/// A row-vector 4x4's row (0 to 2 its axes, 3 its place).
-fn row(m: &[f32; 16], at: usize) -> Vec3 {
-    Vec3::new(m[at * 4], m[at * 4 + 1], m[at * 4 + 2])
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::affine::IDENTITY;
 
-    const IDENTITY: [f32; 16] = [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.];
     const NOT_IDLE: Option<fn(Bone) -> [f32; 16]> = None;
     const BACK: Kick = Kick::Back { share: 0.5 };
 
@@ -248,6 +234,9 @@ mod tests {
         Bone::parse(2).unwrap()
     }
 
+    /// The record of gun 7: at (0.5, 1, 0.25) on its bone.
+    const PLACE: [f32; 16] = [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0.5, 1.0, 0.25, 1.];
+
     fn on_bone(place: [f32; 16]) -> AimLocator {
         AimLocator::OnBone { bone: bone(), place }
     }
@@ -260,15 +249,13 @@ mod tests {
         a.iter().zip(b).all(|(a, b)| (a - b).abs() < 1e-5)
     }
 
-    /// Gun 7's locator, once at (0.5, 1, 0.25) on its bone, posed by `by`
-    /// with no body bone.
+    /// Gun 7 with its idle pose taken while its bone was `by`, no body bone.
     fn kept(by: [f32; 16]) -> (Kept, [f32; 16]) {
-        let place = at(0.5, 1.0, 0.25);
-        let posed = product(&place, &by);
-        (Kept::Gun { gun: gun(7), bone: bone(), place, rest: Rest { aim: posed, body: None }, shown: posed }, posed)
+        let posed = product(&PLACE, &by);
+        (Kept::Gun { gun: gun(7), bone: bone(), place: PLACE, rest: Rest { aim: posed, body: None }, shown: posed }, posed)
     }
 
-    /// The clip's whole kick, no body bone: patch 172 as it was.
+    /// The clip's whole kick, no body bone: patch 172 alone.
     fn clip(
         kept: Kept, gun: GunId, locator: AimLocator, idle: Option<impl Fn(Bone) -> [f32; 16]>,
     ) -> (Kept, Option<[f32; 16]>) {
@@ -278,7 +265,7 @@ mod tests {
     #[test]
     fn a_locator_on_a_bone_is_posed_by_the_idle_bone() {
         let idle = turned(0.0, 0.25, 2.0);
-        let (next, place) = clip(Kept::Nothing, gun(7), on_bone(at(0.5, 1.0, 0.25)), Some(|_| idle));
+        let (next, place) = clip(Kept::Nothing, gun(7), on_bone(PLACE), Some(|_| idle));
         let place = place.unwrap();
         // the locator's place, turned by the bone, then moved by it
         assert_eq!(&place[12..15], &[0.25, 1.25, 1.5]);
@@ -298,39 +285,40 @@ mod tests {
     }
 
     #[test]
-    fn nothing_moves_while_other_clips_pose_the_gun() {
-        assert_eq!(clip(Kept::Nothing, gun(7), on_bone(at(0.0, 0.5, 0.5)), NOT_IDLE), (Kept::Nothing, None));
-        let (was, now) = kept(IDENTITY);
-        assert_eq!(clip(was, gun(7), AimLocator::Posed { place: now }, NOT_IDLE), (was, None));
+    fn a_gun_never_seen_at_rest_keeps_the_games_alignment() {
+        assert_eq!(clip(Kept::Nothing, gun(7), on_bone(PLACE), NOT_IDLE), (Kept::Nothing, None));
     }
 
     #[test]
-    fn the_same_idle_pose_writes_nothing() {
-        let idle = turned(0.0, 0.25, 2.0);
-        let (was, now) = kept(idle);
-        assert_eq!(clip(was, gun(7), AimLocator::Posed { place: now }, Some(|_| idle)), (was, None));
+    fn once_at_rest_every_aimed_frame_is_given_the_idle_pose() {
+        let (was, rest) = kept(turned(0.0, 0.25, 2.0));
+        // the record is the weapon's own again each frame: the kick's frames too
+        assert_eq!(clip(was, gun(7), on_bone(PLACE), NOT_IDLE), (was, Some(rest)));
     }
 
     #[test]
     fn a_pose_taken_off_rest_is_taken_again_at_rest() {
         let (kicked, idle) = (turned(0.0, 0.25, 1.5), turned(0.0, 0.25, 2.0));
-        let (was, now) = kept(kicked);
+        let (was, _) = kept(kicked);
         let (right, place) = kept(idle);
-        assert_eq!(clip(was, gun(7), AimLocator::Posed { place: now }, Some(|_| idle)), (right, Some(place)));
+        assert_eq!(clip(was, gun(7), on_bone(PLACE), Some(|_| idle)), (right, Some(place)));
     }
 
     #[test]
-    fn another_guns_posed_locator_stays() {
+    fn a_locator_on_no_bone_is_left() {
         let (was, now) = kept(IDENTITY);
-        assert_eq!(clip(was, gun(8), AimLocator::Posed { place: now }, Some(|_| IDENTITY)), (was, None));
-        assert_eq!(clip(was, gun(7), AimLocator::Posed { place: at(9.0, 9.0, 9.0) }, Some(|_| turned(1.0, 2.0, 3.0))),
-                   (was, None));
+        for idle in [Some(|_| turned(1.0, 2.0, 3.0)), None] {
+            assert_eq!(clip(was, gun(7), AimLocator::Posed { place: now }, idle), (was, None));
+            assert_eq!(clip(Kept::Nothing, gun(7), AimLocator::Posed { place: PLACE }, idle), (Kept::Nothing, None));
+        }
     }
 
     #[test]
-    fn a_new_gun_takes_the_kept_ones_place() {
-        let idle = turned(0.0, 0.25, 2.0);
+    fn another_gun_or_another_record_waits_for_its_own_idle_pose() {
         let (was, _) = kept(IDENTITY);
+        assert_eq!(clip(was, gun(8), on_bone(PLACE), NOT_IDLE), (was, None));
+        assert_eq!(clip(was, gun(7), on_bone(at(1.0, 0.0, 0.0)), NOT_IDLE), (was, None));
+        let idle = turned(0.0, 0.25, 2.0);
         let (next, place) = clip(was, gun(8), on_bone(at(1.0, 0.0, 0.0)), Some(|_| idle));
         let posed = product(&at(1.0, 0.0, 0.0), &idle);
         assert_eq!(place, Some(posed));
@@ -338,9 +326,14 @@ mod tests {
     }
 
     #[test]
-    fn a_new_weapon_at_the_kept_guns_place_waits_for_its_idle_pose() {
-        let (was, _) = kept(IDENTITY);
-        assert_eq!(clip(was, gun(7), on_bone(at(1.0, 0.0, 0.0)), NOT_IDLE), (was, None));
+    fn the_weapons_own_locator_goes_back_after_the_alignment() {
+        let (was, shown) = kept(turned(0.0, 0.25, 2.0));
+        assert_eq!(own(was, gun(7), AimLocator::Posed { place: shown }), Some((bone(), PLACE)));
+        // not ours to put back: another gun's, a model's own on no bone, one still on its bone
+        assert_eq!(own(was, gun(8), AimLocator::Posed { place: shown }), None);
+        assert_eq!(own(was, gun(7), AimLocator::Posed { place: at(9.0, 9.0, 9.0) }), None);
+        assert_eq!(own(was, gun(7), on_bone(PLACE)), None);
+        assert_eq!(own(Kept::Nothing, gun(7), AimLocator::Posed { place: shown }), None);
     }
 
     #[test]
@@ -349,26 +342,15 @@ mod tests {
         assert!(Bone::parse(0).is_some());
     }
 
-    #[test]
-    fn the_product_applies_the_first_first() {
-        let p = product(&at(1.0, 0.0, 0.0), &turned(0.0, 0.0, 5.0));
-        assert_eq!(&p[12..15], &[0.0, 0.0, 4.0]);
-    }
-
-    #[test]
-    fn the_inverse_undoes() {
-        for m in [at(1.0, -2.0, 3.0), turned(0.5, 0.25, 2.0), tilted(0.1, 0.2, 0.3)] {
-            assert!(near(&product(&m, &inverse(&m).unwrap()), &IDENTITY), "{m:?}");
-            assert!(near(&product(&inverse(&m).unwrap(), &m), &IDENTITY), "{m:?}");
-        }
-        let mut flat = IDENTITY;
-        flat[10] = 0.0;
-        assert_eq!(inverse(&flat), None);
-    }
-
-    /// Gun 7 at rest: the aim on the body's bone, both bones as `idle`.
+    /// Gun 7 at rest with a body bone: both bones as `idle`.
     fn rested(idle: [f32; 16]) -> (Kept, [f32; 16]) {
         let (next, place) = posed(Kept::Nothing, gun(7), on_bone(at(0.0, 0.1, 0.0)), Some(body()), BACK, Some(|_| idle), |_| idle);
+        (next, place.unwrap())
+    }
+
+    /// A later frame of that gun, its body's bone at `live`.
+    fn frame(was: Kept, live: [f32; 16]) -> (Kept, [f32; 16]) {
+        let (next, place) = posed(was, gun(7), on_bone(at(0.0, 0.1, 0.0)), Some(body()), BACK, NOT_IDLE, |_| live);
         (next, place.unwrap())
     }
 
@@ -383,20 +365,19 @@ mod tests {
     fn of_a_kick_straight_back_its_share_is_left() {
         let (was, aim) = rested(IDENTITY);
         // the body 0.02 back along the locator's z, toward the eye
-        let (next, place) = posed(was, gun(7), AimLocator::Posed { place: aim }, Some(body()), BACK, NOT_IDLE, |_| at(0.0, 0.0, 0.02));
-        let place = place.unwrap();
+        let (next, place) = frame(was, at(0.0, 0.0, 0.02));
         // the camera stays half the way behind the carried aim: the gun is seen 0.01 back
         assert!(near(&place, &at(0.0, 0.1, 0.01)), "{place:?}");
         let Kept::Gun { shown, rest, .. } = next else { panic!("nothing kept") };
         assert_eq!((shown, rest.aim), (place, aim));
+        assert_eq!(own(next, gun(7), AimLocator::Posed { place }), Some((bone(), at(0.0, 0.1, 0.0))));
     }
 
     #[test]
     fn the_sights_stay_on_the_view_when_the_clip_turns_the_body() {
-        let (was, aim) = rested(IDENTITY);
+        let (was, _) = rested(IDENTITY);
         let kicked = tilted(0.0, 0.03, 0.0);
-        let (_, place) = posed(was, gun(7), AimLocator::Posed { place: aim }, Some(body()), BACK, NOT_IDLE, |_| kicked);
-        let place = place.unwrap();
+        let (_, place) = frame(was, kicked);
         // the locator turns with the body, so the alignment undoes the turn
         assert_eq!(&place[..12], &kicked[..12]);
         // the carried aim is at (0, 0.11, 0.06), 0.042 back along its own z
@@ -407,17 +388,9 @@ mod tests {
     #[test]
     fn the_whole_clip_is_shown_by_a_gun_with_no_body_bone() {
         let idle = turned(0.0, 0.25, 2.0);
-        let (next, place) = posed(Kept::Nothing, gun(7), on_bone(at(0.5, 1.0, 0.25)), None, BACK, Some(|_| idle), |_| panic!("no body to read"));
-        assert_eq!(place, Some(product(&at(0.5, 1.0, 0.25), &idle)));
+        let (next, place) = posed(Kept::Nothing, gun(7), on_bone(PLACE), None, BACK, Some(|_| idle), |_| panic!("no body to read"));
+        assert_eq!(place, Some(product(&PLACE, &idle)));
         assert_eq!(next, kept(idle).0);
-    }
-
-    #[test]
-    fn a_frame_like_the_last_writes_nothing() {
-        let (was, aim) = rested(IDENTITY);
-        let kicked = at(0.0, 0.0, 0.02);
-        let (next, place) = posed(was, gun(7), AimLocator::Posed { place: aim }, Some(body()), BACK, NOT_IDLE, |_| kicked);
-        assert_eq!(posed(next, gun(7), AimLocator::Posed { place: place.unwrap() }, Some(body()), BACK, NOT_IDLE, |_| kicked), (next, None));
     }
 
     #[test]

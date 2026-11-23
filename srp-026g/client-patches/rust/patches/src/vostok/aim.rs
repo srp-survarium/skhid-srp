@@ -1,7 +1,8 @@
 //! The aimed gun at `hands_ik.aim_alignment` (sites_026g.tsv): process_hands_ik
 //! 0x2959D0 in the first person with the aim's progress above 0, about to
 //! call calculate_aim_alignment 0x244D40, which makes the gun's aim locator
-//! (the weapon's +7A8h, on a bone of the gun or on none) the camera.
+//! (the weapon's +7A8h, on a bone of the gun or on none) the camera; and at
+//! `hands_ik.aligned`, right after that call.
 
 use core::marker::PhantomData;
 
@@ -74,14 +75,7 @@ impl<'c> AimedGun<'c> {
     pub fn locator(&self) -> AimLocator {
         // SAFETY: the live weapon's own locator, read on the one thread
         // that reads it (calculate_aim_alignment, called next).
-        let (index, place) = unsafe {
-            let locator = self.weapon.aim_locator();
-            (*locator.bone(), floats(locator.offset()))
-        };
-        match Bone::parse(index) {
-            Some(bone) => AimLocator::OnBone { bone, place },
-            None => AimLocator::Posed { place },
-        }
+        unsafe { locator_of(self.weapon) }
     }
 
     /// How far the sight is raised: the aim's progress (+5FCh), above 0 here,
@@ -134,7 +128,9 @@ impl<'c> AimedGun<'c> {
         (mixed == 1).then_some(Bones(&self.bones))
     }
 
-    /// The aim locator placed in the gun's model, on no bone.
+    /// The aim locator placed in the gun's model, on no bone, for the
+    /// alignment's call that follows: [`AlignedGun::hang_locator`] puts the
+    /// weapon's own back after it.
     pub fn pose_locator(&mut self, place: [f32; 16]) {
         // SAFETY: as `locator`; the write is whole before its one reader runs.
         unsafe {
@@ -142,6 +138,60 @@ impl<'c> AimedGun<'c> {
             write_floats(locator.offset(), place);
             *locator.bone() = NO_BONE;
         }
+    }
+}
+
+/// The gun whose alignment was just made (`hands_ik.aligned`).
+pub struct AlignedGun<'c> {
+    weapon: raw::Weapon,
+    site: PhantomData<&'c ()>,
+}
+
+impl<'c> AlignedGun<'c> {
+    pub fn at_aligned(ctx: &'c Context<'_>) -> Option<AlignedGun<'c>> {
+        // SAFETY: the context is this site's: process_hands_ik's frame still
+        // holds the weapon calculate_aim_alignment was just called for
+        // (hands_ik.aim_alignment's, its pushed argument popped).
+        let weapon = unsafe { raw::site::hands_ik_aligned::frame(ctx)?.weapon()? };
+        Some(AlignedGun { weapon, site: PhantomData })
+    }
+
+    pub fn id(&self) -> GunId {
+        GunId(self.weapon.address())
+    }
+
+    pub fn locator(&self) -> AimLocator {
+        // SAFETY: the live weapon's own locator, on mt_draw's thread, after
+        // its reader of this frame returned.
+        unsafe { locator_of(self.weapon) }
+    }
+
+    /// The aim locator back on a bone of the gun, as its model has it.
+    pub fn hang_locator(&mut self, bone: Bone, place: [f32; 16]) {
+        // SAFETY: as `locator`: nothing else reads the record while mt_draw
+        // runs (the simulation's steps are over before the frame's drawing
+        // and wait for its tasks, game_world::tick 0x1F7C37..0x1F7D7F).
+        unsafe {
+            let locator = self.weapon.aim_locator();
+            write_floats(locator.offset(), place);
+            *locator.bone() = bone.0;
+        }
+    }
+}
+
+/// A weapon's aim locator as its record holds it.
+///
+/// # Safety
+/// `weapon` is alive and no other thread writes its record.
+unsafe fn locator_of(weapon: raw::Weapon) -> AimLocator {
+    // SAFETY: the caller's: the record's 64h bytes are the weapon's own.
+    let (index, place) = unsafe {
+        let locator = weapon.aim_locator();
+        (*locator.bone(), floats(locator.offset()))
+    };
+    match Bone::parse(index) {
+        Some(bone) => AimLocator::OnBone { bone, place },
+        None => AimLocator::Posed { place },
     }
 }
 

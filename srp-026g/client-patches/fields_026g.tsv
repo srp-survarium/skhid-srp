@@ -1754,6 +1754,7 @@ survarium::weapon_core	user	0x594	ptr<survarium::weapon_user>	its user: the hold
 survarium::weapon_user	place	0x4	u8	its player's place (player + 114h)
 survarium::medical_hit	time	0x3C	u32	the hit's simulation time, ms (hit_info +3Ch: base_player::hit's first argument, 0x2D9B72; body_part::hit stores it as the pool's last hit, 0x32A29B)
 survarium::hands_ik_frame	weapon	0x1C	ptr<survarium::weapon>	ESP+1Ch at hands_ik.aim_alignment (0x295AA5): the held item as a weapon (its vtable +70h at 0x295A07, kept at 0x295A09; never 0 here, the je at 0x295A0F)
+survarium::hands_ik_aligned_frame	weapon	0x18	ptr<survarium::weapon>	ESP+18h at hands_ik.aligned (0x295AB2): the weapon of hands_ik_frame, the alignment call's one stack argument popped (ret 4)
 survarium::weapon	state	0x330	ptr<survarium::weapon_state>	the state it is in (selected_animations 0x2E10CD calls its vtable +20h for the item's and the hands' expression)
 survarium::weapon_state	id	0x124	u32	which state it is, the base constructor's second argument (0x31EB22): 1 show, 2 hide, 3 idle (the three idle classes: 0x30D412, 0x30F0C3, 0x30F923), 4 reload, 5 fire, 6 chamber a round, 7 and 8 a grenade's, 9 the preview's
 survarium::player	animation_tree	0xE850	ptr<vostok::animation::n_ary_tree>	its animation player's (+750h) mixing tree (+E100h: animation_player::compute_bones_matrices 0x391AF0, update_bones_matrices 0x2FF60F); 0 with nothing playing

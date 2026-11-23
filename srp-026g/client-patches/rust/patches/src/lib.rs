@@ -165,6 +165,10 @@ pub mod console_paste;
 pub mod head_clearance;
 // patch 172: the aimed view is aligned to the gun's idle pose
 pub mod aim_pose;
+// row-vector transforms, for the patches that place a gun
+pub mod affine;
+// patch 200: a shot leaves the gun's muzzle, the way the gun looks
+pub mod muzzle_shots;
 // patch 197: the drawn camera trails the aim (a prototype, SKHID_CAMERA_TRAIL)
 pub mod camera_trail;
 // patch 174: the engine's log without the lines that tell nothing
