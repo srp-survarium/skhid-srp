@@ -3,8 +3,8 @@
 # "HUD calls") in Ruffle on a private CPU-only virtual display (lavapipe, never the GPU):
 # - HuntHudHarness.as: the hud movie's own root fed a match's start and made-up
 #   root.artefact_hunt_update states (the bars, the artefact's row, the round's texts and fade, the
-#   minimaps' bases, artefact and carrier, the Tab list's carrier row, a late join, refused calls,
-#   another mode after it, every language's round texts);
+#   minimaps' bases, artefact and carrier, a late join, refused calls, another mode after it, every
+#   language's round texts);
 # - HuntIconsHarness.as: the player icons movie's carriers (root.srp_show_carriers).
 # Screenshots into the work dir: hunt-<state>.png, hunt-icons.png. Exits 0 when both say pass;
 # prints their lines. A work dir given is kept. Java and Flex from private/actionscript/tools.json
