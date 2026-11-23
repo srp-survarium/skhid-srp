@@ -156,7 +156,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/use_scan.rs`, `src/use_scan/rule.rs`, `src/use_scan.toml`, `src/vostok/use_scan.rs`, `check_use_scan_026g.py` | Patch 23 and the use scan it lives in: `base_player::detect_usable_object` (0x2D84C0) whole in Rust, a lohook at its start leaving by its `ret 8` (section 23); the rule (`rule.rs`) is pure, the game's calls `vostok`'s; patch 85 asks it whether Use is the game's |
 | `rust/patches/src/subtick_hits.rs`, `src/subtick_hits.toml`, `src/vostok/ray_test.rs`, `check_subtick_hits_026g.py` | Patch 103: a bullet meets a player where he stood at the ms it crossed him, not where the 50 ms step left him (`../docs/notes/subtick_bullet_hits.md`); one lohook first in `bullet.ray_traced`'s chain; its check runs the game's own ray test (ray_test, rayTest, rayTestSingle) in both exes on made-up bodies (needs Unicorn) |
 | `rust/patches/src/input_check.rs`, `src/input_check.toml`, `src/vostok/input.rs`, `check_input_check_026g.py` | Patch 99: a world takes no player input whose rotation no client makes (a NaN, an infinity, 1024 radians or more), as 0.27d's change_input refuses one: a lohook at change_input<player_input>'s start (0x1FAB50); its check runs that start on made-up inputs, the original beside (needs Unicorn) |
-| `rust/patches/src/camera_walls.rs`, `src/camera_walls.toml`, `src/vostok/camera.rs` (`Orbit`), `check_camera_walls_026g.py` | Patch 132: the orbit camera (the warmup's before the start) stays on the player's side of the level, in front of the first wall between the pivot and the eye, smoothly, and no nearer than 0.75 m (out of the body; the view held or raised over the head where there is less room): a lohook after update_camera's view update (0x1F3650); its check runs update_camera from its start, the original beside, ray_test a stand-in (needs Unicorn) |
+| `rust/patches/src/camera_walls.rs`, `src/camera_walls.toml`, `src/vostok/camera.rs` (`Orbit`), `check_camera_walls_026g.py` | Patch 132: the orbit camera (the warmup's before the start) stays on the player's side of the level, in front of the first wall between the pivot and the eye, smoothly, and no nearer than 0.75 m (out of the body; the view held or turned sideways where there is less room): a lohook after update_camera's view update (0x1F3650); its check runs update_camera from its start, the original beside, ray_test a stand-in (needs Unicorn) |
 | `check_mouse_buttons_026g.py` | Patch 102 (`MOUSE_BUTTONS` in `patch_026g.py`): a side mouse button (mouse4..mouse8) is no left click in the lobby, login, options and match menus; its check runs the five handlers in both exes (needs Unicorn) |
 | `rust/patches/src/mouse_pitch.rs`, `src/mouse_pitch.toml`, `src/vostok/mouse.rs`, `check_mouse_pitch_026g.py` | Patch 112: the mouse look's pitch with 16:9's h/w at every window while "Lock vertical sensitivity" is ticked, 1:1 at the vertical slider's value when unticked (user.cfg's `srp_mouse_vertical_locked`, `srp_mouse_vertical`); a lohook at on_mouse_move's pitch step, the two variables, the Settings' calls and the death camera's entry; its check runs on_mouse_move in both exes at 4:3 to 32:9, off and on, and the Settings' calls (needs Unicorn) |
 | `rust/patches/src/footsteps.rs`, `src/footsteps.toml`, `src/vostok/footstep.rs`, `check_footsteps_026g.py` | Patch 101: a footstep that only a re-simulation makes (another player's late input) is heard instead of dropped; one lohook in on_player_sound_event's time test; and a foot step in a logic state with no foot material (movement 0: on site, dead) is dropped at on_foot_step's read of it (0x2A6545), which read the word before the boots' table (a rev71 crash in step_manager::on_step); its check runs the handler in both exes (needs Unicorn) |
@@ -5991,16 +5991,19 @@ model, the owner, 2026-11-23). That is 0.69d's third-person camera's rule (its t
 the same pivot, ray and 0.2 m margin, and the camera placed only where the room is above 0.75 m,
 else left where it was). So where the way has less room the view shown the frame before is held,
 tested again by a ray of its own; and where that has none either (an orbit that starts in the
-corner) the game's view is turned about its right row toward looking straight down, in six steps,
-and the first whose eye has the room is shown: the eye over the head, looking down at the player.
-Where none has it (a wall all round and above), the one with the most room, in front of its wall.
+corner) the orbit is turned sideways about the level's up, its pitch kept, 15 degrees to one side
+and the other, nearest first, up to the far side (the owner, of the first version that raised the
+eye over the head: "shouldn't camera just move sideways for first view?"), and the first whose eye
+has the room is shown, then held as above. Where none has it (walls all round), the one with the
+most room, in front of its wall.
 
 Checked: `check_camera_walls_026g.py` runs update_camera from its start in both exes, a frame a
 call (the game's own orbit code; ray_test a plane or nothing, the performance counter a clock of
 its own): no wall, the original's view and registers bit for bit, one ray; a new orbit with a wall,
 the eye at once in front of it with the original's turn; a new orbit with a wall 0.6 m out across
-the way or upright 0.3 m behind, the view raised, the eye 0.75 m out or more in front of it, then
-held; an orbit turning to a way 0.5 m from a wall, the frame before's view held, and back on a free
+the way, in a corner (walls 0.3 m behind and to the left) or with walls 0.3 m behind and to both
+sides, the orbit turned sideways to the open side at eye level, the eye 0.75 m out or more in front
+of the walls, then held; an orbit turning to a way 0.5 m from a wall, the frame before's view held, and back on a free
 way the eye on it no nearer than 0.75 m; a wall that comes in an orbit, the eye in
 front of it at once; one that goes, the eye out by the rate above, and the original's view again
 once the wall has gone; a turning orbit, the second ray where the way will be, and a wall only it

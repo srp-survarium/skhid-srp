@@ -23,9 +23,10 @@ performance counter is a clock of ours (1000 ticks a second).
   the view's turn is the original's, its eye at once 0.2 m in front of the
   wall on the way to the original's eye.
 - A new orbit with a wall nearer than 0.95 m (no room for the eye 0.75 m
-  out, out of the body): the view raised about its right row (the eye over
-  the head, looking down at the pivot as the orbit does), the eye 0.75 m
-  out or more and on the pivot's side of the wall.
+  out, out of the body), in a corner, or with walls behind and to both
+  sides: the orbit turned sideways about the level's up (its pitch and the
+  way's rise the original's) to the open side, the eye 0.75 m out or more
+  and on the pivot's side of every wall.
 - An orbit that turns where its way has no such room: the view of the frame
   before, bit for bit (0.69d's camera keeps its place); back on a free way,
   the eye on it 0.75 m out or more, let out as above.
@@ -142,9 +143,10 @@ class Game:
         emu.reg_write(UC_X86_REG_EAX, 1)
 
     def ray_test(self, emu, *_):
-        """bullet_physics_world::ray_test (thiscall, `ret 20h`): the wall, a
-        plane through `point` facing `normal`, or nothing; `wall` a function
-        gives each ray of the frame (0 the first) its own."""
+        """bullet_physics_world::ray_test (thiscall, `ret 20h`): the nearest
+        of the walls, each a plane through `point` facing `normal` (one, a
+        list, or nothing); `wall` a function gives each ray of the frame (0
+        the first) its own."""
         esp = emu.reg_read(UC_X86_REG_ESP)
         ret, result, origin, direction = (self.u32(esp + 4 * i) for i in range(4))
         length = struct.unpack("<f", emu.mem_read(esp + 16, 4))[0]
@@ -153,13 +155,13 @@ class Game:
         self.rays.append((emu.reg_read(UC_X86_REG_ECX), o, d, length, group & 0xFFFF, mask & 0xFFFF, delegate))
         emu.mem_write(result, bytes(0x28))
         wall = self.wall(len(self.rays) - 1) if callable(self.wall) else self.wall
-        if wall is not None:
-            point, normal = wall
-            t = dot(sub(point, o), normal) / dot(d, normal)
-            if 0 <= t <= length:
-                hit = tuple(a + b * t for a, b in zip(o, d))
-                emu.mem_write(result, struct.pack("<3f", *hit))
-                self.u32(result + 0x1C, 0x77770000)
+        walls = [] if wall is None else wall if isinstance(wall, list) else [wall]
+        ts = [dot(sub(point, o), normal) / dot(d, normal) for point, normal in walls if dot(d, normal) != 0]
+        ts = [t for t in ts if 0 <= t <= length]
+        if ts:
+            hit = tuple(a + b * min(ts) for a, b in zip(o, d))
+            emu.mem_write(result, struct.pack("<3f", *hit))
+            self.u32(result + 0x1C, 0x77770000)
         emu.reg_write(UC_X86_REG_EAX, result)
         emu.reg_write(UC_X86_REG_ESP, esp + 4 + 0x20)
         emu.reg_write(UC_X86_REG_EIP, ret)
@@ -240,27 +242,49 @@ def main():
               f"a new orbit, a wall {at} m out: the eye at once {expect:.2f} m out on the original's way, "
               "its turn the original's")
 
-    def raised(view, wall):
-        """The view turned about the original's right row, its eye over the
-        original's, NEAREST out or more, on the pivot's side of `wall`, on
-        the orbit's back of the view (-forward + 0.2 right)."""
+    def turned_sideways(view, walls):
+        """The view turned about the level's up: its pitch and the eye's
+        way's rise the original's, the eye NEAREST out or more, on the pivot's
+        side of every wall, on the orbit's back of the view (-forward + 0.2
+        right)."""
         rows = (view[0:3], view[4:7], view[8:11])
-        right, forward, eye = rows[0], rows[2], view[12:15]
+        right, up, forward, eye = rows[0], rows[1], rows[2], view[12:15]
         orthonormal = all(abs(dot(rows[i], rows[j]) - (i == j)) < 1e-4 for i in range(3) for j in range(3))
         back = unit(tuple(-f + 0.2 * r for f, r in zip(forward, right)))
-        return (right == s_view[0:3] and orthonormal and eye[1] > s_view[13] + 0.1
-                and eye_out(view) >= NEAREST - 1e-4 and dot(sub(eye, wall[0]), wall[1]) > 0
-                and math.dist(unit(sub(eye, PIVOT)), back) < 1e-3)
+        wrong = {"rows": not orthonormal, "level right": abs(right[1]) >= 1e-5,
+                 "pitch": abs(up[1] - s_view[5]) >= 1e-4 or abs(forward[1] - s_view[9]) >= 1e-4,
+                 "eye level": abs((eye[1] - PIVOT[1]) / eye_out(view) - (s_view[13] - PIVOT[1]) / distance) >= 1e-3,
+                 "nearest": eye_out(view) < NEAREST - 1e-4,
+                 "behind a wall": not all(dot(sub(eye, p), n) > 0 for p, n in walls),
+                 "off the orbit's back": math.dist(unit(sub(eye, PIVOT)), back) >= 1e-3}
+        return [what for what, bad in wrong.items() if bad]
 
-    behind = unit((way[0], 0.0, way[2]))
-    upright = tuple(p + b * 0.3 for p, b in zip(PIVOT, behind)), tuple(-b for b in behind)
-    for wall, what in ((wall_at(0.6), "a wall 0.6 m out across the way"), (upright, "an upright wall 0.3 m behind")):
+    def upright(along, at):
+        """An upright wall `at` m from the pivot along the level `along`, facing the pivot."""
+        return tuple(p + a * at for p, a in zip(PIVOT, along)), tuple(-a for a in along)
+
+    def flat(eye):
+        """The level way from the pivot to `eye`."""
+        return unit((eye[0] - PIVOT[0], 0.0, eye[2] - PIVOT[2]))
+
+    behind, side = unit((way[0], 0.0, way[2])), unit((s_view[0], 0.0, s_view[2]))
+    front, left = tuple(-b for b in behind), tuple(-s for s in side)
+    cases = (([wall_at(0.6)], "a wall 0.6 m out across the way", lambda eye: True),
+             ([upright(behind, 0.3), upright(left, 0.3)], "a corner: walls 0.3 m behind and to the left",
+              lambda eye: dot(flat(eye), side) > 0.5),
+             ([upright(behind, 0.3), upright(left, 0.3), upright(side, 0.3)], "walls 0.3 m behind and to both sides",
+              lambda eye: dot(flat(eye), front) > 0.8))
+    for walls, what, open_side in cases:
         ours.update_camera(0)
-        o_view, o_regs, rays = ours.update_camera(3, wall=wall)
-        check(raised(o_view, wall) and o_regs == s_regs and len(rays) > 1,
-              f"a new orbit, {what} (no room for the eye {NEAREST} m out): the view raised, "
-              f"the eye {eye_out(o_view):.2f} m out, {o_view[13] - PIVOT[1]:.2f} m over the pivot, in front of the wall")
-        o_again, _, _ = ours.update_camera(3, wall=wall)
+        o_view, o_regs, rays = ours.update_camera(3, wall=walls)
+        turn = math.degrees(math.acos(max(-1.0, min(1.0, dot(flat(o_view[12:15]), flat(s_view[12:15]))))))
+        wrong = turned_sideways(o_view, walls) + ["closed side"] * (not open_side(o_view[12:15]))
+        wrong += ["registers"] * (o_regs != s_regs) + ["one ray"] * (len(rays) < 2)
+        check(not wrong,
+              f"a new orbit, {what} (no room for the eye {NEAREST} m out): the orbit turned {turn:.0f} degrees "
+              f"to the open side at eye level, the eye {eye_out(o_view):.2f} m out, in front of the walls"
+              + (f" (wrong: {', '.join(wrong)})" if wrong else ""))
+        o_again, _, _ = ours.update_camera(3, wall=walls)
         check(same(o_again, o_view), "the next frame: that view held")
 
     # an orbit going on turns to where its way has no room: the frame before's view, held
