@@ -25,7 +25,7 @@ use crate::hud_options;
 use crate::pip_lens;
 use crate::vostok::second_view::{self, invert_affine, Disc, Frame, Glass, GpuClock, Keep, Lens, MainView, Marks, ModelId, ReadError, Put, ScopeSite, ScopeWeapon, Scoped, SecondView, Stage, Stage22, UnknownModel, MOST_VERTICES, RING};
 use crate::vostok::{
-    trig, Context, Flow, Lock, NoExit, OrigRenderFlashUi, PipScopesOnPresentExit, PipScopesOnScopeBodyExit,
+    trig, Context, Flow, Lock, NoExit, OrigRenderFlashUi, PipScopesOnPresentExit, PipScopesOnPreviousWorldExit, PipScopesOnScopeBodyExit,
     PipScopesOnScopeCulledBodyExit, PipScopesOnScopeOpticExit, PipScopesOnScopeShowExit, PipScopesOnScopeSwapExit, PipScopesOnUnmoveExit, Reg, Thread,
 };
 
@@ -278,6 +278,75 @@ fn turn_off_switches(thread: &Thread) {
         eye_reset: second_view::eye_reset(thread, Some(false)),
     };
     KEPT.with(thread, |slot| *slot = Some(kept));
+}
+
+/// The post-process stage is the renderer's one for every draw, and its
+/// previous view (+10h, the camera its motion vectors and motion blur take as
+/// the last frame's) is the last draw's: after the second view's draw it was
+/// this frame's eye, so the frame gave its camera-held first-person models
+/// the camera's whole motion (the smear). Each draw gets its own back.
+#[derive(Clone, Copy)]
+enum PreviousView {
+    /// The frame's is in the stage; the second view's as its last draw left
+    /// it, with the frame draw it came before.
+    Frame { second: Option<([f32; 16], u32)> },
+    /// The second view's post-process ran: the frame's to put back.
+    AfterSecond { frame: [f32; 16] },
+}
+
+static PREVIOUS_VIEW: Lock<PreviousView> = Lock::new(PreviousView::Frame { second: None });
+
+/// The frame's post-process draws, for the second view's previous view: used
+/// only when it is from the frame draw just before.
+static FRAME_DRAWS: AtomicU32 = AtomicU32::new(0);
+
+/// The stage's previous view to set and the new state, at a draw's post-process
+/// start; `stage` the previous view in the stage now.
+fn previous_view(state: PreviousView, second_pass: bool, stage: [f32; 16], draws: u32) -> (Option<[f32; 16]>, PreviousView) {
+    match (state, second_pass) {
+        (PreviousView::Frame { second }, true) => {
+            let own = second.filter(|(_, at)| *at == draws).map(|(view, _)| view);
+            (own, PreviousView::AfterSecond { frame: stage })
+        }
+        (PreviousView::Frame { .. }, false) => (None, PreviousView::Frame { second: None }),
+        // the stage holds the second view's own this frame
+        (PreviousView::AfterSecond { frame }, false) => (Some(frame), PreviousView::Frame { second: Some((stage, draws.wrapping_add(1))) }),
+        // the frame drew no post-process after the last second view
+        (PreviousView::AfterSecond { frame }, true) => (None, PreviousView::AfterSecond { frame }),
+    }
+}
+
+/// stage_postprocess::execute's start: the stage's previous view this draw's own.
+pub fn on_postprocess(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let thread = ctx.thread();
+    let second_pass = SECOND_PASS.load(Ordering::Relaxed);
+    let state = PREVIOUS_VIEW.with(thread, |state| *state);
+    if matches!(state, PreviousView::Frame { second: None }) && !second_pass {
+        FRAME_DRAWS.fetch_add(1, Ordering::Relaxed);
+        return Flow::Continue;
+    }
+    let Some(stage) = second_view::stage_previous_view(ctx, None) else { return Flow::Continue };
+    let draws = FRAME_DRAWS.load(Ordering::Relaxed);
+    let (set, next) = previous_view(state, second_pass, stage, draws);
+    if let Some(view) = set {
+        second_view::stage_previous_view(ctx, Some(&view));
+    }
+    PREVIOUS_VIEW.with(thread, |state| *state = next);
+    if !second_pass {
+        FRAME_DRAWS.fetch_add(1, Ordering::Relaxed);
+    }
+    Flow::Continue
+}
+
+/// The motion pass found a surface's last world matrix: in the second view's
+/// draw the world's stay the frame's (the same this frame, so the frame would
+/// see its moving models still); the lens's reticle, the second view's alone, moves on.
+pub fn on_previous_world(ctx: &mut Context<'_>) -> Flow<PipScopesOnPreviousWorldExit> {
+    if SECOND_PASS.load(Ordering::Relaxed) && !second_view::motion_surface_first_person(ctx) {
+        Flow::Exit(PipScopesOnPreviousWorldExit::Kept)
+    } else {
+        Flow::Continue
+    }
 }
 
 /// The view and projection of the frame the render thread draws now (its

@@ -943,6 +943,30 @@ unsafe fn first_person(surface: u32) -> bool {
     }
 }
 
+/// At `motion.previous_world`: whether the surface the motion pass reads is a
+/// first-person model's.
+pub fn motion_surface_first_person(ctx: &Context<'_>) -> bool {
+    // SAFETY: the context is this site's: EBP the live surface the pass reads.
+    unsafe { raw::site::motion_previous_world::record(ctx).is_some_and(|record| first_person(record.address())) }
+}
+
+/// At `postprocess.start`: the post-process stage's previous view (its +10h,
+/// the last draw's view, whatever window it drew), and set to `view` when given.
+pub fn stage_previous_view(ctx: &Context<'_>, view: Option<&[f32; 16]>) -> Option<[f32; 16]> {
+    // SAFETY: the context is this site's: ECX the renderer's live post-process
+    // stage, on the render thread, its 16 floats at +10h.
+    unsafe {
+        let at = raw::site::postprocess_start::stage(ctx)?.previous_view();
+        let was = read16(at);
+        if let Some(view) = view {
+            for (i, value) in view.iter().enumerate() {
+                at.add(i).write(*value);
+            }
+        }
+        Some(was)
+    }
+}
+
 /// The vector `*first..*end` of u32 entries kept where `stays`, its end moved.
 ///
 /// # Safety

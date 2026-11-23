@@ -43,6 +43,17 @@ handler = "on_present_done"
 site = "render.unmove"
 handler = "on_unmove"
 
+# the post-process stage is one for both draws: each keeps its own previous
+# view (motion vectors, motion blur)
+[[hook]]
+site = "postprocess.start"
+handler = "on_postprocess"
+
+# the second view's motion pass leaves the world's last matrices to the frame
+[[hook]]
+site = "motion.previous_world"
+handler = "on_previous_world"
+
 # no first-person models in the second view
 [[hook]]
 site = "forward.execute_foreground"
