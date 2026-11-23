@@ -84,6 +84,7 @@ pub mod drop_check;
 mod exact;
 mod open;
 mod rim;
+mod r1;
 mod run_ins;
 mod wall_give_back;
 /// g, m/s^2 (`fall_params.gravity` 9.8, PROVEN).
@@ -1623,6 +1624,8 @@ pub struct BuildStats {
     pub controlled: controlled::ControlledStats,
     /// [A364 C2 rows 11/12] The rim jumps' flights ([`Body::rim_jumps`]).
     pub rim: rim::RimStats,
+    /// [body physics S5b] What R1 did to the off links ([`r1`]).
+    pub r1: r1::R1Stats,
     /// [S4] The Jump links the landing carry rule took away ([`Body::landing_carry`]), flown as rim jumps
     /// ([`WalkGrid::fly_rim_todo`]): `tried` of them, the made by press.
     pub carry_flown: rim::RimStats,
@@ -2110,6 +2113,11 @@ impl WalkGrid {
             (stats.drops_unfollowed, stats.drops_unfollowed_kept) = grid.cut_keeping_reach(&mut wide, failing, seeds, spawns, true, false);
         }
         clock.lap("drop check's cut (reach)");
+        // [body physics S5b] R1: each stored press's P on the take-off's side, before the reach flood (it drops and re-presses links).
+        if let Some(world) = world.filter(|_| gaps && !wide.off.is_empty()) {
+            stats.r1 = grid.take_off_side_presses(&mut wide, world, &s);
+        }
+        clock.lap("R1 (take-off side)");
         stats.floors_after_erosion = grid.len();
         grid.keep_reached(&mut wide, seeds);
         clock.lap("keep reached");
