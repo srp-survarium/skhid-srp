@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Check the 0.21 maps' weather packs against their authored day-source export."""
 import argparse
+import fnmatch
 import hashlib
 import importlib.util
 import json
@@ -19,6 +20,21 @@ PACKS = {'maps-021d-weathers-2': {'03': (170, 171, 172, 173), '06': (179, 180, 2
 MAPS = {level: ids for maps in PACKS.values() for level, ids in maps.items()}
 DAY_MARKERS = (-32281, -32195, -32198, -32187, -32196, -32287)
 LIGHTING_PACK = 'three-maps-021-lighting-9'
+# The lamps' rows for the weather projects, applied over the packs (after the geometry edit).
+LAMPS_EDIT = ROOT / 'srp-026g/scripts/content-edit/breakable-lamps-1.json'
+
+
+def lamp_rows(data, path, edits):
+    """`data` with the lamp edit list's own rows for `path` applied, as the build does."""
+    names = lambda files: [files] if isinstance(files, str) else files
+    for row in edits.get('remove_key', []):
+        if any(fnmatch.fnmatchcase(path, f) for f in names(row['files'])):
+            for key in row['keys']:
+                assert lamps.c.remove_key(data, key), (path, key)
+    for row in edits.get('add_value', []):
+        if any(fnmatch.fnmatchcase(path, f) for f in names(row['files'])):
+            lamps.c.add_value(data, row['table'], row['key'], row['value'])
+    return data
 
 
 def check(packs, source):
@@ -45,6 +61,9 @@ def check(packs, source):
     from make_geometry import apply as geometry_apply
     geometry_edits = json.loads((ROOT / 'srp-026g/scripts/content-edit/v021d-weather-geometry-1.json').read_text())
     environment_edits = json.loads((ROOT / 'srp-026g/scripts/content-edit/v021d-weather-environment-1.json').read_text())
+    lamp_edits = json.loads(LAMPS_EDIT.read_text())
+    lamp_paths = {f for row in lamp_edits.get('remove_key', []) if 'srp_lamps' in row['keys']
+                  for f in ([row['files']] if isinstance(row['files'], str) else row['files'])}
     assert make(*weathers) == environment_edits, 'original constructor-default edit needs regeneration'
     for files, project in projects:
         path = project.relative_to(files).as_posix()
@@ -55,11 +74,17 @@ def check(packs, source):
         for edit in environment_edits['add_value']:
             if path in edit['files']:
                 lamps.c.add_value(data, edit['table'], edit['key'], edit['value'])
-        expected = geometry_apply(day_bytes, path, geometry_edits)
-        data = geometry_apply(data, path, geometry_edits)
+        # A project the lamp list re-authors (#2275) takes its whole srp_lamps from it: the day's
+        # table, with the geometry's fixtures, is not this one's; check_built checks its bindings.
+        reauthored = path in lamp_paths
+        day_geometry = {**geometry_edits, 'add_value': [row for row in geometry_edits['add_value']
+                                                        if not row['table'].startswith('srp_lamps')]} \
+            if reauthored else geometry_edits
+        expected = geometry_apply(day_bytes, path, day_geometry)
+        data = lamp_rows(bytearray(geometry_apply(data, path, geometry_edits)), path, lamp_edits)
         day, new = lamps.tree(expected), lamps.tree(data)
         assert day.keys() == new.keys(), path
-        for key in day.keys() - {'client_objects'}:
+        for key in day.keys() - {'client_objects'} - ({'srp_lamps'} if reauthored else set()):
             assert day[key] == new[key], f'{path}: {key} changed'
         assert not lamps.check_built(path, data), path
         assert 'srp_renderer_v021d' not in new
