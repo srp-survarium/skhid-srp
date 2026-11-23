@@ -1107,6 +1107,38 @@ server now support a visual pass: bots cycle through all nine headwear
 items in both kits. Native lighting, shape and release motion still need
 the owner’s visual assessment before release.
 
+**Shot off a corpse (2026-11-23).** The owner: "make helmets fly off when
+shooting ragdoll too". A corpse that died with its helmet on (a body shot,
+a blast) loses it to a later shot:
+
+- Which shots (my reading): a bullet whose segment meets the corpse's head
+  capsule (section 11's trace, neck to past the Head bone, which the helmet
+  sits on); a worn helmet has no body of its own, so the head stands for
+  head and helmet. A hit on any other part leaves it on.
+- Which helmets: the same set as the headshot's, the meshes the edit list
+  binds to the extra bone; the rest (the beanie, hoods, Pilgrim) stay on.
+- Once a death: the headwear is worn or off (`ragdoll::Headwear`); only a
+  worn one comes off, and one off is not hit again.
+- The fly-off is the headshot's own (`Ragdoll::knock_off`: the same body,
+  place, release speeds and tumble), from the head's pose and motion after
+  the shot's push, its sideways part along the shot (level) and its tumble
+  about up x the shot. It lies until the corpse goes, as the headshot's.
+- Any bullet counts: an enemy's, a teammate's, a bot's; bots' corpses too.
+  A rollback that undoes the death puts it back with the living player; a
+  re-simulated shot is taken once (the shot log); a shot a rollback takes
+  back leaves it off, as its push stays.
+- Your own corpse: the death camera follows the head body, not the helmet,
+  and the helmet is in no world the camera's ray reads: it neither blocks
+  nor moves the camera (the head's jolt is any head shot's).
+- Each game decides from its own bullets against its own corpse: no
+  message, nothing a match computes. Corpses lie a few cm apart between
+  games, so a graze at the head's edge can take the helmet off in one game
+  and leave it on in another (accepted for a cosmetic). Late joiners,
+  spectators and replays draw their own corpses the same way; a late joiner
+  who did not see the kill sees a headshot's helmet still on until a shot.
+- A corrected non-headshot death event puts back only a helmet the killing
+  headshot took off, not one a corpse shot did.
+
 ## 16. The headshot launch (2026-10-30)
 
 A headshot corpse still creeping after about 3.6 s was flung 2-6 m up and

@@ -4,6 +4,7 @@
 use super::*;
 use crate::math::Quat;
 use crate::ragdoll::tests::{Ground, standing};
+use crate::ragdoll::Off;
 use crate::shot::Shot;
 use crate::skeleton::BONE_COUNT;
 
@@ -106,7 +107,7 @@ fn headwear_belongs_to_one_death_and_rollback_discards_it() {
     let Seen::Dead(mut death) = dead(7) else {
         unreachable!()
     };
-    death.headwear = Some(HeadwearShape);
+    death.headwear = Some(HeadwearShape::ShotOff);
     let places = [Seen::Dead(death)];
     for _ in 0..30 {
         frame(&mut corpses, &places, None, &mut ground);
@@ -114,7 +115,7 @@ fn headwear_belongs_to_one_death_and_rollback_discards_it() {
     let Corpse::Body { slot, .. } = corpses.place(0) else {
         panic!("missing body")
     };
-    let pose = corpses.slot(slot).body().unwrap().headwear_pose().unwrap();
+    let (pose, _) = corpses.slot(slot).body().unwrap().headwear_pose().unwrap();
     frame(&mut corpses, &places, None, &mut ground);
     assert!(
         (corpses
@@ -123,7 +124,7 @@ fn headwear_belongs_to_one_death_and_rollback_discards_it() {
             .unwrap()
             .headwear_pose()
             .unwrap()
-            .position
+            .0.position
             - pose.position)
             .length()
             < 0.2
@@ -143,7 +144,7 @@ fn headwear_belongs_to_one_death_and_rollback_discards_it() {
             .unwrap()
             .headwear_pose()
             .unwrap()
-            .position
+            .0.position
             .y
             > 1.5
     );
@@ -655,6 +656,46 @@ fn a_shot_pushes_the_part_it_hits_and_wakes_a_settled_body_that_settles_again() 
     assert!(frames < 6 * 60, "settled again in {frames} frames");
     // still on the ground, not through it
     assert!(part_pose(&corpses, 0, Part::Head).position.y > 0.05);
+}
+
+#[test]
+fn a_head_shot_into_a_corpse_takes_its_headwear_off_once() {
+    let mut corpses = Corpses::new();
+    let mut ground = Ground::flat();
+    let Seen::Dead(mut death) = dead(7) else { unreachable!() };
+    death.headwear = Some(HeadwearShape::Worn);
+    let d = [Seen::Dead(death)];
+    until_settled(&mut corpses, &d, &mut ground);
+    let hat = |c: &Corpses| ragdoll_of(c).headwear_pose();
+    assert!(hat(&corpses).is_none(), "a body shot's death leaves it on");
+    let along = Vec3::new(1.0, 0.0, 0.0);
+    let j = crate::shot::impulse(along, 0.02, 800.0);
+    let torso = corpses.trace(&shot_at(&corpses, Part::Torso, along)).unwrap();
+    corpses.push(0, DeathKey(7), torso.hit.part, torso.hit.point, j);
+    assert!(hat(&corpses).is_none(), "a shot elsewhere leaves it on");
+    let head = corpses.trace(&shot_at(&corpses, Part::Head, along)).unwrap();
+    assert_eq!(head.hit.part, Part::Head);
+    corpses.push(0, DeathKey(7), Part::Head, head.hit.point, j);
+    let (start, by) = hat(&corpses).expect("off");
+    assert_eq!(by, Off::CorpseShot);
+    let mut drawn = [Pose::IDENTITY; BONE_COUNT];
+    let (parts, gun) = ragdoll_of(&corpses).poses();
+    ragdoll_of(&corpses).rig().draw(&parts, gun, &mut drawn);
+    assert!((start.position - drawn[HEAD.index()].position).length() < 1e-4, "from the head");
+    for _ in 0..10 {
+        frame(&mut corpses, &d, None, &mut ground);
+    }
+    let (flying, _) = hat(&corpses).unwrap();
+    assert!((flying.position - start.position).dot(along) > 0.03, "along the shot");
+    // another head shot neither puts it back nor starts it again
+    let head = corpses.trace(&shot_at(&corpses, Part::Head, along)).unwrap();
+    corpses.push(0, DeathKey(7), Part::Head, head.hit.point, j);
+    assert_eq!(hat(&corpses).unwrap().0, flying);
+}
+
+fn ragdoll_of(corpses: &Corpses) -> &Ragdoll {
+    let Corpse::Body { slot, .. } = corpses.place(0) else { panic!("no body") };
+    corpses.slot(slot).body().expect("a ragdoll")
 }
 
 #[test]
