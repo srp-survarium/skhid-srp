@@ -44,13 +44,26 @@ went on a weapon by a variant: [weapon_scopes.md](weapon_scopes.md), kept as the
   angle from any eye; and leaves the aimed model's first-person lens out, as every released
   collimator has it. A magnified scope's reticle is its aimed model's own (`scope_aimgrid_s`,
   `scope_reddot_s`).
-- **The glass** (pack version 4) is the players' own, as the variants had it: an idle optic's
-  outside lens (`scope_lense_3p_s`) on patch 19's `weapons/loc2/scope_lense_3p`, an aimed one's
-  first-person lens (`scope_lense_1p_s`) on `weapons/loc2/scope_lense_1p`. Version 3 remade the
-  outside lens's material (0.69d0's is an opaque stage with all its maps) on the AK-12's, and the
-  template's Fresnel map (`weapons/ak_12/ak_12_fmap`, switched on) drew the AK-12's parts in the
-  glass of the 13 idle optics that have one (the ten magnified scopes, the CompM4, the PK-01VI and
-  the RSA-S): the owner saw it in third person (2026-11-23).
+- **The glass.** An idle optic's outside lens (`scope_lense_3p_s`: the front and the rear glass in
+  one surface, two discs at the tube's ends) is see-through (pack version 5):
+  `weapons/modules_069/scope_lense_3p_glass`, the stock PSO-1's lens material
+  (`weapons/pso_1_lens`, `forward_lighting_no_distort`) on patch 19's lens normal and gloss maps,
+  and a texture of its own made from patch 19's lens map: opacity 40/255 and a light cool tint
+  (90, 110, 120) in the glass, the map's dark opaque rim kept. 0.26g's lens materials draw so: the
+  forward stage's alpha is the transparency map's alpha times `constant_transparency`
+  (`forward_base.ps`), and the lit stage scales its diffuse by the diffuse map's alpha and adds its
+  specular whole (`forward_lighting.ps`), so the highlights stay where the glass lets the world
+  through. The stock scopes' own lens maps are the same (alpha 0 in the glass, 255 on the rim).
+  An aimed optic's first-person lens (`scope_lense_1p_s`) stays on `weapons/loc2/scope_lense_1p`.
+  Behind the glass (a ray test of the models): the tube's inside is modelled in ten optics; the
+  Leupold 3-7, the PSO-1 old and the PU 3.5x have none, and through their glass at an angle one
+  sees the back of the body's outer shell (their materials are two-sided); the 1P69 Hyperon is
+  closed inside (a part 9 to 25 cm along its tube), so its glass shows that, not the world.
+  Version 3 had remade the outside lens's material (0.69d0's is an opaque stage with all its maps)
+  on the AK-12's, whose Fresnel map (`weapons/ak_12/ak_12_fmap`) drew the AK-12's parts in the
+  glass of the 13 idle optics that have one (the owner, 2026-11-23); version 4 put it on patch 19's
+  opaque `weapons/loc2/scope_lense_3p`, as the variants had it (seen in a game: the picture gone;
+  the owner wished it were see-through).
 
 ## No released pair is lost
 
