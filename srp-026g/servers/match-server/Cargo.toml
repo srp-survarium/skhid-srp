@@ -33,14 +33,14 @@ world-frame = { workspace = true }
 srp-validate = { workspace = true }
 # Client patch 85's pickup command, checked as the clients check it.
 weapon-pickup = { path = "../../crates/weapon-pickup" }
+# [body physics S3] The one model of the client's body: the bots' reckoning moves by it (`bots::body`), as the bench's stand-in does.
+client-body = { path = "../../crates/client-body" }
 
 # The replay conversion thread runs at nice 19 (`v026g::replay`).
 [target.'cfg(target_os = "linux")'.dependencies]
 libc = { workspace = true }
 
 [dev-dependencies]
-# [body physics] The one model of the client's body: only motion fidelity (tests) uses it until the layers move onto it (S2-S4).
-client-body = { path = "../../crates/client-body" }
 # Sessions without a sign-in, for the tests (`SessionStore::create_session`).
 session = { workspace = true, features = ["test-support"] }
 # A patched copy of the game data (`GameData::laid_over`, `weapons::fixtures`) for the

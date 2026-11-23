@@ -1334,7 +1334,7 @@ const CREEP_HOLD_TICKS: u32 = 2 * (super::press_plan::REST_STEPS_MAX + 2);
 /// yaw on both, on the ground; only the feet moved.
 fn creeps(now: &Estimate, expected: &Estimate) -> bool {
     let still = |body: &Estimate| {
-        body.velocity[0].hypot(body.velocity[1]) <= super::press_plan::SAME_VELOCITY_MS && body.keys == 0 && body.arc.is_none()
+        body.velocity[0].hypot(body.velocity[1]) <= super::press_plan::SAME_VELOCITY_MS && body.keys == 0 && !body.in_jump()
     };
     still(now) && still(expected) && wrap(now.yaw - expected.yaw).abs() <= super::press_plan::SAME_YAW_RAD
 }

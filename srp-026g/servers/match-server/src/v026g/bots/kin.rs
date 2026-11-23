@@ -143,6 +143,8 @@ pub struct Kinematics {
     pub jump_arc: bool,
     /// [A388 step 3] What flies a jump the reckoning presses with [`Self::jump_arc`] ([`JumpFlight`]).
     pub jump_flight: JumpFlight,
+    /// [body physics S3] What moves the reckoned body ([`ReckoningBody`]).
+    pub reckoning_body: ReckoningBody,
 }
 
 /// [A313] The terms of the client's movement speed factor `F = max(0, 1 + S4)` the reckoned body moves by
@@ -556,6 +558,7 @@ impl Default for Kinematics {
             walk_bridges: true,
             jump_arc: true,
             jump_flight: JumpFlight::Controller,
+            reckoning_body: ReckoningBody::Client,
             speed_terms: SpeedTerms::LegsStagger,
             speed_cap: SpeedCap::Client,
             level_read: LevelRead::Settled,
@@ -710,6 +713,22 @@ pub enum JumpFlight {
     /// way, keep the clip ([`Self::Clip`]): the flyer has only the forward jump. The default (correctness, `tuning::KEPT_RIGHT`).
     #[default]
     Controller,
+}
+
+/// [body physics S3] What moves the reckoned body (the reckoning's steps, and the stop forecasts' that step as it does).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReckoningBody {
+    /// The walk grid's lattice with the kept controller's flat step, the grid's floors for the height, the reckoning's own falls
+    /// and the `FlownJump` flight (the reckoning before body physics S3).
+    Lattice,
+    /// The client's body (`client_body::ClientBody`, the model the bench's stand-in moves by since S2): a world's controller block
+    /// and inputs, the client's walk blend, the controller's step owning the feet (falls and edges its own), a forward jump flown
+    /// by the same body (resumed when a world shows it under way); the grid only names the floor (`locate`). A side or back press
+    /// keeps the clip ([`JumpFlight`]: those clips are not ported). The default (correctness, `tuning::KEPT_RIGHT`): one model
+    /// for the stand-in and the reckoning.
+    #[default]
+    Client,
 }
 
 /// [A388 step 2b] Whose ground steps the lip guard's stop forecast (`body::stays_up`) plays.

@@ -48,5 +48,6 @@
   "ramp_min_deg": 35.0,
   "walk_bridges": true,
   "jump_arc": false,
-  "jump_flight": "clip"
+  "jump_flight": "clip",
+  "reckoning_body": "lattice"
 }
