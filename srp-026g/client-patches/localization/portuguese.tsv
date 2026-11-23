@@ -2747,6 +2747,12 @@ st_srp_inventory_search_tip_level_example	+10 +11
 st_srp_inventory_sell_duplicates	Vender duplicados
 st_srp_inventory_sell_duplicates_ask	Itens para vender: %1$s
 st_srp_item_props_mps	m/s
+st_srp_key_bindings	Atribuição de teclas
+st_srp_keys_combat	Combate
+st_srp_keys_interface	Interface
+st_srp_keys_items	Itens
+st_srp_keys_movement	Movimento
+st_srp_keys_talk	Comunicação
 st_srp_language_option	Idioma:
 st_srp_language_restart	Aplicado após reiniciar.
 st_srp_loadout_block_ammo	Pouca munição para uma arma

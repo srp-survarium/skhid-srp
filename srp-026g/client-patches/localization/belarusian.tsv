@@ -2747,6 +2747,12 @@ st_srp_inventory_search_tip_level_example	+10 +11
 st_srp_inventory_sell_duplicates	Прадаць дублі
 st_srp_inventory_sell_duplicates_ask	Прадметаў на продаж: %1$s
 st_srp_item_props_mps	м/с
+st_srp_key_bindings	Прызначэнне клавіш
+st_srp_keys_combat	Бой
+st_srp_keys_interface	Інтэрфейс
+st_srp_keys_items	Прадметы
+st_srp_keys_movement	Рух
+st_srp_keys_talk	Сувязь
 st_srp_language_option	Мова:
 st_srp_language_restart	Прыменіцца пасля перазапуску.
 st_srp_loadout_block_ammo	Мала патронаў да зброі
