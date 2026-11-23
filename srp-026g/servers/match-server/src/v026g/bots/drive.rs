@@ -3771,7 +3771,7 @@ fn lip_ok_of<'a>(bot: &mut Bot, me: &'a PlaceView, tactics: &'a Tactics, tuning:
     let hold = bot.motor.feel.lip_guard_ticks;
     let full = bot.motor.feel.lip_guard_full;
     let kept = bot.reckoned_kept;
-    let margin = bot.reckon_error.margin_m();
+    let margin = bot.reckon_error.margin_m(me.speed());
     let truth = bot.motor.feel.drop_truth;
     let planned = if hold == 0 {
         Vec::new()
@@ -4047,7 +4047,7 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
     }
     let full = bot.motor.feel.lip_guard_full;
     // [fix-lip] The stop forecast's margin: the reckoning's error the bot measured at its last worlds, at most `RECKONING_M`.
-    let margin = bot.reckon_error.margin_m();
+    let margin = bot.reckon_error.margin_m(me.speed());
     let guard = if matches!(bot.lip_watch, LipWatch::Off(until) if time < until) {
         LipGuard::Clear
     } else {

@@ -602,13 +602,17 @@ impl MeasuredError {
         *self = Self::default();
     }
 
-    /// The margin (m): the largest error of the last [`MARGIN_WORLDS`] worlds, at most [`RECKONING_M`]; [`RECKONING_M`] until
-    /// that many were measured.
-    pub fn margin_m(&self) -> f32 {
+    /// The margin (m) for a body moving at `speed` m/s: the largest error of the last [`MARGIN_WORLDS`] worlds, and at least one
+    /// step's travel at that speed, at most [`RECKONING_M`]; [`RECKONING_M`] until that many worlds were measured.
+    /// [body physics S3] The step's floor: the client body's reckoning is exact at most worlds (p50 0 cm) and one step off at about a
+    /// fifth (the S3 gate's cells: 288 of 1,538 moving worlds), so three exact worlds in a row (about half the time) left the guard no
+    /// margin at all. Bodies sprinting onto level_04's rim at (68.5, 10.5, 67.5) were swapped at margin 0.00 and went over into a
+    /// pocket they never left, while the lattice's errors gave it 0.11-0.30 m there and no body went over.
+    pub fn margin_m(&self, speed: f32) -> f32 {
         self.worlds
             .iter()
             .try_fold(0.0f32, |most, error| error.map(|e| most.max(e)))
-            .map_or(RECKONING_M, |most| most.min(RECKONING_M))
+            .map_or(RECKONING_M, |most| most.max(speed * TICK_S).min(RECKONING_M))
     }
 }
 
@@ -3630,19 +3634,22 @@ pub(super) mod tests {
     #[test]
     fn the_margin_is_the_largest_of_the_last_three_worlds_errors() {
         let mut error = MeasuredError::default();
-        assert_eq!(error.margin_m(), RECKONING_M);
+        assert_eq!(error.margin_m(0.0), RECKONING_M);
         error.world(0.02);
         error.world(0.05);
-        assert_eq!(error.margin_m(), RECKONING_M);
+        assert_eq!(error.margin_m(0.0), RECKONING_M);
         error.world(0.04);
-        assert_eq!(error.margin_m(), 0.05);
+        assert_eq!(error.margin_m(0.0), 0.05);
         error.world(0.01);
         error.world(0.03);
-        assert_eq!(error.margin_m(), 0.04);
+        assert_eq!(error.margin_m(0.0), 0.04);
+        // [body physics S3] At least one step's travel at the body's speed: a sprint's 5 m/s gives 0.25 m.
+        assert!((error.margin_m(5.0) - 0.25).abs() < 1e-6);
+        assert_eq!(error.margin_m(10.0), RECKONING_M);
         error.world(0.9);
-        assert_eq!(error.margin_m(), RECKONING_M);
+        assert_eq!(error.margin_m(0.0), RECKONING_M);
         error.new_life();
-        assert_eq!(error.margin_m(), RECKONING_M);
+        assert_eq!(error.margin_m(0.0), RECKONING_M);
     }
 
     /// [F42] Both legs broken: the forced crouch puts the body on site; each selector event flips run <-> on site while the crouch
