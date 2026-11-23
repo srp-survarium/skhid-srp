@@ -21,6 +21,16 @@ pub fn eye_player<'t>(ctx: &'t Context<'_>) -> Option<(Player<'t>, bool)> {
     Some((player, ctx.reg(Reg::Eax) == player.eye_address()))
 }
 
+/// The camera's player when the view is its first person's, for a hook that
+/// comes after others at `camera.eye`: given its own eye, or the eye an
+/// earlier hook gave in its place this frame ([`look_from`]: the head
+/// clearance's, which pulls the eye back from a surface and leaves its turn),
+/// while it lives (a dead player's given eye is its ragdoll's).
+pub fn first_person<'t>(ctx: &'t Context<'_>) -> Option<Player<'t>> {
+    let (player, own) = eye_player(ctx)?;
+    (own || (ctx.reg(Reg::Eax) == EYE.0.get() as usize as u32 && player.alive())).then_some(player)
+}
+
 /// The eye the view is given at `camera.eye` (EAX's 16 floats, a row-vector
 /// 4x4: the player's +44Ch, or the eye an earlier hook gave instead).
 pub fn given_eye(ctx: &Context<'_>) -> [f32; 16] {

@@ -37,6 +37,12 @@
 //! HUD's crosshair shows it). A gun that trailed in the simulation would be
 //! a state every game has to agree on.
 
+//!
+//! `SKHID_SWAY_LOG` set in the game's environment (read at the first frame)
+//! writes a line a frame to the patches' log, `LOGGED` frames of the first
+//! person's: the frame's length, the eye's way and how far behind it the gun
+//! is drawn. Nothing without it.
+
 #![forbid(unsafe_code)]
 
 use ragdoll::math::{Vec3, atan2, clamp, min, sin_cos, sqrt};
@@ -45,7 +51,8 @@ use crate::affine::{inverse, product};
 use crate::muzzle_shots::{self, Shake};
 use crate::vostok::aim::DrawnHands;
 use crate::vostok::world::PlayerId;
-use crate::vostok::{Context, Flow, Lock, NoExit, camera, clock, shot};
+use crate::vostok::log::{self, Piece::{self, Dec, Text}};
+use crate::vostok::{Context, Flow, Lock, NoExit, camera, clock, renderer, shot};
 
 const DEGREE: f32 = core::f32::consts::PI / 180.0;
 /// The share of the lift the weapon's kick gives the eye that the view takes;
@@ -59,10 +66,12 @@ const ARMS_LAG: f32 = 20.0;
 const LONGEST_LAG_STEP: f32 = 1.0 / 30.0;
 /// A longer frame starts the gun at rest (s): `kClassicMaxFrameSeconds`.
 const LONGEST_FRAME: f32 = 0.4;
-/// The share of the arms' lag the gun is drawn behind the view by.
-const SWAY: f32 = 0.5;
+/// The share of the arms' lag behind the smoothed way that the gun is drawn
+/// behind the view by (the owner, of 1.0: "weapon should lag a bit more
+/// when turning").
+const SWAY: f32 = 1.6;
 /// The most the gun is drawn behind the view.
-const MOST: Look = Look { yaw: 5.0 * DEGREE, pitch: 3.5 * DEGREE };
+const MOST: Look = Look { yaw: 7.0 * DEGREE, pitch: 4.5 * DEGREE };
 
 /// A direction, or a pair of angles about the two axes (rad): `yaw` about the
 /// world's up (growing to the right), `pitch` up from the level.
@@ -120,14 +129,40 @@ impl Arms {
     }
 
     /// How far behind the view the gun is drawn, with the sight `raised` (0
-    /// from the hip to 1 fully aimed: none then).
+    /// from the hip to 1 fully aimed: none then): the arms behind the
+    /// smoothed way, not behind the frame's own, whose every unevenness (a
+    /// mouse's counts fall unevenly into frames) would move the gun against
+    /// it (the owner: "still not smooth").
     fn behind(&self, raised: f32) -> Look {
         let share = SWAY * (1.0 - if raised.is_finite() { clamp(raised, 0.0, 1.0) } else { 1.0 });
         Look {
-            yaw: clamp(turn(self.arms.yaw - self.control.yaw) * share, -MOST.yaw, MOST.yaw),
-            pitch: clamp((self.arms.pitch - self.control.pitch) * share, -MOST.pitch, MOST.pitch),
+            yaw: clamp(turn(self.arms.yaw - self.smooth.yaw) * share, -MOST.yaw, MOST.yaw),
+            pitch: clamp((self.arms.pitch - self.smooth.pitch) * share, -MOST.pitch, MOST.pitch),
         }
     }
+}
+
+/// The frames `SKHID_SWAY_LOG` logs.
+const LOGGED: u32 = 30_000;
+
+/// Whether the frames are logged, and how many are left to.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum SwayLog {
+    Unread,
+    Off,
+    On { left: u32 },
+}
+
+static SWAY_LOG: Lock<SwayLog> = Lock::new(SwayLog::Unread);
+
+/// A frame's line: its length, the eye's way and the gun behind it, and
+/// whether the eye was the player's own or one an earlier hook gave.
+fn say(dt: f32, own: bool, aim: Look, behind: Look) {
+    let signed = |value: f32| -> [Piece<'static>; 2] { [Text(if value < 0.0 { "-" } else { "" }), Dec((value.abs() + 0.5) as u32)] };
+    let milli = |angle: f32| signed(angle / DEGREE * 1000.0);
+    let [yaw, pitch, back, low] = [milli(aim.yaw), milli(aim.pitch), milli(behind.yaw), milli(behind.pitch)];
+    log::line(&[Text("camera_trail: frame "), Dec((dt * 1e6) as u32), Text(" us, eye "), Text(if own { "own" } else { "given" }), Text(" yaw "), yaw[0],
+                yaw[1], Text(" pitch "), pitch[0], pitch[1], Text(" mdeg, gun behind "), back[0], back[1], Text(" "), low[0], low[1], Text(" mdeg")]);
 }
 
 /// No first-person eye was shown last frame, or its player's arms: written at
@@ -137,7 +172,8 @@ static ARMS: Lock<Option<Arms>> = Lock::new(None);
 /// update_camera's eye (`camera.eye`, after the head clearance's).
 pub fn on_eye(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
-    let Some((player, true)) = camera::eye_player(ctx) else {
+    // The first person's, also when the head clearance has already given the view an eye of its own.
+    let Some(player) = camera::first_person(ctx) else {
         ARMS.with(thread, |arms| *arms = None);
         return Flow::Continue;
     };
@@ -151,16 +187,36 @@ pub fn on_eye(ctx: &mut Context<'_>) -> Flow<NoExit> {
     };
     // The arms: after the eye's way of this frame.
     let (now, second) = (clock::counter(thread), clock::frequency(thread).max(1) as f32);
-    ARMS.with(thread, |arms| {
-        *arms = Some(match *arms {
-            Some(last) if last.player == player.id() => match now.wrapping_sub(last.at) as f32 / second {
-                dt if dt > LONGEST_FRAME => Arms::on(player.id(), aim, now),
-                dt if dt > 0.0 => last.stepped(aim, dt, now),
-                _ => last,
-            },
+    let (dt, behind) = ARMS.with(thread, |arms| {
+        let dt = arms.filter(|last| last.player == player.id()).map_or(0.0, |last| now.wrapping_sub(last.at) as f32 / second);
+        let next = match *arms {
+            Some(last) if last.player == player.id() && dt <= LONGEST_FRAME => {
+                if dt > 0.0 {
+                    last.stepped(aim, dt, now)
+                } else {
+                    last
+                }
+            }
             _ => Arms::on(player.id(), aim, now),
-        });
+        };
+        *arms = Some(next);
+        (dt, next.behind(0.0))
     });
+    let logged = SWAY_LOG.with(thread, |state| {
+        if *state == SwayLog::Unread {
+            *state = if renderer::environment_set(thread, c"SKHID_SWAY_LOG") { SwayLog::On { left: LOGGED } } else { SwayLog::Off };
+        }
+        match *state {
+            SwayLog::On { left } if left > 0 => {
+                *state = SwayLog::On { left: left - 1 };
+                true
+            }
+            _ => false,
+        }
+    });
+    if logged {
+        say(dt, camera::eye_player(ctx).is_some_and(|(_, own)| own), aim, behind);
+    }
     // The view: the eye less the kick's share it does not take.
     let lift = shot::free_kick_lift(player);
     if lift != 0.0 {
@@ -300,14 +356,35 @@ mod tests {
     }
 
     #[test]
+    fn an_uneven_turn_does_not_shake_the_gun() {
+        // the same turn in even frames, and with every other frame's share given to the next
+        let mut even = arms();
+        let mut uneven = arms();
+        let mut most = 0.0f32;
+        for frame in 0..120 {
+            let step = 60.0 * DEGREE * FRAME;
+            even = even.stepped(Look { yaw: even.control.yaw + step, pitch: even.control.pitch }, FRAME, even.at + 16);
+            let jerk = if frame % 2 == 0 { 0.2 * step } else { 1.8 * step };
+            let before = uneven.behind(0.0).yaw;
+            uneven = uneven.stepped(Look { yaw: uneven.control.yaw + jerk, pitch: uneven.control.pitch }, FRAME, uneven.at + 16);
+            if frame > 30 {
+                most = most.max((uneven.behind(0.0).yaw - before).abs());
+            }
+        }
+        // the frames differ by 1.6 degrees of the eye's way; the gun's place by a tenth of that
+        assert!(most < 0.17 * SWAY * DEGREE, "{}", most / DEGREE);
+        assert!((uneven.behind(0.0).yaw - even.behind(0.0).yaw).abs() < 0.2 * SWAY * DEGREE);
+    }
+
+    #[test]
     fn on_a_turn_the_gun_trails_the_view_and_comes_up_to_it_after() {
         // 60 degrees a second to the right: behind, to the left; steady after a moment
         let turn = turning(arms(), 60.0 * DEGREE, 60);
         let behind = turn.behind(0.0);
         assert!(behind.yaw < -1.5 * DEGREE && behind.yaw > -MOST.yaw && behind.pitch == 0.0, "{behind:?}");
         assert!((turning(turn, 60.0 * DEGREE, 30).behind(0.0).yaw - behind.yaw).abs() < 0.05 * DEGREE);
-        // half of the arms' own lag (at 60 frames a second, 57 ms of the turn)
-        assert!((behind.yaw + SWAY * 60.0 * DEGREE * 0.057).abs() < 0.1 * DEGREE, "{behind:?}");
+        // the arms' lag behind the smoothed way (at 60 frames a second, 33 ms of the turn)
+        assert!((behind.yaw + SWAY * 60.0 * DEGREE * 0.0333).abs() < 0.1 * SWAY * DEGREE, "{behind:?}");
         let stopped = turning(turn, 0.0, 30);
         assert!(stopped.behind(0.0).yaw.abs() < 0.01 * DEGREE, "{:?}", stopped.behind(0.0));
     }

@@ -6424,9 +6424,10 @@ are untouched (`../docs/notes/muzzle-shots.md`).
   IK). The view stays on the mouse, turn for turn (the owner, of a view that followed the gun as
   Bodycam's camera does: "camera is bobbling", "the camera is being flung w/weapon",
   "uncomfortably"). The gun held from the hip is drawn behind the turn: its Weapon bone swung about
-  the eye by half the lag of the arms in Bodycam's camera motion as the STALKER bodycam fork
-  reproduces it (the eye's way of each frame smoothed at 25 a second, the arms after it at 20), at most 5
-  degrees across and 3.5 up, less the further the sight is raised and not at all fully aimed.
+  the eye by 1.6 times the lag of the arms behind the smoothed control in Bodycam's camera motion as
+  the STALKER bodycam fork reproduces it (the eye's way of each frame smoothed at 25 a second, the
+  arms after it at 20), at most 7 degrees across and 4.5 up, less the further the sight is raised
+  and not at all fully aimed. `SKHID_SWAY_LOG` logs a line a frame.
   While it trails, the drawn gun is not where a shot goes: the shot is the aim's.
 
 `check_kick_view_026g.py` (the kick), `check_gun_sway_026g.py` (the turn: the Weapon bone swung by

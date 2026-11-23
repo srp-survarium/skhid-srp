@@ -276,3 +276,19 @@ an input at a time, not a frame at a time, so the gun came after them in jerks (
 had made the third play's view "bobble"). The arms now follow the eye's way of each frame, by the
 performance counter's own ticks. Anything drawn per frame is fed from what the frame is drawn
 from, never from the simulation's fields.
+
+The owner's fifth play: "still not smooth", "there is jump of the gun", "when I move", "it is not a
+smooth curve", "weapon should lag a bit more when turning". Two faults, and the amount:
+- The camera's hook took a frame for the first person's only while the view was given the
+  player's own eye. The head clearance (patch 158, before it at the same site) gives the view an
+  eye of its own whenever it pulls the eye back from a surface; on those frames the arms started
+  anew and the kick's share was dropped: a jump, when moving by things. `camera::first_person`
+  takes such a given eye for the first person's.
+- The gun was drawn behind the frame's own eye, so each frame's unevenness of the mouse moved it
+  the other way. It is drawn behind the smoothed way now (the arms' lag behind the smoothed
+  control), a steady 33 ms of the turn at 60 frames a second.
+- That lag times 1.6 (about 3 degrees at 60 degrees a second), at most 7 degrees across and 4.5
+  up.
+
+`SKHID_SWAY_LOG` writes a line a frame (its length, the eye's way, the gun behind it, whose eye),
+for the next "not smooth".
