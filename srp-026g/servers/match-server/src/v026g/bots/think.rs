@@ -1374,7 +1374,12 @@ pub(super) fn self_kill(due: &Due, bot: &mut Bot, state: &mut TeamState, notes: 
     let (next, act) = stuck::self_kill_step(bot.self_kill, &facts, &tuning.unstick);
     // [self-kill facts] At each GiveUp of the stuck ladder: every fact the self-kill reads and the first rule that holds it back
     // (log only; a bot pinned 220 s at one spot never killed itself, and no line said why).
-    if let Some((give_up_ms, give_up_at)) = bot.stuck.take_give_up() {
+    // [pinned] Also when a run of no-ways turns hopeless (`Stuck::no_way_proven`): the self-kill's facts from then on.
+    let give_up = bot.stuck.take_give_up().map(|(ms, at)| (format!("GiveUp ({ms} ms at {:?})", at.to_array()), at));
+    let pinned = bot.stuck.take_pinned().map(|(first, at, goals)| {
+        (format!("pinned (no way to {goals} goals in a row since {first} ms, the first from {:?})", at.to_array()), at)
+    });
+    for (what, give_up_at) in [give_up, pinned].into_iter().flatten() {
         let ms = |v: u32| if v == u32::MAX { "never".to_owned() } else { format!("{:.1} s", f64::from(v) / 1_000.0) };
         let spot = bot.stuck.spot_at(give_up_at).map_or("none".to_owned(), |s| {
             format!("{} times since {} ms{}", s.times, s.first, if s.fell { ", marked by a fall or a failed jump or drop" } else { "" })
@@ -1384,9 +1389,8 @@ pub(super) fn self_kill(due: &Due, bot: &mut Bot, state: &mut TeamState, notes: 
             notes,
             now,
             format!(
-                "self_kill facts at GiveUp ({give_up_ms} ms at {:?}): {}; hopeless {hopeless}; spot {spot}; no enemy {}, no hit {}, life {}, \
+                "self_kill facts at {what}: {}; hopeless {hopeless}; spot {spot}; no enemy {}, no hit {}, life {}, \
                  match {}, carrying {}, tickets {:?}, since its last {}, team's last minute {}, state {:?}",
-                give_up_at.to_array(),
                 facts.refusal(&tuning.unstick, false).map_or("allowed".to_owned(), |r| format!("held back: {r:?}")),
                 ms(facts.quiet_ms),
                 ms(facts.hit_quiet_ms),
@@ -1417,6 +1421,10 @@ pub(super) fn self_kill(due: &Due, bot: &mut Bot, state: &mut TeamState, notes: 
     }
     #[cfg(test)]
     stuck::self_kills::count(usize::from(again));
+    #[cfg(test)]
+    if !again && matches!(facts.hopeless, Some(stuck::Hopeless { why: stuck::HopelessWhy::NoWay(_), .. })) {
+        stuck::self_kills::count(stuck::self_kills::SENT_PINNED);
+    }
     #[cfg(test)]
     bot.stuck.drop_watch_self_kill();
     let (since, why) = facts.hopeless.map_or((now, String::new()), |h| (h.since, format!("{:?}", h.why)));

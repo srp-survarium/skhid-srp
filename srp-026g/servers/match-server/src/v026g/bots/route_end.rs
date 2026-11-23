@@ -135,6 +135,10 @@ impl Bot {
         {
             walk.route = super::tactics::WalkRoute::Planned;
         }
+        // [pinned] Something to try: its run of no-ways ends (`Stuck::way_found`).
+        if route.is_some() {
+            self.stuck.way_found();
+        }
         self.route = route;
     }
 

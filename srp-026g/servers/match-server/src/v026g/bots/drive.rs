@@ -1430,6 +1430,7 @@ fn drive_tick_inner(
                         time < until && old.distance_xz(goal) > REPLAN_MOVED_M
                     });
                     bot.no_way_to.push((goal, time + NO_WAY_KEEP_MS));
+                    bot.stuck.no_way_proven(time, me.feet, goal);
                 }
                 #[cfg(test)]
                 {
@@ -2075,6 +2076,10 @@ fn drive_tick_inner(
                             time < until && goal.distance_xz(at) > REPLAN_MOVED_M
                         });
                         bot.no_way_to.push((at, time + NO_WAY_KEEP_MS));
+                        // [pinned] A goal on no floor is no search's (`off_floor`): no proof of where the body may walk.
+                        if ends.is_some() {
+                            bot.stuck.no_way_proven(time, me.feet, at);
+                        }
                     }
                     #[cfg(test)]
                     {

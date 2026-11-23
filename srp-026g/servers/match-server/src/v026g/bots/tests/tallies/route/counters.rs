@@ -868,8 +868,8 @@ pub(super) fn self_kills() -> Box<dyn RouteTopic> {
         || super::super::stuck::self_kills::counts().to_vec(),
         |d, line| {
             line.ends.push(format!(
-                "self_kills {} self_kills_again {} self_kills_barred {}",
-                d[0], d[1], d[2]
+                "self_kills {} self_kills_again {} self_kills_barred {} pinned_hopeless {} self_kills_pinned {}",
+                d[0], d[1], d[2], d[3], d[4]
             ));
         },
     )

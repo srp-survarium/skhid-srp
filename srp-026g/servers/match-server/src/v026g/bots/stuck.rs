@@ -194,6 +194,23 @@ pub enum HopelessWhy {
     Pocket,
     /// Caught again and again at this spot.
     Ladder(Vec3),
+    /// [pinned] No way, proven, to [`HOPELESS_TIMES`] goals in a row with no route found between ([`Stuck::no_way_proven`]),
+    /// the first from these feet.
+    NoWay(Vec3),
+}
+
+/// [pinned] The proven no-ways of a body since it last had a route ([`Stuck::no_way_proven`], [`Stuck::way_found`]).
+#[derive(Clone, Debug)]
+struct NoWayRun {
+    /// The feet at its first no-way.
+    at: Vec3,
+    first: u32,
+    last: u32,
+    /// The goals it has no way to, each [`super::drive::REPLAN_MOVED_M`] or more from the others (a goal that moved less is the
+    /// same goal, searched again).
+    goals: Vec<Vec3>,
+    /// Its turn to hopeless not yet written to the log ([`Stuck::take_pinned`]).
+    untold: bool,
 }
 
 /// What a stuck bot does.
@@ -229,6 +246,8 @@ pub struct Stuck {
     /// [self-kill facts] The last [`Recovery::GiveUp`] not yet written to the log (time, feet): taken by
     /// [`Self::take_give_up`].
     give_up_untold: Option<(u32, Vec3)>,
+    /// [pinned] Its proven no-ways since it last had a route ([`Self::no_way_proven`]).
+    no_ways: Option<NoWayRun>,
     /// Its stucks and falls since the team last heard ([`Self::tell`]):
     /// where, and whether a fall.
     told: Vec<(Vec3, bool)>,
@@ -490,6 +509,41 @@ impl Stuck {
         self.give_up_untold.take()
     }
 
+    /// [pinned] A search from `feet` proved no way to `goal` (both ends on floors, the proof the plays take: `no_way_to`). A
+    /// run of them with no route found between ([`Self::way_found`]), each within [`AGAIN_MS`] of the one before, to
+    /// [`HOPELESS_TIMES`] goals is nothing left to try ([`Self::hopeless`], [`HopelessWhy::NoWay`]): every goal its plays gave
+    /// it is out of the floors it can reach. A body standing pinned with no route gets neither of the other two: the stuck
+    /// ladder watches walking bodies, and the escape only a grid pocket, which a pit whose ways out are jumps the client does not
+    /// make is not (the bench's tdm-m6-s3, 2026-11-23: two bodies 120 s on one spot to the end, no self-kill). Walking does not
+    /// end the run: a walk from the feet stays on the floors the search proved the goals are not on.
+    pub fn no_way_proven(&mut self, time: u32, feet: Vec3, goal: Vec3) {
+        let run = match self.no_ways.as_mut().filter(|run| time < run.last.saturating_add(AGAIN_MS)) {
+            Some(run) => run,
+            None => self.no_ways.insert(NoWayRun { at: feet, first: time, last: time, goals: Vec::new(), untold: false }),
+        };
+        run.last = time;
+        if run.goals.iter().all(|g| g.distance_xz(goal) > super::drive::REPLAN_MOVED_M) {
+            run.goals.push(goal);
+            if run.goals.len() == HOPELESS_TIMES as usize {
+                run.untold = true;
+                #[cfg(test)]
+                self_kills::count(self_kills::PINNED);
+            }
+        }
+    }
+
+    /// [pinned] It has a route (any: a play's, a way out of a zone, an escape's try): something to try, the run of no-ways ends.
+    pub fn way_found(&mut self) {
+        self.no_ways = None;
+    }
+
+    /// [pinned] The run of no-ways that just turned hopeless, once: its first (time, feet) and its goals.
+    pub fn take_pinned(&mut self) -> Option<(u32, Vec3, usize)> {
+        let run = self.no_ways.as_mut().filter(|run| run.untold)?;
+        run.untold = false;
+        Some((run.first, run.at, run.goals.len()))
+    }
+
     /// [self-kill facts] The stuck spot at `feet` (the one [`Self::hopeless`]'s ladder reads, the latest): when it first caught
     /// the body in this run, how often, and whether a fall or a failed jump or drop marked it (a marked spot is never
     /// hopeless).
@@ -691,7 +745,19 @@ impl Stuck {
                 why: HopelessWhy::Ladder(spot.at),
             })
             .min_by_key(|hopeless| hopeless.since);
-        [pocket, ladder].into_iter().flatten().min_by_key(|h| h.since)
+        let no_way = self
+            .no_ways
+            .as_ref()
+            .filter(|run| {
+                run.first >= life_from
+                    && run.goals.len() >= HOPELESS_TIMES as usize
+                    && run.last.saturating_add(AGAIN_MS) > now
+            })
+            .map(|run| Hopeless {
+                since: run.first,
+                why: HopelessWhy::NoWay(run.at),
+            });
+        [pocket, ladder, no_way].into_iter().flatten().min_by_key(|h| h.since)
     }
 
     /// A jump of its route from `at` (the take-off) that did not get the
@@ -1525,18 +1591,23 @@ pub mod blind {
 }
 
 /// The bench's counts of the self-kills ([`SelfKillAct`]): sent, sent again,
-/// barred after two.
+/// barred after two; [pinned] runs of no-ways turned hopeless ([`Stuck::no_way_proven`]), and the self-kills sent for one.
 #[cfg(test)]
 pub mod self_kills {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    static COUNTS: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
+    /// [pinned] A run of no-ways turned hopeless.
+    pub const PINNED: usize = 3;
+    /// [pinned] A self-kill sent (the first) with [`super::HopelessWhy::NoWay`].
+    pub const SENT_PINNED: usize = 4;
+
+    static COUNTS: [AtomicU64; 5] = [const { AtomicU64::new(0) }; 5];
 
     pub fn count(kind: usize) {
         COUNTS[kind].fetch_add(1, Ordering::Relaxed);
     }
 
-    pub fn counts() -> [u64; 3] {
+    pub fn counts() -> [u64; 5] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
@@ -2409,6 +2480,57 @@ mod tests {
             fallen.fell(t0 + k * 3_000, spot);
         }
         assert_eq!(fallen.hopeless(t0 + 12_000, 0), None);
+    }
+
+    /// [pinned] Proven no-ways to [`HOPELESS_TIMES`] goals in a row, each within [`AGAIN_MS`] of the one before, with no route
+    /// found between, are nothing left to try, since the first, told once; a goal searched again is not another, a walk does
+    /// not end the run, a route does, and so does a break; a run of an earlier life is not this one's. The goals and the feet
+    /// are the bench's tdm-m6-s3 pit's (level_06 day 4, bot 14 from 51.8 s).
+    #[test]
+    fn no_way_to_five_goals_in_a_row_is_nothing_left_to_try() {
+        let feet = Vec3::new(47.3, 29.2, 107.9);
+        let goals = [
+            Vec3::new(-1.2, 30.2, 103.4),
+            Vec3::new(55.6, 41.1, 134.9),
+            Vec3::new(42.3, 41.1, 154.6),
+            Vec3::new(63.6, 37.2, 168.1),
+            Vec3::new(-18.9, 29.8, 89.1),
+        ];
+        let t0 = 51_800;
+        let mut stuck = Stuck::default();
+        for (k, &goal) in goals.iter().enumerate() {
+            let at = t0 + k as u32 * 4_000;
+            // The same goal again (moved under REPLAN_MOVED_M), and a walk of 3 m in the pit: no other goal, no break.
+            stuck.no_way_proven(at, feet, goal);
+            stuck.no_way_proven(at + 500, feet + Vec3::new(3.0, 0.0, 0.0), goal + Vec3::new(1.0, 0.0, 0.0));
+            if k < goals.len() - 1 {
+                assert_eq!(stuck.hopeless(at + 500, 0), None, "no way to {} goals", k + 1);
+                assert_eq!(stuck.take_pinned(), None);
+            }
+        }
+        let last = t0 + 4 * 4_000 + 500;
+        assert_eq!(stuck.hopeless(last, 0), Some(Hopeless { since: t0, why: HopelessWhy::NoWay(feet) }));
+        assert_eq!(stuck.take_pinned(), Some((t0, feet, 5)), "told once");
+        assert_eq!(stuck.take_pinned(), None);
+        // A sixth goal keeps it, and nothing more is told.
+        stuck.no_way_proven(last + 1_000, feet, Vec3::new(0.0, 0.0, 0.0));
+        assert!(stuck.hopeless(last + 1_000, 0).is_some());
+        assert_eq!(stuck.take_pinned(), None);
+        // It ends when no no-way comes within AGAIN_MS, and is not an earlier life's.
+        assert!(stuck.hopeless(last + 1_000 + AGAIN_MS - 1, 0).is_some());
+        assert_eq!(stuck.hopeless(last + 1_000 + AGAIN_MS, 0), None);
+        assert_eq!(stuck.hopeless(last, t0 + 1), None);
+        // A route found ends the run: the next no-ways begin another.
+        stuck.way_found();
+        assert_eq!(stuck.hopeless(last + 1_000, 0), None);
+        stuck.no_way_proven(last + 2_000, feet, goals[0]);
+        assert_eq!(stuck.hopeless(last + 2_000, 0), None);
+        // A break of AGAIN_MS between two no-ways begins another run too.
+        let mut broken = Stuck::default();
+        for (k, &goal) in goals.iter().enumerate() {
+            broken.no_way_proven(t0 + k as u32 * AGAIN_MS, feet, goal);
+        }
+        assert_eq!(broken.hopeless(t0 + 4 * AGAIN_MS, 0), None);
     }
 
     /// The owner's rule: the defaults with the 60 s on.
