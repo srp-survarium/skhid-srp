@@ -695,3 +695,25 @@ Click a skill to add a rank, right-click to take one back.	Klik dodaje rang, des
 {n} points	{n} bodova	many
 Maximum:	Maksimum:
 or	ili	skill
+
+# The Maps tab (a page built at a release: scripts/site-texts)
+Player spawns	Mjesta pojavljivanja
+Battery spawns	Pojavljivanje baterija
+Chargers	Punjači
+Containers	Spremnici
+Research units	Istraživačke jedinice
+Ammo stashes	Nadopuna streljiva
+Survarium maps	Karte Survarium
+chargers	punjači
+Minimap	Minikarta
+From above	Odozgo
+{n} active	aktivnih: {n}
+{n} batteries to win.	Baterija za pobjedu: {n}.
+team {n}	ekipa {n}
+any team	bilo koja ekipa
+Ammo stash	Nadopuna streljiva
+Container	Spremnik
+Battery spawn	Pojavljivanje baterije
+Charger	Punjač
+Research unit	Istraživačka jedinica
+Spawn	Pojavljivanje

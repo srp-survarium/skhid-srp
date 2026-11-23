@@ -695,3 +695,25 @@ Click a skill to add a rank, right-click to take one back.	Klick fügt einen Ran
 {n} points	{n} Punkte	many
 Maximum:	Maximum:
 or	oder	skill
+
+# The Maps tab (a page built at a release: scripts/site-texts)
+Player spawns	Spawns der Spieler
+Battery spawns	Batterie-Spawns
+Chargers	Ladestationen
+Containers	Container
+Research units	Forschungseinheiten
+Ammo stashes	Munitionsnachschub
+Survarium maps	Survarium-Karten
+chargers	Ladestationen
+Minimap	Minikarte
+From above	Von oben
+{n} active	{n} aktiv
+{n} batteries to win.	{n} Batterien zum Sieg.
+team {n}	Team {n}
+any team	jedes Team
+Ammo stash	Munitionsnachschub
+Container	Container
+Battery spawn	Batterie-Spawn
+Charger	Ladestation
+Research unit	Forschungseinheit
+Spawn	Spawn
