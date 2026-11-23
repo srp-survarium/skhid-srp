@@ -48,14 +48,20 @@ package survarium.player
       // The transition: `event` with its `value`. What the profile does, now:
       // - `accepted` (ASK): the request was sent;
       // - `fills`: the accounts to draw, in order;
-      // - `tell`: tell the paper doll srp's perk states (all of the kit, as last listed).
+      // - `tell`: tell the paper doll srp's perk states (all of the kit, as last listed);
+      // - `now`: draw the paper doll at once (a switch's end: its held account's counts came with
+      //   it). Else it draws at the frame's render, as the stock lobby: the exe gives a kit's
+      //   counts after its account (update_profile_slots_count after fill_player_profile_items,
+      //   0x222330), and drawn before them the account is laid on the last kit's counts, whose
+      //   containers and missing pockets send their items back (PaperDollBase.handleQuickSlots).
       // An expired switch ends first, as a TIMEOUT.
       public function step(event:int, value:*) : Object
       {
          var out:Object = {
             "accepted":false,
             "fills":[],
-            "tell":false
+            "tell":false,
+            "now":false
          };
          if(this._asked != null && !this.asked)
          {
@@ -88,6 +94,8 @@ package survarium.player
                   out.fills.push(value);
                   out.tell = true;
                }
+               // Its counts come next (`now`): never drawn in the fill's own call.
+               out.now = false;
                break;
             case LIST:
                if(this._asked == null)
@@ -117,6 +125,7 @@ package survarium.player
          }
          this._asked = null;
          out.tell = true;
+         out.now = true;
       }
    }
 }

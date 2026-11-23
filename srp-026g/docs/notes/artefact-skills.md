@@ -360,6 +360,14 @@ chooses each.
   at once and guessed the counts until the answer, and the stock slots, drawn from the exe's
   counts as they came, went out of step with the marks for a moment: a mark over an empty place,
   a slot gone blank for the 3 s hold.
+- **Only a switch's end is drawn at once.** Any other account (another kit or preset shown, the
+  kit played, the lobby's own refresh) is drawn at the frame's render, as in the stock lobby: the
+  exe gives a kit's items before its counts (`on_profile_changed` 0x222330:
+  `fill_player_profile_items`, then `update_profile_slots_count`). Revision 72 drew every account
+  at once, on the counts of the kit shown before: a pocket the old kit lacked, or had as a
+  container, sent its item back (`PaperDollBase.handleQuickSlots`, `dropSlot`), and srp took it
+  off the kit (bug report 2026-11-23: the fourth pocket emptied going from a kit with fewer
+  pockets to one with more). The item stayed owned, in the inventory.
 - **One switch at a time** (the owner, 2026-11-22: "when I click too fast, 'fake' pocket on top
   can appear for a moment", "there is data race there somewhere"): while a click is asked, a right
   click on any perk's slot or red lock is not taken (nor while a slot shakes). srp itself handles a

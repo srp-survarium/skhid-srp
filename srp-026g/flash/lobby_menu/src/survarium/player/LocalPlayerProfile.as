@@ -1634,8 +1634,10 @@ package survarium.player
             this._perkSwitch = new PerkSwitch(this.sendPerk);
          }
          var out:Object = this._perkSwitch.step(event,value);
-         // srp's accounts, then its states (of the kit they show), then the paper doll drawn now:
-         // one pass, so no frame shows the new counts with the old states or the other way round.
+         // srp's accounts, then its states (of the kit they show), then the paper doll drawn now
+         // when a switch ends (`now`): one pass, so no frame shows the new counts with the old
+         // states or the other way round. Another account is drawn at the frame's render, once
+         // the exe has given its counts too.
          for each(var fill:Object in out.fills)
          {
             this.drawProfileItems(fill);
@@ -1644,7 +1646,7 @@ package survarium.player
          {
             this.tellPerkSlots();
          }
-         if((out.tell || out.fills.length > 0) && profileItems is UIComponent)
+         if(out.now && profileItems is UIComponent)
          {
             (profileItems as UIComponent).validateNow();
          }
