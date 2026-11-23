@@ -313,14 +313,16 @@ pub mod past_shuts {
     pub const TAKEN: usize = 2;
     pub const ENDED: usize = 3;
     pub const NOT_RINGED: usize = 4;
+    /// A walk out of a ring only its shut landings close (`out_of_ring`).
+    pub const RING_WALK: usize = 5;
 
-    static COUNTS: [AtomicU64; 5] = [const { AtomicU64::new(0) }; 5];
+    static COUNTS: [AtomicU64; 6] = [const { AtomicU64::new(0) }; 6];
 
     pub fn count(kind: usize) {
         COUNTS[kind].fetch_add(1, Ordering::Relaxed);
     }
 
-    pub fn counts() -> [u64; 5] {
+    pub fn counts() -> [u64; 6] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
@@ -492,7 +494,8 @@ pub fn escape_borne(
 /// route, whether it is a crossing, and whether it is the plain route kept
 /// (a long one: not searched again soon, [`LONG_RETRY_MS`]). `plain` is the
 /// plain search's answer, `crossed` the crossing's. The fourth: the log's line when a crossing found was not taken for its
-/// price or its length ([`priced_line`]; written, never read back by a decision).
+/// price or its length ([`priced_line`]; written, never read back by a decision). [no-way crossing] `hard`: the filter the
+/// crossing was searched with; the landings it shuts are the body's for the walk out of a ring ([`out_of_ring`]).
 #[allow(clippy::too_many_arguments)]
 pub fn choose(
     tactics: &Tactics,
@@ -503,6 +506,7 @@ pub fn choose(
     time: u32,
     side: Option<i32>,
     objective: bool,
+    hard: &RouteFilter,
 ) -> (Option<Route>, bool, bool, Option<String>) {
     let Some(crossed) = crossed else {
         count(Count::Refused);
@@ -529,10 +533,18 @@ pub fn choose(
             });
             (Some(crossed), cost.most() > 0.0, false, line)
         }
-        _ => match out_of_ring(tactics, from, &crossed, body, time, side, objective) {
-            Some(out) => {
+        _ => match out_of_ring(tactics, from, &crossed, body, time, side, objective, hard) {
+            Some((out, by_shuts)) => {
                 count(Count::RingWalk);
-                (Some(out), true, false, Some(priced_line("crossing refused", "walked out of its ring only", cost, body, crossed.length())))
+                // [no-way crossing] A ring only its shut landings close (`Tactics::ringed_for`): said in the line, counted.
+                let why = if by_shuts {
+                    #[cfg(test)]
+                    past_shuts::count(past_shuts::RING_WALK);
+                    "walked out of its ring only, a ring its shut landings close"
+                } else {
+                    "walked out of its ring only"
+                };
+                (Some(out), true, false, Some(priced_line("crossing refused", why, cost, body, crossed.length())))
             }
             None => {
                 count(Count::Refused);
@@ -570,6 +582,13 @@ pub fn priced_line(what: &str, why: &str, cost: Cost, body: &CrossBody, metres: 
 /// it may walk on with every floor next to it (clear of the zone's edge, as
 /// `Tactics::escape`'s ways out), if that walk leaves a bot of `health` at
 /// least its give-up (`CrossBody::give_up_left`).
+///
+/// [no-way crossing] Ringed for the body: [`Tactics::ringed_for`] with the landings `hard` shuts (the jumps and drops it gave
+/// up, the team's dead links), and the walk searched keeping off them. Mamayev Kurgan's pit: its ways out of the fire's ring
+/// are gap jumps the body gave up, so `ringed` said no and a body under the crossing's start gate got no walk out (#2556's
+/// crossing takes it out at full health). With no landing shut it is `ringed` and the open search, as before. The second:
+/// whether only those landings make the ring.
+#[allow(clippy::too_many_arguments)]
 fn out_of_ring(
     tactics: &Tactics,
     from: NodeId,
@@ -578,11 +597,14 @@ fn out_of_ring(
     time: u32,
     side: Option<i32>,
     objective: bool,
-) -> Option<Route> {
-    if !tactics.ringed(from, time, side, objective, ring_floors()) {
+    hard: &RouteFilter,
+) -> Option<(Route, bool)> {
+    let grid = &tactics.world.grid;
+    let shuts = RouteFilter::shutting_landings(hard.landings().to_vec());
+    if !tactics.ringed_for(from, time, side, objective, ring_floors(), |n| shuts.hard_open(grid, n)) {
         return None;
     }
-    let grid = &tactics.world.grid;
+    let by_shuts = !hard.landings().is_empty() && !tactics.ringed(from, time, side, objective, ring_floors());
     let ok = |n: NodeId| tactics.allowed(n, time, side, objective);
     let mut in_zone = false;
     let mut s = 0.0;
@@ -605,10 +627,11 @@ fn out_of_ring(
     }
     // A few metres: searched to its end at once.
     let mut iters = usize::MAX;
-    start(tactics, from, exit, time, side, objective, body, &RouteFilter::open(), &mut iters)
+    start(tactics, from, exit, time, side, objective, body, &shuts, &mut iters)
         .ok()
         .flatten()
-        .or_else(|| path::plan(grid, from, exit))
+        .or_else(|| path::plan_where(grid, from, exit, |n| shuts.hard_open(grid, n)))
+        .map(|route| (route, by_shuts))
 }
 
 /// What became of the crossings' searches, for the bench's counts.
@@ -790,7 +813,7 @@ pub(crate) mod tests {
         let Ok(crossed) = start(tactics, a, b, 0, Some(0), false, body, &RouteFilter::open(), &mut iters) else {
             panic!("an unbounded search ends");
         };
-        let (route, crossing, _, _) = choose(tactics, a, plain, crossed, body, 0, Some(0), false);
+        let (route, crossing, _, _) = choose(tactics, a, plain, crossed, body, 0, Some(0), false, &RouteFilter::open());
         (route, crossing)
     }
 
@@ -1038,5 +1061,52 @@ pub(crate) mod tests {
         // Off the patch the field is no ring.
         let west = grid.locate(WEST, 1.5).unwrap();
         assert!(!ringed.ringed(west, 0, Some(0), false, ring_floors()));
+    }
+
+    /// [no-way crossing] A patch the weak zone rings on three sides, its fourth (north) a strip of landings the body gave up:
+    /// no ring by the grid (`ringed`), a ring for the body (`ringed_for`). Too hurt for the whole crossing, it walks out of
+    /// the ring only, keeping off those landings, and the walk is told as one its shut landings make; with none shut, no walk
+    /// (the patch opens north), as before.
+    #[test]
+    fn a_weak_body_walks_out_of_a_ring_its_shut_landings_close() {
+        let world = field_with(|map| {
+            map.zones.push(zone("west", 0.04, (16.0, 10.0), (1.0, 5.0)));
+            map.zones.push(zone("east", 0.04, (24.0, 10.0), (1.0, 5.0)));
+            map.zones.push(zone("south", 0.04, (20.0, 6.0), (5.0, 1.0)));
+        });
+        let three = Tactics::new(world, 1.0);
+        let grid = &three.world.grid;
+        let inside = Vec3::new(20.0, 0.0, 10.0);
+        let from = grid.locate(inside, 1.5).unwrap();
+        assert!(!three.ringed(from, 0, Some(0), false, ring_floors()), "open north");
+        let mut strip = Vec::new();
+        for i in 0..=48 {
+            for z in [13.5, 13.75, 14.0] {
+                strip.push(super::super::stuck::Shut::jump(Vec3::new(14.0 + i as f32 * 0.25, 0.0, z)));
+            }
+        }
+        let hard = RouteFilter::shutting_landings(strip);
+        assert!(three.ringed_for(from, 0, Some(0), false, ring_floors(), |n| hard.hard_open(grid, n)), "ringed for the body");
+        let goal = grid.locate(EAST, 1.5).unwrap();
+        let weak = fixture(0.41);
+        let mut iters = usize::MAX;
+        let crossed = start(&three, from, goal, 0, Some(0), false, &fixture(1.0), &hard, &mut iters)
+            .ok()
+            .flatten()
+            .expect("the crossing over the ring");
+        let before = past_shuts::counts()[past_shuts::RING_WALK];
+        let (route, crossing, _, line) = choose(&three, from, None, Some(crossed.clone()), &weak, 0, Some(0), false, &hard);
+        let out = route.expect("a walk out of the ring");
+        assert!(crossing);
+        assert!(line.is_some_and(|l| l.contains("a ring its shut landings close")));
+        assert_eq!(past_shuts::counts()[past_shuts::RING_WALK], before + 1);
+        let shut = hard.landings();
+        assert!(
+            out.points().iter().all(|w| !shut.iter().any(|s| s.covers(w.at))),
+            "the walk keeps off the landings it gave up"
+        );
+        // No landing shut: the grid's ring alone, which the open north is not: no walk, as before.
+        let (route, _, _, _) = choose(&three, from, None, Some(crossed), &weak, 0, Some(0), false, &RouteFilter::open());
+        assert!(route.is_none());
     }
 }

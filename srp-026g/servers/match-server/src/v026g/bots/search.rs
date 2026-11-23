@@ -623,6 +623,7 @@ impl Bots {
                 time,
                 side,
                 objective,
+                &filter,
             );
             past_shuts_taken = past_shuts && route.is_some();
             past_shuts_nothing = past_shuts && route.is_none();
@@ -680,6 +681,7 @@ impl Bots {
                             time,
                             side,
                             objective,
+                            &filter,
                         );
                         past_shuts_taken = past_shuts && route.is_some();
                         past_shuts_nothing = past_shuts && route.is_none();

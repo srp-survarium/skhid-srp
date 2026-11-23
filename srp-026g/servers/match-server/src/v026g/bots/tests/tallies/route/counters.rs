@@ -869,8 +869,8 @@ pub(super) fn past_shuts() -> Box<dyn RouteTopic> {
         |d, line| {
             line.ends.push(format!(
                 "cross_past_shuts_asked {} cross_past_shuts_found {} cross_past_shuts_taken {} cross_past_shuts_ended {} \
-                 cross_past_shuts_not_ringed {}",
-                d[0], d[1], d[2], d[3], d[4]
+                 cross_past_shuts_not_ringed {} cross_ring_walks_past_shuts {}",
+                d[0], d[1], d[2], d[3], d[4], d[5]
             ));
         },
     )
