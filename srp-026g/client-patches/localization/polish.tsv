@@ -14,14 +14,17 @@ k9	9
 kA	A
 kADD	+
 kAPOSTROPHE	'
+kAPPS	Menu
 kB	B
 kBACK	Backspace
 kBACKSLASH	\\
 kC	C
+kCAPITAL	CapsLock
 kCOMMA	,
 kD	D
 kDECIMAL	.
 kDELETE	Delete
+kDIVIDE	Num/
 kDOWN	W dół
 kE	E
 kEND	End
@@ -55,10 +58,14 @@ kL	L
 kLBRACKET	<
 kLCONTROL	LCtrl
 kLEFT	W lewo
+kLMENU	LAlt
 kLSHIFT	LShift
+kLWIN	LWin
 kM	M
 kMINUS	-
+kMULTIPLY	Num*
 kN	N
+kNEXT	PgDn
 kNUMLOCK	NumLock
 kNUMPAD0	Num0
 kNUMPAD1	Num1
@@ -77,19 +84,23 @@ kO	O
 kP	P
 kPAUSE	Pauza
 kPERIOD	.
+kPRIOR	PgUp
 kQ	Q
 kR	R
 kRBRACKET	>
 kRCONTROL	PCtrl
 kRETURN	Enter
 kRIGHT	W prawo
+kRMENU	PAlt
 kRSHIFT	PShift
+kRWIN	PWin
 kS	S
 kSCROLL	ScrollLock
 kSEMICOLON	,
 kSLASH	/
 kSPACE	Spacja
 kSUBTRACT	-
+kSYSRQ	PrtSc
 kT	T
 kTAB	Tab
 kU	U
@@ -2747,6 +2758,12 @@ st_srp_inventory_search_tip_level_example	+10 +11
 st_srp_inventory_sell_duplicates	Sprzedaj duplikaty
 st_srp_inventory_sell_duplicates_ask	Przedmioty do sprzedaży: %1$s
 st_srp_item_props_mps	m/s
+st_srp_key_bindings	Przypisania
+st_srp_keys_combat	Walka
+st_srp_keys_interface	Interfejs
+st_srp_keys_items	Przedmioty
+st_srp_keys_movement	Ruch
+st_srp_keys_talk	Komunikacja
 st_srp_language_option	Język:
 st_srp_language_restart	Zadziała po ponownym uruchomieniu.
 st_srp_loadout_block_ammo	Za mało amunicji do broni
@@ -3334,7 +3351,7 @@ st_use_next_medkit_action	Następna apteczka
 st_use_onyx_action	Użyj Onyksu
 st_use_oxygen_tank_action	Użyj butli tlenowej
 st_use_painkiller_action	Użyj środków przeciwbólowych
-st_use_rdgm_action	Rzuć granat dymny RDG-M
+st_use_rdgm_action	Rzuć granat dymny
 st_use_resupply_zone	Dodaj amunicję ({USE})
 st_use_rgd5_action	Rzuć granat RGD-5
 st_use_science_medkit_action	Użyj apteczki naukowej
