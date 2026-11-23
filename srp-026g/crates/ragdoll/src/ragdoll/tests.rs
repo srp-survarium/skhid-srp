@@ -133,19 +133,19 @@ fn headwear_starts_on_the_head_then_falls_separately_and_settles_above_ground() 
     let before = driver_bones(&now);
     let mut input = start(&now, &before, Cause::Unknown, None);
     assert!(Ragdoll::new(&input).unwrap().headwear_pose().is_none());
-    input.headwear = Some(HeadwearShape);
+    input.headwear = Some(HeadwearShape::ShotOff);
     let mut body = Ragdoll::new(&input).unwrap();
-    assert!((body.headwear_pose().unwrap().position - now[HEAD.index()].position).length() < 1e-5);
+    assert!((body.headwear_pose().unwrap().0.position - now[HEAD.index()].position).length() < 1e-5);
     let mut ground = Ground::flat();
     run(&mut body, &mut ground, None, |r| {
-        let hat = r.headwear.unwrap();
-        assert!(hat.body.pose.is_finite());
+        let hat = r.headwear.body().unwrap();
+        assert!(hat.pose.is_finite());
         for end in [
-            hat.body.shape.ends(hat.body.pose).0,
-            hat.body.shape.ends(hat.body.pose).1,
+            hat.shape.ends(hat.pose).0,
+            hat.shape.ends(hat.pose).1,
         ] {
             assert!(
-                end.y >= hat.body.shape.radius - 0.02,
+                end.y >= hat.shape.radius - 0.02,
                 "helmet penetrated the floor"
             );
         }
@@ -153,9 +153,9 @@ fn headwear_starts_on_the_head_then_falls_separately_and_settles_above_ground() 
     let mut drawn = now;
     body.draw(&mut drawn);
     assert!(
-        (body.headwear_pose().unwrap().position - drawn[HEAD.index()].position).length() > 0.15
+        (body.headwear_pose().unwrap().0.position - drawn[HEAD.index()].position).length() > 0.15
     );
-    assert!(body.headwear.unwrap().body.pose.position.y < 0.2);
+    assert!(body.headwear.body().unwrap().pose.position.y < 0.2);
 }
 
 #[test]

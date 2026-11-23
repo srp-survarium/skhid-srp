@@ -116,6 +116,7 @@ pub struct FreezeTag {
 /// The bytes before the player records: version, phase, scores, the ended
 /// round, a time (u32), the round starts (u16), each place's kit switches (u16).
 const HEAD: usize = 9 + 2 + 2 * PLAYERS;
+const _: () = assert!(RECORD == 1 + 2 + 4);
 
 impl FreezeTag {
     pub const EMPTY: Self = Self {
@@ -441,29 +442,30 @@ impl FreezeTag {
             ),
             Phase::Finished { winner, at } => (4, team(winner), at.ms()),
         };
-        let [zero, one] = self.score;
+        // Each field into its own place of the layout `read` takes: a field of the wrong width
+        // does not compile.
         let mut bytes = [0; Self::LEN];
-        let mut out = bytes.iter_mut();
-        let mut put = |value: &[u8]| {
-            for (slot, byte) in out.by_ref().zip(value) {
-                *slot = *byte;
-            }
-        };
-        put(&[Self::VERSION, phase, zero, one, ended]);
-        put(&time.to_le_bytes());
-        put(&self.lives.round_starts().to_le_bytes());
-        for count in self.lives.every_kit_switch() {
-            put(&count.to_le_bytes());
+        let [version, phase_at, zero, one, ended_at, t0, t1, t2, t3, s0, s1, rest @ ..] = &mut bytes;
+        [*version, *phase_at, *ended_at] = [Self::VERSION, phase, ended];
+        [*zero, *one] = self.score;
+        [*t0, *t1, *t2, *t3] = time.to_le_bytes();
+        [*s0, *s1] = self.lives.round_starts().to_le_bytes();
+        let (kits, records) = rest.split_at_mut(2 * PLAYERS);
+        for (out, count) in kits.as_chunks_mut::<2>().0.iter_mut().zip(self.lives.every_kit_switch()) {
+            *out = count.to_le_bytes();
         }
-        for player in &self.players {
+        for (out, player) in records.as_chunks_mut::<RECORD>().0.iter_mut().zip(&self.players) {
             let (tag, progress, thaws_in) = match *player {
+                // The tags `read` takes: 0 waiting, 1/2 fighting, 3/4 frozen, by team.
                 Player::Waiting => (0, 0, 0),
-                Player::Fighting(side) => (team(side), 0, 0),
-                Player::Frozen { team: side, progress, thaws_in } => (team(side) + 2, progress.0, thaws_in.get()),
+                Player::Fighting(Team::First) => (1, 0, 0),
+                Player::Fighting(Team::Second) => (2, 0, 0),
+                Player::Frozen { team: Team::First, progress, thaws_in } => (3, progress.0, thaws_in.get()),
+                Player::Frozen { team: Team::Second, progress, thaws_in } => (4, progress.0, thaws_in.get()),
             };
-            put(&[tag]);
-            put(&progress.to_le_bytes());
-            put(&thaws_in.to_le_bytes());
+            let [p0, p1] = progress.to_le_bytes();
+            let [h0, h1, h2, h3] = thaws_in.to_le_bytes();
+            *out = [tag, p0, p1, h0, h1, h2, h3];
         }
         bytes
     }
@@ -681,6 +683,55 @@ mod tests {
         g.step(&[Body::Absent; PLAYERS], &VISIBLE, 50);
         assert_eq!(g.s.phase(), Phase::Playing);
     }
+    /// Every field non-zero and of its own value: `read(bytes())` gives the state back, and each
+    /// field is at its place in the layout (since #2507 the writer had moved every field after
+    /// the first a byte on per field before it, and only the round trips of whole states showed it).
+    #[test]
+    fn every_field_is_written_at_its_place() {
+        let mut players = [Player::Waiting; PLAYERS];
+        for (n, player) in players.iter_mut().enumerate() {
+            let n16 = u16::try_from(n).unwrap();
+            *player = match n {
+                0..=9 => Player::Frozen {
+                    team: Team::Second,
+                    progress: Progress(100 + n16),
+                    thaws_in: NonZeroU32::new(1000 + 7 * u32::from(n16)).unwrap(),
+                },
+                10..=17 => Player::Frozen {
+                    team: Team::First,
+                    progress: Progress(200 + n16),
+                    thaws_in: NonZeroU32::new(5000 + 11 * u32::from(n16)).unwrap(),
+                },
+                18 => Player::Fighting(Team::First),
+                _ => Player::Waiting,
+            };
+        }
+        let kit_switches: [u16; PLAYERS] = core::array::from_fn(|n| 0x1001 + 0x0101 * u16::try_from(n).unwrap());
+        let state = FreezeTag {
+            players,
+            phase: Phase::Restart {
+                ended: RoundEnd::Won(Team::First),
+                restart: Restart::Fade { until: Time::from_ms(0x0A0B_0C0D), next: () },
+            },
+            score: [3, 2],
+            lives: Lives::new(0x0307, kit_switches),
+        };
+        let bytes = state.bytes();
+        assert_eq!(FreezeTag::read(&bytes), Some(state));
+        // The head: version, phase (the fade), the scores, the ended round (a win of the first
+        // team), the fade's end, the round starts, each place's kit switches.
+        assert_eq!(bytes[..11], [3, 2, 3, 2, 1, 0x0D, 0x0C, 0x0B, 0x0A, 0x07, 0x03]);
+        assert_eq!(bytes[11..13], [0x01, 0x10]);
+        assert_eq!(bytes[HEAD - 2..HEAD], kit_switches[PLAYERS - 1].to_le_bytes());
+        // The records: tag, progress, thaws_in, from HEAD.
+        let record = |n: usize| &bytes[HEAD + n * RECORD..HEAD + (n + 1) * RECORD];
+        assert_eq!(record(0), [4, 100, 0, 0xE8, 0x03, 0, 0]);
+        assert_eq!(record(17), [3, 217, 0, 0x43, 0x14, 0, 0]);
+        assert_eq!(record(18), [1, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(record(19), [0; RECORD]);
+        assert_eq!(HEAD + PLAYERS * RECORD, FreezeTag::LEN);
+    }
+
     #[test]
     fn wire_domains_and_roster_are_checked() {
         let mut g = Game::new();

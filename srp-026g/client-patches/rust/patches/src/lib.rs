@@ -88,6 +88,8 @@ pub mod sound_voices;
 pub mod drug_interrupt;
 // patch 177: a hit breaks the victim's breath hold
 pub mod breath_hit;
+// patch 196: a shot into a corpse, 0.21's death sound and the dead player in the dark
+pub mod corpse_shot_dark;
 // patch 179: a shot ends the shooter's protection
 pub mod shot_protection;
 // patch 194: the grenade markers tell a smoke and a toxic smoke apart

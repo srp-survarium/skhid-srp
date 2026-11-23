@@ -1,7 +1,8 @@
 //! The site's own words in the languages other than English
 //! (`../words/README.md`): the code writes a text in English
-//! ([`Lang::t`]), and each language's file says it in that language. A text
-//! a file lacks is shown in English.
+//! ([`Lang::t`]), and each language's file says it in that language. Every
+//! file has every text (the tests name what one lacks); a text no file has
+//! is shown in English.
 
 use std::collections::HashMap;
 use std::fmt::Display;
@@ -209,7 +210,8 @@ mod tests {
     }
 
     /// Every text the code asks for: `(english, context)` of each
-    /// `.t("..")`, `.tf("..", ..)` and `.tc("context", "..")` under `src/`.
+    /// `.t("..")`, `.tf("..", ..)` and `.tc("context", "..")` under `src/`, and
+    /// of the built pages ([`asked_by_built_pages`]).
     fn asked() -> BTreeSet<(String, String)> {
         fn files(dir: &Path, out: &mut Vec<String>) {
             for entry in std::fs::read_dir(dir).unwrap() {
@@ -240,43 +242,113 @@ mod tests {
                 asked.insert((english, context));
             }
         }
+        asked.extend(asked_by_built_pages());
         asked
     }
 
+    /// Every text the pages built at a release ask for (`crate::built`): of each table
+    /// (`*.texts.json`) and each script that says its words (`site-texts/words.js`) under
+    /// their folders.
+    fn asked_by_built_pages() -> BTreeSet<(String, String)> {
+        fn files(dir: &Path, out: &mut Vec<std::path::PathBuf>) {
+            for entry in std::fs::read_dir(dir).unwrap() {
+                let path = entry.unwrap().path();
+                if path.is_dir() {
+                    files(&path, out);
+                } else {
+                    out.push(path);
+                }
+            }
+        }
+        let mut paths = Vec::new();
+        for dir in ["wiki", "skills", "maps", "damage"] {
+            files(&Path::new(env!("CARGO_MANIFEST_DIR")).join(dir), &mut paths);
+        }
+        let mut asked = BTreeSet::new();
+        for path in paths {
+            let name = path.display().to_string();
+            let found = if name.ends_with(".texts.json") {
+                crate::built::asked_by_table(&std::fs::read_to_string(&path).unwrap())
+            } else if name.ends_with(".js") {
+                // A script that says its words so (site-texts/words.js first in it).
+                let source = std::fs::read_to_string(&path).unwrap();
+                if !source.contains("const PAGE_WORDS = ") {
+                    continue;
+                }
+                crate::built::asked_by_script(&source)
+            } else {
+                continue;
+            };
+            let found = found.unwrap_or_else(|why| panic!("{name}: {why}"));
+            asked.extend(found.into_iter().map(|text| (text.english, text.context)));
+        }
+        assert!(!asked.is_empty(), "the built pages ask for no text");
+        asked
+    }
+
+    /// A text as a file writes it: `\`, line breaks and tabs escaped.
+    fn escaped(text: &str) -> String {
+        text.replace('\\', "\\\\").replace('\n', "\\n").replace('\t', "\\t")
+    }
+
+    /// Every language has every text the code asks for, and only those. What
+    /// is wrong is named file by file; a missing text as the row to add, its
+    /// translation left empty to be written.
     #[test]
-    fn every_file_reads_and_ukrainian_lacks_no_text() {
+    fn every_language_has_every_text() {
         let asked = asked();
         assert!(asked.len() > 300, "{} texts found in the code", asked.len());
         assert!(asked.contains(&("Home".to_owned(), String::new())));
         assert!(asked.contains(&("Ban".to_owned(), "button".to_owned())));
-        for (lang, file) in Lang::ALL.into_iter().zip(FILES) {
+        assert!(FILES[0].is_empty(), "English's words are the code's");
+        let mut faults = String::new();
+        for (lang, file) in Lang::ALL.into_iter().zip(FILES).skip(1) {
             let name = format!("words/{}.tsv", lang.code());
             let rows = rows(file).unwrap_or_else(|why| panic!("{name}: {why}"));
+            let mut wrong = Vec::new();
             let mut seen = BTreeSet::new();
             for row in &rows {
                 let key = (row.english.clone(), row.context.clone());
-                assert!(asked.contains(&key), "{name}: the code has no text {key:?}");
-                assert!(!row.text.trim().is_empty(), "{name}: {key:?} is empty");
+                if !asked.contains(&key) {
+                    wrong.push(format!("a row the code no longer asks for: {key:?}"));
+                }
+                if row.text.trim().is_empty() {
+                    wrong.push(format!("not translated: {key:?}"));
+                }
                 let (mut english, mut text) = (places(&row.english), places(&row.text));
                 english.sort_unstable();
                 text.sort_unstable();
-                assert_eq!(english, text, "{name}: the places of {key:?}");
-                assert!(seen.insert(key.clone()), "{name}: {key:?} twice");
+                if english != text {
+                    wrong.push(format!("other places than its English: {key:?}"));
+                }
+                if !seen.insert(key.clone()) {
+                    wrong.push(format!("twice: {key:?}"));
+                }
             }
-            if lang == Lang::Uk {
-                let missing: Vec<_> = asked.difference(&seen).collect();
-                assert!(missing.is_empty(), "{name} lacks {missing:?}");
+            let missing: Vec<_> = asked.difference(&seen).collect();
+            if !missing.is_empty() {
+                wrong.push(format!(
+                    "lacks {} texts: add these rows where uk.tsv has them and write each translation after its tab:",
+                    missing.len()
+                ));
+                for (english, context) in missing {
+                    let context = if context.is_empty() { String::new() } else { format!("\t{context}") };
+                    wrong.push(format!("{}\t{context}", escaped(english)));
+                }
+            }
+            if !wrong.is_empty() {
+                faults += &format!("\n{name}:\n{}\n", wrong.join("\n"));
             }
         }
-        assert!(FILES[0].is_empty(), "English's words are the code's");
+        assert!(faults.is_empty(), "the site's words (words/README.md):{faults}");
     }
 
     #[test]
     fn a_text_is_its_languages_or_english() {
         assert_eq!(Lang::Uk.t("Home"), "Головна");
         assert_eq!(Lang::En.t("Home"), "Home");
-        // A language whose file lacks it, and a text no file has.
-        assert_eq!(Lang::Fi.t("Home"), "Home");
+        // A text the files lack (none has this one).
+        assert_eq!(Lang::Fi.t("no such text"), "no such text");
         assert_eq!(Lang::Uk.t("no such text"), "no such text");
         // Two meanings of one English text.
         assert_ne!(Lang::Uk.t("Ban"), Lang::Uk.tc("button", "Ban"));

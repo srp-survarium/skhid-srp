@@ -1,5 +1,11 @@
+import sys
 import unittest
+from pathlib import Path
+
 from stats import ROUND_FACTORS, sections
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "site-texts"))
+from texts import English  # noqa: E402
 
 # A round that changes nothing.
 PLAIN = {**{factor: 1 for _, factor in ROUND_FACTORS}, "dispersion": 1, "buck_shot": 1}
@@ -7,7 +13,7 @@ PLAIN = {**{factor: 1 for _, factor in ROUND_FACTORS}, "dispersion": 1, "buck_sh
 
 class StatsTests(unittest.TestCase):
     def rows(self, weapon, ammo=PLAIN):
-        return {row["id"]: row for section in sections(weapon, ammo, "en") for row in section["rows"]}
+        return {row["id"]: row for section in sections(weapon, ammo, English()) for row in section["rows"]}
 
     def test_fixed_symmetric_side_values_cancel(self):
         rows = self.rows({"recoil": {"min_left_recoil": 3, "max_left_recoil": 3,

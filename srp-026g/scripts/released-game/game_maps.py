@@ -17,15 +17,23 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "gen-data-026g"))
 import bincfg  # noqa: E402
 from released import die  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "site-texts"))
+from texts import DICTIONARIES  # noqa: E402
 
 # The modes a match can be (2 batteries, 3 batteries with chargers, 4 team
 # deathmatch, 5 Research, 8 free for all), as the server plays them
 # (crates/survarium/src/v026g/maps.rs, `RuleMode`).
 FREE_FOR_ALL = 8
 MODES = (2, 3, 4, 5, FREE_FOR_ALL)
+# How each language's pickup hint names an artefact ("Onyx artifact. ...", "Артефакт Онікс. ..."):
+# the game ships no names for the artefacts' configs.
+ARTEFACT_HINT = {"en": r"(.+?) artifact\.", "uk": r"Артефакт (.+?)\.", "ru": r"Артефакт (.+?)\.",
+                 "be": r"Артэфакт (.+?)\.", "de": r"(?:Das )?Artefakt (?:der )?(.+?)\.", "pl": r"Artefakt (.+?)\.",
+                 "sr": r"Artefakt (.+?)\.", "cs": r"Artefakt (.+?)\.", "hr": r"Artefakt (.+?)\.",
+                 "hu": r"(.+?) artefaktum\.", "fi": r"(.+?)-artefakti\.", "pt": r"Artefato (.+?)\."}
 # What a build must extract for these.
 WANTED = ["client_project", "gameplay/game_modes/", "gameplay/db_static_dictionaries",
-          "localization/english/localization", "localization/ukrainian/localization", "flash_movies/hud.swf"]
+          *DICTIONARIES, "flash_movies/hud.swf"]
 # The builds a map's scene comes from, in the order lists show them (crates/survarium/src/v026g/maps.rs,
 # `Build`): its configs' `mode.srp_build` where they have one (v032, v042: the two Londons, whatever
 # their projects are called), else a ported project's prefix; a project with neither is 0.26g's.

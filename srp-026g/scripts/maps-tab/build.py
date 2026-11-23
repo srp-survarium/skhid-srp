@@ -55,7 +55,9 @@ HERE = Path(__file__).resolve().parent
 SRP = HERE.parents[1]
 sys.path.insert(0, str(SRP / "scripts" / "released-game"))
 from released import LIST, die, extract, offered, revision as revision_of, write_built_from  # noqa: E402
-from game_maps import BUILDS, FREE_FOR_ALL, WANTED, hud_minimaps, load, playable  # noqa: E402
+from game_maps import ARTEFACT_HINT, BUILDS, FREE_FOR_ALL, WANTED, hud_minimaps, load, playable  # noqa: E402
+sys.path.insert(0, str(SRP / "scripts" / "site-texts"))
+from texts import CODES, DICTIONARIES, WORDS, Texts  # noqa: E402
 sys.path.insert(0, str(SRP / "scripts" / "kill-feed-icons"))
 import make_battery_icon  # noqa: E402
 
@@ -140,18 +142,20 @@ def hud_icons(args, raw, work, out):
 
 
 def localization(raw):
-    return {lang: load(raw, f"localization/{name}/localization")["strings"]
-            for lang, name in (("en", "english"), ("uk", "ukrainian"))}
+    """Each language's texts (site-texts' codes)."""
+    return {code: load(raw, path)["strings"] for code, path in zip(CODES, DICTIONARIES)}
 
 
 def artefact_names(texts, key):
-    """The names the game's pickup hints give: "Onyx artifact. ..." and "Артефакт Онікс. ..."."""
+    """The names the game's pickup hints give, in each language."""
     hint = f"st_{key}_pickup_hint"
-    en = re.match(r"\s*(.+?) artifact\.", texts["en"].get(hint, ""))
-    uk = re.match(r"\s*Артефакт (.+?)\.", texts["uk"].get(hint, ""))
-    if not (en and uk):
-        die(f"{hint}: no artefact name in its text")
-    return {"en": en.group(1), "uk": uk.group(1)}
+    names = {}
+    for code in CODES:
+        found = re.match(r"\s*" + ARTEFACT_HINT[code], texts[code].get(hint, ""))
+        if not found:
+            die(f"{hint}: no artefact name in its {code} text")
+        names[code] = found.group(1)
+    return names
 
 
 def r1(v):
@@ -262,7 +266,7 @@ def main():
             raw.mkdir(parents=True, exist_ok=True)
             extract(args.dbgrab, args.stock, rows, args.patches, WANTED + [BATTERY_MESH], raw)
         texts = localization(raw)
-        text = lambda key: {lang: texts[lang].get(key, key) for lang in texts}
+        text = lambda key: {code: texts[code].get(key) or texts["en"].get(key, key) for code in CODES}
         dictionary = load(raw, "gameplay/db_static_dictionaries")
         artefact_keys = {i["dict_id"]: i["name"].removeprefix("artefact_") for i in dictionary["items_dict"]
                          if i["cfg_name"].startswith("gameplay/items/artefacts/")}
@@ -369,14 +373,16 @@ def main():
     data = {"revision": revision, "maps": data_maps, "artefacts": icons, "hud": hud}
     script = ('"use strict";\n// Built by srp-026g/scripts/maps-tab/build.py; do not edit.\n'
               f"const MAPS = {json.dumps(data, ensure_ascii=False, separators=(',', ':'))};\n"
-              + (HERE / "ui.js").read_text())
+              + (SRP / "scripts" / "site-texts" / "words.js").read_text() + (HERE / "ui.js").read_text())
     (out / "maps.js").write_text(script)
     template = (HERE / "template.html").read_text()
     faces = "\n".join(line for line in (SRP / "servers" / "web-server" / "damage" / "damage.html").read_text().splitlines()
                       if line.startswith("@font-face"))
-    page = (template.replace("/*__FONT__*/", faces)
+    page = (template.replace("/*__FONT__*/", faces).replace("__WORDS__", WORDS)
             .replace("__SCRIPT__", f"{SITE}/maps.js?v={version(script.encode())}"))
     (out / "maps.html").write_text(page)
+    # Its words are its script's alone (site-texts: the server fills them in).
+    Texts().write(out / "maps.texts.json")
     served = ["maps.js"] + [f"{sub}/{f.name}" for sub in ("minimap", "icons") for f in sorted((out / sub).iterdir())]
     (out / "files.rs").write_text(
         "// Built by srp-026g/scripts/maps-tab/build.py; do not edit. The files maps.html names.\n"

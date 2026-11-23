@@ -1221,7 +1221,7 @@ va	name	source	ret_cleanup	result
 0x002e1bf0	survarium::weapon_core::instant_aim_end	manual	0	none: the sight's lowering time +608h = +5F8h aim_time through 0x2D5AE0 index 49 (0x2E1C3B, k 1) unless +604h is already at its end
 0x002e1d50	survarium::weapon_core::get_dispersed_bullet_direction	manual	12	D = get_static_dispersion + (state +404h + shot +418h) x k, k = 0 when the aim interpolator's value (weapon +5FCh) is exactly 1, else 1; tilt = 0.5 x D x modf(N(0, 0.5)) degrees about an axis turned by a uniform [0, 2 pi) angle (+5C0h/+5C4h, generator +5BCh, seed 1) about the transform's forward; the direction at [stack+8]
 0x002e2120	survarium::weapon_core::get_dispersed_buckshot_direction	manual	8	EAX: the output; the input direction as it is when the ammo's buck_dispersion ([weapon+538h]+2A8h) is 0, else tilted by 0.5 x base_dispersion (weapon +3D8h) x buck_dispersion x modf(N(0, dispersion_buckshot_sigma 0xA71090, 0.5)) degrees about an axis at a uniform angle (as get_dispersed_bullet_direction 0x2E1D50, without its bloom and aim terms)
-0x002e23a0	survarium::weapon_core::instant_fire	manual	8	
+0x002e23a0	survarium::weapon_core::instant_fire	manual	8	none; copies its user's eyes' transform ([[weapon+8]+44Ch], 16 dwords, 0x2E243D..0x2E2453) and gives it to get_dispersed_bullet_direction (0x2E245C): a bullet's start and direction are that transform's, the bone Item as computed_head_transform 0x2DA4B0 last posed it (in assign_physics_transform 0x2D9485, after the step's animations), not as of the shot; then a bullet a pellet (0x322830), the kick (on_shot 0x331C50 at 0x2E2564) and the shot's spread (0x331150 at 0x2E2573); its one caller on_shot_event 0x30EC7E
 0x002e2990		auto		
 0x002e2a30		auto	0	
 0x002e2cc0		auto	4	
@@ -1311,7 +1311,7 @@ va	name	source	ret_cleanup	result
 0x0030ea50	survarium::weapon_core_fire_state_base::on_animation_end_impl	manual	8	
 0x0030eab0	survarium::weapon_core_fire_state_base::serialize	manual	8	
 0x0030eb10	survarium::weapon_core_fire_state_base::deserialize	manual	12	
-0x0030ebf0	survarium::weapon_core_fire_state_base::on_shot_event	manual	4	
+0x0030ebf0	survarium::weapon_core_fire_state_base::on_shot_event	manual	4	the fire state's subscriber of its user's animation event `shoot` (frame 0 of the item's fire clip); calls instant_fire at 0x30EC7E, the only call of it in the image (no E8/E9 nor absolute reference else)
 0x003100f0	survarium::pistol_weapon_core_fire_state::initialize	manual	0	
 0x00310170	survarium::pistol_weapon_core_fire_state::on_animation_end_impl	manual	8	
 0x003108d0	survarium::weapon_core_melee_state::initialize	manual	0	
@@ -2473,8 +2473,8 @@ va	name	source	ret_cleanup	result
 0x00109bd0	vostok::resources::query_result::finish_translated_query	manual	0	none; finish_query_impl's end for a translate cook (the cook's +18h bit 8, 0xF0E55): set_deleter_object_if_needed (0x109AA0); a save (+0E0h not 0) clears +2C0h's 200000h and goes to the save list (0xF8A40 on 0x1B5A6F8), else the guard +2D8h down and at 0 on_created_resource (0x103140); the result (+104h) is not read here
 0x00103140	vostok::resources::resources_manager::on_created_resource	manual	0	none; result +104h 4 (requery): +100h 0, the guard +2D8h 1, +2C0h's 4100h (processed request path, translated) cleared, +14Ch 0, push_new_query (0x103D10), the resources thread woken (SetEvent [1B5A678h]); any other result (2, postponed, too): the created list (0xF8A40 on 0x1B5A6C8), woken
 0x003cfdb0	vostok::render::res_render_output::apply_fullscreen_state	manual	4	
-0x003cfe20	vostok::render::res_render_output::goto_fullscreen	manual	0	
-0x003cfe80	vostok::render::res_render_output::minimize	manual	0	
+0x003cfe20	vostok::render::res_render_output::goto_fullscreen	manual	0	none; with +EFh 0 (not in its fullscreen state), the window ([+E4h]) the focus (GetFocus) and not minimized (IsIconic): its swap chain's SetFullscreenState(+EDh 0, fullscreen_output 0x3CFAF0) through vtable +28h, +EFh 1 when that succeeded
+0x003cfe80	vostok::render::res_render_output::minimize	manual	0	none; a fullscreen output only (+EDh 0): +EFh 0, SetFullscreenState(FALSE, the monitor's output), ShowWindow(SW_FORCEMINIMIZE) only when that succeeds (DXGI and DXVK refuse FALSE with an output: never)
 0x001ed430	survarium::game::on_fullscreen_alttab	manual	0	
 0x001ed450	survarium::game::on_alttab	manual	0	
 0x00129bb0	vostok::buffer_string::assign_config_text	manual	0	void; keeps EAX, ECX and ESI (push ecx / pop ecx, push esi / pop esi), EDX not; writes [EAX]'s text from its start: copies [ECX]'s C string while end < capacity, then the zero at end (a full one's zero at its capacity)
@@ -2832,3 +2832,10 @@ va	name	source	ret_cleanup	result
 0x002d3700	survarium::game_world_core::drop_world_events_after	manual	4	
 0x002d43b0	survarium::game_world_core::new_world_event	manual	0	EAX the new event node or 0, its +0, +4, +8, +1Ch, +20h, +28h zeroed; the callers write +0 the victim, +1 the killer, +18h the type (0 a kill, 0x2DA3A8; 1 a victory item's user, 0x300B4A and 0x301004; 2 a hit, generate_hit_event 0x2DA054, which sets +28h 1), +24h the time
 0x0015e470	vostok::render::environment_properties::operator=	manual	0	
+0x003a19f0	vostok::animation::mixing::n_ary_tree::tick	manual	16	AL: a callback asked to stop (the 0.10b source's m_mixing_tree.tick; its one caller animation_player::tick 0x39180F); reads its tree at once (cmp [tree+4],0 at 0x3A19F9), so a null tree faults there; a tree without a root (+4 0) takes the time (+2Ch) and returns 0
+0x00391be0	vostok::animation::animation_player::reset	manual	0	void; the tree released (+E100h := 0, 0x39ED10 at the last reference) and the callbacks emptied (+E108h := 0, +E10Ch := &+E118h, +E110h := A00h); base_player::initialize calls it at 0x2DAD1C at every spawn, 0x390E94 the other caller: a spawned player has no tree until its first select_animations 0x2D9690
+0x00392370	vostok::animation::animation_player::tree_actual_time	manual	0	EAX = the tree's time (+2Ch), 0 without a tree; player::mt_draw 0x247539 ticks a not alive player's (+33Ch 0) at 0x247543 while this is below the player's time +324h, with no check of the tree: a place's player never spawned (base_player::base_player 0x2D6C27: +324h -1) gets animation_player::tick 0x3917D0 with no tree and faults in n_ary_tree::tick 0x3A19F9 (crash report 2026-11-22, revision 71)
+0x003923c0	vostok::animation::animation_player::has_animations	manual	0	AL: the tree's animation count (+20h) above 0; 0 without a tree (skip_time_if_needed's test at 0x391613)
+0x00297630		manual	0	third_person_game_effects_presenter vtable +14h, the presenter's tick (from 0x2DDA6B): when +4 is set (a player's +3A4h, written by vtable +24h 0x31E810 from player::set_effect_presenter 0x1F3769), its +4's object's vfn +14h (the player's own default presenter, +3ACh through +3A8h), then the particle (+8h) and sound (+0B4h) presenters' vfn +14h. Neither +4 nor +10h is cleared when that player takes another holder: a place's presenter last given to a lobby character's player (its player::initialize takes the place's, 0x1F2580, before on_player_ready 0x285085 gives it its own +D2CCh) reaches that player after it is destroyed: _purecall at 0x297642 (rev40 crash 2026-11-01)
+0x0031e810		manual	4	game effects presenters' vtable +24h (the third-person one's, 0xA0B644): +4 := the argument (player::set_effect_presenter passes the player's +3A4h)
+0x002dda40		manual	0	a game_effect_player's presenter tick: each node of its list (+2Ch, next +4Ch) through 0x2DE3A0, then its holder's (+38h) presenter's vfn +14h (0x2DDA6B); base_player::tick 0x2DAB28 (EDI the player +358h), game_world::tick 0x1F7FAF, lobby_menu::tick 0x21D700, game_world_core 0x2D1CF2

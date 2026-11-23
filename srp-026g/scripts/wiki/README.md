@@ -16,7 +16,11 @@ whose items take it lists those items. Reliability is left out: items wear
 nothing.
 
 The weapons section is a searchable weapon catalogue with class filters,
-sorting and expandable weapon stats, in EN/UK.
+sorting and expandable weapon stats. Both pages are one copy for every language
+(`weapons.html`, `simulators.html`, each with its `.texts.json`): their words
+are the site's (`servers/web-server/words/`), filled in by the server, and the
+names of weapons, rounds, skills and modifications the game's in each language
+(`scripts/site-texts/README.md`).
 Two selected weapons share a stat comparison; it, and each weapon card, link to
 the simulators with the same weapons and rounds. Comparison
 colors follow each stat's direction, stay neutral for equal displayed values,
@@ -51,12 +55,45 @@ modification) and each weapon's `dispersion` and `double_handed`; the skills' na
 and icons are the skills page's, the modifications' the calculator's. Low stamina's
 floor is left out. A table gives each weapon's spread parts in degrees.
 
+A shot moves three things, and the simulation shows each by its own switch:
+
+- **Recoil** (`recoil.js`): the kick and, from the hip, the shake. It turns the
+  camera by the weapon's recoil numbers, at random within their ranges; the
+  next bullet leaves where it points.
+- **Camera wobble** (`motions.js`): the hands' shot clip turns the camera bone
+  `Item` on some weapons (of the automatic ones only the H&K 416 and the M4A1).
+  One fixed curve a shot; no number scales it. It turns the bullets too: a
+  bullet leaves along the eye as the simulation's step before its shot left
+  it (steps end every 50 ms), so from a burst's second shot on a bullet takes
+  the curve late in the pass before (the H&K 416: 0.29 degrees on average, at
+  most 0.67, mostly sideways); the first leaves from rest. The hits are drawn
+  so.
+- **Gun kick** (`motions.js`): the gun's own shot clip moves its body bone
+  `offset` in front of the camera, which the aimed view shows on every gun
+  since patch 172. One fixed curve a shot; the bullet leaves from the camera,
+  so this moves only where the sights point.
+
+The view's cross is the camera's centre, where a bullet goes; a ring is the
+gun's sight while aimed. Under each view the same from the side: the eye, the
+view's line, the sight's line and each bullet from the eye to the wall.
+`shot_motions.py` reads both curves from each weapon's clips in the site build
+(`damage-calc/build_site.py` extracts `animations/single/weapons/`), so a
+release's page has that release's clips: `shot` in the calculator's data, a
+weapon without it (a page built from older data) moving nothing but by its
+recoil. Its header has the bones, the axes' signs and what was checked.
+
+A side's **custom gun** (the panel under its setup) is its weapon with any of
+those values the visitor's own: the recoil numbers by the config's keys, and
+each motion's peak, which scales the weapon's own curve or, where it has none,
+a standard one (to its peak in the pass's first fifth, back by its end). The
+same weapon in both slots compares it with its custom gun.
+
 `recoil.js` models the native shot, ramp and recovery operations at 50 ms ticks,
 matching the research reference in `match-server/.../bots/recoil.rs`. Weapon
 parameters all come from the dataset. The fixed animation normalization factors
 63.735 / 21.48 come from the executable. Random samples use a repeatable xorshift
 seed, not the native generator. This is a recoil model, not a bullet-impact
-prediction: no mouse compensation or confirmed horizontal screen projection. The UI states those limits. Next shot, reset and timeline
+prediction: no mouse compensation or confirmed horizontal screen projection. Next shot, reset and timeline
 scrubbing update the same simulation position. Changing weapons or the shot
 count resets the position; changing the random seed rebuilds both traces while
 preserving the current position.

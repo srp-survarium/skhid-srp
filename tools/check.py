@@ -4,6 +4,7 @@
                                 (committed, staged, unstaged and untracked changes)
     tools/check <name|glob>...  those checks, affected or not ('cargo:*' every crate)
     tools/check --list          the manifest, and what the current change selects
+    tools/check --exe-inputs    the repo globs the patched exe is built from (`{exe_inputs}`), one a line
     --no-cache                  run even when a pass on the same inputs is recorded
     --base <rev>                compare with <rev> instead of the merge-base with origin/main
     -v                          stream each check's output (default: a log, its tail on failure)
@@ -82,8 +83,9 @@ class Check:
 
 
 class Manifest:
-    def __init__(self, checks, ignore):
+    def __init__(self, checks, ignore, exe):
         self.checks, self.ignore = checks, ignore
+        self.exe = [w for w in exe if not w.startswith(('{main}/', '~/', '/', '!'))]  # the repo's own
 
 
 def workspace_crates(root):
@@ -154,6 +156,28 @@ def included_files(root, crate_dir):
     return words
 
 
+def arena_crates(root):
+    """The crates outside client-patches the exe's arena is built from: every one its manifests name
+    by `path`, transitively (as link_026g.py follows them), and the files their sources include."""
+    patches = root / 'srp-026g' / 'client-patches'
+    todo = [m for m in patches.rglob('Cargo.toml') if 'target' not in m.relative_to(patches).parts]
+    seen = set()
+    while todo:
+        manifest = todo.pop().resolve()
+        if manifest in seen:
+            continue
+        seen.add(manifest)
+        for dep in re.findall(r'path\s*=\s*"([^"]+)"', manifest.read_text()):
+            if (manifest.parent / dep / 'Cargo.toml').is_file():
+                todo.append(manifest.parent / dep / 'Cargo.toml')
+    words = set()
+    for manifest in seen:
+        if not manifest.parent.is_relative_to(patches):
+            words.add(manifest.parent.relative_to(root).as_posix() + '/**')
+        words |= included_files(root, manifest.parent)
+    return sorted(words)
+
+
 def read_manifest(root, main):
     path = root / 'tools' / 'checks.tsv'
     rows = []
@@ -168,8 +192,13 @@ def read_manifest(root, main):
         rows.append((number, *[f.strip() for f in fields], *([''] * (4 - len(fields)))))
     crates = None
     checks, extras, ignore = {}, {}, []
+    exe = [w for _, name, inputs, _, _ in rows if name == 'exe' for w in inputs.split()]
+    if exe:
+        exe += arena_crates(root)
     for number, name, inputs, command, notes in rows:
-        words = inputs.split()
+        words = [x for w in inputs.split() for x in (exe if w == '{exe_inputs}' else [w])]
+        if name == 'exe':
+            continue
         if name == 'ignore':
             ignore += [glob_regex(w) for w in words]
             continue
@@ -194,7 +223,7 @@ def read_manifest(root, main):
         for _, words in rows_of:
             checks[name][0] = checks[name][0] + words
     return Manifest([Check(name, Inputs(words, main), command, notes)
-                     for name, (words, command, notes) in checks.items()], ignore)
+                     for name, (words, command, notes) in checks.items()], ignore, exe)
 
 
 def blob_id(path):
@@ -302,6 +331,7 @@ def main(argv=None):
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('names', nargs='*', help='checks to run (globs), affected or not')
     parser.add_argument('--list', action='store_true')
+    parser.add_argument('--exe-inputs', action='store_true')
     parser.add_argument('--no-cache', action='store_true')
     parser.add_argument('--base')
     parser.add_argument('-v', '--verbose', action='store_true')
@@ -314,6 +344,9 @@ def main(argv=None):
     except (OSError, ValueError, KeyError, tomllib.TOMLDecodeError) as error:
         print(f'tools/check: {error}', file=sys.stderr)
         return 2
+    if args.exe_inputs:
+        print('\n'.join(manifest.exe))
+        return 0
     tree = Tree(root)
 
     base = args.base

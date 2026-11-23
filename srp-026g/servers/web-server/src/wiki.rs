@@ -9,9 +9,9 @@
 //! The quests ([`crate::quests`]) come from the server's game data and pay rules;
 //! the modes ([`crate::modes`]) from its game data, its rules and the lobby's pools.
 
+use crate::built::{Built, Script};
 use crate::{
-    ContentType, Lang, Response, Written, damage, equipment, escape, maps, modes, modifiers,
-    quests, skills,
+    ContentType, Lang, Response, damage, equipment, escape, maps, modes, modifiers, quests, skills,
 };
 
 pub(crate) const PATH: &str = "/wiki";
@@ -19,8 +19,19 @@ pub(crate) const WEAPONS: &str = "/wiki/weapons";
 pub(crate) const SIMULATORS: &str = "/wiki/simulators";
 pub(crate) const MODIFIERS: &str = "/wiki/modifiers";
 pub(crate) const EQUIPMENT: &str = "/wiki/equipment";
-const SCRIPT: &[u8] = include_bytes!("../wiki/weapons.js");
-const SIMULATORS_SCRIPT: &[u8] = include_bytes!("../wiki/simulators.js");
+static SCRIPT: Script = Script::new(include_bytes!("../wiki/weapons.js"));
+static SIMULATORS_SCRIPT: Script = Script::new(include_bytes!("../wiki/simulators.js"));
+/// The weapons and the simulators, built in every language's places (`crate::built`).
+static WEAPONS_PAGE: Built = Built::new(
+    include_str!("../wiki/weapons.html"),
+    include_str!("../wiki/weapons.texts.json"),
+    &SCRIPT,
+);
+static SIMULATORS_PAGE: Built = Built::new(
+    include_str!("../wiki/simulators.html"),
+    include_str!("../wiki/simulators.texts.json"),
+    &SIMULATORS_SCRIPT,
+);
 const STYLE: &str = include_str!("../wiki/style.css");
 
 /// Where a page that moved into the wiki is now, for its old address.
@@ -45,8 +56,8 @@ fn section(lang: Lang, path: &str, name: &str, line: &str) -> String {
 pub(crate) fn file(path: &str) -> Option<(&'static str, &'static [u8])> {
     const JS: &str = "text/javascript; charset=utf-8";
     match path {
-        "/wiki/weapons.js" => Some((JS, SCRIPT)),
-        "/wiki/simulators.js" => Some((JS, SIMULATORS_SCRIPT)),
+        "/wiki/weapons.js" => Some((JS, SCRIPT.source())),
+        "/wiki/simulators.js" => Some((JS, SIMULATORS_SCRIPT.source())),
         _ => None,
     }
     .or_else(|| modifiers::file(path))
@@ -64,17 +75,9 @@ pub(crate) fn page(
     now: &skills::Now,
 ) -> Response {
     let (title, body) = if path == WEAPONS {
-        let body = match lang.written() {
-            Written::En => include_str!("../wiki/weapons.en.html"),
-            Written::Uk => include_str!("../wiki/weapons.uk.html"),
-        };
-        (lang.t("Weapons"), body.to_owned())
+        (lang.t("Weapons"), WEAPONS_PAGE.page(lang))
     } else if path == SIMULATORS {
-        let body = match lang.written() {
-            Written::En => include_str!("../wiki/simulators.en.html"),
-            Written::Uk => include_str!("../wiki/simulators.uk.html"),
-        };
-        (lang.t("Simulators"), body.to_owned())
+        (lang.t("Simulators"), SIMULATORS_PAGE.page(lang))
     } else if path == skills::PATH {
         (lang.t("Skills"), skills::body(lang, now))
     } else if path == quests::PATH {
@@ -182,26 +185,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn both_languages_have_weapon_stats_and_comparison() {
-        for lang in [Lang::En, Lang::Uk] {
+    fn every_language_has_weapon_stats_and_comparison() {
+        for lang in Lang::ALL {
             let page = page(WEAPONS, "", lang, "site header", &skills::Now::default());
             assert!(page.body.contains("site header"));
             assert!(page.body.contains("id=\"wpn_ak_74m\""));
             assert!(page.body.contains("class=\"weapon-details\""));
             assert!(page.body.contains(&format!("lang=\"{}\"", lang.code())));
             assert!(page.body.contains("id=\"compare-a\""));
-            assert!(page.body.contains("href=\"/wiki/simulators?lang="));
+            assert!(page.body.contains(&format!("href=\"/wiki/simulators?lang={}", lang.code())));
+            assert!(!page.body.contains('⟦'), "{lang:?}: a place left");
         }
     }
 
     #[test]
-    fn both_languages_have_the_simulators_and_name_only_files_they_serve() {
-        for lang in [Lang::En, Lang::Uk] {
+    fn every_language_has_the_simulators_and_name_only_files_they_serve() {
+        for lang in Lang::ALL {
             let page = page(SIMULATORS, "", lang, "site header", &skills::Now::default());
             assert!(page.body.contains(&format!("lang=\"{}\"", lang.code())));
             assert!(page.body.contains("id=\"compare-a\""));
             assert!(page.body.contains("class=\"sim-vertical\""));
             assert!(page.body.contains("data-setup="));
+            assert!(!page.body.contains('⟦'), "{lang:?}: a place left");
             let script = page.body.split_once("/wiki/simulators.js?v=").unwrap().1;
             assert!(script.starts_with(|c: char| c.is_ascii_hexdigit()));
             assert!(file("/wiki/simulators.js").is_some_and(|(_, bytes)| !bytes.is_empty()));
@@ -219,7 +224,7 @@ mod tests {
 
     #[test]
     fn the_skills_page_names_only_files_it_serves() {
-        for lang in [Lang::En, Lang::Uk] {
+        for lang in Lang::ALL {
             let page = page(
                 skills::PATH,
                 "",
@@ -231,6 +236,7 @@ mod tests {
             assert!(page.body.contains(&format!("lang=\"{}\"", lang.code())));
             assert!(page.body.contains("class=\"skill-branch\""));
             assert!(page.body.contains("data-skill=\"101\""));
+            assert!(!page.body.contains('⟦'), "{lang:?}: a place left");
             let files: Vec<&str> = page
                 .body
                 .match_indices("/skills/")
