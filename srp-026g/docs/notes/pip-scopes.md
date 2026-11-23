@@ -82,66 +82,127 @@ the frame's draw, CPU    3.4 .. 4.8       3.0 .. 3.6   2.8 .. 3.4   3.3 .. 3.7  
   texture streaming at a narrow field of view (each draw asks its own mips).
 - Pictures: `private/renders/pip-probe/fire-station-<pose>-<off|256|512|1024>.png` (the second view
   in the top right corner), each run's log and `timings.txt` beside them.
-- **The default from these numbers:** 512 (the lens's picture is a disc of 0.45 of the half height:
-  486 px across at 1080p, 648 at 1440p). The lens is drawn only while a magnified optic is aimed, so
+- **The default from these numbers:** 512 (the lens is the eyepiece on the screen, a disc of about
+  half the height: 512 covers it at 1080p and nearly at 1440p). The lens is drawn only while a magnified optic is aimed, so
   the cost is that time's alone.
 
-## 3. The lens (`SKHID_PIP_SCOPES`, unplayed)
+## 3. The lens (the setting, or `SKHID_PIP_SCOPES`; unplayed)
 
 - **When:** the eyes' weapon (first person, or a spectator's eyes) holds a magnified optic
   (`hide_weapon_on_aim`: the PSO-1, ACOG, Leupold and the other 0.69 rifle scopes; not
-  collimators, not iron sights).
+  collimators, not iron sights). Nothing is made before the first such aim with the setting on (the
+  window, the view and the lens's shaders are made then, kept after), and nothing is drawn while
+  no magnified optic is held.
 - **The frame's field of view stays the eyes' own** (uro_fov) for the whole aim: the projection
   apply_camera set is replaced, for the draw and for the scene's copy the interface projects with.
-  The zoom field itself (the camera's +94h) is the game's, so the mouse sensitivity, which scales
-  with it, is today's for the same optic.
+  The zoom field itself (the camera's +94h) is the game's and is never written, so the mouse
+  sensitivity, which scales with it, is today's for the same optic.
 - **The body, the hands and the idle optic stay in the scene** at the swap
   (`add_aimed_rifle_scope_to_scene` 0x244B60 / `remove_aimed_rifle_scope_from_scene` 0x244C50:
   four lohooks skip the idle model's removal and the body's hiding for the eyes' weapon). The aimed
   model is still added: the frame's draw leaves its surfaces out of its first-person list, the
   second view keeps only them. So the aim-in is the camera closing on the optic itself (its own
   eye since the 0.69 scope port), and at the swap the lens opens.
-- **The second view** is the scoped view of today: the same camera, the optic's full zoom (patch
-  22's angle at its fov_factor), the aimed model in front of the eye with its reticle, narrowed to
-  the lens (a radius of 0.45 of the half height) and square. Where a bullet goes is the screen's
-  centre, the camera's axis: the second view's centre, so the reticle's centre is the shot's.
-- **The lens** is that picture drawn over the frame as a disc at the screen's centre, after the
-  frame's post-process and before the interface (`render.flash_ui`), with its own two shaders, every
-  Direct3D state it sets put back. Its rim darkens over its outer 8 %. The draw is PROVEN in a game without a scope:
-  `SKHID_PIP_PROBE=disc` draws the probe's picture this way (`private/renders/pip-probe/fire-station-*-lens-disc.png`;
-  a thousand frames, the interface drawn after it each frame, no fault). Drawn after the TAA, it has
+- **The aimed model hangs on the gun**, not on the eye: add_model puts it at the weapon's world
+  matrix (weapon+660h, 0x244BA9), and weapon::draw moves the idle and aimed models by the gun's
+  scope locator (weapon+744h) every frame. So it follows the gun's sway and kick.
+- **The lens's place** is that model's eyepiece on the frame's screen, each frame: of the aimed
+  model's surfaces (a static instance's records, +298h, their world spheres at +10h) the smallest of
+  at least 8 mm radius that the frame's view axis passes through (the glass or the reticle's plane,
+  not the body, not a dot), projected with the frame's own view and projection
+  (`second_view::lens_on_screen`, at `forward.execute_foreground`, the frame's draw). The disc is
+  that sphere's: its centre and its radius on screen. Before the swap there is no lens (the idle
+  optic's glass as today). Not done: what is in front of the eyepiece hiding it (at the full aim
+  nothing is; the disc is drawn without a depth test).
+- **The second view's camera is the aim itself**, the eyes' transform (the player's +44Ch, bone
+  Item), read at update_camera, not the frame's camera: a bullet takes its start and its direction
+  from it (weapon_core::instant_fire copies its 16 dwords at 0x2E2440..0x2E2453 and hands them to
+  get_dispersed_bullet_direction 0x2E1D50 at 0x2E245C). The
+  two are the same today: update_camera hands that transform to the view (`camera.eye`, 0x1F3643)
+  and apply_camera copies the view into the scene in the same tick, so no frame lies between them.
+  With a view that trails the aim (the camera-trail branch), the frame's camera moves and the
+  scope's picture does not: the reticle's centre stays where a shot goes.
+- **Magnification:** the second view's field of view follows from the lens's size on the screen
+  and the optic's zoom, so the world in the lens is as large as in today's scoped view of that
+  optic: tan(half its field) = r x tan(half the optic's full-zoom angle), r the lens's radius in the
+  frame's half heights, the optic's angle patch 22's at its fov_factor (65 x 0.25 = 16.25 degrees
+  for every full scope, whatever uro_fov). A direction at angle t is then at
+  tan t / tan 8.125 deg half heights in the lens and at tan t / tan(uro_fov / 2) in the frame: the
+  lens magnifies tan(uro_fov / 2) / tan 8.125 deg, the same as today's scoped view over today's
+  unscoped one. **For a full scope (PSO-1, ACOG, fov_factor 0.25): 4.46x at uro_fov 65, 7.0x at
+  uro_fov 90** (on screen, against the world around the lens). The radius r is the last frame's
+  lens's (one frame behind while the eyepiece grows during the aim-in).
+  - The first lens probe (`SKHID_PIP_PROBE=disc`, the earlier captures) squeezed a quarter of the
+    frame's field into a disc of 0.45 half heights: 1.8x on screen, wrong. It now uses the same rule
+    (a full scope's angle, r = 0.45): MAGNIFICATION_CAPTURE.
+- **The reticle** is the aimed model's own, drawn in the second view: today's reticle at today's
+  angular size, cut to the lens; its centre the second view's centre, the shot's direction.
+- **The lens's picture** is drawn over the frame as a disc, after the frame's post-process and
+  before the interface (`render.flash_ui`), with its own two shaders (`pip_lens.hlsl`), every
+  Direct3D state it sets put back; its rim darkens over its outer 8 %. Drawn after the TAA, it has
   no ghost of the last frame's picture while turning (the TAA blends half of the last frame where
-  nothing moves, and a lens drawn as a surface of the gun would be such a place).
-- **Magnification:** the target in the lens is as large as in today's scoped view; around the lens
-  the world is at the eyes' field of view.
+  nothing moves, and a lens drawn as a surface of the gun would be such a place). The draw is PROVEN
+  in a game: `SKHID_PIP_PROBE=disc` draws the probe's picture this way
+  (`private/renders/pip-probe/fire-station-*-lens-disc*.png`; thousands of frames, the interface
+  drawn after it each frame, no fault).
+- **Exposure:** the second view adapts its own eye to its picture, as any view does. Measured (the
+  second view's picture against the same world region of the frame, mean of 255): 72.9 against 81.0
+  and 66.9 against 74.1 at the two poses, about 10 % darker; the owner saw no issue in the captures,
+  so it stays. A try at giving it the frame's exposure (the frame window's adapted luminance, its
+  target 59, copied in, its time step 0) came out plainly off (63 and 104 for 81 and 74) and is out.
+  Its draw leaves the eye-adaptation reset flag (0xAC914C, one for every view) to the frame's draw.
+  The frame's own exposure is not touched: the same region left of the centre measures the same with
+  the second view as without (71.1 of 255; 68.1 and 68.4).
+- **For other patches:** `pip_scopes::frame_field_of_view(thread)`, the frame's vertical field
+  of view this frame in degrees (uro_fov while the lens is on, the game's zoomed one otherwise),
+  for what scales with the eyes' view; the camera's +94h stays the scope's zoom either way.
 - **Others** see nothing different: everything is the eyes' own drawing; the world format and what
   a match computes do not change (no `simulation_changes.tsv` row).
 
 ## 4. The setting
 
-- `srp_pip_scopes on|off` in user.cfg, off by default (patch 83's console variable, `hud_options`),
-  read each frame: off is today's behaviour exactly (no second view drawn, no hook acts).
-  `SKHID_PIP_SCOPES=on|256|512|1024` turns it on whatever the setting says (local tests).
-- The label `st_srp_pip_scopes_option` is in the twelve dictionaries. **Not made:** its checkbox in
-  the Graphics tab (Settings.as, `SrpVideoTab`); until then the console sets it.
+- "Picture-in-picture scopes" on the Graphics tab, one row under Distance detail (Settings.as:
+  an `SrpCheckOption` on the video frame, Apply and Cancel as the other checkboxes of ours), the
+  exe's `srp_pip_scopes on|off` in user.cfg (patch 83's console variable, `hud_options`), off by
+  default, read each frame: off is today's behaviour exactly (no second view made or drawn, no hook
+  acts). Its label `st_srp_pip_scopes_option` is in the twelve dictionaries. The movie builds
+  (`flash_tree.py build`); its place on the tab is not seen yet (no Ruffle run).
+- `SKHID_PIP_SCOPES=on|256|512|1024` turns it on whatever the setting says (local tests).
 
-## 5. Not done, and what a real use still needs
+## 5. Cheaper second view
 
-- **Unplayed.** The lens part (section 3) has never run: a static capture has nobody to aim, and
-  nothing here aims. Everything in it is from the code read; the owner's test is the proof.
-- **The lens's size and place** are a constant disc at the screen's centre (0.45 of the half
-  height). The optic's eyepiece, seen at the eyes' field of view from its own eye, has a size of its
-  own; the disc should be the eyepiece's (its lens surface's bounds projected, per optic, as X-Ray's
-  fork measures it) and follow it through the aim-in and the gun's sway, not only at the full aim.
-- **The reticle** is the aimed model's own, drawn in the second view: today's reticle, at today's
-  angular size, cut to the lens. A second-focal-plane look; nothing per optic.
-- **Exposure:** each view adapts its own eye (the second view to the scope's picture); the frame's
-  exposure is not imposed on the lens.
-- **Cost cuts not made:** a lower shadow, AO or SSR quality for the second view (the stages' enable
-  bytes, opt+109h..+11Eh, set around its draw as the hi-Z switch is), and a second view sized to the
-  lens on screen.
+- Off in the second view's draw, put back after it: the hi-Z occlusion (section 1), SSAO/SSDO
+  (render options +10Eh), the screen-space reflections (+113h), and the sun's shadow cascades
+  (+109h): its shadow mask reads the cascades the frame's last draw fitted from the same eye, which
+  cover the narrower frustum (a frame old).
+- Measured the same way as section 2 (Fire Station, 1080p, highest settings, the shared GPU; per
+  frame, four windows of 240 frames):
+
+```
+                               256          512          1024
+all passes (section 2)         2.4 .. 2.9   2.5 .. 3.5   3.5 .. 4.6   ms GPU
+AO and SSR off                 2.4 .. 2.8   2.5 .. 4.4   5.0 .. 6.4   ms GPU (a busier GPU that hour)
+and no cascades of its own     0.5 .. 0.8   0.9 .. 1.1       -        ms GPU
+                               0.8 .. 1.1   1.0 .. 1.4       -        ms render thread CPU
+```
+
+- The sun's cascades were most of the cost (each draw refits and redraws them for its own
+  frustum); AO and SSR at these sizes almost nothing. Without its own cascades the second view's
+  shadows are the same as with them (`fire-station-s-high-512-cascades.png`: left its own, right
+  the frame's; the right is brighter from the exposure try of section 3). With 512 the lens costs
+  about 1 ms of GPU and 1 to 1.4 ms of the render thread while a magnified optic is aimed, nothing
+  otherwise.
+
+## 6. Not done
+
+- **Unplayed.** Sections 3 to 5 have never run with an optic aimed: a static capture has nobody to
+  aim. The replay archive (`~/games/skhid-replays`, three replays) could show a recorded player's
+  aim, but the capture rig plays only its own empty-map replay and holds the camera at its poses
+  (patch 176 writes the camera at apply_camera); showing a recorded scoped aim needs a capture that
+  follows a player's eyes to a given moment: not made.
+- What is in front of the eyepiece is not tested against the disc (no depth test).
+- Local lights' shadow faces and the remaining passes run at full quality in the second view.
 - **Memory:** the second view's window holds a full set of targets at its size (at 512: about 30
-  MB of video memory, LIKELY, from `create_targets` formats), made the first time it is wanted and
-  kept for the process.
+  MB of video memory, LIKELY, from `create_targets` formats), made at the first aim, kept after.
 - **Spectators** with the setting see through the spectated player's optic the same way (the eyes'
   camera is theirs).

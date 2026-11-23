@@ -319,6 +319,23 @@ fn through_lens(projection: &[f32; 16], fov_factor: f32, uro_fov: f32, lens: f32
     Some(p)
 }
 
+/// The vertical field of view the frame was last drawn with, degrees (game thread).
+static FRAME_FOV: Lock<f32> = Lock::new(65.0);
+
+fn set_frame_fov(thread: &Thread, projection: &[f32; 16]) {
+    if let Some(half) = trig::atan2(1.0, projection[5]) {
+        FRAME_FOV.with(thread, |fov| *fov = 2.0 * half * 180.0 / core::f32::consts::PI);
+    }
+}
+
+/// The frame's vertical field of view this frame, degrees: uro_fov while the lens
+/// is on (the scope's zoom is in the lens only), the game's zoomed one otherwise.
+/// For other patches that scale with what the eyes see (the camera trail);
+/// the camera's zoom (+94h) stays the scope's either way.
+pub fn frame_field_of_view(thread: &Thread) -> f32 {
+    FRAME_FOV.with(thread, |fov| *fov)
+}
+
 /// player::update_camera's zoom: the held optic, when magnified, for this
 /// frame's draw.
 pub fn on_zoom(ctx: &mut Context<'_>) -> Flow<NoExit> {
@@ -343,6 +360,7 @@ pub fn on_draw(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let (camera, projection) = (frame.camera(), frame.projection());
     let view = invert_affine(&camera);
     let main = frame.main_view();
+    set_frame_fov(thread, &projection);
     let drawn = match used {
         Use::Probe => {
             frame.draw_second(&second, &view, &narrowed(&projection, ZOOM), &view, &projection);
@@ -369,6 +387,7 @@ pub fn on_draw(ctx: &mut Context<'_>) -> Flow<NoExit> {
                 return Flow::Continue;
             };
             frame.set_projection(&main_projection);
+            set_frame_fov(thread, &main_projection);
             FRAME_CAMERA.with(thread, |kept| *kept = Some((view, main_projection)));
             if scoped.shown {
                 // from the aim itself: the reticle's centre is where a shot goes
