@@ -54,6 +54,7 @@ pub mod station;
 pub mod trade;
 pub mod trap_spot;
 pub mod watch;
+pub mod zone_take;
 
 use mapdata::Vec3;
 use serde::{Deserialize, Serialize};
@@ -1594,6 +1595,11 @@ impl Running {
             Self::Flank(state) => flank::route_total_m(state, tactics),
             _ => None,
         }
+    }
+
+    /// [anomaly batteries] Whether this is a Collect take inside an energy core's zones (`team::Commit::ZoneWalk`).
+    pub fn in_zone_take(&self) -> bool {
+        matches!(self, Self::Collect(collect::State::ZoneTake(_)))
     }
 
     /// [A394 (b)] Whether this is a Collect take to finish before another play ([`collect::finishing`]).

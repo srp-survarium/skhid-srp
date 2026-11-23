@@ -589,6 +589,10 @@ pub enum Commit {
     /// against every play of any band, and while it is no longer a candidate;
     /// its slot is the bot's from the start of the pass.
     Finish,
+    /// [anomaly batteries] A take inside an energy core's zones (`collect::State::ZoneTake`): kept as [`Commit::Finish`] is,
+    /// and against a survival play too, until the take has walked out by its own way (its re-forecast reads the pools now and
+    /// walks out when hurt; another play's walk would leave the cloud by a way no forecast priced).
+    ZoneWalk,
     /// [fix-team 2, `commit.hold_started`] A started play of [`held_kind`]: kept against every play but a named
     /// interrupter ([`interrupts`]), while it is a free candidate. An interrupter that takes the bot suspends it
     /// ([`INTERRUPT_REASON`]).
@@ -775,7 +779,7 @@ fn assign_given_up(
     // [A394 (b)] The slots of the takes finished first are their bots' for the whole pass.
     let mut taken: Vec<SlotKey> = asking
         .iter()
-        .filter(|bot| bot.commit == Commit::Finish)
+        .filter(|bot| matches!(bot.commit, Commit::Finish | Commit::ZoneWalk))
         .filter_map(|bot| bot.current?.slot)
         .collect();
     // The plays given this tick, by kind and target.
@@ -843,11 +847,11 @@ fn assign_given_up(
         };
         // [A394 (b), `commit.finish_take`] A take within reach, unseen, before its first press: kept against every play but
         // a survival one that is the bot's best, of any band, and while it is no longer a candidate.
-        if bot.commit == Commit::Finish
+        if matches!(bot.commit, Commit::Finish | Commit::ZoneWalk)
             && let Some(current) = bot.current
         {
             let other = pick(&by, &cband);
-            if other.is_some_and(survival) {
+            if bot.commit == Commit::Finish && other.is_some_and(survival) {
                 take_counts::count(take_counts::Count::FinishLeftToSurvive);
             } else {
                 take_counts::count(take_counts::Count::FinishKept);

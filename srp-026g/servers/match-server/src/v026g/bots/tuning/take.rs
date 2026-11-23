@@ -304,6 +304,12 @@ pub struct TakeTuning {
     /// play walks in as before (only Collect's take waits, `known_threats`). The live recordings of 2026-11-13: of the 13
     /// bots killed by a man standing by a loose battery, 7 were walking there on plays other than Collect.
     pub clear_first: bool,
+    /// [anomaly batteries] A battery whose stand lies in an energy core's zones that switch (level_02's fruit cloud; no
+    /// crossing reaches it) is taken by its own way in, stand and way out when the core's energy forecast lets it: rule (a),
+    /// no zone that switches comes on over the plan and the low states' cost is borne, or rule (b), the team behind and the
+    /// whole plan's damage borne with the crossings' spend (`plays::zone_take`, `switch_take`). Off: such a battery is not
+    /// taken ("no crossing to its zone").
+    pub switch_take: bool,
 }
 
 impl Default for TakeTuning {
@@ -320,6 +326,7 @@ impl Default for TakeTuning {
             on_the_move: true,
             known_threats: true,
             clear_first: true,
+            switch_take: true,
         }
     }
 }
