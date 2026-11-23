@@ -3,14 +3,11 @@
 2026-11-21: "make sure freeze tag is playable on all non FFA-only maps", "let's add artifact hunt
 to all other non FFA-only maps too"; docs/notes/freeze-tag.md and artefact_hunt.md, "Maps").
 
-usage: python3 -I make.py --base <folder> --mapdata <folder> [--write <content-edit folder>]
-           [--pack <packs>/artefact-hunt-maps-<v>]
+usage: python3 -I make.py --base <folder> [--write <content-edit folder>] [--pack <packs>/artefact-hunt-maps-<v>]
 
 --base   the files as a build of release/content.tsv without these lists and their pack leaves them, at their game
          paths (`srp-game-data get` of a build of the manifest): gameplay/db_static_dictionaries, the
          maps' configs, the battery and Team Deathmatch projects of the maps Artifact Hunt lacks.
---mapdata the `<project>.mapdata` of the maps' Team Deathmatch projects (`mapdata-dump --project ...`): the
-         floor under each base, for its concrete slab (artefact-hunt/stands.py).
 --write  writes freeze-tag-maps-1.json and artefact-hunt-maps-1.json there, and the new maps' ids to ids.tsv.
 --pack   writes the pack of Artifact Hunt's new configs (a new folder).
 
@@ -27,8 +24,7 @@ Deathmatch and Freeze Tag are training-camp-teams-1's, on its Free for All point
   at its battery container's place and turn: the stock maps' box (item/storage_device/box_atlant8c,
   its render visual and collision as artefact-hunt-1's projects have them; the owner, 2026-11-23: "you
   should use exactly the same prop for storing artifact"), its foot where the container stood, its use
-  shape the box itself. A box on rough ground stands on a concrete slab (artefact-hunt/stands.py),
-  raised onto it with its use shape. The project is a copy of the map's Team Deathmatch project with
+  shape the box itself. The project is a copy of the map's Team Deathmatch project with
   the box (its respawn points, but one a box stands on; each team's base checked to be on its own
   team's side); the config, in the pack, has the stock Artifact Hunt config's rules,
   parameters, announcer and item and the map's own ui. Its maps_dict row of ids.tsv.
@@ -60,7 +56,6 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / 'research-mode'))
 sys.path.insert(0, str(HERE.parent / 'artefact-hunt'))
 import bcw  # noqa: E402
-import stands  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location('ah_make_pack', HERE.parent / 'artefact-hunt' / 'make_pack.py')
 ah = importlib.util.module_from_spec(_spec)
@@ -323,7 +318,8 @@ def artefact_box(data, box, where):
         foot = min((e for e in base['props'] if e['visual_name'] == model['model_name']
                     and math.hypot(e['position'][0] - at[0], e['position'][2] - at[2]) < 0.3),
                    key=lambda e: e['position'][1])
-        turn = stands.yaw(model['rotation'])
+        axes = research.rotation(model['rotation'])
+        turn = math.atan2(axes[0][2], axes[0][0])     # its turn in plan: a model turned (pi, a, pi) is turned pi - a
         place = {'position': (at[0], foot['position'][1], at[2]), 'rotation': (0.0, ah.f32(turn), 0.0),
                  'scale': (1.0, 1.0, 1.0)}
         base['props'] = [dict(visual, **place)]
@@ -352,51 +348,6 @@ def under_boxes(data, spawns):
                     and -1.0 < offset[1] < ah.BOX_HEIGHT):
                 out.append(point['full_name'])
     return out
-
-
-def slab_bases(data, world, spawns, where, said):
-    """stands.py's slab under a base whose box stands on rough ground (the owner, 2026-11-22:
-    "essentially everywhere it stands on rough ground"); a box over the Team Deathmatch floor stands on
-    what the Batteries mode set its container on."""
-    points = ([(f'artefact spawn point {i}', s['position']) for i, s in enumerate(data['spawners'])]
-              + [(f'respawn point {i}', p) for i, p in enumerate(spawns)])
-    for base in data['bases']:
-        model = base['model']['model_name']
-        if model not in stands.FOOTPRINTS:
-            sys.exit(f"{where}: team {base['team']}'s container {model}: no footprint in stands.FOOTPRINTS")
-        at = base['model']['position']
-        foot = min((e for e in base['props'] if e['visual_name'] == model
-                    and math.hypot(e['position'][0] - at[0], e['position'][2] - at[2]) < 0.3),
-                   key=lambda e: e['position'][1])
-        position, rotation = tuple(foot['position']), tuple(foot['rotation'])
-        floor = stands.ground(world, model, position, rotation)
-        if floor is None:
-            sys.exit(f"{where}: team {base['team']}'s container has no floor under a point of its footprint")
-        over = position[1] - floor[0]
-        why = stands.rough(floor)
-        if over > 0.05:
-            said.append(f"{where}: team {base['team']}: {over:.2f} m over the floor ({', '.join(floor[2])}), on what "
-                        f"its Batteries mode sets it on: no slab")
-            continue
-        if why is None:
-            said.append(f"{where}: team {base['team']}: a built floor ({', '.join(floor[2])}): no slab")
-            continue
-        new_foot, place, outline, cut, covered = stands.place(world, model, position, rotation, floor[0], points)
-        delta = new_foot - position[1]
-        up = lambda p: (p[0], ah.f32(p[1] + delta), p[2])
-        base['props'] = [dict(e, position=up(e['position'])) for e in base['props']]
-        base['solids'] = [dict(e, position=up(e['position'])) for e in base['solids']]
-        base['shapes'] = [dict(s, position=up(s['position'])) for s in base['shapes']]
-        base['position'] = up(base['position'])
-        visual, solids = stands.entries(place, ah.vector)
-        base['props'].append(visual)
-        base['solids'] += solids
-        said.append(f"{where}: team {base['team']}: rough ground, {why}: {stands.SLAB} x{stands.SCALE} at "
-                    f"{ah.spot(place['position'])}, the container {delta:.3f} m up ({new_foot - floor[0]:.2f} m over the "
-                    f"floor's highest point under it"
-                    + (')' if new_foot - floor[0] > stands.FLUSH + 1e-3 else ', flush: raised it would cut into what stands by)'))
-        if covered:
-            said.append(f"{where}: team {base['team']}'s slab covers {', '.join(covered)}")
 
 
 def like_of(entries, entry, keys, where):
@@ -443,7 +394,7 @@ def hunt_config(template, tdm, name, project, data):
     return config
 
 
-def hunt(base, team, anchor, ids, mapdata):
+def hunt(base, team, anchor, ids):
     edits = {'_about': '', 'copy': [], 'add_entry': [], 'remove_entry': [], 'replace_string': [], 'add_value': []}
     template = load(base, MODES_DIR + AH_TEMPLATE)
     lift = template['mode']['artefact_hunt']['item']['drop_lift']
@@ -473,18 +424,11 @@ def hunt(base, team, anchor, ids, mapdata):
         tdm_project = load(base, project_file(source))
         data = battery_data(load(base, project_file(battery_project)), tdm_project, lift, target)
         artefact_box(data, box, target)
-        path = mapdata / (source.replace('/', '_') + '.mapdata')
-        if not path.exists():
-            sys.exit(f'--mapdata: no {path.name} (mapdata-dump --project {source})')
-        floors_of = ah.floors.load(path)
-        world = stands.Floors(floors_of, [e['position'] for b in data['bases'] for e in b['props']])
         boxed = under_boxes(data, tdm_project['server_objects']['respawn_points'])
         for full_name in boxed:
             edits['remove_entry'].append({'file': project_file(target), 'list': 'server_objects/respawn_points',
                                           'where': {'full_name': full_name}})
             said.append(f'{target}: the respawn point {full_name} is under a base\'s box: taken out')
-        slab_bases(data, world, [p['position'] for p in tdm_project['server_objects']['respawn_points']
-                                 if p['full_name'] not in boxed], target, said)
         config = hunt_config(template, tdm, name, target, data)
         research.check_config_types(config, template, target)
         files[f'{MODES_DIR}artefact_hunt/{name}.options'] = bcw.dump(config)
@@ -533,15 +477,13 @@ def main():
     parser.add_argument('--base', type=Path, required=True)
     parser.add_argument('--write', type=Path)
     parser.add_argument('--pack', type=Path)
-    parser.add_argument('--mapdata', type=Path, required=True)
     args = parser.parse_args()
     dictionary, team = team_maps(args.base)
     taken = {entry['id'] for entry in dictionary}
     ids = Ids(taken | listed_ids())
     last = dictionary[-1]['id']
     ft, ft_rows = freeze_edits(team, last, ids)
-    ah_edits, files, ah_rows, ah_moved, said = hunt(args.base, team, ft_rows[-1][0] if ft_rows else last, ids,
-                                                  args.mapdata)
+    ah_edits, files, ah_rows, ah_moved, said = hunt(args.base, team, ft_rows[-1][0] if ft_rows else last, ids)
     new = [row[0] for row in ft_rows + ah_rows]
     if taken & set(new) or len(set(new)) != len(new):
         sys.exit(f'maps_dict ids taken or twice: {sorted(taken & set(new))}, {len(new) - len(set(new))} twice')
