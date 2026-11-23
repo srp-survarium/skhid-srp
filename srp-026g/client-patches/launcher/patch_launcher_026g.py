@@ -549,14 +549,19 @@ def build(original, code, site=DEFAULT_SITE, game_exe=DEFAULT_GAME_EXE, argument
 
 
 def code():
-    """launcher_values_026g.asm assembled at CAVE, with the game's languages
+    """launcher_values_026g.asm assembled at CAVE by the arena's NASM (link_026g.py's
+    toolchain: 2.16, NASM or NASM_DIR), with the game's languages
     (launcher_languages_026g.inc, from localization_026g.py's LANGUAGES)."""
     import localization_026g
+    try:
+        nasm = P.linker.toolchain()["nasm"]
+    except P.linker.LinkError as error:
+        sys.exit(f"the launcher's code: {error}")
     with tempfile.TemporaryDirectory(prefix="srp-launcher-") as folder:
         with open(os.path.join(folder, "launcher_languages_026g.inc"), "w", encoding="utf-8") as table:
             table.write(localization_026g.launcher_table())
         out = os.path.join(folder, "launcher_values_026g.bin")
-        subprocess.run([os.environ.get("NASM", "nasm"), "-f", "bin", f"-DCAVE={SECTION_VA:#x}", "-I", folder + os.sep,
+        subprocess.run([nasm, "-f", "bin", f"-DCAVE={SECTION_VA:#x}", "-I", folder + os.sep,
                         os.path.join(HERE, "launcher_values_026g.asm"), "-o", out], check=True)
         with open(out, "rb") as file:
             return file.read()
