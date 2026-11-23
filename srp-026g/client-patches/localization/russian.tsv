@@ -3351,7 +3351,7 @@ st_use_next_medkit_action	Следующая аптечка
 st_use_onyx_action	Использовать Оникс
 st_use_oxygen_tank_action	Использовать кислородный баллон
 st_use_painkiller_action	Использовать обезболивающее
-st_use_rdgm_action	Бросок дымовой гранаты РДГ-М
+st_use_rdgm_action	Бросок дымовой гранаты
 st_use_resupply_zone	Пополнить аммуницию ({USE})
 st_use_rgd5_action	Бросок гранаты РГД-5
 st_use_science_medkit_action	Использовать научную аптечку

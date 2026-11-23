@@ -3351,7 +3351,7 @@ st_use_next_medkit_action	Next medkit
 st_use_onyx_action	Use Onyx
 st_use_oxygen_tank_action	Use oxygen tank
 st_use_painkiller_action	Use Anesthetic
-st_use_rdgm_action	Throw smoke grenade RDG-M
+st_use_rdgm_action	Throw smoke grenade
 st_use_resupply_zone	Add ammunition ({USE})
 st_use_rgd5_action	Throw RGD-5 grenade
 st_use_science_medkit_action	Use Science Medkit

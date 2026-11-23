@@ -3351,7 +3351,7 @@ st_use_next_medkit_action	Наступная аптэчка
 st_use_onyx_action	Выкарыстаць Онікс
 st_use_oxygen_tank_action	Выкарыстаць кіслародны балон
 st_use_painkiller_action	Выкарыстаць абязбольвальнае
-st_use_rdgm_action	Кідок дымавой гранаты РДГ-М
+st_use_rdgm_action	Кідок дымавой гранаты
 st_use_resupply_zone	Папоўніць амуніцыю ({USE})
 st_use_rgd5_action	Кідок гранаты РГД-5
 st_use_science_medkit_action	Выкарыстаць навуковую аптэчку

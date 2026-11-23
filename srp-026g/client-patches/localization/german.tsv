@@ -3351,7 +3351,7 @@ st_use_next_medkit_action	Nächstes Erste-Hilfe-Kit
 st_use_onyx_action	Onyx anwenden
 st_use_oxygen_tank_action	Sauerstoffflasche anwenden
 st_use_painkiller_action	Schmerzmittel anwenden
-st_use_rdgm_action	Rauchgranate RDG-M werfen
+st_use_rdgm_action	Rauchgranate werfen
 st_use_resupply_zone	Munition ergänzen ({USE})
 st_use_rgd5_action	Granate RGD-5 werfen
 st_use_science_medkit_action	Wissenschafts-Kit anwenden
