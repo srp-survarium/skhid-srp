@@ -503,7 +503,7 @@ pub fn run_up_slow(world: &Collision, s: &Settings, press_at: Vec3, heading: (f3
 /// [body physics S5a] How far the client's body walks up from rest on a flat open floor (`moving` steps with `keys` held after the
 /// keys' first input step, at the walk cap `cap`, with the settings `s`): the start of a run-up to a press point, measured by playing
 /// it (DESIGN §3.3: no formula). None when no body comes to rest on that floor.
-fn walk_up_length(s: &Settings, keys: u32, moving: u32, cap: f32) -> Option<f32> {
+pub(crate) fn walk_up_length(s: &Settings, keys: u32, moving: u32, cap: f32) -> Option<f32> {
     use crate::motion::{self, ClientBody, Input, Kin, Pass};
     static FLAT: std::sync::OnceLock<Collision> = std::sync::OnceLock::new();
     let world = FLAT.get_or_init(|| {
