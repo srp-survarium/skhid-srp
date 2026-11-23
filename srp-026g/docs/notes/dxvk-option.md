@@ -355,6 +355,43 @@ size; Settings to windowed writes the caption back itself (set_size). This holds
 DXVK (Wine too), not only AMD's. The renderer's state is a `Lock` now, by way of defence: no second
 thread reading it is shown (the start, the login screen and every Present are the main thread's).
 
+## The taskbar after Alt+Tab
+
+**The report** (2026-11-03, Linux, then the same on Windows): after Alt+Tab back into the game in
+fullscreen, the desktop's taskbar stays drawn over it.
+
+**What the game does at the focus's return** (PROVEN in the code, the behaviour of the shell not run
+here): the window procedure's WM_ACTIVATE (message_processor 0x1827A) calls the engine world's
+activate slot and nothing of the window; the window is made fullscreen again by the engine's tick,
+`goto_fullscreen` 0x3CFE20 (its only caller the game's vtable +30h 0x1ED430, at 0x13D63, each
+tick): while +EFh is 0 (minimize 0x3CFE94 clears it at every focus loss of a fullscreen output,
+present 0x3CF8BE when DXGI left fullscreen without the focus), the window has the focus (GetFocus)
+and is not minimized, `SetFullscreenState(TRUE, fullscreen_output)`, +EFh 1 when it succeeds.
+So the window is activated first, in whatever shape the focus loss left it (with DXVK: its saved
+rectangle and styles, not topmost, once DXVK left fullscreen 100 ms after the loss; with Windows'
+DXGI: windowed at the output's size, not topmost after a start in fullscreen, which set_size never
+makes topmost), and it covers the monitor again only in a later tick, with SWP_NOACTIVATE (DXVK's
+`enterFullscreenMode`). Windows' taskbar goes under a window that covers its monitor when it sees
+that window activated so (the shell's "rude" window), which it did not.
+
+**The fix** (patch 83, `render_output.fullscreen_back`, a lohook at 0x3CFE77 after that
+SetFullscreenState succeeded, with either renderer, a fullscreen output only, +EDh 0): the window
+is marked fullscreen for the taskbar, `ITaskbarList2::MarkFullscreenWindow(window, TRUE)`, the
+shell's own call for this ("the taskbar is moved to the bottom of the z-order when this window is
+active"). The list is made at the first return (`CoInitializeEx` apartment on the main thread, one
+already a multithreaded apartment used as it is; `CoCreateInstance(CLSID_TaskbarList)`, HrInit)
+and kept; a refusal is said once and never asked again. The window's z-order and styles are not
+touched, so nothing changes at the next focus loss. `srp_patches.log` says `fullscreen: back in
+front, the taskbar told the window is fullscreen` at each return. Paths that do not reach it: a
+windowed output (+EDh 1); the start's fullscreen entry (`show` 0x3CF600) and Settings' (set_size
+0x3CF980), entered while the window is already in front (Settings' makes it topmost too).
+
+**Not fixed by it:** under Wine the taskbar is the desktop's (KDE, GNOME and the like), which reads
+the X11 or Wayland window's states, not the shell's list (Wine's MarkFullscreenWindow does nothing).
+With DXVK, which Linux players always have (the prefix's), the window is topmost and covers the
+screen again after the return (`enterFullscreenMode`); why a desktop keeps its panel over it is not
+known here: it needs the player's desktop and a run.
+
 ## The address space (SRP-3)
 
 **The reports** (2026-11-08/09, rev53 and rev54; RX 7800 XT twice, RX 6900 XT; AMD's Windows Vulkan driver 2.0.353 to

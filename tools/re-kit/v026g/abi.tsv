@@ -2473,8 +2473,8 @@ va	name	source	ret_cleanup	result
 0x00109bd0	vostok::resources::query_result::finish_translated_query	manual	0	none; finish_query_impl's end for a translate cook (the cook's +18h bit 8, 0xF0E55): set_deleter_object_if_needed (0x109AA0); a save (+0E0h not 0) clears +2C0h's 200000h and goes to the save list (0xF8A40 on 0x1B5A6F8), else the guard +2D8h down and at 0 on_created_resource (0x103140); the result (+104h) is not read here
 0x00103140	vostok::resources::resources_manager::on_created_resource	manual	0	none; result +104h 4 (requery): +100h 0, the guard +2D8h 1, +2C0h's 4100h (processed request path, translated) cleared, +14Ch 0, push_new_query (0x103D10), the resources thread woken (SetEvent [1B5A678h]); any other result (2, postponed, too): the created list (0xF8A40 on 0x1B5A6C8), woken
 0x003cfdb0	vostok::render::res_render_output::apply_fullscreen_state	manual	4	
-0x003cfe20	vostok::render::res_render_output::goto_fullscreen	manual	0	
-0x003cfe80	vostok::render::res_render_output::minimize	manual	0	
+0x003cfe20	vostok::render::res_render_output::goto_fullscreen	manual	0	none; with +EFh 0 (not in its fullscreen state), the window ([+E4h]) the focus (GetFocus) and not minimized (IsIconic): its swap chain's SetFullscreenState(+EDh 0, fullscreen_output 0x3CFAF0) through vtable +28h, +EFh 1 when that succeeded
+0x003cfe80	vostok::render::res_render_output::minimize	manual	0	none; a fullscreen output only (+EDh 0): +EFh 0, SetFullscreenState(FALSE, the monitor's output), ShowWindow(SW_FORCEMINIMIZE) only when that succeeds (DXGI and DXVK refuse FALSE with an output: never)
 0x001ed430	survarium::game::on_fullscreen_alttab	manual	0	
 0x001ed450	survarium::game::on_alttab	manual	0	
 0x00129bb0	vostok::buffer_string::assign_config_text	manual	0	void; keeps EAX, ECX and ESI (push ecx / pop ecx, push esi / pop esi), EDX not; writes [EAX]'s text from its start: copies [ECX]'s C string while end < capacity, then the zero at end (a full one's zero at its capacity)

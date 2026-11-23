@@ -477,7 +477,8 @@ pub struct StartReport {
 
 /// A shot's push on one part of a ragdoll (the diagnostics' spike): the
 /// push (N s, the lift in), the part's mass (kg, its kit in), its speed
-/// after (m/s), whether its change of speed was capped (`SHOT_MAX_SPEED`).
+/// after (m/s), whether its change of speed was capped (`SHOT_MAX_SPEED`),
+/// and the ragdoll's age when it came, s (its own clock, from its start).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Knock {
     pub part: Part,
@@ -485,6 +486,7 @@ pub struct Knock {
     pub mass: f32,
     pub speed: f32,
     pub capped: bool,
+    pub age: f32,
 }
 
 /// Whether a frame's step left the ragdoll moving.
@@ -1193,6 +1195,7 @@ impl Ragdoll {
             mass: 1.0 / body.inverse_mass,
             speed: body.velocity.length(),
             capped,
+            age: self.age,
         })
     }
 

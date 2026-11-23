@@ -881,3 +881,7 @@ def outputs(spec=None, abi=None, inputs=None, vtables=None):
     fs = every_function(spec, abi, inputs, vtables)
     return {HEADER: header_text(fs).encode(), INCLUDE: include_text(fs).encode(), ASM: asm_text(fs).encode(),
             RUST: rust_text(fs).encode(), RAW: raw_text(fs, fields()).encode()}
+
+
+if __name__ == "__main__":
+    raise SystemExit(f"{__file__}: its files are written by every build (python link_026g.py --generate)")

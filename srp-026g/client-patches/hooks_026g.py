@@ -1095,3 +1095,7 @@ def check_layers():
                 raise Bad(f"{where}: a patch module must have `#![forbid(unsafe_code)]`")
             if re.search(r"\braw\b", code):
                 raise Bad(f"{where}: a patch module uses `vostok` alone, never `raw`")
+
+
+if __name__ == "__main__":
+    raise SystemExit(f"{__file__}: its files are written by every build (python link_026g.py --generate)")

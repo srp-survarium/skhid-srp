@@ -87,10 +87,15 @@ Each one a decision; the owner's are marked, the rest are the port's and open to
   `<w>_ah`; its `_v1`.. variants are other layouts of the same maps and are left out).
   Every other team map (the owner, 2026-11-21: "let's add artifact hunt to all other non FFA-only
   maps too"), which 0.46c2 never had, takes its own battery mode's: the artefact's spawn points
-  are its battery spawners' items, lifted by `drop_lift`; a team's base its battery container,
-  its use shapes the container's collision geometries and its props the container's models and
-  collision as the battery project has them, on a copy of the map's Team Deathmatch project
-  (its spawns; each base checked on its own team's side). Pack `artefact-hunt-maps` (the configs)
+  are its battery spawners' items, lifted by `drop_lift`; a team's base the stock maps' box
+  (`item/storage_device/box_atlant8c`, its render visual and collision as artefact-hunt-1's projects
+  have them; the owner, 2026-11-23: "you should use exactly the same prop for storing artifact") at
+  its battery container's place and turn, its foot on the floor the container stood on (the
+  container and the props by it give way), its use shape the box itself (make_pack's `BOX_HALF` x
+  `BOX_HEIGHT`), on a copy of the map's Team Deathmatch project (its spawns, but one a box stands on:
+  Rudnya v0.69's `team2/respawn/4/respawn_point(124)`, where its container stood; each base checked
+  on its own team's side). Concrete stands under the boxes are parked for later (the owner,
+  2026-11-23: "with slabs we will work later"; the research is in PR #2377's history). Pack `artefact-hunt-maps` (the configs)
   and `artefact-hunt-maps-1.json` (projects, maps_dict 327-350), both made by
   `scripts/mode-maps/make.py` (each map's id kept in its `ids.tsv`: a new map's is the next free one). Rudnya v0.69 too: 0.46c2's Rudnya points are for 0.26's geometry,
   its bases where the battery containers stand anyway. London likewise since it plays 0.32a4's

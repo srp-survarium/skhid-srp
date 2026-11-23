@@ -472,13 +472,23 @@ pub fn on_step(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let world = GameWorld::at_after_move(ctx);
     let key = world.as_ref().and_then(crate::vostok::gun_cook::world_key);
-    let client = world.and_then(|world| world.network_client());
+    let client = world.as_ref().and_then(|world| world.network_client());
     let guns = STATE.with(thread, |state| {
         if state.world != key {
             state.world = key;
             state.corpses.reset();
         }
         step(state, client.as_ref(), thread);
+        // patch 196: the corpse shots told, played at the corpses as drawn here
+        if let Some(world) = &world {
+            let own = client.as_ref().map_or(crate::corpse_shot_dark::Own::Living, crate::corpse_shot_dark::Own::of);
+            crate::corpse_shot_dark::after_step(thread, world, state.time, own, |place, death| {
+                match state.corpses.place(usize::from(place.get())) {
+                    Corpse::Body { death: d, slot } if d == death => state.corpses.slot(slot).body().map(|b| b.skull()),
+                    Corpse::Alive | Corpse::Body { .. } | Corpse::Canned { .. } => None,
+                }
+            });
+        }
         // each place's dropped gun, for patch 85's drops drawn as their copies
         core::array::from_fn(|place| state.corpses.gun(place)
             .map(|(death, pose)| crate::weapon_pickup::DroppedGun { life: death.0, transform: matrix_of(pose) }))
@@ -493,11 +503,17 @@ fn step(state: &mut State, client: Option<&NetworkClient<'_>>, thread: &Thread) 
     let living = core::mem::replace(&mut state.shots.living, [None; LIVING_HITS]);
     // the pushes of the shots since the last step (the bullets' threads
     // are done: the simulation's move has returned)
+    let own_place = client.and_then(|client| client.local_place());
     for push in state.shots.pushes.iter_mut() {
-        if let Some(p) = push.take()
-            && let Some(knock) = state.corpses.push(p.place, p.death, p.part, p.point, p.impulse)
-            && (knock.push > SPIKE_PUSH || knock.speed > SPIKE_SPEED)
+        let Some(p) = push.take() else { continue };
+        let Some(knock) = state.corpses.push(p.place, p.death, p.part, p.point, p.impulse) else { continue };
+        // patch 196: the local player's own bullet in a corpse
+        if let Some(client) = client
+            && own_place == Some(p.round.shooter)
         {
+            crate::corpse_shot_dark::hit(thread, p.place, p.death, knock.age, client.places());
+        }
+        if knock.push > SPIKE_PUSH || knock.speed > SPIKE_SPEED {
             spike_of_push(&mut state.trace, thread, state.time, p.place, &p.round, &knock);
         }
     }

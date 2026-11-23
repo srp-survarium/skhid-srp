@@ -32,7 +32,7 @@ your own copy, and the patched exe is made from it.
 | File | What |
 |---|---|
 | `patch_launcher_026g.py` | Builds the patched launcher from the original. Python 3, nothing else |
-| `launcher_values_026g.asm`, `.bin` | The new code (304 bytes and three text slots): the values the launcher used to read from the installer's registry key, worked out from where the launcher is; and Enter pressing PLAY. Assembling the source again gives the same bytes |
+| `launcher_values_026g.asm` | The new code (304 bytes and three text slots): the values the launcher used to read from the installer's registry key, worked out from where the launcher is; and Enter pressing PLAY. Assembled by every build (`patch_launcher_026g.py`'s `code()`) |
 | `launcher_pages.py` | The ten small pages the launcher shows from its own folder while the server's page loads and when it cannot be loaded |
 | `check_*_026g.py` | Run the patched code under Unicorn: the registry reads (patch 4), the language (14), the install status (13), the "Allow torrent" box (15), the "Relay" row (16), the file count of a download (17) |
 | `selftest_launcher_026g.py` | Builds it in memory and checks it: every changed byte is one named below, the PE is well formed, the hook and its way back, the addresses, the relocations, no old address left, the `.asm` gives the `.bin` |
@@ -52,7 +52,7 @@ python check_relay_box_026g.py <game>/binaries/x86/survarium_launcher.exe   # th
 python check_file_count_026g.py <game>/binaries/x86/survarium_launcher.exe  # "(5/69)" of a download (patch 17), under Unicorn
 ```
 
-Each of them assembles `launcher_values_026g.asm` (NASM, the dev shell's;
+Each of them assembles `launcher_values_026g.asm` (the arena's NASM 2.16;
 `patch_launcher_026g.py`'s `code()`), with the game's languages, so no .bin
 is committed.
 

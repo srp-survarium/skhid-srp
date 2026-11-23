@@ -338,7 +338,7 @@ const TOTALS: [&str; 20] = [
     "wins",
 ];
 
-const SUMMARY: [&str; 15] = [
+const SUMMARY: [&str; 16] = [
     "duration_s",
     "eligibility",
     "ended_at",
@@ -349,6 +349,7 @@ const SUMMARY: [&str; 15] = [
     "map_id",
     "map_key",
     "mode",
+    "mode_url",
     "players",
     "replay_id",
     "rules",
@@ -829,8 +830,7 @@ fn the_best_scores_are_of_the_period() {
         keys(&rows[0]),
         [
             "deaths", "ended_at", "kills", "level", "map", "map_icon", "map_key", "match", "mode",
-            "player", "rules",
-            "score"
+            "mode_url", "player", "rules", "score"
         ]
     );
     assert_eq!(rows[0]["score"], 310);
