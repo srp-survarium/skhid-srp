@@ -717,6 +717,9 @@ Battery spawn	Batterie-Spawn
 Charger	Ladestation
 Research unit	Forschungseinheit
 Spawn	Spawn
+Glow of the Forest	Schimmer des Waldes
+Bases	Basen
+Base	Basis	hunt
 
 # The damage calculator (a page built at a release: scripts/site-texts)
 Feet	Füße	parts

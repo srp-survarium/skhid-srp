@@ -21,10 +21,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "site-texts"))
 from texts import DICTIONARIES  # noqa: E402
 
 # The modes a match can be (2 batteries, 3 batteries with chargers, 4 team
-# deathmatch, 5 Research, 8 free for all), as the server plays them
-# (crates/survarium/src/v026g/maps.rs, `RuleMode`).
+# deathmatch, 5 Research, 8 free for all, 12 Freeze Tag, 13 Artifact Hunt),
+# as the server plays them (crates/survarium/src/v026g/maps.rs, `RuleMode`).
 FREE_FOR_ALL = 8
-MODES = (2, 3, 4, 5, FREE_FOR_ALL)
+MODES = (2, 3, 4, 5, FREE_FOR_ALL, 12, 13)
 # How each language's pickup hint names an artefact ("Onyx artifact. ...", "Артефакт Онікс. ..."):
 # the game ships no names for the artefacts' configs.
 ARTEFACT_HINT = {"en": r"(.+?) artifact\.", "uk": r"Артефакт (.+?)\.", "ru": r"Артефакт (.+?)\.",
@@ -55,7 +55,8 @@ def playable(raw):
     variants (`mode.srp_variant`: Blackout's configs are mode 2, under
     their own ids) and whose project (`match_making_params.map_name`)
     exists. Of each map: the name key
-    (`map_name`) and per mode and layout the ids, their projects and configs,
+    (`map_name`) and per mode and layout the ids, their projects and configs
+    (each with its `artefact_hunt`, Artifact Hunt's spawns and bases),
     the mode's name key, parameters and rules. A layout is a mode's configs
     of the same Research units (`parameters.capture_zones`): 0 the first the
     dictionary gives, which every mode without units has alone."""
@@ -82,7 +83,7 @@ def playable(raw):
         entry_mode["projects"].append(project_path)
         entry_mode["configs"].append({"id": entry["id"], "config": entry["cfg_mode_name"], "name": mode.get("name"),
                                       "weather": mode["match_making_params"].get("map_weather_id"),
-                                      "project": project_path})
+                                      "project": project_path, "artefact_hunt": mode.get("artefact_hunt")})
         entry_mode["mode_name"] = mode["ui"]["mode_name"]
         entry_mode["parameters"] = mode.get("parameters") or {}
         entry_mode["rules"] = set(mode.get("rules") or [])

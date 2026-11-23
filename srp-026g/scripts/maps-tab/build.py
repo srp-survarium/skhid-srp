@@ -7,7 +7,7 @@
 The patches are exactly the rows of release/patches.tsv (each checked by its
 sha256), mounted over the stock resources.db in their order, as the game does.
 Nothing about a map is written here by hand: the maps are the playable ids of
-`maps_dict` (a config of mode 2 to 5 or 8 whose project exists, as the server
+`maps_dict` (a config of mode 2 to 5, 8, 12 or 13 whose project exists, as the server
 plays them), and of each map
 
 - the name, the modes and their parameters: `gameplay/game_modes/`;
@@ -16,6 +16,8 @@ plays them), and of each map
   all, mode 8, the team-2 respawn points alone: its players' only spawns);
 - Research's three units (mode 5): the mode config's
   `parameters.capture_zones` (`cp_id`, `position`);
+- Artifact Hunt's artefact spawns and the teams' bases (mode 13): the mode
+  config's `artefact_hunt.spawners` and `.bases` (`team`, `position`);
 - artefact containers and what spawns there: the project's `client_objects`
   (`artefact_container`, grouped by their `generic_anomaly_core`);
 - the minimap and its frame: `flash_movies/hud.swf`, class
@@ -71,6 +73,10 @@ GATHER, TIMED = 88, 89
 # Research's rule (480, exe patch 53; docs/notes/research_mode.md) reads its
 # units from the mode config (`parameters.capture_zones`), not the project.
 RESEARCH = 480
+# Artifact Hunt's rule (481, exe patch 171; docs/notes/artefact_hunt.md) reads
+# the artefact's spawn points and the teams' bases from the mode config
+# (`artefact_hunt.spawners`, `.bases`), not the project.
+HUNT = 481
 SITE = "/maps"
 RENDERS = SRP / "servers" / "web-server" / "damage" / "maps"
 RENDER_TABLE = SRP / "scripts" / "damage-calc" / "assets" / "maps" / "maps.json"
@@ -224,6 +230,13 @@ def objects(project, artefact_keys):
     }
 
 
+def hunt(config):
+    """Artifact Hunt's points of one mode config's `artefact_hunt`: where its
+    artefact appears ([x, z, y]) and the teams' bases ([x, z, y, team])."""
+    return {"hunt": sorted(xzy(s) for s in config["spawners"]),
+            "bases": sorted(xzy(b) + [b["team"]] for b in config["bases"])}
+
+
 def spawns(mode_id, points):
     """The respawn points a mode's players get, of its project's (each
     [x, z, y, team, heading]). A free-for-all's are the team-2 points alone:
@@ -313,6 +326,10 @@ def main():
                 # [x, z, y, cp_id], by cp_id (0, 1, 2: A, B, C).
                 seen["units"] = (sorted((xzy(zone) + [zone.get("cp_id", 0)] for zone in p.get("capture_zones") or []),
                                         key=lambda unit: unit[3]) if RESEARCH in rules else [])
+                hunts = [hunt(c["artefact_hunt"]) if HUNT in rules else {"hunt": [], "bases": []} for c in mm["configs"]]
+                if any(h != hunts[0] for h in hunts):
+                    die(f"{folder}: Artifact Hunt's spawns or bases differ between its configs (same map and mode)")
+                seen.update(hunts[0])
                 # A mode's other layout (Research's units elsewhere) is a choice of its own: "5.2".
                 modes.append({"key": f"{mode_id}.{layout + 1}" if layout else str(mode_id), "layout": layout,
                               "mode": mode_id, "ids": sorted(mm["ids"]), "name": text(mm["mode_name"]),
@@ -391,6 +408,7 @@ def main():
         + "}\n")
     write_built_from(out / "built-from.tsv", rows, "the Maps tab (srp-026g/scripts/maps-tab/build.py)")
     points = sum(len(mo["respawn"]) + len(mo["spawners"]) + len(mo["stations"]) + len(mo["containers"]) + len(mo["units"])
+                 + len(mo["hunt"]) + len(mo["bases"])
                  for m in data_maps for mo in m["modes"]) + sum(len(m["artefacts"]) for m in data_maps)
     print(f"{out}: revision {revision}, {len(data_maps)} maps, {points} points, maps.js {len(script) / 1024:.0f} KB")
 
