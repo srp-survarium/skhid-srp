@@ -44,6 +44,13 @@ went on a weapon by a variant: [weapon_scopes.md](weapon_scopes.md), kept as the
   angle from any eye; and leaves the aimed model's first-person lens out, as every released
   collimator has it. A magnified scope's reticle is its aimed model's own (`scope_aimgrid_s`,
   `scope_reddot_s`).
+- **The glass** (pack version 4) is the players' own, as the variants had it: an idle optic's
+  outside lens (`scope_lense_3p_s`) on patch 19's `weapons/loc2/scope_lense_3p`, an aimed one's
+  first-person lens (`scope_lense_1p_s`) on `weapons/loc2/scope_lense_1p`. Version 3 remade the
+  outside lens's material (0.69d0's is an opaque stage with all its maps) on the AK-12's, and the
+  template's Fresnel map (`weapons/ak_12/ak_12_fmap`, switched on) drew the AK-12's parts in the
+  glass of the 13 idle optics that have one (the ten magnified scopes, the CompM4, the PK-01VI and
+  the RSA-S): the owner saw it in third person (2026-11-23).
 
 ## No released pair is lost
 
