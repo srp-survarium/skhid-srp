@@ -1211,6 +1211,32 @@ player's are: the body lands on the hittable floor. `check_weapon_pickup_026g.py
 stand-in for the level takes the new group. Visual only: no data, no simulation
 change.
 
+## 20. The fingers let go (2026-11-23)
+
+The owner, 2026-11-23: a ragdoll's fingers "are always as if they were holding a weapon". The
+bodies end at the forearms (section 7: the hands go with them), and every other bone kept its
+pose on its parent from the frame of the death (`Link::Parent`): the thirty finger joints kept
+the grip of the gun that had just dropped.
+
+A finger joint is now its own link (`Link::Finger`): on its parent as held at the death, its
+turn going to a loose hand's (`skeleton.rs` `LOOSE_FINGERS`, the splines' Euler angles of each
+joint on its parent; both hands' finger bones are laid out alike, a curl is +Z, so one table
+serves both: the knuckles' spread and the thumb are the artefact carry's open palm, the curls a
+resting hand's, 0.45 to 0.8 rad, more toward the little finger). The way is a quaternion nlerp
+eased over `FINGERS_LOOSE_TIME` (0.35 s, under the 0.4 s a body takes to settle, so a settled
+hand is loose) from the ragdoll's age alone. The fingers are no bodies: they have no speed, meet
+nothing and cannot swing (the owner: "make sure fingers don't start to behave wildly too"); the
+joints' places on their parents are the death's, only the turn changes. `Ragdoll::draw` is the
+one way a ragdoll's skeleton is drawn (the camera's head too), so every draw has the same hand.
+The view alone, as all of the ragdoll.
+
+Checked: `cargo test -p ragdoll` (`the_fingers_let_go_once_and_never_swing`: in a shot body's
+fall every joint is each frame nearer the loose turn or where it was, and there from 0.35 s
+on; the thirty joints and no other bone have a loose turn). Looked at offline on the stock
+hands (the artefact carry's `render_mesh.py` skinning, the stock battery idle clip's grip beside
+the loose hand, both hands, four sides): an open hand lightly curled, neither hand twisted. Not
+run in a game.
+
 ## Addresses (re-kit rows added in this change)
 
 | VA | Name | Row |

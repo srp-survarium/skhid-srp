@@ -143,8 +143,8 @@ launcher's dropdown offers the same languages; its own UI has five translations
 and uses English for the others. Website and launcher UI translations are separate.
 
 To add a language, register its resource name, own name, Windows locale rule and two-letter
-code in `LANGUAGES` in `localization_026g.py` (and in `CYRILLIC` for a Cyrillic one), run
-`python3 localization_026g.py --write` (the exe's table, `languages_026g.rs`), add its
+code in `LANGUAGES` in `localization_026g.py` (and in `CYRILLIC` for a Cyrillic one; the
+builds make the exe's and the launcher's tables from it), add its
 complete TSV here (with every `st_srp_` text, the Settings' two
 `st_srp_language_option` and `st_srp_language_restart` among them). For most languages the Windows rule is a primary language id; for a language
 sharing one with another, use a tuple of exact LANGIDs instead. Exact matches

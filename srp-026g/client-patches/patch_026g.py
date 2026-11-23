@@ -106,10 +106,9 @@ USAGE (this script never touches the source exe):
     its own, 0xFC0 of the late join's state page, checked).
     The arena, `.srpx` (Research, the artefacts' code, the engine-function
     library, the kit keys and the match chat option, the hide-the-interface
-    key), is linked from its C and
-    NASM sources at every build
-    (link_026g.py: gcc -m32, GNU ld and NASM 2.16 are needed) and must be
-    arena_026g.lock.json's (`python link_026g.py --write` after a change).
+    key), is linked from its C and NASM sources at every build (link_026g.py:
+    gcc -m32, GNU ld and NASM 2.16 are needed), its generated sources written
+    first (generate_sources).
     The late-join code is late_join_026g.section.bin, checked in too; it is
     made by `late_join_026g.py --write-bin`, which needs nasm, a C compiler
     for x86 and GNU ld (--late-join-bin=<file> names another one).
@@ -3215,13 +3214,12 @@ def our_ranges(data, writes):
     return ours + [(va, va + len(new)) for va, old, new in writes if is_cave(old) or va == HASH_MISMATCH_VA]
 
 
-def arena_data_ranges():
-    """[(lo, hi)] of the arena's data and state blocks (arena_026g.lock.json,
-    which every build's link must be): no code is there, so an address of one
-    the game is given (a table it reads) is data, not an install."""
-    lock = linker.read_lock()
-    blocks = lock["blocks"].values() if lock else ()
-    return [(int(b["va"], 16), int(b["va"], 16) + b["size"]) for b in blocks if b["kind"] != "code"]
+def arena_data_ranges(linked=None):
+    """[(lo, hi)] of the data and state blocks of the arena `linked` (ARENA's
+    when None): no code is there, so an address of one the game is given (a
+    table it reads) is data, not an install."""
+    linked = arena() if linked is None else linked
+    return [(b.va, b.va + b.size) for b in linked.blocks.values() if b.kind != "code"]
 
 
 def installs_of(data, writes):
@@ -3309,15 +3307,14 @@ for _va, _owner, _what in hooks_026g.lohook_sites():
 # (arena_target), so no block keeps a VA of its own: the exe is made whole
 # for every release and never rebased, and nothing outside it holds an
 # address of the arena. The file holds the whole arena (a state block as
-# zeros), only the section's sizes and SizeOfImage grow, and the linked bytes
-# must be arena_026g.lock.json's (arena()). With no block declared there
-# would be no `.srpx` at all.
+# zeros), and only the section's sizes and SizeOfImage grow. With no block
+# declared there would be no `.srpx` at all.
 #   ArenaBlock(name, kind, align, sources): name "<patch>.<what>", unique;
 #   kind "code" (the sources' .text and .rodata, int3 after them), "data"
 #   (their .data) or "state" (their .bss: zeros); align a power of two from
 #   16, 0x1000 for a page of its own; sources the .c and .asm files.
 # A new patch adds its blocks (anywhere: the order is only the layout's) and
-# its source files, then `python link_026g.py --write`.
+# its source files.
 ARENA_NAME = b".srpx\0\0\0"
 ARENA_CHARACTERISTICS = 0xE0000060              # code, initialized data, execute, read, write
 ARENA_VA = 0xA42D000                            # weapon_camo_va + .srpw's three pages
@@ -3369,10 +3366,37 @@ ARENA = (
 )
 
 
+_GENERATED = []
+
+
+def generate_sources(original=None):
+    """Writes the arena's generated sources, never committed (srp-026g/.gitignore):
+    engine_026g.py's library and `raw` layer, hooks_026g.py's entries and shims
+    (a span hook's bytes from `original`, the exe built from, else the one
+    SRP_026G_EXE names) and patch 79's language table (localization_026g.py).
+    Once a process, before its first link; a file that already holds its bytes
+    is left alone (cargo and rust-analyzer see no change)."""
+    if _GENERATED:
+        return
+    import engine_026g
+    import localization_026g
+    try:
+        files = {**engine_026g.outputs(),
+                 **hooks_026g.outputs(exe=hooks_026g.original_reader(original) if original else None),
+                 localization_026g.RUST_TABLE: localization_026g.rust_table().encode()}
+    except (engine_026g.Refused, hooks_026g.Bad, ValueError) as error:
+        sys.exit(f"the arena's generated sources: {error}")
+    for path, content in files.items():
+        if not path.is_file() or path.read_bytes() != content:
+            path.write_bytes(content)
+    _GENERATED.append(True)
+
+
 def arena(blocks=None, tools=None):
     """The linked arena (link_026g.Linked) of `blocks` (ARENA when None, or
-    the self-test's made-up arenas); the build stops when it cannot be
-    linked, or when ARENA's is not arena_026g.lock.json's."""
+    the self-test's made-up arenas), its generated sources written first; the
+    build stops when it cannot be linked."""
+    generate_sources()
     default = blocks is None
     blocks = ARENA if default else tuple(blocks)
     if default:
@@ -3381,16 +3405,9 @@ def arena(blocks=None, tools=None):
         except hooks_026g.Bad as error:
             sys.exit(f"the Rust patches: {error}")
     try:
-        linked = linker.link(blocks, ARENA_VA, ARENA_LIMIT, tools)
+        return linker.link(blocks, ARENA_VA, ARENA_LIMIT, tools)
     except linker.LinkError as error:
         sys.exit(f".srpx: {error}")
-    if default:
-        why = linker.lock_differs(linked, linker.read_lock())
-        if why is not None:
-            sys.exit(f".srpx: the arena linked from its sources is not {linker.LOCK.name}'s: {why}. After a "
-                     "change of an arena source: python link_026g.py --write (and commit the lock); with no "
-                     "change, the tools differ from the lock's")
-    return linked
 
 
 def arena_target(linked, symbol):
@@ -3923,9 +3940,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
     offered patches); none when not given. It is the mount's bitmap and
     nothing else.
     arena_blocks: the blocks of `.srpx` instead of ARENA (the self-test's made-up
-    arenas: ARENA's own reordered, or more blocks after them; no lock is
-    compared, ARENA's own hooks are made); () for none; the build with the
-    late join only."""
+    arenas: ARENA's own reordered, or more blocks after them; ARENA's own hooks
+    are made); () for none; the build with the late join only."""
     if hashlib.sha256(original).hexdigest() != EXE_SHA256:
         sys.exit("the source is not the original 0.26g survarium.exe (sha256 mismatch)")
     if server is not None:
@@ -4431,6 +4447,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         upgrade_preview = open(upgrade_preview_bin(), "rb").read()
         # `.srpx`, the arena, linked here: patch 48's kit_apply takes patch
         # 68's weapon_kit_preview_apply (UPGRADE_PREVIEW_KIT_APPLY; 0 without it).
+        generate_sources(original)
         linked = arena(arena_blocks) if arena_blocks != () else None
         upgrade_preview = with_kit_apply(upgrade_preview, linked)
         weapon_camo = with_bake_name(weapon_camo, bake_name_at, linked)
@@ -4512,7 +4529,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 patch_section_value(data, slot, old, struct.pack("<I", arena_target(linked, symbol)))
                 slot, old, symbol = MODULE_WATCH_TLS_SLOT
                 callbacks = linked.symbols.get(symbol)
-                if callbacks is None or not any(lo <= callbacks < hi for lo, hi in arena_data_ranges()):
+                if callbacks is None or not any(lo <= callbacks < hi for lo, hi in arena_data_ranges(linked)):
                     sys.exit(f".srpx: {symbol!r} is no symbol of a data block of the arena")
                 patch_section_value(data, slot, old, struct.pack("<I", callbacks))
                 for va, old, new in hide_ui_table_writes(linked):

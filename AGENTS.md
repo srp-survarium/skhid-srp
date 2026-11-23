@@ -76,7 +76,9 @@ TSV (one line per name, no bulk JSON). The client patches' own addresses and rea
   function instead of a hand-written call. Only varargs, XMM-argument calls and tail jumps stay hand-written.
 - New client-patch code goes in the `.srpx` arena as plain C or NASM, linked by
   `srp-026g/client-patches/link_026g.py` (`client_patch.md` §0.3): one `ARENA` row and its sources, hooks
-  by symbol, no fixed addresses; run `python link_026g.py --write` and commit `arena_026g.lock.json`.
+  by symbol, no fixed addresses. The generated sources (`engine_026g.*`, `raw_026g.rs`, `hooks_026g.rs`,
+  `hook_entries_026g.asm`, `languages_026g.rs`) are written by every build and never committed; nothing
+  to regenerate by hand (`python link_026g.py --generate` writes them for cargo or rust-analyzer alone).
 
 ## Types and states
 

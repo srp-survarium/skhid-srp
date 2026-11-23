@@ -94,7 +94,13 @@ declare -A pid
 started=$EPOCHREALTIME
 for part in "${parts[@]}"; do
     (
-        if "build_$part" >"$out/$part.log" 2>&1; then word=built; else word=FAILED; fi
+        # not as an `if`'s condition: there bash drops `set -e` for the whole part, and a part
+        # whose build failed went on to copy the last build's result and was called built
+        set +e
+        (set -e; "build_$part") >"$out/$part.log" 2>&1
+        status=$?
+        set -e
+        if ((status == 0)); then word=built; else word=FAILED; fi
         awk -v a="$started" -v b="$EPOCHREALTIME" -v p="$part" -v w="$word" -v where="$out/$part.log" \
             'BEGIN { printf "%s: %s in %.1f s (%s)\n", p, w, b - a, where }'
         [[ $word == built ]]
