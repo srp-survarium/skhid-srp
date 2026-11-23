@@ -5140,7 +5140,14 @@ impl Motor {
             .is_some_and(|(_, before)| before <= 2.0 * feel.hop_look_m);
         // [fix-lip] And off the route's own drops: a drop's waypoint has no jump (`next_jump` passed it). In the spot suite (887697d4a)
         // S222 hopped 0.38 m before a drop's take-off (keys 0x11), and the hop flew the body 2.4 m past the drop's landing.
-        let drop_near = route.next_drop_edge_along(from, 2.0 * feel.hop_look_m, feel.drop_truth);
+        // [fix-lip] Only a take-off ahead of the feet, or at most the capsule's hold radius behind them (a body standing at the rim may
+        // project that far past it, `Body::hold_radius`, 0.311 m with the clients' numbers): the window starts `hop_look_m` back, and a
+        // take-off further behind is a drop the body is past (the combined bench's tdm-m6-s2, a hop kept off 2.31 m past one).
+        // The window's end stays where the jumps' is (`from` + 2 `hop_look_m`); a drop leg the feet are on already reads as its take-off.
+        let back = (s - mapdata::Body::client().hold_radius()).max(from);
+        let drop_near = route
+            .next_drop_edge_along(back, from + 2.0 * feel.hop_look_m - back, feel.drop_truth)
+            .filter(|&edge| edge >= back);
         let hop_but_drop = may
             && !self.carrying
             && cooled
