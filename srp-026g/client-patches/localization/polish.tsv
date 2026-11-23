@@ -14,14 +14,17 @@ k9	9
 kA	A
 kADD	+
 kAPOSTROPHE	'
+kAPPS	Menu
 kB	B
 kBACK	Backspace
 kBACKSLASH	\\
 kC	C
+kCAPITAL	CapsLock
 kCOMMA	,
 kD	D
 kDECIMAL	.
 kDELETE	Delete
+kDIVIDE	Num/
 kDOWN	W dół
 kE	E
 kEND	End
@@ -55,10 +58,14 @@ kL	L
 kLBRACKET	<
 kLCONTROL	LCtrl
 kLEFT	W lewo
+kLMENU	LAlt
 kLSHIFT	LShift
+kLWIN	LWin
 kM	M
 kMINUS	-
+kMULTIPLY	Num*
 kN	N
+kNEXT	PgDn
 kNUMLOCK	NumLock
 kNUMPAD0	Num0
 kNUMPAD1	Num1
@@ -77,19 +84,23 @@ kO	O
 kP	P
 kPAUSE	Pauza
 kPERIOD	.
+kPRIOR	PgUp
 kQ	Q
 kR	R
 kRBRACKET	>
 kRCONTROL	PCtrl
 kRETURN	Enter
 kRIGHT	W prawo
+kRMENU	PAlt
 kRSHIFT	PShift
+kRWIN	PWin
 kS	S
 kSCROLL	ScrollLock
 kSEMICOLON	,
 kSLASH	/
 kSPACE	Spacja
 kSUBTRACT	-
+kSYSRQ	PrtSc
 kT	T
 kTAB	Tab
 kU	U

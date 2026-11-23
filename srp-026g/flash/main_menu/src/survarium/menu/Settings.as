@@ -129,7 +129,7 @@ package survarium.menu
       // (layoutControls); null until then.
       protected var _controlsSpacing:Object = null;
       
-      // The controls tab's "Key bindings" button and its window of every key row (SrpKeysWindow).
+      // The controls tab's "Bindings" button and its window: the keyboard, the mouse and every key row (SrpKeysWindow).
       protected var _keysWindow:SrpKeysWindow;
       
       public function Settings()
@@ -262,6 +262,12 @@ package survarium.menu
             this.settings_content.keysGame.invalidateData();
          }
          this._keysWindow.refresh();
+      }
+      
+      // The exe's table of the keys for the Bindings window (root.srp_keys, key_bindings.rs).
+      public function setBindingKeys(table:String) : void
+      {
+         this._keysWindow.answerKeys(table);
       }
       
       // The exe's answer to the Language choice (root.srp_language): the saved
@@ -717,7 +723,7 @@ package survarium.menu
          this._language = new SrpLanguage(this.settings_content,this.settings_content.s_friends);
          this._changed[this._language.menu] = 0;
          this._language.menu.addEventListener(ListEvent.INDEX_CHANGE,this.languageChanged);
-         this._keysWindow = new SrpKeysWindow(this.settings_content,this.someOneChangedData);
+         this._keysWindow = new SrpKeysWindow(this.settings_content);
          addChild(this._keysWindow);
          this.tabs.addEventListener(IndexEvent.INDEX_CHANGE,this.takeAction);
       }
