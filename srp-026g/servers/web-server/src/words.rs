@@ -1,7 +1,8 @@
 //! The site's own words in the languages other than English
 //! (`../words/README.md`): the code writes a text in English
-//! ([`Lang::t`]), and each language's file says it in that language. A text
-//! a file lacks is shown in English.
+//! ([`Lang::t`]), and each language's file says it in that language. Every
+//! file has every text (the tests name what one lacks); a text no file has
+//! is shown in English.
 
 use std::collections::HashMap;
 use std::fmt::Display;
@@ -243,32 +244,61 @@ mod tests {
         asked
     }
 
+    /// A text as a file writes it: `\`, line breaks and tabs escaped.
+    fn escaped(text: &str) -> String {
+        text.replace('\\', "\\\\").replace('\n', "\\n").replace('\t', "\\t")
+    }
+
+    /// Every language has every text the code asks for, and only those. What
+    /// is wrong is named file by file; a missing text as the row to add, its
+    /// translation left empty to be written.
     #[test]
-    fn every_file_reads_and_ukrainian_lacks_no_text() {
+    fn every_language_has_every_text() {
         let asked = asked();
         assert!(asked.len() > 300, "{} texts found in the code", asked.len());
         assert!(asked.contains(&("Home".to_owned(), String::new())));
         assert!(asked.contains(&("Ban".to_owned(), "button".to_owned())));
-        for (lang, file) in Lang::ALL.into_iter().zip(FILES) {
+        assert!(FILES[0].is_empty(), "English's words are the code's");
+        let mut faults = String::new();
+        for (lang, file) in Lang::ALL.into_iter().zip(FILES).skip(1) {
             let name = format!("words/{}.tsv", lang.code());
             let rows = rows(file).unwrap_or_else(|why| panic!("{name}: {why}"));
+            let mut wrong = Vec::new();
             let mut seen = BTreeSet::new();
             for row in &rows {
                 let key = (row.english.clone(), row.context.clone());
-                assert!(asked.contains(&key), "{name}: the code has no text {key:?}");
-                assert!(!row.text.trim().is_empty(), "{name}: {key:?} is empty");
+                if !asked.contains(&key) {
+                    wrong.push(format!("a row the code no longer asks for: {key:?}"));
+                }
+                if row.text.trim().is_empty() {
+                    wrong.push(format!("not translated: {key:?}"));
+                }
                 let (mut english, mut text) = (places(&row.english), places(&row.text));
                 english.sort_unstable();
                 text.sort_unstable();
-                assert_eq!(english, text, "{name}: the places of {key:?}");
-                assert!(seen.insert(key.clone()), "{name}: {key:?} twice");
+                if english != text {
+                    wrong.push(format!("other places than its English: {key:?}"));
+                }
+                if !seen.insert(key.clone()) {
+                    wrong.push(format!("twice: {key:?}"));
+                }
             }
-            if lang == Lang::Uk {
-                let missing: Vec<_> = asked.difference(&seen).collect();
-                assert!(missing.is_empty(), "{name} lacks {missing:?}");
+            let missing: Vec<_> = asked.difference(&seen).collect();
+            if !missing.is_empty() {
+                wrong.push(format!(
+                    "lacks {} texts: add these rows where uk.tsv has them and write each translation after its tab:",
+                    missing.len()
+                ));
+                for (english, context) in missing {
+                    let context = if context.is_empty() { String::new() } else { format!("\t{context}") };
+                    wrong.push(format!("{}\t{context}", escaped(english)));
+                }
+            }
+            if !wrong.is_empty() {
+                faults += &format!("\n{name}:\n{}\n", wrong.join("\n"));
             }
         }
-        assert!(FILES[0].is_empty(), "English's words are the code's");
+        assert!(faults.is_empty(), "the site's words (words/README.md):{faults}");
     }
 
     #[test]
