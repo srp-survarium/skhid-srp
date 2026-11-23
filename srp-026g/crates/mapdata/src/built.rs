@@ -65,14 +65,15 @@ pub fn write(
 ) -> Result<(), Error> {
     let temporary = path.with_extension("tmp");
     let result = (|| {
-        let mut out = Out(BufWriter::new(File::create(&temporary)?));
+        let mut out = Out(Sink::File(BufWriter::new(File::create(&temporary)?)));
         out.bytes(magic)?;
         out.u32(VERSION)?;
         out.u64(key)?;
         out.u64(digest)?;
         body(&mut out)?;
         out.bytes(END)?;
-        out.0.into_inner().map_err(|e| e.into_error())?.sync_all()?;
+        let Sink::File(file) = out.0 else { unreachable!("made as a file") };
+        file.into_inner().map_err(|e| e.into_error())?.sync_all()?;
         std::fs::rename(&temporary, path)
     })();
     result.map_err(|e| {
@@ -126,11 +127,23 @@ pub fn read<T>(
     Ok(value)
 }
 
-pub struct Out(BufWriter<File>);
+/// Where a structure's bytes go: a file ([`write`]) or a digest of them ([`body_digest`]).
+pub struct Out(Sink);
+
+enum Sink {
+    File(BufWriter<File>),
+    Digest(StreamDigest),
+}
 
 impl Out {
     pub fn bytes(&mut self, bytes: &[u8]) -> std::io::Result<()> {
-        self.0.write_all(bytes)
+        match &mut self.0 {
+            Sink::File(file) => file.write_all(bytes),
+            Sink::Digest(digest) => {
+                digest.bytes(bytes);
+                Ok(())
+            }
+        }
     }
 
     pub fn u32(&mut self, v: u32) -> std::io::Result<()> {
@@ -153,6 +166,66 @@ impl Out {
     ) -> std::io::Result<()> {
         self.u64(items.len() as u64)?;
         items.iter().try_for_each(|item| self.bytes(&to(item)))
+    }
+}
+
+/// [incremental grids] The 128-bit digest of the bytes `body` writes: the bytes a file of [`write`] holds between its header and
+/// its end mark, so two structures of one key whose digests are equal are written to byte-equal files (the header's digest is
+/// the structure's own). However `body` cuts its writes, the same bytes give the same digest.
+pub fn body_digest(body: impl FnOnce(&mut Out) -> std::io::Result<()>) -> u128 {
+    let mut out = Out(Sink::Digest(StreamDigest::default()));
+    body(&mut out).expect("a digest's writes do not fail");
+    let Sink::Digest(digest) = out.0 else { unreachable!("made as a digest") };
+    digest.finish()
+}
+
+/// Two [`crate::digest::Digest`] lanes of other seeds over a byte stream, eight bytes a word whatever the writes' sizes, the
+/// count of bytes last.
+struct StreamDigest {
+    lanes: [crate::digest::Digest; 2],
+    word: [u8; 8],
+    filled: usize,
+    count: u64,
+}
+
+impl Default for StreamDigest {
+    fn default() -> Self {
+        Self {
+            lanes: [crate::digest::Digest::seeded(0x5352_5047_5249_4431), crate::digest::Digest::seeded(0x5352_5047_5249_4432)],
+            word: [0; 8],
+            filled: 0,
+            count: 0,
+        }
+    }
+}
+
+impl StreamDigest {
+    fn bytes(&mut self, bytes: &[u8]) {
+        self.count += bytes.len() as u64;
+        for &byte in bytes {
+            self.word[self.filled] = byte;
+            self.filled += 1;
+            if self.filled == 8 {
+                self.push(u64::from_le_bytes(self.word));
+                self.filled = 0;
+            }
+        }
+    }
+
+    fn push(&mut self, word: u64) {
+        self.lanes[0].u64(word);
+        // The second lane's words turned, so the lanes are not one function of the stream twice.
+        self.lanes[1].u64(word.rotate_left(29) ^ 0xa5a5_a5a5_a5a5_a5a5);
+    }
+
+    fn finish(mut self) -> u128 {
+        if self.filled > 0 {
+            self.word[self.filled..].fill(0);
+            self.push(u64::from_le_bytes(self.word));
+        }
+        let count = self.count;
+        self.push(count);
+        (u128::from(self.lanes[0].finish()) << 64) | u128::from(self.lanes[1].finish())
     }
 }
 
