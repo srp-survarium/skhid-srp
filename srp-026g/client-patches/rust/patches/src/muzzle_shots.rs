@@ -186,13 +186,24 @@ pub fn on_hud(ctx: &mut Context<'_>) -> Flow<NoExit> {
         let (x, y) = crosshair.looked.zip(crosshair.camera).and_then(|(place, (view, projection))| on_screen(&view, &projection, place)).unwrap_or(CENTRE);
         (crosshair.told, Told::At { movie: movie.id(), x, y })
     });
-    if told != wanted
+    if moved(told, wanted)
         && let Told::At { x, y, .. } = wanted
         && movie.invoke_numbers(c"root.srp_crosshair_at", &[f64::from(x), f64::from(y)])
     {
         CROSSHAIR.with(ctx.thread(), |crosshair| crosshair.told = wanted);
     }
     Flow::Continue
+}
+
+/// Whether a movie shows its crosshair elsewhere than `wanted`: a movie
+/// never told shows it at the screen's centre, where its own layout puts it.
+fn moved(told: Told, wanted: Told) -> bool {
+    let Told::At { movie, x, y } = wanted else { return false };
+    let shown = match told {
+        Told::At { movie: last, x, y } if last == movie => (x, y),
+        _ => CENTRE,
+    };
+    shown != (x, y)
 }
 
 /// Where a place of the world is on the screen, in parts of its width and
@@ -432,6 +443,19 @@ mod tests {
         let camera = at(3.0, 2.0, 1.0);
         assert_eq!(on_screen(&camera, &WIDE, Vec3::new(3.0, 2.0, -4.0)), None);
         assert_eq!(on_screen(&camera, &WIDE, Vec3::new(3.0, 2.0, 1.0)), None);
+    }
+
+    #[test]
+    fn a_movie_is_told_only_what_it_does_not_show() {
+        let at = |movie, x, y| Told::At { movie, x, y };
+        // A movie never told has the crosshair at the centre: nothing to say.
+        assert!(!moved(Told::Nothing, at(1, 0.5, 0.5)));
+        assert!(!moved(at(1, 0.6, 0.5), at(2, 0.5, 0.5)));
+        assert!(moved(Told::Nothing, at(1, 0.52, 0.5)));
+        assert!(moved(at(1, 0.6, 0.5), at(2, 0.6, 0.5)));
+        // The same movie: at a change, back to the centre too.
+        assert!(!moved(at(1, 0.6, 0.5), at(1, 0.6, 0.5)));
+        assert!(moved(at(1, 0.6, 0.5), at(1, 0.5, 0.5)));
     }
 
     fn pose(raised: f32) -> Pose {

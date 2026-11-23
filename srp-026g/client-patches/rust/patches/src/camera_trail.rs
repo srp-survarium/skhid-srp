@@ -1,29 +1,25 @@
-//! Patch 197, a prototype (off unless `SKHID_CAMERA_TRAIL` is set): the drawn
-//! camera trails the aim.
+//! Patch 197: the drawn camera and the aim.
 //!
 //! The first-person view is the eyes' transform (bone "Item"), which the
-//! mouse, the weapon's kick and the shot clips turn, and a bullet leaves along
-//! it: the screen's centre is the bullet. Here the view drawn turns after
-//! that aim instead of with it: inside `DEAD` of the aim it holds still, past
-//! it it follows, never more than `MOST` behind. The gun and its sights stay
-//! on the aim (they hang on the eyes' transform), so they move over a calm
-//! screen and show where the bullet goes; the screen's centre no longer does.
+//! mouse, the weapon's kick and the shot clips turn; the gun and its sights
+//! hang on it, and a shot leaves the gun (patch 200). Two things are drawn
+//! apart from that aim here, at update_camera's eye (`camera.eye`, after the
+//! ragdoll's and the head clearance's). Only the view moves: the eyes'
+//! transform, the aim, the shots and the worlds are the game's. Nothing a
+//! match computes.
 //!
-//! Only the view moves, at update_camera's eye (`camera.eye`, after the
-//! ragdoll's and the head clearance's): the eyes' transform, the aim, the
-//! shots and the worlds are the game's. Nothing a match computes.
-//!
-//! The zones are times how far the sight is raised (patch 172's site tells:
-//! `aim_pose::take_aim_progress`), so from the hip the view is the aim and
-//! the HUD's crosshair, at the screen's centre, stays true. With the switch
-//! the aimed gun also shows less of its shot clip (`aim_pose::Kick::Back`):
-//! its sights stay on the aim, and of its kick `BACK_SHARE` back along it.
-//!
-//! The weapon's kick is the gun's (the recoil on top of patch 200's shots
-//! from the gun): of the lift the kick gives the eye the view takes
+//! **The weapon's kick is the gun's** (the recoil on top of patch 200's shots
+//! from the gun; always): of the lift the kick gives the eye the view takes
 //! `KICK_SHOWN`, from the hip too, and the gun, on the aim, rises over it
 //! and comes back as the kick does. Not while the scope's own view is on.
 //!
+//! **The view trails the aim** (a prototype, only with `SKHID_CAMERA_TRAIL`
+//! set): inside `DEAD` of where it rests it holds still, past it it follows,
+//! never more than `MOST` behind. The zones are times how far the sight is
+//! raised (patch 172's site tells: `aim_pose::take_aim_progress`), so from
+//! the hip the view rests where the kick's share puts it. With the switch
+//! the aimed gun also shows less of its shot clip (`aim_pose::Kick::Back`):
+//! its sights stay on the aim, and of its kick `BACK_SHARE` back along it.
 //! Not done: with picture-in-picture scopes (patch 198) the frame is not
 //! zoomed while the handler's factor says it is, so the zones are then that
 //! much smaller on the screen than without.
@@ -84,6 +80,7 @@ impl Look {
 enum Trail {
     /// The switch is not read yet.
     Unread,
+    /// No trail: the view rests where the kick's share puts it.
     Off,
     /// On, with no first-person eye shown last frame.
     Waiting,
@@ -105,25 +102,27 @@ pub fn on_eye(ctx: &mut Context<'_>) -> Flow<NoExit> {
         Trail::Unread => Trail::Off,
         state => state,
     };
-    if state == Trail::Off {
-        TRAIL.set(thread, Trail::Off);
-        return Flow::Continue;
-    }
     let eye = camera::given_eye(ctx);
     let aimed = match camera::eye_player(ctx) {
         Some((player, true)) => Look::of(row(&eye, 2)).map(|aim| (player.id(), aim, rested(aim, shot::free_kick_lift(player)))),
         _ => None,
     };
     let Some((player, aim, rest)) = aimed else {
-        TRAIL.set(thread, Trail::Waiting);
+        TRAIL.set(thread, if state == Trail::Off { Trail::Off } else { Trail::Waiting });
         return Flow::Continue;
     };
-    let zoom = camera::eye_fov_factor(ctx).filter(|factor| factor.is_finite() && *factor > 0.0).map_or(1.0, |factor| min(factor, 1.0));
-    let raised = aim_pose::take_aim_progress(thread);
-    let zoom = zoom * if raised.is_finite() { clamp(raised, 0.0, 1.0) } else { 0.0 };
-    let now = clock::milliseconds(thread);
-    let look = shown(state, player, rest, zoom, now);
-    TRAIL.set(thread, Trail::Following { player, look, at: now });
+    let look = if state == Trail::Off {
+        TRAIL.set(thread, Trail::Off);
+        rest
+    } else {
+        let zoom = camera::eye_fov_factor(ctx).filter(|factor| factor.is_finite() && *factor > 0.0).map_or(1.0, |factor| min(factor, 1.0));
+        let raised = aim_pose::take_aim_progress(thread);
+        let zoom = zoom * if raised.is_finite() { clamp(raised, 0.0, 1.0) } else { 0.0 };
+        let now = clock::milliseconds(thread);
+        let look = shown(state, player, rest, zoom, now);
+        TRAIL.set(thread, Trail::Following { player, look, at: now });
+        look
+    };
     // On the aim (from the hip with no kick always): the eye as it is given.
     if look != aim {
         camera::look_from(ctx, turned(&eye, aim, look));

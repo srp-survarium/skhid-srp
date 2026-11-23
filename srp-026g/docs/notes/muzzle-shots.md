@@ -38,7 +38,10 @@ where no sight is looked through.
 
 - **From the hip the centre of the screen is not the bullet.** The HUD's crosshair is put where
   the own player's gun looks: the place its shot's line first meets the level (150 m along it
-  otherwise), through the frame's camera (the hud movie's `srp_crosshair_at`). Drawing only.
+  otherwise), through the frame's camera (the hud movie's `srp_crosshair_at`). Drawing only. The
+  movie's side is run in Ruffle (`scripts/muzzle-crosshair`, `tools/check muzzle-crosshair`): a
+  place in parts of the screen is that pixel at 1920x1080 and 1280x720, and 0.5, 0.5 is where the
+  movie's own layout had the crosshair.
 - **The gun is posed at the shot's own time.** The game's copy was the eye of the step before (up
   to 50 ms old), which in a burst carried the hands clip's camera turn of the pass before (the
   H&K 416, the M4A1: up to 0.67 degrees). Those bullets now go where the sights show.
@@ -83,8 +86,9 @@ raises it, a downward turn of the mouse is taken off it first and a controller r
 together, so in the stock game the kick is a turn of the screen.
 
 With the bullet following the gun, the kick is the gun's motion and the eye need not take all of
-it. Patch 197 (the aimed view's prototype, `SKHID_CAMERA_TRAIL`) draws it so: of the lift the kick
-gives the eye the view takes 40 % (`KICK_SHOWN`), from the hip too; the gun stays on the
+it. Patch 197 draws it so, always (its trailing view alone is the prototype behind
+`SKHID_CAMERA_TRAIL`): of the lift the kick gives the eye the view takes 40 % (`KICK_SHOWN`), from
+the hip too; the gun stays on the
 simulation's aim, so it rises over the screen as the kick grows and comes back as the player pulls
 it down. Nothing the simulation computes changes for it: the kick, its numbers and where the
 bullets go are the game's. Not while the scope's own view is on (its picture is the screen).
