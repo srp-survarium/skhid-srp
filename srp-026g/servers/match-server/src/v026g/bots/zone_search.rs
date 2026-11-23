@@ -111,7 +111,35 @@ impl Cheapest {
 /// that reaches `goal` is the cheapest of every entry, whatever side of the zone it is on. Before, a battery's crossing was the route from
 /// the team's spawn, entered where that route first met the zone (Chemical Plant's battery 0: 12.1 m inside for one
 /// team against a 4.7 m entry both teams reach; Vector Laboratory's battery 2: 21.6 m against 4.8 m).
+///
+/// [CPU] A goal floor the search never walks onto is answered at once: the search reaches `goal` only as a source (a dry
+/// floor not of another side's spawn area) or by a step onto it, and a step goes only onto a floor [`entry_walkable`] lets
+/// through, which every source is. So a goal it does not let through (a zone that switches, another side's spawn area) has
+/// no way, and the search over the whole box only proved it: on Chemical Plant's batteries 44 of a match's 52 searches,
+/// 110-160 ms each (the gate bench of 2026-11-23, batt m2 s2), in one commander pass.
 pub fn cheapest_entry(
+    tactics: &Tactics,
+    spawn: NodeId,
+    goal: NodeId,
+    side: Option<i32>,
+    damage_per_s: impl Fn(NodeId) -> f32,
+    within_m: f32,
+) -> Option<Vec<NodeId>> {
+    if !entry_walkable(tactics, goal, side) {
+        return None;
+    }
+    searched_entry(tactics, spawn, goal, side, damage_per_s, within_m)
+}
+
+/// The floors [`cheapest_entry`]'s search steps onto: a dry one or one only zones on all match mark, not of another side's
+/// spawn area.
+fn entry_walkable(tactics: &Tactics, b: NodeId, side: Option<i32>) -> bool {
+    let hazards = &tactics.hazards;
+    (hazards.hazard_free(b) || hazards.only_fixed_at(b)) && tactics.spawn_ok(b, side, false)
+}
+
+/// [`cheapest_entry`]'s search itself, whatever the goal.
+fn searched_entry(
     tactics: &Tactics,
     spawn: NodeId,
     goal: NodeId,
@@ -125,7 +153,7 @@ pub fn cheapest_entry(
     let at = grid.position(goal);
     let area = [at.x - within_m, at.z - within_m, at.x + within_m, at.z + within_m];
     let inside = |p: mapdata::Vec3| (p.x - at.x).abs() <= within_m && (p.z - at.z).abs() <= within_m;
-    let walkable = |b: NodeId| (hazards.hazard_free(b) || hazards.only_fixed_at(b)) && tactics.spawn_ok(b, side, false);
+    let walkable = |b: NodeId| entry_walkable(tactics, b, side);
     let mut price: HashMap<NodeId, f32> = HashMap::new();
     let mut prev: HashMap<NodeId, NodeId> = HashMap::new();
     let mut heap = BinaryHeap::new();
@@ -192,4 +220,51 @@ pub fn walk_cost(tactics: &Tactics, path: &[NodeId], armour: Option<&ZoneArmour>
         tactics.hazards.walk_step(&mut walk, pair[1], armour, d / CROSS_MPS, |_| 1.0);
     }
     (walk.total(), metres)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mapdata::{Rotation, Shape, ShapeKind, Vec3, Zone, ZoneKind};
+
+    /// [CPU] [`cheapest_entry`]'s answer at once for a goal it never steps onto is the search's own: on the field with a
+    /// zone on all match in its middle, for the floors round the zone, side 1's spawn area (which side 0's search never
+    /// steps onto) and floors all over, the two answer alike, and both kinds of goal are met.
+    #[test]
+    fn a_goal_the_search_never_steps_onto_is_answered_at_once_as_the_search_answers() {
+        let world = crate::v026g::bots::tactics::tests::field_with(|map| {
+            map.zones.push(Zone {
+                kind: ZoneKind::Damage,
+                name: "slab".into(),
+                team: -1,
+                position: Vec3::new(25.0, -1.27, 32.0),
+                protection: None,
+                damage_type: "radiation".into(),
+                damage: Some(mapdata::Damage { max_hit: 0.1, interval_ms: 1000, parts: 2, ..mapdata::Damage::default() }),
+                shapes: vec![Shape {
+                    kind: ShapeKind::Box,
+                    center: Vec3::new(25.0, -1.27, 32.0),
+                    rotation: Rotation::IDENTITY,
+                    half: Vec3::new(3.0, 1.0, 3.0),
+                }],
+            });
+        });
+        let tactics = Tactics::new(world, 1.0);
+        let grid = &tactics.world.grid;
+        let side = Some(0);
+        let spawn = grid.locate(Vec3::new(5.0, 0.0, 10.0), 1.0).unwrap();
+        let price = |b: NodeId| tactics.hazards.hit_per_s(b);
+        let round_zone = grid.floors_in([20.0, 27.0, 30.0, 37.0]).step_by(7);
+        let spawn_area = grid.floors_in([72.0, 8.0, 78.0, 22.0]).step_by(11);
+        let all_over = (0..grid.len() as NodeId).step_by(4001);
+        let (mut never, mut found, mut asked) = (0, 0, 0);
+        for goal in round_zone.chain(spawn_area).chain(all_over) {
+            let at_once = cheapest_entry(&tactics, spawn, goal, side, price, 40.0);
+            assert_eq!(at_once, searched_entry(&tactics, spawn, goal, side, price, 40.0), "goal {goal}");
+            never += usize::from(!entry_walkable(&tactics, goal, side));
+            found += usize::from(at_once.is_some());
+            asked += 1;
+        }
+        assert!(never > 0 && found > 0, "{never} goals never stepped onto, {found} found, of {asked}");
+    }
 }
