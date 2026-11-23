@@ -22,8 +22,8 @@ package
 
     // Settings > Controls > Bindings (the owner, 2026-11-23: "controls > bindings > some new bigger window in
     // similar style, but which can follow layout we already have"; "so it is visible the whole state"; "we
-    // don't need two"): the key bindings' one place. The Controls tab's lists are hidden; a button at the top of
-    // its right column, over Default settings, opens a window in the
+    // don't need two"): the key bindings' one place. The Controls tab's lists are hidden; a button in its left
+    // column under the mouse settings, over Default settings, opens a window in the
     // Settings window's own skin (its frame and title bar: SrpSettingsGround, the title's text, its close
     // button) laid out as the owner's key page: the keyboard and the mouse with every bound key's action
     // written on it, the kinds' chips under them, and the bindings' lists by kind under those.
@@ -212,14 +212,17 @@ package
             show();
         }
 
-        // After the tab's layout (Settings.layoutControls): the key bindings' place on the tab, the right column
-        // (its lists hidden: the bindings are this window's alone; the owner, 2026-11-23: "we don't need two"):
-        // the button at its top (`top`), as wide as Default settings, and Default settings under it.
-        public function layout(defaults:DisplayObject, top:Number):void
+        // After the tab's layout (Settings.layoutControls): the key bindings' place on the tab, the left column
+        // under the mouse settings (the tab's lists hidden: the bindings are this window's alone; the owner,
+        // 2026-11-23: "we don't need two", "both options can move to left"): the button from `left` to `right`
+        // at `top`, Default settings under it as wide.
+        public function layout(defaults:DisplayObject, left:Number, right:Number, top:Number):void
         {
-            button.width = defaults.width;
-            button.x = defaults.x;
+            button.x = Math.round(left);
+            button.width = Math.round(right - left);
             button.y = Math.round(top);
+            defaults.x = button.x;
+            defaults.width = button.width;
             defaults.y = button.y + BUTTON_HEIGHT + BUTTON_GAP;
         }
 

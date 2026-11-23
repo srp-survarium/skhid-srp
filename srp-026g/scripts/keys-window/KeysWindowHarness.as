@@ -17,8 +17,8 @@ package
     // root.srp_keys from check.sh's binder table and the rows' keys; srp_bind_key giving a key to a row and
     // telling root.set_keybind, a key other match rows had taken from them), with check.sh's rows (the exe's:
     // hide_ui_026g.asm's `controls` in its order, their default keys) and every dictionary's texts:
-    // - the Controls tab: its key lists hidden; no Bindings button until the exe's texts are there, then at the
-    //   right column's top over Default settings;
+    // - the Controls tab: its key lists hidden; no Bindings button until the exe's texts are there, then in the
+    //   left column under the mouse settings, over Default settings (the right column empty);
     // - the window over the screen at scale 1: the exe's table asked as it opens; every key the rows have drawn
     //   with its rows' actions on it (the keyboard, the mouse, or beside the mouse); the lists: every row but the
     //   chat's once, by kind in the exe's order, the lobby's last, each of a kind; nothing over anything else;
@@ -66,11 +66,11 @@ package
             graphics.endFill();
             addChild(loader);
             loader.load(new URLRequest("main_menu.swf"), new LoaderContext(false, new ApplicationDomain()));
-            steps = [[10, setUp], [10, shot("tab")], [10, tabWithoutTexts], [30, withTexts], [10, shot("tab-button")],
-                [30, openWindow], [5, shot("window")], [5, checkWindow], [30, pressRow], [5, shot("binding")],
-                [30, answerRow], [3, checkRebound], [1, shot("rebound")], [30, pressKey], [3, checkPicked],
+            steps = [[10, setUp], [10, shot("tab")], [90, tabWithoutTexts], [90, withTexts], [10, shot("tab-button")],
+                [90, openWindow], [5, shot("window")], [5, checkWindow], [90, pressRow], [5, shot("binding")],
+                [90, answerRow], [3, checkRebound], [1, shot("rebound")], [90, pressKey], [3, checkPicked],
                 [10, clearKey], [3, checkCleared],
-                [10, focusKind], [5, shot("focus")], [30, unfocus], [5, closings], [5, languages], [5, reopen], [10, end]];
+                [10, focusKind], [5, shot("focus")], [90, unfocus], [5, closings], [5, languages], [5, reopen], [10, end]];
         }
 
         private function get menu():* { return loader.content; }
@@ -243,8 +243,11 @@ package
             var b:* = button;
             require(b.visible && b.alpha == 1 && b.label == language[TITLE], "the button shows the exe's text: " + b.label);
             var defaults:* = c.button_default_controls;
-            require(b.x == defaults.x && b.width == defaults.width && b.y + b.height <= defaults.y && b.y <= c._slider_mouse_sens.y,
-                "the button at the right column's top, over Default settings: " + b.x + "," + b.y + " " + b.width + ", " + defaults.y);
+            var invert:* = c._setter_inverse_mouse;
+            require(b.x == defaults.x && b.width == defaults.width && b.y + b.height <= defaults.y && b.y > invert.y + 20
+                && b.x + b.width <= 297 && defaults.y + defaults.height <= 400,
+                "the button in the left column under Invert mouse, over Default settings: " + b.x + "," + b.y + " " + b.width + ", "
+                + defaults.y);
             for each (var hidden:* in [c.keysGame, c.keysLobby, c.keysChat, c.s_lobby, c.s_chat_keys])
             {
                 require(!hidden.visible, hidden.name + " hidden: the key bindings are the window's alone");

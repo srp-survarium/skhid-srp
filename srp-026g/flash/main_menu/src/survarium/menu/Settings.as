@@ -1147,6 +1147,10 @@ package survarium.menu
       // right column under the game's, whose list (it scrolls) ends where they begin.
       protected static const GAME_LIST_GAP:Number = 4;
 
+      // The controls tab's left column's right end (its divider), and Invert mouse to the buttons under it.
+      protected static const LEFT_COLUMN_END:Number = 289;
+      protected static const BUTTONS_GAP:Number = 18;
+
       protected function layoutControls() : void
       {
          var c:MovieClip = this.settings_content;
@@ -1189,8 +1193,9 @@ package survarium.menu
          // fit over the chat's heading, the gap to it the tab's own at most, GAME_LIST_GAP at least
          c.keysGame.height = Math.floor((c.s_chat_keys.y - GAME_LIST_GAP - c.keysGame.y) / c.keysGame.rowHeight) * c.keysGame.rowHeight;
          // the key bindings are the Bindings window's alone (the owner, 2026-11-23: "we don't need two"): the
-         // tab's lists and their headings hidden, the Bindings button and Default settings at the right
-         // column's top (the exe still binds and fills the lists by name: they stay in the timeline)
+         // tab's lists and their headings hidden, the Bindings button and Default settings in the left column
+         // under Invert mouse ("both options can move to left", "right can be left empty"); the exe still binds
+         // and fills the lists by name: they stay in the timeline
          for each(var list:String in ["keysGame","keysLobby","keysChat","s_lobby","s_chat_keys","s_game"])
          {
             if(c[list] is DisplayObject)
@@ -1198,7 +1203,9 @@ package survarium.menu
                DisplayObject(c[list]).visible = false;
             }
          }
-         this._keysWindow.layout(c.button_default_controls,c.keysGame.y);
+         var invert:Object = c._setter_inverse_mouse;
+         this._keysWindow.layout(c.button_default_controls,c._slider_mouse_sens.x,LEFT_COLUMN_END,
+            invert.y + Math.max(invert.textField.y + invert.textField.textHeight + 4,26) + BUTTONS_GAP);
       }
       
       // The option of the HUD group whose checkbox `control` is, or null.
