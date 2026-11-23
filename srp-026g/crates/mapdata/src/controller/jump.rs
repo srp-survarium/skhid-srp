@@ -301,6 +301,62 @@ pub fn fly_as(
     steps
 }
 
+/// [body physics S5a fix] How long a scoring flight runs after its landing step (the clip's `end_jump`): a fixed count of ground
+/// steps, or on until the body is down ([`Ground::FallOn`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Ground {
+    /// This many ground steps ([`STAY_STEPS`] for a scoring flight; [jump down]'s longer count).
+    Steps(u32),
+    /// [`STAY_STEPS`] ground steps; a body still off the ground at the last of them flies on until it has been on the ground
+    /// [`STAY_STEPS`] steps running, to [`FALL_ON_STEPS_MAX`] in all. The client ends a jump on the clip's clock, not on ground contact, and a body off a deep
+    /// edge falls on after it ([jump down], [`neighbour_flights_for`]): a flight cut at [`STAY_STEPS`] while still falling reads
+    /// as no landing. A flight down by then runs exactly [`STAY_STEPS`], as [`Ground::Steps`]`(STAY_STEPS)` does.
+    FallOn,
+}
+
+/// [body physics S5a fix] The most ground steps a [`Ground::FallOn`] flight runs: [`STAY_STEPS`] and the drop pass's walk-off
+/// landing time (`drop_check`'s 40 steps, 2 s: a fall from about 20 m).
+pub const FALL_ON_STEPS_MAX: u32 = STAY_STEPS + 40;
+
+/// [body physics S5a fix] [`fly_as`] with the ground steps of [`Ground::FallOn`] ([`landed_until`]).
+#[allow(clippy::too_many_arguments)]
+pub fn fly_falling(world: &Collision, s: &Settings, c: &mut Controller, heading: (f32, f32), press: Press, keys: Keys, flight: Flight) -> Vec<FlightStep> {
+    let cap = flight.cap;
+    let mut flying = Flying::new(press, flight);
+    let landing = press.landing_n();
+    let mut steps = Vec::with_capacity((landing + STAY_STEPS) as usize + 1);
+    let air = Flying::air_of(press, i8::from(keys.air_forward), 0);
+    while !flying.landed() {
+        steps.push(flying.step(world, s, c, heading, air));
+    }
+    let held = if keys.held_after { crate::motion::keys::FORWARD } else { 0 };
+    landed_until(world, s, c, heading, cap, flying.last_travel(), held, landing, &mut steps);
+    steps
+}
+
+/// [body physics S5a fix] The ground steps of [`Ground::FallOn`] after a flight's landing step, as [`landed_steps`] flies them
+/// with `keys` held throughout: [`STAY_STEPS`]; with the body still off the ground at the last of them, on until it has been on
+/// the ground [`STAY_STEPS`] steps running, to [`FALL_ON_STEPS_MAX`].
+#[allow(clippy::too_many_arguments)]
+fn landed_until(world: &Collision, s: &Settings, c: &mut Controller, heading: (f32, f32), cap: f32, travel: f32, keys: u32, landing: u32, steps: &mut Vec<FlightStep>) {
+    use crate::motion::{self, ClientBody, Input, Kin, Pass};
+    let yaw = motion::yaw_of(heading);
+    let kin = Kin { level: cap / WALK_CAP_MS, legs_broken: false };
+    let mut body = ClientBody::landed(*c, yaw, travel, keys);
+    let pass = Pass { world, settings: s };
+    let mut down = 0;
+    for m in 1..=FALL_ON_STEPS_MAX {
+        let tick = body.tick(&pass, kin, Input { keys, yaw });
+        steps.push(FlightStep { n: landing + m, feet: tick.feet, in_jump: tick.in_jump, on_ground: tick.on_ground });
+        down = if tick.on_ground { down + 1 } else { 0 };
+        // On the ground at the cut: as `Steps(STAY_STEPS)`. Off it: on until down `STAY_STEPS` steps running.
+        if (m == STAY_STEPS && tick.on_ground) || (m > STAY_STEPS && down >= STAY_STEPS) {
+            break;
+        }
+    }
+    *c = *body.controller();
+}
+
 /// [body physics S5a] The ground steps after a flight's landing step, flown with the controller `c` facing along `heading`: the
 /// client's body in its landing substate ([`crate::motion::ClientBody::landed`], its last travel `travel`) ticked with each `(keys,
 /// steps)` of `script` in turn, at the walk cap `cap`; each step pushed onto `steps` numbered on from `landing`, `c` left where they
@@ -763,10 +819,11 @@ pub fn neighbour_flights(
     n: Neighbour,
     kits: Kits,
 ) -> Option<Vec<Vec<FlightStep>>> {
-    neighbour_flights_for(world, s, takeoff, way, kind, lead, n, kits, STAY_STEPS)
+    neighbour_flights_for(world, s, takeoff, way, kind, lead, n, kits, Ground::Steps(STAY_STEPS))
 }
 
-/// [jump down] [`neighbour_flights`] with `ground_steps` steps after the landing step instead of [`STAY_STEPS`]: a jump off an
+/// [jump down] [`neighbour_flights`] with `ground` steps after the landing step instead of [`STAY_STEPS`] ([body physics S5a
+/// fix] a count, or on until the body is down, [`Ground`]): a jump off an
 /// edge high enough that the body is still in the air at the clip's `end_jump` falls on for them. The client ends the jump on
 /// the clip's clock, not on ground contact (`end_jump` 0x7F050's callers are the landing states' `initialize` 0x3421F4,
 /// 0x344104 and the stand-jump state's `finalize` 0x3373BB, each moved to by the clip's end; `on_ground` 0x7EF90 is read only
@@ -783,8 +840,12 @@ pub fn neighbour_flights_for(
     lead: f32,
     n: Neighbour,
     kits: Kits,
-    ground_steps: u32,
+    ground: Ground,
 ) -> Option<Vec<Vec<FlightStep>>> {
+    let fly = |b: &mut Controller, heading: (f32, f32), press: Press, flight: Flight| match ground {
+        Ground::Steps(n) => fly_as(world, s, b, heading, press, STAY_KEYS, n, flight),
+        Ground::FallOn => fly_falling(world, s, b, heading, press, STAY_KEYS, flight),
+    };
     let flight = Flight { cap: if n.fastest { kits.fastest } else { kits.body }, dy: n.dy };
     let (c, sn) = (n.turn.cos(), n.turn.sin());
     let heading = (way.0 * c - way.1 * sn, way.0 * sn + way.1 * c);
@@ -792,12 +853,12 @@ pub fn neighbour_flights_for(
     match kind {
         Kind::Walk => {
             let RunUp { body: mut b, speed, .. } = run_up(world, s, at, heading, flight.cap, false)?;
-            Some(vec![fly_as(world, s, &mut b, heading, Press::Walk { speed }, STAY_KEYS, ground_steps, flight)])
+            Some(vec![fly(&mut b, heading, Press::Walk { speed }, flight)])
         }
         Kind::Climb => climb_flight(world, s, takeoff, way, lead, n, kits).map(|st| vec![st]),
         Kind::Slow(steps) => {
             let RunUp { body: mut b, speed, .. } = run_up_slow(world, s, at, heading, flight.cap, steps)?;
-            Some(vec![fly_as(world, s, &mut b, heading, Press::Walk { speed }, STAY_KEYS, ground_steps, flight)])
+            Some(vec![fly(&mut b, heading, Press::Walk { speed }, flight)])
         }
         Kind::Sprint | Kind::SprintHeld => {
             let run = run_up(world, s, at, heading, flight.sprint_ms(), true)?;
@@ -813,7 +874,7 @@ pub fn neighbour_flights_for(
                         if kind == Kind::SprintHeld {
                             held_flight(world, s, &mut b, heading, press, flight)
                         } else {
-                            fly_as(world, s, &mut b, heading, press, STAY_KEYS, ground_steps, flight)
+                            fly(&mut b, heading, press, flight)
                         }
                     })
                     .collect(),
@@ -884,6 +945,33 @@ mod tests {
         quad(&mut tris, Vec3::new(5.0, 0.0, -3.0), Vec3::new(5.0, top, -3.0), Vec3::new(5.0, top, 3.0), Vec3::new(5.0, 0.0, 3.0));
         let (caster, _) = crate::Body { exe_collision: true, start_witness: true, ..crate::Body::client() }.controller();
         Collision::build(&tris).with_caster(caster)
+    }
+
+    /// [body physics S5a fix] A sprint jump off a 6 m edge is still in the air at the [`STAY_STEPS`] cut: cut there, a flight
+    /// ends off the ground (it reads as no landing); with [`Ground::FallOn`] every variant falls on to the ground below and stays
+    /// [`STAY_STEPS`] steps on it. A jump down by the cut (off a 0.5 m edge) flies the same steps either way, bit for bit.
+    #[test]
+    fn a_scoring_flight_off_a_deep_edge_falls_on_to_the_ground() {
+        let s = crate::Body { exe_collision: true, start_witness: true, ..crate::Body::client() }.controller().1;
+        let kits = Kits { body: WALK_CAP_MS, fastest: WALK_CAP_MS };
+        let own = neighbourhood()[0];
+        let deep = ledge(6.0);
+        let takeoff = Vec3::new(5.5, 6.0, 0.0);
+        let fly = |world: &Collision, at: Vec3, kind: Kind, lead: f32, ground: Ground| {
+            neighbour_flights_for(world, &s, at, (-1.0, 0.0), kind, lead, own, kits, ground).expect("a run-up")
+        };
+        let cut = fly(&deep, takeoff, Kind::Sprint, 1.0, Ground::Steps(STAY_STEPS));
+        assert!(cut.iter().any(|st| !st.last().expect("steps").on_ground), "cut at STAY_STEPS, a variant is still falling");
+        for st in &fly(&deep, takeoff, Kind::Sprint, 1.0, Ground::FallOn) {
+            let last = st.last().expect("steps");
+            assert!(st[st.len() - STAY_STEPS as usize..].iter().all(|f| f.on_ground), "{last:?}");
+            assert!(last.feet.y.abs() < 0.05, "down on the ground below: {last:?}");
+            assert!(landing_and_rest(st, |f| f.feet.y.abs() < 0.05).is_some(), "it lands and stays");
+            assert!(st.len() <= (Press::Sprint { speed: 5.0, leg: Leg::Left, first_air_frame: 7.0 }.landing_n() + FALL_ON_STEPS_MAX) as usize + 1);
+        }
+        let low = ledge(0.5);
+        let at = Vec3::new(5.5, 0.5, 0.0);
+        assert_eq!(fly(&low, at, Kind::Walk, 0.5, Ground::Steps(STAY_STEPS)), fly(&low, at, Kind::Walk, 0.5, Ground::FallOn));
     }
 
     /// [A385] A run-up whose start is over a lower level (a floor at 0 from x `edge` to 6, a level 3 m lower before it): the

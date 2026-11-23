@@ -390,8 +390,9 @@ impl WalkGrid {
         leads: &[f32],
         lands: impl Fn(&[FlightStep]) -> Option<NodeId>,
         kits: Kits,
+        ground: jump::Ground,
     ) -> RimPress {
-        self.best_press_with(world, s, a, b, way, &presses(leads), Aim::STRAIGHT, lands, kits)
+        self.best_press_with(world, s, a, b, way, &presses(leads), Aim::STRAIGHT, lands, kits, ground)
     }
 
     /// [R83] The best aimed press from `a` toward `b` along `way` (`R83-FORMAT.md`): the walk and the sprint at [`AIMED_LEADS`] at
@@ -407,6 +408,7 @@ impl WalkGrid {
         way: (f32, f32),
         lands: &impl Fn(&[FlightStep]) -> Option<NodeId>,
         kits: Kits,
+        ground: jump::Ground,
     ) -> AimedSweep {
         let presses = [(Kind::Walk, AIMED_LEADS.to_vec()), (Kind::Sprint, AIMED_LEADS.to_vec())];
         let mut flights = 0;
@@ -414,7 +416,7 @@ impl WalkGrid {
         let mut best: Option<Made> = None;
         for (side, turn) in AIMS {
             let aim = Aim::new(side, turn).expect("an aim in range");
-            let p = self.best_press_with(world, s, a, b, way, &presses, aim, lands, kits);
+            let p = self.best_press_with(world, s, a, b, way, &presses, aim, lands, kits, ground);
             flights += p.flights;
             under |= p.under;
             if let Some(m) = p.made.into_iter().next().filter(|m| best.is_none_or(|b| m.share.rank() > b.share.rank())) {
@@ -438,13 +440,14 @@ impl WalkGrid {
         way: (f32, f32),
         lands: &impl Fn(&[FlightStep]) -> Option<NodeId>,
         kits: Kits,
+        ground: jump::Ground,
     ) -> (Option<Made>, usize) {
         let presses = [(Kind::SprintHeld, HELD_LEADS.to_vec())];
         let mut flights = 0;
         let mut best: Option<Made> = None;
         let aims = std::iter::once(Aim::STRAIGHT).chain(AIMS.iter().map(|&(side, turn)| Aim::new(side, turn).expect("an aim in range")));
         for aim in aims {
-            let p = self.best_press_with(world, s, a, b, way, &presses, aim, lands, kits);
+            let p = self.best_press_with(world, s, a, b, way, &presses, aim, lands, kits, ground);
             flights += p.flights;
             if let Some(m) = p.made.into_iter().next().filter(|m| best.is_none_or(|b| m.share.rank() > b.share.rank())) {
                 best = Some(m);
@@ -468,6 +471,7 @@ impl WalkGrid {
         aim: Aim,
         lands: impl Fn(&[FlightStep]) -> Option<NodeId>,
         kits: Kits,
+        ground: jump::Ground,
     ) -> RimPress {
         let takeoff = self.position(a);
         let own = jump::neighbourhood()[0];
@@ -485,7 +489,7 @@ impl WalkGrid {
             if self.floor_under(at).is_some_and(|f| !self.can_stand(f)) {
                 return None;
             }
-            jump::neighbour_flights(world, s, takeoff, way, kind, lead, n, kits)
+            jump::neighbour_flights_for(world, s, takeoff, way, kind, lead, n, kits, ground)
         };
         // Step 1: every press at the press itself: the floors its flights land on (one, or one per sprint variant).
         let mut flown: Vec<(Kind, f32, Vec<Option<NodeId>>)> = Vec::new();
@@ -539,6 +543,10 @@ impl WalkGrid {
         RimPress { made, flights, near, under }
     }
 }
+
+/// [body physics S5a fix] How long the rim pass's scoring flights run after the landing step: [`jump::STAY_STEPS`] ground
+/// steps, as before (its jumps go up onto a top, where a body is down by then; the gap pass's fall on, [`jump::Ground::FallOn`]).
+pub(super) const RIM_GROUND: jump::Ground = jump::Ground::Steps(jump::STAY_STEPS);
 
 /// [F1] How far across from the link's landing floor a flight may rest and still have landed on the link's own top, m:
 /// [`NEAR_FLAT_M`], the sweep's own bound of "near the top". A neighbour of a press rests a little aside of the press's own
@@ -928,7 +936,7 @@ impl WalkGrid {
             let (p, q) = (self.position(a), self.position(b));
             let len = p.distance_xz(q).max(1e-4);
             let linked = linked(a);
-            self.best_press(world, s, a, b, ((q.x - p.x) / len, (q.z - p.z) / len), leads, |st| self.rim_lands_on(st, a, &linked), kits)
+            self.best_press(world, s, a, b, ((q.x - p.x) / len, (q.z - p.z) / len), leads, |st| self.rim_lands_on(st, a, &linked), kits, RIM_GROUND)
         });
         let mut moved = 0;
         // [retarget] Only a press onto the link's own landing: this flight's line is the one from the standing floor to it, which
@@ -984,7 +992,7 @@ impl WalkGrid {
         let flown = super::controlled::parallel(&todo, |&(a, b, d)| {
             let (di, dk) = DIRS[d];
             let l = ((di * di + dk * dk) as f32).sqrt();
-            self.best_press(world, s, a, b, (di as f32 / l, dk as f32 / l), &leads, |st| self.riser_lands_on(st, b), kits)
+            self.best_press(world, s, a, b, (di as f32 / l, dk as f32 / l), &leads, |st| self.riser_lands_on(st, b), kits, RIM_GROUND)
         });
         stats.risers += todo.len();
         for (&(a, b, _), p) in todo.iter().zip(&flown) {
@@ -1081,7 +1089,7 @@ fn rim_line_job(ctx: &RimLineCtx<'_>, item: &RimLineItem) -> RimLineOut {
         }
         grid.rim_lands_on(st, item.a, &item.linked)
     };
-    let press = grid.best_press(ctx.world, ctx.s, item.a, item.b, rim_way(item.d), &ctx.leads, lands, ctx.kits);
+    let press = grid.best_press(ctx.world, ctx.s, item.a, item.b, rim_way(item.d), &ctx.leads, lands, ctx.kits, RIM_GROUND);
     RimLineOut { press, reach_m: reach.get() }
 }
 
@@ -1232,9 +1240,9 @@ fn rim_aimed_job(ctx: &RimAimedCtx<'_>, item: &RimAimedItem) -> RimAimedOut {
         grid.rim_lands_on(st, item.a, &item.linked)
     };
     let way = rim_way(item.d);
-    let sweep = grid.best_aimed(ctx.world, ctx.s, item.a, item.b, way, &lands, ctx.kits);
+    let sweep = grid.best_aimed(ctx.world, ctx.s, item.a, item.b, way, &lands, ctx.kits, RIM_GROUND);
     let held = (sweep.made.is_none_or(|m| m.share == Share::landed(0)) && (item.line_under || sweep.under))
-        .then(|| grid.best_held(ctx.world, ctx.s, item.a, item.b, way, &lands, ctx.kits));
+        .then(|| grid.best_held(ctx.world, ctx.s, item.a, item.b, way, &lands, ctx.kits, RIM_GROUND));
     RimAimedOut { sweep, held, reach_m: reach.get() }
 }
 

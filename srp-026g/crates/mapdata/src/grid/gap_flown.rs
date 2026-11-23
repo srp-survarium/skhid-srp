@@ -229,10 +229,35 @@ impl WalkGrid {
                     && y > over
                     && self.ceiling[g as usize] - y >= self.body.stand_height
                     && !linked.contains(&g)
+                    && !self.walk_reaches(a, g)
             })
         };
         let (_, rest) = jump::landing_and_rest(steps, |f| onto(f.feet).is_some())?;
         onto(rest.feet)
+    }
+
+    /// [body physics S5a fix] Whether a walk reaches the floor `g` from the take-off `a` at its own level: `g` within a step
+    /// ([`super::Body::step`]) of `a`'s height, and every cell on the straight line between their cells holding a floor within a
+    /// step of it with standing room. Such a landing crosses no gap: a walk reaches it (`clip_gap_bottom`'s rule for the clip
+    /// presses, review of #2175). A floor at that height behind a wall or a rail is not reached so: the wall's cells hold no
+    /// standing floor at the take-off's level.
+    fn walk_reaches(&self, a: u32, g: NodeId) -> bool {
+        let (h, step) = (self.height[a as usize], self.body.step);
+        if (self.height[g as usize] - h).abs() > step {
+            return false;
+        }
+        let (i, k) = self.cell_xz(self.cell_of[a as usize] as usize);
+        let (gi, gk) = self.cell_xz(self.cell_of[g as usize] as usize);
+        let n = (gi - i).abs().max((gk - k).abs());
+        (1..n).all(|t| {
+            let at = |o: i32, d: i32| o + ((d * t) as f32 / n as f32).round() as i32;
+            self.cell_index(at(i, gi - i), at(k, gk - k)).is_some_and(|cell| {
+                (self.start[cell]..self.start[cell + 1]).any(|f| {
+                    let y = self.height[f as usize];
+                    (y - h).abs() <= step && self.ceiling[f as usize] - y >= self.body.stand_height
+                })
+            })
+        })
     }
 
     /// [F1] The bottom of the gap a clip link from `a` along `d` to `to` crosses ([`Self::gap_across`]'s): the highest of the
@@ -590,30 +615,65 @@ fn gap_flown_job(ctx: &GapFlownCtx<'_>, item: &GapFlownItem) -> GapFlownOut {
     };
     let mut out = GapFlownOut::default();
     let mut near: Option<u8> = None;
+    // [body physics S5a fix] The first end whose line presses landed only partly (no press in every variant), and those presses.
+    let mut partial: Option<(u8, Vec<Made>)> = None;
     for (i, e) in item.ends.iter().enumerate() {
         out.tried += 1;
         let super::rim::RimPress { made, flights, near: close, .. } =
-            grid.best_press(ctx.world, ctx.s, e.a, e.b, way(e), &ctx.leads, |st| lands(e, st), ctx.kits);
+            grid.best_press(ctx.world, ctx.s, e.a, e.b, way(e), &ctx.leads, |st| lands(e, st), ctx.kits, GAP_GROUND);
         out.flights += flights;
         let i = u8::try_from(i).expect("a group's ends fit a byte");
-        if !made.is_empty() {
+        if made.iter().any(lands_whole) {
             out.made = Some((i, made));
             out.reach_m = reach.get();
             return out;
+        }
+        if !made.is_empty() && partial.is_none() {
+            partial = Some((i, made));
         }
         if close && near.is_none() {
             near = Some(i);
         }
     }
-    if let Some(i) = near {
+    // [R83] The aimed presses from the first end a flight came near; [body physics S5a fix] or, with only partial line presses,
+    // from the first such end; the better share kept ([`better`]).
+    if let Some(i) = near.or(partial.as_ref().map(|&(i, _)| i)) {
         let e = &item.ends[usize::from(i)];
-        let sweep = grid.best_aimed(ctx.world, ctx.s, e.a, e.b, way(e), &|st| lands(e, st), ctx.kits);
+        let sweep = grid.best_aimed(ctx.world, ctx.s, e.a, e.b, way(e), &|st| lands(e, st), ctx.kits, GAP_GROUND);
         out.flights += sweep.flights;
         out.aimed = Some(sweep.flights);
-        out.made = sweep.made.map(|m| (i, vec![m]));
+        out.made = better(partial, sweep.made.map(|m| (i, vec![m])));
+    } else {
+        out.made = partial;
     }
     out.reach_m = reach.get();
     out
+}
+
+/// [body physics S5a fix] How long the gap pass's scoring flights run after the landing step: on until the body is down
+/// ([`jump::Ground::FallOn`]). Cut at [`jump::STAY_STEPS`], a flight off a deep edge still falling read as no landing (Chemical
+/// Plant batteries (20.12, 10.17, 29.12): 5 of a sprint press's 6 variants of a 3.4 m drop were still in the air).
+const GAP_GROUND: jump::Ground = jump::Ground::FallOn;
+
+/// [body physics S5a fix] Whether a made press lands in every variant the motor can play: its own flight's neighbour (the first of
+/// [`jump::neighbourhood`], bit 0 of its share's mask), which lands only when every variant of it does. Only such a press makes a
+/// gap group; with a partial one the aimed sweep is flown as well ([`better`]). Before, a line press one sprint variant of which
+/// landed made the group and the aimed sweep was not flown (Chemical Plant batteries 27531: the straight sprint at 1.5 m, 1 of
+/// 6 variants, over the aimed sprint at 1.4 m).
+fn lands_whole(m: &Made) -> bool {
+    m.share.mask().is_some_and(|k| k.lands(0))
+}
+
+/// [body physics S5a fix] Of a gap group's partial line presses (`line`: their end and presses) and its aimed press (`aimed`), the
+/// one with the better share ([`super::gap::Share::rank`]: the priced count, then every landing neighbour; a link's cost follows from it,
+/// [`super::gap::Share::failed_tries`]); the line's on a tie (the aimed sweep is the fallback, [R83]).
+fn better(line: Option<(u8, Vec<Made>)>, aimed: Option<(u8, Vec<Made>)>) -> Option<(u8, Vec<Made>)> {
+    let best = |m: &(u8, Vec<Made>)| m.1.iter().map(|m| m.share.rank()).max().flatten();
+    match (line, aimed) {
+        (Some(l), Some(a)) if best(&a) > best(&l) => Some(a),
+        (Some(l), _) => Some(l),
+        (None, a) => a,
+    }
 }
 
 impl WalkGrid {
@@ -723,17 +783,23 @@ fn gap_clip_job(ctx: &GapFlownCtx<'_>, item: &GapFlownItem) -> GapClipOut {
             }
             grid.gap_lands_on(st, e.a, DIRS[e.d], &e.linked, e.over, e.past)
         };
-        let p = grid.best_press(ctx.world, ctx.s, e.a, e.b, way, &ctx.leads, lands, ctx.kits);
+        let p = grid.best_press(ctx.world, ctx.s, e.a, e.b, way, &ctx.leads, lands, ctx.kits, GAP_GROUND);
         out.flights += p.flights;
-        let made = if p.made.is_empty() && p.near {
-            let sweep = grid.best_aimed(ctx.world, ctx.s, e.a, e.b, way, &lands, ctx.kits);
+        let i = u8::try_from(i).expect("a group's ends fit a byte");
+        // [body physics S5a fix] As the flown gaps ([`gap_flown_job`]): the line's presses make the end only when one lands in
+        // every variant ([`lands_whole`]); else, where a flight came near or a line press landed partly, the aimed presses too,
+        // the better share kept ([`better`]).
+        let made = if p.made.iter().any(lands_whole) {
+            Some((i, p.made))
+        } else if p.near || !p.made.is_empty() {
+            let sweep = grid.best_aimed(ctx.world, ctx.s, e.a, e.b, way, &lands, ctx.kits, GAP_GROUND);
             out.flights += sweep.flights;
-            sweep.made.into_iter().collect()
+            better((!p.made.is_empty()).then_some((i, p.made)), sweep.made.map(|m| (i, vec![m])))
         } else {
-            p.made
+            None
         };
-        if !made.is_empty() {
-            out.made = Some((u8::try_from(i).expect("a group's ends fit a byte"), made));
+        if made.is_some() {
+            out.made = made;
             break;
         }
     }
@@ -981,6 +1047,48 @@ mod tests {
         assert!(clip.iter().all(|l| l.share.flown().is_none()), "{clip:?}");
     }
 
+    /// [body physics S5a fix] A gap group is made only by a press that lands in every variant (its own neighbour, bit 0); of a
+    /// partial line press and the aimed one, the better share is kept, the line's on a tie.
+    #[test]
+    fn a_partial_line_press_leaves_the_aimed_sweep_to_win_on_share() {
+        use crate::grid::gap::{Aim, Mask, PressLead, Share};
+        let made = |bits: u16| Made {
+            to: 1,
+            press: Takeoff::Sprint(PressLead::from_metres(1.4)),
+            share: Share::of_mask(Mask::of_bits(bits).expect("bits of the neighbourhood")),
+            walk: None,
+            aim: Aim::STRAIGHT,
+            walker_lands: false,
+        };
+        assert!(lands_whole(&made(0b1)), "the press itself lands in every variant");
+        assert!(!lands_whole(&made(0b110)), "its neighbours do, it does not");
+        assert!(!lands_whole(&made(0)));
+        let line = Some((0u8, vec![made(0b10)]));
+        let aimed = Some((1u8, vec![made(0b1_1110_0001)]));
+        assert_eq!(better(line.clone(), aimed.clone()).map(|m| m.0), Some(1), "the aimed press's better share");
+        assert_eq!(better(line.clone(), Some((1, vec![made(0b100)]))).map(|m| m.0), Some(0), "the line's on a tie");
+        assert_eq!(better(None, aimed).map(|m| m.0), Some(1));
+        assert_eq!(better(line, None).map(|m| m.0), Some(0));
+    }
+
+    /// [body physics S5a fix] A level landing a walk reaches is no gap's (Chemical Plant batteries 27932: a hop along the
+    /// take-off's own top outvoted the gap's landing): on one level top 2 m up a floor 2.5 m on is reached; over a 1 m gap
+    /// between level tops, or past a 2 m wall standing on the top between them, it is not, and the gap pass may land there.
+    #[test]
+    fn a_level_landing_a_walk_reaches_is_no_gap_landing_but_one_past_a_wall_or_a_gap_is() {
+        let reaches = |t: &[Triangle]| {
+            let g = grid(t, true);
+            let (a, b) = (g.locate(Vec3::new(5.0, 2.0, 5.0), 0.3).expect("a take-off"), g.locate(Vec3::new(7.5, 2.0, 5.0), 0.3).expect("a landing"));
+            g.walk_reaches(a, b)
+        };
+        let top = quad(0.0, 14.0, 2.0).to_vec();
+        assert!(reaches(&top), "one level top");
+        assert!(!reaches(&blocks(2.0, 2.0, 1.0, 0.0)), "a 1 m gap between level tops");
+        let mut walled = top.clone();
+        walled.extend(face_x(6.0, 2.0, 4.0));
+        assert!(!reaches(&walled), "a wall on the top between them");
+    }
+
     /// [S4] A deck 2 m up ending at a railing 0.25 m thick, its top 1.0 m over the deck, with a roof 1.0 m under the deck past it
     /// (the Chemical Plant train's case, `railings-design.md` §4): the way over the railing is a gap searched and flown
     /// ([`WalkGrid::over_thin_top`]); whether a press clears the railing is the flight's. Before S4 the railing ended the search.
@@ -1071,10 +1179,13 @@ mod tests {
         };
         let behind = flight(8.9);
         assert_eq!(g.gap_lands_on(&behind, a, (-1, 0), &[], f32::NEG_INFINITY, 2), None, "the proven link's flight, behind along (-1, 0)");
-        assert!(g.gap_lands_on(&behind, a, (1, 0), &[], f32::NEG_INFINITY, 2).is_some(), "the same flight along (1, 0) lands ahead");
+        // [body physics S5a fix] Along (1, 0) it rests ahead, but on the take-off's own block at its level: a walk reaches it, no
+        // gap landing ([`WalkGrid::walk_reaches`]).
+        assert_eq!(g.gap_lands_on(&behind, a, (1, 0), &[], f32::NEG_INFINITY, 2), None, "the same flight along (1, 0): a walk's");
         let across = flight(5.0);
         let landed = g.gap_lands_on(&across, a, (-1, 0), &[], f32::NEG_INFINITY, 2).expect("a flight across the gap lands");
         assert!(g.position(landed).x < 6.0, "{:?}", g.position(landed));
+        assert_eq!(g.gap_lands_on(&across, a, (1, 0), &[], f32::NEG_INFINITY, 2), None, "across the gap is behind along (1, 0)");
     }
 
     /// A level gap of 6 m: no press of the client's lands across (the sprint jump from a 0.6-1.6 m lead comes down about 4 m on),

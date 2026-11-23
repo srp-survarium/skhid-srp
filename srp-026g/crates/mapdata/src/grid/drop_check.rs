@@ -1097,7 +1097,7 @@ impl WalkGrid {
         // edge about 3 m high the body is still in the air at the clip's last ground step ([`jump::STAY_STEPS`]).
         let ground_steps = jump::STAY_STEPS + LAND_STEPS as u32;
         let rests = |kind: jump::Kind, lead: f32, n: jump::Neighbour| -> Option<u32> {
-            let flights = jump::neighbour_flights_for(world, s, from, way, kind, lead, n, kits, ground_steps)?;
+            let flights = jump::neighbour_flights_for(world, s, from, way, kind, lead, n, kits, jump::Ground::Steps(ground_steps))?;
             let floors: Vec<Option<u32>> = flights
                 .iter()
                 .map(|st| jump::landing_and_rest(st, |f| below(f.feet).is_some()).and_then(|(_, rest)| below(rest.feet)))
