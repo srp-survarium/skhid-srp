@@ -4762,3 +4762,29 @@ or "no window" (a locked or switching desktop). It is asked only for a line.
 registers in every poll, and the lines above only from the patched exe, once per change. The
 lost-device line's paths are run with a failed HRESULT's look in EAX: no line. A log line only:
 nothing a match computes.
+### 3.105 A 0.69d scene's local probes as 0.69d composes them (written 2026-11-23, README patch 202) — PROVEN in the code of 0.26g and the data; the 0.69d side from the earlier bytecode read; captured headless (probe-tiers-069d.md)
+
+0.69d averages the probes of its local tier by their weights (`sum(w L) / max(W, 1)`) and shows the
+global tier only where `1 - W` remains; 0.26g lerps each probe over the ones before it, so between two
+abutting local probes the outdoor light of the global ones showed through (Rudnya's church nave, the
+tester's reports of 2026-11-23). The whole of it: `probe-tiers-069d.md`.
+
+- **The gate** (PROVEN): a probe with a radius below 0 (the 0.69d converter's mark of a local probe)
+  in a scene whose `mie_fog_base_height` (scene_view+280h) is a 0.69d exposure profile's marker
+  (33000 to 33999). Stock level_07's probe of radius -0.4 is in no such scene.
+- **The compiles** (Rust `probe_tiers`, sites `probe_lighting_<gsba>.*`): the four box effects without
+  smart attenuation compile techniques 2 to 7 after their own, three rounds through patch 178's
+  return-to-the-technique's-start, each with its pixel shader (`environment_probe_tier_*`, content
+  three-maps-021-lighting@15), blend and the weights' texture (rt 32).
+- **The draw** (sites `env_probes.next`, `.technique`, `.done` in render_environment_probes
+  0x180980): from the first local probe on, the local probes run three times (weights into rt 32,
+  the light under them damped by what the weights cover, their light shared by the weights), then
+  rt 32 is cleared back to 1 by the stage's own clear_surfaces (0x180820, a new `engine_026g.tsv`
+  row) and the loop's render targets are bound again.
+- **What changes:** the local probes of a 0.69d map (Rudnya v0.69's 62). Every other scene and probe
+  draws as before. Rendering only: nothing a match computes or a world holds changes (no
+  `simulation_changes.tsv` row, no world format change). Needs the lighting pack's programs: the exe
+  patch, three-maps-021-lighting@15 and rudnya-069d@8 ship together.
+- **Checked:** `cargo test -p patches probe_tiers` (the rounds, the transitions, the gate). Captures
+  (patch 176) of the reports page's views and the kept poses before and after, and of unmarked maps
+  with and without the patch and the content (probe-tiers-069d.md). No Unicorn check.

@@ -184,6 +184,7 @@ pub mod console_scroll;
 pub mod v021d_render;
 // patch 178: the ported Londons' deferred composition is 0.44a5's
 pub mod composition_v044a;
+pub mod probe_tiers;
 pub mod faces;
 pub mod geometry_share;
 // patch 161: a weapon's scope, eye, left hand and shells where its fitted modules put them

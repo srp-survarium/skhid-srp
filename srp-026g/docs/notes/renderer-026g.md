@@ -568,10 +568,17 @@ accum_diffuse and RT1 accum_specular. Constants (0x18137B..0x181609): `light_ran
 `world_to_inner_probe`, `probe_index`, `probes_blend_factor` (scene+126154h; blend_to used when
 0 < f < 0.999, the blend_to textures alone when f >= 0.999). PROVEN.
 
-Shader `environment_probe_lighting.ps`, 32 permutations; path digits: pos 3 lighting model (0 in
-all 16 effects), pos 5 TDIFFUSE = affect_diffuse, pos 26-27 TALPHABLENDED_DIFFUSE = blend,
-pos 31 LOD_INDEX = smart_attenuation, pos 41 ENV_PROBE_GEOMETRY_TYPE (macro bits from the
-config setter around 0x3D936B; effect configs 0x18A310.. set exactly these bits). Read:
+Shader `environment_probe_lighting.ps`, 32 permutations; its mask (`shaders/masks`):
+CONFIG_ENV_PROBE_GEOMETRY_TYPE, CONFIG_LOD_INDEX, CONFIG_TALPHABLENDED_DIFFUSE, CONFIG_TDIFFUSE,
+GLOBAL_LIGHTING_QUALITY, CONFIG_SHADOWED_LIGHT; path digits: pos 3 GLOBAL_LIGHTING_QUALITY (0 or
+3: the db holds both sets of 16, and the quality setting picks one at every compile; the 3 set
+interpolates two specular mips, the 0 set takes the nearest one), pos 5 TDIFFUSE = affect_diffuse,
+pos 27 TALPHABLENDED_DIFFUSE = blend (pos 26 CONFIG_SHADOWED_LIGHT, always 0), pos 31 LOD_INDEX =
+smart_attenuation, pos 41 ENV_PROBE_GEOMETRY_TYPE (macro bits from the config setter around
+0x3D936B; effect configs 0x18A310.. set exactly these bits; corrected 2026-11-23, earlier this
+said "pos 3 lighting model, 0 in all 16 effects"). The box programs (geometry 1, LOD_INDEX 0) are
+reconstructed as HLSL in `srp-026g/shaders/sm_4_0/environment_probe_lighting.ps` (`probes.sh
+check`: 6 of the 8 byte-identical, the other two one mul's operands apart). Read:
 
 ```
 sphere alpha  (91f1723c...47c5df)  t = sat((|P - probe_location| - inner_radius)
