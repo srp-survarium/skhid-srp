@@ -40,9 +40,10 @@ pub mod category {
     pub const PISTOLS: u8 = 17;
 }
 
-/// What the bots' kits carry over the 30 kg of a player: the
-/// `max_carried_weight` modifier of skill 209 at its five ranks, +2 kg
-/// each (`skills` tests), worn in every bot kit's modifier block
+/// What the bots' kits carry over the 30 kg of a player: about what a
+/// top player's Athlete (skill 209, +1 kg a rank, five ranks) and
+/// carry-limit rolls (1120..1124, up to +2.5 kg a piece) give, worn in
+/// every bot kit's modifier block
 /// ([`bot_modifiers`]). A top player's kit of the highest levels weighs
 /// more than 30 kg (Freedom's exoskeleton suit alone is 33 kg).
 pub const BOT_CARRY_BONUS: f32 = 10.0;
