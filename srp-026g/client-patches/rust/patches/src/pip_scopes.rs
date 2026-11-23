@@ -117,9 +117,16 @@ enum Picture {
 static PICTURES: Lock<[Picture; 2]> = Lock::new([Picture::Unwanted; 2]);
 
 /// The picture for a lens `wide` pixels across: the index of [`PICTURE_SIZES`].
-fn picture_for(wide: f32) -> usize {
-    PICTURE_SIZES.iter().position(|&size| size as f32 >= wide).unwrap_or(PICTURE_SIZES.len() - 1)
+/// A smaller one than `last` only once the lens is well inside it: each picture
+/// has its own anti-aliasing history, and a lens near a size swaying across it
+/// would draw from two stale histories by turns (far details flickering).
+fn picture_for(wide: f32, last: usize) -> usize {
+    let fits = PICTURE_SIZES.iter().position(|&size| size as f32 >= wide).unwrap_or(PICTURE_SIZES.len() - 1);
+    if fits < last && wide > PICTURE_SIZES[fits] as f32 * 0.85 { last } else { fits }
 }
+
+/// The picture the lens last asked for (the game's thread).
+static LAST_PICTURE: Lock<usize> = Lock::new(0);
 
 /// The larger pictures made.
 fn larger_made(thread: &Thread) -> [Option<(SecondView, u32)>; 2] {
@@ -659,7 +666,13 @@ pub fn on_draw(ctx: &mut Context<'_>) -> Flow<NoExit> {
             frame.set_projection(&main_projection);
             set_frame_fov(thread, &main_projection);
             // the picture as wide as the lens on the screen, once a lens was measured
-            let wanted = measured.map_or(0, |size| picture_for(size * FRAME_HEIGHT.with(thread, |h| *h) as f32));
+            let wanted = measured.map_or(0, |size| {
+                let wide = size * FRAME_HEIGHT.with(thread, |h| *h) as f32;
+                LAST_PICTURE.with(thread, |last| {
+                    *last = picture_for(wide, *last);
+                    *last
+                })
+            });
             let (picture, picture_size) = match wanted.checked_sub(1) {
                 None => (second, SCOPE_SIZE),
                 Some(larger) => PICTURES.with(thread, |pictures| match pictures[larger] {
