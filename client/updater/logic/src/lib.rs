@@ -14,6 +14,7 @@ pub mod download;
 pub mod file_error;
 pub mod game;
 pub mod inflate;
+pub mod leftover;
 pub mod local_replay;
 pub mod manifest;
 pub mod newest;

@@ -32,6 +32,7 @@ mod play;
 mod gate;
 mod http;
 mod install;
+mod leftover;
 mod libtorrent;
 mod log;
 mod patches;
