@@ -6534,7 +6534,7 @@ crate, which srp shares. Rust modules `technical_skills` and its siblings (`tech
   its frame: time, killer, source).
 - Bear Trap (444) at `medical.wound` (0x32A28B, order 2; the site's ESI is the hit): a leg's pool
   hit by a trap set of a skilled holder is stored as 0.
-- Toxic Smoke's halved pockets and Bear Trap's 1.5-unit traps are srp's (`KitLayout::share`) and the lobby's
+- Toxic Smoke's and Bear Trap's 1.5-unit grenades and traps are srp's (`KitLayout::share`) and the lobby's
   (`PlayerInfo.pocketUnits`); nothing of them in the exe.
 - Sharp Ears (412, `technical_sharp_ears`): at `weapon_sound.made` (order 2) an enemy's pin pull also
   plays a long-range copy of its sound (content edit technical-sharp-ears-1) through

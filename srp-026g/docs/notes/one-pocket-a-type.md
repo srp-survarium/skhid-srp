@@ -190,7 +190,8 @@ The owner: "people are confused why they have 3 slots but only 1 grenade".
   the pairs use up, the pocket's units less the grenades it holds, are its last cells, in the speed
   warning's pale red (`WeightEffects.WARNING_COLOR`): 3 units hold 1 (1 cell, 2 red), 4 hold 2
   (2 cells, 2 red; the owner, 2026-11-22: "all reds come last"). The same for a grenade with
-  Toxic Smoke, and for a trap with Bear Trap, which takes 1.5 units (5 units hold 3; technical-skills.md).
+  Toxic Smoke and a trap with Bear Trap, each of which takes 1.5 units (5 units hold 3;
+  technical-skills.md).
 - **Additional Medicine's unit** is the pocket's last cell for a medicine, pale green
   (`Colors.GREEN`), dimmer while empty.
 - **The card line "Pocket slots"** (`ItemCompare.pocketDepth`, the text of property 166,

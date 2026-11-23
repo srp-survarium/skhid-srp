@@ -1188,8 +1188,8 @@ impl KitLayout {
         Some(self.share(dict_id).units_in(size.min(MAX_POCKET_UNITS)))
     }
 
-    /// What one unit of `dict_id` takes of a pocket of this kit: the item's own share, or two
-    /// units for a grenade with Toxic Smoke and a trap with Bear Trap (the lobby's
+    /// What one unit of `dict_id` takes of a pocket of this kit: the item's own share, or one and
+    /// a half units for a grenade of one unit with Toxic Smoke and a trap with Bear Trap (the lobby's
     /// `PlayerInfo.pocketUnits`).
     fn share(&self, dict_id: u16) -> item_params::PocketShare {
         use item_params::{ItemClass, PocketShare};
@@ -1200,7 +1200,6 @@ impl KitLayout {
         };
         use technical_skills::StackUnits;
         match (pocket_share(dict_id), stack.map(|stack| self.technical.stack_units(stack))) {
-            (PocketShare::Unit, Some(StackUnits::Two)) => PocketShare::Pair,
             (PocketShare::Unit, Some(StackUnits::OneAndHalf)) => PocketShare::ThreeHalves,
             (share, _) => share,
         }
@@ -1395,7 +1394,7 @@ mod tests {
     }
 
     #[test]
-    fn toxic_smoke_halves_its_pocket_and_bear_trap_takes_one_and_a_half() {
+    fn toxic_smoke_and_bear_trap_take_one_and_a_half() {
         let find = |class: item_params::ItemClass| {
             Dictionary::shared()
                 .items
@@ -1426,6 +1425,11 @@ mod tests {
         assert_eq!(kit(0.0, 4), (Some(4), Some(4)));
         assert_eq!(kit(toxic, 4), (Some(2), Some(4)));
         assert_eq!(kit(bear, 4), (Some(4), Some(2)));
+        // The owner, 2026-11-23: "do the same with toxic smokes": five units hold three grenades.
+        assert_eq!(kit(toxic, 5), (Some(3), Some(5)));
+        // Both skills: each pocket by its own share.
+        assert_eq!(kit(toxic + bear, 5), (Some(3), Some(3)));
+        assert_eq!(kit(toxic + bear, 3), (Some(2), Some(2)));
         // The owner, 2026-11-22: "so you could take 3 traps": the largest pocket, five units.
         assert_eq!(kit(bear, 5), (Some(5), Some(3)));
     }
