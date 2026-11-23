@@ -1179,8 +1179,7 @@ impl Ragdoll {
         // a head hit takes the headwear off, along the shot
         if part == Part::Head {
             let mut skeleton = [Pose::IDENTITY; BONE_COUNT];
-            let (parts, gun) = self.poses();
-            self.rig.draw(&parts, gun, &mut skeleton);
+            self.draw(&mut skeleton);
             let away = j.reject(self.up).direction_or(Vec3::ZERO);
             self.knock_off(skeleton[HEAD.index()], away, self.up.cross(away), Off::CorpseShot);
         }

@@ -679,8 +679,7 @@ fn a_head_shot_into_a_corpse_takes_its_headwear_off_once() {
     let (start, by) = hat(&corpses).expect("off");
     assert_eq!(by, Off::CorpseShot);
     let mut drawn = [Pose::IDENTITY; BONE_COUNT];
-    let (parts, gun) = ragdoll_of(&corpses).poses();
-    ragdoll_of(&corpses).rig().draw(&parts, gun, &mut drawn);
+    ragdoll_of(&corpses).draw(&mut drawn);
     assert!((start.position - drawn[HEAD.index()].position).length() < 1e-4, "from the head");
     for _ in 0..10 {
         frame(&mut corpses, &d, None, &mut ground);
