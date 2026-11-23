@@ -220,7 +220,7 @@ impl Session {
             None => Shown::start(route::choice()),
             Some(event) => route.shown.on(event),
         };
-        let routing::Step { shown, save, probe } = step;
+        let routing::Step { shown, save, probe, tell } = step;
         if shown != route.shown || event.is_none() {
             log!("route: the row shows {shown:?}");
         }
@@ -231,6 +231,23 @@ impl Session {
         // A check the row no longer asks for (a pick since) ends unshown.
         route.probing = probe.then(|| route::probe(route.config));
         self.send(ToLauncher::Route(shown));
+        if let Some(diagnosis) = tell {
+            self.hint(diagnosis);
+        }
+    }
+
+    /// Says `diagnosis` in a box of the updater's own, in the launcher's
+    /// language, from a thread of its own: the pipe is read on meanwhile.
+    /// Direct blocked while the relay answers: the player is told to pick
+    /// auto or on himself.
+    fn hint(&self, diagnosis: Diagnosis) {
+        log!("route: the player is told {diagnosis:?}");
+        if self.quiet {
+            return;
+        }
+        let language = win::documents().as_deref().and_then(win::game_language);
+        let (caption, message) = route::words(diagnosis, language);
+        std::thread::spawn(move || warning_box(&caption, &message));
     }
 
     /// PLAY comes on. In Automatic with no route found yet (`route::found`)
@@ -260,15 +277,6 @@ impl Session {
         }
     }
 
-    /// The direct route is blocked while the relay answers: the row turns
-    /// to auto by itself (saved also with no launcher to show it).
-    fn blocked(&mut self) {
-        if self.route.is_some() {
-            self.route(Some(Event::Blocked));
-        } else {
-            route::blocked();
-        }
-    }
 
     fn state(&mut self, state: u8) {
         log!("state {state:#04x}");
@@ -1745,10 +1753,6 @@ fn pass(session: &mut Session, layout: &Layout, look: patches::Look, product: Op
                     // By hand: the box waits for it.
                     Problem::Unreached { diagnosis: Diagnosis::Restarting, .. } => {
                         server(layout).map_or(Retry::Player, Retry::Server)
-                    }
-                    Problem::Unreached { diagnosis: Diagnosis::Blocked, .. } => {
-                        session.blocked();
-                        Retry::Player
                     }
                     _ => Retry::Player,
                 };

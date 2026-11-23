@@ -92,12 +92,6 @@ fn launch(arguments: &[String], wait: bool, quiet: bool) -> Result<(), Ended> {
             let diagnosis = route::diagnose_game(config, &selection);
             let (caption, message) = route::words(diagnosis, language);
             let again = match diagnosis {
-                // The row turns to auto: the relay answers, so on through
-                // it, after the player has read why (quiet: at once).
-                Diagnosis::Blocked => {
-                    route::blocked();
-                    quiet || retry_box(&caption, &message)
-                }
                 // Back in a minute: the box probes every few seconds and
                 // goes on by itself once the server answers.
                 Diagnosis::Restarting => !quiet && waiting_box(&caption, &message, language, || route::game_answers(config)),
@@ -130,7 +124,7 @@ fn launch(arguments: &[String], wait: bool, quiet: bool) -> Result<(), Ended> {
 }
 
 /// PLAY's route by the player's choice, at once: the relay; direct (the
-/// launcher's check turns the choice to Automatic on a block); Automatic,
+/// launcher's check only tells of a block: the choice is the player's); Automatic,
 /// the route found (`route::found`: the launcher's check, or a lost direct
 /// link). Only with none found does PLAY check, in a box that says so
 /// (`quiet`: none). `Err`: that check found no route (`route::diagnose_game`

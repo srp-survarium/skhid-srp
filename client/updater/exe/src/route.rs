@@ -3,7 +3,8 @@
 //! choice: read once from `<Documents>\survarium\launcher_skhid.route`, the
 //! first time decided by the Windows region and saved at once (so that it is
 //! the player's from then on, shown and changed in the launcher's "Relay" row), and
-//! changed only by that row or a block found ([`set`]). Beside it, the
+//! changed only by the player's pick in that row ([`set`]): never by a
+//! check or a block found, which are told. Beside it, the
 //! route PLAY starts the next game by in Automatic
 //! (`launcher_skhid.route_found`, [`found`]): what the launcher's check
 //! found, or the relay after a game that lost its direct link ([`learn`]).
@@ -19,7 +20,7 @@ use std::time::Duration;
 use relay_client::{Config, Selection};
 use updater_logic::diagnosis::{Diagnosis, Internet, Reach, Via, diagnose};
 use updater_logic::route::{
-    self as routing, CHOICE_FILE, Choice, Event, FOUND_FILE, Found, LastGame, Learned, Probed, Shown,
+    self as routing, CHOICE_FILE, Choice, FOUND_FILE, Found, LastGame, Learned, Probed,
 };
 use updater_logic::url::Url;
 
@@ -58,14 +59,6 @@ pub fn choice() -> Choice {
 pub fn set(choice: Choice) {
     save(folder().as_deref(), choice);
     *CHOICE.lock().unwrap_or_else(|e| e.into_inner()) = Some(choice);
-}
-
-/// The direct route is blocked while the relay answers, and no row shows
-/// it (PLAY, the updater by hand): the choice the row would move to, saved.
-pub fn blocked() {
-    if let Some(choice) = Shown::start(choice()).shown.on(Event::Blocked).save {
-        set(choice);
-    }
 }
 
 fn save(folder: Option<&str>, choice: Choice) {

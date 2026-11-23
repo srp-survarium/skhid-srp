@@ -18,7 +18,8 @@ servers; a wrong value starts none of them.
 The player picks the route in the launcher's "Relay" row (auto, on, off:
 Automatic, the relay, direct; `client/updater/README.md`, "The route"); a player who never
 picked has Automatic in Russia (the Windows region) and direct elsewhere;
-direct found blocked while the relay answers becomes Automatic by itself.
+direct found blocked while the relay answers stays direct: the player is told to
+pick auto or on (only his pick changes the route).
 Automatic fallback is decided when the launcher opens, beside the update, and
 PLAY starts at once by the route found (`client/updater/README.md`, "The
 route"). With `updater_skhid.relay` installed, the updater probes direct login

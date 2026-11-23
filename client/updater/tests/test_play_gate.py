@@ -448,15 +448,27 @@ class RouteTest(wine.WineTest):
         self.assertIn("Direct { lost: true }", self.log())
         self.assertEqual(self.saved("launcher_skhid.route_found"), "direct-lost\r\n")
 
-    def test_direct_found_blocked_turns_the_row_to_automatic_through_the_relay(self):
+    def test_direct_blocked_stays_direct_and_the_player_is_told(self):
+        # The owner (2026-11-23): "direct means direct and requires manual change".
         self.saved("launcher_skhid.route", "direct\r\n")
         self.routes.udp[0].clear()
         launched = Launched(self)
         launched.wait_for_state(LATEST)
-        self.found("relay", launched)
-        launched.wait_for(lambda: ("view", 3) in self.views(launched), 10, "view 3")
-        self.assertEqual([view for view in self.views(launched) if view != "latest"], [("view", 6), ("view", 3)])
-        self.assertEqual(self.saved("launcher_skhid.route"), "automatic\r\n")
+        launched.wait_for(lambda: "route: the player is told Blocked" in self.log(), 30, "the hint")
+        self.assertEqual([view for view in self.views(launched) if view != "latest"], [("view", 6)])
+        self.assertEqual(self.saved("launcher_skhid.route"), "direct\r\n")
+
+    def test_relay_saved_stays_relay_unchecked(self):
+        # The owner (2026-11-23): "people who have relay on keep relay on",
+        # whatever was found before and whatever answers now.
+        self.saved("launcher_skhid.route", "relay\r\n")
+        self.saved("launcher_skhid.route_found", "direct\r\n")
+        launched = Launched(self)
+        launched.wait_for_state(LATEST)
+        time.sleep(3)
+        self.assertEqual([view for view in self.views(launched) if view != "latest"], [("view", 5)])
+        self.assertNotIn("route check", self.log())
+        self.assertEqual(self.saved("launcher_skhid.route"), "relay\r\n")
 
 
 if __name__ == "__main__":

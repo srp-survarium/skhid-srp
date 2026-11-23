@@ -813,9 +813,9 @@ shows; the launcher only shows it and passes the pick on.
   checked. A pick sends `22`, `23` or `24` (auto, on, off;
   `send_simple_message` 0x1749F, while the pipe is connected); the updater
   saves it, runs its update again by the new route and answers with the new
-  view. The launcher keeps nothing but the last view. The updater also
-  moves it by itself, to auto, when it finds the direct route blocked while
-  the relay answers, and says so in its box.
+  view. The launcher keeps nothing but the last view. Only a pick changes
+  the choice: when the updater finds Direct blocked while the relay
+  answers, it says so in its box (pick auto or on) and changes nothing.
 - **A server that restarts** (the owner, the same day: "The server is
   restarting", retried every few seconds with a count the player sees):
   the updater says "Server maintenance..." (its state 16h: PLAY off) and

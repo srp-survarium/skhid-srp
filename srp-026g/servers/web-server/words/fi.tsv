@@ -131,7 +131,7 @@ Start <code>Skhid.bat</code> again. Still failing? Run <code>Skhid-without-updat
 “No connection: …”	”No connection: …”
 Run <code>Skhid-network-setup.cmd</code>.	Suorita <code>Skhid-network-setup.cmd</code>.
 “Blocked on this network: …”	”Blocked on this network: …”
-Your provider blocks our server. The launcher has already switched to our relay, a way around the block (<b>Auto: via relay</b>, bottom left). Just press <b>Retry</b>.	Palveluntarjoajasi estää palvelimemme. Käynnistin on jo vaihtanut välityspalvelimeemme, joka kiertää eston (<b>Auto: via relay</b>, vasemmalla alhaalla). Paina vain <b>Yritä uudelleen</b>.
+Your provider blocks our server, but our relay, a way around the block, answers. Set the launcher's <b>Relay</b> (bottom left) to <b>auto</b> or <b>on</b>, then press <b>Retry</b>.	Palveluntarjoajasi estää palvelimemme, mutta välityspalvelimemme, joka kiertää eston, vastaa. Aseta käynnistimen <b>Relay</b> (vasemmalla alhaalla) tilaan <b>auto</b> tai <b>on</b> ja paina sitten <b>Yritä uudelleen</b>.
 Nothing works.	Mikään ei toimi.
 Run <code>Skhid-collect-logs.cmd</code> and send the zip it makes to us on Discord: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.	Suorita <code>Skhid-collect-logs.cmd</code> ja lähetä sen tekemä zip meille Discordissa: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.
 Q:	K:

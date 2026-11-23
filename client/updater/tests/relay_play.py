@@ -180,6 +180,18 @@ def check(run, updater, x86, started, log, win, survarium):
         choice.write_text('relay\r\n')
         play()
         expect(routes.relay)
+        # And kept so, whatever was found before and whatever answers now.
+        found.write_text('direct\r\n')
+        routes.udp[0].set()
+        play()
+        expect(routes.relay)
+        assert choice.read_bytes() == b'relay\r\n', choice.read_bytes()
+        # Direct chosen and blocked: direct all the same, the choice kept.
+        choice.write_text('direct\r\n')
+        routes.udp[0].clear()
+        play()
+        expect(routes.direct)
+        assert choice.read_bytes() == b'direct\r\n', choice.read_bytes()
         run(updater, 'play', 'quiet', '-minimum_resources_memory_size=768', '-server=127.0.0.9:1234')
         expect('127.0.0.9:1234')
         # The scripts' form: the updater stays until the game has ended (the

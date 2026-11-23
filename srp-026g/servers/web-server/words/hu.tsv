@@ -131,7 +131,7 @@ Start <code>Skhid.bat</code> again. Still failing? Run <code>Skhid-without-updat
 “No connection: …”	„No connection: …”
 Run <code>Skhid-network-setup.cmd</code>.	Futtasd a <code>Skhid-network-setup.cmd</code> fájlt.
 “Blocked on this network: …”	„Blocked on this network: …”
-Your provider blocks our server. The launcher has already switched to our relay, a way around the block (<b>Auto: via relay</b>, bottom left). Just press <b>Retry</b>.	Az internetszolgáltatód blokkolja a szerverünket. A launcher már átváltott a relénkre, amely megkerüli a blokkolást (<b>Auto: via relay</b>, bal alul). Csak nyomd meg az <b>Ismét</b> gombot.
+Your provider blocks our server, but our relay, a way around the block, answers. Set the launcher's <b>Relay</b> (bottom left) to <b>auto</b> or <b>on</b>, then press <b>Retry</b>.	Az internetszolgáltatód blokkolja a szerverünket, de a relénk, amely megkerüli a blokkolást, válaszol. A launcherben állítsd a <b>Relay</b> sort (bal alul) <b>auto</b> vagy <b>on</b> értékre, majd nyomd meg az <b>Ismét</b> gombot.
 Nothing works.	Semmi sem működik.
 Run <code>Skhid-collect-logs.cmd</code> and send the zip it makes to us on Discord: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.	Futtasd a <code>Skhid-collect-logs.cmd</code> fájlt, és küldd el nekünk Discordon a zipet, amelyet készít: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.
 Q:	K:

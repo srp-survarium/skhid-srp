@@ -132,7 +132,7 @@ one.
 | `updater_skhid.exe check quiet` | a script | No box either. Exit code 0: done or nothing to do; 1: failed (the reason is in the log) |
 | `updater_skhid.exe check ... torrent` / `direct` | `Skhid-get.bat` (`check torrent`), the tests (`direct`) | `check` takes torrent as the word says, else as the launcher keeps its "Allow torrent": user.cfg's `enable_torrent_seeding on` (`<Documents>\survarium\user.cfg`, as the language), taken only once the launcher's one-time reset is done (`launcher_skhid.torrent_reset` beside user.cfg, launcher patch 15); else off |
 | `updater_skhid.exe ready` (`quiet`: no box) | `play_skhid.bat`, `play_skhid.sh` before they start the game | Reads only: no lock, no server, nothing written but the log. Exit code 1 (and a box that says to start the launcher) when the last patch step did not end `ready` (a new overlay since, too), or the patch files are not now what its list says (one missing, damaged, or one more; looked at with the quick check); else 0 |
-| `updater_skhid.exe play [<game options>]` (`quiet`: no box; `wait`: stays until the game ends, exit code 1 when it ended with an error) | the launcher's PLAY and the play scripts (`wait quiet`), in a download with `updater_skhid.relay` | Starts the game at once on the player's route ("The route" below), unchecked: the relay; direct; Automatic, the route found (`launcher_skhid.route_found`: what the launcher's check found when it opened, or the relay for one game after a game lost its direct link) (`srp-026g/deploy/relay/README.md`). Only in Automatic with no route found yet does PLAY check the routes itself ("The check" below: seconds), in a box that says so and closes itself ("Checking the connection to the server...", in the launcher's language; `quiet`: no box). A check that finds no route is told apart in a box with Retry (no internet, the server offline, the relay down); blocked here while the relay answers, the launcher's row turns to auto and Retry goes through the relay (`quiet`: at once); a server that restarts is probed every 5 s while its box counts the seconds, and the game starts by itself once it answers. With `-server=` or `-match_replay=` among the options, or no `updater_skhid.relay`, the game is started as given. Exit code 1 when the route does not answer or the patches are not ready |
+| `updater_skhid.exe play [<game options>]` (`quiet`: no box; `wait`: stays until the game ends, exit code 1 when it ended with an error) | the launcher's PLAY and the play scripts (`wait quiet`), in a download with `updater_skhid.relay` | Starts the game at once on the player's route ("The route" below), unchecked: the relay; direct; Automatic, the route found (`launcher_skhid.route_found`: what the launcher's check found when it opened, or the relay for one game after a game lost its direct link) (`srp-026g/deploy/relay/README.md`). Only in Automatic with no route found yet does PLAY check the routes itself ("The check" below: seconds), in a box that says so and closes itself ("Checking the connection to the server...", in the launcher's language; `quiet`: no box). A check that finds no route is told apart in a box with Retry (no internet, the server offline, the relay down, blocked here); a server that restarts is probed every 5 s while its box counts the seconds, and the game starts by itself once it answers. With `-server=` or `-match_replay=` among the options, or no `updater_skhid.relay`, the game is started as given. Exit code 1 when the route does not answer or the patches are not ready |
 | `updater_skhid.exe replay <id> <token> <sha256> <size>` | the patched game (patch revision 14) | "Watch replay": fetches one replay and starts a second game that plays it (below). A problem is a message box |
 | `updater_skhid.exe replay <id> <token> <sha256> <size> quiet` | the tests | The same with no window at all: the problem is in the log and the exit code (1) |
 | `"<exe>" seed \\.\pipe\skhid_seed-<pid>` | the patched game, started by the launcher with "Allow torrent" on: from its login screen on, matches too | Shares the folder's revision torrent until the game closes its pipe (the game's end); answers the game's stats switch. No window, no box, no lock, nothing fetched or installed; its own run logs, in `updater_skhid.seed-logs\` ("BitTorrent" below). Anything after `seed` but the game's pipe: exit code 1 |
@@ -280,12 +280,18 @@ one of three (`logic/src/route.rs`, `exe/src/route.rs`, the one owner):
 - **Relay**: PLAY starts the game through the relay, unprobed; HTTPS goes
   through the relay only.
 - **Direct**: never the relay. PLAY starts the game directly; the check runs
-  when the launcher opens all the same, for a block.
+  when the launcher opens all the same, only to tell the player of a block.
 
-Found blocked (the direct route does not answer, the relay does: the
-launcher's check, or "Blocked on this network" of the update or of PLAY's
-own check), the choice moves to Automatic by itself, saved: the launcher's
-row reads "Auto: via relay" from then on, and the player's to change.
+Relay and Direct are the player's picks, and only his pick in the row
+changes them (the owner, 2026-11-23: "direct means direct and requires
+manual change", "people who have relay on keep relay on"); Automatic
+decides by itself. Found blocked in Direct (the direct route does not
+answer, the relay does: the launcher's check, or the update's "Blocked on
+this network"), the player is told so in a box of the updater's own, in
+the launcher's language: "Blocked on this network ... set "Relay" to auto
+or on (at the launcher's bottom left), then try again." The choice stays
+Direct. An update keeps the saved choice as it is: the file is read as it
+was written, and only a missing one is decided by the region.
 
 **PLAY never waits on the launcher's check.** What a check found is kept for
 PLAY in `<Documents>\survarium\launcher_skhid.route_found` (one word,
@@ -430,7 +436,7 @@ update is tried again) and the row is never told to change:
 | Directly | Through the relay | Told |
 |---|---|---|
 | the site, its proxy saying the game server is down (502, 503, 504) | anything | The server is restarting: back in a minute. Waited for, below |
-| nothing | the site | Blocked on this network: "Relay" is now on auto (the row turns itself, "The route"); Retry goes through the relay |
+| nothing | the site | Blocked on this network: set "Relay" to auto or on (the choice is never changed for the player, "The route") |
 | nothing | nothing; PC online | The server is offline: try again later |
 | nothing | nothing (or no relay); PC offline | No internet connection: check your network |
 | nothing | no relay; PC online | No connection: a firewall may block the game (`Skhid-network-setup.cmd`) |
@@ -461,7 +467,7 @@ the minutes until it stops, shown in the game.
 
 ```text
 Blocked on this network: skhid.link did not answer (timed out)
-Your provider blocks the server, but the relay answers: "Relay" is now on auto (at the launcher's bottom left). Try again.
+Your provider blocks the server, but the relay answers: set "Relay" to auto or on (at the launcher's bottom left), then try again.
 Log: E:\Survarium_SkhidSRP_0_26\game\logs\updater_skhid.2026-11-15_14-03-07.log
 ```
 

@@ -131,7 +131,7 @@ Start <code>Skhid.bat</code> again. Still failing? Run <code>Skhid-without-updat
 “No connection: …”	«Няма злучэння: …»
 Run <code>Skhid-network-setup.cmd</code>.	Запусціце <code>Skhid-network-setup.cmd</code>.
 “Blocked on this network: …”	«Заблакавана ў гэтай сетцы: …»
-Your provider blocks our server. The launcher has already switched to our relay, a way around the block (<b>Auto: via relay</b>, bottom left). Just press <b>Retry</b>.	Ваш правайдар блакуе наш сервер. Лаўнчар ужо сам пераключыўся на наш рэлей, які абыходзіць блакаванне (<b>Auto: via relay</b>, злева ўнізе). Проста націсніце <b>«Паўтарыць»</b>.
+Your provider blocks our server, but our relay, a way around the block, answers. Set the launcher's <b>Relay</b> (bottom left) to <b>auto</b> or <b>on</b>, then press <b>Retry</b>.	Ваш правайдар блакуе наш сервер, але наш рэлей, які абыходзіць блакаванне, адказвае. Пастаўце ў лаўнчары <b>Relay</b> (злева ўнізе) на <b>auto</b> або <b>on</b> і націсніце <b>«Паўтарыць»</b>.
 Nothing works.	Нічога не працуе.
 Run <code>Skhid-collect-logs.cmd</code> and send the zip it makes to us on Discord: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.	Запусціце <code>Skhid-collect-logs.cmd</code> і дашліце zip, які ён створыць, нам у Discord: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.
 Q:	П:

@@ -15,7 +15,7 @@
 
 use core::net::Ipv4Addr;
 
-use crate::diagnosis::Via;
+use crate::diagnosis::{Diagnosis, Via};
 
 /// Beside user.cfg: the player's [`Choice`], one word.
 pub const CHOICE_FILE: &str = "launcher_skhid.route";
@@ -315,25 +315,23 @@ pub enum Event {
     Chosen(Choice),
     /// A probe ended.
     Probed(Probed),
-    /// The direct route was found blocked while the relay answers
-    /// (`crate::diagnosis::Diagnosis::Blocked`): the row turns to auto by
-    /// itself.
-    Blocked,
 }
 
-/// A transition's result: what the row shows now, the choice to save (a
-/// pick's, a block's), and whether a probe is to run.
+/// A transition's result: what the row shows now, the choice to save (the
+/// player's pick: nothing else ever changes it), whether a probe is to run,
+/// and what the player is to be told (Direct blocked while the relay
+/// answers: to pick auto or on).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Step {
     pub shown: Shown,
     pub save: Option<Choice>,
     pub probe: bool,
+    pub tell: Option<Diagnosis>,
 }
 
 impl Shown {
     /// The row at the start, for the saved choice. Direct is checked too,
-    /// for a block (the row shows "off" meanwhile): found, it turns to
-    /// Automatic before PLAY is pressed.
+    /// only to tell the player of a block: it stays Direct.
     pub fn start(choice: Choice) -> Step {
         Step {
             probe: choice != Choice::Relay,
@@ -351,6 +349,7 @@ impl Shown {
             shown,
             save,
             probe: choice == Choice::Automatic,
+            tell: None,
         }
     }
 
@@ -362,30 +361,23 @@ impl Shown {
         }
     }
 
-    /// The one transition. A probe's end is the one the row last asked for
-    /// (a pick drops one still running: `Step::probe` false). A block moves
-    /// the choice to Automatic, through the relay: saved and shown as a
-    /// pick, the player's to change. The check of Direct at the start finds
-    /// one when it ends at the relay; a block the update finds is checked.
+    /// The one transition. Only a pick changes the choice (Direct and the
+    /// relay are the player's; Automatic decides by itself, by its check).
+    /// A probe's end is the one the row last asked for (a pick drops one
+    /// still running: `Step::probe` false). Direct's check that ends at the
+    /// relay tells the player to pick auto or on, and changes nothing.
     pub fn on(self, event: Event) -> Step {
-        match (self, event) {
-            (_, Event::Chosen(choice)) => Self::step(choice, Some(choice)),
-            (_, Event::Blocked) => Self::step(Choice::Automatic, Some(Choice::Automatic)),
-            (Self::Automatic(None), Event::Probed(probed)) => Step {
-                shown: Self::Automatic(Some(probed)),
-                save: None,
-                probe: false,
-            },
-            (Self::Direct, Event::Probed(Probed::Relay)) => Step {
-                shown: Self::Automatic(Some(Probed::Relay)),
-                save: Some(Choice::Automatic),
-                probe: false,
-            },
-            (shown, Event::Probed(_)) => Step {
-                shown,
-                save: None,
-                probe: false,
-            },
+        let shown = match (self, event) {
+            (_, Event::Chosen(choice)) => return Self::step(choice, Some(choice)),
+            (Self::Automatic(None), Event::Probed(probed)) => Self::Automatic(Some(probed)),
+            (shown, Event::Probed(_)) => shown,
+        };
+        let tell = (self == Self::Direct && event == Event::Probed(Probed::Relay)).then_some(Diagnosis::Blocked);
+        Step {
+            shown,
+            save: None,
+            probe: false,
+            tell,
         }
     }
 
@@ -560,17 +552,17 @@ mod tests {
     #[test]
     fn a_pick_is_shown_and_saved_and_automatic_probes() {
         let start = Shown::start(Choice::Automatic);
-        assert_eq!(start, Step { shown: Shown::Automatic(None), save: None, probe: true });
+        assert_eq!(start, Step { shown: Shown::Automatic(None), save: None, probe: true, tell: None });
         // Direct is checked at the start too (for a block); the relay is not.
-        assert_eq!(Shown::start(Choice::Direct), Step { shown: Shown::Direct, save: None, probe: true });
-        assert_eq!(Shown::start(Choice::Relay), Step { shown: Shown::Relay, save: None, probe: false });
+        assert_eq!(Shown::start(Choice::Direct), Step { shown: Shown::Direct, save: None, probe: true, tell: None });
+        assert_eq!(Shown::start(Choice::Relay), Step { shown: Shown::Relay, save: None, probe: false, tell: None });
         for from in [Shown::Automatic(Some(Probed::Direct)), Shown::Relay, Shown::Direct] {
             for (choice, shown, probe) in [
                 (Choice::Relay, Shown::Relay, false),
                 (Choice::Direct, Shown::Direct, false),
                 (Choice::Automatic, Shown::Automatic(None), true),
             ] {
-                assert_eq!(from.on(Event::Chosen(choice)), Step { shown, save: Some(choice), probe });
+                assert_eq!(from.on(Event::Chosen(choice)), Step { shown, save: Some(choice), probe, tell: None });
             }
         }
         // The menu's three messages, and no other.
@@ -584,32 +576,33 @@ mod tests {
     fn a_probe_shows_only_in_automatic_while_it_runs() {
         for probed in [Probed::Direct, Probed::Relay, Probed::Neither] {
             let step = Shown::Automatic(None).on(Event::Probed(probed));
-            assert_eq!(step, Step { shown: Shown::Automatic(Some(probed)), save: None, probe: false });
+            assert_eq!(step, Step { shown: Shown::Automatic(Some(probed)), save: None, probe: false, tell: None });
             for shown in [Shown::Relay, Shown::Automatic(Some(Probed::Relay))] {
-                assert_eq!(shown.on(Event::Probed(probed)), Step { shown, save: None, probe: false });
+                assert_eq!(shown.on(Event::Probed(probed)), Step { shown, save: None, probe: false, tell: None });
             }
         }
     }
 
     #[test]
-    fn direct_checked_at_the_start_turns_to_automatic_on_a_block_only() {
+    fn direct_stays_direct_and_a_block_is_told() {
+        let shown = Shown::Direct;
         for probed in [Probed::Direct, Probed::Neither] {
-            let shown = Shown::Direct;
-            assert_eq!(shown.on(Event::Probed(probed)), Step { shown, save: None, probe: false });
+            assert_eq!(shown.on(Event::Probed(probed)), Step { shown, save: None, probe: false, tell: None });
         }
         assert_eq!(
-            Shown::Direct.on(Event::Probed(Probed::Relay)),
-            Step { shown: Shown::Automatic(Some(Probed::Relay)), save: Some(Choice::Automatic), probe: false }
+            shown.on(Event::Probed(Probed::Relay)),
+            Step { shown, save: None, probe: false, tell: Some(Diagnosis::Blocked) }
         );
     }
 
     #[test]
-    fn a_block_turns_the_row_to_automatic_whatever_it_showed() {
-        for shown in [Shown::Direct, Shown::Relay, Shown::Automatic(Some(Probed::Neither))] {
-            assert_eq!(
-                shown.on(Event::Blocked),
-                Step { shown: Shown::Automatic(None), save: Some(Choice::Automatic), probe: true }
-            );
+    fn only_a_pick_changes_the_choice() {
+        let all = [Probed::Direct, Probed::Relay, Probed::Neither];
+        for shown in [Shown::Direct, Shown::Relay, Shown::Automatic(None), Shown::Automatic(Some(Probed::Direct))] {
+            for probed in all {
+                let step = shown.on(Event::Probed(probed));
+                assert_eq!((step.save, step.shown.choice()), (None, shown.choice()), "{shown:?} {probed:?}");
+            }
         }
     }
 

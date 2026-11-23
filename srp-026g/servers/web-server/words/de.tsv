@@ -131,7 +131,7 @@ Start <code>Skhid.bat</code> again. Still failing? Run <code>Skhid-without-updat
 “No connection: …”	„Keine Verbindung: …“
 Run <code>Skhid-network-setup.cmd</code>.	Starte <code>Skhid-network-setup.cmd</code>.
 “Blocked on this network: …”	„In diesem Netzwerk gesperrt: …“
-Your provider blocks our server. The launcher has already switched to our relay, a way around the block (<b>Auto: via relay</b>, bottom left). Just press <b>Retry</b>.	Dein Anbieter sperrt unseren Server. Der Launcher ist schon auf unser Relay umgestiegen, einen Weg um die Sperre herum (<b>Auto: über Relay</b>, unten links). Drück einfach <b>Wiederholen</b>.
+Your provider blocks our server, but our relay, a way around the block, answers. Set the launcher's <b>Relay</b> (bottom left) to <b>auto</b> or <b>on</b>, then press <b>Retry</b>.	Dein Anbieter sperrt unseren Server, aber unser Relay, ein Weg um die Sperre herum, antwortet. Stell im Launcher <b>Relay</b> (unten links) auf <b>Auto</b> oder <b>An</b> und drück dann <b>Wiederholen</b>.
 Nothing works.	Nichts funktioniert.
 Run <code>Skhid-collect-logs.cmd</code> and send the zip it makes to us on Discord: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.	Starte <code>Skhid-collect-logs.cmd</code> und schick uns die ZIP-Datei, die es erstellt, auf Discord: <a href="https://discord.gg/QUmJg3gBhg">discord.gg/QUmJg3gBhg</a>.
 Q:	F:
