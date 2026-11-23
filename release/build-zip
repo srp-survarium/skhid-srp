@@ -30,8 +30,8 @@
 #      reached), and
 #      patch_026g.py --revision=<n> --required-patches=<the list's> without
 #      a server, for the record's second hash (both in the dev shell: the
-#      exe's arena is linked from source with its gcc, ld and NASM 2.16,
-#      and must be client-patches/arena_026g.lock.json's). The required patches (patch
+#      exe's arena is linked from source with its gcc, ld and NASM 2.16).
+#      The required patches (patch
 #      49): every patch of the offered-patch list (release/patches.tsv;
 #      --test: patches-test.tsv; --patches: another), so the exe stops at
 #      its start, "Cannot open resources.db.patch_<n> ... run the Skhid
@@ -40,8 +40,9 @@
 #   4. prints every entry as same / CHANGED / ADDED / REMOVED against the
 #      current ZIP, and says whether updater_skhid.exe changed (the two
 #      torrents are not compared: release/build-torrent adds them after).
-# <work>/exe.sha256: `<sha256> with-server` (the ZIP's exe) and
-# `<sha256> without-server`, for the record (release.sh reads it).
+# <work>/exe.sha256: `<sha256> with-server` (the ZIP's exe),
+# `<sha256> without-server` and `<sha256> arena` (their `.srpx`, the same in
+# both), for the record and the self-test's arena (release.sh reads it).
 #
 #   --test          for the test environment: --server=$SKHID_TEST_GAME_SERVER
 #                   --site=$SKHID_TEST_SITE, compared with the ZIP of
@@ -170,7 +171,7 @@ zip=$work/Survarium-0.26g-srp-files.zip
 original=$SKHID_GAME/binaries/x86/survarium.exe
 if [[ ! -f $original ]]; then original=$SKHID_GAME/game/binaries/x86/survarium.exe; fi
 # In the checkout's dev shell (client_patches_python): the exe's arena
-# (`.srpx`) is linked from its sources there, with the lock's tools.
+# (`.srpx`) is linked from its sources there.
 relay_args=()
 [[ -z $relay ]] || relay_args+=(--relay="$relay")
 { client_patches_python "$work/src" make_client_026g.py "$SKHID_GAME" "$zip" --pack-zip \
@@ -194,7 +195,9 @@ for built in new.exe without-server.exe; do
     [[ $(exe_required_patches "$work/$built") == "${required//,/ }" ]] ||
         die "$built does not require the patches ${required//,/, } (it requires: $(exe_required_patches "$work/$built" 2>&1 || true))"
 done
-printf '%s with-server\n%s without-server\n' "$(sha256_of "$work/new.exe")" "$(sha256_of "$work/without-server.exe")" >"$work/exe.sha256"
+arena=$(exe_arena_sha256 "$work/new.exe") || die "$work/new.exe has no arena (.srpx)"
+[[ $(exe_arena_sha256 "$work/without-server.exe") == "$arena" ]] || die "the two exes' arenas (.srpx) differ"
+printf '%s with-server\n%s without-server\n%s arena\n' "$(sha256_of "$work/new.exe")" "$(sha256_of "$work/without-server.exe")" "$arena" >"$work/exe.sha256"
 
 # 4. Entry by entry.
 declare -A old new

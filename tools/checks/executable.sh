@@ -11,9 +11,6 @@ nix develop -c bash -c '
     export PYTHONPATH="$1/lib/$py/site-packages"
     export SRP_026G_EXE="$2"
     cd client-patches
-    python3 engine_026g.py --check
-    python3 hooks_026g.py --check
-    python3 link_026g.py --check
     python3 check_engine_026g.py "$2"
     python3 check_hooks_026g.py "$2"
     python3 check_module_report_026g.py "$2"

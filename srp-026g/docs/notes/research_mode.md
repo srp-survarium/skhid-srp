@@ -283,7 +283,7 @@ about arranging things beautifully". The places: his cursor on the minimap, thre
   writable), is the arena of every later patch (client_patch.md 0.3): blocks declared in
   `patch_026g.py`'s `ARENA` with their sources, linked by `link_026g.py`. Research's are
   `research.code` (research_026g.asm and research_arena) and `research.state`
-  (the cook and UI cache; addresses in `arena_026g.lock.json`); its hooks take their targets from
+  (the cook and UI cache; `python link_026g.py` prints the addresses); its hooks take their targets from
   the link by symbol. Patch 58's kit keys have blocks of their own the same way,
   and no section (#225's dynamic anomalies had one too, taken out of revision 31).
 - **HUD:** update_ui (every frame): `root.research_update(own team, points 0, points 1, goal,

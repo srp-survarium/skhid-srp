@@ -128,11 +128,12 @@ export SRP_WORLD_CHECK_BIN=$T/bin/srp-world-check
 # arguments (the commit's checkout, the original exe) a line of
 # $TEST_DIR/selftest.args; $TEST_DIR/selftest-fails: a check fails;
 # $TEST_DIR/selftest-hangs: it runs on (a sleep of its own; both PIDs in
-# $TEST_DIR/selftest.pids).
+# $TEST_DIR/selftest.pids). It links the stand-in build-zip's arena.
 cat >"$T/bin/selftest" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$TEST_DIR/selftest.args"
 echo "  ok    the PE parses"
+echo "arena sha256 $(printf arena | sha256sum | cut -c1-64)"
 if [[ -e $TEST_DIR/selftest-hangs ]]; then
     sleep 300 &
     printf '%s %s\n' "$$" "$!" >"$TEST_DIR/selftest.pids"
@@ -586,11 +587,9 @@ ln -s "$real_dirname" "$T/nix-only/dirname"
 dev_shell() { # <script and arguments, quoted for bash>
     env PATH="$T/nix-only" "$BASH" -c ". $(printf '%q' "$here/lib.sh") && client_patches_python $(printf '%q' "$root") $1" 2>&1
 }
-out=$(dev_shell "link_026g.py --check" || true)
-check "build-zip's client-patches step: python3 in the dev shell with only nix on PATH, the arena linked there is the lock's" \
-    has "$out" "arena_026g.lock.json: current"
 out=$(dev_shell "make_client_026g.py" || true)
-check "... make_client_026g.py starts there (its usage)" has "$out" "--pack-zip"
+check "build-zip's client-patches step: python3 in the dev shell with only nix on PATH, make_client_026g.py starts there (its usage)" \
+    has "$out" "--pack-zip"
 if [[ -f ${SRP_026G_EXE:-} ]]; then
     out=$(dev_shell "patch_026g.py $(printf '%q' "$SRP_026G_EXE") $(printf '%q' "$T/dev-shell.exe")" || true)
     check "... patch_026g.py builds the exe there, its arena linked from source" has "$out" "Research (mode 5"
@@ -1164,7 +1163,7 @@ cat >"$T/build-zip" <<'STANDIN'
 # [--test]: the ZIP of r<n>.zip, its exe made to require the list's patches
 # (in r<n>.zip itself: that revision's ZIP is that one from then on; with
 # $TEST_DIR/build-zip-stale-required, all but the last), and the exe's two
-# sha256 (exe.sha256); its arguments are the last line of
+# sha256 and their arena's (exe.sha256); its arguments are the last line of
 # $TEST_DIR/build-zip.args.
 printf '%s\n' "$*" >>"$TEST_DIR/build-zip.args"
 while (($#)); do
@@ -1190,8 +1189,8 @@ cp "$TEST_DIR/work/r$revision.zip" "$work/Survarium-0.26g-srp-files.zip"
 if [[ -e $TEST_DIR/build-zip-other ]]; then
     python3 -c 'import sys, zipfile; zipfile.ZipFile(sys.argv[1], "a").writestr("other.txt", "other")' "$work/Survarium-0.26g-srp-files.zip"
 fi
-printf '%s with-server\n%s without-server\n' "$(printf 'with %s' "$revision" | sha256sum | cut -c1-64)" \
-    "$(printf 'without %s' "$revision" | sha256sum | cut -c1-64)" >"$work/exe.sha256"
+printf '%s with-server\n%s without-server\n%s arena\n' "$(printf 'with %s' "$revision" | sha256sum | cut -c1-64)" \
+    "$(printf 'without %s' "$revision" | sha256sum | cut -c1-64)" "$(printf arena | sha256sum | cut -c1-64)" >"$work/exe.sha256"
 echo "  CHANGED  game/binaries/x86/survarium_skhid.exe"
 echo "updater_skhid.exe: unchanged (the same file as live)"
 STANDIN
@@ -1472,6 +1471,7 @@ check "release: ... and freed it" test ! -e "$T/lock"
 zip_sha=$(sha256sum <"$T/work/r12.zip" | cut -d' ' -f1)
 data_sha=$(sha256sum <"$T/live/download/server-game-data.db" | cut -d' ' -f1)
 exe_with=$(printf 'with 12' | sha256sum | cut -c1-64) exe_without=$(printf 'without 12' | sha256sum | cut -c1-64)
+exe_arena=$(printf arena | sha256sum | cut -c1-64)
 check "release: the record: an annotated tag 026g-rev12 on origin" test "$(git -C "$T/origin.git" cat-file -t 026g-rev12 2>/dev/null)" = tag
 check "release: ... on the commit that was built" test "$(git -C "$T/origin.git" rev-parse '026g-rev12^{commit}' 2>/dev/null)" = "$released"
 tag_text=$(git -C "$T/origin.git" cat-file tag 026g-rev12 2>/dev/null || true)
@@ -1495,7 +1495,7 @@ check "release: ... the revision table's row, after 11's" bash -c "on_main() { g
 check "release: ... the row: the UTC time, the tag, the commit, what shipped" has "$row" \
     "^| Revision 12 | Released 20[0-9-]* [0-9:]* UTC (tag \`026g-rev12\`, \`main\` ${released:0:7}). Shipped: #7 A feature \\\\| with a bar. "
 check "release: ... the row: the exe with and without the server, the ZIP, the server data" has "$row" \
-    "Without a server sha256 \`$exe_without\`, with \`--server=127.0.0.1:1234\` \`$exe_with\`. The ZIP: [0-9]* bytes, sha256 \`$zip_sha\`; the server data: sha256 \`$data_sha\`. No content patch of its own |$"
+    "Without a server sha256 \`$exe_without\`, with \`--server=127.0.0.1:1234\` \`$exe_with\`, the arena (\`.srpx\`) \`$exe_arena\`. The ZIP: [0-9]* bytes, sha256 \`$zip_sha\`; the server data: sha256 \`$data_sha\`. No content patch of its own |$"
 changelog=$(on_main CHANGELOG-SKHID-026G.md)
 check "release: ... the changelog's entry to word, first under the rule" bash -c \
     "sed -n '/^---\$/,\$p' <<<\"\$1\" | grep -m1 '^## ' | grep -qE '^## [0-9]+ [A-Z][a-z]{2}, [0-9]{2}:[0-9]{2} — TODO: the owner.s words \\(update required\\)\$' && grep -qx -- '- TODO: #7 A feature | with a bar' <<<\"\$1\" && grep -q '^## 15 Oct, 20:02 — an older entry' <<<\"\$1\"" _ "$changelog"

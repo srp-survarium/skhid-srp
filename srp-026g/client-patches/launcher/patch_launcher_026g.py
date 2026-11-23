@@ -9,17 +9,15 @@ USAGE (this script never touches the source exe):
         [--site=https://skhid.link]     the server's web page (HTTPS)
         [--game-exe=survarium_skhid.exe] what PLAY starts, beside the launcher
         [--arguments="-minimum_resources_memory_size=768"]
-        [--bin=<file>]                  another launcher_values_026g.bin
     python patch_launcher_026g.py <survarium_launcher.exe> --check [...]
         every check and patch in memory, nothing written
     python selftest_launcher_026g.py
         builds it, re-parses and disassembles every patched site
 
     <survarium_launcher.exe> must be the ORIGINAL 0.26g launcher (the sha256
-    is checked); the output must be another file. The new code comes from
-    launcher_values_026g.asm:
-        nasm -f bin -DCAVE=0x49A000 launcher_values_026g.asm -o launcher_values_026g.bin
-    (the .bin is checked in).
+    is checked); the output must be another file. The new code is
+    launcher_values_026g.asm, assembled by every build (code(): NASM, the
+    dev shell's).
 
 What is changed and why, patch by patch, with the evidence for every
 address: README.md beside this file. Each site is compared with the original
@@ -30,7 +28,9 @@ import hashlib
 import os
 import re
 import struct
+import subprocess
 import sys
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
@@ -548,14 +548,24 @@ def build(original, code, site=DEFAULT_SITE, game_exe=DEFAULT_GAME_EXE, argument
                   "signature removed")
 
 
-def default_bin():
-    return os.path.join(HERE, "launcher_values_026g.bin")
+def code():
+    """launcher_values_026g.asm assembled at CAVE, with the game's languages
+    (launcher_languages_026g.inc, from localization_026g.py's LANGUAGES)."""
+    import localization_026g
+    with tempfile.TemporaryDirectory(prefix="srp-launcher-") as folder:
+        with open(os.path.join(folder, "launcher_languages_026g.inc"), "w", encoding="utf-8") as table:
+            table.write(localization_026g.launcher_table())
+        out = os.path.join(folder, "launcher_values_026g.bin")
+        subprocess.run([os.environ.get("NASM", "nasm"), "-f", "bin", f"-DCAVE={SECTION_VA:#x}", "-I", folder + os.sep,
+                        os.path.join(HERE, "launcher_values_026g.asm"), "-o", out], check=True)
+        with open(out, "rb") as file:
+            return file.read()
 
 
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--") or a == "--check"]
     options = [a for a in sys.argv[1:] if a.startswith("--") and a != "--check"]
-    settings, bin_path = {}, None
+    settings = {}
     for option in options:
         name, _, value = option.partition("=")
         if name == "--site":
@@ -564,8 +574,6 @@ def main():
             settings["game_exe"] = value
         elif name == "--arguments":
             settings["arguments"] = value
-        elif name == "--bin":
-            bin_path = value
         else:
             sys.exit(f"unknown option {option}\n\n{__doc__}")
     if len(args) != 2:
@@ -573,11 +581,9 @@ def main():
     source, target = args
     if target != "--check" and os.path.exists(target) and os.path.samefile(source, target):
         sys.exit("the output must not be the original exe")
-    with open(bin_path or default_bin(), "rb") as file:
-        code = file.read()
     with open(source, "rb") as file:
         original = file.read()
-    data, description = build(original, code, **settings)
+    data, description = build(original, code(), **settings)
     if target != "--check":
         with open(target, "wb") as out:
             out.write(data)
