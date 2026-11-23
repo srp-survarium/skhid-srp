@@ -2511,3 +2511,5 @@ va	status	ref_021d	name
 0x0023b740	observed		survarium::game_world_ui::update_local_player_state
 0x002fe8b0	observed		survarium::inventory::first_grenade_set_slot
 0x003b9680	observed		vostok::input::platform::mouse::execute
+0x002013a0	reviewed	0x0015f50d	survarium::game_options::assign_binding
+0x00201f20	reviewed	0x0015fb1f	survarium::game_options::apply_key_bindings
