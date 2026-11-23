@@ -96,7 +96,7 @@ pixel is `1 - min(W, 1)`, in any order; all damps come before all lights. 0.69d'
 global one. The ambient volumes (drawn before the probes) and the ambient lights (after) act on it
 as they did on the lerp.
 
-**The programs** (three-maps-021-lighting@15, `environment_probe_tier_*`, the stock family's mask
+**The programs** (three-maps-021-lighting@16, `environment_probe_tier_*`, the stock family's mask
 and its 8 box keys: GLOBAL_LIGHTING_QUALITY 0 and 3, affect_diffuse, blend). The stock box program
 is reconstructed as HLSL (`../../shaders/sm_4_0/environment_probe_lighting.ps`, `probes.sh check`:
 6 of the 8 byte-identical with the shipped DXBC, the other two the same instructions but one mul's

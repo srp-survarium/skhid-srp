@@ -6902,7 +6902,7 @@ lobby room 33100), the Rust `probe_tiers` draws such probes, which the sort puts
 global one, three more times after the globals: their weights into `$user$accum_ambient_lights`,
 then the light under them damped by what the weights cover, then their light shared by the
 weights. The four box probe effects compile six more techniques for it with three program
-families of the lighting pack (three-maps-021-lighting@15, `environment_probe_tier_*`). Any other
+families of the lighting pack (three-maps-021-lighting@16, `environment_probe_tier_*`). Any other
 scene, and any probe of a radius at or above 0, draws as before (stock level_07 has a probe of
 radius -0.4: it stays 0.26g's). The exe patch, the lighting pack and the map's pack ship together.
 Rendering only: nothing a match computes or a world holds changes

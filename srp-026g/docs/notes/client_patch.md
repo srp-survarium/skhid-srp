@@ -4775,7 +4775,7 @@ tester's reports of 2026-11-23). The whole of it: `probe-tiers-069d.md`.
 - **The compiles** (Rust `probe_tiers`, sites `probe_lighting_<gsba>.*`): the four box effects without
   smart attenuation compile techniques 2 to 7 after their own, three rounds through patch 178's
   return-to-the-technique's-start, each with its pixel shader (`environment_probe_tier_*`, content
-  three-maps-021-lighting@15), blend and the weights' texture (rt 32).
+  three-maps-021-lighting@16), blend and the weights' texture (rt 32).
 - **The draw** (sites `env_probes.next`, `.technique`, `.done` in render_environment_probes
   0x180980): from the first local probe on, the local probes run three times (weights into rt 32,
   the light under them damped by what the weights cover, their light shared by the weights), then
@@ -4784,7 +4784,7 @@ tester's reports of 2026-11-23). The whole of it: `probe-tiers-069d.md`.
 - **What changes:** the local probes of a 0.69d map (Rudnya v0.69's 62). Every other scene and probe
   draws as before. Rendering only: nothing a match computes or a world holds changes (no
   `simulation_changes.tsv` row, no world format change). Needs the lighting pack's programs: the exe
-  patch, three-maps-021-lighting@15 and rudnya-069d@8 ship together.
+  patch, three-maps-021-lighting@16 and rudnya-069d@8 ship together.
 - **Checked:** `cargo test -p patches probe_tiers` (the rounds, the transitions, the gate). Captures
   (patch 176) of the reports page's views and the kept poses before and after, and of unmarked maps
   with and without the patch and the content (probe-tiers-069d.md). No Unicorn check.
