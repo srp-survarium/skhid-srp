@@ -1254,6 +1254,9 @@ pub struct BodyTrack {
     /// The distance between the reckoned feet and a world's, at the
     /// world's tick, for the last world that had both.
     last_error: Option<f32>,
+    /// [fix-lip] The last world whose standing body [`FixFloor::UnderInAir`] kept at its height instead of putting it in the air
+    /// over the floor under its column ([`StillKept`]).
+    still_kept: Option<StillKept>,
     /// How far the reckoning moved the body on the ground from the world
     /// before to the last one (by the bot's own keys, on the walk grid):
     /// how far it meant to go while the worlds show how far it went.
@@ -1337,6 +1340,11 @@ impl BodyTrack {
 
     pub fn last_error(&self) -> Option<f32> {
         self.last_error
+    }
+
+    /// [fix-lip] The last world's standing body kept at its height ([`StillKept`]), if that world was the last one seen.
+    pub fn still_kept(&self) -> Option<StillKept> {
+        self.still_kept.filter(|kept| self.fix.as_ref().is_some_and(|last| last.time == kept.time))
     }
 
     /// The reckoned feet at the decided tick `time`, if the trail still has it (A285: the model's place for a world's tick).
@@ -1792,6 +1800,10 @@ impl BodyTrack {
                 .count() as u32;
             interval
         });
+        // [fix-lip] Whether the world shows its body standing ([`StandsBy`]): put in the air below, a body held at a rim the grid has
+        // no floor for is reckoned on the floor under the drop, and every search after starts there (the combined bench's drop tops).
+        let stands = StandsBy::of(&fix, feet, before.filter(|_| !new_life));
+        let mut kept = None;
         let node = grid.and_then(|grid| {
             let nearest = || grid.locate(feet, LOCATE_M);
             let under = || grid.locate_within(feet, LOCATE_M, FIX_ABOVE_M).or_else(nearest);
@@ -1808,10 +1820,22 @@ impl BodyTrack {
                     if nearest() != under() {
                         counts::fix_floor(jumping);
                     }
+                    let column = || column_floor(grid, feet).map(|node| (node, feet.y - grid.position(node).y));
                     if jumping {
                         under()
                     } else if kin.fix_floor == FixFloor::UnderInAir
-                        && let column = column_floor(grid, feet)
+                        && let Some(by) = stands
+                        && let under = column()
+                        && under.is_none_or(|(_, under_m)| under_m > grid.body().step)
+                    {
+                        let under_m = under.map(|(_, under_m)| under_m);
+                        // [fix-lip] Standing over no floor of its column (a rim the grid lacks): not in the air, kept at its height.
+                        #[cfg(test)]
+                        counts::fix_floor_still();
+                        kept = Some(StillKept { time: fix.time, feet, by, under_m });
+                        nearest()
+                    } else if kin.fix_floor == FixFloor::UnderInAir
+                        && let column = column().map(|(node, _)| node)
                         && column.is_none_or(|node| feet.y - grid.position(node).y > grid.body().step)
                     {
                         // [FixFloor::UnderInAir] In the air out of its own jump: the floor it comes down on.
@@ -1824,6 +1848,7 @@ impl BodyTrack {
                 }
             }
         });
+        self.still_kept = kept;
         // The world has its own tick's keys (PROVEN, `kin`); its velocity
         // is its speed along the way the keys before were taking it.
         let held = fix.keys;
@@ -1956,8 +1981,9 @@ impl BodyTrack {
         // 800 ms air window, a sprint clip 955 ms) is the arc's. [`FixFall::World`]: a body the world has going down (its own
         // vertical speed) over its floor falls at that speed, a step or less over it too; else at the speed the reckoning had it
         // fall at, else from rest.
+        // [fix-lip] A standing body kept at its height ([`StillKept`]) is no fall, whatever floor it is over.
         let world_fall = fix.fall.filter(|_| kin.fix_fall == FixFall::World);
-        if let (true, Some(grid), Some(node), 0, None) = (kin.drop_fall != DropFall::Snap, grid, node, air_until, estimate.arc) {
+        if let (true, Some(grid), Some(node), 0, None, None) = (kin.drop_fall != DropFall::Snap, grid, node, air_until, estimate.arc, kept) {
             let above = feet.y - grid.position(node).y;
             let falls = above > grid.body().step || world_fall.is_some_and(|down| down > 0.0 && above > FIX_FALL_ABOVE_M);
             if falls {
@@ -3166,6 +3192,52 @@ fn floor_under(grid: &WalkGrid, node: NodeId, point: Vec3, max_rise: f32) -> Opt
         .find(|&next| holds(next) && grid.position(next).y - base <= max_rise)
 }
 
+/// [fix-lip] Two worlds of one life whose feet are this close on every axis show a standing body, m: a body in the air moves
+/// more than this between worlds (1-2 s apart; gravity alone takes it 4.9 m down in the first second).
+const STILL_M: f32 = 0.05;
+
+/// [fix-lip] How a world shows its body standing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StandsBy {
+    /// The world's own controller block (`serialize` 0x7F7F0): not in a jump, and no fall-and-slide velocity. `step_down`
+    /// 0x7E1B0 zeroes the velocity on walkable ground and adds gravity to it with none under the step (port `tick.rs`
+    /// `step_down`), so a zero velocity is a body that stood that tick.
+    Controller,
+    /// No controller block (the bench's stand-in worlds): the feet where the world before had them, within [`STILL_M`].
+    Still,
+}
+
+impl StandsBy {
+    /// How `fix` (its body at `feet`) shows it standing, if it does; `before`: the feet of the world before in the same life.
+    /// A controller block that shows the body moving or falling is believed over still feet.
+    fn of(fix: &Fix, feet: Vec3, before: Option<Vec3>) -> Option<Self> {
+        match &fix.controller {
+            Some(saved) => (!saved.jumping && saved.velocity == Vec3::ZERO).then_some(Self::Controller),
+            None => before
+                .filter(|from| (from.x - feet.x).abs() <= STILL_M && (from.y - feet.y).abs() <= STILL_M && (from.z - feet.z).abs() <= STILL_M)
+                .map(|_| Self::Still),
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Controller => "its controller stands",
+            Self::Still => "its feet still since the world before",
+        }
+    }
+}
+
+/// [fix-lip] A world whose standing body ([`StandsBy`]) [`FixFloor::UnderInAir`] would have put in the air, the floor under its
+/// column more than a step below (or none): kept at its height on the nearest floor, with no fall.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct StillKept {
+    pub time: u32,
+    pub feet: Vec3,
+    pub by: StandsBy,
+    /// How far under the feet the column's floor was (none: no floor in the column), m.
+    pub under_m: Option<f32>,
+}
+
 /// [`FixFloor::UnderInAir`] The floor under a body's feet: the highest floor at most [`FIX_ABOVE_M`] over the feet, however far
 /// under them, in the cells of the points where a top holds the capsule: its centre and rings at `Body::hold_radius` (its round
 /// bottom meets an edge at a normal within the walkable slope, `r sin(acos(cc_max_slope_angle_cos))`, 0.311 m with the clients'
@@ -3212,6 +3284,17 @@ pub mod counts {
 
     pub fn fix_floors_in_air() -> [u64; 2] {
         std::array::from_fn(|k| IN_AIR[k].load(Ordering::Relaxed))
+    }
+
+    static STILL: AtomicU64 = AtomicU64::new(0);
+
+    /// [fix-lip] A world whose standing body was kept at its height ([`super::StillKept`]) instead of put in the air.
+    pub fn fix_floor_still() {
+        STILL.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn fix_floors_still() -> u64 {
+        STILL.load(Ordering::Relaxed)
     }
 }
 
@@ -4812,6 +4895,68 @@ pub(super) mod tests {
         assert!(floor_of(FixFloor::UnderInAir, Vec3::new(9.8, 0.5, 5.0), Some(3.0)) < 0.1);
         // On the top at its edge, not going down: the top.
         assert!(floor_of(FixFloor::UnderInAir, Vec3::new(10.1, 1.3, 5.0), Some(0.0)) > 1.2);
+    }
+
+    /// [fix-lip] [`FixFloor::UnderInAir`] keeps a standing body at its height ([`StillKept`]): over no floor of its column (a rim
+    /// the grid lacks, the combined bench's drop tops), a world whose feet are where the world before had them, or whose controller
+    /// block stands, is on the nearest floor (the top) with no fall; the first world there, with nothing to say it stands, is in
+    /// the air as before.
+    #[test]
+    fn a_standing_body_over_no_floor_of_its_column_is_kept_at_its_height() {
+        let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+        triangles.extend(floor(10.0, 0.0, 20.0, 10.0, 1.3));
+        triangles.extend(wall_x(10.0, 0.0, 10.0).map(|mut t| {
+            t.v.iter_mut().for_each(|v| v.y = v.y.min(1.3));
+            t
+        }));
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default());
+        let yaw = -std::f32::consts::FRAC_PI_2;
+        let kin = Kinematics { blend_ticks: 1, fix_floor: FixFloor::UnderInAir, ..Kinematics::default() };
+        // 1 m over the floor, 0.6 m from the face: more than a step over the floor under its column.
+        let aside = Vec3::new(9.4, 1.0, 5.0);
+        let worlds = |fixes: &[Fix]| {
+            let mut track = BodyTrack::default();
+            for fix in fixes {
+                for time in (fix.time.saturating_sub(950)..=fix.time).step_by(50) {
+                    track.decided(time, key::FORWARD, (0.0, 0.0), 0.0, &kin, Some(&grid));
+                }
+                track.fixed(fix.clone(), &kin, Some(&grid));
+            }
+            let estimate = *track.estimate().unwrap();
+            (grid.position(estimate.node.unwrap()).y, estimate.fall, track.still_kept())
+        };
+        let (first, fall, kept) = worlds(&[fix(1_000, aside, yaw)]);
+        assert!(first < 0.1 && matches!(fall, Fall::Falling { .. }) && kept.is_none(), "one world: in the air, as before");
+        let (still, fall, kept) = worlds(&[fix(1_000, aside, yaw), fix(2_000, aside, yaw)]);
+        assert!(still > 1.2, "still since the world before: the top");
+        assert_eq!(fall, Fall::Ground, "no fall");
+        let kept = kept.expect("kept");
+        assert_eq!(kept.by, StandsBy::Still);
+        assert!(kept.under_m.is_some_and(|m| (m - 1.0).abs() < 0.05), "{kept:?}");
+        assert!(super::super::nav_log::still_kept_line(kept).contains("kept at its height"));
+        // Moved since the world before: in the air, as before.
+        let (moved, _, kept) = worlds(&[fix(1_000, Vec3::new(9.4, 1.6, 5.0), yaw), fix(2_000, aside, yaw)]);
+        assert!(moved < 0.1 && kept.is_none());
+        let saved = |velocity: Vec3| Saved {
+            feet: aside,
+            jumping: false,
+            input_crouch: false,
+            logic_crouch: false,
+            capsule_crouch: false,
+            can_stand: true,
+            colliding_with_player: false,
+            velocity,
+            support_normal: Vec3::Y,
+            ceiling_normal: Vec3::ZERO,
+            ceiling_slide: Vec3::ZERO,
+        };
+        // Its controller stands (no velocity): kept at the first world.
+        let (stands, _, kept) = worlds(&[Fix { controller: Some(saved(Vec3::ZERO)), ..fix(1_000, aside, yaw) }]);
+        assert!(stands > 1.2 && kept.is_some_and(|k| k.by == StandsBy::Controller));
+        // Its controller falls: in the air, still feet or not.
+        let falling = Fix { controller: Some(saved(Vec3::new(0.0, -0.5, 0.0))), ..fix(2_000, aside, yaw) };
+        let (falls, _, kept) = worlds(&[fix(1_000, aside, yaw), falling]);
+        assert!(falls < 0.1 && kept.is_none());
     }
 
     /// A held body walking out over the edge at any slant comes down: it neither freezes past the support (the drop-link line of

@@ -607,6 +607,17 @@ pub fn kept_only_air_line(feet: Vec3, goal: Vec3) -> String {
     format!("{PREFIX}search not held: the kept controller reads the body in the air at {}, the reckoning on the ground; goal {}", at(feet), at(goal))
 }
 
+/// [fix-lip] A world's standing body over no floor of its column, kept at its height: `nav: world body standing at (..) over no
+/// floor of its column (its floor X m under / none), by <how>: kept at its height, not in the air`.
+pub fn still_kept_line(kept: super::body::StillKept) -> String {
+    let under = kept.under_m.map_or("none".to_owned(), |m| format!("{m:.1} m under"));
+    format!(
+        "{PREFIX}world body standing at {} over no floor of its column (its floor {under}), by {}: kept at its height, not in the air",
+        at(kept.feet),
+        kept.by.name()
+    )
+}
+
 /// [owner-5] A route search that found no way: `nav: no way from (..) to (..): <verdict>`.
 pub fn route_line(from: Option<Vec3>, goal: Vec3, verdict: &str) -> String {
     let from = from.map_or("no floor".to_string(), at);

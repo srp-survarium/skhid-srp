@@ -2181,6 +2181,11 @@ impl Bots {
         let team = usize::from(bot.team & 1);
         if let Some(feet) = feet {
             bot.jump_seen(time, feet);
+            // [fix-lip] A standing body this world kept at its height over no floor of its column (`body::StillKept`): once a spot.
+            if let Some(kept) = self.tracker.body(place).and_then(|body| body.still_kept()) {
+                let spot = (kept.feet.x.round() as i32, kept.feet.y.round() as i32, kept.feet.z.round() as i32);
+                bot.nav_log.push_once(nav_log::Kind::Drift, nav_log::key(("still kept", spot)), time, nav_log::still_kept_line(kept));
+            }
             // [fix-lip] Down the route jump watched, judged from this world on the landing's floors ([`motor::on_landing_floor`]): the
             // log's word only.
             if let Some(world) = world.as_deref()
