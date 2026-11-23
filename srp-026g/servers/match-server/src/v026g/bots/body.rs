@@ -4223,6 +4223,9 @@ pub(super) mod tests {
             // A flight that ended in the air: the forecast follows its controller down ([`PRESS_FALL_STEPS`]), the reckoning falls by
             // its own rule onto the grid's floor; the forecast's end is not over that floor, and a landing only on it.
             let fell_on = matches!(r.fall, Fall::Falling { .. });
+            // [landing walk] The keys let go at the landing tick, as the forecast plays it: a tick's own input does not move its
+            // step, so it is the landing tick decided with no key.
+            r.keys = 0;
             if r.arc.is_none() {
                 for _ in 0..mapdata::controller::jump::STAY_STEPS {
                     r = step(r, 0);
@@ -4237,7 +4240,9 @@ pub(super) mod tests {
                     assert!((end.y - r.feet.y).abs() < 0.05, "press {press_in}: a landing on the reckoning's floor ({outcome:?}, {:?})", r.feet);
                 }
             } else {
-                assert_eq!(end, r.feet, "press {press_in}: the forecast ends where the reckoning does ({outcome:?})");
+                // [landing walk] Across to the bit; the forecast's rest height is its kept controller's, the reckoning's the grid's floor.
+                assert_eq!((end.x, end.z), (r.feet.x, r.feet.z), "press {press_in}: the forecast ends where the reckoning does ({outcome:?})");
+                assert!((end.y - r.feet.y).abs() < 0.01, "press {press_in}: on the reckoning's floor ({outcome:?}, {:?})", r.feet);
             }
         }
         eprintln!("presses that fell on: {fell} of 20");
