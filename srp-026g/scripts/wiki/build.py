@@ -133,18 +133,29 @@ def simulation(tr):
         f'<figure><figcaption>{tr(en, uk)} · {tr("game units", "одиниці гри")}</figcaption><svg class="sim-{axis}" viewBox="0 0 600 250" role="img" aria-label="{tr(en, uk)}"></svg></figure>'
         for axis, en, uk in [("vertical", "Vertical kick", "Вертикальний відбій"), ("horizontal", "Horizontal kick", "Бічний відбій")])
     return "".join([
-        f'<p class="stat-note">{tr("Modelled kick, recovery, spread and camera shake (from the hip), with no mouse compensation. The plots are in the weapons’ kick units; the crosshair view is in degrees of view (upward exactly as the game does, sideways estimated), with each bullet’s hit and the spread circle.", "Модель поштовху, відновлення, розкиду й тремтіння камери (від стегна), без компенсації мишею. Графіки — в одиницях відбою зброї; приціл — у градусах огляду (вгору точно як у грі, убік приблизно), з влучанням кожної кулі та колом розкиду.")}</p>',
         f'<div class="sim-inputs">'
         f'<label>{tr("Trigger", "Спуск")}<select class="sim-trigger"><option value="0">{tr("Hold", "Утримувати")}</option>'
         + "".join(f'<option value="{1 / n:g}">{tr(f"Click, {n} a second", f"Клацати, {n} на секунду")}</option>' for n in (4, 2, 1))
-        + f'</select></label><label>{tr("Sample seed", "Зерно вибірки")}<input class="sim-seed" type="number" min="1" max="999999" value="1"></label></div>',
-        f'<p class="stat-note">{tr("A full magazine; with two weapons, as many shots as the smaller magazine holds, each at its own fire rate. Random samples use the same seed for comparison; they are not recorded game shots.", "Повний магазин; для двох одиниць зброї стільки пострілів, скільки вміщує менший магазин, кожна у власному темпі. Для порівняння використано однакове зерно випадковості; це не запис пострілів із гри.")}</p>',
+        + f'</select></label><label>{tr("Sample seed", "Зерно вибірки")}<input class="sim-seed" type="number" min="1" max="999999" value="1"></label>'
+        + f'<label>{tr("Speed", "Швидкість")}<select class="sim-speed">'
+        + "".join(f'<option value="{value}">{label}</option>' for value, label in (("1", "1×"), ("0.25", "1/4"), ("0.1", "1/10")))
+        + '</select></label></div>',
+        '<div class="sim-layers">'
+        + "".join(f'<label><input class="sim-layer-{key}" type="checkbox" checked> {tr(en, uk)}</label>' for key, en, uk in [
+            ("recoil", "Recoil", "Відбій"), ("camera", "Camera wobble", "Хитання камери"), ("gun", "Gun kick", "Поштовх зброї")])
+        + '</div>',
         f'<table class="sim-parts"><caption>{tr("Spread", "Розкид")} · {tr("degrees", "градуси")}</caption><thead><tr><td></td>'
         + "".join(f'<th scope="col">{p}</th>' for p in parts) + '</tr></thead><tbody></tbody></table>',
         f'<div class="sim-buttons"><button class="sim-play" type="button">{tr("Play", "Відтворити")}</button><button class="sim-last" type="button">{tr("Last shot", "Останній постріл")}</button><button class="sim-reset" type="button">{tr("Reset", "Скинути")}</button></div>',
         f'<label class="sim-timeline">{tr("Timeline", "Шкала часу")} <output class="sim-time-label">0 s</output><input class="sim-time" type="range" min="0" max="1" step="0.01" value="0"></label>',
         '<div class="sim-legend" aria-live="polite"></div>',
         f'<figure class="sim-sight"><figcaption>{tr("Crosshair", "Приціл")} · {tr("degrees of view", "градуси огляду")}</figcaption><div class="sim-sight-views"></div>'
+        '<p class="sim-key">'
+        + "".join(f'<span><svg viewBox="0 0 16 16" aria-hidden="true">{shape}</svg>{tr(en, uk)}</span>' for shape, en, uk in [
+            ('<path class="sim-key-view" d="M8 1v5M8 10v5M1 8h5M10 8h5"/>', "bullet", "куля"),
+            ('<circle class="sim-key-sight" cx="8" cy="8" r="6"/>', "sight", "приціл"),
+            ('<circle class="sim-key-hit" cx="8" cy="8" r="3.5"/>', "hit", "влучання")])
+        + '</p>'
         f'<label class="sim-target-pick">{tr("Target", "Ціль")}<select class="sim-target"><option value="">{tr("None", "Немає")}</option>'
         + "".join(f'<option value="{m}">{tr(f"Enemy at {m} m", f"Ворог на {m} м")}</option>' for m in (5, 10, 25))
         + '</select></label></figure>',
@@ -234,7 +245,8 @@ def render_simulators(data, code, script_url):
     for key, w in sorted(data["weapons"].items(), key=lambda kv: (kv[1]["item_level"], page.title(kv[1]).casefold())):
         rounds = [{"id": k, "name": page.round_name(k), "spread": data["ammo"][k]["dispersion"]} for k in page.round_keys(key)]
         recoil = {"rpm": w["rounds_per_minute"], "magazine": w["magazine_capacity"], **w.get("recoil", {}),
-                  "dispersion": w.get("dispersion", {}), "double_handed": w["double_handed"]}
+                  "dispersion": w.get("dispersion", {}), "double_handed": w["double_handed"],
+                  **({"shot": w["shot"]} if "shot" in w else {})}
         icon = data.get("icons", {}).get(key)
         out.append(f'<div id="{esc(key)}" data-class="{esc(page.class_of(w))}" data-level="{w["item_level"]}" data-title="{esc(page.title(w))}" '
                    f'data-search-name="{esc(w["name"])}" data-rounds="{esc(json.dumps(rounds, ensure_ascii=False))}" data-recoil="{esc(json.dumps(recoil))}">'
@@ -343,7 +355,7 @@ def build(calculator, out):
     script = b"\n".join((HERE / name).read_bytes() for name in ("picker.js", "slots.js", "weapons.js"))
     script_url = "/wiki/weapons.js?v=" + hashlib.sha256(script).hexdigest()[:12]
     # The setup panels are the calculator's rows (damage-calc/hud.js, hud.css).
-    simulators = b"\n".join([shake] + [path.read_bytes() for path in (HERE / "recoil.js", HERE / "spread.js", HERE / "picker.js",
+    simulators = b"\n".join([shake] + [path.read_bytes() for path in (HERE / "recoil.js", HERE / "spread.js", HERE / "motions.js", HERE / "picker.js",
                                                                        HERE / "slots.js", CALC / "hud.js", HERE / "simulators.js")])
     simulators_url = "/wiki/simulators.js?v=" + hashlib.sha256(simulators).hexdigest()[:12]
     out.mkdir(parents=True, exist_ok=True)

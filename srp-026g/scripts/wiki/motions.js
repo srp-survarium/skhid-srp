@@ -1,0 +1,60 @@
+// A weapon's two fixed motions on a shot, from its own clips (shot_motions.py
+// has the bones, the signs and the units): the camera's, in the hands' shot
+// clip, and the gun's in front of the camera, in its own. Neither reads the
+// recoil numbers: each is one curve, played once a shot in 60/rpm seconds.
+// - the camera's turns the view, so the screen moves; it starts from rest, so
+//   the bullet that starts it leaves along the kick's aim alone;
+// - the gun's moves the gun and its sights over the view, since patch 172 on
+//   every gun while aimed; the bullet leaves from the camera, not the barrel.
+(() => {
+  const AXES = {camera: ['up', 'side'], gun: ['back', 'up', 'side']};
+  // A custom motion's shape where the weapon has none of its own: to its
+  // peak in the pass's first fifth (on a sample), back by its end.
+  const STEPS = 32, PEAK = 6 / STEPS;
+  const SHAPE = Array.from({length: STEPS + 1}, (_, i) => {
+    const phase = i / STEPS;
+    return phase < PEAK ? phase / PEAK : ((1 - phase) / (1 - PEAK)) ** 2;
+  });
+  function curve(raw, axes) {
+    if (!raw || axes.some(axis => !Array.isArray(raw[axis]) || raw[axis].length < 2 || !raw[axis].every(Number.isFinite))) return null;
+    return Object.freeze(Object.fromEntries(axes.map(axis => [axis, Object.freeze([...raw[axis]])])));
+  }
+  // A weapon's `shot` (absent: a build without the clips): each motion or null.
+  function parse(shot) {
+    // Aimed, the hands play the hip's clip unless the weapon has another (shot_motions.py writes it only then).
+    const hip = curve(shot?.camera?.hip, AXES.camera);
+    return Object.freeze({camera: Object.freeze({hip, aimed: shot?.camera?.aimed ? curve(shot.camera.aimed, AXES.camera) : hip}),
+      gun: curve(shot?.gun, AXES.gun)});
+  }
+  // The largest value of an axis, with its sign; 0 for no curve.
+  function peak(curve, axis) {
+    return curve ? curve[axis].reduce((most, value) => Math.abs(value) > Math.abs(most) ? value : most, 0) : 0;
+  }
+  // The curve with each of `peaks`' axes at that peak instead: its own shape
+  // scaled, SHAPE for an axis that does not move. Null when nothing moves.
+  function shaped(curve, axes, peaks) {
+    const out = {};
+    for (const axis of axes) {
+      const own = peak(curve, axis), wanted = axis in peaks ? peaks[axis] : own;
+      out[axis] = wanted === own && curve ? curve[axis] : own ? curve[axis].map(value => value * wanted / own) : SHAPE.map(value => value * wanted);
+    }
+    return axes.some(axis => out[axis].some(value => value !== 0)) ? Object.freeze(out) : null;
+  }
+  // The motions with a custom gun's peaks: {camera: {up, side}, gun: {back, up, side}}, any left out as the weapon's.
+  function custom(motions, peaks) {
+    const camera = view => shaped(motions.camera[view], AXES.camera, peaks.camera || {});
+    return Object.freeze({camera: Object.freeze({hip: camera('hip'), aimed: camera('aimed')}), gun: shaped(motions.gun, AXES.gun, peaks.gun || {})});
+  }
+  // A curve's values `phase` (0 to 1) into its pass; all 0 outside it and for no curve.
+  function at(curve, axes, phase) {
+    if (!curve || !(phase >= 0 && phase < 1)) return Object.fromEntries(axes.map(axis => [axis, 0]));
+    return Object.fromEntries(axes.map(axis => {
+      const values = curve[axis], place = phase * (values.length - 1), i = Math.floor(place);
+      return [axis, values[i] + (values[i + 1] - values[i]) * (place - i)];
+    }));
+  }
+  // The camera's turn {up, side} degrees while firing in `aim` (WeaponSpread.AIMS), and the gun's {back mm, up, side degrees}.
+  const cameraAt = (motions, aim, phase) => at(motions.camera[aim === 'hip' ? 'hip' : 'aimed'], AXES.camera, phase);
+  const gunAt = (motions, phase) => at(motions.gun, AXES.gun, phase);
+  globalThis.WeaponMotions = Object.freeze({AXES, parse, peak, custom, cameraAt, gunAt});
+})();

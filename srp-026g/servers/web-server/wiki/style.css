@@ -139,12 +139,49 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .sim-trail.series-1 { stroke:#3684bd }
 .sim-cross { stroke:var(--accent); stroke-width:2.2; fill:var(--accent) }
 .sim-cross.series-1 { stroke:#3684bd; fill:#3684bd }
+/* The shot's motions: which are shown, the gun's sight, and the view from the side */
+.sim-layers { display:flex; flex-wrap:wrap; gap:8px 24px; margin:12px 0; font:.85rem var(--body) }
+.sim-layers label { display:inline-flex; align-items:center; gap:8px; margin:0; text-transform:none; letter-spacing:normal; white-space:nowrap; width:auto; font:.85rem var(--body); color:var(--ink) }
+.sim-layers input { accent-color:var(--accent) }
+.sim-gunsight { fill:none; stroke:var(--ink); stroke-width:1.6 }
+.sim-gunsight-dot { fill:var(--ink); stroke:none }
+.sim-sight svg.sim-side { margin-top:6px }
+.sim-wall { stroke:var(--ink-3); stroke-width:3 }
+.sim-eye { fill:var(--bg); stroke:var(--ink); stroke-width:1.4 }
+.sim-eye-pupil { fill:var(--ink) }
+.sim-side-view { stroke:var(--accent); stroke-width:1.6; stroke-dasharray:5 4 }
+.sim-side-view.series-1 { stroke:#3684bd }
+.sim-side-sight { stroke:var(--ink); stroke-width:1 }
+.sim-bullet { fill:var(--accent); stroke:none }
+.sim-bullet.series-1 { fill:#3684bd }
+.sim-landed { fill:none; stroke:var(--accent); stroke-width:1.4 }
+.sim-landed.series-1 { stroke:#3684bd }
+.sim-key { display:flex; flex-wrap:wrap; justify-content:center; gap:4px 20px; margin:8px 0 0; font:.75rem var(--data); color:var(--ink-3) }
+.sim-key span { display:inline-flex; align-items:center; gap:6px }
+.sim-sight .sim-key svg { width:14px; height:14px; fill:none; stroke-width:2; background:none; border:0 }
+.sim-key-view,.sim-key-hit { stroke:var(--accent) }
+.sim-key-sight { stroke:var(--ink) }
+/* A custom gun: the weapon's values, each the visitor's own */
+.sim-custom { margin-top:10px; border:1px solid var(--rule); background:var(--bg); padding:8px 12px }
+.sim-custom summary { cursor:pointer; font:700 .75rem var(--display); text-transform:uppercase; letter-spacing:.06em }
+.sim-custom-group { margin:10px 0 0; font:.72rem var(--data); color:var(--ink) }
+.sim-custom-fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(84px,1fr)); gap:8px 10px; margin:6px 0 10px }
+.sim-custom-fields label { display:block; margin:0; font:.72rem var(--body); text-transform:none; letter-spacing:normal; color:var(--ink-3) }
+.sim-custom-fields input { display:block; width:100%; margin-top:4px; padding:6px 8px; background:var(--panel); color:var(--ink); border:1px solid var(--rule); font:.85rem var(--data) }
+.sim-custom button { margin:0; padding:8px 14px; font-size:.75rem }
 /* Each weapon's setup: the calculator's panel of rows (hud.css), side by side */
 .sim-setups { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr)); gap:16px; margin:16px 0 }
 .sim-setup { min-width:0 }
 .sim-setup-name { margin:0 0 6px; font:.75rem var(--data); color:var(--accent) }
 .sim-setup-name.series-1 { color:#3684bd }
 .sim-setup .gamemods { max-width:100% }
+/* Its rows in the page's own colours (the calculator keeps the lobby's; a row's card stays a lobby card) */
+.sim-setup > .gamemods.rows { background:var(--bg); border:1px solid var(--rule); color:var(--ink); text-shadow:none; font:400 .85rem/1.2 var(--body) }
+.sim-setup > .gamemods.rows .gstep { color:var(--ink); border-color:var(--rule); background:var(--panel); opacity:1; text-shadow:none }
+.sim-setup > .gamemods.rows .gstep:hover { border-color:var(--ink-3) }
+.sim-setup > .gamemods.rows .gstep[aria-pressed=true] { color:var(--accent); border-color:var(--accent); background:var(--panel) }
+.sim-setup > .gamemods.rows > .gmrow > img.gico[src^="data:"] { filter:invert(1) }
+@media(prefers-color-scheme:dark) { .sim-setup > .gamemods.rows > .gmrow > img.gico[src^="data:"] { filter:none } }
 .sim-parts { width:100%; table-layout:fixed; margin:12px 0 0; border:1px solid var(--rule); background:var(--bg) }
 .sim-parts caption { text-align:left; font:700 .8rem var(--display); margin-bottom:8px; text-transform:uppercase; letter-spacing:.06em }
 .sim-parts th,.sim-parts td { padding:6px 8px; font:.8rem var(--data); text-align:right; hyphens:auto }
