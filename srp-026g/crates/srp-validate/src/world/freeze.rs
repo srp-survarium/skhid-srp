@@ -457,9 +457,12 @@ impl FreezeTag {
         }
         for player in &self.players {
             let (tag, progress, thaws_in) = match *player {
+                // The tags `read` takes: 0 waiting, 1/2 fighting, 3/4 frozen, by team.
                 Player::Waiting => (0, 0, 0),
-                Player::Fighting(side) => (team(side), 0, 0),
-                Player::Frozen { team: side, progress, thaws_in } => (team(side) + 2, progress.0, thaws_in.get()),
+                Player::Fighting(Team::First) => (1, 0, 0),
+                Player::Fighting(Team::Second) => (2, 0, 0),
+                Player::Frozen { team: Team::First, progress, thaws_in } => (3, progress.0, thaws_in.get()),
+                Player::Frozen { team: Team::Second, progress, thaws_in } => (4, progress.0, thaws_in.get()),
             };
             put(&[tag]);
             put(&progress.to_le_bytes());
