@@ -7,7 +7,8 @@
 use core::marker::PhantomData;
 
 use super::context::Context;
-use super::world::{floats, write_floats};
+use super::shot::named;
+use super::world::{Player, PlayerId, floats, read, write_floats};
 use crate::raw;
 
 /// A weapon state's id (+124h) of the three idle classes.
@@ -202,5 +203,87 @@ impl Bones<'_> {
         // fire point's), which calculate_locator indexes these same matrices
         // with (0x243C73; weapon::draw's at 0x244E68) when left on its bone.
         unsafe { floats(self.0.at(usize::from(bone.0)).value()) }
+    }
+}
+
+/// The first person's hands at `hands_ik.solve`: process_hands_ik where its
+/// ways join, the holder's bones of this frame about to go to the hands' IK.
+pub struct DrawnHands<'c> {
+    bones: raw::Float4x4,
+    skeleton: raw::Skeleton,
+    weapon: raw::Weapon,
+    who: PlayerId,
+    site: PhantomData<&'c ()>,
+}
+
+impl<'c> DrawnHands<'c> {
+    /// None for another view than the first person's, and without a client
+    /// weapon in hand.
+    pub fn at_solve(ctx: &'c Context<'_>) -> Option<DrawnHands<'c>> {
+        use raw::site::hands_ik_solve as site;
+        // SAFETY: the context is this site's: process_hands_ik's frame holds
+        // its this, the first person's byte and the held weapon or 0 (kept at
+        // 0x2959E7, 0x295A03, 0x295A09) and EBP its arguments, all alive
+        // while mt_draw's bone pass runs on this thread; a weapon's first
+        // dword is its vtable.
+        unsafe {
+            let (frame, arguments) = (site::frame(ctx)?, site::arguments(ctx)?);
+            if read(frame.first_view()) == 0 {
+                return None;
+            }
+            let weapon = frame.weapon()?;
+            if read(weapon.vtable()) != raw::image::WEAPON_VTABLE {
+                return None;
+            }
+            let who = Player::of(ctx, frame.controller()?.player())?.id();
+            Some(DrawnHands { bones: arguments.bones()?, skeleton: arguments.skeleton()?.skeleton()?, weapon, who, site: PhantomData })
+        }
+    }
+
+    /// Whose hands.
+    pub fn who(&self) -> PlayerId {
+        self.who
+    }
+
+    /// How far the sight is raised (the weapon's +5FCh).
+    pub fn raised(&self) -> f32 {
+        // SAFETY: the live weapon's own float.
+        unsafe { read(self.weapon.aim_progress()) }
+    }
+
+    /// A bone of the holder (`Weapon`, `Item`) as this frame has it, in the
+    /// holder's space.
+    pub fn bone(&self, name: &str) -> Option<[f32; 16]> {
+        // SAFETY: the matrix's place is one of this frame's array (`slot`).
+        unsafe { Some(floats(self.slot(name)?.value())) }
+    }
+
+    /// The bone's matrix of this frame; false for a skeleton without it.
+    pub fn set_bone(&mut self, name: &str, matrix: [f32; 16]) -> bool {
+        // SAFETY: as `bone`; the pass's one thread writes its own array
+        // before the hands' IK reads it (0x295B17).
+        unsafe {
+            match self.slot(name) {
+                Some(slot) => {
+                    write_floats(slot.value(), matrix);
+                    true
+                }
+                None => false,
+            }
+        }
+    }
+
+    /// # Safety
+    /// The site's skeleton and bones are alive (they are while its pass runs).
+    unsafe fn slot(&self, name: &str) -> Option<raw::Float4x4> {
+        // SAFETY: the skeleton's records; the array holds a matrix a bone
+        // from the first record's first child on (0x295A4F..0x295A69 indexes
+        // it so for the Weapon bone).
+        unsafe {
+            let records = self.skeleton.bones();
+            let first = records.at(0).children()?.index_from(records)?;
+            let at = named(self.skeleton, name)?.index_from(records)?.checked_sub(first)?;
+            Some(self.bones.at(at))
+        }
     }
 }

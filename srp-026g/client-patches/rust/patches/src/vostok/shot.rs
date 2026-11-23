@@ -273,7 +273,7 @@ const NO_BONE: u16 = 0xFFFF;
 ///
 /// # Safety
 /// `skeleton` is alive.
-unsafe fn named(skeleton: raw::Skeleton, name: &str) -> Option<raw::SkeletonBone> {
+pub(in crate::vostok) unsafe fn named(skeleton: raw::Skeleton, name: &str) -> Option<raw::SkeletonBone> {
     // SAFETY: the skeleton's run of records, each name a C string or null.
     unsafe {
         let records = skeleton.bones();

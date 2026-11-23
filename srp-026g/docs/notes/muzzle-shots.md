@@ -217,3 +217,19 @@ Not done:
 - The bots let SPRINT go as they fire (`bots/mod.rs`), so they never do it.
 - No world of a game with it was checked (`world-check`, `world-drift`): nothing new is written,
   but a sprint posture with a fire state is a pair no recorded world has.
+
+## The view on the mouse, the gun behind the turn (the owner's third play)
+
+Of the follow fed by the input's aim alone: "still a bit heavy boobling of camera", "the camera is
+being flung w/weapon", "uncomfortably". A view that comes after the mouse, as Bodycam's camera
+does, is not wanted here at any strength. So the view is the eye again, turn for turn (with the
+kick's share), and the weight is the gun's: patch 197 draws the gun held from the hip behind a
+turn, by half the lag of the reference's arms (the input's aim smoothed at 25 a second, the arms
+after it at 20: at 60 degrees a second 1.7 degrees), at most 5 degrees across and 3.5 up; less the
+further the sight is raised, none fully aimed, so the sights stay true. It swings the first
+person's Weapon bone about the eye before the hands' IK (`hands_ik.solve`, 0x295B00).
+
+What it costs: while the gun trails it is drawn where a shot does not go. The shot is the aim's,
+which the HUD's crosshair shows. A gun that trailed in the simulation would need a state of the
+simulation that every game agrees on at every step (the turns of the last tenth of a second), and
+the game's own re-simulation of a step would have to rewind it: not attempted.

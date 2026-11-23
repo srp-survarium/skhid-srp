@@ -1,14 +1,16 @@
-# Patch 197: the drawn camera apart from the aim (camera_trail.rs): the view
-# takes a share of the weapon's kick, and follows the gun's turn as Bodycam's
-# camera does. Only the decisions: the site and the handler, after the head
-# clearance's eye.
+# Patch 197: the view and the gun apart (camera_trail.rs): the view takes a
+# share of the weapon's kick; the gun held from the hip is drawn behind the
+# view's turn. Only the decisions: the sites and the handlers.
 name = "camera_trail"
 patch = 197
-# how far the sight is raised
-uses = ["aim_pose"]
 
 # update_camera's join: EAX the eye transform the view gets
 [[hook]]
 site = "camera.eye"
 handler = "on_eye"
 order = 3
+
+# the first person's hands before their IK: the gun behind the turn
+[[hook]]
+site = "hands_ik.solve"
+handler = "on_solve"
