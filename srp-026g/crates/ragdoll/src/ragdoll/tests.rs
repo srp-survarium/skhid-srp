@@ -151,8 +151,7 @@ fn headwear_starts_on_the_head_then_falls_separately_and_settles_above_ground() 
         }
     });
     let mut drawn = now;
-    let (parts, gun) = body.poses();
-    body.rig().draw(&parts, gun, &mut drawn);
+    body.draw(&mut drawn);
     assert!(
         (body.headwear_pose().unwrap().0.position - drawn[HEAD.index()].position).length() > 0.15
     );
@@ -225,9 +224,8 @@ fn the_rig_draws_the_death_pose_back_and_parts_of_inverts_it() {
     );
     let before = driver_bones(&now);
     let ragdoll = Ragdoll::new(&start(&now, &before, Cause::Unknown, Some(GUN))).unwrap();
-    let (parts, gun) = ragdoll.poses();
     let mut drawn = [Pose::IDENTITY; BONE_COUNT];
-    ragdoll.rig().draw(&parts, gun, &mut drawn);
+    ragdoll.draw(&mut drawn);
     for i in 0..BONE_COUNT {
         assert!(
             (drawn[i].position - now[i].position).length() < 1e-4,
@@ -241,6 +239,7 @@ fn the_rig_draws_the_death_pose_back_and_parts_of_inverts_it() {
         );
     }
     let back = ragdoll.rig().parts_of(&driver_bones(&now));
+    let (parts, _) = ragdoll.poses();
     for (a, b) in back.iter().zip(parts.iter()) {
         assert!((a.position - b.position).length() < 1e-4);
     }
@@ -1552,5 +1551,42 @@ fn a_body_thrown_into_a_wall_stays_out_of_it() {
             }
         }
         assert!(deepest < 0.04, "{direction:?}: {deepest:.3} m into the wall");
+    }
+}
+
+#[test]
+fn the_fingers_let_go_once_and_never_swing() {
+    let now = standing(Quat::IDENTITY, Vec3::ZERO);
+    let before = driver_bones(&now);
+    let mut input = start(&now, &before, SHOT, Some(GUN));
+    let hits = [looks5()[2].1];
+    input.hits = &hits;
+    let mut ragdoll = Ragdoll::new(&input).unwrap();
+    let mut ground = Ground::flat();
+    let fingers: std::vec::Vec<(Bone, Quat)> =
+        (0..BONE_COUNT).filter_map(|i| Some((Bone(i as u8), Bone(i as u8).loose_finger()?))).collect();
+    // how near each finger joint's turn on its parent is to the loose hand's (1: there)
+    let near = |r: &Ragdoll| {
+        let mut drawn = [Pose::IDENTITY; BONE_COUNT];
+        r.draw(&mut drawn);
+        fingers
+            .iter()
+            .map(|&(bone, loose)| {
+                let parent = drawn[bone.parent().unwrap().index()];
+                parent.inverse().then(drawn[bone.index()]).rotation.dot(loose).abs()
+            })
+            .collect::<std::vec::Vec<f32>>()
+    };
+    let mut last = near(&ragdoll);
+    assert!(last.iter().all(|&n| n < 0.995), "the grip is not the loose hand");
+    // a shot body thrown about: every frame each joint is nearer the loose hand or where it was
+    for frame in 0..180 {
+        ragdoll.step(1.0 / 60.0, None, &mut ground);
+        let now = near(&ragdoll);
+        assert!(now.iter().zip(&last).all(|(n, l)| *n >= *l - 1e-5), "frame {frame}");
+        if frame as f32 / 60.0 >= tuning::FINGERS_LOOSE_TIME {
+            assert!(now.iter().all(|&n| n > 0.9999), "frame {frame}");
+        }
+        last = now;
     }
 }

@@ -101,7 +101,8 @@
 #      of that commit started in the background
 #      (srp-026g/client-patches/selftest_026g.py, its Linux part, on
 #      $SKHID_GAME's survarium.exe, about 5 min; release/test.sh:
-#      $SKHID_SELFTEST_BIN; --no-selftest: none, said loudly), while the
+#      $SKHID_SELFTEST_BIN; --no-selftest: none, said loudly; the exe's
+#      arena, `.srpx`, must be the one it linked), while the
 #      rest of this step runs; checks the two
 #      files as release/deploy does (live:
 #      and makes the item tables of the server data, srp-item-tables, so a
@@ -808,9 +809,9 @@ readme_row() { # <shipped: lines>
         content="No content patch of its own"
     fi
     # shellcheck disable=SC2016 # the backticks are Markdown
-    printf '| Revision %s | Released %s UTC (tag `%s`, `main` %s). Shipped: %s. Without a server sha256 `%s`, with `--server=%s` `%s`. The ZIP: %s bytes, sha256 `%s`; the server data: sha256 `%s`. %s |\n' \
+    printf '| Revision %s | Released %s UTC (tag `%s`, `main` %s). Shipped: %s. Without a server sha256 `%s`, with `--server=%s` `%s`, the arena (`.srpx`) `%s`. The ZIP: %s bytes, sha256 `%s`; the server data: sha256 `%s`. %s |\n' \
         "$rev" "$(date -u -d "@$released_at" '+%Y-%m-%d %H:%M')" "$(release_tag "$rev")" "${main_commit:0:7}" \
-        "${shipped:-nothing merged since the release before}" "$EXE_WITHOUT" "$SKHID_GAME_SERVER" "$EXE_WITH" \
+        "${shipped:-nothing merged since the release before}" "$EXE_WITHOUT" "$SKHID_GAME_SERVER" "$EXE_WITH" "$EXE_ARENA" \
         "$ZIP_SIZE" "$ZIP_SHA" "$DATA_SHA" "$content"
 }
 
@@ -887,7 +888,8 @@ record_release() {
     progress "7. the record: tag $tag on $(git -C "$REPO" log -1 --format=%h "$main_commit"), the commit \"Release revision $rev\" on main"
     EXE_WITH=$(awk '$2 == "with-server" { print $1 }' "$work/zip/exe.sha256" 2>/dev/null || true)
     EXE_WITHOUT=$(awk '$2 == "without-server" { print $1 }' "$work/zip/exe.sha256" 2>/dev/null || true)
-    EXE_WITH=${EXE_WITH:-unknown} EXE_WITHOUT=${EXE_WITHOUT:-unknown}
+    EXE_ARENA=$(awk '$2 == "arena" { print $1 }' "$work/zip/exe.sha256" 2>/dev/null || true)
+    EXE_WITH=${EXE_WITH:-unknown} EXE_WITHOUT=${EXE_WITHOUT:-unknown} EXE_ARENA=${EXE_ARENA:-unknown}
     shipped=$(shipped_prs "$main_commit")
     say "  shipped (merged PRs since ${SHIPPED_SINCE:0:7}): $(if [[ -n $shipped ]]; then tr '\n' ';' <<<"$shipped" | sed 's/;$//; s/;/; /g'; else printf 'none'; fi)"
     # The tag, on the commit that was built.
@@ -897,7 +899,7 @@ record_release() {
         say "The players' ZIP, $ZIP_NAME: $ZIP_SIZE bytes, sha256 $ZIP_SHA"
         say "The server data, $DATA_NAME: sha256 $DATA_SHA"
         say "The torrent, skhid-rev$rev.torrent (in the ZIP): info hash (btmh) 1220${TORRENT_SHA:-unknown}"
-        say "The exe: sha256 $EXE_WITH (--server=$SKHID_GAME_SERVER), $EXE_WITHOUT without a server"
+        say "The exe: sha256 $EXE_WITH (--server=$SKHID_GAME_SERVER), $EXE_WITHOUT without a server; its arena (.srpx) $EXE_ARENA"
         if [[ -n ${published:-} ]]; then say "Its content: ${resources##*/}, sha256 $(sha256_of "$resources")"; fi
         say
         say "Built from this commit with patch revision $rev (release/build-zip --revision $rev);"
@@ -1932,6 +1934,11 @@ if ((!DRY_RUN && !no_selftest)); then
     if [[ -d $work/zip/src ]]; then git -C "$REPO" worktree remove --force "$work/zip/src"; fi
     rm -rf "$work/selftest"
     ((selftest_ok)) || die "the exe patches' self-test failed: $(grep -cE '^  FAIL' "$work/selftest.log" || true) check(s), the first: $(grep -m 1 -E '^  FAIL' "$work/selftest.log" | sed 's/^  FAIL  *//' || true) (log: $work/selftest.log)"
+    # The arena the self-test ran on is the one the exe ships.
+    tested_arena=$(sed -n 's/^arena sha256 \([0-9a-f]\{64\}\)$/\1/p' "$work/selftest.log")
+    shipped_arena=$(awk '$2 == "arena" { print $1 }' "$work/zip/exe.sha256")
+    [[ -n $tested_arena && $tested_arena == "$shipped_arena" ]] ||
+        die "the exe's arena (.srpx, sha256 ${shipped_arena:-unknown}) is not the one the self-test ran on (${tested_arena:-none in $work/selftest.log})"
     say "the exe patches' self-test: $(tail -n 1 "$work/selftest.log")"
 elif [[ -d $work/zip/src ]]; then
     git -C "$REPO" worktree remove --force "$work/zip/src"

@@ -378,7 +378,7 @@ def use_documents(folder):
 
 def main():
     original = Path(sys.argv[1]).read_bytes()
-    code = (HERE / 'launcher_values_026g.bin').read_bytes()
+    code = L.code()
     patched, _ = L.build(original, code)
     for folder in DOCUMENTS_FOLDERS:
         use_documents(folder)

@@ -243,13 +243,11 @@ impl Slot {
             }
             Slot::Ragdoll { ragdoll, clip } => {
                 *clip = Some(Part::ALL.map(|p| game(p.bone())));
-                let (parts, gun) = ragdoll.poses();
-                ragdoll.rig().draw(&parts, gun, out);
+                ragdoll.draw(out);
                 Drawn::Ragdoll
             }
             Slot::Settled { ragdoll, bones, .. } => {
-                let (parts, gun) = ragdoll.poses();
-                ragdoll.rig().draw(&parts, gun, out);
+                ragdoll.draw(out);
                 *bones = Given::Drawn;
                 Drawn::Ragdoll
             }
@@ -277,8 +275,7 @@ impl Slot {
     pub fn draw_alone(&self, skeleton: &mut Skeleton) -> Drawn {
         match self {
             Slot::Ragdoll { ragdoll, .. } | Slot::Settled { ragdoll, .. } => {
-                let (parts, gun) = ragdoll.poses();
-                ragdoll.rig().draw(&parts, gun, skeleton);
+                ragdoll.draw(skeleton);
                 Drawn::Ragdoll
             }
             Slot::Free | Slot::Dying { .. } => Drawn::Game,
@@ -290,8 +287,7 @@ impl Slot {
     fn eye(&self) -> Option<HeadView> {
         let mut skeleton = [Pose::IDENTITY; BONE_COUNT];
         let ragdoll = self.body()?;
-        let (parts, gun) = ragdoll.poses();
-        ragdoll.rig().draw(&parts, gun, &mut skeleton);
+        ragdoll.draw(&mut skeleton);
         Some(HeadView {
             eye: ragdoll.rig().eye(skeleton[HEAD.index()]),
             skull: ragdoll.skull(),

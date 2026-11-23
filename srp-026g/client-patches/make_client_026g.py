@@ -812,7 +812,7 @@ def main():
         if not launcher_path.is_file():
             sys.exit(f"{launcher_path}: the game folder has no launcher (--no-launcher leaves it out)")
         launcher_exe, launcher_description = L.build(
-            launcher_path.read_bytes(), Path(L.default_bin()).read_bytes(), site=site,
+            launcher_path.read_bytes(), L.code(), site=site,
             game_exe="updater_skhid.exe" if relay else "survarium_skhid.exe",
             arguments=("play " if relay else "") + game_arguments(server, embedded))
         torrent_dll_path = torrent_dll_path or os.path.join(os.path.dirname(updater_path), TORRENT_DLL_NAME)

@@ -11,16 +11,6 @@ use crate::ragdoll::{pose_of, matrix_of};
 #[path = "curves.rs"]
 mod curves;
 
-fn rotation([x, y, z]: [f32; 3]) -> Quat {
-    let (sx, cx) = sin_cos(x);
-    let (sy, cy) = sin_cos(y);
-    let (sz, cz) = sin_cos(z);
-    // Native spline's Euler convention, also used by the offline preview.
-    Quat::from_basis(Vec3::new(cy * cz, -cy * sz, sy),
-        Vec3::new(sy * sx * cz + cx * sz, -sx * sy * sz + cx * cz, -sx * cy),
-        Vec3::new(-cx * sy * cz + sx * sz, cx * sy * sz + sx * cz, cx * cy))
-}
-
 /// A player's own clock for its hand's motion: the simulation's, shifted by
 /// the place so players do not breathe in step.
 #[derive(Clone, Copy)]
@@ -119,7 +109,7 @@ pub fn apply(bones: &DrawnBones<'_>, presentation: Presentation) -> Option<[f32;
             if skeleton.bone_named(bone, name) {
                 let mut angles: [f32; 3] = core::array::from_fn(|n| lower[n] + (upper[n] - lower[n]) * presentation.raised);
                 angles[2] += clock.flex(name) * presentation.raised;
-                targets[i] = Some(rotation(angles));
+                targets[i] = Some(Quat::from_spline_euler(angles));
             }
         }
         if skeleton.bone_named(bone, "RightArm") { right_arm = Some(i); }
