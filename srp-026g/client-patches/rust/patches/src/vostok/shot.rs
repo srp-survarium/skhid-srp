@@ -104,6 +104,13 @@ impl<'c> HeldGun<'c> {
         }
     }
 
+    /// Whose gun, and when in the simulation: the user's place in the match
+    /// roster and its simulation milliseconds (player+324h, tick 0x2DAA7F).
+    pub fn user_at(&self) -> (u8, u32) {
+        // SAFETY: the live player's own word.
+        (self.player.place(), unsafe { read(self.user.time()) })
+    }
+
     /// How far the sight is raised: the aim's progress, 0 from the hip to 1
     /// fully aimed (ticked by the weapon's own tick, in the world).
     pub fn raised(&self) -> f32 {

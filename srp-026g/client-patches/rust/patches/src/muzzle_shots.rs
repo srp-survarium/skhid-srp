@@ -36,7 +36,9 @@
 //! `SKHID_SHOT_LOG` set in the game's environment (read once, after a
 //! frame's simulation) writes a line a shot to the patches' log: how far the
 //! sight is raised, how far the shot's way is from the eyes' copy's and
-//! where the muzzle is from that eye. Nothing without it.
+//! where the muzzle is from that eye; and a second with whose shot, when in
+//! the simulation, and the game's copy and its replacement to the bit, to
+//! lay two games' logs of one match side by side. Nothing without it.
 
 #![forbid(unsafe_code)]
 
@@ -59,7 +61,7 @@ pub fn on_shot(ctx: &mut Context<'_>) -> Flow<NoExit> {
         && let Some(leaving) = Leaving::of(shot.gun())
     {
         if SHOT_LOG.with(ctx.thread(), |log| *log) == ShotLog::On {
-            say(&shot.eye(), shot.gun().raised(), &leaving);
+            say(&shot.eye(), shot.gun().raised(), shot.gun().user_at(), &leaving);
         }
         shot.leave_from(shot_from(&leaving.eye, leaving.place, leaving.along));
     }
@@ -80,7 +82,7 @@ static SHOT_LOG: Lock<ShotLog> = Lock::new(ShotLog::Unread);
 
 /// A shot's line: against the eyes' copy `was`, the angle of its way and its
 /// place (the copy's right, up and forward).
-fn say(was: &[f32; 16], raised: f32, leaving: &Leaving) {
+fn say(was: &[f32; 16], raised: f32, (place, time): (u8, u32), leaving: &Leaving) {
     let (right, up, forward) = (row(was, 0), row(was, 1), row(was, 2));
     let turned = atan2(forward.cross(leaving.along).length(), forward.dot(leaving.along)).to_degrees();
     let from = leaving.place - row(was, 3);
@@ -89,6 +91,17 @@ fn say(was: &[f32; 16], raised: f32, leaving: &Leaving) {
     log::line(&[Text("muzzle_shots: raised "), Dec((raised.clamp(0.0, 1.0) * 100.0) as u32), Text(" %, the way "),
                 Dec((turned * 100.0 + 0.5) as u32), Text(" hundredths of a degree off the eye's, from "), r[0], r[1], Text(" right "), u[0],
                 u[1], Text(" up "), f[0], f[1], Text(" ahead of it (mm)")]);
+    // The same shot to the bit, for two games' logs side by side: whose and
+    // when, the game's own copy (its forward, its place) and what replaces it.
+    let bits = |v: Vec3| [Piece::Hex(v.x.to_bits()), Text(" "), Piece::Hex(v.y.to_bits()), Text(" "), Piece::Hex(v.z.to_bits())];
+    let [eye_way, eye_place, way, from] = [forward, row(was, 3), leaving.along, leaving.place].map(bits);
+    let mut line = [Text(""); 28];
+    let parts: [&[Piece<'_>]; 9] = [&[Text("muzzle_shots: bits, place "), Dec(u32::from(place)), Text(" at "), Dec(time), Text(" ms: eye ")],
+                                    &eye_way, &[Text(" / ")], &eye_place, &[Text(" -> ")], &way, &[Text(" / ")], &from, &[]];
+    for (slot, piece) in line.iter_mut().zip(parts.iter().flat_map(|part| part.iter())) {
+        *slot = *piece;
+    }
+    log::line(&line);
 }
 
 /// What a shot of a held gun leaves from: a place and a way, and the eyes'
