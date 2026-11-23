@@ -22,8 +22,9 @@ package
     // The Controls tab's "Key bindings" (the owner, 2026-11-23: the tab's list "is so small, it will be
     // painful to rebind"; "you press on it and big window opens"; "this needs good modern design"): a button
     // at the foot of the tab's left column, beside Default settings, opens a window over the screen with
-    // every key row at once, in columns: the match's keys, the lobby's, the chat's (each group under its
-    // heading, in the exe's order), as many columns as the screen's height needs. Each row is tinted by its
+    // every key row at once, in columns: the match's keys in the exe's order, each run of one kind under that
+    // kind's heading, then the lobby's and the chat's under the tab's headings, as many columns as the
+    // screen's height needs. Each row is tinted by its
     // kind of action (movement, combat, items, communication, interface: KINDS), brighter when a key is
     // bound; the kinds' chips in the title's band name the colours, and the pointer over one dims every
     // other kind's rows. Its rows are the tab's: the same objects the exe gave (root.set_keybindings), drawn
@@ -39,14 +40,16 @@ package
         public static const NAME:String = "_srp_keys_window";
         public static const BUTTON:String = "_srp_keys_button";
         private static const KEYS_FRAME:int = 2;
-        // The kinds of action, by the exe's action ids (item_hotkeys_026g.asm's `actions`), and their colours.
+        // The kinds of action, by the exe's action ids (item_hotkeys_026g.asm's `actions`), and their colours: the
+        // groups of the exe's rows (hide_ui_026g.asm's `controls`), the weapon's and grenade, melee and use
+        // together as combat, the quick slots and the item keys together as items.
         public static const KINDS:Array = [
             {colour: 0x4FB8AD, ids: [0x04, 0x05, 0x06, 0x07, 0x08, 0x0B, 0x0C, 0x0D, 0x0E]},
-            {colour: 0xE3953C, ids: [0x09, 0x0A, 0x1D, 0x1E, 0x20, 0x21, 0x22, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2A,
+            {colour: 0xE3953C, ids: [0x09, 0x0A, 0x1D, 0x1E, 0x20, 0x21, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2A,
                 0x35, 0x36]},
-            {colour: 0x94C451, ids: [0x23, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F, 0x50,
+            {colour: 0x94C451, ids: [0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F, 0x50,
                 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59]},
-            {colour: 0x5EA3EA, ids: [0x37, 0x3F, 0x45, 0x46, 0x47]},
+            {colour: 0x5EA3EA, ids: [0x22, 0x37, 0x3F, 0x45, 0x46, 0x47]},
             {colour: 0xA397C4, ids: [0x19, 0x1A, 0x1B, 0x40, 0x41, 0x42, 0x43, 0x44]}];
         // The stock row (SrvBindKeyListRender): its height (the tab's lists' rowHeight) and its label's left.
         private static const ROW:Number = 30;
@@ -57,14 +60,14 @@ package
         private static const GAP:Number = 32;           // between columns
         private static const PAD:Number = 28;           // inside the window's edges
         private static const HEADER:Number = 64;        // the title's band
-        private static const HEADING:Number = 30;       // a group's heading
-        private static const SECTION_GAP:Number = 16;   // over a heading below another group's rows
+        private static const HEADING:Number = 28;       // a section's heading
+        private static const SECTION_GAP:Number = 12;   // over a heading below another section's rows
         private static const MARGIN:Number = 24;        // to the screen's edges at the least
         private static const TINT_X:Number = 10;        // a row's tint from left of its key box
         private static const CHIP_HEIGHT:Number = 26;
         private static const CHIP_GAP:Number = 8;
-        // The groups in the window's order and their headings (the tab's own labels).
-        private static const GROUPS:Array = ["s_game", "s_lobby", "s_chat_keys"];
+        // The headings of the match's rows of no kind, the lobby's and the chat's (the tab's own labels).
+        private static const GAME:String = "s_game", LOBBY:String = "s_lobby", CHAT:String = "s_chat_keys";
         // The board's palette: its surface lit from above, its edge, the title's and the headings' ink.
         private static const SURFACE_TOP:uint = 0x1A1D20;
         private static const SURFACE_BOTTOM:uint = 0x121417;
@@ -83,7 +86,7 @@ package
         private var title:String = "";
         private var kindNames:Array = [];
         // The window's parts: the dimmed screen under it, its frame and surface, the title, the kinds' chips,
-        // the close button, and the body: the lists (one per column's run of a group's rows), the headings and
+        // the close button, and the body: the lists (one per column's run of a section's rows), the headings and
         // each row's tint ({tint, list, index, kind, data}).
         private var backdrop:Sprite;
         private var panel:Sprite;
@@ -267,31 +270,56 @@ package
             chips.removeChildren();
         }
 
-        // The groups' rows in the window's order: the match's (any group but the lobby's and the chat's, as the
-        // tab's game list has them), the lobby's, the chat's.
-        private function groups():Array
+        // The window's sections, in its order, each {heading, kind, rows}: the match's rows (any group but the
+        // lobby's and the chat's, as the tab's game list has them) in the exe's order, a section for each run of
+        // one kind under that kind's name; then the lobby's, then the chat's, under the tab's headings.
+        private function sections():Array
         {
-            var out:Array = [[], [], []];
+            var out:Array = [];
+            var lobby:Object = {heading: Settings.get_label(LOBBY), kind: -1, rows: []};
+            var chat:Object = {heading: Settings.get_label(CHAT), kind: -1, rows: []};
+            var last:Object = null;
             for each (var key:Object in keys)
             {
-                out[key.group_id == KeyBindGroup.LOBBY ? 1 : key.group_id == KeyBindGroup.CHAT ? 2 : 0].push(key);
+                if (key.group_id == KeyBindGroup.LOBBY)
+                {
+                    lobby.rows.push(key);
+                }
+                else if (key.group_id == KeyBindGroup.CHAT)
+                {
+                    chat.rows.push(key);
+                }
+                else
+                {
+                    var kind:int = kindOf(key.action_id);
+                    if (last == null || last.kind != kind)
+                    {
+                        last = {heading: kind != -1 && kind < kindNames.length ? kindNames[kind] : Settings.get_label(GAME),
+                            kind: kind, rows: []};
+                        out.push(last);
+                    }
+                    last.rows.push(key);
+                }
+            }
+            for each (var section:Object in [lobby, chat])
+            {
+                if (section.rows.length > 0)
+                {
+                    out.push(section);
+                }
             }
             return out;
         }
 
-        // The pieces of each column for columns at most `tall` high: a group's heading (none at a column's top
+        // The pieces of each column for columns at most `tall` high: a section's heading (none at a column's top
         // where its rows go on from the last column) and its runs of rows, each with its top.
-        private static function flow(groups:Array, tall:Number):Array
+        private static function flow(sections:Array, tall:Number):Array
         {
             var columns:Array = [[]];
             var y:Number = 0;
-            for (var g:int = 0; g < groups.length; g++)
+            for (var g:int = 0; g < sections.length; g++)
             {
-                var rows:Array = groups[g];
-                if (rows.length == 0)
-                {
-                    continue;
-                }
+                var rows:Array = sections[g].rows;
                 var gap:Number = y > 0 ? SECTION_GAP : 0;
                 // a heading starts a column rather than end one: two rows under it at least
                 if (y > 0 && y + gap + HEADING + Math.min(2, rows.length) * ROW > tall)
@@ -299,7 +327,7 @@ package
                     columns.push([]);
                     y = gap = 0;
                 }
-                columns[columns.length - 1].push({group: g, top: y + gap});
+                columns[columns.length - 1].push({section: sections[g], top: y + gap});
                 y += gap + HEADING;
                 var run:Object = null;
                 for (var i:int = 0; i < rows.length; i++)
@@ -312,7 +340,7 @@ package
                     }
                     if (run == null)
                     {
-                        run = {group: g, top: y, rows: []};
+                        run = {top: y, rows: []};
                         columns[columns.length - 1].push(run);
                     }
                     run.rows.push(rows[i]);
@@ -342,11 +370,11 @@ package
             g.drawRect(from.x, from.y, screenWidth, screenHeight);
             g.endFill();
 
-            var parts:Array = groups();
+            var parts:Array = sections();
             var total:Number = 0;
-            for each (var rows:Array in parts)
+            for each (var section:Object in parts)
             {
-                total += rows.length > 0 ? SECTION_GAP + HEADING + rows.length * ROW : 0;
+                total += SECTION_GAP + HEADING + section.rows.length * ROW;
             }
             var room:Number = screenHeight - 2 * MARGIN - HEADER - PAD;
             var columns:Array = null;
@@ -381,7 +409,7 @@ package
                 {
                     if (piece.rows == null)
                     {
-                        heading(piece.group, x, HEADER + PAD / 2 + piece.top);
+                        heading(piece.section, x, HEADER + PAD / 2 + piece.top);
                     }
                     else
                     {
@@ -468,12 +496,13 @@ package
             }
         }
 
-        // A group's heading: its name (the tab's heading without its colon) in small capitals, a hairline on.
-        private function heading(group:int, x:Number, y:Number):void
+        // A section's heading: its name (a tab's heading without its colon) in small capitals, in its kind's
+        // colour, a hairline on.
+        private function heading(section:Object, x:Number, y:Number):void
         {
-            var field:TextField = text(12, DIM, 2);
-            field.name = NAME + "_heading_" + group;
-            field.text = Settings.get_label(GROUPS[group]).replace(/\s*:\s*$/, "").toUpperCase();
+            var field:TextField = text(12, section.kind == -1 ? DIM : KINDS[section.kind].colour, 2);
+            field.name = NAME + "_heading_" + body.numChildren;
+            field.text = String(section.heading).replace(/\s*:\s*$/, "").toUpperCase();
             field.x = x - TINT_X;
             field.y = y + Math.round((HEADING - field.height) / 2) - 2;
             body.addChild(field);
@@ -484,7 +513,7 @@ package
             g.endFill();
         }
 
-        // A run of a group's rows: each row's tint under it, the stock list over them.
+        // A run of a section's rows: each row's tint under it, the stock list over them.
         private function run(rows:Array, x:Number, y:Number):void
         {
             var list:FilterInventoryList = new FilterInventoryList();

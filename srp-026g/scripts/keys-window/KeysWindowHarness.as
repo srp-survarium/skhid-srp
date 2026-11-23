@@ -52,7 +52,7 @@ package
             graphics.endFill();
             addChild(loader);
             loader.load(new URLRequest("main_menu.swf"), new LoaderContext(false, new ApplicationDomain()));
-            steps = [[10, setUp], [10, tabWithoutTexts], [1, shot("tab")], [30, withTexts], [10, shot("tab-button")],
+            steps = [[10, setUp], [10, shot("tab")], [10, tabWithoutTexts], [30, withTexts], [10, shot("tab-button")],
                 [30, openWindow], [5, checkWindow], [1, shot("window")], [30, pressKey], [5, shot("binding")],
                 [30, answerKey], [5, shot("rebound")], [30, focusKind], [5, shot("focus")], [30, unfocus],
                 [5, closings], [5, languages], [5, reopen], [10, end]];
