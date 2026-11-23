@@ -238,9 +238,9 @@ package survarium.paperdoll
          }
       }
       
-      // A quick slot that holds an item and is no pocket now (`place` 1 the first): the stock
-      // lobby sends its item back (LocalPaperDoll: only a pocket its own kit lost).
-      protected function closeQuickSlot(slot:IPaperDollSlot, place:int) : void
+      // A quick slot that holds an item and is no pocket now: the stock lobby sends its item back
+      // (LocalPaperDoll does not).
+      protected function closeQuickSlot(slot:IPaperDollSlot) : void
       {
          slot.dropSlot();
       }
@@ -258,7 +258,7 @@ package survarium.paperdoll
             {
                if(slotRenderer.data)
                {
-                  this.closeQuickSlot(slotRenderer,i);
+                  this.closeQuickSlot(slotRenderer);
                }
                slotRenderer.enabled = false;
                slotRenderer.artifact = false;
@@ -273,7 +273,7 @@ package survarium.paperdoll
                   slotRenderer.artifact = true;
                   if(slotRenderer.data)
                   {
-                     this.closeQuickSlot(slotRenderer,i);
+                     this.closeQuickSlot(slotRenderer);
                   }
                   slotRenderer.enabled = false;
                }

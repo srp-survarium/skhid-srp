@@ -360,26 +360,23 @@ chooses each.
   at once and guessed the counts until the answer, and the stock slots, drawn from the exe's
   counts as they came, went out of step with the marks for a moment: a mark over an empty place,
   a slot gone blank for the 3 s hold.
-- **A kit is drawn only whole** (`KitShown`, the profile's). The exe gives the kit shown in two
-  calls: `on_profile_changed` (0x222330) calls `fill_player_profile_items` (the items, the kit
-  named), then `update_profile_slots_count` (the counts, no kit named). It is the only caller of
-  both. It runs on a status from srp (`on_client_status_received` 0x21D720: sign-in, a kit or
-  preset switch, Play, a perk switch's answer) and on a relocation srp accepted
-  (`process_succeeded_inventory_action` 0x275520: an item moved, a backpack changed). Items
-  always start a new kit, which waits for its counts (a fill that carries its counts is whole at
-  once). Counts complete the kit waiting; with none waiting they are a change of the kit drawn
-  (its backpack), drawn at once. Counts never wait, so a lone half can not pair with the next
-  kit's. The whole kit goes to `PerkSwitch` and then to the paper doll in one step. So no draw
-  lays one kit's items on another kit's counts, whatever the timing. Revision 72 drew the items at once, on the counts of the kit shown before. A pocket
-  that kit lacked, or had as a container, then sent its item back
-  (`PaperDollBase.handleQuickSlots`, `dropSlot`), and srp took the item off the kit (bug report
-  2026-11-23: the fourth pocket emptied going from a kit with fewer pockets to one with more; the
-  item stayed owned, in the inventory). While a switch was asked, the counts also reached the doll
-  before the answer.
-- **Only a pocket its own kit lost sends its item back** (`LocalPaperDoll.closeQuickSlot`): the
-  same kit drawn again with fewer pockets (a smaller backpack put on), as in the stock lobby. A
-  quick slot that is no pocket after another kit is drawn only shows nothing; its item stays on
-  the kit as srp has it.
+- **A kit comes whole, in one call** (exe patch 199, `client_patch.md` 3.104). The stock exe gives
+  the kit shown in two calls: `fill_player_profile_items` (the items), then
+  `update_profile_slots_count` (the counts, no kit named). Revision 72 drew the items at once, on
+  the counts of the kit shown before. A pocket that kit lacked, or had as a container, then sent
+  its item back (`PaperDollBase.handleQuickSlots`, `dropSlot`), and srp took it off the kit (bug
+  report 2026-11-23: the fourth pocket emptied going from a kit with fewer pockets to one with
+  more; the item stayed owned, in the inventory). Patch 199 puts the counts into the items' call
+  (`item_slots`, `artifact_slots`), which the stock profile opens the slots from, and makes no
+  counts' call.
+- **The paper doll asks nothing** (`LocalPaperDoll.closeQuickSlot`). It draws the kit it is
+  given; a quick slot that is no pocket only shows nothing. srp owns the kit: a move that takes
+  pockets away (a smaller backpack) leaves their items out (`keep_to_layout_after`), and so does a
+  perk switch (`set_perk_slot`). srp answers every move and switch with the account, so the next
+  kit shown already has it.
+- **The switch's hold stays** (`PerkSwitch`): srp answers a switch in two messages, the account
+  and then the list with the kit's perk states, and the marks need both. That gap is srp's two
+  messages, not the exe's two calls.
 - **One switch at a time** (the owner, 2026-11-22: "when I click too fast, 'fake' pocket on top
   can appear for a moment", "there is data race there somewhere"): while a click is asked, a right
   click on any perk's slot or red lock is not taken (nor while a slot shakes). srp itself handles a

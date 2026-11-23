@@ -4644,3 +4644,38 @@ code is (`rust/patches/src/artefact_hunt.rs`, `artefact_hunt.toml`, `src/vostok/
 **The patch** (the Rust patch `camera_walls`, a lohook, `sites_026g.tsv` `camera.viewed`, first of its handlers): at 0x1F3650 (`mov edx,[ebx+0F478h]`, six bytes, after the view's update, before camera_director::apply; no branch lands inside it, no relocation under it), in the orbit modes only (the mode is not 0 or 4: update_camera's own test, so the frame's pivot was written), one ray goes from the pivot toward the eye, the orbit's length plus 0.2 m, on the player's physics world (+350h) with the lobby camera's filter. Its hit gives the pull needed: how far in from the orbit the eye must be to stay 0.2 m short of it (at most the whole orbit: the eye at the pivot); no hit, or a hit that is no number, needs none. While the orbit turns (its unit way from the pivot differs from the last frame's of the same orbit, the frames 1 to 100 ms apart), a second ray of the same length and filter goes where the way will be 0.3 s on at that turn (the way plus its change times 0.3 s over the frame's time, at most 0.6 off, 31 degrees; a change under 0.01 is no turn), and its hit gives the pull that wall would need. The pull shown is a state kept between frames (`Pull`: off, or a player's orbit with its pull and the counter's millisecond): a new orbit (the first frame after one in another mode, or another player's) shows the pull it wants at once; an orbit going on moves its pull toward the larger of the two by 1 - e^(-r dt) of the way, r 10 a second in and 3 out, dt the time since its last frame (QueryPerformanceCounter, at most 0.1 s), then takes the pull the wall on the way needs when it has less (at once: the eye is never shown behind that wall), and a pull under 1 mm with none wanted is none. The first version (five parallel rays, the eye put at the hit at once, in and out) threw the eye in and out where a ray met a bar or a branch of the detailed collision near the player (the owner, 2026-11-09, in a local game: "the camera jumps"); the second eased in too (8 a second, one ray) and showed the eye behind a wall for a few frames (the owner, 2026-11-23: "almost good, but camera can briefly clip outside still"; then, of the pull in at once: "maybe we can still smooth, just start smoothing a bit earlier?", hence the ray ahead). The eye is put the pull in from the orbit's distance on its way, the view's turn kept; the handler's distance (+354h) is not changed, so the wheel moves the eye at once. No pull: the view is the game's, untouched. Its ray meets neither players (824h/3) nor hit models (40h/11h) nor grenades (818h/8). Nothing a match computes: the view alone (camera_director::apply and the renderer read +48h; no simulation code does).
 
 **Checked**: `check_camera_walls_026g.py` (Unicorn) runs update_camera from its start in the original and the build on a made-up player (turned 30 degrees, a yaw, a pitch and a distance of 3 m), a frame a call, ray_test a plane square to the way or nothing, the performance counter a clock of its own: with nothing in the way the view and the registers at camera_director::apply are the original's bit for bit, one ray as above; a new orbit with a wall at 1.5, 2.9 or 3.1 m has the eye at once 0.2 m in front of it, at 0.1 m at the pivot, past 3.26 m nothing; in an orbit going on, a wall that comes has the eye in front of it in that frame, and when it goes the pull keeps e^(-0.3) of itself in the next 100 ms; a turn of 0.01 rad of yaw in 10 ms sends the second ray where the way will be in 0.3 s, and a wall only that ray meets pulls the eye in by 1 - e^(-0.1) of what it would need, one ray again and the eye going out once the turn ends, the original's view again bit for bit after a while; modes 0 and 4 and a player without a physics world are the original's with no ray. `cargo test -p patches camera_walls` checks the rule and the steps. RUN in a game (the first version, 2026-11-09: in front of the walls, but jumping; the eased one, 2026-11-23: briefly behind a wall); the ray ahead started for the owner that night.
+
+### 3.104 The kit shown, in one call (written 2026-11-23, README patch 199) — PROVEN in the code and under Unicorn; not run in a game
+
+`lobby_menu::on_profile_changed` (0x222330) is the one place the exe shows the lobby movie a kit,
+and the only caller of `root.fill_player_profile_items` and `root.update_profile_slots_count` (one
+reference to each name in `.text`). It runs on a status from srp (`on_client_status_received`,
+0x21D813: the sign-in, a kit or preset switch, Play, a perk switch's answer) and on a move srp
+accepted (`process_succeeded_inventory_action`, 0x2762BE). It gives the kit in two calls. First
+the items value ([esp+58h], its `profileId` and `items`) at 0x222A23. Then it works out the
+counts: the pockets from modifier 0Fh into lobby_menu+3121h (0x222AE5), the containers from
+modifier 0Eh into [esp+0Fh] (0x222B09), the two held to six quick slots (0x222B18..0x222B5A). It
+gives those at 0x222CD6 (containers, pockets), a call that names no kit. Between them are only
+local branches, so both always run, in that order. The value lives until the function's end
+(released at 0x222F11).
+
+Revision 72's lobby drew the items at once, on the counts of the kit shown before. Pockets that
+kit lacked or had as containers sent their items back (`PaperDollBase.handleQuickSlots`,
+`dropSlot`), and srp took them off the kit (bug report 2026-11-23).
+
+Patch 199 gives the movie the kit in one call:
+
+- A lohook before the items' Invoke (`lobby_menu.profile_items`, 0x222A07) exits past it
+  (0x222A28; EAX, its result, is not read there).
+- A lohook before the counts' Invoke (`lobby_menu.profile_counts`, 0x222CA1; also the target of
+  the je at 0x222C7A) sets the items value's `item_slots` (the pockets, [esp+10h]) and
+  `artifact_slots` (the containers, [esp+0Fh]) with the AS3 interface's SetMember (0x7C6A20). It
+  gives that value to `root.fill_player_profile_items` and exits past the counts' Invoke
+  (0x222CDB).
+- The stock `PlayerProfileBase.fillProfileItems` opens the paper doll's slots from those two
+  members before it sets the items.
+- A value of no AS3 movie gets no members: the items are given alone and the stock counts' call
+  follows.
+
+`check_profile_kit_026g.py` runs both sites to their Invokes' next instruction in both exes
+(`tools/check profile-kit`). Only the lobby: nothing a match computes.

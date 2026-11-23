@@ -5,7 +5,7 @@ package survarium.player
    // A perk switch of the kit shown, one at a time (artefact-skills.md, "One switch at a time"):
    // the one owner of what the lobby draws of a kit while srp answers it (the owner, 2026-11-23:
    // "the operation is not atomic is how i see it"). srp answers a switch with the kit's account
-   // (its items and counts, one whole kit: KitShown), then the presets list naming the
+   // (its pockets and items, the exe's `fillProfileItems`), then the presets list naming the
    // request. Drawing the one before the other shows a kit that is neither the old nor the new, so
    // while a switch is asked the kit's account is held, and its answer applies both at once.
    //
@@ -15,8 +15,8 @@ package survarium.player
    public class PerkSwitch
    {
 
-      // The events: a click asks (value {request, kit}); an account comes (value the whole kit,
-      // KitShown's); a presets list comes (value the request it answers, -1 none); the time is up.
+      // The events: a click asks (value {request, kit}); an account comes (the exe's fill, value
+      // its data); a presets list comes (value the request it answers, -1 none); the time is up.
       public static const ASK:int = 0;
 
       public static const FILL:int = 1;

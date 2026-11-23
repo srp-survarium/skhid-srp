@@ -341,8 +341,6 @@ package
                   // the kit: the owned helmet on its head
                   lobby.player_profile.paperDoll.setSlotsRestrictions([{slot_id:Slot("HEAD"),category_id:domain.getDefinition("survarium.constants.ItemCategory").HELMETS}]);
                   lobby.player_profile.fillProfileItems({profileId:1,items:[{itemId:OWNED_HELMET,slotId:Slot("HEAD"),condition_or_stack:10000}]});
-                  // The kit's counts, the exe's second call (the kit is drawn whole: KitShown).
-                  lobby.player_profile.updateSlots(0,4);
                   break;
                case 2:
                   expect("the menu's Buy, the owned camouflage's row","ask",function():void

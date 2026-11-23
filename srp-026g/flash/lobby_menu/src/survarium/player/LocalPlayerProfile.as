@@ -663,42 +663,16 @@ package survarium.player
          return this._playerInventory.getInventoryItem(value.itemId);
       }
       
-      // The exe's account of the kit shown, its items and its counts in two calls, made one
-      // (KitShown); then drawn now, or held while a perk switch of that kit is asked
-      // (PerkSwitch), to be drawn with its answer.
+      // The exe's account of the kit shown: drawn now, or held while a perk switch of that kit is
+      // asked (PerkSwitch), to be drawn with its answer.
       override public function fillProfileItems(data:Object) : void
       {
-         this.kitStep(KitShown.ITEMS,data);
+         this.perkStep(PerkSwitch.FILL,data);
       }
 
-      override public function updateSlots(artifactSlots:uint, itemSlots:uint) : void
-      {
-         this.kitStep(KitShown.COUNTS,{
-            "pockets":itemSlots,
-            "containers":artifactSlots
-         });
-      }
-
-      private var _kitShown:KitShown = new KitShown();
-
-      private function kitStep(event:int, value:Object) : void
-      {
-         var whole:Object = this._kitShown.step(event,value);
-         if(whole != null)
-         {
-            this.perkStep(PerkSwitch.FILL,whole);
-         }
-      }
-
-      // A whole kit (its counts in `item_slots` and `artifact_slots`), drawn.
       private function drawProfileItems(data:Object) : void
       {
          trace("fillProfileItems",data.items.length);
-         var doll:LocalPaperDoll = profileItems as LocalPaperDoll;
-         if(doll != null)
-         {
-            doll.kitDrawn(uint(data.profileId),int(data.item_slots));
-         }
          var oldData:DataProvider = profileItems.dataProvider as DataProvider;
          if(oldData)
          {
