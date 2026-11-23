@@ -751,6 +751,80 @@ mod tests {
         g.off_links().iter().copied().filter(|l| g.position(l.from).x < 6.0 && g.position(l.to).x > past && l.press != Takeoff::WalkOff).collect()
     }
 
+    /// [incremental grids PR 7] A build through the memo is the full build, on `t` from `start`, for every site in `sites`
+    /// (each must run with items): byte for byte ([`WalkGrid::digest_full`]) and its off links in memory, every field; a memo
+    /// written (`write-only`), taken whole (`use`: every job of every site a hit), and run again and compared (`verify=1`).
+    fn memo_build_is_the_full_build(t: &[Triangle], start: Vec3, sites: &[&str], name: &str) {
+        use crate::grid::memo::{Memo, Mode, SiteStats};
+        let body = Body { gap_flights: true, exe_collision: true, start_witness: true, max_jump: STANDING_JUMP_M, ..Body::client() };
+        let start = [start];
+        let dir = std::env::temp_dir().join(format!("srp-memo-{name}-{}", std::process::id()));
+        let build = |memo: &mut Memo| WalkGrid::build_kept_memo(t, None, AREA, 0.25, body, &start, &start, OffMeshLinks::Gaps, memo).0;
+        let full_grid = build(&mut Memo::off());
+        let (full, full_off) = (full_grid.digest_full(), full_grid.off_links().to_vec());
+        assert!(!full_off.is_empty(), "{name}: off links to compare");
+        let check = |memo: &Memo, grid: WalkGrid, what: &str, ok: &dyn Fn(&SiteStats) -> bool| {
+            assert_eq!(grid.digest_full(), full, "{name} {what}");
+            assert_eq!(grid.off_links(), &full_off[..], "{name} {what}: the off links in memory, every field");
+            for site in sites {
+                assert!(memo.stats.iter().any(|s| s.site == *site && s.items > 0), "{name} {what}: site {site} ran with items: {:?}", memo.stats);
+            }
+            for s in &memo.stats {
+                assert!(ok(s), "{name} {what}: {s:?}");
+            }
+        };
+        let mut written = Memo::new(Mode::WriteOnly, dir.clone(), 11);
+        let g = build(&mut written);
+        check(&written, g, "write-only", &|s| s.written == s.items && s.hits == 0);
+        let mut used = Memo::new(Mode::Use, dir.clone(), 11);
+        let g = build(&mut used);
+        check(&used, g, "use", &|s| s.hits == s.items && s.misses == 0 && s.errors == 0);
+        let mut verified = Memo::new(Mode::Verify { per_million: 1_000_000 }, dir.clone(), 11);
+        let g = build(&mut verified);
+        check(&verified, g, "verify=1", &|s| s.verified == s.items && s.errors == 0);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// [incremental grids PR 7] The flown gaps through the memo build the full build's grid: the 1 m gap between level blocks.
+    #[test]
+    fn a_flown_gap_memo_build_is_the_full_build() {
+        memo_build_is_the_full_build(&blocks(2.0, 2.0, 1.0, 0.0), Vec3::new(3.0, 2.0, 5.0), &["gap.flown"], "gap-flown");
+    }
+
+    /// [incremental grids PR 7] A flown gap result reads back as it was written: made at either end with several presses
+    /// (share masks that are not the lowest bits, a walking press), made aimed, not made; the counts and the reach.
+    #[test]
+    fn a_flown_gap_result_reads_back() {
+        use crate::grid::gap::{Aim, PressLead, Share};
+        use crate::grid::memo::{Codec, MemoCodec, StableIds};
+        let g = grid(&blocks(2.0, 2.0, 1.0, 0.0), true);
+        let ids = StableIds::of(&g).expect("stable floor names");
+        let lead = PressLead::from_metres(0.6);
+        let made = |i: usize, press: Takeoff| Made {
+            to: (i * 5 % g.len()) as NodeId,
+            press,
+            share: Share::landed(3).with_bits(0b0001_0110).expect("three bits"),
+            walk: i.is_multiple_of(2).then_some((PressLead::from_metres(0.3), Share::landed(1).with_bits(0b1000_0000).expect("one bit"))),
+            aim: Aim::new(-2, 3).expect("an aim in range"),
+            walker_lands: i.is_multiple_of(2),
+        };
+        let outs = [
+            GapFlownOut { made: Some((1, vec![made(0, Takeoff::Press(lead)), made(1, Takeoff::Sprint(lead))])), tried: 2, flights: 812, aimed: None, reach_m: 4.5 },
+            GapFlownOut { made: Some((0, vec![made(2, Takeoff::Slow { lead, steps: 3 })])), tried: 2, flights: 1_000, aimed: Some(400), reach_m: 2.0 },
+            GapFlownOut { made: None, tried: 1, flights: 33, aimed: Some(0), reach_m: 0.25 },
+            GapFlownOut::default(),
+        ];
+        for out in outs {
+            let mut w = Codec::writer(&ids);
+            out.encode(&mut w);
+            let bytes = w.into_bytes();
+            let mut r = Codec::reader(&ids, &bytes);
+            let back = GapFlownOut::decode(&mut r).expect("reads back");
+            assert!(r.done());
+            assert_eq!(format!("{back:?}"), format!("{out:?}"));
+        }
+    }
+
     /// A level gap of 1 m between blocks 2 m high: flown, the client's jump gets across, and each link carries its press and the
     /// share of its neighbourhood that lands (A385-FORMAT §2); the clip pass's links carry none.
     #[test]
