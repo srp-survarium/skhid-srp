@@ -11,6 +11,13 @@
 //! the eye the view takes `KICK_SHOWN`, and the gun, on the aim, rises over
 //! it and comes back as the kick does. Not while the scope's own view is on.
 //!
+//! **The hip shake is the gun's** (both sites): camerashake_v2, the recoil's
+//! third clip, turns the eye and not the gun, and the game's view shook with
+//! it. Patch 200 puts it on the gun for the shot; here the view is drawn
+//! without it (the eye in the frame of the eye mixed without the shake,
+//! `muzzle_shots::shake_of`) and the gun held from the hip with it, so the
+//! screen is still and the gun shakes where the shot goes.
+//!
 //! **The gun has weight on a turn** (`hands_ik.solve`, the first person's
 //! hands before their IK): the view stays on the mouse, turn for turn; the
 //! gun held from the hip is drawn behind the turn and comes up to the view
@@ -34,6 +41,8 @@
 
 use ragdoll::math::{Vec3, atan2, clamp, min, sin_cos, sqrt};
 
+use crate::affine::{inverse, product};
+use crate::muzzle_shots::{self, Shake};
 use crate::vostok::aim::DrawnHands;
 use crate::vostok::world::PlayerId;
 use crate::vostok::{Context, Flow, Lock, NoExit, camera, clock, shot};
@@ -132,7 +141,10 @@ pub fn on_eye(ctx: &mut Context<'_>) -> Flow<NoExit> {
         ARMS.with(thread, |arms| *arms = None);
         return Flow::Continue;
     };
-    let eye = camera::given_eye(ctx);
+    // The view without the hip shake (the gun has it).
+    let given = camera::given_eye(ctx);
+    let still = if shot::scope_view(player) { None } else { muzzle_shots::shake_of(thread, player.id()).and_then(|shake| calmed(&given, &shake)) };
+    let eye = still.unwrap_or(given);
     let Some(aim) = Look::of(row(&eye, 2)) else {
         ARMS.with(thread, |arms| *arms = None);
         return Flow::Continue;
@@ -153,6 +165,8 @@ pub fn on_eye(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let lift = shot::free_kick_lift(player);
     if lift != 0.0 {
         camera::look_from(ctx, turned(&eye, aim, rested(aim, lift)));
+    } else if still.is_some() {
+        camera::look_from(ctx, eye);
     }
     Flow::Continue
 }
@@ -161,14 +175,30 @@ pub fn on_eye(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// behind the view's turn.
 pub fn on_solve(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(mut hands) = DrawnHands::at_solve(ctx) else { return Flow::Continue };
-    let behind = ARMS.with(ctx.thread(), |arms| arms.filter(|arms| arms.player == hands.who()).map(|arms| arms.behind(hands.raised())));
-    if let Some(behind) = behind
-        && behind != Look::NONE
+    let thread = ctx.thread();
+    let behind = ARMS.with(thread, |arms| arms.filter(|arms| arms.player == hands.who()).map(|arms| arms.behind(hands.raised()))).unwrap_or(Look::NONE);
+    let shake = muzzle_shots::shake_of(thread, hands.who());
+    if (behind != Look::NONE || shake.is_some())
         && let (Some(gun), Some(eye)) = (hands.bone("Weapon"), hands.bone("Item"))
     {
-        hands.set_bone("Weapon", swung(&gun, &eye, behind));
+        let shaken = shake.and_then(|shake| shaken(&gun, &shake, hands.raised())).unwrap_or(gun);
+        hands.set_bone("Weapon", swung(&shaken, &eye, behind));
     }
     Flow::Continue
+}
+
+/// The view's eye (in the world) without the hip shake: the eye in the frame
+/// of the eye mixed without it. None for a shake that flattens space.
+fn calmed(eye: &[f32; 16], shake: &Shake) -> Option<[f32; 16]> {
+    Some(product(&product(&shake.without, &inverse(&shake.with)?), eye))
+}
+
+/// The gun (its holder's space) with the hip shake, as far as it is held
+/// from the hip: fully aimed it is laid on the eye, which has the shake.
+fn shaken(gun: &[f32; 16], shake: &Shake, raised: f32) -> Option<[f32; 16]> {
+    let with = product(&product(gun, &inverse(&shake.without)?), &shake.with);
+    let hip = 1.0 - if raised.is_finite() { clamp(raised, 0.0, 1.0) } else { 1.0 };
+    Some(muzzle_shots::blend(gun, &with, hip))
 }
 
 /// The gun (a row-vector 4x4 in its holder's space) swung about the eye's
@@ -298,6 +328,25 @@ mod tests {
         let seam = turning(Arms::on(PlayerId::for_test(1), Look { yaw: core::f32::consts::PI - 0.01, pitch: 0.0 }, 0), 60.0 * DEGREE, 30);
         let plain = turning(Arms::on(PlayerId::for_test(1), Look::NONE, 0), 60.0 * DEGREE, 30);
         assert!((seam.behind(0.0).yaw - plain.behind(0.0).yaw).abs() < 1e-4);
+    }
+
+    #[test]
+    fn the_hip_shake_goes_from_the_view_to_the_gun() {
+        // the eye mixed without the shake, and with it: turned a little about the up
+        let (sine, cosine) = (0.015f32, (1.0f32 - 0.015 * 0.015).sqrt());
+        let without = [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 1.6, 0.1, 1.];
+        let with = [cosine, 0., -sine, 0., 0., 1., 0., 0., sine, 0., cosine, 0., 0., 1.6, 0.1, 1.];
+        let shake = Shake { player: PlayerId::for_test(1), without, with };
+        // the view: a world's eye made of the shaken eye is the unshaken one's again
+        let world = [0., 0., 1., 0., 0., 1., 0., 0., -1., 0., 0., 0., 10., 0., 20., 1.];
+        let still = calmed(&product(&with, &world), &shake).unwrap();
+        assert!(still.iter().zip(&product(&without, &world)).all(|(a, b)| (a - b).abs() < 1e-5), "{still:?}");
+        // the gun from the hip: turned as the eye was; fully aimed: as it is
+        let gun = [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0.1, 1.5, 0.5, 1.];
+        let hip = shaken(&gun, &shake, 0.0).unwrap();
+        assert!((row(&hip, 2).x - sine).abs() < 1e-5 && (row(&hip, 2).length() - 1.0).abs() < 1e-5, "{:?}", row(&hip, 2));
+        assert_eq!(shaken(&gun, &shake, 1.0).unwrap(), gun);
+        assert_eq!(shaken(&gun, &shake, f32::NAN).unwrap(), gun);
     }
 
     #[test]

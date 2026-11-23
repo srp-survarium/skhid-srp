@@ -6416,6 +6416,10 @@ are untouched (`../docs/notes/muzzle-shots.md`).
   0x2E0F60). The view takes 40 % of the lift the kick gives the eye; the gun, on the aim, rises
   over the screen and comes back as the kick is pulled down or returns. Not while the scope's own
   view is on.
+- **The hip shake is the gun's** (both sites). camerashake_v2 turns the eye and not the gun, and
+  the game's view shook with it; patch 200 puts it on the gun for the shot, and here the view is
+  drawn without it and the gun held from the hip with it (`muzzle_shots::shake_of`: the own
+  player's eye mixed without the shake and with it, kept after each frame's simulation).
 - **The gun has weight on a turn** (`hands_ik.solve`, process_hands_ik 0x295B00, before the hands'
   IK). The view stays on the mouse, turn for turn (the owner, of a view that followed the gun as
   Bodycam's camera does: "camera is bobbling", "the camera is being flung w/weapon",

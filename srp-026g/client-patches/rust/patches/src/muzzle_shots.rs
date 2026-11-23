@@ -54,8 +54,8 @@ use crate::affine::{IDENTITY, inverse, product, row, with_row};
 use crate::vostok::camera::Director;
 use crate::vostok::log::{self, Piece::{self, Dec, Text}};
 use crate::vostok::shot::{HeldGun, Shot};
-use crate::vostok::world::GameWorld;
-use crate::vostok::{Context, Flow, GameWorldUi, Lock, NoExit, renderer};
+use crate::vostok::world::{GameWorld, PlayerId};
+use crate::vostok::{Context, Flow, GameWorldUi, Lock, NoExit, Thread, renderer};
 
 /// How far along the gun's look the crosshair is put when the level stops
 /// nothing nearer (m).
@@ -176,16 +176,35 @@ pub fn on_after_move(ctx: &mut Context<'_>) -> Flow<NoExit> {
         let on = renderer::environment_set(thread, c"SKHID_SHOT_LOG");
         SHOT_LOG.with(thread, |log| *log = if on { ShotLog::On } else { ShotLog::Off });
     }
-    let looked = GameWorld::at_after_move(ctx)
-        .and_then(|world| world.network_client()?.local_player())
-        .filter(|player| player.alive())
-        .and_then(HeldGun::of)
-        .and_then(|gun| {
-            let leaving = Leaving::of(&gun)?;
-            Some(gun.first_met(leaving.place, leaving.along, SIGHT_RANGE).unwrap_or(leaving.place + leaving.along * SIGHT_RANGE))
-        });
-    CROSSHAIR.with(ctx.thread(), |crosshair| crosshair.looked = looked);
+    let own = GameWorld::at_after_move(ctx).and_then(|world| world.network_client()?.local_player()).filter(|player| player.alive());
+    let gun = own.and_then(HeldGun::of);
+    let looked = gun.as_ref().and_then(|gun| {
+        let leaving = Leaving::of(gun)?;
+        Some(gun.first_met(leaving.place, leaving.along, SIGHT_RANGE).unwrap_or(leaving.place + leaving.along * SIGHT_RANGE))
+    });
+    CROSSHAIR.with(thread, |crosshair| crosshair.looked = looked);
+    // The own player's hip shake of this frame, for the frame's drawing.
+    let shake = own.zip(gun.as_ref().and_then(HeldGun::eye_shake)).map(|(player, (without, with))| Shake { player: player.id(), without, with });
+    SHAKE.with(thread, |kept| *kept = shake);
     Flow::Continue
+}
+
+/// What the hip shake adds to a player's eye this frame: the eye (bone Item,
+/// the player's space) mixed without the shake, and with it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Shake {
+    pub player: PlayerId,
+    pub without: [f32; 16],
+    pub with: [f32; 16],
+}
+
+/// The own player's, after the frame's simulation (none with no shake
+/// playing): written on the simulation's thread, read by the frame's drawing.
+static SHAKE: Lock<Option<Shake>> = Lock::new(None);
+
+/// `player`'s hip shake of this frame, for what draws it (patch 197).
+pub fn shake_of(thread: &Thread, player: PlayerId) -> Option<Shake> {
+    SHAKE.with(thread, |kept| kept.filter(|shake| shake.player == player))
 }
 
 /// base_game_scene::apply_camera: the camera the frame is drawn from.
@@ -284,7 +303,7 @@ impl Rig {
 /// `from` at 0, `to` at 1: the turn between along the shorter arc, the place
 /// along the line (what the drawing's interpolate 0xEF780 does, not bit for
 /// bit). A progress that is no number is the hip's.
-fn blend(from: &[f32; 16], to: &[f32; 16], progress: f32) -> [f32; 16] {
+pub fn blend(from: &[f32; 16], to: &[f32; 16], progress: f32) -> [f32; 16] {
     if progress.is_nan() || progress <= 0.0 {
         return *from;
     }

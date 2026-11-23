@@ -3,6 +3,8 @@
 # view's turn. Only the decisions: the sites and the handlers.
 name = "camera_trail"
 patch = 197
+# the hip shake of the frame
+uses = ["muzzle_shots"]
 
 # update_camera's join: EAX the eye transform the view gets
 [[hook]]

@@ -171,8 +171,10 @@ matches' memory with the built exe (`dump_shot.py`): 25 held guns, no run failed
 without it (no shake playing, or fully aimed), one player firing from the hip with a live shake
 has it on his shot (0.27 degrees, 4 mm).
 
-Not done: drawn, the view still has the shake and the gun not (the crosshair, which is the shot's
-line, shows it).
+Drawn (patch 197): after each frame's simulation the own player's shake is kept (the eye without
+it and with it); the view is drawn without it and the gun held from the hip with it, so the
+screen is still under fire from the hip and the gun shakes where the shot goes. Not while the
+scope's own view is on. Not seen in a game.
 
 With the bullet following the gun, the kick is the gun's motion and the eye need not take all of
 it. Patch 197 draws it so: of the lift the kick gives the eye the view takes 40 % (`KICK_SHOWN`, a
