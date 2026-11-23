@@ -70,6 +70,13 @@ impl<'c> Shot<'c> {
         &self.gun
     }
 
+    /// The eyes' copy the game made: what the shot would leave from.
+    pub fn eye(&self) -> [f32; 16] {
+        // SAFETY: the copy in instant_fire's frame, 16 floats, whole since
+        // its rep movsd (0x2E2453).
+        unsafe { floats(self.eye.value()) }
+    }
+
     /// What the shot leaves from, in place of the eyes' copy: a transform
     /// laid out as it (rows right, up, forward, place).
     pub fn leave_from(&mut self, from: [f32; 16]) {

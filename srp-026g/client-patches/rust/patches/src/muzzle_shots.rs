@@ -31,16 +31,22 @@
 //! (`camera.apply`) puts it on the screen, and the HUD movie is told
 //! (`player_icons.update_start`, `srp_crosshair_at`) when it moves. Drawing
 //! only.
+//!
+//! `SKHID_SHOT_LOG` set in the game's environment (read once, after a
+//! frame's simulation) writes a line a shot to the patches' log: how far the
+//! sight is raised, how far the shot's way is from the eyes' copy's and
+//! where the muzzle is from that eye. Nothing without it.
 
 #![forbid(unsafe_code)]
 
-use ragdoll::math::{Quat, Vec3};
+use ragdoll::math::{Quat, Vec3, atan2};
 
 use crate::affine::{inverse, product, row, with_row};
 use crate::vostok::camera::Director;
+use crate::vostok::log::{self, Piece::{self, Dec, Text}};
 use crate::vostok::shot::{HeldGun, Shot};
 use crate::vostok::world::GameWorld;
-use crate::vostok::{Context, Flow, GameWorldUi, Lock, NoExit};
+use crate::vostok::{Context, Flow, GameWorldUi, Lock, NoExit, renderer};
 
 /// How far along the gun's look the crosshair is put when the level stops
 /// nothing nearer (m).
@@ -51,9 +57,37 @@ pub fn on_shot(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(mut shot) = Shot::at(ctx)
         && let Some(leaving) = Leaving::of(shot.gun())
     {
+        if SHOT_LOG.with(ctx.thread(), |log| *log) == ShotLog::On {
+            say(&shot.eye(), shot.gun().raised(), &leaving);
+        }
         shot.leave_from(shot_from(&leaving.eye, leaving.place, leaving.along));
     }
     Flow::Continue
+}
+
+/// Whether shots are logged (`SKHID_SHOT_LOG`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum ShotLog {
+    /// The environment is not read yet (it is after a frame's simulation,
+    /// not in a shot).
+    Unread,
+    Off,
+    On,
+}
+
+static SHOT_LOG: Lock<ShotLog> = Lock::new(ShotLog::Unread);
+
+/// A shot's line: against the eyes' copy `was`, the angle of its way and its
+/// place (the copy's right, up and forward).
+fn say(was: &[f32; 16], raised: f32, leaving: &Leaving) {
+    let (right, up, forward) = (row(was, 0), row(was, 1), row(was, 2));
+    let turned = atan2(forward.cross(leaving.along).length(), forward.dot(leaving.along)).to_degrees();
+    let from = leaving.place - row(was, 3);
+    let signed = |value: f32| -> [Piece<'static>; 2] { [Text(if value < 0.0 { "-" } else { "" }), Dec((value.abs() + 0.5) as u32)] };
+    let [r, u, f] = [from.dot(right), from.dot(up), from.dot(forward)].map(|metres| signed(metres * 1000.0));
+    log::line(&[Text("muzzle_shots: raised "), Dec((raised.clamp(0.0, 1.0) * 100.0) as u32), Text(" %, the way "),
+                Dec((turned * 100.0 + 0.5) as u32), Text(" hundredths of a degree off the eye's, from "), r[0], r[1], Text(" right "), u[0],
+                u[1], Text(" up "), f[0], f[1], Text(" ahead of it (mm)")]);
 }
 
 /// What a shot of a held gun leaves from: a place and a way, and the eyes'
@@ -116,6 +150,11 @@ const CENTRE: (f32, f32) = (0.5, 0.5);
 /// game_world::tick after the simulation's move: where the own player's gun
 /// looks now.
 pub fn on_after_move(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let thread = ctx.thread();
+    if SHOT_LOG.with(thread, |log| *log) == ShotLog::Unread {
+        let on = renderer::environment_set(thread, c"SKHID_SHOT_LOG");
+        SHOT_LOG.with(thread, |log| *log = if on { ShotLog::On } else { ShotLog::Off });
+    }
     let looked = GameWorld::at_after_move(ctx)
         .and_then(|world| world.network_client()?.local_player())
         .filter(|player| player.alive())
