@@ -509,6 +509,14 @@ impl<'t> HuntWorld<'t> {
         Some(hit.point)
     }
 
+    /// When `place` is next spawned (the respawn rule's time, what the game's
+    /// "Respawn in" line counts to), none while it has none.
+    pub fn respawn_due(&self, place: u8) -> Option<u32> {
+        // SAFETY: the live core of this world.
+        let due = unsafe { super::respawn::respawn_time(self.core, place) }?;
+        (due != NO_RESPAWN).then_some(due)
+    }
+
     /// The time rule's start of play (its +12Ch), the rules vector's entry of
     /// type 2.
     pub fn play_start(&self) -> Option<u32> {

@@ -197,7 +197,6 @@ fn read_config(root: &ConfigTable<'_>) -> Result<(Params, Item), &'static str> {
         round_countdown_time: int(c"round_countdown_time")?,
         score: int(c"score")?,
         respawn_time: int(c"respawn_time")?,
-        time_needed_to_respawn: int(c"time_needed_to_respawn")?,
         vi_spawn_time: int(c"vi_spawn_time")?,
         vi_spawn_variation: int(c"vi_spawn_variation")?,
         vi_not_picked_ttl: int(c"vi_not_picked_ttl")?,
@@ -280,7 +279,6 @@ fn read_config(root: &ConfigTable<'_>) -> Result<(Params, Item), &'static str> {
         artefact_hunt_rule::ParamError::RoundCountdownTime => "parameters.round_countdown_time",
         artefact_hunt_rule::ParamError::Score => "parameters.score",
         artefact_hunt_rule::ParamError::RespawnTime => "parameters.respawn_time",
-        artefact_hunt_rule::ParamError::TimeNeededToRespawn => "parameters.time_needed_to_respawn",
         artefact_hunt_rule::ParamError::ViSpawnTime => "parameters.vi_spawn_time",
         artefact_hunt_rule::ParamError::ViNotPickedTtl => "parameters.vi_not_picked_ttl",
         artefact_hunt_rule::ParamError::ViDroppedTtl => "parameters.vi_dropped_ttl",
@@ -984,7 +982,9 @@ fn update_icons(ctx: &mut Context<'_>) -> Flow<NoExit> {
         .or_else(|| viewed.and_then(|place| Team::from_raw(world.body(place.get())?.team)));
     let viewer = Viewer { place: viewed, team };
     let now = world.now();
-    let hud = hunt.state.hud(&hunt.params, Time::from_ms(now));
+    let mut hud = hunt.state.hud(&hunt.params, Time::from_ms(now));
+    let due = viewed.and_then(|place| world.respawn_due(place.get())).map(Time::from_ms);
+    hud.wave = hud.wave.map(|wave| wave.seen_by(Time::from_ms(now), due));
     let viewed_carries = viewed.is_some() && hunt.state.carrier() == viewed;
     let values = update_values(&hud, &hunt.params, viewer, viewed_carries);
     let sum = checksum(&values);
@@ -1385,7 +1385,7 @@ mod tests {
         ];
         let raw = RawParams {
             match_time: 900, time_needed_to_continue_match: 90, draw_additional_time: 180, time_before_new_round: 3,
-            round_countdown_time: 5, score: 5, respawn_time: 15, time_needed_to_respawn: 7, vi_spawn_time: 60,
+            round_countdown_time: 5, score: 5, respawn_time: 15, vi_spawn_time: 60,
             vi_spawn_variation: 10, vi_not_picked_ttl: 120, vi_dropped_ttl: 60, drop_lift: 0.13, usable_radius: 0.3,
         };
         let params = Params::parse(&raw, &spawners, &bases).unwrap();

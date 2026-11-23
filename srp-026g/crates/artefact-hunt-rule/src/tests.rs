@@ -16,7 +16,6 @@ const RAW: RawParams = RawParams {
     round_countdown_time: 5,
     score: 5,
     respawn_time: 15,
-    time_needed_to_respawn: 7,
     vi_spawn_time: 60,
     vi_spawn_variation: 10,
     vi_not_picked_ttl: 120,
@@ -1075,31 +1074,39 @@ fn the_match_time_ends_in_a_hunt_only() {
 }
 
 #[test]
-fn respawns_come_in_waves_of_15_s_never_sooner_than_7_s() {
+fn respawns_come_in_waves_of_15_s_after_the_deaths_step() {
     let game = Match::started(1);
+    // `death` is the event's time: the step before the death's own.
     let respawn = |death: u32, shift: i32| {
         let at = game
             .rule
             .respawn_at(&game.params, t(START + death), Shift::new(shift));
         at.expect("a death in play respawns").ms() - START
     };
-    // The first wave at or after the death + 7 s.
+    // The first wave after the death's step.
     assert_eq!(respawn(0, 0), 15_000);
-    assert_eq!(respawn(8_000, 0), 15_000);
-    assert_eq!(respawn(8_001, 0), 30_000);
-    assert_eq!(respawn(23_000, 0), 30_000);
-    assert_eq!(respawn(100_000, 0), 120_000);
-    // The modifier's part of 15 s (-20 %: 3 s) moves the wave, never under the 7 s.
-    assert_eq!(respawn(0, -3_000), 12_000);
-    assert_eq!(respawn(7_000, -3_000), 14_000);
+    assert_eq!(respawn(8_001, 0), 15_000);
     assert_eq!(
-        respawn(8_000, -3_000),
+        respawn(11_000, 0),
         15_000,
-        "wave 15 s - 3 s is sooner than death + 7 s"
+        "the owner's report: dead 4 s before a wave, back in it (0.46c2: 30 s)"
     );
+    assert_eq!(respawn(14_900, 0), 15_000, "dead in the step before the wave's");
+    assert_eq!(
+        respawn(14_950, 0),
+        30_000,
+        "dead in the wave's own step, after its respawn tick"
+    );
+    assert_eq!(respawn(23_000, 0), 30_000);
+    assert_eq!(respawn(100_000, 0), 105_000);
+    // The modifier's part of 15 s (-20 %: 3 s) moves the wave, never into
+    // the death's step: the native grid takes 12 051 to the step after it.
+    assert_eq!(respawn(0, -3_000), 12_000);
+    assert_eq!(respawn(11_000, -3_000), 12_000);
+    assert_eq!(respawn(12_000, -3_000), 12_051, "wave 15 s - 3 s is the death's step");
     assert_eq!(respawn(0, 7_500), 22_500);
-    assert_eq!(respawn(0, -15_000), 7_000);
-    assert_eq!(respawn(1_010, i32::MIN), 8_010);
+    assert_eq!(respawn(0, -15_000), 51);
+    assert_eq!(respawn(1_010, i32::MIN), 1_061);
     // A death a step before the start (an event's time is the step before).
     assert_eq!(
         game.rule
@@ -1126,10 +1133,19 @@ fn the_hud_counts_to_the_wave_a_death_now_would_wait_for() {
     assert_eq!(left(&game, 14_999), Some((1, 15_000)));
     assert_eq!(left(&game, 15_000), Some((15_000, 15_000)), "this step's wave has come");
     assert_eq!(left(&game, 21_500), Some((8_500, 15_000)));
-    // The shown wave is the one a death at least 7 s before it gets.
-    let death = 21_500 - 7_000;
-    let at = game.rule.respawn_at(&game.params, t(START + death), Shift::NONE).unwrap();
-    assert_eq!(at.ms() - START, 30_000);
+    // A death in any step comes back at the wave shown at that step (its
+    // event's time is the step before).
+    for step in (50..=60_000).step_by(50) {
+        let shown = left(&game, step).unwrap().0;
+        let at = game.rule.respawn_at(&game.params, t(START + step - 50), Shift::NONE).unwrap();
+        assert_eq!(at.ms() - START, step + shown, "a death in the step at {step}");
+    }
+    // A viewer with a respawn to come sees his own (a modifier in it), else the team's.
+    let team = wave(&game, 11_000).unwrap();
+    assert_eq!(team.seen_by(t(START + 11_000), Some(t(START + 12_000))).left_ms, 1_000);
+    assert_eq!(team.seen_by(t(START + 11_000), Some(t(START + 11_000))), team, "his spawn's step");
+    assert_eq!(team.seen_by(t(START + 11_000), Some(t(START + 3_000))), team, "alive since");
+    assert_eq!(team.seen_by(t(START + 11_000), None), team);
     // None in a round's restart (respawns held), back with the next hunt.
     game.point_for(0);
     assert_eq!(wave(&game, game.now - START), None, "the 3 s after a delivery");
