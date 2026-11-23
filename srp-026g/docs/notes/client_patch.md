@@ -4704,3 +4704,61 @@ Patch 199 gives the movie the kit in one call:
 
 `check_profile_kit_026g.py` runs both sites to their Invokes' next instruction in both exes
 (`tools/check profile-kit`). Only the lobby: nothing a match computes.
+
+### 3.106 A line when the game cannot take the mouse (written 2026-11-23, README patch 202) — PROVEN in the code and under Unicorn; not run in a game
+
+A Windows player on revision 72 could not aim in matches: his inputs reached the server with
+keys but no mouse rotation, fire or aim, while the menus worked. A restart of the PC fixed it,
+for another player too. The game logged nothing.
+
+The platform mouse (`vostok::input::platform::mouse`, vtable 0xA25518) holds an
+IDirectInputDevice8 at +28h, its window at +24h, a spin lock at +30h and set_exclusive's flag at
++34h. `set_exclusive` (0x3B9800) sets the cooperative level DISCL_FOREGROUND with DISCL_EXCLUSIVE
+when its argument is set (5), else DISCL_NONEXCLUSIVE (6; the constructor's). It then Acquires.
+`mouse::execute` (0x3B9680, the poll; named by its own line's function name, 0xA254B8) reads the
+state with GetDeviceState (vtable+24h, DIMOUSESTATE2):
+
+- read: copied into the mouse (0x3B96DE, 0x3B9610);
+- DIERR_NOTACQUIRED or DIERR_INPUTLOST: Acquire (vtable+1Ch, 0x3B971A), then:
+  - Acquire failed (`jl` at 0x3B971E): return, no input, no line;
+  - Acquire taken, read again: read, or lost again ("mouse device is lost", the engine's line,
+    0x3B97D2), or another failure (0x3B9704);
+- any other failure: return at 0x3B9704, no input, no line.
+
+So a device the game cannot Acquire (DIERR_OTHERAPPHASPRIO while another window is in front of
+a foreground level, for one) leaves every poll empty, silently.
+
+Patch 202 (the Rust patch `mouse_acquire`, `vostok/mouse_device.rs`) writes one line to the
+patches' log each time the poll's outcome changes, never per poll. Three lohooks, nothing
+changed in what they replay:
+
+- `mouse.read` at 0x3B96DE (`lea eax,[esp+14h] / mov ecx,edi`, 6 bytes): read.
+- `mouse.read_failed` at 0x3B9704 (`xor edx,edx / xchg [ebp+0],edx`, 5 bytes): EAX the failed
+  HRESULT, EBP the mouse's lock (mouse + 30h, kept from 0x3B9695 to the returns).
+- `mouse.acquire_join` at 0x3B97E8 (`xor eax,eax / xchg [ebp+0],eax`, 5 bytes): the failed
+  Acquire's `jl` and the lost-device line's two paths join here. Only from the `jl` is ESI the
+  mouse (EBP - 30h) and EAX Acquire's HRESULT. The line's paths leave the device (0x3B9724) or
+  the line's frame (0x3B97DF) in ESI, so a join with ESI not the mouse is no failed Acquire.
+
+The last outcome is one `Poll` (Read, Refused(code), Unread(code)) under a lock; it starts as
+Read, since the game took the mouse before its first poll. A line goes out when a poll's outcome
+differs from it:
+
+```text
+srp: mouse: cannot take the mouse: DIERR_OTHERAPPHASPRIO (0x80070005), exclusive, another window in front
+srp: mouse: cannot read the mouse: DIERR_NOTINITIALIZED (0x80070015), non-exclusive, the game in front
+srp: mouse: taken again
+```
+
+A code has dinput.h's name when it is one the device gives (DIERR_OTHERAPPHASPRIO = E_ACCESSDENIED,
+E_HANDLE, DIERR_NOTACQUIRED, DIERR_OUTOFMEMORY, DIERR_NOTINITIALIZED, DIERR_INPUTLOST,
+DIERR_INVALIDPARAM, DIERR_UNPLUGGED, E_PENDING, DIERR_GENERIC); others are given in hex. The level
+is the mouse's +34h. The window in front is user32's GetForegroundWindow (not imported by the
+game: GetModuleHandleA and GetProcAddress) against the mouse's +24h: "the game", "another window"
+or "no window" (a locked or switching desktop). It is asked only for a line.
+
+`check_mouse_acquire_026g.py` runs execute whole in both exes with the device stubbed
+(`tools/check mouse-acquire`): the same device and engine calls, mouse state, return and kept
+registers in every poll, and the lines above only from the patched exe, once per change. The
+lost-device line's paths are run with a failed HRESULT's look in EAX: no line. A log line only:
+nothing a match computes.

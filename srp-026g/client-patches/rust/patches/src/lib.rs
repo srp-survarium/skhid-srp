@@ -121,6 +121,8 @@ pub mod input_check;
 pub mod subtick_hits;
 pub mod keyboard_layout;
 pub mod mouse_pitch;
+// patch 202: a line in the patches' log when the game cannot take the mouse
+pub mod mouse_acquire;
 pub mod bake_cache;
 pub mod weapon_camo;
 pub mod key_remap;

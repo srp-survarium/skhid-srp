@@ -2881,7 +2881,7 @@ va	status	ref_021d	name
 0x003b94f0	inferred-medium	0x002655a7	vostok::input::platform::mouse::mouse
 0x003b95b0	inferred-medium	0x0026563e	vostok::input::platform::mouse::on_activate
 0x003b95e0	inferred-medium	0x00265662	vostok::input::platform::mouse::on_deactivate
-0x003b9680	inferred-medium	0x002656b5	vostok::input::platform::mouse::execute
+0x003b9800	inferred-medium		vostok::input::platform::mouse::set_exclusive [descriptive]
 0x003b9920	inferred-medium		vostok::input::world::dispatch_mouse_buttons
 0x003b9c00	inferred-medium	0x00265b8a	vostok::input::platform::keyboard::get_dik_name
 0x003b9d90	inferred-medium	0x00265c5e	vostok::input::platform::mouse::process

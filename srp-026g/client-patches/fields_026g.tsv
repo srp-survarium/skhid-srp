@@ -1842,3 +1842,8 @@ survarium::world_event	kind	0x18	u32	the event's type: 0 a kill (generate_killed
 survarium::profile_changed_frame	containers	0xF	u8	lobby_menu::on_profile_changed's artifact containers of the kit shown (modifier 0Eh, 0x222B09; clamped with the pockets to six quick slots, 0x222B18..0x222B5A), update_profile_slots_count's first value (0x222C52)
 survarium::profile_changed_frame	pockets	0x10	u32	its pockets (lobby_menu +3121h: modifier 0Fh, 0x222AE5, clamped as above), update_profile_slots_count's second value (0x222C57..0x222C73)
 survarium::profile_changed_frame	kit	0x58	obj<scaleform::gfx_value>	the kit's value root.fill_player_profile_items is given (0x222A15: `profileId`, `items` set, 0x2228E0, 0x222985), held until the function's end (released 0x222F11)
+vostok::input::mouse	vtable	0x0	u32	its vtable: MOUSE_VTABLE for the platform mouse (its ctor 0x3B94F0 writes it at 0x3B94FC)
+vostok::input::mouse	window	0x24	u32	the window (HWND) its DirectInput device's cooperative level is set for: the ctor's argument (0x3B9502), given to SetCooperativeLevel at 0x3B953E and by set_exclusive at 0x3B983E
+vostok::input::mouse	exclusive	0x34	u8	set_exclusive's (0x3B9800) argument, kept at 0x3B9808: not 0, the device's level is DISCL_EXCLUSIVE | DISCL_FOREGROUND (5); 0, DISCL_NONEXCLUSIVE | DISCL_FOREGROUND (6, 0x3B9833..0x3B983A); the ctor's is 0 (0x3B9535) and level 6 (0x3B9533)
+vostok::input::mouse_lock	mouse	-0x30	obj<vostok::input::mouse>	the mouse whose spin lock (+30h) this is: mouse::execute keeps the lock's address in EBP from 0x3B9695 (lea ebp,[esi+30h]) to its returns
+survarium::image	mouse_vtable	0xA25518	u32	vostok::input::platform::mouse's vtable (its ctor 0x3B94F0 writes it at 0x3B94FC)
