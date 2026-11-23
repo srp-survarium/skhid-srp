@@ -142,6 +142,8 @@ class Run:
         hold = ['--hold', self.a.hold, '--aim', str(self.a.aim_ms)] if self.a.hold else []
         if self.a.hold and self.a.move_ms:
             hold += ['--move', str(self.a.move_ms)]
+        if self.a.hold and self.a.turn:
+            hold += ['--turn', self.a.turn]
         done = subprocess.run([str(tool), str(self.a.map), str(sur), '--minutes', '60', *hold], env=env,
                               capture_output=True, text=True)
         if done.returncode:
@@ -289,6 +291,8 @@ def main():
                                    '"follow": 0 show its eyes')
     ap.add_argument('--aim-ms', type=int, default=30000)
     ap.add_argument('--move-ms', type=int, help='with --hold: from then on the place strafes left and right while aiming')
+    ap.add_argument('--turn', help='with --hold: <yaw degrees>[:<pitch degrees>], one turn a second after it enters '
+                                   '(right and up positive): its view across the map')
     ap.add_argument('--env', action='append', default=[], help='SKHID_<name>=<value> for the game (diagnostics)')
     ap.add_argument('--uncapped', action='store_true', help='no frame limit (frame times)')
     a = ap.parse_args()

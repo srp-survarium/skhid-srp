@@ -162,9 +162,10 @@ the frame's draw, CPU    3.4 .. 4.8       3.0 .. 3.6   2.8 .. 3.4   3.3 .. 3.7  
   projected with the frame's projection (an ellipse when the glass is seen at an angle), the picture
   mapped in screen space about the glass's centre (the reticle at the glass's centre), its edge
   alpha-blended by each pixel's share inside the round, its rim darkened over its outer 8 %, every
-  Direct3D state it sets put back. Not depth-tested (section 10: the frame's `$user$position` holds
-  no comparable depth for first-person surfaces).
-- **Exposure:** the second view adapts its own eye to its picture, as any view does (section 1).
+  Direct3D state it sets put back. Tested against the frame's depth (section 12, 2): what of the
+  optic is in front of its rear glass covers the picture.
+- **Exposure:** the frame's (section 12, 1): the second view's eye adaptation starts from the frame's
+  adapted luminance with a time step of 0.
 
 ## 4. The setting
 
@@ -224,8 +225,6 @@ and no cascades of its own     0.5 .. 0.8   0.9 .. 1.1       -        ms GPU
 
 ## 7. Not done
 
-- **Depth:** the disc is not depth-tested; what of the optic is in front of its rear glass does not
-  cover it (at full aim nothing is; while moving the near rim of a long eyecup may, section 10).
 - Local lights' shadow faces and the remaining passes run at full quality in the second view.
 - **Memory:** the second view's window holds a full set of targets at its size (512: about 30 MB,
   1024: about 120 MB of video memory, LIKELY, from `create_targets` formats), made at the first aim
@@ -541,3 +540,51 @@ Pairs: `private/renders/pip-probe/round5/` (README there).
 - Polish (exit-pupil shadow, a softer field stop): not started.
 - The light shards around the ACOG's and Leupold's lens while strafing (round 5's `move2`s), as the
   PSO-1's of round 4: LIKELY the see-through glass of patch 75 or single-sided eyecups, content.
+
+## 12. Round 6 (exes `pip-scopes-7`, `pip-scopes-8`)
+
+**1. The picture exposed as the frame (`pip-scopes-7`).** The eye adaptation
+(compute_per_pixel_eye_adaptated_luminance 0x1B1400, called by compute_luminance_parameters 0x1B16E3
+unless the view's adaptation speed is 0) is per output window: it reads the window's last adapted
+luminance (target 59, 1x1, its texture at the targets' +257Ch: window +2694h) and this draw's measure
+(target 62, 1x1, the end of a 256 to 1 chain from target 70), adapts by the draw's time step (context
++413Ch, 0x1B142D), writes target 60 and copies it back into 59; the tone mapping reads it. Now, in the
+second view's draw only (`eye.adapt` 0x1B1400 to `eye.adapted` 0x1B163C), its window's +2694h is the
+frame window's texture and the time step 0, both put back at the end (the motion blur divides by the
+step): the second view adapts to exactly the frame's last luminance, so the picture is as bright as
+the scene around it, wherever the narrow view looks (indoors under a lamp, the owner's
+`2026-11-23-12-21-55.png`, it was the dim view's own exposure).
+- Why round 1's copy came out off (commit df7e6fc06): it copied the frame's target 59 into ours at the
+  draw's start (sound) but set the time step to 0 for the whole draw at renderer::render (0x13D26B), so
+  the motion blur, which divides by it (0x1B3035, 0x1B30CB, 0x1B3163), ran on 0, and the frame's own
+  draw had the few ms since ours as its step (round 5's fix 2 came later). Its picture was not the
+  frame's exposure but a broken blur.
+- Rig, AK-74M + Leupold 3-7, Fire Station day (60 px at the centre, mean grey): standing 103 against
+  `pip-scopes-6`'s 92 (and today's scope's 120 to 147 in round 4, which adapts to the zoomed view
+  alone, not to the scene around it). A view of its own still adapts when the adaptation speed is 0
+  (instant): then each window takes its own measure, as the game does.
+
+**2. What is in front of the glass (`pip-scopes-7`).** The disc is tested against the frame's depth.
+- The first-person models are drawn (renderer::foreground_begin 0x13E010, under the byte 0xA71BC6)
+  with the frame's projection but their own near and far (the renderer's +A0h, +A4h: 0.03 m and
+  far) and a viewport of depth 0 to the renderer's +A8h (0.12): their depth is
+  0.12 x (f/(f-n)) (1 - n/z), in front of every world depth. That is why `$user$position`, rebuilt
+  with the world's projection, read about 27 mm (the near plane) for every first-person surface.
+- The frame's depth is the render output's (backend +29D4h, R24G8, the back buffer's size), whole
+  until the post-process and cleared before the interface: the lens copies it at the frame's
+  `postprocess.start` (CopyResource into a texture of ours, made once a size) and its pixel shader
+  reads the copy (R24_UNORM_X8) and drops a pixel whose frame depth is nearer than the glass's, taken
+  2 mm toward the eye (the optic's glass writes depth there: `SKHID_PIP_LOG=depth` shows first-person
+  depth over all of the glass but a small hole). The eye's rim, an eyecup's lip or a turret in
+  front of the rear glass now cover the picture. Seen headless: the disc drawn 1.6 times too large
+  is cut exactly to the eyepiece's opening by the housing (`SKHID_PIP_LOG=depth` draws the two
+  depths instead of the picture: red the frame's, green the glass's). A depth not copied, or of another size or format: the
+  lens drawn over everything, one log line.
+- The light shards (round 4's PSO-1, round 5's ACOG and Leupolds while strafing): not seen in this
+  round's rig (patch 76, the dark coated see-through glass, mounted; PSO-1, ACOG, Leupold 3-7 and Mk4
+  strafing). LIKELY the round-4 ones were the motion blur smear fixed in round 5, over the eyecup's
+  single-sided inside; not PROVEN, as the moments of two runs differ.
+
+**The rig.** `srp-map-sur --hold ... --turn <yaw>[:<pitch>]` (`capture.py --turn`): the place turns
+once, a second after it enters (whole degrees, right and up positive), so its view can look across
+the map instead of at a wall.

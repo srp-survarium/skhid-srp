@@ -275,6 +275,9 @@ pub struct Holder {
     /// From then on it strafes while aiming, left and right by turns, forward
     /// with each (a moving aim), ms.
     pub move_ms: Option<u32>,
+    /// A turn (yaw right, pitch up; degrees) once, a second after it enters:
+    /// its view from the spawn, across the map instead of at a wall.
+    pub turn: Option<(i16, i16)>,
 }
 
 /// How long each strafe of a moving [`Holder`] lasts, ms.
@@ -358,6 +361,14 @@ pub fn of_map(map: maps::MatchMap, length_ms: u32, holder: Option<&Holder>) -> R
         enter.enter = 1;
         enter.profiles.push((0, 0));
         writer.push(&enter).map_err(|e| e.to_string())?;
+        if let Some((yaw, pitch)) = holder.turn {
+            let mut rotation = [0; 4];
+            rotation[..2].copy_from_slice(&super::drive::half_bits(f32::from(yaw).to_radians()).to_le_bytes());
+            rotation[2..].copy_from_slice(&super::drive::half_bits(f32::from(pitch).to_radians()).to_le_bytes());
+            let mut turn = Event::at(at(holder.enter_ms + 1_000));
+            turn.inputs.push((0, InputValue { rotation, actions: 0 }));
+            writer.push(&turn).map_err(|e| e.to_string())?;
+        }
         let mut aim = Event::at(at(holder.aim_ms.max(holder.enter_ms + sur::TICK_MS)));
         aim.inputs.push((0, InputValue { rotation: [0; 4], actions: super::drive::key::AIM }));
         writer.push(&aim).map_err(|e| e.to_string())?;
