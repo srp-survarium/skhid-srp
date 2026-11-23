@@ -389,6 +389,9 @@ pub(crate) struct Body {
     /// [A364 P9] The client's controller kept across its ground steps (`SRP_BENCH_STAND_IN_CLIENT_STEP=kept`,
     /// [`standin_jump::stand_in_kept`]).
     pub(crate) kept: Option<super::body::KeptBody>,
+    /// [body physics S2] The shared model's body (`SRP_BENCH_STAND_IN_BODY=client`, [`standin_jump::stand_in_client_body`]): its kept
+    /// controller owns the feet, their height included. None until the body's first step after a spawn.
+    pub(crate) client: Option<client_body::ClientBody>,
     /// The tick its walk last went down past a ledge's edge with no drop link ahead ([`standin_jump::past_edge`]): the falls
     /// probe tells such a fall from one down a drop link.
     pub(crate) past_edge_down: Option<u32>,
@@ -522,6 +525,10 @@ pub(crate) fn stand_in_sprint_gates() -> bool {
 pub(crate) const STAND_IN_STAGGER: f32 = 0.75;
 
 pub(crate) const STAND_IN_STAGGER_MS: u32 = 500;
+
+/// [body physics S2] How far from a shared-model body's feet its node is looked for, m (the reckoning's `LOCATE_M`): the lattice only
+/// names where the body is; a body in the air keeps the node it had.
+const CLIENT_LOCATE_M: f32 = 1.5;
 
 /// The stand-in game.
 pub(crate) struct Game {
@@ -950,6 +957,7 @@ impl Game {
             step_vec: Vec3::ZERO,
             lift_since: None,
             kept: None,
+            client: None,
             past_edge_down: None,
             slide_mps: None,
             legs: [0.5; 2],
@@ -1158,6 +1166,7 @@ impl Game {
         body.last_hit = 0;
         body.stagger.reset();
         body.flight = None;
+        body.client = None;
         body.step_m = 0.0;
         body.step_vec = Vec3::ZERO;
         body.zone_spell = None;
@@ -1280,7 +1289,7 @@ impl Game {
                 // the press pick its clip and way; in the air only the
                 // air control steers (`SRP_BENCH_STAND_IN_AIR`).
                 let late = super::standin_jump::stand_in_step_input() == super::super::kin::StepInput::Previous;
-                if late && jump && body.alive && body.node.is_some() && body.flight.is_none() {
+                if late && jump && body.alive && body.node.is_some() && body.flight.is_none() && !body.client.is_some_and(|c| c.flying()) {
                     let staggered = body.last_hit != 0 && tick < body.last_hit + STAND_IN_STAGGER_MS;
                     // [2e] With the client's sprint gates, a busy weapon or the sights coming down take the sprint jump too.
                     let gated = stand_in_sprint_gates() && (body.stock.busy() || (keys & key::AIM == 0 && tick < body.aim_out_until));
@@ -1328,8 +1337,24 @@ impl Game {
             // A press of this tick waits for the next; one older than a tick is dropped.
             let Some((at, keys, yaw, speed, may_sprint)) = body.jump_due.filter(|due| due.0 < tick) else { continue };
             body.jump_due = None;
-            if at + TICK_MS != tick || !body.alive || body.node.is_none() || body.flight.is_some() {
+            if at + TICK_MS != tick || !body.alive || body.node.is_none() || body.flight.is_some() || body.client.is_some_and(|c| c.flying()) {
                 continue;
+            }
+            // [body physics S2] A forward press of a shared-model body flies by that body (the client's flight, from where the press
+            // tick's step left it, with the press tick's own step as its speed); a side or back press goes on to the clip below.
+            if super::standin_jump::stand_in_client_body()
+                && self.world.grid.has_client_walker()
+                && let Some(client) = body.client.as_mut()
+            {
+                let keys = if may_sprint { keys } else { keys & !key::SPRINT };
+                let level = if body.carrying.is_some() { 0.95 } else { 1.0 } * body.speed_level;
+                let kin = client_body::Kin { level, legs_broken: false };
+                let (leg, frame) = (mapdata::controller::jump::Leg::Left, mapdata::controller::jump::SPRINT_FIRST_AIR_FRAMES[0]);
+                if client.press_forward(keys, body.step_m / TICK_S, kin, leg, frame).is_ok() {
+                    super::standin_jump::client_moves::count(super::standin_jump::client_moves::Kind::Flown);
+                    continue;
+                }
+                super::standin_jump::client_moves::count(super::standin_jump::client_moves::Kind::Clip);
             }
             let (clip, dir) = jump_of(keys, yaw, speed, may_sprint);
             let u = press_draw(at, place);
@@ -1487,6 +1512,7 @@ impl Game {
                 && !refused
                 && !(body.keys & key::JUMP != 0 && moving & key::JUMP == 0)
                 && body.flight.is_none()
+                && !body.client.is_some_and(|c| c.flying())
                 && tick >= body.air_until;
             let local = body
                 .blend
@@ -1529,6 +1555,52 @@ impl Game {
                     }
                     body.node = Some(node);
                     body.feet = feet;
+                } else if super::standin_jump::stand_in_client_body() && grid.has_client_walker() && body.flight.is_none() {
+                    // [body physics S2] The shared model of the client's body (`client_body::ClientBody`): the newest input's keys as the
+                    // client's sprint state and gates let them (above), its walk blend and cap, and its kept controller, which owns the
+                    // feet. The lattice only names the node the feet are on (for the rest of the game: zones, traps, records). A body
+                    // whose feet another rule moved (a spawn, a nudge) is placed anew where they are.
+                    let mut client = match body.client {
+                        Some(c) if c.feet().distance_xz(body.feet) <= body::KEPT_SAME_M && (c.feet().y - body.feet.y).abs() <= body::KEPT_SAME_M => c,
+                        _ => {
+                            super::standin_jump::client_moves::count(super::standin_jump::client_moves::Kind::Placed);
+                            client_body::ClientBody::placed(body.feet, body.yaw)
+                        }
+                    };
+                    let held = client;
+                    let mut newest = gate.keys(body.keys);
+                    if !sprint_state {
+                        newest &= !key::SPRINT;
+                    }
+                    if stand_in_sprint_gates() && body.stock.reloading() {
+                        newest &= !key::AIM;
+                    }
+                    let kin = client_body::Kin { level, legs_broken: gate == super::super::legs::LegGate::Stand };
+                    let t = client.tick(&super::standin_jump::GridWalker(grid), kin, client_body::Input { keys: newest, yaw: body.yaw });
+                    // An enemy body in the way: the move that closes on it within the two radii is not made (the world sets both back).
+                    let blocked = self.body_block_m.is_some_and(|m| {
+                        standing.iter().enumerate().any(|(other, &(at, team, alive))| {
+                            other != place
+                                && alive
+                                && team != body.team
+                                && (at.y - body.feet.y).abs() < 1.5
+                                && t.feet.distance_xz(at) < m
+                                && t.feet.distance_xz(at) < body.feet.distance_xz(at)
+                        })
+                    });
+                    if blocked {
+                        super::standin_jump::client_moves::count(super::standin_jump::client_moves::Kind::Blocked);
+                        client = held;
+                    } else {
+                        super::standin_jump::client_moves::count(super::standin_jump::client_moves::Kind::Stepped);
+                        self.climbs.note(standin_climb::Way::Walk, tick, place, body.team, body.feet, t.feet);
+                        body.feet = t.feet;
+                        body.node = grid.locate(t.feet, CLIENT_LOCATE_M).or(Some(node));
+                        if let Some(stood) = standing.get_mut(place) {
+                            stood.0 = t.feet;
+                        }
+                    }
+                    body.client = Some(client);
                 } else if body.flight.is_some() {
                     // Keys held in the air steer it only with `SRP_BENCH_STAND_IN_AIR` (`standin_jump::air_control`).
                     let walls = self.walls.as_deref().expect("built at the press");
@@ -3191,7 +3263,11 @@ impl Game {
         let fixes = self
             .bodies
             .iter()
-            .map(|body| Fix { fall: None, controller: None, gates: None, jump: None,
+            .map(|body| {
+                // [body physics S2] A shared-model body's world carries its controller block, as the client's does (`serialize`
+                // 0x7F7F0, which the reckoning deserializes: `game/driven.rs`), and its fall speed.
+                let saved = body.client.filter(|_| body.alive && body.flight.is_none()).map(|c| c.save());
+                Fix { fall: saved.map(|s| -s.velocity.y), controller: saved, gates: None, jump: None,
                 time: self.tick,
                 alive: body.alive,
                 inserted: body.spawned,
@@ -3199,13 +3275,13 @@ impl Game {
                 yaw: body.yaw,
                 pitch: body.pitch,
                 keys: body.keys,
-                speed: Some(if body.flight.is_some() {
+                speed: Some(if body.flight.is_some() || saved.is_some() {
                     body.step_m / TICK_S
                 } else {
                     let [a, l] = body.blend.now(self.kin.blend_ticks);
                     a.hypot(l)
                 }),
-            })
+            }})
             .collect();
         let health = self.bodies.iter().map(|b| b.health).collect();
         // [Gap 13] The dead bodies that will respawn and when, as the client's respawn rule holds them.

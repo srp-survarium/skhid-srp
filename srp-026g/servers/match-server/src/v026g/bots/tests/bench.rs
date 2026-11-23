@@ -2768,6 +2768,10 @@ pub(crate) fn real_bot_cost() {
             eprintln!(
                 "stand-in kept moves so far: climbs {climbed}, steps in the air over the lattice's walk that climbed nothing {no_climb_in_air}; falls {falls} (landed {fell_landed}, handed back {handed})"
             );
+            let [stepped, placed, flown, clip, blocked] = super::standin_jump::client_moves::counts();
+            eprintln!(
+                "stand-in client bodies so far: steps {stepped}, placed anew {placed}, forward presses flown {flown}, side or back presses on the clip {clip}, moves an enemy held {blocked}"
+            );
             let gate = crate::v026g::bots::drive::press_gate::counts();
             eprintln!("jump press gate so far: let through {}, dropped in the air {}, held through a crouch {}", gate[0], gate[1], gate[2]);
             let saved = crate::v026g::bots::stamina::counts::saved_worlds();

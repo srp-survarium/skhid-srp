@@ -263,6 +263,59 @@ pub(crate) fn stand_in_step_input() -> crate::v026g::bots::kin::StepInput {
 /// (`SRP_BENCH_STAND_IN_CLIENT_STEP`: `kept`, the default since #1681's bench; `tuning` with the bench tuning's
 /// `kin.client_step = kept`): the bench's world walks as the client's body (the port is the game's feet on 99.5 % of 221,000 traced
 /// steps), so a reckoning is judged against the client and not against the lattice. `on` and `off` are the older worlds.
+/// [body physics S2] Whether the stand-in's bodies move by the shared model of the client's body (`SRP_BENCH_STAND_IN_BODY`, default
+/// `client`; `lattice` the stand-in before S2). Needs the grid's client walker; a grid without it moves as before.
+pub(crate) fn stand_in_client_body() -> bool {
+    static TUNED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *TUNED.get_or_init(|| super::bench_settings().var("SRP_BENCH_STAND_IN_BODY").as_deref() != Ok("lattice"))
+}
+
+/// [body physics S2] The walk grid's client walker as the shared model's world: its walk tick and flight step (`WalkGrid::kept_tick`,
+/// `WalkGrid::kept_fly_step`: the game's shapes, the grid body's controller settings, the client's with `exe_collision`).
+pub(crate) struct GridWalker<'g>(pub(crate) &'g mapdata::WalkGrid);
+
+impl client_body::Walker for GridWalker<'_> {
+    fn step(&self, c: &mut mapdata::controller::tick::Controller, input: mapdata::controller::tick::TickInput) -> mapdata::controller::tick::StepNotes {
+        self.0.kept_tick(c, input).expect("a client-body stand-in needs the grid's client walker") // [the shared model's world]
+    }
+
+    fn fly(
+        &self,
+        c: &mut mapdata::controller::tick::Controller,
+        flying: &mut mapdata::controller::jump::Flying,
+        heading: (f32, f32),
+        air: (f32, f32),
+    ) -> mapdata::controller::jump::FlightStep {
+        self.0.kept_fly_step(c, flying, heading, air).expect("a client-body stand-in needs the grid's client walker") // [the shared model's world]
+    }
+}
+
+/// [body physics S2] How the stand-in's shared-model bodies moved, for the bench's line: ticks stepped, controllers placed anew (a
+/// spawn, or feet another rule moved), forward presses flown, side or back presses left to the clip, moves an enemy body held.
+pub(crate) mod client_moves {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+
+    #[derive(Clone, Copy)]
+    pub(crate) enum Kind {
+        Stepped,
+        Placed,
+        Flown,
+        Clip,
+        Blocked,
+    }
+
+    static COUNTS: [AtomicU64; 5] = [const { AtomicU64::new(0) }; 5];
+
+    pub(crate) fn count(kind: Kind) {
+        COUNTS[kind as usize].fetch_add(1, Relaxed);
+    }
+
+    /// (stepped, placed, flown, clip, blocked) so far.
+    pub(crate) fn counts() -> [u64; 5] {
+        std::array::from_fn(|i| COUNTS[i].load(Relaxed))
+    }
+}
+
 pub(crate) fn stand_in_kept() -> bool {
     static TUNED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *TUNED.get_or_init(|| match super::bench_settings().var("SRP_BENCH_STAND_IN_CLIENT_STEP").as_deref() {
