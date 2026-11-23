@@ -4612,9 +4612,9 @@ code is (`rust/patches/src/artefact_hunt.rs`, `artefact_hunt.toml`, `src/vostok/
   carrier's record gets EAX = place x 3 and CL = 1 (the `lea` and `setnz` skipped).
 - **After the second local test**: a round's Fade and Countdown are the match start's countdown (the
   core's time state 4; `time_rule.camera_state` 0x267AE6 gives the client's camera test 2 then, in
-  the shared `vostok::round_countdown` / patch module `round_countdown`, which Freeze Tag's pause and
-  restart use too; a
-  kit picked in it is switched by `RespawnTick::switch_kit` with patch 31's two calls, counted in
+  the shared `vostok::round_countdown` / patch module `round_countdown`, which Freeze Tag's
+  rounds use too, with its respawn tick (`round_countdown::respawn_tick`, the rules' shared
+  `artefact_hunt_rule::Restart`); a kit picked in it is switched by `RespawnTick::switch_kit` with patch 31's two calls, counted in
   `m_kit_switches` for the server's supplies); `SKHID_HUNT_LOG=on` logs the carrier's decisions.
 - **After the first local test** (2026-11-21; `artefact_hunt.md` "The implementation"): the tick takes
   in the world's places whose player has a team the rule does not have him on (slot 8 comes before
