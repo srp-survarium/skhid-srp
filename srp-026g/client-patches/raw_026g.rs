@@ -25931,6 +25931,30 @@ impl LogState {
     }
 }
 
+/// A survarium::update_camera_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UpdateCameraFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl UpdateCameraFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x10 (f32): player::update_camera's local [esp+10h], in the modes but 0 and 4 the transform the orbit turns about (16 f32, from 0x1F3609): the player's +40Ch with its place raised 1.4 m (0xA2DC68) along its own up row (+41Ch); not written in modes 0 and 4
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn pivot(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x10).cast::<f32>().as_ptr() }
+    }
+}
+
 /// A vostok::file_open_options (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -39231,7 +39255,7 @@ pub mod site {
         }
     }
 
-    /// camera.viewed (0x1f3650): update_camera after the view's update (0x1F364B: update_inverted_view 0x2422B0, patch 46's death_view in our exe) wrote the handler's view (+48h), at mov edx,[ebx+0F478h]: EBX the camera's player ([ebx+0F470h] its handler; update_camera returned at 0x1F3497 for any other player)
+    /// camera.viewed (0x1f3650): update_camera after the view's update (0x1F364B: update_inverted_view 0x2422B0, patch 46's death_view in our exe) wrote the handler's view (+48h), at mov edx,[ebx+0F478h]: EBX the camera's player ([ebx+0F470h] its handler; update_camera returned at 0x1F3497 for any other player); the frame's +10h the orbit's pivot in the modes but 0 and 4
     pub mod camera_viewed {
         #[allow(unused_imports)]
         use super::*;
@@ -39243,6 +39267,15 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Player)
+        }
+
+        /// the site's ESP: a survarium::update_camera_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<UpdateCameraFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(UpdateCameraFrame)
         }
     }
 
