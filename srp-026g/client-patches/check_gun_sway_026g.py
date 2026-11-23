@@ -8,8 +8,8 @@ On check_head_clearance_026g's rig, in the original and in the built exe:
   its call of the hands' IK (0x295B17), the first person's, a client weapon in
   hand, the holder's bones of the frame in memory: with no turn before it the
   bones and the registers are the original's;
-- update_camera for two frames 16 ms apart, the player's yaw turned 2 degrees
-  to the right between them, then the same stretch of process_hands_ik: the
+- update_camera for two frames 16 ms apart, the eyes turned 2 degrees to the
+  right between them, then the same stretch of process_hands_ik: the
   Weapon bone is swung about the Item bone's place to the left by this file's
   own arithmetic of the arms' lag (0.872 degrees), every other bone and the
   registers the original's; the view of the second frame is the original's
@@ -70,10 +70,11 @@ class Hands:
 
     def turn(self, emu, *_):
         if self.yaw is not None:
-            emu.mem_write(rig.PLAYER + 0x490, struct.pack("<f", self.yaw))
+            c, s = math.cos(self.yaw), math.sin(self.yaw)
+            emu.mem_write(rig.PLAYER + 0x44C, struct.pack("<16f", c, 0, -s, 0, 0, 1, 0, 0, s, 0, c, 0, *rig.EYE_AT, 1))
 
     def frame(self, yaw, ms):
-        """A frame's camera with the player's yaw (the game's: growing to the left)."""
+        """A frame's camera with the eyes turned `yaw` to the right about the up."""
         self.yaw = yaw
         self.ms += ms
         view, regs, _ = self.game.update_camera(0, ms=self.ms)
@@ -128,12 +129,12 @@ def main():
     check(s_bones == posed and s_regs[UC_X86_REG_EIP] == CALL, "the original leaves the bones")
     check(o_bones == s_bones and o_regs == s_regs, "no turn before it: the bones and the registers the original's")
 
-    # two frames 16 ms apart, the yaw 2 degrees to the right between them (the game's yaw grows to the left)
+    # two frames 16 ms apart, the eyes 2 degrees to the right between them
     turn = math.radians(2.0)
     for hands in (stock, ours):
         hands.frame(0.4, 1000)
-    s_view, s_cam = stock.frame(0.4 - turn, 16)
-    o_view, o_cam = ours.frame(0.4 - turn, 16)
+    s_view, s_cam = stock.frame(0.4 + turn, 16)
+    o_view, o_cam = ours.frame(0.4 + turn, 16)
     check(o_view == s_view and o_cam == s_cam, "the turn's frame: the view and the registers the original's (the view does not lag)")
     smooth = turn * min(0.016 * SMOOTHING, 1.0)
     arms = smooth * min(min(0.016, 1 / 30) * ARMS_LAG, 1.0)

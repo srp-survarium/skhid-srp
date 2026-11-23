@@ -16,8 +16,10 @@
 //! gun held from the hip is drawn behind the turn and comes up to the view
 //! when the turn ends. Its lag is the arms' of Bodycam's camera motion as the
 //! STALKER bodycam fork reproduces it (bodycam_reference/camera.cpp): the
-//! input's aim smoothed at `CONTROL_SMOOTHING`, the arms after it at
-//! `ARMS_LAG`; `SWAY` of it is shown, at most `MOST`, and less the further
+//! eye's way of each frame (not the player's yaw and look pitch, which the
+//! simulation moves a step at a time: a gun after them moves in jerks, the
+//! owner: "weapons lost smooth movement") smoothed at `CONTROL_SMOOTHING`,
+//! the arms after it at `ARMS_LAG`; `SWAY` of it is shown, at most `MOST`, and less the further
 //! the sight is raised (none fully aimed: the sights stay true).
 //!
 //! The owner's plays, 2026-11-23: "weapons don't have momentum when turn",
@@ -40,7 +42,7 @@ const DEGREE: f32 = core::f32::consts::PI / 180.0;
 /// The share of the lift the weapon's kick gives the eye that the view takes;
 /// the gun takes all of it.
 const KICK_SHOWN: f32 = 0.4;
-/// The input's aim is smoothed at this rate (1/s): `controlSmoothSpeed`.
+/// The eye's way is smoothed at this rate (1/s): `controlSmoothSpeed`.
 const CONTROL_SMOOTHING: f32 = 25.0;
 /// The arms follow the smoothed aim at this rate: `kArmsLagSpeed`.
 const ARMS_LAG: f32 = 20.0;
@@ -83,26 +85,26 @@ impl Look {
     }
 }
 
-/// One player's arms behind its input's aim, between frames.
+/// One player's arms behind its eye's way, between frames.
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Arms {
     player: PlayerId,
-    /// The input's aim, smoothed, and where the arms are.
+    /// The eye's way, smoothed, and where the arms are.
     control: Look,
     smooth: Look,
     arms: Look,
-    /// The counter's milliseconds of that frame (wrapping).
-    at: u32,
+    /// The performance counter's ticks at that frame.
+    at: u64,
 }
 
 impl Arms {
     /// At rest on `control`.
-    fn on(player: PlayerId, control: Look, at: u32) -> Arms {
+    fn on(player: PlayerId, control: Look, at: u64) -> Arms {
         Arms { player, control, smooth: control, arms: control, at }
     }
 
     /// A frame of `dt` s on, under `control`.
-    fn stepped(self, control: Look, dt: f32, at: u32) -> Arms {
+    fn stepped(self, control: Look, dt: f32, at: u64) -> Arms {
         let smooth = self.smooth.toward(control, clamp(dt * CONTROL_SMOOTHING, 0.0, 1.0));
         let arms = self.arms.toward(smooth, clamp(min(dt, LONGEST_LAG_STEP) * ARMS_LAG, 0.0, 1.0));
         Arms { player: self.player, control, smooth, arms, at }
@@ -130,26 +132,26 @@ pub fn on_eye(ctx: &mut Context<'_>) -> Flow<NoExit> {
         ARMS.with(thread, |arms| *arms = None);
         return Flow::Continue;
     };
-    // The arms: after the input's aim alone (not the kick, not what the clips add to the eye).
-    let (yaw, pitch) = shot::input_aim(player);
-    let control = Look { yaw: wrapped(yaw), pitch };
-    let now = clock::milliseconds(thread);
+    let eye = camera::given_eye(ctx);
+    let Some(aim) = Look::of(row(&eye, 2)) else {
+        ARMS.with(thread, |arms| *arms = None);
+        return Flow::Continue;
+    };
+    // The arms: after the eye's way of this frame.
+    let (now, second) = (clock::counter(thread), clock::frequency(thread).max(1) as f32);
     ARMS.with(thread, |arms| {
         *arms = Some(match *arms {
-            Some(last) if last.player == player.id() => match now.wrapping_sub(last.at) as f32 / 1000.0 {
-                dt if dt > LONGEST_FRAME => Arms::on(player.id(), control, now),
-                dt if dt > 0.0 => last.stepped(control, dt, now),
+            Some(last) if last.player == player.id() => match now.wrapping_sub(last.at) as f32 / second {
+                dt if dt > LONGEST_FRAME => Arms::on(player.id(), aim, now),
+                dt if dt > 0.0 => last.stepped(aim, dt, now),
                 _ => last,
             },
-            _ => Arms::on(player.id(), control, now),
+            _ => Arms::on(player.id(), aim, now),
         });
     });
     // The view: the eye less the kick's share it does not take.
     let lift = shot::free_kick_lift(player);
-    let eye = camera::given_eye(ctx);
-    if lift != 0.0
-        && let Some(aim) = Look::of(row(&eye, 2))
-    {
+    if lift != 0.0 {
         camera::look_from(ctx, turned(&eye, aim, rested(aim, lift)));
     }
     Flow::Continue
@@ -189,13 +191,6 @@ pub fn swung(gun: &[f32; 16], eye: &[f32; 16], behind: Look) -> [f32; 16] {
 /// `lift` (rad): the aim less the kick's share the view does not take.
 fn rested(aim: Look, lift: f32) -> Look {
     Look { yaw: aim.yaw, pitch: aim.pitch - (1.0 - KICK_SHOWN) * lift }
-}
-
-/// Any angle as a direction's, in -pi..pi (the player's yaw grows with every
-/// turn; no remainder: the arena has no libm).
-fn wrapped(angle: f32) -> f32 {
-    use core::f32::consts::TAU;
-    if angle.is_finite() { turn(angle - (angle / TAU) as i32 as f32 * TAU) } else { 0.0 }
 }
 
 /// An angle between two directions' angles, in -pi..pi.
@@ -318,15 +313,6 @@ mod tests {
         let low = swung(&gun, &eye, Look { yaw: 0.0, pitch: -3.0 * DEGREE });
         assert!(row(&low, 2).y < -0.05 && place(&low).y < 1.5 - 0.02, "{:?}", place(&low));
         assert_eq!(swung(&gun, &eye, Look::NONE), gun);
-    }
-
-    #[test]
-    fn a_yaw_of_many_turns_is_its_direction() {
-        use core::f32::consts::{PI, TAU};
-        for (angle, direction) in [(0.3, 0.3), (TAU + 0.3, 0.3), (-5.0 * TAU - 0.3, -0.3), (PI + 0.1, -PI + 0.1), (9.0 * TAU + PI + 0.1, -PI + 0.1)] {
-            assert!((wrapped(angle) - direction).abs() < 1e-4, "{angle}: {}", wrapped(angle));
-        }
-        assert_eq!(wrapped(f32::NAN), 0.0);
     }
 
     #[test]

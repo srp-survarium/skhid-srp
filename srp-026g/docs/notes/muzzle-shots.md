@@ -241,3 +241,10 @@ What it costs: while the gun trails it is drawn where a shot does not go. The sh
 which the HUD's crosshair shows. A gun that trailed in the simulation would need a state of the
 simulation that every game agrees on at every step (the turns of the last tenth of a second), and
 the game's own re-simulation of a step would have to rewind it: not attempted.
+
+The owner's fourth play, of the first build of that: "weapons lost smooth movement". That build
+moved the arms after the player's yaw and look pitch (+490h, +48Ch), which the simulation changes
+an input at a time, not a frame at a time, so the gun came after them in jerks (the same input
+had made the third play's view "bobble"). The arms now follow the eye's way of each frame, by the
+performance counter's own ticks. Anything drawn per frame is fed from what the frame is drawn
+from, never from the simulation's fields.

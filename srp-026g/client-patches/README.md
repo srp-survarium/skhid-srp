@@ -6416,7 +6416,7 @@ are untouched (`../docs/notes/muzzle-shots.md`).
   Bodycam's camera does: "camera is bobbling", "the camera is being flung w/weapon",
   "uncomfortably"). The gun held from the hip is drawn behind the turn: its Weapon bone swung about
   the eye by half the lag of the arms in Bodycam's camera motion as the STALKER bodycam fork
-  reproduces it (the input's aim smoothed at 25 a second, the arms after it at 20), at most 5
+  reproduces it (the eye's way of each frame smoothed at 25 a second, the arms after it at 20), at most 5
   degrees across and 3.5 up, less the further the sight is raised and not at all fully aimed.
   While it trails, the drawn gun is not where a shot goes: the shot is the aim's.
 
