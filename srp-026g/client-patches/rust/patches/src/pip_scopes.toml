@@ -65,3 +65,9 @@ handler = "on_remove_idle"
 [[hook]]
 site = "scope.remove_show"
 handler = "on_remove_show"
+
+# the stages' time step: none in the second view's draw (its exposure the
+# frame's)
+[[hook]]
+site = "render.frame_delta"
+handler = "on_frame_delta"

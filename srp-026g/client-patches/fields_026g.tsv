@@ -1878,3 +1878,6 @@ vostok::render::model_instance	first_surface	0x298	obj<vostok::render::render_su
 vostok::render::model_instance	vtable	0x0	u32	its vtable: 9F2B24h a static model instance, 9F0F24h a skeleton instance
 vostok::render::image	static_model_vtable	0x9F2B24	u32	the static model instance's vtable (renderer-026g.md 2.1)
 vostok::render::render_surface_instance	size	0x64	size	a model instance's surface record (renderer-026g.md 2.1)
+vostok::render::render_output_window	adapted_luminance	0x2694	ptr<vostok::render::res_texture>	its targets' adapted luminance of the last frame (target 59, the descriptor 59 x 0A0h + 9Ch past +118h): compute_per_pixel_eye_adaptated_luminance (0x1B14FB) reads it as the eye's last adaptation, unless the reset flag (0xAC914C) has it read target 62, the frame's own measure
+vostok::render::render_options	ambient_occlusion	0x10E	u8	stage_ambient_occlusion's enable byte (SSAO, SSDO; renderer-026g.md 1, slot 5)
+vostok::render::render_options	reflections	0x113	u8	stage_screen_space_reflections' enable byte (SSR and the water's reflections; slot 14)

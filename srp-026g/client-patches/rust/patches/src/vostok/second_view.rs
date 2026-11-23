@@ -819,3 +819,103 @@ pub fn frame_aspect(ctx: &Context<'_>) -> Option<f32> {
     let (_, desc) = back_buffer(window)?;
     (desc.height > 0).then(|| desc.width as f32 / desc.height as f32)
 }
+
+/// An output window of the game's, kept by the render thread from one frame
+/// to the next (the frame's own: alive for the game).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FrameWindow(raw::RenderOutputWindow);
+
+// SAFETY: named on the render thread alone.
+unsafe impl Send for FrameWindow {}
+
+/// The window the frame at `render.flash_ui` draws into.
+pub fn frame_window(ctx: &Context<'_>) -> Option<FrameWindow> {
+    // SAFETY: as composite's.
+    unsafe { raw::site::render_flash_ui::frame(ctx).and_then(|f| f.window()) }.map(FrameWindow)
+}
+
+/// The second view given the frame's exposure: the frame window's last
+/// adapted luminance copied into ours, which our draw's eye adaptation then
+/// keeps (its time step 0, `render.frame_delta`). The render thread, at our
+/// draw's start.
+pub fn match_exposure(_: &Thread, second: &SecondView, frame: FrameWindow) -> bool {
+    let Some(context) = immediate_context() else { return false };
+    // SAFETY: both windows alive (ours for good, the frame's for the game),
+    // their 1x1 luminance targets of one format, their resources the
+    // textures'; CopyResource on the render thread's immediate context.
+    unsafe {
+        let (Some(to), Some(from)) = (second.window.adapted_luminance(), frame.0.adapted_luminance()) else { return false };
+        let (Some(to), Some(from)) = (to.hw_resource(), from.hw_resource()) else { return false };
+        raw::engine_context_copy_resource(Some(context), Some(to), Some(from));
+    }
+    true
+}
+
+/// The eye adaptation's reset flag (the next adaptation starts from the
+/// frame's own measure), as it is; and set to `value`. One for every view.
+pub fn eye_reset(_: &Thread, value: Option<bool>) -> bool {
+    // SAFETY: stage_postprocess's byte in .data, the render thread's.
+    unsafe {
+        let flag = raw::image::postprocess().reset_eye_adaptation();
+        let was = *flag != 0;
+        if let Some(value) = value {
+            *flag = u8::from(value);
+        }
+        was
+    }
+}
+
+/// A stage of the frame the second view's draw can do without.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Stage {
+    AmbientOcclusion,
+    Reflections,
+}
+
+/// The stage's enable byte (render options) set to `on`; what it was.
+pub fn set_stage(_: &Thread, stage: Stage, on: bool) -> bool {
+    // SAFETY: the render options' global; bytes the render thread reads at
+    // each draw's stages.
+    unsafe {
+        let Some(options) = raw::image::options_global().options() else { return false };
+        let byte = match stage {
+            Stage::AmbientOcclusion => options.ambient_occlusion(),
+            Stage::Reflections => options.reflections(),
+        };
+        let was = *byte != 0;
+        *byte = u8::from(on);
+        was
+    }
+}
+
+/// The aimed model's lens on the frame's screen, at `forward.execute_foreground`
+/// (the frame's draw, its first-person models' spheres this frame's, world
+/// space): of its surfaces the camera's axis passes through, the smallest of
+/// at least `least` metres (the eyepiece's glass or the reticle's plane,
+/// not the body nor a dot), projected with the frame's `view` and
+/// `projection`. Its centre and radii in clip space.
+pub fn lens_on_screen(model: ModelId, view: &[f32; 16], projection: &[f32; 16], least: f32) -> Option<([f32; 2], [f32; 2])> {
+    let ModelId(model) = model;
+    // SAFETY: the model alive (see ModelId) on the render thread, its
+    // records its own; each sphere four floats at the record's +10h.
+    unsafe {
+        if *model.vtable() != raw::image::STATIC_MODEL_VTABLE {
+            return None;
+        }
+        let first = model.first_surface();
+        let mut best: Option<(f32, [f32; 3])> = None;
+        for index in 0..usize::from(*model.surface_count()) {
+            let sphere = first.at(index).sphere();
+            let (c, r) = ([sphere.read(), sphere.add(1).read(), sphere.add(2).read()], sphere.add(3).read());
+            let v: [f32; 3] = core::array::from_fn(|k| c[0] * view[k] + c[1] * view[4 + k] + c[2] * view[8 + k] + view[12 + k]);
+            let off_axis = v[0] * v[0] + v[1] * v[1];
+            if v[2] <= 0.0 || r < least || off_axis > r * r || best.is_some_and(|(b, _)| b <= r) {
+                continue;
+            }
+            best = Some((r, v));
+        }
+        let (r, v) = best?;
+        let (x, y) = (v[0] * projection[0] + v[2] * projection[8], v[1] * projection[5] + v[2] * projection[9]);
+        Some(([x / v[2], y / v[2]], [r * projection[0] / v[2], r * projection[5] / v[2]]))
+    }
+}
