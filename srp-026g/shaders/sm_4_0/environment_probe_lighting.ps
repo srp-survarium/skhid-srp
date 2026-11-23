@@ -156,10 +156,11 @@ float3 tier_position( float2 tc )
 	return					mul( m_V2W, float4( eye_ray*depth, 1.0f ) );
 }
 
-// The tier's summed weight under the pixel (rt 32 holds W/4), never below this probe's own.
+// The tier's summed weight under the pixel (rt 32, cleared to 1, holds 1 - W/4: the weight pass
+// subtracts w/4), never below this probe's own.
 float tier_sum( float2 tc, float w )
 {
-	return					max( t_probe_weights.SampleLevel( s_position, tc, 0 ).x*4.0f, w );
+	return					max( ( 1.0f - t_probe_weights.SampleLevel( s_position, tc, 0 ).x )*4.0f, w );
 }
 #endif
 
@@ -237,7 +238,7 @@ light_accumulator main( pixel_shader_input input )
 	return					native( input );
 }
 #elif TIER == 1
-// Weight: rt 32 += w/4 (ONE/ONE, the red channel).
+// Weight: rt 32 -= w/4 (ONE/ONE, reverse subtract; the red channel).
 light_accumulator main( pixel_shader_input input )
 {
 	light_accumulator	output;
