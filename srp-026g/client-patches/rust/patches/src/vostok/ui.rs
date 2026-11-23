@@ -148,6 +148,19 @@ impl<'t> GameWorldUi<'t> {
         core.is_some_and(|core| super::freeze::clear(core, from, target))
     }
 
+    /// Freeze Tag: the team of `place`'s player (its profile's), when it has one in the match.
+    pub fn freeze_team(&self, place: srp_validate::Place) -> Option<srp_validate::Team> {
+        // SAFETY: as freeze_reachable.
+        let core = unsafe { self.this.world().and_then(|w| w.pvp_match()).map(|m| m.core()) };
+        core.and_then(|core| super::freeze::team(core, place))
+    }
+
+    /// The match's world time (its core's last step), which its rule's times are of.
+    pub fn now(&self) -> Option<u32> {
+        // SAFETY: the ui's world and its match core live for this hook.
+        unsafe { Some(read(self.this.world()?.pvp_match()?.core().time())) }
+    }
+
     /// The exact deadline against the completed simulation clock. The
     /// displayed whole seconds may already be zero while play continues.
     pub fn clock(&self) -> Option<super::MatchClock> {

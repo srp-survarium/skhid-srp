@@ -5,8 +5,9 @@ use crate::vostok::{FreezeTagOnEnemyExit, FreezeTagOnInputExit, FreezeTagOnPlaye
 use crate::vostok::log::{self, Piece};
 use crate::vostok::resources::{self, Arrived, KeptParticle, QueryResults, QueryTag};
 use crate::vostok::parse::Reader;
+use artefact_hunt_rule::{Restart, Time};
 use srp_validate::Place;
-use srp_validate::world::freeze::{Actions, Body, Condition, FreezeTag, PLAYERS, Phase, Player, RoundEnd, Schedule, THAW_MS, WINS};
+use srp_validate::world::freeze::{Actions, Body, Condition, FreezeTag, PLAYERS, Phase, Player, RoundEnd, THAW_MS, TIMING, WINS};
 
 #[derive(Clone, Copy)]
 enum Match {
@@ -63,6 +64,20 @@ pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(mut world) = vostok::freeze::World::at_tick(ctx) else {
         return Flow::Continue;
     };
+    let Some(tick) = vostok::artefact_hunt::RespawnTick::at(ctx) else {
+        return Flow::Continue;
+    };
+    let now = Time::from_ms(world.time());
+    // The round's restart as Artifact Hunt's, before the rule's step; a frozen or lethal body's
+    // native respawn is void (a freeze replaced the death). An entering place's spawn always runs
+    // (freeze-tag.md, "No place out of the world"): a frozen place that comes back appears at his
+    // team's points, frozen there (the rule keeps it, the hold keeps it lethal).
+    let void = state.voided(&world.bodies()).bits();
+    crate::round_countdown::respawn_tick(&tick, state.round_countdown(), state.spawning(now), void, |place| {
+        if let Some(place) = Place::new(place) {
+            state.kit_switched(place);
+        }
+    });
     let bodies = world.bodies();
     // Rays only for the pairs a thaw can use: a frozen (or newly lethal)
     // body and a fighting teammate. The boundary bounds distance first.
@@ -82,25 +97,13 @@ pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
             }
         }
     }
-    match state.step(&bodies, &visible, world.elapsed()) {
-        Actions::Restart => world.restart(),
+    match state.step(now, &bodies, &visible, world.elapsed()) {
         Actions::Play { thawed, thawers } => {
             thawed.iter().for_each(|place| world.thaw(place));
             thawers.iter().for_each(|place| world.credit_thaw(place));
         }
         Actions::Wait => {}
     }
-    // A frozen body's death also queued its ordinary respawn; only the new
-    // round's restart spawns it. An entering place's spawn is never cancelled
-    // (`World::cancel`): a frozen place that comes back appears at his team's
-    // points and stays frozen there (the rule keeps it, the hold keeps it
-    // lethal) until a teammate or the auto-thaw thaws it.
-    match state.schedule() {
-        Schedule::CancelFrozen(frozen) => frozen.iter().for_each(|place| world.cancel(place)),
-        Schedule::CancelAll => Place::all().for_each(|place| world.cancel(place)),
-        Schedule::Native => {}
-    }
-    // The pause and the restart play the match start's countdown, as Artifact Hunt's round.
     world.set_round_countdown(state.round_countdown());
     world.publish(state.points(), state.winner());
     MATCH.set(ctx.thread(), Match::Freeze(state));
@@ -145,28 +148,11 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// Whom the rule holds (his tick and input skipped): a lethal body always; a
-/// frozen player in play and in the pause between rounds, where everyone else
-/// moves on (the owner, 2026-11-22: "when one team in freeze tag wins a round
-/// it shouldn't stop moving", "only frozen people do"); everyone in the
-/// restart and after the match.
+/// Whom the rule holds (his tick and input skipped): a lethal body and a frozen player, in every
+/// phase; everyone else moves on, after a round too (the owner, 2026-11-22: "only frozen people
+/// do"), as in Artifact Hunt, whose round countdown holds everyone's input by the warmup camera.
 fn held(state: &FreezeTag, player: &vostok::freeze::Player<'_>) -> bool {
-    player.playing()
-        && (player.lethal()
-            || match state.phase() {
-                Phase::Playing | Phase::Between { .. } => is_frozen(state, player.place()),
-                Phase::Restarting | Phase::Finished(_) => true,
-            })
-}
-/// Whether the local player at `local` sees a round's countdown (the warmup
-/// camera, patch 31's kits) while the core says one is about to start: in
-/// Freeze Tag only a frozen one; the others keep their camera and move on
-/// (`held`). Any other mode with rounds: everyone.
-pub fn countdown_view(thread: &vostok::Thread, local: Option<Place>) -> bool {
-    match (MATCH.get(thread), local) {
-        (Match::Freeze(state), Some(place)) => is_frozen(&state, place),
-        (Match::Freeze(_), None) | (Match::Other, _) => true,
-    }
+    player.playing() && (player.lethal() || is_frozen(state, player.place()))
 }
 pub fn on_player_tick(ctx: &mut Context<'_>) -> Flow<FreezeTagOnPlayerTickExit> {
     let Match::Freeze(state) = MATCH.get(ctx.thread()) else {
@@ -176,7 +162,7 @@ pub fn on_player_tick(ctx: &mut Context<'_>) -> Flow<FreezeTagOnPlayerTickExit> 
         return Flow::Continue;
     };
     if held(&state, &player) {
-        player.hold(time, state.phase());
+        player.hold(time);
         return Flow::Exit(FreezeTagOnPlayerTickExit::Frozen);
     }
     Flow::Continue
@@ -366,37 +352,45 @@ pub fn on_hud(ctx: &mut Context<'_>) -> Flow<NoExit> {
         return Flow::Continue;
     };
     let viewed = Place::new(viewed.get()).expect("the twenty places");
-    let (team, frozen, progress, thaws_in) = match state.player(viewed) {
-        Player::Fighting(team) => (team, 0, 0, 0),
-        Player::Frozen { team, progress, thaws_in } => (team, 1, u32::from(progress.millis()), thaws_in.get()),
-        Player::Waiting => return Flow::Continue,
+    // A round's countdown is everyone's, each one waiting for his spawn: the viewer's team then
+    // is the body's.
+    let team = match state.player(viewed) {
+        Player::Fighting(team) | Player::Frozen { team, .. } => Some(team),
+        Player::Waiting if matches!(state.phase(), Phase::Restart { .. }) => ui.freeze_team(viewed),
+        Player::Waiting => None,
     };
-    // 1 won, 2 lost, 3 drawn by the time limit.
-    let outcome = match state.winner() {
-        Some(winner) if winner == team => 1,
-        Some(_) => 2,
-        None if matches!(ui.clock(), Some(vostok::MatchClock::Finished)) => 3,
-        None => 0,
+    let Some(team) = team else {
+        return Flow::Continue;
     };
-    let other = match team {
-        srp_validate::Team::First => srp_validate::Team::Second,
-        srp_validate::Team::Second => srp_validate::Team::First,
+    let (frozen, progress, thaws_in) = match state.player(viewed) {
+        Player::Frozen { progress, thaws_in, .. } => (1, u32::from(progress.millis()), thaws_in.get()),
+        Player::Fighting(_) | Player::Waiting => (0, 0, 0),
     };
-    let (round, remaining) = match state.phase() {
-        Phase::Between { result, remaining } => (
-            match result {
-                RoundEnd::Won(winner) => {
-                    if winner == team {
-                        1
-                    } else {
-                        2
-                    }
+    let other = team.other();
+    let won = |winner: srp_validate::Team| if winner == team { 1 } else { 2 };
+    let now = Time::from_ms(ui.now().unwrap_or(0));
+    let left = |restart: &Restart<(), ()>| (now.left(restart.until()), restart.length(TIMING).get());
+    // The status (0 play; 1 won, 2 lost, 3 drawn by the time limit; 4, 5, 6 the round won, lost,
+    // drawn; 7 the fade, 8 the countdown: Artifact Hunt's phase ids, the movie's RoundFade), what is
+    // left of its time and its whole length.
+    let (status, remaining, whole) = match state.phase() {
+        Phase::Finished { winner, .. } => (won(winner), 0, 0),
+        Phase::Restart { ended, restart } => {
+            let (remaining, whole) = left(&restart);
+            let status = match (ended, restart) {
+                // The match point's 3 s: the match's result.
+                (RoundEnd::Won(winner), Restart::Decided { .. }) if state.points_of(winner) == u16::from(WINS) => {
+                    won(winner)
                 }
-                RoundEnd::Draw => 3,
-            },
-            u32::from(remaining.get()),
-        ),
-        _ => (0, 0),
+                (RoundEnd::Won(winner), Restart::Decided { .. }) => won(winner) + 3,
+                (RoundEnd::Draw, Restart::Decided { .. }) => 6,
+                (_, Restart::Fade { .. }) => 7,
+                (_, Restart::Countdown { .. }) => 8,
+            };
+            (status, remaining, whole)
+        }
+        Phase::Playing if matches!(ui.clock(), Some(vostok::MatchClock::Finished)) => (3, 0, 0),
+        Phase::Playing => (0, 0, 0),
     };
     // The rescuer sees the same native collection bar as its frozen teammate.
     let progress = if frozen != 0 {
@@ -426,14 +420,7 @@ pub fn on_hud(ctx: &mut Context<'_>) -> Flow<NoExit> {
         );
         movie.invoke_uints(
             c"root.freeze_tag_update",
-            &[
-                frozen,
-                progress,
-                if round != 0 { round + 3 } else { outcome },
-                remaining,
-                u32::from(THAW_MS),
-                thaws_in,
-            ],
+            &[frozen, progress, status, remaining, u32::from(THAW_MS), thaws_in, whole],
         );
         // The Tab list's frozen rows; the movie clears them with the match.
         movie.invoke_uints(c"root.freeze_tag_rows", &[mask]);

@@ -15,7 +15,10 @@ import check_kit_change_026g as kits
 
 FREEZE = blackout.empty_options(blackout.srpx((6, b"\x01")))
 PLAIN = blackout.empty_options(b"")
-LENGTH = 149
+LENGTH = 191
+# The state's bytes (srp_validate::world::freeze): version, phase, scores, the ended round, a time,
+# the round starts, the kit switches, then each place's record.
+PHASE, TIME, STARTS, RECORDS = 1, 5, 9, 51
 STATS = ffa.DATA + 0x60000
 CAMERA_INPUT = ffa.DATA + 0x96000
 CAMERA_STACK = 0x36000000
@@ -156,21 +159,36 @@ class Run(ffa.Run):
         has not spawned yet."""
         self.emu.mem_write(ffa.player(place) + 0x33F, b"\x00")
 
-    def countdown_view(self, local):
-        """The client time rule's camera test (time_rule.camera_state, 0x267AE6) with the local
-        player at place `local` (None: no local player): the state the camera is set for, 2 the
-        countdown's (the warmup camera, patch 31's kits), 3 play's."""
+    def camera_state(self):
+        """The client time rule's camera test (time_rule.camera_state, 0x267AE6): the state the
+        camera is set for, 2 the countdown's (the warmup camera, patch 31's kits), 3 play's."""
         rule = CAMERA_STACK + 0x10000
         self.emu.mem_write(rule, bytes(0x200))
         self.word(rule + 0x128, ffa.CORE)
         self.word(rule + 0x148, 3)
-        kept = self.read(ffa.CLIENT + 4)
-        self.word(ffa.CLIENT + 4, 0 if local is None else ffa.player(local))
-        regs, _ = self.run(0x267AE6, (0x267AEC,), CAMERA_STACK + 0xF0000,
-                           {**hide.GAME, UC_X86_REG_EDI: rule, UC_X86_REG_ESI: ffa.CLIENT})
-        self.word(ffa.CLIENT + 4, kept)
+        regs, _ = self.run(0x267AE6, (0x267AEC,), CAMERA_STACK + 0xF0000, {**hide.GAME, UC_X86_REG_EDI: rule})
         assert self.stopped == 0x267AEC
         return regs[UC_X86_REG_EDI]
+
+    def times(self):
+        return [self.read(ffa.RULE + 0x138 + 4 * i) for i in range(3)]
+
+    def tags(self):
+        state = self.state()
+        return [state[RECORDS + 7 * i] for i in range(3)]
+
+    def restart(self, decided):
+        """Through the restart of the round decided at `decided`: its 3 s, the fade (everyone due
+        at its end, the native spawn clearing their pending deaths), the countdown; the step after
+        it is the next round's first."""
+        self.tick(decided + 3000, 3000)
+        assert self.state()[PHASE] == 2
+        self.tick(decided + 4000, 1000)
+        assert self.state()[PHASE] == 3 and self.times() == [decided + 4000] * 3
+        for i in range(3):
+            self.emu.mem_write(ffa.player(i) + 0x33D, b"\0")
+        self.tick(decided + 9000, 5000)
+        assert self.state()[PHASE] == 0
 
     def lethal(self, place):
         self.emu.mem_write(ffa.player(place) + 0x33D, b"\x01")
@@ -207,10 +225,15 @@ class Run(ffa.Run):
     def state(self):
         return self.serialize()[-LENGTH:]
 
-    def freeze_hud(self, viewed):
+    def freeze_hud(self, viewed, now):
+        """The hud's calls at the world's time `now` (the rule's times are of it), the match
+        in play (its time rule's start 0)."""
+        start = self.read(ffa.TIME_RULE + 0x12C)
+        self.word(ffa.TIME_RULE + 0x12C, 0)
         self.movies(ffa.HUD, 1, 1)
-        self.hud_state(viewed, [0, 0, 0], 0, 300)
+        self.hud_state(viewed, [0, 0, 0], 0, 300, 920_000 - now)
         back, invoked = self.icons_fed(others=True)
+        self.word(ffa.TIME_RULE + 0x12C, start)
         assert back
         return [(name, values) for movie, name, values in invoked
                 if movie == hide.HUD_MOVIE and name.startswith("root.freeze_tag_")]
@@ -237,120 +260,134 @@ def main():
         r.tick(time)
     before = r.serialize()
     state = before[-LENGTH:]
-    assert state[:2] == b"\x02\x00"
-    assert state[7] == 3 and struct.unpack_from("<H", state, 8)[0] == 3950
-    assert r.freeze_hud(0) == [("root.freeze_tag_score", (0, 0, 5)),
-                               ("root.freeze_tag_update", (1, 3950, 0, 0, 4000, 116050)),
-                               ("root.freeze_tag_rows", (1,))]
-    assert r.freeze_hud(1) == [("root.freeze_tag_score", (0, 0, 5)),
-                               ("root.freeze_tag_update", (0, 3950, 0, 0, 4000, 0)),
-                               ("root.freeze_tag_rows", (1,))]
+    assert state[:2] == b"\x03\x00"
+    assert state[RECORDS] == 3 and struct.unpack_from("<H", state, RECORDS + 1)[0] == 3950
+    assert r.freeze_hud(0, 3950) == [("root.freeze_tag_score", (0, 0, 5)),
+                                     ("root.freeze_tag_update", (1, 3950, 0, 0, 4000, 116050, 0)),
+                                     ("root.freeze_tag_rows", (1,))]
+    assert r.freeze_hud(1, 3950) == [("root.freeze_tag_score", (0, 0, 5)),
+                                     ("root.freeze_tag_update", (0, 3950, 0, 0, 4000, 0, 0)),
+                                     ("root.freeze_tag_rows", (1,))]
     assert r.read(ffa.RULE + 0x138) == 0xFFFFFFFF
-    # Only a frozen body's respawn is cancelled: another place's native
+    # Only a frozen body's respawn is void: another place's native
     # schedule (a late arrival's first spawn) is left to run.
     r.word(ffa.RULE + 0x138 + 4, 5000)
     r.tick(4000)
     assert r.read(ffa.RULE + 0x138 + 4) == 5000
     assert len(r.thaws) == 1 and r.thaws[0][1] == 4000
-    assert r.state()[7:10] == b"\x01\x00\x00"
+    assert r.state()[RECORDS:RECORDS + 3] == b"\x01\x00\x00"
     assert not r.player_tick(0, 4050) and not r.input(0)
-    print("ok frozen body stays alive and immobile; native respawn cancelled; thaw at four seconds")
+    print("ok frozen body stays alive and immobile; native respawn void; thaw at four seconds")
 
     # Real respawn serialization/deserialization restores rule progress.
     assert r.deserialize(before) == len(before)
     r.lethal(0)  # The enclosing native world's player load restores this.
     r.blocked = True
     r.tick(4000)
-    assert r.state()[7:10] == b"\x03\x00\x00"
+    assert r.state()[RECORDS:RECORDS + 3] == b"\x03\x00\x00"
     r.blocked = False
     r.tick(4050)
-    assert struct.unpack_from("<H", r.state(), 8)[0] == 50
+    assert struct.unpack_from("<H", r.state(), RECORDS + 1)[0] == 50
     print("ok rollback restores thaw progress and a wall interrupts it")
 
+    # A round ends as Artifact Hunt's (artefact_hunt_rule::Restart): 3 s, the 1 s fade, the 5 s
+    # countdown.
     r.lethal(1)
     r.tick(4100)
     state = r.state()
-    assert state[1:4] == b"\x01\x00\x01"  # Between rounds, 0:1.
+    assert state[1:5] == b"\x01\x00\x01\x02"  # Decided, 0:1, the second team's round.
+    assert struct.unpack_from("<I", state, TIME)[0] == 7100
     assert bytes(r.emu.mem_read(STATS + 0x31E4, 1)) == b"\x02"
     assert struct.unpack("<2H", r.emu.mem_read(STATS + 0x31D4, 4)) == (0, 1)
-    assert r.freeze_hud(1) == [("root.freeze_tag_score", (0, 1, 5)),
-                               ("root.freeze_tag_update", (1, 0, 5, 5000, 4000, 119950)),
-                               ("root.freeze_tag_rows", (3,))]
-    assert r.freeze_hud(2) == [("root.freeze_tag_score", (1, 0, 5)),
-                               ("root.freeze_tag_update", (0, 0, 4, 5000, 4000, 0)),
-                               ("root.freeze_tag_rows", (3,))]
-    # Only the frozen stop in the pause (the owner, 2026-11-22: "only frozen people do"): the
-    # winner's tick and input are his, and he keeps his camera; the frozen are held and see the
-    # round's countdown (the warmup camera and the kits).
+    assert r.freeze_hud(1, 4100) == [("root.freeze_tag_score", (0, 1, 5)),
+                                     ("root.freeze_tag_update", (1, 0, 5, 3000, 4000, 119950, 3000)),
+                                     ("root.freeze_tag_rows", (3,))]
+    assert r.freeze_hud(2, 4100) == [("root.freeze_tag_score", (1, 0, 5)),
+                                     ("root.freeze_tag_update", (0, 0, 4, 3000, 4000, 0, 3000)),
+                                     ("root.freeze_tag_rows", (3,))]
     # The score bars' native source is the hud state's +90h/+92h, which no Freeze Tag rule fills
     # and nothing clears at a new match: the last match's 7:3 is written over with the rule's.
     r.emu.mem_write(ffa.HUD + 0xB4, struct.pack("<2H", 7, 3))
-    r.freeze_hud(1)
+    r.freeze_hud(1, 4100)
     assert struct.unpack("<2H", r.emu.mem_read(ffa.HUD + 0xB4, 4)) == (0, 1)
     print("ok the hud state's team points are the rule's (the last match's 7:3 written over)")
+    # The 3 s: play goes on (the owner, 2026-11-22: "only frozen people do"), the frozen held, no
+    # countdown yet; a place due is held, a frozen one has no time.
     assert not r.player_tick(2, 4150) and not r.input(2)
     assert r.player_tick(0, 4150) and r.input(0) and r.player_tick(1, 4150) and r.input(1)
-    assert r.read(ffa.CORE + 0x18FE4) == 4
-    assert r.countdown_view(2) == 3 and r.countdown_view(0) == 2 and r.countdown_view(None) == 2
-    print("ok in the pause the winner moves on with his camera; the frozen are held and see the countdown")
-    # Between rounds no place keeps a time (a death's respawn, a late
-    # arrival's entry): the restart spawns everyone; the core's time state
-    # is the round's countdown (4).
-    r.word(ffa.RULE + 0x138 + 4, 9050)
-    r.word(ffa.RULE + 0x138 + 8, 10000)
-    r.tick(9050, 4950)
-    assert [r.read(ffa.RULE + 0x138 + 4*i) for i in (1, 2)] == [0xFFFFFFFF, 0xFFFFFFFF]
-    assert r.read(ffa.CORE + 0x18FE4) == 4
+    assert r.read(ffa.CORE + 0x18FE4) == 3 and r.camera_state() == 3
+    r.word(ffa.RULE + 0x138 + 8, 4150)
+    r.tick(4150)
+    assert r.times()[1:] == [0xFFFFFFFF, 0xFFFFFFFF]
+    print("ok the 3 s after a round: everyone not frozen moves on, a place due is held, no countdown")
+    for time in range(4200, 7100, 50):
+        r.tick(time)
+    assert r.state()[PHASE] == 1
+    r.tick(7100)
+    # The fade: the match start's countdown (the core's 4: everyone's warmup camera, the kits).
+    assert r.state()[PHASE] == 2 and struct.unpack_from("<I", r.state(), TIME)[0] == 8100
+    assert r.read(ffa.CORE + 0x18FE4) == 4 and r.camera_state() == 2
+    assert not r.player_tick(2, 7150) and not r.input(2)
+    for time in range(7150, 8100, 50):
+        r.tick(time)
     before_restart = r.serialize()
-    assert struct.unpack_from("<H", r.state(), 4)[0] == 50
-    r.tick(9100)
-    assert r.state()[1] == 2
-    assert r.state()[-2:] == b"\x01\x00"  # One round start after the first.
-    assert [r.read(ffa.RULE + 0x138 + 4*i) for i in range(3)] == [9100]*3
+    r.tick(8100)
+    # Its end: everyone due at once, a round start, every player waits for his spawn.
+    assert r.state()[PHASE] == 3 and r.state()[STARTS:STARTS + 2] == b"\x01\x00"
+    assert r.times() == [8100] * 3 and r.tags() == [0, 0, 0]
     # Rollback repeats the same spawn scheduling, exactly once.
     assert r.deserialize(before_restart) == len(before_restart)
-    r.tick(9100)
-    assert r.state()[-2:] == b"\x01\x00"  # Counted once, as the spawns.
-    assert [r.read(ffa.RULE + 0x138 + 4*i) for i in range(3)] == [9100]*3
-    # The native respawn path clears pending death. Its full remove/spawn
-    # execution is covered by the existing world-roundtrip harness.
+    r.tick(8100)
+    assert r.state()[STARTS:STARTS + 2] == b"\x01\x00"  # Counted once, as the spawns.
+    assert r.times() == [8100] * 3
+    # The native respawn path clears pending death: nobody is held in the countdown (the warmup
+    # camera holds the input), the core's 4 on.
     for i in range(3):
         r.emu.mem_write(ffa.player(i) + 0x33D, b"\0")
-    assert r.player_tick(2, 9100) and r.input(2)
-    assert bytes(r.emu.mem_read(ffa.player(2) + 0x33D, 1)) == b"\0"
-    r.tick(9150)
-    assert r.state()[1:4] == b"\x00\x00\x01"
-    assert not r.player_tick(2, 9200) and not r.input(2)
+    assert not r.player_tick(2, 8150) and not r.input(2) and not r.player_tick(0, 8150)
+    assert r.read(ffa.CORE + 0x18FE4) == 4
+    for time in range(8150, 13100, 50):
+        r.tick(time)
+    assert r.state()[PHASE] == 3
+    r.tick(13100)
+    assert r.state()[1:4] == b"\x00\x00\x01" and r.tags() == [1, 1, 2]
+    assert r.read(ffa.CORE + 0x18FE4) == 3 and r.camera_state() == 3
+    time = 13150
     for score in (2, 3, 4, 5):
         r.lethal(0)
         r.lethal(1)
-        r.tick(9200)
-        assert r.state()[3] == score
+        r.tick(time)
+        assert r.state()[3] == score and r.state()[PHASE] == 1
         if score < 5:
-            r.tick(14200, 5000)
-            for i in range(3):
-                r.emu.mem_write(ffa.player(i) + 0x33D, b"\0")
-            r.tick(14250)
-    assert r.state()[1] == 3  # Match finished at five round wins.
-    assert r.state()[-2:] == b"\x04\x00"  # The last round is not restarted.
+            r.restart(time)
+            time += 9050
+    # The match point: its 3 s, then the match is over.
+    assert bytes(r.emu.mem_read(STATS + 0x31E4, 1)) == b"\x02"
+    r.tick(time + 3000, 3000)
+    state = r.state()
+    assert state[PHASE] == 4 and state[4] == 2 and struct.unpack_from("<I", state, TIME)[0] == time + 3000
+    assert state[STARTS:STARTS + 2] == b"\x04\x00"  # The last round is not restarted.
     assert bytes(r.emu.mem_read(STATS + 0x31E4, 1)) == b"\x01"
     saved = r.serialize()
-    r.tick(19000, 5000)
+    r.tick(time + 8000, 5000)
     assert r.serialize() == saved
-    r.word(ffa.RULE + 0x138 + 8, 19050)
-    r.tick(19050)
-    assert r.read(ffa.RULE + 0x138 + 8) == 0xFFFFFFFF  # No spawn after the match.
-    assert r.read(ffa.CORE + 0x18FE4) == 3  # No countdown after the match.
-    print("ok best of nine: no time stands in the pause (its countdown state 4), the restart makes everyone due, "
-          "rollback, first to five, then no countdown and no spawn")
+    # After it, as Artifact Hunt's: the respawn rule's own times, the frozen's void; no countdown.
+    r.word(ffa.RULE + 0x138 + 8, time + 8050)
+    r.tick(time + 8050)
+    assert r.times() == [0xFFFFFFFF, 0xFFFFFFFF, time + 8050]
+    assert r.read(ffa.CORE + 0x18FE4) == 3
+    assert not r.player_tick(2, time + 8100) and r.player_tick(0, time + 8100)
+    print("ok best of nine: the 3 s, the fade (its countdown state 4) and its end making everyone due, the "
+          "countdown, rollback, first to five after the match point's 3 s, then no countdown")
 
     r.start()
     for place in range(3):
         r.lethal(place)
     r.tick(50)
-    assert r.state()[1:4] == b"\x01\0\0" and r.state()[6] == 3
-    r.tick(5050, 5000)
-    assert r.state()[1] == 2 and r.state()[-2:] == b"\x01\x00"  # The replay is a round start.
+    assert r.state()[1:5] == b"\x01\0\0\x03"  # A draw.
+    r.tick(3050, 3000)
+    r.tick(4050, 1000)
+    assert r.state()[PHASE] == 3 and r.state()[STARTS:STARTS + 2] == b"\x01\x00"  # The replay is a round start.
     r.start(PLAIN)
     assert len(r.serialize()) == len(plain)
     print("ok simultaneous wipes draw and the replay counts a round start; a subsequent ordinary match has no Freeze Tag bytes")
@@ -498,30 +535,30 @@ def main():
     # A new match: the rule's 0:0 from its first frame, before anyone has entered.
     r.start()
     r.emu.mem_write(ffa.HUD + 0xB4, struct.pack("<2H", 7, 3))
-    assert r.freeze_hud(0) == []                   # nobody entered yet: no Freeze Tag call
+    assert r.freeze_hud(0, 50) == []               # nobody entered yet: no Freeze Tag call
     assert struct.unpack("<2H", r.emu.mem_read(ffa.HUD + 0xB4, 4)) == (0, 0)
     print("ok the hud state's team points are the rule's 0:0 from a new match's first frame, nobody entered yet")
 
-    # No place out of the world (freeze-tag.md): an entering place's spawn is never cancelled.
+    # No place out of the world (freeze-tag.md): an entering place's spawn is never held or void.
     r.start()
-    r.lethal(2)                    # the second team's only player frozen: the pause
+    r.lethal(2)                    # the second team's only player frozen: the round's 3 s
     r.tick(50)
-    assert r.state()[1] == 1
-    r.out_of_world(1)              # place 1 came back in the pause, not spawned yet
+    assert r.state()[PHASE] == 1
+    r.out_of_world(1)              # place 1 came back in the 3 s, not spawned yet
     r.word(ffa.RULE + 0x138 + 4, 100)
-    r.word(ffa.RULE + 0x138, 100)  # place 0's body: a time of its, cancelled
+    r.word(ffa.RULE + 0x138, 100)  # place 0's body: a time of its, held
     r.tick(100)
-    assert r.read(ffa.RULE + 0x138 + 4) == 100, "the entry spawn runs in the pause"
+    assert r.read(ffa.RULE + 0x138 + 4) == 100, "the entry spawn runs in the 3 s"
     assert r.read(ffa.RULE + 0x138) == 0xFFFFFFFF
-    print("ok a place that enters in the pause spawns at its entry (a body's time is still cancelled)")
+    print("ok a place that enters after a round spawns at its entry (a body's time is still held)")
 
     r.start()
     r.lethal(0)
     r.tick(50)                     # place 0 frozen, place 1 fighting: the round in play
-    assert r.state()[1] == 0 and r.read(ffa.RULE + 0x138) == 0xFFFFFFFF
+    assert r.state()[PHASE] == 0 and r.read(ffa.RULE + 0x138) == 0xFFFFFFFF
     r.out_of_world(0)              # it left and came back: frozen in the rule, out of the world
     r.tick(100)
-    assert r.state()[7] == 3, "absent, it stays frozen"
+    assert r.state()[RECORDS] == 3, "absent, it stays frozen"
     r.word(ffa.RULE + 0x138, 150)  # its entry
     r.tick(150)
     assert r.read(ffa.RULE + 0x138) == 150, "the frozen rejoiner's entry spawn runs"
@@ -529,7 +566,7 @@ def main():
     assert r.player_tick(0, 150)   # held: frozen in the rule, the hold makes it lethal
     assert bytes(r.emu.mem_read(ffa.player(0) + 0x33D, 1)) == b"\x01"
     r.tick(200)
-    assert r.state()[7] == 3, "back in the world, frozen there"
+    assert r.state()[RECORDS] == 3, "back in the world, frozen there"
     print("ok a frozen player who comes back spawns at his entry and stays frozen")
 
     # Why: what the game does to a player put in with link 0 that was out of the world (a world
