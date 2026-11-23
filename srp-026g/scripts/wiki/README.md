@@ -58,8 +58,11 @@ floor is left out. A table gives each weapon's spread parts in degrees.
 A shot moves three things, and the simulation shows each by its own switch:
 
 - **Recoil** (`recoil.js`): the kick and, from the hip, the shake. It turns the
-  camera by the weapon's recoil numbers, at random within their ranges; the
-  next bullet leaves where it points.
+  gun by the weapon's recoil numbers, at random within their ranges; the next
+  bullet leaves the gun where it points (exe patch 200), drawn as a ring. The
+  view takes 40 % of the kick's lift (exe patch 197, `KICK_SHOWN` in
+  `simulators.js`), so the ring rises over the crosshair as the kick grows.
+  From the side the bullets fly from the muzzle along the gun's line.
 - **Camera wobble** (`motions.js`): the hands' shot clip turns the camera bone
   `Item` on some weapons (of the automatic ones only the H&K 416 and the M4A1).
   One fixed curve a shot; no number scales it. It turns the screen, not the

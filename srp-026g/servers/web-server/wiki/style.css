@@ -154,9 +154,10 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .sim-wall { stroke:var(--ink-3); stroke-width:3 }
 .sim-eye { fill:var(--bg); stroke:var(--ink); stroke-width:1.4 }
 .sim-eye-pupil { fill:var(--ink) }
-.sim-side-view { stroke:var(--accent); stroke-width:1.6; stroke-dasharray:5 4 }
-.sim-side-view.series-1 { stroke:#3684bd }
-.sim-side-sight { stroke:var(--ink); stroke-width:1 }
+.sim-side-view { stroke:var(--ink); stroke-width:1; stroke-dasharray:5 4 }
+.sim-side-sight { stroke:var(--accent); stroke-width:1.6 }
+.sim-side-sight.series-1 { stroke:#3684bd }
+.sim-side-gun { stroke:var(--ink); stroke-width:3.2; stroke-linecap:round }
 .sim-bullet { fill:var(--accent); stroke:none }
 .sim-bullet.series-1 { fill:#3684bd }
 .sim-landed { fill:none; stroke:var(--accent); stroke-width:1.4 }

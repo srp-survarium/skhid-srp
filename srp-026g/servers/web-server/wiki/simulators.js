@@ -577,11 +577,15 @@ const HUD = (() => {
   function passAt(series, time) {
     return WeaponMotions.phaseAt(series.events, series.interval, time);
   }
-  // The view at `time`, where a bullet would leave: with `layers.recoil` the
-  // kick between its 50 ms frames and the shake at its own moment (its clip
-  // runs ~240 frames a second, far finer than the frames), with
-  // `layers.camera` the hands' clip's turn of the camera.
-  function viewAt(series, time, layers) {
+  // The share of the lift the kick gives the eye that the view takes; the gun
+  // takes all of it (exe patch 197, KICK_SHOWN).
+  const KICK_SHOWN = .4;
+  // Where the gun aims at `time`, which is where a bullet leaves along (exe
+  // patch 200): with `layers.recoil` the kick between its 50 ms frames and
+  // the shake at its own moment (its clip runs ~240 frames a second, far
+  // finer than the frames). `lift` is the kick's own lift.
+  function aimAt(series, time, layers) {
+    if (!layers.recoil) return {side: 0, up: 0, lift: 0};
     const at = Math.max(0, time / .05), i = Math.min(series.frames.length - 1, Math.floor(at + 1e-6));
     const a = series.frames[i], b = series.frames[Math.min(series.frames.length - 1, i + 1)], f = Math.min(1, at - i);
     const lerp = key => a[key] + (b[key] - a[key]) * f;
@@ -590,17 +594,28 @@ const HUD = (() => {
       const [clipSide, clipUp] = WeaponRecoil.shakeAt(series.shake.rate * (Math.min(Math.max(time, series.shake.start), series.shake.stop) - series.shake.start));
       side = clipSide * lerp('z'); up = clipUp * lerp('z');
     }
-    const kick = layers.recoil ? {side: viewSide(lerp('horizontal')) + side, up: viewUp(lerp('vertical')) + up} : {side: 0, up: 0};
-    const camera = layers.camera ? WeaponMotions.cameraAt(series.motions, series.aim, passAt(series, time)) : {side: 0, up: 0};
-    return {side: kick.side + camera.side, up: kick.up + camera.up};
+    const lift = viewUp(lerp('vertical'));
+    return {side: viewSide(lerp('horizontal')) + side, up: lift + up, lift};
   }
-  // Where the gun's sight points at `time`, and how far the gun is back (mm):
-  // the view and, with `layers.gun`, the gun's own turn in front of it. From
-  // the hip the sights are not looked through: the view alone.
+  // The view at `time`, the screen's centre: the gun's aim less the share of
+  // the kick's lift the view does not take, and with `layers.camera` the
+  // hands' clip's turn of the camera.
+  function viewAt(series, time, layers) {
+    const aim = aimAt(series, time, layers);
+    const camera = layers.camera ? WeaponMotions.cameraAt(series.motions, series.aim, passAt(series, time)) : {side: 0, up: 0};
+    return {side: aim.side + camera.side, up: aim.up - (1 - KICK_SHOWN) * aim.lift + camera.up};
+  }
+  // Where the gun points at `time`, and how far the gun is back (mm): its aim
+  // with the camera's turn (the hands hold it before the eye) and, with
+  // `layers.gun` while aimed, the gun's own turn. Shown where it can be off
+  // the view: under a kick, or with a gun kick. From the hip it is the
+  // crosshair, which follows the gun.
   function sightAt(series, time, layers) {
-    const view = viewAt(series, time, layers);
-    const gun = layers.gun && series.aim !== 'hip' ? WeaponMotions.gunAt(series.motions, passAt(series, time)) : {back: 0, side: 0, up: 0};
-    return {side: view.side + gun.side, up: view.up + gun.up, back: gun.back, shown: layers.gun && series.aim !== 'hip' && series.motions.gun !== null};
+    const aim = aimAt(series, time, layers);
+    const camera = layers.camera ? WeaponMotions.cameraAt(series.motions, series.aim, passAt(series, time)) : {side: 0, up: 0};
+    const kicks = layers.gun && series.aim !== 'hip' && series.motions.gun !== null;
+    const gun = kicks ? WeaponMotions.gunAt(series.motions, passAt(series, time)) : {back: 0, side: 0, up: 0};
+    return {side: aim.side + camera.side + gun.side, up: aim.up + camera.up + gun.up, back: gun.back, shown: layers.recoil || kicks};
   }
   // How long a bullet is drawn on its way from the eye to the wall (s).
   const FLIGHT = .04;
@@ -673,8 +688,8 @@ const HUD = (() => {
     }
     // The view as the shot moves it, in degrees of view at true scale both
     // ways: its path, each shot's mark and bullet's hit, the spread around it,
-    // and the gun's sight where its own kick puts it. Under it the same from
-    // the side: the bullet from the eye along the view. Each weapon has its
+    // and a ring where the gun points (over the view under a kick). Under it
+    // the same from the side: the bullet from the gun along its line. Each weapon has its
     // own pair, all on one scale so they compare.
     function drawSight(time) {
       const on = layers();
@@ -684,10 +699,10 @@ const HUD = (() => {
       const distance = Number(find('.sim-target').value) || 0, body = distance ? bodyDegrees(distance) : 0;
       // The aim (kick and shake), each bullet's hit and the spread around the
       // aim, in degrees of view: the view holds them all.
-      // A bullet's hit: the view at its shot (the camera's clip is at its
-      // first frame then, motions.js) and its own tilt in the spread.
+      // A bullet's hit: where the gun aims at its shot (the camera's clip is
+      // at its first frame then, motions.js) and its own tilt in the spread.
       const hit = (series, event) => {
-        const point = viewAt(series, event.time, on);
+        const point = aimAt(series, event.time, on);
         return {side: point.side + event.bullet.side, up: point.up + event.bullet.up};
       };
       // The path drawn every 1/240 s, fine enough for the shake and a clip's pass.
@@ -706,7 +721,7 @@ const HUD = (() => {
       };
       const views = simulation.series.map(series => {
         const svg = svgNode('svg', {viewBox:'0 0 300 300', role:'img', 'aria-label':`${series.title}: ${T('where it aims as the shot moves it')}`});
-        const from = svgNode('svg', {viewBox:'0 0 300 110', role:'img', class:'sim-side', 'aria-label':`${series.title}: ${T('from the side, the bullet from the eye along the view')}`});
+        const from = svgNode('svg', {viewBox:'0 0 300 110', role:'img', class:'sim-side', 'aria-label':`${series.title}: ${T('from the side, the bullet from the gun along its line')}`});
         const view = document.createElement('div'); view.className = 'sim-view';
         if (simulation.series.length > 1) view.append(node('p', `${series.side ? 'B' : 'A'} · ${series.title}`, `sim-view-name series-${series.side}`));
         view.append(svg, from);
@@ -747,7 +762,7 @@ const HUD = (() => {
         }
         cross.append(svgNode('circle', {cx, cy, r:1.6}));
         svg.append(cross);
-        // The gun's sight: a ring where the gun's own kick points it, larger as the gun comes back.
+        // The gun: a ring where it points, larger as the gun comes back.
         const sight = sightAt(series, held, on);
         if (sight.shown) {
           const ring = svgNode('g', {class:`sim-gunsight series-${series.side}`});
@@ -755,16 +770,17 @@ const HUD = (() => {
           ring.append(svgNode('circle', {cx:x(sight.side), cy:y(sight.up), r:1.8, class:'sim-gunsight-dot'}));
           svg.append(ring);
         }
-        // From the side: the view's line from the eye (dashed: a bullet's way),
-        // the sight's line, and each bullet from the eye to the wall along the
-        // view it left on.
-        const eye = [20, sideY(0)], wall = 284;
+        // From the side: the view's line from the eye (dashed), the gun under
+        // the eye with its line (a bullet's way), and each bullet from the
+        // muzzle to the wall along the line it left on.
+        const eye = [20, sideY(0)], wall = 284, muzzle = [eye[0] + 30, eye[1] + 7];
         from.append(svgNode('line', {x1:wall, x2:wall, y1:4, y2:106, class:'sim-wall'}));
-        from.append(svgNode('line', {x1:eye[0], y1:eye[1], x2:wall, y2:sideY(point.up), class:`sim-side-view series-${series.side}`}));
-        if (sight.shown) from.append(svgNode('line', {x1:eye[0], y1:eye[1], x2:wall, y2:sideY(sight.up), class:`sim-side-sight series-${series.side}`}));
+        from.append(svgNode('line', {x1:eye[0], y1:eye[1], x2:wall, y2:sideY(point.up), class:'sim-side-view'}));
+        from.append(svgNode('line', {x1:muzzle[0], y1:muzzle[1], x2:wall, y2:sideY(sight.up), class:`sim-side-sight series-${series.side}`}));
+        from.append(svgNode('line', {x1:eye[0] + 12, y1:muzzle[1], x2:muzzle[0], y2:muzzle[1], class:'sim-side-gun'}));
         for (const event of series.events.filter(event => event.time <= held)) {
           const flown = Math.min(1, (held - event.time) / FLIGHT), to = sideY(hit(series, event).up);
-          from.append(svgNode('circle', {cx:eye[0] + (wall - eye[0]) * flown, cy:eye[1] + (to - eye[1]) * flown, r:flown < 1 ? 3.2 : 2.6,
+          from.append(svgNode('circle', {cx:muzzle[0] + (wall - muzzle[0]) * flown, cy:muzzle[1] + (to - muzzle[1]) * flown, r:flown < 1 ? 3.2 : 2.6,
             class:`${flown < 1 ? 'sim-bullet' : 'sim-landed'} series-${series.side}`}));
         }
         from.append(svgNode('path', {d:`M${eye[0] - 9},${eye[1]} Q${eye[0]},${eye[1] - 8} ${eye[0] + 9},${eye[1]} Q${eye[0]},${eye[1] + 8} ${eye[0] - 9},${eye[1]} Z`, class:'sim-eye'}));
