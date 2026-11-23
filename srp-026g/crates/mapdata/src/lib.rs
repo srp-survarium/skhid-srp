@@ -66,6 +66,8 @@ pub mod format;
 pub mod grid;
 pub mod library;
 pub mod math;
+/// [body physics S5a] The one model of the 0.26g client's body (was the `client-body` crate).
+pub mod motion;
 pub mod objective;
 pub mod pierce;
 pub mod project;
