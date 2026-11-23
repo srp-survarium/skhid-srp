@@ -1645,7 +1645,13 @@ impl Decoded<'_> {
         // rule's kills.
         if game_mode == RuleMode::FreezeTag {
             let rule = self.rules.as_ref()?.freeze_tag.as_ref()?;
-            return Some(Standing { points: rule.points(), winner: rule.winner().map_or(2, |team| team.index() as u8) });
+            // A team at the wins has won, in its last round's 3 s too (a match the time limit ends
+            // then).
+            let at_goal = [srp_validate::Team::First, srp_validate::Team::Second]
+                .into_iter()
+                .find(|team| rule.points_of(*team) == u16::from(srp_validate::world::freeze::WINS));
+            let winner = rule.winner().or(at_goal);
+            return Some(Standing { points: rule.points(), winner: winner.map_or(2, |team| team.index() as u8) });
         }
         if game_mode == RuleMode::FreeForAll {
             return None;
@@ -2827,11 +2833,16 @@ mod tests {
         use srp_validate::Team;
         use srp_validate::world::freeze::{Body, Condition, Phase, PLAYERS};
         let mut freeze = FreezeTag::EMPTY;
+        let mut now = 100_000;
+        let mut step = |freeze: &mut FreezeTag, bodies: &[Body; PLAYERS], ms: u16| {
+            now += u32::from(ms);
+            freeze.step(artefact_hunt_rule::Time::from_ms(now), bodies, &[[false; PLAYERS]; PLAYERS], ms);
+        };
         let mut bodies = [Body::Absent; PLAYERS];
         bodies[0] = Body::Present { team: Team::First, position: [0.0; 3], condition: Condition::Fighting };
         bodies[1] = Body::Present { team: Team::Second, position: [10.0; 3], condition: Condition::Lethal };
-        freeze.step(&bodies, &[[false; PLAYERS]; PLAYERS], 50);
-        assert!(matches!(freeze.phase(), Phase::Between { .. }));
+        step(&mut freeze, &bodies, 50);
+        assert!(matches!(freeze.phase(), Phase::Restart { .. }));
         let rules = Rules {
             timelimit: Timelimit::read(&TIMELIMIT).unwrap(),
             respawn: Some(Respawn { times: vec![], seed: 7, points: vec![[0, 0]; 22] }),
@@ -2852,10 +2863,12 @@ mod tests {
         });
         bodies[..2].copy_from_slice(&both);
         for _ in 0..2 {
-            freeze.step(&fighting, &[[false; PLAYERS]; PLAYERS], 5000);
-            freeze.step(&fighting, &[[false; PLAYERS]; PLAYERS], 50);
+            // The 3 s, the fade (its end a round start), the countdown.
+            for ms in [3000, 1000, 5000] {
+                step(&mut freeze, &fighting, ms);
+            }
             assert_eq!(freeze.phase(), Phase::Playing);
-            freeze.step(&bodies, &[[false; PLAYERS]; PLAYERS], 50);
+            step(&mut freeze, &bodies, 50);
         }
         assert_eq!((freeze.points(), freeze.round_starts()), ([1, 0], 2));
         let rules = Rules { freeze_tag: Some(freeze), ..rules };

@@ -407,6 +407,7 @@ Win rate	Győzelmi arány
 Kills	Ölések
 Deaths	Halálok
 K/D	K/D
+Kills/min	Ölés/perc
 Assists	Segítések
 Score	Pontszám	stats
 Avg score	Átl. pontszám
@@ -502,7 +503,7 @@ A thaw counts as a kill.	A kiolvasztás ölésnek számít.
 A frozen player thaws by himself after {0}.	A fagyott játékos {0} után magától kiolvad.
 A team's last fighter shows on the enemies' map.	A csapat utolsó harcosa látszik az ellenfelek térképén.
 Freeze the whole enemy team to win the round.	Fagyaszd le az egész ellenfél csapatot a kör megnyeréséhez.
-{0} s pause between rounds, then everyone respawns.	{0} mp szünet a körök között, aztán mindenki újraéled.
+{0} s after a round ends, then everyone respawns and waits {1} s at the spawns.	{0} mp a kör vége után, aztán mindenki újraéled, és {1} mp-et vár a kezdőpontokon.
 First to {0} rounds wins.	Az első csapat nyer, amely {0} kört nyer.
 Time limit {0}: an unfinished series is a draw.	Időkorlát {0}: a befejezetlen sorozat döntetlen.
 One artefact at a time, {0}–{1} s into a round.	Egyszerre egy artefaktum, {0}–{1} mp-cel a kör kezdete után.

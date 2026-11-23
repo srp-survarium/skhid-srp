@@ -72,8 +72,8 @@ va	name	location	role	basis
 0x00022660	vostok::render::scene_renderer::play_particle_system	stack+12	by-value particle resource pointer slot copied then released	inferred
 0x00022660	vostok::render::scene_renderer::play_particle_system	stack+16	first matrix source forwarded to two-buffer command	inferred
 0x00022660	vostok::render::scene_renderer::play_particle_system	stack+20	second matrix source forwarded to two-buffer command	inferred
-0x00022660	vostok::render::scene_renderer::play_particle_system	stack+24	first attachment resource reference captured for play command; exact type unasserted	inferred
-0x00022660	vostok::render::scene_renderer::play_particle_system	stack+28	second attachment resource reference captured for play command; exact type unasserted	inferred
+0x00022660	vostok::render::scene_renderer::play_particle_system	stack+24	the animated object a body-shaped emitter follows: a resource_ptr<collision::animated_object> slot (0.21d PDB signature), 0 none; particle_game_effect_presenter::play_effect gives a player's +498h (0x2AC29D)	observed
+0x00022660	vostok::render::scene_renderer::play_particle_system	stack+28	the skeleton a body-shaped (animated domain) emitter takes its bones from: a resource_ptr<render::skeleton_model_instance> slot (0.21d PDB signature; particle_engine::get_bone_matrix's), 0 none (the emitters start at the matrix's origin); play_effect gives a player's model +F290h (0x2AC291)	observed
 0x00022860	vostok::render::scene_renderer::stop_particle_system	stack+4	scene_renderer receiver	inferred
 0x00022860	vostok::render::scene_renderer::stop_particle_system	stack+8	scene resource reference	inferred
 0x00022860	vostok::render::scene_renderer::stop_particle_system	stack+12	particle resource reference	inferred
@@ -4811,8 +4811,8 @@ va	name	location	role	basis
 0x003b8d00	vostok::input::platform::keyboard::is_key_down	ECX	the keyboard (vtable 0xA25478 slot 0; the input world's vtable +24h gives it, as on_keyboard_action asks it for Tab, 0Fh)	observed
 0x003b8d00	vostok::input::platform::keyboard::is_key_down	entry ESP+4	the DIK	observed
 0x00306d50		ECX	the game material manager (the bullet manager's +94h)	observed
-0x00306d50		EDX	the first material id (u16 in DX; a bullet's material +64h)	observed
-0x00306d50		EDI	the second material id (u16 in DI; the hit object's material)	observed
+0x00306d50		EDX	the first material id (u16 in DX; a bullet's material +64h; not bounded: an id past 127 reads past the 128 slots at +108h, patch 193 takes it as the default)	observed
+0x00306d50		EDI	the second material id (u16 in DI; the hit object's material; not bounded: an id past 127 reads past the 128 slots at +108h, patch 193 takes it as the default)	observed
 0x003223e0	survarium::bullet_manager::play_particle	EAX	the position (float3*)	observed
 0x003223e0	survarium::bullet_manager::play_particle	entry ESP+4	the bullet manager (a bullet's +44h)	observed
 0x003223e0	survarium::bullet_manager::play_particle	entry ESP+8	the particle (a slot of the pair's +24h array: a resource pointer, its count +0D0h taken)	observed
@@ -6475,7 +6475,7 @@ va	name	location	role	basis
 0x002dda80	survarium::game_effect_player::resolve_link	stack+8	the game_effect_ptr_wrapper just read	observed
 0x002e5cf0	survarium::game_effect_ptr_wrapper::deserialize	ESI	the reader	observed
 0x002e5cf0	survarium::game_effect_ptr_wrapper::deserialize	stack+4	the game_effect_ptr_wrapper	observed
-0x002ac290	survarium::particle_game_effect_presenter::play_effect	EAX	the presented player (presenter+8)	observed
+0x002ac290	survarium::particle_game_effect_presenter::play_effect	EAX	the presented player (presenter+8): the effect played at his simulated transform (his +118h interface's slot 28h, 0x1F17C0: +40Ch) twice, with his hit model (+498h) and model (+F290h) as the play's attachments	observed
 0x002ac290	survarium::particle_game_effect_presenter::play_effect	stack+4	the particle presenter	observed
 0x002ac290	survarium::particle_game_effect_presenter::play_effect	stack+8	the effect entry (18h bytes; +0Ch the particle instance)	observed
 0x002ac310	survarium::particle_game_effect_presenter::update_effect	EAX	the particle presenter	observed
@@ -6722,3 +6722,30 @@ va	name	location	role	basis
 0x001f2720	survarium::player::insert	player+0F540h at 0x1F27DD	the player effect: made from the game's template ([[+0F478h]+1DA4h] vtable +20h) and played on +358h (game_effect_player::play 0x2DE090) at link 1 only, unless +0F4E3h (0x1F27DD..0x1F2859); a player put in with link 0 keeps what it had, none if it was out of the world	observed
 0x001f2870	survarium::player::remove	player+0F540h at 0x1F28A6	with flag 1 (and not +0F4E3h) the player effect stopped (game_effect_player::stop 0x2DE350 at 0x1F28A6, which finds none for a null: the read of 0 at 0x2DE36D) and released; the models out only when +0F4E0h (0x1F3670)	observed
 0x002d2770	survarium::game_world_core::deserialize	the tail's link 0 at 0x2D2D51	a place active before and after the load, its kit unchanged, gets player::insert(0) for its current player: one out of the world before the load (+33Fh 0) comes out with +33Fh 1 and no models, no player effect +0F540h and no tick lists (its time the loaded world's, base_player::deserialize 0x2DB4A5); the stock game never has an active place out of the world at a load	observed
+0x002dbe50	survarium::base_player::subscribe_to_actions	ECX	the player's vostok::collision::game_object part (player+118h)	observed
+0x002dbe50	survarium::base_player::subscribe_to_actions	entry ESP+4	the subscriber (a damage zone's sensor +24h)	observed
+0x002dbe90	survarium::base_player::unsubscribe_from_actions	ECX	the player's game_object part (player+118h)	observed
+0x002dbe90	survarium::base_player::unsubscribe_from_actions	entry ESP+4	the subscriber to erase	observed
+0x00319780	survarium::damage_zone_core::on_objects_left	ECX	the zone's collision sensor (zone+108h)	observed
+0x00319780	survarium::damage_zone_core::on_objects_left	entry ESP+4	the left objects (a vector of loose_ptr holders)	observed
+0x003198d0	survarium::damage_zone_core::on_objects_entered	ECX	the zone's collision sensor (zone+108h)	observed
+0x003198d0	survarium::damage_zone_core::on_objects_entered	entry ESP+4	the entered objects (a vector of loose_ptr holders)	observed
+0x0023c3d0	survarium::game_world_ui::show_grenade_icons [descriptive]	EAX	the game_world_ui ([player+F480h], player::st_draw 0x2471F2)	observed
+0x0023c3d0	survarium::game_world_ui::show_grenade_icons [descriptive]	ECX	the grenades' positions, float3 each (stride 0Ch), up to 6: player::st_draw's own team's grenades within grenades_sensor_radius (7 m), no kind and no side	observed
+0x0023c3d0	survarium::game_world_ui::show_grenade_icons [descriptive]	entry ESP+4	the count, a byte	observed
+0x0023c430	survarium::game_world_ui::hide_grenade_icons [descriptive]	EDX	the game_world_ui	observed
+0x0023c470	survarium::game_world_ui::show_trap_icons [descriptive]	EDI	the game_world_ui ([player+F480h], player::st_draw 0x247345)	observed
+0x0023c470	survarium::game_world_ui::show_trap_icons [descriptive]	ECX	the traps' positions, float3 each, up to 50: the own team's traps within traps_sensor_radius	observed
+0x0023c470	survarium::game_world_ui::show_trap_icons [descriptive]	entry ESP+4	the count, a byte	observed
+0x0023c750	survarium::game_world_ui::place_object_icon [descriptive]	EDI	the game_world_ui	observed
+0x0023c750	survarium::game_world_ui::place_object_icon [descriptive]	entry ESP+4	the icon id, a byte	observed
+0x0023c750	survarium::game_world_ui::place_object_icon [descriptive]	entry ESP+8	the point, float3 in world space	observed
+0x0023c750	survarium::game_world_ui::place_object_icon [descriptive]	entry ESP+12	shown when off the screen too, a byte (show_grenade_icons passes 1)	observed
+0x0023bea0	survarium::game_world_ui::set_hud_icon_type	entry ESP+4	the ui (the game_world_ui)	observed
+0x0023bea0	survarium::game_world_ui::set_hud_icon_type	entry ESP+8	the icon id, a byte (movzx at 0x23BEEA)	observed
+0x0023bea0	survarium::game_world_ui::set_hud_icon_type	entry ESP+12	the type, a byte (movzx at 0x23BF1D): the icon's frame - 1 (initialize_match: 0 a grenade, 1 a trap, 0Dh a battery)	observed
+0x002d3700	survarium::game_world_core::drop_world_events_after	EDX	the core (its world events from +12744h, the last +12748h)	observed
+0x002d3700	survarium::game_world_core::drop_world_events_after	entry ESP+4	the loaded time: every event after it is dropped from the tail (the world load, 0x2D2FFE), and the re-simulation makes them again	observed
+0x002d43b0	survarium::game_world_core::new_world_event	EAX	the core's world events (core+12740h)	observed
+0x00233770	survarium::game_world_ui::on_kill_cross_event	entry ESP+4	&game_world+564h, the last kill-cross time ([+4] the game_world_ui); a sealed event of any type writes its time (+24h) there (0x2337FA..0x233804), so a kill a re-simulation makes at or before an event already walked is never shown	observed
+0x00233770	survarium::game_world_ui::on_kill_cross_event	entry ESP+8	sealed (bool): the event is at or below the walker's bound	observed

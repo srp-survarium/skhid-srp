@@ -94,8 +94,15 @@ point. A step is silent when:
    with a ground one stands on (below). Fixed by step-sounds-1;
 6. no pair (0x248B92): a foot material that is no pair master. That is the on-site logic states
    (`stand_on_site`, `crouch_on_site`, `dead`: movement id 0), for which `on_foot_step` reads the
-   word before the table (player +0F2C4h). Whether a step event ever comes in such a state is NOT
-   VERIFIED: the step log shows it (`movement 0` and its foot material); not patched blind;
+   word before the table (player +0F2C4h). VERIFIED by a crash (a player's rev71 dump, Freeze Tag
+   on School, his own step in first person): the word was a pointer's low half, 0x6860, and
+   `material_pair` read `[materials + 0x6860*4 + 108h]`, far past its tables, and handed `on_step`
+   garbage (the write at 0x248BB6). Fixed by patch 101: `on_foot_step`'s read (0x2A6545,
+   `player_sound.foot_material`, past both paths in, with a world core or not) ends a foot step in
+   a state with no foot material (movement 0, or an id past 4) silently; the patch log says so at
+   the 1st, 10th, 100th, .. of a run, the step log's event line says `dropped (no foot material)`;
+   and patch 193 takes any id past the 128 materials as the default in `material_pair` itself
+   (below, "Material ids past the table");
 7. past `on_step`: emitted and not heard (no free voice, the cull under fire: `sound_voices.md`,
    patch 96; the quiet samples go first: thick metal's own step has `volume_k` 0.06).
 
@@ -306,7 +313,8 @@ srp: step: own foot, movement 3, first person, foot 56 at 5910 347 8984 cm; root
 
 The event line: whose, the effect, the domain (0 and 1 the feet, 2..4 the rustles), the event's
 time and the core's `maximum_time`, the logic state's movement id, whether the feet were read, and
-what the guard did (`plays`, `skipped (a re-simulated copy)`, `the game's test`). The step line's
+what the guard did (`plays`, `skipped (a re-simulated copy)`, `the game's test`), or `dropped (no
+foot material)` for a foot step that `on_foot_step` then ends (path 6). The step line's
 body: the root (the player's simulated feet), the foot's offset from it, the controller's support
 normal's y (x100), its vertical velocity and `on_ground` (0x7EF90's test).
 
@@ -414,3 +422,33 @@ Not heard. With `SKHID_STEP_LOG=on`: walking, sprinting and crouching through na
 (lines `ground 32 (wading): plays`), its edge (`ground 23 (game)`), the port's pond (`game` or
 `wading`, deep_water both), the Chemical Plant's shallow pools. And whether the wading sound is
 what the owner heard in 0.69d.
+
+## Material ids past the table (patch 193)
+
+`game_material_manager::material_pair` (0x306D50) takes two u16 ids and indexes the manager's 128
+material slots (+108h) and its 128 x 128 pair slots (+308h) with no bound (the manager is 10310h
+bytes, 0x2CD1F2; an empty slot gives the default id 11, +1030Ch). Patch 193 (`material_pair.entry`
+at its start) takes an id past the table as the default, what it gives an empty slot, by the
+game's own call with the bounded ids, and answers 0 (no pair) if the default is past it too; every
+caller tests for 0. 3FFFh (a face without a material) is let through: its read is pair slot
+[127][127], inside the manager and empty. The patch log says `material_bounds: material id ..`
+at the 1st, 10th, 100th, .. of a run.
+
+Where the ids come from (the 2026-11-22 audit after the rev71 crash):
+
+| Site | Ids | In range |
+|---|---|---|
+| on_step 0x248B89 | the foot material (on_foot_step's table by movement, the landing's run or jump material, patch 153's own step: the run materials), the ground's get_triangle_material (0x3570A0: & 3FFFh, or 0FFFFh for a shape without a table) | movement 0: no (0x6860 own, 0A9h others', the dump; patch 101). 0FFFFh: no, read 40104h past the manager (code; whether a live shape has no table: not verified) |
+| grenade 0x248A6F, 0x2487F3 | its material (+230h), the ground it hit (+250h, get_triangle_material at 0x248A3F) | 0FFFFh as above: not verified |
+| booby trap 0x2481A1 | +2BAh, +2B8h | not verified |
+| bullets 0x32E599, 0x32E7F3, 0x32EA19, 0x32EC98 | the bullet's material and the surface's (+48h, +4Ch: a loaded material, the default for 0FFFFh, 0x32D87B) | yes |
+| patches: vostok/step.rs `pair`, vostok/bullet.rs | the foot and ground as on_step's; a bounded `MaterialId` and the actor's 10 | as on_step's; yes |
+| inline lookups of a slot by a triangle's id (0x3065F1, 0x32D866) | 0FFFFh taken as the default material first | memory-safe: 3FFFh at most, inside the manager (the others reading +10308h, 0x2CD4D9 0x32BBA2 0x32BE05 0x32BE5F 0x339560 0x82C7A 0x83293: not looked at) |
+| a material's pair master (+66h), the pair loader 0x307010 | game.materials' data | not bounded, not patched (the game's own files) |
+
+The movement id's other readers: the rustle 0x2A6580 takes slot id - 1 for 1..3 and its first
+slot otherwise (bounded); the landing passes 2 or 4 (0x23FC00); the breath sound 0x296310 reads
+fixed slots. The states are made with 0..4 only (0x2FABB0..0x2FADCC, stand_jump 4 at 0x336B87); no
+patch makes or writes a logic state. on_step's callers: on_foot_step 0x2A6572, the landing
+0x23FC2C, patch 153's `step::play`; on_foot_step's: 0x2A64B6 and 0x2A64D2 only (direct calls; no
+other reference to either).

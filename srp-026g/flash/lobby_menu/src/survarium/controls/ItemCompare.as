@@ -338,8 +338,9 @@ package survarium.controls
             _diff.indicator.setChange(null,null);
          }
          // What one unit takes of a pocket (docs/notes/one-pocket-a-type.md, "The pocket's units
-         // shown"): 1, the RGD-5's 2, a booster's whole pocket; less is better. The first row.
-         var depth:int = pocketDepth(this._primary);
+         // shown"): 1, the RGD-5's 2, a Bear Trap trap's 1.5, a booster's whole pocket; less is
+         // better. The first row.
+         var depth:Number = pocketDepth(this._primary);
          if(depth > 0 && index < indicators)
          {
             modifier_value = 0;
@@ -462,7 +463,7 @@ package survarium.controls
                }
             }
          }
-         var theirs:int = pocketDepth(this._secondary);
+         var theirs:Number = pocketDepth(this._secondary);
          index = 0;
          while(theirs > 0 && index < indicators)
          {
@@ -561,7 +562,7 @@ package survarium.controls
 
       // The pocket units one of `item` takes: all of them (MAX_POCKET_UNITS) for an item that
       // fills a pocket; 0 for an item that goes in no pocket.
-      private static function pocketDepth(item:Object) : int
+      private static function pocketDepth(item:Object) : Number
       {
          if(item == null || item.category != ItemCategory.MEDKITS && item.category != ItemCategory.BOOBY_TRAPS && item.category != ItemCategory.GRENADES)
             return 0;

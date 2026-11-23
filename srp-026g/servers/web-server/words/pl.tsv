@@ -2,6 +2,7 @@
 Wiki	Wiki
 Maps	Mapy
 Skhid wiki	Wiki Skhid
+Kills/min	Zabójstwa/min
 Modes	Tryby
 Every mode: its rules, numbers and maps.	Każdy tryb: zasady, liczby i mapy.
 Versions	Warianty
@@ -38,7 +39,7 @@ A thaw counts as a kill.	Odmrożenie liczy się jako zabójstwo.
 A frozen player thaws by himself after {0}.	Zamrożony gracz sam się odmraża po {0}.
 A team's last fighter shows on the enemies' map.	Ostatni walczący drużyny jest widoczny na mapie przeciwników.
 Freeze the whole enemy team to win the round.	Zamroź całą drużynę wroga, by wygrać rundę.
-{0} s pause between rounds, then everyone respawns.	{0} s przerwy między rundami, potem wszyscy się odradzają.
+{0} s after a round ends, then everyone respawns and waits {1} s at the spawns.	{0} s po końcu rundy, potem wszyscy się odradzają i czekają {1} s na punktach odrodzenia.
 First to {0} rounds wins.	Wygrywa pierwsza drużyna z {0} wygranymi rundami.
 Time limit {0}: an unfinished series is a draw.	Limit czasu {0}: niedokończona seria to remis.
 One artefact at a time, {0}–{1} s into a round.	Jeden artefakt naraz, {0}–{1} s od początku rundy.

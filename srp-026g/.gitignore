@@ -22,3 +22,14 @@ target-*/
 
 # Python caches of the scripts
 __pycache__/
+
+# The client patches' generated sources: written by every link of the exe's
+# arena (client-patches/patch_026g.py's generate_sources), never committed
+/client-patches/engine_026g.asm
+/client-patches/engine_026g.h
+/client-patches/engine_026g.inc
+/client-patches/engine_026g.rs
+/client-patches/raw_026g.rs
+/client-patches/hooks_026g.rs
+/client-patches/hook_entries_026g.asm
+/client-patches/languages_026g.rs

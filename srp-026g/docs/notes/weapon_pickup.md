@@ -1081,9 +1081,9 @@ match client's packet pool, `match_client_impl` 0x385910, filling while the game
 symptom.)
 
 A frozen game's backtrace (winedbg) shows arena addresses (the `.srpx` arena at 0xA42D000). The
-block is the one of `arena_026g.lock.json` whose `va`/`size` hold it; the lock keeps only global
-symbols, so for the function link the arena again (the same sources give the same bytes, which
-`--check` proves) and take the nearest symbol below, locals too:
+block is the one `python link_026g.py` prints whose VA and size hold it; it prints only global
+symbols (`--symbols`), so for the function link the arena again (the same sources give the same
+bytes: compare its SHA-256 with the release's record) and take the nearest symbol below, locals too:
 
     cd srp-026g/client-patches && nix develop .. --command python -c "import sys, link_026g as l, \
     patch_026g as b; x = l.link(b.ARENA, b.ARENA_VA, b.ARENA_LIMIT); a = int(sys.argv[1], 16); \

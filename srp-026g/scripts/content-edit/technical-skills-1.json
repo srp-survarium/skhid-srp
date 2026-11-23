@@ -1,5 +1,5 @@
 {
-  "_about": "Technical tree (the owner, 2026-11-08 and 2026-11-15; docs/notes/technical-skills.md): the fourth tab (Technical skills), thresholds 0/5/10/15/20, seventeen skills, 27 points (Tank Pocket (413) or Tank Depth (414), an either/or pair in row II). Every skill travels packed in the unused native modifier 47 (spot_enemy_traps), one value a rank at its bit, which exe patch 180 and srp parse: 401 bit 0..1, 402 bit 2..3, 403 bit 4..5, 404 bit 6..7, 411 bit 8..9, 412 bit 10, 413 bit 11, 414 bit 12, 444 bit 13, 422 bit 14, 423 bit 15, 431 bit 16..17, 432 bit 18, 433 bit 19, 441 bit 20..21, 442 bit 22, 443 bit 23. Names and descriptions are st_srp_technical_* in client-patches/localization.",
+  "_about": "Technical tree (the owner, 2026-11-08 and 2026-11-15; docs/notes/technical-skills.md): the fourth tab (Technical skills), thresholds 0/5/10/15/20, eighteen skills, 27 points (Tank Pocket (413) or Tank Depth (414), an either/or pair in row II). Every skill travels packed in the unused native modifier 47 (spot_enemy_traps), one value a rank at its bit, which exe patch 180 and srp parse: 401 bit 0..1, 402 bit 2..3, 403 bit 4..5, 404 bit 6..7, 411 bit 8..9, 412 bit 10, 413 bit 11, 414 bit 12, 444 bit 13, 422 bit 14, 423 bit 15, 431 bit 16..17, 432 bit 18, 433 bit 19, 441 bit 20..21, 442 bit 22, 443 bit 23. Tank Container (445, row V) has no bit: its data is the container (artefact_slots +1, as 522), which srp leaves out of the block of a kit that wears no oxygen tank. Names and descriptions are st_srp_technical_* in client-patches/localization.",
   "append_entry": [
     {
       "file": "gameplay/skills/skills_tree.options",
@@ -754,6 +754,33 @@
         "modifiers": [
           {
             "spot_enemy_traps_modifier": -15925248
+          }
+        ]
+      }
+    },
+    {
+      "file": "gameplay/skills/skills_tree.options",
+      "list": "skills_tree",
+      "expected_count": 68,
+      "unique_key": "id",
+      "value": {
+        "id": 445,
+        "levels_amount": 1,
+        "preconditions": {
+          "branch_points": 16
+        },
+        "ui": {
+          "position": [
+            4,
+            5
+          ],
+          "name": "st_srp_technical_445_name",
+          "description": "st_srp_technical_445_description",
+          "icon": 0
+        },
+        "modifiers": [
+          {
+            "artefact_slots_modifier": 1
           }
         ]
       }

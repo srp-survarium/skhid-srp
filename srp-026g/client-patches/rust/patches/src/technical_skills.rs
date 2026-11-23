@@ -47,25 +47,32 @@ pub fn on_sprint_cost(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 
 
-/// Last Gasp (442): the tank ran out.
-pub fn on_tank_empty(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    technical::tank_empty(ctx);
+/// Oxygen Rush (442): the tank spent its air for this tick.
+pub fn on_tank_spent(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    technical::tank_spent(ctx);
     Flow::Continue
 }
 
-/// Last Gasp's end, every simulation tick of every player.
+/// Oxygen Rush (442): the tank switched on counts its use from 0.
+pub fn on_tank_switch(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    technical::tank_switch(ctx);
+    Flow::Continue
+}
+
+/// Oxygen Rush's end, every simulation tick of every player.
 pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    technical::gasp_tick(ctx);
+    technical::oxygen_rush_tick(ctx);
     Flow::Continue
 }
 
-/// Last Gasp's speed.
+/// Oxygen Rush's speed.
 pub fn on_movement(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    technical::gasp_movement(ctx);
+    technical::oxygen_rush_movement(ctx);
     Flow::Continue
 }
 
-/// Last Gasp's saved word: none in a new tank and after a refill; saved and loaded with the tank.
+/// Oxygen Rush's saved words (the boost, the use): none in a new tank and after a refill; saved and
+/// loaded with the tank.
 pub fn on_tank_construct(ctx: &mut Context<'_>) -> Flow<NoExit> {
     technical::tank_construct(ctx);
     Flow::Continue

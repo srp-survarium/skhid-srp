@@ -239,6 +239,27 @@ package
                hud.show_player_list(true);
                hud.update_players(players());
                dots([],"a new match: nobody frozen");
+               // A round's restart, Artifact Hunt's: its 3 s show the round's line; the fade goes
+               // black; the countdown shows the kits and its time at once; an artefact offer still
+               // waits under the kits.
+               hud.freeze_tag_update(0,0,5,2200,4000,0,3000);
+               check(hud.contextInfo.visible && hud.contextInfo.contextText.text.length > 0,
+                  "the 3 s after a round show its line (the losing side's)");
+               hud.freeze_tag_update(0,0,4,3000,4000,0,3000);
+               check(hud.contextInfo.visible && hud.contextInfo.contextText.text.length > 0 && !hud.roundFade.visible,
+                  "the 3 s after a round show its line (the winning side's), no fade");
+               hud.freeze_tag_update(0,0,7,500,4000,0,1000);
+               check(hud.roundFade.visible,"the fade goes black");
+               hud.show_profiles_selector(true);
+               hud.freeze_tag_update(0,0,8,4200,4000,0,5000);
+               check(hud.contextInfo.visible && hud.contextInfo.contextText.text.length > 0,
+                  "the countdown's time shown with the kits");
+               hud.freeze_tag_update(0,0,0,0,4000,0);
+               check(!hud.roundFade.visible,"the round in play: no fade");
+               hud.show_artefact_offer("st_artefact_take_teammate");
+               check(!hud.contextInfo.visible,"an artefact offer waits under the kits");
+               hud.show_artefact_offer("");
+               hud.show_profiles_selector(false);
                trace("FREEZE RESULT " + (failures.length ? "fail: " + failures.join("; ") : "pass"));
                phase = 3;
             }
