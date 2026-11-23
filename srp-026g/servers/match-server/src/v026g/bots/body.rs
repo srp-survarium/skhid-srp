@@ -242,7 +242,7 @@ pub(crate) mod carrier_levels {
 }
 
 /// [A388 step 2] Where a ground step whose kept controller left the ground ([`KeptStep::airborne`]) goes: the floor it falls onto,
-/// the highest under the controller's feet `to` lower than a step under the top `top` and open above it ([`under_edge`]), and the
+/// the highest of the controller's column at `to` lower than a step under the top `top` and open above it ([`column_floor_below`]), and the
 /// feet at `to` on it. None when no such floor is there (the body is held as the grid's edge has it until a world shows it), and
 /// none while the client's walker still has ground within a step under `to` ([`WalkGrid::walker_ground_below`], A366's test): a
 /// slow body's `step_down` looks only 0.05 m under its feet, so the exe finds no ground on most ticks down a ramp steeper than about
@@ -257,7 +257,13 @@ pub(crate) fn kept_off_ground(grid: &WalkGrid, to: Vec3, top: f32) -> KeptOff {
     } else if grid.walker_ground_below(to, top + WALKER_GROUND_OVER_M, WALKER_GROUND_OVER_M + step).is_some() {
         KeptOff::WalkerGround
     } else {
-        match under_edge(grid, to, top, top - step) {
+        let down = column_floor_below(grid, to, top, top - step);
+        // [fix-lip] The bench's count of the walk-offs whose floor the old square ([`under_edge`]) would have chosen otherwise.
+        #[cfg(test)]
+        if down != under_edge(grid, to, top, top - step) {
+            kept_edges::column_differs();
+        }
+        match down {
             Some(down) => KeptOff::Left(down, Vec3::new(to.x, grid.position(down).y, to.z)),
             None => KeptOff::NoFloor,
         }
@@ -2729,6 +2735,21 @@ pub(crate) mod kept_edges {
         (OFF[0].load(Relaxed), OFF[1].load(Relaxed), OFF[2].load(Relaxed))
     }
 
+    /// [fix-lip] The walk-off tests whose column floor ([`super::column_floor_below`]) differs from the one the old square
+    /// ([`super::under_edge`]) gave.
+    #[cfg(test)]
+    static COLUMN_DIFFERS: AtomicU64 = AtomicU64::new(0);
+
+    #[cfg(test)]
+    pub(crate) fn column_differs() {
+        COLUMN_DIFFERS.fetch_add(1, Relaxed);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn column_differs_count() -> u64 {
+        COLUMN_DIFFERS.load(Relaxed)
+    }
+
     /// [`counts`] since the last call, and zero again.
     pub(crate) fn take() -> (u64, u64, u64) {
         (OFF[0].swap(0, Relaxed), OFF[1].swap(0, Relaxed), OFF[2].swap(0, Relaxed))
@@ -3245,16 +3266,31 @@ pub struct StillKept {
 /// hold the falling body, which falls past it (nav-team on #1759: with the whole 0.38 m square, 4 of 34 side ledges under 0.4 m
 /// off were fixed).
 fn column_floor(grid: &WalkGrid, feet: Vec3) -> Option<NodeId> {
+    column_floors(grid, feet)
+        .filter(|&node| grid.position(node).y <= feet.y + FIX_ABOVE_M)
+        .max_by(|&a, &b| grid.position(a).y.total_cmp(&grid.position(b).y))
+}
+
+/// The floors in the cells of the points where a top holds a capsule at `feet` ([`column_floor`]'s): its centre and rings at
+/// `Body::hold_radius` and half of it.
+fn column_floors(grid: &WalkGrid, feet: Vec3) -> impl Iterator<Item = NodeId> + '_ {
     let r = grid.body().hold_radius();
-    let ring = (0..16).map(|i| {
+    let ring = (0..16).map(move |i| {
         let t = (i % 8) as f32 * std::f32::consts::FRAC_PI_4;
         let r = if i < 8 { r } else { 0.5 * r };
         (feet.x + r * t.cos(), feet.z + r * t.sin())
     });
-    std::iter::once((feet.x, feet.z))
-        .chain(ring)
-        .flat_map(|(x, z)| grid.floors_in([x, z, x, z]))
-        .filter(|&node| grid.position(node).y <= feet.y + FIX_ABOVE_M)
+    std::iter::once((feet.x, feet.z)).chain(ring).flat_map(move |(x, z)| grid.floors_in([x, z, x, z]))
+}
+
+/// [fix-lip] The floor a body whose kept controller left the ground at `feet` comes down on ([`kept_off_ground`]): the highest floor
+/// of its column ([`column_floors`]) lower than `below` and open above `top` ([`WalkGrid::open_to`]). Not [`under_edge`]'s square of
+/// the radius and half a cell: a floor only that square reaches does not hold the falling capsule, which falls past it (the combined
+/// bench's batt-m7-s3, bot 5 at 108.5 s: a floor 0.62 m off took the reckoning, and its next step was put on a drop's landing 1.4 m
+/// away, the route's own; the game's body fell straight into the pit under the edge, exe rig_real_v3).
+fn column_floor_below(grid: &WalkGrid, feet: Vec3, top: f32, below: f32) -> Option<NodeId> {
+    column_floors(grid, feet)
+        .filter(|&node| grid.position(node).y < below && grid.open_to(node, top))
         .max_by(|&a, &b| grid.position(a).y.total_cmp(&grid.position(b).y))
 }
 
@@ -4895,6 +4931,29 @@ pub(super) mod tests {
         assert!(floor_of(FixFloor::UnderInAir, Vec3::new(9.8, 0.5, 5.0), Some(3.0)) < 0.1);
         // On the top at its edge, not going down: the top.
         assert!(floor_of(FixFloor::UnderInAir, Vec3::new(10.1, 1.3, 5.0), Some(0.0)) > 1.2);
+    }
+
+    /// [fix-lip] A kept controller's walk-off ([`kept_off_ground`]) comes down on its column's floor ([`column_floor_below`]): past a
+    /// top's edge with a shelf beside the column (in the old square, out of the capsule's hold rings), the floor straight under the
+    /// feet, the feet where they went over.
+    #[test]
+    fn a_kept_walk_off_comes_down_on_its_columns_floor_not_a_shelf_beside_it() {
+        // A top (y 3) to x 10; past it the pit floor (y 0) and, to the side (z under 4.4: its last cells end at 4.5), a shelf (y 2).
+        let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 10.0, 10.0, 3.0).to_vec();
+        triangles.extend(floor(10.0, 0.0, 20.0, 10.0, 0.0));
+        triangles.extend(floor(10.0, 0.0, 14.0, 4.4, 2.0));
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default()).with_client_walker(&triangles);
+        // Off the top's edge at z 5: the capsule's hold rings (0.311 m, to z 4.69) miss the shelf; the old square (0.505 m, to z 4.495) meets it.
+        let to = Vec3::new(10.3, 3.0, 5.0);
+        let shelf = under_edge(&grid, to, 3.0, 3.0 - grid.body().step).map(|n| grid.position(n).y);
+        assert!(shelf.is_some_and(|y| (y - 2.0).abs() < 0.05), "the old square takes the shelf: {shelf:?}");
+        match kept_off_ground(&grid, to, 3.0) {
+            KeptOff::Left(down, feet) => {
+                assert!(grid.position(down).y.abs() < 0.05, "the pit, not the shelf: {:?}", grid.position(down));
+                assert_eq!((feet.x, feet.z), (to.x, to.z), "straight down");
+            }
+            other => panic!("a walk-off: {other:?}"),
+        }
     }
 
     /// [fix-lip] [`FixFloor::UnderInAir`] keeps a standing body at its height ([`StillKept`]): over no floor of its column (a rim
