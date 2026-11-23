@@ -69,6 +69,7 @@ pub mod lobby_menu;
 pub mod login;
 pub mod openssl;
 pub mod mouse;
+pub mod mouse_device;
 pub mod game_log;
 pub mod log;
 pub mod run_log;
