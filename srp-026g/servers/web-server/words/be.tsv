@@ -683,3 +683,15 @@ Speed	Хуткасць
 bullet	куля
 sight	прыцэл
 hit	трапленне
+
+# The wiki's skills (a page built at a release: scripts/site-texts)
+Points	Ачкі	skills
+matches	матчаў	skills
+h	гадз	unit
+Tap a skill, then + or −.	Націсніце на навык, потым + або −.
+Click a skill to add a rank, right-click to take one back.	Клік дадае ранг, правы клік прыбірае.
+{n} point	{n} ачко	one
+{n} points	{n} ачкі	few
+{n} points	{n} ачкоў	many
+Maximum:	Максімум:
+or	або	skill

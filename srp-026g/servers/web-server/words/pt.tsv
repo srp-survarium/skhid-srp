@@ -683,3 +683,15 @@ Speed	Velocidade
 bullet	bala
 sight	mira
 hit	acerto
+
+# The wiki's skills (a page built at a release: scripts/site-texts)
+Points	Pontos	skills
+matches	partidas	skills
+h	h	unit
+Tap a skill, then + or −.	Toque em uma habilidade e depois em + ou −.
+Click a skill to add a rank, right-click to take one back.	Clique em uma habilidade para somar um rank; clique direito para tirar.
+{n} point	{n} ponto	one
+{n} points	{n} pontos	few
+{n} points	{n} pontos	many
+Maximum:	Máximo:
+or	ou	skill

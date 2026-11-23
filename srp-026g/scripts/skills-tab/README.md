@@ -29,7 +29,8 @@ every branch of the skill tree as the lobby draws it.
   script then draws that build as it is and changes nothing; there is no bar.
 - A tree is never squeezed: a card that does not fit goes to the next row; on a phone the whole
   tree scales down.
-- English and Ukrainian, like the rest of the wiki; the site's colours and type around the
+- Every language of the site's (one copy, `scripts/site-texts`: its words the site's, the game's texts each
+  language's), like the rest of the wiki; the site's colours and type around the
   game's own pictures.
 
 ## Build: the release does it

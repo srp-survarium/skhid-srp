@@ -683,3 +683,15 @@ Speed	Nopeus
 bullet	luoti
 sight	tähtäin
 hit	osuma
+
+# The wiki's skills (a page built at a release: scripts/site-texts)
+Points	Pisteet	skills
+matches	ottelua	skills
+h	h	unit
+Tap a skill, then + or −.	Napauta taitoa, sitten + tai −.
+Click a skill to add a rank, right-click to take one back.	Klikkaus lisää asteen, oikea klikkaus poistaa sen.
+{n} point	{n} piste	one
+{n} points	{n} pistettä	few
+{n} points	{n} pistettä	many
+Maximum:	Enintään:
+or	tai	skill

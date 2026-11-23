@@ -683,3 +683,15 @@ Speed	Prędkość
 bullet	pocisk
 sight	celownik
 hit	trafienie
+
+# The wiki's skills (a page built at a release: scripts/site-texts)
+Points	Punkty	skills
+matches	meczów	skills
+h	godz.	unit
+Tap a skill, then + or −.	Dotknij umiejętności, potem + lub −.
+Click a skill to add a rank, right-click to take one back.	Kliknięcie dodaje rangę, prawy przycisk ją odbiera.
+{n} point	{n} punkt	one
+{n} points	{n} punkty	few
+{n} points	{n} punktów	many
+Maximum:	Maksimum:
+or	lub	skill
