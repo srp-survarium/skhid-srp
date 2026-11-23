@@ -17,8 +17,8 @@ package
     // root.srp_keys from check.sh's binder table and the rows' keys; srp_bind_key giving a key to a row and
     // telling root.set_keybind, a key other match rows had taken from them), with check.sh's rows (the exe's:
     // hide_ui_026g.asm's `controls` in its order, their default keys) and every dictionary's texts:
-    // - the Controls tab: no Bindings button until the exe's texts are there, then at the foot of the left column
-    //   beside Default settings;
+    // - the Controls tab: its key lists hidden; no Bindings button until the exe's texts are there, then at the
+    //   right column's top over Default settings;
     // - the window over the screen at scale 1: the exe's table asked as it opens; every key the rows have drawn
     //   with its rows' actions on it (the keyboard, the mouse, or beside the mouse); the lists: every row but the
     //   chat's once, by kind in the exe's order, the lobby's last, each of a kind; nothing over anything else;
@@ -233,8 +233,7 @@ package
         {
             require(content.currentFrame == 2, "the Controls tab is frame 2: " + content.currentFrame);
             require(button != null && !button.visible, "no Bindings button before the exe's texts");
-            trace("KEYS tab: the game's list shows " + content.keysGame.height / content.keysGame.rowHeight + " of its "
-                + content.keysGame.dataProvider.length + " rows; " + rows.length + " rows in all");
+            trace("KEYS tab: " + rows.length + " rows the exe gives; the tab's lists shown: " + content.keysGame.visible);
         }
 
         private function withTexts():void
@@ -244,9 +243,12 @@ package
             var b:* = button;
             require(b.visible && b.alpha == 1 && b.label == language[TITLE], "the button shows the exe's text: " + b.label);
             var defaults:* = c.button_default_controls;
-            require(b.y == defaults.y && b.width == defaults.width && b.x + b.width < defaults.x,
-                "the button beside Default settings, in the left column: " + b.x + "," + b.y + " " + b.width);
-            require(c.keysLobby.y + c.keysLobby.height <= b.y, "the button under the lobby's keys");
+            require(b.x == defaults.x && b.width == defaults.width && b.y + b.height <= defaults.y && b.y <= c._slider_mouse_sens.y,
+                "the button at the right column's top, over Default settings: " + b.x + "," + b.y + " " + b.width + ", " + defaults.y);
+            for each (var hidden:* in [c.keysGame, c.keysLobby, c.keysChat, c.s_lobby, c.s_chat_keys])
+            {
+                require(!hidden.visible, hidden.name + " hidden: the key bindings are the window's alone");
+            }
             settings.selectIndex(0);
             menu.set_settings(0, []);
             require(!b.visible, "no button on the Gameplay tab");

@@ -21,8 +21,9 @@ package
     import survarium.menu.Settings;
 
     // Settings > Controls > Bindings (the owner, 2026-11-23: "controls > bindings > some new bigger window in
-    // similar style, but which can follow layout we already have"; "so it is visible the whole state"): a
-    // button at the foot of the Controls tab's left column, beside Default settings, opens a window in the
+    // similar style, but which can follow layout we already have"; "so it is visible the whole state"; "we
+    // don't need two"): the key bindings' one place. The Controls tab's lists are hidden; a button at the top of
+    // its right column, over Default settings, opens a window in the
     // Settings window's own skin (its frame and title bar: SrpSettingsGround, the title's text, its close
     // button) laid out as the owner's key page: the keyboard and the mouse with every bound key's action
     // written on it, the kinds' chips under them, and the bindings' lists by kind under those.
@@ -52,6 +53,9 @@ package
     {
         public static const NAME:String = "_srp_keys_window";
         public static const BUTTON:String = "_srp_keys_button";
+        // The tab's buttons (SetingsButton's height) and the room between them.
+        private static const BUTTON_HEIGHT:Number = 26;
+        private static const BUTTON_GAP:Number = 10;
         private static const KEYS_FRAME:int = 2;
         // The kinds of action, by the exe's action ids (item_hotkeys_026g.asm's `actions`), and their colours: the
         // groups of the exe's rows (hide_ui_026g.asm's `controls`): movement; the weapon's, melee and use as combat;
@@ -208,13 +212,15 @@ package
             show();
         }
 
-        // After the tab's layout (Settings.layoutControls): at the foot of the left column as Default settings
-        // is at the right column's, `shift` to the left of it (the left column's lists' x to the right's).
-        public function layout(defaults:DisplayObject, shift:Number):void
+        // After the tab's layout (Settings.layoutControls): the key bindings' place on the tab, the right column
+        // (its lists hidden: the bindings are this window's alone; the owner, 2026-11-23: "we don't need two"):
+        // the button at its top (`top`), as wide as Default settings, and Default settings under it.
+        public function layout(defaults:DisplayObject, top:Number):void
         {
             button.width = defaults.width;
-            button.x = Math.round(defaults.x + shift);
-            button.y = defaults.y;
+            button.x = defaults.x;
+            button.y = Math.round(top);
+            defaults.y = button.y + BUTTON_HEIGHT + BUTTON_GAP;
         }
 
         // The rows (Settings.applyKeys, at each bind of the Controls tab).
@@ -332,11 +338,20 @@ package
 
         private function clear():void
         {
-            body.removeChildren();
+            // (Scaleform's removeChildren throws on an empty container: one at a time)
+            empty(body);
             body.graphics.clear();
-            chips.removeChildren();
+            empty(chips);
             keyViews = [];
             rowViews = [];
+        }
+
+        private static function empty(container:Sprite):void
+        {
+            while (container.numChildren > 0)
+            {
+                container.removeChildAt(container.numChildren - 1);
+            }
         }
 
         // The window's rows: the exe's but the chat's (its keys cannot be set: their key boxes' type 0).
@@ -575,7 +590,7 @@ package
             var g:Graphics = shell.graphics;
             g.lineStyle(1, BOX_EDGE_FREE, 1, true);
             g.beginFill(BOX_FILL, 0.85);
-            g.drawRoundRectComplex(x, y, MOUSE_UNITS * unit, MOUSE_HEIGHT * unit, unit * 1.3, unit * 1.3, unit * 1.2, unit * 1.2);
+            g.drawRoundRect(x, y, MOUSE_UNITS * unit, MOUSE_HEIGHT * unit, unit * 2.4, unit * 2.4);
             g.endFill();
             body.addChild(shell);
             for each (var part:Array in MOUSE)

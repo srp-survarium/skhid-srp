@@ -1188,7 +1188,17 @@ package survarium.menu
          // left under the last one showed as room for one more; the owner, 2026-11-11): as many as
          // fit over the chat's heading, the gap to it the tab's own at most, GAME_LIST_GAP at least
          c.keysGame.height = Math.floor((c.s_chat_keys.y - GAME_LIST_GAP - c.keysGame.y) / c.keysGame.rowHeight) * c.keysGame.rowHeight;
-         this._keysWindow.layout(c.button_default_controls,c.keysLobby.x - c.keysGame.x);
+         // the key bindings are the Bindings window's alone (the owner, 2026-11-23: "we don't need two"): the
+         // tab's lists and their headings hidden, the Bindings button and Default settings at the right
+         // column's top (the exe still binds and fills the lists by name: they stay in the timeline)
+         for each(var list:String in ["keysGame","keysLobby","keysChat","s_lobby","s_chat_keys","s_game"])
+         {
+            if(c[list] is DisplayObject)
+            {
+               DisplayObject(c[list]).visible = false;
+            }
+         }
+         this._keysWindow.layout(c.button_default_controls,c.keysGame.y);
       }
       
       // The option of the HUD group whose checkbox `control` is, or null.
