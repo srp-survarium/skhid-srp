@@ -25,6 +25,7 @@ use std::sync::OnceLock;
 use std::time::Instant;
 
 use mapdata::digest::Digest;
+use mapdata::grid::memo::{Memo, Mode};
 use mapdata::{Body, GridExtras, MapData, OffMeshLinks, RayTree, WalkGrid, World};
 
 use super::settings::bench_settings;
@@ -64,6 +65,15 @@ fn make_shared_dir(dir: &Path) -> std::io::Result<()> {
         std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o1777))?;
     }
     Ok(())
+}
+
+/// [incremental grids PR 5] The grid build's job memo mode (`SRP_BENCH_GRID_MEMO`, [`Mode::parse`]); unset or empty: off.
+fn memo_mode() -> Mode {
+    bench_settings()
+        .var("SRP_BENCH_GRID_MEMO")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .map_or(Mode::Off, |v| Mode::parse(&v).unwrap_or_else(|why| panic!("{why}")))
 }
 
 /// How a part of the world came.
@@ -108,11 +118,30 @@ pub(super) fn world(
         }
         digest.finish()
     };
+    // [incremental grids PR 5] The job memo (`SRP_BENCH_GRID_MEMO`, off by default): its segments under the cache's `memo/`, a
+    // folder a world ([`World::memo_global`]). A grid that read the memo (`use`, `verify`) is named apart (`bench-grid-memo-`)
+    // until the memo's byte proof passes: a memo build never lands under a full build's name. A `write-only` build reads none of
+    // it (every job runs, the memo only stores): it is a full build and keeps the full build's name, so a round built
+    // write-only fills the memo and is read by every later run.
+    let memo_mode = memo_mode();
+    let named = match memo_mode {
+        Mode::Off | Mode::WriteOnly => "bench-grid",
+        Mode::Use | Mode::Verify { .. } => "bench-grid-memo",
+    };
     let (grid, grid_made) = cache.read_or_build(
-        format!("bench-grid-{}-{grid_key:016x}.bin", mapdata::source::short(mapdata::source::SRC_GRID)),
+        format!("{named}-{}-{grid_key:016x}.bin", mapdata::source::short(mapdata::source::SRC_GRID)),
         |path| WalkGrid::read(path, grid_key, body),
         || {
-            let (grid, stats) = World::map_grid_with_stats(&map, &walker, cell, body, links);
+            let global = World::memo_global(&map, &walker, map_file, cell, body, links);
+            let memo_dir = cache.dir.join("memo").join(mapdata::source::short(global));
+            let mut memo = Memo::new(memo_mode, memo_dir, global);
+            let (grid, stats) = World::map_grid_memo(&map, &walker, cell, body, links, &mut memo);
+            if memo_mode != Mode::Off {
+                eprintln!("  grid cache: memo {memo_mode:?} in {}", cache.dir.join("memo").join(mapdata::source::short(global)).display());
+                for line in memo.table().lines() {
+                    eprintln!("  grid cache: memo: {line}");
+                }
+            }
             // [incremental grids] Where the build's time went: per pass and per `parallel` call (`mapdata::grid::timing`).
             for line in stats.timing.table().lines() {
                 eprintln!("  grid cache: build time: {line}");

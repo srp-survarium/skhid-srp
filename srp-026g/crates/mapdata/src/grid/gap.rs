@@ -2290,6 +2290,101 @@ impl WalkGrid {
     }
 }
 
+
+/// [incremental grids PR 5] The memo's codecs of a flown press's parts ([`super::memo::MemoCodec`]): every field exactly, as
+/// numbers (not the built file's centimetre codes, which leave out what a file does not hold).
+mod memo_codecs {
+    use super::super::memo::{Codec, MemoCodec};
+    use super::{Aim, Mask, PressLead, Share, Takeoff};
+
+    impl MemoCodec for PressLead {
+        const TAG: u32 = 0x5052_4c01;
+        fn encode(&self, out: &mut Codec<'_>) {
+            out.put_u32(u32::from(self.0));
+        }
+        fn decode(input: &mut Codec<'_>) -> Option<Self> {
+            u16::try_from(input.u32()?).ok().map(Self)
+        }
+    }
+
+    impl MemoCodec for Share {
+        const TAG: u32 = 0x5348_5201;
+        fn encode(&self, out: &mut Codec<'_>) {
+            match self.0 {
+                None => out.put_u8(0),
+                Some(Mask(bits)) => {
+                    out.put_u8(1);
+                    out.put_u32(u32::from(bits));
+                }
+            }
+        }
+        fn decode(input: &mut Codec<'_>) -> Option<Self> {
+            match input.u8()? {
+                0 => Some(Self(None)),
+                1 => u16::try_from(input.u32()?).ok().map(|bits| Self(Some(Mask(bits)))),
+                _ => None,
+            }
+        }
+    }
+
+    impl MemoCodec for Aim {
+        const TAG: u32 = 0x4149_4d01;
+        fn encode(&self, out: &mut Codec<'_>) {
+            out.put_u8(self.side as u8);
+            out.put_u8(self.turn as u8);
+        }
+        fn decode(input: &mut Codec<'_>) -> Option<Self> {
+            Some(Self { side: input.u8()? as i8, turn: input.u8()? as i8 })
+        }
+    }
+
+    impl MemoCodec for Takeoff {
+        const TAG: u32 = 0x544b_4f01;
+        fn encode(&self, out: &mut Codec<'_>) {
+            match *self {
+                Takeoff::Press(lead) => {
+                    out.put_u8(0);
+                    lead.encode(out);
+                }
+                Takeoff::WalkOff => out.put_u8(1),
+                Takeoff::WalkOffCrouched => out.put_u8(2),
+                Takeoff::Sprint(lead) => {
+                    out.put_u8(3);
+                    lead.encode(out);
+                }
+                Takeoff::Slow { lead, steps } => {
+                    out.put_u8(4);
+                    lead.encode(out);
+                    out.put_u8(steps);
+                }
+                Takeoff::Climb => out.put_u8(5),
+                Takeoff::Release { at, crouched } => {
+                    out.put_u8(6);
+                    at.encode(out);
+                    crouched.encode(out);
+                }
+                Takeoff::SprintHeld(lead) => {
+                    out.put_u8(7);
+                    lead.encode(out);
+                }
+            }
+        }
+        fn decode(input: &mut Codec<'_>) -> Option<Self> {
+            Some(match input.u8()? {
+                0 => Takeoff::Press(PressLead::decode(input)?),
+                1 => Takeoff::WalkOff,
+                2 => Takeoff::WalkOffCrouched,
+                3 => Takeoff::Sprint(PressLead::decode(input)?),
+                4 => Takeoff::Slow { lead: PressLead::decode(input)?, steps: input.u8()? },
+                5 => Takeoff::Climb,
+                6 => Takeoff::Release { at: PressLead::decode(input)?, crouched: bool::decode(input)? },
+                7 => Takeoff::SprintHeld(PressLead::decode(input)?),
+                _ => return None,
+            })
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

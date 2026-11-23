@@ -25,9 +25,15 @@ fn main() {
          pub const SRC_GRID: u128 = 0x{:032x};\n\
          /// The digest of what a sight tree's build and its file reach.\n\
          pub const SRC_SIGHT: u128 = 0x{:032x};\n\
+         /// [incremental grids PR 5] Each memo site's digest (`mapdata-srchash`'s `MEMO_SITES`).\n\
+         pub const SITES: &[(&str, u128)] = &[{}];\n\
          /// Each root's items by file (`mapdata-srchash`'s report).\n\
          pub const REPORT: &str = {:?};\n",
-        digests.all, digests.grid, digests.sight, digests.report
+        digests.all,
+        digests.grid,
+        digests.sight,
+        digests.sites.iter().map(|(id, d)| format!("({id:?}, 0x{d:032x})")).collect::<Vec<_>>().join(", "),
+        digests.report
     );
     std::fs::write(&out, text).unwrap_or_else(|why| panic!("{}: {why}", out.display()));
 }
