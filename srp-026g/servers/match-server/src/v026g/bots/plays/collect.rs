@@ -141,7 +141,7 @@ const USE_SEEN_WAIT_MS: u32 = 3_000;
 /// after it; a fire press while carrying drops the battery in the game
 /// (0x2D8E73..0x2D8EC8, PROVEN). In the bench's traces every fire drop
 /// left was 0.45-0.85 s after a take. GUESS: the worlds' 2 s.
-pub(super) const TAKE_HOLD_FIRE_MS: u32 = 2_000;
+const TAKE_HOLD_FIRE_MS: u32 = 2_000;
 /// A carrier letting go of its battery presses again (fire, which drops it
 /// as the drop key does: 0x2D8E73..0x2D8EC8, PROVEN) if the view still
 /// shows it carried this long after: past the worlds' lag. GUESS.

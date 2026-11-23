@@ -13,7 +13,8 @@
 //!   takes from.
 //!
 //! The take re-forecasts what is left every [`CHECK_MS`] and walks out at once when the rule that let it in no longer holds
-//! (or neither does), and leaves the stand after [`STAND_S`].
+//! (or neither does). The stand is the client's use ([`hold_ms`]): the press on the tick the view ray meets the box, carried
+//! once the holster ends; a world past that with no carry is a use that started nothing, and the take walks out.
 
 use std::sync::Arc;
 
@@ -24,11 +25,26 @@ use crate::v026g::bots::anomalies::EnergyCore;
 use crate::v026g::bots::nav_log::{self, Kind, PREFIX};
 use crate::v026g::bots::switch_take::{self, CARRIER_SHARE, Forecast, Pace as Gait, Part, RUN_MPS, SPRINT_MPS};
 use crate::v026g::bots::zone_cost::{Cost, Reserve};
-use crate::v026g::drive::key;
 
-/// How long the take stands at the battery at most, s: the crossings' take time (`collect::CROSS_TAKE_S`, GUESS: the bench's
-/// takes 2-4 s), here a limit: the take walks out after it, battery or not.
-pub const STAND_S: f32 = 4.0;
+/// [anomaly batteries] How long a use of a battery on the ground takes from the press to the carry, ms: the holster of the
+/// weapon in the hands, `hide_time / (1 + S22)` on the 50 ms tick (`tick_active_object` 0x2D7650, the holster's clip
+/// stretched over `max(0, 1 + S22)` 0x30D9C0 -> 0x30DF10; `docs/notes/using_the_world.md`: the rule matched 1,958 of 1,973
+/// bot takes in the live recordings). The largest `hide_time` of the game data's weapons with S22 at 0 (a skill only
+/// shortens it): the longest any bot's use takes. The carry state's `take_time` (0.5 s, `states[0]/take_time`) plays after
+/// the carry and does not hold the body.
+pub fn hold_ms() -> u32 {
+    static HOLD: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+    *HOLD.get_or_init(|| {
+        let tick = crate::v026g::bots::anomalies::TICK_MS;
+        let longest = crate::v026g::bots::guns::guns().iter().map(|g| g.hide_ms).max().unwrap_or(0);
+        longest.div_ceil(tick) * tick
+    })
+}
+
+/// [`hold_ms`] in seconds, for the forecast's stand.
+fn hold_s() -> f32 {
+    hold_ms() as f32 / 1000.0
+}
 /// How often the take forecasts what is left of it again, ms.
 pub const CHECK_MS: u32 = 500;
 /// A body moving toward the way's entry or the stand and this near it, m (across), counts as bound for the core's zones (a
@@ -77,8 +93,8 @@ pub struct Plan {
 pub enum Phase {
     /// Walking the way in.
     In,
-    /// At the stand since `since`, its last USE at `last_use` (0: none).
-    Stand { since: u32, last_use: u32 },
+    /// At the stand since `since`.
+    Stand { since: u32 },
     /// Walking the way back out, for `why`.
     Out { why: &'static str },
 }
@@ -96,6 +112,9 @@ pub struct Take {
     pub start: Reserve,
     /// The stall watch of the walk in or out.
     pub watch: Watch,
+    /// When the take began, and when its USE was pressed (the drive's press on the view ray's meet), if it was.
+    pub begun: u32,
+    pub pressed: Option<u32>,
 }
 
 /// [stall] A straight walk's progress along the way: since when the window runs and the metres along the way then; the floor
@@ -339,7 +358,7 @@ pub fn decide(cx: &Ctx, at: Vec3, every: bool) -> Result<Plan, &'static str> {
     // The gait in with the least damage (the most of any pool), then the lower energy peak.
     let (gait, f) = [Gait::Run, Gait::Sprint]
         .into_iter()
-        .map(|gait| (gait, forecast_rest(cx, core, &way, 0, gait, STAND_S, true, others_per_s)))
+        .map(|gait| (gait, forecast_rest(cx, core, &way, 0, gait, hold_s(), true, others_per_s)))
         .min_by(|(_, a), (_, b)| a.cost.most().total_cmp(&b.cost.most()).then(a.energy_peak.total_cmp(&b.energy_peak)))
         .expect("two gaits");
     let spend = cx.zone_spend();
@@ -376,7 +395,7 @@ impl Take {
             let text = line(cx, at, core, "begun", grid.position(plan.way[0]), switch_take::way_m(grid, &plan.way), plan.gait, 0, &plan.forecast);
             cx.lines.push(Kind::ZoneTake, None, text);
         }
-        Self { plan, phase: Phase::In, along: 0, checked: cx.now, start: cx.budget().reserve, watch: Watch::from(cx.now, 0, 0.0) }
+        Self { plan, phase: Phase::In, along: 0, checked: cx.now, start: cx.budget().reserve, watch: Watch::from(cx.now, 0, 0.0), begun: cx.now, pressed: None }
     }
 }
 
@@ -495,24 +514,40 @@ pub fn step(take: &mut Take, target: TargetRef, cx: &Ctx) -> Next {
         leave(take, stall, None);
     }
     let out = matches!(take.phase, Phase::Out { .. });
+    // The take's USE, pressed by the drive on the tick the view ray met the box (kept: the drive's note lasts while asked).
+    if take.pressed.is_none()
+        && let Some((pressed_at, time)) = cx.bot.use_pressed
+        && (pressed_at - at).length() < 0.01
+        && time >= take.begun
+    {
+        take.pressed = Some(time);
+    }
     if !out {
         if carrying {
             leave(take, "carrying the battery", None);
         } else if lying.is_none() {
             leave(take, "the battery is gone", None);
-        } else if let Phase::Stand { since, .. } = take.phase
-            && cx.now >= since + (STAND_S * 1000.0) as u32
+        } else if let Some(pressed) = take.pressed
+            && cx.me.seen_at >= pressed + hold_ms()
         {
-            leave(take, "stood its time", None);
+            // A world past the press and the hold, and no carry: the use started nothing (an ended use starts whole again at
+            // a new press, 0x2D88B1; no second hold was forecast).
+            leave(take, "the use started nothing (a world past the press and the hold shows no carry)", None);
+        } else if take.pressed.is_none()
+            && let Phase::Stand { since } = take.phase
+            && cx.now > since + STALL_LEG_MS
+        {
+            leave(take, "stalled: no press at the stand over 2 s", None);
         } else if cx.now >= take.checked + CHECK_MS {
             take.checked = cx.now;
             // What is left, forecast again from here: the rule that let the take in, or the other, must still hold, and the
             // pools keep what a crossing walking inside gives up at (`Ctx::zone_give_up_left`).
             let (n, others_per_s) = others(cx, core, entry, grid.position(stand_node));
-            let (stand_s, along) = match take.phase {
-                Phase::Stand { since, .. } => (STAND_S - cx.now.saturating_sub(since) as f32 / 1000.0, way.len() - 1),
-                _ => (STAND_S, take.along),
+            let stand_s = match take.pressed {
+                Some(pressed) => (pressed + hold_ms()).saturating_sub(cx.now) as f32 / 1000.0,
+                None => hold_s(),
             };
+            let along = if matches!(take.phase, Phase::Stand { .. }) { way.len() - 1 } else { take.along };
             let f = forecast_rest(cx, core, &way, along, take.plan.gait, stand_s.max(0.0), true, others_per_s);
             let spend = cx.zone_spend();
             let verdict = judge(cx, &f, spend.left, spend.share);
@@ -547,15 +582,15 @@ pub fn step(take: &mut Take, target: TargetRef, cx: &Ctx) -> Next {
         }
         Phase::In => {
             if cx.in_use_reach(at) || take.along + 1 >= way.len() {
-                take.phase = Phase::Stand { since: cx.now, last_use: 0 };
+                take.phase = Phase::Stand { since: cx.now };
                 return step(take, target, cx);
             }
             let to_stand = (grid.position(stand_node) - me).length();
             let (_, to) = ahead(grid, &way, take.along, false);
             if to_stand <= LAST_M {
-                return Next::Step(Step::Continue(
-                    Intent::to(to, Pace::Walk).within(0.3).straight().zone_ok().looking(Look::Use(at)).pressing_use_on_meet(at),
-                ));
+                let intent = Intent::to(to, Pace::Walk).within(0.3).straight().zone_ok().looking(Look::Use(at));
+                let intent = if take.pressed.is_none() { intent.pressing_use_on_meet(at) } else { intent.hold_fire() };
+                return Next::Step(Step::Continue(intent));
             }
             let pace = match take.plan.gait {
                 Gait::Sprint => Pace::Run,
@@ -563,25 +598,19 @@ pub fn step(take: &mut Take, target: TargetRef, cx: &Ctx) -> Next {
             };
             Next::Step(Step::Continue(Intent::to(to, pace).within(0.3).straight().zone_ok()))
         }
-        Phase::Stand { since, last_use } => {
-            let every = (cx.num(super::PlayKind::Collect, "use_every_s") * 1000.0) as u32;
-            if !cx.in_use_reach(at) {
-                return Next::Step(Step::Continue(
-                    Intent::to(grid.position(stand_node), Pace::Walk).within(0.0).straight().zone_ok().looking(Look::Use(at)),
-                ));
-            }
-            let mut intent = Intent::stay().looking(Look::Use(at)).zone_ok();
-            let last_use = if last_use == 0 || cx.now >= last_use + every {
-                intent = intent.pressing(key::USE);
-                take.phase = Phase::Stand { since, last_use: cx.now.max(1) };
-                cx.now.max(1)
-            } else {
-                last_use
+        Phase::Stand { .. } => {
+            // Pressed: still, the view on it, no fire (a use goes on with no key or look, 0x300830; a firing weapon only
+            // delays the holster). Not yet: the press on the tick the view ray meets the box, from within the use's reach.
+            let intent = match take.pressed {
+                Some(_) => Intent::stay().looking(Look::Use(at)).zone_ok().hold_fire(),
+                None if cx.in_use_reach(at) => Intent::stay().looking(Look::Use(at)).zone_ok().pressing_use_on_meet(at),
+                None => Intent::to(grid.position(stand_node), Pace::Walk)
+                    .within(0.0)
+                    .straight()
+                    .zone_ok()
+                    .looking(Look::Use(at))
+                    .pressing_use_on_meet(at),
             };
-            // A use lately: it may carry already without knowing it (the Take's rule).
-            if cx.now < last_use + super::collect::TAKE_HOLD_FIRE_MS {
-                intent = intent.hold_fire();
-            }
             Next::Step(Step::Continue(intent))
         }
     }
@@ -590,6 +619,15 @@ pub fn step(take: &mut Take, target: TargetRef, cx: &Ctx) -> Next {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The take's hold is the longest holster of the game data's weapons, on the 50 ms tick (printed: the PR's table).
+    #[test]
+    fn the_hold_is_the_longest_holster_on_the_tick() {
+        let longest = crate::v026g::bots::guns::guns().iter().max_by_key(|g| g.hide_ms).expect("weapons");
+        eprintln!("hold {} ms: {} hide_time {} ms", hold_ms(), longest.item, longest.hide_ms);
+        assert_eq!(hold_ms() % 50, 0);
+        assert!(hold_ms() >= longest.hide_ms && hold_ms() < longest.hide_ms + 50);
+    }
 
     /// [stall] A walk making its pace goes on; under half its pace's way over 1 s, or one floor over 2 s, is a stall.
     #[test]
