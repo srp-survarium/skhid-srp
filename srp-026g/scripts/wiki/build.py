@@ -298,7 +298,7 @@ def render(data, script_url):
     out.append('<div id="weapon-list">')
 
     def stat(label, value, unit=""):
-        return f'<div><dt>{label}</dt><dd>{number(value)}{(" <small>" + unit + "</small>") if unit else ""}</dd></div>'
+        return f'<div><dt title="{label}">{label}</dt><dd>{number(value)}{(" <small>" + unit + "</small>") if unit else ""}</dd></div>'
 
     for key, w in sorted(data["weapons"].items(), key=lambda kv: (kv[1]["item_level"], english_title(kv[1]).casefold())):
         name = title(w)
@@ -318,7 +318,7 @@ def render(data, script_url):
         else:
             out.append('<span class="weapon-image" aria-hidden="true"></span>')
         out.append(f'<span class="weapon-title"><strong>{esc(name)}</strong><span>{esc(cls)} · {t("Level")} {number(w["item_level"])}</span></span>')
-        out.append('<dl class="quick-stats">' + f'<div><dt>{t("Damage")}</dt><dd>{esc(damage["text"])}</dd></div>'
+        out.append('<dl class="quick-stats">' + f'<div><dt title="{t("Damage")}">{t("Damage")}</dt><dd>{esc(damage["text"])}</dd></div>'
                    + stat(t("Fire rate"), w["rounds_per_minute"], t("rpm", "unit"))
                    + stat(t("Magazine"), w["magazine_capacity"])
                    + stat(t("Weight"), w["weight"], t("kg", "unit")) + '</dl>')

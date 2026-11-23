@@ -165,23 +165,37 @@ try {
   await evaluate("document.querySelector('#wpn_vityaz-round-btn').click();document.querySelector('#wpn_vityaz-round-ammo_9x19p_7n31').click()");
   assert.equal(await evaluate("new URL(document.querySelector('#wpn_vityaz .weapon-simulate a').href).search"), '?lang=en&a=wpn_vityaz&ra=ammo_9x19p_7n31');
   // The list's quick stats are the same columns in every row, whatever a language makes of
-  // them: Russian (the longest headers) and German (the longest damage, "× 10 Schrotkugeln"),
-  // each column's left edge one, and no text past its column, wide and on a phone.
-  for (const [width, height] of [[1440, 1000], [390, 844]]) {
-    await send('browsingContext.setViewport', {context, viewport: {width, height}, devicePixelRatio: 1});
+  // them: Russian (the longest headers) and German (the longest damage, "× 10 Schrotkugeln").
+  // Each column's left edge one; nothing past its column; a header one line (cut with an
+  // ellipsis, its title whole, where its column is narrower); a row's values on one line.
+  for (const width of [1440, 1280, 960, 640, 390]) {
+    await send('browsingContext.setViewport', {context, viewport: {width, height: 900}, devicePixelRatio: 1});
     for (const lang of ['ru', 'de']) {
       await navigate(`/wiki/weapons?lang=${lang}`);
       const columns = JSON.parse(await evaluate(`JSON.stringify((() => {
-        const lefts = [], over = [];
-        for (const dl of document.querySelectorAll('#weapon-list .quick-stats')) [...dl.children].forEach((cell, k) => {
-          const box = cell.getBoundingClientRect();
-          (lefts[k] ??= new Set()).add(Math.round(box.left));
-          for (const part of cell.children) if (part.getBoundingClientRect().right > box.right + 1) over.push(part.textContent);
-        });
-        return {lefts: lefts.map(set => set.size), over};
+        const lefts = [], over = [], tall = [], uncut = [], tops = [];
+        for (const dl of document.querySelectorAll('#weapon-list .quick-stats')) {
+          const valueTops = new Set();
+          [...dl.children].forEach((cell, k) => {
+            const box = cell.getBoundingClientRect(), dt = cell.querySelector('dt'), dd = cell.querySelector('dd');
+            (lefts[k] ??= new Set()).add(Math.round(box.left));
+            if (dd.getBoundingClientRect().right > box.right + 1) over.push(dd.textContent);
+            const line = parseFloat(getComputedStyle(dt).lineHeight) || dt.getBoundingClientRect().height;
+            if (dt.getBoundingClientRect().height > line * 1.5) tall.push(dt.textContent);
+            const style = getComputedStyle(dt);
+            if (dt.scrollWidth > dt.clientWidth && (style.textOverflow !== 'ellipsis' || dt.title !== dt.textContent)) uncut.push(dt.textContent);
+            valueTops.add(Math.round(dd.getBoundingClientRect().top));
+          });
+          tops.push(valueTops.size);
+        }
+        return {lefts: lefts.map(set => set.size), over, tall, uncut, tops: Math.max(...tops)};
       })())`));
-      assert.deepEqual(columns.lefts, [1, 1, 1, 1], `${lang} at ${width} px: one left edge a column`);
-      assert.deepEqual(columns.over, [], `${lang} at ${width} px: nothing past its column`);
+      const at = `${lang} at ${width} px`;
+      assert.deepEqual(columns.lefts, [1, 1, 1, 1], `${at}: one left edge a column`);
+      assert.deepEqual(columns.over, [], `${at}: nothing past its column`);
+      assert.deepEqual(columns.tall, [], `${at}: every header one line`);
+      assert.deepEqual(columns.uncut, [], `${at}: a cut header ends in an ellipsis, its title whole`);
+      assert.equal(columns.tops, 1, `${at}: a row's values on one line`);
     }
   }
   await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 1});

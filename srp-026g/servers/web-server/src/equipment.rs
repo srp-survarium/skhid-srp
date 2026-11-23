@@ -361,7 +361,7 @@ fn piece_html(
     let anomalies = best(armour, &ANOMALIES);
     let quick = |label: String, value: String, unit: &str| {
         format!(
-            "<div><dt>{}</dt><dd>{}<small>{}</small></dd></div>",
+            "<div><dt title=\"{0}\">{0}</dt><dd>{1}<small>{2}</small></dd></div>",
             escape(&label),
             escape(&value),
             escape(unit)
