@@ -52,32 +52,6 @@ impl Rng {
 /// Steps are at most 50 ms apart.
 const AFTER_DEATH_STEP: Ms = Ms::short(51);
 
-/// How far a player's respawn time modifier moves his wave, ms: the mode's
-/// `respawn_time` x the modifier, as the game's respawn rule rounds it (its
-/// delay less `respawn_time`, 0x316B4B..0x316B66; 0.46c2 0x78562C). Within
-/// a day either way.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Shift(i32);
-
-impl Shift {
-    pub const NONE: Shift = Shift(0);
-
-    pub const fn new(ms: i32) -> Shift {
-        let most = Ms::MAX.get() as i32;
-        Shift(if ms < -most {
-            -most
-        } else if ms > most {
-            most
-        } else {
-            ms
-        })
-    }
-
-    pub const fn get(self) -> i32 {
-        self.0
-    }
-}
-
 /// Where the artefact lies.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Spot {
@@ -404,23 +378,11 @@ pub struct Hud {
 }
 
 /// The next respawn wave as the hud shows it: the ms to it and a wave's
-/// whole length. Every team's; [`Wave::seen_by`] makes it a viewer's own.
+/// whole length. Everyone's: a death respawns in it ([`Rule::respawn_at`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Wave {
     pub left_ms: u32,
     pub total_ms: u32,
-}
-
-impl Wave {
-    /// The wave a viewer sees at `now`: his own respawn while one is to come
-    /// (`due`, the respawn rule's time of his place: what the game's
-    /// "Respawn in" line counts to, a modifier in it), else the team's.
-    pub fn seen_by(self, now: Time, due: Option<Time>) -> Wave {
-        match due.map(|due| now.left(due)) {
-            Some(left_ms) if left_ms > 0 => Wave { left_ms, ..self },
-            _ => self,
-        }
-    }
 }
 
 impl Rule {
@@ -586,15 +548,16 @@ impl Rule {
     /// When a player dead at `death` (his death event's time) comes back
     /// while the match is played and deaths respawn: at the wave the hud
     /// showed at his death's step (the first multiple of `respawn_time` from
-    /// the match's start after that step), moved by his modifier's `shift`,
-    /// never in or before that step. 0.46c2 (0x785598..0x7856C4) takes the
-    /// wave at or after `death + time_needed_to_respawn` (7 s), so a death
-    /// in the 7 s before a wave missed it (the owner, 2026-11-23). The game
-    /// puts the time on its simulation grid (the next step at or after it).
-    /// `None` before the start and after the end (the respawn rule's own
-    /// time stands) and in sudden death (nobody comes back). A time that
+    /// the match's start after that step), everyone's alike: the respawn
+    /// modifier (the radio) has no effect in waves (the owner, 2026-11-23).
+    /// 0.46c2 (0x785598..0x7856C4) takes the wave at or after `death +
+    /// time_needed_to_respawn` (7 s), so a death in the 7 s before a wave
+    /// missed it (the owner, 2026-11-23), and moves it by the modifier. The
+    /// game puts the time on its simulation grid (the next step at or after
+    /// it). `None` before the start and after the end (the respawn rule's
+    /// own time stands) and in sudden death (nobody comes back). A time that
     /// falls in a round's restart is held by [`Rule::spawning`].
-    pub fn respawn_at(&self, params: &Params, death: Time, shift: Shift) -> Option<Time> {
+    pub fn respawn_at(&self, params: &Params, death: Time) -> Option<Time> {
         let Stage::Play(play) = self.stage else {
             return None;
         };
@@ -602,9 +565,7 @@ impl Rule {
             return None;
         }
         let least = death.after(AFTER_DEATH_STEP).elapsed(play.start);
-        let moved = i64::from(wave_from(params, least)) + i64::from(shift.get());
-        let after = moved.clamp(i64::from(least), i64::from(u32::MAX >> 1)) as u32;
-        Some(Time::from_ms(play.start.ms().wrapping_add(after)))
+        Some(Time::from_ms(play.start.ms().wrapping_add(wave_from(params, least))))
     }
 
     /// What follows the 3 s that end at `until` (its delivery `until` less
